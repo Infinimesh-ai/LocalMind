@@ -3043,6 +3043,7 @@ async function main() {
   );
   assert.deepEqual(executionRequest.executionFailureEventRequestInputs, [
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionProviderResponseRequestFingerprint',
     'executionResultRequestFingerprint',
     'executionRetryPolicyRequestFingerprint',
@@ -3145,6 +3146,7 @@ async function main() {
     /^[0-9a-f]{16}$/
   );
   assert.deepEqual(executionRequest.executionRollbackExecutorRequestInputs, [
+    'candidateEvidenceSetFingerprint',
     'executionFailureEventRequestFingerprint',
     'executionProviderResponseRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -3175,6 +3177,7 @@ async function main() {
     /^[0-9a-f]{16}$/
   );
   assert.deepEqual(executionRequest.executionRollbackOperationRequestInputs, [
+    'candidateEvidenceSetFingerprint',
     'executionFailureEventRequestFingerprint',
     'executionProviderResponseRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -3203,6 +3206,7 @@ async function main() {
     /^[0-9a-f]{16}$/
   );
   assert.deepEqual(executionRequest.executionRollbackOutcomeRequestInputs, [
+    'candidateEvidenceSetFingerprint',
     'executionFailureEventRequestFingerprint',
     'executionProviderResponseRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -3232,6 +3236,7 @@ async function main() {
     /^[0-9a-f]{16}$/
   );
   assert.deepEqual(executionRequest.executionRollbackTriggerRequestInputs, [
+    'candidateEvidenceSetFingerprint',
     'executionFailureEventRequestFingerprint',
     'executionProviderResponseRequestFingerprint',
     'executionResultRequestFingerprint',

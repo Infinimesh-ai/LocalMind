@@ -6596,6 +6596,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionFailureEventRequestStatus = 'not_recorded_read_only';
   const executionFailureEventRequestInputs = [
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionProviderResponseRequestFingerprint',
     'executionResultRequestFingerprint',
     'executionRetryPolicyRequestFingerprint',
@@ -6612,6 +6613,8 @@ function buildPromptRegistryRepairExecutionRequest(
     .update(
       stableRepairRecommendationStringify({
         auditEventRequestFingerprint,
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         created: false,
         executionProviderResponseRequestFingerprint,
         executionResultRequestFingerprint,
@@ -6635,6 +6638,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'repair-execution-rollback-trigger-request/v1';
   const executionRollbackTriggerRequestStatus = 'not_created_read_only';
   const executionRollbackTriggerRequestInputs = [
+    'candidateEvidenceSetFingerprint',
     'executionFailureEventRequestFingerprint',
     'executionProviderResponseRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -6651,6 +6655,8 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRollbackTriggerRequestFingerprint = createHash('sha256')
     .update(
       stableRepairRecommendationStringify({
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         created: false,
         executionFailureEventRequestFingerprint,
         executionProviderResponseRequestFingerprint,
@@ -6675,6 +6681,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'repair-execution-rollback-executor-request/v1';
   const executionRollbackExecutorRequestStatus = 'not_started_read_only';
   const executionRollbackExecutorRequestInputs = [
+    'candidateEvidenceSetFingerprint',
     'executionFailureEventRequestFingerprint',
     'executionProviderResponseRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -6691,6 +6698,8 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRollbackExecutorRequestFingerprint = createHash('sha256')
     .update(
       stableRepairRecommendationStringify({
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         created: false,
         executionFailureEventRequestFingerprint,
         executionProviderResponseRequestFingerprint,
@@ -6715,6 +6724,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'repair-execution-rollback-operation-request/v1';
   const executionRollbackOperationRequestStatus = 'not_created_read_only';
   const executionRollbackOperationRequestInputs = [
+    'candidateEvidenceSetFingerprint',
     'executionFailureEventRequestFingerprint',
     'executionProviderResponseRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -6732,6 +6742,8 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRollbackOperationRequestFingerprint = createHash('sha256')
     .update(
       stableRepairRecommendationStringify({
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         created: false,
         executionFailureEventRequestFingerprint,
         executionProviderResponseRequestFingerprint,
@@ -6757,6 +6769,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'repair-execution-rollback-outcome-request/v1';
   const executionRollbackOutcomeRequestStatus = 'not_recorded_read_only';
   const executionRollbackOutcomeRequestInputs = [
+    'candidateEvidenceSetFingerprint',
     'executionFailureEventRequestFingerprint',
     'executionProviderResponseRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -6775,6 +6788,8 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRollbackOutcomeRequestFingerprint = createHash('sha256')
     .update(
       stableRepairRecommendationStringify({
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         created: false,
         executionFailureEventRequestFingerprint,
         executionProviderResponseRequestFingerprint,

@@ -3836,6 +3836,7 @@ describe('AiPage', () => {
             : 'ddddffffddddeeee',
           executionFailureEventRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionProviderResponseRequestFingerprint',
             'executionResultRequestFingerprint',
             'executionRetryPolicyRequestFingerprint',
@@ -3913,6 +3914,7 @@ describe('AiPage', () => {
             ? 'aaaaccccffffeeee'
             : 'ddddccccffffeeee',
           executionRollbackExecutorRequestInputs: [
+            'candidateEvidenceSetFingerprint',
             'executionFailureEventRequestFingerprint',
             'executionProviderResponseRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -3934,6 +3936,7 @@ describe('AiPage', () => {
             ? 'aaaaddddffffeeee'
             : 'ddddddddffffeeee',
           executionRollbackOperationRequestInputs: [
+            'candidateEvidenceSetFingerprint',
             'executionFailureEventRequestFingerprint',
             'executionProviderResponseRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -3956,6 +3959,7 @@ describe('AiPage', () => {
             ? 'aaaaeeeeffffdddd'
             : 'ddddeeeeffffdddd',
           executionRollbackOutcomeRequestInputs: [
+            'candidateEvidenceSetFingerprint',
             'executionFailureEventRequestFingerprint',
             'executionProviderResponseRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -3979,6 +3983,7 @@ describe('AiPage', () => {
             ? 'aaaabbbbffffeeee'
             : 'ddddbbbbffffeeee',
           executionRollbackTriggerRequestInputs: [
+            'candidateEvidenceSetFingerprint',
             'executionFailureEventRequestFingerprint',
             'executionProviderResponseRequestFingerprint',
             'executionResultRequestFingerprint',
