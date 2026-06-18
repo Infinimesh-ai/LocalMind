@@ -5724,6 +5724,43 @@ function buildActionRunDiagnosticsText(run: ActionRunDiagnosticsItem) {
   return lines.filter((line): line is string => Boolean(line)).join('\n');
 }
 
+function buildActionRunDiagnosticsManifestJson(run: ActionRunDiagnosticsItem) {
+  return JSON.stringify(run.agentRuntimeDiagnosticsManifest, null, 2);
+}
+
+function ActionRunDiagnosticsPanel({
+  diagnosticsText,
+  manifestJson,
+  runId,
+}: {
+  diagnosticsText: string;
+  manifestJson: string;
+  runId: string;
+}) {
+  return (
+    <div className="mt-2 space-y-2 rounded-md border border-border/70 bg-muted/30 p-2">
+      <div>
+        <div className="text-xs font-medium">Diagnostics text</div>
+        <pre
+          className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-muted-foreground"
+          data-testid={`action-run-diagnostics-${runId}`}
+        >
+          {diagnosticsText}
+        </pre>
+      </div>
+      <div>
+        <div className="text-xs font-medium">Diagnostics manifest JSON</div>
+        <pre
+          className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-muted-foreground"
+          data-testid={`action-run-diagnostics-manifest-json-${runId}`}
+        >
+          {manifestJson}
+        </pre>
+      </div>
+    </div>
+  );
+}
+
 function ActionRunRecentList({
   actionRuns,
   isValidating,
@@ -5767,6 +5804,7 @@ function ActionRunRecentList({
         <TableBody>
           {actionRuns.map(run => {
             const diagnosticsText = buildActionRunDiagnosticsText(run);
+            const manifestJson = buildActionRunDiagnosticsManifestJson(run);
             const fallbackLabel = formatActionRunPreparedRouteFallbacks(run);
             const stepFallbackLabel =
               formatActionRunPreparedRouteStepFallbacks(run);
@@ -5973,30 +6011,18 @@ function ActionRunRecentList({
                             {stepFallbackLabel}
                           </div>
                         ) : null}
-                        <div className="mt-2 rounded-md border border-border/70 bg-muted/30 p-2">
-                          <div className="text-xs font-medium">
-                            Diagnostics text
-                          </div>
-                          <pre
-                            className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-muted-foreground"
-                            data-testid={`action-run-diagnostics-${run.id}`}
-                          >
-                            {diagnosticsText}
-                          </pre>
-                        </div>
+                        <ActionRunDiagnosticsPanel
+                          diagnosticsText={diagnosticsText}
+                          manifestJson={manifestJson}
+                          runId={run.id}
+                        />
                       </>
                     ) : (
-                      <div className="mt-2 rounded-md border border-border/70 bg-muted/30 p-2">
-                        <div className="text-xs font-medium">
-                          Diagnostics text
-                        </div>
-                        <pre
-                          className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-muted-foreground"
-                          data-testid={`action-run-diagnostics-${run.id}`}
-                        >
-                          {diagnosticsText}
-                        </pre>
-                      </div>
+                      <ActionRunDiagnosticsPanel
+                        diagnosticsText={diagnosticsText}
+                        manifestJson={manifestJson}
+                        runId={run.id}
+                      />
                     )}
                   </div>
                 </TableCell>

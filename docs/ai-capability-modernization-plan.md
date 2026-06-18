@@ -13754,3 +13754,29 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - manifest 的 `version` 仍是应用层字符串，不是 DB-backed Agent Runtime schema revision、Model Registry revision、Provider Registry revision 或迁移版本。
 - 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、筛选、JSON export、一键复制按钮或 Agent Runtime 原生 lifecycle artifact。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 408. P3 落地记录：Admin Action Run Diagnostics Manifest JSON Preview
+
+本轮继续收敛第 407 节剩余风险中 “manifest 仍没有 JSON 导出入口” 的前置问题。实际代码与目标 AI 中间层架构的冲突点是：`agentRuntimeDiagnosticsManifest` 已经作为结构化 GraphQL 字段返回，但 Admin recent action runs 仍只把它格式化成英文摘要文本；自部署管理员或后续 support bundle 工作流若要复制机器可读 manifest，需要手动从 GraphQL 响应或开发者工具中提取。本轮在 Admin action run diagnostics 面板中增加只读 manifest JSON preview，复用现有 GraphQL manifest 对象，不改变后端 schema、trace 存储、真实 dispatch、Agent Runtime 状态机或持久化 schema。
+
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - 新增 `buildActionRunDiagnosticsManifestJson()`，对 `run.agentRuntimeDiagnosticsManifest` 输出稳定缩进 JSON。
+  - 新增 `ActionRunDiagnosticsPanel`，统一展示既有 copyable diagnostics text 与新的 `Diagnostics manifest JSON` 预览。
+  - 成功 prepared trace run 与无 prepared trace 的失败 run 都显示 manifest JSON preview。
+- 测试覆盖：
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 断言成功 run 和失败 run 的 manifest JSON preview 可被 `JSON.parse()` 解析，并与 GraphQL fixture 中的 `agentRuntimeDiagnosticsManifest` 完全一致。
+
+该实现只调整 Admin 只读展示与测试，不新增 GraphQL 字段、不新增 DB migration、不改变 action run trace 存储结构、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、repair mutation guard、正式 support bundle schema、Model Registry revision 或 Provider Registry revision。它把 manifest 从“GraphQL 结构字段 + 英文摘要”推进到“Admin 页面也能直接看到机器可读 JSON preview”，为后续一键复制、下载 support bundle 和 route explain JSON 契约提供更直接的前端落点。
+
+验证策略：
+
+- 本轮为 Admin UI test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- 该 JSON preview 仍只是页面内只读 `<pre>`，不是正式 support bundle download/export API，也没有一键复制按钮、筛选入口或文件命名/脱敏审计元数据。
+- preview 仅包含当前 GraphQL manifest 对象，不包含完整 prepared route trace、timeline item payload、native trace event payload、tool output、Codex/MCP adapter 输出或审批结果。
+- manifest 的 `version` 仍是应用层字符串，不是 DB-backed Agent Runtime schema revision、Model Registry revision、Provider Registry revision 或迁移版本。
+- 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、筛选、download/export 控制或 Agent Runtime 原生 lifecycle artifact。
+- 当前 runtime 镜像未包含本轮纯前端源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

@@ -8190,6 +8190,12 @@ describe('AiPage', () => {
     expect(actionRunDiagnostics).toContain(
       `Agent runtime diagnostics manifest agent-runtime-diagnostics-manifest/v1 / action mindmap.generate@v1 / run status Completed / fingerprint ${actionRunAgentRuntimeDiagnosticsFingerprint} / projection ${actionRunProjectionContractFingerprint} / timeline ${actionRunTimelineRouteEvidenceSetFingerprint} / source ai_action_run_agent_runtime_projection/v1 / schema projection_contract_only / prepared trace yes / routes 3/3 / steps 2 / timeline items 3 / projection gaps 5 / timeline gaps 10 / schema gaps 7 / timeline events run_status -> model_step / native events action_trace -> tool:dispatch`
     );
+    const actionRunManifestJson =
+      screen.getByTestId('action-run-diagnostics-manifest-json-run-123')
+        .textContent ?? '';
+    expect(JSON.parse(actionRunManifestJson)).toEqual(
+      actionRunsPayload[0].agentRuntimeDiagnosticsManifest
+    );
     expect(actionRunDiagnostics).toContain(
       'Agent runtime projection ai_action_run_agent_runtime_projection/v1'
     );
@@ -8319,6 +8325,12 @@ describe('AiPage', () => {
     );
     const failedRunDiagnostics =
       screen.getByTestId('action-run-diagnostics-run-failed').textContent ?? '';
+    const failedRunManifestJson =
+      screen.getByTestId('action-run-diagnostics-manifest-json-run-failed')
+        .textContent ?? '';
+    expect(JSON.parse(failedRunManifestJson)).toEqual(
+      actionRunsPayload[1].agentRuntimeDiagnosticsManifest
+    );
     expect(failedRunDiagnostics).toContain('Action run run-failed');
     expect(failedRunDiagnostics).toContain('Status Failed');
     expect(failedRunDiagnostics).toContain('Error action_bridge_stream_error');
