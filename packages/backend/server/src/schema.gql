@@ -585,6 +585,7 @@ type CopilotActionRunDiagnosticsItemType {
   actionId: String!
   actionVersion: String!
   agentRuntimeNativeTraceEventTypes: [String!]!
+  agentRuntimeProjectedStepTypes: [String!]!
   agentRuntimeProjectionSource: String!
   agentRuntimeProjectionGaps: [String!]!
   agentRuntimeRunId: String!
@@ -594,6 +595,7 @@ type CopilotActionRunDiagnosticsItemType {
   agentRuntimeStepKinds: [String!]!
   agentRuntimeStepStatuses: [String!]!
   agentRuntimeStepTypes: [String!]!
+  agentRuntimeTargetStepTypes: [String!]!
   agentRuntimeUnsupportedStepTypes: [String!]!
   attempt: SafeInt!
   createdAt: DateTime!

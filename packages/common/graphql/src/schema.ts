@@ -607,6 +607,7 @@ export interface CopilotActionRunDiagnosticsItemType {
   actionId: Scalars['String']['output'];
   actionVersion: Scalars['String']['output'];
   agentRuntimeNativeTraceEventTypes: Array<Scalars['String']['output']>;
+  agentRuntimeProjectedStepTypes: Array<Scalars['String']['output']>;
   agentRuntimeProjectionSource: Scalars['String']['output'];
   agentRuntimeProjectionGaps: Array<Scalars['String']['output']>;
   agentRuntimeRunId: Scalars['String']['output'];
@@ -616,6 +617,7 @@ export interface CopilotActionRunDiagnosticsItemType {
   agentRuntimeStepKinds: Array<Scalars['String']['output']>;
   agentRuntimeStepStatuses: Array<Scalars['String']['output']>;
   agentRuntimeStepTypes: Array<Scalars['String']['output']>;
+  agentRuntimeTargetStepTypes: Array<Scalars['String']['output']>;
   agentRuntimeUnsupportedStepTypes: Array<Scalars['String']['output']>;
   attempt: Scalars['SafeInt']['output'];
   createdAt: Scalars['DateTime']['output'];
@@ -8301,6 +8303,7 @@ export type GetCopilotActionRunsQuery = {
         actionId: string;
         actionVersion: string;
         agentRuntimeNativeTraceEventTypes: Array<string>;
+        agentRuntimeProjectedStepTypes: Array<string>;
         agentRuntimeProjectionSource: string;
         agentRuntimeProjectionGaps: Array<string>;
         agentRuntimeRunId: string;
@@ -8310,6 +8313,7 @@ export type GetCopilotActionRunsQuery = {
         agentRuntimeStepKinds: Array<string>;
         agentRuntimeStepStatuses: Array<string>;
         agentRuntimeStepTypes: Array<string>;
+        agentRuntimeTargetStepTypes: Array<string>;
         agentRuntimeUnsupportedStepTypes: Array<string>;
         attempt: number;
         createdAt: string;

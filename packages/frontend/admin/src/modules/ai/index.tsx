@@ -4825,6 +4825,30 @@ function formatActionRunAgentRuntimeStepKinds(run: ActionRunDiagnosticsItem) {
   return `Agent runtime step kinds ${run.agentRuntimeStepKinds.join(' | ')}`;
 }
 
+function formatActionRunAgentRuntimeTargetStepTypes(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeTargetStepTypes.length) {
+    return 'Agent runtime target step types none';
+  }
+
+  return `Agent runtime target step types ${run.agentRuntimeTargetStepTypes.join(
+    ' | '
+  )}`;
+}
+
+function formatActionRunAgentRuntimeProjectedStepTypes(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeProjectedStepTypes.length) {
+    return 'Agent runtime projected step types none';
+  }
+
+  return `Agent runtime projected step types ${run.agentRuntimeProjectedStepTypes.join(
+    ' | '
+  )}`;
+}
+
 function formatActionRunAgentRuntimeProjectionGaps(
   run: ActionRunDiagnosticsItem
 ) {
@@ -4887,6 +4911,8 @@ function buildActionRunDiagnosticsText(run: ActionRunDiagnosticsItem) {
     formatActionRunAgentRuntimeStepTypes(run),
     formatActionRunAgentRuntimeStepStatuses(run),
     formatActionRunAgentRuntimeStepKinds(run),
+    formatActionRunAgentRuntimeTargetStepTypes(run),
+    formatActionRunAgentRuntimeProjectedStepTypes(run),
     formatActionRunAgentRuntimeProjectionGaps(run),
     formatActionRunAgentRuntimeUnsupportedStepTypes(run),
     formatActionRunAgentRuntimeNativeTraceEvents(run),

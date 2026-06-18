@@ -3379,6 +3379,7 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       actionId: 'mindmap.generate',
       actionVersion: 'v1',
       agentRuntimeNativeTraceEventTypes: ['action_trace', 'tool:dispatch'],
+      agentRuntimeProjectedStepTypes: ['model'],
       agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
       agentRuntimeProjectionGaps: [
         'tool -> not_projected',
@@ -3394,6 +3395,14 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       agentRuntimeStepKinds: ['generate -> structured'],
       agentRuntimeStepStatuses: ['generate -> completed'],
       agentRuntimeStepTypes: ['generate -> model'],
+      agentRuntimeTargetStepTypes: [
+        'model',
+        'tool',
+        'approval',
+        'handoff',
+        'codex',
+        'mcp',
+      ],
       agentRuntimeUnsupportedStepTypes: [
         'tool',
         'approval',
@@ -3451,6 +3460,7 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
     {
       actionId: 'image.filter.sketch',
       agentRuntimeNativeTraceEventTypes: [],
+      agentRuntimeProjectedStepTypes: ['model'],
       agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
       agentRuntimeProjectionGaps: [
         'model -> no_prepared_route_trace',
@@ -3467,6 +3477,14 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       agentRuntimeStepKinds: [],
       agentRuntimeStepStatuses: [],
       agentRuntimeStepTypes: [],
+      agentRuntimeTargetStepTypes: [
+        'model',
+        'tool',
+        'approval',
+        'handoff',
+        'codex',
+        'mcp',
+      ],
       agentRuntimeUnsupportedStepTypes: [
         'tool',
         'approval',

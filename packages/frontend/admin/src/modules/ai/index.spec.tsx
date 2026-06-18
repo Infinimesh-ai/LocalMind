@@ -2621,6 +2621,7 @@ const actionRunsPayload = [
     actionId: 'mindmap.generate',
     actionVersion: 'v1',
     agentRuntimeNativeTraceEventTypes: ['action_trace', 'tool:dispatch'],
+    agentRuntimeProjectedStepTypes: ['model'],
     agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
     agentRuntimeProjectionGaps: [
       'tool -> not_projected',
@@ -2642,6 +2643,14 @@ const actionRunsPayload = [
       'generate-image -> completed',
     ],
     agentRuntimeStepTypes: ['generate -> model', 'generate-image -> model'],
+    agentRuntimeTargetStepTypes: [
+      'model',
+      'tool',
+      'approval',
+      'handoff',
+      'codex',
+      'mcp',
+    ],
     agentRuntimeUnsupportedStepTypes: [
       'tool',
       'approval',
@@ -2738,6 +2747,7 @@ const actionRunsPayload = [
     actionId: 'image.filter.sketch',
     actionVersion: 'v1',
     agentRuntimeNativeTraceEventTypes: [],
+    agentRuntimeProjectedStepTypes: ['model'],
     agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
     agentRuntimeProjectionGaps: [
       'model -> no_prepared_route_trace',
@@ -2754,6 +2764,14 @@ const actionRunsPayload = [
     agentRuntimeStepKinds: [],
     agentRuntimeStepStatuses: [],
     agentRuntimeStepTypes: [],
+    agentRuntimeTargetStepTypes: [
+      'model',
+      'tool',
+      'approval',
+      'handoff',
+      'codex',
+      'mcp',
+    ],
     agentRuntimeUnsupportedStepTypes: [
       'tool',
       'approval',
@@ -6464,6 +6482,12 @@ describe('AiPage', () => {
       'Agent runtime step kinds generate -> structured | generate-image -> image'
     );
     expect(actionRunDiagnostics).toContain(
+      'Agent runtime target step types model | tool | approval | handoff | codex | mcp'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime projected step types model'
+    );
+    expect(actionRunDiagnostics).toContain(
       'Agent runtime projection gaps tool -> not_projected | approval -> not_projected | handoff -> not_projected | codex -> not_projected | mcp -> not_projected'
     );
     expect(actionRunDiagnostics).toContain(
@@ -6490,6 +6514,12 @@ describe('AiPage', () => {
     expect(failedRunDiagnostics).toContain('Agent runtime run run-failed');
     expect(failedRunDiagnostics).toContain('Agent runtime status Failed');
     expect(failedRunDiagnostics).toContain('Agent runtime steps none');
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime target step types model | tool | approval | handoff | codex | mcp'
+    );
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime projected step types model'
+    );
     expect(failedRunDiagnostics).toContain(
       'Agent runtime projection gaps model -> no_prepared_route_trace | tool -> not_projected | approval -> not_projected | handoff -> not_projected | codex -> not_projected | mcp -> not_projected'
     );

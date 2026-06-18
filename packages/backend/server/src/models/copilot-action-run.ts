@@ -4,6 +4,15 @@ import { Prisma as PrismaClient } from '@prisma/client';
 
 import { BaseModel } from './base';
 import { normalizeActionModelSelectionSource } from './copilot-action-model-selection';
+import {
+  AI_ACTION_RUN_AGENT_RUNTIME_PROJECTION_SOURCE,
+  getActionRunAgentRuntimeProjectedStepTypes,
+  getActionRunAgentRuntimeProjectionGaps,
+  getActionRunAgentRuntimeUnsupportedStepTypes,
+  getAgentRuntimeTargetStepTypes,
+  mapActionRunStatusToAgentRuntimeStatus,
+  mapActionRunStatusToAgentRuntimeStepStatus,
+} from './copilot-agent-runtime-projection';
 
 export type AiActionRunStatus =
   | 'created'
@@ -58,6 +67,7 @@ export type CopilotActionRunDiagnosticsItem = {
   actionId: string;
   actionVersion: string;
   agentRuntimeNativeTraceEventTypes: string[];
+  agentRuntimeProjectedStepTypes: string[];
   agentRuntimeProjectionSource: string;
   agentRuntimeProjectionGaps: string[];
   agentRuntimeRunId: string;
@@ -67,6 +77,7 @@ export type CopilotActionRunDiagnosticsItem = {
   agentRuntimeStepKinds: string[];
   agentRuntimeStepStatuses: string[];
   agentRuntimeStepTypes: string[];
+  agentRuntimeTargetStepTypes: string[];
   agentRuntimeUnsupportedStepTypes: string[];
   status: string;
   attempt: number;
@@ -138,48 +149,6 @@ function uniqueNonEmptyStrings(values: Array<string | undefined>) {
     )
   );
 }
-
-function mapActionRunStatusToAgentRuntimeStatus(status: string) {
-  switch (status) {
-    case 'created':
-      return 'queued';
-    case 'running':
-      return 'running';
-    case 'succeeded':
-      return 'completed';
-    case 'failed':
-      return 'failed';
-    case 'aborted':
-      return 'cancelled';
-    default:
-      return 'failed';
-  }
-}
-
-function mapActionRunStatusToAgentRuntimeStepStatus(status: string) {
-  switch (status) {
-    case 'created':
-      return 'pending';
-    case 'running':
-      return 'running';
-    case 'succeeded':
-      return 'completed';
-    case 'failed':
-      return 'failed';
-    case 'aborted':
-      return 'skipped';
-    default:
-      return 'failed';
-  }
-}
-
-const AGENT_RUNTIME_UNSUPPORTED_STEP_TYPES = [
-  'tool',
-  'approval',
-  'handoff',
-  'codex',
-  'mcp',
-];
 
 function normalizeNativeTraceEventType(value: unknown) {
   if (typeof value !== 'string') {
@@ -555,23 +524,29 @@ function summarizePreparedRouteTrace(
     trace?.steps.map(step => `${step.stepId} -> ${agentRuntimeStepStatus}`) ??
       []
   );
+  const agentRuntimeProjectedStepTypes =
+    getActionRunAgentRuntimeProjectedStepTypes();
+  const agentRuntimeProjectedPreparedRouteStepType =
+    agentRuntimeProjectedStepTypes[0] ?? 'model';
   const agentRuntimeStepTypes = uniqueNonEmptyStrings(
-    trace?.steps.map(step => `${step.stepId} -> model`) ?? []
+    trace?.steps.map(
+      step => `${step.stepId} -> ${agentRuntimeProjectedPreparedRouteStepType}`
+    ) ?? []
   );
   const agentRuntimeNativeTraceEventTypes = extractNativeTraceEventTypes(value);
-  const agentRuntimeUnsupportedStepTypes = [
-    ...AGENT_RUNTIME_UNSUPPORTED_STEP_TYPES,
-  ];
-  const agentRuntimeProjectionGaps = uniqueNonEmptyStrings([
-    ...(trace ? [] : ['model -> no_prepared_route_trace']),
-    ...agentRuntimeUnsupportedStepTypes.map(
-      stepType => `${stepType} -> not_projected`
-    ),
-  ]);
+  const agentRuntimeTargetStepTypes = getAgentRuntimeTargetStepTypes();
+  const agentRuntimeUnsupportedStepTypes =
+    getActionRunAgentRuntimeUnsupportedStepTypes();
+  const agentRuntimeProjectionGaps = uniqueNonEmptyStrings(
+    getActionRunAgentRuntimeProjectionGaps({
+      hasPreparedRouteTrace: !!trace,
+    })
+  );
 
   return {
     agentRuntimeNativeTraceEventTypes,
-    agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
+    agentRuntimeProjectedStepTypes,
+    agentRuntimeProjectionSource: AI_ACTION_RUN_AGENT_RUNTIME_PROJECTION_SOURCE,
     agentRuntimeProjectionGaps,
     agentRuntimeRunId: runId,
     agentRuntimeRunStatus: mapActionRunStatusToAgentRuntimeStatus(status),
@@ -580,6 +555,7 @@ function summarizePreparedRouteTrace(
     agentRuntimeStepKinds,
     agentRuntimeStepStatuses,
     agentRuntimeStepTypes,
+    agentRuntimeTargetStepTypes,
     agentRuntimeUnsupportedStepTypes,
     hasPreparedRouteTrace: !!trace,
     preparedRouteActualCount,
