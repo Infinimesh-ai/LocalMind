@@ -6872,6 +6872,10 @@ async function main() {
     taskRouteModelSourceSnapshotFixture(taskDiagnosticsErrorRoute);
   const taskDiagnosticsModelSourceSnapshotFingerprint =
     taskRouteSnapshotFingerprintFixture(taskDiagnosticsModelSourceSnapshot);
+  const taskDiagnosticsErrorSnapshotFingerprint =
+    taskRouteSnapshotFingerprintFixture(
+      taskDiagnosticsErrorRoute?.diagnosticsErrors
+    );
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
       `policyCandidate#0:policyCandidateSnapshotFingerprint:${taskDiagnosticsPolicyCandidateSnapshotFingerprint}`
@@ -6941,6 +6945,34 @@ async function main() {
     ),
     true,
     'task diagnostics repair evidence should include task route model source snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      `policyCandidate#0:diagnosticsErrorSnapshotFingerprint:${taskDiagnosticsErrorSnapshotFingerprint}`
+    ),
+    true,
+    'task diagnostics repair evidence should include diagnostics error snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'policyCandidate#0:diagnosticsError#0:stage:describe_embedding_prepare_candidates'
+    ),
+    true,
+    'task diagnostics repair evidence should include diagnostics error stage'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'policyCandidate#0:diagnosticsError#0:code:EmbeddingPrepareDiagnosticsFailure'
+    ),
+    true,
+    'task diagnostics repair evidence should include diagnostics error code'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'policyCandidate#0:diagnosticsError#0:message:embedding prepare diagnostics unavailable'
+    ),
+    true,
+    'task diagnostics repair evidence should include diagnostics error message'
   );
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
@@ -7170,6 +7202,16 @@ async function main() {
     taskDiagnosticsModelSourceSnapshotFingerprint,
     'policy candidate evidence should bind the task route model source snapshot fingerprint'
   );
+  assert.deepEqual(
+    taskDiagnosticsPolicyCandidateEvidence?.diagnosticsErrors,
+    taskDiagnosticsErrorRoute?.diagnosticsErrors,
+    'policy candidate evidence should bind the task route diagnostics errors'
+  );
+  assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.diagnosticsErrorSnapshotFingerprint,
+    taskDiagnosticsErrorSnapshotFingerprint,
+    'policy candidate evidence should bind the task route diagnostics error snapshot fingerprint'
+  );
   const taskDiagnosticsRouteCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'routeCandidate'
@@ -7315,6 +7357,16 @@ async function main() {
     taskDiagnosticsRouteCandidateEvidence?.taskRouteModelSourceSnapshotFingerprint,
     taskDiagnosticsModelSourceSnapshotFingerprint,
     'route candidate evidence should bind the task route model source snapshot fingerprint'
+  );
+  assert.deepEqual(
+    taskDiagnosticsRouteCandidateEvidence?.diagnosticsErrors,
+    taskDiagnosticsErrorRoute?.diagnosticsErrors,
+    'route candidate evidence should bind the task route diagnostics errors'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.diagnosticsErrorSnapshotFingerprint,
+    taskDiagnosticsErrorSnapshotFingerprint,
+    'route candidate evidence should bind the task route diagnostics error snapshot fingerprint'
   );
   const taskDiagnosticsPrepareCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
@@ -7468,6 +7520,16 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.taskRouteModelSourceSnapshotFingerprint,
     taskDiagnosticsModelSourceSnapshotFingerprint,
     'prepare candidate evidence should bind the task route model source snapshot fingerprint'
+  );
+  assert.deepEqual(
+    taskDiagnosticsPrepareCandidateEvidence?.diagnosticsErrors,
+    taskDiagnosticsErrorRoute?.diagnosticsErrors,
+    'prepare candidate evidence should bind the task route diagnostics errors'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.diagnosticsErrorSnapshotFingerprint,
+    taskDiagnosticsErrorSnapshotFingerprint,
+    'prepare candidate evidence should bind the task route diagnostics error snapshot fingerprint'
   );
   const taskDiagnosticsErrorPreviewOperation =
     taskDiagnosticsErrorGate?.repairActionPreview.operations.find(

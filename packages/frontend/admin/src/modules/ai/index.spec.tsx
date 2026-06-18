@@ -2582,6 +2582,11 @@ const readyPublishGateVerdict = withRepairActionPreview(
             candidateIndex: 0,
             candidateKey: 'policy:workspace_indexing:global:ollama-main',
             candidateModelIds: null,
+            diagnosticsErrors: blockedRoute.diagnosticsErrors,
+            diagnosticsErrorSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                blockedRoute.diagnosticsErrors
+              ),
             fallbackProviderIds: blockedRoute.fallbackProviderIds,
             modelId: null,
             preparedModelId: null,
@@ -2659,6 +2664,11 @@ const readyPublishGateVerdict = withRepairActionPreview(
             fallbackProviderIds: blockedRoute.fallbackProviderIds,
             health: 'down',
             healthCheckedAt: '2026-06-16T10:00:00.000Z',
+            diagnosticsErrors: blockedRoute.diagnosticsErrors,
+            diagnosticsErrorSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                blockedRoute.diagnosticsErrors
+              ),
             matched: false,
             modelId: 'workspace-embedding',
             preparedModelId: null,
@@ -2746,6 +2756,11 @@ const readyPublishGateVerdict = withRepairActionPreview(
             fallbackProviderIds: blockedRoute.fallbackProviderIds,
             health: 'down',
             healthCheckedAt: '2026-06-16T10:00:00.000Z',
+            diagnosticsErrors: blockedRoute.diagnosticsErrors,
+            diagnosticsErrorSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                blockedRoute.diagnosticsErrors
+              ),
             modelId: 'workspace-embedding',
             prepared: false,
             preparedModelId: 'nomic-embed-text',
@@ -6781,6 +6796,12 @@ describe('AiPage', () => {
     );
     expect(readyGateDiagnostics).toContain(
       `provider health snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteProviderHealthSnapshotFixture(blockedRoute))}`
+    );
+    expect(readyGateDiagnostics).toContain(
+      `diagnostics error snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(blockedRoute.diagnosticsErrors)}`
+    );
+    expect(readyGateDiagnostics).toContain(
+      'diagnostics errors stage Describe Embedding Prepare Candidates / code EmbeddingPrepareDiagnosticsFailure / message embedding prepare diagnostics unavailable'
     );
     expect(readyGateDiagnostics).toContain(
       'provider ollama-main / allowed yes / available no / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding'

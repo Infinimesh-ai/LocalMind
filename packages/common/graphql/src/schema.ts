@@ -1750,6 +1750,10 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   candidateIndex: Scalars['SafeInt']['output'];
   candidateKey?: Maybe<Scalars['String']['output']>;
   candidateModelIds?: Maybe<Array<Scalars['String']['output']>>;
+  diagnosticsErrors?: Maybe<
+    Array<CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType>
+  >;
+  diagnosticsErrorSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   errorCategory?: Maybe<Scalars['String']['output']>;
   errorCode?: Maybe<Scalars['String']['output']>;
   fallbackProviderIds?: Maybe<Array<Scalars['String']['output']>>;
@@ -1803,6 +1807,13 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   >;
   routeTracePhases?: Maybe<Array<Scalars['String']['output']>>;
   scope: Scalars['String']['output'];
+}
+
+export interface CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType {
+  __typename?: 'CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType';
+  code: Scalars['String']['output'];
+  message: Scalars['String']['output'];
+  stage: Scalars['String']['output'];
 }
 
 export interface CopilotPromptRegistryPublishGateRepairActionCatalogEntryType {
@@ -8011,6 +8022,13 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             candidateIndex: number;
             candidateKey: string | null;
             candidateModelIds: Array<string> | null;
+            diagnosticsErrors: Array<{
+              __typename?: 'CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType';
+              code: string;
+              message: string;
+              stage: string;
+            }> | null;
+            diagnosticsErrorSnapshotFingerprint: string | null;
             errorCategory: string | null;
             errorCode: string | null;
             fallbackProviderIds: Array<string> | null;

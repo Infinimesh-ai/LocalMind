@@ -2604,6 +2604,12 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             candidateIndex
             candidateKey
             candidateModelIds
+            diagnosticsErrors {
+              code
+              message
+              stage
+            }
+            diagnosticsErrorSnapshotFingerprint
             errorCategory
             errorCode
             fallbackProviderIds

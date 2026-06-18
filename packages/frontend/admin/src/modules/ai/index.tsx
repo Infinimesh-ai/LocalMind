@@ -3074,6 +3074,14 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
     evidence.candidateModelIds?.length
       ? `candidate models ${evidence.candidateModelIds.join(', ')}`
       : null,
+    evidence.diagnosticsErrorSnapshotFingerprint
+      ? `diagnostics error snapshot fingerprint ${evidence.diagnosticsErrorSnapshotFingerprint}`
+      : null,
+    evidence.diagnosticsErrors?.length
+      ? `diagnostics errors ${evidence.diagnosticsErrors
+          .map(formatTaskRouteDiagnosticsErrorText)
+          .join(' | ')}`
+      : null,
     evidence.fallbackProviderIds?.length
       ? `fallback ${evidence.fallbackProviderIds.join(' -> ')}`
       : null,

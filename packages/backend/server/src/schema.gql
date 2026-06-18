@@ -1525,6 +1525,8 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   candidateIndex: SafeInt!
   candidateKey: String
   candidateModelIds: [String!]
+  diagnosticsErrors: [CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType!]
+  diagnosticsErrorSnapshotFingerprint: String
   errorCategory: String
   errorCode: String
   fallbackProviderIds: [String!]
@@ -1574,6 +1576,12 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   routeTrace: [CopilotPromptRegistryPublishGateRouteTracePhaseType!]
   routeTracePhases: [String!]
   scope: String!
+}
+
+type CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType {
+  code: String!
+  message: String!
+  stage: String!
 }
 
 type CopilotPromptRegistryPublishGateRepairRecommendationType {

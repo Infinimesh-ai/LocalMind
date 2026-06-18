@@ -13067,3 +13067,34 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 这些字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Provider Health audit record、Model Registry revision、support bundle schema、repair mutation guard input、route policy DSL 或审计记录。
 - 状态位只能说明当前候选链的阶段结果，不能替代完整 `routeTrace`、provider health freshness、capability metadata、latency、cost、token/embedding usage 或 provider response。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 385. P3 落地记录：Task Route Repair Candidate Diagnostics Error Snapshot Evidence
+
+本轮继续收敛第 383、384 节剩余风险中 “repair candidate evidence 能看到候选上下文和阶段状态，但顶层 diagnostics probe error 仍只在 recommendation evidence 文本或 task route 顶层字段里” 的问题。实际代码与目标 AI 中间层架构的冲突点是：embedding/rerank 自部署排障经常需要确认 candidate evidence snapshot 生成时是否存在 provider registry、route resolution 或 prepare probe 错误；但此前每条 policy/route/prepare candidate evidence 没有直接绑定同一份已脱敏 `diagnosticsErrors`，后续 support bundle、route explain 或 repair guard 仍要跨字段拼接。本轮把 task route 顶层已脱敏 diagnostics error list 与稳定快照指纹补进每条 repair candidate evidence，不改变 provider probe、错误采集或错误脱敏行为。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 新增 `diagnosticsErrors` 与 `diagnosticsErrorSnapshotFingerprint`。
+  - `taskRouteCandidateProfileStructuredEvidence()` 将 task route 顶层 `diagnosticsErrors` 投影为只包含 `stage`、`code`、`message` 的安全快照，并对该快照生成 16 位 SHA-256 指纹。
+  - `taskRouteCandidateProfileEvidence()` 的可复制 evidence 文本加入 diagnostics error snapshot fingerprint 和每条 error 的 stage/code/message，让 repair recommendation 文本和结构化 candidate evidence 使用同一份脱敏 probe error 证据。
+- GraphQL 与 common client：
+  - `schema.gql` 新增 `CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType`，并在 repair candidate evidence 暴露 `diagnosticsErrors` 与 `diagnosticsErrorSnapshotFingerprint`。
+  - `getCopilotPromptRegistryPublishGate` selection、common query string 与 `schema.ts` 类型同步新增上述字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence diagnostics text 显示 `diagnostics error snapshot fingerprint ...` 与 `diagnostics errors stage ... / code ... / message ...`。
+- 测试覆盖：
+  - resolver source chain smoke 断言 policy/route/prepare candidate evidence 都绑定同一份 task route diagnostics errors 和 snapshot fingerprint，并断言可复制 evidence 文本包含 diagnostics error stage/code/message。
+  - Admin Vitest fixture 注入 blocked task route 的 diagnostics error 快照，并断言 publish gate diagnostics text 显示该 fingerprint 和错误摘要。
+
+该实现只扩展只读 diagnostics/evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 Provider Health probe、Model Registry/Provider Registry revision row、不改变 repair action catalog、不新增 mutation input、不改变 preview/preflight/execution gate 字段名、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、错误脱敏或审批写入路径。它把 task route repair evidence 从“candidate evidence 需要回看顶层 diagnosticsErrors 才能解释 probe failure”推进到“candidate evidence snapshot 自身携带已脱敏 diagnostics error list 与可比较指纹”，为后续 support bundle、route explain、repair guard、DB-backed route event 与 Provider Health audit 对齐提供更自包含的过渡证据。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `diagnosticsErrors` 仍只反映 diagnostics probe 阶段捕获的已脱敏错误摘要，不代表后续真实 embedding/rerank dispatch、provider response、latency、usage、fallback attempt 或最终执行结果。
+- error `message` 仍来自现有 diagnostics error message 策略；本轮不新增更强的 sanitization，也不暴露 stack、endpoint、headers、token、request payload 或 provider raw error。
+- 这些字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Provider Health audit record、support bundle schema、repair mutation guard input 或审计记录。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

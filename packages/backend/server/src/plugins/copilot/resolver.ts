@@ -717,6 +717,8 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   candidateIndex: number;
   candidateKey?: string;
   candidateModelIds?: string[];
+  diagnosticsErrors?: CopilotTaskRouteDiagnosticsError[];
+  diagnosticsErrorSnapshotFingerprint?: string;
   errorCategory?: string;
   errorCode?: string;
   fallbackProviderIds?: string[];
@@ -1767,6 +1769,18 @@ class CopilotPromptRegistryPublishGateRepairTargetLocatorType implements Copilot
 }
 
 @ObjectType()
+class CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType implements CopilotTaskRouteDiagnosticsError {
+  @Field(() => String)
+  code!: string;
+
+  @Field(() => String)
+  message!: string;
+
+  @Field(() => String)
+  stage!: string;
+}
+
+@ObjectType()
 class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements CopilotPromptRegistryPublishGateRepairCandidateEvidence {
   @Field(() => Boolean, { nullable: true })
   allowed?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['allowed'];
@@ -1785,6 +1799,14 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => [String], { nullable: true })
   candidateModelIds?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['candidateModelIds'];
+
+  @Field(() => [CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType], {
+    nullable: true,
+  })
+  diagnosticsErrors?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['diagnosticsErrors'];
+
+  @Field(() => String, { nullable: true })
+  diagnosticsErrorSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['diagnosticsErrorSnapshotFingerprint'];
 
   @Field(() => String, { nullable: true })
   errorCategory?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['errorCategory'];
@@ -4365,6 +4387,8 @@ function taskRouteRepairCandidateEvidenceBase(
     available?: boolean;
     candidateKey?: string;
     candidateModelIds?: string[];
+    diagnosticsErrors?: CopilotTaskRouteDiagnosticsError[];
+    diagnosticsErrorSnapshotFingerprint?: string;
     errorCategory?: string;
     errorCode?: string;
     fallbackProviderIds?: string[];
@@ -4430,6 +4454,15 @@ function taskRouteRepairCandidateEvidenceBase(
       : {}),
     ...(definedArray(candidate.candidateModelIds) !== undefined
       ? { candidateModelIds: definedArray(candidate.candidateModelIds) }
+      : {}),
+    ...(definedArray(candidate.diagnosticsErrors) !== undefined
+      ? { diagnosticsErrors: definedArray(candidate.diagnosticsErrors) }
+      : {}),
+    ...(candidate.diagnosticsErrorSnapshotFingerprint !== undefined
+      ? {
+          diagnosticsErrorSnapshotFingerprint:
+            candidate.diagnosticsErrorSnapshotFingerprint,
+        }
       : {}),
     ...(candidate.errorCategory !== undefined
       ? { errorCategory: candidate.errorCategory }
@@ -4620,6 +4653,8 @@ function taskRouteCandidateProfileStructuredEvidence(
       available?: boolean;
       candidateKey?: string;
       candidateModelIds?: string[];
+      diagnosticsErrors?: CopilotTaskRouteDiagnosticsError[];
+      diagnosticsErrorSnapshotFingerprint?: string;
       errorCategory?: string;
       errorCode?: string;
       fallbackProviderIds?: string[];
@@ -4730,10 +4765,23 @@ function taskRouteCandidateProfileStructuredEvidence(
     const taskRouteDimensionSnapshotValue = taskRouteDimensionSnapshot(route);
     const taskRouteModelSourceSnapshotValue =
       taskRouteModelSourceSnapshot(route);
+    const diagnosticsErrorSnapshot = route.diagnosticsErrors.map(error => ({
+      code: error.code,
+      message: error.message,
+      stage: error.stage,
+    }));
     const evidence = taskRouteRepairCandidateEvidenceBase(
       scope,
       {
         ...candidate,
+        ...(diagnosticsErrorSnapshot.length
+          ? {
+              diagnosticsErrors: diagnosticsErrorSnapshot,
+              diagnosticsErrorSnapshotFingerprint: taskRouteSnapshotFingerprint(
+                diagnosticsErrorSnapshot
+              ),
+            }
+          : {}),
         fallbackProviderIds: route.fallbackProviderIds,
         prepareCandidateSnapshotFingerprint: taskRouteSnapshotFingerprint(
           prepareCandidateSnapshot
@@ -4836,6 +4884,9 @@ function taskRouteCandidateProfileEvidence(
           candidate.prepared !== undefined
             ? `${candidate.scope}#${candidate.candidateIndex}:prepared:${candidate.prepared}`
             : null,
+          candidate.diagnosticsErrorSnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:diagnosticsErrorSnapshotFingerprint:${candidate.diagnosticsErrorSnapshotFingerprint}`
+            : null,
           candidate.modelId
             ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
             : null,
@@ -4915,6 +4966,14 @@ function taskRouteCandidateProfileEvidence(
           candidate.prepared !== undefined
             ? `${candidate.scope}#${candidate.candidateIndex}:prepared:${candidate.prepared}`
             : null,
+          candidate.diagnosticsErrorSnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:diagnosticsErrorSnapshotFingerprint:${candidate.diagnosticsErrorSnapshotFingerprint}`
+            : null,
+          ...(candidate.diagnosticsErrors ?? []).flatMap((error, index) => [
+            `${candidate.scope}#${candidate.candidateIndex}:diagnosticsError#${index}:stage:${error.stage}`,
+            `${candidate.scope}#${candidate.candidateIndex}:diagnosticsError#${index}:code:${error.code}`,
+            `${candidate.scope}#${candidate.candidateIndex}:diagnosticsError#${index}:message:${error.message}`,
+          ]),
           candidate.requestedModelId
             ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelId:${candidate.requestedModelId}`
             : null,
@@ -5058,8 +5117,11 @@ function taskRouteCandidateProfileEvidence(
         candidate.routeCandidateSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:routeCandidateSnapshotFingerprint:${candidate.routeCandidateSnapshotFingerprint}`
           : null,
+        candidate.diagnosticsErrorSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:diagnosticsErrorSnapshotFingerprint:${candidate.diagnosticsErrorSnapshotFingerprint}`
+          : null,
       ],
-      12
+      13
     )
   );
   const inventoryEvidence = candidateEvidence.flatMap(candidate =>
@@ -5104,6 +5166,9 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.prepared !== undefined
           ? `${candidate.scope}#${candidate.candidateIndex}:prepared:${candidate.prepared}`
+          : null,
+        candidate.diagnosticsErrorSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:diagnosticsErrorSnapshotFingerprint:${candidate.diagnosticsErrorSnapshotFingerprint}`
           : null,
         candidate.requestedModelId
           ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelId:${candidate.requestedModelId}`
@@ -5189,6 +5254,9 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.prepared !== undefined
           ? `${candidate.scope}#${candidate.candidateIndex}:prepared:${candidate.prepared}`
+          : null,
+        candidate.diagnosticsErrorSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:diagnosticsErrorSnapshotFingerprint:${candidate.diagnosticsErrorSnapshotFingerprint}`
           : null,
         candidate.requestedModelSource
           ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelSource:${candidate.requestedModelSource}`
@@ -5303,6 +5371,14 @@ function taskRouteCandidateProfileEvidence(
         candidate.prepared !== undefined
           ? `${candidate.scope}#${candidate.candidateIndex}:prepared:${candidate.prepared}`
           : null,
+        candidate.diagnosticsErrorSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:diagnosticsErrorSnapshotFingerprint:${candidate.diagnosticsErrorSnapshotFingerprint}`
+          : null,
+        ...(candidate.diagnosticsErrors ?? []).flatMap((error, index) => [
+          `${candidate.scope}#${candidate.candidateIndex}:diagnosticsError#${index}:stage:${error.stage}`,
+          `${candidate.scope}#${candidate.candidateIndex}:diagnosticsError#${index}:code:${error.code}`,
+          `${candidate.scope}#${candidate.candidateIndex}:diagnosticsError#${index}:message:${error.message}`,
+        ]),
         candidate.requestedModelId
           ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelId:${candidate.requestedModelId}`
           : null,
