@@ -5728,6 +5728,32 @@ function buildActionRunDiagnosticsManifestJson(run: ActionRunDiagnosticsItem) {
   return JSON.stringify(run.agentRuntimeDiagnosticsManifest, null, 2);
 }
 
+function buildActionRunDiagnosticsManifestFilename(runId: string) {
+  const safeRunId =
+    runId.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'run';
+
+  return `action-run-diagnostics-manifest-${safeRunId}.json`;
+}
+
+function downloadActionRunDiagnosticsManifestJson(
+  runId: string,
+  manifestJson: string
+) {
+  const blob = new Blob([manifestJson], {
+    type: 'application/json;charset=utf-8',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href = url;
+  link.download = buildActionRunDiagnosticsManifestFilename(runId);
+  link.style.display = 'none';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function ActionRunDiagnosticsPanel({
   diagnosticsText,
   manifestJson,
@@ -5760,6 +5786,16 @@ function ActionRunDiagnosticsPanel({
             }}
           >
             Copy JSON
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              downloadActionRunDiagnosticsManifestJson(runId, manifestJson);
+            }}
+          >
+            Download JSON
           </Button>
         </div>
         <pre

@@ -36,6 +36,9 @@ const useMutationMock = vi.fn();
 const mutateMock = vi.fn();
 const requestRepairExecutionMock = vi.fn();
 const writeTextMock = vi.fn();
+const createObjectURLMock = vi.fn();
+const revokeObjectURLMock = vi.fn();
+const anchorClickMock = vi.fn();
 
 function stableFixtureStringify(value: unknown): string {
   if (value === undefined) {
@@ -4358,12 +4361,28 @@ describe('AiPage', () => {
         writeText: writeTextMock,
       },
     });
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: createObjectURLMock,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: revokeObjectURLMock,
+    });
+    Object.defineProperty(HTMLAnchorElement.prototype, 'click', {
+      configurable: true,
+      value: anchorClickMock,
+    });
     useQueryMock.mockReset();
     useMutationMock.mockReset();
     mutateMock.mockReset();
     mutateMock.mockResolvedValue(undefined);
     writeTextMock.mockReset();
     writeTextMock.mockResolvedValue(undefined);
+    createObjectURLMock.mockReset();
+    createObjectURLMock.mockReturnValue('blob:action-run-manifest');
+    revokeObjectURLMock.mockReset();
+    anchorClickMock.mockReset();
     requestRepairExecutionMock.mockReset();
     requestRepairExecutionMock.mockImplementation(
       async ({
@@ -8209,6 +8228,23 @@ describe('AiPage', () => {
     await waitFor(() => {
       expect(writeTextMock).toHaveBeenCalledWith(actionRunManifestJson);
     });
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'Download JSON' })[0]
+    );
+    expect(createObjectURLMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'application/json;charset=utf-8',
+      })
+    );
+    const manifestDownloadAnchor = anchorClickMock.mock
+      .contexts[0] as HTMLAnchorElement;
+    expect(manifestDownloadAnchor.download).toBe(
+      'action-run-diagnostics-manifest-run-123.json'
+    );
+    expect(manifestDownloadAnchor.href).toBe('blob:action-run-manifest');
+    expect(revokeObjectURLMock).toHaveBeenCalledWith(
+      'blob:action-run-manifest'
+    );
     expect(actionRunDiagnostics).toContain(
       'Agent runtime projection ai_action_run_agent_runtime_projection/v1'
     );
