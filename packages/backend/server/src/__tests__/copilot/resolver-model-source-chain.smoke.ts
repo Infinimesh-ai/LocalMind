@@ -40,6 +40,27 @@ function taskRouteTargetFingerprintFixture(input: {
     .slice(0, 16);
 }
 
+function repairPreviewOperationFingerprintFixture(input: {
+  actionKind: string;
+  candidateEvidenceFingerprint: string;
+  catalogVersion: string;
+  code: string;
+  diagnosticsFingerprint: string;
+  inputSchema: Record<string, unknown>;
+  preparedRouteOrderFingerprints: string[];
+  previewStatus: string;
+  requiredCapabilities: string[];
+  reviewMode: string;
+  safety: string;
+  target: string;
+  targetLocatorFingerprint: string;
+}) {
+  return createHash('sha256')
+    .update(stableFingerprintFixtureStringify(input))
+    .digest('hex')
+    .slice(0, 16);
+}
+
 function stableFingerprintFixtureStringify(value: unknown): string {
   if (value === undefined) {
     return 'undefined';
@@ -7964,6 +7985,38 @@ async function main() {
         )
       )
     ).sort()
+  );
+  assert.notEqual(
+    taskDiagnosticsErrorPreviewOperation?.preparedRouteOrderFingerprints.length,
+    0,
+    'task route repair preview operation should expose prepared route order evidence anchors'
+  );
+  assert.equal(
+    taskDiagnosticsErrorPreviewOperation?.operationFingerprint,
+    taskDiagnosticsErrorPreviewOperation
+      ? repairPreviewOperationFingerprintFixture({
+          actionKind: taskDiagnosticsErrorPreviewOperation.actionKind,
+          candidateEvidenceFingerprint:
+            taskDiagnosticsErrorPreviewOperation.candidateEvidenceFingerprint,
+          catalogVersion:
+            taskDiagnosticsErrorGate.repairActionMutationGuard.catalogVersion,
+          code: taskDiagnosticsErrorPreviewOperation.code,
+          diagnosticsFingerprint:
+            taskDiagnosticsErrorPreviewOperation.diagnosticsFingerprint,
+          inputSchema: taskDiagnosticsErrorPreviewOperation.inputSchema,
+          preparedRouteOrderFingerprints:
+            taskDiagnosticsErrorPreviewOperation.preparedRouteOrderFingerprints,
+          previewStatus: taskDiagnosticsErrorPreviewOperation.previewStatus,
+          requiredCapabilities:
+            taskDiagnosticsErrorPreviewOperation.requiredCapabilities,
+          reviewMode: taskDiagnosticsErrorPreviewOperation.reviewMode,
+          safety: taskDiagnosticsErrorPreviewOperation.safety,
+          target: taskDiagnosticsErrorPreviewOperation.target,
+          targetLocatorFingerprint:
+            taskDiagnosticsErrorPreviewOperation.targetLocatorFingerprint,
+        })
+      : undefined,
+    'operation fingerprint should bind the prepared route order fingerprint anchors'
   );
 
   console.log('resolver source chain smoke passed');

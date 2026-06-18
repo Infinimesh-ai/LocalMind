@@ -7747,6 +7747,8 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
           code: operation.code,
           diagnosticsFingerprint: operation.diagnosticsFingerprint,
           inputSchema: operation.inputSchema,
+          preparedRouteOrderFingerprints:
+            operation.preparedRouteOrderFingerprints,
           previewStatus: operation.previewStatus,
           requiredCapabilities: operation.requiredCapabilities,
           reviewMode: operation.reviewMode,
@@ -7782,6 +7784,8 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
             candidateEvidenceKeys: operation.candidateEvidenceKeys,
             diagnosticsFingerprint: operation.diagnosticsFingerprint,
             operationFingerprint: operation.operationFingerprint,
+            preparedRouteOrderFingerprints:
+              operation.preparedRouteOrderFingerprints,
           }))
           .sort((left, right) =>
             left.operationFingerprint.localeCompare(right.operationFingerprint)
@@ -7854,6 +7858,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
       candidateEvidenceFingerprint: operation.candidateEvidenceFingerprint,
       diagnosticsFingerprint: operation.diagnosticsFingerprint,
       operationFingerprint: operation.operationFingerprint,
+      preparedRouteOrderFingerprints: operation.preparedRouteOrderFingerprints,
       previewStatus: operation.previewStatus,
       reviewMode: operation.reviewMode,
       safety: operation.safety,
