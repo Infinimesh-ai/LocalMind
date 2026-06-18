@@ -13420,3 +13420,29 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 本轮没有新增 GraphQL enum 或 codegen 类型收敛；相关字段当前仍通过既有 string scalar 传输，后续若推进 Model Registry / Prompt Registry contract 强类型化，需要同步收敛 schema 与客户端类型。
 - fallback route 命中 provider runtime alias 时仍依赖当前 resolver/provider adapter 返回的 route metadata；它不替代完整 provider registry revision、native model registry revision 或 support bundle schema。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 397. P3 落地记录：Admin Prompt Default Active Source Chain Summary
+
+本轮继续收敛第 396 节剩余风险中 “`fallback_route` 已经进入模型候选来源链，但 Admin 顶部 Prompt default 摘要仍只展示孤立 default source 字段” 的问题。实际代码与目标 AI 中间层架构的冲突点是：`/admin/ai` 候选表和 copyable diagnostics 已能显示 `Fallback Route -> Prompt -> Registry`，但管理员第一屏摘要仍需要跳到候选行才能确认 active default 是单纯 fallback route、fallback+registry，还是同时命中了 prompt optional override。本轮在 Admin 顶部摘要中复用已构建的 active default candidate，展示 active source chain 与 prompt source chain，不新增后端字段。
+
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - 从 `buildAIModels(modelsPayload)` 结果中按 `modelsPayload.defaultModel` / `model.isDefault` 找到 active default candidate。
+  - 顶部 `Model route diagnostics` 摘要新增 `Active source chain`，展示 `formatAIModelSourcesLabel(activeDefaultModel)`。
+  - 当 active default candidate 携带 `promptModelSources` 时，同步展示 `formatAIModelPromptSourcesLabel(activeDefaultModel)`，让 `fallback_route`、prompt optional override 与 registry 来源链在第一屏摘要可见。
+- 测试覆盖：
+  - Admin Vitest 断言顶部摘要出现 `Active source chain`。
+  - 既有 fallback route fixture 断言 `Fallback Route / Prompt / Registry` 同时出现在顶部摘要与候选表，并覆盖 `Fallback Route -> Prompt Prompt override config ... -> Registry` 的 prompt source chain。
+
+该实现只调整 Admin 只读展示与测试，不新增 GraphQL 字段、不新增 DB migration、不改变 resolver candidate selection、provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、审批写入路径、repair mutation guard、support bundle schema、Model Registry revision 或 Provider Registry revision。它把 prompt default fallback provenance 从“候选行可见”推进到“Admin 第一屏摘要可见”，降低自部署管理员定位 prompt default 不可路由与 optional/registry fallback 交集的成本。
+
+验证策略：
+
+- 本轮为 Admin UI test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused Admin Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- 该摘要仍复用模型列表 resolver 返回的只读 candidate provenance，不代表后续真实 chat/agent dispatch 已持久化 route event、provider response、latency、usage、cost 或最终执行结果。
+- 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、JSON export、一键复制按钮、筛选或 support bundle schema。
+- 当 active default model 不在候选列表中时，摘要只能显示 `Unknown`；这保留了现有只读失败态，不会自动触发 repair 或重新解析模型。
+- 当前 runtime 镜像未包含本轮纯前端源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

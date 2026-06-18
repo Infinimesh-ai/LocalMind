@@ -8244,7 +8244,13 @@ describe('AiPage', () => {
     ).toBeGreaterThan(0);
     expect(
       screen.getAllByText('Fallback Route / Prompt / Registry').length
-    ).toBe(1);
+    ).toBe(2);
+    expect(screen.getByText('Active source chain')).not.toBeNull();
+    expect(
+      screen.getAllByText(
+        'Fallback Route -> Prompt Prompt override config copilot.prompts.overrides[].optionalModels -> Registry'
+      ).length
+    ).toBeGreaterThan(0);
     expect(screen.queryByText('prompt, registry')).toBeNull();
     expect(screen.getAllByText('Route openai-main/gpt-4o-mini').length).toBe(1);
     expect(screen.getAllByText('ollama-main -> openai-default').length).toBe(1);
