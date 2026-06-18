@@ -187,6 +187,7 @@ query getCopilotPromptRegistryPublishGate(
             candidateCount
             matchedCount
             phase
+            preparedCount
             reasons
             selectedCount
           }
@@ -295,6 +296,7 @@ query getCopilotPromptRegistryPublishGate(
             candidateCount
             matchedCount
             phase
+            preparedCount
             reasons
             selectedCount
           }
@@ -618,6 +620,16 @@ query getCopilotPromptRegistryPublishGate(
             reasons
             requestedModelId
             routeModelDefinitionId
+            routeTrace {
+              availableCount
+              blockedCount
+              candidateCount
+              matchedCount
+              phase
+              preparedCount
+              reasons
+              selectedCount
+            }
             routeTracePhases
             scope
           }

@@ -2118,6 +2118,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             candidateCount
             matchedCount
             phase
+            preparedCount
             reasons
             selectedCount
           }
@@ -2224,6 +2225,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             candidateCount
             matchedCount
             phase
+            preparedCount
             reasons
             selectedCount
           }
@@ -2547,6 +2549,16 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             reasons
             requestedModelId
             routeModelDefinitionId
+            routeTrace {
+              availableCount
+              blockedCount
+              candidateCount
+              matchedCount
+              phase
+              preparedCount
+              reasons
+              selectedCount
+            }
             routeTracePhases
             scope
           }

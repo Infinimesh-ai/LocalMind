@@ -1439,6 +1439,7 @@ type CopilotPromptRegistryPublishGateRouteTracePhaseType {
   candidateCount: SafeInt!
   matchedCount: SafeInt
   phase: String!
+  preparedCount: SafeInt
   reasons: [String!]!
   selectedCount: SafeInt
 }
@@ -1521,6 +1522,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   reasons: [String!]!
   requestedModelId: String
   routeModelDefinitionId: String
+  routeTrace: [CopilotPromptRegistryPublishGateRouteTracePhaseType!]
   routeTracePhases: [String!]
   scope: String!
 }

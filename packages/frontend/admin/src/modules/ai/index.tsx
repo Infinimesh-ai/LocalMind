@@ -1049,6 +1049,7 @@ function formatPromptRegistryPublishGateRoutePhaseText(
     row.blockedCount != null ? `blocked ${row.blockedCount}` : null,
     row.matchedCount != null ? `matched ${row.matchedCount}` : null,
     row.selectedCount != null ? `selected ${row.selectedCount}` : null,
+    row.preparedCount != null ? `prepared ${row.preparedCount}` : null,
     row.reasons.length
       ? `reasons ${row.reasons.map(formatFeatureKind).join(', ')}`
       : 'reasons none',
@@ -2968,6 +2969,11 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
       : null,
     evidence.routeTracePhases?.length
       ? `route phases ${evidence.routeTracePhases.join(' -> ')}`
+      : null,
+    evidence.routeTrace?.length
+      ? `route trace ${evidence.routeTrace
+          .map(formatPromptRegistryPublishGateRoutePhaseText)
+          .join(' | ')}`
       : null,
     evidence.reasons.length ? `reasons ${evidence.reasons.join(', ')}` : null,
   ]);

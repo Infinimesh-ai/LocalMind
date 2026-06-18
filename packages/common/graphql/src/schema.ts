@@ -1631,6 +1631,7 @@ export interface CopilotPromptRegistryPublishGateRouteTracePhaseType {
   candidateCount: Scalars['SafeInt']['output'];
   matchedCount?: Maybe<Scalars['SafeInt']['output']>;
   phase: Scalars['String']['output'];
+  preparedCount?: Maybe<Scalars['SafeInt']['output']>;
   reasons: Array<Scalars['String']['output']>;
   selectedCount?: Maybe<Scalars['SafeInt']['output']>;
 }
@@ -1738,6 +1739,9 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   reasons: Array<Scalars['String']['output']>;
   requestedModelId?: Maybe<Scalars['String']['output']>;
   routeModelDefinitionId?: Maybe<Scalars['String']['output']>;
+  routeTrace?: Maybe<
+    Array<CopilotPromptRegistryPublishGateRouteTracePhaseType>
+  >;
   routeTracePhases?: Maybe<Array<Scalars['String']['output']>>;
   scope: Scalars['String']['output'];
 }
@@ -7551,6 +7555,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             candidateCount: number;
             matchedCount: number | null;
             phase: string;
+            preparedCount: number | null;
             reasons: Array<string>;
             selectedCount: number | null;
           }>;
@@ -7661,6 +7666,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             candidateCount: number;
             matchedCount: number | null;
             phase: string;
+            preparedCount: number | null;
             reasons: Array<string>;
             selectedCount: number | null;
           }>;
@@ -7838,6 +7844,17 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             reasons: Array<string>;
             requestedModelId: string | null;
             routeModelDefinitionId: string | null;
+            routeTrace: Array<{
+              __typename?: 'CopilotPromptRegistryPublishGateRouteTracePhaseType';
+              availableCount: number | null;
+              blockedCount: number | null;
+              candidateCount: number;
+              matchedCount: number | null;
+              phase: string;
+              preparedCount: number | null;
+              reasons: Array<string>;
+              selectedCount: number | null;
+            }> | null;
             routeTracePhases: Array<string> | null;
             scope: string;
           }> | null;

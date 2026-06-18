@@ -674,6 +674,7 @@ type CopilotPromptRegistryPublishGateRouteTracePhase = {
   candidateCount: number;
   matchedCount?: number;
   phase: string;
+  preparedCount?: number;
   reasons: string[];
   selectedCount?: number;
 };
@@ -719,6 +720,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   reasons: string[];
   requestedModelId?: string;
   routeModelDefinitionId?: string;
+  routeTrace?: CopilotPromptRegistryPublishGateRouteTracePhase[];
   routeTracePhases?: string[];
   scope: string;
 };
@@ -1504,6 +1506,9 @@ class CopilotPromptRegistryPublishGateRouteTracePhaseType implements CopilotProm
   @Field(() => String)
   phase!: CopilotPromptRegistryPublishGateRouteTracePhase['phase'];
 
+  @Field(() => SafeIntResolver, { nullable: true })
+  preparedCount?: CopilotPromptRegistryPublishGateRouteTracePhase['preparedCount'];
+
   @Field(() => [String])
   reasons!: CopilotPromptRegistryPublishGateRouteTracePhase['reasons'];
 
@@ -1746,6 +1751,11 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   routeModelDefinitionId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeModelDefinitionId'];
+
+  @Field(() => [CopilotPromptRegistryPublishGateRouteTracePhaseType], {
+    nullable: true,
+  })
+  routeTrace?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeTrace'];
 
   @Field(() => [String], { nullable: true })
   routeTracePhases?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeTracePhases'];
@@ -4072,6 +4082,7 @@ function taskRouteRepairCandidateEvidenceBase(
     reasons?: string[];
     requestedModelId?: string;
     routeModelDefinitionId?: string;
+    routeTrace?: CopilotPromptRegistryPublishGateRouteTracePhase[];
     routeTracePhases?: string[];
   },
   index: number
@@ -4144,6 +4155,9 @@ function taskRouteRepairCandidateEvidenceBase(
     ...(candidate.routeModelDefinitionId !== undefined
       ? { routeModelDefinitionId: candidate.routeModelDefinitionId }
       : {}),
+    ...(candidate.routeTrace !== undefined
+      ? { routeTrace: candidate.routeTrace }
+      : {}),
     ...(candidate.routeTracePhases !== undefined
       ? { routeTracePhases: candidate.routeTracePhases }
       : {}),
@@ -4177,6 +4191,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       reasons?: string[];
       requestedModelId?: string;
       routeModelDefinitionId?: string;
+      routeTrace?: CopilotPromptRegistryPublishGateRouteTracePhase[];
       routeTracePhases?: string[];
     },
     index: number
@@ -4188,6 +4203,26 @@ function taskRouteCandidateProfileStructuredEvidence(
         fallbackProviderIds: route.fallbackProviderIds,
         preparedRouteTargets: route.preparedRouteTargets,
         preparedRouteTargetFingerprint: route.preparedRouteTargetFingerprint,
+        routeTrace: route.routeTrace.map(phase => ({
+          ...(phase.availableCount !== undefined
+            ? { availableCount: phase.availableCount }
+            : {}),
+          ...(phase.blockedCount !== undefined
+            ? { blockedCount: phase.blockedCount }
+            : {}),
+          candidateCount: phase.candidateCount,
+          ...(phase.matchedCount !== undefined
+            ? { matchedCount: phase.matchedCount }
+            : {}),
+          phase: phase.phase,
+          ...(phase.preparedCount !== undefined
+            ? { preparedCount: phase.preparedCount }
+            : {}),
+          reasons: phase.reasons,
+          ...(phase.selectedCount !== undefined
+            ? { selectedCount: phase.selectedCount }
+            : {}),
+        })),
         routeTracePhases: route.routeTrace.map(phase => phase.phase),
       },
       index

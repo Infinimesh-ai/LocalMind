@@ -5600,6 +5600,11 @@ async function main() {
     taskDiagnosticsErrorRoute?.routeTrace.map(phase => phase.phase),
     'policy candidate evidence should bind the task route trace phases'
   );
+  assert.deepEqual(
+    taskDiagnosticsPolicyCandidateEvidence?.routeTrace,
+    taskDiagnosticsErrorRoute?.routeTrace,
+    'policy candidate evidence should bind the task route trace'
+  );
   const taskDiagnosticsRouteCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'routeCandidate'
@@ -5644,6 +5649,11 @@ async function main() {
     taskDiagnosticsErrorRoute?.routeTrace.map(phase => phase.phase),
     'route candidate evidence should bind the task route trace phases'
   );
+  assert.deepEqual(
+    taskDiagnosticsRouteCandidateEvidence?.routeTrace,
+    taskDiagnosticsErrorRoute?.routeTrace,
+    'route candidate evidence should bind the task route trace'
+  );
   const taskDiagnosticsPrepareCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'prepareCandidate'
@@ -5683,6 +5693,11 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.routeTracePhases,
     taskDiagnosticsErrorRoute?.routeTrace.map(phase => phase.phase),
     'prepare candidate evidence should bind the task route trace phases'
+  );
+  assert.deepEqual(
+    taskDiagnosticsPrepareCandidateEvidence?.routeTrace,
+    taskDiagnosticsErrorRoute?.routeTrace,
+    'prepare candidate evidence should bind the task route trace'
   );
   const taskDiagnosticsErrorPreviewOperation =
     taskDiagnosticsErrorGate?.repairActionPreview.operations.find(
