@@ -733,6 +733,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   prepared?: boolean;
   preparedModelId?: string;
   prepareCandidateSnapshotFingerprint?: string;
+  preparedRouteOrderFingerprint?: string;
   preparedRouteSnapshotFingerprint?: string;
   preparedRoutes?: CopilotPreparedTaskRouteDiagnosticsType[];
   providerCapabilitySnapshotFingerprint?: string;
@@ -1867,6 +1868,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   prepareCandidateSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['prepareCandidateSnapshotFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  preparedRouteOrderFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedRouteOrderFingerprint'];
 
   @Field(() => String, { nullable: true })
   preparedRouteSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedRouteSnapshotFingerprint'];
@@ -4475,6 +4479,7 @@ function taskRouteRepairCandidateEvidenceBase(
     prepared?: boolean;
     preparedModelId?: string;
     prepareCandidateSnapshotFingerprint?: string;
+    preparedRouteOrderFingerprint?: string;
     preparedRouteSnapshotFingerprint?: string;
     preparedRoutes?: CopilotPreparedTaskRouteDiagnosticsType[];
     providerCapabilitySnapshotFingerprint?: string;
@@ -4591,6 +4596,12 @@ function taskRouteRepairCandidateEvidenceBase(
       ? {
           prepareCandidateSnapshotFingerprint:
             candidate.prepareCandidateSnapshotFingerprint,
+        }
+      : {}),
+    ...(candidate.preparedRouteOrderFingerprint !== undefined
+      ? {
+          preparedRouteOrderFingerprint:
+            candidate.preparedRouteOrderFingerprint,
         }
       : {}),
     ...(candidate.preparedRouteSnapshotFingerprint !== undefined
@@ -4835,6 +4846,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       prepared?: boolean;
       preparedModelId?: string;
       prepareCandidateSnapshotFingerprint?: string;
+      preparedRouteOrderFingerprint?: string;
       preparedRouteSnapshotFingerprint?: string;
       preparedRoutes?: CopilotPreparedTaskRouteDiagnosticsType[];
       providerCapabilitySnapshotFingerprint?: string;
@@ -4941,6 +4953,9 @@ function taskRouteCandidateProfileStructuredEvidence(
     const preparedRouteSnapshot = taskRoutePreparedRouteSnapshot(
       route.preparedRoutes
     );
+    const preparedRouteOrderSnapshot = taskRoutePreparedRouteOrderSnapshot(
+      route.preparedRoutes
+    );
     const providerCapabilitySnapshot =
       taskRouteProviderCapabilitySnapshot(route);
     const providerCostSnapshot = taskRouteProviderCostSnapshot(route);
@@ -4989,6 +5004,9 @@ function taskRouteCandidateProfileStructuredEvidence(
         fallbackProviderIds: route.fallbackProviderIds,
         prepareCandidateSnapshotFingerprint: taskRouteSnapshotFingerprint(
           prepareCandidateSnapshot
+        ),
+        preparedRouteOrderFingerprint: taskRouteSnapshotFingerprint(
+          preparedRouteOrderSnapshot
         ),
         preparedRouteSnapshotFingerprint: taskRouteSnapshotFingerprint(
           preparedRouteSnapshot
@@ -5250,6 +5268,9 @@ function taskRouteCandidateProfileEvidence(
           candidate.prepareCandidateSnapshotFingerprint
             ? `${candidate.scope}#${candidate.candidateIndex}:prepareCandidateSnapshotFingerprint:${candidate.prepareCandidateSnapshotFingerprint}`
             : null,
+          candidate.preparedRouteOrderFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:preparedRouteOrderFingerprint:${candidate.preparedRouteOrderFingerprint}`
+            : null,
           candidate.preparedRouteSnapshotFingerprint
             ? `${candidate.scope}#${candidate.candidateIndex}:preparedRouteSnapshotFingerprint:${candidate.preparedRouteSnapshotFingerprint}`
             : null,
@@ -5350,6 +5371,9 @@ function taskRouteCandidateProfileEvidence(
         `${candidate.scope}#${candidate.candidateIndex}:candidateFingerprint:${candidate.candidateFingerprint}`,
         candidate.prepareCandidateSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:prepareCandidateSnapshotFingerprint:${candidate.prepareCandidateSnapshotFingerprint}`
+          : null,
+        candidate.preparedRouteOrderFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:preparedRouteOrderFingerprint:${candidate.preparedRouteOrderFingerprint}`
           : null,
         candidate.preparedRouteSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:preparedRouteSnapshotFingerprint:${candidate.preparedRouteSnapshotFingerprint}`
@@ -5568,6 +5592,9 @@ function taskRouteCandidateProfileEvidence(
         candidate.prepareCandidateSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:prepareCandidateSnapshotFingerprint:${candidate.prepareCandidateSnapshotFingerprint}`
           : null,
+        candidate.preparedRouteOrderFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:preparedRouteOrderFingerprint:${candidate.preparedRouteOrderFingerprint}`
+          : null,
         candidate.preparedRouteSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:preparedRouteSnapshotFingerprint:${candidate.preparedRouteSnapshotFingerprint}`
           : null,
@@ -5704,6 +5731,9 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.prepareCandidateSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:prepareCandidateSnapshotFingerprint:${candidate.prepareCandidateSnapshotFingerprint}`
+          : null,
+        candidate.preparedRouteOrderFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:preparedRouteOrderFingerprint:${candidate.preparedRouteOrderFingerprint}`
           : null,
         candidate.preparedRouteSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:preparedRouteSnapshotFingerprint:${candidate.preparedRouteSnapshotFingerprint}`
@@ -6721,6 +6751,19 @@ function taskRoutePreparedRouteSnapshot(
       ? { requestedDimensions: route.requestedDimensions }
       : {}),
     routeIndex: route.routeIndex,
+  }));
+}
+
+function taskRoutePreparedRouteOrderSnapshot(
+  routes: CopilotPreparedTaskRouteDiagnosticsType[] | undefined
+) {
+  return taskRoutePreparedRouteSnapshot(routes).map(route => ({
+    ...(route.fallbackOrderIndex !== undefined
+      ? { fallbackOrderIndex: route.fallbackOrderIndex }
+      : {}),
+    modelId: route.modelId,
+    providerId: route.providerId,
+    ...(route.routeIndex !== undefined ? { routeIndex: route.routeIndex } : {}),
   }));
 }
 

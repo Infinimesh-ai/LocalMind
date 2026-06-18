@@ -2630,6 +2630,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             prepared
             preparedModelId
             prepareCandidateSnapshotFingerprint
+            preparedRouteOrderFingerprint
             preparedRouteSnapshotFingerprint
             preparedRoutes {
               behaviorFlags

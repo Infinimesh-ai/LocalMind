@@ -243,6 +243,24 @@ function taskRoutePreparedRouteSnapshotFixture<
   );
 }
 
+function taskRoutePreparedRouteOrderSnapshotFixture<
+  T extends {
+    fallbackOrderIndex?: number | null;
+    modelId: string;
+    providerId: string;
+    routeIndex?: number | null;
+  },
+>(routes: T[]) {
+  return routes.map(route =>
+    stripNullishFixtureFields({
+      fallbackOrderIndex: route.fallbackOrderIndex,
+      modelId: route.modelId,
+      providerId: route.providerId,
+      routeIndex: route.routeIndex,
+    })
+  );
+}
+
 function taskRouteDimensionSnapshotFixture(route: {
   dimensionMismatch?: boolean | null;
   featureKind: string;
@@ -2606,6 +2624,11 @@ const readyPublishGateVerdict = withRepairActionPreview(
                   blockedRoute.preparedRoutes
                 )
               ),
+            preparedRouteOrderFingerprint: taskRouteSnapshotFingerprintFixture(
+              taskRoutePreparedRouteOrderSnapshotFixture(
+                blockedRoute.preparedRoutes
+              )
+            ),
             preparedRoutes: taskRoutePreparedRouteSnapshotFixture(
               blockedRoute.preparedRoutes
             ),
@@ -2697,6 +2720,11 @@ const readyPublishGateVerdict = withRepairActionPreview(
                   blockedRoute.preparedRoutes
                 )
               ),
+            preparedRouteOrderFingerprint: taskRouteSnapshotFingerprintFixture(
+              taskRoutePreparedRouteOrderSnapshotFixture(
+                blockedRoute.preparedRoutes
+              )
+            ),
             preparedRoutes: taskRoutePreparedRouteSnapshotFixture(
               blockedRoute.preparedRoutes
             ),
@@ -2811,6 +2839,11 @@ const readyPublishGateVerdict = withRepairActionPreview(
                   blockedRoute.preparedRoutes
                 )
               ),
+            preparedRouteOrderFingerprint: taskRouteSnapshotFingerprintFixture(
+              taskRoutePreparedRouteOrderSnapshotFixture(
+                blockedRoute.preparedRoutes
+              )
+            ),
             preparedRoutes: taskRoutePreparedRouteSnapshotFixture(
               blockedRoute.preparedRoutes
             ),
@@ -6836,6 +6869,9 @@ describe('AiPage', () => {
     );
     expect(readyGateDiagnostics).toContain(
       `prepared route snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRoutePreparedRouteSnapshotFixture(blockedRoute.preparedRoutes))}`
+    );
+    expect(readyGateDiagnostics).toContain(
+      `prepared route order fingerprint ${taskRouteSnapshotFingerprintFixture(taskRoutePreparedRouteOrderSnapshotFixture(blockedRoute.preparedRoutes))}`
     );
     expect(readyGateDiagnostics).toContain(
       `prepared routes ${blockedRoute.preparedRoutes.length}`

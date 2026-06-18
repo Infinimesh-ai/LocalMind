@@ -527,6 +527,24 @@ function taskRoutePreparedRouteEvidenceFixture<
   }));
 }
 
+function taskRoutePreparedRouteOrderEvidenceFixture<
+  T extends {
+    fallbackOrderIndex?: number;
+    modelId: string;
+    providerId: string;
+    routeIndex: number;
+  },
+>(routes: T[] | undefined) {
+  return (routes ?? []).map(route => ({
+    ...(route.fallbackOrderIndex !== undefined
+      ? { fallbackOrderIndex: route.fallbackOrderIndex }
+      : {}),
+    modelId: route.modelId,
+    providerId: route.providerId,
+    routeIndex: route.routeIndex,
+  }));
+}
+
 function taskRouteProviderHealthSnapshotFixture(
   route:
     | {
@@ -6901,6 +6919,14 @@ async function main() {
     );
   const taskDiagnosticsPreparedRouteSnapshotFingerprint =
     taskRouteSnapshotFingerprintFixture(taskDiagnosticsPreparedRouteSnapshot);
+  const taskDiagnosticsPreparedRouteOrderSnapshot =
+    taskRoutePreparedRouteOrderEvidenceFixture(
+      taskDiagnosticsErrorRoute?.preparedRoutes
+    );
+  const taskDiagnosticsPreparedRouteOrderFingerprint =
+    taskRouteSnapshotFingerprintFixture(
+      taskDiagnosticsPreparedRouteOrderSnapshot
+    );
   const taskDiagnosticsProviderHealthSnapshot =
     taskRouteProviderHealthSnapshotFixture(taskDiagnosticsErrorRoute);
   const taskDiagnosticsProviderHealthSnapshotFingerprint =
@@ -6961,6 +6987,13 @@ async function main() {
     ),
     true,
     'task diagnostics repair evidence should include prepare candidate snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      `policyCandidate#0:preparedRouteOrderFingerprint:${taskDiagnosticsPreparedRouteOrderFingerprint}`
+    ),
+    true,
+    'task diagnostics repair evidence should include prepared route order fingerprint'
   );
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
@@ -7305,6 +7338,11 @@ async function main() {
     taskDiagnosticsPreparedRouteSnapshotFingerprint,
     'policy candidate evidence should bind the task route prepared route snapshot fingerprint'
   );
+  assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.preparedRouteOrderFingerprint,
+    taskDiagnosticsPreparedRouteOrderFingerprint,
+    'policy candidate evidence should bind the task route prepared route order fingerprint'
+  );
   assert.deepEqual(
     taskDiagnosticsPolicyCandidateEvidence?.preparedRoutes,
     taskDiagnosticsPreparedRouteSnapshot,
@@ -7554,6 +7592,11 @@ async function main() {
     taskDiagnosticsRouteCandidateEvidence?.preparedRouteSnapshotFingerprint,
     taskDiagnosticsPreparedRouteSnapshotFingerprint,
     'route candidate evidence should bind the task route prepared route snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.preparedRouteOrderFingerprint,
+    taskDiagnosticsPreparedRouteOrderFingerprint,
+    'route candidate evidence should bind the task route prepared route order fingerprint'
   );
   assert.deepEqual(
     taskDiagnosticsRouteCandidateEvidence?.preparedRoutes,
@@ -7812,6 +7855,11 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.preparedRouteSnapshotFingerprint,
     taskDiagnosticsPreparedRouteSnapshotFingerprint,
     'prepare candidate evidence should bind the task route prepared route snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.preparedRouteOrderFingerprint,
+    taskDiagnosticsPreparedRouteOrderFingerprint,
+    'prepare candidate evidence should bind the task route prepared route order fingerprint'
   );
   assert.deepEqual(
     taskDiagnosticsPrepareCandidateEvidence?.preparedRoutes,

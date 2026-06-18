@@ -13244,3 +13244,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - `routeIndex` 与 `fallbackOrderIndex` 仍只反映 diagnostics probe 阶段的 prepared route 投影，不代表后续真实 embedding/rerank dispatch 一定按同一顺序执行、命中同一 provider/model 或产生同一 fallback attempt。
 - 本轮仍未把 prepared route evidence 持久化为 route event，也未定义 support bundle schema、repair mutation guard input、Model Registry revision 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 391. P3 落地记录：Prepared Route Order Fingerprint Evidence
+
+本轮继续收敛第 390 节剩余风险中 “prepared route 顺序字段已经进入 GraphQL/Admin，但 repair candidate evidence 缺少可单独比较的 route order 指纹” 的问题。实际代码与目标 AI 中间层架构的冲突点是：`preparedRoutes` 的完整安全投影已经包含 provider/model/profile/dimension/order 等字段，`preparedRouteSnapshotFingerprint` 会对完整投影变化敏感；但 support bundle、route explain 或人工 review 只想确认 provider/model 顺序与 fallback 顺序是否变化时，仍缺少一个窄的、可复制的 order-only anchor。本轮新增只读 `preparedRouteOrderFingerprint`，只基于 `providerId`、`modelId`、`routeIndex` 与 `fallbackOrderIndex` 生成，不改变 route prepare、fallback 或 provider selection 行为。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 与 GraphQL ObjectType 新增 `preparedRouteOrderFingerprint`。
+  - `taskRouteCandidateProfileStructuredEvidence()` 新增 prepared route order 投影，并对 `providerId`、`modelId`、`routeIndex`、`fallbackOrderIndex` 生成 16 位 SHA-256 指纹。
+  - `taskRouteCandidateProfileEvidence()` 的可复制 repair evidence 文本加入 `preparedRouteOrderFingerprint`，让 policy/route/prepare candidate 都能绑定同一份 prepared route order anchor。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、common query string 与 `schema.ts` 类型同步新增 repair candidate evidence 的 `preparedRouteOrderFingerprint`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence diagnostics text 显示 `prepared route order fingerprint ...`，与 prepared route snapshot fingerprint 和 prepared routes 明细并列。
+- 测试覆盖：
+  - resolver source chain smoke 断言 policy/route/prepare candidate evidence 都绑定 task route prepared route order fingerprint，并断言可复制 evidence 文本包含该指纹。
+  - Admin Vitest fixture 为三类 candidate evidence 注入 prepared route order fingerprint，并断言 publish gate diagnostics text 显示该指纹。
+
+该实现只扩展只读 diagnostics/evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 Model Registry/Provider Registry revision row、不改变 repair action catalog、mutation input、preview/preflight/execution gate 字段名、provider route selection、fallback order、route policy、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把 prepared route repair evidence 从“能展开顺序字段但缺少独立比较键”推进到“candidate evidence 自身携带 order-only 指纹”，为后续 support bundle、route explain、repair guard 和 DB-backed route event 对齐提供更稳定的过渡证据。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `preparedRouteOrderFingerprint` 仍只反映 diagnostics probe 阶段的 prepared route order 投影，不代表后续真实 embedding/rerank dispatch 一定按同一顺序执行、命中同一 provider/model 或产生同一 fallback attempt。
+- 该指纹只能证明 order-only 投影发生或未发生变化，不能替代完整 `preparedRoutes`、route trace、provider health freshness、capability metadata、成本、token/embedding usage 或容器日志。
+- 这些字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、support bundle schema、repair mutation guard input、Model Registry revision、Provider Registry revision 或审计记录。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
