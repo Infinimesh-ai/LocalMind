@@ -169,6 +169,62 @@ function taskRoutePrepareCandidateSnapshotFixture<
   );
 }
 
+function taskRoutePreparedRouteSnapshotFixture<
+  T extends {
+    behaviorFlags?: string[] | null;
+    canonicalModelKey?: string | null;
+    dimensionMismatch?: boolean | null;
+    fallbackOrderIndex?: number | null;
+    modelBackendKind?: string | null;
+    modelEmbeddingDimensions?: number | null;
+    modelId: string;
+    protocol?: string | null;
+    providerConfiguredModelCount?: number | null;
+    providerConfiguredModelIds?: string[] | null;
+    providerId: string;
+    providerName?: string | null;
+    providerPriority?: number | null;
+    providerProfileConfigPath?: string | null;
+    providerProfileId?: string | null;
+    providerProfileSource?: string | null;
+    providerSource?: string | null;
+    providerType?: string | null;
+    requestLayer?: string | null;
+    requestedDimensions?: number | null;
+    routeIndex?: number | null;
+  },
+>(routes: T[]) {
+  return routes.map(route =>
+    stripNullishFixtureFields({
+      behaviorFlags: route.behaviorFlags?.length
+        ? route.behaviorFlags
+        : undefined,
+      canonicalModelKey: route.canonicalModelKey,
+      dimensionMismatch: route.dimensionMismatch,
+      fallbackOrderIndex: route.fallbackOrderIndex,
+      modelBackendKind: route.modelBackendKind,
+      modelEmbeddingDimensions: route.modelEmbeddingDimensions,
+      modelId: route.modelId,
+      protocol: route.protocol,
+      providerConfiguredModelCount: route.providerConfiguredModelCount,
+      providerConfiguredModelIds: route.providerConfiguredModelIds?.length
+        ? route.providerConfiguredModelIds
+        : undefined,
+      providerId: route.providerId,
+      providerName: route.providerName,
+      providerPriority: route.providerPriority,
+      providerProfileConfigPath: route.providerProfileConfigPath,
+      providerProfileId: route.providerProfileId,
+      providerProfileSource: route.providerProfileSource,
+      providerSource: route.providerSource,
+      providerType: route.providerType,
+      requestLayer: route.requestLayer,
+      requestedDimensions: route.requestedDimensions,
+      routeIndex: route.routeIndex,
+    })
+  );
+}
+
 function expectQueryCall(query: unknown, variables: Record<string, unknown>) {
   expect(useQueryMock).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -2058,6 +2114,12 @@ const readyPublishGateVerdict = withRepairActionPreview(
                   blockedRoute.prepareCandidates
                 )
               ),
+            preparedRouteSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRoutePreparedRouteSnapshotFixture(
+                  blockedRoute.preparedRoutes
+                )
+              ),
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
@@ -2099,6 +2161,12 @@ const readyPublishGateVerdict = withRepairActionPreview(
                   blockedRoute.prepareCandidates
                 )
               ),
+            preparedRouteSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRoutePreparedRouteSnapshotFixture(
+                  blockedRoute.preparedRoutes
+                )
+              ),
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
@@ -2138,6 +2206,12 @@ const readyPublishGateVerdict = withRepairActionPreview(
               taskRouteSnapshotFingerprintFixture(
                 taskRoutePrepareCandidateSnapshotFixture(
                   blockedRoute.prepareCandidates
+                )
+              ),
+            preparedRouteSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRoutePreparedRouteSnapshotFixture(
+                  blockedRoute.preparedRoutes
                 )
               ),
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
@@ -6101,6 +6175,9 @@ describe('AiPage', () => {
     );
     expect(readyGateDiagnostics).toContain(
       `prepare snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRoutePrepareCandidateSnapshotFixture(blockedRoute.prepareCandidates))}`
+    );
+    expect(readyGateDiagnostics).toContain(
+      `prepared route snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRoutePreparedRouteSnapshotFixture(blockedRoute.preparedRoutes))}`
     );
     expect(readyGateDiagnostics).toContain(
       'provider ollama-main / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding'

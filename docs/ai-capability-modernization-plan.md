@@ -12571,3 +12571,35 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - candidate evidence 仍不携带 provider health freshness 的强一致证明、capability metadata、embedding dimensions、latency、cost 或 token usage。
 - 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 369. P3 落地记录：Task Route Prepared Route Snapshot Fingerprint
+
+本轮继续收敛第 368 节剩余风险中 “prepare/route evidence 仍不覆盖 prepared route 细节、embedding dimensions 与 backend/request layer 结果” 的问题。实际代码与目标 AI 中间层架构的冲突点是：完整 route explain、support bundle 与 repair guard 需要能判断最终 prepared route ordered set 是否变化；但当前 repair candidate evidence 只对 policy、route 和 prepare candidate snapshot 有独立指纹，prepared route 的 provider/model/backend/protocol/request layer、维度与 fallback index 仍只能通过 task route diagnostics 或 target list 间接比较。本轮先为按 task route prepared route 公开 diagnostics 字段投影后的 ordered snapshot 增加稳定短指纹。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 新增 `preparedRouteSnapshotFingerprint`。
+  - 新增 `taskRoutePreparedRouteSnapshot()`，按当前公开 diagnostics 字段投影 task route `preparedRoutes`，覆盖 provider/profile/source、provider configured models、provider priority/type、model/backend/protocol/request layer、canonical key、behavior flags、route/fallback index、requested/model embedding dimensions 与 dimension mismatch。
+  - `taskRouteCandidateProfileStructuredEvidence()` 基于同一份 ordered snapshot 计算 SHA-256 短指纹，写入 policy/route/prepare candidate evidence；candidate fingerprint、preview operation fingerprint 与 evidence set fingerprint 继续自动对 prepared route snapshot 变化敏感。
+  - repair candidate evidence 的可复制 evidence 字符串新增 `preparedRouteSnapshotFingerprint`，但不把完整 prepared route 数组塞入 repair candidate evidence，避免 GraphQL payload 过早膨胀。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、common query string 与 `GetCopilotPromptRegistryPublishGateQuery` 类型同步新增 repair candidate evidence 的 `preparedRouteSnapshotFingerprint`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence diagnostics text 显示 `prepared route snapshot fingerprint ...`，方便管理员复制、比对和归档。
+- 测试覆盖：
+  - resolver source chain smoke 断言 task diagnostics repair recommendation 的 policy/route/prepare candidate evidence 都携带与 prepared route ordered snapshot 一致的 fingerprint，并确认可复制 evidence 字符串包含该 fingerprint。
+  - Admin Vitest fixture 为 task route repair candidate evidence 注入 prepared route snapshot fingerprint，并断言 publish gate diagnostics text 显示该 fingerprint。
+
+该实现只扩展只读 repair candidate evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 Model Registry/Provider Registry revision row、不改变 repair action catalog、不新增 mutation input、不改变 preview/preflight/execution gate 字段名、不改变 provider route selection、fallback order、route policy、Prompt Registry publish gate 判定、embedding/rerank request 参数、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把 task route prepared route evidence 从“target list/fingerprint 只能证明 provider/model target set”推进到“repair candidate evidence snapshot 也能感知 prepared route backend/protocol/request layer/dimension 公开结果变化”，为后续 support bundle、route explain、repair guard、DB-backed route event 与 Model Registry revision 对齐提供更可审计的过渡证据。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused Prettier、oxlint、resolver source chain smoke 与 Admin AI Vitest。
+
+剩余风险：
+
+- `preparedRouteSnapshotFingerprint` 只覆盖当前 task route prepared route 公开 diagnostics 字段的 ordered snapshot，不覆盖真实 provider request、latency、cost、token/embedding usage、provider response、dispatch result、provider health freshness 强一致证明或 capability metadata 完整矩阵。
+- prepared route snapshot 仍来自 diagnostics probe 的 prepared route projection，不代表后续真实 embedding/rerank 调用一定使用同一 backend/protocol/request layer、维度结果或 provider/model。
+- candidate evidence 仍不携带 provider health freshness 的强一致证明、capability metadata 完整矩阵、latency、cost 或 token usage。
+- 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

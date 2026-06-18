@@ -706,6 +706,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   modelId?: string;
   preparedModelId?: string;
   prepareCandidateSnapshotFingerprint?: string;
+  preparedRouteSnapshotFingerprint?: string;
   preparedRouteTargets?: string[];
   preparedRouteTargetFingerprint?: string;
   policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
@@ -1713,6 +1714,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   prepareCandidateSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['prepareCandidateSnapshotFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  preparedRouteSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedRouteSnapshotFingerprint'];
 
   @Field(() => [String], { nullable: true })
   preparedRouteTargets?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedRouteTargets'];
@@ -4088,6 +4092,7 @@ function taskRouteRepairCandidateEvidenceBase(
     modelId?: string;
     preparedModelId?: string;
     prepareCandidateSnapshotFingerprint?: string;
+    preparedRouteSnapshotFingerprint?: string;
     preparedRouteTargets?: string[];
     preparedRouteTargetFingerprint?: string;
     policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
@@ -4133,6 +4138,12 @@ function taskRouteRepairCandidateEvidenceBase(
       ? {
           prepareCandidateSnapshotFingerprint:
             candidate.prepareCandidateSnapshotFingerprint,
+        }
+      : {}),
+    ...(candidate.preparedRouteSnapshotFingerprint !== undefined
+      ? {
+          preparedRouteSnapshotFingerprint:
+            candidate.preparedRouteSnapshotFingerprint,
         }
       : {}),
     ...(candidate.preparedRouteTargets !== undefined
@@ -4222,6 +4233,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       modelId?: string;
       preparedModelId?: string;
       prepareCandidateSnapshotFingerprint?: string;
+      preparedRouteSnapshotFingerprint?: string;
       preparedRouteTargets?: string[];
       preparedRouteTargetFingerprint?: string;
       policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
@@ -4294,6 +4306,9 @@ function taskRouteCandidateProfileStructuredEvidence(
     const prepareCandidateSnapshot = taskRoutePrepareCandidateSnapshot(
       route.prepareCandidates
     );
+    const preparedRouteSnapshot = taskRoutePreparedRouteSnapshot(
+      route.preparedRoutes
+    );
     const evidence = taskRouteRepairCandidateEvidenceBase(
       scope,
       {
@@ -4301,6 +4316,9 @@ function taskRouteCandidateProfileStructuredEvidence(
         fallbackProviderIds: route.fallbackProviderIds,
         prepareCandidateSnapshotFingerprint: taskRouteSnapshotFingerprint(
           prepareCandidateSnapshot
+        ),
+        preparedRouteSnapshotFingerprint: taskRouteSnapshotFingerprint(
+          preparedRouteSnapshot
         ),
         preparedRouteTargets: route.preparedRouteTargets,
         preparedRouteTargetFingerprint: route.preparedRouteTargetFingerprint,
@@ -4379,6 +4397,9 @@ function taskRouteCandidateProfileEvidence(
             : null,
           candidate.prepareCandidateSnapshotFingerprint
             ? `${candidate.scope}#${candidate.candidateIndex}:prepareCandidateSnapshotFingerprint:${candidate.prepareCandidateSnapshotFingerprint}`
+            : null,
+          candidate.preparedRouteSnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:preparedRouteSnapshotFingerprint:${candidate.preparedRouteSnapshotFingerprint}`
             : null,
           candidate.policyCandidateSnapshotFingerprint
             ? `${candidate.scope}#${candidate.candidateIndex}:policyCandidateSnapshotFingerprint:${candidate.policyCandidateSnapshotFingerprint}`
@@ -4967,6 +4988,64 @@ function taskRoutePrepareCandidateSnapshot(
     ...(candidate.routeRawModelId
       ? { routeRawModelId: candidate.routeRawModelId }
       : {}),
+  }));
+}
+
+function taskRoutePreparedRouteSnapshot(
+  routes: CopilotPreparedTaskRouteDiagnosticsType[] | undefined
+) {
+  return (routes ?? []).map(route => ({
+    ...(definedArray(route.behaviorFlags) !== undefined
+      ? { behaviorFlags: definedArray(route.behaviorFlags) }
+      : {}),
+    ...(route.canonicalModelKey
+      ? { canonicalModelKey: route.canonicalModelKey }
+      : {}),
+    ...(route.dimensionMismatch !== undefined
+      ? { dimensionMismatch: route.dimensionMismatch }
+      : {}),
+    ...(route.fallbackOrderIndex !== undefined
+      ? { fallbackOrderIndex: route.fallbackOrderIndex }
+      : {}),
+    ...(route.modelBackendKind
+      ? { modelBackendKind: route.modelBackendKind }
+      : {}),
+    ...(route.modelEmbeddingDimensions !== undefined
+      ? { modelEmbeddingDimensions: route.modelEmbeddingDimensions }
+      : {}),
+    modelId: route.modelId,
+    ...(route.protocol ? { protocol: route.protocol } : {}),
+    ...(route.providerConfiguredModelCount !== undefined
+      ? { providerConfiguredModelCount: route.providerConfiguredModelCount }
+      : {}),
+    ...(definedArray(route.providerConfiguredModelIds) !== undefined
+      ? {
+          providerConfiguredModelIds: definedArray(
+            route.providerConfiguredModelIds
+          ),
+        }
+      : {}),
+    providerId: route.providerId,
+    ...(route.providerName ? { providerName: route.providerName } : {}),
+    ...(route.providerPriority !== undefined
+      ? { providerPriority: route.providerPriority }
+      : {}),
+    ...(route.providerProfileConfigPath
+      ? { providerProfileConfigPath: route.providerProfileConfigPath }
+      : {}),
+    ...(route.providerProfileId
+      ? { providerProfileId: route.providerProfileId }
+      : {}),
+    ...(route.providerProfileSource
+      ? { providerProfileSource: route.providerProfileSource }
+      : {}),
+    ...(route.providerSource ? { providerSource: route.providerSource } : {}),
+    ...(route.providerType ? { providerType: route.providerType } : {}),
+    ...(route.requestLayer ? { requestLayer: route.requestLayer } : {}),
+    ...(route.requestedDimensions !== undefined
+      ? { requestedDimensions: route.requestedDimensions }
+      : {}),
+    routeIndex: route.routeIndex,
   }));
 }
 

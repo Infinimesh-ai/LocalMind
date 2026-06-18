@@ -1725,6 +1725,7 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   modelId?: Maybe<Scalars['String']['output']>;
   preparedModelId?: Maybe<Scalars['String']['output']>;
   prepareCandidateSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
+  preparedRouteSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   preparedRouteTargets?: Maybe<Array<Scalars['String']['output']>>;
   preparedRouteTargetFingerprint?: Maybe<Scalars['String']['output']>;
   policyCandidates?: Maybe<
@@ -7836,6 +7837,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             modelId: string | null;
             preparedModelId: string | null;
             prepareCandidateSnapshotFingerprint: string | null;
+            preparedRouteSnapshotFingerprint: string | null;
             preparedRouteTargets: Array<string> | null;
             preparedRouteTargetFingerprint: string | null;
             policyCandidates: Array<{
