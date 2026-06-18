@@ -13218,3 +13218,29 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 本轮沿用当前顶层 `getCopilotPromptRegistryPublishGate` prepared route selection 字段集；后端 ObjectType 中的 `routeIndex`、`fallbackOrderIndex` 仍未进入该 query 的 prepared route selection，若后续 support bundle 需要精确 route order，应单独扩展顶层与 candidate evidence selection。
 - 这些字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 390. P3 落地记录：Prepared Route Order Evidence
+
+本轮继续收敛第 389 节剩余风险中 “后端 ObjectType 中的 `routeIndex`、`fallbackOrderIndex` 仍未进入 prepared route query selection” 的问题。实际代码与目标 AI 中间层架构的冲突点是：后端 `CopilotPreparedTaskRouteDiagnosticsType` 已经具备 route order 与 fallback order 字段，`taskRoutePreparedRouteSnapshot()` 也会把这些字段纳入安全投影；但 common GraphQL selection、前端模型类型和 Admin prepared route formatter 没有读取或显示它们。support bundle、route explain 或人工排障只能看到 provider/model，不能直接确认同一 prepared route 在候选链中的顺序和 fallback 顺序。本轮把这两个只读顺序字段补进顶层 task route prepared routes 与 repair candidate prepared routes 的查询、类型和 Admin 文本，不改变 route prepare 或 fallback 选择行为。
+
+- GraphQL 与 common client：
+  - `packages/common/graphql/src/graphql/copilot-models-get.gql` 与 `packages/common/graphql/src/graphql/copilot-prompt-registry-publish-gate-get.gql` 的 `preparedRoutes` selection 新增 `routeIndex` 与 `fallbackOrderIndex`。
+  - `packages/common/graphql/src/graphql/index.ts` 与 `packages/common/graphql/src/schema.ts` 同步更新 getPromptModels / getCopilotPromptRegistryPublishGate query string、通用 `CopilotPreparedTaskRouteDiagnosticsType` interface 和 operation result 类型。
+- 前端模型与 Admin：
+  - `packages/frontend/core/src/modules/ai-button/services/models.ts` 的 `AIModelPreparedTaskRoute` 新增可选 `routeIndex`、`fallbackOrderIndex`，prepared route 文本 formatter 显示 `route #...` 与 `fallback #...`。
+  - `packages/frontend/admin/src/modules/ai/index.tsx` 的 prepared route table 与 repair candidate evidence formatter 同步显示 route/fallback 顺序。
+- 测试覆盖：
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 为 ready rerank prepared route fixture 注入 `routeIndex` 与 `fallbackOrderIndex`，并断言 Admin task route diagnostics 显示 `route #1 / fallback #1`，prepared route table 显示 `Route #1 / Fallback #1`。
+
+该实现只扩展只读 GraphQL selection/type、前端模型类型、Admin 文本和测试，不新增 DB migration、不修改后端 route prepare 生成逻辑、不改变 repair action catalog、mutation input、preview/preflight/execution gate 字段名、provider route selection、fallback order、route policy、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把 prepared route evidence 从“能看到 provider/model 明细但缺少顺序”推进到“同一安全投影同时携带 route order 与 fallback order”，为后续 support bundle、route explain、repair guard 和 DB-backed route event 对齐提供更完整的过渡证据。
+
+验证策略：
+
+- 本轮为 GraphQL/Admin/Core 类型与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `routeIndex` 与 `fallbackOrderIndex` 仍只反映 diagnostics probe 阶段的 prepared route 投影，不代表后续真实 embedding/rerank dispatch 一定按同一顺序执行、命中同一 provider/model 或产生同一 fallback attempt。
+- 本轮仍未把 prepared route evidence 持久化为 route event，也未定义 support bundle schema、repair mutation guard input、Model Registry revision 或审计记录。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

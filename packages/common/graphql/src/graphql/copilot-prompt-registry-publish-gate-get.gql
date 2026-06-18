@@ -448,6 +448,7 @@ query getCopilotPromptRegistryPublishGate(
             behaviorFlags
             canonicalModelKey
             dimensionMismatch
+            fallbackOrderIndex
             modelBackendKind
             modelEmbeddingDimensions
             modelId
@@ -464,6 +465,7 @@ query getCopilotPromptRegistryPublishGate(
             providerType
             requestedDimensions
             requestLayer
+            routeIndex
           }
           providerId
           providerConfiguredModelCount
@@ -655,6 +657,7 @@ query getCopilotPromptRegistryPublishGate(
               behaviorFlags
               canonicalModelKey
               dimensionMismatch
+              fallbackOrderIndex
               modelBackendKind
               modelEmbeddingDimensions
               modelId
@@ -671,6 +674,7 @@ query getCopilotPromptRegistryPublishGate(
               providerType
               requestedDimensions
               requestLayer
+              routeIndex
             }
             providerCapabilitySnapshotFingerprint
             providerCostSnapshotFingerprint

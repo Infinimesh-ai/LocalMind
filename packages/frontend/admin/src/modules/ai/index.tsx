@@ -832,6 +832,12 @@ function PreparedRoutesSummary({
                 </TableCell>
                 <TableCell className="break-words text-muted-foreground">
                   {compactList([
+                    route.routeIndex != null
+                      ? `Route #${route.routeIndex + 1}`
+                      : null,
+                    route.fallbackOrderIndex != null
+                      ? `Fallback #${route.fallbackOrderIndex + 1}`
+                      : null,
                     route.protocol ? `Protocol ${route.protocol}` : null,
                     route.requestLayer ? `Layer ${route.requestLayer}` : null,
                     route.modelBackendKind
@@ -916,6 +922,10 @@ function formatTaskRoutePreparedRouteText(route: AIModelPreparedTaskRoute) {
 
   return compactList([
     `${route.providerId}/${route.modelId}`,
+    route.routeIndex != null ? `route #${route.routeIndex + 1}` : null,
+    route.fallbackOrderIndex != null
+      ? `fallback #${route.fallbackOrderIndex + 1}`
+      : null,
     route.protocol ? `protocol ${route.protocol}` : null,
     route.requestLayer ? `layer ${route.requestLayer}` : null,
     route.modelBackendKind ? `backend ${route.modelBackendKind}` : null,

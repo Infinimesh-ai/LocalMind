@@ -178,6 +178,7 @@ export interface AIModelPreparedTaskRoute {
   behaviorFlags?: string[] | null;
   canonicalModelKey?: string | null;
   dimensionMismatch?: boolean | null;
+  fallbackOrderIndex?: number | null;
   modelEmbeddingDimensions?: number | null;
   modelBackendKind?: string | null;
   modelId: string;
@@ -194,6 +195,7 @@ export interface AIModelPreparedTaskRoute {
   providerType?: string | null;
   requestedDimensions?: number | null;
   requestLayer?: string | null;
+  routeIndex?: number | null;
 }
 
 export interface AIModelTaskRoutePolicyCandidate {
@@ -2580,6 +2582,10 @@ function formatPreparedTaskRoute(route: AIModelPreparedTaskRoute) {
   const providerProfileLabel = formatTaskRouteProviderProfileLabel(route);
   const details = [
     `${route.providerId}/${route.modelId}`,
+    route.routeIndex != null ? `route #${route.routeIndex + 1}` : null,
+    route.fallbackOrderIndex != null
+      ? `fallback #${route.fallbackOrderIndex + 1}`
+      : null,
     route.protocol ? `protocol ${route.protocol}` : null,
     route.requestLayer ? `layer ${route.requestLayer}` : null,
     route.modelBackendKind ? `backend ${route.modelBackendKind}` : null,

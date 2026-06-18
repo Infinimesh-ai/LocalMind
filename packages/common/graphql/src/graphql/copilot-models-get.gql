@@ -155,6 +155,7 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
             behaviorFlags
             canonicalModelKey
             dimensionMismatch
+            fallbackOrderIndex
             modelBackendKind
             modelEmbeddingDimensions
             modelId
@@ -171,6 +172,7 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
             providerType
             requestedDimensions
             requestLayer
+            routeIndex
           }
           providerId
           providerConfiguredModelCount
@@ -468,6 +470,7 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
             behaviorFlags
             canonicalModelKey
             dimensionMismatch
+            fallbackOrderIndex
             modelBackendKind
             modelEmbeddingDimensions
             modelId
@@ -484,6 +487,7 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
             providerType
             requestedDimensions
             requestLayer
+            routeIndex
           }
           providerId
           providerConfiguredModelCount

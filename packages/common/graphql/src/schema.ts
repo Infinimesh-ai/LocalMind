@@ -2022,6 +2022,7 @@ export interface CopilotPreparedTaskRouteDiagnosticsType {
   behaviorFlags?: Maybe<Array<Scalars['String']['output']>>;
   canonicalModelKey?: Maybe<Scalars['String']['output']>;
   dimensionMismatch?: Maybe<Scalars['Boolean']['output']>;
+  fallbackOrderIndex?: Maybe<Scalars['SafeInt']['output']>;
   modelBackendKind?: Maybe<Scalars['String']['output']>;
   modelEmbeddingDimensions?: Maybe<Scalars['SafeInt']['output']>;
   modelId: Scalars['String']['output'];
@@ -2038,6 +2039,7 @@ export interface CopilotPreparedTaskRouteDiagnosticsType {
   providerType?: Maybe<Scalars['String']['output']>;
   requestedDimensions?: Maybe<Scalars['SafeInt']['output']>;
   requestLayer?: Maybe<Scalars['String']['output']>;
+  routeIndex: Scalars['SafeInt']['output'];
 }
 
 export interface CopilotTaskRoutePolicyCandidateDiagnosticsType {
@@ -7024,6 +7026,7 @@ export type GetPromptModelsQuery = {
             behaviorFlags: Array<string> | null;
             canonicalModelKey: string | null;
             dimensionMismatch: boolean | null;
+            fallbackOrderIndex: number | null;
             modelBackendKind: string | null;
             modelEmbeddingDimensions: number | null;
             modelId: string;
@@ -7040,6 +7043,7 @@ export type GetPromptModelsQuery = {
             providerType: string | null;
             requestedDimensions: number | null;
             requestLayer: string | null;
+            routeIndex: number;
           }>;
           providerConfiguredModelCount: number | null;
           providerConfiguredModelIds: Array<string> | null;
@@ -7348,6 +7352,7 @@ export type GetPromptModelsQuery = {
             behaviorFlags: Array<string> | null;
             canonicalModelKey: string | null;
             dimensionMismatch: boolean | null;
+            fallbackOrderIndex: number | null;
             modelBackendKind: string | null;
             modelEmbeddingDimensions: number | null;
             modelId: string;
@@ -7364,6 +7369,7 @@ export type GetPromptModelsQuery = {
             providerType: string | null;
             requestedDimensions: number | null;
             requestLayer: string | null;
+            routeIndex: number;
           }>;
           providerConfiguredModelCount: number | null;
           providerConfiguredModelIds: Array<string> | null;
@@ -8071,6 +8077,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
               behaviorFlags: Array<string> | null;
               canonicalModelKey: string | null;
               dimensionMismatch: boolean | null;
+              fallbackOrderIndex: number | null;
               modelBackendKind: string | null;
               modelEmbeddingDimensions: number | null;
               modelId: string;
@@ -8087,6 +8094,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
               providerType: string | null;
               requestedDimensions: number | null;
               requestLayer: string | null;
+              routeIndex: number;
             }> | null;
             providerCapabilitySnapshotFingerprint: string | null;
             providerCostSnapshotFingerprint: string | null;

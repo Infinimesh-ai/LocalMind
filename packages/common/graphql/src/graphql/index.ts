@@ -1504,6 +1504,7 @@ export const getPromptModelsQuery = {
             behaviorFlags
             canonicalModelKey
             dimensionMismatch
+            fallbackOrderIndex
             modelBackendKind
             modelEmbeddingDimensions
             modelId
@@ -1520,6 +1521,7 @@ export const getPromptModelsQuery = {
             providerType
             requestedDimensions
             requestLayer
+            routeIndex
           }
           providerId
           providerConfiguredModelCount
@@ -1805,6 +1807,7 @@ export const getPromptModelsQuery = {
             behaviorFlags
             canonicalModelKey
             dimensionMismatch
+            fallbackOrderIndex
             modelBackendKind
             modelEmbeddingDimensions
             modelId
@@ -1821,6 +1824,7 @@ export const getPromptModelsQuery = {
             providerType
             requestedDimensions
             requestLayer
+            routeIndex
           }
           providerId
           providerConfiguredModelCount
@@ -2422,6 +2426,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             behaviorFlags
             canonicalModelKey
             dimensionMismatch
+            fallbackOrderIndex
             modelBackendKind
             modelEmbeddingDimensions
             modelId
@@ -2438,6 +2443,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             providerType
             requestedDimensions
             requestLayer
+            routeIndex
           }
           providerId
           providerConfiguredModelCount
@@ -2629,6 +2635,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
               behaviorFlags
               canonicalModelKey
               dimensionMismatch
+              fallbackOrderIndex
               modelBackendKind
               modelEmbeddingDimensions
               modelId
@@ -2645,6 +2652,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
               providerType
               requestedDimensions
               requestLayer
+              routeIndex
             }
             providerCapabilitySnapshotFingerprint
             providerCostSnapshotFingerprint

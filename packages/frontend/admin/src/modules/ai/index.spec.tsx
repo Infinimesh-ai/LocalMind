@@ -1027,6 +1027,8 @@ const readyRoute = {
       providerSource: 'configured',
       providerType: 'openaiCompatible',
       requestLayer: 'chat',
+      routeIndex: 0,
+      fallbackOrderIndex: 0,
     },
   ],
   providerId: 'ollama-main',
@@ -8220,6 +8222,7 @@ describe('AiPage', () => {
     expect(rerankDiagnostics).toContain(
       'Prepared route ollama-main/bge-reranker-v2'
     );
+    expect(rerankDiagnostics).toContain('route #1 / fallback #1');
     expect(rerankDiagnostics).toContain(
       'type OpenAI-compatible / source Configured / priority 10 / profile Profile ollama-main / Configured / config copilot.providers.profiles[id=ollama-main] / 2 configured models / models workspace-rerank, bge-reranker-v2'
     );
@@ -8310,7 +8313,7 @@ describe('AiPage', () => {
     expect(screen.getAllByText(/ollama-main/).length).toBeGreaterThan(0);
     expect(
       screen.getByText(
-        'Protocol openai-compatible / Layer chat / Backend rerank / Canonical bge-reranker-v2'
+        'Route #1 / Fallback #1 / Protocol openai-compatible / Layer chat / Backend rerank / Canonical bge-reranker-v2'
       )
     ).not.toBeNull();
     expect(
