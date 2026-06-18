@@ -2499,6 +2499,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             requiredInputs
             status
             submissionFingerprint
+            targetLocatorFingerprint
           }
         }
         remediations {
@@ -2641,6 +2642,7 @@ export const getCopilotPromptRegistryRepairPreflightQuery = {
         executionStateStatus
         executionStateVersion
         expectedCandidateEvidenceSetFingerprint
+        expectedTargetLocatorFingerprint
         idempotencyFingerprint
         idempotencyKey
         idempotencyLockAcquired
@@ -2679,6 +2681,7 @@ export const getCopilotPromptRegistryRepairPreflightQuery = {
         rollbackPlanVersion
         readOnly
         status
+        targetLocatorFingerprint
         workspaceId
       }
     }
@@ -2703,6 +2706,7 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
     auditEventRequestStatus
     auditEventRequestVersion
     expectedCandidateEvidenceSetFingerprint
+    expectedTargetLocatorFingerprint
     executionCompletionEventRequestCreated
     executionCompletionEventRequestFingerprint
     executionCompletionEventRequestInputs
@@ -2957,6 +2961,8 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
       reviewBindingFingerprint
       rollbackPlanFingerprint
       status
+      expectedTargetLocatorFingerprint
+      targetLocatorFingerprint
       workspaceId
     }
   }

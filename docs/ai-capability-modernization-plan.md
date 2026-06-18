@@ -11601,3 +11601,39 @@ retry attempt completion/finalization request 已经显式绑定 `candidateEvide
 - candidate evidence set 不包含 provider secret、endpoint probe latency、quota usage、cost、native dispatch span、真实 embedding 返回向量长度、rerank provider response 或 runtime retry 结果；真实运行可用性仍需结合 provider health freshness policy 与 runtime telemetry。
 - Admin 页面仍是只读 diagnostics，不支持直接编辑 `copilot.tasks.models`、provider profile、model definition、route policy 或执行 task route repair mutation。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 337. P1 落地记录：Repair Execution Target Locator Fingerprint Binding
+
+本轮继续收敛第 336 节剩余风险中 “candidate evidence set 仍是 preflight 摘要，不是可执行 mutation locator；未来 repair mutation 仍必须新增 explicit candidate locator/fingerprint input schema” 的问题。实际代码与目标架构的冲突点是：
+repair action preview 与 mutation guard 已经有 `targetLocatorFingerprint`，但 submission contract、preflight stale 校验和 repair execution request input 只显式确认 candidate evidence set、operation set、preview、guard 与 approval/audit/job/rollback 指纹。这样执行请求入口可以从 guard/preview 间接感知 locator set，却不能在 submission/preflight/request 三层明确声明“本次请求确认的是哪一组 repair target locator”。本轮把现有只读 `targetLocatorFingerprint` 纳入 submission/preflight/execution request contract，不开放真实 repair mutation。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryRepairSubmissionInput` 与 `CopilotPromptRegistryPublishGateRepairActionSubmissionContract` 新增必填 `targetLocatorFingerprint`，由 publish gate mutation guard 的 locator set snapshot 派生。
+  - `buildPromptRegistryPublishGateRepairActionPreview()` 把 `targetLocatorFingerprint` 纳入 submission required inputs 与 submission fingerprint payload，使 target locator set 变化会让 submission contract stale。
+  - `buildPromptRegistryRepairPreflight()` 校验 expected/current `targetLocatorFingerprint`，并把它纳入 review binding、audit event、repair job、execution state、rollback plan 与 execution gate 的只读 request payload。
+  - `CopilotPromptRegistryRepairExecutionRequestInput` 新增 `expectedTargetLocatorFingerprint`，`buildPromptRegistryRepairExecutionRequest()` 在 request gate 中校验它必须等于当前 preflight `targetLocatorFingerprint`，并在 request fingerprint payload 与输出 diagnostics 中暴露。
+- `packages/backend/server/src/schema.gql`、`packages/common/graphql/src/graphql/copilot-prompt-registry-publish-gate-get.gql`、`packages/common/graphql/src/graphql/copilot-prompt-registry-repair-preflight-get.gql`、`packages/common/graphql/src/graphql/copilot-prompt-registry-repair-execution-request.gql`、`packages/common/graphql/src/graphql/index.ts` 与 `packages/common/graphql/src/schema.ts`：
+  - 同步新增 submission input/output、preflight output 与 execution request input/output 的 target locator fingerprint schema、selection 和 generated 类型。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - Admin 构造 repair submission input 时传入 submission contract 的 `targetLocatorFingerprint`。
+  - Admin 构造 execution request input 时传入 preflight 的 `targetLocatorFingerprint` 作为 `expectedTargetLocatorFingerprint`。
+  - repair preview、preflight 与 execution request 可复制 diagnostics 显示 target locator fingerprint 与 expected target locator fingerprint，方便后续审计比对。
+- 测试覆盖：
+  - `packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts` 断言 submission/preflight/execution request 的 target locator fingerprint 与 mutation guard 对齐，并覆盖 request input/matched fields。
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 更新 Admin mock contract、mutation input 与 diagnostics 期望，覆盖 submission required inputs、preflight target locator 字段和 execution request expected target locator 字段。
+
+该实现只扩展只读 repair target locator fingerprint contract、GraphQL selection/type、Admin 文本和测试，不新增 DB migration，不开放 repair mutation，不改变 provider route selection、fallback order、route policy、Prompt Registry publish gate 判定、repair action catalog、embedding/rerank request 参数、Action Runtime 状态机或 native dispatch。它把 target locator set 从“preview/guard 层有只读 snapshot”推进到“submission/preflight/execution request gate 三层都必须显式确认 locator set fingerprint”，为后续 explicit candidate locator mutation input、approval record、audit event、rollback plan 和 DB-backed Provider Registry / Model Registry revision 对齐提供更明确的 request 前置条件。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin diagnostics/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与宿主源码 bind mount 运行 focused Prettier、oxlint、resolver smoke 与 Admin AI Vitest。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `targetLocatorFingerprint` 仍是 resolver 派生的只读 locator set hash，不是持久化 repair target id、operation id、mutation authorization、approval record、repair job id 或 audit event id。
+- 本轮只把 locator set fingerprint 绑定到 submission/preflight/execution request gate 与 preflight 关键前置 contract；下游 execution trace/result/retry/run-step/retry-attempt/retention/archive request contract 仍主要通过 upstream request fingerprint 间接感知 locator set，后续可按 candidate evidence set 的方式分阶段显式绑定。
+- target locator fingerprint 只确认 locator set，不替代正式 mutation input 中的 explicit candidate locator/fingerprint、expected registry version、guard fingerprint、operation set fingerprint、operation fingerprint、权限模型、approval record、audit event 和 rollback plan。
+- target locator snapshot 不包含 provider secret、endpoint probe latency、quota usage、cost、native dispatch span、真实 embedding 返回向量长度、rerank provider response 或 runtime retry 结果；真实运行可用性仍需结合 provider health freshness policy 与 runtime telemetry。
+- Admin 页面仍是只读 diagnostics，不支持直接编辑 `copilot.tasks.models`、provider profile、model definition、route policy 或执行 task route repair mutation。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

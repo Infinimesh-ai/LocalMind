@@ -1069,6 +1069,7 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   auditEventRequestStatus: Scalars['String']['output'];
   auditEventRequestVersion: Scalars['String']['output'];
   expectedCandidateEvidenceSetFingerprint: Scalars['String']['output'];
+  expectedTargetLocatorFingerprint: Scalars['String']['output'];
   executionCompletionEventRequestCreated: Scalars['Boolean']['output'];
   executionCompletionEventRequestFingerprint: Scalars['String']['output'];
   executionCompletionEventRequestInputs: Array<Scalars['String']['output']>;
@@ -1343,6 +1344,7 @@ export interface CopilotPromptRegistryRepairExecutionRequestInput {
   expectedApprovalRequestFingerprint: Scalars['String']['input'];
   expectedAuditEventFingerprint: Scalars['String']['input'];
   expectedCandidateEvidenceSetFingerprint: Scalars['String']['input'];
+  expectedTargetLocatorFingerprint: Scalars['String']['input'];
   expectedExecutionGateFingerprint: Scalars['String']['input'];
   expectedExecutionGateStatus: Scalars['String']['input'];
   expectedExecutionStateFingerprint: Scalars['String']['input'];
@@ -1406,6 +1408,7 @@ export interface CopilotPromptRegistryRepairPreflightType {
   executionStateStatus: Scalars['String']['output'];
   executionStateVersion: Scalars['String']['output'];
   expectedCandidateEvidenceSetFingerprint: Scalars['String']['output'];
+  expectedTargetLocatorFingerprint: Scalars['String']['output'];
   idempotencyFingerprint: Scalars['String']['output'];
   idempotencyKey: Scalars['String']['output'];
   idempotencyLockAcquired: Scalars['Boolean']['output'];
@@ -1444,6 +1447,7 @@ export interface CopilotPromptRegistryRepairPreflightType {
   rollbackPlanVersion: Scalars['String']['output'];
   readOnly: Scalars['Boolean']['output'];
   status: Scalars['String']['output'];
+  targetLocatorFingerprint: Scalars['String']['output'];
   workspaceId?: Maybe<Scalars['String']['output']>;
 }
 
@@ -1462,6 +1466,7 @@ export interface CopilotPromptRegistryRepairSubmissionInput {
   previewFingerprint: Scalars['String']['input'];
   requiredInputs: Array<Scalars['String']['input']>;
   submissionFingerprint: Scalars['String']['input'];
+  targetLocatorFingerprint: Scalars['String']['input'];
 }
 
 export interface CopilotPromptRegistryPublishGateActionRouteDryRunRouteType {
@@ -1784,6 +1789,7 @@ export interface CopilotPromptRegistryPublishGateRepairActionSubmissionContractT
   requiredInputs: Array<Scalars['String']['output']>;
   status: Scalars['String']['output'];
   submissionFingerprint: Scalars['String']['output'];
+  targetLocatorFingerprint: Scalars['String']['output'];
 }
 
 export interface CopilotPromptRegistryPublishGateRepairTargetLocatorType {
@@ -7725,6 +7731,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             requiredInputs: Array<string>;
             status: string;
             submissionFingerprint: string;
+            targetLocatorFingerprint: string;
           };
         };
         remediations: Array<{
@@ -7879,6 +7886,7 @@ export type GetCopilotPromptRegistryRepairPreflightQuery = {
         executionStateStatus: string;
         executionStateVersion: string;
         expectedCandidateEvidenceSetFingerprint: string;
+        expectedTargetLocatorFingerprint: string;
         idempotencyFingerprint: string;
         idempotencyKey: string;
         idempotencyLockAcquired: boolean;
@@ -7917,6 +7925,7 @@ export type GetCopilotPromptRegistryRepairPreflightQuery = {
         rollbackPlanVersion: string;
         readOnly: boolean;
         status: string;
+        targetLocatorFingerprint: string;
         workspaceId: string | null;
       } | null;
     };
@@ -7944,6 +7953,7 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
     auditEventRequestStatus: string;
     auditEventRequestVersion: string;
     expectedCandidateEvidenceSetFingerprint: string;
+    expectedTargetLocatorFingerprint: string;
     executionCompletionEventRequestCreated: boolean;
     executionCompletionEventRequestFingerprint: string;
     executionCompletionEventRequestInputs: Array<string>;
@@ -8199,6 +8209,8 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
       reviewBindingFingerprint: string;
       rollbackPlanFingerprint: string;
       status: string;
+      expectedTargetLocatorFingerprint: string;
+      targetLocatorFingerprint: string;
       workspaceId: string | null;
     };
   };

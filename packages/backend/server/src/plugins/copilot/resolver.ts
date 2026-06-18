@@ -224,6 +224,9 @@ class CopilotPromptRegistryRepairSubmissionInput {
   @Field(() => String)
   previewFingerprint!: string;
 
+  @Field(() => String)
+  targetLocatorFingerprint!: string;
+
   @Field(() => [String])
   requiredInputs!: string[];
 
@@ -258,6 +261,9 @@ class CopilotPromptRegistryRepairExecutionRequestInput {
 
   @Field(() => String)
   expectedCandidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  expectedTargetLocatorFingerprint!: string;
 
   @Field(() => String)
   expectedExecutionGateFingerprint!: string;
@@ -805,6 +811,7 @@ type CopilotPromptRegistryPublishGateRepairActionSubmissionContract = {
   requiredInputs: string[];
   status: string;
   submissionFingerprint: string;
+  targetLocatorFingerprint: string;
 };
 
 type CopilotPromptRegistryRepairPreflight = {
@@ -854,6 +861,8 @@ type CopilotPromptRegistryRepairPreflight = {
   executionStateStatus: string;
   executionStateVersion: string;
   expectedCandidateEvidenceSetFingerprint: string;
+  expectedTargetLocatorFingerprint: string;
+  targetLocatorFingerprint: string;
   idempotencyFingerprint: string;
   idempotencyKey: string;
   idempotencyLockAcquired: boolean;
@@ -899,6 +908,7 @@ type CopilotPromptRegistryRepairExecutionRequest = {
   accepted: boolean;
   executionRequested: boolean;
   expectedCandidateEvidenceSetFingerprint: string;
+  expectedTargetLocatorFingerprint: string;
   approvalRecordRequestCreated: boolean;
   approvalRecordRequestFingerprint: string;
   approvalRecordRequestInputs: string[];
@@ -1975,6 +1985,9 @@ class CopilotPromptRegistryPublishGateRepairActionSubmissionContractType impleme
   @Field(() => String)
   previewFingerprint!: string;
 
+  @Field(() => String)
+  targetLocatorFingerprint!: string;
+
   @Field(() => Boolean)
   readOnly!: boolean;
 
@@ -2199,6 +2212,12 @@ class CopilotPromptRegistryRepairPreflightType implements CopilotPromptRegistryR
   expectedCandidateEvidenceSetFingerprint!: string;
 
   @Field(() => String)
+  expectedTargetLocatorFingerprint!: string;
+
+  @Field(() => String)
+  targetLocatorFingerprint!: string;
+
+  @Field(() => String)
   idempotencyFingerprint!: string;
 
   @Field(() => String)
@@ -2326,6 +2345,9 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
 
   @Field(() => String)
   expectedCandidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  expectedTargetLocatorFingerprint!: string;
 
   @Field(() => Boolean)
   approvalRecordRequestCreated!: boolean;
@@ -5488,6 +5510,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
     'guardFingerprint',
     'operationSetFingerprint',
     'previewFingerprint',
+    'targetLocatorFingerprint',
   ].sort();
   const submissionFingerprint = createHash('sha256')
     .update(
@@ -5504,6 +5527,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
         operationSetFingerprint,
         previewFingerprint,
         requiredInputs: submissionRequiredInputs,
+        targetLocatorFingerprint: input.guard.targetLocatorFingerprint,
       })
     )
     .digest('hex')
@@ -5532,6 +5556,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
       requiredInputs: submissionRequiredInputs,
       status: 'read_only_contract',
       submissionFingerprint,
+      targetLocatorFingerprint: input.guard.targetLocatorFingerprint,
     };
 
   return {
@@ -5647,6 +5672,10 @@ function buildPromptRegistryRepairPreflight(
       'submissionFingerprint',
       expected.submissionFingerprint === current.submissionFingerprint,
     ],
+    [
+      'targetLocatorFingerprint',
+      expected.targetLocatorFingerprint === current.targetLocatorFingerprint,
+    ],
   ];
   const matchedFields = checks
     .filter(([, matched]) => matched)
@@ -5716,6 +5745,7 @@ function buildPromptRegistryRepairPreflight(
     'capabilityFingerprint',
     'permissionFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
   ].sort();
   const reviewBindingStatus = mismatchedFields.length
     ? 'stale_submission'
@@ -5731,9 +5761,11 @@ function buildPromptRegistryRepairPreflight(
         expectedSubmissionFingerprint: expected.submissionFingerprint,
         expectedCandidateEvidenceSetFingerprint:
           expected.candidateEvidenceSetFingerprint,
+        expectedTargetLocatorFingerprint: expected.targetLocatorFingerprint,
         inputs: reviewBindingInputs,
         permissionFingerprint,
         status: reviewBindingStatus,
+        targetLocatorFingerprint: current.targetLocatorFingerprint,
         version: reviewBindingVersion,
       })
     )
@@ -5860,6 +5892,7 @@ function buildPromptRegistryRepairPreflight(
     'policyBindingFingerprint',
     'repairJobFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
   ].sort();
   const auditEventStatus = 'not_created_read_only';
   const idempotencyVersion = 'repair-preflight-idempotency/v1';
@@ -5893,6 +5926,7 @@ function buildPromptRegistryRepairPreflight(
     'policyBindingFingerprint',
     'reviewBindingFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
   ].sort();
   const repairJobStatus = 'not_created_read_only';
   const repairJobFingerprint = createHash('sha256')
@@ -5910,6 +5944,7 @@ function buildPromptRegistryRepairPreflight(
         reviewBindingFingerprint,
         status: repairJobStatus,
         submissionFingerprint: current.submissionFingerprint,
+        targetLocatorFingerprint: current.targetLocatorFingerprint,
         version: repairJobVersion,
         workspaceId: permission.workspaceId ?? null,
       })
@@ -5931,6 +5966,7 @@ function buildPromptRegistryRepairPreflight(
         repairJobFingerprint,
         status: auditEventStatus,
         submissionFingerprint: current.submissionFingerprint,
+        targetLocatorFingerprint: current.targetLocatorFingerprint,
         version: auditEventVersion,
         workspaceId: permission.workspaceId ?? null,
       })
@@ -5946,6 +5982,7 @@ function buildPromptRegistryRepairPreflight(
     'repairJobFingerprint',
     'reviewBindingFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
   ].sort();
   const executionStateStatus = 'not_started_read_only';
   const executionStateFingerprint = createHash('sha256')
@@ -5962,6 +5999,7 @@ function buildPromptRegistryRepairPreflight(
         reviewBindingFingerprint,
         status: executionStateStatus,
         submissionFingerprint: current.submissionFingerprint,
+        targetLocatorFingerprint: current.targetLocatorFingerprint,
         version: executionStateVersion,
         workspaceId: permission.workspaceId ?? null,
       })
@@ -5977,6 +6015,7 @@ function buildPromptRegistryRepairPreflight(
     'repairJobFingerprint',
     'reviewBindingFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
   ].sort();
   const rollbackPlanStatus = 'not_created_read_only';
   const rollbackPlanFingerprint = createHash('sha256')
@@ -5993,6 +6032,7 @@ function buildPromptRegistryRepairPreflight(
         reviewBindingFingerprint,
         status: rollbackPlanStatus,
         submissionFingerprint: current.submissionFingerprint,
+        targetLocatorFingerprint: current.targetLocatorFingerprint,
         version: rollbackPlanVersion,
         workspaceId: permission.workspaceId ?? null,
       })
@@ -6012,6 +6052,7 @@ function buildPromptRegistryRepairPreflight(
     'repairJobFingerprint',
     'reviewBindingFingerprint',
     'rollbackPlanFingerprint',
+    'targetLocatorFingerprint',
   ].sort();
   const executionGateStatus = mismatchedFields.length
     ? 'blocked_stale_submission'
@@ -6034,6 +6075,7 @@ function buildPromptRegistryRepairPreflight(
         reviewBindingFingerprint,
         rollbackPlanFingerprint,
         status: executionGateStatus,
+        targetLocatorFingerprint: current.targetLocatorFingerprint,
         version: executionGateVersion,
         workspaceId: permission.workspaceId ?? null,
       })
@@ -6089,6 +6131,7 @@ function buildPromptRegistryRepairPreflight(
     executionStateVersion,
     expectedCandidateEvidenceSetFingerprint:
       expected.candidateEvidenceSetFingerprint,
+    expectedTargetLocatorFingerprint: expected.targetLocatorFingerprint,
     idempotencyFingerprint,
     idempotencyKey: current.idempotencyKey,
     idempotencyLockAcquired: false,
@@ -6127,6 +6170,7 @@ function buildPromptRegistryRepairPreflight(
     rollbackPlanVersion,
     readOnly: true,
     status: reviewBindingStatus,
+    targetLocatorFingerprint: current.targetLocatorFingerprint,
   };
   if (permission.workspaceId) {
     preflight.workspaceId = permission.workspaceId;
@@ -6160,6 +6204,11 @@ function buildPromptRegistryRepairExecutionRequest(
       'expectedCandidateEvidenceSetFingerprint',
       input.expectedCandidateEvidenceSetFingerprint ===
         preflight.candidateEvidenceSetFingerprint,
+    ],
+    [
+      'expectedTargetLocatorFingerprint',
+      input.expectedTargetLocatorFingerprint ===
+        preflight.targetLocatorFingerprint,
     ],
     [
       'expectedExecutionGateFingerprint',
@@ -8930,6 +8979,8 @@ function buildPromptRegistryRepairExecutionRequest(
           preflight.candidateEvidenceSetFingerprint,
         executionGateFingerprint: preflight.executionGateFingerprint,
         executionStateRequestFingerprint,
+        expectedTargetLocatorFingerprint:
+          input.expectedTargetLocatorFingerprint,
         idempotencyLockFingerprint,
         inputs: requestInputs,
         matchedFields,
@@ -8941,6 +8992,7 @@ function buildPromptRegistryRepairExecutionRequest(
         requestStatus,
         rollbackPlanFingerprint: preflight.rollbackPlanFingerprint,
         rollbackPlanRequestFingerprint,
+        targetLocatorFingerprint: preflight.targetLocatorFingerprint,
         executionTraceRequestFingerprint,
         version: requestVersion,
         workspaceId: preflight.workspaceId ?? null,
@@ -8954,6 +9006,7 @@ function buildPromptRegistryRepairExecutionRequest(
     executionRequested: false,
     expectedCandidateEvidenceSetFingerprint:
       input.expectedCandidateEvidenceSetFingerprint,
+    expectedTargetLocatorFingerprint: input.expectedTargetLocatorFingerprint,
     approvalRecordRequestCreated: false,
     approvalRecordRequestFingerprint,
     approvalRecordRequestInputs,

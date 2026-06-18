@@ -57,6 +57,7 @@ query getCopilotPromptRegistryRepairPreflight(
         executionStateStatus
         executionStateVersion
         expectedCandidateEvidenceSetFingerprint
+        expectedTargetLocatorFingerprint
         idempotencyFingerprint
         idempotencyKey
         idempotencyLockAcquired
@@ -95,6 +96,7 @@ query getCopilotPromptRegistryRepairPreflight(
         rollbackPlanVersion
         readOnly
         status
+        targetLocatorFingerprint
         workspaceId
       }
     }

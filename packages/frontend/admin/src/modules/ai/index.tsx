@@ -392,6 +392,7 @@ function buildPromptRegistryRepairSubmissionInput(
     previewFingerprint: submissionContract.previewFingerprint,
     requiredInputs: submissionContract.requiredInputs,
     submissionFingerprint: submissionContract.submissionFingerprint,
+    targetLocatorFingerprint: submissionContract.targetLocatorFingerprint,
   };
 }
 
@@ -416,6 +417,7 @@ function buildPromptRegistryRepairExecutionRequestInput({
     expectedAuditEventFingerprint: repairPreflight.auditEventFingerprint,
     expectedCandidateEvidenceSetFingerprint:
       repairPreflight.candidateEvidenceSetFingerprint,
+    expectedTargetLocatorFingerprint: repairPreflight.targetLocatorFingerprint,
     expectedExecutionGateFingerprint: repairPreflight.executionGateFingerprint,
     expectedExecutionGateStatus: repairPreflight.executionGateStatus,
     expectedExecutionStateFingerprint:
@@ -3032,6 +3034,7 @@ function formatPromptRegistryPublishGateRepairActionPreview(
     preview.operationFingerprints.length
       ? `operation fingerprints ${preview.operationFingerprints.join(', ')}`
       : 'operation fingerprints none',
+    `target locator fingerprint ${submission.targetLocatorFingerprint}`,
     `submission contract ${submission.contractVersion}`,
     `submission fingerprint ${submission.submissionFingerprint}`,
     `submission candidate evidence set fingerprint ${submission.candidateEvidenceSetFingerprint}`,
@@ -3078,6 +3081,8 @@ function formatPromptRegistryRepairPreflight(
     `authorization status ${formatFeatureKind(preflight.authorizationStatus)}`,
     `candidate evidence set fingerprint ${preflight.candidateEvidenceSetFingerprint}`,
     `expected candidate evidence set fingerprint ${preflight.expectedCandidateEvidenceSetFingerprint}`,
+    `target locator fingerprint ${preflight.targetLocatorFingerprint}`,
+    `expected target locator fingerprint ${preflight.expectedTargetLocatorFingerprint}`,
     `approval request fingerprint ${preflight.approvalRequestFingerprint}`,
     preflight.approvalModes.length
       ? `approval modes ${preflight.approvalModes.map(formatFeatureKind).join(', ')}`
@@ -3213,6 +3218,7 @@ function formatPromptRegistryRepairExecutionRequest(
       ? 'execution requested yes'
       : 'execution requested no',
     `expected candidate evidence set fingerprint ${request.expectedCandidateEvidenceSetFingerprint}`,
+    `expected target locator fingerprint ${request.expectedTargetLocatorFingerprint}`,
     `approval record request ${request.approvalRecordRequestVersion}`,
     `approval record request status ${formatFeatureKind(
       request.approvalRecordRequestStatus

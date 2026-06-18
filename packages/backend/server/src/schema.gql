@@ -906,6 +906,7 @@ type CopilotPromptRegistryRepairExecutionRequestType {
   auditEventRequestStatus: String!
   auditEventRequestVersion: String!
   expectedCandidateEvidenceSetFingerprint: String!
+  expectedTargetLocatorFingerprint: String!
   executionCompletionEventRequestCreated: Boolean!
   executionCompletionEventRequestFingerprint: String!
   executionCompletionEventRequestInputs: [String!]!
@@ -1154,6 +1155,7 @@ input CopilotPromptRegistryRepairExecutionRequestInput {
   expectedApprovalRequestFingerprint: String!
   expectedAuditEventFingerprint: String!
   expectedCandidateEvidenceSetFingerprint: String!
+  expectedTargetLocatorFingerprint: String!
   expectedExecutionGateFingerprint: String!
   expectedExecutionGateStatus: String!
   expectedExecutionStateFingerprint: String!
@@ -1216,6 +1218,7 @@ type CopilotPromptRegistryRepairPreflightType {
   executionStateStatus: String!
   executionStateVersion: String!
   expectedCandidateEvidenceSetFingerprint: String!
+  expectedTargetLocatorFingerprint: String!
   idempotencyFingerprint: String!
   idempotencyKey: String!
   idempotencyLockAcquired: Boolean!
@@ -1254,6 +1257,7 @@ type CopilotPromptRegistryRepairPreflightType {
   rollbackPlanVersion: String!
   readOnly: Boolean!
   status: String!
+  targetLocatorFingerprint: String!
   workspaceId: String
 }
 
@@ -1272,6 +1276,7 @@ input CopilotPromptRegistryRepairSubmissionInput {
   previewFingerprint: String!
   requiredInputs: [String!]!
   submissionFingerprint: String!
+  targetLocatorFingerprint: String!
 }
 
 type CopilotPromptRegistryPublishGateActionRouteDryRunRouteType {
@@ -1559,6 +1564,7 @@ type CopilotPromptRegistryPublishGateRepairActionSubmissionContractType {
   requiredInputs: [String!]!
   status: String!
   submissionFingerprint: String!
+  targetLocatorFingerprint: String!
 }
 
 type CopilotPromptRegistryPublishGateRepairActionPreviewType {
