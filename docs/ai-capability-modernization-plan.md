@@ -11060,35 +11060,6 @@ embedding/rerank task route 的 policy candidate、route candidate、prepare can
 - Admin 页面仍是只读 diagnostics，不支持直接编辑 `copilot.tasks.models`、provider profile、model definition、route policy 或执行 task route repair mutation。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
 
-## 334. P1 落地记录：Repair Execution Run Step Retry Attempt Candidate Evidence Set Binding
-
-本轮继续收敛第 333 节剩余风险中 “retry attempt、retry attempt trace/result/status/completion/finalization/retention/archive 后续链路仍需要继续显式审计和分段绑定” 的问题。实际代码与目标架构的冲突点是：
-run step base request 已经显式绑定 `candidateEvidenceSetFingerprint`，但 retry attempt request、retry attempt status event request、retry attempt trace request 与 retry attempt result request 仍只绑定 run step retry、run step status/trace/result/completion、job/queue/start/state/status、worker、operation set、job、rollback plan 和 submission 等指纹。这样 retry attempt 基础 contract 会通过 run step retry 与上游 request fingerprint 间接感知 evidence set，但自身 `inputs` 与 fingerprint payload 没有声明“本阶段也绑定同一 candidate evidence set”。本轮把 candidate evidence set 显式纳入这四个只读 request contract，不创建真实 retry attempt、不记录真实 retry attempt status event、trace 或 result。
-
-- `packages/backend/server/src/plugins/copilot/resolver.ts`：
-  - `executionRunStepRetryAttemptRequestInputs` 与 `executionRunStepRetryAttemptStatusEventRequestInputs` 新增 `candidateEvidenceSetFingerprint`，并在各自 fingerprint payload 中写入当前 preflight `candidateEvidenceSetFingerprint`。
-  - `executionRunStepRetryAttemptTraceRequestInputs` 与 `executionRunStepRetryAttemptResultRequestInputs` 新增 `candidateEvidenceSetFingerprint`，对应 fingerprint payload 同步绑定当前 preflight evidence set。
-- 测试覆盖：
-  - `packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts` 断言 retry attempt request、status event、trace 与 result request inputs 均包含 `candidateEvidenceSetFingerprint`。
-  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 更新 repair execution request mock contract，确保 Admin diagnostics 展示的 retry attempt 基础 request inputs 与后端 contract 对齐。
-
-该实现只扩展只读 repair execution downstream contract 与测试，不新增 GraphQL 字段、不新增 DB migration、不开放 repair mutation、不创建真实 retry attempt、不记录真实 retry attempt status event、不创建真实 retry attempt trace、不记录真实 retry attempt result，不改变 provider route selection、fallback order、route policy、Prompt Registry publish gate 判定、repair target locator、repair action catalog、embedding/rerank request 参数、Action Runtime 状态机或 native dispatch。它把 candidate evidence set 从“run step base contract 显式绑定”继续推进到“retry attempt base contract 也显式绑定同一 evidence set”，为后续 retry attempt completion/finalization/close/retention/archive 和 DB-backed Provider Registry / Model Registry revision 对齐提供更完整的 request 链路证据。
-
-验证策略：
-
-- 本轮为 TypeScript/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration、GraphQL schema 或 runtime packaging，不重建 `localmind-affine:test`。
-- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与宿主源码 bind mount 运行 focused Prettier、oxlint、resolver smoke 与 Admin AI Vitest。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
-- 最终容器验证通过：Prettier 输出 `All matched files use Prettier code style`，oxlint 输出 `0 warnings and 0 errors`，resolver smoke 输出 `resolver source chain smoke passed`，Admin AI Vitest 输出 `1 passed, 20 tests passed`。`localmind-affine:test` 镜像 ID 前后保持 `sha256:c3389960f5edde0288533ab9ba62cf9e2806ee25d78c7c468c10df8bde62cc50`，且没有残留 `affine_test` runner 容器。
-
-剩余风险：
-
-- retry attempt base request fingerprints 仍是 resolver 派生的只读 contract hash，不是持久化 retry attempt id、retry attempt status event id、retry attempt trace id 或 retry attempt result id。
-- candidate evidence set 仍是 preflight 摘要，不是可执行 mutation locator；未来 repair mutation 仍必须新增 explicit candidate locator/fingerprint input schema、guard fingerprint、权限模型、approval record、audit event 和 rollback plan。
-- 本轮只覆盖 retry attempt request、status event、trace 与 result；retry attempt completion、completion status event、finalization、finalization status event、close、close status event、retention policy、retention policy rule、retention lease 与 archive 后续链路仍需要继续显式审计和分段绑定。
-- candidate evidence set 不包含 provider secret、endpoint probe latency、quota usage、cost、native dispatch span、真实 embedding 返回向量长度、rerank provider response 或 runtime retry 结果；真实运行可用性仍需结合 provider health freshness policy 与 runtime telemetry。
-- Admin 页面仍是只读 diagnostics，不支持直接编辑 `copilot.tasks.models`、provider profile、model definition、route policy 或执行 task route repair mutation。
-- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
-
 ## 327. P1 落地记录：Repair Submission Candidate Evidence Set Preflight Binding
 
 本轮继续收敛第 326 节剩余风险中 “preview operation 暴露的是 candidate evidence fingerprints/keys 摘要，不是正式 mutation input；如果未来 mutation 要执行 repair，仍必须把 explicit candidate locator/fingerprint 纳入 mutation input schema、guard fingerprint 和 preflight 校验” 的问题。实际代码与目标架构的冲突点是：
@@ -11540,6 +11511,35 @@ start/queue/worker/job request 已经显式绑定 `candidateEvidenceSetFingerpri
 - run step base request fingerprints 仍是 resolver 派生的只读 contract hash，不是持久化 run step id、trace id、result id、completion id、status event id 或 retry id。
 - candidate evidence set 仍是 preflight 摘要，不是可执行 mutation locator；未来 repair mutation 仍必须新增 explicit candidate locator/fingerprint input schema、guard fingerprint、权限模型、approval record、audit event 和 rollback plan。
 - 本轮只覆盖 run step、trace、result、completion、status event 与 retry；retry attempt、retry attempt trace/result/status/completion/finalization/retention/archive 后续链路仍需要继续显式审计和分段绑定。
+- candidate evidence set 不包含 provider secret、endpoint probe latency、quota usage、cost、native dispatch span、真实 embedding 返回向量长度、rerank provider response 或 runtime retry 结果；真实运行可用性仍需结合 provider health freshness policy 与 runtime telemetry。
+- Admin 页面仍是只读 diagnostics，不支持直接编辑 `copilot.tasks.models`、provider profile、model definition、route policy 或执行 task route repair mutation。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 334. P1 落地记录：Repair Execution Run Step Retry Attempt Candidate Evidence Set Binding
+
+本轮继续收敛第 333 节剩余风险中 “retry attempt、retry attempt trace/result/status/completion/finalization/retention/archive 后续链路仍需要继续显式审计和分段绑定” 的问题。实际代码与目标架构的冲突点是：
+run step base request 已经显式绑定 `candidateEvidenceSetFingerprint`，但 retry attempt request、retry attempt status event request、retry attempt trace request 与 retry attempt result request 仍只绑定 run step retry、run step status/trace/result/completion、job/queue/start/state/status、worker、operation set、job、rollback plan 和 submission 等指纹。这样 retry attempt 基础 contract 会通过 run step retry 与上游 request fingerprint 间接感知 evidence set，但自身 `inputs` 与 fingerprint payload 没有声明“本阶段也绑定同一 candidate evidence set”。本轮把 candidate evidence set 显式纳入这四个只读 request contract，不创建真实 retry attempt、不记录真实 retry attempt status event、trace 或 result。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `executionRunStepRetryAttemptRequestInputs` 与 `executionRunStepRetryAttemptStatusEventRequestInputs` 新增 `candidateEvidenceSetFingerprint`，并在各自 fingerprint payload 中写入当前 preflight `candidateEvidenceSetFingerprint`。
+  - `executionRunStepRetryAttemptTraceRequestInputs` 与 `executionRunStepRetryAttemptResultRequestInputs` 新增 `candidateEvidenceSetFingerprint`，对应 fingerprint payload 同步绑定当前 preflight evidence set。
+- 测试覆盖：
+  - `packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts` 断言 retry attempt request、status event、trace 与 result request inputs 均包含 `candidateEvidenceSetFingerprint`。
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 更新 repair execution request mock contract，确保 Admin diagnostics 展示的 retry attempt 基础 request inputs 与后端 contract 对齐。
+
+该实现只扩展只读 repair execution downstream contract 与测试，不新增 GraphQL 字段、不新增 DB migration、不开放 repair mutation、不创建真实 retry attempt、不记录真实 retry attempt status event、不创建真实 retry attempt trace、不记录真实 retry attempt result，不改变 provider route selection、fallback order、route policy、Prompt Registry publish gate 判定、repair target locator、repair action catalog、embedding/rerank request 参数、Action Runtime 状态机或 native dispatch。它把 candidate evidence set 从“run step base contract 显式绑定”继续推进到“retry attempt base contract 也显式绑定同一 evidence set”，为后续 retry attempt completion/finalization/close/retention/archive 和 DB-backed Provider Registry / Model Registry revision 对齐提供更完整的 request 链路证据。
+
+验证策略：
+
+- 本轮为 TypeScript/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration、GraphQL schema 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与宿主源码 bind mount 运行 focused Prettier、oxlint、resolver smoke 与 Admin AI Vitest。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+- 最终容器验证通过：Prettier 输出 `All matched files use Prettier code style`，oxlint 输出 `0 warnings and 0 errors`，resolver smoke 输出 `resolver source chain smoke passed`，Admin AI Vitest 输出 `1 passed, 20 tests passed`。`localmind-affine:test` 镜像 ID 前后保持 `sha256:c3389960f5edde0288533ab9ba62cf9e2806ee25d78c7c468c10df8bde62cc50`，且没有残留 `affine_test` runner 容器。
+
+剩余风险：
+
+- retry attempt base request fingerprints 仍是 resolver 派生的只读 contract hash，不是持久化 retry attempt id、retry attempt status event id、retry attempt trace id 或 retry attempt result id。
+- candidate evidence set 仍是 preflight 摘要，不是可执行 mutation locator；未来 repair mutation 仍必须新增 explicit candidate locator/fingerprint input schema、guard fingerprint、权限模型、approval record、audit event 和 rollback plan。
+- 本轮只覆盖 retry attempt request、status event、trace 与 result；retry attempt completion、completion status event、finalization、finalization status event、close、close status event、retention policy、retention policy rule、retention lease 与 archive 后续链路仍需要继续显式审计和分段绑定。
 - candidate evidence set 不包含 provider secret、endpoint probe latency、quota usage、cost、native dispatch span、真实 embedding 返回向量长度、rerank provider response 或 runtime retry 结果；真实运行可用性仍需结合 provider health freshness policy 与 runtime telemetry。
 - Admin 页面仍是只读 diagnostics，不支持直接编辑 `copilot.tasks.models`、provider profile、model definition、route policy 或执行 task route repair mutation。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
