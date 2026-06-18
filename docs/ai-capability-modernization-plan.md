@@ -13365,3 +13365,29 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 该字段是 read-only submission/preflight/execution request gate evidence；本轮仍不创建真实 repair mutation 写入 guard、不持久化 route event、不定义 support bundle schema、不落 Model Registry/Provider Registry revision，也不记录 provider response、latency、usage、cost 或最终索引写入结果。
 - 该指纹不能替代完整 `preparedRoutes`、candidate evidence、route trace、provider health freshness、capability metadata、成本、token/embedding usage 或容器日志。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 395. P3 落地记录：Prepared Route Order Execution Core Artifact Binding
+
+本轮继续收敛第 394 节剩余风险中 “`preparedRouteOrderEvidenceSetFingerprint` 已进入 submission/preflight/execution request gate，但 execution request 内部核心 artifact 仍主要通过 candidate evidence set、submission、preflight gate 等字段间接感知 prepared route order evidence” 的问题。实际代码与目标 AI 中间层架构的冲突点是：execution request 已经在顶层 gate 校验 stale prepared route order evidence，但 idempotency lock、approval record request、audit event request、repair job request、execution state request、rollback plan request、execution trace request 与 execution result request 这些只读核心 artifact 的 fingerprint payload 没有显式声明该 order evidence set anchor。人工审计或后续 support bundle 若只查看某个核心 artifact fingerprint，很难判断它是否直接绑定了同一份 prepared route order evidence。本轮把该字段纳入核心只读 execution request artifact 的 inputs 与 fingerprint payload，并纳入顶层 request fingerprint payload，不扩展到完整 run/step/retry/retention 生命周期。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `buildPromptRegistryRepairExecutionRequest()` 的 idempotency lock、approval record request、audit event request、repair job request、execution state request、rollback plan request、execution trace request 与 execution result request inputs 新增 `preparedRouteOrderEvidenceSetFingerprint`。
+  - 上述八个核心 artifact 的 fingerprint payload 均写入 `preflight.preparedRouteOrderEvidenceSetFingerprint`，让核心只读请求 fingerprint 对 prepared route order evidence set 变化敏感。
+  - 顶层 `requestFingerprint` payload 同步写入 `preparedRouteOrderEvidenceSetFingerprint`，与第 394 节的 execution request expected gate 保持同一个 evidence anchor。
+- 测试覆盖：
+  - resolver source chain smoke 断言八个核心 execution request artifact inputs 都包含 `preparedRouteOrderEvidenceSetFingerprint`。
+  - Admin Vitest 的 execution request fixture 同步补齐这些核心 artifact inputs，覆盖 `formatPromptRegistryRepairExecutionRequest()` 展示路径。
+
+该实现只扩展只读 execution request 核心 artifact 的 fingerprint payload、inputs 与测试 fixture，不新增 GraphQL 字段、不新增 DB migration、不改变 submission/preflight 字段名、不改变真实 repair mutation 写入、provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、审批写入路径、run/step/retry/retention 生命周期 artifact 或 support bundle schema。它把 prepared route order evidence 从“execution request gate 可校验，但核心 artifact 主要间接继承”推进到“核心只读 execution request artifact 的 inputs 与 fingerprint payload 均直接声明同一 order evidence set anchor”，为后续 route explain、support bundle、repair mutation guard 与 DB-backed route event 对齐提供更细粒度的审计证据。
+
+验证策略：
+
+- 本轮为 TypeScript/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `preparedRouteOrderEvidenceSetFingerprint` 仍只反映 diagnostics probe 阶段的 prepared route order evidence，不代表后续真实 embedding/rerank dispatch 一定按同一顺序执行、命中同一 provider/model 或产生同一 fallback attempt。
+- 本轮只绑定 execution request 的核心只读 artifact，没有把该字段扩展到 execution completion/finalization/status poll、job run、run step、retry attempt、retention、archive、rollback executor/outcome 等更广泛生命周期 artifact；这些仍通过相邻 artifact fingerprint、candidate evidence set、submission、preflight 或顶层 request fingerprint 间接感知。
+- 该字段仍不是真实 repair mutation 写入 guard、持久化 route event、support bundle schema、Model Registry revision、Provider Registry revision、provider response、latency、usage、cost 或最终索引写入结果。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
