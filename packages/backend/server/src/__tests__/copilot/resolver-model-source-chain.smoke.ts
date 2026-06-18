@@ -5584,6 +5584,11 @@ async function main() {
     taskDiagnosticsErrorRoute?.preparedRouteTargetFingerprint,
     'policy candidate evidence should bind the task route target fingerprint'
   );
+  assert.deepEqual(
+    taskDiagnosticsPolicyCandidateEvidence?.preparedRouteTargets,
+    taskDiagnosticsErrorRoute?.preparedRouteTargets,
+    'policy candidate evidence should bind the task route targets'
+  );
   const taskDiagnosticsRouteCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'routeCandidate'
@@ -5613,6 +5618,11 @@ async function main() {
     taskDiagnosticsErrorRoute?.preparedRouteTargetFingerprint,
     'route candidate evidence should bind the task route target fingerprint'
   );
+  assert.deepEqual(
+    taskDiagnosticsRouteCandidateEvidence?.preparedRouteTargets,
+    taskDiagnosticsErrorRoute?.preparedRouteTargets,
+    'route candidate evidence should bind the task route targets'
+  );
   const taskDiagnosticsPrepareCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'prepareCandidate'
@@ -5637,6 +5647,11 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.preparedRouteTargetFingerprint,
     taskDiagnosticsErrorRoute?.preparedRouteTargetFingerprint,
     'prepare candidate evidence should bind the task route target fingerprint'
+  );
+  assert.deepEqual(
+    taskDiagnosticsPrepareCandidateEvidence?.preparedRouteTargets,
+    taskDiagnosticsErrorRoute?.preparedRouteTargets,
+    'prepare candidate evidence should bind the task route targets'
   );
   const taskDiagnosticsErrorPreviewOperation =
     taskDiagnosticsErrorGate?.repairActionPreview.operations.find(

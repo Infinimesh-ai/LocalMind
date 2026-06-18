@@ -1975,6 +1975,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             candidateModelIds: null,
             modelId: null,
             preparedModelId: null,
+            preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
             providerConfiguredModelCount: 1,
@@ -1999,6 +2000,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             candidateModelIds: ['workspace-embedding'],
             modelId: 'workspace-embedding',
             preparedModelId: null,
+            preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
             providerConfiguredModelCount: 1,
@@ -2023,6 +2025,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             candidateModelIds: ['workspace-embedding'],
             modelId: 'workspace-embedding',
             preparedModelId: 'nomic-embed-text',
+            preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
             providerConfiguredModelCount: 1,
@@ -5947,6 +5950,9 @@ describe('AiPage', () => {
     );
     expect(readyGateDiagnostics).toContain(
       `key policy:workspace_indexing:global:ollama-main / provider ollama-main`
+    );
+    expect(readyGateDiagnostics).toContain(
+      `targets ${blockedRoute.preparedRouteTargets.join(', ')}`
     );
     expect(readyGateDiagnostics).toContain(
       `target fingerprint ${blockedRoute.preparedRouteTargetFingerprint}`
