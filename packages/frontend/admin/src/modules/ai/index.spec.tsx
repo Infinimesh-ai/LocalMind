@@ -84,6 +84,16 @@ function candidateEvidenceFixture<T extends Record<string, unknown>>(
   };
 }
 
+function taskRouteTargetFingerprintFixture(input: {
+  featureKind: string;
+  targets: string[];
+}) {
+  return createHash('sha256')
+    .update(stableFixtureStringify(input))
+    .digest('hex')
+    .slice(0, 16);
+}
+
 function expectQueryCall(query: unknown, variables: Record<string, unknown>) {
   expect(useQueryMock).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -270,6 +280,10 @@ const blockedRoute = {
   ],
   preparedProviderCount: 0,
   preparedRouteTargets: [],
+  preparedRouteTargetFingerprint: taskRouteTargetFingerprintFixture({
+    featureKind: 'workspace_indexing',
+    targets: [],
+  }),
   preparedRoutes: [],
   providerId: null,
   protocol: null,
@@ -384,6 +398,10 @@ const readyRoute = {
   ],
   preparedProviderCount: 1,
   preparedRouteTargets: ['ollama-main/bge-reranker-v2'],
+  preparedRouteTargetFingerprint: taskRouteTargetFingerprintFixture({
+    featureKind: 'rerank',
+    targets: ['ollama-main/bge-reranker-v2'],
+  }),
   preparedRoutes: [
     {
       behaviorFlags: [],
@@ -5840,7 +5858,7 @@ describe('AiPage', () => {
       'Local Ollama / ollama-main / requested workspace-embedding'
     );
     expect(readyGateDiagnostics).toContain(
-      'Task route Rerank / status Ready / configured yes / provider ollama-main / model bge-reranker-v2 / profile Profile ollama-main / Configured / config copilot.providers.profiles[id=ollama-main] / 2 configured models / models workspace-rerank, bge-reranker-v2 / requested workspace-rerank / source Rerank task model / config copilot.tasks.models.rerank / prepared providers 1 / targets ollama-main/bge-reranker-v2'
+      `Task route Rerank / status Ready / configured yes / provider ollama-main / model bge-reranker-v2 / profile Profile ollama-main / Configured / config copilot.providers.profiles[id=ollama-main] / 2 configured models / models workspace-rerank, bge-reranker-v2 / requested workspace-rerank / source Rerank task model / config copilot.tasks.models.rerank / prepared providers 1 / targets ollama-main/bge-reranker-v2 / target fingerprint ${readyRoute.preparedRouteTargetFingerprint}`
     );
     expect(readyGateDiagnostics).toContain(
       'Task route prepare candidates Rerank 1'
@@ -7236,6 +7254,9 @@ describe('AiPage', () => {
     expect(rerankDiagnostics).toContain('Prepared providers 1');
     expect(rerankDiagnostics).toContain(
       'Prepared targets ollama-main/bge-reranker-v2'
+    );
+    expect(rerankDiagnostics).toContain(
+      `Prepared target fingerprint ${readyRoute.preparedRouteTargetFingerprint}`
     );
     expect(rerankDiagnostics).toContain(
       'Prepared route ollama-main/bge-reranker-v2'

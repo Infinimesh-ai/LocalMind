@@ -1885,6 +1885,7 @@ type CopilotTaskRouteDiagnosticsType {
   prepareCandidates: [CopilotTaskRoutePrepareCandidateDiagnosticsType!]!
   preparedProviderCount: SafeInt!
   preparedRouteTargets: [String!]!
+  preparedRouteTargetFingerprint: String!
   preparedRoutes: [CopilotPreparedTaskRouteDiagnosticsType!]!
   providerConfiguredModelCount: SafeInt
   providerConfiguredModelIds: [String!]

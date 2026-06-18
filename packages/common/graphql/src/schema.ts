@@ -2074,6 +2074,7 @@ export interface CopilotTaskRouteDiagnosticsType {
   prepareCandidates: Array<CopilotTaskRoutePrepareCandidateDiagnosticsType>;
   preparedProviderCount: Scalars['SafeInt']['output'];
   preparedRouteTargets: Array<Scalars['String']['output']>;
+  preparedRouteTargetFingerprint: Scalars['String']['output'];
   preparedRoutes: Array<CopilotPreparedTaskRouteDiagnosticsType>;
   providerConfiguredModelCount?: Maybe<Scalars['SafeInt']['output']>;
   providerConfiguredModelIds?: Maybe<Array<Scalars['String']['output']>>;
@@ -6857,6 +6858,7 @@ export type GetPromptModelsQuery = {
           }>;
           preparedProviderCount: number;
           preparedRouteTargets: Array<string>;
+          preparedRouteTargetFingerprint: string;
           preparedRoutes: Array<{
             __typename?: 'CopilotPreparedTaskRouteDiagnosticsType';
             behaviorFlags: Array<string> | null;
@@ -7142,6 +7144,7 @@ export type GetPromptModelsQuery = {
           }>;
           preparedProviderCount: number;
           preparedRouteTargets: Array<string>;
+          preparedRouteTargetFingerprint: string;
           preparedRoutes: Array<{
             __typename?: 'CopilotPreparedTaskRouteDiagnosticsType';
             behaviorFlags: Array<string> | null;

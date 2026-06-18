@@ -415,6 +415,7 @@ query getCopilotPromptRegistryPublishGate(
           }
           preparedProviderCount
           preparedRouteTargets
+          preparedRouteTargetFingerprint
           preparedRoutes {
             behaviorFlags
             canonicalModelKey

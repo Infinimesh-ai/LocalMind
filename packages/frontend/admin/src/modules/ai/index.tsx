@@ -1121,6 +1121,8 @@ function formatPromptRegistryPublishGateTaskRoute(route: {
   const requestedModelConfigPath =
     readiness.requestedModelConfigPath ?? route.raw.requestedModelConfigPath;
   const preparedRouteTargets = route.raw.preparedRouteTargets ?? [];
+  const preparedRouteTargetFingerprint =
+    route.raw.preparedRouteTargetFingerprint;
   const providerProfileLabel = formatAIModelProviderProfileLabel({
     providerConfiguredModelCount: route.raw.providerConfiguredModelCount,
     providerConfiguredModelIds: route.raw.providerConfiguredModelIds,
@@ -1145,6 +1147,9 @@ function formatPromptRegistryPublishGateTaskRoute(route: {
     `prepared providers ${readiness.preparedProviderCount}`,
     preparedRouteTargets.length
       ? `targets ${preparedRouteTargets.join(' -> ')}`
+      : null,
+    preparedRouteTargetFingerprint
+      ? `target fingerprint ${preparedRouteTargetFingerprint}`
       : null,
     readiness.errorCode ? `code ${readiness.errorCode}` : null,
     route.diagnostics.reasonSummary.reasons.length
@@ -1231,6 +1236,8 @@ function buildTaskRouteDiagnosticsText({
     readiness.requestedModelConfigPath ?? rawRoute?.requestedModelConfigPath;
   const preparedRoutes = rawRoute?.preparedRoutes ?? [];
   const preparedRouteTargets = rawRoute?.preparedRouteTargets ?? [];
+  const preparedRouteTargetFingerprint =
+    rawRoute?.preparedRouteTargetFingerprint;
 
   return [
     `Task route ${label}`,
@@ -1251,6 +1258,9 @@ function buildTaskRouteDiagnosticsText({
     `Prepared providers ${readiness.preparedProviderCount}`,
     preparedRouteTargets.length
       ? `Prepared targets ${preparedRouteTargets.join(' -> ')}`
+      : null,
+    preparedRouteTargetFingerprint
+      ? `Prepared target fingerprint ${preparedRouteTargetFingerprint}`
       : null,
     readiness.errorCode ? `Error code ${readiness.errorCode}` : null,
     readiness.errorMessage ? `Error ${readiness.errorMessage}` : null,
@@ -1309,6 +1319,8 @@ function RouteSummaryCard({
     readiness.requestedModelConfigPath ?? rawRoute?.requestedModelConfigPath;
   const preparedRoutes = rawRoute?.preparedRoutes ?? [];
   const preparedRouteTargets = rawRoute?.preparedRouteTargets ?? [];
+  const preparedRouteTargetFingerprint =
+    rawRoute?.preparedRouteTargetFingerprint;
   const diagnosticsText = buildTaskRouteDiagnosticsText({
     label,
     rawRoute,
@@ -1375,6 +1387,11 @@ function RouteSummaryCard({
             {preparedRouteTargets.length ? (
               <div className="mt-1 break-words text-xs text-muted-foreground">
                 {preparedRouteTargets.join(' -> ')}
+              </div>
+            ) : null}
+            {preparedRouteTargetFingerprint ? (
+              <div className="mt-1 break-words text-xs text-muted-foreground">
+                Target fingerprint {preparedRouteTargetFingerprint}
               </div>
             ) : null}
           </div>

@@ -139,6 +139,8 @@ export interface AIModelTaskRoute {
   routeTrace?: AIModelTaskRouteTracePhase[] | null;
   prepareCandidates?: AIModelTaskRoutePrepareCandidate[] | null;
   preparedProviderCount: number;
+  preparedRouteTargetFingerprint?: string | null;
+  preparedRouteTargets?: string[] | null;
   providerConfiguredModelCount?: number | null;
   providerConfiguredModelIds?: string[] | null;
   providerId?: string | null;

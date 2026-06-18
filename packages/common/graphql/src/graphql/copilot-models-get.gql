@@ -124,6 +124,7 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
           }
           preparedProviderCount
           preparedRouteTargets
+          preparedRouteTargetFingerprint
           preparedRoutes {
             behaviorFlags
             canonicalModelKey
@@ -398,6 +399,7 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
           }
           preparedProviderCount
           preparedRouteTargets
+          preparedRouteTargetFingerprint
           preparedRoutes {
             behaviorFlags
             canonicalModelKey

@@ -127,6 +127,21 @@ const cleanSnapshotObject = (obj: unknown, omittedKeys: string[] = []) =>
 const cleanFinalMessages = (messages: unknown) =>
   cleanSnapshotObject(messages, ['attachments']);
 
+function taskRouteTargetFingerprintFixture(input: {
+  featureKind: string;
+  targets: string[];
+}) {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        featureKind: input.featureKind,
+        targets: input.targets,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
 const test = ava as TestFn<Context>;
 let userId: string;
 let restoreMockCopilotNativeRuntime: (() => void) | undefined;
@@ -4756,6 +4771,13 @@ test('resolver models should expose workspace task route diagnostics', async t =
       'ollama-main/nomic-embed-text',
       'openai-default/text-embedding-3-small',
     ],
+    preparedRouteTargetFingerprint: taskRouteTargetFingerprintFixture({
+      featureKind: 'workspace_indexing',
+      targets: [
+        'ollama-main/nomic-embed-text',
+        'openai-default/text-embedding-3-small',
+      ],
+    }),
     preparedRoutes: [
       {
         providerId: 'ollama-main',
@@ -4902,6 +4924,10 @@ test('resolver models should expose workspace task route diagnostics', async t =
     fallbackProviderIds: ['ollama-main'],
     preparedProviderCount: 1,
     preparedRouteTargets: ['ollama-main/bge-reranker-v2'],
+    preparedRouteTargetFingerprint: taskRouteTargetFingerprintFixture({
+      featureKind: 'rerank',
+      targets: ['ollama-main/bge-reranker-v2'],
+    }),
     preparedRoutes: [
       {
         providerId: 'ollama-main',

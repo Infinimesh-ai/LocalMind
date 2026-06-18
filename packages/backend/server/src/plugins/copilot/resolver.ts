@@ -9770,6 +9770,32 @@ function uniqueStrings(values: string[]) {
   return Array.from(new Set(values));
 }
 
+function buildTaskRoutePreparedTargetSummary(input: {
+  featureKind: string;
+  preparedRoutes: Pick<
+    CopilotPreparedTaskRouteDiagnosticsType,
+    'modelId' | 'providerId'
+  >[];
+}) {
+  const targets = uniqueStrings(
+    input.preparedRoutes.map(
+      preparedRoute => `${preparedRoute.providerId}/${preparedRoute.modelId}`
+    )
+  );
+  const payload = stableRepairRecommendationStringify({
+    featureKind: input.featureKind,
+    targets,
+  });
+
+  return {
+    preparedRouteTargetFingerprint: createHash('sha256')
+      .update(payload)
+      .digest('hex')
+      .slice(0, 16),
+    preparedRouteTargets: targets,
+  };
+}
+
 function buildTaskRouteCandidateKey(
   candidate: Pick<
     CopilotTaskRouteCandidateDiagnosticsType,
@@ -11039,6 +11065,9 @@ class CopilotTaskRouteDiagnosticsType {
   @Field(() => [String])
   preparedRouteTargets!: string[];
 
+  @Field(() => String)
+  preparedRouteTargetFingerprint!: string;
+
   @Field(() => SafeIntResolver, { nullable: true })
   requestedDimensions?: number;
 
@@ -11293,6 +11322,10 @@ export class CopilotResolver {
           })
         );
         const providerPrepareCandidates = prepareCandidatesResult.value ?? [];
+        const emptyPreparedTargetSummary = buildTaskRoutePreparedTargetSummary({
+          featureKind: 'workspace_indexing',
+          preparedRoutes: [],
+        });
         if (!route) {
           return {
             configured: false,
@@ -11321,7 +11354,7 @@ export class CopilotResolver {
             fallbackProviderIds: [],
             preparedRoutes: [],
             preparedProviderCount: 0,
-            preparedRouteTargets: [],
+            ...emptyPreparedTargetSummary,
             requestedDimensions: EMBEDDING_DIMENSIONS,
           };
         }
@@ -11330,6 +11363,10 @@ export class CopilotResolver {
           route.preparedRoutes,
           providerPrepareCandidates
         );
+        const preparedTargetSummary = buildTaskRoutePreparedTargetSummary({
+          featureKind: 'workspace_indexing',
+          preparedRoutes: route.preparedRoutes,
+        });
         return {
           configured: route.configured,
           diagnosticsErrors,
@@ -11353,12 +11390,7 @@ export class CopilotResolver {
           fallbackProviderIds: route.fallbackOrder,
           preparedRoutes: route.preparedRoutes,
           preparedProviderCount: route.preparedProviderCount,
-          preparedRouteTargets: uniqueStrings(
-            route.preparedRoutes.map(
-              preparedRoute =>
-                `${preparedRoute.providerId}/${preparedRoute.modelId}`
-            )
-          ),
+          ...preparedTargetSummary,
           providerId: route.providerId,
           providerName: route.providerName,
           providerSource: route.providerSource,
@@ -11412,6 +11444,10 @@ export class CopilotResolver {
           })
         );
         const providerPrepareCandidates = prepareCandidatesResult.value ?? [];
+        const emptyPreparedTargetSummary = buildTaskRoutePreparedTargetSummary({
+          featureKind: 'rerank',
+          preparedRoutes: [],
+        });
         if (!route) {
           return {
             configured: false,
@@ -11440,7 +11476,7 @@ export class CopilotResolver {
             fallbackProviderIds: [],
             preparedRoutes: [],
             preparedProviderCount: 0,
-            preparedRouteTargets: [],
+            ...emptyPreparedTargetSummary,
           };
         }
         const prepareCandidates = buildTaskRoutePrepareCandidates(
@@ -11448,6 +11484,10 @@ export class CopilotResolver {
           route.preparedRoutes,
           providerPrepareCandidates
         );
+        const preparedTargetSummary = buildTaskRoutePreparedTargetSummary({
+          featureKind: 'rerank',
+          preparedRoutes: route.preparedRoutes,
+        });
         return {
           configured: route.configured,
           diagnosticsErrors,
@@ -11471,12 +11511,7 @@ export class CopilotResolver {
           fallbackProviderIds: route.fallbackOrder,
           preparedRoutes: route.preparedRoutes,
           preparedProviderCount: route.preparedProviderCount,
-          preparedRouteTargets: uniqueStrings(
-            route.preparedRoutes.map(
-              preparedRoute =>
-                `${preparedRoute.providerId}/${preparedRoute.modelId}`
-            )
-          ),
+          ...preparedTargetSummary,
           providerId: route.providerId,
           providerName: route.providerName,
           providerSource: route.providerSource,

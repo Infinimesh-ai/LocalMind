@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 
 import { createGlobalEnv } from '../../env';
 
@@ -22,6 +23,21 @@ function sortRouteCalls<
         )
       )
   );
+}
+
+function taskRouteTargetFingerprintFixture(input: {
+  featureKind: string;
+  targets: string[];
+}) {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        featureKind: input.featureKind,
+        targets: input.targets,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
 }
 
 async function main() {
@@ -5412,6 +5428,13 @@ async function main() {
   assert.deepEqual(taskDiagnosticsErrorRoute?.preparedRouteTargets, [
     'local/nomic-embed-text',
   ]);
+  assert.equal(
+    taskDiagnosticsErrorRoute?.preparedRouteTargetFingerprint,
+    taskRouteTargetFingerprintFixture({
+      featureKind: 'workspace_indexing',
+      targets: ['local/nomic-embed-text'],
+    })
+  );
   assert.deepEqual(
     taskDiagnosticsErrorRoute?.routeCandidates.map(
       candidate => candidate.providerId
