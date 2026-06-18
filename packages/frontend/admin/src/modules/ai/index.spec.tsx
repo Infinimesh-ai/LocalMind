@@ -2837,6 +2837,7 @@ describe('AiPage', () => {
             : 'dddd7777eeee8888',
           executionCompletionEventRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionCompletionRequestFingerprint',
             'executionFailureEventRequestFingerprint',
             'executionProviderResponseRequestFingerprint',
@@ -2861,6 +2862,7 @@ describe('AiPage', () => {
             : 'dddd6666eeee7777',
           executionCompletionRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionFailureEventRequestFingerprint',
             'executionProviderResponseRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -2884,6 +2886,7 @@ describe('AiPage', () => {
             : 'dddd9999eeeeaaaa',
           executionFinalizationEventRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionCompletionEventRequestFingerprint',
             'executionCompletionRequestFingerprint',
             'executionFailureEventRequestFingerprint',
@@ -2910,6 +2913,7 @@ describe('AiPage', () => {
             : 'dddd8888eeee9999',
           executionFinalizationRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionCompletionEventRequestFingerprint',
             'executionCompletionRequestFingerprint',
             'executionFailureEventRequestFingerprint',
@@ -2935,6 +2939,7 @@ describe('AiPage', () => {
             : 'ddddbbbb9999aaaa',
           executionStatusPollRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionCompletionEventRequestFingerprint',
             'executionCompletionRequestFingerprint',
             'executionFailureEventRequestFingerprint',
