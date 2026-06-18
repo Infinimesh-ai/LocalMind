@@ -40,6 +40,62 @@ function taskRouteTargetFingerprintFixture(input: {
     .slice(0, 16);
 }
 
+function taskRoutePolicyCandidateEvidenceFixture<
+  T extends {
+    allowed: boolean;
+    available: boolean;
+    health: string;
+    healthCheckedAt?: string;
+    privacy: string;
+    providerConfiguredModelCount?: number;
+    providerConfiguredModelIds?: string[];
+    providerId: string;
+    providerName?: string;
+    providerPriority?: number;
+    providerProfileConfigPath?: string;
+    providerProfileId?: string;
+    providerProfileSource?: string;
+    providerSource?: string;
+    providerType?: string;
+    reasons: string[];
+  },
+>(candidates: T[] | undefined) {
+  return candidates?.map(candidate => ({
+    allowed: candidate.allowed,
+    available: candidate.available,
+    health: candidate.health,
+    ...(candidate.healthCheckedAt
+      ? { healthCheckedAt: candidate.healthCheckedAt }
+      : {}),
+    privacy: candidate.privacy,
+    providerId: candidate.providerId,
+    ...(candidate.providerConfiguredModelCount !== undefined
+      ? { providerConfiguredModelCount: candidate.providerConfiguredModelCount }
+      : {}),
+    ...(candidate.providerConfiguredModelIds?.length
+      ? { providerConfiguredModelIds: candidate.providerConfiguredModelIds }
+      : {}),
+    ...(candidate.providerName ? { providerName: candidate.providerName } : {}),
+    ...(candidate.providerPriority !== undefined
+      ? { providerPriority: candidate.providerPriority }
+      : {}),
+    ...(candidate.providerProfileConfigPath
+      ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
+      : {}),
+    ...(candidate.providerProfileId
+      ? { providerProfileId: candidate.providerProfileId }
+      : {}),
+    ...(candidate.providerProfileSource
+      ? { providerProfileSource: candidate.providerProfileSource }
+      : {}),
+    ...(candidate.providerSource
+      ? { providerSource: candidate.providerSource }
+      : {}),
+    ...(candidate.providerType ? { providerType: candidate.providerType } : {}),
+    reasons: candidate.reasons,
+  }));
+}
+
 async function main() {
   process.env.NODE_ENV = 'test';
   process.env.DEPLOYMENT_TYPE = 'affine';
@@ -5605,6 +5661,13 @@ async function main() {
     taskDiagnosticsErrorRoute?.routeTrace,
     'policy candidate evidence should bind the task route trace'
   );
+  assert.deepEqual(
+    taskDiagnosticsPolicyCandidateEvidence?.policyCandidates,
+    taskRoutePolicyCandidateEvidenceFixture(
+      taskDiagnosticsErrorRoute?.policyCandidates
+    ),
+    'policy candidate evidence should bind the task route policy candidates'
+  );
   const taskDiagnosticsRouteCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'routeCandidate'
@@ -5654,6 +5717,13 @@ async function main() {
     taskDiagnosticsErrorRoute?.routeTrace,
     'route candidate evidence should bind the task route trace'
   );
+  assert.deepEqual(
+    taskDiagnosticsRouteCandidateEvidence?.policyCandidates,
+    taskRoutePolicyCandidateEvidenceFixture(
+      taskDiagnosticsErrorRoute?.policyCandidates
+    ),
+    'route candidate evidence should bind the task route policy candidates'
+  );
   const taskDiagnosticsPrepareCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'prepareCandidate'
@@ -5698,6 +5768,13 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.routeTrace,
     taskDiagnosticsErrorRoute?.routeTrace,
     'prepare candidate evidence should bind the task route trace'
+  );
+  assert.deepEqual(
+    taskDiagnosticsPrepareCandidateEvidence?.policyCandidates,
+    taskRoutePolicyCandidateEvidenceFixture(
+      taskDiagnosticsErrorRoute?.policyCandidates
+    ),
+    'prepare candidate evidence should bind the task route policy candidates'
   );
   const taskDiagnosticsErrorPreviewOperation =
     taskDiagnosticsErrorGate?.repairActionPreview.operations.find(

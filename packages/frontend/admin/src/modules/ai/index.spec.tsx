@@ -1980,6 +1980,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
+            policyCandidates: blockedRoute.policyCandidates,
             providerConfiguredModelCount: 1,
             providerConfiguredModelIds: ['workspace-embedding'],
             providerId: 'ollama-main',
@@ -2008,6 +2009,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
+            policyCandidates: blockedRoute.policyCandidates,
             providerConfiguredModelCount: 1,
             providerConfiguredModelIds: ['workspace-embedding'],
             providerId: 'ollama-main',
@@ -2036,6 +2038,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
+            policyCandidates: blockedRoute.policyCandidates,
             providerConfiguredModelCount: 1,
             providerConfiguredModelIds: ['workspace-embedding'],
             providerId: 'ollama-main',
@@ -5975,6 +5978,9 @@ describe('AiPage', () => {
     );
     expect(readyGateDiagnostics).toContain(
       'route trace policy / candidates 1 / available 1 / blocked 0 / matched 1 / selected 1 / prepared 0 / reasons Candidate Allowed'
+    );
+    expect(readyGateDiagnostics).toContain(
+      'policy candidates Local Ollama / ollama-main / type OpenAI-compatible / source BYOK local'
     );
     expect(readyGateDiagnostics).toContain(
       'provider ollama-main / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding'

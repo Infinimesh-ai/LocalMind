@@ -707,6 +707,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   preparedModelId?: string;
   preparedRouteTargets?: string[];
   preparedRouteTargetFingerprint?: string;
+  policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
   providerConfiguredModelCount?: number;
   providerConfiguredModelIds?: string[];
   providerId: string;
@@ -1712,6 +1713,11 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   preparedRouteTargetFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedRouteTargetFingerprint'];
+
+  @Field(() => [CopilotPromptRegistryPublishGatePolicyCandidateType], {
+    nullable: true,
+  })
+  policyCandidates?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['policyCandidates'];
 
   @Field(() => SafeIntResolver, { nullable: true })
   providerConfiguredModelCount?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerConfiguredModelCount'];
@@ -4069,6 +4075,7 @@ function taskRouteRepairCandidateEvidenceBase(
     preparedModelId?: string;
     preparedRouteTargets?: string[];
     preparedRouteTargetFingerprint?: string;
+    policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
     providerConfiguredModelCount?: number;
     providerConfiguredModelIds?: string[];
     providerId: string;
@@ -4115,6 +4122,9 @@ function taskRouteRepairCandidateEvidenceBase(
           preparedRouteTargetFingerprint:
             candidate.preparedRouteTargetFingerprint,
         }
+      : {}),
+    ...(candidate.policyCandidates !== undefined
+      ? { policyCandidates: candidate.policyCandidates }
       : {}),
     ...(candidate.providerConfiguredModelCount !== undefined
       ? { providerConfiguredModelCount: candidate.providerConfiguredModelCount }
@@ -4178,6 +4188,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       preparedModelId?: string;
       preparedRouteTargets?: string[];
       preparedRouteTargetFingerprint?: string;
+      policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
       providerConfiguredModelCount?: number;
       providerConfiguredModelIds?: string[];
       providerId: string;
@@ -4203,6 +4214,50 @@ function taskRouteCandidateProfileStructuredEvidence(
         fallbackProviderIds: route.fallbackProviderIds,
         preparedRouteTargets: route.preparedRouteTargets,
         preparedRouteTargetFingerprint: route.preparedRouteTargetFingerprint,
+        policyCandidates: route.policyCandidates.map(candidate => ({
+          allowed: candidate.allowed,
+          available: candidate.available,
+          health: candidate.health,
+          ...(candidate.healthCheckedAt
+            ? { healthCheckedAt: candidate.healthCheckedAt }
+            : {}),
+          privacy: candidate.privacy,
+          providerId: candidate.providerId,
+          ...(candidate.providerConfiguredModelCount !== undefined
+            ? {
+                providerConfiguredModelCount:
+                  candidate.providerConfiguredModelCount,
+              }
+            : {}),
+          ...(candidate.providerConfiguredModelIds?.length
+            ? {
+                providerConfiguredModelIds:
+                  candidate.providerConfiguredModelIds,
+              }
+            : {}),
+          ...(candidate.providerName
+            ? { providerName: candidate.providerName }
+            : {}),
+          ...(candidate.providerPriority !== undefined
+            ? { providerPriority: candidate.providerPriority }
+            : {}),
+          ...(candidate.providerProfileConfigPath
+            ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
+            : {}),
+          ...(candidate.providerProfileId
+            ? { providerProfileId: candidate.providerProfileId }
+            : {}),
+          ...(candidate.providerProfileSource
+            ? { providerProfileSource: candidate.providerProfileSource }
+            : {}),
+          ...(candidate.providerSource
+            ? { providerSource: candidate.providerSource }
+            : {}),
+          ...(candidate.providerType
+            ? { providerType: candidate.providerType }
+            : {}),
+          reasons: candidate.reasons,
+        })),
         routeTrace: route.routeTrace.map(phase => ({
           ...(phase.availableCount !== undefined
             ? { availableCount: phase.availableCount }

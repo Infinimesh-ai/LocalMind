@@ -1726,6 +1726,9 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   preparedModelId?: Maybe<Scalars['String']['output']>;
   preparedRouteTargets?: Maybe<Array<Scalars['String']['output']>>;
   preparedRouteTargetFingerprint?: Maybe<Scalars['String']['output']>;
+  policyCandidates?: Maybe<
+    Array<CopilotPromptRegistryPublishGatePolicyCandidateType>
+  >;
   providerConfiguredModelCount?: Maybe<Scalars['SafeInt']['output']>;
   providerConfiguredModelIds?: Maybe<Array<Scalars['String']['output']>>;
   providerId: Scalars['String']['output'];
@@ -7831,6 +7834,25 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             preparedModelId: string | null;
             preparedRouteTargets: Array<string> | null;
             preparedRouteTargetFingerprint: string | null;
+            policyCandidates: Array<{
+              __typename?: 'CopilotPromptRegistryPublishGatePolicyCandidateType';
+              allowed: boolean;
+              available: boolean;
+              health: string;
+              healthCheckedAt: string | null;
+              privacy: string;
+              providerConfiguredModelCount: number | null;
+              providerConfiguredModelIds: Array<string> | null;
+              providerId: string;
+              providerName: string | null;
+              providerPriority: number | null;
+              providerProfileConfigPath: string | null;
+              providerProfileId: string | null;
+              providerProfileSource: string | null;
+              providerSource: string | null;
+              providerType: string | null;
+              reasons: Array<string>;
+            }> | null;
             providerConfiguredModelCount: number | null;
             providerConfiguredModelIds: Array<string> | null;
             providerId: string;

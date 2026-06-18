@@ -12447,3 +12447,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - candidate evidence 仍不携带 policy candidates 全量排序、provider health freshness、capability metadata、embedding dimensions、latency、cost 或 token usage。
 - 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 365. P3 落地记录：Task Route Policy Candidate Evidence
+
+本轮继续收敛第 364 节剩余风险中 “candidate evidence 仍不携带 policy candidates 全量排序” 的问题。实际代码与目标 AI 中间层架构的冲突点是：完整 route explain、support bundle 与 repair guard 应该能把 task route policy 过滤后的 provider 候选顺序、health/privacy/profile/source/reason 证据与 route trace、fallback order、prepared targets 放进同一份 candidate evidence snapshot；但上一轮 candidate evidence 只携带 route trace detail，管理员仍需要回看 task route diagnostics 才能确认 recommendation 生成时的 policy candidate ordered set。本轮先把 task route 的 policy candidate 列表按 publish-gate 可公开字段投影后纳入只读 candidate evidence。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 新增 `policyCandidates`。
+  - `taskRouteCandidateProfileStructuredEvidence()` 为 policy candidate、route candidate 与 prepare candidate evidence 统一写入当前 task route 的 policy candidate ordered snapshot。
+  - evidence 中的 policy candidate 复用 publish-gate policy candidate 公开形状，包含 provider identity、profile/config source、health/privacy、availability/allowed 状态与 reasons，但不暴露 task-route 内部 `candidateKey` 或 `candidateFingerprint`。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、common query string 与 `GetCopilotPromptRegistryPublishGateQuery` 类型同步新增 repair candidate evidence 的 `policyCandidates`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence diagnostics text 在存在 policy candidate snapshot 时显示 `policy candidates ...`，复用已有 publish-gate policy candidate formatter 输出 provider/source/health/privacy/reason 信息。
+- 测试覆盖：
+  - resolver source chain smoke 断言 task diagnostics repair recommendation 的 policy/route/prepare candidate evidence 都携带按公开字段投影后的 policy candidate ordered snapshot。
+  - Admin Vitest fixture 为 task route repair candidate evidence 注入 policy candidates，并断言 publish gate diagnostics text 可复制完整 policy candidate 摘要。
+
+该实现只扩展只读 repair candidate evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 Model Registry/Provider Registry revision row、不改变 repair action catalog、不新增 mutation input、不改变 preview/preflight/execution gate 字段名、不改变 provider route selection、fallback order、route policy、Prompt Registry publish gate 判定、embedding/rerank request 参数、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把 task route candidate evidence 从“携带 route trace detail 但 policy candidate order 仍需回看 task route diagnostics”推进到“candidate evidence snapshot 自身携带 policy candidate ordered set”，为后续 support bundle、route explain、repair guard、DB-backed route event 与 Model Registry revision 对齐提供更自包含的过渡证据链。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused Prettier、oxlint、resolver source chain smoke 与 Admin AI Vitest。
+
+剩余风险：
+
+- `policyCandidates`、`routeTrace`、`routeTracePhases`、`fallbackProviderIds`、`preparedRouteTargets` 与 fingerprint 仍只来自 diagnostics probe 的 prepared route projection，不代表后续真实 embedding/rerank 调用一定经过同一 policy/trace 结果、按同一 fallback 顺序命中 provider/model、latency、cost、token/embedding usage、provider response 或真实 dispatch result。
+- candidate evidence 仍不携带 provider health freshness 的强一致证明、capability metadata、embedding dimensions、latency、cost 或 token usage。
+- 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

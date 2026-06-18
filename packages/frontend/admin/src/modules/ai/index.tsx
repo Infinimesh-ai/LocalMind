@@ -2975,6 +2975,11 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
           .map(formatPromptRegistryPublishGateRoutePhaseText)
           .join(' | ')}`
       : null,
+    evidence.policyCandidates?.length
+      ? `policy candidates ${evidence.policyCandidates
+          .map(formatPromptRegistryPublishGatePolicyCandidate)
+          .join(' | ')}`
+      : null,
     evidence.reasons.length ? `reasons ${evidence.reasons.join(', ')}` : null,
   ]);
 }
