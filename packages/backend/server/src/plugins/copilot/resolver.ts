@@ -3808,6 +3808,9 @@ class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnostics
   agentRuntimeProjectedTimelineEventTypes!: string[];
 
   @Field(() => String)
+  agentRuntimeProjectionContractFingerprint!: string;
+
+  @Field(() => String)
   agentRuntimeProjectionSource!: string;
 
   @Field(() => [String])

@@ -119,6 +119,7 @@ export type CopilotActionRunDiagnosticsItem = {
   agentRuntimeProjectedStepStatuses: string[];
   agentRuntimeProjectedStepTypes: string[];
   agentRuntimeProjectedTimelineEventTypes: string[];
+  agentRuntimeProjectionContractFingerprint: string;
   agentRuntimeProjectionSource: string;
   agentRuntimeProjectionGaps: string[];
   agentRuntimeRunStatusGaps: string[];
@@ -280,6 +281,40 @@ function actionRunTimelineRouteEvidenceSetFingerprint(
       stableActionRunDiagnosticsStringify({
         version: 'agent-runtime-timeline-route-evidence-set/v1',
         routeEvidenceFingerprints,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function actionRunAgentRuntimeProjectionContractFingerprint(input: {
+  agentRuntimeProjectedRunStatuses: string[];
+  agentRuntimeProjectedSchemaComponents: string[];
+  agentRuntimeProjectedStepStatuses: string[];
+  agentRuntimeProjectedStepTypes: string[];
+  agentRuntimeProjectedTimelineEventTypes: string[];
+  agentRuntimeProjectionGaps: string[];
+  agentRuntimeProjectionSource: string;
+  agentRuntimeRunStatusGaps: string[];
+  agentRuntimeSchemaReadiness: string;
+  agentRuntimeSchemaReadinessGaps: string[];
+  agentRuntimeStepStatusGaps: string[];
+  agentRuntimeTargetRunStatuses: string[];
+  agentRuntimeTargetSchemaComponents: string[];
+  agentRuntimeTargetStepStatuses: string[];
+  agentRuntimeTargetStepTypes: string[];
+  agentRuntimeTargetTimelineEventTypes: string[];
+  agentRuntimeTimelineGaps: string[];
+  agentRuntimeUnsupportedRunStatuses: string[];
+  agentRuntimeUnsupportedStepStatuses: string[];
+  agentRuntimeUnsupportedStepTypes: string[];
+  agentRuntimeUnsupportedTimelineEventTypes: string[];
+}) {
+  return createHash('sha256')
+    .update(
+      stableActionRunDiagnosticsStringify({
+        version: 'agent-runtime-projection-contract/v1',
+        ...input,
       })
     )
     .digest('hex')
@@ -922,6 +957,31 @@ function summarizePreparedRouteTrace(
     actionRunTimelineRouteEvidenceSetFingerprint(
       agentRuntimeTimelineItems.map(item => item.routeEvidenceFingerprint)
     );
+  const agentRuntimeProjectionContractFingerprint =
+    actionRunAgentRuntimeProjectionContractFingerprint({
+      agentRuntimeProjectedRunStatuses,
+      agentRuntimeProjectedSchemaComponents,
+      agentRuntimeProjectedStepStatuses,
+      agentRuntimeProjectedStepTypes,
+      agentRuntimeProjectedTimelineEventTypes,
+      agentRuntimeProjectionGaps,
+      agentRuntimeProjectionSource:
+        AI_ACTION_RUN_AGENT_RUNTIME_PROJECTION_SOURCE,
+      agentRuntimeRunStatusGaps,
+      agentRuntimeSchemaReadiness: AI_ACTION_RUN_AGENT_RUNTIME_SCHEMA_READINESS,
+      agentRuntimeSchemaReadinessGaps,
+      agentRuntimeStepStatusGaps,
+      agentRuntimeTargetRunStatuses,
+      agentRuntimeTargetSchemaComponents,
+      agentRuntimeTargetStepStatuses,
+      agentRuntimeTargetStepTypes,
+      agentRuntimeTargetTimelineEventTypes,
+      agentRuntimeTimelineGaps,
+      agentRuntimeUnsupportedRunStatuses,
+      agentRuntimeUnsupportedStepStatuses,
+      agentRuntimeUnsupportedStepTypes,
+      agentRuntimeUnsupportedTimelineEventTypes,
+    });
 
   return {
     agentRuntimeNativeTraceEventTypes,
@@ -930,6 +990,7 @@ function summarizePreparedRouteTrace(
     agentRuntimeProjectedStepStatuses,
     agentRuntimeProjectedStepTypes,
     agentRuntimeProjectedTimelineEventTypes,
+    agentRuntimeProjectionContractFingerprint,
     agentRuntimeProjectionSource: AI_ACTION_RUN_AGENT_RUNTIME_PROJECTION_SOURCE,
     agentRuntimeProjectionGaps,
     agentRuntimeRunStatusGaps,

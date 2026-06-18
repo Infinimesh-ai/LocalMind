@@ -3680,6 +3680,9 @@ const failedActionRunTimelineRouteEvidenceSetFingerprint =
     failedActionRunTimelineRouteEvidenceFingerprint,
   ]);
 
+const actionRunProjectionContractFingerprint = 'abcd1111eeee2222';
+const failedActionRunProjectionContractFingerprint = 'abcd3333eeee4444';
+
 const actionRunsPayload = [
   {
     actionId: 'mindmap.generate',
@@ -3706,6 +3709,8 @@ const actionRunsPayload = [
     ],
     agentRuntimeProjectedStepTypes: ['model'],
     agentRuntimeProjectedTimelineEventTypes: ['run_status', 'model_step'],
+    agentRuntimeProjectionContractFingerprint:
+      actionRunProjectionContractFingerprint,
     agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
     agentRuntimeProjectionGaps: [
       'tool -> not_projected',
@@ -4062,6 +4067,8 @@ const actionRunsPayload = [
     ],
     agentRuntimeProjectedStepTypes: ['model'],
     agentRuntimeProjectedTimelineEventTypes: ['run_status', 'model_step'],
+    agentRuntimeProjectionContractFingerprint:
+      failedActionRunProjectionContractFingerprint,
     agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
     agentRuntimeProjectionGaps: [
       'model -> no_prepared_route_trace',
@@ -8080,6 +8087,11 @@ describe('AiPage', () => {
         'Step fallback generate -> ollama-main -> openai-default | generate-image -> openai-default'
       )
     ).not.toBeNull();
+    expect(
+      screen.getByText(
+        `Agent runtime projection contract fingerprint ${actionRunProjectionContractFingerprint}`
+      )
+    ).not.toBeNull();
     const visibleTimeline =
       screen.getByTestId('action-run-timeline-run-123').textContent ?? '';
     expect(visibleTimeline).toContain(
@@ -8113,6 +8125,9 @@ describe('AiPage', () => {
     expect(actionRunDiagnostics).toContain('Prepared trace yes');
     expect(actionRunDiagnostics).toContain(
       'Agent runtime projection ai_action_run_agent_runtime_projection/v1'
+    );
+    expect(actionRunDiagnostics).toContain(
+      `Agent runtime projection contract fingerprint ${actionRunProjectionContractFingerprint}`
     );
     expect(actionRunDiagnostics).toContain('Agent runtime run run-123');
     expect(actionRunDiagnostics).toContain('Agent runtime status Completed');

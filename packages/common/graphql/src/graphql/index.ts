@@ -3242,6 +3242,7 @@ export const getCopilotActionRunsQuery = {
         agentRuntimeProjectedStepStatuses
         agentRuntimeProjectedStepTypes
         agentRuntimeProjectedTimelineEventTypes
+        agentRuntimeProjectionContractFingerprint
         agentRuntimeProjectionSource
         agentRuntimeProjectionGaps
         agentRuntimeRunStatusGaps

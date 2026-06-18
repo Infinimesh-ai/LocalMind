@@ -612,6 +612,7 @@ export interface CopilotActionRunDiagnosticsItemType {
   agentRuntimeProjectedStepStatuses: Array<Scalars['String']['output']>;
   agentRuntimeProjectedStepTypes: Array<Scalars['String']['output']>;
   agentRuntimeProjectedTimelineEventTypes: Array<Scalars['String']['output']>;
+  agentRuntimeProjectionContractFingerprint: Scalars['String']['output'];
   agentRuntimeProjectionSource: Scalars['String']['output'];
   agentRuntimeProjectionGaps: Array<Scalars['String']['output']>;
   agentRuntimeRunStatusGaps: Array<Scalars['String']['output']>;
@@ -8739,6 +8740,7 @@ export type GetCopilotActionRunsQuery = {
         agentRuntimeProjectedStepStatuses: Array<string>;
         agentRuntimeProjectedStepTypes: Array<string>;
         agentRuntimeProjectedTimelineEventTypes: Array<string>;
+        agentRuntimeProjectionContractFingerprint: string;
         agentRuntimeProjectionSource: string;
         agentRuntimeProjectionGaps: Array<string>;
         agentRuntimeRunStatusGaps: Array<string>;

@@ -10,6 +10,7 @@ query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
         agentRuntimeProjectedStepStatuses
         agentRuntimeProjectedStepTypes
         agentRuntimeProjectedTimelineEventTypes
+        agentRuntimeProjectionContractFingerprint
         agentRuntimeProjectionSource
         agentRuntimeProjectionGaps
         agentRuntimeRunStatusGaps

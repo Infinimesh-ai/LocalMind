@@ -13630,3 +13630,34 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 维度 evidence 仍只反映 trace 中已存在的 requested/model/mismatch 字段；structured/image action route 通常没有维度契约，本轮不强造 embedding/rerank 维度。
 - 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、筛选、JSON export、一键复制按钮或 Agent Runtime 原生 lifecycle artifact。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 404. P3 落地记录：Action Run Agent Runtime Projection Contract Fingerprint
+
+本轮继续收敛第 403 节剩余风险中 “timeline evidence set fingerprint 不绑定 Agent Runtime target schema、projection gap 或 timeline gap” 的问题。实际代码与目标 AI 中间层架构的冲突点是：`actionRuns` 列表已经暴露 projected/target/unsupported/gap 等 Agent Runtime projection 字符串数组，但 Admin 或后续 support bundle 若要判断一次 action run 使用的是哪一版投影契约、哪些目标 schema 尚未落地、哪些状态或 step/timeline 类型仍未投影，仍需要逐项比较大量字段。本轮新增只读 `agentRuntimeProjectionContractFingerprint`，把 projection source、schema readiness、target/projected/unsupported 状态集合与 gap 集合绑定成稳定短指纹，不改变 trace 存储、真实 dispatch、Agent Runtime 状态机或持久化 schema。
+
+- `packages/backend/server/src/models/copilot-action-run.ts`：
+  - `CopilotActionRunDiagnosticsItem` 新增 `agentRuntimeProjectionContractFingerprint`。
+  - fingerprint 使用 `agent-runtime-projection-contract/v1` 版本前缀，并绑定 projection source、schema readiness、target/projected/unsupported run/step/timeline/schema 字段与 projection/run/step/timeline/schema gaps。
+  - 该 fingerprint 不绑定 `runId`、真实 run status、prepared route trace、provider response、latency、usage、cost、prompt、secret 或 native lifecycle event。
+- GraphQL 与 common client：
+  - `CopilotActionRunDiagnosticsItemType`、`schema.gql`、`getCopilotActionRuns` query、common query string 与 `schema.ts` 类型同步新增 `agentRuntimeProjectionContractFingerprint`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - recent action runs 的 Agent Runtime 摘要与 copyable diagnostics text 显示 `Agent runtime projection contract fingerprint ...`。
+- 测试覆盖：
+  - resolver action runs 测试断言成功 run 与无 prepared route trace 的失败 run 都携带由当前 projection contract 字段计算出的 fingerprint。
+  - Admin Vitest fixture 与断言覆盖可见摘要和 copyable diagnostics text 中的 projection contract fingerprint。
+
+该实现只扩展 `actionRuns` 列表的只读 projection contract fingerprint、GraphQL selection/type、Admin 展示与测试，不新增 DB migration、不改变 action run trace 存储结构、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、repair mutation guard、support bundle schema、Model Registry revision 或 Provider Registry revision。它把 Agent Runtime projection contract 从“多组字符串数组可读”推进到“可读且可稳定比较的投影契约摘要”，为后续 route explain、support bundle 和 Agent Runtime lifecycle artifact 对齐提供更明确的 contract 漂移检测输入。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused copilot resolver AVA、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `agentRuntimeProjectionContractFingerprint` 仍是准备阶段 action run diagnostics 的即时 projection，不代表真实 dispatch 已持久化 Agent Runtime run/step/lifecycle event、provider response、latency、usage、cost、token budget 或最终执行结果。
+- fingerprint 仅绑定当前 projection contract 和 gap 字段，不绑定 timeline route evidence set、完整 prepared route trace、native trace event payload 或未来 support bundle schema。
+- 该 contract fingerprint 仍是字符串摘要，不是 DB-backed Agent Runtime schema revision、Model Registry revision、Provider Registry revision 或正式 support bundle artifact。
+- 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、筛选、JSON export、一键复制按钮或 Agent Runtime 原生 lifecycle artifact。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

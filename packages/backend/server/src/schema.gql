@@ -619,6 +619,7 @@ type CopilotActionRunDiagnosticsItemType {
   agentRuntimeProjectedStepStatuses: [String!]!
   agentRuntimeProjectedStepTypes: [String!]!
   agentRuntimeProjectedTimelineEventTypes: [String!]!
+  agentRuntimeProjectionContractFingerprint: String!
   agentRuntimeProjectionSource: String!
   agentRuntimeProjectionGaps: [String!]!
   agentRuntimeRunStatusGaps: [String!]!
