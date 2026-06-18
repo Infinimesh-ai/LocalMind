@@ -2361,6 +2361,7 @@ async function main() {
   );
   assert.deepEqual(executionRequest.executionRunStepRetryAttemptRequestInputs, [
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -2404,6 +2405,7 @@ async function main() {
     executionRequest.executionRunStepRetryAttemptStatusEventRequestInputs,
     [
       'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
       'executionJobRunRequestFingerprint',
       'executionQueueRequestFingerprint',
       'executionResultRequestFingerprint',
@@ -2449,6 +2451,7 @@ async function main() {
     executionRequest.executionRunStepRetryAttemptTraceRequestInputs,
     [
       'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
       'executionJobRunRequestFingerprint',
       'executionQueueRequestFingerprint',
       'executionResultRequestFingerprint',
@@ -2495,6 +2498,7 @@ async function main() {
     executionRequest.executionRunStepRetryAttemptResultRequestInputs,
     [
       'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
       'executionJobRunRequestFingerprint',
       'executionQueueRequestFingerprint',
       'executionResultRequestFingerprint',

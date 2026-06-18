@@ -3314,6 +3314,7 @@ describe('AiPage', () => {
             : 'ddddcccc88889999',
           executionRunStepRetryAttemptRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -3345,6 +3346,7 @@ describe('AiPage', () => {
             input.workspaceId ? 'aaaabbbb88887777' : 'ddddbbbb88887777',
           executionRunStepRetryAttemptStatusEventRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -3379,6 +3381,7 @@ describe('AiPage', () => {
             : 'dddddddd88887777',
           executionRunStepRetryAttemptTraceRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -3413,6 +3416,7 @@ describe('AiPage', () => {
             input.workspaceId ? 'aaaaeeee88887777' : 'ddddeeee88887777',
           executionRunStepRetryAttemptResultRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
