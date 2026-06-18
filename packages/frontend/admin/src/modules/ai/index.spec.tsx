@@ -243,6 +243,46 @@ function taskRoutePreparedRouteSnapshotFixture<
   );
 }
 
+function taskRouteDimensionSnapshotFixture(route: {
+  dimensionMismatch?: boolean | null;
+  featureKind: string;
+  modelEmbeddingDimensions?: number | null;
+  modelId?: string | null;
+  preparedRoutes: {
+    dimensionMismatch?: boolean | null;
+    modelEmbeddingDimensions?: number | null;
+    modelId: string;
+    providerId: string;
+    requestedDimensions?: number | null;
+    routeIndex?: number | null;
+  }[];
+  providerId?: string | null;
+  requestedDimensions?: number | null;
+  requestedModelId?: string | null;
+}) {
+  const preparedRoutes = route.preparedRoutes.map(route =>
+    stripNullishFixtureFields({
+      dimensionMismatch: route.dimensionMismatch,
+      modelEmbeddingDimensions: route.modelEmbeddingDimensions,
+      modelId: route.modelId,
+      providerId: route.providerId,
+      requestedDimensions: route.requestedDimensions,
+      routeIndex: route.routeIndex,
+    })
+  );
+
+  return stripNullishFixtureFields({
+    dimensionMismatch: route.dimensionMismatch,
+    featureKind: route.featureKind,
+    modelEmbeddingDimensions: route.modelEmbeddingDimensions,
+    modelId: route.modelId,
+    preparedRoutes,
+    providerId: route.providerId,
+    requestedDimensions: route.requestedDimensions,
+    requestedModelId: route.requestedModelId,
+  });
+}
+
 function taskRouteProviderHealthSnapshotFixture(route: {
   policyCandidates: {
     health?: string | null;
@@ -2553,6 +2593,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
               taskRouteSnapshotFingerprintFixture(
                 taskRouteProviderLimitSnapshotFixture(blockedRoute)
               ),
+            taskRouteDimensionSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteDimensionSnapshotFixture(blockedRoute)
+              ),
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
@@ -2616,6 +2660,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
               taskRouteSnapshotFingerprintFixture(
                 taskRouteProviderLimitSnapshotFixture(blockedRoute)
               ),
+            taskRouteDimensionSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteDimensionSnapshotFixture(blockedRoute)
+              ),
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
@@ -2678,6 +2726,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
             providerLimitSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRouteProviderLimitSnapshotFixture(blockedRoute)
+              ),
+            taskRouteDimensionSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteDimensionSnapshotFixture(blockedRoute)
               ),
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
@@ -6652,6 +6704,9 @@ describe('AiPage', () => {
     );
     expect(readyGateDiagnostics).toContain(
       `provider limit snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteProviderLimitSnapshotFixture(blockedRoute))}`
+    );
+    expect(readyGateDiagnostics).toContain(
+      `task route dimension snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteDimensionSnapshotFixture(blockedRoute))}`
     );
     expect(readyGateDiagnostics).toContain(
       `provider health snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteProviderHealthSnapshotFixture(blockedRoute))}`

@@ -724,6 +724,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   providerCostSnapshotFingerprint?: string;
   providerHealthSnapshotFingerprint?: string;
   providerLimitSnapshotFingerprint?: string;
+  taskRouteDimensionSnapshotFingerprint?: string;
   preparedRouteTargets?: string[];
   preparedRouteTargetFingerprint?: string;
   policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
@@ -1785,6 +1786,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   providerLimitSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerLimitSnapshotFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  taskRouteDimensionSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['taskRouteDimensionSnapshotFingerprint'];
 
   @Field(() => [String], { nullable: true })
   preparedRouteTargets?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedRouteTargets'];
@@ -4223,6 +4227,7 @@ function taskRouteRepairCandidateEvidenceBase(
     providerCostSnapshotFingerprint?: string;
     providerHealthSnapshotFingerprint?: string;
     providerLimitSnapshotFingerprint?: string;
+    taskRouteDimensionSnapshotFingerprint?: string;
     preparedRouteTargets?: string[];
     preparedRouteTargetFingerprint?: string;
     policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
@@ -4298,6 +4303,12 @@ function taskRouteRepairCandidateEvidenceBase(
       ? {
           providerLimitSnapshotFingerprint:
             candidate.providerLimitSnapshotFingerprint,
+        }
+      : {}),
+    ...(candidate.taskRouteDimensionSnapshotFingerprint !== undefined
+      ? {
+          taskRouteDimensionSnapshotFingerprint:
+            candidate.taskRouteDimensionSnapshotFingerprint,
         }
       : {}),
     ...(candidate.preparedRouteTargets !== undefined
@@ -4391,6 +4402,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       providerCapabilitySnapshotFingerprint?: string;
       providerCostSnapshotFingerprint?: string;
       providerHealthSnapshotFingerprint?: string;
+      taskRouteDimensionSnapshotFingerprint?: string;
       preparedRouteTargets?: string[];
       preparedRouteTargetFingerprint?: string;
       policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
@@ -4471,6 +4483,7 @@ function taskRouteCandidateProfileStructuredEvidence(
     const providerCostSnapshot = taskRouteProviderCostSnapshot(route);
     const providerHealthSnapshot = taskRouteProviderHealthSnapshot(route);
     const providerLimitSnapshot = taskRouteProviderLimitSnapshot(route);
+    const taskRouteDimensionSnapshotValue = taskRouteDimensionSnapshot(route);
     const evidence = taskRouteRepairCandidateEvidenceBase(
       scope,
       {
@@ -4492,6 +4505,9 @@ function taskRouteCandidateProfileStructuredEvidence(
         ),
         providerLimitSnapshotFingerprint: taskRouteSnapshotFingerprint(
           providerLimitSnapshot
+        ),
+        taskRouteDimensionSnapshotFingerprint: taskRouteSnapshotFingerprint(
+          taskRouteDimensionSnapshotValue
         ),
         preparedRouteTargets: route.preparedRouteTargets,
         preparedRouteTargetFingerprint: route.preparedRouteTargetFingerprint,
@@ -4575,6 +4591,9 @@ function taskRouteCandidateProfileEvidence(
         candidate.providerLimitSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:providerLimitSnapshotFingerprint:${candidate.providerLimitSnapshotFingerprint}`
           : null,
+        candidate.taskRouteDimensionSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteDimensionSnapshotFingerprint:${candidate.taskRouteDimensionSnapshotFingerprint}`
+          : null,
         candidate.policyCandidateSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:policyCandidateSnapshotFingerprint:${candidate.policyCandidateSnapshotFingerprint}`
           : null,
@@ -4629,6 +4648,9 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.providerLimitSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:providerLimitSnapshotFingerprint:${candidate.providerLimitSnapshotFingerprint}`
+          : null,
+        candidate.taskRouteDimensionSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteDimensionSnapshotFingerprint:${candidate.taskRouteDimensionSnapshotFingerprint}`
           : null,
         candidate.policyCandidateSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:policyCandidateSnapshotFingerprint:${candidate.policyCandidateSnapshotFingerprint}`
@@ -5601,6 +5623,44 @@ function taskRoutePreparedRouteSnapshot(
       : {}),
     routeIndex: route.routeIndex,
   }));
+}
+
+function taskRouteDimensionSnapshot(
+  route: CopilotPromptRegistryPublishGateTaskRoute
+) {
+  const preparedRoutes = (route.preparedRoutes ?? []).map(route => ({
+    ...(route.dimensionMismatch !== undefined
+      ? { dimensionMismatch: route.dimensionMismatch }
+      : {}),
+    ...(route.modelEmbeddingDimensions !== undefined
+      ? { modelEmbeddingDimensions: route.modelEmbeddingDimensions }
+      : {}),
+    modelId: route.modelId,
+    providerId: route.providerId,
+    ...(route.requestedDimensions !== undefined
+      ? { requestedDimensions: route.requestedDimensions }
+      : {}),
+    routeIndex: route.routeIndex,
+  }));
+
+  return {
+    ...(route.dimensionMismatch !== undefined
+      ? { dimensionMismatch: route.dimensionMismatch }
+      : {}),
+    featureKind: route.featureKind,
+    ...(route.modelEmbeddingDimensions !== undefined
+      ? { modelEmbeddingDimensions: route.modelEmbeddingDimensions }
+      : {}),
+    ...(route.modelId ? { modelId: route.modelId } : {}),
+    preparedRoutes,
+    ...(route.providerId ? { providerId: route.providerId } : {}),
+    ...(route.requestedDimensions !== undefined
+      ? { requestedDimensions: route.requestedDimensions }
+      : {}),
+    ...(route.requestedModelId
+      ? { requestedModelId: route.requestedModelId }
+      : {}),
+  };
 }
 
 function taskRouteProviderHealthSnapshot(

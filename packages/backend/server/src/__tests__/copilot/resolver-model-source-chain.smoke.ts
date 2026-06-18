@@ -853,6 +853,58 @@ function taskRouteProviderLimitSnapshotFixture(
   ];
 }
 
+function taskRouteDimensionSnapshotFixture(route: {
+  dimensionMismatch?: boolean;
+  featureKind: string;
+  modelEmbeddingDimensions?: number;
+  modelId?: string;
+  preparedRoutes?: {
+    dimensionMismatch?: boolean;
+    modelEmbeddingDimensions?: number;
+    modelId: string;
+    providerId: string;
+    requestedDimensions?: number;
+    routeIndex: number;
+  }[];
+  providerId?: string;
+  requestedDimensions?: number;
+  requestedModelId?: string;
+}) {
+  const preparedRoutes = (route.preparedRoutes ?? []).map(route => ({
+    ...(route.dimensionMismatch !== undefined
+      ? { dimensionMismatch: route.dimensionMismatch }
+      : {}),
+    ...(route.modelEmbeddingDimensions !== undefined
+      ? { modelEmbeddingDimensions: route.modelEmbeddingDimensions }
+      : {}),
+    modelId: route.modelId,
+    providerId: route.providerId,
+    ...(route.requestedDimensions !== undefined
+      ? { requestedDimensions: route.requestedDimensions }
+      : {}),
+    routeIndex: route.routeIndex,
+  }));
+
+  return {
+    ...(route.dimensionMismatch !== undefined
+      ? { dimensionMismatch: route.dimensionMismatch }
+      : {}),
+    featureKind: route.featureKind,
+    ...(route.modelEmbeddingDimensions !== undefined
+      ? { modelEmbeddingDimensions: route.modelEmbeddingDimensions }
+      : {}),
+    ...(route.modelId ? { modelId: route.modelId } : {}),
+    preparedRoutes,
+    ...(route.providerId ? { providerId: route.providerId } : {}),
+    ...(route.requestedDimensions !== undefined
+      ? { requestedDimensions: route.requestedDimensions }
+      : {}),
+    ...(route.requestedModelId
+      ? { requestedModelId: route.requestedModelId }
+      : {}),
+  };
+}
+
 function taskRouteProviderCapabilitySnapshotFixture(
   route:
     | {
@@ -6686,6 +6738,11 @@ async function main() {
     taskRouteProviderLimitSnapshotFixture(taskDiagnosticsErrorRoute);
   const taskDiagnosticsProviderLimitSnapshotFingerprint =
     taskRouteSnapshotFingerprintFixture(taskDiagnosticsProviderLimitSnapshot);
+  const taskDiagnosticsDimensionSnapshot = taskRouteDimensionSnapshotFixture(
+    taskDiagnosticsErrorRoute
+  );
+  const taskDiagnosticsDimensionSnapshotFingerprint =
+    taskRouteSnapshotFingerprintFixture(taskDiagnosticsDimensionSnapshot);
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
       `policyCandidate#0:policyCandidateSnapshotFingerprint:${taskDiagnosticsPolicyCandidateSnapshotFingerprint}`
@@ -6741,6 +6798,13 @@ async function main() {
     ),
     true,
     'task diagnostics repair evidence should include provider limit snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      `policyCandidate#0:taskRouteDimensionSnapshotFingerprint:${taskDiagnosticsDimensionSnapshotFingerprint}`
+    ),
+    true,
+    'task diagnostics repair evidence should include task route dimension snapshot fingerprint'
   );
   assert.match(
     taskDiagnosticsPolicyCandidateEvidence?.candidateFingerprint ?? '',
@@ -6855,6 +6919,11 @@ async function main() {
     taskDiagnosticsProviderLimitSnapshotFingerprint,
     'policy candidate evidence should bind the task route provider limit snapshot fingerprint'
   );
+  assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.taskRouteDimensionSnapshotFingerprint,
+    taskDiagnosticsDimensionSnapshotFingerprint,
+    'policy candidate evidence should bind the task route dimension snapshot fingerprint'
+  );
   const taskDiagnosticsRouteCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'routeCandidate'
@@ -6949,6 +7018,11 @@ async function main() {
     taskDiagnosticsProviderLimitSnapshotFingerprint,
     'route candidate evidence should bind the task route provider limit snapshot fingerprint'
   );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.taskRouteDimensionSnapshotFingerprint,
+    taskDiagnosticsDimensionSnapshotFingerprint,
+    'route candidate evidence should bind the task route dimension snapshot fingerprint'
+  );
   const taskDiagnosticsPrepareCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'prepareCandidate'
@@ -7038,6 +7112,11 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.providerLimitSnapshotFingerprint,
     taskDiagnosticsProviderLimitSnapshotFingerprint,
     'prepare candidate evidence should bind the task route provider limit snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.taskRouteDimensionSnapshotFingerprint,
+    taskDiagnosticsDimensionSnapshotFingerprint,
+    'prepare candidate evidence should bind the task route dimension snapshot fingerprint'
   );
   const taskDiagnosticsErrorPreviewOperation =
     taskDiagnosticsErrorGate?.repairActionPreview.operations.find(

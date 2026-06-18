@@ -12773,3 +12773,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - limit snapshot 仍来自 diagnostics probe 的 route/prepare projection，不代表后续真实 embedding/rerank 调用一定使用同一 provider/model、同一上下文限制或同一 embedding 维度。
 - 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Token Budget Policy record、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 375. P3 落地记录：Task Route Dimension Contract Snapshot Fingerprint
+
+本轮继续收敛第 374 节剩余风险中 “limit snapshot 不代表后续真实 embedding/rerank 调用一定使用同一 provider/model、同一上下文限制或同一 embedding 维度” 的 workspace indexing 维度契约部分。实际代码与目标 AI 中间层架构的冲突点是：workspace embedding 索引仍必须使用当前 pgvector 表结构要求的 `EMBEDDING_DIMENSIONS = 1024`，而 provider/model definition 可以声明不同的 `embeddingDimensions`；Admin 和 repair evidence 已能显示 `requestedDimensions`、`modelEmbeddingDimensions` 与 `dimensionMismatch`，但缺少一个可独立比对的 task route 维度契约指纹。本轮只把这些只读 diagnostics 字段汇总为 snapshot fingerprint，不改变 workspace index 维度、不触发索引迁移、不改变 embedding 请求参数。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 新增 `taskRouteDimensionSnapshotFingerprint`。
+  - 新增 `taskRouteDimensionSnapshot()`，投影 task route 的 `featureKind`、`requestedModelId`、`providerId/modelId`、`requestedDimensions`、`modelEmbeddingDimensions`、`dimensionMismatch`，以及 prepared route 的维度相关字段。
+  - `taskRouteCandidateProfileStructuredEvidence()` 将该 snapshot fingerprint 写入 policy/route/prepare candidate evidence；candidate fingerprint、preview operation fingerprint 与 evidence set fingerprint 继续自动对 workspace index dimension contract 变化敏感。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、common query string 与 `schema.ts` 类型同步新增 repair candidate evidence 的 `taskRouteDimensionSnapshotFingerprint`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence diagnostics text 显示 `task route dimension snapshot fingerprint ...`，方便管理员复制、比对和归档。
+- 测试覆盖：
+  - resolver source chain smoke 断言 task route diagnostics repair evidence 和 policy/route/prepare candidate evidence 都携带与 task route dimension contract snapshot 一致的 fingerprint。
+  - Admin Vitest fixture 注入该 fingerprint，并断言 publish gate diagnostics text 显示该 fingerprint。
+
+该实现只扩展只读 diagnostics/evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不改变 `EMBEDDING_DIMENSIONS`、不改变 pgvector 维度、不创建索引版本表、不触发重建任务、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把 workspace indexing 维度契约从“分散在 task route 和 prepared route diagnostics 字段中”推进到“repair candidate evidence snapshot 能用独立 fingerprint 感知 requested/model dimension contract 变化”，为后续 index versioning、support bundle、route explain、repair guard 与 Model Registry revision 对齐提供更可审计的过渡证据。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Admin AI Vitest、Prettier/oxlint 与 `git diff --check`。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `taskRouteDimensionSnapshotFingerprint` 只覆盖当前 task route diagnostics 中公开的 requested/model dimension contract，不覆盖真实 provider 响应向量长度、历史 embedding rows、pgvector schema/index state、索引版本、重建队列、chunking/batching 策略或 workspace search 查询路径。
+- workspace indexing runtime 仍强制请求并校验 `EMBEDDING_DIMENSIONS = 1024`；切换到非 1024 维模型仍需要后续索引版本和重建机制。
+- 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Index Version record、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

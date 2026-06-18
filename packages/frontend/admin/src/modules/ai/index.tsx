@@ -3007,6 +3007,9 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
     evidence.providerLimitSnapshotFingerprint
       ? `provider limit snapshot fingerprint ${evidence.providerLimitSnapshotFingerprint}`
       : null,
+    evidence.taskRouteDimensionSnapshotFingerprint
+      ? `task route dimension snapshot fingerprint ${evidence.taskRouteDimensionSnapshotFingerprint}`
+      : null,
     evidence.preparedRouteTargets?.length
       ? `targets ${evidence.preparedRouteTargets.join(', ')}`
       : null,
