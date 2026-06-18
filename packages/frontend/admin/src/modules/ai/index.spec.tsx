@@ -3060,6 +3060,7 @@ describe('AiPage', () => {
             : 'dddd22229999ffff',
           executionStartRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionApprovalDecisionRequestFingerprint',
             'executionOperationEntryRequestFingerprint',
             'executionStateRequestFingerprint',
@@ -3080,6 +3081,7 @@ describe('AiPage', () => {
             : 'dddd333399991111',
           executionQueueRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionStartRequestFingerprint',
             'executionStateRequestFingerprint',
             'executionStatusPollRequestFingerprint',
@@ -3099,6 +3101,7 @@ describe('AiPage', () => {
             : 'dddd444499992222',
           executionWorkerLeaseRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionQueueRequestFingerprint',
             'executionStartRequestFingerprint',
             'executionStateRequestFingerprint',
@@ -3120,6 +3123,7 @@ describe('AiPage', () => {
             : 'dddd555599993333',
           executionJobRunRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionQueueRequestFingerprint',
             'executionStartRequestFingerprint',
             'executionStateRequestFingerprint',
