@@ -3361,6 +3361,7 @@ describe('AiPage', () => {
             'requestStatus',
             'rollbackPlanRequestFingerprint',
             'submissionFingerprint',
+            'targetLocatorFingerprint',
             'workspaceId',
           ],
           executionRunStepRetryAttemptRequestStatus: 'not_created_read_only',
@@ -3394,6 +3395,7 @@ describe('AiPage', () => {
             'requestStatus',
             'rollbackPlanRequestFingerprint',
             'submissionFingerprint',
+            'targetLocatorFingerprint',
             'workspaceId',
           ],
           executionRunStepRetryAttemptStatusEventRequestStatus:
@@ -3430,6 +3432,7 @@ describe('AiPage', () => {
             'requestStatus',
             'rollbackPlanRequestFingerprint',
             'submissionFingerprint',
+            'targetLocatorFingerprint',
             'workspaceId',
           ],
           executionRunStepRetryAttemptTraceRequestStatus:
@@ -3466,6 +3469,7 @@ describe('AiPage', () => {
             'requestStatus',
             'rollbackPlanRequestFingerprint',
             'submissionFingerprint',
+            'targetLocatorFingerprint',
             'workspaceId',
           ],
           executionRunStepRetryAttemptResultRequestStatus:

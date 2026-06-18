@@ -7893,6 +7893,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'requestStatus',
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ].sort();
   const executionRunStepRetryAttemptRequestFingerprint = createHash('sha256')
@@ -7925,6 +7926,7 @@ function buildPromptRegistryRepairExecutionRequest(
         rollbackPlanRequestFingerprint,
         status: executionRunStepRetryAttemptRequestStatus,
         submissionFingerprint: preflight.currentSubmissionFingerprint,
+        targetLocatorFingerprint: preflight.targetLocatorFingerprint,
         version: executionRunStepRetryAttemptRequestVersion,
         workspaceId: preflight.workspaceId ?? null,
       })
@@ -7960,6 +7962,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'requestStatus',
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ].sort();
   const executionRunStepRetryAttemptStatusEventRequestFingerprint = createHash(
@@ -7995,6 +7998,7 @@ function buildPromptRegistryRepairExecutionRequest(
         rollbackPlanRequestFingerprint,
         status: executionRunStepRetryAttemptStatusEventRequestStatus,
         submissionFingerprint: preflight.currentSubmissionFingerprint,
+        targetLocatorFingerprint: preflight.targetLocatorFingerprint,
         version: executionRunStepRetryAttemptStatusEventRequestVersion,
         workspaceId: preflight.workspaceId ?? null,
       })
@@ -8031,6 +8035,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'requestStatus',
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ].sort();
   const executionRunStepRetryAttemptTraceRequestFingerprint = createHash(
@@ -8067,6 +8072,7 @@ function buildPromptRegistryRepairExecutionRequest(
         rollbackPlanRequestFingerprint,
         status: executionRunStepRetryAttemptTraceRequestStatus,
         submissionFingerprint: preflight.currentSubmissionFingerprint,
+        targetLocatorFingerprint: preflight.targetLocatorFingerprint,
         version: executionRunStepRetryAttemptTraceRequestVersion,
         workspaceId: preflight.workspaceId ?? null,
       })
@@ -8104,6 +8110,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'requestStatus',
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ].sort();
   const executionRunStepRetryAttemptResultRequestFingerprint = createHash(
@@ -8141,6 +8148,7 @@ function buildPromptRegistryRepairExecutionRequest(
         rollbackPlanRequestFingerprint,
         status: executionRunStepRetryAttemptResultRequestStatus,
         submissionFingerprint: preflight.currentSubmissionFingerprint,
+        targetLocatorFingerprint: preflight.targetLocatorFingerprint,
         version: executionRunStepRetryAttemptResultRequestVersion,
         workspaceId: preflight.workspaceId ?? null,
       })
