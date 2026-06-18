@@ -2975,6 +2975,9 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
           .map(formatPromptRegistryPublishGateRoutePhaseText)
           .join(' | ')}`
       : null,
+    evidence.policyCandidateSnapshotFingerprint
+      ? `policy snapshot fingerprint ${evidence.policyCandidateSnapshotFingerprint}`
+      : null,
     evidence.policyCandidates?.length
       ? `policy candidates ${evidence.policyCandidates
           .map(formatPromptRegistryPublishGatePolicyCandidate)

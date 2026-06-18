@@ -625,6 +625,7 @@ query getCopilotPromptRegistryPublishGate(
               providerType
               reasons
             }
+            policyCandidateSnapshotFingerprint
             providerConfiguredModelCount
             providerConfiguredModelIds
             providerId

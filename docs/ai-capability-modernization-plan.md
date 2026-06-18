@@ -12477,3 +12477,34 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - candidate evidence 仍不携带 provider health freshness 的强一致证明、capability metadata、embedding dimensions、latency、cost 或 token usage。
 - 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 366. P3 落地记录：Task Route Policy Candidate Snapshot Fingerprint
+
+本轮继续收敛第 365 节剩余风险中 “policy candidate ordered snapshot 已进入 candidate evidence，但缺少单独可比较指纹” 的问题。实际代码与目标 AI 中间层架构的冲突点是：完整 route explain、support bundle 与 repair guard 不只需要展示 policy candidate 列表，也需要能快速判断候选集、顺序或 health/privacy/profile/reason 证据是否变化；但上一轮只暴露完整列表，后续审计仍需要客户端自行比较数组。本轮先为已公开投影后的 policy candidate ordered snapshot 增加稳定短指纹。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 新增 `policyCandidateSnapshotFingerprint`。
+  - `taskRouteCandidateProfileStructuredEvidence()` 先生成 publish-gate 可公开形状的 `policyCandidates` snapshot，再基于同一份 snapshot 计算 SHA-256 短指纹，写入 policy/route/prepare candidate evidence。
+  - repair candidate evidence 的可复制 evidence 字符串新增 `policyCandidateSnapshotFingerprint`，让 preview operation / evidence set 指纹继续自动对 policy snapshot 变化敏感。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、common query string 与 `GetCopilotPromptRegistryPublishGateQuery` 类型同步新增 repair candidate evidence 的 `policyCandidateSnapshotFingerprint`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence diagnostics text 在展开 policy candidates 前显示 `policy snapshot fingerprint ...`，方便管理员复制、比对和归档。
+- 测试覆盖：
+  - resolver source chain smoke 断言 task diagnostics repair recommendation 的 policy/route/prepare candidate evidence 都携带与 policy candidate ordered snapshot 一致的 fingerprint，并确认可复制 evidence 字符串包含该 fingerprint。
+  - Admin Vitest fixture 为 task route repair candidate evidence 注入 policy candidate snapshot fingerprint，并断言 publish gate diagnostics text 显示该 fingerprint。
+
+该实现只扩展只读 repair candidate evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 Model Registry/Provider Registry revision row、不改变 repair action catalog、不新增 mutation input、不改变 preview/preflight/execution gate 字段名、不改变 provider route selection、fallback order、route policy、Prompt Registry publish gate 判定、embedding/rerank request 参数、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把 task route policy candidate evidence 从“自包含完整列表”推进到“完整列表 + 可比较 snapshot fingerprint”，为后续 support bundle、route explain、repair guard、DB-backed route event 与 Model Registry revision 对齐提供更可审计的过渡证据。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused Prettier、oxlint、resolver source chain smoke 与 Admin AI Vitest。
+
+剩余风险：
+
+- `policyCandidateSnapshotFingerprint` 只覆盖当前 publish-gate 公开形状的 policy candidate ordered snapshot，不覆盖内部 `candidateKey`/`candidateFingerprint`、route candidates、prepare candidates、fallback order、prepared targets、route trace、capability metadata、embedding dimensions、latency、cost、token usage、provider response 或真实 dispatch result。
+- policy candidate snapshot 仍来自 diagnostics probe 的 prepared route projection，不代表后续真实 embedding/rerank 调用一定经过同一 policy 结果或命中同一 provider/model。
+- candidate evidence 仍不携带 provider health freshness 的强一致证明、capability metadata、embedding dimensions、latency、cost 或 token usage。
+- 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

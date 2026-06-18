@@ -94,6 +94,15 @@ function taskRouteTargetFingerprintFixture(input: {
     .slice(0, 16);
 }
 
+function taskRoutePolicyCandidateSnapshotFingerprintFixture(
+  candidates: unknown
+) {
+  return createHash('sha256')
+    .update(stableFixtureStringify(candidates))
+    .digest('hex')
+    .slice(0, 16);
+}
+
 function expectQueryCall(query: unknown, variables: Record<string, unknown>) {
   expect(useQueryMock).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -1981,6 +1990,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
             policyCandidates: blockedRoute.policyCandidates,
+            policyCandidateSnapshotFingerprint:
+              taskRoutePolicyCandidateSnapshotFingerprintFixture(
+                blockedRoute.policyCandidates
+              ),
             providerConfiguredModelCount: 1,
             providerConfiguredModelIds: ['workspace-embedding'],
             providerId: 'ollama-main',
@@ -2010,6 +2023,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
             policyCandidates: blockedRoute.policyCandidates,
+            policyCandidateSnapshotFingerprint:
+              taskRoutePolicyCandidateSnapshotFingerprintFixture(
+                blockedRoute.policyCandidates
+              ),
             providerConfiguredModelCount: 1,
             providerConfiguredModelIds: ['workspace-embedding'],
             providerId: 'ollama-main',
@@ -2039,6 +2056,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
             policyCandidates: blockedRoute.policyCandidates,
+            policyCandidateSnapshotFingerprint:
+              taskRoutePolicyCandidateSnapshotFingerprintFixture(
+                blockedRoute.policyCandidates
+              ),
             providerConfiguredModelCount: 1,
             providerConfiguredModelIds: ['workspace-embedding'],
             providerId: 'ollama-main',
@@ -5978,6 +5999,9 @@ describe('AiPage', () => {
     );
     expect(readyGateDiagnostics).toContain(
       'route trace policy / candidates 1 / available 1 / blocked 0 / matched 1 / selected 1 / prepared 0 / reasons Candidate Allowed'
+    );
+    expect(readyGateDiagnostics).toContain(
+      `policy snapshot fingerprint ${taskRoutePolicyCandidateSnapshotFingerprintFixture(blockedRoute.policyCandidates)}`
     );
     expect(readyGateDiagnostics).toContain(
       'policy candidates Local Ollama / ollama-main / type OpenAI-compatible / source BYOK local'

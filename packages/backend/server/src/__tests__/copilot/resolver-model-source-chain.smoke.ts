@@ -40,6 +40,28 @@ function taskRouteTargetFingerprintFixture(input: {
     .slice(0, 16);
 }
 
+function stableFingerprintFixtureStringify(value: unknown): string {
+  if (value === undefined) {
+    return 'undefined';
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableFingerprintFixtureStringify).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value)
+      .sort()
+      .map(key => {
+        const item = (value as Record<string, unknown>)[key];
+        return item === undefined
+          ? null
+          : `${JSON.stringify(key)}:${stableFingerprintFixtureStringify(item)}`;
+      })
+      .filter(Boolean)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
 function taskRoutePolicyCandidateEvidenceFixture<
   T extends {
     allowed: boolean;
@@ -94,6 +116,15 @@ function taskRoutePolicyCandidateEvidenceFixture<
     ...(candidate.providerType ? { providerType: candidate.providerType } : {}),
     reasons: candidate.reasons,
   }));
+}
+
+function taskRoutePolicyCandidateSnapshotFingerprintFixture(
+  candidates: unknown
+) {
+  return createHash('sha256')
+    .update(stableFingerprintFixtureStringify(candidates))
+    .digest('hex')
+    .slice(0, 16);
 }
 
 async function main() {
@@ -5593,6 +5624,20 @@ async function main() {
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'policyCandidate'
     );
+  const taskDiagnosticsPolicyCandidateSnapshot =
+    taskRoutePolicyCandidateEvidenceFixture(
+      taskDiagnosticsErrorRoute?.policyCandidates
+    );
+  const taskDiagnosticsPolicyCandidateSnapshotFingerprint =
+    taskRoutePolicyCandidateSnapshotFingerprintFixture(
+      taskDiagnosticsPolicyCandidateSnapshot
+    );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      `policyCandidate#0:policyCandidateSnapshotFingerprint:${taskDiagnosticsPolicyCandidateSnapshotFingerprint}`
+    ),
+    true
+  );
   assert.match(
     taskDiagnosticsPolicyCandidateEvidence?.candidateFingerprint ?? '',
     /^[0-9a-f]{16}$/
@@ -5663,10 +5708,13 @@ async function main() {
   );
   assert.deepEqual(
     taskDiagnosticsPolicyCandidateEvidence?.policyCandidates,
-    taskRoutePolicyCandidateEvidenceFixture(
-      taskDiagnosticsErrorRoute?.policyCandidates
-    ),
+    taskDiagnosticsPolicyCandidateSnapshot,
     'policy candidate evidence should bind the task route policy candidates'
+  );
+  assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.policyCandidateSnapshotFingerprint,
+    taskDiagnosticsPolicyCandidateSnapshotFingerprint,
+    'policy candidate evidence should bind the task route policy candidate snapshot fingerprint'
   );
   const taskDiagnosticsRouteCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
@@ -5719,10 +5767,13 @@ async function main() {
   );
   assert.deepEqual(
     taskDiagnosticsRouteCandidateEvidence?.policyCandidates,
-    taskRoutePolicyCandidateEvidenceFixture(
-      taskDiagnosticsErrorRoute?.policyCandidates
-    ),
+    taskDiagnosticsPolicyCandidateSnapshot,
     'route candidate evidence should bind the task route policy candidates'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.policyCandidateSnapshotFingerprint,
+    taskDiagnosticsPolicyCandidateSnapshotFingerprint,
+    'route candidate evidence should bind the task route policy candidate snapshot fingerprint'
   );
   const taskDiagnosticsPrepareCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
@@ -5771,10 +5822,13 @@ async function main() {
   );
   assert.deepEqual(
     taskDiagnosticsPrepareCandidateEvidence?.policyCandidates,
-    taskRoutePolicyCandidateEvidenceFixture(
-      taskDiagnosticsErrorRoute?.policyCandidates
-    ),
+    taskDiagnosticsPolicyCandidateSnapshot,
     'prepare candidate evidence should bind the task route policy candidates'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.policyCandidateSnapshotFingerprint,
+    taskDiagnosticsPolicyCandidateSnapshotFingerprint,
+    'prepare candidate evidence should bind the task route policy candidate snapshot fingerprint'
   );
   const taskDiagnosticsErrorPreviewOperation =
     taskDiagnosticsErrorGate?.repairActionPreview.operations.find(

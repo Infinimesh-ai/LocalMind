@@ -1729,6 +1729,7 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   policyCandidates?: Maybe<
     Array<CopilotPromptRegistryPublishGatePolicyCandidateType>
   >;
+  policyCandidateSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   providerConfiguredModelCount?: Maybe<Scalars['SafeInt']['output']>;
   providerConfiguredModelIds?: Maybe<Array<Scalars['String']['output']>>;
   providerId: Scalars['String']['output'];
@@ -7853,6 +7854,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
               providerType: string | null;
               reasons: Array<string>;
             }> | null;
+            policyCandidateSnapshotFingerprint: string | null;
             providerConfiguredModelCount: number | null;
             providerConfiguredModelIds: Array<string> | null;
             providerId: string;

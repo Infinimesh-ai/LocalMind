@@ -2554,6 +2554,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
               providerType
               reasons
             }
+            policyCandidateSnapshotFingerprint
             providerConfiguredModelCount
             providerConfiguredModelIds
             providerId
