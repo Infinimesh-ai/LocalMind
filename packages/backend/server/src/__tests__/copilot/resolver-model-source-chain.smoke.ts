@@ -7305,6 +7305,11 @@ async function main() {
     taskDiagnosticsPreparedRouteSnapshotFingerprint,
     'policy candidate evidence should bind the task route prepared route snapshot fingerprint'
   );
+  assert.deepEqual(
+    taskDiagnosticsPolicyCandidateEvidence?.preparedRoutes,
+    taskDiagnosticsPreparedRouteSnapshot,
+    'policy candidate evidence should bind the task route prepared route snapshot'
+  );
   assert.equal(
     taskDiagnosticsPolicyCandidateEvidence?.providerCapabilitySnapshotFingerprint,
     taskDiagnosticsProviderCapabilitySnapshotFingerprint,
@@ -7549,6 +7554,11 @@ async function main() {
     taskDiagnosticsRouteCandidateEvidence?.preparedRouteSnapshotFingerprint,
     taskDiagnosticsPreparedRouteSnapshotFingerprint,
     'route candidate evidence should bind the task route prepared route snapshot fingerprint'
+  );
+  assert.deepEqual(
+    taskDiagnosticsRouteCandidateEvidence?.preparedRoutes,
+    taskDiagnosticsPreparedRouteSnapshot,
+    'route candidate evidence should bind the task route prepared route snapshot'
   );
   assert.equal(
     taskDiagnosticsRouteCandidateEvidence?.providerCapabilitySnapshotFingerprint,
@@ -7802,6 +7812,11 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.preparedRouteSnapshotFingerprint,
     taskDiagnosticsPreparedRouteSnapshotFingerprint,
     'prepare candidate evidence should bind the task route prepared route snapshot fingerprint'
+  );
+  assert.deepEqual(
+    taskDiagnosticsPrepareCandidateEvidence?.preparedRoutes,
+    taskDiagnosticsPreparedRouteSnapshot,
+    'prepare candidate evidence should bind the task route prepared route snapshot'
   );
   assert.equal(
     taskDiagnosticsPrepareCandidateEvidence?.providerCapabilitySnapshotFingerprint,

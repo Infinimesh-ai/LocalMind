@@ -1769,6 +1769,7 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   preparedModelId?: Maybe<Scalars['String']['output']>;
   prepareCandidateSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   preparedRouteSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
+  preparedRoutes?: Maybe<Array<CopilotPreparedTaskRouteDiagnosticsType>>;
   providerCapabilitySnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   providerCostSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   providerHealthSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
@@ -8065,6 +8066,28 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             preparedModelId: string | null;
             prepareCandidateSnapshotFingerprint: string | null;
             preparedRouteSnapshotFingerprint: string | null;
+            preparedRoutes: Array<{
+              __typename?: 'CopilotPreparedTaskRouteDiagnosticsType';
+              behaviorFlags: Array<string> | null;
+              canonicalModelKey: string | null;
+              dimensionMismatch: boolean | null;
+              modelBackendKind: string | null;
+              modelEmbeddingDimensions: number | null;
+              modelId: string;
+              protocol: string | null;
+              providerConfiguredModelCount: number | null;
+              providerConfiguredModelIds: Array<string> | null;
+              providerId: string;
+              providerName: string | null;
+              providerPriority: number | null;
+              providerProfileConfigPath: string | null;
+              providerProfileId: string | null;
+              providerProfileSource: string | null;
+              providerSource: string | null;
+              providerType: string | null;
+              requestedDimensions: number | null;
+              requestLayer: string | null;
+            }> | null;
             providerCapabilitySnapshotFingerprint: string | null;
             providerCostSnapshotFingerprint: string | null;
             providerHealthSnapshotFingerprint: string | null;

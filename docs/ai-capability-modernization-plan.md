@@ -13188,3 +13188,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - capability 声明仍依赖 provider/native registry 或 provider profile modelDefinitions 的准确性；本轮不新增自动 capability 探测、模型测试入口、cost policy enforcement、quota enforcement 或 runtime guard。
 - 这些字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、Provider Registry revision、support bundle schema、repair mutation guard input、provider cost audit 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 389. P3 落地记录：Task Route Repair Candidate Prepared Route Evidence
+
+本轮继续收敛第 388 节剩余风险中 “candidate evidence 仍只能通过 prepared route snapshot fingerprint 感知 prepared route 变化，不能直接展开安全 prepared route 投影” 的问题。实际代码与目标 AI 中间层架构的冲突点是：task route 顶层 diagnostics 已经通过 `preparedRoutes` 暴露 provider/model/protocol/request layer/profile/source/dimension 等安全投影；但 Prompt Registry repair recommendation 的 `candidateEvidence` 只带 `preparedRouteSnapshotFingerprint`、`preparedRouteTargets` 和 target fingerprint。管理员排查自部署 embedding/rerank、OpenAI-compatible provider profile 或 fallback 准备链路时，仍要回看 task route 顶层 diagnostics 才能确认 recommendation 生成时的 prepared route 明细。本轮把同一份安全投影补进每条 policy/route/prepare candidate evidence，不改变 route prepare、fallback 或 provider 选择行为。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 与 GraphQL ObjectType 新增只读 `preparedRoutes`。
+  - `taskRouteCandidateProfileStructuredEvidence()` 复用 `taskRoutePreparedRouteSnapshot(route.preparedRoutes)` 的安全投影，将其和 `preparedRouteSnapshotFingerprint` 一起写入 policy/route/prepare candidate evidence。
+  - `taskRouteRepairCandidateEvidenceBase()` 复制 `preparedRoutes`，即使投影为空也保留空数组，让 Admin 与 support bundle 能区分“已计算且无 prepared route”和“字段未提供”；candidate fingerprint、preview operation fingerprint 与 evidence set fingerprint 会对该安全投影变化敏感。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、common query string、`schema.ts` interface 与 operation result 类型同步新增 repair candidate evidence 的 `preparedRoutes` 字段，并沿用当前顶层 task route prepared route selection 的字段集。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence diagnostics text 显示 `prepared routes ...`，并复用 task route prepared route formatter 展开 provider/model/protocol/layer/backend/canonical/profile/dimension 等摘要。
+- 测试覆盖：
+  - resolver source chain smoke 断言 policy/route/prepare candidate evidence 都绑定同一份 task route prepared route 安全投影。
+  - Admin Vitest fixture 为三类 candidate evidence 注入 `preparedRoutes` 空投影，并断言 publish gate diagnostics text 显示 `prepared routes 0`，覆盖“已计算且无 prepared route”的可读证据。
+
+该实现只扩展只读 diagnostics/evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 Model Registry/Provider Registry revision row、不改变 repair action catalog、mutation input、preview/preflight/execution gate 字段名、provider route selection、fallback order、route policy、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把 task route repair evidence 从“能比较 prepared route snapshot fingerprint，但需要回看顶层 task route 才能读明细”推进到“candidate evidence 自身携带同一份 prepared route 安全投影”，为后续 support bundle、route explain、repair guard、DB-backed route event 与 Model Registry revision 对齐提供更自包含的过渡证据。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `preparedRoutes` 仍只反映 diagnostics probe 阶段的安全投影，不代表后续真实 embedding/rerank dispatch 一定命中同一 provider/model，也不包含 provider response、latency、usage、fallback attempt、计费结果或最终索引写入结果。
+- 本轮沿用当前顶层 `getCopilotPromptRegistryPublishGate` prepared route selection 字段集；后端 ObjectType 中的 `routeIndex`、`fallbackOrderIndex` 仍未进入该 query 的 prepared route selection，若后续 support bundle 需要精确 route order，应单独扩展顶层与 candidate evidence selection。
+- 这些字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

@@ -2604,6 +2604,9 @@ const readyPublishGateVerdict = withRepairActionPreview(
                   blockedRoute.preparedRoutes
                 )
               ),
+            preparedRoutes: taskRoutePreparedRouteSnapshotFixture(
+              blockedRoute.preparedRoutes
+            ),
             providerCapabilitySnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRouteProviderCapabilitySnapshotFixture(blockedRoute)
@@ -2692,6 +2695,9 @@ const readyPublishGateVerdict = withRepairActionPreview(
                   blockedRoute.preparedRoutes
                 )
               ),
+            preparedRoutes: taskRoutePreparedRouteSnapshotFixture(
+              blockedRoute.preparedRoutes
+            ),
             providerCapabilitySnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRouteProviderCapabilitySnapshotFixture(blockedRoute)
@@ -2803,6 +2809,9 @@ const readyPublishGateVerdict = withRepairActionPreview(
                   blockedRoute.preparedRoutes
                 )
               ),
+            preparedRoutes: taskRoutePreparedRouteSnapshotFixture(
+              blockedRoute.preparedRoutes
+            ),
             providerCapabilitySnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRouteProviderCapabilitySnapshotFixture(blockedRoute)
@@ -6825,6 +6834,9 @@ describe('AiPage', () => {
     );
     expect(readyGateDiagnostics).toContain(
       `prepared route snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRoutePreparedRouteSnapshotFixture(blockedRoute.preparedRoutes))}`
+    );
+    expect(readyGateDiagnostics).toContain(
+      `prepared routes ${blockedRoute.preparedRoutes.length}`
     );
     expect(readyGateDiagnostics).toContain(
       `provider capability snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteProviderCapabilitySnapshotFixture(blockedRoute))}`

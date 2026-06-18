@@ -3088,6 +3088,13 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
     evidence.preparedRouteSnapshotFingerprint
       ? `prepared route snapshot fingerprint ${evidence.preparedRouteSnapshotFingerprint}`
       : null,
+    evidence.preparedRoutes
+      ? `prepared routes ${evidence.preparedRoutes.length}`
+      : null,
+    ...(evidence.preparedRoutes?.map(
+      preparedRoute =>
+        `prepared route ${formatTaskRoutePreparedRouteText(preparedRoute)}`
+    ) ?? []),
     evidence.providerCapabilitySnapshotFingerprint
       ? `provider capability snapshot fingerprint ${evidence.providerCapabilitySnapshotFingerprint}`
       : null,

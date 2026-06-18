@@ -2625,6 +2625,27 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             preparedModelId
             prepareCandidateSnapshotFingerprint
             preparedRouteSnapshotFingerprint
+            preparedRoutes {
+              behaviorFlags
+              canonicalModelKey
+              dimensionMismatch
+              modelBackendKind
+              modelEmbeddingDimensions
+              modelId
+              protocol
+              providerConfiguredModelCount
+              providerConfiguredModelIds
+              providerId
+              providerName
+              providerPriority
+              providerProfileConfigPath
+              providerProfileId
+              providerProfileSource
+              providerSource
+              providerType
+              requestedDimensions
+              requestLayer
+            }
             providerCapabilitySnapshotFingerprint
             providerCostSnapshotFingerprint
             providerHealthSnapshotFingerprint

@@ -734,6 +734,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   preparedModelId?: string;
   prepareCandidateSnapshotFingerprint?: string;
   preparedRouteSnapshotFingerprint?: string;
+  preparedRoutes?: CopilotPreparedTaskRouteDiagnosticsType[];
   providerCapabilitySnapshotFingerprint?: string;
   providerCostSnapshotFingerprint?: string;
   providerHealthSnapshotFingerprint?: string;
@@ -1869,6 +1870,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   preparedRouteSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedRouteSnapshotFingerprint'];
+
+  @Field(() => [CopilotPreparedTaskRouteDiagnosticsType], { nullable: true })
+  preparedRoutes?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedRoutes'];
 
   @Field(() => String, { nullable: true })
   providerCapabilitySnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerCapabilitySnapshotFingerprint'];
@@ -4472,6 +4476,7 @@ function taskRouteRepairCandidateEvidenceBase(
     preparedModelId?: string;
     prepareCandidateSnapshotFingerprint?: string;
     preparedRouteSnapshotFingerprint?: string;
+    preparedRoutes?: CopilotPreparedTaskRouteDiagnosticsType[];
     providerCapabilitySnapshotFingerprint?: string;
     providerCostSnapshotFingerprint?: string;
     providerHealthSnapshotFingerprint?: string;
@@ -4593,6 +4598,9 @@ function taskRouteRepairCandidateEvidenceBase(
           preparedRouteSnapshotFingerprint:
             candidate.preparedRouteSnapshotFingerprint,
         }
+      : {}),
+    ...(candidate.preparedRoutes !== undefined
+      ? { preparedRoutes: candidate.preparedRoutes }
       : {}),
     ...(candidate.providerCapabilitySnapshotFingerprint !== undefined
       ? {
@@ -4828,6 +4836,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       preparedModelId?: string;
       prepareCandidateSnapshotFingerprint?: string;
       preparedRouteSnapshotFingerprint?: string;
+      preparedRoutes?: CopilotPreparedTaskRouteDiagnosticsType[];
       providerCapabilitySnapshotFingerprint?: string;
       providerCostSnapshotFingerprint?: string;
       providerHealthSnapshotFingerprint?: string;
@@ -4984,6 +4993,7 @@ function taskRouteCandidateProfileStructuredEvidence(
         preparedRouteSnapshotFingerprint: taskRouteSnapshotFingerprint(
           preparedRouteSnapshot
         ),
+        preparedRoutes: preparedRouteSnapshot,
         providerCapabilitySnapshotFingerprint: taskRouteSnapshotFingerprint(
           providerCapabilitySnapshot
         ),
