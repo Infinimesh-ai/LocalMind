@@ -12635,3 +12635,37 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - candidate evidence 仍不携带 capability metadata 完整矩阵、latency、cost、token/embedding usage、provider response 或 dispatch result。
 - 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Provider Health audit record、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 371. P3 落地记录：Task Route Provider Cost Snapshot Fingerprint
+
+本轮继续收敛第 370 节剩余风险中 “candidate evidence 仍不携带 capability metadata 完整矩阵、latency、cost、token/embedding usage、provider response 或 dispatch result” 的 cost 部分。实际代码与目标 AI 中间层架构的冲突点是：配置层 `ModelDefinition.cost` 已能进入模型列表、Admin diagnostics 与 task route candidate 字段，但 Prompt Registry repair candidate evidence 仍缺少一个可独立比对的成本快照指纹；support bundle、route explain 或后续 repair guard 如果要判断 recommendation 生成时 provider profile/model definition 的静态成本元数据是否变化，还需要展开 route/prepare candidate 全量字段。本轮先把 task route diagnostics 已公开的 route/prepare candidate cost 投影汇总为 ordered snapshot fingerprint，不把它提升为实时价格、预算或计费策略。
+
+- `packages/backend/server/src/plugins/copilot/providers/factory.ts`：
+  - route/prepare candidate diagnostics 从 provider profile `modelDefinitions[].cost` 或 resolved provider model cost 透出 `costInputPer1M` 与 `costOutputPer1M`。
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRouteCandidate`、`CopilotTaskRouteCandidateDiagnosticsType` 与 `CopilotTaskRoutePrepareCandidateDiagnosticsType` 新增 `costInputPer1M` / `costOutputPer1M`。
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 新增 `providerCostSnapshotFingerprint`。
+  - 新增 `taskRouteProviderCostSnapshot()`，按 scope、candidate index、provider/profile/source/type、requested/model/prepared model、route model definition 与 input/output cost 投影 task route route/prepare candidates。
+  - `taskRouteCandidateProfileStructuredEvidence()` 基于同一份 ordered cost snapshot 计算 SHA-256 短指纹，写入 policy/route/prepare candidate evidence；candidate fingerprint、preview operation fingerprint 与 evidence set fingerprint 继续自动对 cost snapshot 变化敏感。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、common query string 与 `GetCopilotPromptRegistryPublishGateQuery` 类型同步新增 task route candidate cost 字段与 repair candidate evidence 的 `providerCostSnapshotFingerprint`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence diagnostics text 显示 `provider cost snapshot fingerprint ...`，方便管理员复制、比对和归档。
+- 测试覆盖：
+  - resolver source chain smoke 断言 embedding task route 的 route/prepare candidate cost 透传，并断言 policy/route/prepare candidate evidence 都携带与 provider cost ordered snapshot 一致的 fingerprint，且可复制 evidence 字符串包含该 fingerprint。
+  - Admin Vitest fixture 为 task route repair candidate evidence 注入 provider cost snapshot fingerprint，并断言 publish gate diagnostics text 显示该 fingerprint。
+
+该实现只扩展只读 diagnostics/evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 Provider Cost catalog、Model Registry/Provider Registry revision row、不改变 repair action catalog、不新增 mutation input、不改变 preview/preflight/execution gate 字段名、不改变 provider route selection、fallback order、route policy、Prompt Registry publish gate 判定、embedding/rerank request 参数、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、审批写入路径或真实计费逻辑。它把 task route cost evidence 从“成本字段分散在 route/prepare candidate payload 中”推进到“repair candidate evidence snapshot 能用独立 fingerprint 感知 provider cost 公开元数据变化”，为后续 support bundle、route explain、repair guard、DB-backed route event、Cost Policy 与 Model Registry revision 对齐提供更可审计的过渡证据。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Admin AI Vitest、Prettier/oxlint 与 `git diff --check`。
+
+剩余风险：
+
+- `providerCostSnapshotFingerprint` 只覆盖当前 task route route/prepare candidate 公开 diagnostics 字段中的静态 input/output per-1M cost 投影，不覆盖实时 provider 价格、折扣、币种、缓存 token、reasoning token、图片/音频/embedding/rerank 特殊计费、账单 API、quota/BYOK 成本或组织预算。
+- cost snapshot 仍来自 diagnostics probe 的 route/prepare projection，不代表后续真实 embedding/rerank 调用一定使用同一 provider/model 或产生同一费用。
+- candidate evidence 仍不携带 capability metadata 完整矩阵、latency、token/embedding usage、provider response 或 dispatch result。
+- 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Cost Policy record、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

@@ -2958,6 +2958,9 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
     evidence.preparedRouteSnapshotFingerprint
       ? `prepared route snapshot fingerprint ${evidence.preparedRouteSnapshotFingerprint}`
       : null,
+    evidence.providerCostSnapshotFingerprint
+      ? `provider cost snapshot fingerprint ${evidence.providerCostSnapshotFingerprint}`
+      : null,
     evidence.providerHealthSnapshotFingerprint
       ? `provider health snapshot fingerprint ${evidence.providerHealthSnapshotFingerprint}`
       : null,

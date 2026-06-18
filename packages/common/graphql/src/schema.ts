@@ -1726,6 +1726,7 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   preparedModelId?: Maybe<Scalars['String']['output']>;
   prepareCandidateSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   preparedRouteSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
+  providerCostSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   providerHealthSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   preparedRouteTargets?: Maybe<Array<Scalars['String']['output']>>;
   preparedRouteTargetFingerprint?: Maybe<Scalars['String']['output']>;
@@ -1982,6 +1983,8 @@ export interface CopilotTaskRouteCandidateDiagnosticsType {
   __typename?: 'CopilotTaskRouteCandidateDiagnosticsType';
   candidateKey?: Maybe<Scalars['String']['output']>;
   candidateModelIds?: Maybe<Array<Scalars['String']['output']>>;
+  costInputPer1M?: Maybe<Scalars['Float']['output']>;
+  costOutputPer1M?: Maybe<Scalars['Float']['output']>;
   matched: Scalars['Boolean']['output'];
   modelId?: Maybe<Scalars['String']['output']>;
   providerConfiguredModelCount?: Maybe<Scalars['SafeInt']['output']>;
@@ -2013,6 +2016,8 @@ export interface CopilotTaskRoutePrepareCandidateDiagnosticsType {
   __typename?: 'CopilotTaskRoutePrepareCandidateDiagnosticsType';
   candidateKey?: Maybe<Scalars['String']['output']>;
   candidateModelIds?: Maybe<Array<Scalars['String']['output']>>;
+  costInputPer1M?: Maybe<Scalars['Float']['output']>;
+  costOutputPer1M?: Maybe<Scalars['Float']['output']>;
   errorCategory?: Maybe<Scalars['String']['output']>;
   errorCode?: Maybe<Scalars['String']['output']>;
   health?: Maybe<Scalars['String']['output']>;
@@ -6802,6 +6807,8 @@ export type GetPromptModelsQuery = {
             __typename?: 'CopilotTaskRouteCandidateDiagnosticsType';
             candidateKey: string | null;
             candidateModelIds: Array<string> | null;
+            costInputPer1M: number | null;
+            costOutputPer1M: number | null;
             matched: boolean;
             modelId: string | null;
             providerConfiguredModelCount: number | null;
@@ -6843,6 +6850,8 @@ export type GetPromptModelsQuery = {
             __typename?: 'CopilotTaskRoutePrepareCandidateDiagnosticsType';
             candidateKey: string | null;
             candidateModelIds: Array<string> | null;
+            costInputPer1M: number | null;
+            costOutputPer1M: number | null;
             errorCategory: string | null;
             errorCode: string | null;
             health: string | null;
@@ -7088,6 +7097,8 @@ export type GetPromptModelsQuery = {
             __typename?: 'CopilotTaskRouteCandidateDiagnosticsType';
             candidateKey: string | null;
             candidateModelIds: Array<string> | null;
+            costInputPer1M: number | null;
+            costOutputPer1M: number | null;
             matched: boolean;
             modelId: string | null;
             providerConfiguredModelCount: number | null;
@@ -7129,6 +7140,8 @@ export type GetPromptModelsQuery = {
             __typename?: 'CopilotTaskRoutePrepareCandidateDiagnosticsType';
             candidateKey: string | null;
             candidateModelIds: Array<string> | null;
+            costInputPer1M: number | null;
+            costOutputPer1M: number | null;
             errorCategory: string | null;
             errorCode: string | null;
             health: string | null;
@@ -7839,6 +7852,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             preparedModelId: string | null;
             prepareCandidateSnapshotFingerprint: string | null;
             preparedRouteSnapshotFingerprint: string | null;
+            providerCostSnapshotFingerprint: string | null;
             providerHealthSnapshotFingerprint: string | null;
             preparedRouteTargets: Array<string> | null;
             preparedRouteTargetFingerprint: string | null;

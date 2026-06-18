@@ -104,6 +104,8 @@ function taskRouteSnapshotFingerprintFixture(candidates: unknown) {
 function taskRoutePrepareCandidateSnapshotFixture<
   T extends {
     candidateModelIds?: string[] | null;
+    costInputPer1M?: number | null;
+    costOutputPer1M?: number | null;
     errorCategory?: string | null;
     errorCode?: string | null;
     health?: string | null;
@@ -137,6 +139,8 @@ function taskRoutePrepareCandidateSnapshotFixture<
   return candidates.map(candidate =>
     stripNullishFixtureFields({
       candidateModelIds: candidate.candidateModelIds,
+      costInputPer1M: candidate.costInputPer1M,
+      costOutputPer1M: candidate.costOutputPer1M,
       errorCategory: candidate.errorCategory,
       errorCode: candidate.errorCode,
       health: candidate.health,
@@ -312,6 +316,89 @@ function taskRouteProviderHealthSnapshotFixture(route: {
   ];
 }
 
+function taskRouteProviderCostSnapshotFixture(route: {
+  routeCandidates: {
+    costInputPer1M?: number | null;
+    costOutputPer1M?: number | null;
+    modelId?: string | null;
+    preparedModelId?: string | null;
+    providerId: string;
+    providerProfileConfigPath?: string | null;
+    providerProfileId?: string | null;
+    providerProfileSource?: string | null;
+    providerSource?: string | null;
+    providerType?: string | null;
+    requestedModelId?: string | null;
+    routeModelDefinitionId?: string | null;
+    routeModelDefinitionSource?: string | null;
+    routeRawModelId?: string | null;
+  }[];
+  prepareCandidates: {
+    costInputPer1M?: number | null;
+    costOutputPer1M?: number | null;
+    modelId?: string | null;
+    preparedModelId?: string | null;
+    providerId: string;
+    providerProfileConfigPath?: string | null;
+    providerProfileId?: string | null;
+    providerProfileSource?: string | null;
+    providerSource?: string | null;
+    providerType?: string | null;
+    requestedModelId?: string | null;
+    routeModelDefinitionId?: string | null;
+    routeModelDefinitionSource?: string | null;
+    routeRawModelId?: string | null;
+  }[];
+}) {
+  const costCandidate = (
+    scope: string,
+    candidate: {
+      costInputPer1M?: number | null;
+      costOutputPer1M?: number | null;
+      modelId?: string | null;
+      preparedModelId?: string | null;
+      providerId: string;
+      providerProfileConfigPath?: string | null;
+      providerProfileId?: string | null;
+      providerProfileSource?: string | null;
+      providerSource?: string | null;
+      providerType?: string | null;
+      requestedModelId?: string | null;
+      routeModelDefinitionId?: string | null;
+      routeModelDefinitionSource?: string | null;
+      routeRawModelId?: string | null;
+    },
+    index: number
+  ) =>
+    stripNullishFixtureFields({
+      candidateIndex: index,
+      costInputPer1M: candidate.costInputPer1M,
+      costOutputPer1M: candidate.costOutputPer1M,
+      modelId: candidate.modelId,
+      preparedModelId: candidate.preparedModelId,
+      providerId: candidate.providerId,
+      providerProfileConfigPath: candidate.providerProfileConfigPath,
+      providerProfileId: candidate.providerProfileId,
+      providerProfileSource: candidate.providerProfileSource,
+      providerSource: candidate.providerSource,
+      providerType: candidate.providerType,
+      requestedModelId: candidate.requestedModelId,
+      routeModelDefinitionId: candidate.routeModelDefinitionId,
+      routeModelDefinitionSource: candidate.routeModelDefinitionSource,
+      routeRawModelId: candidate.routeRawModelId,
+      scope,
+    });
+
+  return [
+    ...route.routeCandidates.map((candidate, index) =>
+      costCandidate('routeCandidate', candidate, index)
+    ),
+    ...route.prepareCandidates.map((candidate, index) =>
+      costCandidate('prepareCandidate', candidate, index)
+    ),
+  ];
+}
+
 function expectQueryCall(query: unknown, variables: Record<string, unknown>) {
   expect(useQueryMock).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -431,6 +518,8 @@ const blockedRoute = {
       privacy: 'local',
       health: 'down',
       healthCheckedAt: '2026-06-16T10:00:00.000Z',
+      costInputPer1M: 0.01,
+      costOutputPer1M: 0.02,
       routeRawModelId: 'nomic-embed-text',
       routeModelDefinitionSource: 'provider_profile',
       routeModelDefinitionId: 'workspace-embedding',
@@ -466,6 +555,8 @@ const blockedRoute = {
       privacy: 'local',
       health: 'down',
       healthCheckedAt: '2026-06-16T10:00:00.000Z',
+      costInputPer1M: 0.01,
+      costOutputPer1M: 0.02,
       routeRawModelId: 'nomic-embed-text',
       routeModelDefinitionSource: 'provider_profile',
       routeModelDefinitionId: 'workspace-embedding',
@@ -489,6 +580,8 @@ const blockedRoute = {
       providerType: 'openai',
       privacy: 'private_cloud',
       health: 'degraded',
+      costInputPer1M: 0.13,
+      costOutputPer1M: 0.13,
       reasons: ['provider_prepare_returned_empty'],
       registryAvailable: true,
       registryKind: 'quota_backed',
@@ -2211,6 +2304,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
               taskRouteSnapshotFingerprintFixture(
                 taskRouteProviderHealthSnapshotFixture(blockedRoute)
               ),
+            providerCostSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteProviderCostSnapshotFixture(blockedRoute)
+              ),
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
@@ -2262,6 +2359,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
               taskRouteSnapshotFingerprintFixture(
                 taskRouteProviderHealthSnapshotFixture(blockedRoute)
               ),
+            providerCostSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteProviderCostSnapshotFixture(blockedRoute)
+              ),
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
@@ -2312,6 +2413,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
             providerHealthSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRouteProviderHealthSnapshotFixture(blockedRoute)
+              ),
+            providerCostSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteProviderCostSnapshotFixture(blockedRoute)
               ),
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
@@ -6277,6 +6382,9 @@ describe('AiPage', () => {
     );
     expect(readyGateDiagnostics).toContain(
       `prepared route snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRoutePreparedRouteSnapshotFixture(blockedRoute.preparedRoutes))}`
+    );
+    expect(readyGateDiagnostics).toContain(
+      `provider cost snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteProviderCostSnapshotFixture(blockedRoute))}`
     );
     expect(readyGateDiagnostics).toContain(
       `provider health snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteProviderHealthSnapshotFixture(blockedRoute))}`

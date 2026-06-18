@@ -128,6 +128,8 @@ function taskRouteSnapshotFingerprintFixture(candidates: unknown) {
 function taskRouteCandidateEvidenceFixture<
   T extends {
     candidateModelIds?: string[];
+    costInputPer1M?: number;
+    costOutputPer1M?: number;
     health?: string;
     healthCheckedAt?: string;
     matched: boolean;
@@ -158,6 +160,12 @@ function taskRouteCandidateEvidenceFixture<
   return candidates?.map(candidate => ({
     ...(candidate.candidateModelIds !== undefined
       ? { candidateModelIds: candidate.candidateModelIds }
+      : {}),
+    ...(candidate.costInputPer1M !== undefined
+      ? { costInputPer1M: candidate.costInputPer1M }
+      : {}),
+    ...(candidate.costOutputPer1M !== undefined
+      ? { costOutputPer1M: candidate.costOutputPer1M }
       : {}),
     ...(candidate.health ? { health: candidate.health } : {}),
     ...(candidate.healthCheckedAt
@@ -222,6 +230,8 @@ function taskRouteCandidateEvidenceFixture<
 function taskRoutePrepareCandidateEvidenceFixture<
   T extends {
     candidateModelIds?: string[];
+    costInputPer1M?: number;
+    costOutputPer1M?: number;
     errorCategory?: string;
     errorCode?: string;
     health?: string;
@@ -255,6 +265,12 @@ function taskRoutePrepareCandidateEvidenceFixture<
   return candidates?.map(candidate => ({
     ...(candidate.candidateModelIds !== undefined
       ? { candidateModelIds: candidate.candidateModelIds }
+      : {}),
+    ...(candidate.costInputPer1M !== undefined
+      ? { costInputPer1M: candidate.costInputPer1M }
+      : {}),
+    ...(candidate.costOutputPer1M !== undefined
+      ? { costOutputPer1M: candidate.costOutputPer1M }
       : {}),
     ...(candidate.errorCategory
       ? { errorCategory: candidate.errorCategory }
@@ -503,6 +519,114 @@ function taskRouteProviderHealthSnapshotFixture(
   ];
 }
 
+function taskRouteProviderCostSnapshotFixture(
+  route:
+    | {
+        routeCandidates?: {
+          costInputPer1M?: number;
+          costOutputPer1M?: number;
+          modelId?: string;
+          preparedModelId?: string;
+          providerId: string;
+          providerProfileConfigPath?: string;
+          providerProfileId?: string;
+          providerProfileSource?: string;
+          providerSource?: string;
+          providerType?: string;
+          requestedModelId?: string;
+          routeModelDefinitionId?: string;
+          routeModelDefinitionSource?: string;
+          routeRawModelId?: string;
+        }[];
+        prepareCandidates?: {
+          costInputPer1M?: number;
+          costOutputPer1M?: number;
+          modelId?: string;
+          preparedModelId?: string;
+          providerId: string;
+          providerProfileConfigPath?: string;
+          providerProfileId?: string;
+          providerProfileSource?: string;
+          providerSource?: string;
+          providerType?: string;
+          requestedModelId?: string;
+          routeModelDefinitionId?: string;
+          routeModelDefinitionSource?: string;
+          routeRawModelId?: string;
+        }[];
+      }
+    | undefined
+) {
+  const costCandidate = (
+    scope: string,
+    candidate: {
+      costInputPer1M?: number;
+      costOutputPer1M?: number;
+      modelId?: string;
+      preparedModelId?: string;
+      providerId: string;
+      providerProfileConfigPath?: string;
+      providerProfileId?: string;
+      providerProfileSource?: string;
+      providerSource?: string;
+      providerType?: string;
+      requestedModelId?: string;
+      routeModelDefinitionId?: string;
+      routeModelDefinitionSource?: string;
+      routeRawModelId?: string;
+    },
+    index: number
+  ) => ({
+    candidateIndex: index,
+    ...(candidate.costInputPer1M !== undefined
+      ? { costInputPer1M: candidate.costInputPer1M }
+      : {}),
+    ...(candidate.costOutputPer1M !== undefined
+      ? { costOutputPer1M: candidate.costOutputPer1M }
+      : {}),
+    ...(candidate.modelId ? { modelId: candidate.modelId } : {}),
+    ...(candidate.preparedModelId
+      ? { preparedModelId: candidate.preparedModelId }
+      : {}),
+    providerId: candidate.providerId,
+    ...(candidate.providerProfileConfigPath
+      ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
+      : {}),
+    ...(candidate.providerProfileId
+      ? { providerProfileId: candidate.providerProfileId }
+      : {}),
+    ...(candidate.providerProfileSource
+      ? { providerProfileSource: candidate.providerProfileSource }
+      : {}),
+    ...(candidate.providerSource
+      ? { providerSource: candidate.providerSource }
+      : {}),
+    ...(candidate.providerType ? { providerType: candidate.providerType } : {}),
+    ...(candidate.requestedModelId
+      ? { requestedModelId: candidate.requestedModelId }
+      : {}),
+    ...(candidate.routeModelDefinitionId
+      ? { routeModelDefinitionId: candidate.routeModelDefinitionId }
+      : {}),
+    ...(candidate.routeModelDefinitionSource
+      ? { routeModelDefinitionSource: candidate.routeModelDefinitionSource }
+      : {}),
+    ...(candidate.routeRawModelId
+      ? { routeRawModelId: candidate.routeRawModelId }
+      : {}),
+    scope,
+  });
+
+  return [
+    ...(route?.routeCandidates ?? []).map((candidate, index) =>
+      costCandidate('routeCandidate', candidate, index)
+    ),
+    ...(route?.prepareCandidates ?? []).map((candidate, index) =>
+      costCandidate('prepareCandidate', candidate, index)
+    ),
+  ];
+}
+
 async function main() {
   process.env.NODE_ENV = 'test';
   process.env.DEPLOYMENT_TYPE = 'affine';
@@ -726,6 +850,8 @@ async function main() {
           providerPriority: 10,
           privacy: 'local',
           health: 'healthy',
+          costInputPer1M: 0.01,
+          costOutputPer1M: 0.02,
           requestedModelId: 'embed-alias',
           modelId: 'embed-alias',
           routeRawModelId: 'nomic-embed-text',
@@ -754,6 +880,8 @@ async function main() {
           providerPriority: 10,
           privacy: 'local',
           health: 'healthy',
+          costInputPer1M: 0.01,
+          costOutputPer1M: 0.02,
           modelId: 'embed-alias',
           routeRawModelId: 'nomic-embed-text',
           routeModelDefinitionSource: 'provider_profile',
@@ -988,6 +1116,11 @@ async function main() {
     result.embeddingRoute?.routeCandidates[0]?.routeModelAliasMatched,
     true
   );
+  assert.equal(result.embeddingRoute?.routeCandidates[0]?.costInputPer1M, 0.01);
+  assert.equal(
+    result.embeddingRoute?.routeCandidates[0]?.costOutputPer1M,
+    0.02
+  );
   assert.equal(
     result.embeddingRoute?.prepareCandidates[0]?.routeRawModelId,
     'nomic-embed-text'
@@ -995,6 +1128,14 @@ async function main() {
   assert.equal(
     result.embeddingRoute?.prepareCandidates[0]?.routeModelDefinitionId,
     'workspace-embedding'
+  );
+  assert.equal(
+    result.embeddingRoute?.prepareCandidates[0]?.costInputPer1M,
+    0.01
+  );
+  assert.equal(
+    result.embeddingRoute?.prepareCandidates[0]?.costOutputPer1M,
+    0.02
   );
   assert.deepEqual(result.embeddingRoute?.diagnosticsErrors, []);
   assert.deepEqual(result.rerankRoute?.diagnosticsErrors, []);
@@ -6036,6 +6177,10 @@ async function main() {
     taskRouteProviderHealthSnapshotFixture(taskDiagnosticsErrorRoute);
   const taskDiagnosticsProviderHealthSnapshotFingerprint =
     taskRouteSnapshotFingerprintFixture(taskDiagnosticsProviderHealthSnapshot);
+  const taskDiagnosticsProviderCostSnapshot =
+    taskRouteProviderCostSnapshotFixture(taskDiagnosticsErrorRoute);
+  const taskDiagnosticsProviderCostSnapshotFingerprint =
+    taskRouteSnapshotFingerprintFixture(taskDiagnosticsProviderCostSnapshot);
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
       `policyCandidate#0:policyCandidateSnapshotFingerprint:${taskDiagnosticsPolicyCandidateSnapshotFingerprint}`
@@ -6070,6 +6215,13 @@ async function main() {
     ),
     true,
     'task diagnostics repair evidence should include provider health snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      `policyCandidate#0:providerCostSnapshotFingerprint:${taskDiagnosticsProviderCostSnapshotFingerprint}`
+    ),
+    true,
+    'task diagnostics repair evidence should include provider cost snapshot fingerprint'
   );
   assert.match(
     taskDiagnosticsPolicyCandidateEvidence?.candidateFingerprint ?? '',
@@ -6169,6 +6321,11 @@ async function main() {
     taskDiagnosticsProviderHealthSnapshotFingerprint,
     'policy candidate evidence should bind the task route provider health snapshot fingerprint'
   );
+  assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.providerCostSnapshotFingerprint,
+    taskDiagnosticsProviderCostSnapshotFingerprint,
+    'policy candidate evidence should bind the task route provider cost snapshot fingerprint'
+  );
   const taskDiagnosticsRouteCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'routeCandidate'
@@ -6248,6 +6405,11 @@ async function main() {
     taskDiagnosticsProviderHealthSnapshotFingerprint,
     'route candidate evidence should bind the task route provider health snapshot fingerprint'
   );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.providerCostSnapshotFingerprint,
+    taskDiagnosticsProviderCostSnapshotFingerprint,
+    'route candidate evidence should bind the task route provider cost snapshot fingerprint'
+  );
   const taskDiagnosticsPrepareCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'prepareCandidate'
@@ -6322,6 +6484,11 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.providerHealthSnapshotFingerprint,
     taskDiagnosticsProviderHealthSnapshotFingerprint,
     'prepare candidate evidence should bind the task route provider health snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.providerCostSnapshotFingerprint,
+    taskDiagnosticsProviderCostSnapshotFingerprint,
+    'prepare candidate evidence should bind the task route provider cost snapshot fingerprint'
   );
   const taskDiagnosticsErrorPreviewOperation =
     taskDiagnosticsErrorGate?.repairActionPreview.operations.find(

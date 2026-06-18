@@ -641,6 +641,8 @@ type CopilotPromptRegistryPublishGatePolicyCandidate = {
 
 type CopilotPromptRegistryPublishGateRouteCandidate = {
   candidateModelIds?: string[];
+  costInputPer1M?: number;
+  costOutputPer1M?: number;
   health?: string;
   healthCheckedAt?: string;
   matched: boolean;
@@ -707,6 +709,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   preparedModelId?: string;
   prepareCandidateSnapshotFingerprint?: string;
   preparedRouteSnapshotFingerprint?: string;
+  providerCostSnapshotFingerprint?: string;
   providerHealthSnapshotFingerprint?: string;
   preparedRouteTargets?: string[];
   preparedRouteTargetFingerprint?: string;
@@ -1527,6 +1530,12 @@ class CopilotPromptRegistryPublishGateRouteCandidateType implements CopilotPromp
   @Field(() => [String], { nullable: true })
   candidateModelIds?: CopilotPromptRegistryPublishGateRouteCandidate['candidateModelIds'];
 
+  @Field(() => Number, { nullable: true })
+  costInputPer1M?: CopilotPromptRegistryPublishGateRouteCandidate['costInputPer1M'];
+
+  @Field(() => Number, { nullable: true })
+  costOutputPer1M?: CopilotPromptRegistryPublishGateRouteCandidate['costOutputPer1M'];
+
   @Field(() => String, { nullable: true })
   health?: CopilotPromptRegistryPublishGateRouteCandidate['health'];
 
@@ -1718,6 +1727,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   preparedRouteSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedRouteSnapshotFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  providerCostSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerCostSnapshotFingerprint'];
 
   @Field(() => String, { nullable: true })
   providerHealthSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerHealthSnapshotFingerprint'];
@@ -3934,6 +3946,12 @@ function toPromptRegistryPublishGateRouteCandidate(
     ...(candidate.candidateModelIds !== undefined
       ? { candidateModelIds: candidate.candidateModelIds }
       : {}),
+    ...(candidate.costInputPer1M !== undefined
+      ? { costInputPer1M: candidate.costInputPer1M }
+      : {}),
+    ...(candidate.costOutputPer1M !== undefined
+      ? { costOutputPer1M: candidate.costOutputPer1M }
+      : {}),
     ...(candidate.health ? { health: candidate.health } : {}),
     ...(candidate.healthCheckedAt
       ? { healthCheckedAt: candidate.healthCheckedAt }
@@ -4097,6 +4115,7 @@ function taskRouteRepairCandidateEvidenceBase(
     preparedModelId?: string;
     prepareCandidateSnapshotFingerprint?: string;
     preparedRouteSnapshotFingerprint?: string;
+    providerCostSnapshotFingerprint?: string;
     providerHealthSnapshotFingerprint?: string;
     preparedRouteTargets?: string[];
     preparedRouteTargetFingerprint?: string;
@@ -4149,6 +4168,12 @@ function taskRouteRepairCandidateEvidenceBase(
       ? {
           preparedRouteSnapshotFingerprint:
             candidate.preparedRouteSnapshotFingerprint,
+        }
+      : {}),
+    ...(candidate.providerCostSnapshotFingerprint !== undefined
+      ? {
+          providerCostSnapshotFingerprint:
+            candidate.providerCostSnapshotFingerprint,
         }
       : {}),
     ...(candidate.providerHealthSnapshotFingerprint !== undefined
@@ -4245,6 +4270,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       preparedModelId?: string;
       prepareCandidateSnapshotFingerprint?: string;
       preparedRouteSnapshotFingerprint?: string;
+      providerCostSnapshotFingerprint?: string;
       providerHealthSnapshotFingerprint?: string;
       preparedRouteTargets?: string[];
       preparedRouteTargetFingerprint?: string;
@@ -4321,6 +4347,7 @@ function taskRouteCandidateProfileStructuredEvidence(
     const preparedRouteSnapshot = taskRoutePreparedRouteSnapshot(
       route.preparedRoutes
     );
+    const providerCostSnapshot = taskRouteProviderCostSnapshot(route);
     const providerHealthSnapshot = taskRouteProviderHealthSnapshot(route);
     const evidence = taskRouteRepairCandidateEvidenceBase(
       scope,
@@ -4333,6 +4360,8 @@ function taskRouteCandidateProfileStructuredEvidence(
         preparedRouteSnapshotFingerprint: taskRouteSnapshotFingerprint(
           preparedRouteSnapshot
         ),
+        providerCostSnapshotFingerprint:
+          taskRouteSnapshotFingerprint(providerCostSnapshot),
         providerHealthSnapshotFingerprint: taskRouteSnapshotFingerprint(
           providerHealthSnapshot
         ),
@@ -4406,6 +4435,9 @@ function taskRouteCandidateProfileEvidence(
         candidate.preparedRouteSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:preparedRouteSnapshotFingerprint:${candidate.preparedRouteSnapshotFingerprint}`
           : null,
+        candidate.providerCostSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerCostSnapshotFingerprint:${candidate.providerCostSnapshotFingerprint}`
+          : null,
         candidate.providerHealthSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:providerHealthSnapshotFingerprint:${candidate.providerHealthSnapshotFingerprint}`
           : null,
@@ -4451,6 +4483,9 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.preparedRouteSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:preparedRouteSnapshotFingerprint:${candidate.preparedRouteSnapshotFingerprint}`
+          : null,
+        candidate.providerCostSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerCostSnapshotFingerprint:${candidate.providerCostSnapshotFingerprint}`
           : null,
         candidate.providerHealthSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:providerHealthSnapshotFingerprint:${candidate.providerHealthSnapshotFingerprint}`
@@ -4971,6 +5006,12 @@ function taskRoutePrepareCandidateSnapshot(
     ...(definedArray(candidate.candidateModelIds) !== undefined
       ? { candidateModelIds: definedArray(candidate.candidateModelIds) }
       : {}),
+    ...(candidate.costInputPer1M !== undefined
+      ? { costInputPer1M: candidate.costInputPer1M }
+      : {}),
+    ...(candidate.costOutputPer1M !== undefined
+      ? { costOutputPer1M: candidate.costOutputPer1M }
+      : {}),
     ...(candidate.errorCategory
       ? { errorCategory: candidate.errorCategory }
       : {}),
@@ -5044,6 +5085,79 @@ function taskRoutePrepareCandidateSnapshot(
       ? { routeRawModelId: candidate.routeRawModelId }
       : {}),
   }));
+}
+
+function taskRouteProviderCostSnapshot(
+  route: CopilotPromptRegistryPublishGateTaskRoute
+) {
+  const costCandidate = (
+    scope: string,
+    candidate: {
+      costInputPer1M?: number;
+      costOutputPer1M?: number;
+      modelId?: string;
+      preparedModelId?: string;
+      providerId: string;
+      providerProfileConfigPath?: string;
+      providerProfileId?: string;
+      providerProfileSource?: string;
+      providerSource?: string;
+      providerType?: string;
+      requestedModelId?: string;
+      routeModelDefinitionId?: string;
+      routeModelDefinitionSource?: string;
+      routeRawModelId?: string;
+    },
+    index: number
+  ) => ({
+    candidateIndex: index,
+    ...(candidate.costInputPer1M !== undefined
+      ? { costInputPer1M: candidate.costInputPer1M }
+      : {}),
+    ...(candidate.costOutputPer1M !== undefined
+      ? { costOutputPer1M: candidate.costOutputPer1M }
+      : {}),
+    ...(candidate.modelId ? { modelId: candidate.modelId } : {}),
+    ...(candidate.preparedModelId
+      ? { preparedModelId: candidate.preparedModelId }
+      : {}),
+    providerId: candidate.providerId,
+    ...(candidate.providerProfileConfigPath
+      ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
+      : {}),
+    ...(candidate.providerProfileId
+      ? { providerProfileId: candidate.providerProfileId }
+      : {}),
+    ...(candidate.providerProfileSource
+      ? { providerProfileSource: candidate.providerProfileSource }
+      : {}),
+    ...(candidate.providerSource
+      ? { providerSource: candidate.providerSource }
+      : {}),
+    ...(candidate.providerType ? { providerType: candidate.providerType } : {}),
+    ...(candidate.requestedModelId
+      ? { requestedModelId: candidate.requestedModelId }
+      : {}),
+    ...(candidate.routeModelDefinitionId
+      ? { routeModelDefinitionId: candidate.routeModelDefinitionId }
+      : {}),
+    ...(candidate.routeModelDefinitionSource
+      ? { routeModelDefinitionSource: candidate.routeModelDefinitionSource }
+      : {}),
+    ...(candidate.routeRawModelId
+      ? { routeRawModelId: candidate.routeRawModelId }
+      : {}),
+    scope,
+  });
+
+  return [
+    ...route.routeCandidates.map((candidate, index) =>
+      costCandidate('routeCandidate', candidate, index)
+    ),
+    ...(route.prepareCandidates ?? []).map((candidate, index) =>
+      costCandidate('prepareCandidate', candidate, index)
+    ),
+  ];
 }
 
 function taskRoutePreparedRouteSnapshot(
@@ -10523,6 +10637,10 @@ function buildTaskRoutePrepareCandidates(
     const routeModelAliasMatched =
       candidate.routeModelAliasMatched ??
       providerPrepareCandidate?.routeModelAliasMatched;
+    const costInputPer1M =
+      candidate.costInputPer1M ?? providerPrepareCandidate?.costInputPer1M;
+    const costOutputPer1M =
+      candidate.costOutputPer1M ?? providerPrepareCandidate?.costOutputPer1M;
 
     const providerName =
       candidate.providerName ?? providerPrepareCandidate?.providerName;
@@ -10591,6 +10709,8 @@ function buildTaskRoutePrepareCandidates(
       ...(routeModelAliasMatched !== undefined
         ? { routeModelAliasMatched }
         : {}),
+      ...(costInputPer1M !== undefined ? { costInputPer1M } : {}),
+      ...(costOutputPer1M !== undefined ? { costOutputPer1M } : {}),
       ...(candidate.candidateModelIds !== undefined
         ? { candidateModelIds: candidate.candidateModelIds }
         : {}),
@@ -11216,6 +11336,12 @@ class CopilotTaskRouteCandidateDiagnosticsType {
   @Field(() => String, { nullable: true })
   candidateKey?: string;
 
+  @Field(() => Number, { nullable: true })
+  costInputPer1M?: number;
+
+  @Field(() => Number, { nullable: true })
+  costOutputPer1M?: number;
+
   @Field(() => String, { nullable: true })
   registryKind?: string;
 
@@ -11299,6 +11425,12 @@ class CopilotTaskRouteCandidateDiagnosticsType {
 class CopilotTaskRoutePrepareCandidateDiagnosticsType {
   @Field(() => String, { nullable: true })
   candidateKey?: string;
+
+  @Field(() => Number, { nullable: true })
+  costInputPer1M?: number;
+
+  @Field(() => Number, { nullable: true })
+  costOutputPer1M?: number;
 
   @Field(() => String, { nullable: true })
   registryKind?: string;

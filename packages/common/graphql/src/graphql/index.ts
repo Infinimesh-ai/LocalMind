@@ -1403,6 +1403,8 @@ export const getPromptModelsQuery = {
           routeCandidates {
             candidateKey
             candidateModelIds
+            costInputPer1M
+            costOutputPer1M
             matched
             modelId
             providerId
@@ -2315,6 +2317,8 @@ export const getCopilotPromptRegistryPublishGateQuery = {
           prepareCandidates {
             candidateKey
             candidateModelIds
+            costInputPer1M
+            costOutputPer1M
             errorCategory
             errorCode
             health
@@ -2536,6 +2540,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             preparedModelId
             prepareCandidateSnapshotFingerprint
             preparedRouteSnapshotFingerprint
+            providerCostSnapshotFingerprint
             providerHealthSnapshotFingerprint
             preparedRouteTargets
             preparedRouteTargetFingerprint
