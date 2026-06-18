@@ -2546,6 +2546,7 @@ async function main() {
     executionRequest.executionRunStepRetryAttemptCompletionRequestInputs,
     [
       'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
       'executionJobRunRequestFingerprint',
       'executionQueueRequestFingerprint',
       'executionResultRequestFingerprint',
@@ -2594,6 +2595,7 @@ async function main() {
     executionRequest.executionRunStepRetryAttemptCompletionStatusEventRequestInputs,
     [
       'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
       'executionJobRunRequestFingerprint',
       'executionQueueRequestFingerprint',
       'executionResultRequestFingerprint',
@@ -2643,6 +2645,7 @@ async function main() {
     executionRequest.executionRunStepRetryAttemptFinalizationRequestInputs,
     [
       'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
       'executionJobRunRequestFingerprint',
       'executionQueueRequestFingerprint',
       'executionResultRequestFingerprint',
@@ -2693,6 +2696,7 @@ async function main() {
     executionRequest.executionRunStepRetryAttemptFinalizationStatusEventRequestInputs,
     [
       'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
       'executionJobRunRequestFingerprint',
       'executionQueueRequestFingerprint',
       'executionResultRequestFingerprint',
