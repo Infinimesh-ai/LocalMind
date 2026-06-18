@@ -13892,7 +13892,11 @@ export class CopilotResolver {
             profileDefinition?.aliases?.includes(id);
           const profileConfigPath = providerProfileConfigPath(resolved.profile);
           const routeModelDefinitionId =
-            profileDefinition?.id ?? resolvedProviderModel?.canonicalKey;
+            profileDefinition?.id ??
+            resolvedProviderModel?.canonicalKey ??
+            (routeModelDefinitionSource === 'provider_runtime'
+              ? routeModelId
+              : undefined);
           const routeRawModelId =
             profileDefinition?.rawModelId ??
             (routeModelDefinitionId &&

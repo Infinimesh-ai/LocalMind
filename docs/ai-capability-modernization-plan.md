@@ -12860,3 +12860,27 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - `allowRemoteUrls: false` 只表示声明层摘要，不代表运行时请求一定经过完整附件安全策略、内容扫描、URL allowlist、size limit 或审计记录。
 - capability metadata 仍是只读 UI/diagnostics 字段，不参与 route policy DSL、repair guard、support bundle schema、Capability Registry revision、Model Registry revision 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 378. P3 落地记录：Model List Provider Runtime Definition Id Fallback
+
+本轮继续收敛普通模型列表与 task route candidate metadata 的一致性。实际代码与目标 AI 中间层架构的冲突点是：task route candidate 在 `routeCandidateModelDefinitionMetadata()` 中已经对 `provider_runtime` 来源设置 `routeModelDefinitionId = resolvedModelId`，但 `CopilotResolver.models()` 的普通模型列表只在 provider profile 或 native registry 有明确定义时写入 `routeModelDefinitionId`。当模型来自 provider profile `models[]` 或外部 configured model id，但 provider runtime 没有返回 `canonicalKey` 时，前端模型列表会显示 `routeModelDefinitionSource: provider_runtime` 却缺少稳定 definition id，导致 Admin/AI button diagnostics 与 task route explain 不一致。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `models()` / `convertModels()` 的 `routeModelDefinitionId` 现在按 `profileDefinition.id -> resolvedProviderModel.canonicalKey -> provider_runtime routeModelId` 的顺序回退。
+  - 该 fallback 与 `routeCandidateModelDefinitionMetadata()` 保持一致，避免 provider runtime source 在普通模型列表中缺少可复制、可比对的 model definition id。
+- `packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts`：
+  - 将 `registry/only-chat` fixture 调整为 provider runtime 来源：fake provider 对该模型不返回 `canonicalKey`。
+  - 新增断言证明 `resolver.models()` 返回 `routeModelDefinitionSource: provider_runtime` 时也会返回 `routeModelDefinitionId: only-chat`。
+
+该实现只对齐普通模型列表只读 route model definition metadata 与测试，不新增 GraphQL 字段、不改变 schema/codegen、不新增 DB migration、不创建 Model Registry/Provider Registry revision row、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把“provider_runtime 来源在模型列表中可能没有 definition id”的隐式空洞推进到“普通模型列表与 task route candidate 共享同一 provider_runtime id fallback”，减少 route explain 与前端列表诊断漂移。
+
+验证策略：
+
+- 本轮为 TypeScript smoke test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration、GraphQL schema 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Prettier/oxlint 与 `git diff --check`。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- provider runtime definition id fallback 仍只是只读 diagnostics metadata，不代表已经创建 Model Registry revision、Provider Registry revision、persistent route event、support bundle schema 或审计记录。
+- 当 provider runtime 返回的 `routeModelId` 本身不稳定或 provider adapter 对同一模型使用多个别名时，该字段仍只能反映当前 resolver 选择结果，不提供跨 provider 的全局规范化。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

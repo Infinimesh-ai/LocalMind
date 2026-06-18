@@ -1230,7 +1230,7 @@ async function main() {
               name: `Resolved ${modelId}`,
               backendKind:
                 outputType === 'image' ? 'openai_image' : 'openai_chat',
-              canonicalKey: modelId,
+              ...(modelId === 'only-chat' ? {} : { canonicalKey: modelId }),
               protocol: outputType === 'image' ? 'openai_image' : 'openai_chat',
               requestLayer:
                 outputType === 'image' ? 'images' : 'chat_completions',
@@ -1535,6 +1535,14 @@ async function main() {
   assert.deepEqual(byId.get('registry/only-chat')?.promptModelSources, [
     { candidateSource: 'registry' },
   ]);
+  assert.equal(
+    byId.get('registry/only-chat')?.routeModelDefinitionSource,
+    'provider_runtime'
+  );
+  assert.equal(
+    byId.get('registry/only-chat')?.routeModelDefinitionId,
+    'only-chat'
+  );
   assert.deepEqual(result.proModels[0]?.promptModelSources, [
     {
       candidateSource: 'pro',
