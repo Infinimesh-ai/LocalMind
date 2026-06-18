@@ -60,8 +60,12 @@ query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
         id
         preparedRouteActualCount
         preparedRouteCount
+        preparedRouteBehaviorFlags
+        preparedRouteCanonicalModelKeys
+        preparedRouteDimensionEvidence
         preparedRouteFallbackProviderIds
         preparedRouteFallbackOrder
+        preparedRouteModelBackendKinds
         preparedRouteStepFallbackProviderIds
         preparedRouteStepIds
         preparedRouteKinds
@@ -74,6 +78,10 @@ query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
         preparedRouteStepRequestedModelSources
         preparedRouteRequestLayers
         preparedRouteStepFallbackOrder
+        preparedRouteStepBehaviorFlags
+        preparedRouteStepCanonicalModelKeys
+        preparedRouteStepDimensionEvidence
+        preparedRouteStepModelBackendKinds
         preparedRouteStepOrder
         preparedRouteStepRouteCountMismatches
         preparedRouteStepRouteCounts

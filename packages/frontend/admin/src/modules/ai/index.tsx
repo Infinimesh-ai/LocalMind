@@ -5093,6 +5093,46 @@ function formatActionRunPreparedRouteProtocols(run: ActionRunDiagnosticsItem) {
   return `Protocols ${run.preparedRouteProtocols.join(' -> ')}`;
 }
 
+function formatActionRunPreparedRouteModelBackendKinds(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.preparedRouteModelBackendKinds.length) {
+    return 'No route backends';
+  }
+
+  return `Backends ${run.preparedRouteModelBackendKinds.join(' -> ')}`;
+}
+
+function formatActionRunPreparedRouteCanonicalModelKeys(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.preparedRouteCanonicalModelKeys.length) {
+    return 'No canonical model keys';
+  }
+
+  return `Canonical models ${run.preparedRouteCanonicalModelKeys.join(' -> ')}`;
+}
+
+function formatActionRunPreparedRouteBehaviorFlags(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.preparedRouteBehaviorFlags.length) {
+    return 'No behavior flags';
+  }
+
+  return `Behavior flags ${run.preparedRouteBehaviorFlags.join(' -> ')}`;
+}
+
+function formatActionRunPreparedRouteDimensionEvidence(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.preparedRouteDimensionEvidence.length) {
+    return 'No dimension evidence';
+  }
+
+  return `Dimensions ${run.preparedRouteDimensionEvidence.join(' | ')}`;
+}
+
 function formatActionRunPreparedRouteStepProtocols(
   run: ActionRunDiagnosticsItem
 ) {
@@ -5101,6 +5141,52 @@ function formatActionRunPreparedRouteStepProtocols(
   }
 
   return `Step protocols ${run.preparedRouteStepProtocols.join(' | ')}`;
+}
+
+function formatActionRunPreparedRouteStepModelBackendKinds(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.preparedRouteStepModelBackendKinds.length) {
+    return 'No step backend pairs';
+  }
+
+  return `Step backends ${run.preparedRouteStepModelBackendKinds.join(' | ')}`;
+}
+
+function formatActionRunPreparedRouteStepCanonicalModelKeys(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.preparedRouteStepCanonicalModelKeys.length) {
+    return 'No step canonical model pairs';
+  }
+
+  return `Step canonical models ${run.preparedRouteStepCanonicalModelKeys.join(
+    ' | '
+  )}`;
+}
+
+function formatActionRunPreparedRouteStepBehaviorFlags(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.preparedRouteStepBehaviorFlags.length) {
+    return 'No step behavior flag pairs';
+  }
+
+  return `Step behavior flags ${run.preparedRouteStepBehaviorFlags.join(
+    ' | '
+  )}`;
+}
+
+function formatActionRunPreparedRouteStepDimensionEvidence(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.preparedRouteStepDimensionEvidence.length) {
+    return 'No step dimension evidence';
+  }
+
+  return `Step dimensions ${run.preparedRouteStepDimensionEvidence.join(
+    ' | '
+  )}`;
 }
 
 function formatActionRunPreparedRouteRequestLayers(
@@ -5554,7 +5640,15 @@ function buildActionRunDiagnosticsText(run: ActionRunDiagnosticsItem) {
       formatActionRunPreparedRouteStepFallbackOrder(run),
       formatActionRunPreparedRouteKinds(run),
       formatActionRunPreparedRouteProtocols(run),
+      formatActionRunPreparedRouteModelBackendKinds(run),
+      formatActionRunPreparedRouteCanonicalModelKeys(run),
+      formatActionRunPreparedRouteBehaviorFlags(run),
+      formatActionRunPreparedRouteDimensionEvidence(run),
       formatActionRunPreparedRouteStepProtocols(run),
+      formatActionRunPreparedRouteStepModelBackendKinds(run),
+      formatActionRunPreparedRouteStepCanonicalModelKeys(run),
+      formatActionRunPreparedRouteStepBehaviorFlags(run),
+      formatActionRunPreparedRouteStepDimensionEvidence(run),
       formatActionRunPreparedRouteRequestLayers(run),
       formatActionRunPreparedRouteStepRequestLayers(run),
       fallbackLabel,
@@ -5750,7 +5844,37 @@ function ActionRunRecentList({
                           {formatActionRunPreparedRouteProtocols(run)}
                         </div>
                         <div className="break-words text-xs text-muted-foreground">
+                          {formatActionRunPreparedRouteModelBackendKinds(run)}
+                        </div>
+                        <div className="break-words text-xs text-muted-foreground">
+                          {formatActionRunPreparedRouteCanonicalModelKeys(run)}
+                        </div>
+                        <div className="break-words text-xs text-muted-foreground">
+                          {formatActionRunPreparedRouteBehaviorFlags(run)}
+                        </div>
+                        <div className="break-words text-xs text-muted-foreground">
+                          {formatActionRunPreparedRouteDimensionEvidence(run)}
+                        </div>
+                        <div className="break-words text-xs text-muted-foreground">
                           {formatActionRunPreparedRouteStepProtocols(run)}
+                        </div>
+                        <div className="break-words text-xs text-muted-foreground">
+                          {formatActionRunPreparedRouteStepModelBackendKinds(
+                            run
+                          )}
+                        </div>
+                        <div className="break-words text-xs text-muted-foreground">
+                          {formatActionRunPreparedRouteStepCanonicalModelKeys(
+                            run
+                          )}
+                        </div>
+                        <div className="break-words text-xs text-muted-foreground">
+                          {formatActionRunPreparedRouteStepBehaviorFlags(run)}
+                        </div>
+                        <div className="break-words text-xs text-muted-foreground">
+                          {formatActionRunPreparedRouteStepDimensionEvidence(
+                            run
+                          )}
                         </div>
                         <div className="break-words text-xs text-muted-foreground">
                           {formatActionRunPreparedRouteRequestLayers(run)}

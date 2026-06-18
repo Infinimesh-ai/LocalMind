@@ -3292,8 +3292,12 @@ export const getCopilotActionRunsQuery = {
         id
         preparedRouteActualCount
         preparedRouteCount
+        preparedRouteBehaviorFlags
+        preparedRouteCanonicalModelKeys
+        preparedRouteDimensionEvidence
         preparedRouteFallbackProviderIds
         preparedRouteFallbackOrder
+        preparedRouteModelBackendKinds
         preparedRouteStepFallbackProviderIds
         preparedRouteStepIds
         preparedRouteKinds
@@ -3306,6 +3310,10 @@ export const getCopilotActionRunsQuery = {
         preparedRouteStepRequestedModelSources
         preparedRouteRequestLayers
         preparedRouteStepFallbackOrder
+        preparedRouteStepBehaviorFlags
+        preparedRouteStepCanonicalModelKeys
+        preparedRouteStepDimensionEvidence
+        preparedRouteStepModelBackendKinds
         preparedRouteStepOrder
         preparedRouteStepRouteCountMismatches
         preparedRouteStepRouteCounts

@@ -13506,3 +13506,34 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - backend/canonical/behavior evidence 仍来自 provider resolved model/profile/native registry 的静态声明，不是 DB-backed Model Registry / Provider Registry revision，也不包含最后修改人、健康探测延迟或 endpoint telemetry。
 - 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、JSON export、一键复制按钮、support bundle schema 或 Agent Runtime 原生 lifecycle artifact。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 400. P3 落地记录：Action Runs List Model Evidence Summary Alignment
+
+本轮继续收敛第 399 节剩余风险中 “action run trace 详情已经能看到模型 definition evidence，但 action run 列表摘要仍只能看到 provider/model/protocol/layer” 的问题。实际代码与目标 AI 中间层架构的冲突点是：管理员在 `/admin/ai` 的 recent action runs 列表中需要先点进 prepared route trace，才能确认某次办公 Agent Runtime/action route 准备使用了哪些 backend、canonical model、behavior flags 或维度契约；这削弱了列表对 Agent Runtime、Codex CLI/MCP adapter 接入前 route evidence 的扫描能力。本轮把第 399 节新增的安全模型 evidence 汇总到 `actionRuns` 列表 diagnostics，不改变 trace 详情、运行行为或持久化 schema。
+
+- `packages/backend/server/src/models/copilot-action-run.ts`：
+  - `CopilotActionRunDiagnosticsItem` 新增 `preparedRouteModelBackendKinds`、`preparedRouteCanonicalModelKeys`、`preparedRouteBehaviorFlags`、`preparedRouteDimensionEvidence` 以及对应 step 级字段。
+  - `summarizePreparedRouteTrace()` 从已清洗的 prepared route trace 即时汇总全局去重 evidence 和 `stepId -> evidence` 对，维度 evidence 只在 route 已携带 requested/model/mismatch 字段时生成。
+- GraphQL 与 common client：
+  - `CopilotActionRunDiagnosticsItemType`、`schema.gql`、`getCopilotActionRuns` query、common query string 与 `schema.ts` 类型同步新增这些字符串数组字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - recent action runs 列表的 Details 区与 copyable diagnostics text 显示 route backends、canonical models、behavior flags、dimension evidence 及 step 级对应关系。
+  - 无 evidence 时保留只读空态文案，不自动触发 trace inspect 或 repair。
+- 测试覆盖：
+  - resolver action runs 测试断言列表 summary 透出新增模型 evidence，同时无 prepared route trace 的失败 run 返回空数组。
+  - Admin Vitest fixture 与断言覆盖可见列表文本和 copyable diagnostics text。
+
+该实现只扩展 `actionRuns` 列表的只读 summary、GraphQL selection/type、Admin 展示与测试，不新增 DB migration、不改变 action run trace 存储结构、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、repair mutation guard、support bundle schema、Model Registry revision 或 Provider Registry revision。它把 action run 列表从“只能扫描 provider/model/protocol/layer”推进到“列表和 trace 详情都能看到同源安全模型 evidence”，为后续 route explain、support bundle 和 Agent Runtime 原生 run/step schema 对齐提供更完整的只读摘要层。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused copilot resolver AVA、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `actionRuns` 列表 evidence 仍来自准备阶段 sanitized trace 的即时汇总，不代表真实 dispatch 已持久化 route event、provider response、latency、usage、cost、token budget 或最终执行结果。
+- 维度 evidence 仍只反映 trace 中已存在的 requested/model/mismatch 字段；structured/image action route 通常没有维度契约，本轮不强造 embedding/rerank 维度。
+- 列表 summary 仍是字符串数组，不是强类型 Agent Runtime run/step schema、support bundle schema、Model Registry revision 或 Provider Registry revision。
+- 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、筛选、JSON export、一键复制按钮或 Agent Runtime 原生 lifecycle artifact。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

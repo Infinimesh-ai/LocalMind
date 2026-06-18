@@ -3354,11 +3354,17 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
             fallbackProviderIds: ['ollama-main'],
             routes: [
               {
+                behaviorFlags: ['tool_calls'],
+                canonicalModelKey: 'local/office-structured',
+                dimensionMismatch: false,
                 providerId: 'ollama-main',
                 modelId: 'local/office-structured',
+                modelBackendKind: 'openai_chat',
+                modelEmbeddingDimensions: 1024,
                 routeIndex: 0,
                 fallbackOrderIndex: 0,
                 protocol: 'openai_chat',
+                requestedDimensions: 1024,
                 requestLayer: 'chat_completions',
                 backendConfig: {
                   authToken: 'should-not-be-returned',
@@ -3617,6 +3623,12 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       preparedRouteKinds: ['structured'],
       preparedRouteModelIds: ['local/office-structured'],
       preparedRouteProtocols: ['openai_chat'],
+      preparedRouteModelBackendKinds: ['openai_chat'],
+      preparedRouteCanonicalModelKeys: ['local/office-structured'],
+      preparedRouteBehaviorFlags: ['tool_calls'],
+      preparedRouteDimensionEvidence: [
+        'requested 1024d / model 1024d / dimension mismatch no',
+      ],
       preparedRouteOrder: ['0 -> ollama-main/local/office-structured'],
       preparedRouteFallbackOrder: ['0 -> ollama-main/local/office-structured'],
       preparedRouteStepFallbackProviderIds: ['generate -> ollama-main'],
@@ -3626,6 +3638,14 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       preparedRouteStepRequestedModelSources: ['generate -> prompt_preference'],
       preparedRouteRequestLayers: ['chat_completions'],
       preparedRouteStepProtocols: ['generate -> openai_chat'],
+      preparedRouteStepModelBackendKinds: ['generate -> openai_chat'],
+      preparedRouteStepCanonicalModelKeys: [
+        'generate -> local/office-structured',
+      ],
+      preparedRouteStepBehaviorFlags: ['generate -> tool_calls'],
+      preparedRouteStepDimensionEvidence: [
+        'generate -> requested 1024d / model 1024d / dimension mismatch no',
+      ],
       preparedRouteStepRequestLayers: ['generate -> chat_completions'],
       preparedRouteStepOrder: [
         'generate / 0 -> ollama-main/local/office-structured',

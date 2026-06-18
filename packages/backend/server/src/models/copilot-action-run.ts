@@ -156,10 +156,18 @@ export type CopilotActionRunDiagnosticsItem = {
   preparedRouteFallbackOrder: string[];
   preparedRouteProtocols: string[];
   preparedRouteRequestLayers: string[];
+  preparedRouteModelBackendKinds: string[];
+  preparedRouteCanonicalModelKeys: string[];
+  preparedRouteBehaviorFlags: string[];
+  preparedRouteDimensionEvidence: string[];
   preparedRouteStepOrder: string[];
   preparedRouteStepFallbackOrder: string[];
   preparedRouteStepProtocols: string[];
   preparedRouteStepRequestLayers: string[];
+  preparedRouteStepModelBackendKinds: string[];
+  preparedRouteStepCanonicalModelKeys: string[];
+  preparedRouteStepBehaviorFlags: string[];
+  preparedRouteStepDimensionEvidence: string[];
   preparedRouteModelIds: string[];
   preparedRouteRequestedModelIds: string[];
   preparedRouteRequestedModelSources: string[];
@@ -207,6 +215,26 @@ function uniqueNonEmptyStrings(values: Array<string | undefined>) {
         .filter((value): value is string => !!value)
     )
   );
+}
+
+function formatPreparedRouteDimensionEvidence(route: {
+  dimensionMismatch?: boolean;
+  modelEmbeddingDimensions?: number;
+  requestedDimensions?: number;
+}) {
+  const parts = [
+    route.requestedDimensions !== undefined
+      ? `requested ${route.requestedDimensions}d`
+      : undefined,
+    route.modelEmbeddingDimensions !== undefined
+      ? `model ${route.modelEmbeddingDimensions}d`
+      : undefined,
+    route.dimensionMismatch !== undefined
+      ? `dimension mismatch ${route.dimensionMismatch ? 'yes' : 'no'}`
+      : undefined,
+  ].filter((part): part is string => !!part);
+
+  return parts.length ? parts.join(' / ') : undefined;
 }
 
 function normalizeNativeTraceEventType(value: unknown) {
@@ -567,6 +595,26 @@ function summarizePreparedRouteTrace(
       step.routes.map(route => route.requestLayer)
     ) ?? []
   );
+  const preparedRouteModelBackendKinds = uniqueNonEmptyStrings(
+    trace?.steps.flatMap(step =>
+      step.routes.map(route => route.modelBackendKind)
+    ) ?? []
+  );
+  const preparedRouteCanonicalModelKeys = uniqueNonEmptyStrings(
+    trace?.steps.flatMap(step =>
+      step.routes.map(route => route.canonicalModelKey)
+    ) ?? []
+  );
+  const preparedRouteBehaviorFlags = uniqueNonEmptyStrings(
+    trace?.steps.flatMap(step =>
+      step.routes.flatMap(route => route.behaviorFlags ?? [])
+    ) ?? []
+  );
+  const preparedRouteDimensionEvidence = uniqueNonEmptyStrings(
+    trace?.steps.flatMap(step =>
+      step.routes.map(route => formatPreparedRouteDimensionEvidence(route))
+    ) ?? []
+  );
   const preparedRouteStepProtocols = uniqueNonEmptyStrings(
     trace?.steps.flatMap(step =>
       step.routes.map(route =>
@@ -581,6 +629,39 @@ function summarizePreparedRouteTrace(
           ? `${step.stepId} -> ${route.requestLayer}`
           : undefined
       )
+    ) ?? []
+  );
+  const preparedRouteStepModelBackendKinds = uniqueNonEmptyStrings(
+    trace?.steps.flatMap(step =>
+      step.routes.map(route =>
+        route.modelBackendKind
+          ? `${step.stepId} -> ${route.modelBackendKind}`
+          : undefined
+      )
+    ) ?? []
+  );
+  const preparedRouteStepCanonicalModelKeys = uniqueNonEmptyStrings(
+    trace?.steps.flatMap(step =>
+      step.routes.map(route =>
+        route.canonicalModelKey
+          ? `${step.stepId} -> ${route.canonicalModelKey}`
+          : undefined
+      )
+    ) ?? []
+  );
+  const preparedRouteStepBehaviorFlags = uniqueNonEmptyStrings(
+    trace?.steps.flatMap(step =>
+      step.routes.flatMap(route =>
+        (route.behaviorFlags ?? []).map(flag => `${step.stepId} -> ${flag}`)
+      )
+    ) ?? []
+  );
+  const preparedRouteStepDimensionEvidence = uniqueNonEmptyStrings(
+    trace?.steps.flatMap(step =>
+      step.routes.map(route => {
+        const evidence = formatPreparedRouteDimensionEvidence(route);
+        return evidence ? `${step.stepId} -> ${evidence}` : undefined;
+      })
     ) ?? []
   );
   const preparedRouteStepOrder = uniqueNonEmptyStrings(
@@ -755,6 +836,10 @@ function summarizePreparedRouteTrace(
     preparedRouteOrder,
     preparedRouteFallbackOrder,
     preparedRouteProtocols,
+    preparedRouteModelBackendKinds,
+    preparedRouteCanonicalModelKeys,
+    preparedRouteBehaviorFlags,
+    preparedRouteDimensionEvidence,
     preparedRouteProviderIds,
     preparedRouteRequestedModelIds,
     preparedRouteRequestedModelSources,
@@ -763,6 +848,10 @@ function summarizePreparedRouteTrace(
     preparedRouteStepOrder,
     preparedRouteStepFallbackOrder,
     preparedRouteStepProtocols,
+    preparedRouteStepModelBackendKinds,
+    preparedRouteStepCanonicalModelKeys,
+    preparedRouteStepBehaviorFlags,
+    preparedRouteStepDimensionEvidence,
     preparedRouteStepRequestLayers,
     preparedRouteStepCount,
     preparedRouteStepFallbackProviderIds,

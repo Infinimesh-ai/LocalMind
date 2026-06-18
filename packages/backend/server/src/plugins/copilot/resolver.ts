@@ -3922,6 +3922,18 @@ class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnostics
   preparedRouteProtocols!: string[];
 
   @Field(() => [String])
+  preparedRouteModelBackendKinds!: string[];
+
+  @Field(() => [String])
+  preparedRouteCanonicalModelKeys!: string[];
+
+  @Field(() => [String])
+  preparedRouteBehaviorFlags!: string[];
+
+  @Field(() => [String])
+  preparedRouteDimensionEvidence!: string[];
+
+  @Field(() => [String])
   preparedRouteRequestLayers!: string[];
 
   @Field(() => [String])
@@ -3932,6 +3944,18 @@ class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnostics
 
   @Field(() => [String])
   preparedRouteStepProtocols!: string[];
+
+  @Field(() => [String])
+  preparedRouteStepModelBackendKinds!: string[];
+
+  @Field(() => [String])
+  preparedRouteStepCanonicalModelKeys!: string[];
+
+  @Field(() => [String])
+  preparedRouteStepBehaviorFlags!: string[];
+
+  @Field(() => [String])
+  preparedRouteStepDimensionEvidence!: string[];
 
   @Field(() => [String])
   preparedRouteStepRequestLayers!: string[];

@@ -3792,7 +3792,12 @@ const actionRunsPayload = [
     hasPreparedRouteTrace: true,
     id: 'run-123',
     preparedRouteActualCount: 3,
+    preparedRouteBehaviorFlags: ['tool_calls', 'image_generation'],
+    preparedRouteCanonicalModelKeys: ['local/office-structured', 'gpt-image-1'],
     preparedRouteCount: 3,
+    preparedRouteDimensionEvidence: [
+      'requested 1024d / model 1024d / dimension mismatch no',
+    ],
     preparedRouteFallbackProviderIds: ['ollama-main', 'openai-default'],
     preparedRouteFallbackOrder: [
       '0 -> ollama-main/local/office-structured',
@@ -3809,6 +3814,7 @@ const actionRunsPayload = [
       'gpt-5-mini',
       'gpt-image-1',
     ],
+    preparedRouteModelBackendKinds: ['openai_chat', 'openai_image'],
     preparedRouteOrder: [
       '0 -> ollama-main/local/office-structured',
       '1 -> openai-default/gpt-5-mini',
@@ -3826,6 +3832,21 @@ const actionRunsPayload = [
     preparedRouteStepProtocols: [
       'generate -> openai_chat',
       'generate-image -> openai_image',
+    ],
+    preparedRouteStepModelBackendKinds: [
+      'generate -> openai_chat',
+      'generate-image -> openai_image',
+    ],
+    preparedRouteStepCanonicalModelKeys: [
+      'generate -> local/office-structured',
+      'generate-image -> gpt-image-1',
+    ],
+    preparedRouteStepBehaviorFlags: [
+      'generate -> tool_calls',
+      'generate-image -> image_generation',
+    ],
+    preparedRouteStepDimensionEvidence: [
+      'generate -> requested 1024d / model 1024d / dimension mismatch no',
     ],
     preparedRouteStepRequestLayers: [
       'generate -> chat_completions',
@@ -4058,11 +4079,15 @@ const actionRunsPayload = [
     hasPreparedRouteTrace: false,
     id: 'run-failed',
     preparedRouteActualCount: 0,
+    preparedRouteBehaviorFlags: [],
+    preparedRouteCanonicalModelKeys: [],
     preparedRouteCount: 0,
+    preparedRouteDimensionEvidence: [],
     preparedRouteFallbackProviderIds: [],
     preparedRouteFallbackOrder: [],
     preparedRouteStepFallbackProviderIds: [],
     preparedRouteKinds: [],
+    preparedRouteModelBackendKinds: [],
     preparedRouteModelIds: [],
     preparedRouteOrder: [],
     preparedRouteProtocols: [],
@@ -4072,6 +4097,10 @@ const actionRunsPayload = [
     preparedRouteStepRequestedModelSources: [],
     preparedRouteRequestLayers: [],
     preparedRouteStepProtocols: [],
+    preparedRouteStepModelBackendKinds: [],
+    preparedRouteStepCanonicalModelKeys: [],
+    preparedRouteStepBehaviorFlags: [],
+    preparedRouteStepDimensionEvidence: [],
     preparedRouteStepRequestLayers: [],
     preparedRouteStepFallbackOrder: [],
     preparedRouteStepOrder: [],
@@ -7841,8 +7870,44 @@ describe('AiPage', () => {
       screen.getByText('Protocols openai_chat -> openai_image')
     ).not.toBeNull();
     expect(
+      screen.getByText('Backends openai_chat -> openai_image')
+    ).not.toBeNull();
+    expect(
+      screen.getByText(
+        'Canonical models local/office-structured -> gpt-image-1'
+      )
+    ).not.toBeNull();
+    expect(
+      screen.getByText('Behavior flags tool_calls -> image_generation')
+    ).not.toBeNull();
+    expect(
+      screen.getByText(
+        'Dimensions requested 1024d / model 1024d / dimension mismatch no'
+      )
+    ).not.toBeNull();
+    expect(
       screen.getByText(
         'Step protocols generate -> openai_chat | generate-image -> openai_image'
+      )
+    ).not.toBeNull();
+    expect(
+      screen.getByText(
+        'Step backends generate -> openai_chat | generate-image -> openai_image'
+      )
+    ).not.toBeNull();
+    expect(
+      screen.getByText(
+        'Step canonical models generate -> local/office-structured | generate-image -> gpt-image-1'
+      )
+    ).not.toBeNull();
+    expect(
+      screen.getByText(
+        'Step behavior flags generate -> tool_calls | generate-image -> image_generation'
+      )
+    ).not.toBeNull();
+    expect(
+      screen.getByText(
+        'Step dimensions generate -> requested 1024d / model 1024d / dimension mismatch no'
       )
     ).not.toBeNull();
     expect(
@@ -7976,6 +8041,30 @@ describe('AiPage', () => {
     expect(actionRunDiagnostics).toContain('2 steps / 3 routes');
     expect(actionRunDiagnostics).toContain(
       'Requested sources Prompt Preference -> Explicit'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Backends openai_chat -> openai_image'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Canonical models local/office-structured -> gpt-image-1'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Behavior flags tool_calls -> image_generation'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Dimensions requested 1024d / model 1024d / dimension mismatch no'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Step backends generate -> openai_chat | generate-image -> openai_image'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Step canonical models generate -> local/office-structured | generate-image -> gpt-image-1'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Step behavior flags generate -> tool_calls | generate-image -> image_generation'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Step dimensions generate -> requested 1024d / model 1024d / dimension mismatch no'
     );
     expect(actionRunDiagnostics).toContain(
       'Step requested targets generate / local/office-structured -> ollama-main/local/office-structured | generate / local/office-structured -> openai-default/gpt-5-mini | generate-image / gpt-image-1 -> openai-default/gpt-image-1'

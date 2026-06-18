@@ -650,9 +650,13 @@ type CopilotActionRunDiagnosticsItemType {
   preparedRouteCount: SafeInt!
   preparedRouteFallbackProviderIds: [String!]!
   preparedRouteFallbackOrder: [String!]!
+  preparedRouteBehaviorFlags: [String!]!
+  preparedRouteCanonicalModelKeys: [String!]!
+  preparedRouteDimensionEvidence: [String!]!
   preparedRouteStepFallbackProviderIds: [String!]!
   preparedRouteStepIds: [String!]!
   preparedRouteKinds: [String!]!
+  preparedRouteModelBackendKinds: [String!]!
   preparedRouteModelIds: [String!]!
   preparedRouteOrder: [String!]!
   preparedRouteProtocols: [String!]!
@@ -662,6 +666,10 @@ type CopilotActionRunDiagnosticsItemType {
   preparedRouteStepRequestedModelSources: [String!]!
   preparedRouteRequestLayers: [String!]!
   preparedRouteStepFallbackOrder: [String!]!
+  preparedRouteStepBehaviorFlags: [String!]!
+  preparedRouteStepCanonicalModelKeys: [String!]!
+  preparedRouteStepDimensionEvidence: [String!]!
+  preparedRouteStepModelBackendKinds: [String!]!
   preparedRouteStepOrder: [String!]!
   preparedRouteStepRouteCountMismatches: [String!]!
   preparedRouteStepRouteCounts: [String!]!
