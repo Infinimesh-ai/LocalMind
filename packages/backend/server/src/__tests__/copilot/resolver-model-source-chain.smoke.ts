@@ -219,6 +219,110 @@ function taskRouteCandidateEvidenceFixture<
   }));
 }
 
+function taskRoutePrepareCandidateEvidenceFixture<
+  T extends {
+    candidateModelIds?: string[];
+    errorCategory?: string;
+    errorCode?: string;
+    health?: string;
+    healthCheckedAt?: string;
+    modelId?: string;
+    prepared: boolean;
+    preparedModelId?: string;
+    privacy?: string;
+    providerConfiguredModelCount?: number;
+    providerConfiguredModelIds?: string[];
+    providerId: string;
+    providerName?: string;
+    providerPriority?: number;
+    providerProfileConfigPath?: string;
+    providerProfileId?: string;
+    providerProfileSource?: string;
+    providerSource?: string;
+    providerType?: string;
+    reasons: string[];
+    registryAvailable?: boolean;
+    registryKind?: string;
+    registrySelected?: boolean;
+    requestedModelId?: string;
+    routeModelAliasMatched?: boolean;
+    routeModelDefinitionAliases?: string[];
+    routeModelDefinitionId?: string;
+    routeModelDefinitionSource?: string;
+    routeRawModelId?: string;
+  },
+>(candidates: T[] | undefined) {
+  return candidates?.map(candidate => ({
+    ...(candidate.candidateModelIds !== undefined
+      ? { candidateModelIds: candidate.candidateModelIds }
+      : {}),
+    ...(candidate.errorCategory
+      ? { errorCategory: candidate.errorCategory }
+      : {}),
+    ...(candidate.errorCode ? { errorCode: candidate.errorCode } : {}),
+    ...(candidate.health ? { health: candidate.health } : {}),
+    ...(candidate.healthCheckedAt
+      ? { healthCheckedAt: candidate.healthCheckedAt }
+      : {}),
+    ...(candidate.modelId ? { modelId: candidate.modelId } : {}),
+    prepared: candidate.prepared,
+    ...(candidate.preparedModelId
+      ? { preparedModelId: candidate.preparedModelId }
+      : {}),
+    ...(candidate.privacy ? { privacy: candidate.privacy } : {}),
+    ...(candidate.providerConfiguredModelCount !== undefined
+      ? { providerConfiguredModelCount: candidate.providerConfiguredModelCount }
+      : {}),
+    ...(candidate.providerConfiguredModelIds !== undefined
+      ? { providerConfiguredModelIds: candidate.providerConfiguredModelIds }
+      : {}),
+    providerId: candidate.providerId,
+    ...(candidate.providerName ? { providerName: candidate.providerName } : {}),
+    ...(candidate.providerPriority !== undefined
+      ? { providerPriority: candidate.providerPriority }
+      : {}),
+    ...(candidate.providerProfileConfigPath
+      ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
+      : {}),
+    ...(candidate.providerProfileId
+      ? { providerProfileId: candidate.providerProfileId }
+      : {}),
+    ...(candidate.providerProfileSource
+      ? { providerProfileSource: candidate.providerProfileSource }
+      : {}),
+    ...(candidate.providerSource
+      ? { providerSource: candidate.providerSource }
+      : {}),
+    ...(candidate.providerType ? { providerType: candidate.providerType } : {}),
+    reasons: candidate.reasons,
+    ...(candidate.registryAvailable !== undefined
+      ? { registryAvailable: candidate.registryAvailable }
+      : {}),
+    ...(candidate.registryKind ? { registryKind: candidate.registryKind } : {}),
+    ...(candidate.registrySelected !== undefined
+      ? { registrySelected: candidate.registrySelected }
+      : {}),
+    ...(candidate.requestedModelId
+      ? { requestedModelId: candidate.requestedModelId }
+      : {}),
+    ...(candidate.routeModelAliasMatched !== undefined
+      ? { routeModelAliasMatched: candidate.routeModelAliasMatched }
+      : {}),
+    ...(candidate.routeModelDefinitionAliases?.length
+      ? { routeModelDefinitionAliases: candidate.routeModelDefinitionAliases }
+      : {}),
+    ...(candidate.routeModelDefinitionId
+      ? { routeModelDefinitionId: candidate.routeModelDefinitionId }
+      : {}),
+    ...(candidate.routeModelDefinitionSource
+      ? { routeModelDefinitionSource: candidate.routeModelDefinitionSource }
+      : {}),
+    ...(candidate.routeRawModelId
+      ? { routeRawModelId: candidate.routeRawModelId }
+      : {}),
+  }));
+}
+
 async function main() {
   process.env.NODE_ENV = 'test';
   process.env.DEPLOYMENT_TYPE = 'affine';
@@ -5734,6 +5838,14 @@ async function main() {
     );
   const taskDiagnosticsRouteCandidateSnapshotFingerprint =
     taskRouteSnapshotFingerprintFixture(taskDiagnosticsRouteCandidateSnapshot);
+  const taskDiagnosticsPrepareCandidateSnapshot =
+    taskRoutePrepareCandidateEvidenceFixture(
+      taskDiagnosticsErrorRoute?.prepareCandidates
+    );
+  const taskDiagnosticsPrepareCandidateSnapshotFingerprint =
+    taskRouteSnapshotFingerprintFixture(
+      taskDiagnosticsPrepareCandidateSnapshot
+    );
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
       `policyCandidate#0:policyCandidateSnapshotFingerprint:${taskDiagnosticsPolicyCandidateSnapshotFingerprint}`
@@ -5747,6 +5859,13 @@ async function main() {
     ),
     true,
     'task diagnostics repair evidence should include route candidate snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      `policyCandidate#0:prepareCandidateSnapshotFingerprint:${taskDiagnosticsPrepareCandidateSnapshotFingerprint}`
+    ),
+    true,
+    'task diagnostics repair evidence should include prepare candidate snapshot fingerprint'
   );
   assert.match(
     taskDiagnosticsPolicyCandidateEvidence?.candidateFingerprint ?? '',
@@ -5831,6 +5950,11 @@ async function main() {
     taskDiagnosticsRouteCandidateSnapshotFingerprint,
     'policy candidate evidence should bind the task route candidate snapshot fingerprint'
   );
+  assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.prepareCandidateSnapshotFingerprint,
+    taskDiagnosticsPrepareCandidateSnapshotFingerprint,
+    'policy candidate evidence should bind the task route prepare candidate snapshot fingerprint'
+  );
   const taskDiagnosticsRouteCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'routeCandidate'
@@ -5895,6 +6019,11 @@ async function main() {
     taskDiagnosticsRouteCandidateSnapshotFingerprint,
     'route candidate evidence should bind the task route candidate snapshot fingerprint'
   );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.prepareCandidateSnapshotFingerprint,
+    taskDiagnosticsPrepareCandidateSnapshotFingerprint,
+    'route candidate evidence should bind the task route prepare candidate snapshot fingerprint'
+  );
   const taskDiagnosticsPrepareCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'prepareCandidate'
@@ -5954,6 +6083,11 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.routeCandidateSnapshotFingerprint,
     taskDiagnosticsRouteCandidateSnapshotFingerprint,
     'prepare candidate evidence should bind the task route candidate snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.prepareCandidateSnapshotFingerprint,
+    taskDiagnosticsPrepareCandidateSnapshotFingerprint,
+    'prepare candidate evidence should bind the task route prepare candidate snapshot fingerprint'
   );
   const taskDiagnosticsErrorPreviewOperation =
     taskDiagnosticsErrorGate?.repairActionPreview.operations.find(

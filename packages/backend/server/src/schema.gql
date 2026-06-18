@@ -1507,6 +1507,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   fallbackProviderIds: [String!]
   modelId: String
   preparedModelId: String
+  prepareCandidateSnapshotFingerprint: String
   preparedRouteTargets: [String!]
   preparedRouteTargetFingerprint: String
   policyCandidates: [CopilotPromptRegistryPublishGatePolicyCandidateType!]

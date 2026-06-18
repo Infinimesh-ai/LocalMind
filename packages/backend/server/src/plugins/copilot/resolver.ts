@@ -705,6 +705,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   fallbackProviderIds?: string[];
   modelId?: string;
   preparedModelId?: string;
+  prepareCandidateSnapshotFingerprint?: string;
   preparedRouteTargets?: string[];
   preparedRouteTargetFingerprint?: string;
   policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
@@ -1709,6 +1710,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   preparedModelId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedModelId'];
+
+  @Field(() => String, { nullable: true })
+  prepareCandidateSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['prepareCandidateSnapshotFingerprint'];
 
   @Field(() => [String], { nullable: true })
   preparedRouteTargets?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedRouteTargets'];
@@ -4083,6 +4087,7 @@ function taskRouteRepairCandidateEvidenceBase(
     fallbackProviderIds?: string[];
     modelId?: string;
     preparedModelId?: string;
+    prepareCandidateSnapshotFingerprint?: string;
     preparedRouteTargets?: string[];
     preparedRouteTargetFingerprint?: string;
     policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
@@ -4123,6 +4128,12 @@ function taskRouteRepairCandidateEvidenceBase(
     ...(candidate.modelId !== undefined ? { modelId: candidate.modelId } : {}),
     ...(candidate.preparedModelId !== undefined
       ? { preparedModelId: candidate.preparedModelId }
+      : {}),
+    ...(candidate.prepareCandidateSnapshotFingerprint !== undefined
+      ? {
+          prepareCandidateSnapshotFingerprint:
+            candidate.prepareCandidateSnapshotFingerprint,
+        }
       : {}),
     ...(candidate.preparedRouteTargets !== undefined
       ? {
@@ -4210,6 +4221,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       fallbackProviderIds?: string[];
       modelId?: string;
       preparedModelId?: string;
+      prepareCandidateSnapshotFingerprint?: string;
       preparedRouteTargets?: string[];
       preparedRouteTargetFingerprint?: string;
       policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
@@ -4279,11 +4291,17 @@ function taskRouteCandidateProfileStructuredEvidence(
     const routeCandidateSnapshot = route.routeCandidates.map(
       toPromptRegistryPublishGateRouteCandidate
     );
+    const prepareCandidateSnapshot = taskRoutePrepareCandidateSnapshot(
+      route.prepareCandidates
+    );
     const evidence = taskRouteRepairCandidateEvidenceBase(
       scope,
       {
         ...candidate,
         fallbackProviderIds: route.fallbackProviderIds,
+        prepareCandidateSnapshotFingerprint: taskRouteSnapshotFingerprint(
+          prepareCandidateSnapshot
+        ),
         preparedRouteTargets: route.preparedRouteTargets,
         preparedRouteTargetFingerprint: route.preparedRouteTargetFingerprint,
         policyCandidates: policyCandidateSnapshot,
@@ -4358,6 +4376,9 @@ function taskRouteCandidateProfileEvidence(
             : null,
           candidate.preparedModelId
             ? `${candidate.scope}#${candidate.candidateIndex}:preparedModelId:${candidate.preparedModelId}`
+            : null,
+          candidate.prepareCandidateSnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:prepareCandidateSnapshotFingerprint:${candidate.prepareCandidateSnapshotFingerprint}`
             : null,
           candidate.policyCandidateSnapshotFingerprint
             ? `${candidate.scope}#${candidate.candidateIndex}:policyCandidateSnapshotFingerprint:${candidate.policyCandidateSnapshotFingerprint}`
@@ -4865,6 +4886,88 @@ function taskRouteRepairCandidateEvidenceFingerprint(
     .update(stableRepairRecommendationStringify(evidence))
     .digest('hex')
     .slice(0, 16);
+}
+
+function taskRoutePrepareCandidateSnapshot(
+  candidates: CopilotTaskRoutePrepareCandidateDiagnosticsType[] | undefined
+) {
+  return (candidates ?? []).map(candidate => ({
+    ...(definedArray(candidate.candidateModelIds) !== undefined
+      ? { candidateModelIds: definedArray(candidate.candidateModelIds) }
+      : {}),
+    ...(candidate.errorCategory
+      ? { errorCategory: candidate.errorCategory }
+      : {}),
+    ...(candidate.errorCode ? { errorCode: candidate.errorCode } : {}),
+    ...(candidate.health ? { health: candidate.health } : {}),
+    ...(candidate.healthCheckedAt
+      ? { healthCheckedAt: candidate.healthCheckedAt }
+      : {}),
+    ...(candidate.modelId ? { modelId: candidate.modelId } : {}),
+    prepared: candidate.prepared,
+    ...(candidate.preparedModelId
+      ? { preparedModelId: candidate.preparedModelId }
+      : {}),
+    ...(candidate.privacy ? { privacy: candidate.privacy } : {}),
+    ...(candidate.providerConfiguredModelCount !== undefined
+      ? { providerConfiguredModelCount: candidate.providerConfiguredModelCount }
+      : {}),
+    ...(definedArray(candidate.providerConfiguredModelIds) !== undefined
+      ? {
+          providerConfiguredModelIds: definedArray(
+            candidate.providerConfiguredModelIds
+          ),
+        }
+      : {}),
+    providerId: candidate.providerId,
+    ...(candidate.providerName ? { providerName: candidate.providerName } : {}),
+    ...(candidate.providerPriority !== undefined
+      ? { providerPriority: candidate.providerPriority }
+      : {}),
+    ...(candidate.providerProfileConfigPath
+      ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
+      : {}),
+    ...(candidate.providerProfileId
+      ? { providerProfileId: candidate.providerProfileId }
+      : {}),
+    ...(candidate.providerProfileSource
+      ? { providerProfileSource: candidate.providerProfileSource }
+      : {}),
+    ...(candidate.providerSource
+      ? { providerSource: candidate.providerSource }
+      : {}),
+    ...(candidate.providerType ? { providerType: candidate.providerType } : {}),
+    reasons: candidate.reasons,
+    ...(candidate.registryAvailable !== undefined
+      ? { registryAvailable: candidate.registryAvailable }
+      : {}),
+    ...(candidate.registryKind ? { registryKind: candidate.registryKind } : {}),
+    ...(candidate.registrySelected !== undefined
+      ? { registrySelected: candidate.registrySelected }
+      : {}),
+    ...(candidate.requestedModelId
+      ? { requestedModelId: candidate.requestedModelId }
+      : {}),
+    ...(candidate.routeModelAliasMatched !== undefined
+      ? { routeModelAliasMatched: candidate.routeModelAliasMatched }
+      : {}),
+    ...(definedArray(candidate.routeModelDefinitionAliases) !== undefined
+      ? {
+          routeModelDefinitionAliases: definedArray(
+            candidate.routeModelDefinitionAliases
+          ),
+        }
+      : {}),
+    ...(candidate.routeModelDefinitionId
+      ? { routeModelDefinitionId: candidate.routeModelDefinitionId }
+      : {}),
+    ...(candidate.routeModelDefinitionSource
+      ? { routeModelDefinitionSource: candidate.routeModelDefinitionSource }
+      : {}),
+    ...(candidate.routeRawModelId
+      ? { routeRawModelId: candidate.routeRawModelId }
+      : {}),
+  }));
 }
 
 function taskRouteSnapshotFingerprint(candidates: unknown[]) {
