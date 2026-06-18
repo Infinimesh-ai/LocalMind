@@ -3028,9 +3028,19 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
     evidence.preparedRouteTargetFingerprint
       ? `target fingerprint ${evidence.preparedRouteTargetFingerprint}`
       : null,
+    evidence.routeModelDefinitionSource
+      ? `definition source ${formatFeatureKind(evidence.routeModelDefinitionSource)}`
+      : null,
     evidence.routeModelDefinitionId
       ? `definition ${evidence.routeModelDefinitionId}`
       : null,
+    evidence.routeModelDefinitionAliases?.length
+      ? `definition aliases ${evidence.routeModelDefinitionAliases.join(', ')}`
+      : null,
+    evidence.routeModelAliasMatched != null
+      ? `alias matched ${evidence.routeModelAliasMatched ? 'yes' : 'no'}`
+      : null,
+    evidence.routeRawModelId ? `raw model ${evidence.routeRawModelId}` : null,
     evidence.candidateModelIds?.length
       ? `candidate models ${evidence.candidateModelIds.join(', ')}`
       : null,

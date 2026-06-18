@@ -2650,7 +2650,11 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             requestedModelId
             requestedModelSource
             routeCandidateSnapshotFingerprint
+            routeModelAliasMatched
+            routeModelDefinitionAliases
             routeModelDefinitionId
+            routeModelDefinitionSource
+            routeRawModelId
             routeTrace {
               availableCount
               blockedCount

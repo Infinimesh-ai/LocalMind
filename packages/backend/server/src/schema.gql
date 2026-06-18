@@ -1554,7 +1554,11 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   requestedModelId: String
   requestedModelSource: String
   routeCandidateSnapshotFingerprint: String
+  routeModelAliasMatched: Boolean
+  routeModelDefinitionAliases: [String!]
   routeModelDefinitionId: String
+  routeModelDefinitionSource: String
+  routeRawModelId: String
   routeTrace: [CopilotPromptRegistryPublishGateRouteTracePhaseType!]
   routeTracePhases: [String!]
   scope: String!

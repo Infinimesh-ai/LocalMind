@@ -1781,7 +1781,11 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   requestedModelId?: Maybe<Scalars['String']['output']>;
   requestedModelSource?: Maybe<Scalars['String']['output']>;
   routeCandidateSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
+  routeModelAliasMatched?: Maybe<Scalars['Boolean']['output']>;
+  routeModelDefinitionAliases?: Maybe<Array<Scalars['String']['output']>>;
   routeModelDefinitionId?: Maybe<Scalars['String']['output']>;
+  routeModelDefinitionSource?: Maybe<Scalars['String']['output']>;
+  routeRawModelId?: Maybe<Scalars['String']['output']>;
   routeTrace?: Maybe<
     Array<CopilotPromptRegistryPublishGateRouteTracePhaseType>
   >;
@@ -8042,7 +8046,11 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             requestedModelId: string | null;
             requestedModelSource: string | null;
             routeCandidateSnapshotFingerprint: string | null;
+            routeModelAliasMatched: boolean | null;
+            routeModelDefinitionAliases: Array<string> | null;
             routeModelDefinitionId: string | null;
+            routeModelDefinitionSource: string | null;
+            routeRawModelId: string | null;
             routeTrace: Array<{
               __typename?: 'CopilotPromptRegistryPublishGateRouteTracePhaseType';
               availableCount: number | null;

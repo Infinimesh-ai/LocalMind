@@ -746,7 +746,11 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   requestedModelId?: string;
   requestedModelSource?: string;
   routeCandidateSnapshotFingerprint?: string;
+  routeModelAliasMatched?: boolean;
+  routeModelDefinitionAliases?: string[];
   routeModelDefinitionId?: string;
+  routeModelDefinitionSource?: CopilotModelDefinitionSource;
+  routeRawModelId?: string;
   routeTrace?: CopilotPromptRegistryPublishGateRouteTracePhase[];
   routeTracePhases?: string[];
   scope: string;
@@ -1859,8 +1863,20 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
   @Field(() => String, { nullable: true })
   routeCandidateSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeCandidateSnapshotFingerprint'];
 
+  @Field(() => Boolean, { nullable: true })
+  routeModelAliasMatched?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeModelAliasMatched'];
+
+  @Field(() => [String], { nullable: true })
+  routeModelDefinitionAliases?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeModelDefinitionAliases'];
+
   @Field(() => String, { nullable: true })
   routeModelDefinitionId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeModelDefinitionId'];
+
+  @Field(() => String, { nullable: true })
+  routeModelDefinitionSource?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeModelDefinitionSource'];
+
+  @Field(() => String, { nullable: true })
+  routeRawModelId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeRawModelId'];
 
   @Field(() => [CopilotPromptRegistryPublishGateRouteTracePhaseType], {
     nullable: true,
@@ -4292,7 +4308,7 @@ function definedArray<T>(values: T[] | undefined) {
   return values?.length ? values : undefined;
 }
 
-const TASK_ROUTE_RECOMMENDATION_EVIDENCE_LIMIT = 128;
+const TASK_ROUTE_RECOMMENDATION_EVIDENCE_LIMIT = 160;
 
 function taskRouteRepairCandidateEvidenceBase(
   scope: string,
@@ -4330,7 +4346,11 @@ function taskRouteRepairCandidateEvidenceBase(
     requestedModelId?: string;
     requestedModelSource?: string;
     routeCandidateSnapshotFingerprint?: string;
+    routeModelAliasMatched?: boolean;
+    routeModelDefinitionAliases?: string[];
     routeModelDefinitionId?: string;
+    routeModelDefinitionSource?: CopilotModelDefinitionSource;
+    routeRawModelId?: string;
     routeTrace?: CopilotPromptRegistryPublishGateRouteTracePhase[];
     routeTracePhases?: string[];
   },
@@ -4473,8 +4493,24 @@ function taskRouteRepairCandidateEvidenceBase(
             candidate.routeCandidateSnapshotFingerprint,
         }
       : {}),
+    ...(candidate.routeModelAliasMatched !== undefined
+      ? { routeModelAliasMatched: candidate.routeModelAliasMatched }
+      : {}),
+    ...(definedArray(candidate.routeModelDefinitionAliases) !== undefined
+      ? {
+          routeModelDefinitionAliases: definedArray(
+            candidate.routeModelDefinitionAliases
+          ),
+        }
+      : {}),
     ...(candidate.routeModelDefinitionId !== undefined
       ? { routeModelDefinitionId: candidate.routeModelDefinitionId }
+      : {}),
+    ...(candidate.routeModelDefinitionSource !== undefined
+      ? { routeModelDefinitionSource: candidate.routeModelDefinitionSource }
+      : {}),
+    ...(candidate.routeRawModelId !== undefined
+      ? { routeRawModelId: candidate.routeRawModelId }
       : {}),
     ...(candidate.routeTrace !== undefined
       ? { routeTrace: candidate.routeTrace }
@@ -4524,7 +4560,11 @@ function taskRouteCandidateProfileStructuredEvidence(
       requestedModelId?: string;
       requestedModelSource?: string;
       routeCandidateSnapshotFingerprint?: string;
+      routeModelAliasMatched?: boolean;
+      routeModelDefinitionAliases?: string[];
       routeModelDefinitionId?: string;
+      routeModelDefinitionSource?: CopilotModelDefinitionSource;
+      routeRawModelId?: string;
       routeTrace?: CopilotPromptRegistryPublishGateRouteTracePhase[];
       routeTracePhases?: string[];
     },
@@ -4678,6 +4718,55 @@ function taskRouteCandidateProfileStructuredEvidence(
 function taskRouteCandidateProfileEvidence(
   candidateEvidence: CopilotPromptRegistryPublishGateRepairCandidateEvidence[]
 ) {
+  const summaryEvidence = candidateEvidence.flatMap(candidate =>
+    compactEvidence(
+      [
+        `${candidate.scope}#${candidate.candidateIndex}:providerId:${candidate.providerId}`,
+        candidate.requestedModelId
+          ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelId:${candidate.requestedModelId}`
+          : null,
+        candidate.requestedModelSource
+          ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelSource:${candidate.requestedModelSource}`
+          : null,
+        candidate.requestedModelConfigPath
+          ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelConfigPath:${candidate.requestedModelConfigPath}`
+          : null,
+        candidate.modelId
+          ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
+          : null,
+        candidate.preparedModelId
+          ? `${candidate.scope}#${candidate.candidateIndex}:preparedModelId:${candidate.preparedModelId}`
+          : null,
+        candidate.routeModelDefinitionSource
+          ? `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionSource:${candidate.routeModelDefinitionSource}`
+          : null,
+        candidate.routeModelDefinitionId
+          ? `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionId:${candidate.routeModelDefinitionId}`
+          : null,
+        ...(candidate.routeModelDefinitionAliases ?? []).map(
+          alias =>
+            `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionAlias:${alias}`
+        ),
+        candidate.routeModelAliasMatched !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:routeModelAliasMatched:${candidate.routeModelAliasMatched}`
+          : null,
+        candidate.routeRawModelId
+          ? `${candidate.scope}#${candidate.candidateIndex}:routeRawModelId:${candidate.routeRawModelId}`
+          : null,
+        candidate.providerProfileId
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileId:${candidate.providerProfileId}`
+          : null,
+        candidate.providerProfileConfigPath
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileConfigPath:${candidate.providerProfileConfigPath}`
+          : null,
+        ...(candidate.providerConfiguredModelIds ?? []).map(
+          modelId =>
+            `${candidate.scope}#${candidate.candidateIndex}:providerConfiguredModel:${modelId}`
+        ),
+      ],
+      24
+    )
+  );
   const priorityEvidence = candidateEvidence.flatMap(candidate =>
     compactEvidence(
       [
@@ -4721,6 +4810,22 @@ function taskRouteCandidateProfileEvidence(
         candidate.routeCandidateSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:routeCandidateSnapshotFingerprint:${candidate.routeCandidateSnapshotFingerprint}`
           : null,
+        candidate.routeModelDefinitionSource
+          ? `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionSource:${candidate.routeModelDefinitionSource}`
+          : null,
+        candidate.routeModelDefinitionId
+          ? `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionId:${candidate.routeModelDefinitionId}`
+          : null,
+        ...(candidate.routeModelDefinitionAliases ?? []).map(
+          alias =>
+            `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionAlias:${alias}`
+        ),
+        candidate.routeModelAliasMatched !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:routeModelAliasMatched:${candidate.routeModelAliasMatched}`
+          : null,
+        candidate.routeRawModelId
+          ? `${candidate.scope}#${candidate.candidateIndex}:routeRawModelId:${candidate.routeRawModelId}`
+          : null,
         candidate.providerProfileId
           ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileId:${candidate.providerProfileId}`
           : null,
@@ -4732,7 +4837,7 @@ function taskRouteCandidateProfileEvidence(
             `${candidate.scope}#${candidate.candidateIndex}:providerConfiguredModel:${modelId}`
         ),
       ],
-      20
+      28
     )
   );
   const detailedEvidence = candidateEvidence.flatMap(candidate =>
@@ -4791,8 +4896,21 @@ function taskRouteCandidateProfileEvidence(
         candidate.routeCandidateSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:routeCandidateSnapshotFingerprint:${candidate.routeCandidateSnapshotFingerprint}`
           : null,
+        candidate.routeModelDefinitionSource
+          ? `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionSource:${candidate.routeModelDefinitionSource}`
+          : null,
         candidate.routeModelDefinitionId
           ? `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionId:${candidate.routeModelDefinitionId}`
+          : null,
+        ...(candidate.routeModelDefinitionAliases ?? []).map(
+          alias =>
+            `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionAlias:${alias}`
+        ),
+        candidate.routeModelAliasMatched !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:routeModelAliasMatched:${candidate.routeModelAliasMatched}`
+          : null,
+        candidate.routeRawModelId
+          ? `${candidate.scope}#${candidate.candidateIndex}:routeRawModelId:${candidate.routeRawModelId}`
           : null,
         candidate.providerName
           ? `${candidate.scope}#${candidate.candidateIndex}:providerName:${candidate.providerName}`
@@ -4828,11 +4946,15 @@ function taskRouteCandidateProfileEvidence(
             `${candidate.scope}#${candidate.candidateIndex}:reason:${reason}`
         ),
       ],
-      24
+      32
     )
   );
 
-  return uniqueStrings([...priorityEvidence, ...detailedEvidence]);
+  return uniqueStrings([
+    ...summaryEvidence,
+    ...priorityEvidence,
+    ...detailedEvidence,
+  ]);
 }
 
 function providerHealthNeedsRepair(health: string | undefined | null) {

@@ -12945,3 +12945,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
 - workspace indexing runtime 仍强制请求并校验 `EMBEDDING_DIMENSIONS = 1024`；切换到非 1024 维模型仍需要后续索引版本和重建机制。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 381. P3 落地记录：Task Route Repair Candidate Model Definition Evidence
+
+本轮继续收敛第 376、378、380 节中 “普通模型列表、task route candidate 与 repair candidate evidence 的 Model Registry 过渡元数据不完全一致” 的问题。实际代码与目标 AI 中间层架构的冲突点是：task route diagnostics 的 route/prepare candidate 已经能展开 `routeRawModelId`、`routeModelDefinitionSource`、`routeModelDefinitionId`、`routeModelDefinitionAliases` 与 `routeModelAliasMatched`，用于解释自部署模型 alias 是由 provider profile、native registry 还是 provider runtime 解析；但 repair recommendation 的 candidate evidence 只暴露 `routeModelDefinitionId`，support bundle、route explain 或人工排障仍不能直接判断 alias 是否命中、原始 provider model id 是什么、definition 来源来自哪里。本轮把同一组只读 Model Registry 过渡元数据补进 repair candidate evidence，不改变 provider/model 选择行为。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 新增 `routeRawModelId`、`routeModelDefinitionSource`、`routeModelDefinitionAliases` 与 `routeModelAliasMatched`。
+  - `taskRouteRepairCandidateEvidenceBase()` 将 route/prepare candidate 中已有的模型定义元数据复制到 repair candidate evidence；candidate fingerprint、preview operation fingerprint 与 evidence set fingerprint 会对 alias/definition 元数据变化敏感。
+  - `taskRouteCandidateProfileEvidence()` 的可复制 evidence 文本加入 route model definition source/id/alias/alias matched/raw model，方便不打开完整 JSON 时定位自部署模型 alias 解析问题。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、common query string 与 `schema.ts` 类型同步新增 repair candidate evidence 的模型定义元数据字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence diagnostics text 显示 `definition source ...`、`definition aliases ...`、`alias matched ...` 与 `raw model ...`，与 task route candidate diagnostics 的模型定义说明保持一致。
+- 测试覆盖：
+  - resolver source chain smoke 断言 route/prepare repair candidate evidence 都携带 provider profile definition source、`workspace-embedding` definition id、`embed-alias` alias、alias matched 状态与 `nomic-embed-text` raw model，并断言可复制 evidence 文本包含这些字段。
+  - Admin Vitest fixture 注入上述字段，并断言 publish gate diagnostics text 显示模型定义来源、alias、alias 命中状态和 raw model。
+
+该实现只扩展只读 diagnostics/evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 Model Registry/Provider Registry revision row、不改变 repair action catalog、不新增 mutation input、不改变 preview/preflight/execution gate 字段名、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把 task route repair evidence 从“只能看到 definition id”推进到“可自包含解释 alias 是否命中、raw model 与 definition 来源”，为后续 support bundle、route explain、repair guard 与 Model Registry revision 对齐提供更完整的过渡证据。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Admin AI Vitest、Prettier/oxlint 与 `git diff --check`。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- 这些字段仍只反映 diagnostics probe 时的 route/prepare candidate 元数据，不代表后续真实 dispatch 的 provider response、latency、usage、fallback attempt 或最终 embedding/rerank 结果。
+- 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、Provider Registry revision、support bundle schema、repair mutation guard input 或审计记录。
+- 当 provider runtime 对同一模型返回多个别名、alias 命中依赖 adapter 私有规则，或 `routeRawModelId` 本身不稳定时，当前 evidence 只能记录本次 resolver 看到的值，不能提供跨 provider 的全局规范化。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

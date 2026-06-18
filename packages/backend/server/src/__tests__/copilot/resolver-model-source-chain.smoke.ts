@@ -6912,6 +6912,41 @@ async function main() {
     true,
     'task diagnostics repair evidence should include task route model source snapshot fingerprint'
   );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'routeCandidate#0:routeModelDefinitionSource:provider_profile'
+    ),
+    true,
+    'task diagnostics repair evidence should include route candidate model definition source'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'routeCandidate#0:routeModelDefinitionId:workspace-embedding'
+    ),
+    true,
+    'task diagnostics repair evidence should include route candidate model definition id'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'routeCandidate#0:routeModelDefinitionAlias:embed-alias'
+    ),
+    true,
+    'task diagnostics repair evidence should include route candidate model definition alias'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'routeCandidate#0:routeModelAliasMatched:true'
+    ),
+    true,
+    'task diagnostics repair evidence should include route candidate alias match state'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'routeCandidate#0:routeRawModelId:nomic-embed-text'
+    ),
+    true,
+    'task diagnostics repair evidence should include route candidate raw model id'
+  );
   assert.match(
     taskDiagnosticsPolicyCandidateEvidence?.candidateFingerprint ?? '',
     /^[0-9a-f]{16}$/
@@ -7084,6 +7119,26 @@ async function main() {
     'workspace_indexing'
   );
   assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.routeModelAliasMatched,
+    true
+  );
+  assert.deepEqual(
+    taskDiagnosticsRouteCandidateEvidence?.routeModelDefinitionAliases,
+    ['embed-alias']
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.routeModelDefinitionId,
+    'workspace-embedding'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.routeModelDefinitionSource,
+    'provider_profile'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.routeRawModelId,
+    'nomic-embed-text'
+  );
+  assert.equal(
     taskDiagnosticsRouteCandidateEvidence?.preparedRouteTargetFingerprint,
     taskDiagnosticsErrorRoute?.preparedRouteTargetFingerprint,
     'route candidate evidence should bind the task route target fingerprint'
@@ -7190,6 +7245,26 @@ async function main() {
   assert.equal(
     taskDiagnosticsPrepareCandidateEvidence?.requestedModelSource,
     'workspace_indexing'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.routeModelAliasMatched,
+    true
+  );
+  assert.deepEqual(
+    taskDiagnosticsPrepareCandidateEvidence?.routeModelDefinitionAliases,
+    ['embed-alias']
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.routeModelDefinitionId,
+    'workspace-embedding'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.routeModelDefinitionSource,
+    'provider_profile'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.routeRawModelId,
+    'nomic-embed-text'
   );
   assert.equal(
     taskDiagnosticsPrepareCandidateEvidence?.providerProfileConfigPath,

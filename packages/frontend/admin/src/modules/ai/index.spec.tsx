@@ -2719,7 +2719,11 @@ const readyPublishGateVerdict = withRepairActionPreview(
             requestedModelSource: 'workspace_indexing',
             routeCandidateSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(blockedRoute.routeCandidates),
+            routeModelAliasMatched: false,
+            routeModelDefinitionAliases: ['nomic-embed-text'],
             routeModelDefinitionId: 'workspace-embedding',
+            routeModelDefinitionSource: 'provider_profile',
+            routeRawModelId: 'nomic-embed-text',
             routeTrace: blockedRoute.routeTrace,
             routeTracePhases: blockedRoute.routeTrace.map(phase => phase.phase),
             scope: 'routeCandidate',
@@ -2793,7 +2797,11 @@ const readyPublishGateVerdict = withRepairActionPreview(
             requestedModelSource: 'workspace_indexing',
             routeCandidateSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(blockedRoute.routeCandidates),
+            routeModelAliasMatched: false,
+            routeModelDefinitionAliases: ['nomic-embed-text'],
             routeModelDefinitionId: 'workspace-embedding',
+            routeModelDefinitionSource: 'provider_profile',
+            routeRawModelId: 'nomic-embed-text',
             routeTrace: blockedRoute.routeTrace,
             routeTracePhases: blockedRoute.routeTrace.map(phase => phase.phase),
             scope: 'prepareCandidate',
@@ -6762,6 +6770,9 @@ describe('AiPage', () => {
     expect(readyGateDiagnostics).toContain('Route Candidate #0 / fingerprint ');
     expect(readyGateDiagnostics).toContain(
       'key route:ollama-main / provider ollama-main'
+    );
+    expect(readyGateDiagnostics).toContain(
+      'definition source Provider Profile / definition workspace-embedding / definition aliases nomic-embed-text / alias matched no / raw model nomic-embed-text'
     );
     expect(readyGateDiagnostics).toContain(
       'capability input text / output embedding / attachments file / attachment sources url, data / remote attachments yes / structured attachments image / structured attachment sources file_handle / structured remote attachments no'
