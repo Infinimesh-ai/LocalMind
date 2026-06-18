@@ -12034,3 +12034,28 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - timeline entry 当前只包含 step id、派生状态、prepared route kind 与 route count，不包含真实开始/结束时间、latency、token usage、cost、provider response、tool args、MCP server id、Codex sandbox policy、approval record、retry attempt id、rollback result 或 artifact patch。
 - Admin 页面仍是只读 diagnostics 和列表信号，不支持真正的 timeline 组件、step 展开、trace JSON 导出、run cancellation、approval decision、retry/rollback operation、Codex adapter 管理或 MCP registry 管理。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 351. P3 落地记录：Admin Action Run Agent Timeline Projection View
+
+本轮继续收敛第 350 节剩余风险中 “Admin 页面仍是只读 diagnostics 和列表信号，不支持真正的 timeline 组件” 的问题。实际代码与目标架构的冲突点是：
+上一轮已经从 `AiActionRun` 派生 `agentRuntimeTimelineEntries`，但这些 entries 主要存在于可复制 diagnostics 文本中，列表里只显示 timeline gap 数量。管理员仍无法在 `/admin/ai` 最近 action runs 列表中直接看到 run status 与 model step 的最小 timeline 序列。正式 Agent timeline UI 需要 DB-backed AgentRun/AgentStep/timeline event schema 和交互式 step detail，本轮先把现有只读 timeline projection 渲染为列表内的轻量 timeline block，不新增状态机或交互。
+
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - 新增 `formatActionRunAgentRuntimeTimelineEntry()`，把每条 projection entry 显示为 `Timeline ...`。
+  - `ActionRunRecentList` 在 action run 摘要下方渲染 `agentRuntimeTimelineEntries`，带稳定 `data-testid=action-run-timeline-${run.id}`，让 Admin 能直接看到 `run -> completed`、`generate -> model_step -> completed -> structured -> 2/2` 这类只读 timeline。
+- 测试覆盖：
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 断言成功 run 的 visible timeline 包含 run status 和两个 model step，失败 run 的 visible timeline 包含 `run -> failed`。
+
+该实现只扩展 Admin 只读展示，不新增后端字段、不新增 GraphQL 字段、不新增 DB migration、不创建 AgentRun/AgentStep/timeline event 表、不改变 native action runtime、不执行 tool/MCP/Codex/approval/handoff step，不记录 step output/error、retry attempt、rollback state 或 cancellation event。它把上一轮 timeline projection 从“可复制文本和 gap 计数”推进到“列表内可见的最小 Agent timeline block”，为后续正式 Agent timeline UI、step 展开、Codex JSONL event ingestion、MCP tool call timeline 和审批/恢复/rollback 状态机提供更接近目标 UI 的过渡面。
+
+验证策略：
+
+- 本轮为 Admin UI/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration、GraphQL schema 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与宿主源码 bind mount 运行 focused Prettier、oxlint 和 Admin AI Vitest。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- timeline block 仍是只读字符串渲染，不是正式 timeline 组件，不支持 step 展开、过滤、排序、持续刷新、trace JSON 导出或 support bundle。
+- 可见 timeline entries 仍只来自 `AiActionRun` projection，不是持久化 Agent timeline event；没有真实开始/结束时间、latency、token usage、cost、provider response、tool args、MCP server id、Codex sandbox policy、approval record、retry attempt id、rollback result 或 artifact patch。
+- 当前 UI 只展示 `run_status` 与 `model_step`，仍不支持真实 tool step、approval step、handoff step、Codex step、MCP step、step output/error、retry attempt、rollback state 或 cancellation event。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

@@ -6710,6 +6710,18 @@ describe('AiPage', () => {
         'Step fallback generate -> ollama-main -> openai-default | generate-image -> openai-default'
       )
     ).not.toBeNull();
+    const visibleTimeline =
+      screen.getByTestId('action-run-timeline-run-123').textContent ?? '';
+    expect(visibleTimeline).toContain('Timeline run -> completed');
+    expect(visibleTimeline).toContain(
+      'Timeline generate -> model_step -> completed -> structured -> 2/2'
+    );
+    expect(visibleTimeline).toContain(
+      'Timeline generate-image -> model_step -> completed -> image -> 1/1'
+    );
+    const failedVisibleTimeline =
+      screen.getByTestId('action-run-timeline-run-failed').textContent ?? '';
+    expect(failedVisibleTimeline).toContain('Timeline run -> failed');
     const actionRunDiagnostics =
       screen.getByTestId('action-run-diagnostics-run-123').textContent ?? '';
     expect(actionRunDiagnostics).toContain('Action run run-123');

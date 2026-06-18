@@ -4837,6 +4837,10 @@ function formatActionRunAgentRuntimeTimelineEntries(
   )}`;
 }
 
+function formatActionRunAgentRuntimeTimelineEntry(entry: string) {
+  return `Timeline ${entry}`;
+}
+
 function formatActionRunAgentRuntimeTimelineEventTypes(
   run: ActionRunDiagnosticsItem
 ) {
@@ -5256,6 +5260,21 @@ function ActionRunRecentList({
                     <div className="mt-1 break-words text-xs text-amber-700">
                       {run.agentRuntimeTimelineGaps.length} timeline gap
                       {run.agentRuntimeTimelineGaps.length === 1 ? '' : 's'}
+                    </div>
+                  ) : null}
+                  {run.agentRuntimeTimelineEntries.length ? (
+                    <div
+                      className="mt-2 space-y-1 border-l border-border pl-2"
+                      data-testid={`action-run-timeline-${run.id}`}
+                    >
+                      {run.agentRuntimeTimelineEntries.map(entry => (
+                        <div
+                          key={entry}
+                          className="break-words text-xs text-muted-foreground"
+                        >
+                          {formatActionRunAgentRuntimeTimelineEntry(entry)}
+                        </div>
+                      ))}
                     </div>
                   ) : null}
                 </TableCell>
