@@ -344,6 +344,40 @@ function taskRouteDimensionSnapshotFixture(route: {
   });
 }
 
+function taskRouteEmbeddingIndexContractSnapshotFixture(route: {
+  embeddingIndexContractDimensions?: number | null;
+  embeddingIndexContractFingerprint?: string | null;
+  embeddingIndexContractStatus?: string | null;
+  embeddingIndexContractVersion?: string | null;
+  featureKind: string;
+  modelEmbeddingDimensions?: number | null;
+  modelId?: string | null;
+  providerId?: string | null;
+  requestedDimensions?: number | null;
+  requestedModelId?: string | null;
+}) {
+  if (!route.embeddingIndexContractVersion) {
+    return [];
+  }
+
+  return [
+    {
+      embeddingIndexContractDimensions:
+        route.embeddingIndexContractDimensions ?? null,
+      embeddingIndexContractFingerprint:
+        route.embeddingIndexContractFingerprint ?? null,
+      embeddingIndexContractStatus: route.embeddingIndexContractStatus ?? null,
+      embeddingIndexContractVersion: route.embeddingIndexContractVersion,
+      featureKind: route.featureKind,
+      modelEmbeddingDimensions: route.modelEmbeddingDimensions ?? null,
+      modelId: route.modelId ?? null,
+      providerId: route.providerId ?? null,
+      requestedDimensions: route.requestedDimensions ?? null,
+      requestedModelId: route.requestedModelId ?? null,
+    },
+  ];
+}
+
 function taskRouteModelSourceSnapshotFixture(route: {
   featureKind: string;
   requestedModelConfigKey?: string | null;
@@ -2679,6 +2713,14 @@ const readyPublishGateVerdict = withRepairActionPreview(
                 blockedRoute.diagnosticsErrors
               ),
             dimensionMismatch: blockedRoute.dimensionMismatch,
+            embeddingIndexContractDimensions:
+              blockedRoute.embeddingIndexContractDimensions,
+            embeddingIndexContractFingerprint:
+              blockedRoute.embeddingIndexContractFingerprint,
+            embeddingIndexContractStatus:
+              blockedRoute.embeddingIndexContractStatus,
+            embeddingIndexContractVersion:
+              blockedRoute.embeddingIndexContractVersion,
             fallbackProviderIds: blockedRoute.fallbackProviderIds,
             modelEmbeddingDimensions: blockedRoute.modelEmbeddingDimensions,
             modelId: null,
@@ -2722,6 +2764,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
             taskRouteDimensionSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRouteDimensionSnapshotFixture(blockedRoute)
+              ),
+            taskRouteEmbeddingIndexContractSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteEmbeddingIndexContractSnapshotFixture(blockedRoute)
               ),
             taskRouteModelSourceSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
@@ -2775,6 +2821,14 @@ const readyPublishGateVerdict = withRepairActionPreview(
                 blockedRoute.diagnosticsErrors
               ),
             dimensionMismatch: blockedRoute.dimensionMismatch,
+            embeddingIndexContractDimensions:
+              blockedRoute.embeddingIndexContractDimensions,
+            embeddingIndexContractFingerprint:
+              blockedRoute.embeddingIndexContractFingerprint,
+            embeddingIndexContractStatus:
+              blockedRoute.embeddingIndexContractStatus,
+            embeddingIndexContractVersion:
+              blockedRoute.embeddingIndexContractVersion,
             matched: false,
             modelEmbeddingDimensions: blockedRoute.modelEmbeddingDimensions,
             modelId: 'workspace-embedding',
@@ -2818,6 +2872,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
             taskRouteDimensionSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRouteDimensionSnapshotFixture(blockedRoute)
+              ),
+            taskRouteEmbeddingIndexContractSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteEmbeddingIndexContractSnapshotFixture(blockedRoute)
               ),
             taskRouteModelSourceSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
@@ -2894,6 +2952,14 @@ const readyPublishGateVerdict = withRepairActionPreview(
                 blockedRoute.diagnosticsErrors
               ),
             dimensionMismatch: blockedRoute.dimensionMismatch,
+            embeddingIndexContractDimensions:
+              blockedRoute.embeddingIndexContractDimensions,
+            embeddingIndexContractFingerprint:
+              blockedRoute.embeddingIndexContractFingerprint,
+            embeddingIndexContractStatus:
+              blockedRoute.embeddingIndexContractStatus,
+            embeddingIndexContractVersion:
+              blockedRoute.embeddingIndexContractVersion,
             modelEmbeddingDimensions: blockedRoute.modelEmbeddingDimensions,
             modelId: 'workspace-embedding',
             prepared: false,
@@ -2937,6 +3003,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
             taskRouteDimensionSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRouteDimensionSnapshotFixture(blockedRoute)
+              ),
+            taskRouteEmbeddingIndexContractSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteEmbeddingIndexContractSnapshotFixture(blockedRoute)
               ),
             taskRouteModelSourceSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
@@ -7286,6 +7356,12 @@ describe('AiPage', () => {
       `task route dimension snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteDimensionSnapshotFixture(blockedRoute))}`
     );
     expect(readyGateDiagnostics).toContain(
+      `task route embedding index contract snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteEmbeddingIndexContractSnapshotFixture(blockedRoute))}`
+    );
+    expect(readyGateDiagnostics).toContain(
+      `embedding index contract ${blockedRoute.embeddingIndexContractVersion} / embedding index dimensions ${blockedRoute.embeddingIndexContractDimensions}d / embedding index status Compatible With Current Pgvector Index / embedding index fingerprint ${blockedRoute.embeddingIndexContractFingerprint}`
+    );
+    expect(readyGateDiagnostics).toContain(
       `requested ${blockedRoute.requestedDimensions}d / dimension mismatch no`
     );
     expect(readyGateDiagnostics).toContain(
@@ -7335,7 +7411,7 @@ describe('AiPage', () => {
       'Prepare Candidate #0 / fingerprint '
     );
     expect(readyGateDiagnostics).toContain(
-      'key prepare:ollama-main / provider ollama-main / prepared no / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding / requested workspace-embedding / requested source Workspace indexing task model / requested config key workspaceIndexing / requested config path copilot.tasks.models.workspaceIndexing / requested 1024d / dimension mismatch no / input text / output embedding / attachments file / attachment sources url / remote attachments yes / structured attachments image / structured attachment sources file_handle / structured remote attachments no / context 8192 / max output 1024 / embedding 768 / input cost 0.01/1M / output cost 0.02/1M / model workspace-embedding / prepared nomic-embed-text'
+      `key prepare:ollama-main / provider ollama-main / prepared no / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding / requested workspace-embedding / requested source Workspace indexing task model / requested config key workspaceIndexing / requested config path copilot.tasks.models.workspaceIndexing / requested 1024d / dimension mismatch no / embedding index contract ${blockedRoute.embeddingIndexContractVersion} / embedding index dimensions ${blockedRoute.embeddingIndexContractDimensions}d / embedding index status Compatible With Current Pgvector Index / embedding index fingerprint ${blockedRoute.embeddingIndexContractFingerprint} / input text / output embedding / attachments file / attachment sources url / remote attachments yes / structured attachments image / structured attachment sources file_handle / structured remote attachments no / context 8192 / max output 1024 / embedding 768 / input cost 0.01/1M / output cost 0.02/1M / model workspace-embedding / prepared nomic-embed-text`
     );
     expect(readyGateDiagnostics).toContain(
       'prepared nomic-embed-text / privacy Local / health Down / checked 2026-06-16T10:00:00.000Z / code prepare_failed / category Network / registry byok / registry available yes / registry selected no'

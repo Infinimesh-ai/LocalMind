@@ -14003,3 +14003,35 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - fingerprint 只绑定 feature kind、当前常量维度、route requested/model 维度和 mismatch 状态，不绑定数据库 schema revision、index OID、migration id、workspace id、provider revision、Model Registry revision 或 Provider Registry revision。
 - rerank route 仍只消费现有 diagnostics，不暴露独立 rerank index/runtime contract；后续若加入 rerank cache/index 或跨 provider rerank policy，仍需要单独 contract。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 417. P3 落地记录：Prompt Registry Repair Evidence Embedding Index Contract Binding
+
+本轮继续收敛第 416 节剩余风险中 “embedding index contract 只在模型 route diagnostics 可见，尚未进入 repair/review evidence 链” 的问题。实际代码与目标 AI 中间层架构的冲突点是：Prompt Registry publish gate 已经复用 workspace indexing task route diagnostics，但 repair recommendation 的 `candidateEvidence` 只绑定 requested/model dimensions、dimension mismatch 与 task route dimension snapshot；后续 repair preview、submission contract、preflight 或 route explain 若只看 candidate evidence set，仍无法证明当前 workspace embedding route 是针对哪个 pgvector index contract 做出的只读判断。本轮把 workspace embedding index contract 作为 task route repair candidate evidence 的显式字段和独立 snapshot fingerprint 暴露出来，不改变真实索引、route selection 或 repair mutation guard 的只读状态。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 新增 `embeddingIndexContractVersion`、`embeddingIndexContractStatus`、`embeddingIndexContractDimensions`、`embeddingIndexContractFingerprint` 与 `taskRouteEmbeddingIndexContractSnapshotFingerprint`。
+  - 新增 `taskRouteEmbeddingIndexContractSnapshot()`，仅当 route 暴露 `workspace-embedding-index/v1` 时生成 snapshot；rerank/非 workspace route 不产生空 contract fingerprint。
+  - task route repair candidate evidence 同步绑定 contract 原始字段、独立 snapshot fingerprint，并把这些字段纳入 repair recommendation evidence 文本、candidate evidence fingerprint、preview operation candidate evidence fingerprint 和 candidate evidence set fingerprint。
+- GraphQL 与 common client：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidenceType`、`getCopilotPromptRegistryPublishGate` query、common query string 与 `schema.ts` 类型同步选择/声明新增字段。
+  - publish gate `taskRoutes` selection 同步选择第 416 节新增的 embedding index contract 字段，使 Admin 的 publish gate route evidence 与模型列表 diagnostics 使用同一只读 route contract。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence 文本展示 embedding index contract version、dimensions、status、fingerprint 与 task route embedding index contract snapshot fingerprint，便于管理员在 repair recommendations 中直接看到当前 1024 维索引契约。
+- 测试覆盖：
+  - backend resolver smoke test 断言 diagnostics-error repair 的 policy/route/prepare candidate evidence 都绑定 workspace embedding index contract 原始字段和独立 snapshot fingerprint。
+  - Admin Vitest fixture/断言覆盖 repair candidate evidence 的 contract 展示和 snapshot fingerprint，避免前端只显示 dimensions 而丢失索引契约边界。
+
+该实现只扩展 Prompt Registry publish gate repair evidence 的只读 GraphQL projection、common query/type、Admin 展示和测试，不新增 DB migration、不改变 pgvector index 维度、不重建 embedding 索引、不改变 `EMBEDDING_DIMENSIONS`、provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、repair mutation guard 接受条件、Model Registry revision 或 Provider Registry revision。它把 “workspace indexing 当前 1024 维索引契约” 从 route diagnostics 继续推进到 repair/review evidence set，使后续正式 route explain、repair submission 或 support bundle 可以校验候选证据是否绑定同一 embedding index contract。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 backend model/source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- repair candidate evidence 仍是只读 projection，不是 DB-backed index version registry、migration plan、reindex job、tenant-level index compatibility record、真实 embedding dimension negotiation 或 repair mutation 可执行输入。
+- contract snapshot fingerprint 只绑定 route diagnostics 中的 contract 字段、当前 route requested/model 维度和 provider/model scope，不绑定数据库 schema revision、index OID、migration id、workspace id、provider revision、Model Registry revision 或 Provider Registry revision。
+- 现阶段 contract 仅覆盖 workspace indexing；rerank route 仍没有独立 rerank runtime/index contract，也没有针对 rerank cache/index 的 repair evidence。
+- publish gate repair preview/submission/preflight 仍然是 read-only contract；新增 evidence 会改变 candidate evidence fingerprint，但不代表 repair mutation 已允许执行。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

@@ -1833,6 +1833,10 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   costInputPer1M?: Maybe<Scalars['Float']['output']>;
   costOutputPer1M?: Maybe<Scalars['Float']['output']>;
   dimensionMismatch?: Maybe<Scalars['Boolean']['output']>;
+  embeddingIndexContractDimensions?: Maybe<Scalars['SafeInt']['output']>;
+  embeddingIndexContractFingerprint?: Maybe<Scalars['String']['output']>;
+  embeddingIndexContractStatus?: Maybe<Scalars['String']['output']>;
+  embeddingIndexContractVersion?: Maybe<Scalars['String']['output']>;
   diagnosticsErrors?: Maybe<
     Array<CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType>
   >;
@@ -1855,6 +1859,9 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   providerCostSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   providerHealthSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   providerLimitSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
+  taskRouteEmbeddingIndexContractSnapshotFingerprint?: Maybe<
+    Scalars['String']['output']
+  >;
   taskRouteDimensionSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   taskRouteModelSourceSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   preparedRouteTargets?: Maybe<Array<Scalars['String']['output']>>;
@@ -8152,6 +8159,10 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             costInputPer1M: number | null;
             costOutputPer1M: number | null;
             dimensionMismatch: boolean | null;
+            embeddingIndexContractDimensions: number | null;
+            embeddingIndexContractFingerprint: string | null;
+            embeddingIndexContractStatus: string | null;
+            embeddingIndexContractVersion: string | null;
             diagnosticsErrors: Array<{
               __typename?: 'CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType';
               code: string;
@@ -8200,6 +8211,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             providerCostSnapshotFingerprint: string | null;
             providerHealthSnapshotFingerprint: string | null;
             providerLimitSnapshotFingerprint: string | null;
+            taskRouteEmbeddingIndexContractSnapshotFingerprint: string | null;
             taskRouteDimensionSnapshotFingerprint: string | null;
             taskRouteModelSourceSnapshotFingerprint: string | null;
             preparedRouteTargets: Array<string> | null;

@@ -2311,6 +2311,10 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             stage
           }
           dimensionMismatch
+          embeddingIndexContractDimensions
+          embeddingIndexContractFingerprint
+          embeddingIndexContractStatus
+          embeddingIndexContractVersion
           errorCode
           errorMessage
           fallbackProviderIds
@@ -2624,6 +2628,10 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             costInputPer1M
             costOutputPer1M
             dimensionMismatch
+            embeddingIndexContractDimensions
+            embeddingIndexContractFingerprint
+            embeddingIndexContractStatus
+            embeddingIndexContractVersion
             diagnosticsErrors {
               code
               message
@@ -2670,6 +2678,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             providerCostSnapshotFingerprint
             providerHealthSnapshotFingerprint
             providerLimitSnapshotFingerprint
+            taskRouteEmbeddingIndexContractSnapshotFingerprint
             taskRouteDimensionSnapshotFingerprint
             taskRouteModelSourceSnapshotFingerprint
             preparedRouteTargets

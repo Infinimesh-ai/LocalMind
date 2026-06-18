@@ -944,6 +944,40 @@ function taskRouteDimensionSnapshotFixture(route: {
   };
 }
 
+function taskRouteEmbeddingIndexContractSnapshotFixture(route: {
+  embeddingIndexContractDimensions?: number;
+  embeddingIndexContractFingerprint?: string;
+  embeddingIndexContractStatus?: string;
+  embeddingIndexContractVersion?: string;
+  featureKind: string;
+  modelEmbeddingDimensions?: number;
+  modelId?: string;
+  providerId?: string;
+  requestedDimensions?: number;
+  requestedModelId?: string;
+}) {
+  if (!route.embeddingIndexContractVersion) {
+    return [];
+  }
+
+  return [
+    {
+      embeddingIndexContractDimensions:
+        route.embeddingIndexContractDimensions ?? null,
+      embeddingIndexContractFingerprint:
+        route.embeddingIndexContractFingerprint ?? null,
+      embeddingIndexContractStatus: route.embeddingIndexContractStatus ?? null,
+      embeddingIndexContractVersion: route.embeddingIndexContractVersion,
+      featureKind: route.featureKind,
+      modelEmbeddingDimensions: route.modelEmbeddingDimensions ?? null,
+      modelId: route.modelId ?? null,
+      providerId: route.providerId ?? null,
+      requestedDimensions: route.requestedDimensions ?? null,
+      requestedModelId: route.requestedModelId ?? null,
+    },
+  ];
+}
+
 function taskRouteModelSourceSnapshotFixture(route: {
   featureKind: string;
   requestedModelConfigKey?: string;
@@ -7145,6 +7179,12 @@ async function main() {
   );
   const taskDiagnosticsDimensionSnapshotFingerprint =
     taskRouteSnapshotFingerprintFixture(taskDiagnosticsDimensionSnapshot);
+  const taskDiagnosticsEmbeddingIndexContractSnapshot =
+    taskRouteEmbeddingIndexContractSnapshotFixture(taskDiagnosticsErrorRoute!);
+  const taskDiagnosticsEmbeddingIndexContractSnapshotFingerprint =
+    taskRouteSnapshotFingerprintFixture(
+      taskDiagnosticsEmbeddingIndexContractSnapshot
+    );
   const taskDiagnosticsModelSourceSnapshot =
     taskRouteModelSourceSnapshotFixture(taskDiagnosticsErrorRoute);
   const taskDiagnosticsModelSourceSnapshotFingerprint =
@@ -7234,6 +7274,13 @@ async function main() {
   );
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
+      `policyCandidate#0:taskRouteEmbeddingIndexContractSnapshotFingerprint:${taskDiagnosticsEmbeddingIndexContractSnapshotFingerprint}`
+    ),
+    true,
+    'task diagnostics repair evidence should include embedding index contract snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
       'policyCandidate#0:requestedDimensions:1024'
     ),
     true,
@@ -7252,6 +7299,27 @@ async function main() {
     ),
     true,
     'task diagnostics repair evidence should include embedding dimension mismatch state'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'policyCandidate#0:embeddingIndexContractVersion:workspace-embedding-index/v1'
+    ),
+    true,
+    'task diagnostics repair evidence should include embedding index contract version'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'policyCandidate#0:embeddingIndexContractDimensions:1024'
+    ),
+    true,
+    'task diagnostics repair evidence should include embedding index contract dimensions'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'policyCandidate#0:embeddingIndexContractStatus:dimension_mismatch'
+    ),
+    true,
+    'task diagnostics repair evidence should include embedding index contract status'
   );
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
@@ -7421,9 +7489,45 @@ async function main() {
     true,
     'task diagnostics repair evidence should include prepare candidate error category'
   );
+  const assertEmbeddingIndexContractEvidence = (
+    evidence:
+      | (typeof taskDiagnosticsErrorRepair)['candidateEvidence'][number]
+      | undefined,
+    label: string
+  ) => {
+    assert.equal(
+      evidence?.embeddingIndexContractVersion,
+      taskDiagnosticsErrorRoute?.embeddingIndexContractVersion,
+      `${label} should bind embedding index contract version`
+    );
+    assert.equal(
+      evidence?.embeddingIndexContractDimensions,
+      taskDiagnosticsErrorRoute?.embeddingIndexContractDimensions,
+      `${label} should bind embedding index contract dimensions`
+    );
+    assert.equal(
+      evidence?.embeddingIndexContractStatus,
+      taskDiagnosticsErrorRoute?.embeddingIndexContractStatus,
+      `${label} should bind embedding index contract status`
+    );
+    assert.equal(
+      evidence?.embeddingIndexContractFingerprint,
+      taskDiagnosticsErrorRoute?.embeddingIndexContractFingerprint,
+      `${label} should bind embedding index contract fingerprint`
+    );
+    assert.equal(
+      evidence?.taskRouteEmbeddingIndexContractSnapshotFingerprint,
+      taskDiagnosticsEmbeddingIndexContractSnapshotFingerprint,
+      `${label} should bind embedding index contract snapshot fingerprint`
+    );
+  };
   assert.match(
     taskDiagnosticsPolicyCandidateEvidence?.candidateFingerprint ?? '',
     /^[0-9a-f]{16}$/
+  );
+  assertEmbeddingIndexContractEvidence(
+    taskDiagnosticsPolicyCandidateEvidence,
+    'policy candidate evidence'
   );
   assert.equal(taskDiagnosticsPolicyCandidateEvidence?.candidateIndex, 0);
   assert.equal(
@@ -7605,6 +7709,10 @@ async function main() {
   assert.match(
     taskDiagnosticsRouteCandidateEvidence?.candidateFingerprint ?? '',
     /^[0-9a-f]{16}$/
+  );
+  assertEmbeddingIndexContractEvidence(
+    taskDiagnosticsRouteCandidateEvidence,
+    'route candidate evidence'
   );
   assert.equal(
     taskDiagnosticsRouteCandidateEvidence?.candidateKey?.includes('local'),
@@ -7860,6 +7968,10 @@ async function main() {
   assert.match(
     taskDiagnosticsPrepareCandidateEvidence?.candidateFingerprint ?? '',
     /^[0-9a-f]{16}$/
+  );
+  assertEmbeddingIndexContractEvidence(
+    taskDiagnosticsPrepareCandidateEvidence,
+    'prepare candidate evidence'
   );
   assert.equal(
     taskDiagnosticsPrepareCandidateEvidence?.candidateKey,

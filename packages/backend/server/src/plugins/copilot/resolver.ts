@@ -735,6 +735,10 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   diagnosticsErrors?: CopilotTaskRouteDiagnosticsError[];
   diagnosticsErrorSnapshotFingerprint?: string;
   dimensionMismatch?: boolean;
+  embeddingIndexContractDimensions?: number;
+  embeddingIndexContractFingerprint?: string;
+  embeddingIndexContractStatus?: string;
+  embeddingIndexContractVersion?: string;
   errorCategory?: string;
   errorCode?: string;
   fallbackProviderIds?: string[];
@@ -753,6 +757,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   providerCostSnapshotFingerprint?: string;
   providerHealthSnapshotFingerprint?: string;
   providerLimitSnapshotFingerprint?: string;
+  taskRouteEmbeddingIndexContractSnapshotFingerprint?: string;
   taskRouteDimensionSnapshotFingerprint?: string;
   taskRouteModelSourceSnapshotFingerprint?: string;
   preparedRouteTargets?: string[];
@@ -1855,6 +1860,18 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
   @Field(() => Boolean, { nullable: true })
   dimensionMismatch?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['dimensionMismatch'];
 
+  @Field(() => SafeIntResolver, { nullable: true })
+  embeddingIndexContractDimensions?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['embeddingIndexContractDimensions'];
+
+  @Field(() => String, { nullable: true })
+  embeddingIndexContractFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['embeddingIndexContractFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  embeddingIndexContractStatus?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['embeddingIndexContractStatus'];
+
+  @Field(() => String, { nullable: true })
+  embeddingIndexContractVersion?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['embeddingIndexContractVersion'];
+
   @Field(() => String, { nullable: true })
   errorCategory?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['errorCategory'];
 
@@ -1908,6 +1925,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   providerLimitSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerLimitSnapshotFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  taskRouteEmbeddingIndexContractSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['taskRouteEmbeddingIndexContractSnapshotFingerprint'];
 
   @Field(() => String, { nullable: true })
   taskRouteDimensionSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['taskRouteDimensionSnapshotFingerprint'];
@@ -4696,6 +4716,10 @@ function taskRouteRepairCandidateEvidenceBase(
     diagnosticsErrors?: CopilotTaskRouteDiagnosticsError[];
     diagnosticsErrorSnapshotFingerprint?: string;
     dimensionMismatch?: boolean;
+    embeddingIndexContractDimensions?: number;
+    embeddingIndexContractFingerprint?: string;
+    embeddingIndexContractStatus?: string;
+    embeddingIndexContractVersion?: string;
     errorCategory?: string;
     errorCode?: string;
     fallbackProviderIds?: string[];
@@ -4714,6 +4738,7 @@ function taskRouteRepairCandidateEvidenceBase(
     providerCostSnapshotFingerprint?: string;
     providerHealthSnapshotFingerprint?: string;
     providerLimitSnapshotFingerprint?: string;
+    taskRouteEmbeddingIndexContractSnapshotFingerprint?: string;
     taskRouteDimensionSnapshotFingerprint?: string;
     taskRouteModelSourceSnapshotFingerprint?: string;
     preparedRouteTargets?: string[];
@@ -4796,6 +4821,27 @@ function taskRouteRepairCandidateEvidenceBase(
     ...(candidate.dimensionMismatch !== undefined
       ? { dimensionMismatch: candidate.dimensionMismatch }
       : {}),
+    ...(candidate.embeddingIndexContractDimensions !== undefined
+      ? {
+          embeddingIndexContractDimensions:
+            candidate.embeddingIndexContractDimensions,
+        }
+      : {}),
+    ...(candidate.embeddingIndexContractFingerprint !== undefined
+      ? {
+          embeddingIndexContractFingerprint:
+            candidate.embeddingIndexContractFingerprint,
+        }
+      : {}),
+    ...(candidate.embeddingIndexContractStatus !== undefined
+      ? { embeddingIndexContractStatus: candidate.embeddingIndexContractStatus }
+      : {}),
+    ...(candidate.embeddingIndexContractVersion !== undefined
+      ? {
+          embeddingIndexContractVersion:
+            candidate.embeddingIndexContractVersion,
+        }
+      : {}),
     ...(candidate.errorCategory !== undefined
       ? { errorCategory: candidate.errorCategory }
       : {}),
@@ -4863,6 +4909,13 @@ function taskRouteRepairCandidateEvidenceBase(
       ? {
           providerLimitSnapshotFingerprint:
             candidate.providerLimitSnapshotFingerprint,
+        }
+      : {}),
+    ...(candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint !==
+    undefined
+      ? {
+          taskRouteEmbeddingIndexContractSnapshotFingerprint:
+            candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint,
         }
       : {}),
     ...(candidate.taskRouteDimensionSnapshotFingerprint !== undefined
@@ -5063,6 +5116,10 @@ function taskRouteCandidateProfileStructuredEvidence(
       diagnosticsErrors?: CopilotTaskRouteDiagnosticsError[];
       diagnosticsErrorSnapshotFingerprint?: string;
       dimensionMismatch?: boolean;
+      embeddingIndexContractDimensions?: number;
+      embeddingIndexContractFingerprint?: string;
+      embeddingIndexContractStatus?: string;
+      embeddingIndexContractVersion?: string;
       errorCategory?: string;
       errorCode?: string;
       fallbackProviderIds?: string[];
@@ -5080,6 +5137,8 @@ function taskRouteCandidateProfileStructuredEvidence(
       providerCapabilitySnapshotFingerprint?: string;
       providerCostSnapshotFingerprint?: string;
       providerHealthSnapshotFingerprint?: string;
+      providerLimitSnapshotFingerprint?: string;
+      taskRouteEmbeddingIndexContractSnapshotFingerprint?: string;
       taskRouteDimensionSnapshotFingerprint?: string;
       taskRouteModelSourceSnapshotFingerprint?: string;
       preparedRouteTargets?: string[];
@@ -5190,6 +5249,8 @@ function taskRouteCandidateProfileStructuredEvidence(
     const providerHealthSnapshot = taskRouteProviderHealthSnapshot(route);
     const providerLimitSnapshot = taskRouteProviderLimitSnapshot(route);
     const taskRouteDimensionSnapshotValue = taskRouteDimensionSnapshot(route);
+    const taskRouteEmbeddingIndexContractSnapshotValue =
+      taskRouteEmbeddingIndexContractSnapshot(route);
     const taskRouteModelSourceSnapshotValue =
       taskRouteModelSourceSnapshot(route);
     const diagnosticsErrorSnapshot = route.diagnosticsErrors.map(error => ({
@@ -5254,6 +5315,14 @@ function taskRouteCandidateProfileStructuredEvidence(
         taskRouteDimensionSnapshotFingerprint: taskRouteSnapshotFingerprint(
           taskRouteDimensionSnapshotValue
         ),
+        ...(taskRouteEmbeddingIndexContractSnapshotValue.length
+          ? {
+              taskRouteEmbeddingIndexContractSnapshotFingerprint:
+                taskRouteSnapshotFingerprint(
+                  taskRouteEmbeddingIndexContractSnapshotValue
+                ),
+            }
+          : {}),
         taskRouteModelSourceSnapshotFingerprint: taskRouteSnapshotFingerprint(
           taskRouteModelSourceSnapshotValue
         ),
@@ -5265,6 +5334,27 @@ function taskRouteCandidateProfileStructuredEvidence(
         ),
         ...(route.dimensionMismatch !== undefined
           ? { dimensionMismatch: route.dimensionMismatch }
+          : {}),
+        ...(route.embeddingIndexContractDimensions !== undefined
+          ? {
+              embeddingIndexContractDimensions:
+                route.embeddingIndexContractDimensions,
+            }
+          : {}),
+        ...(route.embeddingIndexContractFingerprint
+          ? {
+              embeddingIndexContractFingerprint:
+                route.embeddingIndexContractFingerprint,
+            }
+          : {}),
+        ...(route.embeddingIndexContractStatus
+          ? { embeddingIndexContractStatus: route.embeddingIndexContractStatus }
+          : {}),
+        ...(route.embeddingIndexContractVersion
+          ? {
+              embeddingIndexContractVersion:
+                route.embeddingIndexContractVersion,
+            }
           : {}),
         ...(route.modelEmbeddingDimensions !== undefined
           ? { modelEmbeddingDimensions: route.modelEmbeddingDimensions }
@@ -5356,6 +5446,22 @@ function taskRouteCandidateProfileEvidence(
     ),
     candidate.routeStructuredAttachmentAllowRemoteUrls !== undefined
       ? `${candidate.scope}#${candidate.candidateIndex}:routeStructuredAttachmentAllowRemoteUrls:${candidate.routeStructuredAttachmentAllowRemoteUrls}`
+      : null,
+  ];
+  const candidateEmbeddingIndexContractEvidence = (
+    candidate: CopilotPromptRegistryPublishGateRepairCandidateEvidence
+  ) => [
+    candidate.embeddingIndexContractVersion
+      ? `${candidate.scope}#${candidate.candidateIndex}:embeddingIndexContractVersion:${candidate.embeddingIndexContractVersion}`
+      : null,
+    candidate.embeddingIndexContractDimensions !== undefined
+      ? `${candidate.scope}#${candidate.candidateIndex}:embeddingIndexContractDimensions:${candidate.embeddingIndexContractDimensions}`
+      : null,
+    candidate.embeddingIndexContractStatus
+      ? `${candidate.scope}#${candidate.candidateIndex}:embeddingIndexContractStatus:${candidate.embeddingIndexContractStatus}`
+      : null,
+    candidate.embeddingIndexContractFingerprint
+      ? `${candidate.scope}#${candidate.candidateIndex}:embeddingIndexContractFingerprint:${candidate.embeddingIndexContractFingerprint}`
       : null,
   ];
 
@@ -5486,6 +5592,7 @@ function taskRouteCandidateProfileEvidence(
           candidate.dimensionMismatch !== undefined
             ? `${candidate.scope}#${candidate.candidateIndex}:dimensionMismatch:${candidate.dimensionMismatch}`
             : null,
+          ...candidateEmbeddingIndexContractEvidence(candidate),
           ...candidateCapabilityLimitCostEvidence(candidate),
           candidate.modelId
             ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
@@ -5516,6 +5623,9 @@ function taskRouteCandidateProfileEvidence(
             : null,
           candidate.taskRouteDimensionSnapshotFingerprint
             ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteDimensionSnapshotFingerprint:${candidate.taskRouteDimensionSnapshotFingerprint}`
+            : null,
+          candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteEmbeddingIndexContractSnapshotFingerprint:${candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint}`
             : null,
           candidate.taskRouteModelSourceSnapshotFingerprint
             ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteModelSourceSnapshotFingerprint:${candidate.taskRouteModelSourceSnapshotFingerprint}`
@@ -5621,6 +5731,9 @@ function taskRouteCandidateProfileEvidence(
         candidate.taskRouteDimensionSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteDimensionSnapshotFingerprint:${candidate.taskRouteDimensionSnapshotFingerprint}`
           : null,
+        candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteEmbeddingIndexContractSnapshotFingerprint:${candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint}`
+          : null,
         candidate.taskRouteModelSourceSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteModelSourceSnapshotFingerprint:${candidate.taskRouteModelSourceSnapshotFingerprint}`
           : null,
@@ -5704,6 +5817,7 @@ function taskRouteCandidateProfileEvidence(
         candidate.dimensionMismatch !== undefined
           ? `${candidate.scope}#${candidate.candidateIndex}:dimensionMismatch:${candidate.dimensionMismatch}`
           : null,
+        ...candidateEmbeddingIndexContractEvidence(candidate),
         candidate.modelId
           ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
           : null,
@@ -5799,6 +5913,7 @@ function taskRouteCandidateProfileEvidence(
         candidate.dimensionMismatch !== undefined
           ? `${candidate.scope}#${candidate.candidateIndex}:dimensionMismatch:${candidate.dimensionMismatch}`
           : null,
+        ...candidateEmbeddingIndexContractEvidence(candidate),
         candidate.preparedModelId
           ? `${candidate.scope}#${candidate.candidateIndex}:preparedModelId:${candidate.preparedModelId}`
           : null,
@@ -5840,6 +5955,9 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.taskRouteDimensionSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteDimensionSnapshotFingerprint:${candidate.taskRouteDimensionSnapshotFingerprint}`
+          : null,
+        candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteEmbeddingIndexContractSnapshotFingerprint:${candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint}`
           : null,
         candidate.taskRouteModelSourceSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteModelSourceSnapshotFingerprint:${candidate.taskRouteModelSourceSnapshotFingerprint}`
@@ -5942,6 +6060,7 @@ function taskRouteCandidateProfileEvidence(
         candidate.dimensionMismatch !== undefined
           ? `${candidate.scope}#${candidate.candidateIndex}:dimensionMismatch:${candidate.dimensionMismatch}`
           : null,
+        ...candidateEmbeddingIndexContractEvidence(candidate),
         candidate.modelId
           ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
           : null,
@@ -5980,6 +6099,9 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.taskRouteDimensionSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteDimensionSnapshotFingerprint:${candidate.taskRouteDimensionSnapshotFingerprint}`
+          : null,
+        candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteEmbeddingIndexContractSnapshotFingerprint:${candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint}`
           : null,
         candidate.taskRouteModelSourceSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteModelSourceSnapshotFingerprint:${candidate.taskRouteModelSourceSnapshotFingerprint}`
@@ -7031,6 +7153,31 @@ function taskRouteDimensionSnapshot(
       ? { requestedModelId: route.requestedModelId }
       : {}),
   };
+}
+
+function taskRouteEmbeddingIndexContractSnapshot(
+  route: CopilotPromptRegistryPublishGateTaskRoute
+) {
+  if (!route.embeddingIndexContractVersion) {
+    return [];
+  }
+
+  return [
+    {
+      embeddingIndexContractDimensions:
+        route.embeddingIndexContractDimensions ?? null,
+      embeddingIndexContractFingerprint:
+        route.embeddingIndexContractFingerprint ?? null,
+      embeddingIndexContractStatus: route.embeddingIndexContractStatus ?? null,
+      embeddingIndexContractVersion: route.embeddingIndexContractVersion,
+      featureKind: route.featureKind,
+      modelEmbeddingDimensions: route.modelEmbeddingDimensions ?? null,
+      modelId: route.modelId ?? null,
+      providerId: route.providerId ?? null,
+      requestedDimensions: route.requestedDimensions ?? null,
+      requestedModelId: route.requestedModelId ?? null,
+    },
+  ];
 }
 
 function taskRouteModelSourceSnapshot(

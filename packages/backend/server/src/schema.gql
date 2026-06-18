@@ -1606,6 +1606,10 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   costInputPer1M: Float
   costOutputPer1M: Float
   dimensionMismatch: Boolean
+  embeddingIndexContractDimensions: SafeInt
+  embeddingIndexContractFingerprint: String
+  embeddingIndexContractStatus: String
+  embeddingIndexContractVersion: String
   diagnosticsErrors: [CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType!]
   diagnosticsErrorSnapshotFingerprint: String
   errorCategory: String
@@ -1626,6 +1630,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   providerCostSnapshotFingerprint: String
   providerHealthSnapshotFingerprint: String
   providerLimitSnapshotFingerprint: String
+  taskRouteEmbeddingIndexContractSnapshotFingerprint: String
   taskRouteDimensionSnapshotFingerprint: String
   taskRouteModelSourceSnapshotFingerprint: String
   preparedRouteTargets: [String!]

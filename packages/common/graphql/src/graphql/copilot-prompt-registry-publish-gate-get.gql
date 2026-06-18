@@ -312,6 +312,10 @@ query getCopilotPromptRegistryPublishGate(
             stage
           }
           dimensionMismatch
+          embeddingIndexContractDimensions
+          embeddingIndexContractFingerprint
+          embeddingIndexContractStatus
+          embeddingIndexContractVersion
           errorCode
           errorMessage
           fallbackProviderIds
@@ -638,6 +642,10 @@ query getCopilotPromptRegistryPublishGate(
             costInputPer1M
             costOutputPer1M
             dimensionMismatch
+            embeddingIndexContractDimensions
+            embeddingIndexContractFingerprint
+            embeddingIndexContractStatus
+            embeddingIndexContractVersion
             diagnosticsErrors {
               code
               message
@@ -684,6 +692,7 @@ query getCopilotPromptRegistryPublishGate(
             providerCostSnapshotFingerprint
             providerHealthSnapshotFingerprint
             providerLimitSnapshotFingerprint
+            taskRouteEmbeddingIndexContractSnapshotFingerprint
             taskRouteDimensionSnapshotFingerprint
             taskRouteModelSourceSnapshotFingerprint
             preparedRouteTargets
