@@ -24,6 +24,29 @@ export const AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_RUN_STATUSES = [
   'cancelled',
 ] as const satisfies readonly AgentRuntimeRunStatus[];
 
+export const AGENT_RUNTIME_TARGET_STEP_STATUSES = [
+  'pending',
+  'running',
+  'waiting_approval',
+  'completed',
+  'failed',
+  'skipped',
+  'retrying',
+  'rollback_running',
+  'blocked',
+] as const;
+
+export type AgentRuntimeStepStatus =
+  (typeof AGENT_RUNTIME_TARGET_STEP_STATUSES)[number];
+
+export const AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_STEP_STATUSES = [
+  'pending',
+  'running',
+  'completed',
+  'failed',
+  'skipped',
+] as const satisfies readonly AgentRuntimeStepStatus[];
+
 export const AGENT_RUNTIME_TARGET_STEP_TYPES = [
   'model',
   'tool',
@@ -78,12 +101,20 @@ export function getActionRunAgentRuntimeProjectedStepTypes() {
   return [...AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_STEP_TYPES];
 }
 
+export function getActionRunAgentRuntimeProjectedStepStatuses() {
+  return [...AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_STEP_STATUSES];
+}
+
 export function getActionRunAgentRuntimeProjectedRunStatuses() {
   return [...AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_RUN_STATUSES];
 }
 
 export function getAgentRuntimeTargetStepTypes() {
   return [...AGENT_RUNTIME_TARGET_STEP_TYPES];
+}
+
+export function getAgentRuntimeTargetStepStatuses() {
+  return [...AGENT_RUNTIME_TARGET_STEP_STATUSES];
 }
 
 export function getAgentRuntimeTargetRunStatuses() {
@@ -100,6 +131,16 @@ export function getActionRunAgentRuntimeUnsupportedRunStatuses() {
   );
 }
 
+export function getActionRunAgentRuntimeUnsupportedStepStatuses() {
+  const projectedStepStatuses = new Set<AgentRuntimeStepStatus>(
+    AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_STEP_STATUSES
+  );
+
+  return AGENT_RUNTIME_TARGET_STEP_STATUSES.filter(
+    status => !projectedStepStatuses.has(status)
+  );
+}
+
 export function getActionRunAgentRuntimeUnsupportedStepTypes() {
   const projectedStepTypes = new Set<AgentRuntimeStepType>(
     AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_STEP_TYPES
@@ -107,6 +148,12 @@ export function getActionRunAgentRuntimeUnsupportedStepTypes() {
 
   return AGENT_RUNTIME_TARGET_STEP_TYPES.filter(
     stepType => !projectedStepTypes.has(stepType)
+  );
+}
+
+export function getActionRunAgentRuntimeStepStatusGaps() {
+  return getActionRunAgentRuntimeUnsupportedStepStatuses().map(
+    status => `${status} -> not_projected`
   );
 }
 

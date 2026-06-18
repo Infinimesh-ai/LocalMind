@@ -11934,3 +11934,37 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - Admin 页面仍是只读 diagnostics，不支持按 run status gap 跳转到配置修复、Agent timeline 展开、run cancellation、approval decision、retry/rollback operation、Codex adapter 管理或 MCP registry 管理。
 - `agentRuntimeRunStatusGaps` 只说明目标状态未被当前 action run projection 覆盖，不代表 runtime 已经记录或能够执行这些状态。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 348. P3 落地记录：Action Run Agent Runtime Step Status Taxonomy Diagnostics
+
+本轮继续收敛第 346 与第 347 节剩余风险中 “当前 projected step type 仍只有 `model`，不支持真实 tool execution、approval decision、handoff resume、Codex JSONL event ingestion、MCP tool call、step output、step error、retry attempt 或 rollback state” 以及 “run status taxonomy 已暴露，但 step status coverage 仍只隐含在每个 prepared route step 的状态字符串里” 的问题。实际代码与目标架构的冲突点是：
+第 8.2 节定义的 `AgentStep.status` 目标语义包括 pending/running/completed/failed/skipped，但办公 Agent、审批、Codex/MCP adapter、retry 与 rollback 场景还需要 waiting_approval、retrying、rollback_running、blocked 等扩展状态；当前 `AiActionRun` 只能把 run 的 created/running/succeeded/failed/aborted 映射为每个 prepared route step 的 pending/running/completed/failed/skipped。上一轮已经暴露 run status taxonomy，本轮把 step status taxonomy 与 gap 也纳入同一 projection contract，并通过 GraphQL/Admin 显式暴露。
+
+- `packages/backend/server/src/models/copilot-agent-runtime-projection.ts`：
+  - 新增 `AGENT_RUNTIME_TARGET_STEP_STATUSES`、`AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_STEP_STATUSES` 与 `AgentRuntimeStepStatus`。
+  - 新增 `getAgentRuntimeTargetStepStatuses()`、`getActionRunAgentRuntimeProjectedStepStatuses()`、`getActionRunAgentRuntimeUnsupportedStepStatuses()` 与 `getActionRunAgentRuntimeStepStatusGaps()`。
+  - 保持 `mapActionRunStatusToAgentRuntimeStepStatus()` 只映射当前 `AiActionRun.status` 能真实表达的 step status，不把 waiting approval、retrying、rollback 或 blocked 伪造成已支持状态。
+- `packages/backend/server/src/models/copilot-action-run.ts`：
+  - `CopilotActionRunDiagnosticsItem` 新增 `agentRuntimeTargetStepStatuses`、`agentRuntimeProjectedStepStatuses`、`agentRuntimeUnsupportedStepStatuses` 与 `agentRuntimeStepStatusGaps`。
+  - `summarizePreparedRouteTrace()` 从 projection contract 派生 step status taxonomy 与 gap，继续保持只读 diagnostics，不新增持久化 AgentStep row。
+- GraphQL 与 Admin：
+  - `CopilotActionRunDiagnosticsItemType`、`packages/backend/server/src/schema.gql`、`packages/common/graphql/src/graphql/copilot-action-runs-get.gql`、`packages/common/graphql/src/graphql/index.ts` 与 `packages/common/graphql/src/schema.ts` 同步新增 step status taxonomy/gap 字段。
+  - `packages/frontend/admin/src/modules/ai/index.tsx` 的 recent action run diagnostics text 新增 Agent runtime target/projected/unsupported step statuses 与 step status gaps。
+- 测试覆盖：
+  - `packages/backend/server/src/__tests__/copilot/copilot.spec.ts` 断言成功 run 与失败 run 均返回 target/projected/unsupported step status taxonomy 与 gap。
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 更新 action run mock payload 与 diagnostics text 断言，覆盖 Admin 可复制文本中的 step status taxonomy/gap。
+
+该实现只扩展只读 action run diagnostics、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 AgentRun/AgentStep 表、不改变 native action runtime、不新增 waiting approval、retry、rollback、blocked step 状态机，不改变 prepared route selection、provider route policy、Prompt Registry、repair execution request contract、MCP registry、Codex adapter 或审批写入路径。它把当前 projection 从“只显示每个 prepared route step 的派生状态”推进到“同时展示目标 step status taxonomy、当前 projected status coverage 与缺口”，为后续正式 AgentStep status enum、Codex/MCP adapter timeline、审批/恢复/rollback 状态机提供更清楚的兼容边界。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与宿主源码 bind mount 运行 focused Prettier、oxlint、backend copilot spec 与 Admin AI Vitest。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- step status taxonomy contract 仍是 TypeScript helper，不是 DB-backed AgentStep status enum、GraphQL enum、migration 或 registry row；未来正式 Agent Runtime schema 落地时仍需要迁移到单一 schema/registry source of truth。
+- 当前 projected step statuses 仍只有 `pending/running/completed/failed/skipped`，不支持真实 waiting approval、retrying、rollback_running、blocked、partially_completed 或恢复状态。
+- Admin 页面仍是只读 diagnostics，不支持按 step status gap 跳转到配置修复、Agent timeline 展开、step cancellation、approval decision、retry/rollback operation、Codex adapter 管理或 MCP registry 管理。
+- `agentRuntimeStepStatusGaps` 只说明目标 step 状态未被当前 action run projection 覆盖，不代表 runtime 已经记录或能够执行这些状态。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

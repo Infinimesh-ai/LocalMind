@@ -2628,6 +2628,13 @@ const actionRunsPayload = [
       'failed',
       'cancelled',
     ],
+    agentRuntimeProjectedStepStatuses: [
+      'pending',
+      'running',
+      'completed',
+      'failed',
+      'skipped',
+    ],
     agentRuntimeProjectedStepTypes: ['model'],
     agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
     agentRuntimeProjectionGaps: [
@@ -2646,6 +2653,12 @@ const actionRunsPayload = [
     agentRuntimeRunId: 'run-123',
     agentRuntimeRunStatus: 'completed',
     agentRuntimeStepCount: 2,
+    agentRuntimeStepStatusGaps: [
+      'waiting_approval -> not_projected',
+      'retrying -> not_projected',
+      'rollback_running -> not_projected',
+      'blocked -> not_projected',
+    ],
     agentRuntimeStepIds: ['generate', 'generate-image'],
     agentRuntimeStepKinds: [
       'generate -> structured',
@@ -2667,6 +2680,17 @@ const actionRunsPayload = [
       'rollback_running',
       'archived',
     ],
+    agentRuntimeTargetStepStatuses: [
+      'pending',
+      'running',
+      'waiting_approval',
+      'completed',
+      'failed',
+      'skipped',
+      'retrying',
+      'rollback_running',
+      'blocked',
+    ],
     agentRuntimeTargetStepTypes: [
       'model',
       'tool',
@@ -2680,6 +2704,12 @@ const actionRunsPayload = [
       'retrying',
       'rollback_running',
       'archived',
+    ],
+    agentRuntimeUnsupportedStepStatuses: [
+      'waiting_approval',
+      'retrying',
+      'rollback_running',
+      'blocked',
     ],
     agentRuntimeUnsupportedStepTypes: [
       'tool',
@@ -2784,6 +2814,13 @@ const actionRunsPayload = [
       'failed',
       'cancelled',
     ],
+    agentRuntimeProjectedStepStatuses: [
+      'pending',
+      'running',
+      'completed',
+      'failed',
+      'skipped',
+    ],
     agentRuntimeProjectedStepTypes: ['model'],
     agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
     agentRuntimeProjectionGaps: [
@@ -2803,6 +2840,12 @@ const actionRunsPayload = [
     agentRuntimeRunId: 'run-failed',
     agentRuntimeRunStatus: 'failed',
     agentRuntimeStepCount: 0,
+    agentRuntimeStepStatusGaps: [
+      'waiting_approval -> not_projected',
+      'retrying -> not_projected',
+      'rollback_running -> not_projected',
+      'blocked -> not_projected',
+    ],
     agentRuntimeStepIds: [],
     agentRuntimeStepKinds: [],
     agentRuntimeStepStatuses: [],
@@ -2818,6 +2861,17 @@ const actionRunsPayload = [
       'rollback_running',
       'archived',
     ],
+    agentRuntimeTargetStepStatuses: [
+      'pending',
+      'running',
+      'waiting_approval',
+      'completed',
+      'failed',
+      'skipped',
+      'retrying',
+      'rollback_running',
+      'blocked',
+    ],
     agentRuntimeTargetStepTypes: [
       'model',
       'tool',
@@ -2831,6 +2885,12 @@ const actionRunsPayload = [
       'retrying',
       'rollback_running',
       'archived',
+    ],
+    agentRuntimeUnsupportedStepStatuses: [
+      'waiting_approval',
+      'retrying',
+      'rollback_running',
+      'blocked',
     ],
     agentRuntimeUnsupportedStepTypes: [
       'tool',
@@ -6554,6 +6614,18 @@ describe('AiPage', () => {
       'Agent runtime run status gaps waiting_approval -> not_projected | retrying -> not_projected | rollback_running -> not_projected | archived -> not_projected'
     );
     expect(actionRunDiagnostics).toContain(
+      'Agent runtime target step statuses pending | running | waiting_approval | completed | failed | skipped | retrying | rollback_running | blocked'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime projected step statuses pending | running | completed | failed | skipped'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime unsupported step statuses waiting_approval | retrying | rollback_running | blocked'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime step status gaps waiting_approval -> not_projected | retrying -> not_projected | rollback_running -> not_projected | blocked -> not_projected'
+    );
+    expect(actionRunDiagnostics).toContain(
       'Agent runtime target step types model | tool | approval | handoff | codex | mcp'
     );
     expect(actionRunDiagnostics).toContain(
@@ -6597,6 +6669,18 @@ describe('AiPage', () => {
     );
     expect(failedRunDiagnostics).toContain(
       'Agent runtime run status gaps waiting_approval -> not_projected | retrying -> not_projected | rollback_running -> not_projected | archived -> not_projected'
+    );
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime target step statuses pending | running | waiting_approval | completed | failed | skipped | retrying | rollback_running | blocked'
+    );
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime projected step statuses pending | running | completed | failed | skipped'
+    );
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime unsupported step statuses waiting_approval | retrying | rollback_running | blocked'
+    );
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime step status gaps waiting_approval -> not_projected | retrying -> not_projected | rollback_running -> not_projected | blocked -> not_projected'
     );
     expect(failedRunDiagnostics).toContain(
       'Agent runtime target step types model | tool | approval | handoff | codex | mcp'
