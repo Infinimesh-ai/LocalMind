@@ -7073,6 +7073,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionOperationEntryRequestInputs = [
     'approvalRecordRequestFingerprint',
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionCompletionEventRequestFingerprint',
     'executionCompletionRequestFingerprint',
     'executionFailureEventRequestFingerprint',
@@ -7097,6 +7098,8 @@ function buildPromptRegistryRepairExecutionRequest(
       stableRepairRecommendationStringify({
         approvalRecordRequestFingerprint,
         auditEventRequestFingerprint,
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         created: false,
         executionCompletionEventRequestFingerprint,
         executionCompletionRequestFingerprint,
@@ -7129,6 +7132,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionApprovalUiRequestInputs = [
     'approvalRecordRequestFingerprint',
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionOperationEntryRequestFingerprint',
     'executionStatusPollRequestFingerprint',
     'idempotencyLockFingerprint',
@@ -7143,6 +7147,8 @@ function buildPromptRegistryRepairExecutionRequest(
       stableRepairRecommendationStringify({
         approvalRecordRequestFingerprint,
         auditEventRequestFingerprint,
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         created: false,
         executionOperationEntryRequestFingerprint,
         executionStatusPollRequestFingerprint,
@@ -7165,6 +7171,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionDiffPreviewRequestInputs = [
     'approvalRecordRequestFingerprint',
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionApprovalUiRequestFingerprint',
     'executionOperationEntryRequestFingerprint',
     'guardFingerprint',
@@ -7182,6 +7189,8 @@ function buildPromptRegistryRepairExecutionRequest(
       stableRepairRecommendationStringify({
         approvalRecordRequestFingerprint,
         auditEventRequestFingerprint,
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         created: false,
         executionApprovalUiRequestFingerprint,
         executionOperationEntryRequestFingerprint,
@@ -7207,6 +7216,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionApprovalDecisionRequestInputs = [
     'approvalRecordRequestFingerprint',
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionApprovalUiRequestFingerprint',
     'executionDiffPreviewRequestFingerprint',
     'idempotencyLockFingerprint',
@@ -7221,6 +7231,8 @@ function buildPromptRegistryRepairExecutionRequest(
       stableRepairRecommendationStringify({
         approvalRecordRequestFingerprint,
         auditEventRequestFingerprint,
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         created: false,
         executionApprovalUiRequestFingerprint,
         executionDiffPreviewRequestFingerprint,

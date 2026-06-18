@@ -2968,6 +2968,7 @@ describe('AiPage', () => {
           executionOperationEntryRequestInputs: [
             'approvalRecordRequestFingerprint',
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionCompletionEventRequestFingerprint',
             'executionCompletionRequestFingerprint',
             'executionFailureEventRequestFingerprint',
@@ -2997,6 +2998,7 @@ describe('AiPage', () => {
           executionApprovalUiRequestInputs: [
             'approvalRecordRequestFingerprint',
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionOperationEntryRequestFingerprint',
             'executionStatusPollRequestFingerprint',
             'idempotencyLockFingerprint',
@@ -3016,6 +3018,7 @@ describe('AiPage', () => {
           executionDiffPreviewRequestInputs: [
             'approvalRecordRequestFingerprint',
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionApprovalUiRequestFingerprint',
             'executionOperationEntryRequestFingerprint',
             'guardFingerprint',
@@ -3038,6 +3041,7 @@ describe('AiPage', () => {
           executionApprovalDecisionRequestInputs: [
             'approvalRecordRequestFingerprint',
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionApprovalUiRequestFingerprint',
             'executionDiffPreviewRequestFingerprint',
             'idempotencyLockFingerprint',

@@ -1919,6 +1919,7 @@ async function main() {
   assert.deepEqual(executionRequest.executionOperationEntryRequestInputs, [
     'approvalRecordRequestFingerprint',
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionCompletionEventRequestFingerprint',
     'executionCompletionRequestFingerprint',
     'executionFailureEventRequestFingerprint',
@@ -1954,6 +1955,7 @@ async function main() {
   assert.deepEqual(executionRequest.executionApprovalUiRequestInputs, [
     'approvalRecordRequestFingerprint',
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionOperationEntryRequestFingerprint',
     'executionStatusPollRequestFingerprint',
     'idempotencyLockFingerprint',
@@ -1979,6 +1981,7 @@ async function main() {
   assert.deepEqual(executionRequest.executionDiffPreviewRequestInputs, [
     'approvalRecordRequestFingerprint',
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionApprovalUiRequestFingerprint',
     'executionOperationEntryRequestFingerprint',
     'guardFingerprint',
@@ -2007,6 +2010,7 @@ async function main() {
   assert.deepEqual(executionRequest.executionApprovalDecisionRequestInputs, [
     'approvalRecordRequestFingerprint',
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionApprovalUiRequestFingerprint',
     'executionDiffPreviewRequestFingerprint',
     'idempotencyLockFingerprint',
