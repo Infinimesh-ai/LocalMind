@@ -5308,6 +5308,18 @@ function formatActionRunAgentRuntimeTimelineItem(
     item.fallbackProviderIds.length
       ? `fallback ${item.fallbackProviderIds.join(' -> ')}`
       : null,
+    item.routeModelBackendKinds.length
+      ? `backends ${item.routeModelBackendKinds.join(' -> ')}`
+      : null,
+    item.routeCanonicalModelKeys.length
+      ? `canonical ${item.routeCanonicalModelKeys.join(' -> ')}`
+      : null,
+    item.routeBehaviorFlags.length
+      ? `behavior ${item.routeBehaviorFlags.join(' -> ')}`
+      : null,
+    item.routeDimensionEvidence.length
+      ? `dimensions ${item.routeDimensionEvidence.join(' | ')}`
+      : null,
   ]);
 }
 

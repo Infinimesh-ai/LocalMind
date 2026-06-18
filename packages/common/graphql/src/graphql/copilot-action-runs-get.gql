@@ -34,8 +34,12 @@ query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
           id
           kind
           label
+          routeBehaviorFlags
+          routeCanonicalModelKeys
           routeCount
           routeCountMismatch
+          routeDimensionEvidence
+          routeModelBackendKinds
           routeTargets
           runId
           sequence

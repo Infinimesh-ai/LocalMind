@@ -3660,6 +3660,12 @@ const actionRunsPayload = [
           'openai-default/gpt-image-1',
         ],
         fallbackProviderIds: ['ollama-main', 'openai-default'],
+        routeModelBackendKinds: ['openai_chat', 'openai_image'],
+        routeCanonicalModelKeys: ['local/office-structured', 'gpt-image-1'],
+        routeBehaviorFlags: ['tool_calls', 'image_generation'],
+        routeDimensionEvidence: [
+          'requested 1024d / model 1024d / dimension mismatch no',
+        ],
         runId: 'run-123',
         sequence: 0,
         status: 'completed',
@@ -3677,6 +3683,12 @@ const actionRunsPayload = [
         routeCountMismatch: true,
         routeTargets: ['ollama-main/local/office-structured'],
         fallbackProviderIds: ['ollama-main', 'openai-default'],
+        routeModelBackendKinds: ['openai_chat'],
+        routeCanonicalModelKeys: ['local/office-structured'],
+        routeBehaviorFlags: ['tool_calls'],
+        routeDimensionEvidence: [
+          'requested 1024d / model 1024d / dimension mismatch no',
+        ],
         runId: 'run-123',
         sequence: 1,
         status: 'completed',
@@ -3694,6 +3706,10 @@ const actionRunsPayload = [
         routeCountMismatch: false,
         routeTargets: ['openai-default/gpt-image-1'],
         fallbackProviderIds: ['openai-default'],
+        routeModelBackendKinds: ['openai_image'],
+        routeCanonicalModelKeys: ['gpt-image-1'],
+        routeBehaviorFlags: ['image_generation'],
+        routeDimensionEvidence: [],
         runId: 'run-123',
         sequence: 2,
         status: 'completed',
@@ -3981,6 +3997,10 @@ const actionRunsPayload = [
         routeCountMismatch: false,
         routeTargets: [],
         fallbackProviderIds: [],
+        routeModelBackendKinds: [],
+        routeCanonicalModelKeys: [],
+        routeBehaviorFlags: [],
+        routeDimensionEvidence: [],
         runId: 'run-failed',
         sequence: 0,
         status: 'failed',
@@ -7929,13 +7949,13 @@ describe('AiPage', () => {
     const visibleTimeline =
       screen.getByTestId('action-run-timeline-run-123').textContent ?? '';
     expect(visibleTimeline).toContain(
-      '#0 / key run_status / Timeline Run Status / status Completed / run / routes 3/3 / targets ollama-main/local/office-structured -> openai-default/gpt-5-mini -> openai-default/gpt-image-1 / fallback ollama-main -> openai-default'
+      '#0 / key run_status / Timeline Run Status / status Completed / run / routes 3/3 / targets ollama-main/local/office-structured -> openai-default/gpt-5-mini -> openai-default/gpt-image-1 / fallback ollama-main -> openai-default / backends openai_chat -> openai_image / canonical local/office-structured -> gpt-image-1 / behavior tool_calls -> image_generation / dimensions requested 1024d / model 1024d / dimension mismatch no'
     );
     expect(visibleTimeline).toContain(
-      '#1 / key model_step:generate / Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 1/2 / route count mismatch / targets ollama-main/local/office-structured / fallback ollama-main -> openai-default'
+      '#1 / key model_step:generate / Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 1/2 / route count mismatch / targets ollama-main/local/office-structured / fallback ollama-main -> openai-default / backends openai_chat / canonical local/office-structured / behavior tool_calls / dimensions requested 1024d / model 1024d / dimension mismatch no'
     );
     expect(visibleTimeline).toContain(
-      '#2 / key model_step:generate-image / Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1 / targets openai-default/gpt-image-1 / fallback openai-default'
+      '#2 / key model_step:generate-image / Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1 / targets openai-default/gpt-image-1 / fallback openai-default / backends openai_image / canonical gpt-image-1 / behavior image_generation'
     );
     const failedVisibleTimeline =
       screen.getByTestId('action-run-timeline-run-failed').textContent ?? '';
@@ -7970,7 +7990,7 @@ describe('AiPage', () => {
       'Agent runtime timeline entries run -> completed | generate -> model_step -> completed -> structured -> 2/2 | generate-image -> model_step -> completed -> image -> 1/1'
     );
     expect(actionRunDiagnostics).toContain(
-      'Agent runtime timeline items #0 / key run_status / Timeline Run Status / status Completed / run / routes 3/3 / targets ollama-main/local/office-structured -> openai-default/gpt-5-mini -> openai-default/gpt-image-1 / fallback ollama-main -> openai-default | #1 / key model_step:generate / Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 1/2 / route count mismatch / targets ollama-main/local/office-structured / fallback ollama-main -> openai-default | #2 / key model_step:generate-image / Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1 / targets openai-default/gpt-image-1 / fallback openai-default'
+      'Agent runtime timeline items #0 / key run_status / Timeline Run Status / status Completed / run / routes 3/3 / targets ollama-main/local/office-structured -> openai-default/gpt-5-mini -> openai-default/gpt-image-1 / fallback ollama-main -> openai-default / backends openai_chat -> openai_image / canonical local/office-structured -> gpt-image-1 / behavior tool_calls -> image_generation / dimensions requested 1024d / model 1024d / dimension mismatch no | #1 / key model_step:generate / Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 1/2 / route count mismatch / targets ollama-main/local/office-structured / fallback ollama-main -> openai-default / backends openai_chat / canonical local/office-structured / behavior tool_calls / dimensions requested 1024d / model 1024d / dimension mismatch no | #2 / key model_step:generate-image / Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1 / targets openai-default/gpt-image-1 / fallback openai-default / backends openai_image / canonical gpt-image-1 / behavior image_generation'
     );
     expect(actionRunDiagnostics).toContain(
       'Agent runtime timeline event types run_status | model_step'

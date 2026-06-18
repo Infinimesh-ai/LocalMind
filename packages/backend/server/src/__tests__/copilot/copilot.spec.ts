@@ -3504,6 +3504,12 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
           routeCountMismatch: false,
           routeTargets: ['ollama-main/local/office-structured'],
           fallbackProviderIds: ['ollama-main'],
+          routeModelBackendKinds: ['openai_chat'],
+          routeCanonicalModelKeys: ['local/office-structured'],
+          routeBehaviorFlags: ['tool_calls'],
+          routeDimensionEvidence: [
+            'requested 1024d / model 1024d / dimension mismatch no',
+          ],
         },
         {
           id: `${run.id}:0:generate:model_step`,
@@ -3521,6 +3527,12 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
           routeCountMismatch: false,
           routeTargets: ['ollama-main/local/office-structured'],
           fallbackProviderIds: ['ollama-main'],
+          routeModelBackendKinds: ['openai_chat'],
+          routeCanonicalModelKeys: ['local/office-structured'],
+          routeBehaviorFlags: ['tool_calls'],
+          routeDimensionEvidence: [
+            'requested 1024d / model 1024d / dimension mismatch no',
+          ],
         },
       ],
       agentRuntimeTargetRunStatuses: [
@@ -3762,6 +3774,10 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
           routeCountMismatch: false,
           routeTargets: [],
           fallbackProviderIds: [],
+          routeModelBackendKinds: [],
+          routeCanonicalModelKeys: [],
+          routeBehaviorFlags: [],
+          routeDimensionEvidence: [],
         },
       ],
       agentRuntimeTargetRunStatuses: [

@@ -693,8 +693,12 @@ export interface CopilotActionRunAgentRuntimeTimelineItemType {
   id: Scalars['String']['output'];
   kind?: Maybe<Scalars['String']['output']>;
   label: Scalars['String']['output'];
+  routeBehaviorFlags: Array<Scalars['String']['output']>;
+  routeCanonicalModelKeys: Array<Scalars['String']['output']>;
   routeCount: Scalars['SafeInt']['output'];
   routeCountMismatch: Scalars['Boolean']['output'];
+  routeDimensionEvidence: Array<Scalars['String']['output']>;
+  routeModelBackendKinds: Array<Scalars['String']['output']>;
   routeTargets: Array<Scalars['String']['output']>;
   runId: Scalars['String']['output'];
   sequence: Scalars['SafeInt']['output'];
@@ -8758,8 +8762,12 @@ export type GetCopilotActionRunsQuery = {
           id: string;
           kind: string | null;
           label: string;
+          routeBehaviorFlags: Array<string>;
+          routeCanonicalModelKeys: Array<string>;
           routeCount: number;
           routeCountMismatch: boolean;
+          routeDimensionEvidence: Array<string>;
+          routeModelBackendKinds: Array<string>;
           routeTargets: Array<string>;
           runId: string;
           sequence: number;

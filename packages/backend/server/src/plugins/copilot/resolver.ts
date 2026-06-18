@@ -3761,6 +3761,18 @@ class CopilotActionRunAgentRuntimeTimelineItemType implements CopilotActionRunAg
 
   @Field(() => [String])
   fallbackProviderIds!: string[];
+
+  @Field(() => [String])
+  routeModelBackendKinds!: string[];
+
+  @Field(() => [String])
+  routeCanonicalModelKeys!: string[];
+
+  @Field(() => [String])
+  routeBehaviorFlags!: string[];
+
+  @Field(() => [String])
+  routeDimensionEvidence!: string[];
 }
 
 @ObjectType()

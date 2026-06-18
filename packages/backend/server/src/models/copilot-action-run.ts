@@ -100,6 +100,10 @@ export type CopilotActionRunAgentRuntimeTimelineItem = {
   routeCountMismatch: boolean;
   routeTargets: string[];
   fallbackProviderIds: string[];
+  routeModelBackendKinds: string[];
+  routeCanonicalModelKeys: string[];
+  routeBehaviorFlags: string[];
+  routeDimensionEvidence: string[];
 };
 
 export type CopilotActionRunDiagnosticsItem = {
@@ -772,6 +776,10 @@ function summarizePreparedRouteTrace(
         routeCountMismatch: preparedRouteCount !== preparedRouteActualCount,
         routeTargets: preparedRouteTargets,
         fallbackProviderIds: preparedRouteFallbackProviderIds,
+        routeModelBackendKinds: preparedRouteModelBackendKinds,
+        routeCanonicalModelKeys: preparedRouteCanonicalModelKeys,
+        routeBehaviorFlags: preparedRouteBehaviorFlags,
+        routeDimensionEvidence: preparedRouteDimensionEvidence,
       },
       ...(trace?.steps.map((step, index) => ({
         id: `${runId}:${index}:${step.stepId}:model_step`,
@@ -791,6 +799,18 @@ function summarizePreparedRouteTrace(
           step.routes.map(route => `${route.providerId}/${route.modelId}`)
         ),
         fallbackProviderIds: step.fallbackProviderIds,
+        routeModelBackendKinds: uniqueNonEmptyStrings(
+          step.routes.map(route => route.modelBackendKind)
+        ),
+        routeCanonicalModelKeys: uniqueNonEmptyStrings(
+          step.routes.map(route => route.canonicalModelKey)
+        ),
+        routeBehaviorFlags: uniqueNonEmptyStrings(
+          step.routes.flatMap(route => route.behaviorFlags ?? [])
+        ),
+        routeDimensionEvidence: uniqueNonEmptyStrings(
+          step.routes.map(route => formatPreparedRouteDimensionEvidence(route))
+        ),
       })) ?? []),
     ];
 

@@ -595,8 +595,12 @@ type CopilotActionRunAgentRuntimeTimelineItemType {
   id: String!
   kind: String
   label: String!
+  routeBehaviorFlags: [String!]!
+  routeCanonicalModelKeys: [String!]!
   routeCount: SafeInt!
   routeCountMismatch: Boolean!
+  routeDimensionEvidence: [String!]!
+  routeModelBackendKinds: [String!]!
   routeTargets: [String!]!
   runId: String!
   sequence: SafeInt!

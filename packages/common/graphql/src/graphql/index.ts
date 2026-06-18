@@ -3266,8 +3266,12 @@ export const getCopilotActionRunsQuery = {
           id
           kind
           label
+          routeBehaviorFlags
+          routeCanonicalModelKeys
           routeCount
           routeCountMismatch
+          routeDimensionEvidence
+          routeModelBackendKinds
           routeTargets
           runId
           sequence
