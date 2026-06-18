@@ -3145,6 +3145,7 @@ describe('AiPage', () => {
             : 'dddd666699994444',
           executionRunStepRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionStartRequestFingerprint',
@@ -3168,6 +3169,7 @@ describe('AiPage', () => {
             : 'dddd777799995555',
           executionRunStepTraceRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionRunStepRequestFingerprint',
@@ -3193,6 +3195,7 @@ describe('AiPage', () => {
             : 'dddd888899996666',
           executionRunStepResultRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -3220,6 +3223,7 @@ describe('AiPage', () => {
             : 'dddd999988887777',
           executionRunStepCompletionRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -3248,6 +3252,7 @@ describe('AiPage', () => {
             : 'ddddbbbb88887777',
           executionRunStepStatusEventRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -3277,6 +3282,7 @@ describe('AiPage', () => {
             : 'ddddaaaa88889999',
           executionRunStepRetryRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
