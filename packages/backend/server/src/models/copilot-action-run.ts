@@ -80,6 +80,7 @@ export type CopilotActionRunPreparedRouteTrace = {
 
 export type CopilotActionRunAgentRuntimeTimelineItem = {
   id: string;
+  sequence: number;
   eventType: string;
   label: string;
   runId: string;
@@ -641,6 +642,7 @@ function summarizePreparedRouteTrace(
     [
       {
         id: `${runId}:run_status`,
+        sequence: 0,
         eventType: 'run_status',
         label: `run -> ${agentRuntimeRunStatus}`,
         runId,
@@ -654,6 +656,7 @@ function summarizePreparedRouteTrace(
       },
       ...(trace?.steps.map((step, index) => ({
         id: `${runId}:${index}:${step.stepId}:model_step`,
+        sequence: index + 1,
         eventType: 'model_step',
         label: `${step.stepId} -> model_step -> ${agentRuntimeStepStatus} -> ${step.kind} -> ${step.routes.length}/${step.routeCount}`,
         runId,

@@ -12145,3 +12145,32 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 结构化 timeline item 仍不是持久化 Agent timeline event row；没有真实开始/结束时间、latency、token usage、cost、provider response、tool args、MCP server id、Codex sandbox policy、approval record、retry attempt id、rollback result 或 artifact patch。
 - Admin timeline block 仍是轻量只读文本块，不是正式 timeline 组件；仍不支持 step 展开、过滤、排序、持续刷新、trace JSON 导出、support bundle、run cancellation、approval decision、retry/rollback operation、Codex adapter 管理或 MCP registry 管理。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 355. P3 落地记录：Action Run Structured Timeline Sequence Projection
+
+本轮继续收敛第 354 节剩余风险中 “结构化 timeline item 仍不是持久化 Agent timeline event row；没有真实开始/结束时间、latency、token usage、cost、provider response、tool args、MCP server id、Codex sandbox policy、approval record、retry attempt id、rollback result 或 artifact patch” 的问题。实际代码与目标 Agent Runtime UI 的冲突点是：`agentRuntimeTimelineItems` 当前依赖数组顺序和 `id` 字符串表达排序，Admin 可见 block 虽然能按返回顺序渲染，但后续正式 timeline UI、support bundle 或 Codex/MCP event ingestion 需要一个稳定的事件序号字段，避免客户端从 `id` 或数组位置反解析顺序。本轮先为只读 projection 增加 `sequence`。
+
+- `packages/backend/server/src/models/copilot-action-run.ts`：
+  - `CopilotActionRunAgentRuntimeTimelineItem` 新增 `sequence`。
+  - `run_status` item 使用 `sequence: 0`；prepared route `model_step` items 使用 `index + 1`，明确当前最小 timeline 的顺序契约。
+- GraphQL 与 common client：
+  - `CopilotActionRunAgentRuntimeTimelineItemType`、`schema.gql`、`getCopilotActionRuns` selection 与 `QueryResponse` 类型同步新增 `sequence`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - 结构化 timeline item 摘要显示 `#<sequence>`，让可见 block 和 copyable diagnostics text 明确展示事件顺序，不依赖数组位置或字符串 id。
+- 测试覆盖：
+  - `packages/backend/server/src/__tests__/copilot/copilot.spec.ts` 断言成功 run 与失败 run 的 timeline items 返回稳定 sequence。
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 断言可见 timeline 与 diagnostics text 都显示 `#0/#1/#2`。
+
+该实现只扩展只读 action run diagnostics、GraphQL selection/type、Admin 渲染与测试，不新增 DB migration、不创建 AgentRun/AgentStep/timeline event 表、不新增 queue/worker/lease、不改变 native action runtime、不执行 tool/MCP/Codex/approval/handoff step，不记录 step output/error、retry attempt、rollback state 或 cancellation event。它把第 352-354 节的结构化 timeline projection 从“依赖返回数组顺序”推进到“每个只读 item 都带稳定 sequence”，为后续正式 Agent timeline schema、event ingestion、support bundle 和 trace export 提供更稳定的排序字段。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与宿主源码 bind mount 运行 focused Prettier、oxlint、backend copilot spec 与 Admin AI Vitest。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `sequence` 仍是从当前 projection 生成的静态顺序，不是持久化 event sequence、数据库自增序列、真实 event timestamp 或跨 worker ordering guarantee。
+- timeline item 仍不是持久化 Agent timeline event row；没有真实开始/结束时间、latency、token usage、cost、provider response、tool args、MCP server id、Codex sandbox policy、approval record、retry attempt id、rollback result 或 artifact patch。
+- 当前 sequence 仅覆盖 `run_status` 与 `model_step`，不覆盖真实 tool step、approval step、handoff step、Codex step、MCP step、step output/error、retry attempt、rollback state 或 cancellation event。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

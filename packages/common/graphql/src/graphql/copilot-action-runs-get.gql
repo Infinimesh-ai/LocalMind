@@ -35,6 +35,7 @@ query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
           routeCount
           routeCountMismatch
           runId
+          sequence
           status
           stepId
           stepType

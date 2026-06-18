@@ -590,6 +590,7 @@ type CopilotActionRunAgentRuntimeTimelineItemType {
   routeCount: SafeInt!
   routeCountMismatch: Boolean!
   runId: String!
+  sequence: SafeInt!
   status: String!
   stepId: String
   stepType: String

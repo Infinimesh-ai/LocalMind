@@ -686,6 +686,7 @@ export interface CopilotActionRunAgentRuntimeTimelineItemType {
   routeCount: Scalars['SafeInt']['output'];
   routeCountMismatch: Scalars['Boolean']['output'];
   runId: Scalars['String']['output'];
+  sequence: Scalars['SafeInt']['output'];
   status: Scalars['String']['output'];
   stepId?: Maybe<Scalars['String']['output']>;
   stepType?: Maybe<Scalars['String']['output']>;
@@ -8368,6 +8369,7 @@ export type GetCopilotActionRunsQuery = {
           routeCount: number;
           routeCountMismatch: boolean;
           runId: string;
+          sequence: number;
           status: string;
           stepId: string | null;
           stepType: string | null;

@@ -4853,6 +4853,7 @@ function formatActionRunAgentRuntimeTimelineItem(
   item: ActionRunDiagnosticsItem['agentRuntimeTimelineItems'][number]
 ) {
   return compactList([
+    `#${item.sequence}`,
     `Timeline ${formatFeatureKind(item.eventType)}`,
     `status ${formatFeatureKind(item.status)}`,
     item.stepId ? `step ${item.stepId}` : 'run',

@@ -2713,6 +2713,7 @@ const actionRunsPayload = [
         routeCount: 3,
         routeCountMismatch: false,
         runId: 'run-123',
+        sequence: 0,
         status: 'completed',
         stepId: null,
         stepType: null,
@@ -2726,6 +2727,7 @@ const actionRunsPayload = [
         routeCount: 2,
         routeCountMismatch: true,
         runId: 'run-123',
+        sequence: 1,
         status: 'completed',
         stepId: 'generate',
         stepType: 'model',
@@ -2739,6 +2741,7 @@ const actionRunsPayload = [
         routeCount: 1,
         routeCountMismatch: false,
         runId: 'run-123',
+        sequence: 2,
         status: 'completed',
         stepId: 'generate-image',
         stepType: 'model',
@@ -3001,6 +3004,7 @@ const actionRunsPayload = [
         routeCount: 0,
         routeCountMismatch: false,
         runId: 'run-failed',
+        sequence: 0,
         status: 'failed',
         stepId: null,
         stepType: null,
@@ -6771,18 +6775,18 @@ describe('AiPage', () => {
     const visibleTimeline =
       screen.getByTestId('action-run-timeline-run-123').textContent ?? '';
     expect(visibleTimeline).toContain(
-      'Timeline Run Status / status Completed / run / routes 3/3'
+      '#0 / Timeline Run Status / status Completed / run / routes 3/3'
     );
     expect(visibleTimeline).toContain(
-      'Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 1/2 / route count mismatch'
+      '#1 / Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 1/2 / route count mismatch'
     );
     expect(visibleTimeline).toContain(
-      'Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1'
+      '#2 / Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1'
     );
     const failedVisibleTimeline =
       screen.getByTestId('action-run-timeline-run-failed').textContent ?? '';
     expect(failedVisibleTimeline).toContain(
-      'Timeline Run Status / status Failed / run / routes 0/0'
+      '#0 / Timeline Run Status / status Failed / run / routes 0/0'
     );
     const actionRunDiagnostics =
       screen.getByTestId('action-run-diagnostics-run-123').textContent ?? '';
@@ -6812,7 +6816,7 @@ describe('AiPage', () => {
       'Agent runtime timeline entries run -> completed | generate -> model_step -> completed -> structured -> 2/2 | generate-image -> model_step -> completed -> image -> 1/1'
     );
     expect(actionRunDiagnostics).toContain(
-      'Agent runtime timeline items Timeline Run Status / status Completed / run / routes 3/3 | Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 1/2 / route count mismatch | Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1'
+      'Agent runtime timeline items #0 / Timeline Run Status / status Completed / run / routes 3/3 | #1 / Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 1/2 / route count mismatch | #2 / Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1'
     );
     expect(actionRunDiagnostics).toContain(
       'Agent runtime timeline event types run_status | model_step'
@@ -6902,7 +6906,7 @@ describe('AiPage', () => {
       'Agent runtime timeline entries run -> failed'
     );
     expect(failedRunDiagnostics).toContain(
-      'Agent runtime timeline items Timeline Run Status / status Failed / run / routes 0/0'
+      'Agent runtime timeline items #0 / Timeline Run Status / status Failed / run / routes 0/0'
     );
     expect(failedRunDiagnostics).toContain(
       'Agent runtime timeline event types run_status'

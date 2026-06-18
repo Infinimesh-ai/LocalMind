@@ -3457,6 +3457,7 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       agentRuntimeTimelineItems: [
         {
           id: `${run.id}:run_status`,
+          sequence: 0,
           eventType: 'run_status',
           label: 'run -> completed',
           runId: run.id,
@@ -3470,6 +3471,7 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
         },
         {
           id: `${run.id}:0:generate:model_step`,
+          sequence: 1,
           eventType: 'model_step',
           label: 'generate -> model_step -> completed -> structured -> 1/1',
           runId: run.id,
@@ -3693,6 +3695,7 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       agentRuntimeTimelineItems: [
         {
           id: `${failedRun.id}:run_status`,
+          sequence: 0,
           eventType: 'run_status',
           label: 'run -> failed',
           runId: failedRun.id,
