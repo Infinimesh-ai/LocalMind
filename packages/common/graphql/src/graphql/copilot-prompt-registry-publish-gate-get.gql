@@ -602,6 +602,7 @@ query getCopilotPromptRegistryPublishGate(
             candidateModelIds
             modelId
             preparedModelId
+            preparedRouteTargetFingerprint
             providerConfiguredModelCount
             providerConfiguredModelIds
             providerId

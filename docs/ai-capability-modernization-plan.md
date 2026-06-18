@@ -12295,3 +12295,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - fingerprint 只覆盖 `featureKind + preparedRouteTargets`，不覆盖 fallback order、route candidates、policy candidates、provider health、capability metadata、embedding dimensions、latency、cost、token usage、provider response 或真实 dispatch result。
 - fingerprint 仍是 GraphQL diagnostics projection，不是持久化 route event、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 360. P3 落地记录：Task Route Target Fingerprint Candidate Evidence
+
+本轮继续收敛第 359 节剩余风险中 “`preparedRouteTargetFingerprint` 仍只是 task route diagnostics projection，尚未进入 Prompt Registry repair candidate evidence / guard evidence 链路” 的问题。实际代码与目标 AI 中间层架构的冲突点是：完整 route explain、support bundle 与 repair guard 应该能把 task route target set fingerprint 纳入候选证据集合，使 “当前 workspace indexing/rerank 目标链是否变化” 影响后续只读 preview/preflight/execution request contract；但当前 repair recommendation 只记录 policy/route/prepare candidate 的 provider/model/candidate key，无法直接证明某个 recommendation 是针对哪一组 prepared targets 生成的。本轮先把 target fingerprint 纳入 task route repair candidate evidence。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 新增 `preparedRouteTargetFingerprint`。
+  - `taskRouteCandidateProfileStructuredEvidence()` 为 policy candidate、route candidate 与 prepare candidate evidence 统一写入当前 task route 的 `preparedRouteTargetFingerprint`。
+  - 由于 candidate fingerprint 使用完整 candidate evidence 计算，`candidateEvidenceFingerprint` 与 `candidateEvidenceSetFingerprint` 会自动对 target fingerprint 变化敏感。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、common query string 与 `GetCopilotPromptRegistryPublishGateQuery` 类型同步新增 repair candidate evidence 的 `preparedRouteTargetFingerprint`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence diagnostics text 显示 `target fingerprint ...`，让管理员复制 publish gate/repair evidence 时能看到 task target fingerprint 已进入 evidence set。
+- 测试覆盖：
+  - resolver source chain smoke 断言 task diagnostics repair recommendation 的 policy/route/prepare candidate evidence 都携带与 task route 一致的 `preparedRouteTargetFingerprint`。
+  - Admin Vitest fixture 为 task route repair candidate evidence 动态注入 blocked route target fingerprint，并断言 diagnostics text 显示该 fingerprint。
+
+该实现只扩展只读 repair candidate evidence，不新增 DB migration、不创建 Model Registry/Provider Registry revision row、不改变 repair action catalog、不新增 mutation input、不改变 preview/preflight/execution gate 字段名、不改变 provider route selection、fallback order、route policy、Prompt Registry publish gate 判定、embedding/rerank request 参数、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把 task route target fingerprint 从“route diagnostics 自身可比较”推进到“repair candidate evidence set 对 target fingerprint 敏感”，为后续 support bundle、route explain、repair guard、DB-backed route event 与 Model Registry revision 对齐提供更完整的过渡证据链。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused Prettier、oxlint、resolver source chain smoke 与 Admin AI Vitest。
+
+剩余风险：
+
+- candidate evidence 仍只携带 target fingerprint，不携带完整 `preparedRouteTargets` 数组；人工可读 target list 仍在 task route diagnostics 字段中。
+- fingerprint 仍只覆盖 `featureKind + preparedRouteTargets`，不覆盖 fallback order、route candidates、policy candidates、provider health、capability metadata、embedding dimensions、latency、cost、token usage、provider response 或真实 dispatch result。
+- 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

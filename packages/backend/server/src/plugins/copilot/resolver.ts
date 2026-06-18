@@ -703,6 +703,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   candidateModelIds?: string[];
   modelId?: string;
   preparedModelId?: string;
+  preparedRouteTargetFingerprint?: string;
   providerConfiguredModelCount?: number;
   providerConfiguredModelIds?: string[];
   providerId: string;
@@ -1694,6 +1695,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   preparedModelId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedModelId'];
+
+  @Field(() => String, { nullable: true })
+  preparedRouteTargetFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedRouteTargetFingerprint'];
 
   @Field(() => SafeIntResolver, { nullable: true })
   providerConfiguredModelCount?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerConfiguredModelCount'];
@@ -4040,6 +4044,7 @@ function taskRouteRepairCandidateEvidenceBase(
     candidateModelIds?: string[];
     modelId?: string;
     preparedModelId?: string;
+    preparedRouteTargetFingerprint?: string;
     providerConfiguredModelCount?: number;
     providerConfiguredModelIds?: string[];
     providerId: string;
@@ -4070,6 +4075,12 @@ function taskRouteRepairCandidateEvidenceBase(
     ...(candidate.modelId !== undefined ? { modelId: candidate.modelId } : {}),
     ...(candidate.preparedModelId !== undefined
       ? { preparedModelId: candidate.preparedModelId }
+      : {}),
+    ...(candidate.preparedRouteTargetFingerprint !== undefined
+      ? {
+          preparedRouteTargetFingerprint:
+            candidate.preparedRouteTargetFingerprint,
+        }
       : {}),
     ...(candidate.providerConfiguredModelCount !== undefined
       ? { providerConfiguredModelCount: candidate.providerConfiguredModelCount }
@@ -4124,6 +4135,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       candidateModelIds?: string[];
       modelId?: string;
       preparedModelId?: string;
+      preparedRouteTargetFingerprint?: string;
       providerConfiguredModelCount?: number;
       providerConfiguredModelIds?: string[];
       providerId: string;
@@ -4142,7 +4154,10 @@ function taskRouteCandidateProfileStructuredEvidence(
   ): CopilotPromptRegistryPublishGateRepairCandidateEvidence => {
     const evidence = taskRouteRepairCandidateEvidenceBase(
       scope,
-      candidate,
+      {
+        ...candidate,
+        preparedRouteTargetFingerprint: route.preparedRouteTargetFingerprint,
+      },
       index
     );
 

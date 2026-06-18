@@ -5542,8 +5542,13 @@ async function main() {
   );
   assert.equal(taskDiagnosticsPolicyCandidateEvidence?.candidateIndex, 0);
   assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.candidateKey,
+    routeReadyGate?.taskRoutes[0]?.policyCandidates[0]?.candidateKey
+  );
+  assert.notEqual(
     taskDiagnosticsPolicyCandidateEvidence?.candidateFingerprint,
-    routeReadyGate?.taskRoutes[0]?.policyCandidates[0]?.candidateFingerprint
+    routeReadyGate?.taskRoutes[0]?.policyCandidates[0]?.candidateFingerprint,
+    'policy candidate repair evidence fingerprint should include the route target fingerprint'
   );
   assert.equal(
     taskDiagnosticsPolicyCandidateEvidence?.candidateKey?.includes('policy'),
@@ -5574,6 +5579,11 @@ async function main() {
     ),
     true
   );
+  assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.preparedRouteTargetFingerprint,
+    taskDiagnosticsErrorRoute?.preparedRouteTargetFingerprint,
+    'policy candidate evidence should bind the task route target fingerprint'
+  );
   const taskDiagnosticsRouteCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'routeCandidate'
@@ -5598,6 +5608,11 @@ async function main() {
     ),
     true
   );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.preparedRouteTargetFingerprint,
+    taskDiagnosticsErrorRoute?.preparedRouteTargetFingerprint,
+    'route candidate evidence should bind the task route target fingerprint'
+  );
   const taskDiagnosticsPrepareCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'prepareCandidate'
@@ -5617,6 +5632,11 @@ async function main() {
   assert.equal(
     taskDiagnosticsPrepareCandidateEvidence?.providerProfileConfigPath,
     'copilot.providers.profiles[id=local]'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.preparedRouteTargetFingerprint,
+    taskDiagnosticsErrorRoute?.preparedRouteTargetFingerprint,
+    'prepare candidate evidence should bind the task route target fingerprint'
   );
   const taskDiagnosticsErrorPreviewOperation =
     taskDiagnosticsErrorGate?.repairActionPreview.operations.find(

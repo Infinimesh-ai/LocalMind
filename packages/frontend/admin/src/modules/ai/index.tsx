@@ -2951,6 +2951,9 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
     evidence.requestedModelId ? `requested ${evidence.requestedModelId}` : null,
     evidence.modelId ? `model ${evidence.modelId}` : null,
     evidence.preparedModelId ? `prepared ${evidence.preparedModelId}` : null,
+    evidence.preparedRouteTargetFingerprint
+      ? `target fingerprint ${evidence.preparedRouteTargetFingerprint}`
+      : null,
     evidence.routeModelDefinitionId
       ? `definition ${evidence.routeModelDefinitionId}`
       : null,

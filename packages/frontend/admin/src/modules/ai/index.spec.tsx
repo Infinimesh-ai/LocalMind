@@ -1975,6 +1975,8 @@ const readyPublishGateVerdict = withRepairActionPreview(
             candidateModelIds: null,
             modelId: null,
             preparedModelId: null,
+            preparedRouteTargetFingerprint:
+              blockedRoute.preparedRouteTargetFingerprint,
             providerConfiguredModelCount: 1,
             providerConfiguredModelIds: ['workspace-embedding'],
             providerId: 'ollama-main',
@@ -1997,6 +1999,8 @@ const readyPublishGateVerdict = withRepairActionPreview(
             candidateModelIds: ['workspace-embedding'],
             modelId: 'workspace-embedding',
             preparedModelId: null,
+            preparedRouteTargetFingerprint:
+              blockedRoute.preparedRouteTargetFingerprint,
             providerConfiguredModelCount: 1,
             providerConfiguredModelIds: ['workspace-embedding'],
             providerId: 'ollama-main',
@@ -2019,6 +2023,8 @@ const readyPublishGateVerdict = withRepairActionPreview(
             candidateModelIds: ['workspace-embedding'],
             modelId: 'workspace-embedding',
             preparedModelId: 'nomic-embed-text',
+            preparedRouteTargetFingerprint:
+              blockedRoute.preparedRouteTargetFingerprint,
             providerConfiguredModelCount: 1,
             providerConfiguredModelIds: ['workspace-embedding'],
             providerId: 'ollama-main',
@@ -5940,7 +5946,10 @@ describe('AiPage', () => {
       'candidate evidence Policy Candidate #0 / fingerprint '
     );
     expect(readyGateDiagnostics).toContain(
-      'key policy:workspace_indexing:global:ollama-main / provider ollama-main'
+      `key policy:workspace_indexing:global:ollama-main / provider ollama-main`
+    );
+    expect(readyGateDiagnostics).toContain(
+      `target fingerprint ${blockedRoute.preparedRouteTargetFingerprint}`
     );
     expect(readyGateDiagnostics).toContain(
       'provider ollama-main / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding'
