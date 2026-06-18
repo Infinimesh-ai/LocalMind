@@ -232,11 +232,17 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
           routeCanonicalModelKey
           routeFallbackProviderIds
           routeInputTypes
+          routeAttachmentAllowRemoteUrls
+          routeAttachmentKinds
+          routeAttachmentSourceKinds
           routeModelAliasMatched
           routeModelDefinitionAliases
           routeModelDefinitionId
           routeModelDefinitionSource
           routeOutputTypes
+          routeStructuredAttachmentAllowRemoteUrls
+          routeStructuredAttachmentKinds
+          routeStructuredAttachmentSourceKinds
           routeProtocol
           routeRawModelId
           routeRequestLayer
@@ -290,11 +296,17 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
           routeCanonicalModelKey
           routeFallbackProviderIds
           routeInputTypes
+          routeAttachmentAllowRemoteUrls
+          routeAttachmentKinds
+          routeAttachmentSourceKinds
           routeModelAliasMatched
           routeModelDefinitionAliases
           routeModelDefinitionId
           routeModelDefinitionSource
           routeOutputTypes
+          routeStructuredAttachmentAllowRemoteUrls
+          routeStructuredAttachmentKinds
+          routeStructuredAttachmentSourceKinds
           routeProtocol
           routeRawModelId
           routeRequestLayer

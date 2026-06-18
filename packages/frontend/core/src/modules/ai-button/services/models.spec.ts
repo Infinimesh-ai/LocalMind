@@ -911,6 +911,19 @@ describe('AIModelService model registry helpers', () => {
       'text-embedding-3-large',
       ['text-embedding-3-large'],
     ]);
+    const emptyRouteMetadata = {
+      routeAttachmentAllowRemoteUrls: null,
+      routeAttachmentKinds: null,
+      routeAttachmentSourceKinds: null,
+      routeContextWindow: null,
+      routeEmbeddingDimensions: null,
+      routeInputTypes: null,
+      routeMaxOutputTokens: null,
+      routeOutputTypes: null,
+      routeStructuredAttachmentAllowRemoteUrls: null,
+      routeStructuredAttachmentKinds: null,
+      routeStructuredAttachmentSourceKinds: null,
+    };
 
     expect(
       getAIModelTaskRouteCandidateTrace({
@@ -1138,6 +1151,7 @@ describe('AIModelService model registry helpers', () => {
           registryKind: 'byok',
           registrySelected: true,
           requestedModelId: 'workspace-embedding',
+          ...emptyRouteMetadata,
           severity: 'info',
           status: 'prepared',
         },
@@ -1259,6 +1273,7 @@ describe('AIModelService model registry helpers', () => {
           registryKind: 'byok',
           registrySelected: true,
           requestedModelId: 'workspace-embedding-large',
+          ...emptyRouteMetadata,
           severity: 'error',
           status: 'filtered',
         },
@@ -1365,6 +1380,7 @@ describe('AIModelService model registry helpers', () => {
           registryKind: 'quota_backed',
           registrySelected: false,
           requestedModelId: 'workspace-embedding',
+          ...emptyRouteMetadata,
           severity: 'error',
           status: 'unmatched',
         },
@@ -1441,6 +1457,7 @@ describe('AIModelService model registry helpers', () => {
           registryKind: 'quota_backed',
           registrySelected: false,
           requestedModelId: null,
+          ...emptyRouteMetadata,
           severity: 'warning',
           status: 'prepare_only',
         },
@@ -2091,6 +2108,12 @@ describe('AIModelService model registry helpers', () => {
           routeBehaviorFlags: ['disable_parallel_tool_calls'],
           routeInputTypes: ['text', 'image'],
           routeOutputTypes: ['text', 'structured'],
+          routeAttachmentKinds: ['file'],
+          routeAttachmentSourceKinds: ['url', 'data'],
+          routeAttachmentAllowRemoteUrls: false,
+          routeStructuredAttachmentKinds: ['image'],
+          routeStructuredAttachmentSourceKinds: ['file_handle'],
+          routeStructuredAttachmentAllowRemoteUrls: true,
           contextWindow: 32768,
           maxOutputTokens: 4096,
           embeddingDimensions: null,
@@ -2326,6 +2349,12 @@ describe('AIModelService model registry helpers', () => {
         routeBehaviorFlags: ['disable_parallel_tool_calls'],
         routeInputTypes: ['text', 'image'],
         routeOutputTypes: ['text', 'structured'],
+        routeAttachmentKinds: ['file'],
+        routeAttachmentSourceKinds: ['url', 'data'],
+        routeAttachmentAllowRemoteUrls: false,
+        routeStructuredAttachmentKinds: ['image'],
+        routeStructuredAttachmentSourceKinds: ['file_handle'],
+        routeStructuredAttachmentAllowRemoteUrls: true,
         contextWindow: 32768,
         maxOutputTokens: 4096,
         embeddingDimensions: null,
@@ -2953,8 +2982,16 @@ describe('AIModelService model registry helpers', () => {
       formatAIModelCapabilityLabel({
         routeInputTypes: ['text', 'image'],
         routeOutputTypes: ['text', 'structured'],
+        routeAttachmentKinds: ['file'],
+        routeAttachmentSourceKinds: ['url', 'data'],
+        routeAttachmentAllowRemoteUrls: false,
+        routeStructuredAttachmentKinds: ['image'],
+        routeStructuredAttachmentSourceKinds: ['file_handle'],
+        routeStructuredAttachmentAllowRemoteUrls: true,
       })
-    ).toBe('Input text, image / Output text, structured');
+    ).toBe(
+      'Input text, image / Output text, structured / Attachments file / Attachment sources url, data / Remote attachments no / Structured attachments image / Structured attachment sources file_handle / Structured remote attachments yes'
+    );
     expect(
       formatAIModelCapabilityLabel({
         routeInputTypes: null,
@@ -3092,9 +3129,15 @@ describe('AIModelService model registry helpers', () => {
         providerPrivacy: 'local',
         providerType: 'openaiCompatible',
         routeFallbackProviderIds: ['openai-default'],
+        routeAttachmentKinds: ['file'],
+        routeAttachmentSourceKinds: ['url', 'data'],
+        routeAttachmentAllowRemoteUrls: false,
         routeInputTypes: ['text'],
         routeModelId: 'qwen3:32b',
         routeOutputTypes: ['text'],
+        routeStructuredAttachmentKinds: ['image'],
+        routeStructuredAttachmentSourceKinds: ['file_handle'],
+        routeStructuredAttachmentAllowRemoteUrls: true,
         routePolicyAllowedPrivacy: ['local', 'private_cloud'],
         routePolicyAllowedProviderIds: ['ollama-main'],
         routePolicyBlockedProviderIds: ['blocked-cloud'],
@@ -3108,7 +3151,7 @@ describe('AIModelService model registry helpers', () => {
       'Local Ollama (ollama-main) / Local / Healthy',
       'Route ollama-main/qwen3:32b',
       'Fallback openai-default',
-      'Input text / Output text',
+      'Input text / Output text / Attachments file / Attachment sources url, data / Remote attachments no / Structured attachments image / Structured attachment sources file_handle / Structured remote attachments yes',
       'Policy Chat / Workspace workspace-local-only / Allowed Local, Private cloud / Preferred Local / Providers ollama-main / Blocked blocked-cloud',
       'Default / Prompt / Registry',
       '32.8K ctx / 4.1K out',

@@ -88,6 +88,12 @@ export interface AIModel {
   routeBehaviorFlags?: string[] | null;
   routeInputTypes?: string[] | null;
   routeOutputTypes?: string[] | null;
+  routeAttachmentAllowRemoteUrls?: boolean | null;
+  routeAttachmentKinds?: string[] | null;
+  routeAttachmentSourceKinds?: string[] | null;
+  routeStructuredAttachmentAllowRemoteUrls?: boolean | null;
+  routeStructuredAttachmentKinds?: string[] | null;
+  routeStructuredAttachmentSourceKinds?: string[] | null;
   contextWindow?: number | null;
   maxOutputTokens?: number | null;
   embeddingDimensions?: number | null;
@@ -2058,6 +2064,14 @@ export function buildAIModels(models: CopilotModels): AIModel[] {
         routeBehaviorFlags: model.routeBehaviorFlags,
         routeInputTypes: model.routeInputTypes,
         routeOutputTypes: model.routeOutputTypes,
+        routeAttachmentAllowRemoteUrls: model.routeAttachmentAllowRemoteUrls,
+        routeAttachmentKinds: model.routeAttachmentKinds,
+        routeAttachmentSourceKinds: model.routeAttachmentSourceKinds,
+        routeStructuredAttachmentAllowRemoteUrls:
+          model.routeStructuredAttachmentAllowRemoteUrls,
+        routeStructuredAttachmentKinds: model.routeStructuredAttachmentKinds,
+        routeStructuredAttachmentSourceKinds:
+          model.routeStructuredAttachmentSourceKinds,
         contextWindow: model.contextWindow,
         maxOutputTokens: model.maxOutputTokens,
         embeddingDimensions: model.embeddingDimensions,
@@ -2243,7 +2257,17 @@ export function formatAIModelDefinitionLabel(
 }
 
 export function formatAIModelCapabilityLabel(
-  model: Pick<AIModel, 'routeInputTypes' | 'routeOutputTypes'>
+  model: Pick<
+    AIModel,
+    | 'routeAttachmentAllowRemoteUrls'
+    | 'routeAttachmentKinds'
+    | 'routeAttachmentSourceKinds'
+    | 'routeInputTypes'
+    | 'routeOutputTypes'
+    | 'routeStructuredAttachmentAllowRemoteUrls'
+    | 'routeStructuredAttachmentKinds'
+    | 'routeStructuredAttachmentSourceKinds'
+  >
 ) {
   return [
     model.routeInputTypes?.length
@@ -2251,6 +2275,24 @@ export function formatAIModelCapabilityLabel(
       : null,
     model.routeOutputTypes?.length
       ? `Output ${model.routeOutputTypes.join(', ')}`
+      : null,
+    model.routeAttachmentKinds?.length
+      ? `Attachments ${model.routeAttachmentKinds.join(', ')}`
+      : null,
+    model.routeAttachmentSourceKinds?.length
+      ? `Attachment sources ${model.routeAttachmentSourceKinds.join(', ')}`
+      : null,
+    model.routeAttachmentAllowRemoteUrls != null
+      ? `Remote attachments ${model.routeAttachmentAllowRemoteUrls ? 'yes' : 'no'}`
+      : null,
+    model.routeStructuredAttachmentKinds?.length
+      ? `Structured attachments ${model.routeStructuredAttachmentKinds.join(', ')}`
+      : null,
+    model.routeStructuredAttachmentSourceKinds?.length
+      ? `Structured attachment sources ${model.routeStructuredAttachmentSourceKinds.join(', ')}`
+      : null,
+    model.routeStructuredAttachmentAllowRemoteUrls != null
+      ? `Structured remote attachments ${model.routeStructuredAttachmentAllowRemoteUrls ? 'yes' : 'no'}`
       : null,
   ]
     .filter(Boolean)
@@ -2880,9 +2922,15 @@ export function formatAIModelMenuLabels(
     | 'providerPrivacy'
     | 'providerType'
     | 'routeFallbackProviderIds'
+    | 'routeAttachmentAllowRemoteUrls'
+    | 'routeAttachmentKinds'
+    | 'routeAttachmentSourceKinds'
     | 'routeInputTypes'
     | 'routeModelId'
     | 'routeOutputTypes'
+    | 'routeStructuredAttachmentAllowRemoteUrls'
+    | 'routeStructuredAttachmentKinds'
+    | 'routeStructuredAttachmentSourceKinds'
     | 'routePolicyAllowedPrivacy'
     | 'routePolicyAllowedProviderIds'
     | 'routePolicyBlockedProviderIds'
@@ -2948,6 +2996,9 @@ export function formatAIModelDiagnosticsLabel(
     | 'routeBackendKind'
     | 'routeBehaviorFlags'
     | 'routeCanonicalModelKey'
+    | 'routeAttachmentAllowRemoteUrls'
+    | 'routeAttachmentKinds'
+    | 'routeAttachmentSourceKinds'
     | 'routeInputTypes'
     | 'routeModelAliasMatched'
     | 'routeModelDefinitionAliases'
@@ -2956,6 +3007,9 @@ export function formatAIModelDiagnosticsLabel(
     | 'routeModelId'
     | 'routeFallbackProviderIds'
     | 'routeOutputTypes'
+    | 'routeStructuredAttachmentAllowRemoteUrls'
+    | 'routeStructuredAttachmentKinds'
+    | 'routeStructuredAttachmentSourceKinds'
     | 'routeProtocol'
     | 'routeRawModelId'
     | 'routeRequestLayer'

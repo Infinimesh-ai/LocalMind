@@ -970,6 +970,9 @@ export interface CopilotModelType {
   routeBehaviorFlags?: Maybe<Array<Scalars['String']['output']>>;
   routeCanonicalModelKey?: Maybe<Scalars['String']['output']>;
   routeFallbackProviderIds?: Maybe<Array<Scalars['String']['output']>>;
+  routeAttachmentAllowRemoteUrls?: Maybe<Scalars['Boolean']['output']>;
+  routeAttachmentKinds?: Maybe<Array<Scalars['String']['output']>>;
+  routeAttachmentSourceKinds?: Maybe<Array<Scalars['String']['output']>>;
   routeInputTypes?: Maybe<Array<Scalars['String']['output']>>;
   routeModelAliasMatched?: Maybe<Scalars['Boolean']['output']>;
   routeModelDefinitionAliases?: Maybe<Array<Scalars['String']['output']>>;
@@ -977,6 +980,13 @@ export interface CopilotModelType {
   routeModelDefinitionSource?: Maybe<Scalars['String']['output']>;
   routeModelId?: Maybe<Scalars['String']['output']>;
   routeOutputTypes?: Maybe<Array<Scalars['String']['output']>>;
+  routeStructuredAttachmentAllowRemoteUrls?: Maybe<
+    Scalars['Boolean']['output']
+  >;
+  routeStructuredAttachmentKinds?: Maybe<Array<Scalars['String']['output']>>;
+  routeStructuredAttachmentSourceKinds?: Maybe<
+    Array<Scalars['String']['output']>
+  >;
   routeProtocol?: Maybe<Scalars['String']['output']>;
   routeRawModelId?: Maybe<Scalars['String']['output']>;
   routeRequestLayer?: Maybe<Scalars['String']['output']>;
@@ -7038,6 +7048,9 @@ export type GetPromptModelsQuery = {
           routeBehaviorFlags: Array<string> | null;
           routeCanonicalModelKey: string | null;
           routeFallbackProviderIds: Array<string> | null;
+          routeAttachmentAllowRemoteUrls: boolean | null;
+          routeAttachmentKinds: Array<string> | null;
+          routeAttachmentSourceKinds: Array<string> | null;
           routeInputTypes: Array<string> | null;
           routeModelAliasMatched: boolean | null;
           routeModelDefinitionAliases: Array<string> | null;
@@ -7045,6 +7058,9 @@ export type GetPromptModelsQuery = {
           routeModelDefinitionSource: string | null;
           routeModelId: string | null;
           routeOutputTypes: Array<string> | null;
+          routeStructuredAttachmentAllowRemoteUrls: boolean | null;
+          routeStructuredAttachmentKinds: Array<string> | null;
+          routeStructuredAttachmentSourceKinds: Array<string> | null;
           routeProtocol: string | null;
           routeRawModelId: string | null;
           routeRequestLayer: string | null;
@@ -7098,6 +7114,9 @@ export type GetPromptModelsQuery = {
           routeBehaviorFlags: Array<string> | null;
           routeCanonicalModelKey: string | null;
           routeFallbackProviderIds: Array<string> | null;
+          routeAttachmentAllowRemoteUrls: boolean | null;
+          routeAttachmentKinds: Array<string> | null;
+          routeAttachmentSourceKinds: Array<string> | null;
           routeInputTypes: Array<string> | null;
           routeModelAliasMatched: boolean | null;
           routeModelDefinitionAliases: Array<string> | null;
@@ -7105,6 +7124,9 @@ export type GetPromptModelsQuery = {
           routeModelDefinitionSource: string | null;
           routeModelId: string | null;
           routeOutputTypes: Array<string> | null;
+          routeStructuredAttachmentAllowRemoteUrls: boolean | null;
+          routeStructuredAttachmentKinds: Array<string> | null;
+          routeStructuredAttachmentSourceKinds: Array<string> | null;
           routeProtocol: string | null;
           routeRawModelId: string | null;
           routeRequestLayer: string | null;

@@ -12828,3 +12828,35 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - cost/limits 仍是只读 UI/diagnostics metadata，不参与 token budgeting、quota、route policy DSL、repair guard、billing、support bundle schema 或审计记录。
 - workspace indexing runtime 仍强制请求并校验 `EMBEDDING_DIMENSIONS = 1024`；模型列表显示非 1024 `embeddingDimensions` 只代表模型声明，不代表索引维度已迁移。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 377. P3 落地记录：Model List Attachment Capability Metadata Visibility
+
+本轮继续收敛“前端模型列表、自部署模型配置、Model Registry 元数据可见性”方向中的 capability 可见性缺口。实际代码与目标 AI 中间层架构的冲突点是：task route candidate 已经能透出 provider/profile model definition 声明的 attachment 与 structured attachment 能力摘要，但 `CopilotResolver.models()` 的普通模型列表只暴露 `routeInputTypes` 与 `routeOutputTypes`；Admin/AI button 模型列表因此无法直接看到自部署模型是否声明了附件类型、附件来源、远程附件开关或 structured attachment 能力。本轮只把同一组只读 capability metadata 贯通到模型列表，不改变附件 materializer、真实附件准入、host fetch 或 provider upload 行为。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `collectModelCapabilityTypes()` 从 capabilities 汇总 `routeAttachmentKinds`、`routeAttachmentSourceKinds`、`routeAttachmentAllowRemoteUrls`、`routeStructuredAttachmentKinds`、`routeStructuredAttachmentSourceKinds` 与 `routeStructuredAttachmentAllowRemoteUrls`。
+  - `models()` / `convertModels()` 优先使用非空 `profileDefinition.capabilities`，再回退 `resolvedProviderModel.capabilities`，让模型列表不依赖 provider runtime 恰好预合并 profile definition capability。
+  - `CopilotModelType` 暴露上述附件能力摘要字段，字段名与 task route candidate 保持一致。
+- GraphQL 与 common client：
+  - `schema.gql`、`getPromptModels` selection 与 `schema.ts` 类型同步新增普通模型列表的附件能力摘要字段。
+- `packages/frontend/core/src/modules/ai-button/services/models.ts`：
+  - `AIModel`、`buildAIModels()` 与 `formatAIModelCapabilityLabel()` 贯通并显示附件能力摘要。
+  - Admin 模型列表继续复用同一个 formatter，因此普通模型列表的 capability 列和 copyable diagnostics text 都能看到附件/structured attachment 摘要。
+- 测试覆盖：
+  - resolver source chain smoke 断言 `local/default-chat` 的模型列表从 provider profile model definition 暴露 input/output、attachment 与 structured attachment capability，即使 fake provider `resolveModel()` 没有合并这些字段。
+  - frontend core Vitest 覆盖 GraphQL payload 映射、capability label、菜单 label 与 diagnostics label。
+  - Admin AI Vitest 验证 Admin 模型列表仍能消费更新后的模型字段与 formatter。
+
+该实现只扩展普通模型列表的只读 capability metadata、GraphQL selection/type、前端 formatter 和测试，不新增 DB migration、不创建 Capability Registry、Model Registry/Provider Registry revision row、不改变 route policy DSL、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、审批写入路径、附件 materializer、host fetch admission 或真实 provider capability probing。它把“附件能力只在 task route candidate 可见”推进到“普通模型列表也能显示同源 capability 摘要”，减少自部署模型配置在前端可见性上的漂移。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/frontend test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、frontend core AI model Vitest、Admin AI Vitest、Prettier/oxlint 与 `git diff --check`。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- 模型列表附件能力仍只来自 profile definition / provider runtime / native registry 的静态声明，不执行真实 provider probing，不验证实际上传、host fetch、remote URL admission、MIME sniff 或 provider-specific attachment API 支持。
+- `allowRemoteUrls: false` 只表示声明层摘要，不代表运行时请求一定经过完整附件安全策略、内容扫描、URL allowlist、size limit 或审计记录。
+- capability metadata 仍是只读 UI/diagnostics 字段，不参与 route policy DSL、repair guard、support bundle schema、Capability Registry revision、Model Registry revision 或审计记录。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

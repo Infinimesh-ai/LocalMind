@@ -3908,9 +3908,13 @@ function resolvePromptRegistryPublishGateModelRouteCandidates(
 }
 
 function collectModelCapabilityTypes(
-  providerModel: Partial<ResolvedProviderModel> | undefined
+  capabilities:
+    | Partial<ResolvedProviderModel>['capabilities']
+    | NonNullable<
+        ResolvedCopilotProvider['profile']['modelDefinitions']
+      >[number]['capabilities']
+    | undefined
 ) {
-  const capabilities = providerModel?.capabilities;
   if (!Array.isArray(capabilities) || !capabilities.length) {
     return {};
   }
@@ -3921,10 +3925,71 @@ function collectModelCapabilityTypes(
   const outputTypes = Array.from(
     new Set(capabilities.flatMap(capability => capability.output ?? []))
   );
+  const attachmentKinds = Array.from(
+    new Set(
+      capabilities.flatMap(capability => capability.attachments?.kinds ?? [])
+    )
+  );
+  const attachmentSourceKinds = Array.from(
+    new Set(
+      capabilities.flatMap(
+        capability => capability.attachments?.sourceKinds ?? []
+      )
+    )
+  );
+  const hasAttachmentCapability = capabilities.some(
+    capability => capability.attachments !== undefined
+  );
+  const attachmentAllowRemoteUrls = capabilities.some(
+    capability => capability.attachments?.allowRemoteUrls === true
+  );
+  const structuredAttachmentKinds = Array.from(
+    new Set(
+      capabilities.flatMap(
+        capability => capability.structuredAttachments?.kinds ?? []
+      )
+    )
+  );
+  const structuredAttachmentSourceKinds = Array.from(
+    new Set(
+      capabilities.flatMap(
+        capability => capability.structuredAttachments?.sourceKinds ?? []
+      )
+    )
+  );
+  const hasStructuredAttachmentCapability = capabilities.some(
+    capability => capability.structuredAttachments !== undefined
+  );
+  const structuredAttachmentAllowRemoteUrls = capabilities.some(
+    capability => capability.structuredAttachments?.allowRemoteUrls === true
+  );
 
   return {
     ...(inputTypes.length ? { routeInputTypes: inputTypes } : {}),
     ...(outputTypes.length ? { routeOutputTypes: outputTypes } : {}),
+    ...(attachmentKinds.length
+      ? { routeAttachmentKinds: attachmentKinds }
+      : {}),
+    ...(attachmentSourceKinds.length
+      ? { routeAttachmentSourceKinds: attachmentSourceKinds }
+      : {}),
+    ...(hasAttachmentCapability
+      ? { routeAttachmentAllowRemoteUrls: attachmentAllowRemoteUrls }
+      : {}),
+    ...(structuredAttachmentKinds.length
+      ? { routeStructuredAttachmentKinds: structuredAttachmentKinds }
+      : {}),
+    ...(structuredAttachmentSourceKinds.length
+      ? {
+          routeStructuredAttachmentSourceKinds: structuredAttachmentSourceKinds,
+        }
+      : {}),
+    ...(hasStructuredAttachmentCapability
+      ? {
+          routeStructuredAttachmentAllowRemoteUrls:
+            structuredAttachmentAllowRemoteUrls,
+        }
+      : {}),
   };
 }
 
@@ -11385,6 +11450,24 @@ class CopilotModelType {
   @Field(() => [String], { nullable: true })
   routeOutputTypes?: string[];
 
+  @Field(() => [String], { nullable: true })
+  routeAttachmentKinds?: string[];
+
+  @Field(() => [String], { nullable: true })
+  routeAttachmentSourceKinds?: string[];
+
+  @Field(() => Boolean, { nullable: true })
+  routeAttachmentAllowRemoteUrls?: boolean;
+
+  @Field(() => [String], { nullable: true })
+  routeStructuredAttachmentKinds?: string[];
+
+  @Field(() => [String], { nullable: true })
+  routeStructuredAttachmentSourceKinds?: string[];
+
+  @Field(() => Boolean, { nullable: true })
+  routeStructuredAttachmentAllowRemoteUrls?: boolean;
+
   @Field(() => String, { nullable: true })
   providerType?: string;
 
@@ -13817,6 +13900,9 @@ export class CopilotResolver {
             resolvedProviderModel.id !== routeModelDefinitionId
               ? resolvedProviderModel.id
               : undefined);
+          const routeCapabilities = profileDefinition?.capabilities?.length
+            ? profileDefinition.capabilities
+            : resolvedProviderModel?.capabilities;
           const modelDefinitionMetadata = {
             ...(resolvedProviderModel?.backendKind
               ? { routeBackendKind: resolvedProviderModel.backendKind }
@@ -13848,7 +13934,7 @@ export class CopilotResolver {
                   routeBehaviorFlags: resolvedProviderModel.behaviorFlags,
                 }
               : {}),
-            ...collectModelCapabilityTypes(resolvedProviderModel),
+            ...collectModelCapabilityTypes(routeCapabilities),
           };
           const baseModelMetadata = {
             id,

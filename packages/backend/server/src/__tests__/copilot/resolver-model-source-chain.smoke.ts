@@ -1197,6 +1197,22 @@ async function main() {
                 inputPer1M: 0.13,
                 outputPer1M: 0.26,
               },
+              capabilities: [
+                {
+                  input: ['text', 'image'],
+                  output: ['text', 'structured'],
+                  attachments: {
+                    kinds: ['file'],
+                    sourceKinds: ['url', 'data'],
+                    allowRemoteUrls: false,
+                  },
+                  structuredAttachments: {
+                    kinds: ['image'],
+                    sourceKinds: ['file_handle'],
+                    allowRemoteUrls: true,
+                  },
+                },
+              ],
             },
             {
               id: 'optional-chat',
@@ -1562,6 +1578,37 @@ async function main() {
   assert.equal(byId.get('local/default-chat')?.embeddingDimensions, 1024);
   assert.equal(byId.get('local/default-chat')?.costInputPer1M, 0.13);
   assert.equal(byId.get('local/default-chat')?.costOutputPer1M, 0.26);
+  assert.deepEqual(byId.get('local/default-chat')?.routeInputTypes, [
+    'text',
+    'image',
+  ]);
+  assert.deepEqual(byId.get('local/default-chat')?.routeOutputTypes, [
+    'text',
+    'structured',
+  ]);
+  assert.deepEqual(byId.get('local/default-chat')?.routeAttachmentKinds, [
+    'file',
+  ]);
+  assert.deepEqual(byId.get('local/default-chat')?.routeAttachmentSourceKinds, [
+    'url',
+    'data',
+  ]);
+  assert.equal(
+    byId.get('local/default-chat')?.routeAttachmentAllowRemoteUrls,
+    false
+  );
+  assert.deepEqual(
+    byId.get('local/default-chat')?.routeStructuredAttachmentKinds,
+    ['image']
+  );
+  assert.deepEqual(
+    byId.get('local/default-chat')?.routeStructuredAttachmentSourceKinds,
+    ['file_handle']
+  );
+  assert.equal(
+    byId.get('local/default-chat')?.routeStructuredAttachmentAllowRemoteUrls,
+    true
+  );
   assert.equal(
     result.embeddingRoute?.routeCandidates[0]?.providerProfileId,
     'local'

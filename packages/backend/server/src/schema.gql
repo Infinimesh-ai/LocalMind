@@ -837,6 +837,12 @@ type CopilotModelType {
   routeModelDefinitionSource: String
   routeModelId: String
   routeOutputTypes: [String!]
+  routeAttachmentAllowRemoteUrls: Boolean
+  routeAttachmentKinds: [String!]
+  routeAttachmentSourceKinds: [String!]
+  routeStructuredAttachmentAllowRemoteUrls: Boolean
+  routeStructuredAttachmentKinds: [String!]
+  routeStructuredAttachmentSourceKinds: [String!]
   routeProtocol: String
   routeRawModelId: String
   routeRequestLayer: String
