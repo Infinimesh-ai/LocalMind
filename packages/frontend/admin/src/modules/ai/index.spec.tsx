@@ -413,6 +413,93 @@ function taskRouteProviderCostSnapshotFixture(route: {
   ];
 }
 
+function taskRouteProviderLimitSnapshotFixture(route: {
+  routeCandidates: {
+    modelId?: string | null;
+    preparedModelId?: string | null;
+    providerId: string;
+    providerProfileConfigPath?: string | null;
+    providerProfileId?: string | null;
+    providerProfileSource?: string | null;
+    providerSource?: string | null;
+    providerType?: string | null;
+    requestedModelId?: string | null;
+    routeContextWindow?: number | null;
+    routeEmbeddingDimensions?: number | null;
+    routeMaxOutputTokens?: number | null;
+    routeModelDefinitionId?: string | null;
+    routeModelDefinitionSource?: string | null;
+    routeRawModelId?: string | null;
+  }[];
+  prepareCandidates: {
+    modelId?: string | null;
+    preparedModelId?: string | null;
+    providerId: string;
+    providerProfileConfigPath?: string | null;
+    providerProfileId?: string | null;
+    providerProfileSource?: string | null;
+    providerSource?: string | null;
+    providerType?: string | null;
+    requestedModelId?: string | null;
+    routeContextWindow?: number | null;
+    routeEmbeddingDimensions?: number | null;
+    routeMaxOutputTokens?: number | null;
+    routeModelDefinitionId?: string | null;
+    routeModelDefinitionSource?: string | null;
+    routeRawModelId?: string | null;
+  }[];
+}) {
+  const limitCandidate = (
+    scope: string,
+    candidate: {
+      modelId?: string | null;
+      preparedModelId?: string | null;
+      providerId: string;
+      providerProfileConfigPath?: string | null;
+      providerProfileId?: string | null;
+      providerProfileSource?: string | null;
+      providerSource?: string | null;
+      providerType?: string | null;
+      requestedModelId?: string | null;
+      routeContextWindow?: number | null;
+      routeEmbeddingDimensions?: number | null;
+      routeMaxOutputTokens?: number | null;
+      routeModelDefinitionId?: string | null;
+      routeModelDefinitionSource?: string | null;
+      routeRawModelId?: string | null;
+    },
+    index: number
+  ) =>
+    stripNullishFixtureFields({
+      candidateIndex: index,
+      modelId: candidate.modelId,
+      preparedModelId: candidate.preparedModelId,
+      providerId: candidate.providerId,
+      providerProfileConfigPath: candidate.providerProfileConfigPath,
+      providerProfileId: candidate.providerProfileId,
+      providerProfileSource: candidate.providerProfileSource,
+      providerSource: candidate.providerSource,
+      providerType: candidate.providerType,
+      requestedModelId: candidate.requestedModelId,
+      routeContextWindow: candidate.routeContextWindow,
+      routeEmbeddingDimensions: candidate.routeEmbeddingDimensions,
+      routeMaxOutputTokens: candidate.routeMaxOutputTokens,
+      routeModelDefinitionId: candidate.routeModelDefinitionId,
+      routeModelDefinitionSource: candidate.routeModelDefinitionSource,
+      routeRawModelId: candidate.routeRawModelId,
+      scope,
+    });
+
+  return [
+    ...route.routeCandidates.map((candidate, index) =>
+      limitCandidate('routeCandidate', candidate, index)
+    ),
+    ...route.prepareCandidates.map((candidate, index) =>
+      limitCandidate('prepareCandidate', candidate, index)
+    ),
+  ];
+}
+
 function taskRouteProviderCapabilitySnapshotFixture(route: {
   routeCandidates: {
     modelId?: string | null;
@@ -643,6 +730,9 @@ const blockedRoute = {
       healthCheckedAt: '2026-06-16T10:00:00.000Z',
       costInputPer1M: 0.01,
       costOutputPer1M: 0.02,
+      routeContextWindow: 8192,
+      routeMaxOutputTokens: 1024,
+      routeEmbeddingDimensions: 768,
       routeInputTypes: ['text'],
       routeOutputTypes: ['embedding'],
       routeAttachmentKinds: ['file'],
@@ -688,6 +778,9 @@ const blockedRoute = {
       healthCheckedAt: '2026-06-16T10:00:00.000Z',
       costInputPer1M: 0.01,
       costOutputPer1M: 0.02,
+      routeContextWindow: 8192,
+      routeMaxOutputTokens: 1024,
+      routeEmbeddingDimensions: 768,
       routeInputTypes: ['text'],
       routeOutputTypes: ['embedding'],
       routeAttachmentKinds: ['file'],
@@ -2456,6 +2549,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
               taskRouteSnapshotFingerprintFixture(
                 taskRouteProviderCostSnapshotFixture(blockedRoute)
               ),
+            providerLimitSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteProviderLimitSnapshotFixture(blockedRoute)
+              ),
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
@@ -2515,6 +2612,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
               taskRouteSnapshotFingerprintFixture(
                 taskRouteProviderCostSnapshotFixture(blockedRoute)
               ),
+            providerLimitSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteProviderLimitSnapshotFixture(blockedRoute)
+              ),
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
@@ -2573,6 +2674,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
             providerCostSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRouteProviderCostSnapshotFixture(blockedRoute)
+              ),
+            providerLimitSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteProviderLimitSnapshotFixture(blockedRoute)
               ),
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
@@ -6546,6 +6651,9 @@ describe('AiPage', () => {
       `provider cost snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteProviderCostSnapshotFixture(blockedRoute))}`
     );
     expect(readyGateDiagnostics).toContain(
+      `provider limit snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteProviderLimitSnapshotFixture(blockedRoute))}`
+    );
+    expect(readyGateDiagnostics).toContain(
       `provider health snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteProviderHealthSnapshotFixture(blockedRoute))}`
     );
     expect(readyGateDiagnostics).toContain(
@@ -6559,6 +6667,9 @@ describe('AiPage', () => {
       'capability input text / output embedding / attachments file / attachment sources url, data / remote attachments yes / structured attachments image / structured attachment sources file_handle / structured remote attachments no'
     );
     expect(readyGateDiagnostics).toContain(
+      'limits context 8192 / output 1024 / embedding 768'
+    );
+    expect(readyGateDiagnostics).toContain(
       'Prepare Candidate #0 / fingerprint '
     );
     expect(readyGateDiagnostics).toContain(
@@ -6566,6 +6677,9 @@ describe('AiPage', () => {
     );
     expect(readyGateDiagnostics).toContain(
       'capability input text / output embedding / attachments file / attachment sources url / remote attachments yes'
+    );
+    expect(readyGateDiagnostics).toContain(
+      'limits context 8192 / output 1024 / embedding 768'
     );
     expect(readyGateDiagnostics).toContain(
       'Repair recommendation Warning / Action Route / action_generate_provider_health_not_healthy / Check action provider health / ai_prompts_metadata.action.make-it-real / instance make-it-real:generate:openai-fallback:0 / fingerprint 4444555566667777 / action catalog repair-actions/v1 / input schema required diagnosticsFingerprint, targetLocator / action kind Check Action Provider Health / action safety Read Only Probe / required capabilities provider_profile.read, provider_health.probe'

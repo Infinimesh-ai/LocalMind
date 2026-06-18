@@ -100,6 +100,9 @@ export type CopilotProviderRouteCandidateDiagnostics = {
   routeModelAliasMatched?: boolean;
   costInputPer1M?: number;
   costOutputPer1M?: number;
+  routeContextWindow?: number;
+  routeMaxOutputTokens?: number;
+  routeEmbeddingDimensions?: number;
   routeInputTypes?: string[];
   routeOutputTypes?: string[];
   routeAttachmentKinds?: string[];
@@ -135,6 +138,9 @@ export type CopilotProviderPrepareCandidateDiagnostics = {
   routeModelAliasMatched?: boolean;
   costInputPer1M?: number;
   costOutputPer1M?: number;
+  routeContextWindow?: number;
+  routeMaxOutputTokens?: number;
+  routeEmbeddingDimensions?: number;
   routeInputTypes?: string[];
   routeOutputTypes?: string[];
   routeAttachmentKinds?: string[];
@@ -363,6 +369,15 @@ function routeCandidateModelDefinitionMetadata(
   const costOutputPer1M =
     profileDefinition?.cost?.outputPer1M ??
     resolvedProviderModel?.cost?.outputPer1M;
+  const routeContextWindow =
+    profileDefinition?.limits?.contextWindow ??
+    resolvedProviderModel?.limits?.contextWindow;
+  const routeMaxOutputTokens =
+    profileDefinition?.limits?.maxOutputTokens ??
+    resolvedProviderModel?.limits?.maxOutputTokens;
+  const routeEmbeddingDimensions =
+    profileDefinition?.limits?.embeddingDimensions ??
+    resolvedProviderModel?.limits?.embeddingDimensions;
 
   return {
     ...(routeRawModelId ? { routeRawModelId } : {}),
@@ -374,6 +389,11 @@ function routeCandidateModelDefinitionMetadata(
     ...(routeModelAliasMatched !== undefined ? { routeModelAliasMatched } : {}),
     ...(costInputPer1M !== undefined ? { costInputPer1M } : {}),
     ...(costOutputPer1M !== undefined ? { costOutputPer1M } : {}),
+    ...(routeContextWindow !== undefined ? { routeContextWindow } : {}),
+    ...(routeMaxOutputTokens !== undefined ? { routeMaxOutputTokens } : {}),
+    ...(routeEmbeddingDimensions !== undefined
+      ? { routeEmbeddingDimensions }
+      : {}),
     ...collectProviderModelCapabilityTypes(providerModel),
   };
 }

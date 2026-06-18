@@ -12739,3 +12739,37 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 该摘要不记录真实 prompt attachments、远程 URL、文件句柄、文件内容、MIME sniff 结果、materializer 输出、host fetch admission 结果或 provider-specific upload result。
 - 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Capability Registry row、Model Registry revision、support bundle schema、repair mutation guard input、route policy DSL 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 374. P3 落地记录：Task Route Provider Limit Snapshot Fingerprint
+
+本轮继续收敛第 373 节剩余风险中 “`providerCapabilitySnapshotFingerprint` 不覆盖 context/output limits” 的过渡证据问题。实际代码与目标 AI 中间层架构的冲突点是：Model Registry / Provider Registry 后续需要能解释 recommendation 生成时 provider profile/model definition 声明的 context window、max output tokens 与 embedding dimensions 是否变化；但当前 repair candidate evidence 虽然可以通过 route/prepare candidate payload 展开这些字段，仍缺少一个可独立比对的稳定指纹。本轮先把 task route diagnostics 已公开的 limits 摘要汇总为 ordered snapshot fingerprint，不把它提升为 Token Budget Policy、真实 token accounting、embedding/rerank 维度迁移或 provider probe。
+
+- `packages/backend/server/src/plugins/copilot/providers/factory.ts`：
+  - route/prepare candidate diagnostics 从 provider profile `modelDefinitions[].limits` 或 resolved provider model limits 透出 `routeContextWindow`、`routeMaxOutputTokens` 与 `routeEmbeddingDimensions`。
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRouteCandidate`、`CopilotTaskRouteCandidateDiagnosticsType` 与 `CopilotTaskRoutePrepareCandidateDiagnosticsType` 新增上述 route limit 字段。
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 新增 `providerLimitSnapshotFingerprint`。
+  - 新增 `taskRouteProviderLimitSnapshot()`，按 scope、candidate index、provider/profile/source/type、requested/model/prepared model、route model definition 与 context/output/embedding limits 投影 task route route/prepare candidates。
+  - `taskRouteCandidateProfileStructuredEvidence()` 基于同一份 ordered limit snapshot 计算 SHA-256 短指纹，写入 policy/route/prepare candidate evidence；candidate fingerprint、preview operation fingerprint 与 evidence set fingerprint 继续自动对 limit snapshot 变化敏感。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、`getPromptModels` selection、common query string 与 `schema.ts` 类型同步新增 task route route/prepare candidate limits 字段与 repair candidate evidence 的 `providerLimitSnapshotFingerprint`。
+- Admin 与前端模型 trace：
+  - `packages/frontend/core/src/modules/ai-button/services/models.ts` 将 route/prepare candidate limits 带入 `AIModelTaskRouteCandidateTraceRow`。
+  - `packages/frontend/admin/src/modules/ai/index.tsx` 的 task route candidate diagnostics text 显示 `limits context ... / output ... / embedding ...`，repair candidate evidence diagnostics text 显示 `provider limit snapshot fingerprint ...`。
+- 测试覆盖：
+  - resolver source chain smoke 断言 embedding task route 的 route/prepare candidate limits 透传，并断言 policy/route/prepare candidate evidence 都携带与 provider limit ordered snapshot 一致的 fingerprint。
+  - Admin Vitest fixture 覆盖 route/prepare candidate limits 与 provider limit snapshot fingerprint，并断言 publish gate diagnostics text 显示该 fingerprint 和 candidate limits 文本。
+
+该实现只扩展只读 diagnostics/evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 Token Budget Policy、Context Policy、Embedding Dimension Migration、Model Registry/Provider Registry revision row、不改变 repair action catalog、不新增 mutation input、不改变 preview/preflight/execution gate 字段名、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、审批写入路径、真实 token accounting 或 provider probing。它把 task route limit evidence 从“limits 字段分散在 route/prepare candidate payload 中”推进到“repair candidate evidence snapshot 能用独立 fingerprint 感知 provider limits 公开元数据变化”，为后续 support bundle、route explain、repair guard、DB-backed route event、Token Budget Policy 与 Model Registry revision 对齐提供更可审计的过渡证据。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Admin AI Vitest、Prettier/oxlint 与 `git diff --check`。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `providerLimitSnapshotFingerprint` 只覆盖当前 task route route/prepare candidate 公开 diagnostics 字段中的 context window、max output tokens 与 embedding dimensions 投影，不覆盖真实 prompt token 预算、tool/result token expansion、reasoning token、stream truncation、provider-side hard cap、quota、rate limit、batch embedding chunking 或 pgvector 维度迁移。
+- limit snapshot 仍来自 diagnostics probe 的 route/prepare projection，不代表后续真实 embedding/rerank 调用一定使用同一 provider/model、同一上下文限制或同一 embedding 维度。
+- 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Token Budget Policy record、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

@@ -153,7 +153,10 @@ function taskRouteCandidateEvidenceFixture<
     routeAttachmentAllowRemoteUrls?: boolean;
     routeAttachmentKinds?: string[];
     routeAttachmentSourceKinds?: string[];
+    routeContextWindow?: number;
+    routeEmbeddingDimensions?: number;
     routeInputTypes?: string[];
+    routeMaxOutputTokens?: number;
     routeModelAliasMatched?: boolean;
     routeModelDefinitionAliases?: string[];
     routeModelDefinitionId?: string;
@@ -229,8 +232,17 @@ function taskRouteCandidateEvidenceFixture<
     ...(candidate.routeAttachmentSourceKinds?.length
       ? { routeAttachmentSourceKinds: candidate.routeAttachmentSourceKinds }
       : {}),
+    ...(candidate.routeContextWindow !== undefined
+      ? { routeContextWindow: candidate.routeContextWindow }
+      : {}),
+    ...(candidate.routeEmbeddingDimensions !== undefined
+      ? { routeEmbeddingDimensions: candidate.routeEmbeddingDimensions }
+      : {}),
     ...(candidate.routeInputTypes?.length
       ? { routeInputTypes: candidate.routeInputTypes }
+      : {}),
+    ...(candidate.routeMaxOutputTokens !== undefined
+      ? { routeMaxOutputTokens: candidate.routeMaxOutputTokens }
       : {}),
     ...(candidate.routeModelAliasMatched !== undefined
       ? { routeModelAliasMatched: candidate.routeModelAliasMatched }
@@ -302,7 +314,10 @@ function taskRoutePrepareCandidateEvidenceFixture<
     routeAttachmentAllowRemoteUrls?: boolean;
     routeAttachmentKinds?: string[];
     routeAttachmentSourceKinds?: string[];
+    routeContextWindow?: number;
+    routeEmbeddingDimensions?: number;
     routeInputTypes?: string[];
+    routeMaxOutputTokens?: number;
     routeModelAliasMatched?: boolean;
     routeModelDefinitionAliases?: string[];
     routeModelDefinitionId?: string;
@@ -385,8 +400,17 @@ function taskRoutePrepareCandidateEvidenceFixture<
     ...(candidate.routeAttachmentSourceKinds?.length
       ? { routeAttachmentSourceKinds: candidate.routeAttachmentSourceKinds }
       : {}),
+    ...(candidate.routeContextWindow !== undefined
+      ? { routeContextWindow: candidate.routeContextWindow }
+      : {}),
+    ...(candidate.routeEmbeddingDimensions !== undefined
+      ? { routeEmbeddingDimensions: candidate.routeEmbeddingDimensions }
+      : {}),
     ...(candidate.routeInputTypes?.length
       ? { routeInputTypes: candidate.routeInputTypes }
+      : {}),
+    ...(candidate.routeMaxOutputTokens !== undefined
+      ? { routeMaxOutputTokens: candidate.routeMaxOutputTokens }
       : {}),
     ...(candidate.routeModelAliasMatched !== undefined
       ? { routeModelAliasMatched: candidate.routeModelAliasMatched }
@@ -711,6 +735,120 @@ function taskRouteProviderCostSnapshotFixture(
     ),
     ...(route?.prepareCandidates ?? []).map((candidate, index) =>
       costCandidate('prepareCandidate', candidate, index)
+    ),
+  ];
+}
+
+function taskRouteProviderLimitSnapshotFixture(
+  route:
+    | {
+        routeCandidates?: {
+          modelId?: string;
+          preparedModelId?: string;
+          providerId: string;
+          providerProfileConfigPath?: string;
+          providerProfileId?: string;
+          providerProfileSource?: string;
+          providerSource?: string;
+          providerType?: string;
+          requestedModelId?: string;
+          routeContextWindow?: number;
+          routeEmbeddingDimensions?: number;
+          routeMaxOutputTokens?: number;
+          routeModelDefinitionId?: string;
+          routeModelDefinitionSource?: string;
+          routeRawModelId?: string;
+        }[];
+        prepareCandidates?: {
+          modelId?: string;
+          preparedModelId?: string;
+          providerId: string;
+          providerProfileConfigPath?: string;
+          providerProfileId?: string;
+          providerProfileSource?: string;
+          providerSource?: string;
+          providerType?: string;
+          requestedModelId?: string;
+          routeContextWindow?: number;
+          routeEmbeddingDimensions?: number;
+          routeMaxOutputTokens?: number;
+          routeModelDefinitionId?: string;
+          routeModelDefinitionSource?: string;
+          routeRawModelId?: string;
+        }[];
+      }
+    | undefined
+) {
+  const limitCandidate = (
+    scope: string,
+    candidate: {
+      modelId?: string;
+      preparedModelId?: string;
+      providerId: string;
+      providerProfileConfigPath?: string;
+      providerProfileId?: string;
+      providerProfileSource?: string;
+      providerSource?: string;
+      providerType?: string;
+      requestedModelId?: string;
+      routeContextWindow?: number;
+      routeEmbeddingDimensions?: number;
+      routeMaxOutputTokens?: number;
+      routeModelDefinitionId?: string;
+      routeModelDefinitionSource?: string;
+      routeRawModelId?: string;
+    },
+    index: number
+  ) => ({
+    candidateIndex: index,
+    ...(candidate.modelId ? { modelId: candidate.modelId } : {}),
+    ...(candidate.preparedModelId
+      ? { preparedModelId: candidate.preparedModelId }
+      : {}),
+    providerId: candidate.providerId,
+    ...(candidate.providerProfileConfigPath
+      ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
+      : {}),
+    ...(candidate.providerProfileId
+      ? { providerProfileId: candidate.providerProfileId }
+      : {}),
+    ...(candidate.providerProfileSource
+      ? { providerProfileSource: candidate.providerProfileSource }
+      : {}),
+    ...(candidate.providerSource
+      ? { providerSource: candidate.providerSource }
+      : {}),
+    ...(candidate.providerType ? { providerType: candidate.providerType } : {}),
+    ...(candidate.requestedModelId
+      ? { requestedModelId: candidate.requestedModelId }
+      : {}),
+    ...(candidate.routeContextWindow !== undefined
+      ? { routeContextWindow: candidate.routeContextWindow }
+      : {}),
+    ...(candidate.routeEmbeddingDimensions !== undefined
+      ? { routeEmbeddingDimensions: candidate.routeEmbeddingDimensions }
+      : {}),
+    ...(candidate.routeMaxOutputTokens !== undefined
+      ? { routeMaxOutputTokens: candidate.routeMaxOutputTokens }
+      : {}),
+    ...(candidate.routeModelDefinitionId
+      ? { routeModelDefinitionId: candidate.routeModelDefinitionId }
+      : {}),
+    ...(candidate.routeModelDefinitionSource
+      ? { routeModelDefinitionSource: candidate.routeModelDefinitionSource }
+      : {}),
+    ...(candidate.routeRawModelId
+      ? { routeRawModelId: candidate.routeRawModelId }
+      : {}),
+    scope,
+  });
+
+  return [
+    ...(route?.routeCandidates ?? []).map((candidate, index) =>
+      limitCandidate('routeCandidate', candidate, index)
+    ),
+    ...(route?.prepareCandidates ?? []).map((candidate, index) =>
+      limitCandidate('prepareCandidate', candidate, index)
     ),
   ];
 }
@@ -1096,6 +1234,9 @@ async function main() {
           health: 'healthy',
           costInputPer1M: 0.01,
           costOutputPer1M: 0.02,
+          routeContextWindow: 8192,
+          routeMaxOutputTokens: 1024,
+          routeEmbeddingDimensions: 768,
           routeInputTypes: ['text'],
           routeOutputTypes: ['embedding'],
           routeAttachmentKinds: ['file'],
@@ -1134,6 +1275,9 @@ async function main() {
           health: 'healthy',
           costInputPer1M: 0.01,
           costOutputPer1M: 0.02,
+          routeContextWindow: 8192,
+          routeMaxOutputTokens: 1024,
+          routeEmbeddingDimensions: 768,
           routeInputTypes: ['text'],
           routeOutputTypes: ['embedding'],
           routeAttachmentKinds: ['file'],
@@ -1381,6 +1525,18 @@ async function main() {
     result.embeddingRoute?.routeCandidates[0]?.costOutputPer1M,
     0.02
   );
+  assert.equal(
+    result.embeddingRoute?.routeCandidates[0]?.routeContextWindow,
+    8192
+  );
+  assert.equal(
+    result.embeddingRoute?.routeCandidates[0]?.routeMaxOutputTokens,
+    1024
+  );
+  assert.equal(
+    result.embeddingRoute?.routeCandidates[0]?.routeEmbeddingDimensions,
+    768
+  );
   assert.deepEqual(result.embeddingRoute?.routeCandidates[0]?.routeInputTypes, [
     'text',
   ]);
@@ -1429,6 +1585,18 @@ async function main() {
   assert.equal(
     result.embeddingRoute?.prepareCandidates[0]?.costOutputPer1M,
     0.02
+  );
+  assert.equal(
+    result.embeddingRoute?.prepareCandidates[0]?.routeContextWindow,
+    8192
+  );
+  assert.equal(
+    result.embeddingRoute?.prepareCandidates[0]?.routeMaxOutputTokens,
+    1024
+  );
+  assert.equal(
+    result.embeddingRoute?.prepareCandidates[0]?.routeEmbeddingDimensions,
+    768
   );
   assert.deepEqual(
     result.embeddingRoute?.prepareCandidates[0]?.routeInputTypes,
@@ -6514,6 +6682,10 @@ async function main() {
     taskRouteSnapshotFingerprintFixture(
       taskDiagnosticsProviderCapabilitySnapshot
     );
+  const taskDiagnosticsProviderLimitSnapshot =
+    taskRouteProviderLimitSnapshotFixture(taskDiagnosticsErrorRoute);
+  const taskDiagnosticsProviderLimitSnapshotFingerprint =
+    taskRouteSnapshotFingerprintFixture(taskDiagnosticsProviderLimitSnapshot);
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
       `policyCandidate#0:policyCandidateSnapshotFingerprint:${taskDiagnosticsPolicyCandidateSnapshotFingerprint}`
@@ -6562,6 +6734,13 @@ async function main() {
     ),
     true,
     'task diagnostics repair evidence should include provider cost snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      `policyCandidate#0:providerLimitSnapshotFingerprint:${taskDiagnosticsProviderLimitSnapshotFingerprint}`
+    ),
+    true,
+    'task diagnostics repair evidence should include provider limit snapshot fingerprint'
   );
   assert.match(
     taskDiagnosticsPolicyCandidateEvidence?.candidateFingerprint ?? '',
@@ -6671,6 +6850,11 @@ async function main() {
     taskDiagnosticsProviderCostSnapshotFingerprint,
     'policy candidate evidence should bind the task route provider cost snapshot fingerprint'
   );
+  assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.providerLimitSnapshotFingerprint,
+    taskDiagnosticsProviderLimitSnapshotFingerprint,
+    'policy candidate evidence should bind the task route provider limit snapshot fingerprint'
+  );
   const taskDiagnosticsRouteCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'routeCandidate'
@@ -6760,6 +6944,11 @@ async function main() {
     taskDiagnosticsProviderCostSnapshotFingerprint,
     'route candidate evidence should bind the task route provider cost snapshot fingerprint'
   );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.providerLimitSnapshotFingerprint,
+    taskDiagnosticsProviderLimitSnapshotFingerprint,
+    'route candidate evidence should bind the task route provider limit snapshot fingerprint'
+  );
   const taskDiagnosticsPrepareCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'prepareCandidate'
@@ -6844,6 +7033,11 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.providerCostSnapshotFingerprint,
     taskDiagnosticsProviderCostSnapshotFingerprint,
     'prepare candidate evidence should bind the task route provider cost snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.providerLimitSnapshotFingerprint,
+    taskDiagnosticsProviderLimitSnapshotFingerprint,
+    'prepare candidate evidence should bind the task route provider limit snapshot fingerprint'
   );
   const taskDiagnosticsErrorPreviewOperation =
     taskDiagnosticsErrorGate?.repairActionPreview.operations.find(

@@ -349,6 +349,9 @@ query getCopilotPromptRegistryPublishGate(
             candidateModelIds
             costInputPer1M
             costOutputPer1M
+            routeContextWindow
+            routeEmbeddingDimensions
+            routeMaxOutputTokens
             routeAttachmentAllowRemoteUrls
             routeAttachmentKinds
             routeAttachmentSourceKinds
@@ -398,6 +401,9 @@ query getCopilotPromptRegistryPublishGate(
             candidateModelIds
             costInputPer1M
             costOutputPer1M
+            routeContextWindow
+            routeEmbeddingDimensions
+            routeMaxOutputTokens
             routeAttachmentAllowRemoteUrls
             routeAttachmentKinds
             routeAttachmentSourceKinds
@@ -630,6 +636,7 @@ query getCopilotPromptRegistryPublishGate(
             providerCapabilitySnapshotFingerprint
             providerCostSnapshotFingerprint
             providerHealthSnapshotFingerprint
+            providerLimitSnapshotFingerprint
             preparedRouteTargets
             preparedRouteTargetFingerprint
             policyCandidates {

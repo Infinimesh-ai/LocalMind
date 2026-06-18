@@ -643,6 +643,9 @@ type CopilotPromptRegistryPublishGateRouteCandidate = {
   candidateModelIds?: string[];
   costInputPer1M?: number;
   costOutputPer1M?: number;
+  routeContextWindow?: number;
+  routeMaxOutputTokens?: number;
+  routeEmbeddingDimensions?: number;
   health?: string;
   healthCheckedAt?: string;
   matched: boolean;
@@ -720,6 +723,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   providerCapabilitySnapshotFingerprint?: string;
   providerCostSnapshotFingerprint?: string;
   providerHealthSnapshotFingerprint?: string;
+  providerLimitSnapshotFingerprint?: string;
   preparedRouteTargets?: string[];
   preparedRouteTargetFingerprint?: string;
   policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
@@ -1545,6 +1549,15 @@ class CopilotPromptRegistryPublishGateRouteCandidateType implements CopilotPromp
   @Field(() => Number, { nullable: true })
   costOutputPer1M?: CopilotPromptRegistryPublishGateRouteCandidate['costOutputPer1M'];
 
+  @Field(() => SafeIntResolver, { nullable: true })
+  routeContextWindow?: CopilotPromptRegistryPublishGateRouteCandidate['routeContextWindow'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  routeMaxOutputTokens?: CopilotPromptRegistryPublishGateRouteCandidate['routeMaxOutputTokens'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  routeEmbeddingDimensions?: CopilotPromptRegistryPublishGateRouteCandidate['routeEmbeddingDimensions'];
+
   @Field(() => [String], { nullable: true })
   routeInputTypes?: CopilotPromptRegistryPublishGateRouteCandidate['routeInputTypes'];
 
@@ -1769,6 +1782,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   providerHealthSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerHealthSnapshotFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  providerLimitSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerLimitSnapshotFingerprint'];
 
   @Field(() => [String], { nullable: true })
   preparedRouteTargets?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedRouteTargets'];
@@ -3988,6 +4004,15 @@ function toPromptRegistryPublishGateRouteCandidate(
     ...(candidate.costOutputPer1M !== undefined
       ? { costOutputPer1M: candidate.costOutputPer1M }
       : {}),
+    ...(candidate.routeContextWindow !== undefined
+      ? { routeContextWindow: candidate.routeContextWindow }
+      : {}),
+    ...(candidate.routeMaxOutputTokens !== undefined
+      ? { routeMaxOutputTokens: candidate.routeMaxOutputTokens }
+      : {}),
+    ...(candidate.routeEmbeddingDimensions !== undefined
+      ? { routeEmbeddingDimensions: candidate.routeEmbeddingDimensions }
+      : {}),
     ...(definedArray(candidate.routeInputTypes) !== undefined
       ? { routeInputTypes: definedArray(candidate.routeInputTypes) }
       : {}),
@@ -4197,6 +4222,7 @@ function taskRouteRepairCandidateEvidenceBase(
     providerCapabilitySnapshotFingerprint?: string;
     providerCostSnapshotFingerprint?: string;
     providerHealthSnapshotFingerprint?: string;
+    providerLimitSnapshotFingerprint?: string;
     preparedRouteTargets?: string[];
     preparedRouteTargetFingerprint?: string;
     policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
@@ -4266,6 +4292,12 @@ function taskRouteRepairCandidateEvidenceBase(
       ? {
           providerHealthSnapshotFingerprint:
             candidate.providerHealthSnapshotFingerprint,
+        }
+      : {}),
+    ...(candidate.providerLimitSnapshotFingerprint !== undefined
+      ? {
+          providerLimitSnapshotFingerprint:
+            candidate.providerLimitSnapshotFingerprint,
         }
       : {}),
     ...(candidate.preparedRouteTargets !== undefined
@@ -4438,6 +4470,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       taskRouteProviderCapabilitySnapshot(route);
     const providerCostSnapshot = taskRouteProviderCostSnapshot(route);
     const providerHealthSnapshot = taskRouteProviderHealthSnapshot(route);
+    const providerLimitSnapshot = taskRouteProviderLimitSnapshot(route);
     const evidence = taskRouteRepairCandidateEvidenceBase(
       scope,
       {
@@ -4456,6 +4489,9 @@ function taskRouteCandidateProfileStructuredEvidence(
           taskRouteSnapshotFingerprint(providerCostSnapshot),
         providerHealthSnapshotFingerprint: taskRouteSnapshotFingerprint(
           providerHealthSnapshot
+        ),
+        providerLimitSnapshotFingerprint: taskRouteSnapshotFingerprint(
+          providerLimitSnapshot
         ),
         preparedRouteTargets: route.preparedRouteTargets,
         preparedRouteTargetFingerprint: route.preparedRouteTargetFingerprint,
@@ -4536,6 +4572,9 @@ function taskRouteCandidateProfileEvidence(
         candidate.providerHealthSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:providerHealthSnapshotFingerprint:${candidate.providerHealthSnapshotFingerprint}`
           : null,
+        candidate.providerLimitSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerLimitSnapshotFingerprint:${candidate.providerLimitSnapshotFingerprint}`
+          : null,
         candidate.policyCandidateSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:policyCandidateSnapshotFingerprint:${candidate.policyCandidateSnapshotFingerprint}`
           : null,
@@ -4587,6 +4626,9 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.providerHealthSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:providerHealthSnapshotFingerprint:${candidate.providerHealthSnapshotFingerprint}`
+          : null,
+        candidate.providerLimitSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerLimitSnapshotFingerprint:${candidate.providerLimitSnapshotFingerprint}`
           : null,
         candidate.policyCandidateSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:policyCandidateSnapshotFingerprint:${candidate.policyCandidateSnapshotFingerprint}`
@@ -5110,6 +5152,15 @@ function taskRoutePrepareCandidateSnapshot(
     ...(candidate.costOutputPer1M !== undefined
       ? { costOutputPer1M: candidate.costOutputPer1M }
       : {}),
+    ...(candidate.routeContextWindow !== undefined
+      ? { routeContextWindow: candidate.routeContextWindow }
+      : {}),
+    ...(candidate.routeMaxOutputTokens !== undefined
+      ? { routeMaxOutputTokens: candidate.routeMaxOutputTokens }
+      : {}),
+    ...(candidate.routeEmbeddingDimensions !== undefined
+      ? { routeEmbeddingDimensions: candidate.routeEmbeddingDimensions }
+      : {}),
     ...(definedArray(candidate.routeInputTypes) !== undefined
       ? { routeInputTypes: definedArray(candidate.routeInputTypes) }
       : {}),
@@ -5413,6 +5464,83 @@ function taskRouteProviderCostSnapshot(
     ),
     ...(route.prepareCandidates ?? []).map((candidate, index) =>
       costCandidate('prepareCandidate', candidate, index)
+    ),
+  ];
+}
+
+function taskRouteProviderLimitSnapshot(
+  route: CopilotPromptRegistryPublishGateTaskRoute
+) {
+  const limitCandidate = (
+    scope: string,
+    candidate: {
+      modelId?: string;
+      preparedModelId?: string;
+      providerId: string;
+      providerProfileConfigPath?: string;
+      providerProfileId?: string;
+      providerProfileSource?: string;
+      providerSource?: string;
+      providerType?: string;
+      requestedModelId?: string;
+      routeContextWindow?: number;
+      routeEmbeddingDimensions?: number;
+      routeMaxOutputTokens?: number;
+      routeModelDefinitionId?: string;
+      routeModelDefinitionSource?: string;
+      routeRawModelId?: string;
+    },
+    index: number
+  ) => ({
+    candidateIndex: index,
+    ...(candidate.modelId ? { modelId: candidate.modelId } : {}),
+    ...(candidate.preparedModelId
+      ? { preparedModelId: candidate.preparedModelId }
+      : {}),
+    providerId: candidate.providerId,
+    ...(candidate.providerProfileConfigPath
+      ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
+      : {}),
+    ...(candidate.providerProfileId
+      ? { providerProfileId: candidate.providerProfileId }
+      : {}),
+    ...(candidate.providerProfileSource
+      ? { providerProfileSource: candidate.providerProfileSource }
+      : {}),
+    ...(candidate.providerSource
+      ? { providerSource: candidate.providerSource }
+      : {}),
+    ...(candidate.providerType ? { providerType: candidate.providerType } : {}),
+    ...(candidate.requestedModelId
+      ? { requestedModelId: candidate.requestedModelId }
+      : {}),
+    ...(candidate.routeContextWindow !== undefined
+      ? { routeContextWindow: candidate.routeContextWindow }
+      : {}),
+    ...(candidate.routeEmbeddingDimensions !== undefined
+      ? { routeEmbeddingDimensions: candidate.routeEmbeddingDimensions }
+      : {}),
+    ...(candidate.routeMaxOutputTokens !== undefined
+      ? { routeMaxOutputTokens: candidate.routeMaxOutputTokens }
+      : {}),
+    ...(candidate.routeModelDefinitionId
+      ? { routeModelDefinitionId: candidate.routeModelDefinitionId }
+      : {}),
+    ...(candidate.routeModelDefinitionSource
+      ? { routeModelDefinitionSource: candidate.routeModelDefinitionSource }
+      : {}),
+    ...(candidate.routeRawModelId
+      ? { routeRawModelId: candidate.routeRawModelId }
+      : {}),
+    scope,
+  });
+
+  return [
+    ...route.routeCandidates.map((candidate, index) =>
+      limitCandidate('routeCandidate', candidate, index)
+    ),
+    ...(route.prepareCandidates ?? []).map((candidate, index) =>
+      limitCandidate('prepareCandidate', candidate, index)
     ),
   ];
 }
@@ -10898,6 +11026,15 @@ function buildTaskRoutePrepareCandidates(
       candidate.costInputPer1M ?? providerPrepareCandidate?.costInputPer1M;
     const costOutputPer1M =
       candidate.costOutputPer1M ?? providerPrepareCandidate?.costOutputPer1M;
+    const routeContextWindow =
+      candidate.routeContextWindow ??
+      providerPrepareCandidate?.routeContextWindow;
+    const routeMaxOutputTokens =
+      candidate.routeMaxOutputTokens ??
+      providerPrepareCandidate?.routeMaxOutputTokens;
+    const routeEmbeddingDimensions =
+      candidate.routeEmbeddingDimensions ??
+      providerPrepareCandidate?.routeEmbeddingDimensions;
     const routeInputTypes =
       candidate.routeInputTypes ?? providerPrepareCandidate?.routeInputTypes;
     const routeOutputTypes =
@@ -10990,6 +11127,11 @@ function buildTaskRoutePrepareCandidates(
         : {}),
       ...(costInputPer1M !== undefined ? { costInputPer1M } : {}),
       ...(costOutputPer1M !== undefined ? { costOutputPer1M } : {}),
+      ...(routeContextWindow !== undefined ? { routeContextWindow } : {}),
+      ...(routeMaxOutputTokens !== undefined ? { routeMaxOutputTokens } : {}),
+      ...(routeEmbeddingDimensions !== undefined
+        ? { routeEmbeddingDimensions }
+        : {}),
       ...(routeInputTypes !== undefined ? { routeInputTypes } : {}),
       ...(routeOutputTypes !== undefined ? { routeOutputTypes } : {}),
       ...(routeAttachmentKinds !== undefined ? { routeAttachmentKinds } : {}),
@@ -11639,6 +11781,15 @@ class CopilotTaskRouteCandidateDiagnosticsType {
   @Field(() => Number, { nullable: true })
   costOutputPer1M?: number;
 
+  @Field(() => SafeIntResolver, { nullable: true })
+  routeContextWindow?: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  routeMaxOutputTokens?: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  routeEmbeddingDimensions?: number;
+
   @Field(() => [String], { nullable: true })
   routeInputTypes?: string[];
 
@@ -11752,6 +11903,15 @@ class CopilotTaskRoutePrepareCandidateDiagnosticsType {
 
   @Field(() => Number, { nullable: true })
   costOutputPer1M?: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  routeContextWindow?: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  routeMaxOutputTokens?: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  routeEmbeddingDimensions?: number;
 
   @Field(() => [String], { nullable: true })
   routeInputTypes?: string[];

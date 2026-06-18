@@ -1584,6 +1584,9 @@ export interface CopilotPromptRegistryPublishGateRouteCandidateType {
   candidateModelIds?: Maybe<Array<Scalars['String']['output']>>;
   costInputPer1M?: Maybe<Scalars['Float']['output']>;
   costOutputPer1M?: Maybe<Scalars['Float']['output']>;
+  routeContextWindow?: Maybe<Scalars['SafeInt']['output']>;
+  routeEmbeddingDimensions?: Maybe<Scalars['SafeInt']['output']>;
+  routeMaxOutputTokens?: Maybe<Scalars['SafeInt']['output']>;
   health?: Maybe<Scalars['String']['output']>;
   healthCheckedAt?: Maybe<Scalars['String']['output']>;
   matched: Scalars['Boolean']['output'];
@@ -1743,6 +1746,7 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   providerCapabilitySnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   providerCostSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   providerHealthSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
+  providerLimitSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   preparedRouteTargets?: Maybe<Array<Scalars['String']['output']>>;
   preparedRouteTargetFingerprint?: Maybe<Scalars['String']['output']>;
   policyCandidates?: Maybe<
@@ -2000,6 +2004,9 @@ export interface CopilotTaskRouteCandidateDiagnosticsType {
   candidateModelIds?: Maybe<Array<Scalars['String']['output']>>;
   costInputPer1M?: Maybe<Scalars['Float']['output']>;
   costOutputPer1M?: Maybe<Scalars['Float']['output']>;
+  routeContextWindow?: Maybe<Scalars['SafeInt']['output']>;
+  routeEmbeddingDimensions?: Maybe<Scalars['SafeInt']['output']>;
+  routeMaxOutputTokens?: Maybe<Scalars['SafeInt']['output']>;
   routeAttachmentAllowRemoteUrls?: Maybe<Scalars['Boolean']['output']>;
   routeAttachmentKinds?: Maybe<Array<Scalars['String']['output']>>;
   routeAttachmentSourceKinds?: Maybe<Array<Scalars['String']['output']>>;
@@ -2045,6 +2052,9 @@ export interface CopilotTaskRoutePrepareCandidateDiagnosticsType {
   candidateModelIds?: Maybe<Array<Scalars['String']['output']>>;
   costInputPer1M?: Maybe<Scalars['Float']['output']>;
   costOutputPer1M?: Maybe<Scalars['Float']['output']>;
+  routeContextWindow?: Maybe<Scalars['SafeInt']['output']>;
+  routeEmbeddingDimensions?: Maybe<Scalars['SafeInt']['output']>;
+  routeMaxOutputTokens?: Maybe<Scalars['SafeInt']['output']>;
   routeAttachmentAllowRemoteUrls?: Maybe<Scalars['Boolean']['output']>;
   routeAttachmentKinds?: Maybe<Array<Scalars['String']['output']>>;
   routeAttachmentSourceKinds?: Maybe<Array<Scalars['String']['output']>>;
@@ -6848,6 +6858,9 @@ export type GetPromptModelsQuery = {
             candidateModelIds: Array<string> | null;
             costInputPer1M: number | null;
             costOutputPer1M: number | null;
+            routeContextWindow: number | null;
+            routeEmbeddingDimensions: number | null;
+            routeMaxOutputTokens: number | null;
             routeAttachmentAllowRemoteUrls: boolean | null;
             routeAttachmentKinds: Array<string> | null;
             routeAttachmentSourceKinds: Array<string> | null;
@@ -6899,6 +6912,9 @@ export type GetPromptModelsQuery = {
             candidateModelIds: Array<string> | null;
             costInputPer1M: number | null;
             costOutputPer1M: number | null;
+            routeContextWindow: number | null;
+            routeEmbeddingDimensions: number | null;
+            routeMaxOutputTokens: number | null;
             routeAttachmentAllowRemoteUrls: boolean | null;
             routeAttachmentKinds: Array<string> | null;
             routeAttachmentSourceKinds: Array<string> | null;
@@ -7154,6 +7170,9 @@ export type GetPromptModelsQuery = {
             candidateModelIds: Array<string> | null;
             costInputPer1M: number | null;
             costOutputPer1M: number | null;
+            routeContextWindow: number | null;
+            routeEmbeddingDimensions: number | null;
+            routeMaxOutputTokens: number | null;
             routeAttachmentAllowRemoteUrls: boolean | null;
             routeAttachmentKinds: Array<string> | null;
             routeAttachmentSourceKinds: Array<string> | null;
@@ -7205,6 +7224,9 @@ export type GetPromptModelsQuery = {
             candidateModelIds: Array<string> | null;
             costInputPer1M: number | null;
             costOutputPer1M: number | null;
+            routeContextWindow: number | null;
+            routeEmbeddingDimensions: number | null;
+            routeMaxOutputTokens: number | null;
             routeAttachmentAllowRemoteUrls: boolean | null;
             routeAttachmentKinds: Array<string> | null;
             routeAttachmentSourceKinds: Array<string> | null;
@@ -7616,6 +7638,9 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             candidateModelIds: Array<string> | null;
             costInputPer1M: number | null;
             costOutputPer1M: number | null;
+            routeContextWindow: number | null;
+            routeEmbeddingDimensions: number | null;
+            routeMaxOutputTokens: number | null;
             health: string | null;
             healthCheckedAt: string | null;
             matched: boolean;
@@ -7737,6 +7762,9 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             candidateModelIds: Array<string> | null;
             costInputPer1M: number | null;
             costOutputPer1M: number | null;
+            routeContextWindow: number | null;
+            routeEmbeddingDimensions: number | null;
+            routeMaxOutputTokens: number | null;
             health: string | null;
             healthCheckedAt: string | null;
             matched: boolean;
@@ -7946,6 +7974,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             providerCapabilitySnapshotFingerprint: string | null;
             providerCostSnapshotFingerprint: string | null;
             providerHealthSnapshotFingerprint: string | null;
+            providerLimitSnapshotFingerprint: string | null;
             preparedRouteTargets: Array<string> | null;
             preparedRouteTargetFingerprint: string | null;
             policyCandidates: Array<{

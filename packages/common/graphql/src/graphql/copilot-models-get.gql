@@ -56,6 +56,9 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
             candidateModelIds
             costInputPer1M
             costOutputPer1M
+            routeContextWindow
+            routeEmbeddingDimensions
+            routeMaxOutputTokens
             routeAttachmentAllowRemoteUrls
             routeAttachmentKinds
             routeAttachmentSourceKinds
@@ -105,6 +108,9 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
             candidateModelIds
             costInputPer1M
             costOutputPer1M
+            routeContextWindow
+            routeEmbeddingDimensions
+            routeMaxOutputTokens
             routeAttachmentAllowRemoteUrls
             routeAttachmentKinds
             routeAttachmentSourceKinds
@@ -351,6 +357,9 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
             candidateModelIds
             costInputPer1M
             costOutputPer1M
+            routeContextWindow
+            routeEmbeddingDimensions
+            routeMaxOutputTokens
             routeAttachmentAllowRemoteUrls
             routeAttachmentKinds
             routeAttachmentSourceKinds
@@ -400,6 +409,9 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
             candidateModelIds
             costInputPer1M
             costOutputPer1M
+            routeContextWindow
+            routeEmbeddingDimensions
+            routeMaxOutputTokens
             routeAttachmentAllowRemoteUrls
             routeAttachmentKinds
             routeAttachmentSourceKinds

@@ -439,7 +439,10 @@ export interface AIModelTaskRouteCandidateTraceRow {
   routeAttachmentAllowRemoteUrls?: boolean | null;
   routeAttachmentKinds?: string[] | null;
   routeAttachmentSourceKinds?: string[] | null;
+  routeContextWindow?: number | null;
+  routeEmbeddingDimensions?: number | null;
   routeInputTypes?: string[] | null;
+  routeMaxOutputTokens?: number | null;
   routeModelAliasMatched?: boolean | null;
   routeModelDefinitionAliases?: string[] | null;
   routeModelDefinitionId?: string | null;
@@ -1677,9 +1680,21 @@ export function getAIModelTaskRouteCandidateTrace(
         routeCandidate?.routeAttachmentSourceKinds ??
         prepareCandidate?.routeAttachmentSourceKinds ??
         null,
+      routeContextWindow:
+        routeCandidate?.routeContextWindow ??
+        prepareCandidate?.routeContextWindow ??
+        null,
+      routeEmbeddingDimensions:
+        routeCandidate?.routeEmbeddingDimensions ??
+        prepareCandidate?.routeEmbeddingDimensions ??
+        null,
       routeInputTypes:
         routeCandidate?.routeInputTypes ??
         prepareCandidate?.routeInputTypes ??
+        null,
+      routeMaxOutputTokens:
+        routeCandidate?.routeMaxOutputTokens ??
+        prepareCandidate?.routeMaxOutputTokens ??
         null,
       routeModelAliasMatched:
         routeCandidate?.routeModelAliasMatched ??

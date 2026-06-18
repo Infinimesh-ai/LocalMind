@@ -1405,6 +1405,9 @@ export const getPromptModelsQuery = {
             candidateModelIds
             costInputPer1M
             costOutputPer1M
+            routeContextWindow
+            routeEmbeddingDimensions
+            routeMaxOutputTokens
             routeAttachmentAllowRemoteUrls
             routeAttachmentKinds
             routeAttachmentSourceKinds
@@ -1454,6 +1457,9 @@ export const getPromptModelsQuery = {
             candidateModelIds
             costInputPer1M
             costOutputPer1M
+            routeContextWindow
+            routeEmbeddingDimensions
+            routeMaxOutputTokens
             routeAttachmentAllowRemoteUrls
             routeAttachmentKinds
             routeAttachmentSourceKinds
@@ -1700,6 +1706,9 @@ export const getPromptModelsQuery = {
             candidateModelIds
             costInputPer1M
             costOutputPer1M
+            routeContextWindow
+            routeEmbeddingDimensions
+            routeMaxOutputTokens
             routeAttachmentAllowRemoteUrls
             routeAttachmentKinds
             routeAttachmentSourceKinds
@@ -1749,6 +1758,9 @@ export const getPromptModelsQuery = {
             candidateModelIds
             costInputPer1M
             costOutputPer1M
+            routeContextWindow
+            routeEmbeddingDimensions
+            routeMaxOutputTokens
             routeAttachmentAllowRemoteUrls
             routeAttachmentKinds
             routeAttachmentSourceKinds
@@ -2363,6 +2375,9 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             candidateModelIds
             costInputPer1M
             costOutputPer1M
+            routeContextWindow
+            routeEmbeddingDimensions
+            routeMaxOutputTokens
             routeAttachmentAllowRemoteUrls
             routeAttachmentKinds
             routeAttachmentSourceKinds
@@ -2595,6 +2610,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             providerCapabilitySnapshotFingerprint
             providerCostSnapshotFingerprint
             providerHealthSnapshotFingerprint
+            providerLimitSnapshotFingerprint
             preparedRouteTargets
             preparedRouteTargetFingerprint
             policyCandidates {

@@ -1096,6 +1096,15 @@ function formatTaskRouteCandidateText(row: AIModelTaskRouteCandidateTraceRow) {
       ? `structured remote attachments ${row.routeStructuredAttachmentAllowRemoteUrls ? 'yes' : 'no'}`
       : null,
   ]);
+  const limitLabel = compactList([
+    row.routeContextWindow != null ? `context ${row.routeContextWindow}` : null,
+    row.routeMaxOutputTokens != null
+      ? `output ${row.routeMaxOutputTokens}`
+      : null,
+    row.routeEmbeddingDimensions != null
+      ? `embedding ${row.routeEmbeddingDimensions}`
+      : null,
+  ]);
 
   return compactList([
     row.candidateKey ?? null,
@@ -1123,6 +1132,7 @@ function formatTaskRouteCandidateText(row: AIModelTaskRouteCandidateTraceRow) {
     providerProfileLabel ? `profile ${providerProfileLabel}` : null,
     modelDefinitionLabel ? `definition ${modelDefinitionLabel}` : null,
     capabilityLabel ? `capability ${capabilityLabel}` : null,
+    limitLabel ? `limits ${limitLabel}` : null,
     row.candidateModelIds?.length
       ? `profile models ${row.candidateModelIds.join(', ')}`
       : null,
@@ -2993,6 +3003,9 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
       : null,
     evidence.providerHealthSnapshotFingerprint
       ? `provider health snapshot fingerprint ${evidence.providerHealthSnapshotFingerprint}`
+      : null,
+    evidence.providerLimitSnapshotFingerprint
+      ? `provider limit snapshot fingerprint ${evidence.providerLimitSnapshotFingerprint}`
       : null,
     evidence.preparedRouteTargets?.length
       ? `targets ${evidence.preparedRouteTargets.join(', ')}`
