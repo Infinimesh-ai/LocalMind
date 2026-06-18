@@ -826,44 +826,79 @@ function PreparedRoutesSummary({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {routes.map((route, index) => (
-              <TableRow key={`${route.providerId}:${route.modelId}:${index}`}>
-                <TableCell className="break-words">
-                  {route.providerId}
-                </TableCell>
-                <TableCell className="break-words font-medium">
-                  {route.modelId}
-                </TableCell>
-                <TableCell className="break-words text-muted-foreground">
-                  {compactList([
-                    route.routeIndex != null
-                      ? `Route #${route.routeIndex + 1}`
-                      : null,
-                    route.fallbackOrderIndex != null
-                      ? `Fallback #${route.fallbackOrderIndex + 1}`
-                      : null,
-                    route.protocol ? `Protocol ${route.protocol}` : null,
-                    route.requestLayer ? `Layer ${route.requestLayer}` : null,
-                    route.modelBackendKind
-                      ? `Backend ${route.modelBackendKind}`
-                      : null,
-                    route.canonicalModelKey
-                      ? `Canonical ${route.canonicalModelKey}`
-                      : null,
-                    route.behaviorFlags?.length
-                      ? `Flags ${route.behaviorFlags.join(', ')}`
-                      : null,
-                    route.requestedDimensions != null
-                      ? `Requested ${route.requestedDimensions}d`
-                      : null,
-                    route.modelEmbeddingDimensions != null
-                      ? `Model ${route.modelEmbeddingDimensions}d`
-                      : null,
-                    route.dimensionMismatch ? 'Dimension mismatch' : null,
-                  ]) || 'No runtime metadata'}
-                </TableCell>
-              </TableRow>
-            ))}
+            {routes.map((route, index) => {
+              const providerProfileLabel = formatAIModelProviderProfileLabel({
+                providerConfiguredModelCount:
+                  route.providerConfiguredModelCount,
+                providerConfiguredModelIds: route.providerConfiguredModelIds,
+                providerProfileConfigPath: route.providerProfileConfigPath,
+                providerProfileId: route.providerProfileId,
+                providerProfileSource: route.providerProfileSource,
+              });
+
+              return (
+                <TableRow key={`${route.providerId}:${route.modelId}:${index}`}>
+                  <TableCell className="break-words">
+                    <div className="font-medium">{route.providerId}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {compactList([
+                        route.providerType
+                          ? formatProviderMetadata(
+                              route.providerType,
+                              PROVIDER_TYPE_LABELS
+                            )
+                          : null,
+                        route.providerSource
+                          ? formatProviderMetadata(
+                              route.providerSource,
+                              PROVIDER_SOURCE_LABELS
+                            )
+                          : null,
+                        route.providerPriority != null
+                          ? `Priority ${route.providerPriority}`
+                          : null,
+                      ]) || 'Provider metadata unavailable'}
+                    </div>
+                    {providerProfileLabel ? (
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {providerProfileLabel}
+                      </div>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="break-words font-medium">
+                    {route.modelId}
+                  </TableCell>
+                  <TableCell className="break-words text-muted-foreground">
+                    {compactList([
+                      route.routeIndex != null
+                        ? `Route #${route.routeIndex + 1}`
+                        : null,
+                      route.fallbackOrderIndex != null
+                        ? `Fallback #${route.fallbackOrderIndex + 1}`
+                        : null,
+                      route.protocol ? `Protocol ${route.protocol}` : null,
+                      route.requestLayer ? `Layer ${route.requestLayer}` : null,
+                      route.modelBackendKind
+                        ? `Backend ${route.modelBackendKind}`
+                        : null,
+                      route.canonicalModelKey
+                        ? `Canonical ${route.canonicalModelKey}`
+                        : null,
+                      route.behaviorFlags?.length
+                        ? `Flags ${route.behaviorFlags.join(', ')}`
+                        : null,
+                      route.requestedDimensions != null
+                        ? `Requested ${route.requestedDimensions}d`
+                        : null,
+                      route.modelEmbeddingDimensions != null
+                        ? `Model ${route.modelEmbeddingDimensions}d`
+                        : null,
+                      route.dimensionMismatch ? 'Dimension mismatch' : null,
+                    ]) || 'No runtime metadata'}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       ) : (

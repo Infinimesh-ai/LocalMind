@@ -8411,6 +8411,9 @@ describe('AiPage', () => {
       )
     ).not.toBeNull();
     expect(
+      screen.getByText('OpenAI-compatible / Configured / Priority 10')
+    ).not.toBeNull();
+    expect(
       screen.getAllByText(/prepared bge-reranker-v2/).length
     ).toBeGreaterThan(0);
     expect(

@@ -13446,3 +13446,29 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、JSON export、一键复制按钮、筛选或 support bundle schema。
 - 当 active default model 不在候选列表中时，摘要只能显示 `Unknown`；这保留了现有只读失败态，不会自动触发 repair 或重新解析模型。
 - 当前 runtime 镜像未包含本轮纯前端源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 398. P3 落地记录：Admin Prepared Route Provider Profile Summary
+
+本轮继续收敛第 397 节与 embedding/rerank route diagnostics 的结构化展示缺口。实际代码与目标 AI 中间层架构的冲突点是：Admin copyable task route diagnostics 已能在每条 prepared route 文本中显示 provider profile、provider source、provider type 与 priority，但页面上的 `Prepared routes` 表格仍只显示 provider id、model id 和 runtime protocol/layer/backend/dimension metadata。自部署管理员在查看 workspace indexing / rerank prepared fallback 时，需要先复制 diagnostics 才能确认每条 prepared route 来自哪个 provider profile、配置来源和优先级。本轮把这些安全 profile evidence 直接展示在 prepared routes 表格的 Provider 单元格中，不新增后端字段。
+
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - `PreparedRoutesSummary` 为每条 prepared route 复用 `formatAIModelProviderProfileLabel()`。
+  - Provider 单元格新增 provider type、provider source、priority 与 provider profile label 展示。
+  - 缺少 provider metadata 时显示 `Provider metadata unavailable`，保留只读失败态。
+- 测试覆盖：
+  - Admin Vitest 的 ready rerank route 场景断言 prepared route 表格直接显示 `OpenAI-compatible / Configured / Priority 10`。
+  - 既有 profile label 断言继续覆盖 prepared route 的 provider profile/configured model evidence。
+
+该实现只调整 Admin 只读展示与测试，不新增 GraphQL 字段、不新增 DB migration、不改变 resolver、CapabilityRuntime、provider route selection、fallback order、route policy、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、repair mutation guard、support bundle schema、Model Registry revision 或 Provider Registry revision。它把 prepared route provider profile evidence 从“copyable diagnostics 可见”推进到“结构化表格也可见”，减少自部署管理员在 embedding/rerank prepared fallback 排障时的跳转和复制成本。
+
+验证策略：
+
+- 本轮为 Admin UI test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused Admin Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- 该表格仍复用模型列表 resolver 返回的只读 prepared route metadata，不代表后续真实 embedding/rerank dispatch 已持久化 route event、provider response、latency、usage、cost 或最终执行结果。
+- Provider profile evidence 仍来自当前配置层/native prepared route，不是 DB-backed Provider Registry / Model Registry revision，也不包含最后修改人、健康探测延迟或 endpoint telemetry。
+- 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、表格筛选、JSON export、一键复制按钮或 support bundle schema。
+- 当前 runtime 镜像未包含本轮纯前端源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
