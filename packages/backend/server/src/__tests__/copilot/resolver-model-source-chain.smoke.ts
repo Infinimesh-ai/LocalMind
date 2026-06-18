@@ -2629,6 +2629,7 @@ async function main() {
       'requestStatus',
       'rollbackPlanRequestFingerprint',
       'submissionFingerprint',
+      'targetLocatorFingerprint',
       'workspaceId',
     ]
   );
@@ -2679,6 +2680,7 @@ async function main() {
       'requestStatus',
       'rollbackPlanRequestFingerprint',
       'submissionFingerprint',
+      'targetLocatorFingerprint',
       'workspaceId',
     ]
   );
@@ -2730,6 +2732,7 @@ async function main() {
       'requestStatus',
       'rollbackPlanRequestFingerprint',
       'submissionFingerprint',
+      'targetLocatorFingerprint',
       'workspaceId',
     ]
   );
@@ -2782,6 +2785,7 @@ async function main() {
       'requestStatus',
       'rollbackPlanRequestFingerprint',
       'submissionFingerprint',
+      'targetLocatorFingerprint',
       'workspaceId',
     ]
   );
