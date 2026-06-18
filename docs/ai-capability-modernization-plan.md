@@ -13333,3 +13333,35 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 该字段不能替代完整 `preparedRoutes`、candidate evidence、route trace、provider health freshness、capability metadata、成本、token/embedding usage 或容器日志。
 - 这些字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、support bundle schema、repair mutation guard input、Model Registry revision、Provider Registry revision 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 394. P3 落地记录：Prepared Route Order Submission Preflight Binding
+
+本轮继续收敛第 393 节剩余风险中 “prepared route order evidence 仍没有进入 submission contract required inputs、repair preflight stale 校验或 execution request gate” 的问题。实际代码与目标 AI 中间层架构的冲突点是：preview fingerprint payload 已经显式绑定 `preparedRouteOrderFingerprints`，但 Admin 提交 repair preflight 时只要求 `candidateEvidenceSetFingerprint`、operation set、preview fingerprint 和 target locator 等字段；人工 review 或后续 support bundle 若要确认提交时的 prepared route order evidence 没有变化，仍只能间接推断。本轮新增顶层 `preparedRouteOrderEvidenceSetFingerprint`，并把它纳入 preview、submission contract、preflight stale check 与 execution request expected gate，不改变真实 repair mutation 执行、provider route selection 或 fallback 顺序。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `buildPromptRegistryPublishGateRepairActionPreview()` 基于每个 operation 的 `operationFingerprint`、`diagnosticsFingerprint` 与 `preparedRouteOrderFingerprints` 生成 `preparedRouteOrderEvidenceSetFingerprint`。
+  - `CopilotPromptRegistryRepairSubmissionInput`、submission contract、repair preview 与 repair preflight 新增 `preparedRouteOrderEvidenceSetFingerprint`，并加入 submission `requiredInputs` 与 `submissionFingerprint` payload。
+  - `buildPromptRegistryRepairPreflight()` 将该字段纳入 matched/mismatched stale check、review binding inputs/fingerprint，以及 preflight current/expected 输出。
+  - `CopilotPromptRegistryRepairExecutionRequestInput` 与 execution request gate 新增 `expectedPreparedRouteOrderEvidenceSetFingerprint`，让 request gate 也能阻断 stale prepared route order evidence。
+- GraphQL 与 common client：
+  - `schema.gql`、publish gate query、preflight query、repair execution request mutation、common query string 与 `schema.ts` 类型同步新增 preview/submission/preflight/execution request 字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - Admin 构造 repair submission input 时提交 `preparedRouteOrderEvidenceSetFingerprint`，构造 execution request gate input 时提交 `expectedPreparedRouteOrderEvidenceSetFingerprint`。
+  - repair action preview、preflight 与 execution request 文本展示 prepared route order evidence set current/expected 指纹和 submission required input。
+- 测试覆盖：
+  - resolver source chain smoke 断言 preview 与 submission contract 的 prepared route order evidence set 指纹一致，并复算该指纹；断言 preflight current/expected 字段、review binding inputs、execution request expected gate 与 nested preflight projection。
+  - Admin Vitest fixture 与长文本断言同步覆盖 preview/submission/preflight/execution request 展示和提交 input。
+
+该实现只扩展只读 diagnostics/preview/submission/preflight/execution request gate contract、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 support bundle schema、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、repair action catalog、真实 mutation 写入、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把 prepared route order evidence 从“preview fingerprint 已绑定但 submission/preflight 仍未显式要求”推进到“提交、预检和执行请求 gate 均携带同一 order evidence set anchor”，为后续 support bundle、route explain、repair guard 和 DB-backed route event 对齐提供更明确的只读契约。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `preparedRouteOrderEvidenceSetFingerprint` 仍只反映 diagnostics probe 阶段的 prepared route order evidence，不代表后续真实 embedding/rerank dispatch 一定按同一顺序执行、命中同一 provider/model 或产生同一 fallback attempt。
+- 该字段是 read-only submission/preflight/execution request gate evidence；本轮仍不创建真实 repair mutation 写入 guard、不持久化 route event、不定义 support bundle schema、不落 Model Registry/Provider Registry revision，也不记录 provider response、latency、usage、cost 或最终索引写入结果。
+- 该指纹不能替代完整 `preparedRoutes`、candidate evidence、route trace、provider health freshness、capability metadata、成本、token/embedding usage 或容器日志。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

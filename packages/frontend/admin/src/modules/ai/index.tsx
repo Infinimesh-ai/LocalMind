@@ -381,6 +381,8 @@ function buildPromptRegistryRepairSubmissionInput(
     authorizationFingerprint: submissionContract.authorizationFingerprint,
     candidateEvidenceSetFingerprint:
       submissionContract.candidateEvidenceSetFingerprint,
+    preparedRouteOrderEvidenceSetFingerprint:
+      submissionContract.preparedRouteOrderEvidenceSetFingerprint,
     catalogFingerprint: submissionContract.catalogFingerprint,
     contractVersion: submissionContract.contractVersion,
     expectedRegistryFingerprint: submissionContract.expectedRegistryFingerprint,
@@ -417,6 +419,8 @@ function buildPromptRegistryRepairExecutionRequestInput({
     expectedAuditEventFingerprint: repairPreflight.auditEventFingerprint,
     expectedCandidateEvidenceSetFingerprint:
       repairPreflight.candidateEvidenceSetFingerprint,
+    expectedPreparedRouteOrderEvidenceSetFingerprint:
+      repairPreflight.preparedRouteOrderEvidenceSetFingerprint,
     expectedTargetLocatorFingerprint: repairPreflight.targetLocatorFingerprint,
     expectedExecutionGateFingerprint: repairPreflight.executionGateFingerprint,
     expectedExecutionGateStatus: repairPreflight.executionGateStatus,
@@ -2206,6 +2210,7 @@ function PromptRegistryPublishGateQueryResult({
             approvalPolicyFingerprint: '',
             authorizationFingerprint: '',
             candidateEvidenceSetFingerprint: '',
+            preparedRouteOrderEvidenceSetFingerprint: '',
             catalogFingerprint: '',
             contractVersion: '',
             expectedRegistryFingerprint: '',
@@ -3271,6 +3276,7 @@ function formatPromptRegistryPublishGateRepairActionPreview(
     `authorization ${formatFeatureKind(preview.authorizationStatus)}`,
     `authorization fingerprint ${preview.authorizationFingerprint}`,
     `candidate evidence set fingerprint ${preview.candidateEvidenceSetFingerprint}`,
+    `prepared route order evidence set fingerprint ${preview.preparedRouteOrderEvidenceSetFingerprint}`,
     `approval policy ${preview.approvalPolicyVersion}`,
     `approval policy fingerprint ${preview.approvalPolicyFingerprint}`,
     preview.approvalRequired ? 'approval required yes' : 'approval required no',
@@ -3293,6 +3299,7 @@ function formatPromptRegistryPublishGateRepairActionPreview(
     `submission contract ${submission.contractVersion}`,
     `submission fingerprint ${submission.submissionFingerprint}`,
     `submission candidate evidence set fingerprint ${submission.candidateEvidenceSetFingerprint}`,
+    `submission prepared route order evidence set fingerprint ${submission.preparedRouteOrderEvidenceSetFingerprint}`,
     `submission status ${formatFeatureKind(submission.status)}`,
     submission.readOnly
       ? 'submission read-only yes'
@@ -3335,7 +3342,9 @@ function formatPromptRegistryRepairPreflight(
       : 'approval required no',
     `authorization status ${formatFeatureKind(preflight.authorizationStatus)}`,
     `candidate evidence set fingerprint ${preflight.candidateEvidenceSetFingerprint}`,
+    `prepared route order evidence set fingerprint ${preflight.preparedRouteOrderEvidenceSetFingerprint}`,
     `expected candidate evidence set fingerprint ${preflight.expectedCandidateEvidenceSetFingerprint}`,
+    `expected prepared route order evidence set fingerprint ${preflight.expectedPreparedRouteOrderEvidenceSetFingerprint}`,
     `target locator fingerprint ${preflight.targetLocatorFingerprint}`,
     `expected target locator fingerprint ${preflight.expectedTargetLocatorFingerprint}`,
     `approval request fingerprint ${preflight.approvalRequestFingerprint}`,
@@ -3473,6 +3482,7 @@ function formatPromptRegistryRepairExecutionRequest(
       ? 'execution requested yes'
       : 'execution requested no',
     `expected candidate evidence set fingerprint ${request.expectedCandidateEvidenceSetFingerprint}`,
+    `expected prepared route order evidence set fingerprint ${request.expectedPreparedRouteOrderEvidenceSetFingerprint}`,
     `expected target locator fingerprint ${request.expectedTargetLocatorFingerprint}`,
     `approval record request ${request.approvalRecordRequestVersion}`,
     `approval record request status ${formatFeatureKind(
@@ -4116,6 +4126,8 @@ function formatPromptRegistryRepairExecutionRequest(
     `preflight approval request fingerprint ${request.preflight.approvalRequestFingerprint}`,
     `preflight audit event fingerprint ${request.preflight.auditEventFingerprint}`,
     `preflight candidate evidence set fingerprint ${request.preflight.candidateEvidenceSetFingerprint}`,
+    `preflight prepared route order evidence set fingerprint ${request.preflight.preparedRouteOrderEvidenceSetFingerprint}`,
+    `preflight expected prepared route order evidence set fingerprint ${request.preflight.expectedPreparedRouteOrderEvidenceSetFingerprint}`,
     `preflight execution state fingerprint ${request.preflight.executionStateFingerprint}`,
     `preflight idempotency fingerprint ${request.preflight.idempotencyFingerprint}`,
     `preflight policy binding fingerprint ${request.preflight.policyBindingFingerprint}`,

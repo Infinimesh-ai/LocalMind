@@ -536,6 +536,7 @@ query getCopilotPromptRegistryPublishGate(
           authorizationStatus
           candidateCount
           candidateEvidenceSetFingerprint
+          preparedRouteOrderEvidenceSetFingerprint
           catalogFingerprint
           catalogVersion
           guardFingerprint
@@ -593,6 +594,7 @@ query getCopilotPromptRegistryPublishGate(
             approvalPolicyFingerprint
             authorizationFingerprint
             candidateEvidenceSetFingerprint
+            preparedRouteOrderEvidenceSetFingerprint
             catalogFingerprint
             contractVersion
             expectedRegistryFingerprint

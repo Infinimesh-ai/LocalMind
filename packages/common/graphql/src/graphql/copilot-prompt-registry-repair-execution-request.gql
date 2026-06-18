@@ -14,6 +14,7 @@ mutation requestCopilotPromptRegistryRepairExecution(
     auditEventRequestStatus
     auditEventRequestVersion
     expectedCandidateEvidenceSetFingerprint
+    expectedPreparedRouteOrderEvidenceSetFingerprint
     expectedTargetLocatorFingerprint
     executionCompletionEventRequestCreated
     executionCompletionEventRequestFingerprint
@@ -260,6 +261,7 @@ mutation requestCopilotPromptRegistryRepairExecution(
       approvalRequestFingerprint
       auditEventFingerprint
       candidateEvidenceSetFingerprint
+      preparedRouteOrderEvidenceSetFingerprint
       executionGateFingerprint
       executionGateStatus
       executionStateFingerprint
@@ -269,6 +271,7 @@ mutation requestCopilotPromptRegistryRepairExecution(
       reviewBindingFingerprint
       rollbackPlanFingerprint
       status
+      expectedPreparedRouteOrderEvidenceSetFingerprint
       expectedTargetLocatorFingerprint
       targetLocatorFingerprint
       workspaceId

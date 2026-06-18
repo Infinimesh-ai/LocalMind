@@ -1130,6 +1130,7 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   auditEventRequestStatus: Scalars['String']['output'];
   auditEventRequestVersion: Scalars['String']['output'];
   expectedCandidateEvidenceSetFingerprint: Scalars['String']['output'];
+  expectedPreparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
   expectedTargetLocatorFingerprint: Scalars['String']['output'];
   executionCompletionEventRequestCreated: Scalars['Boolean']['output'];
   executionCompletionEventRequestFingerprint: Scalars['String']['output'];
@@ -1405,6 +1406,7 @@ export interface CopilotPromptRegistryRepairExecutionRequestInput {
   expectedApprovalRequestFingerprint: Scalars['String']['input'];
   expectedAuditEventFingerprint: Scalars['String']['input'];
   expectedCandidateEvidenceSetFingerprint: Scalars['String']['input'];
+  expectedPreparedRouteOrderEvidenceSetFingerprint: Scalars['String']['input'];
   expectedTargetLocatorFingerprint: Scalars['String']['input'];
   expectedExecutionGateFingerprint: Scalars['String']['input'];
   expectedExecutionGateStatus: Scalars['String']['input'];
@@ -1452,6 +1454,7 @@ export interface CopilotPromptRegistryRepairPreflightType {
   auditEventVersion: Scalars['String']['output'];
   authorizationStatus: Scalars['String']['output'];
   candidateEvidenceSetFingerprint: Scalars['String']['output'];
+  preparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
   capabilityCheckMode: Scalars['String']['output'];
   capabilityFingerprint: Scalars['String']['output'];
   capabilitySource: Scalars['String']['output'];
@@ -1469,6 +1472,7 @@ export interface CopilotPromptRegistryRepairPreflightType {
   executionStateStatus: Scalars['String']['output'];
   executionStateVersion: Scalars['String']['output'];
   expectedCandidateEvidenceSetFingerprint: Scalars['String']['output'];
+  expectedPreparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
   expectedTargetLocatorFingerprint: Scalars['String']['output'];
   idempotencyFingerprint: Scalars['String']['output'];
   idempotencyKey: Scalars['String']['output'];
@@ -1516,6 +1520,7 @@ export interface CopilotPromptRegistryRepairSubmissionInput {
   approvalPolicyFingerprint: Scalars['String']['input'];
   authorizationFingerprint: Scalars['String']['input'];
   candidateEvidenceSetFingerprint: Scalars['String']['input'];
+  preparedRouteOrderEvidenceSetFingerprint: Scalars['String']['input'];
   catalogFingerprint: Scalars['String']['input'];
   contractVersion: Scalars['String']['input'];
   expectedRegistryFingerprint: Scalars['String']['input'];
@@ -1910,6 +1915,7 @@ export interface CopilotPromptRegistryPublishGateRepairActionPreviewType {
   authorizationStatus: Scalars['String']['output'];
   candidateCount: Scalars['SafeInt']['output'];
   candidateEvidenceSetFingerprint: Scalars['String']['output'];
+  preparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
   catalogFingerprint: Scalars['String']['output'];
   catalogVersion: Scalars['String']['output'];
   guardFingerprint: Scalars['String']['output'];
@@ -1928,6 +1934,7 @@ export interface CopilotPromptRegistryPublishGateRepairActionSubmissionContractT
   approvalPolicyFingerprint: Scalars['String']['output'];
   authorizationFingerprint: Scalars['String']['output'];
   candidateEvidenceSetFingerprint: Scalars['String']['output'];
+  preparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
   catalogFingerprint: Scalars['String']['output'];
   contractVersion: Scalars['String']['output'];
   expectedRegistryFingerprint: Scalars['String']['output'];
@@ -7949,6 +7956,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
           authorizationStatus: string;
           candidateCount: number;
           candidateEvidenceSetFingerprint: string;
+          preparedRouteOrderEvidenceSetFingerprint: string;
           catalogFingerprint: string;
           catalogVersion: string;
           guardFingerprint: string;
@@ -8009,6 +8017,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             approvalPolicyFingerprint: string;
             authorizationFingerprint: string;
             candidateEvidenceSetFingerprint: string;
+            preparedRouteOrderEvidenceSetFingerprint: string;
             catalogFingerprint: string;
             contractVersion: string;
             expectedRegistryFingerprint: string;
@@ -8273,6 +8282,7 @@ export type GetCopilotPromptRegistryRepairPreflightQuery = {
         auditEventVersion: string;
         authorizationStatus: string;
         candidateEvidenceSetFingerprint: string;
+        preparedRouteOrderEvidenceSetFingerprint: string;
         capabilityCheckMode: string;
         capabilityFingerprint: string;
         capabilitySource: string;
@@ -8290,6 +8300,7 @@ export type GetCopilotPromptRegistryRepairPreflightQuery = {
         executionStateStatus: string;
         executionStateVersion: string;
         expectedCandidateEvidenceSetFingerprint: string;
+        expectedPreparedRouteOrderEvidenceSetFingerprint: string;
         expectedTargetLocatorFingerprint: string;
         idempotencyFingerprint: string;
         idempotencyKey: string;
@@ -8357,6 +8368,7 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
     auditEventRequestStatus: string;
     auditEventRequestVersion: string;
     expectedCandidateEvidenceSetFingerprint: string;
+    expectedPreparedRouteOrderEvidenceSetFingerprint: string;
     expectedTargetLocatorFingerprint: string;
     executionCompletionEventRequestCreated: boolean;
     executionCompletionEventRequestFingerprint: string;
@@ -8604,6 +8616,7 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
       approvalRequestFingerprint: string;
       auditEventFingerprint: string;
       candidateEvidenceSetFingerprint: string;
+      preparedRouteOrderEvidenceSetFingerprint: string;
       executionGateFingerprint: string;
       executionGateStatus: string;
       executionStateFingerprint: string;
@@ -8613,6 +8626,7 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
       reviewBindingFingerprint: string;
       rollbackPlanFingerprint: string;
       status: string;
+      expectedPreparedRouteOrderEvidenceSetFingerprint: string;
       expectedTargetLocatorFingerprint: string;
       targetLocatorFingerprint: string;
       workspaceId: string | null;

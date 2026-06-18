@@ -199,6 +199,9 @@ class CopilotPromptRegistryRepairSubmissionInput {
   candidateEvidenceSetFingerprint!: string;
 
   @Field(() => String)
+  preparedRouteOrderEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
   catalogFingerprint!: string;
 
   @Field(() => String)
@@ -262,6 +265,9 @@ class CopilotPromptRegistryRepairExecutionRequestInput {
 
   @Field(() => String)
   expectedCandidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  expectedPreparedRouteOrderEvidenceSetFingerprint!: string;
 
   @Field(() => String)
   expectedTargetLocatorFingerprint!: string;
@@ -869,6 +875,7 @@ type CopilotPromptRegistryPublishGateRepairActionSubmissionContract = {
   approvalPolicyFingerprint: string;
   authorizationFingerprint: string;
   candidateEvidenceSetFingerprint: string;
+  preparedRouteOrderEvidenceSetFingerprint: string;
   catalogFingerprint: string;
   contractVersion: string;
   expectedRegistryFingerprint: string;
@@ -916,6 +923,7 @@ type CopilotPromptRegistryRepairPreflight = {
   auditEventVersion: string;
   authorizationStatus: string;
   candidateEvidenceSetFingerprint: string;
+  preparedRouteOrderEvidenceSetFingerprint: string;
   capabilityCheckMode: string;
   capabilityFingerprint: string;
   capabilitySource: string;
@@ -933,6 +941,7 @@ type CopilotPromptRegistryRepairPreflight = {
   executionStateStatus: string;
   executionStateVersion: string;
   expectedCandidateEvidenceSetFingerprint: string;
+  expectedPreparedRouteOrderEvidenceSetFingerprint: string;
   expectedTargetLocatorFingerprint: string;
   targetLocatorFingerprint: string;
   idempotencyFingerprint: string;
@@ -980,6 +989,7 @@ type CopilotPromptRegistryRepairExecutionRequest = {
   accepted: boolean;
   executionRequested: boolean;
   expectedCandidateEvidenceSetFingerprint: string;
+  expectedPreparedRouteOrderEvidenceSetFingerprint: string;
   expectedTargetLocatorFingerprint: string;
   approvalRecordRequestCreated: boolean;
   approvalRecordRequestFingerprint: string;
@@ -1244,6 +1254,7 @@ type CopilotPromptRegistryPublishGateRepairActionPreview = {
   authorizationStatus: string;
   candidateCount: number;
   candidateEvidenceSetFingerprint: string;
+  preparedRouteOrderEvidenceSetFingerprint: string;
   catalogFingerprint: string;
   catalogVersion: string;
   guardFingerprint: string;
@@ -2259,6 +2270,9 @@ class CopilotPromptRegistryPublishGateRepairActionSubmissionContractType impleme
   candidateEvidenceSetFingerprint!: string;
 
   @Field(() => String)
+  preparedRouteOrderEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
   catalogFingerprint!: string;
 
   @Field(() => String)
@@ -2335,6 +2349,9 @@ class CopilotPromptRegistryPublishGateRepairActionPreviewType implements Copilot
 
   @Field(() => String)
   candidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  preparedRouteOrderEvidenceSetFingerprint!: string;
 
   @Field(() => String)
   catalogFingerprint!: string;
@@ -2464,6 +2481,9 @@ class CopilotPromptRegistryRepairPreflightType implements CopilotPromptRegistryR
   candidateEvidenceSetFingerprint!: string;
 
   @Field(() => String)
+  preparedRouteOrderEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
   capabilityCheckMode!: string;
 
   @Field(() => String)
@@ -2513,6 +2533,9 @@ class CopilotPromptRegistryRepairPreflightType implements CopilotPromptRegistryR
 
   @Field(() => String)
   expectedCandidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  expectedPreparedRouteOrderEvidenceSetFingerprint!: string;
 
   @Field(() => String)
   expectedTargetLocatorFingerprint!: string;
@@ -2648,6 +2671,9 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
 
   @Field(() => String)
   expectedCandidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  expectedPreparedRouteOrderEvidenceSetFingerprint!: string;
 
   @Field(() => String)
   expectedTargetLocatorFingerprint!: string;
@@ -7794,6 +7820,23 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
     )
     .digest('hex')
     .slice(0, 16);
+  const preparedRouteOrderEvidenceSetFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify(
+        operations
+          .map(operation => ({
+            diagnosticsFingerprint: operation.diagnosticsFingerprint,
+            operationFingerprint: operation.operationFingerprint,
+            preparedRouteOrderFingerprints:
+              operation.preparedRouteOrderFingerprints,
+          }))
+          .sort((left, right) =>
+            left.operationFingerprint.localeCompare(right.operationFingerprint)
+          )
+      )
+    )
+    .digest('hex')
+    .slice(0, 16);
   const requiredCapabilities = uniqueStrings(
     operations.flatMap(operation => operation.requiredCapabilities)
   ).sort();
@@ -7853,6 +7896,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
     catalogVersion: input.guard.catalogVersion,
     guardFingerprint: input.guard.guardFingerprint,
     operationSetFingerprint,
+    preparedRouteOrderEvidenceSetFingerprint,
     operations: operations.map(operation => ({
       actionKind: operation.actionKind,
       candidateEvidenceFingerprint: operation.candidateEvidenceFingerprint,
@@ -7875,6 +7919,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
     'approvalPolicyFingerprint',
     'authorizationFingerprint',
     'candidateEvidenceSetFingerprint',
+    'preparedRouteOrderEvidenceSetFingerprint',
     'expectedRegistryFingerprint',
     'expectedRegistryId',
     'expectedRegistryUpdatedAt',
@@ -7896,6 +7941,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
         expectedRegistryUpdatedAt: input.guard.expectedRegistryUpdatedAt,
         guardFingerprint: input.guard.guardFingerprint,
         operationSetFingerprint,
+        preparedRouteOrderEvidenceSetFingerprint,
         previewFingerprint,
         requiredInputs: submissionRequiredInputs,
         targetLocatorFingerprint: input.guard.targetLocatorFingerprint,
@@ -7922,6 +7968,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
       ].join(':'),
       mutationAvailable: false,
       operationSetFingerprint,
+      preparedRouteOrderEvidenceSetFingerprint,
       previewFingerprint,
       readOnly: true,
       requiredInputs: submissionRequiredInputs,
@@ -7941,6 +7988,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
     authorizationStatus,
     candidateCount: operations.length,
     candidateEvidenceSetFingerprint,
+    preparedRouteOrderEvidenceSetFingerprint,
     catalogFingerprint: input.catalogFingerprint,
     catalogVersion: input.guard.catalogVersion,
     guardFingerprint: input.guard.guardFingerprint,
@@ -8002,6 +8050,11 @@ function buildPromptRegistryRepairPreflight(
       'candidateEvidenceSetFingerprint',
       expected.candidateEvidenceSetFingerprint ===
         current.candidateEvidenceSetFingerprint,
+    ],
+    [
+      'preparedRouteOrderEvidenceSetFingerprint',
+      expected.preparedRouteOrderEvidenceSetFingerprint ===
+        current.preparedRouteOrderEvidenceSetFingerprint,
     ],
     [
       'catalogFingerprint',
@@ -8113,6 +8166,7 @@ function buildPromptRegistryRepairPreflight(
   const reviewBindingVersion = 'repair-preflight-review-binding/v1';
   const reviewBindingInputs = [
     'candidateEvidenceSetFingerprint',
+    'preparedRouteOrderEvidenceSetFingerprint',
     'capabilityFingerprint',
     'permissionFingerprint',
     'submissionFingerprint',
@@ -8129,9 +8183,13 @@ function buildPromptRegistryRepairPreflight(
         currentSubmissionFingerprint: current.submissionFingerprint,
         candidateEvidenceSetFingerprint:
           current.candidateEvidenceSetFingerprint,
+        preparedRouteOrderEvidenceSetFingerprint:
+          current.preparedRouteOrderEvidenceSetFingerprint,
         expectedSubmissionFingerprint: expected.submissionFingerprint,
         expectedCandidateEvidenceSetFingerprint:
           expected.candidateEvidenceSetFingerprint,
+        expectedPreparedRouteOrderEvidenceSetFingerprint:
+          expected.preparedRouteOrderEvidenceSetFingerprint,
         expectedTargetLocatorFingerprint: expected.targetLocatorFingerprint,
         inputs: reviewBindingInputs,
         permissionFingerprint,
@@ -8484,6 +8542,8 @@ function buildPromptRegistryRepairPreflight(
     auditEventVersion,
     authorizationStatus: approval.authorizationStatus,
     candidateEvidenceSetFingerprint: current.candidateEvidenceSetFingerprint,
+    preparedRouteOrderEvidenceSetFingerprint:
+      current.preparedRouteOrderEvidenceSetFingerprint,
     capabilityCheckMode: capability.checkMode,
     capabilityFingerprint,
     capabilitySource: capability.source,
@@ -8502,6 +8562,8 @@ function buildPromptRegistryRepairPreflight(
     executionStateVersion,
     expectedCandidateEvidenceSetFingerprint:
       expected.candidateEvidenceSetFingerprint,
+    expectedPreparedRouteOrderEvidenceSetFingerprint:
+      expected.preparedRouteOrderEvidenceSetFingerprint,
     expectedTargetLocatorFingerprint: expected.targetLocatorFingerprint,
     idempotencyFingerprint,
     idempotencyKey: current.idempotencyKey,
@@ -8575,6 +8637,11 @@ function buildPromptRegistryRepairExecutionRequest(
       'expectedCandidateEvidenceSetFingerprint',
       input.expectedCandidateEvidenceSetFingerprint ===
         preflight.candidateEvidenceSetFingerprint,
+    ],
+    [
+      'expectedPreparedRouteOrderEvidenceSetFingerprint',
+      input.expectedPreparedRouteOrderEvidenceSetFingerprint ===
+        preflight.preparedRouteOrderEvidenceSetFingerprint,
     ],
     [
       'expectedTargetLocatorFingerprint',
@@ -11473,6 +11540,8 @@ function buildPromptRegistryRepairExecutionRequest(
     executionRequested: false,
     expectedCandidateEvidenceSetFingerprint:
       input.expectedCandidateEvidenceSetFingerprint,
+    expectedPreparedRouteOrderEvidenceSetFingerprint:
+      input.expectedPreparedRouteOrderEvidenceSetFingerprint,
     expectedTargetLocatorFingerprint: input.expectedTargetLocatorFingerprint,
     approvalRecordRequestCreated: false,
     approvalRecordRequestFingerprint,

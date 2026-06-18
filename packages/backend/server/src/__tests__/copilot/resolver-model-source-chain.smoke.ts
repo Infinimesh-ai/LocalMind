@@ -2558,10 +2558,45 @@ async function main() {
     routeReadyGate?.repairActionPreview.candidateEvidenceSetFingerprint ?? '',
     /^[0-9a-f]{16}$/
   );
+  assert.match(
+    routeReadyGate?.repairActionPreview
+      .preparedRouteOrderEvidenceSetFingerprint ?? '',
+    /^[0-9a-f]{16}$/
+  );
   assert.equal(
     routeReadyGate?.repairActionPreview.submissionContract
       .candidateEvidenceSetFingerprint,
     routeReadyGate?.repairActionPreview.candidateEvidenceSetFingerprint
+  );
+  assert.equal(
+    routeReadyGate?.repairActionPreview.submissionContract
+      .preparedRouteOrderEvidenceSetFingerprint,
+    routeReadyGate?.repairActionPreview.preparedRouteOrderEvidenceSetFingerprint
+  );
+  assert.equal(
+    routeReadyGate?.repairActionPreview
+      .preparedRouteOrderEvidenceSetFingerprint,
+    routeReadyGate
+      ? createHash('sha256')
+          .update(
+            stableFingerprintFixtureStringify(
+              routeReadyGate.repairActionPreview.operations
+                .map(operation => ({
+                  diagnosticsFingerprint: operation.diagnosticsFingerprint,
+                  operationFingerprint: operation.operationFingerprint,
+                  preparedRouteOrderFingerprints:
+                    operation.preparedRouteOrderFingerprints,
+                }))
+                .sort((left, right) =>
+                  left.operationFingerprint.localeCompare(
+                    right.operationFingerprint
+                  )
+                )
+            )
+          )
+          .digest('hex')
+          .slice(0, 16)
+      : undefined
   );
   assert.equal(
     routeReadyGate?.repairActionPreview.submissionContract
@@ -2620,6 +2655,7 @@ async function main() {
       'expectedRegistryUpdatedAt',
       'guardFingerprint',
       'operationSetFingerprint',
+      'preparedRouteOrderEvidenceSetFingerprint',
       'previewFingerprint',
       'targetLocatorFingerprint',
     ]
@@ -2639,6 +2675,9 @@ async function main() {
         candidateEvidenceSetFingerprint:
           routeReadyGate.repairActionPreview.submissionContract
             .candidateEvidenceSetFingerprint,
+        preparedRouteOrderEvidenceSetFingerprint:
+          routeReadyGate.repairActionPreview.submissionContract
+            .preparedRouteOrderEvidenceSetFingerprint,
         catalogFingerprint:
           routeReadyGate.repairActionPreview.submissionContract
             .catalogFingerprint,
@@ -2704,8 +2743,16 @@ async function main() {
     routeReadyGate.repairActionPreview.candidateEvidenceSetFingerprint
   );
   assert.equal(
+    matchingPreflight?.preparedRouteOrderEvidenceSetFingerprint,
+    routeReadyGate.repairActionPreview.preparedRouteOrderEvidenceSetFingerprint
+  );
+  assert.equal(
     matchingPreflight?.expectedCandidateEvidenceSetFingerprint,
     routeReadyGate.repairActionPreview.candidateEvidenceSetFingerprint
+  );
+  assert.equal(
+    matchingPreflight?.expectedPreparedRouteOrderEvidenceSetFingerprint,
+    routeReadyGate.repairActionPreview.preparedRouteOrderEvidenceSetFingerprint
   );
   assert.equal(
     matchingPreflight?.targetLocatorFingerprint,
@@ -2740,6 +2787,7 @@ async function main() {
     'candidateEvidenceSetFingerprint',
     'capabilityFingerprint',
     'permissionFingerprint',
+    'preparedRouteOrderEvidenceSetFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
   ]);
@@ -2990,6 +3038,9 @@ async function main() {
           candidateEvidenceSetFingerprint:
             routeReadyGate.repairActionPreview.submissionContract
               .candidateEvidenceSetFingerprint,
+          preparedRouteOrderEvidenceSetFingerprint:
+            routeReadyGate.repairActionPreview.submissionContract
+              .preparedRouteOrderEvidenceSetFingerprint,
           catalogFingerprint:
             routeReadyGate.repairActionPreview.submissionContract
               .catalogFingerprint,
@@ -3035,6 +3086,8 @@ async function main() {
           matchingPreflight?.auditEventFingerprint ?? '',
         expectedCandidateEvidenceSetFingerprint:
           matchingPreflight?.candidateEvidenceSetFingerprint ?? '',
+        expectedPreparedRouteOrderEvidenceSetFingerprint:
+          matchingPreflight?.preparedRouteOrderEvidenceSetFingerprint ?? '',
         expectedTargetLocatorFingerprint:
           matchingPreflight?.targetLocatorFingerprint ?? '',
         expectedExecutionGateFingerprint:
@@ -4843,6 +4896,7 @@ async function main() {
     'expectedIdempotencyFingerprint',
     'expectedPolicyBindingFingerprint',
     'expectedPreflightStatus',
+    'expectedPreparedRouteOrderEvidenceSetFingerprint',
     'expectedRepairJobFingerprint',
     'expectedReviewBindingFingerprint',
     'expectedRollbackPlanFingerprint',
@@ -4859,6 +4913,7 @@ async function main() {
     'expectedIdempotencyFingerprint',
     'expectedPolicyBindingFingerprint',
     'expectedPreflightStatus',
+    'expectedPreparedRouteOrderEvidenceSetFingerprint',
     'expectedRepairJobFingerprint',
     'expectedReviewBindingFingerprint',
     'expectedRollbackPlanFingerprint',
@@ -4871,6 +4926,14 @@ async function main() {
   assert.equal(
     executionRequest.preflight.candidateEvidenceSetFingerprint,
     matchingPreflight?.candidateEvidenceSetFingerprint
+  );
+  assert.equal(
+    executionRequest.preflight.preparedRouteOrderEvidenceSetFingerprint,
+    matchingPreflight?.preparedRouteOrderEvidenceSetFingerprint
+  );
+  assert.equal(
+    executionRequest.preflight.expectedPreparedRouteOrderEvidenceSetFingerprint,
+    matchingPreflight?.expectedPreparedRouteOrderEvidenceSetFingerprint
   );
   assert.equal(
     executionRequest.preflight.targetLocatorFingerprint,
@@ -4905,6 +4968,9 @@ async function main() {
           candidateEvidenceSetFingerprint:
             routeReadyGate.repairActionPreview.submissionContract
               .candidateEvidenceSetFingerprint,
+          preparedRouteOrderEvidenceSetFingerprint:
+            routeReadyGate.repairActionPreview.submissionContract
+              .preparedRouteOrderEvidenceSetFingerprint,
           catalogFingerprint:
             routeReadyGate.repairActionPreview.submissionContract
               .catalogFingerprint,
@@ -4950,6 +5016,8 @@ async function main() {
           matchingPreflight?.auditEventFingerprint ?? '',
         expectedCandidateEvidenceSetFingerprint:
           matchingPreflight?.candidateEvidenceSetFingerprint ?? '',
+        expectedPreparedRouteOrderEvidenceSetFingerprint:
+          matchingPreflight?.preparedRouteOrderEvidenceSetFingerprint ?? '',
         expectedTargetLocatorFingerprint:
           matchingPreflight?.targetLocatorFingerprint ?? '',
         expectedExecutionGateFingerprint: '0000aaaabbbbcccc',
@@ -5383,6 +5451,7 @@ async function main() {
     'guardFingerprint',
     'idempotencyKey',
     'operationSetFingerprint',
+    'preparedRouteOrderEvidenceSetFingerprint',
     'previewFingerprint',
     'requiredInputs',
     'submissionFingerprint',
@@ -5402,6 +5471,9 @@ async function main() {
       candidateEvidenceSetFingerprint:
         routeReadyGate.repairActionPreview.submissionContract
           .candidateEvidenceSetFingerprint,
+      preparedRouteOrderEvidenceSetFingerprint:
+        routeReadyGate.repairActionPreview.submissionContract
+          .preparedRouteOrderEvidenceSetFingerprint,
       catalogFingerprint:
         routeReadyGate.repairActionPreview.submissionContract
           .catalogFingerprint,
