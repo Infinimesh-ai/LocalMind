@@ -4183,6 +4183,48 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
         )
       : undefined
   );
+  t.truthy(successfulDiagnostics);
+  t.truthy(failedDiagnostics);
+  t.like(successfulDiagnostics!.agentRuntimeDiagnosticsManifest, {
+    version: 'agent-runtime-diagnostics-manifest/v1',
+    fingerprint: successfulDiagnostics!.agentRuntimeDiagnosticsFingerprint,
+    projectionContractFingerprint:
+      successfulDiagnostics!.agentRuntimeProjectionContractFingerprint,
+    timelineRouteEvidenceSetFingerprint:
+      successfulDiagnostics!.agentRuntimeTimelineRouteEvidenceSetFingerprint,
+    projectionSource: successfulDiagnostics!.agentRuntimeProjectionSource,
+    schemaReadiness: successfulDiagnostics!.agentRuntimeSchemaReadiness,
+    nativeTraceEventTypes:
+      successfulDiagnostics!.agentRuntimeNativeTraceEventTypes,
+    hasPreparedRouteTrace: true,
+    preparedRouteStepCount: 1,
+    preparedRouteCount: 1,
+    preparedRouteActualCount: 1,
+    projectionGapCount:
+      successfulDiagnostics!.agentRuntimeProjectionGaps.length,
+    timelineGapCount: successfulDiagnostics!.agentRuntimeTimelineGaps.length,
+    schemaReadinessGapCount:
+      successfulDiagnostics!.agentRuntimeSchemaReadinessGaps.length,
+  });
+  t.like(failedDiagnostics!.agentRuntimeDiagnosticsManifest, {
+    version: 'agent-runtime-diagnostics-manifest/v1',
+    fingerprint: failedDiagnostics!.agentRuntimeDiagnosticsFingerprint,
+    projectionContractFingerprint:
+      failedDiagnostics!.agentRuntimeProjectionContractFingerprint,
+    timelineRouteEvidenceSetFingerprint:
+      failedDiagnostics!.agentRuntimeTimelineRouteEvidenceSetFingerprint,
+    projectionSource: failedDiagnostics!.agentRuntimeProjectionSource,
+    schemaReadiness: failedDiagnostics!.agentRuntimeSchemaReadiness,
+    nativeTraceEventTypes: failedDiagnostics!.agentRuntimeNativeTraceEventTypes,
+    hasPreparedRouteTrace: false,
+    preparedRouteStepCount: 0,
+    preparedRouteCount: 0,
+    preparedRouteActualCount: 0,
+    projectionGapCount: failedDiagnostics!.agentRuntimeProjectionGaps.length,
+    timelineGapCount: failedDiagnostics!.agentRuntimeTimelineGaps.length,
+    schemaReadinessGapCount:
+      failedDiagnostics!.agentRuntimeSchemaReadinessGaps.length,
+  });
   t.false('inputSnapshot' in diagnostics[0]);
   t.false('result' in diagnostics[0]);
   t.false('artifacts' in diagnostics[0]);

@@ -109,11 +109,29 @@ export type CopilotActionRunAgentRuntimeTimelineItem = {
   routeEvidenceFingerprint: string;
 };
 
+export type CopilotActionRunAgentRuntimeDiagnosticsManifest = {
+  version: string;
+  fingerprint: string;
+  projectionContractFingerprint: string;
+  timelineRouteEvidenceSetFingerprint: string;
+  projectionSource: string;
+  schemaReadiness: string;
+  nativeTraceEventTypes: string[];
+  hasPreparedRouteTrace: boolean;
+  preparedRouteStepCount: number;
+  preparedRouteCount: number;
+  preparedRouteActualCount: number;
+  projectionGapCount: number;
+  timelineGapCount: number;
+  schemaReadinessGapCount: number;
+};
+
 export type CopilotActionRunDiagnosticsItem = {
   id: string;
   actionId: string;
   actionVersion: string;
   agentRuntimeDiagnosticsFingerprint: string;
+  agentRuntimeDiagnosticsManifest: CopilotActionRunAgentRuntimeDiagnosticsManifest;
   agentRuntimeNativeTraceEventTypes: string[];
   agentRuntimeProjectedSchemaComponents: string[];
   agentRuntimeProjectedRunStatuses: string[];
@@ -1017,9 +1035,28 @@ function summarizePreparedRouteTrace(
       preparedRouteStepRouteCountMismatches,
       preparedRouteStepRouteCounts,
     });
+  const agentRuntimeDiagnosticsManifest: CopilotActionRunAgentRuntimeDiagnosticsManifest =
+    {
+      version: 'agent-runtime-diagnostics-manifest/v1',
+      fingerprint: agentRuntimeDiagnosticsFingerprint,
+      projectionContractFingerprint: agentRuntimeProjectionContractFingerprint,
+      timelineRouteEvidenceSetFingerprint:
+        agentRuntimeTimelineRouteEvidenceSetFingerprint,
+      projectionSource: AI_ACTION_RUN_AGENT_RUNTIME_PROJECTION_SOURCE,
+      schemaReadiness: AI_ACTION_RUN_AGENT_RUNTIME_SCHEMA_READINESS,
+      nativeTraceEventTypes: agentRuntimeNativeTraceEventTypes,
+      hasPreparedRouteTrace: !!trace,
+      preparedRouteStepCount,
+      preparedRouteCount,
+      preparedRouteActualCount,
+      projectionGapCount: agentRuntimeProjectionGaps.length,
+      timelineGapCount: agentRuntimeTimelineGaps.length,
+      schemaReadinessGapCount: agentRuntimeSchemaReadinessGaps.length,
+    };
 
   return {
     agentRuntimeDiagnosticsFingerprint,
+    agentRuntimeDiagnosticsManifest,
     agentRuntimeNativeTraceEventTypes,
     agentRuntimeProjectedSchemaComponents,
     agentRuntimeProjectedRunStatuses,

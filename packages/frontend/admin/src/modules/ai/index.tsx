@@ -5271,6 +5271,30 @@ function formatActionRunAgentRuntimeDiagnosticsFingerprint(
   return `Agent runtime diagnostics fingerprint ${run.agentRuntimeDiagnosticsFingerprint}`;
 }
 
+function formatActionRunAgentRuntimeDiagnosticsManifest(
+  run: ActionRunDiagnosticsItem
+) {
+  const manifest = run.agentRuntimeDiagnosticsManifest;
+
+  return compactList([
+    `Agent runtime diagnostics manifest ${manifest.version}`,
+    `fingerprint ${manifest.fingerprint}`,
+    `projection ${manifest.projectionContractFingerprint}`,
+    `timeline ${manifest.timelineRouteEvidenceSetFingerprint}`,
+    `source ${manifest.projectionSource}`,
+    `schema ${manifest.schemaReadiness}`,
+    manifest.hasPreparedRouteTrace ? 'prepared trace yes' : 'prepared trace no',
+    `routes ${manifest.preparedRouteActualCount}/${manifest.preparedRouteCount}`,
+    `steps ${manifest.preparedRouteStepCount}`,
+    `projection gaps ${manifest.projectionGapCount}`,
+    `timeline gaps ${manifest.timelineGapCount}`,
+    `schema gaps ${manifest.schemaReadinessGapCount}`,
+    manifest.nativeTraceEventTypes.length
+      ? `native events ${manifest.nativeTraceEventTypes.join(' -> ')}`
+      : 'native events none',
+  ]);
+}
+
 function formatActionRunAgentRuntimeProjectionContractFingerprint(
   run: ActionRunDiagnosticsItem
 ) {
@@ -5613,6 +5637,7 @@ function buildActionRunDiagnosticsText(run: ActionRunDiagnosticsItem) {
     `Created ${run.createdAt}`,
     `Updated ${run.updatedAt}`,
     formatActionRunAgentRuntimeDiagnosticsFingerprint(run),
+    formatActionRunAgentRuntimeDiagnosticsManifest(run),
     `Agent runtime projection ${run.agentRuntimeProjectionSource}`,
     formatActionRunAgentRuntimeProjectionContractFingerprint(run),
     `Agent runtime run ${run.agentRuntimeRunId}`,
@@ -5765,6 +5790,9 @@ function ActionRunRecentList({
                   </div>
                   <div className="mt-1 break-words text-xs text-muted-foreground">
                     {formatActionRunAgentRuntimeDiagnosticsFingerprint(run)}
+                  </div>
+                  <div className="mt-1 break-words text-xs text-muted-foreground">
+                    {formatActionRunAgentRuntimeDiagnosticsManifest(run)}
                   </div>
                   <div className="mt-1 break-words text-xs text-muted-foreground">
                     {formatActionRunAgentRuntimeProjectionContractFingerprint(

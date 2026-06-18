@@ -607,6 +607,7 @@ export interface CopilotActionRunDiagnosticsItemType {
   actionId: Scalars['String']['output'];
   actionVersion: Scalars['String']['output'];
   agentRuntimeDiagnosticsFingerprint: Scalars['String']['output'];
+  agentRuntimeDiagnosticsManifest: CopilotActionRunAgentRuntimeDiagnosticsManifestType;
   agentRuntimeNativeTraceEventTypes: Array<Scalars['String']['output']>;
   agentRuntimeProjectedSchemaComponents: Array<Scalars['String']['output']>;
   agentRuntimeProjectedRunStatuses: Array<Scalars['String']['output']>;
@@ -685,6 +686,24 @@ export interface CopilotActionRunDiagnosticsItemType {
   sessionId?: Maybe<Scalars['String']['output']>;
   status: Scalars['String']['output'];
   updatedAt: Scalars['DateTime']['output'];
+}
+
+export interface CopilotActionRunAgentRuntimeDiagnosticsManifestType {
+  __typename?: 'CopilotActionRunAgentRuntimeDiagnosticsManifestType';
+  fingerprint: Scalars['String']['output'];
+  hasPreparedRouteTrace: Scalars['Boolean']['output'];
+  nativeTraceEventTypes: Array<Scalars['String']['output']>;
+  preparedRouteActualCount: Scalars['SafeInt']['output'];
+  preparedRouteCount: Scalars['SafeInt']['output'];
+  preparedRouteStepCount: Scalars['SafeInt']['output'];
+  projectionContractFingerprint: Scalars['String']['output'];
+  projectionGapCount: Scalars['SafeInt']['output'];
+  projectionSource: Scalars['String']['output'];
+  schemaReadiness: Scalars['String']['output'];
+  schemaReadinessGapCount: Scalars['SafeInt']['output'];
+  timelineGapCount: Scalars['SafeInt']['output'];
+  timelineRouteEvidenceSetFingerprint: Scalars['String']['output'];
+  version: Scalars['String']['output'];
 }
 
 export interface CopilotActionRunAgentRuntimeTimelineItemType {
@@ -8736,6 +8755,23 @@ export type GetCopilotActionRunsQuery = {
         actionId: string;
         actionVersion: string;
         agentRuntimeDiagnosticsFingerprint: string;
+        agentRuntimeDiagnosticsManifest: {
+          __typename?: 'CopilotActionRunAgentRuntimeDiagnosticsManifestType';
+          fingerprint: string;
+          hasPreparedRouteTrace: boolean;
+          nativeTraceEventTypes: Array<string>;
+          preparedRouteActualCount: number;
+          preparedRouteCount: number;
+          preparedRouteStepCount: number;
+          projectionContractFingerprint: string;
+          projectionGapCount: number;
+          projectionSource: string;
+          schemaReadiness: string;
+          schemaReadinessGapCount: number;
+          timelineGapCount: number;
+          timelineRouteEvidenceSetFingerprint: string;
+          version: string;
+        };
         agentRuntimeNativeTraceEventTypes: Array<string>;
         agentRuntimeProjectedSchemaComponents: Array<string>;
         agentRuntimeProjectedRunStatuses: Array<string>;

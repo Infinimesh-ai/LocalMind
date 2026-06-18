@@ -44,6 +44,7 @@ import {
   type UpdateChatSession,
 } from '../../models';
 import type {
+  CopilotActionRunAgentRuntimeDiagnosticsManifest,
   CopilotActionRunAgentRuntimeTimelineItem,
   CopilotActionRunDiagnosticsItem,
   CopilotActionRunPreparedRouteTrace,
@@ -3779,6 +3780,51 @@ class CopilotActionRunAgentRuntimeTimelineItemType implements CopilotActionRunAg
 }
 
 @ObjectType()
+class CopilotActionRunAgentRuntimeDiagnosticsManifestType implements CopilotActionRunAgentRuntimeDiagnosticsManifest {
+  @Field(() => String)
+  version!: string;
+
+  @Field(() => String)
+  fingerprint!: string;
+
+  @Field(() => String)
+  projectionContractFingerprint!: string;
+
+  @Field(() => String)
+  timelineRouteEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  projectionSource!: string;
+
+  @Field(() => String)
+  schemaReadiness!: string;
+
+  @Field(() => [String])
+  nativeTraceEventTypes!: string[];
+
+  @Field(() => Boolean)
+  hasPreparedRouteTrace!: boolean;
+
+  @Field(() => SafeIntResolver)
+  preparedRouteStepCount!: number;
+
+  @Field(() => SafeIntResolver)
+  preparedRouteCount!: number;
+
+  @Field(() => SafeIntResolver)
+  preparedRouteActualCount!: number;
+
+  @Field(() => SafeIntResolver)
+  projectionGapCount!: number;
+
+  @Field(() => SafeIntResolver)
+  timelineGapCount!: number;
+
+  @Field(() => SafeIntResolver)
+  schemaReadinessGapCount!: number;
+}
+
+@ObjectType()
 class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnosticsItem {
   @Field(() => String)
   id!: string;
@@ -3791,6 +3837,9 @@ class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnostics
 
   @Field(() => String)
   agentRuntimeDiagnosticsFingerprint!: string;
+
+  @Field(() => CopilotActionRunAgentRuntimeDiagnosticsManifestType)
+  agentRuntimeDiagnosticsManifest!: CopilotActionRunAgentRuntimeDiagnosticsManifest;
 
   @Field(() => [String])
   agentRuntimeNativeTraceEventTypes!: string[];

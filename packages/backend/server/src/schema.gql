@@ -610,10 +610,28 @@ type CopilotActionRunAgentRuntimeTimelineItemType {
   stepType: String
 }
 
+type CopilotActionRunAgentRuntimeDiagnosticsManifestType {
+  fingerprint: String!
+  hasPreparedRouteTrace: Boolean!
+  nativeTraceEventTypes: [String!]!
+  preparedRouteActualCount: SafeInt!
+  preparedRouteCount: SafeInt!
+  preparedRouteStepCount: SafeInt!
+  projectionContractFingerprint: String!
+  projectionGapCount: SafeInt!
+  projectionSource: String!
+  schemaReadiness: String!
+  schemaReadinessGapCount: SafeInt!
+  timelineGapCount: SafeInt!
+  timelineRouteEvidenceSetFingerprint: String!
+  version: String!
+}
+
 type CopilotActionRunDiagnosticsItemType {
   actionId: String!
   actionVersion: String!
   agentRuntimeDiagnosticsFingerprint: String!
+  agentRuntimeDiagnosticsManifest: CopilotActionRunAgentRuntimeDiagnosticsManifestType!
   agentRuntimeNativeTraceEventTypes: [String!]!
   agentRuntimeProjectedSchemaComponents: [String!]!
   agentRuntimeProjectedRunStatuses: [String!]!
