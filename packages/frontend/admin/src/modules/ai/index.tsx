@@ -4859,6 +4859,7 @@ function formatActionRunAgentRuntimeTimelineItem(
     item.stepType ? `type ${formatFeatureKind(item.stepType)}` : null,
     item.kind ? `kind ${formatFeatureKind(item.kind)}` : null,
     `routes ${item.actualRouteCount}/${item.routeCount}`,
+    item.routeCountMismatch ? 'route count mismatch' : null,
   ]);
 }
 

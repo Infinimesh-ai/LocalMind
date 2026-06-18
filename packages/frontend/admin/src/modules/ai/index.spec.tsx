@@ -2711,18 +2711,20 @@ const actionRunsPayload = [
         kind: null,
         label: 'run -> completed',
         routeCount: 3,
+        routeCountMismatch: false,
         runId: 'run-123',
         status: 'completed',
         stepId: null,
         stepType: null,
       },
       {
-        actualRouteCount: 2,
+        actualRouteCount: 1,
         eventType: 'model_step',
         id: 'run-123:0:generate:model_step',
         kind: 'structured',
         label: 'generate -> model_step -> completed -> structured -> 2/2',
         routeCount: 2,
+        routeCountMismatch: true,
         runId: 'run-123',
         status: 'completed',
         stepId: 'generate',
@@ -2735,6 +2737,7 @@ const actionRunsPayload = [
         kind: 'image',
         label: 'generate-image -> model_step -> completed -> image -> 1/1',
         routeCount: 1,
+        routeCountMismatch: false,
         runId: 'run-123',
         status: 'completed',
         stepId: 'generate-image',
@@ -2996,6 +2999,7 @@ const actionRunsPayload = [
         kind: null,
         label: 'run -> failed',
         routeCount: 0,
+        routeCountMismatch: false,
         runId: 'run-failed',
         status: 'failed',
         stepId: null,
@@ -6770,7 +6774,7 @@ describe('AiPage', () => {
       'Timeline Run Status / status Completed / run / routes 3/3'
     );
     expect(visibleTimeline).toContain(
-      'Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 2/2'
+      'Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 1/2 / route count mismatch'
     );
     expect(visibleTimeline).toContain(
       'Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1'
@@ -6808,7 +6812,7 @@ describe('AiPage', () => {
       'Agent runtime timeline entries run -> completed | generate -> model_step -> completed -> structured -> 2/2 | generate-image -> model_step -> completed -> image -> 1/1'
     );
     expect(actionRunDiagnostics).toContain(
-      'Agent runtime timeline items Timeline Run Status / status Completed / run / routes 3/3 | Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 2/2 | Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1'
+      'Agent runtime timeline items Timeline Run Status / status Completed / run / routes 3/3 | Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 1/2 / route count mismatch | Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1'
     );
     expect(actionRunDiagnostics).toContain(
       'Agent runtime timeline event types run_status | model_step'

@@ -12116,3 +12116,32 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 结构化字段仍由 `AiActionRun` projection 派生，不是持久化 Agent timeline event row；没有真实开始/结束时间、latency、token usage、cost、provider response、tool args、MCP server id、Codex sandbox policy、approval record、retry attempt id、rollback result 或 artifact patch。
 - 当前可见 event types 仍只有 `run_status` 与 `model_step`，不支持真实 tool step、approval step、handoff step、Codex step、MCP step、step output/error、retry attempt、rollback state 或 cancellation event。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 354. P3 落地记录：Action Run Structured Timeline Route Coverage Flag
+
+本轮继续收敛第 353 节剩余风险中 “结构化字段仍由 `AiActionRun` projection 派生，不是持久化 Agent timeline event row” 的问题。实际代码与目标 Agent Runtime UI 的冲突点是：`agentRuntimeTimelineItems` 已经包含 `actualRouteCount` 与 `routeCount`，但客户端仍需要通过两个数字自行反推 route coverage 是否缺失；后续正式 Agent timeline、support bundle、Admin repair mutation 或 Codex/MCP adapter trace 如果继续重复这类判断，会造成 UI、diagnostics 文本和未来写入路径之间的契约漂移。本轮把 route coverage mismatch 显式纳入结构化 timeline item。
+
+- `packages/backend/server/src/models/copilot-action-run.ts`：
+  - `CopilotActionRunAgentRuntimeTimelineItem` 新增 `routeCountMismatch`。
+  - run status item 从整体 `preparedRouteCount` 与 `preparedRouteActualCount` 派生 mismatch；model step item 直接复用 prepared route step 的 `routeCountMismatch`。
+- GraphQL 与 common client：
+  - `CopilotActionRunAgentRuntimeTimelineItemType`、`schema.gql`、`getCopilotActionRuns` selection 与 `QueryResponse` 类型同步新增 `routeCountMismatch`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - 结构化 timeline item 摘要在 mismatch 时显示 `route count mismatch`，让 Admin 可见 block 和 copyable diagnostics text 不再需要从 `routes actual/expected` 反推。
+- 测试覆盖：
+  - `packages/backend/server/src/__tests__/copilot/copilot.spec.ts` 断言成功 run 与失败 run 的 timeline items 都返回 `routeCountMismatch`。
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 构造一个结构化 timeline item 的 route coverage mismatch，验证可见 timeline 与 diagnostics text 都显示 mismatch 标记。
+
+该实现只扩展只读 action run diagnostics、GraphQL selection/type、Admin 渲染与测试，不新增 DB migration、不创建 AgentRun/AgentStep/timeline event 表、不新增 queue/worker/lease、不改变 native action runtime、不执行 tool/MCP/Codex/approval/handoff step，不记录 step output/error、retry attempt、rollback state 或 cancellation event。它把第 352-353 节的结构化 timeline projection 从“只有 count 字段，需要客户端推导 mismatch”推进到“route coverage 状态由后端投影契约直接声明”，为后续正式 Agent timeline schema、route replay、support bundle 与 repair action guard 提供更稳定的前置字段。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与宿主源码 bind mount 运行 focused Prettier、oxlint、backend copilot spec 与 Admin AI Vitest。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `routeCountMismatch` 仍是 prepared route projection 的静态 coverage 标记，不代表 NativeExecutionEngine 最终执行阶段 retry/fallback、provider 响应成功率或真实 timeline 事件结果。
+- 结构化 timeline item 仍不是持久化 Agent timeline event row；没有真实开始/结束时间、latency、token usage、cost、provider response、tool args、MCP server id、Codex sandbox policy、approval record、retry attempt id、rollback result 或 artifact patch。
+- Admin timeline block 仍是轻量只读文本块，不是正式 timeline 组件；仍不支持 step 展开、过滤、排序、持续刷新、trace JSON 导出、support bundle、run cancellation、approval decision、retry/rollback operation、Codex adapter 管理或 MCP registry 管理。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

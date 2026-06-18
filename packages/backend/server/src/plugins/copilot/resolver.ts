@@ -3413,6 +3413,9 @@ class CopilotActionRunAgentRuntimeTimelineItemType implements CopilotActionRunAg
 
   @Field(() => SafeIntResolver)
   actualRouteCount!: number;
+
+  @Field(() => Boolean)
+  routeCountMismatch!: boolean;
 }
 
 @ObjectType()

@@ -33,6 +33,7 @@ query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
           kind
           label
           routeCount
+          routeCountMismatch
           runId
           status
           stepId

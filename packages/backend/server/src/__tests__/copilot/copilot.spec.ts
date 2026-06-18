@@ -3466,6 +3466,7 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
           kind: null,
           routeCount: 1,
           actualRouteCount: 1,
+          routeCountMismatch: false,
         },
         {
           id: `${run.id}:0:generate:model_step`,
@@ -3478,6 +3479,7 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
           kind: 'structured',
           routeCount: 1,
           actualRouteCount: 1,
+          routeCountMismatch: false,
         },
       ],
       agentRuntimeTargetRunStatuses: [
@@ -3700,6 +3702,7 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
           kind: null,
           routeCount: 0,
           actualRouteCount: 0,
+          routeCountMismatch: false,
         },
       ],
       agentRuntimeTargetRunStatuses: [

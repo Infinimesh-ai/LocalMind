@@ -3058,6 +3058,7 @@ export const getCopilotActionRunsQuery = {
           kind
           label
           routeCount
+          routeCountMismatch
           runId
           status
           stepId
