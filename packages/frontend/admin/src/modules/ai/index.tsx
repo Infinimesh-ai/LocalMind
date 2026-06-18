@@ -4825,6 +4825,54 @@ function formatActionRunAgentRuntimeStepKinds(run: ActionRunDiagnosticsItem) {
   return `Agent runtime step kinds ${run.agentRuntimeStepKinds.join(' | ')}`;
 }
 
+function formatActionRunAgentRuntimeTargetRunStatuses(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeTargetRunStatuses.length) {
+    return 'Agent runtime target run statuses none';
+  }
+
+  return `Agent runtime target run statuses ${run.agentRuntimeTargetRunStatuses.join(
+    ' | '
+  )}`;
+}
+
+function formatActionRunAgentRuntimeProjectedRunStatuses(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeProjectedRunStatuses.length) {
+    return 'Agent runtime projected run statuses none';
+  }
+
+  return `Agent runtime projected run statuses ${run.agentRuntimeProjectedRunStatuses.join(
+    ' | '
+  )}`;
+}
+
+function formatActionRunAgentRuntimeUnsupportedRunStatuses(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeUnsupportedRunStatuses.length) {
+    return 'Agent runtime unsupported run statuses none';
+  }
+
+  return `Agent runtime unsupported run statuses ${run.agentRuntimeUnsupportedRunStatuses.join(
+    ' | '
+  )}`;
+}
+
+function formatActionRunAgentRuntimeRunStatusGaps(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeRunStatusGaps.length) {
+    return 'Agent runtime run status gaps none';
+  }
+
+  return `Agent runtime run status gaps ${run.agentRuntimeRunStatusGaps.join(
+    ' | '
+  )}`;
+}
+
 function formatActionRunAgentRuntimeTargetStepTypes(
   run: ActionRunDiagnosticsItem
 ) {
@@ -4911,6 +4959,10 @@ function buildActionRunDiagnosticsText(run: ActionRunDiagnosticsItem) {
     formatActionRunAgentRuntimeStepTypes(run),
     formatActionRunAgentRuntimeStepStatuses(run),
     formatActionRunAgentRuntimeStepKinds(run),
+    formatActionRunAgentRuntimeTargetRunStatuses(run),
+    formatActionRunAgentRuntimeProjectedRunStatuses(run),
+    formatActionRunAgentRuntimeUnsupportedRunStatuses(run),
+    formatActionRunAgentRuntimeRunStatusGaps(run),
     formatActionRunAgentRuntimeTargetStepTypes(run),
     formatActionRunAgentRuntimeProjectedStepTypes(run),
     formatActionRunAgentRuntimeProjectionGaps(run),

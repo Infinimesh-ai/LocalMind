@@ -607,9 +607,11 @@ export interface CopilotActionRunDiagnosticsItemType {
   actionId: Scalars['String']['output'];
   actionVersion: Scalars['String']['output'];
   agentRuntimeNativeTraceEventTypes: Array<Scalars['String']['output']>;
+  agentRuntimeProjectedRunStatuses: Array<Scalars['String']['output']>;
   agentRuntimeProjectedStepTypes: Array<Scalars['String']['output']>;
   agentRuntimeProjectionSource: Scalars['String']['output'];
   agentRuntimeProjectionGaps: Array<Scalars['String']['output']>;
+  agentRuntimeRunStatusGaps: Array<Scalars['String']['output']>;
   agentRuntimeRunId: Scalars['String']['output'];
   agentRuntimeRunStatus: Scalars['String']['output'];
   agentRuntimeStepCount: Scalars['SafeInt']['output'];
@@ -617,7 +619,9 @@ export interface CopilotActionRunDiagnosticsItemType {
   agentRuntimeStepKinds: Array<Scalars['String']['output']>;
   agentRuntimeStepStatuses: Array<Scalars['String']['output']>;
   agentRuntimeStepTypes: Array<Scalars['String']['output']>;
+  agentRuntimeTargetRunStatuses: Array<Scalars['String']['output']>;
   agentRuntimeTargetStepTypes: Array<Scalars['String']['output']>;
+  agentRuntimeUnsupportedRunStatuses: Array<Scalars['String']['output']>;
   agentRuntimeUnsupportedStepTypes: Array<Scalars['String']['output']>;
   attempt: Scalars['SafeInt']['output'];
   createdAt: Scalars['DateTime']['output'];
@@ -8303,9 +8307,11 @@ export type GetCopilotActionRunsQuery = {
         actionId: string;
         actionVersion: string;
         agentRuntimeNativeTraceEventTypes: Array<string>;
+        agentRuntimeProjectedRunStatuses: Array<string>;
         agentRuntimeProjectedStepTypes: Array<string>;
         agentRuntimeProjectionSource: string;
         agentRuntimeProjectionGaps: Array<string>;
+        agentRuntimeRunStatusGaps: Array<string>;
         agentRuntimeRunId: string;
         agentRuntimeRunStatus: string;
         agentRuntimeStepCount: number;
@@ -8313,7 +8319,9 @@ export type GetCopilotActionRunsQuery = {
         agentRuntimeStepKinds: Array<string>;
         agentRuntimeStepStatuses: Array<string>;
         agentRuntimeStepTypes: Array<string>;
+        agentRuntimeTargetRunStatuses: Array<string>;
         agentRuntimeTargetStepTypes: Array<string>;
+        agentRuntimeUnsupportedRunStatuses: Array<string>;
         agentRuntimeUnsupportedStepTypes: Array<string>;
         attempt: number;
         createdAt: string;

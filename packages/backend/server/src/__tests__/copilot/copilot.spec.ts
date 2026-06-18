@@ -3379,6 +3379,13 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       actionId: 'mindmap.generate',
       actionVersion: 'v1',
       agentRuntimeNativeTraceEventTypes: ['action_trace', 'tool:dispatch'],
+      agentRuntimeProjectedRunStatuses: [
+        'queued',
+        'running',
+        'completed',
+        'failed',
+        'cancelled',
+      ],
       agentRuntimeProjectedStepTypes: ['model'],
       agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
       agentRuntimeProjectionGaps: [
@@ -3388,6 +3395,12 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
         'codex -> not_projected',
         'mcp -> not_projected',
       ],
+      agentRuntimeRunStatusGaps: [
+        'waiting_approval -> not_projected',
+        'retrying -> not_projected',
+        'rollback_running -> not_projected',
+        'archived -> not_projected',
+      ],
       agentRuntimeRunId: run.id,
       agentRuntimeRunStatus: 'completed',
       agentRuntimeStepCount: 1,
@@ -3395,6 +3408,17 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       agentRuntimeStepKinds: ['generate -> structured'],
       agentRuntimeStepStatuses: ['generate -> completed'],
       agentRuntimeStepTypes: ['generate -> model'],
+      agentRuntimeTargetRunStatuses: [
+        'queued',
+        'running',
+        'waiting_approval',
+        'completed',
+        'failed',
+        'cancelled',
+        'retrying',
+        'rollback_running',
+        'archived',
+      ],
       agentRuntimeTargetStepTypes: [
         'model',
         'tool',
@@ -3402,6 +3426,12 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
         'handoff',
         'codex',
         'mcp',
+      ],
+      agentRuntimeUnsupportedRunStatuses: [
+        'waiting_approval',
+        'retrying',
+        'rollback_running',
+        'archived',
       ],
       agentRuntimeUnsupportedStepTypes: [
         'tool',
@@ -3460,6 +3490,13 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
     {
       actionId: 'image.filter.sketch',
       agentRuntimeNativeTraceEventTypes: [],
+      agentRuntimeProjectedRunStatuses: [
+        'queued',
+        'running',
+        'completed',
+        'failed',
+        'cancelled',
+      ],
       agentRuntimeProjectedStepTypes: ['model'],
       agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
       agentRuntimeProjectionGaps: [
@@ -3470,6 +3507,12 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
         'codex -> not_projected',
         'mcp -> not_projected',
       ],
+      agentRuntimeRunStatusGaps: [
+        'waiting_approval -> not_projected',
+        'retrying -> not_projected',
+        'rollback_running -> not_projected',
+        'archived -> not_projected',
+      ],
       agentRuntimeRunId: failedRun.id,
       agentRuntimeRunStatus: 'failed',
       agentRuntimeStepCount: 0,
@@ -3477,6 +3520,17 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       agentRuntimeStepKinds: [],
       agentRuntimeStepStatuses: [],
       agentRuntimeStepTypes: [],
+      agentRuntimeTargetRunStatuses: [
+        'queued',
+        'running',
+        'waiting_approval',
+        'completed',
+        'failed',
+        'cancelled',
+        'retrying',
+        'rollback_running',
+        'archived',
+      ],
       agentRuntimeTargetStepTypes: [
         'model',
         'tool',
@@ -3484,6 +3538,12 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
         'handoff',
         'codex',
         'mcp',
+      ],
+      agentRuntimeUnsupportedRunStatuses: [
+        'waiting_approval',
+        'retrying',
+        'rollback_running',
+        'archived',
       ],
       agentRuntimeUnsupportedStepTypes: [
         'tool',

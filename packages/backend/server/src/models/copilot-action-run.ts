@@ -6,9 +6,13 @@ import { BaseModel } from './base';
 import { normalizeActionModelSelectionSource } from './copilot-action-model-selection';
 import {
   AI_ACTION_RUN_AGENT_RUNTIME_PROJECTION_SOURCE,
+  getActionRunAgentRuntimeProjectedRunStatuses,
   getActionRunAgentRuntimeProjectedStepTypes,
   getActionRunAgentRuntimeProjectionGaps,
+  getActionRunAgentRuntimeRunStatusGaps,
+  getActionRunAgentRuntimeUnsupportedRunStatuses,
   getActionRunAgentRuntimeUnsupportedStepTypes,
+  getAgentRuntimeTargetRunStatuses,
   getAgentRuntimeTargetStepTypes,
   mapActionRunStatusToAgentRuntimeStatus,
   mapActionRunStatusToAgentRuntimeStepStatus,
@@ -67,9 +71,11 @@ export type CopilotActionRunDiagnosticsItem = {
   actionId: string;
   actionVersion: string;
   agentRuntimeNativeTraceEventTypes: string[];
+  agentRuntimeProjectedRunStatuses: string[];
   agentRuntimeProjectedStepTypes: string[];
   agentRuntimeProjectionSource: string;
   agentRuntimeProjectionGaps: string[];
+  agentRuntimeRunStatusGaps: string[];
   agentRuntimeRunId: string;
   agentRuntimeRunStatus: string;
   agentRuntimeStepCount: number;
@@ -77,7 +83,9 @@ export type CopilotActionRunDiagnosticsItem = {
   agentRuntimeStepKinds: string[];
   agentRuntimeStepStatuses: string[];
   agentRuntimeStepTypes: string[];
+  agentRuntimeTargetRunStatuses: string[];
   agentRuntimeTargetStepTypes: string[];
+  agentRuntimeUnsupportedRunStatuses: string[];
   agentRuntimeUnsupportedStepTypes: string[];
   status: string;
   attempt: number;
@@ -534,9 +542,17 @@ function summarizePreparedRouteTrace(
     ) ?? []
   );
   const agentRuntimeNativeTraceEventTypes = extractNativeTraceEventTypes(value);
+  const agentRuntimeProjectedRunStatuses =
+    getActionRunAgentRuntimeProjectedRunStatuses();
   const agentRuntimeTargetStepTypes = getAgentRuntimeTargetStepTypes();
+  const agentRuntimeTargetRunStatuses = getAgentRuntimeTargetRunStatuses();
+  const agentRuntimeUnsupportedRunStatuses =
+    getActionRunAgentRuntimeUnsupportedRunStatuses();
   const agentRuntimeUnsupportedStepTypes =
     getActionRunAgentRuntimeUnsupportedStepTypes();
+  const agentRuntimeRunStatusGaps = uniqueNonEmptyStrings(
+    getActionRunAgentRuntimeRunStatusGaps()
+  );
   const agentRuntimeProjectionGaps = uniqueNonEmptyStrings(
     getActionRunAgentRuntimeProjectionGaps({
       hasPreparedRouteTrace: !!trace,
@@ -545,9 +561,11 @@ function summarizePreparedRouteTrace(
 
   return {
     agentRuntimeNativeTraceEventTypes,
+    agentRuntimeProjectedRunStatuses,
     agentRuntimeProjectedStepTypes,
     agentRuntimeProjectionSource: AI_ACTION_RUN_AGENT_RUNTIME_PROJECTION_SOURCE,
     agentRuntimeProjectionGaps,
+    agentRuntimeRunStatusGaps,
     agentRuntimeRunId: runId,
     agentRuntimeRunStatus: mapActionRunStatusToAgentRuntimeStatus(status),
     agentRuntimeStepCount: agentRuntimeStepIds.length,
@@ -555,7 +573,9 @@ function summarizePreparedRouteTrace(
     agentRuntimeStepKinds,
     agentRuntimeStepStatuses,
     agentRuntimeStepTypes,
+    agentRuntimeTargetRunStatuses,
     agentRuntimeTargetStepTypes,
+    agentRuntimeUnsupportedRunStatuses,
     agentRuntimeUnsupportedStepTypes,
     hasPreparedRouteTrace: !!trace,
     preparedRouteActualCount,
