@@ -628,6 +628,7 @@ export interface CopilotActionRunDiagnosticsItemType {
   agentRuntimeTimelineEntries: Array<Scalars['String']['output']>;
   agentRuntimeTimelineEventTypes: Array<Scalars['String']['output']>;
   agentRuntimeTimelineGaps: Array<Scalars['String']['output']>;
+  agentRuntimeTimelineItems: Array<CopilotActionRunAgentRuntimeTimelineItemType>;
   agentRuntimeTargetRunStatuses: Array<Scalars['String']['output']>;
   agentRuntimeTargetSchemaComponents: Array<Scalars['String']['output']>;
   agentRuntimeTargetStepStatuses: Array<Scalars['String']['output']>;
@@ -673,6 +674,20 @@ export interface CopilotActionRunDiagnosticsItemType {
   sessionId?: Maybe<Scalars['String']['output']>;
   status: Scalars['String']['output'];
   updatedAt: Scalars['DateTime']['output'];
+}
+
+export interface CopilotActionRunAgentRuntimeTimelineItemType {
+  __typename?: 'CopilotActionRunAgentRuntimeTimelineItemType';
+  actualRouteCount: Scalars['SafeInt']['output'];
+  eventType: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  kind?: Maybe<Scalars['String']['output']>;
+  label: Scalars['String']['output'];
+  routeCount: Scalars['SafeInt']['output'];
+  runId: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  stepId?: Maybe<Scalars['String']['output']>;
+  stepType?: Maybe<Scalars['String']['output']>;
 }
 
 export interface CopilotChatsArgs {
@@ -8342,6 +8357,19 @@ export type GetCopilotActionRunsQuery = {
         agentRuntimeTimelineEntries: Array<string>;
         agentRuntimeTimelineEventTypes: Array<string>;
         agentRuntimeTimelineGaps: Array<string>;
+        agentRuntimeTimelineItems: Array<{
+          __typename?: 'CopilotActionRunAgentRuntimeTimelineItemType';
+          actualRouteCount: number;
+          eventType: string;
+          id: string;
+          kind: string | null;
+          label: string;
+          routeCount: number;
+          runId: string;
+          status: string;
+          stepId: string | null;
+          stepType: string | null;
+        }>;
         agentRuntimeTargetRunStatuses: Array<string>;
         agentRuntimeTargetSchemaComponents: Array<string>;
         agentRuntimeTargetStepStatuses: Array<string>;

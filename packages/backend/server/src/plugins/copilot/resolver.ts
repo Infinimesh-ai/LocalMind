@@ -44,6 +44,7 @@ import {
   type UpdateChatSession,
 } from '../../models';
 import type {
+  CopilotActionRunAgentRuntimeTimelineItem,
   CopilotActionRunDiagnosticsItem,
   CopilotActionRunPreparedRouteTrace,
 } from '../../models/copilot-action-run';
@@ -3382,6 +3383,39 @@ class CopilotModelPromptSourceType implements CopilotModelPromptSource {
 }
 
 @ObjectType()
+class CopilotActionRunAgentRuntimeTimelineItemType implements CopilotActionRunAgentRuntimeTimelineItem {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  eventType!: string;
+
+  @Field(() => String)
+  label!: string;
+
+  @Field(() => String)
+  runId!: string;
+
+  @Field(() => String, { nullable: true })
+  stepId!: string | null;
+
+  @Field(() => String, { nullable: true })
+  stepType!: string | null;
+
+  @Field(() => String)
+  status!: string;
+
+  @Field(() => String, { nullable: true })
+  kind!: string | null;
+
+  @Field(() => SafeIntResolver)
+  routeCount!: number;
+
+  @Field(() => SafeIntResolver)
+  actualRouteCount!: number;
+}
+
+@ObjectType()
 class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnosticsItem {
   @Field(() => String)
   id!: string;
@@ -3457,6 +3491,9 @@ class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnostics
 
   @Field(() => [String])
   agentRuntimeTimelineGaps!: string[];
+
+  @Field(() => [CopilotActionRunAgentRuntimeTimelineItemType])
+  agentRuntimeTimelineItems!: CopilotActionRunAgentRuntimeTimelineItem[];
 
   @Field(() => [String])
   agentRuntimeTargetRunStatuses!: string[];

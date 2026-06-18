@@ -26,6 +26,18 @@ query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
         agentRuntimeTimelineEntries
         agentRuntimeTimelineEventTypes
         agentRuntimeTimelineGaps
+        agentRuntimeTimelineItems {
+          actualRouteCount
+          eventType
+          id
+          kind
+          label
+          routeCount
+          runId
+          status
+          stepId
+          stepType
+        }
         agentRuntimeTargetRunStatuses
         agentRuntimeTargetSchemaComponents
         agentRuntimeTargetStepStatuses

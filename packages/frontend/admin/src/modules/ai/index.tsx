@@ -4837,8 +4837,10 @@ function formatActionRunAgentRuntimeTimelineEntries(
   )}`;
 }
 
-function formatActionRunAgentRuntimeTimelineEntry(entry: string) {
-  return `Timeline ${entry}`;
+function formatActionRunAgentRuntimeTimelineItem(
+  item: ActionRunDiagnosticsItem['agentRuntimeTimelineItems'][number]
+) {
+  return `Timeline ${item.label}`;
 }
 
 function formatActionRunAgentRuntimeTimelineEventTypes(
@@ -5262,17 +5264,17 @@ function ActionRunRecentList({
                       {run.agentRuntimeTimelineGaps.length === 1 ? '' : 's'}
                     </div>
                   ) : null}
-                  {run.agentRuntimeTimelineEntries.length ? (
+                  {run.agentRuntimeTimelineItems.length ? (
                     <div
                       className="mt-2 space-y-1 border-l border-border pl-2"
                       data-testid={`action-run-timeline-${run.id}`}
                     >
-                      {run.agentRuntimeTimelineEntries.map(entry => (
+                      {run.agentRuntimeTimelineItems.map(item => (
                         <div
-                          key={entry}
+                          key={item.id}
                           className="break-words text-xs text-muted-foreground"
                         >
-                          {formatActionRunAgentRuntimeTimelineEntry(entry)}
+                          {formatActionRunAgentRuntimeTimelineItem(item)}
                         </div>
                       ))}
                     </div>

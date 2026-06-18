@@ -2624,6 +2624,7 @@ const actionRunsPayload = [
     agentRuntimeProjectedSchemaComponents: [
       'typescript_projection_contract',
       'graphql_string_diagnostics_fields',
+      'graphql_structured_timeline_items',
     ],
     agentRuntimeProjectedRunStatuses: [
       'queued',
@@ -2701,6 +2702,44 @@ const actionRunsPayload = [
       'retry_attempt -> not_projected',
       'rollback_state -> not_projected',
       'run_cancellation -> not_projected',
+    ],
+    agentRuntimeTimelineItems: [
+      {
+        actualRouteCount: 3,
+        eventType: 'run_status',
+        id: 'run-123:run_status',
+        kind: null,
+        label: 'run -> completed',
+        routeCount: 3,
+        runId: 'run-123',
+        status: 'completed',
+        stepId: null,
+        stepType: null,
+      },
+      {
+        actualRouteCount: 2,
+        eventType: 'model_step',
+        id: 'run-123:0:generate:model_step',
+        kind: 'structured',
+        label: 'generate -> model_step -> completed -> structured -> 2/2',
+        routeCount: 2,
+        runId: 'run-123',
+        status: 'completed',
+        stepId: 'generate',
+        stepType: 'model',
+      },
+      {
+        actualRouteCount: 1,
+        eventType: 'model_step',
+        id: 'run-123:1:generate-image:model_step',
+        kind: 'image',
+        label: 'generate-image -> model_step -> completed -> image -> 1/1',
+        routeCount: 1,
+        runId: 'run-123',
+        status: 'completed',
+        stepId: 'generate-image',
+        stepType: 'model',
+      },
     ],
     agentRuntimeTargetRunStatuses: [
       'queued',
@@ -2878,6 +2917,7 @@ const actionRunsPayload = [
     agentRuntimeProjectedSchemaComponents: [
       'typescript_projection_contract',
       'graphql_string_diagnostics_fields',
+      'graphql_structured_timeline_items',
     ],
     agentRuntimeProjectedRunStatuses: [
       'queued',
@@ -2947,6 +2987,20 @@ const actionRunsPayload = [
       'retry_attempt -> not_projected',
       'rollback_state -> not_projected',
       'run_cancellation -> not_projected',
+    ],
+    agentRuntimeTimelineItems: [
+      {
+        actualRouteCount: 0,
+        eventType: 'run_status',
+        id: 'run-failed:run_status',
+        kind: null,
+        label: 'run -> failed',
+        routeCount: 0,
+        runId: 'run-failed',
+        status: 'failed',
+        stepId: null,
+        stepType: null,
+      },
     ],
     agentRuntimeTargetRunStatuses: [
       'queued',
@@ -6771,7 +6825,7 @@ describe('AiPage', () => {
       'Agent runtime target schema components db_agent_run_table | db_agent_step_table | graphql_run_status_enum | graphql_step_status_enum | graphql_step_type_enum | schema_migration | registry_source_of_truth'
     );
     expect(actionRunDiagnostics).toContain(
-      'Agent runtime projected schema components typescript_projection_contract | graphql_string_diagnostics_fields'
+      'Agent runtime projected schema components typescript_projection_contract | graphql_string_diagnostics_fields | graphql_structured_timeline_items'
     );
     expect(actionRunDiagnostics).toContain(
       'Agent runtime schema readiness gaps db_agent_run_table -> not_persisted | db_agent_step_table -> not_persisted | graphql_run_status_enum -> string_field | graphql_step_status_enum -> string_field | graphql_step_type_enum -> string_field | schema_migration -> not_created | registry_source_of_truth -> not_created'
@@ -6858,7 +6912,7 @@ describe('AiPage', () => {
       'Agent runtime target schema components db_agent_run_table | db_agent_step_table | graphql_run_status_enum | graphql_step_status_enum | graphql_step_type_enum | schema_migration | registry_source_of_truth'
     );
     expect(failedRunDiagnostics).toContain(
-      'Agent runtime projected schema components typescript_projection_contract | graphql_string_diagnostics_fields'
+      'Agent runtime projected schema components typescript_projection_contract | graphql_string_diagnostics_fields | graphql_structured_timeline_items'
     );
     expect(failedRunDiagnostics).toContain(
       'Agent runtime schema readiness gaps db_agent_run_table -> not_persisted | db_agent_step_table -> not_persisted | graphql_run_status_enum -> string_field | graphql_step_status_enum -> string_field | graphql_step_type_enum -> string_field | schema_migration -> not_created | registry_source_of_truth -> not_created'

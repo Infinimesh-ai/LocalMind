@@ -20,6 +20,7 @@ export type AgentRuntimeSchemaComponent =
 export const AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_SCHEMA_COMPONENTS = [
   'typescript_projection_contract',
   'graphql_string_diagnostics_fields',
+  'graphql_structured_timeline_items',
 ] as const;
 
 export const AGENT_RUNTIME_TARGET_TIMELINE_EVENT_TYPES = [

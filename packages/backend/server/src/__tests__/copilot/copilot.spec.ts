@@ -3382,6 +3382,7 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       agentRuntimeProjectedSchemaComponents: [
         'typescript_projection_contract',
         'graphql_string_diagnostics_fields',
+        'graphql_structured_timeline_items',
       ],
       agentRuntimeProjectedRunStatuses: [
         'queued',
@@ -3452,6 +3453,32 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
         'retry_attempt -> not_projected',
         'rollback_state -> not_projected',
         'run_cancellation -> not_projected',
+      ],
+      agentRuntimeTimelineItems: [
+        {
+          id: `${run.id}:run_status`,
+          eventType: 'run_status',
+          label: 'run -> completed',
+          runId: run.id,
+          stepId: null,
+          stepType: null,
+          status: 'completed',
+          kind: null,
+          routeCount: 1,
+          actualRouteCount: 1,
+        },
+        {
+          id: `${run.id}:0:generate:model_step`,
+          eventType: 'model_step',
+          label: 'generate -> model_step -> completed -> structured -> 1/1',
+          runId: run.id,
+          stepId: 'generate',
+          stepType: 'model',
+          status: 'completed',
+          kind: 'structured',
+          routeCount: 1,
+          actualRouteCount: 1,
+        },
       ],
       agentRuntimeTargetRunStatuses: [
         'queued',
@@ -3590,6 +3617,7 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       agentRuntimeProjectedSchemaComponents: [
         'typescript_projection_contract',
         'graphql_string_diagnostics_fields',
+        'graphql_structured_timeline_items',
       ],
       agentRuntimeProjectedRunStatuses: [
         'queued',
@@ -3659,6 +3687,20 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
         'retry_attempt -> not_projected',
         'rollback_state -> not_projected',
         'run_cancellation -> not_projected',
+      ],
+      agentRuntimeTimelineItems: [
+        {
+          id: `${failedRun.id}:run_status`,
+          eventType: 'run_status',
+          label: 'run -> failed',
+          runId: failedRun.id,
+          stepId: null,
+          stepType: null,
+          status: 'failed',
+          kind: null,
+          routeCount: 0,
+          actualRouteCount: 0,
+        },
       ],
       agentRuntimeTargetRunStatuses: [
         'queued',

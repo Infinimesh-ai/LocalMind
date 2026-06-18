@@ -581,6 +581,19 @@ type CopilotActionRunPreparedRouteDiagnosticsType {
   type: String!
 }
 
+type CopilotActionRunAgentRuntimeTimelineItemType {
+  actualRouteCount: SafeInt!
+  eventType: String!
+  id: String!
+  kind: String
+  label: String!
+  routeCount: SafeInt!
+  runId: String!
+  status: String!
+  stepId: String
+  stepType: String
+}
+
 type CopilotActionRunDiagnosticsItemType {
   actionId: String!
   actionVersion: String!
@@ -606,6 +619,7 @@ type CopilotActionRunDiagnosticsItemType {
   agentRuntimeTimelineEntries: [String!]!
   agentRuntimeTimelineEventTypes: [String!]!
   agentRuntimeTimelineGaps: [String!]!
+  agentRuntimeTimelineItems: [CopilotActionRunAgentRuntimeTimelineItemType!]!
   agentRuntimeTargetRunStatuses: [String!]!
   agentRuntimeTargetSchemaComponents: [String!]!
   agentRuntimeTargetStepStatuses: [String!]!

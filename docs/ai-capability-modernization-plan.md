@@ -12059,3 +12059,35 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 可见 timeline entries 仍只来自 `AiActionRun` projection，不是持久化 Agent timeline event；没有真实开始/结束时间、latency、token usage、cost、provider response、tool args、MCP server id、Codex sandbox policy、approval record、retry attempt id、rollback result 或 artifact patch。
 - 当前 UI 只展示 `run_status` 与 `model_step`，仍不支持真实 tool step、approval step、handoff step、Codex step、MCP step、step output/error、retry attempt、rollback state 或 cancellation event。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 352. P3 落地记录：Action Run Agent Runtime Structured Timeline Projection
+
+本轮继续收敛第 351 节剩余风险中 “timeline block 仍是只读字符串渲染，不是正式 timeline 组件” 的问题。实际代码与目标 Agent Runtime 架构的冲突点是：第 8.2 与第 9.3 节要求后续支持 DB-backed AgentRun/AgentStep/timeline event schema、Codex JSONL event ingestion、MCP tool call timeline、approval/retry/rollback/cancellation 等正式事件；但当前 `AiActionRun` 仍只有 action status、prepared route trace 与有限 native trace event type。直接落正式 schema 会涉及 migration、worker/queue、runtime 状态机和多 adapter ingestion，本轮先把现有字符串 timeline projection 提升为 GraphQL 结构化只读 item，避免 Admin UI 继续依赖字符串解析，同时明确这仍不是持久化 Agent timeline。
+
+- `packages/backend/server/src/models/copilot-action-run.ts`：
+  - 新增 `CopilotActionRunAgentRuntimeTimelineItem` 只读结构，包含 `id`、`eventType`、`label`、`runId`、`stepId`、`stepType`、`status`、`kind`、`routeCount` 与 `actualRouteCount`。
+  - `summarizePreparedRouteTrace()` 继续保留 `agentRuntimeTimelineEntries` 作为可复制 diagnostics 兼容字段，同时新增 `agentRuntimeTimelineItems`：run status 生成 `run_status` item，prepared route steps 生成 `model_step` items。
+- `packages/backend/server/src/models/copilot-agent-runtime-projection.ts`：
+  - `AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_SCHEMA_COMPONENTS` 新增 `graphql_structured_timeline_items`，明确当前 GraphQL 暴露面已从纯字符串 diagnostics 扩展到结构化 timeline projection。
+- GraphQL 与 common client：
+  - `CopilotActionRunAgentRuntimeTimelineItemType`、`agentRuntimeTimelineItems`、`getCopilotActionRuns` selection 与 `QueryResponse` 类型同步更新。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - Recent action run 可见 timeline block 改为读取 `agentRuntimeTimelineItems` 渲染；旧的 `agentRuntimeTimelineEntries` 继续留在 copyable diagnostics text 中，保证管理员复制文本和既有排障习惯不被破坏。
+- 测试覆盖：
+  - `packages/backend/server/src/__tests__/copilot/copilot.spec.ts` 断言成功 run 与失败 run 都返回结构化 timeline items。
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 更新 action run mock payload，并验证 Admin 可见 timeline 仍展示 run status 与 model step 文本，同时 diagnostics text 保留旧 entries。
+
+该实现只扩展只读 action run diagnostics、GraphQL selection/type、Admin 渲染与测试，不新增 DB migration、不创建 AgentRun/AgentStep/timeline event 表、不新增 queue/worker/lease、不改变 native action runtime、不执行 tool/MCP/Codex/approval/handoff step，不记录 step output/error、retry attempt、rollback state 或 cancellation event，不改变 prepared route selection、provider route policy、Prompt Registry、repair execution request contract、MCP registry、Codex adapter 或审批写入路径。它把第 351 节的 “可见但字符串驱动 timeline block” 推进为 “结构化只读 timeline projection 驱动的最小 UI”，为后续正式 Agent timeline schema 与 Codex/MCP event ingestion 提供更清楚的过渡接口。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与宿主源码 bind mount 运行 focused Prettier、oxlint、backend copilot spec 与 Admin AI Vitest。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `agentRuntimeTimelineItems` 仍然从 `AiActionRun` 与 prepared route trace 派生，不是持久化 Agent timeline event row；没有真实开始/结束时间、latency、token usage、cost、provider response、tool args、MCP server id、Codex sandbox policy、approval record、retry attempt id、rollback result 或 artifact patch。
+- 当前结构化 event types 仍只有 `run_status` 与 `model_step`，不支持真实 tool step、approval step、handoff step、Codex step、MCP step、step output/error、retry attempt、rollback state 或 cancellation event。
+- Admin 可见 timeline 仍是轻量只读 block，不支持正式 timeline 组件所需的 step 展开、过滤、排序、持续刷新、trace JSON 导出、support bundle、run cancellation、approval decision、retry/rollback operation、Codex adapter 管理或 MCP registry 管理。
+- schema readiness diagnostics 现在只能说明当前 action run projection 已有结构化 GraphQL timeline item 字段，不代表正式 AgentRun/AgentStep schema、GraphQL enum、migration、registry source of truth 或 runtime 状态机已经落地。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

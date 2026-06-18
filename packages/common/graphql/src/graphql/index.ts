@@ -3051,6 +3051,18 @@ export const getCopilotActionRunsQuery = {
         agentRuntimeTimelineEntries
         agentRuntimeTimelineEventTypes
         agentRuntimeTimelineGaps
+        agentRuntimeTimelineItems {
+          actualRouteCount
+          eventType
+          id
+          kind
+          label
+          routeCount
+          runId
+          status
+          stepId
+          stepType
+        }
         agentRuntimeTargetRunStatuses
         agentRuntimeTargetSchemaComponents
         agentRuntimeTargetStepStatuses

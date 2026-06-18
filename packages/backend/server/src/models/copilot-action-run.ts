@@ -78,6 +78,19 @@ export type CopilotActionRunPreparedRouteTrace = {
   }>;
 };
 
+export type CopilotActionRunAgentRuntimeTimelineItem = {
+  id: string;
+  eventType: string;
+  label: string;
+  runId: string;
+  stepId: string | null;
+  stepType: string | null;
+  status: string;
+  kind: string | null;
+  routeCount: number;
+  actualRouteCount: number;
+};
+
 export type CopilotActionRunDiagnosticsItem = {
   id: string;
   actionId: string;
@@ -104,6 +117,7 @@ export type CopilotActionRunDiagnosticsItem = {
   agentRuntimeTimelineEntries: string[];
   agentRuntimeTimelineEventTypes: string[];
   agentRuntimeTimelineGaps: string[];
+  agentRuntimeTimelineItems: CopilotActionRunAgentRuntimeTimelineItem[];
   agentRuntimeTargetRunStatuses: string[];
   agentRuntimeTargetSchemaComponents: string[];
   agentRuntimeTargetStepStatuses: string[];
@@ -622,6 +636,33 @@ function summarizePreparedRouteTrace(
         `${step.stepId} -> model_step -> ${agentRuntimeStepStatus} -> ${step.kind} -> ${step.routes.length}/${step.routeCount}`
     ) ?? []),
   ]);
+  const agentRuntimeTimelineItems: CopilotActionRunAgentRuntimeTimelineItem[] =
+    [
+      {
+        id: `${runId}:run_status`,
+        eventType: 'run_status',
+        label: `run -> ${agentRuntimeRunStatus}`,
+        runId,
+        stepId: null,
+        stepType: null,
+        status: agentRuntimeRunStatus,
+        kind: null,
+        routeCount: preparedRouteCount,
+        actualRouteCount: preparedRouteActualCount,
+      },
+      ...(trace?.steps.map((step, index) => ({
+        id: `${runId}:${index}:${step.stepId}:model_step`,
+        eventType: 'model_step',
+        label: `${step.stepId} -> model_step -> ${agentRuntimeStepStatus} -> ${step.kind} -> ${step.routes.length}/${step.routeCount}`,
+        runId,
+        stepId: step.stepId,
+        stepType: agentRuntimeProjectedPreparedRouteStepType,
+        status: agentRuntimeStepStatus,
+        kind: step.kind,
+        routeCount: step.routeCount,
+        actualRouteCount: step.routes.length,
+      })) ?? []),
+    ];
 
   return {
     agentRuntimeNativeTraceEventTypes,
@@ -646,6 +687,7 @@ function summarizePreparedRouteTrace(
     agentRuntimeTimelineEntries,
     agentRuntimeTimelineEventTypes,
     agentRuntimeTimelineGaps,
+    agentRuntimeTimelineItems,
     agentRuntimeTargetRunStatuses,
     agentRuntimeTargetSchemaComponents,
     agentRuntimeTargetStepStatuses,
