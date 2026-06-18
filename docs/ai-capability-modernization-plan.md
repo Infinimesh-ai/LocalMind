@@ -13832,3 +13832,29 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - manifest 的 `version` 仍是应用层字符串，不是 DB-backed Agent Runtime schema revision、Model Registry revision、Provider Registry revision 或迁移版本。
 - 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、正式 export 控制、retention policy 或 Agent Runtime 原生 lifecycle artifact。
 - 当前 runtime 镜像未包含本轮纯前端源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 411. P3 落地记录：Admin Action Run Diagnostics Manifest Export Metadata
+
+本轮继续收敛第 410 节剩余风险中 “单文件下载仍没有显式脱敏边界和导出元数据” 的问题。实际代码与目标 AI 中间层架构的冲突点是：Admin 已经能下载当前 `agentRuntimeDiagnosticsManifest` JSON，但管理员在把文件交给 issue、support bundle 原型或后续 route explain 工具时，仍需要从文件名、JSON 内容和页面上下文中人工确认 artifact 类型、MIME、fingerprint、action/run scope 与脱敏边界。本轮在 manifest preview 旁新增只读 export metadata 文本，继续复用当前 GraphQL manifest 与 run id，不改变下载内容、后端 schema、trace 存储、真实 dispatch、Agent Runtime 状态机或持久化 schema。
+
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - 新增 `buildActionRunDiagnosticsManifestExportMetadata()`，输出 artifact kind、下载文件名、MIME、manifest version/fingerprint、action/version、run id/status、projection source、schema readiness 与 `manifest_only_no_raw_trace_or_provider_payload` 边界。
+  - `ActionRunDiagnosticsPanel` 在 JSON preview 上方显示 export metadata，使复制/下载前的 artifact scope 可见。
+  - metadata 仅来自当前已脱敏 `agentRuntimeDiagnosticsManifest` 和 run id，不读取 raw trace、provider payload、prompt、secret、tool output 或 backend config。
+- 测试覆盖：
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 断言成功 run 与失败 run 的 export metadata 包含文件名、MIME、fingerprint、action/run scope、projection/schema readiness 与脱敏边界。
+
+该实现只调整 Admin 只读展示与测试，不新增 GraphQL 字段、不新增 DB migration、不改变 action run trace 存储结构、不改变下载 JSON payload、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、repair mutation guard、正式 support bundle schema、Model Registry revision 或 Provider Registry revision。它把 manifest 下载从“能带走单个 JSON 文件”推进到“页面同时声明文件化 artifact 的 scope 与边界”，为后续服务端 support bundle/export API 设计提供更清晰的前端契约锚点。
+
+验证策略：
+
+- 本轮为 Admin UI test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- export metadata 仍是前端派生文本，不是服务端签名的 support bundle manifest、下载审计记录、retention policy 或 DB-backed export artifact。
+- metadata 和下载内容仅覆盖当前 GraphQL manifest 对象，不包含完整 prepared route trace、timeline item payload、native trace event payload、tool output、Codex/MCP adapter 输出或审批结果。
+- manifest 的 `version` 仍是应用层字符串，不是 DB-backed Agent Runtime schema revision、Model Registry revision、Provider Registry revision 或迁移版本。
+- 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、正式 export 控制、批量导出、签名、脱敏审计元数据或 Agent Runtime 原生 lifecycle artifact。
+- 当前 runtime 镜像未包含本轮纯前端源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

@@ -5735,6 +5735,26 @@ function buildActionRunDiagnosticsManifestFilename(runId: string) {
   return `action-run-diagnostics-manifest-${safeRunId}.json`;
 }
 
+function buildActionRunDiagnosticsManifestExportMetadata(
+  run: ActionRunDiagnosticsItem
+) {
+  const manifest = run.agentRuntimeDiagnosticsManifest;
+
+  return [
+    `Export artifact action_run_diagnostics_manifest_json`,
+    `Filename ${buildActionRunDiagnosticsManifestFilename(run.id)}`,
+    `MIME application/json;charset=utf-8`,
+    `Manifest ${manifest.version}`,
+    `Fingerprint ${manifest.fingerprint}`,
+    `Action ${manifest.actionId}@${manifest.actionVersion}`,
+    `Run ${run.id}`,
+    `Run status ${manifest.runStatus}`,
+    `Projection source ${manifest.projectionSource}`,
+    `Schema readiness ${manifest.schemaReadiness}`,
+    `Boundary manifest_only_no_raw_trace_or_provider_payload`,
+  ].join('\n');
+}
+
 function downloadActionRunDiagnosticsManifestJson(
   runId: string,
   manifestJson: string
@@ -5756,10 +5776,12 @@ function downloadActionRunDiagnosticsManifestJson(
 
 function ActionRunDiagnosticsPanel({
   diagnosticsText,
+  exportMetadataText,
   manifestJson,
   runId,
 }: {
   diagnosticsText: string;
+  exportMetadataText: string;
   manifestJson: string;
   runId: string;
 }) {
@@ -5798,6 +5820,12 @@ function ActionRunDiagnosticsPanel({
             Download JSON
           </Button>
         </div>
+        <pre
+          className="mt-1 whitespace-pre-wrap break-words text-xs text-muted-foreground"
+          data-testid={`action-run-diagnostics-manifest-export-metadata-${runId}`}
+        >
+          {exportMetadataText}
+        </pre>
         <pre
           className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-muted-foreground"
           data-testid={`action-run-diagnostics-manifest-json-${runId}`}
@@ -5852,6 +5880,8 @@ function ActionRunRecentList({
         <TableBody>
           {actionRuns.map(run => {
             const diagnosticsText = buildActionRunDiagnosticsText(run);
+            const exportMetadataText =
+              buildActionRunDiagnosticsManifestExportMetadata(run);
             const manifestJson = buildActionRunDiagnosticsManifestJson(run);
             const fallbackLabel = formatActionRunPreparedRouteFallbacks(run);
             const stepFallbackLabel =
@@ -6061,6 +6091,7 @@ function ActionRunRecentList({
                         ) : null}
                         <ActionRunDiagnosticsPanel
                           diagnosticsText={diagnosticsText}
+                          exportMetadataText={exportMetadataText}
                           manifestJson={manifestJson}
                           runId={run.id}
                         />
@@ -6068,6 +6099,7 @@ function ActionRunRecentList({
                     ) : (
                       <ActionRunDiagnosticsPanel
                         diagnosticsText={diagnosticsText}
+                        exportMetadataText={exportMetadataText}
                         manifestJson={manifestJson}
                         runId={run.id}
                       />

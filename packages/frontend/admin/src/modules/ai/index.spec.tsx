@@ -8218,6 +8218,37 @@ describe('AiPage', () => {
     expect(actionRunDiagnostics).toContain(
       `Agent runtime diagnostics manifest agent-runtime-diagnostics-manifest/v1 / action mindmap.generate@v1 / run status Completed / fingerprint ${actionRunAgentRuntimeDiagnosticsFingerprint} / projection ${actionRunProjectionContractFingerprint} / timeline ${actionRunTimelineRouteEvidenceSetFingerprint} / source ai_action_run_agent_runtime_projection/v1 / schema projection_contract_only / prepared trace yes / routes 3/3 / steps 2 / timeline items 3 / projection gaps 5 / timeline gaps 10 / schema gaps 7 / timeline events run_status -> model_step / native events action_trace -> tool:dispatch`
     );
+    const actionRunExportMetadata =
+      screen.getByTestId(
+        'action-run-diagnostics-manifest-export-metadata-run-123'
+      ).textContent ?? '';
+    expect(actionRunExportMetadata).toContain(
+      'Export artifact action_run_diagnostics_manifest_json'
+    );
+    expect(actionRunExportMetadata).toContain(
+      'Filename action-run-diagnostics-manifest-run-123.json'
+    );
+    expect(actionRunExportMetadata).toContain(
+      'MIME application/json;charset=utf-8'
+    );
+    expect(actionRunExportMetadata).toContain(
+      'Manifest agent-runtime-diagnostics-manifest/v1'
+    );
+    expect(actionRunExportMetadata).toContain(
+      `Fingerprint ${actionRunAgentRuntimeDiagnosticsFingerprint}`
+    );
+    expect(actionRunExportMetadata).toContain('Action mindmap.generate@v1');
+    expect(actionRunExportMetadata).toContain('Run run-123');
+    expect(actionRunExportMetadata).toContain('Run status completed');
+    expect(actionRunExportMetadata).toContain(
+      'Projection source ai_action_run_agent_runtime_projection/v1'
+    );
+    expect(actionRunExportMetadata).toContain(
+      'Schema readiness projection_contract_only'
+    );
+    expect(actionRunExportMetadata).toContain(
+      'Boundary manifest_only_no_raw_trace_or_provider_payload'
+    );
     const actionRunManifestJson =
       screen.getByTestId('action-run-diagnostics-manifest-json-run-123')
         .textContent ?? '';
@@ -8374,11 +8405,22 @@ describe('AiPage', () => {
     );
     const failedRunDiagnostics =
       screen.getByTestId('action-run-diagnostics-run-failed').textContent ?? '';
+    const failedRunExportMetadata =
+      screen.getByTestId(
+        'action-run-diagnostics-manifest-export-metadata-run-failed'
+      ).textContent ?? '';
     const failedRunManifestJson =
       screen.getByTestId('action-run-diagnostics-manifest-json-run-failed')
         .textContent ?? '';
     expect(JSON.parse(failedRunManifestJson)).toEqual(
       actionRunsPayload[1].agentRuntimeDiagnosticsManifest
+    );
+    expect(failedRunExportMetadata).toContain(
+      'Filename action-run-diagnostics-manifest-run-failed.json'
+    );
+    expect(failedRunExportMetadata).toContain('Run status failed');
+    expect(failedRunExportMetadata).toContain(
+      'Boundary manifest_only_no_raw_trace_or_provider_payload'
     );
     expect(failedRunDiagnostics).toContain('Action run run-failed');
     expect(failedRunDiagnostics).toContain('Status Failed');
