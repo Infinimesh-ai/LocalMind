@@ -1746,6 +1746,7 @@ async function main() {
     'policyBindingFingerprint',
     'requestStatus',
     'reviewBindingFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -1770,6 +1771,7 @@ async function main() {
     'repairJobFingerprint',
     'requestStatus',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -1801,6 +1803,7 @@ async function main() {
     'requestStatus',
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -1831,6 +1834,7 @@ async function main() {
     'requestStatus',
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -1867,6 +1871,7 @@ async function main() {
     'requestStatus',
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -1899,6 +1904,7 @@ async function main() {
     'requestStatus',
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -1933,6 +1939,7 @@ async function main() {
     'requestStatus',
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -3119,6 +3126,7 @@ async function main() {
     'requestStatus',
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -3146,6 +3154,7 @@ async function main() {
     'requestStatus',
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -3170,6 +3179,7 @@ async function main() {
     'requestStatus',
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -3195,6 +3205,7 @@ async function main() {
     'requestStatus',
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -3223,6 +3234,7 @@ async function main() {
     'requestStatus',
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -3255,6 +3267,7 @@ async function main() {
     'requestStatus',
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -3285,6 +3298,7 @@ async function main() {
     'requestStatus',
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -3313,6 +3327,7 @@ async function main() {
     'requestStatus',
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -3339,6 +3354,7 @@ async function main() {
     'requestStatus',
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -3364,6 +3380,7 @@ async function main() {
     'requestStatus',
     'reviewBindingFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -3389,6 +3406,7 @@ async function main() {
     'reviewBindingFingerprint',
     'rollbackPlanFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -3413,6 +3431,7 @@ async function main() {
     'requestStatus',
     'reviewBindingFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -3434,6 +3453,7 @@ async function main() {
     'requestStatus',
     'reviewBindingFingerprint',
     'submissionFingerprint',
+    'targetLocatorFingerprint',
   ]);
   assert.match(executionRequest.requestFingerprint, /^[0-9a-f]{16}$/);
   assert.deepEqual(executionRequest.mismatchedFields, []);
