@@ -146,6 +146,16 @@ export type CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadata = {
   projectionSource: string;
   schemaReadiness: string;
   boundary: string;
+  exportPolicyVersion: string;
+  exportPolicyStatus: string;
+  exportPolicyFingerprint: string;
+  auditEventVersion: string;
+  auditEventStatus: string;
+  auditEventCreated: boolean;
+  auditEventFingerprint: string;
+  retentionPolicyVersion: string;
+  retentionPolicyStatus: string;
+  retentionPolicyFingerprint: string;
 };
 
 export type CopilotActionRunDiagnosticsItem = {
@@ -280,6 +290,76 @@ function actionRunDiagnosticsManifestMetadataFilename(runId: string) {
     runId.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'run';
 
   return `action-run-diagnostics-manifest-metadata-${safeRunId}.json`;
+}
+
+function actionRunDiagnosticsManifestExportPolicyFingerprint(input: {
+  actionId: string;
+  actionVersion: string;
+  artifact: string;
+  boundary: string;
+  exportPolicyStatus: string;
+  exportPolicyVersion: string;
+  filename: string;
+  manifestFingerprint: string;
+  manifestVersion: string;
+  metadataFilename: string;
+  mime: string;
+  projectionSource: string;
+  runId: string;
+  runStatus: string;
+  schemaReadiness: string;
+}) {
+  return createHash('sha256')
+    .update(
+      stableActionRunDiagnosticsStringify({
+        version: 'action-run-diagnostics-manifest-export-policy-fingerprint/v1',
+        ...input,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function actionRunDiagnosticsManifestAuditEventFingerprint(input: {
+  actionId: string;
+  actionVersion: string;
+  auditEventCreated: boolean;
+  auditEventStatus: string;
+  auditEventVersion: string;
+  exportPolicyFingerprint: string;
+  manifestFingerprint: string;
+  runId: string;
+}) {
+  return createHash('sha256')
+    .update(
+      stableActionRunDiagnosticsStringify({
+        version: 'action-run-diagnostics-manifest-audit-event-fingerprint/v1',
+        ...input,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function actionRunDiagnosticsManifestRetentionPolicyFingerprint(input: {
+  artifact: string;
+  boundary: string;
+  exportPolicyFingerprint: string;
+  manifestFingerprint: string;
+  retentionPolicyStatus: string;
+  retentionPolicyVersion: string;
+  runId: string;
+}) {
+  return createHash('sha256')
+    .update(
+      stableActionRunDiagnosticsStringify({
+        version:
+          'action-run-diagnostics-manifest-retention-policy-fingerprint/v1',
+        ...input,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
 }
 
 function stableActionRunDiagnosticsStringify(value: unknown): string {
@@ -1097,13 +1177,68 @@ function summarizePreparedRouteTrace(
       timelineGapCount: agentRuntimeTimelineGaps.length,
       schemaReadinessGapCount: agentRuntimeSchemaReadinessGaps.length,
     };
+  const diagnosticsManifestFilename =
+    actionRunDiagnosticsManifestFilename(runId);
+  const diagnosticsManifestMetadataFilename =
+    actionRunDiagnosticsManifestMetadataFilename(runId);
+  const diagnosticsManifestExportBoundary =
+    'manifest_only_no_raw_trace_or_provider_payload';
+  const diagnosticsManifestExportPolicyVersion =
+    'action-run-diagnostics-manifest-export-policy/v1';
+  const diagnosticsManifestExportPolicyStatus = 'read_only_projection';
+  const diagnosticsManifestExportPolicyFingerprint =
+    actionRunDiagnosticsManifestExportPolicyFingerprint({
+      actionId: agentRuntimeDiagnosticsManifest.actionId,
+      actionVersion: agentRuntimeDiagnosticsManifest.actionVersion,
+      artifact: 'action_run_diagnostics_manifest_json',
+      boundary: diagnosticsManifestExportBoundary,
+      exportPolicyStatus: diagnosticsManifestExportPolicyStatus,
+      exportPolicyVersion: diagnosticsManifestExportPolicyVersion,
+      filename: diagnosticsManifestFilename,
+      manifestFingerprint: agentRuntimeDiagnosticsManifest.fingerprint,
+      manifestVersion: agentRuntimeDiagnosticsManifest.version,
+      metadataFilename: diagnosticsManifestMetadataFilename,
+      mime: 'application/json;charset=utf-8',
+      projectionSource: agentRuntimeDiagnosticsManifest.projectionSource,
+      runId,
+      runStatus: agentRuntimeDiagnosticsManifest.runStatus,
+      schemaReadiness: agentRuntimeDiagnosticsManifest.schemaReadiness,
+    });
+  const diagnosticsManifestAuditEventVersion =
+    'action-run-diagnostics-manifest-export-audit-event/v1';
+  const diagnosticsManifestAuditEventStatus = 'not_created_read_only';
+  const diagnosticsManifestAuditEventCreated = false;
+  const diagnosticsManifestAuditEventFingerprint =
+    actionRunDiagnosticsManifestAuditEventFingerprint({
+      actionId: agentRuntimeDiagnosticsManifest.actionId,
+      actionVersion: agentRuntimeDiagnosticsManifest.actionVersion,
+      auditEventCreated: diagnosticsManifestAuditEventCreated,
+      auditEventStatus: diagnosticsManifestAuditEventStatus,
+      auditEventVersion: diagnosticsManifestAuditEventVersion,
+      exportPolicyFingerprint: diagnosticsManifestExportPolicyFingerprint,
+      manifestFingerprint: agentRuntimeDiagnosticsManifest.fingerprint,
+      runId,
+    });
+  const diagnosticsManifestRetentionPolicyVersion =
+    'action-run-diagnostics-manifest-retention-policy/v1';
+  const diagnosticsManifestRetentionPolicyStatus = 'not_persisted_read_only';
+  const diagnosticsManifestRetentionPolicyFingerprint =
+    actionRunDiagnosticsManifestRetentionPolicyFingerprint({
+      artifact: 'action_run_diagnostics_manifest_json',
+      boundary: diagnosticsManifestExportBoundary,
+      exportPolicyFingerprint: diagnosticsManifestExportPolicyFingerprint,
+      manifestFingerprint: agentRuntimeDiagnosticsManifest.fingerprint,
+      retentionPolicyStatus: diagnosticsManifestRetentionPolicyStatus,
+      retentionPolicyVersion: diagnosticsManifestRetentionPolicyVersion,
+      runId,
+    });
   const agentRuntimeDiagnosticsManifestExportMetadata: CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadata =
     {
       version: 'action-run-diagnostics-manifest-export-metadata/v1',
       artifact: 'action_run_diagnostics_manifest_json',
-      filename: actionRunDiagnosticsManifestFilename(runId),
+      filename: diagnosticsManifestFilename,
       mime: 'application/json;charset=utf-8',
-      metadataFilename: actionRunDiagnosticsManifestMetadataFilename(runId),
+      metadataFilename: diagnosticsManifestMetadataFilename,
       manifestVersion: agentRuntimeDiagnosticsManifest.version,
       manifestFingerprint: agentRuntimeDiagnosticsManifest.fingerprint,
       actionId: agentRuntimeDiagnosticsManifest.actionId,
@@ -1112,7 +1247,17 @@ function summarizePreparedRouteTrace(
       runStatus: agentRuntimeDiagnosticsManifest.runStatus,
       projectionSource: agentRuntimeDiagnosticsManifest.projectionSource,
       schemaReadiness: agentRuntimeDiagnosticsManifest.schemaReadiness,
-      boundary: 'manifest_only_no_raw_trace_or_provider_payload',
+      boundary: diagnosticsManifestExportBoundary,
+      exportPolicyVersion: diagnosticsManifestExportPolicyVersion,
+      exportPolicyStatus: diagnosticsManifestExportPolicyStatus,
+      exportPolicyFingerprint: diagnosticsManifestExportPolicyFingerprint,
+      auditEventVersion: diagnosticsManifestAuditEventVersion,
+      auditEventStatus: diagnosticsManifestAuditEventStatus,
+      auditEventCreated: diagnosticsManifestAuditEventCreated,
+      auditEventFingerprint: diagnosticsManifestAuditEventFingerprint,
+      retentionPolicyVersion: diagnosticsManifestRetentionPolicyVersion,
+      retentionPolicyStatus: diagnosticsManifestRetentionPolicyStatus,
+      retentionPolicyFingerprint: diagnosticsManifestRetentionPolicyFingerprint,
     };
 
   return {

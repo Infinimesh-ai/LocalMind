@@ -3883,6 +3883,36 @@ class CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType implemen
 
   @Field(() => String)
   boundary!: string;
+
+  @Field(() => String)
+  exportPolicyVersion!: string;
+
+  @Field(() => String)
+  exportPolicyStatus!: string;
+
+  @Field(() => String)
+  exportPolicyFingerprint!: string;
+
+  @Field(() => String)
+  auditEventVersion!: string;
+
+  @Field(() => String)
+  auditEventStatus!: string;
+
+  @Field(() => Boolean)
+  auditEventCreated!: boolean;
+
+  @Field(() => String)
+  auditEventFingerprint!: string;
+
+  @Field(() => String)
+  retentionPolicyVersion!: string;
+
+  @Field(() => String)
+  retentionPolicyStatus!: string;
+
+  @Field(() => String)
+  retentionPolicyFingerprint!: string;
 }
 
 @ObjectType()

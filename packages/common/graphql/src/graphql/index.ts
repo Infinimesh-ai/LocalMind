@@ -3262,13 +3262,23 @@ export const getCopilotActionRunsQuery = {
           actionId
           actionVersion
           artifact
+          auditEventCreated
+          auditEventFingerprint
+          auditEventStatus
+          auditEventVersion
           boundary
+          exportPolicyFingerprint
+          exportPolicyStatus
+          exportPolicyVersion
           filename
           manifestFingerprint
           manifestVersion
           metadataFilename
           mime
           projectionSource
+          retentionPolicyFingerprint
+          retentionPolicyStatus
+          retentionPolicyVersion
           runId
           runStatus
           schemaReadiness

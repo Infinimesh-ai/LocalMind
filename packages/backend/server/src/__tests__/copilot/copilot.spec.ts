@@ -4228,7 +4228,30 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
     projectionSource: successfulDiagnostics!.agentRuntimeProjectionSource,
     schemaReadiness: successfulDiagnostics!.agentRuntimeSchemaReadiness,
     boundary: 'manifest_only_no_raw_trace_or_provider_payload',
+    exportPolicyVersion: 'action-run-diagnostics-manifest-export-policy/v1',
+    exportPolicyStatus: 'read_only_projection',
+    auditEventVersion: 'action-run-diagnostics-manifest-export-audit-event/v1',
+    auditEventStatus: 'not_created_read_only',
+    auditEventCreated: false,
+    retentionPolicyVersion:
+      'action-run-diagnostics-manifest-retention-policy/v1',
+    retentionPolicyStatus: 'not_persisted_read_only',
   });
+  t.regex(
+    successfulDiagnostics!.agentRuntimeDiagnosticsManifestExportMetadata
+      .exportPolicyFingerprint,
+    /^[a-f0-9]{16}$/
+  );
+  t.regex(
+    successfulDiagnostics!.agentRuntimeDiagnosticsManifestExportMetadata
+      .auditEventFingerprint,
+    /^[a-f0-9]{16}$/
+  );
+  t.regex(
+    successfulDiagnostics!.agentRuntimeDiagnosticsManifestExportMetadata
+      .retentionPolicyFingerprint,
+    /^[a-f0-9]{16}$/
+  );
   t.like(failedDiagnostics!.agentRuntimeDiagnosticsManifest, {
     version: 'agent-runtime-diagnostics-manifest/v1',
     fingerprint: failedDiagnostics!.agentRuntimeDiagnosticsFingerprint,
@@ -4269,7 +4292,30 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
     projectionSource: failedDiagnostics!.agentRuntimeProjectionSource,
     schemaReadiness: failedDiagnostics!.agentRuntimeSchemaReadiness,
     boundary: 'manifest_only_no_raw_trace_or_provider_payload',
+    exportPolicyVersion: 'action-run-diagnostics-manifest-export-policy/v1',
+    exportPolicyStatus: 'read_only_projection',
+    auditEventVersion: 'action-run-diagnostics-manifest-export-audit-event/v1',
+    auditEventStatus: 'not_created_read_only',
+    auditEventCreated: false,
+    retentionPolicyVersion:
+      'action-run-diagnostics-manifest-retention-policy/v1',
+    retentionPolicyStatus: 'not_persisted_read_only',
   });
+  t.regex(
+    failedDiagnostics!.agentRuntimeDiagnosticsManifestExportMetadata
+      .exportPolicyFingerprint,
+    /^[a-f0-9]{16}$/
+  );
+  t.regex(
+    failedDiagnostics!.agentRuntimeDiagnosticsManifestExportMetadata
+      .auditEventFingerprint,
+    /^[a-f0-9]{16}$/
+  );
+  t.regex(
+    failedDiagnostics!.agentRuntimeDiagnosticsManifestExportMetadata
+      .retentionPolicyFingerprint,
+    /^[a-f0-9]{16}$/
+  );
   t.false('inputSnapshot' in diagnostics[0]);
   t.false('result' in diagnostics[0]);
   t.false('artifacts' in diagnostics[0]);

@@ -3688,6 +3688,12 @@ const actionRunProjectionContractFingerprint = 'abcd1111eeee2222';
 const failedActionRunProjectionContractFingerprint = 'abcd3333eeee4444';
 const actionRunAgentRuntimeDiagnosticsFingerprint = 'feed1111beef2222';
 const failedActionRunAgentRuntimeDiagnosticsFingerprint = 'feed3333beef4444';
+const actionRunManifestExportPolicyFingerprint = 'face1111cafe2222';
+const failedActionRunManifestExportPolicyFingerprint = 'face3333cafe4444';
+const actionRunManifestExportAuditEventFingerprint = 'dead1111bead2222';
+const failedActionRunManifestExportAuditEventFingerprint = 'dead3333bead4444';
+const actionRunManifestRetentionPolicyFingerprint = 'babe1111feed2222';
+const failedActionRunManifestRetentionPolicyFingerprint = 'babe3333feed4444';
 
 const actionRunsPayload = [
   {
@@ -3721,13 +3727,25 @@ const actionRunsPayload = [
       actionId: 'mindmap.generate',
       actionVersion: 'v1',
       artifact: 'action_run_diagnostics_manifest_json',
+      auditEventCreated: false,
+      auditEventFingerprint: actionRunManifestExportAuditEventFingerprint,
+      auditEventStatus: 'not_created_read_only',
+      auditEventVersion:
+        'action-run-diagnostics-manifest-export-audit-event/v1',
       boundary: 'manifest_only_no_raw_trace_or_provider_payload',
+      exportPolicyFingerprint: actionRunManifestExportPolicyFingerprint,
+      exportPolicyStatus: 'read_only_projection',
+      exportPolicyVersion: 'action-run-diagnostics-manifest-export-policy/v1',
       filename: 'action-run-diagnostics-manifest-run-123.json',
       manifestFingerprint: actionRunAgentRuntimeDiagnosticsFingerprint,
       manifestVersion: 'agent-runtime-diagnostics-manifest/v1',
       metadataFilename: 'action-run-diagnostics-manifest-metadata-run-123.json',
       mime: 'application/json;charset=utf-8',
       projectionSource: 'ai_action_run_agent_runtime_projection/v1',
+      retentionPolicyFingerprint: actionRunManifestRetentionPolicyFingerprint,
+      retentionPolicyStatus: 'not_persisted_read_only',
+      retentionPolicyVersion:
+        'action-run-diagnostics-manifest-retention-policy/v1',
       runId: 'run-123',
       runStatus: 'completed',
       schemaReadiness: 'projection_contract_only',
@@ -4120,7 +4138,15 @@ const actionRunsPayload = [
       actionId: 'image.filter.sketch',
       actionVersion: 'v1',
       artifact: 'action_run_diagnostics_manifest_json',
+      auditEventCreated: false,
+      auditEventFingerprint: failedActionRunManifestExportAuditEventFingerprint,
+      auditEventStatus: 'not_created_read_only',
+      auditEventVersion:
+        'action-run-diagnostics-manifest-export-audit-event/v1',
       boundary: 'manifest_only_no_raw_trace_or_provider_payload',
+      exportPolicyFingerprint: failedActionRunManifestExportPolicyFingerprint,
+      exportPolicyStatus: 'read_only_projection',
+      exportPolicyVersion: 'action-run-diagnostics-manifest-export-policy/v1',
       filename: 'action-run-diagnostics-manifest-run-failed.json',
       manifestFingerprint: failedActionRunAgentRuntimeDiagnosticsFingerprint,
       manifestVersion: 'agent-runtime-diagnostics-manifest/v1',
@@ -4128,6 +4154,11 @@ const actionRunsPayload = [
         'action-run-diagnostics-manifest-metadata-run-failed.json',
       mime: 'application/json;charset=utf-8',
       projectionSource: 'ai_action_run_agent_runtime_projection/v1',
+      retentionPolicyFingerprint:
+        failedActionRunManifestRetentionPolicyFingerprint,
+      retentionPolicyStatus: 'not_persisted_read_only',
+      retentionPolicyVersion:
+        'action-run-diagnostics-manifest-retention-policy/v1',
       runId: 'run-failed',
       runStatus: 'failed',
       schemaReadiness: 'projection_contract_only',
@@ -8288,6 +8319,34 @@ describe('AiPage', () => {
     expect(actionRunExportMetadata).toContain(
       'Boundary manifest_only_no_raw_trace_or_provider_payload'
     );
+    expect(actionRunExportMetadata).toContain(
+      'Export policy action-run-diagnostics-manifest-export-policy/v1'
+    );
+    expect(actionRunExportMetadata).toContain(
+      'Export policy status read_only_projection'
+    );
+    expect(actionRunExportMetadata).toContain(
+      `Export policy fingerprint ${actionRunManifestExportPolicyFingerprint}`
+    );
+    expect(actionRunExportMetadata).toContain(
+      'Audit event action-run-diagnostics-manifest-export-audit-event/v1'
+    );
+    expect(actionRunExportMetadata).toContain(
+      'Audit event status not_created_read_only'
+    );
+    expect(actionRunExportMetadata).toContain('Audit event created no');
+    expect(actionRunExportMetadata).toContain(
+      `Audit event fingerprint ${actionRunManifestExportAuditEventFingerprint}`
+    );
+    expect(actionRunExportMetadata).toContain(
+      'Retention policy action-run-diagnostics-manifest-retention-policy/v1'
+    );
+    expect(actionRunExportMetadata).toContain(
+      'Retention policy status not_persisted_read_only'
+    );
+    expect(actionRunExportMetadata).toContain(
+      `Retention policy fingerprint ${actionRunManifestRetentionPolicyFingerprint}`
+    );
     fireEvent.click(
       screen.getAllByRole('button', { name: 'Copy metadata' })[0]
     );
@@ -8493,6 +8552,21 @@ describe('AiPage', () => {
     expect(failedRunExportMetadata).toContain('Run status failed');
     expect(failedRunExportMetadata).toContain(
       'Boundary manifest_only_no_raw_trace_or_provider_payload'
+    );
+    expect(failedRunExportMetadata).toContain(
+      `Export policy fingerprint ${failedActionRunManifestExportPolicyFingerprint}`
+    );
+    expect(failedRunExportMetadata).toContain(
+      'Audit event status not_created_read_only'
+    );
+    expect(failedRunExportMetadata).toContain(
+      `Audit event fingerprint ${failedActionRunManifestExportAuditEventFingerprint}`
+    );
+    expect(failedRunExportMetadata).toContain(
+      'Retention policy status not_persisted_read_only'
+    );
+    expect(failedRunExportMetadata).toContain(
+      `Retention policy fingerprint ${failedActionRunManifestRetentionPolicyFingerprint}`
     );
     const failedRunExportMetadataJson =
       screen.getByTestId(

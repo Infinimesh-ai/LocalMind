@@ -13941,3 +13941,34 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - metadata sidecar 的 `version` 和 manifest 的 `version` 仍是应用层字符串，不是 DB-backed Agent Runtime schema revision、Model Registry revision、Provider Registry revision 或迁移版本。
 - Admin 展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、正式 export 控制、批量导出、签名、脱敏审计元数据或 Agent Runtime 原生 lifecycle artifact。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 415. P3 落地记录：Action Run Diagnostics Manifest Export Policy Snapshots
+
+本轮继续收敛第 414 节剩余风险中 “metadata sidecar 仍不是服务端签名的 support bundle manifest、下载审计记录、retention policy 或 DB-backed export artifact” 的问题。实际代码与目标 AI 中间层架构的冲突点是：`agentRuntimeDiagnosticsManifestExportMetadata` 已经由后端 GraphQL 返回，但该 metadata 只声明 artifact scope 与脱敏边界，仍没有把当前导出行为的策略状态、审计事件状态和保留策略状态作为机器可读字段暴露出来；后续正式 support bundle/export API 若直接复用该 metadata，仍需要额外约定这些只读阶段尚未创建持久化记录。本轮在 metadata projection 中补充只读 policy/audit/retention snapshot 与稳定 fingerprint，不创建真实导出记录、不写 DB、不改变 manifest payload。
+
+- `packages/backend/server/src/models/copilot-action-run.ts`：
+  - `CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadata` 新增 `exportPolicyVersion`、`exportPolicyStatus`、`exportPolicyFingerprint`、`auditEventVersion`、`auditEventStatus`、`auditEventCreated`、`auditEventFingerprint`、`retentionPolicyVersion`、`retentionPolicyStatus` 与 `retentionPolicyFingerprint`。
+  - export policy 固定为 `action-run-diagnostics-manifest-export-policy/v1` / `read_only_projection`，审计事件固定为 `action-run-diagnostics-manifest-export-audit-event/v1` / `not_created_read_only` / `false`，保留策略固定为 `action-run-diagnostics-manifest-retention-policy/v1` / `not_persisted_read_only`。
+  - 三类 fingerprint 只绑定当前已脱敏 metadata 输入、manifest fingerprint、run scope、boundary 与只读状态，不读取 raw trace、provider payload、prompt、secret、tool output 或 backend config。
+- GraphQL 与 common client：
+  - `CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType`、`getCopilotActionRuns` query、common query string 与 `schema.ts` 类型同步暴露新增 snapshot 字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - manifest export metadata 文本新增 export policy、audit event 与 retention policy snapshot 行；metadata JSON sidecar 继续直接序列化后端 GraphQL 字段。
+- 测试覆盖：
+  - backend resolver action runs 测试断言成功 run 与失败 run 返回只读 policy/audit/retention 状态，并验证三类 fingerprint 为 16 位 hex。
+  - Admin Vitest fixture/断言覆盖 metadata 文本与 JSON sidecar 消费新增 GraphQL 字段。
+
+该实现只扩展 action run diagnostics manifest metadata 的只读 GraphQL projection、common query/type、Admin 展示和测试，不新增 DB migration、不改变 action run trace 存储结构、不创建下载审计记录、不实现 retention policy persistence、不改变 manifest JSON payload、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、repair mutation guard、正式 support bundle schema、Model Registry revision 或 Provider Registry revision。它把 metadata sidecar 从“只声明 artifact scope”推进到“同时声明只读导出策略、审计事件和保留策略状态”，为后续正式 support bundle/export mutation 设计提供更明确的状态锚点与 stale-guard 输入。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 backend copilot AVA、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- policy/audit/retention snapshot 仍是只读 GraphQL projection，不是服务端签名的 support bundle manifest、正式下载审计记录、retention policy 持久化或 DB-backed export artifact。
+- snapshot fingerprint 只绑定当前 metadata 输入和只读状态，不绑定真实 actor/session、permission verdict、approval record、persisted idempotency lock、下载时间、client IP、完整 prepared route trace、timeline item payload、native trace event payload、tool output 或 Codex/MCP adapter 输出。
+- metadata sidecar 的 `version`、export policy version、audit event version 与 retention policy version 仍是应用层字符串，不是 DB-backed Agent Runtime schema revision、Model Registry revision、Provider Registry revision、policy registry revision 或迁移版本。
+- Admin 展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、正式 export 控制、批量导出、签名、脱敏审计元数据持久化或 Agent Runtime 原生 lifecycle artifact。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

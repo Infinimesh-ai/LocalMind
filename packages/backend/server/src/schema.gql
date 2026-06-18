@@ -636,13 +636,23 @@ type CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType {
   actionId: String!
   actionVersion: String!
   artifact: String!
+  auditEventCreated: Boolean!
+  auditEventFingerprint: String!
+  auditEventStatus: String!
+  auditEventVersion: String!
   boundary: String!
+  exportPolicyFingerprint: String!
+  exportPolicyStatus: String!
+  exportPolicyVersion: String!
   filename: String!
   manifestFingerprint: String!
   manifestVersion: String!
   metadataFilename: String!
   mime: String!
   projectionSource: String!
+  retentionPolicyFingerprint: String!
+  retentionPolicyStatus: String!
+  retentionPolicyVersion: String!
   runId: String!
   runStatus: String!
   schemaReadiness: String!

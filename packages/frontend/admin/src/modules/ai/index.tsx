@@ -5761,6 +5761,16 @@ function buildActionRunDiagnosticsManifestExportMetadata(
     `Projection source ${metadata.projectionSource}`,
     `Schema readiness ${metadata.schemaReadiness}`,
     `Boundary ${metadata.boundary}`,
+    `Export policy ${metadata.exportPolicyVersion}`,
+    `Export policy status ${metadata.exportPolicyStatus}`,
+    `Export policy fingerprint ${metadata.exportPolicyFingerprint}`,
+    `Audit event ${metadata.auditEventVersion}`,
+    `Audit event status ${metadata.auditEventStatus}`,
+    `Audit event created ${metadata.auditEventCreated ? 'yes' : 'no'}`,
+    `Audit event fingerprint ${metadata.auditEventFingerprint}`,
+    `Retention policy ${metadata.retentionPolicyVersion}`,
+    `Retention policy status ${metadata.retentionPolicyStatus}`,
+    `Retention policy fingerprint ${metadata.retentionPolicyFingerprint}`,
   ].join('\n');
 }
 
