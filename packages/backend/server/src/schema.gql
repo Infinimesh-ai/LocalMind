@@ -1525,6 +1525,8 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   candidateIndex: SafeInt!
   candidateKey: String
   candidateModelIds: [String!]
+  costInputPer1M: Float
+  costOutputPer1M: Float
   dimensionMismatch: Boolean
   diagnosticsErrors: [CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType!]
   diagnosticsErrorSnapshotFingerprint: String
@@ -1570,12 +1572,23 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   requestedDimensions: SafeInt
   requestedModelId: String
   requestedModelSource: String
+  routeAttachmentAllowRemoteUrls: Boolean
+  routeAttachmentKinds: [String!]
+  routeAttachmentSourceKinds: [String!]
   routeCandidateSnapshotFingerprint: String
+  routeContextWindow: SafeInt
+  routeEmbeddingDimensions: SafeInt
+  routeInputTypes: [String!]
+  routeMaxOutputTokens: SafeInt
   routeModelAliasMatched: Boolean
   routeModelDefinitionAliases: [String!]
   routeModelDefinitionId: String
   routeModelDefinitionSource: String
+  routeOutputTypes: [String!]
   routeRawModelId: String
+  routeStructuredAttachmentAllowRemoteUrls: Boolean
+  routeStructuredAttachmentKinds: [String!]
+  routeStructuredAttachmentSourceKinds: [String!]
   routeTrace: [CopilotPromptRegistryPublishGateRouteTracePhaseType!]
   routeTracePhases: [String!]
   routeTraceSnapshotFingerprint: String

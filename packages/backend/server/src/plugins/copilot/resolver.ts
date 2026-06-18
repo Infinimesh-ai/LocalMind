@@ -717,6 +717,8 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   candidateIndex: number;
   candidateKey?: string;
   candidateModelIds?: string[];
+  costInputPer1M?: number;
+  costOutputPer1M?: number;
   diagnosticsErrors?: CopilotTaskRouteDiagnosticsError[];
   diagnosticsErrorSnapshotFingerprint?: string;
   dimensionMismatch?: boolean;
@@ -762,12 +764,23 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   requestedDimensions?: number;
   requestedModelId?: string;
   requestedModelSource?: string;
+  routeAttachmentAllowRemoteUrls?: boolean;
+  routeAttachmentKinds?: string[];
+  routeAttachmentSourceKinds?: string[];
   routeCandidateSnapshotFingerprint?: string;
+  routeContextWindow?: number;
+  routeEmbeddingDimensions?: number;
+  routeInputTypes?: string[];
+  routeMaxOutputTokens?: number;
   routeModelAliasMatched?: boolean;
   routeModelDefinitionAliases?: string[];
   routeModelDefinitionId?: string;
   routeModelDefinitionSource?: CopilotModelDefinitionSource;
+  routeOutputTypes?: string[];
   routeRawModelId?: string;
+  routeStructuredAttachmentAllowRemoteUrls?: boolean;
+  routeStructuredAttachmentKinds?: string[];
+  routeStructuredAttachmentSourceKinds?: string[];
   routeTrace?: CopilotPromptRegistryPublishGateRouteTracePhase[];
   routeTracePhases?: string[];
   routeTraceSnapshotFingerprint?: string;
@@ -1804,6 +1817,12 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
   @Field(() => [String], { nullable: true })
   candidateModelIds?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['candidateModelIds'];
 
+  @Field(() => Number, { nullable: true })
+  costInputPer1M?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['costInputPer1M'];
+
+  @Field(() => Number, { nullable: true })
+  costOutputPer1M?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['costOutputPer1M'];
+
   @Field(() => [CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType], {
     nullable: true,
   })
@@ -1943,8 +1962,29 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
   @Field(() => String, { nullable: true })
   requestedModelSource?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['requestedModelSource'];
 
+  @Field(() => Boolean, { nullable: true })
+  routeAttachmentAllowRemoteUrls?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeAttachmentAllowRemoteUrls'];
+
+  @Field(() => [String], { nullable: true })
+  routeAttachmentKinds?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeAttachmentKinds'];
+
+  @Field(() => [String], { nullable: true })
+  routeAttachmentSourceKinds?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeAttachmentSourceKinds'];
+
   @Field(() => String, { nullable: true })
   routeCandidateSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeCandidateSnapshotFingerprint'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  routeContextWindow?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeContextWindow'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  routeEmbeddingDimensions?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeEmbeddingDimensions'];
+
+  @Field(() => [String], { nullable: true })
+  routeInputTypes?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeInputTypes'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  routeMaxOutputTokens?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeMaxOutputTokens'];
 
   @Field(() => Boolean, { nullable: true })
   routeModelAliasMatched?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeModelAliasMatched'];
@@ -1958,8 +1998,20 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
   @Field(() => String, { nullable: true })
   routeModelDefinitionSource?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeModelDefinitionSource'];
 
+  @Field(() => [String], { nullable: true })
+  routeOutputTypes?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeOutputTypes'];
+
   @Field(() => String, { nullable: true })
   routeRawModelId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeRawModelId'];
+
+  @Field(() => Boolean, { nullable: true })
+  routeStructuredAttachmentAllowRemoteUrls?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeStructuredAttachmentAllowRemoteUrls'];
+
+  @Field(() => [String], { nullable: true })
+  routeStructuredAttachmentKinds?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeStructuredAttachmentKinds'];
+
+  @Field(() => [String], { nullable: true })
+  routeStructuredAttachmentSourceKinds?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeStructuredAttachmentSourceKinds'];
 
   @Field(() => [CopilotPromptRegistryPublishGateRouteTracePhaseType], {
     nullable: true,
@@ -4394,7 +4446,7 @@ function definedArray<T>(values: T[] | undefined) {
   return values?.length ? values : undefined;
 }
 
-const TASK_ROUTE_RECOMMENDATION_EVIDENCE_LIMIT = 160;
+const TASK_ROUTE_RECOMMENDATION_EVIDENCE_LIMIT = 192;
 
 function taskRouteRepairCandidateEvidenceBase(
   scope: string,
@@ -4403,6 +4455,8 @@ function taskRouteRepairCandidateEvidenceBase(
     available?: boolean;
     candidateKey?: string;
     candidateModelIds?: string[];
+    costInputPer1M?: number;
+    costOutputPer1M?: number;
     diagnosticsErrors?: CopilotTaskRouteDiagnosticsError[];
     diagnosticsErrorSnapshotFingerprint?: string;
     dimensionMismatch?: boolean;
@@ -4448,12 +4502,23 @@ function taskRouteRepairCandidateEvidenceBase(
     requestedDimensions?: number;
     requestedModelId?: string;
     requestedModelSource?: string;
+    routeAttachmentAllowRemoteUrls?: boolean;
+    routeAttachmentKinds?: string[];
+    routeAttachmentSourceKinds?: string[];
     routeCandidateSnapshotFingerprint?: string;
+    routeContextWindow?: number;
+    routeEmbeddingDimensions?: number;
+    routeInputTypes?: string[];
+    routeMaxOutputTokens?: number;
     routeModelAliasMatched?: boolean;
     routeModelDefinitionAliases?: string[];
     routeModelDefinitionId?: string;
     routeModelDefinitionSource?: CopilotModelDefinitionSource;
+    routeOutputTypes?: string[];
     routeRawModelId?: string;
+    routeStructuredAttachmentAllowRemoteUrls?: boolean;
+    routeStructuredAttachmentKinds?: string[];
+    routeStructuredAttachmentSourceKinds?: string[];
     routeTrace?: CopilotPromptRegistryPublishGateRouteTracePhase[];
     routeTracePhases?: string[];
     routeTraceSnapshotFingerprint?: string;
@@ -4474,6 +4539,12 @@ function taskRouteRepairCandidateEvidenceBase(
       : {}),
     ...(definedArray(candidate.candidateModelIds) !== undefined
       ? { candidateModelIds: definedArray(candidate.candidateModelIds) }
+      : {}),
+    ...(candidate.costInputPer1M !== undefined
+      ? { costInputPer1M: candidate.costInputPer1M }
+      : {}),
+    ...(candidate.costOutputPer1M !== undefined
+      ? { costOutputPer1M: candidate.costOutputPer1M }
       : {}),
     ...(definedArray(candidate.diagnosticsErrors) !== undefined
       ? { diagnosticsErrors: definedArray(candidate.diagnosticsErrors) }
@@ -4637,11 +4708,39 @@ function taskRouteRepairCandidateEvidenceBase(
     ...(candidate.requestedModelSource !== undefined
       ? { requestedModelSource: candidate.requestedModelSource }
       : {}),
+    ...(candidate.routeAttachmentAllowRemoteUrls !== undefined
+      ? {
+          routeAttachmentAllowRemoteUrls:
+            candidate.routeAttachmentAllowRemoteUrls,
+        }
+      : {}),
+    ...(definedArray(candidate.routeAttachmentKinds) !== undefined
+      ? { routeAttachmentKinds: definedArray(candidate.routeAttachmentKinds) }
+      : {}),
+    ...(definedArray(candidate.routeAttachmentSourceKinds) !== undefined
+      ? {
+          routeAttachmentSourceKinds: definedArray(
+            candidate.routeAttachmentSourceKinds
+          ),
+        }
+      : {}),
     ...(candidate.routeCandidateSnapshotFingerprint !== undefined
       ? {
           routeCandidateSnapshotFingerprint:
             candidate.routeCandidateSnapshotFingerprint,
         }
+      : {}),
+    ...(candidate.routeContextWindow !== undefined
+      ? { routeContextWindow: candidate.routeContextWindow }
+      : {}),
+    ...(candidate.routeEmbeddingDimensions !== undefined
+      ? { routeEmbeddingDimensions: candidate.routeEmbeddingDimensions }
+      : {}),
+    ...(definedArray(candidate.routeInputTypes) !== undefined
+      ? { routeInputTypes: definedArray(candidate.routeInputTypes) }
+      : {}),
+    ...(candidate.routeMaxOutputTokens !== undefined
+      ? { routeMaxOutputTokens: candidate.routeMaxOutputTokens }
       : {}),
     ...(candidate.routeModelAliasMatched !== undefined
       ? { routeModelAliasMatched: candidate.routeModelAliasMatched }
@@ -4659,8 +4758,32 @@ function taskRouteRepairCandidateEvidenceBase(
     ...(candidate.routeModelDefinitionSource !== undefined
       ? { routeModelDefinitionSource: candidate.routeModelDefinitionSource }
       : {}),
+    ...(definedArray(candidate.routeOutputTypes) !== undefined
+      ? { routeOutputTypes: definedArray(candidate.routeOutputTypes) }
+      : {}),
     ...(candidate.routeRawModelId !== undefined
       ? { routeRawModelId: candidate.routeRawModelId }
+      : {}),
+    ...(candidate.routeStructuredAttachmentAllowRemoteUrls !== undefined
+      ? {
+          routeStructuredAttachmentAllowRemoteUrls:
+            candidate.routeStructuredAttachmentAllowRemoteUrls,
+        }
+      : {}),
+    ...(definedArray(candidate.routeStructuredAttachmentKinds) !== undefined
+      ? {
+          routeStructuredAttachmentKinds: definedArray(
+            candidate.routeStructuredAttachmentKinds
+          ),
+        }
+      : {}),
+    ...(definedArray(candidate.routeStructuredAttachmentSourceKinds) !==
+    undefined
+      ? {
+          routeStructuredAttachmentSourceKinds: definedArray(
+            candidate.routeStructuredAttachmentSourceKinds
+          ),
+        }
       : {}),
     ...(candidate.routeTrace !== undefined
       ? { routeTrace: candidate.routeTrace }
@@ -4688,6 +4811,8 @@ function taskRouteCandidateProfileStructuredEvidence(
       available?: boolean;
       candidateKey?: string;
       candidateModelIds?: string[];
+      costInputPer1M?: number;
+      costOutputPer1M?: number;
       diagnosticsErrors?: CopilotTaskRouteDiagnosticsError[];
       diagnosticsErrorSnapshotFingerprint?: string;
       dimensionMismatch?: boolean;
@@ -4732,12 +4857,23 @@ function taskRouteCandidateProfileStructuredEvidence(
       requestedDimensions?: number;
       requestedModelId?: string;
       requestedModelSource?: string;
+      routeAttachmentAllowRemoteUrls?: boolean;
+      routeAttachmentKinds?: string[];
+      routeAttachmentSourceKinds?: string[];
       routeCandidateSnapshotFingerprint?: string;
+      routeContextWindow?: number;
+      routeEmbeddingDimensions?: number;
+      routeInputTypes?: string[];
+      routeMaxOutputTokens?: number;
       routeModelAliasMatched?: boolean;
       routeModelDefinitionAliases?: string[];
       routeModelDefinitionId?: string;
       routeModelDefinitionSource?: CopilotModelDefinitionSource;
+      routeOutputTypes?: string[];
       routeRawModelId?: string;
+      routeStructuredAttachmentAllowRemoteUrls?: boolean;
+      routeStructuredAttachmentKinds?: string[];
+      routeStructuredAttachmentSourceKinds?: string[];
       routeTrace?: CopilotPromptRegistryPublishGateRouteTracePhase[];
       routeTracePhases?: string[];
       routeTraceSnapshotFingerprint?: string;
@@ -4917,6 +5053,56 @@ function taskRouteCandidateProfileStructuredEvidence(
 function taskRouteCandidateProfileEvidence(
   candidateEvidence: CopilotPromptRegistryPublishGateRepairCandidateEvidence[]
 ) {
+  const candidateCapabilityLimitCostEvidence = (
+    candidate: CopilotPromptRegistryPublishGateRepairCandidateEvidence
+  ) => [
+    candidate.costInputPer1M !== undefined
+      ? `${candidate.scope}#${candidate.candidateIndex}:costInputPer1M:${candidate.costInputPer1M}`
+      : null,
+    candidate.costOutputPer1M !== undefined
+      ? `${candidate.scope}#${candidate.candidateIndex}:costOutputPer1M:${candidate.costOutputPer1M}`
+      : null,
+    candidate.routeContextWindow !== undefined
+      ? `${candidate.scope}#${candidate.candidateIndex}:routeContextWindow:${candidate.routeContextWindow}`
+      : null,
+    candidate.routeMaxOutputTokens !== undefined
+      ? `${candidate.scope}#${candidate.candidateIndex}:routeMaxOutputTokens:${candidate.routeMaxOutputTokens}`
+      : null,
+    candidate.routeEmbeddingDimensions !== undefined
+      ? `${candidate.scope}#${candidate.candidateIndex}:routeEmbeddingDimensions:${candidate.routeEmbeddingDimensions}`
+      : null,
+    ...(candidate.routeInputTypes ?? []).map(
+      inputType =>
+        `${candidate.scope}#${candidate.candidateIndex}:routeInputType:${inputType}`
+    ),
+    ...(candidate.routeOutputTypes ?? []).map(
+      outputType =>
+        `${candidate.scope}#${candidate.candidateIndex}:routeOutputType:${outputType}`
+    ),
+    ...(candidate.routeAttachmentKinds ?? []).map(
+      kind =>
+        `${candidate.scope}#${candidate.candidateIndex}:routeAttachmentKind:${kind}`
+    ),
+    ...(candidate.routeAttachmentSourceKinds ?? []).map(
+      kind =>
+        `${candidate.scope}#${candidate.candidateIndex}:routeAttachmentSourceKind:${kind}`
+    ),
+    candidate.routeAttachmentAllowRemoteUrls !== undefined
+      ? `${candidate.scope}#${candidate.candidateIndex}:routeAttachmentAllowRemoteUrls:${candidate.routeAttachmentAllowRemoteUrls}`
+      : null,
+    ...(candidate.routeStructuredAttachmentKinds ?? []).map(
+      kind =>
+        `${candidate.scope}#${candidate.candidateIndex}:routeStructuredAttachmentKind:${kind}`
+    ),
+    ...(candidate.routeStructuredAttachmentSourceKinds ?? []).map(
+      kind =>
+        `${candidate.scope}#${candidate.candidateIndex}:routeStructuredAttachmentSourceKind:${kind}`
+    ),
+    candidate.routeStructuredAttachmentAllowRemoteUrls !== undefined
+      ? `${candidate.scope}#${candidate.candidateIndex}:routeStructuredAttachmentAllowRemoteUrls:${candidate.routeStructuredAttachmentAllowRemoteUrls}`
+      : null,
+  ];
+
   const primaryRouteEvidence = candidateEvidence
     .filter(candidate => candidate.candidateIndex === 0)
     .flatMap(candidate =>
@@ -4994,8 +5180,9 @@ function taskRouteCandidateProfileEvidence(
           candidate.routeRawModelId
             ? `${candidate.scope}#${candidate.candidateIndex}:routeRawModelId:${candidate.routeRawModelId}`
             : null,
+          ...candidateCapabilityLimitCostEvidence(candidate),
         ],
-        28
+        44
       )
     );
   const primaryEvidence = candidateEvidence
@@ -5043,6 +5230,7 @@ function taskRouteCandidateProfileEvidence(
           candidate.dimensionMismatch !== undefined
             ? `${candidate.scope}#${candidate.candidateIndex}:dimensionMismatch:${candidate.dimensionMismatch}`
             : null,
+          ...candidateCapabilityLimitCostEvidence(candidate),
           candidate.modelId
             ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
             : null,
@@ -5143,7 +5331,7 @@ function taskRouteCandidateProfileEvidence(
             ? `${candidate.scope}#${candidate.candidateIndex}:errorCategory:${candidate.errorCategory}`
             : null,
         ],
-        44
+        64
       )
     );
   const fingerprintEvidence = candidateEvidence.flatMap(candidate =>
@@ -5300,6 +5488,7 @@ function taskRouteCandidateProfileEvidence(
         candidate.routeRawModelId
           ? `${candidate.scope}#${candidate.candidateIndex}:routeRawModelId:${candidate.routeRawModelId}`
           : null,
+        ...candidateCapabilityLimitCostEvidence(candidate),
         candidate.providerProfileId
           ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileId:${candidate.providerProfileId}`
           : null,
@@ -5311,7 +5500,7 @@ function taskRouteCandidateProfileEvidence(
             `${candidate.scope}#${candidate.candidateIndex}:providerConfiguredModel:${modelId}`
         ),
       ],
-      24
+      40
     )
   );
   const priorityEvidence = candidateEvidence.flatMap(candidate =>
@@ -5424,6 +5613,7 @@ function taskRouteCandidateProfileEvidence(
         candidate.routeRawModelId
           ? `${candidate.scope}#${candidate.candidateIndex}:routeRawModelId:${candidate.routeRawModelId}`
           : null,
+        ...candidateCapabilityLimitCostEvidence(candidate),
         candidate.providerProfileId
           ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileId:${candidate.providerProfileId}`
           : null,
@@ -5435,7 +5625,7 @@ function taskRouteCandidateProfileEvidence(
             `${candidate.scope}#${candidate.candidateIndex}:providerConfiguredModel:${modelId}`
         ),
       ],
-      28
+      44
     )
   );
   const detailedEvidence = candidateEvidence.flatMap(candidate =>
@@ -5551,6 +5741,7 @@ function taskRouteCandidateProfileEvidence(
         candidate.routeRawModelId
           ? `${candidate.scope}#${candidate.candidateIndex}:routeRawModelId:${candidate.routeRawModelId}`
           : null,
+        ...candidateCapabilityLimitCostEvidence(candidate),
         candidate.providerName
           ? `${candidate.scope}#${candidate.candidateIndex}:providerName:${candidate.providerName}`
           : null,
@@ -5585,7 +5776,7 @@ function taskRouteCandidateProfileEvidence(
             `${candidate.scope}#${candidate.candidateIndex}:reason:${reason}`
         ),
       ],
-      32
+      52
     )
   );
 

@@ -2604,6 +2604,8 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             candidateIndex
             candidateKey
             candidateModelIds
+            costInputPer1M
+            costOutputPer1M
             dimensionMismatch
             diagnosticsErrors {
               code
@@ -2670,12 +2672,23 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             requestedDimensions
             requestedModelId
             requestedModelSource
+            routeAttachmentAllowRemoteUrls
+            routeAttachmentKinds
+            routeAttachmentSourceKinds
             routeCandidateSnapshotFingerprint
+            routeContextWindow
+            routeEmbeddingDimensions
+            routeInputTypes
+            routeMaxOutputTokens
             routeModelAliasMatched
             routeModelDefinitionAliases
             routeModelDefinitionId
             routeModelDefinitionSource
+            routeOutputTypes
             routeRawModelId
+            routeStructuredAttachmentAllowRemoteUrls
+            routeStructuredAttachmentKinds
+            routeStructuredAttachmentSourceKinds
             routeTrace {
               availableCount
               blockedCount

@@ -7097,6 +7097,48 @@ async function main() {
   );
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
+      'routeCandidate#0:routeInputType:text'
+    ),
+    true,
+    'task diagnostics repair evidence should include route candidate input capability'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'routeCandidate#0:routeOutputType:embedding'
+    ),
+    true,
+    'task diagnostics repair evidence should include route candidate output capability'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'routeCandidate#0:routeContextWindow:8192'
+    ),
+    true,
+    'task diagnostics repair evidence should include route candidate context limit'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'routeCandidate#0:routeEmbeddingDimensions:768'
+    ),
+    true,
+    'task diagnostics repair evidence should include route candidate embedding limit'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'routeCandidate#0:costInputPer1M:0.01'
+    ),
+    true,
+    'task diagnostics repair evidence should include route candidate input cost'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'prepareCandidate#0:routeAttachmentAllowRemoteUrls:true'
+    ),
+    true,
+    'task diagnostics repair evidence should include prepare candidate remote attachment support'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
       'routeCandidate#0:registryKind:byok'
     ),
     true,
@@ -7385,6 +7427,75 @@ async function main() {
     'nomic-embed-text'
   );
   assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.costInputPer1M,
+    taskDiagnosticsErrorRoute?.routeCandidates[0]?.costInputPer1M,
+    'route candidate evidence should bind input cost'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.costOutputPer1M,
+    taskDiagnosticsErrorRoute?.routeCandidates[0]?.costOutputPer1M,
+    'route candidate evidence should bind output cost'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.routeContextWindow,
+    taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeContextWindow,
+    'route candidate evidence should bind context window'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.routeMaxOutputTokens,
+    taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeMaxOutputTokens,
+    'route candidate evidence should bind max output tokens'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.routeEmbeddingDimensions,
+    taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeEmbeddingDimensions,
+    'route candidate evidence should bind embedding dimensions'
+  );
+  assert.deepEqual(
+    taskDiagnosticsRouteCandidateEvidence?.routeInputTypes,
+    taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeInputTypes,
+    'route candidate evidence should bind input capabilities'
+  );
+  assert.deepEqual(
+    taskDiagnosticsRouteCandidateEvidence?.routeOutputTypes,
+    taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeOutputTypes,
+    'route candidate evidence should bind output capabilities'
+  );
+  assert.deepEqual(
+    taskDiagnosticsRouteCandidateEvidence?.routeAttachmentKinds,
+    taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeAttachmentKinds,
+    'route candidate evidence should bind attachment kinds'
+  );
+  assert.deepEqual(
+    taskDiagnosticsRouteCandidateEvidence?.routeAttachmentSourceKinds,
+    taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeAttachmentSourceKinds,
+    'route candidate evidence should bind attachment source kinds'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.routeAttachmentAllowRemoteUrls,
+    taskDiagnosticsErrorRoute?.routeCandidates[0]
+      ?.routeAttachmentAllowRemoteUrls,
+    'route candidate evidence should bind remote attachment support'
+  );
+  assert.deepEqual(
+    taskDiagnosticsRouteCandidateEvidence?.routeStructuredAttachmentKinds,
+    taskDiagnosticsErrorRoute?.routeCandidates[0]
+      ?.routeStructuredAttachmentKinds,
+    'route candidate evidence should bind structured attachment kinds'
+  );
+  assert.deepEqual(
+    taskDiagnosticsRouteCandidateEvidence?.routeStructuredAttachmentSourceKinds,
+    taskDiagnosticsErrorRoute?.routeCandidates[0]
+      ?.routeStructuredAttachmentSourceKinds,
+    'route candidate evidence should bind structured attachment source kinds'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.routeStructuredAttachmentAllowRemoteUrls,
+    taskDiagnosticsErrorRoute?.routeCandidates[0]
+      ?.routeStructuredAttachmentAllowRemoteUrls,
+    'route candidate evidence should bind structured remote attachment support'
+  );
+  assert.equal(
     taskDiagnosticsRouteCandidateEvidence?.preparedRouteTargetFingerprint,
     taskDiagnosticsErrorRoute?.preparedRouteTargetFingerprint,
     'route candidate evidence should bind the task route target fingerprint'
@@ -7562,6 +7673,76 @@ async function main() {
   assert.equal(
     taskDiagnosticsPrepareCandidateEvidence?.routeRawModelId,
     'nomic-embed-text'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.costInputPer1M,
+    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.costInputPer1M,
+    'prepare candidate evidence should bind input cost'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.costOutputPer1M,
+    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.costOutputPer1M,
+    'prepare candidate evidence should bind output cost'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.routeContextWindow,
+    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.routeContextWindow,
+    'prepare candidate evidence should bind context window'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.routeMaxOutputTokens,
+    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.routeMaxOutputTokens,
+    'prepare candidate evidence should bind max output tokens'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.routeEmbeddingDimensions,
+    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.routeEmbeddingDimensions,
+    'prepare candidate evidence should bind embedding dimensions'
+  );
+  assert.deepEqual(
+    taskDiagnosticsPrepareCandidateEvidence?.routeInputTypes,
+    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.routeInputTypes,
+    'prepare candidate evidence should bind input capabilities'
+  );
+  assert.deepEqual(
+    taskDiagnosticsPrepareCandidateEvidence?.routeOutputTypes,
+    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.routeOutputTypes,
+    'prepare candidate evidence should bind output capabilities'
+  );
+  assert.deepEqual(
+    taskDiagnosticsPrepareCandidateEvidence?.routeAttachmentKinds,
+    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.routeAttachmentKinds,
+    'prepare candidate evidence should bind attachment kinds'
+  );
+  assert.deepEqual(
+    taskDiagnosticsPrepareCandidateEvidence?.routeAttachmentSourceKinds,
+    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]
+      ?.routeAttachmentSourceKinds,
+    'prepare candidate evidence should bind attachment source kinds'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.routeAttachmentAllowRemoteUrls,
+    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]
+      ?.routeAttachmentAllowRemoteUrls,
+    'prepare candidate evidence should bind remote attachment support'
+  );
+  assert.deepEqual(
+    taskDiagnosticsPrepareCandidateEvidence?.routeStructuredAttachmentKinds,
+    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]
+      ?.routeStructuredAttachmentKinds,
+    'prepare candidate evidence should bind structured attachment kinds'
+  );
+  assert.deepEqual(
+    taskDiagnosticsPrepareCandidateEvidence?.routeStructuredAttachmentSourceKinds,
+    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]
+      ?.routeStructuredAttachmentSourceKinds,
+    'prepare candidate evidence should bind structured attachment source kinds'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.routeStructuredAttachmentAllowRemoteUrls,
+    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]
+      ?.routeStructuredAttachmentAllowRemoteUrls,
+    'prepare candidate evidence should bind structured remote attachment support'
   );
   assert.equal(
     taskDiagnosticsPrepareCandidateEvidence?.providerProfileConfigPath,

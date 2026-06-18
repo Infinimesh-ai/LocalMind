@@ -1750,6 +1750,8 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   candidateIndex: Scalars['SafeInt']['output'];
   candidateKey?: Maybe<Scalars['String']['output']>;
   candidateModelIds?: Maybe<Array<Scalars['String']['output']>>;
+  costInputPer1M?: Maybe<Scalars['Float']['output']>;
+  costOutputPer1M?: Maybe<Scalars['Float']['output']>;
   dimensionMismatch?: Maybe<Scalars['Boolean']['output']>;
   diagnosticsErrors?: Maybe<
     Array<CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType>
@@ -1799,12 +1801,27 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   requestedDimensions?: Maybe<Scalars['SafeInt']['output']>;
   requestedModelId?: Maybe<Scalars['String']['output']>;
   requestedModelSource?: Maybe<Scalars['String']['output']>;
+  routeAttachmentAllowRemoteUrls?: Maybe<Scalars['Boolean']['output']>;
+  routeAttachmentKinds?: Maybe<Array<Scalars['String']['output']>>;
+  routeAttachmentSourceKinds?: Maybe<Array<Scalars['String']['output']>>;
   routeCandidateSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
+  routeContextWindow?: Maybe<Scalars['SafeInt']['output']>;
+  routeEmbeddingDimensions?: Maybe<Scalars['SafeInt']['output']>;
+  routeInputTypes?: Maybe<Array<Scalars['String']['output']>>;
+  routeMaxOutputTokens?: Maybe<Scalars['SafeInt']['output']>;
   routeModelAliasMatched?: Maybe<Scalars['Boolean']['output']>;
   routeModelDefinitionAliases?: Maybe<Array<Scalars['String']['output']>>;
   routeModelDefinitionId?: Maybe<Scalars['String']['output']>;
   routeModelDefinitionSource?: Maybe<Scalars['String']['output']>;
+  routeOutputTypes?: Maybe<Array<Scalars['String']['output']>>;
   routeRawModelId?: Maybe<Scalars['String']['output']>;
+  routeStructuredAttachmentAllowRemoteUrls?: Maybe<
+    Scalars['Boolean']['output']
+  >;
+  routeStructuredAttachmentKinds?: Maybe<Array<Scalars['String']['output']>>;
+  routeStructuredAttachmentSourceKinds?: Maybe<
+    Array<Scalars['String']['output']>
+  >;
   routeTrace?: Maybe<
     Array<CopilotPromptRegistryPublishGateRouteTracePhaseType>
   >;
@@ -8026,6 +8043,8 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             candidateIndex: number;
             candidateKey: string | null;
             candidateModelIds: Array<string> | null;
+            costInputPer1M: number | null;
+            costOutputPer1M: number | null;
             dimensionMismatch: boolean | null;
             diagnosticsErrors: Array<{
               __typename?: 'CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType';
@@ -8094,12 +8113,23 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             requestedDimensions: number | null;
             requestedModelId: string | null;
             requestedModelSource: string | null;
+            routeAttachmentAllowRemoteUrls: boolean | null;
+            routeAttachmentKinds: Array<string> | null;
+            routeAttachmentSourceKinds: Array<string> | null;
             routeCandidateSnapshotFingerprint: string | null;
+            routeContextWindow: number | null;
+            routeEmbeddingDimensions: number | null;
+            routeInputTypes: Array<string> | null;
+            routeMaxOutputTokens: number | null;
             routeModelAliasMatched: boolean | null;
             routeModelDefinitionAliases: Array<string> | null;
             routeModelDefinitionId: string | null;
             routeModelDefinitionSource: string | null;
+            routeOutputTypes: Array<string> | null;
             routeRawModelId: string | null;
+            routeStructuredAttachmentAllowRemoteUrls: boolean | null;
+            routeStructuredAttachmentKinds: Array<string> | null;
+            routeStructuredAttachmentSourceKinds: Array<string> | null;
             routeTrace: Array<{
               __typename?: 'CopilotPromptRegistryPublishGateRouteTracePhaseType';
               availableCount: number | null;

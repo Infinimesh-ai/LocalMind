@@ -2745,13 +2745,26 @@ const readyPublishGateVerdict = withRepairActionPreview(
             requestedModelConfigKey: 'workspaceIndexing',
             requestedModelConfigPath: 'copilot.tasks.models.workspaceIndexing',
             requestedModelSource: 'workspace_indexing',
+            costInputPer1M: 0.01,
+            costOutputPer1M: 0.02,
+            routeAttachmentAllowRemoteUrls: true,
+            routeAttachmentKinds: ['file'],
+            routeAttachmentSourceKinds: ['url', 'data'],
             routeCandidateSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(blockedRoute.routeCandidates),
+            routeContextWindow: 8192,
+            routeEmbeddingDimensions: 768,
+            routeInputTypes: ['text'],
+            routeMaxOutputTokens: 1024,
             routeModelAliasMatched: false,
             routeModelDefinitionAliases: ['nomic-embed-text'],
             routeModelDefinitionId: 'workspace-embedding',
             routeModelDefinitionSource: 'provider_profile',
+            routeOutputTypes: ['embedding'],
             routeRawModelId: 'nomic-embed-text',
+            routeStructuredAttachmentAllowRemoteUrls: false,
+            routeStructuredAttachmentKinds: ['image'],
+            routeStructuredAttachmentSourceKinds: ['file_handle'],
             routeTrace: blockedRoute.routeTrace,
             routeTracePhases: blockedRoute.routeTrace.map(phase => phase.phase),
             routeTraceSnapshotFingerprint: taskRouteSnapshotFingerprintFixture(
@@ -2843,13 +2856,26 @@ const readyPublishGateVerdict = withRepairActionPreview(
             requestedModelConfigKey: 'workspaceIndexing',
             requestedModelConfigPath: 'copilot.tasks.models.workspaceIndexing',
             requestedModelSource: 'workspace_indexing',
+            costInputPer1M: 0.01,
+            costOutputPer1M: 0.02,
+            routeAttachmentAllowRemoteUrls: true,
+            routeAttachmentKinds: ['file'],
+            routeAttachmentSourceKinds: ['url'],
             routeCandidateSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(blockedRoute.routeCandidates),
+            routeContextWindow: 8192,
+            routeEmbeddingDimensions: 768,
+            routeInputTypes: ['text'],
+            routeMaxOutputTokens: 1024,
             routeModelAliasMatched: false,
             routeModelDefinitionAliases: ['nomic-embed-text'],
             routeModelDefinitionId: 'workspace-embedding',
             routeModelDefinitionSource: 'provider_profile',
+            routeOutputTypes: ['embedding'],
             routeRawModelId: 'nomic-embed-text',
+            routeStructuredAttachmentAllowRemoteUrls: false,
+            routeStructuredAttachmentKinds: ['image'],
+            routeStructuredAttachmentSourceKinds: ['file_handle'],
             routeTrace: blockedRoute.routeTrace,
             routeTracePhases: blockedRoute.routeTrace.map(phase => phase.phase),
             routeTraceSnapshotFingerprint: taskRouteSnapshotFingerprintFixture(
@@ -6850,6 +6876,9 @@ describe('AiPage', () => {
       'definition source Provider Profile / definition workspace-embedding / definition aliases nomic-embed-text / alias matched no / raw model nomic-embed-text'
     );
     expect(readyGateDiagnostics).toContain(
+      'input text / output embedding / attachments file / attachment sources url, data / remote attachments yes / structured attachments image / structured attachment sources file_handle / structured remote attachments no / context 8192 / max output 1024 / embedding 768 / input cost 0.01/1M / output cost 0.02/1M'
+    );
+    expect(readyGateDiagnostics).toContain(
       'capability input text / output embedding / attachments file / attachment sources url, data / remote attachments yes / structured attachments image / structured attachment sources file_handle / structured remote attachments no'
     );
     expect(readyGateDiagnostics).toContain(
@@ -6859,7 +6888,7 @@ describe('AiPage', () => {
       'Prepare Candidate #0 / fingerprint '
     );
     expect(readyGateDiagnostics).toContain(
-      'key prepare:ollama-main / provider ollama-main / prepared no / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding / requested workspace-embedding / requested source Workspace indexing task model / requested config key workspaceIndexing / requested config path copilot.tasks.models.workspaceIndexing / requested 1024d / dimension mismatch no / model workspace-embedding / prepared nomic-embed-text'
+      'key prepare:ollama-main / provider ollama-main / prepared no / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding / requested workspace-embedding / requested source Workspace indexing task model / requested config key workspaceIndexing / requested config path copilot.tasks.models.workspaceIndexing / requested 1024d / dimension mismatch no / input text / output embedding / attachments file / attachment sources url / remote attachments yes / structured attachments image / structured attachment sources file_handle / structured remote attachments no / context 8192 / max output 1024 / embedding 768 / input cost 0.01/1M / output cost 0.02/1M / model workspace-embedding / prepared nomic-embed-text'
     );
     expect(readyGateDiagnostics).toContain(
       'prepared nomic-embed-text / privacy Local / health Down / checked 2026-06-16T10:00:00.000Z / code prepare_failed / category Network / registry byok / registry available yes / registry selected no'

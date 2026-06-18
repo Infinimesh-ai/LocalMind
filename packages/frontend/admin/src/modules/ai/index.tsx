@@ -3017,6 +3017,51 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
     evidence.dimensionMismatch != null
       ? `dimension mismatch ${evidence.dimensionMismatch ? 'yes' : 'no'}`
       : null,
+    evidence.routeInputTypes?.length
+      ? `input ${evidence.routeInputTypes.join(', ')}`
+      : null,
+    evidence.routeOutputTypes?.length
+      ? `output ${evidence.routeOutputTypes.join(', ')}`
+      : null,
+    evidence.routeAttachmentKinds?.length
+      ? `attachments ${evidence.routeAttachmentKinds.join(', ')}`
+      : null,
+    evidence.routeAttachmentSourceKinds?.length
+      ? `attachment sources ${evidence.routeAttachmentSourceKinds.join(', ')}`
+      : null,
+    evidence.routeAttachmentAllowRemoteUrls != null
+      ? `remote attachments ${evidence.routeAttachmentAllowRemoteUrls ? 'yes' : 'no'}`
+      : null,
+    evidence.routeStructuredAttachmentKinds?.length
+      ? `structured attachments ${evidence.routeStructuredAttachmentKinds.join(
+          ', '
+        )}`
+      : null,
+    evidence.routeStructuredAttachmentSourceKinds?.length
+      ? `structured attachment sources ${evidence.routeStructuredAttachmentSourceKinds.join(
+          ', '
+        )}`
+      : null,
+    evidence.routeStructuredAttachmentAllowRemoteUrls != null
+      ? `structured remote attachments ${
+          evidence.routeStructuredAttachmentAllowRemoteUrls ? 'yes' : 'no'
+        }`
+      : null,
+    evidence.routeContextWindow != null
+      ? `context ${evidence.routeContextWindow}`
+      : null,
+    evidence.routeMaxOutputTokens != null
+      ? `max output ${evidence.routeMaxOutputTokens}`
+      : null,
+    evidence.routeEmbeddingDimensions != null
+      ? `embedding ${evidence.routeEmbeddingDimensions}`
+      : null,
+    evidence.costInputPer1M != null
+      ? `input cost ${evidence.costInputPer1M}/1M`
+      : null,
+    evidence.costOutputPer1M != null
+      ? `output cost ${evidence.costOutputPer1M}/1M`
+      : null,
     evidence.modelId ? `model ${evidence.modelId}` : null,
     evidence.preparedModelId ? `prepared ${evidence.preparedModelId}` : null,
     evidence.privacy

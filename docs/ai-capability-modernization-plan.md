@@ -13158,3 +13158,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 这些字段不能解决非 1024 维 embedding 模型的索引迁移问题；workspace indexing runtime 仍需要索引版本、重建流程和 pgvector schema 兼容策略。
 - 这些字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、support bundle schema、repair mutation guard input、索引迁移 guard 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 388. P3 落地记录：Task Route Repair Candidate Capability Limit Cost Evidence
+
+本轮继续收敛第 386、387 节剩余风险中 “repair candidate evidence 有 provider capability/limit/cost snapshot fingerprint，但不能直接展开候选的能力、上下文限制、embedding 维度限制或成本摘要” 的问题。实际代码与目标 AI 中间层架构的冲突点是：task route diagnostics 的 route/prepare candidate 已经暴露 `routeInputTypes`、`routeOutputTypes`、attachment 支持、`routeContextWindow`、`routeMaxOutputTokens`、`routeEmbeddingDimensions`、`costInputPer1M` 与 `costOutputPer1M`；但 Prompt Registry repair recommendation 的 candidate evidence 只能看到对应 snapshot fingerprint。自部署本地 embedding/rerank、OpenAI-compatible 聚合模型或 provider profile modelDefinitions 排障时，Admin、support bundle 和人工 review 需要在同一条 candidate evidence 中直接看到模型声明能力、limit 与成本摘要。本轮把这些只读字段补进 route/prepare repair candidate evidence，不改变 capability match、成本策略、限额策略或 provider 选择行为。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 新增 `costInputPer1M`、`costOutputPer1M`、`routeInputTypes`、`routeOutputTypes`、`routeAttachmentKinds`、`routeAttachmentSourceKinds`、`routeAttachmentAllowRemoteUrls`、`routeStructuredAttachmentKinds`、`routeStructuredAttachmentSourceKinds`、`routeStructuredAttachmentAllowRemoteUrls`、`routeContextWindow`、`routeMaxOutputTokens` 与 `routeEmbeddingDimensions`。
+  - `taskRouteRepairCandidateEvidenceBase()` 将 route/prepare candidate 中已有的 capability、limit 与 cost 元数据复制到 repair candidate evidence；candidate fingerprint、preview operation fingerprint 与 evidence set fingerprint 会对这些只读摘要变化敏感。
+  - `taskRouteCandidateProfileEvidence()` 的可复制 evidence 文本加入 capability、limit 与 cost 字段，让 recommendation 摘要能直接解释候选模型支持的输入/输出、附件、上下文、embedding 维度与成本。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、common query string、`schema.ts` interface 与 operation result 类型同步新增 repair candidate evidence 的 capability、limit 与 cost 字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence diagnostics text 显示 `input ...`、`output ...`、`attachments ...`、`remote attachments yes/no`、`structured attachments ...`、`context ...`、`max output ...`、`embedding ...`、`input cost .../1M` 与 `output cost .../1M`。
+- 测试覆盖：
+  - resolver source chain smoke 断言 route/prepare candidate evidence 都绑定 task route candidate 的 capability、limit 与 cost 字段，并断言可复制 evidence 文本包含 input/output、context、embedding dimensions、input cost 与 remote attachment support。
+  - Admin Vitest fixture 注入 blocked task route 的 capability、limit 与 cost 字段，并断言 publish gate diagnostics text 显示这些字段。
+
+该实现只扩展只读 diagnostics/evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 Model Registry/Provider Registry revision row、不改变 capability matching、成本策略、限额策略、provider route selection、fallback order、Prompt Registry publish gate 判定、repair action catalog、mutation input、preview/preflight/execution gate 字段名、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把 task route repair evidence 从“只能用 snapshot fingerprint 感知 capability/limit/cost 变化”推进到“candidate evidence 自身携带可读模型能力、限制和成本摘要”，为后续 support bundle、route explain、repair guard、DB-backed Model Registry revision 与 provider health/cost audit 对齐提供更可审计的过渡证据。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- capability、limit 与 cost 字段仍只反映 diagnostics probe 阶段的 route/prepare candidate 元数据，不代表后续真实 dispatch 的 provider response、latency、usage、fallback attempt、计费结果或最终 embedding/rerank 结果。
+- capability 声明仍依赖 provider/native registry 或 provider profile modelDefinitions 的准确性；本轮不新增自动 capability 探测、模型测试入口、cost policy enforcement、quota enforcement 或 runtime guard。
+- 这些字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、Provider Registry revision、support bundle schema、repair mutation guard input、provider cost audit 或审计记录。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
