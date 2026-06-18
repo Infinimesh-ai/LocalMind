@@ -707,6 +707,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   preparedModelId?: string;
   prepareCandidateSnapshotFingerprint?: string;
   preparedRouteSnapshotFingerprint?: string;
+  providerHealthSnapshotFingerprint?: string;
   preparedRouteTargets?: string[];
   preparedRouteTargetFingerprint?: string;
   policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
@@ -1717,6 +1718,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   preparedRouteSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedRouteSnapshotFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  providerHealthSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerHealthSnapshotFingerprint'];
 
   @Field(() => [String], { nullable: true })
   preparedRouteTargets?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedRouteTargets'];
@@ -4081,7 +4085,7 @@ function definedArray<T>(values: T[] | undefined) {
   return values?.length ? values : undefined;
 }
 
-const TASK_ROUTE_RECOMMENDATION_EVIDENCE_LIMIT = 96;
+const TASK_ROUTE_RECOMMENDATION_EVIDENCE_LIMIT = 128;
 
 function taskRouteRepairCandidateEvidenceBase(
   scope: string,
@@ -4093,6 +4097,7 @@ function taskRouteRepairCandidateEvidenceBase(
     preparedModelId?: string;
     prepareCandidateSnapshotFingerprint?: string;
     preparedRouteSnapshotFingerprint?: string;
+    providerHealthSnapshotFingerprint?: string;
     preparedRouteTargets?: string[];
     preparedRouteTargetFingerprint?: string;
     policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
@@ -4144,6 +4149,12 @@ function taskRouteRepairCandidateEvidenceBase(
       ? {
           preparedRouteSnapshotFingerprint:
             candidate.preparedRouteSnapshotFingerprint,
+        }
+      : {}),
+    ...(candidate.providerHealthSnapshotFingerprint !== undefined
+      ? {
+          providerHealthSnapshotFingerprint:
+            candidate.providerHealthSnapshotFingerprint,
         }
       : {}),
     ...(candidate.preparedRouteTargets !== undefined
@@ -4234,6 +4245,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       preparedModelId?: string;
       prepareCandidateSnapshotFingerprint?: string;
       preparedRouteSnapshotFingerprint?: string;
+      providerHealthSnapshotFingerprint?: string;
       preparedRouteTargets?: string[];
       preparedRouteTargetFingerprint?: string;
       policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
@@ -4309,6 +4321,7 @@ function taskRouteCandidateProfileStructuredEvidence(
     const preparedRouteSnapshot = taskRoutePreparedRouteSnapshot(
       route.preparedRoutes
     );
+    const providerHealthSnapshot = taskRouteProviderHealthSnapshot(route);
     const evidence = taskRouteRepairCandidateEvidenceBase(
       scope,
       {
@@ -4319,6 +4332,9 @@ function taskRouteCandidateProfileStructuredEvidence(
         ),
         preparedRouteSnapshotFingerprint: taskRouteSnapshotFingerprint(
           preparedRouteSnapshot
+        ),
+        providerHealthSnapshotFingerprint: taskRouteSnapshotFingerprint(
+          providerHealthSnapshot
         ),
         preparedRouteTargets: route.preparedRouteTargets,
         preparedRouteTargetFingerprint: route.preparedRouteTargetFingerprint,
@@ -4377,77 +4393,116 @@ function taskRouteCandidateProfileStructuredEvidence(
 function taskRouteCandidateProfileEvidence(
   candidateEvidence: CopilotPromptRegistryPublishGateRepairCandidateEvidence[]
 ) {
-  return uniqueStrings(
-    candidateEvidence.flatMap(candidate =>
-      compactEvidence(
-        [
-          `${candidate.scope}#${candidate.candidateIndex}:candidateFingerprint:${candidate.candidateFingerprint}`,
-          candidate.candidateKey
-            ? `${candidate.scope}#${candidate.candidateIndex}:candidateKey:${candidate.candidateKey}`
-            : null,
-          `${candidate.scope}#${candidate.candidateIndex}:providerId:${candidate.providerId}`,
-          candidate.requestedModelId
-            ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelId:${candidate.requestedModelId}`
-            : null,
-          candidate.modelId
-            ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
-            : null,
-          candidate.preparedModelId
-            ? `${candidate.scope}#${candidate.candidateIndex}:preparedModelId:${candidate.preparedModelId}`
-            : null,
-          candidate.prepareCandidateSnapshotFingerprint
-            ? `${candidate.scope}#${candidate.candidateIndex}:prepareCandidateSnapshotFingerprint:${candidate.prepareCandidateSnapshotFingerprint}`
-            : null,
-          candidate.preparedRouteSnapshotFingerprint
-            ? `${candidate.scope}#${candidate.candidateIndex}:preparedRouteSnapshotFingerprint:${candidate.preparedRouteSnapshotFingerprint}`
-            : null,
-          candidate.policyCandidateSnapshotFingerprint
-            ? `${candidate.scope}#${candidate.candidateIndex}:policyCandidateSnapshotFingerprint:${candidate.policyCandidateSnapshotFingerprint}`
-            : null,
-          candidate.routeCandidateSnapshotFingerprint
-            ? `${candidate.scope}#${candidate.candidateIndex}:routeCandidateSnapshotFingerprint:${candidate.routeCandidateSnapshotFingerprint}`
-            : null,
-          candidate.routeModelDefinitionId
-            ? `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionId:${candidate.routeModelDefinitionId}`
-            : null,
-          candidate.providerName
-            ? `${candidate.scope}#${candidate.candidateIndex}:providerName:${candidate.providerName}`
-            : null,
-          candidate.providerSource
-            ? `${candidate.scope}#${candidate.candidateIndex}:providerSource:${candidate.providerSource}`
-            : null,
-          candidate.providerType
-            ? `${candidate.scope}#${candidate.candidateIndex}:providerType:${candidate.providerType}`
-            : null,
-          candidate.providerProfileId
-            ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileId:${candidate.providerProfileId}`
-            : null,
-          candidate.providerProfileSource
-            ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileSource:${candidate.providerProfileSource}`
-            : null,
-          candidate.providerProfileConfigPath
-            ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileConfigPath:${candidate.providerProfileConfigPath}`
-            : null,
-          candidate.providerConfiguredModelCount != null
-            ? `${candidate.scope}#${candidate.candidateIndex}:providerConfiguredModelCount:${candidate.providerConfiguredModelCount}`
-            : null,
-          ...(candidate.providerConfiguredModelIds ?? []).map(
-            modelId =>
-              `${candidate.scope}#${candidate.candidateIndex}:providerConfiguredModel:${modelId}`
-          ),
-          ...(candidate.candidateModelIds ?? []).map(
-            modelId =>
-              `${candidate.scope}#${candidate.candidateIndex}:candidateModel:${modelId}`
-          ),
-          ...candidate.reasons.map(
-            reason =>
-              `${candidate.scope}#${candidate.candidateIndex}:reason:${reason}`
-          ),
-        ],
-        20
-      )
+  const priorityEvidence = candidateEvidence.flatMap(candidate =>
+    compactEvidence(
+      [
+        `${candidate.scope}#${candidate.candidateIndex}:providerId:${candidate.providerId}`,
+        candidate.preparedModelId
+          ? `${candidate.scope}#${candidate.candidateIndex}:preparedModelId:${candidate.preparedModelId}`
+          : null,
+        candidate.prepareCandidateSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:prepareCandidateSnapshotFingerprint:${candidate.prepareCandidateSnapshotFingerprint}`
+          : null,
+        candidate.preparedRouteSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:preparedRouteSnapshotFingerprint:${candidate.preparedRouteSnapshotFingerprint}`
+          : null,
+        candidate.providerHealthSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerHealthSnapshotFingerprint:${candidate.providerHealthSnapshotFingerprint}`
+          : null,
+        candidate.policyCandidateSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:policyCandidateSnapshotFingerprint:${candidate.policyCandidateSnapshotFingerprint}`
+          : null,
+        candidate.routeCandidateSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:routeCandidateSnapshotFingerprint:${candidate.routeCandidateSnapshotFingerprint}`
+          : null,
+        candidate.providerProfileId
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileId:${candidate.providerProfileId}`
+          : null,
+        candidate.providerProfileConfigPath
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileConfigPath:${candidate.providerProfileConfigPath}`
+          : null,
+        ...(candidate.providerConfiguredModelIds ?? []).map(
+          modelId =>
+            `${candidate.scope}#${candidate.candidateIndex}:providerConfiguredModel:${modelId}`
+        ),
+      ],
+      16
     )
   );
+  const detailedEvidence = candidateEvidence.flatMap(candidate =>
+    compactEvidence(
+      [
+        `${candidate.scope}#${candidate.candidateIndex}:candidateFingerprint:${candidate.candidateFingerprint}`,
+        candidate.candidateKey
+          ? `${candidate.scope}#${candidate.candidateIndex}:candidateKey:${candidate.candidateKey}`
+          : null,
+        `${candidate.scope}#${candidate.candidateIndex}:providerId:${candidate.providerId}`,
+        candidate.requestedModelId
+          ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelId:${candidate.requestedModelId}`
+          : null,
+        candidate.modelId
+          ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
+          : null,
+        candidate.preparedModelId
+          ? `${candidate.scope}#${candidate.candidateIndex}:preparedModelId:${candidate.preparedModelId}`
+          : null,
+        candidate.prepareCandidateSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:prepareCandidateSnapshotFingerprint:${candidate.prepareCandidateSnapshotFingerprint}`
+          : null,
+        candidate.preparedRouteSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:preparedRouteSnapshotFingerprint:${candidate.preparedRouteSnapshotFingerprint}`
+          : null,
+        candidate.providerHealthSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerHealthSnapshotFingerprint:${candidate.providerHealthSnapshotFingerprint}`
+          : null,
+        candidate.policyCandidateSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:policyCandidateSnapshotFingerprint:${candidate.policyCandidateSnapshotFingerprint}`
+          : null,
+        candidate.routeCandidateSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:routeCandidateSnapshotFingerprint:${candidate.routeCandidateSnapshotFingerprint}`
+          : null,
+        candidate.routeModelDefinitionId
+          ? `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionId:${candidate.routeModelDefinitionId}`
+          : null,
+        candidate.providerName
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerName:${candidate.providerName}`
+          : null,
+        candidate.providerSource
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerSource:${candidate.providerSource}`
+          : null,
+        candidate.providerType
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerType:${candidate.providerType}`
+          : null,
+        candidate.providerProfileId
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileId:${candidate.providerProfileId}`
+          : null,
+        candidate.providerProfileSource
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileSource:${candidate.providerProfileSource}`
+          : null,
+        candidate.providerProfileConfigPath
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileConfigPath:${candidate.providerProfileConfigPath}`
+          : null,
+        candidate.providerConfiguredModelCount != null
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerConfiguredModelCount:${candidate.providerConfiguredModelCount}`
+          : null,
+        ...(candidate.providerConfiguredModelIds ?? []).map(
+          modelId =>
+            `${candidate.scope}#${candidate.candidateIndex}:providerConfiguredModel:${modelId}`
+        ),
+        ...(candidate.candidateModelIds ?? []).map(
+          modelId =>
+            `${candidate.scope}#${candidate.candidateIndex}:candidateModel:${modelId}`
+        ),
+        ...candidate.reasons.map(
+          reason =>
+            `${candidate.scope}#${candidate.candidateIndex}:reason:${reason}`
+        ),
+      ],
+      24
+    )
+  );
+
+  return uniqueStrings([...priorityEvidence, ...detailedEvidence]);
 }
 
 function providerHealthNeedsRepair(health: string | undefined | null) {
@@ -5047,6 +5102,68 @@ function taskRoutePreparedRouteSnapshot(
       : {}),
     routeIndex: route.routeIndex,
   }));
+}
+
+function taskRouteProviderHealthSnapshot(
+  route: CopilotPromptRegistryPublishGateTaskRoute
+) {
+  const healthCandidate = (
+    scope: string,
+    candidate: {
+      health?: string;
+      healthCheckedAt?: string;
+      modelId?: string;
+      preparedModelId?: string;
+      providerId: string;
+      providerProfileConfigPath?: string;
+      providerProfileId?: string;
+      providerProfileSource?: string;
+      providerSource?: string;
+      providerType?: string;
+      requestedModelId?: string;
+    },
+    index: number
+  ) => ({
+    candidateIndex: index,
+    ...(candidate.health ? { health: candidate.health } : {}),
+    ...(candidate.healthCheckedAt
+      ? { healthCheckedAt: candidate.healthCheckedAt }
+      : {}),
+    ...(candidate.modelId ? { modelId: candidate.modelId } : {}),
+    ...(candidate.preparedModelId
+      ? { preparedModelId: candidate.preparedModelId }
+      : {}),
+    providerId: candidate.providerId,
+    ...(candidate.providerProfileConfigPath
+      ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
+      : {}),
+    ...(candidate.providerProfileId
+      ? { providerProfileId: candidate.providerProfileId }
+      : {}),
+    ...(candidate.providerProfileSource
+      ? { providerProfileSource: candidate.providerProfileSource }
+      : {}),
+    ...(candidate.providerSource
+      ? { providerSource: candidate.providerSource }
+      : {}),
+    ...(candidate.providerType ? { providerType: candidate.providerType } : {}),
+    ...(candidate.requestedModelId
+      ? { requestedModelId: candidate.requestedModelId }
+      : {}),
+    scope,
+  });
+
+  return [
+    ...route.policyCandidates.map((candidate, index) =>
+      healthCandidate('policyCandidate', candidate, index)
+    ),
+    ...route.routeCandidates.map((candidate, index) =>
+      healthCandidate('routeCandidate', candidate, index)
+    ),
+    ...(route.prepareCandidates ?? []).map((candidate, index) =>
+      healthCandidate('prepareCandidate', candidate, index)
+    ),
+  ];
 }
 
 function taskRouteSnapshotFingerprint(candidates: unknown[]) {

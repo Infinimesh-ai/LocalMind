@@ -399,6 +399,110 @@ function taskRoutePreparedRouteEvidenceFixture<
   }));
 }
 
+function taskRouteProviderHealthSnapshotFixture(
+  route:
+    | {
+        policyCandidates?: {
+          health?: string;
+          healthCheckedAt?: string;
+          modelId?: string;
+          preparedModelId?: string;
+          providerId: string;
+          providerProfileConfigPath?: string;
+          providerProfileId?: string;
+          providerProfileSource?: string;
+          providerSource?: string;
+          providerType?: string;
+          requestedModelId?: string;
+        }[];
+        routeCandidates?: {
+          health?: string;
+          healthCheckedAt?: string;
+          modelId?: string;
+          preparedModelId?: string;
+          providerId: string;
+          providerProfileConfigPath?: string;
+          providerProfileId?: string;
+          providerProfileSource?: string;
+          providerSource?: string;
+          providerType?: string;
+          requestedModelId?: string;
+        }[];
+        prepareCandidates?: {
+          health?: string;
+          healthCheckedAt?: string;
+          modelId?: string;
+          preparedModelId?: string;
+          providerId: string;
+          providerProfileConfigPath?: string;
+          providerProfileId?: string;
+          providerProfileSource?: string;
+          providerSource?: string;
+          providerType?: string;
+          requestedModelId?: string;
+        }[];
+      }
+    | undefined
+) {
+  const healthCandidate = (
+    scope: string,
+    candidate: {
+      health?: string;
+      healthCheckedAt?: string;
+      modelId?: string;
+      preparedModelId?: string;
+      providerId: string;
+      providerProfileConfigPath?: string;
+      providerProfileId?: string;
+      providerProfileSource?: string;
+      providerSource?: string;
+      providerType?: string;
+      requestedModelId?: string;
+    },
+    index: number
+  ) => ({
+    candidateIndex: index,
+    ...(candidate.health ? { health: candidate.health } : {}),
+    ...(candidate.healthCheckedAt
+      ? { healthCheckedAt: candidate.healthCheckedAt }
+      : {}),
+    ...(candidate.modelId ? { modelId: candidate.modelId } : {}),
+    ...(candidate.preparedModelId
+      ? { preparedModelId: candidate.preparedModelId }
+      : {}),
+    providerId: candidate.providerId,
+    ...(candidate.providerProfileConfigPath
+      ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
+      : {}),
+    ...(candidate.providerProfileId
+      ? { providerProfileId: candidate.providerProfileId }
+      : {}),
+    ...(candidate.providerProfileSource
+      ? { providerProfileSource: candidate.providerProfileSource }
+      : {}),
+    ...(candidate.providerSource
+      ? { providerSource: candidate.providerSource }
+      : {}),
+    ...(candidate.providerType ? { providerType: candidate.providerType } : {}),
+    ...(candidate.requestedModelId
+      ? { requestedModelId: candidate.requestedModelId }
+      : {}),
+    scope,
+  });
+
+  return [
+    ...(route?.policyCandidates ?? []).map((candidate, index) =>
+      healthCandidate('policyCandidate', candidate, index)
+    ),
+    ...(route?.routeCandidates ?? []).map((candidate, index) =>
+      healthCandidate('routeCandidate', candidate, index)
+    ),
+    ...(route?.prepareCandidates ?? []).map((candidate, index) =>
+      healthCandidate('prepareCandidate', candidate, index)
+    ),
+  ];
+}
+
 async function main() {
   process.env.NODE_ENV = 'test';
   process.env.DEPLOYMENT_TYPE = 'affine';
@@ -5928,6 +6032,10 @@ async function main() {
     );
   const taskDiagnosticsPreparedRouteSnapshotFingerprint =
     taskRouteSnapshotFingerprintFixture(taskDiagnosticsPreparedRouteSnapshot);
+  const taskDiagnosticsProviderHealthSnapshot =
+    taskRouteProviderHealthSnapshotFixture(taskDiagnosticsErrorRoute);
+  const taskDiagnosticsProviderHealthSnapshotFingerprint =
+    taskRouteSnapshotFingerprintFixture(taskDiagnosticsProviderHealthSnapshot);
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
       `policyCandidate#0:policyCandidateSnapshotFingerprint:${taskDiagnosticsPolicyCandidateSnapshotFingerprint}`
@@ -5955,6 +6063,13 @@ async function main() {
     ),
     true,
     'task diagnostics repair evidence should include prepared route snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      `policyCandidate#0:providerHealthSnapshotFingerprint:${taskDiagnosticsProviderHealthSnapshotFingerprint}`
+    ),
+    true,
+    'task diagnostics repair evidence should include provider health snapshot fingerprint'
   );
   assert.match(
     taskDiagnosticsPolicyCandidateEvidence?.candidateFingerprint ?? '',
@@ -6049,6 +6164,11 @@ async function main() {
     taskDiagnosticsPreparedRouteSnapshotFingerprint,
     'policy candidate evidence should bind the task route prepared route snapshot fingerprint'
   );
+  assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.providerHealthSnapshotFingerprint,
+    taskDiagnosticsProviderHealthSnapshotFingerprint,
+    'policy candidate evidence should bind the task route provider health snapshot fingerprint'
+  );
   const taskDiagnosticsRouteCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'routeCandidate'
@@ -6123,6 +6243,11 @@ async function main() {
     taskDiagnosticsPreparedRouteSnapshotFingerprint,
     'route candidate evidence should bind the task route prepared route snapshot fingerprint'
   );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.providerHealthSnapshotFingerprint,
+    taskDiagnosticsProviderHealthSnapshotFingerprint,
+    'route candidate evidence should bind the task route provider health snapshot fingerprint'
+  );
   const taskDiagnosticsPrepareCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'prepareCandidate'
@@ -6192,6 +6317,11 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.preparedRouteSnapshotFingerprint,
     taskDiagnosticsPreparedRouteSnapshotFingerprint,
     'prepare candidate evidence should bind the task route prepared route snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.providerHealthSnapshotFingerprint,
+    taskDiagnosticsProviderHealthSnapshotFingerprint,
+    'prepare candidate evidence should bind the task route provider health snapshot fingerprint'
   );
   const taskDiagnosticsErrorPreviewOperation =
     taskDiagnosticsErrorGate?.repairActionPreview.operations.find(

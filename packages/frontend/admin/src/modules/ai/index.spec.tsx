@@ -225,6 +225,93 @@ function taskRoutePreparedRouteSnapshotFixture<
   );
 }
 
+function taskRouteProviderHealthSnapshotFixture(route: {
+  policyCandidates: {
+    health?: string | null;
+    healthCheckedAt?: string | null;
+    modelId?: string | null;
+    preparedModelId?: string | null;
+    providerId: string;
+    providerProfileConfigPath?: string | null;
+    providerProfileId?: string | null;
+    providerProfileSource?: string | null;
+    providerSource?: string | null;
+    providerType?: string | null;
+    requestedModelId?: string | null;
+  }[];
+  routeCandidates: {
+    health?: string | null;
+    healthCheckedAt?: string | null;
+    modelId?: string | null;
+    preparedModelId?: string | null;
+    providerId: string;
+    providerProfileConfigPath?: string | null;
+    providerProfileId?: string | null;
+    providerProfileSource?: string | null;
+    providerSource?: string | null;
+    providerType?: string | null;
+    requestedModelId?: string | null;
+  }[];
+  prepareCandidates: {
+    health?: string | null;
+    healthCheckedAt?: string | null;
+    modelId?: string | null;
+    preparedModelId?: string | null;
+    providerId: string;
+    providerProfileConfigPath?: string | null;
+    providerProfileId?: string | null;
+    providerProfileSource?: string | null;
+    providerSource?: string | null;
+    providerType?: string | null;
+    requestedModelId?: string | null;
+  }[];
+}) {
+  const healthCandidate = (
+    scope: string,
+    candidate: {
+      health?: string | null;
+      healthCheckedAt?: string | null;
+      modelId?: string | null;
+      preparedModelId?: string | null;
+      providerId: string;
+      providerProfileConfigPath?: string | null;
+      providerProfileId?: string | null;
+      providerProfileSource?: string | null;
+      providerSource?: string | null;
+      providerType?: string | null;
+      requestedModelId?: string | null;
+    },
+    index: number
+  ) =>
+    stripNullishFixtureFields({
+      candidateIndex: index,
+      health: candidate.health,
+      healthCheckedAt: candidate.healthCheckedAt,
+      modelId: candidate.modelId,
+      preparedModelId: candidate.preparedModelId,
+      providerId: candidate.providerId,
+      providerProfileConfigPath: candidate.providerProfileConfigPath,
+      providerProfileId: candidate.providerProfileId,
+      providerProfileSource: candidate.providerProfileSource,
+      providerSource: candidate.providerSource,
+      providerType: candidate.providerType,
+      requestedModelId: candidate.requestedModelId,
+      scope,
+    });
+
+  return [
+    ...route.policyCandidates.map((candidate, index) =>
+      healthCandidate('policyCandidate', candidate, index)
+    ),
+    ...route.routeCandidates.map((candidate, index) =>
+      healthCandidate('routeCandidate', candidate, index)
+    ),
+    ...route.prepareCandidates.map((candidate, index) =>
+      healthCandidate('prepareCandidate', candidate, index)
+    ),
+  ];
+}
+
 function expectQueryCall(query: unknown, variables: Record<string, unknown>) {
   expect(useQueryMock).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -2120,6 +2207,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
                   blockedRoute.preparedRoutes
                 )
               ),
+            providerHealthSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteProviderHealthSnapshotFixture(blockedRoute)
+              ),
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
@@ -2167,6 +2258,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
                   blockedRoute.preparedRoutes
                 )
               ),
+            providerHealthSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteProviderHealthSnapshotFixture(blockedRoute)
+              ),
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
@@ -2213,6 +2308,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
                 taskRoutePreparedRouteSnapshotFixture(
                   blockedRoute.preparedRoutes
                 )
+              ),
+            providerHealthSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteProviderHealthSnapshotFixture(blockedRoute)
               ),
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
@@ -6178,6 +6277,9 @@ describe('AiPage', () => {
     );
     expect(readyGateDiagnostics).toContain(
       `prepared route snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRoutePreparedRouteSnapshotFixture(blockedRoute.preparedRoutes))}`
+    );
+    expect(readyGateDiagnostics).toContain(
+      `provider health snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteProviderHealthSnapshotFixture(blockedRoute))}`
     );
     expect(readyGateDiagnostics).toContain(
       'provider ollama-main / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding'

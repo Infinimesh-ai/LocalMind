@@ -607,6 +607,7 @@ query getCopilotPromptRegistryPublishGate(
             preparedModelId
             prepareCandidateSnapshotFingerprint
             preparedRouteSnapshotFingerprint
+            providerHealthSnapshotFingerprint
             preparedRouteTargets
             preparedRouteTargetFingerprint
             policyCandidates {
