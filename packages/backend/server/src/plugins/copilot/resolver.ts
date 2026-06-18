@@ -3393,6 +3393,30 @@ class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnostics
   actionVersion!: string;
 
   @Field(() => String)
+  agentRuntimeProjectionSource!: string;
+
+  @Field(() => String)
+  agentRuntimeRunId!: string;
+
+  @Field(() => String)
+  agentRuntimeRunStatus!: string;
+
+  @Field(() => SafeIntResolver)
+  agentRuntimeStepCount!: number;
+
+  @Field(() => [String])
+  agentRuntimeStepIds!: string[];
+
+  @Field(() => [String])
+  agentRuntimeStepKinds!: string[];
+
+  @Field(() => [String])
+  agentRuntimeStepStatuses!: string[];
+
+  @Field(() => [String])
+  agentRuntimeStepTypes!: string[];
+
+  @Field(() => String)
   status!: string;
 
   @Field(() => SafeIntResolver)

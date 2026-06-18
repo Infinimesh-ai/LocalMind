@@ -4789,6 +4789,42 @@ function formatActionRunPreparedRouteStepFallbacks(
   )}`;
 }
 
+function formatActionRunAgentRuntimeSteps(run: ActionRunDiagnosticsItem) {
+  if (!run.agentRuntimeStepIds.length) {
+    return 'Agent runtime steps none';
+  }
+
+  return `Agent runtime steps ${run.agentRuntimeStepIds.join(' -> ')}`;
+}
+
+function formatActionRunAgentRuntimeStepTypes(run: ActionRunDiagnosticsItem) {
+  if (!run.agentRuntimeStepTypes.length) {
+    return 'Agent runtime step types none';
+  }
+
+  return `Agent runtime step types ${run.agentRuntimeStepTypes.join(' | ')}`;
+}
+
+function formatActionRunAgentRuntimeStepStatuses(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeStepStatuses.length) {
+    return 'Agent runtime step statuses none';
+  }
+
+  return `Agent runtime step statuses ${run.agentRuntimeStepStatuses.join(
+    ' | '
+  )}`;
+}
+
+function formatActionRunAgentRuntimeStepKinds(run: ActionRunDiagnosticsItem) {
+  if (!run.agentRuntimeStepKinds.length) {
+    return 'Agent runtime step kinds none';
+  }
+
+  return `Agent runtime step kinds ${run.agentRuntimeStepKinds.join(' | ')}`;
+}
+
 function buildActionRunDiagnosticsText(run: ActionRunDiagnosticsItem) {
   const actualRouteCountLabel = formatActionRunPreparedRouteActualSummary(run);
   const routeCountMismatchLabel =
@@ -4807,6 +4843,14 @@ function buildActionRunDiagnosticsText(run: ActionRunDiagnosticsItem) {
     run.errorCode ? `Error ${run.errorCode}` : null,
     `Created ${run.createdAt}`,
     `Updated ${run.updatedAt}`,
+    `Agent runtime projection ${run.agentRuntimeProjectionSource}`,
+    `Agent runtime run ${run.agentRuntimeRunId}`,
+    `Agent runtime status ${formatFeatureKind(run.agentRuntimeRunStatus)}`,
+    `Agent runtime step count ${run.agentRuntimeStepCount}`,
+    formatActionRunAgentRuntimeSteps(run),
+    formatActionRunAgentRuntimeStepTypes(run),
+    formatActionRunAgentRuntimeStepStatuses(run),
+    formatActionRunAgentRuntimeStepKinds(run),
     `Prepared trace ${run.hasPreparedRouteTrace ? 'yes' : 'no'}`,
     formatActionRunPreparedRouteSummary(run),
   ];
@@ -4907,6 +4951,11 @@ function ActionRunRecentList({
                   </div>
                   <div className="mt-1 break-words text-xs text-muted-foreground">
                     {run.id}
+                  </div>
+                  <div className="mt-1 break-words text-xs text-muted-foreground">
+                    Agent runtime {formatFeatureKind(run.agentRuntimeRunStatus)}{' '}
+                    / {run.agentRuntimeStepCount} step
+                    {run.agentRuntimeStepCount === 1 ? '' : 's'}
                   </div>
                 </TableCell>
                 <TableCell>{formatFeatureKind(run.status)}</TableCell>

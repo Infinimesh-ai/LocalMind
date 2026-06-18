@@ -2620,6 +2620,20 @@ const actionRunsPayload = [
   {
     actionId: 'mindmap.generate',
     actionVersion: 'v1',
+    agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
+    agentRuntimeRunId: 'run-123',
+    agentRuntimeRunStatus: 'completed',
+    agentRuntimeStepCount: 2,
+    agentRuntimeStepIds: ['generate', 'generate-image'],
+    agentRuntimeStepKinds: [
+      'generate -> structured',
+      'generate-image -> image',
+    ],
+    agentRuntimeStepStatuses: [
+      'generate -> completed',
+      'generate-image -> completed',
+    ],
+    agentRuntimeStepTypes: ['generate -> model', 'generate-image -> model'],
     attempt: 2,
     createdAt: '2026-06-16T09:00:00.000Z',
     docId: 'doc-1',
@@ -2708,6 +2722,14 @@ const actionRunsPayload = [
   {
     actionId: 'image.filter.sketch',
     actionVersion: 'v1',
+    agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
+    agentRuntimeRunId: 'run-failed',
+    agentRuntimeRunStatus: 'failed',
+    agentRuntimeStepCount: 0,
+    agentRuntimeStepIds: [],
+    agentRuntimeStepKinds: [],
+    agentRuntimeStepStatuses: [],
+    agentRuntimeStepTypes: [],
     attempt: 1,
     createdAt: '2026-06-16T08:00:00.000Z',
     docId: null,
@@ -6395,6 +6417,21 @@ describe('AiPage', () => {
     expect(actionRunDiagnostics).toContain('Doc doc-1');
     expect(actionRunDiagnostics).toContain('Session session-1');
     expect(actionRunDiagnostics).toContain('Prepared trace yes');
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime projection ai_action_run_agent_runtime_projection/v1'
+    );
+    expect(actionRunDiagnostics).toContain('Agent runtime run run-123');
+    expect(actionRunDiagnostics).toContain('Agent runtime status Completed');
+    expect(actionRunDiagnostics).toContain('Agent runtime step count 2');
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime step types generate -> model | generate-image -> model'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime step statuses generate -> completed | generate-image -> completed'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime step kinds generate -> structured | generate-image -> image'
+    );
     expect(actionRunDiagnostics).toContain('2 steps / 3 routes');
     expect(actionRunDiagnostics).toContain(
       'Requested sources Prompt Preference -> Explicit'
@@ -6410,6 +6447,9 @@ describe('AiPage', () => {
     expect(failedRunDiagnostics).toContain('Action run run-failed');
     expect(failedRunDiagnostics).toContain('Status Failed');
     expect(failedRunDiagnostics).toContain('Error action_bridge_stream_error');
+    expect(failedRunDiagnostics).toContain('Agent runtime run run-failed');
+    expect(failedRunDiagnostics).toContain('Agent runtime status Failed');
+    expect(failedRunDiagnostics).toContain('Agent runtime steps none');
     expect(failedRunDiagnostics).toContain('Prepared trace no');
     expect(failedRunDiagnostics).toContain('No prepared route trace');
     expect(screen.getByText('No prepared route trace')).not.toBeNull();

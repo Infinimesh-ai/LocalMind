@@ -57,6 +57,14 @@ export type CopilotActionRunDiagnosticsItem = {
   id: string;
   actionId: string;
   actionVersion: string;
+  agentRuntimeProjectionSource: string;
+  agentRuntimeRunId: string;
+  agentRuntimeRunStatus: string;
+  agentRuntimeStepCount: number;
+  agentRuntimeStepIds: string[];
+  agentRuntimeStepKinds: string[];
+  agentRuntimeStepStatuses: string[];
+  agentRuntimeStepTypes: string[];
   status: string;
   attempt: number;
   retryOf: string | null;
@@ -126,6 +134,40 @@ function uniqueNonEmptyStrings(values: Array<string | undefined>) {
         .filter((value): value is string => !!value)
     )
   );
+}
+
+function mapActionRunStatusToAgentRuntimeStatus(status: string) {
+  switch (status) {
+    case 'created':
+      return 'queued';
+    case 'running':
+      return 'running';
+    case 'succeeded':
+      return 'completed';
+    case 'failed':
+      return 'failed';
+    case 'aborted':
+      return 'cancelled';
+    default:
+      return 'failed';
+  }
+}
+
+function mapActionRunStatusToAgentRuntimeStepStatus(status: string) {
+  switch (status) {
+    case 'created':
+      return 'pending';
+    case 'running':
+      return 'running';
+    case 'succeeded':
+      return 'completed';
+    case 'failed':
+      return 'failed';
+    case 'aborted':
+      return 'skipped';
+    default:
+      return 'failed';
+  }
 }
 
 function normalizePreparedRouteTraceStep(
@@ -309,8 +351,14 @@ function normalizePreparedRouteTrace(
   };
 }
 
-function summarizePreparedRouteTrace(value: unknown) {
+function summarizePreparedRouteTrace(
+  value: unknown,
+  status: string,
+  runId: string
+) {
   const trace = normalizePreparedRouteTrace(value);
+  const agentRuntimeStepStatus =
+    mapActionRunStatusToAgentRuntimeStepStatus(status);
   const preparedRouteStepCount = trace?.steps.length ?? 0;
   const preparedRouteCount =
     trace?.steps.reduce((total, step) => total + step.routeCount, 0) ?? 0;
@@ -459,8 +507,29 @@ function summarizePreparedRouteTrace(value: unknown) {
       )
     ) ?? []
   );
+  const agentRuntimeStepIds = uniqueNonEmptyStrings(
+    trace?.steps.map(step => step.stepId) ?? []
+  );
+  const agentRuntimeStepKinds = uniqueNonEmptyStrings(
+    trace?.steps.map(step => `${step.stepId} -> ${step.kind}`) ?? []
+  );
+  const agentRuntimeStepStatuses = uniqueNonEmptyStrings(
+    trace?.steps.map(step => `${step.stepId} -> ${agentRuntimeStepStatus}`) ??
+      []
+  );
+  const agentRuntimeStepTypes = uniqueNonEmptyStrings(
+    trace?.steps.map(step => `${step.stepId} -> model`) ?? []
+  );
 
   return {
+    agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
+    agentRuntimeRunId: runId,
+    agentRuntimeRunStatus: mapActionRunStatusToAgentRuntimeStatus(status),
+    agentRuntimeStepCount: agentRuntimeStepIds.length,
+    agentRuntimeStepIds,
+    agentRuntimeStepKinds,
+    agentRuntimeStepStatuses,
+    agentRuntimeStepTypes,
     hasPreparedRouteTrace: !!trace,
     preparedRouteActualCount,
     preparedRouteCount,
@@ -602,7 +671,11 @@ export class CopilotActionRunModel extends BaseModel {
     });
 
     return rows.map(row => {
-      const traceSummary = summarizePreparedRouteTrace(row.trace);
+      const traceSummary = summarizePreparedRouteTrace(
+        row.trace,
+        row.status,
+        row.id
+      );
 
       return {
         id: row.id,

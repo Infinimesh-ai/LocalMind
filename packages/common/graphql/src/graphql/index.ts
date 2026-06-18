@@ -3029,6 +3029,14 @@ export const getCopilotActionRunsQuery = {
       actionRuns(limit: $limit) {
         actionId
         actionVersion
+        agentRuntimeProjectionSource
+        agentRuntimeRunId
+        agentRuntimeRunStatus
+        agentRuntimeStepCount
+        agentRuntimeStepIds
+        agentRuntimeStepKinds
+        agentRuntimeStepStatuses
+        agentRuntimeStepTypes
         attempt
         createdAt
         docId

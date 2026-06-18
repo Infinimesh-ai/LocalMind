@@ -11806,3 +11806,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - target locator snapshot 不包含 provider secret、endpoint probe latency、quota usage、cost、native dispatch span、真实 embedding 返回向量长度、rerank provider response 或 runtime retry 结果；真实运行可用性仍需结合 provider health freshness policy 与 runtime telemetry。
 - Admin 页面仍是只读 diagnostics，不支持直接编辑 `copilot.tasks.models`、provider profile、model definition、route policy 或执行 task route repair mutation。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 344. P3 落地记录：Action Run Agent Runtime Projection Diagnostics
+
+本轮从第 8.2 节 “AgentRun/AgentStep 持久化” 与第 343 节剩余风险中 “真实 Agent Runtime 仍缺少 DB-backed run/step/retry-attempt 状态机” 的问题切入。实际代码与目标架构的冲突点是：
+`AiActionRun` 已经是当前 action runtime 的持久化执行记录，Admin 也能查看 workspace scoped prepared route trace，但这些记录没有用 Agent Runtime 术语投影出 run id、run status、step ids、step types 与 step statuses。后续真正建设 AgentRun/AgentStep UI、Codex/MCP adapter timeline 或审批/恢复状态机时，缺少一个从现有 action run 诊断到目标 runtime schema 的过渡观测面。本轮新增只读 projection diagnostics，不新增真实 AgentRun/AgentStep 表，不改变 action 执行路径。
+
+- `packages/backend/server/src/models/copilot-action-run.ts`：
+  - `CopilotActionRunDiagnosticsItem` 新增 `agentRuntimeProjectionSource`、`agentRuntimeRunId`、`agentRuntimeRunStatus`、`agentRuntimeStepCount`、`agentRuntimeStepIds`、`agentRuntimeStepTypes`、`agentRuntimeStepStatuses` 与 `agentRuntimeStepKinds`。
+  - `listRecentDiagnostics()` 从现有 `AiActionRun.status` 与 sanitized prepared route steps 派生只读 Agent Runtime projection：action run id 作为 run id，`created/running/succeeded/failed/aborted` 映射到 `queued/running/completed/failed/cancelled`，prepared route step 映射为 `model` step。
+- GraphQL 与 Admin：
+  - `CopilotActionRunDiagnosticsItemType`、`packages/backend/server/src/schema.gql`、`packages/common/graphql/src/graphql/copilot-action-runs-get.gql`、`packages/common/graphql/src/graphql/index.ts` 与 `packages/common/graphql/src/schema.ts` 同步新增 projection 字段。
+  - `packages/frontend/admin/src/modules/ai/index.tsx` 在 recent action run diagnostics 中展示 Agent runtime projection source、run/status、step count、step types/statuses/kinds。
+- 测试覆盖：
+  - `packages/backend/server/src/__tests__/copilot/copilot.spec.ts` 断言 resolver action run diagnostics 会返回成功 run 与失败 run 的 projection 字段，且仍不返回 trace/input/result/artifacts。
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 更新 mock payload 与 diagnostics 断言，覆盖 Admin 可复制文本中的 projection 字段。
+
+该实现只扩展既有 action run 只读 diagnostics、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 AgentRun/AgentStep 表、不新增 queue/worker/lease、不改变 native action runtime、provider route selection、Prompt Registry publish gate、repair execution request contract、MCP tool registry、Codex CLI adapter 或审批写入路径。它把当前 `AiActionRun` 从“action-run prepared route trace”推进到“可用 Agent Runtime 术语解释的过渡 projection”，为后续真正的 Agent timeline UI、Codex/MCP adapter step、审批/恢复状态机和 DB-backed AgentRun/AgentStep schema 提供兼容观测面。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与宿主源码 bind mount 运行 focused Prettier、oxlint、backend copilot spec 与 Admin AI Vitest。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- Agent Runtime projection 仍是从 `AiActionRun` 和 prepared route trace 派生的只读诊断，不是持久化 AgentRun/AgentStep row，不支持取消、恢复、审批、队列重试、step output、tool step、approval step、handoff step、Codex step 或 MCP step。
+- projection step type 当前固定映射为 `model`，只覆盖 action prepared route steps；真实工具调用、文档写入、MCP、Codex、审批和 rollback 仍需要独立 step schema 与执行事件。
+- run status 映射只覆盖当前 action run 的 created/running/succeeded/failed/aborted 语义，未表达 waiting_approval、partially_completed、retrying、rollback_running 或 archived 等未来状态。
+- Admin 页面仍是只读 diagnostics，不支持 Agent timeline 交互、step 展开、trace JSON 导出、run cancellation、approval decision、Codex sandbox policy 或 MCP registry 管理。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

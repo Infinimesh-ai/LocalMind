@@ -584,6 +584,14 @@ type CopilotActionRunPreparedRouteDiagnosticsType {
 type CopilotActionRunDiagnosticsItemType {
   actionId: String!
   actionVersion: String!
+  agentRuntimeProjectionSource: String!
+  agentRuntimeRunId: String!
+  agentRuntimeRunStatus: String!
+  agentRuntimeStepCount: SafeInt!
+  agentRuntimeStepIds: [String!]!
+  agentRuntimeStepKinds: [String!]!
+  agentRuntimeStepStatuses: [String!]!
+  agentRuntimeStepTypes: [String!]!
   attempt: SafeInt!
   createdAt: DateTime!
   docId: String
