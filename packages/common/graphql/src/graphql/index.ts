@@ -2684,6 +2684,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
               selectedCount
             }
             routeTracePhases
+            routeTraceSnapshotFingerprint
             scope
           }
           category

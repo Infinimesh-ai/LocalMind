@@ -3088,6 +3088,9 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
     evidence.routeTracePhases?.length
       ? `route phases ${evidence.routeTracePhases.join(' -> ')}`
       : null,
+    evidence.routeTraceSnapshotFingerprint
+      ? `route trace snapshot fingerprint ${evidence.routeTraceSnapshotFingerprint}`
+      : null,
     evidence.routeTrace?.length
       ? `route trace ${evidence.routeTrace
           .map(formatPromptRegistryPublishGateRoutePhaseText)

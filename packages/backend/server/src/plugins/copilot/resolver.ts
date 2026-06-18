@@ -767,6 +767,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   routeRawModelId?: string;
   routeTrace?: CopilotPromptRegistryPublishGateRouteTracePhase[];
   routeTracePhases?: string[];
+  routeTraceSnapshotFingerprint?: string;
   scope: string;
 };
 
@@ -1955,6 +1956,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => [String], { nullable: true })
   routeTracePhases?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeTracePhases'];
+
+  @Field(() => String, { nullable: true })
+  routeTraceSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeTraceSnapshotFingerprint'];
 
   @Field(() => String)
   scope!: CopilotPromptRegistryPublishGateRepairCandidateEvidence['scope'];
@@ -4437,6 +4441,7 @@ function taskRouteRepairCandidateEvidenceBase(
     routeRawModelId?: string;
     routeTrace?: CopilotPromptRegistryPublishGateRouteTracePhase[];
     routeTracePhases?: string[];
+    routeTraceSnapshotFingerprint?: string;
   },
   index: number
 ): Omit<
@@ -4639,6 +4644,12 @@ function taskRouteRepairCandidateEvidenceBase(
     ...(candidate.routeTracePhases !== undefined
       ? { routeTracePhases: candidate.routeTracePhases }
       : {}),
+    ...(candidate.routeTraceSnapshotFingerprint !== undefined
+      ? {
+          routeTraceSnapshotFingerprint:
+            candidate.routeTraceSnapshotFingerprint,
+        }
+      : {}),
     scope,
   };
 }
@@ -4702,6 +4713,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       routeRawModelId?: string;
       routeTrace?: CopilotPromptRegistryPublishGateRouteTracePhase[];
       routeTracePhases?: string[];
+      routeTraceSnapshotFingerprint?: string;
     },
     index: number
   ): CopilotPromptRegistryPublishGateRepairCandidateEvidence => {
@@ -4770,6 +4782,26 @@ function taskRouteCandidateProfileStructuredEvidence(
       message: error.message,
       stage: error.stage,
     }));
+    const routeTraceSnapshot = route.routeTrace.map(phase => ({
+      ...(phase.availableCount !== undefined
+        ? { availableCount: phase.availableCount }
+        : {}),
+      ...(phase.blockedCount !== undefined
+        ? { blockedCount: phase.blockedCount }
+        : {}),
+      candidateCount: phase.candidateCount,
+      ...(phase.matchedCount !== undefined
+        ? { matchedCount: phase.matchedCount }
+        : {}),
+      phase: phase.phase,
+      ...(phase.preparedCount !== undefined
+        ? { preparedCount: phase.preparedCount }
+        : {}),
+      reasons: phase.reasons,
+      ...(phase.selectedCount !== undefined
+        ? { selectedCount: phase.selectedCount }
+        : {}),
+    }));
     const evidence = taskRouteRepairCandidateEvidenceBase(
       scope,
       {
@@ -4818,27 +4850,10 @@ function taskRouteCandidateProfileStructuredEvidence(
         routeCandidateSnapshotFingerprint: taskRouteSnapshotFingerprint(
           routeCandidateSnapshot
         ),
-        routeTrace: route.routeTrace.map(phase => ({
-          ...(phase.availableCount !== undefined
-            ? { availableCount: phase.availableCount }
-            : {}),
-          ...(phase.blockedCount !== undefined
-            ? { blockedCount: phase.blockedCount }
-            : {}),
-          candidateCount: phase.candidateCount,
-          ...(phase.matchedCount !== undefined
-            ? { matchedCount: phase.matchedCount }
-            : {}),
-          phase: phase.phase,
-          ...(phase.preparedCount !== undefined
-            ? { preparedCount: phase.preparedCount }
-            : {}),
-          reasons: phase.reasons,
-          ...(phase.selectedCount !== undefined
-            ? { selectedCount: phase.selectedCount }
-            : {}),
-        })),
+        routeTrace: routeTraceSnapshot,
         routeTracePhases: route.routeTrace.map(phase => phase.phase),
+        routeTraceSnapshotFingerprint:
+          taskRouteSnapshotFingerprint(routeTraceSnapshot),
       },
       index
     );
@@ -5019,6 +5034,9 @@ function taskRouteCandidateProfileEvidence(
           candidate.routeCandidateSnapshotFingerprint
             ? `${candidate.scope}#${candidate.candidateIndex}:routeCandidateSnapshotFingerprint:${candidate.routeCandidateSnapshotFingerprint}`
             : null,
+          candidate.routeTraceSnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:routeTraceSnapshotFingerprint:${candidate.routeTraceSnapshotFingerprint}`
+            : null,
           candidate.providerProfileId
             ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileId:${candidate.providerProfileId}`
             : null,
@@ -5117,11 +5135,14 @@ function taskRouteCandidateProfileEvidence(
         candidate.routeCandidateSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:routeCandidateSnapshotFingerprint:${candidate.routeCandidateSnapshotFingerprint}`
           : null,
+        candidate.routeTraceSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:routeTraceSnapshotFingerprint:${candidate.routeTraceSnapshotFingerprint}`
+          : null,
         candidate.diagnosticsErrorSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:diagnosticsErrorSnapshotFingerprint:${candidate.diagnosticsErrorSnapshotFingerprint}`
           : null,
       ],
-      13
+      14
     )
   );
   const inventoryEvidence = candidateEvidence.flatMap(candidate =>
@@ -5312,6 +5333,9 @@ function taskRouteCandidateProfileEvidence(
         candidate.routeCandidateSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:routeCandidateSnapshotFingerprint:${candidate.routeCandidateSnapshotFingerprint}`
           : null,
+        candidate.routeTraceSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:routeTraceSnapshotFingerprint:${candidate.routeTraceSnapshotFingerprint}`
+          : null,
         candidate.registryKind
           ? `${candidate.scope}#${candidate.candidateIndex}:registryKind:${candidate.registryKind}`
           : null,
@@ -5435,6 +5459,9 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.routeCandidateSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:routeCandidateSnapshotFingerprint:${candidate.routeCandidateSnapshotFingerprint}`
+          : null,
+        candidate.routeTraceSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:routeTraceSnapshotFingerprint:${candidate.routeTraceSnapshotFingerprint}`
           : null,
         candidate.routeModelDefinitionSource
           ? `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionSource:${candidate.routeModelDefinitionSource}`

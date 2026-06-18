@@ -2655,6 +2655,9 @@ const readyPublishGateVerdict = withRepairActionPreview(
             routeModelDefinitionId: null,
             routeTrace: blockedRoute.routeTrace,
             routeTracePhases: blockedRoute.routeTrace.map(phase => phase.phase),
+            routeTraceSnapshotFingerprint: taskRouteSnapshotFingerprintFixture(
+              blockedRoute.routeTrace
+            ),
             scope: 'policyCandidate',
           }),
           candidateEvidenceFixture({
@@ -2745,6 +2748,9 @@ const readyPublishGateVerdict = withRepairActionPreview(
             routeRawModelId: 'nomic-embed-text',
             routeTrace: blockedRoute.routeTrace,
             routeTracePhases: blockedRoute.routeTrace.map(phase => phase.phase),
+            routeTraceSnapshotFingerprint: taskRouteSnapshotFingerprintFixture(
+              blockedRoute.routeTrace
+            ),
             scope: 'routeCandidate',
           }),
           candidateEvidenceFixture({
@@ -2837,6 +2843,9 @@ const readyPublishGateVerdict = withRepairActionPreview(
             routeRawModelId: 'nomic-embed-text',
             routeTrace: blockedRoute.routeTrace,
             routeTracePhases: blockedRoute.routeTrace.map(phase => phase.phase),
+            routeTraceSnapshotFingerprint: taskRouteSnapshotFingerprintFixture(
+              blockedRoute.routeTrace
+            ),
             scope: 'prepareCandidate',
           }),
         ],
@@ -6760,6 +6769,9 @@ describe('AiPage', () => {
     );
     expect(readyGateDiagnostics).toContain(
       `route phases ${blockedRoute.routeTrace.map(phase => phase.phase).join(' -> ')}`
+    );
+    expect(readyGateDiagnostics).toContain(
+      `route trace snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(blockedRoute.routeTrace)}`
     );
     expect(readyGateDiagnostics).toContain(
       'route trace policy / candidates 1 / available 1 / blocked 0 / matched 1 / selected 1 / prepared 0 / reasons Candidate Allowed'

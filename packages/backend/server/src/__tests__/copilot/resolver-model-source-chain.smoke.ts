@@ -6876,6 +6876,8 @@ async function main() {
     taskRouteSnapshotFingerprintFixture(
       taskDiagnosticsErrorRoute?.diagnosticsErrors
     );
+  const taskDiagnosticsRouteTraceSnapshotFingerprint =
+    taskRouteSnapshotFingerprintFixture(taskDiagnosticsErrorRoute?.routeTrace);
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
       `policyCandidate#0:policyCandidateSnapshotFingerprint:${taskDiagnosticsPolicyCandidateSnapshotFingerprint}`
@@ -6889,6 +6891,13 @@ async function main() {
     ),
     true,
     'task diagnostics repair evidence should include route candidate snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      `policyCandidate#0:routeTraceSnapshotFingerprint:${taskDiagnosticsRouteTraceSnapshotFingerprint}`
+    ),
+    true,
+    'task diagnostics repair evidence should include route trace snapshot fingerprint'
   );
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
@@ -7147,6 +7156,11 @@ async function main() {
     taskDiagnosticsErrorRoute?.routeTrace,
     'policy candidate evidence should bind the task route trace'
   );
+  assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.routeTraceSnapshotFingerprint,
+    taskDiagnosticsRouteTraceSnapshotFingerprint,
+    'policy candidate evidence should bind the task route trace snapshot fingerprint'
+  );
   assert.deepEqual(
     taskDiagnosticsPolicyCandidateEvidence?.policyCandidates,
     taskDiagnosticsPolicyCandidateSnapshot,
@@ -7302,6 +7316,11 @@ async function main() {
     taskDiagnosticsRouteCandidateEvidence?.routeTrace,
     taskDiagnosticsErrorRoute?.routeTrace,
     'route candidate evidence should bind the task route trace'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.routeTraceSnapshotFingerprint,
+    taskDiagnosticsRouteTraceSnapshotFingerprint,
+    'route candidate evidence should bind the task route trace snapshot fingerprint'
   );
   assert.deepEqual(
     taskDiagnosticsRouteCandidateEvidence?.policyCandidates,
@@ -7465,6 +7484,11 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.routeTrace,
     taskDiagnosticsErrorRoute?.routeTrace,
     'prepare candidate evidence should bind the task route trace'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.routeTraceSnapshotFingerprint,
+    taskDiagnosticsRouteTraceSnapshotFingerprint,
+    'prepare candidate evidence should bind the task route trace snapshot fingerprint'
   );
   assert.deepEqual(
     taskDiagnosticsPrepareCandidateEvidence?.policyCandidates,

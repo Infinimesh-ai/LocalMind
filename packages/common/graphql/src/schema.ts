@@ -1806,6 +1806,7 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
     Array<CopilotPromptRegistryPublishGateRouteTracePhaseType>
   >;
   routeTracePhases?: Maybe<Array<Scalars['String']['output']>>;
+  routeTraceSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   scope: Scalars['String']['output'];
 }
 
@@ -8105,6 +8106,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
               selectedCount: number | null;
             }> | null;
             routeTracePhases: Array<string> | null;
+            routeTraceSnapshotFingerprint: string | null;
             scope: string;
           }> | null;
           category: string;

@@ -13098,3 +13098,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - error `message` 仍来自现有 diagnostics error message 策略；本轮不新增更强的 sanitization，也不暴露 stack、endpoint、headers、token、request payload 或 provider raw error。
 - 这些字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Provider Health audit record、support bundle schema、repair mutation guard input 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 386. P3 落地记录：Task Route Repair Candidate Route Trace Snapshot Fingerprint
+
+本轮继续收敛第 384、385 节剩余风险中 “repair candidate evidence 能展开 route trace 内容和 phase 列表，但缺少可独立比较的 trace 快照指纹” 的问题。实际代码与目标 AI 中间层架构的冲突点是：task route diagnostics 已经把 policy、route resolution、prepare 等阶段汇总为 `routeTrace`，repair candidate evidence 也能携带这份 trace；但后续 support bundle、route explain 或 repair guard 如果只想判断阶段链、计数或 reason 是否发生变化，仍需要比较完整数组内容。本轮把 route trace 的安全投影指纹补进每条 policy/route/prepare candidate evidence，不改变 trace 生成、选路或 repair action 行为。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 新增 `routeTraceSnapshotFingerprint`。
+  - `taskRouteCandidateProfileStructuredEvidence()` 复用 repair candidate evidence 中暴露的 route trace 投影，并对该投影生成 16 位 SHA-256 指纹。
+  - `taskRouteCandidateProfileEvidence()` 的可复制 evidence 文本加入 `routeTraceSnapshotFingerprint`，让 recommendation 文本、结构化 evidence 和 Admin diagnostics 都能稳定比对 task route phase trace。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、common query string 与 `schema.ts` 类型同步新增 repair candidate evidence 的 `routeTraceSnapshotFingerprint`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence diagnostics text 显示 `route trace snapshot fingerprint ...`，与已有 route phases 和 route trace 摘要并列。
+- 测试覆盖：
+  - resolver source chain smoke 断言 policy/route/prepare candidate evidence 都绑定同一份 task route trace snapshot fingerprint，并断言可复制 evidence 文本包含该指纹。
+  - Admin Vitest fixture 注入 blocked task route 的 route trace 指纹，并断言 publish gate diagnostics text 显示该指纹。
+
+该实现只扩展只读 diagnostics/evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 Provider Health probe、Model Registry/Provider Registry revision row、不改变 repair action catalog、不新增 mutation input、不改变 preview/preflight/execution gate 字段名、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、错误脱敏或审批写入路径。它把 task route repair evidence 从“能展开 trace 但缺少独立比较键”推进到“candidate evidence snapshot 自身携带 route trace 指纹”，为后续 support bundle、route explain、repair guard、DB-backed route event 与 Provider Health audit 对齐提供更稳定的过渡证据。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `routeTraceSnapshotFingerprint` 仍只反映 diagnostics probe 生成的 phase trace 投影，不代表后续真实 embedding/rerank dispatch、provider response、latency、usage、fallback attempt 或最终执行结果。
+- 该指纹只能证明 route trace 摘要发生或未发生变化，不能替代完整 `routeTrace`、candidate evidence、provider health freshness、capability metadata、成本、token/embedding usage 或容器日志。
+- 这些字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Provider Health audit record、support bundle schema、repair mutation guard input、route policy DSL 或审计记录。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

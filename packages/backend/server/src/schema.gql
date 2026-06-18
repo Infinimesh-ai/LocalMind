@@ -1575,6 +1575,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   routeRawModelId: String
   routeTrace: [CopilotPromptRegistryPublishGateRouteTracePhaseType!]
   routeTracePhases: [String!]
+  routeTraceSnapshotFingerprint: String
   scope: String!
 }
 
