@@ -628,7 +628,11 @@ query getCopilotPromptRegistryPublishGate(
             candidateIndex
             candidateKey
             candidateModelIds
+            errorCategory
+            errorCode
             fallbackProviderIds
+            health
+            healthCheckedAt
             modelId
             preparedModelId
             prepareCandidateSnapshotFingerprint
@@ -660,6 +664,7 @@ query getCopilotPromptRegistryPublishGate(
               reasons
             }
             policyCandidateSnapshotFingerprint
+            privacy
             providerConfiguredModelCount
             providerConfiguredModelIds
             providerId

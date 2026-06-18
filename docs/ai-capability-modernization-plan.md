@@ -13005,3 +13005,35 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、Provider Registry revision、support bundle schema、repair mutation guard input、route policy DSL 或审计记录。
 - `registryKind` 仍是当前过渡层字符串，不是 DB-backed registry/revision 主键；未来 Model Registry 产品化时需要映射到稳定 registry source/revision/id。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 383. P3 落地记录：Task Route Repair Candidate Health Privacy Error Evidence
+
+本轮继续收敛第 370、382 节剩余风险中 “repair candidate evidence 只有 provider health snapshot fingerprint 和 registry 状态，但不能直接展开候选的 privacy、health freshness 或 prepare error 分类” 的问题。实际代码与目标 AI 中间层架构的冲突点是：task route diagnostics 的 route/prepare candidate 已经暴露 `privacy`、`health`、`healthCheckedAt`、`errorCode` 与 `errorCategory`，用于解释 provider policy、provider health 与 prepare/probe 失败边界；但 repair recommendation 的 candidate evidence 仍需要通过 snapshot 或完整 task route candidate 列表间接定位。对于自部署模型配置、容器网络、provider credential 或本地 endpoint 排障，support bundle 与 Admin repair preview 需要在 candidate evidence 本身看到这些安全摘要。本轮把同一组只读 health/privacy/error 字段补进 repair candidate evidence，不改变 provider probe、prepare、fallback 或 error sanitization 行为。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 新增 `privacy`、`health`、`healthCheckedAt`、`errorCode` 与 `errorCategory`。
+  - `taskRouteRepairCandidateEvidenceBase()` 将 route/prepare candidate 中已有的 health/privacy/error 元数据复制到 repair candidate evidence；candidate fingerprint、preview operation fingerprint 与 evidence set fingerprint 会对 provider health/privacy/error 摘要变化敏感。
+  - 当 embedding/rerank prepare diagnostics probe 整体抛错而没有 provider prepare candidate 时，`buildTaskRoutePrepareCandidates()` 会把该边界投影为统一的只读 `provider_prepare_error` / `provider_prepare_error` 摘要，保留顶层 `diagnosticsErrors` 的 stage/code/message，不把原始异常内容写入 candidate evidence。
+  - `taskRouteCandidateProfileEvidence()` 的可复制 evidence 文本加入 privacy、health、healthCheckedAt、errorCode 与 errorCategory，让 recommendation 摘要能解释 provider health freshness 与 prepare failure 边界。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、common query string 与 `schema.ts` 类型同步新增 repair candidate evidence 的 health/privacy/error 字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence diagnostics text 显示 `privacy ...`、`health ...`、`checked ...`、`code ...` 与 `category ...`。
+- 测试覆盖：
+  - resolver source chain smoke 断言 route/prepare repair candidate evidence 都携带 privacy、health、health freshness 与 prepare error code/category，并断言可复制 evidence 文本包含这些字段。
+  - Admin Vitest fixture 注入上述字段，并断言 publish gate diagnostics text 显示 provider privacy/health 与 prepare error 分类。
+
+该实现只扩展只读 diagnostics/evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 Provider Health probe、Model Registry/Provider Registry revision row、不改变 repair action catalog、不新增 mutation input、不改变 preview/preflight/execution gate 字段名、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、错误脱敏或审批写入路径。它把 task route repair evidence 从“只有 snapshot fingerprint 和 registry 状态”推进到“可自包含解释 health/privacy/error 安全摘要”，为后续 support bundle、route explain、repair guard、Provider Health audit 与 DB-backed route event 对齐提供更完整的过渡证据。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Admin AI Vitest、Prettier/oxlint 与 `git diff --check`。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- health/privacy/error 字段仍只反映 diagnostics probe 时的 route/prepare candidate 元数据，不代表实时 provider health probe、probe TTL、latency、credential freshness、native runtime span、真实 dispatch result 或最终 embedding/rerank fallback 结果。
+- prepare diagnostics probe 整体失败时写入 candidate evidence 的 `provider_prepare_error` 是统一脱敏边界摘要，不保留原始异常类型、message 或 provider adapter 细节；完整排障仍需结合顶层 diagnosticsErrors 与容器日志。
+- `errorCode` 与 `errorCategory` 仍是已脱敏的安全摘要，不包含 provider 原始错误消息、endpoint、headers、token、request payload 或 stack trace；深度排障仍需结合容器日志。
+- 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Provider Health audit record、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

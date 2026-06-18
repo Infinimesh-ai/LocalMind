@@ -2602,7 +2602,11 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             candidateIndex
             candidateKey
             candidateModelIds
+            errorCategory
+            errorCode
             fallbackProviderIds
+            health
+            healthCheckedAt
             modelId
             preparedModelId
             prepareCandidateSnapshotFingerprint
@@ -2634,6 +2638,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
               reasons
             }
             policyCandidateSnapshotFingerprint
+            privacy
             providerConfiguredModelCount
             providerConfiguredModelIds
             providerId

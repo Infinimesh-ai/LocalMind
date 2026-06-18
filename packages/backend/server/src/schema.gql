@@ -1523,7 +1523,11 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   candidateIndex: SafeInt!
   candidateKey: String
   candidateModelIds: [String!]
+  errorCategory: String
+  errorCode: String
   fallbackProviderIds: [String!]
+  health: String
+  healthCheckedAt: String
   modelId: String
   preparedModelId: String
   prepareCandidateSnapshotFingerprint: String
@@ -1538,6 +1542,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   preparedRouteTargetFingerprint: String
   policyCandidates: [CopilotPromptRegistryPublishGatePolicyCandidateType!]
   policyCandidateSnapshotFingerprint: String
+  privacy: String
   providerConfiguredModelCount: SafeInt
   providerConfiguredModelIds: [String!]
   providerId: String!

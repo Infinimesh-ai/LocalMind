@@ -2655,6 +2655,8 @@ const readyPublishGateVerdict = withRepairActionPreview(
             candidateKey: 'route:ollama-main',
             candidateModelIds: ['workspace-embedding'],
             fallbackProviderIds: blockedRoute.fallbackProviderIds,
+            health: 'down',
+            healthCheckedAt: '2026-06-16T10:00:00.000Z',
             modelId: 'workspace-embedding',
             preparedModelId: null,
             prepareCandidateSnapshotFingerprint:
@@ -2701,6 +2703,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
               taskRouteSnapshotFingerprintFixture(
                 blockedRoute.policyCandidates
               ),
+            privacy: 'local',
             providerConfiguredModelCount: 1,
             providerConfiguredModelIds: ['workspace-embedding'],
             providerId: 'ollama-main',
@@ -2735,7 +2738,11 @@ const readyPublishGateVerdict = withRepairActionPreview(
             candidateIndex: 0,
             candidateKey: 'prepare:ollama-main',
             candidateModelIds: ['workspace-embedding'],
+            errorCategory: 'network',
+            errorCode: 'prepare_failed',
             fallbackProviderIds: blockedRoute.fallbackProviderIds,
+            health: 'down',
+            healthCheckedAt: '2026-06-16T10:00:00.000Z',
             modelId: 'workspace-embedding',
             preparedModelId: 'nomic-embed-text',
             prepareCandidateSnapshotFingerprint:
@@ -2782,6 +2789,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
               taskRouteSnapshotFingerprintFixture(
                 blockedRoute.policyCandidates
               ),
+            privacy: 'local',
             providerConfiguredModelCount: 1,
             providerConfiguredModelIds: ['workspace-embedding'],
             providerId: 'ollama-main',
@@ -6781,6 +6789,9 @@ describe('AiPage', () => {
       'registry byok / registry available yes / registry selected no'
     );
     expect(readyGateDiagnostics).toContain(
+      'privacy Local / health Down / checked 2026-06-16T10:00:00.000Z'
+    );
+    expect(readyGateDiagnostics).toContain(
       'definition source Provider Profile / definition workspace-embedding / definition aliases nomic-embed-text / alias matched no / raw model nomic-embed-text'
     );
     expect(readyGateDiagnostics).toContain(
@@ -6796,7 +6807,10 @@ describe('AiPage', () => {
       'key prepare:ollama-main / provider ollama-main / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding / requested workspace-embedding / requested source Workspace indexing task model / requested config key workspaceIndexing / requested config path copilot.tasks.models.workspaceIndexing / model workspace-embedding / prepared nomic-embed-text'
     );
     expect(readyGateDiagnostics).toContain(
-      'prepared nomic-embed-text / registry byok / registry available yes / registry selected no'
+      'prepared nomic-embed-text / privacy Local / health Down / checked 2026-06-16T10:00:00.000Z / code prepare_failed / category Network / registry byok / registry available yes / registry selected no'
+    );
+    expect(readyGateDiagnostics).toContain(
+      'prepared nomic-embed-text / privacy Local / health Down / checked 2026-06-16T10:00:00.000Z / code prepare_failed / category Network'
     );
     expect(readyGateDiagnostics).toContain(
       'capability input text / output embedding / attachments file / attachment sources url / remote attachments yes'

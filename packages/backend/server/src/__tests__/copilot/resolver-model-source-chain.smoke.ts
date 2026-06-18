@@ -1334,7 +1334,8 @@ async function main() {
           providerType: 'openaiCompatible',
           providerPriority: 10,
           privacy: 'local',
-          health: 'healthy',
+          health: 'degraded',
+          healthCheckedAt: '2026-06-17T03:30:00.000Z',
           costInputPer1M: 0.01,
           costOutputPer1M: 0.02,
           routeContextWindow: 8192,
@@ -1375,7 +1376,8 @@ async function main() {
           providerType: 'openaiCompatible',
           providerPriority: 10,
           privacy: 'local',
-          health: 'healthy',
+          health: 'degraded',
+          healthCheckedAt: '2026-06-17T03:30:00.000Z',
           costInputPer1M: 0.01,
           costOutputPer1M: 0.02,
           routeContextWindow: 8192,
@@ -6968,6 +6970,41 @@ async function main() {
     true,
     'task diagnostics repair evidence should include route candidate registry selected state'
   );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'routeCandidate#0:privacy:local'
+    ),
+    true,
+    'task diagnostics repair evidence should include route candidate privacy'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'routeCandidate#0:health:degraded'
+    ),
+    true,
+    'task diagnostics repair evidence should include route candidate health'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'routeCandidate#0:healthCheckedAt:2026-06-17T03:30:00.000Z'
+    ),
+    true,
+    'task diagnostics repair evidence should include route candidate health freshness'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'prepareCandidate#0:errorCode:provider_prepare_error'
+    ),
+    true,
+    'task diagnostics repair evidence should include prepare candidate error code'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'prepareCandidate#0:errorCategory:provider_prepare_error'
+    ),
+    true,
+    'task diagnostics repair evidence should include prepare candidate error category'
+  );
   assert.match(
     taskDiagnosticsPolicyCandidateEvidence?.candidateFingerprint ?? '',
     /^[0-9a-f]{16}$/
@@ -7142,6 +7179,12 @@ async function main() {
   assert.equal(taskDiagnosticsRouteCandidateEvidence?.registryKind, 'byok');
   assert.equal(taskDiagnosticsRouteCandidateEvidence?.registryAvailable, true);
   assert.equal(taskDiagnosticsRouteCandidateEvidence?.registrySelected, true);
+  assert.equal(taskDiagnosticsRouteCandidateEvidence?.privacy, 'local');
+  assert.equal(taskDiagnosticsRouteCandidateEvidence?.health, 'degraded');
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.healthCheckedAt,
+    '2026-06-17T03:30:00.000Z'
+  );
   assert.equal(
     taskDiagnosticsRouteCandidateEvidence?.routeModelAliasMatched,
     true
@@ -7276,6 +7319,20 @@ async function main() {
     true
   );
   assert.equal(taskDiagnosticsPrepareCandidateEvidence?.registrySelected, true);
+  assert.equal(taskDiagnosticsPrepareCandidateEvidence?.privacy, 'local');
+  assert.equal(taskDiagnosticsPrepareCandidateEvidence?.health, 'degraded');
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.healthCheckedAt,
+    '2026-06-17T03:30:00.000Z'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.errorCode,
+    'provider_prepare_error'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.errorCategory,
+    'provider_prepare_error'
+  );
   assert.equal(
     taskDiagnosticsPrepareCandidateEvidence?.routeModelAliasMatched,
     true

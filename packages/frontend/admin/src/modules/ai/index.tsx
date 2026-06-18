@@ -2998,6 +2998,17 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
       : null,
     evidence.modelId ? `model ${evidence.modelId}` : null,
     evidence.preparedModelId ? `prepared ${evidence.preparedModelId}` : null,
+    evidence.privacy
+      ? `privacy ${formatProviderMetadata(evidence.privacy, PROVIDER_PRIVACY_LABELS)}`
+      : null,
+    evidence.health
+      ? `health ${formatProviderMetadata(evidence.health, PROVIDER_HEALTH_LABELS)}`
+      : null,
+    evidence.healthCheckedAt ? `checked ${evidence.healthCheckedAt}` : null,
+    evidence.errorCode ? `code ${evidence.errorCode}` : null,
+    evidence.errorCategory
+      ? `category ${formatFeatureKind(evidence.errorCategory)}`
+      : null,
     evidence.registryKind ? `registry ${evidence.registryKind}` : null,
     evidence.registryAvailable != null
       ? `registry available ${evidence.registryAvailable ? 'yes' : 'no'}`

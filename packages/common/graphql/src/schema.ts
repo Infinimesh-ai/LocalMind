@@ -1748,7 +1748,11 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   candidateIndex: Scalars['SafeInt']['output'];
   candidateKey?: Maybe<Scalars['String']['output']>;
   candidateModelIds?: Maybe<Array<Scalars['String']['output']>>;
+  errorCategory?: Maybe<Scalars['String']['output']>;
+  errorCode?: Maybe<Scalars['String']['output']>;
   fallbackProviderIds?: Maybe<Array<Scalars['String']['output']>>;
+  health?: Maybe<Scalars['String']['output']>;
+  healthCheckedAt?: Maybe<Scalars['String']['output']>;
   modelId?: Maybe<Scalars['String']['output']>;
   preparedModelId?: Maybe<Scalars['String']['output']>;
   prepareCandidateSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
@@ -1765,6 +1769,7 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
     Array<CopilotPromptRegistryPublishGatePolicyCandidateType>
   >;
   policyCandidateSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
+  privacy?: Maybe<Scalars['String']['output']>;
   providerConfiguredModelCount?: Maybe<Scalars['SafeInt']['output']>;
   providerConfiguredModelIds?: Maybe<Array<Scalars['String']['output']>>;
   providerId: Scalars['String']['output'];
@@ -8000,7 +8005,11 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             candidateIndex: number;
             candidateKey: string | null;
             candidateModelIds: Array<string> | null;
+            errorCategory: string | null;
+            errorCode: string | null;
             fallbackProviderIds: Array<string> | null;
+            health: string | null;
+            healthCheckedAt: string | null;
             modelId: string | null;
             preparedModelId: string | null;
             prepareCandidateSnapshotFingerprint: string | null;
@@ -8033,6 +8042,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
               reasons: Array<string>;
             }> | null;
             policyCandidateSnapshotFingerprint: string | null;
+            privacy: string | null;
             providerConfiguredModelCount: number | null;
             providerConfiguredModelIds: Array<string> | null;
             providerId: string;

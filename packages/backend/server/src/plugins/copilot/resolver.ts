@@ -715,7 +715,11 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   candidateIndex: number;
   candidateKey?: string;
   candidateModelIds?: string[];
+  errorCategory?: string;
+  errorCode?: string;
   fallbackProviderIds?: string[];
+  health?: string;
+  healthCheckedAt?: string;
   modelId?: string;
   preparedModelId?: string;
   prepareCandidateSnapshotFingerprint?: string;
@@ -730,6 +734,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   preparedRouteTargetFingerprint?: string;
   policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
   policyCandidateSnapshotFingerprint?: string;
+  privacy?: string;
   providerConfiguredModelCount?: number;
   providerConfiguredModelIds?: string[];
   providerId: string;
@@ -1771,8 +1776,20 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
   @Field(() => [String], { nullable: true })
   candidateModelIds?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['candidateModelIds'];
 
+  @Field(() => String, { nullable: true })
+  errorCategory?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['errorCategory'];
+
+  @Field(() => String, { nullable: true })
+  errorCode?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['errorCode'];
+
   @Field(() => [String], { nullable: true })
   fallbackProviderIds?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['fallbackProviderIds'];
+
+  @Field(() => String, { nullable: true })
+  health?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['health'];
+
+  @Field(() => String, { nullable: true })
+  healthCheckedAt?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['healthCheckedAt'];
 
   @Field(() => String, { nullable: true })
   modelId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelId'];
@@ -1817,6 +1834,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   policyCandidateSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['policyCandidateSnapshotFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  privacy?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['privacy'];
 
   @Field(() => SafeIntResolver, { nullable: true })
   providerConfiguredModelCount?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerConfiguredModelCount'];
@@ -4327,7 +4347,11 @@ function taskRouteRepairCandidateEvidenceBase(
   candidate: {
     candidateKey?: string;
     candidateModelIds?: string[];
+    errorCategory?: string;
+    errorCode?: string;
     fallbackProviderIds?: string[];
+    health?: string;
+    healthCheckedAt?: string;
     modelId?: string;
     preparedModelId?: string;
     prepareCandidateSnapshotFingerprint?: string;
@@ -4342,6 +4366,7 @@ function taskRouteRepairCandidateEvidenceBase(
     preparedRouteTargetFingerprint?: string;
     policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
     policyCandidateSnapshotFingerprint?: string;
+    privacy?: string;
     providerConfiguredModelCount?: number;
     providerConfiguredModelIds?: string[];
     providerId: string;
@@ -4382,8 +4407,18 @@ function taskRouteRepairCandidateEvidenceBase(
     ...(definedArray(candidate.candidateModelIds) !== undefined
       ? { candidateModelIds: definedArray(candidate.candidateModelIds) }
       : {}),
+    ...(candidate.errorCategory !== undefined
+      ? { errorCategory: candidate.errorCategory }
+      : {}),
+    ...(candidate.errorCode !== undefined
+      ? { errorCode: candidate.errorCode }
+      : {}),
     ...(candidate.fallbackProviderIds !== undefined
       ? { fallbackProviderIds: candidate.fallbackProviderIds }
+      : {}),
+    ...(candidate.health !== undefined ? { health: candidate.health } : {}),
+    ...(candidate.healthCheckedAt !== undefined
+      ? { healthCheckedAt: candidate.healthCheckedAt }
       : {}),
     ...(candidate.modelId !== undefined ? { modelId: candidate.modelId } : {}),
     ...(candidate.preparedModelId !== undefined
@@ -4457,6 +4492,7 @@ function taskRouteRepairCandidateEvidenceBase(
             candidate.policyCandidateSnapshotFingerprint,
         }
       : {}),
+    ...(candidate.privacy !== undefined ? { privacy: candidate.privacy } : {}),
     ...(candidate.providerConfiguredModelCount !== undefined
       ? { providerConfiguredModelCount: candidate.providerConfiguredModelCount }
       : {}),
@@ -4554,7 +4590,11 @@ function taskRouteCandidateProfileStructuredEvidence(
     candidate: {
       candidateKey?: string;
       candidateModelIds?: string[];
+      errorCategory?: string;
+      errorCode?: string;
       fallbackProviderIds?: string[];
+      health?: string;
+      healthCheckedAt?: string;
       modelId?: string;
       preparedModelId?: string;
       prepareCandidateSnapshotFingerprint?: string;
@@ -4568,6 +4608,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       preparedRouteTargetFingerprint?: string;
       policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
       policyCandidateSnapshotFingerprint?: string;
+      privacy?: string;
       providerConfiguredModelCount?: number;
       providerConfiguredModelIds?: string[];
       providerId: string;
@@ -4745,6 +4786,253 @@ function taskRouteCandidateProfileStructuredEvidence(
 function taskRouteCandidateProfileEvidence(
   candidateEvidence: CopilotPromptRegistryPublishGateRepairCandidateEvidence[]
 ) {
+  const primaryRouteEvidence = candidateEvidence
+    .filter(candidate => candidate.candidateIndex === 0)
+    .flatMap(candidate =>
+      compactEvidence(
+        [
+          `${candidate.scope}#${candidate.candidateIndex}:providerId:${candidate.providerId}`,
+          candidate.modelId
+            ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
+            : null,
+          candidate.preparedModelId
+            ? `${candidate.scope}#${candidate.candidateIndex}:preparedModelId:${candidate.preparedModelId}`
+            : null,
+          candidate.providerProfileId
+            ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileId:${candidate.providerProfileId}`
+            : null,
+          candidate.providerProfileConfigPath
+            ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileConfigPath:${candidate.providerProfileConfigPath}`
+            : null,
+          ...(candidate.providerConfiguredModelIds ?? []).map(
+            modelId =>
+              `${candidate.scope}#${candidate.candidateIndex}:providerConfiguredModel:${modelId}`
+          ),
+          candidate.privacy
+            ? `${candidate.scope}#${candidate.candidateIndex}:privacy:${candidate.privacy}`
+            : null,
+          candidate.health
+            ? `${candidate.scope}#${candidate.candidateIndex}:health:${candidate.health}`
+            : null,
+          candidate.healthCheckedAt
+            ? `${candidate.scope}#${candidate.candidateIndex}:healthCheckedAt:${candidate.healthCheckedAt}`
+            : null,
+          candidate.errorCode
+            ? `${candidate.scope}#${candidate.candidateIndex}:errorCode:${candidate.errorCode}`
+            : null,
+          candidate.errorCategory
+            ? `${candidate.scope}#${candidate.candidateIndex}:errorCategory:${candidate.errorCategory}`
+            : null,
+          candidate.registryKind
+            ? `${candidate.scope}#${candidate.candidateIndex}:registryKind:${candidate.registryKind}`
+            : null,
+          candidate.registryAvailable !== undefined
+            ? `${candidate.scope}#${candidate.candidateIndex}:registryAvailable:${candidate.registryAvailable}`
+            : null,
+          candidate.registrySelected !== undefined
+            ? `${candidate.scope}#${candidate.candidateIndex}:registrySelected:${candidate.registrySelected}`
+            : null,
+          candidate.routeModelDefinitionSource
+            ? `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionSource:${candidate.routeModelDefinitionSource}`
+            : null,
+          candidate.routeModelDefinitionId
+            ? `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionId:${candidate.routeModelDefinitionId}`
+            : null,
+          ...(candidate.routeModelDefinitionAliases ?? []).map(
+            alias =>
+              `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionAlias:${alias}`
+          ),
+          candidate.routeModelAliasMatched !== undefined
+            ? `${candidate.scope}#${candidate.candidateIndex}:routeModelAliasMatched:${candidate.routeModelAliasMatched}`
+            : null,
+          candidate.routeRawModelId
+            ? `${candidate.scope}#${candidate.candidateIndex}:routeRawModelId:${candidate.routeRawModelId}`
+            : null,
+        ],
+        28
+      )
+    );
+  const primaryEvidence = candidateEvidence
+    .filter(candidate => candidate.candidateIndex === 0)
+    .flatMap(candidate =>
+      compactEvidence(
+        [
+          `${candidate.scope}#${candidate.candidateIndex}:candidateFingerprint:${candidate.candidateFingerprint}`,
+          `${candidate.scope}#${candidate.candidateIndex}:providerId:${candidate.providerId}`,
+          candidate.requestedModelId
+            ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelId:${candidate.requestedModelId}`
+            : null,
+          candidate.requestedModelSource
+            ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelSource:${candidate.requestedModelSource}`
+            : null,
+          candidate.requestedModelConfigPath
+            ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelConfigPath:${candidate.requestedModelConfigPath}`
+            : null,
+          candidate.modelId
+            ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
+            : null,
+          candidate.preparedModelId
+            ? `${candidate.scope}#${candidate.candidateIndex}:preparedModelId:${candidate.preparedModelId}`
+            : null,
+          candidate.prepareCandidateSnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:prepareCandidateSnapshotFingerprint:${candidate.prepareCandidateSnapshotFingerprint}`
+            : null,
+          candidate.preparedRouteSnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:preparedRouteSnapshotFingerprint:${candidate.preparedRouteSnapshotFingerprint}`
+            : null,
+          candidate.providerCapabilitySnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:providerCapabilitySnapshotFingerprint:${candidate.providerCapabilitySnapshotFingerprint}`
+            : null,
+          candidate.providerCostSnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:providerCostSnapshotFingerprint:${candidate.providerCostSnapshotFingerprint}`
+            : null,
+          candidate.providerHealthSnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:providerHealthSnapshotFingerprint:${candidate.providerHealthSnapshotFingerprint}`
+            : null,
+          candidate.providerLimitSnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:providerLimitSnapshotFingerprint:${candidate.providerLimitSnapshotFingerprint}`
+            : null,
+          candidate.taskRouteDimensionSnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteDimensionSnapshotFingerprint:${candidate.taskRouteDimensionSnapshotFingerprint}`
+            : null,
+          candidate.taskRouteModelSourceSnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteModelSourceSnapshotFingerprint:${candidate.taskRouteModelSourceSnapshotFingerprint}`
+            : null,
+          candidate.policyCandidateSnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:policyCandidateSnapshotFingerprint:${candidate.policyCandidateSnapshotFingerprint}`
+            : null,
+          candidate.routeCandidateSnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:routeCandidateSnapshotFingerprint:${candidate.routeCandidateSnapshotFingerprint}`
+            : null,
+          candidate.providerProfileId
+            ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileId:${candidate.providerProfileId}`
+            : null,
+          candidate.providerProfileSource
+            ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileSource:${candidate.providerProfileSource}`
+            : null,
+          candidate.providerProfileConfigPath
+            ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileConfigPath:${candidate.providerProfileConfigPath}`
+            : null,
+          candidate.providerConfiguredModelCount != null
+            ? `${candidate.scope}#${candidate.candidateIndex}:providerConfiguredModelCount:${candidate.providerConfiguredModelCount}`
+            : null,
+          ...(candidate.providerConfiguredModelIds ?? []).map(
+            modelId =>
+              `${candidate.scope}#${candidate.candidateIndex}:providerConfiguredModel:${modelId}`
+          ),
+          ...(candidate.candidateModelIds ?? []).map(
+            modelId =>
+              `${candidate.scope}#${candidate.candidateIndex}:candidateModel:${modelId}`
+          ),
+          candidate.registryKind
+            ? `${candidate.scope}#${candidate.candidateIndex}:registryKind:${candidate.registryKind}`
+            : null,
+          candidate.registryAvailable !== undefined
+            ? `${candidate.scope}#${candidate.candidateIndex}:registryAvailable:${candidate.registryAvailable}`
+            : null,
+          candidate.registrySelected !== undefined
+            ? `${candidate.scope}#${candidate.candidateIndex}:registrySelected:${candidate.registrySelected}`
+            : null,
+          candidate.routeModelDefinitionSource
+            ? `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionSource:${candidate.routeModelDefinitionSource}`
+            : null,
+          candidate.routeModelDefinitionId
+            ? `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionId:${candidate.routeModelDefinitionId}`
+            : null,
+          ...(candidate.routeModelDefinitionAliases ?? []).map(
+            alias =>
+              `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionAlias:${alias}`
+          ),
+          candidate.routeModelAliasMatched !== undefined
+            ? `${candidate.scope}#${candidate.candidateIndex}:routeModelAliasMatched:${candidate.routeModelAliasMatched}`
+            : null,
+          candidate.routeRawModelId
+            ? `${candidate.scope}#${candidate.candidateIndex}:routeRawModelId:${candidate.routeRawModelId}`
+            : null,
+          candidate.privacy
+            ? `${candidate.scope}#${candidate.candidateIndex}:privacy:${candidate.privacy}`
+            : null,
+          candidate.health
+            ? `${candidate.scope}#${candidate.candidateIndex}:health:${candidate.health}`
+            : null,
+          candidate.healthCheckedAt
+            ? `${candidate.scope}#${candidate.candidateIndex}:healthCheckedAt:${candidate.healthCheckedAt}`
+            : null,
+          candidate.errorCode
+            ? `${candidate.scope}#${candidate.candidateIndex}:errorCode:${candidate.errorCode}`
+            : null,
+          candidate.errorCategory
+            ? `${candidate.scope}#${candidate.candidateIndex}:errorCategory:${candidate.errorCategory}`
+            : null,
+        ],
+        44
+      )
+    );
+  const fingerprintEvidence = candidateEvidence.flatMap(candidate =>
+    compactEvidence(
+      [
+        `${candidate.scope}#${candidate.candidateIndex}:candidateFingerprint:${candidate.candidateFingerprint}`,
+        candidate.prepareCandidateSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:prepareCandidateSnapshotFingerprint:${candidate.prepareCandidateSnapshotFingerprint}`
+          : null,
+        candidate.preparedRouteSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:preparedRouteSnapshotFingerprint:${candidate.preparedRouteSnapshotFingerprint}`
+          : null,
+        candidate.providerCapabilitySnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerCapabilitySnapshotFingerprint:${candidate.providerCapabilitySnapshotFingerprint}`
+          : null,
+        candidate.providerCostSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerCostSnapshotFingerprint:${candidate.providerCostSnapshotFingerprint}`
+          : null,
+        candidate.providerHealthSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerHealthSnapshotFingerprint:${candidate.providerHealthSnapshotFingerprint}`
+          : null,
+        candidate.providerLimitSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerLimitSnapshotFingerprint:${candidate.providerLimitSnapshotFingerprint}`
+          : null,
+        candidate.taskRouteDimensionSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteDimensionSnapshotFingerprint:${candidate.taskRouteDimensionSnapshotFingerprint}`
+          : null,
+        candidate.taskRouteModelSourceSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteModelSourceSnapshotFingerprint:${candidate.taskRouteModelSourceSnapshotFingerprint}`
+          : null,
+        candidate.policyCandidateSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:policyCandidateSnapshotFingerprint:${candidate.policyCandidateSnapshotFingerprint}`
+          : null,
+        candidate.routeCandidateSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:routeCandidateSnapshotFingerprint:${candidate.routeCandidateSnapshotFingerprint}`
+          : null,
+      ],
+      12
+    )
+  );
+  const inventoryEvidence = candidateEvidence.flatMap(candidate =>
+    compactEvidence(
+      [
+        candidate.providerConfiguredModelCount != null
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerConfiguredModelCount:${candidate.providerConfiguredModelCount}`
+          : null,
+        candidate.providerProfileId
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileId:${candidate.providerProfileId}`
+          : null,
+        candidate.providerProfileSource
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileSource:${candidate.providerProfileSource}`
+          : null,
+        candidate.providerProfileConfigPath
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileConfigPath:${candidate.providerProfileConfigPath}`
+          : null,
+        ...(candidate.providerConfiguredModelIds ?? []).map(
+          modelId =>
+            `${candidate.scope}#${candidate.candidateIndex}:providerConfiguredModel:${modelId}`
+        ),
+        ...(candidate.candidateModelIds ?? []).map(
+          modelId =>
+            `${candidate.scope}#${candidate.candidateIndex}:candidateModel:${modelId}`
+        ),
+      ],
+      10
+    )
+  );
   const summaryEvidence = candidateEvidence.flatMap(candidate =>
     compactEvidence(
       [
@@ -4763,6 +5051,21 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.preparedModelId
           ? `${candidate.scope}#${candidate.candidateIndex}:preparedModelId:${candidate.preparedModelId}`
+          : null,
+        candidate.privacy
+          ? `${candidate.scope}#${candidate.candidateIndex}:privacy:${candidate.privacy}`
+          : null,
+        candidate.health
+          ? `${candidate.scope}#${candidate.candidateIndex}:health:${candidate.health}`
+          : null,
+        candidate.healthCheckedAt
+          ? `${candidate.scope}#${candidate.candidateIndex}:healthCheckedAt:${candidate.healthCheckedAt}`
+          : null,
+        candidate.errorCode
+          ? `${candidate.scope}#${candidate.candidateIndex}:errorCode:${candidate.errorCode}`
+          : null,
+        candidate.errorCategory
+          ? `${candidate.scope}#${candidate.candidateIndex}:errorCategory:${candidate.errorCategory}`
           : null,
         candidate.registryKind
           ? `${candidate.scope}#${candidate.candidateIndex}:registryKind:${candidate.registryKind}`
@@ -4815,6 +5118,21 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.preparedModelId
           ? `${candidate.scope}#${candidate.candidateIndex}:preparedModelId:${candidate.preparedModelId}`
+          : null,
+        candidate.privacy
+          ? `${candidate.scope}#${candidate.candidateIndex}:privacy:${candidate.privacy}`
+          : null,
+        candidate.health
+          ? `${candidate.scope}#${candidate.candidateIndex}:health:${candidate.health}`
+          : null,
+        candidate.healthCheckedAt
+          ? `${candidate.scope}#${candidate.candidateIndex}:healthCheckedAt:${candidate.healthCheckedAt}`
+          : null,
+        candidate.errorCode
+          ? `${candidate.scope}#${candidate.candidateIndex}:errorCode:${candidate.errorCode}`
+          : null,
+        candidate.errorCategory
+          ? `${candidate.scope}#${candidate.candidateIndex}:errorCategory:${candidate.errorCategory}`
           : null,
         candidate.prepareCandidateSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:prepareCandidateSnapshotFingerprint:${candidate.prepareCandidateSnapshotFingerprint}`
@@ -5005,6 +5323,10 @@ function taskRouteCandidateProfileEvidence(
   );
 
   return uniqueStrings([
+    ...primaryRouteEvidence,
+    ...primaryEvidence,
+    ...fingerprintEvidence,
+    ...inventoryEvidence,
     ...summaryEvidence,
     ...priorityEvidence,
     ...detailedEvidence,
@@ -11280,8 +11602,12 @@ function routePolicyMetadataBase(
 function buildTaskRoutePrepareCandidates(
   routeCandidates: CopilotTaskRouteCandidateDiagnosticsType[],
   preparedRoutes: CopilotPreparedTaskRouteDiagnosticsType[],
-  providerPrepareCandidates: CopilotProviderPrepareCandidateDiagnostics[] = []
+  providerPrepareCandidates: CopilotProviderPrepareCandidateDiagnostics[] = [],
+  diagnosticsErrors: CopilotTaskRouteDiagnosticsError[] = []
 ): CopilotTaskRoutePrepareCandidateDiagnosticsType[] {
+  const prepareProbeError = diagnosticsErrors.find(error =>
+    error.stage.includes('prepare_candidates')
+  );
   const matchedCandidates = routeCandidates.filter(
     candidate => candidate.matched
   );
@@ -11550,10 +11876,14 @@ function buildTaskRoutePrepareCandidates(
         : {}),
       ...(providerPrepareCandidate?.errorCode
         ? { errorCode: providerPrepareCandidate.errorCode }
-        : {}),
+        : prepareProbeError
+          ? { errorCode: 'provider_prepare_error' }
+          : {}),
       ...(providerPrepareCandidate?.errorCategory
         ? { errorCategory: providerPrepareCandidate.errorCategory }
-        : {}),
+        : prepareProbeError
+          ? { errorCategory: 'provider_prepare_error' }
+          : {}),
       reasons,
     };
   });
@@ -12875,7 +13205,8 @@ export class CopilotResolver {
             prepareCandidates: buildTaskRoutePrepareCandidates(
               routeCandidates,
               [],
-              providerPrepareCandidates
+              providerPrepareCandidates,
+              diagnosticsErrors
             ),
             requestedModelId: workspaceIndexingModelId,
             requestedModelConfigKey: workspaceIndexingModel.configKey,
@@ -12891,7 +13222,8 @@ export class CopilotResolver {
         const prepareCandidates = buildTaskRoutePrepareCandidates(
           routeCandidates,
           route.preparedRoutes,
-          providerPrepareCandidates
+          providerPrepareCandidates,
+          diagnosticsErrors
         );
         const preparedTargetSummary = buildTaskRoutePreparedTargetSummary({
           featureKind: 'workspace_indexing',
@@ -12997,7 +13329,8 @@ export class CopilotResolver {
             prepareCandidates: buildTaskRoutePrepareCandidates(
               routeCandidates,
               [],
-              providerPrepareCandidates
+              providerPrepareCandidates,
+              diagnosticsErrors
             ),
             requestedModelId: rerankModelId,
             requestedModelConfigKey: rerankModel.configKey,
@@ -13012,7 +13345,8 @@ export class CopilotResolver {
         const prepareCandidates = buildTaskRoutePrepareCandidates(
           routeCandidates,
           route.preparedRoutes,
-          providerPrepareCandidates
+          providerPrepareCandidates,
+          diagnosticsErrors
         );
         const preparedTargetSummary = buildTaskRoutePreparedTargetSummary({
           featureKind: 'rerank',
