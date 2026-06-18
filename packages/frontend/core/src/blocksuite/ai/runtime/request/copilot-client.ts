@@ -39,6 +39,7 @@ import {
   PaymentRequiredError,
   UnauthorizedError,
 } from '../../provider/error';
+import type { AIActionModelSelectionSource } from './model-selection';
 
 export enum Endpoint {
   Action = 'action',
@@ -468,6 +469,7 @@ export class CopilotClient {
       messageId,
       reasoning,
       modelId,
+      modelSelectionSource,
       toolsConfig,
       actionId,
       actionVersion,
@@ -479,6 +481,7 @@ export class CopilotClient {
       messageId?: string;
       reasoning?: boolean;
       modelId?: string;
+      modelSelectionSource?: AIActionModelSelectionSource;
       toolsConfig?: AIToolsConfig;
       actionId?: string;
       actionVersion?: string;
@@ -496,6 +499,7 @@ export class CopilotClient {
       messageId,
       reasoning,
       modelId,
+      modelSelectionSource,
       toolsConfig,
       actionId,
       actionVersion,
@@ -515,13 +519,15 @@ export class CopilotClient {
     messageId?: string,
     seed?: string,
     endpoint = Endpoint.Images,
-    byokLeaseId?: string
+    byokLeaseId?: string,
+    modelId?: string
   ) {
     let url = `/api/copilot/chat/${sessionId}/${endpoint}`;
     const queryString = this.paramsToQueryString({
       messageId,
       seed,
       byokLeaseId,
+      modelId,
     });
     if (queryString) {
       url += `?${queryString}`;

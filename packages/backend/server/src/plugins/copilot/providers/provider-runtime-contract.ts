@@ -33,6 +33,12 @@ export type NativeExecutionRoute = {
   backendConfig: LlmBackendConfig;
 };
 
+export type PreparedNativeModelDefinitionMetadata = {
+  backendKind?: string;
+  canonicalKey?: string;
+  behaviorFlags?: string[];
+};
+
 export type CopilotProviderExecution = {
   providerId: string;
   profile: NormalizedCopilotProviderProfile;
@@ -62,6 +68,13 @@ export type PreparedNativeEmbeddingExecution = {
     providerId: string;
   };
   request: LlmEmbeddingRequest;
+  modelDefinition?: PreparedNativeModelDefinitionMetadata;
+  requestedDimensions?: number;
+  modelLimits?: {
+    contextWindow?: number;
+    maxOutputTokens?: number;
+    embeddingDimensions?: number;
+  };
 };
 
 export type PreparedNativeRerankExecution = {
@@ -69,6 +82,7 @@ export type PreparedNativeRerankExecution = {
     providerId: string;
   };
   request: LlmRerankRequest;
+  modelDefinition?: PreparedNativeModelDefinitionMetadata;
 };
 
 export type PreparedNativeImageExecution = {
@@ -82,6 +96,7 @@ export type PreparedNativeRequestOptions = {
   protocol: LlmProtocol;
   backendConfig: LlmBackendConfig;
   model: string;
+  resolvedModel?: CopilotProviderModel;
   messages: PromptMessage[];
   options?: CopilotChatOptions;
   execution?: CopilotProviderExecution;
@@ -407,6 +422,7 @@ function compileProviderChatDriver(
         protocol: context.protocol,
         backendConfig: context.backendConfig,
         model: model.id,
+        resolvedModel: model,
         messages,
         ...(spec.withAttachment === false ? { withAttachment: false } : {}),
         ...requestOptions,

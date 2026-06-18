@@ -1,10 +1,20 @@
 import type { PromptKey } from '../../provider/prompt';
 import { Endpoint } from './copilot-client';
 import type { TextToTextOptions } from './message-transport';
+import type { AIActionModelSelectionSource } from './model-selection';
 
 export type AIActionId = keyof BlockSuitePresets.AIActions;
+
+export type AIActionModelSelection = {
+  modelId?: string;
+  promptName: PromptKey;
+  source: AIActionModelSelectionSource;
+};
+
 export type AIActionOptions = BlockSuitePresets.AITextActionOptions &
-  Record<string, unknown>;
+  Record<string, unknown> & {
+    modelSelection?: AIActionModelSelection;
+  };
 
 export type AIActionDefinition = {
   id: AIActionId;
@@ -218,6 +228,20 @@ export function getActionDefinition(id: AIActionId): AIActionDefinition {
     throw new Error(`AI action ${String(id)} is not defined`);
   }
   return definition;
+}
+
+export function resolveActionDefinitionPromptName(
+  definition: AIActionDefinition,
+  options: AIActionOptions
+): PromptKey {
+  return resolveDefinitionValue(definition.promptName, options) as PromptKey;
+}
+
+export function resolveActionPromptName(
+  id: AIActionId,
+  options: AIActionOptions
+): PromptKey {
+  return resolveActionDefinitionPromptName(getActionDefinition(id), options);
 }
 
 export function resolveDefinitionValue(

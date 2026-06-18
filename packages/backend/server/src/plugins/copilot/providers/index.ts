@@ -7,7 +7,7 @@ export { CopilotProviderFactory } from './factory';
 export { FalProvider } from './fal';
 export { GeminiGenerativeProvider, GeminiVertexProvider } from './gemini';
 export { CopilotProviderLifecycleService } from './lifecycle-service';
-export { OpenAIProvider } from './openai';
+export { OpenAICompatibleProvider, OpenAIProvider } from './openai';
 export type { CopilotProvider } from './provider';
 export { CopilotProviders } from './provider-tokens';
 export { CopilotProviderRegistryService } from './registry-service';

@@ -21,6 +21,7 @@ describe('CopilotClient action streams', () => {
         messageId: 'message-1',
         actionId: 'mindmap.generate',
         actionVersion: 'v1',
+        modelSelectionSource: 'prompt_preference',
         retry: true,
         runId: 'run-1',
       },
@@ -28,7 +29,30 @@ describe('CopilotClient action streams', () => {
     );
 
     expect(eventSource).toHaveBeenCalledWith(
-      '/api/copilot/actions/session-1/stream?messageId=message-1&actionId=mindmap.generate&actionVersion=v1&runId=run-1&retry=true'
+      '/api/copilot/actions/session-1/stream?messageId=message-1&modelSelectionSource=prompt_preference&actionId=mindmap.generate&actionVersion=v1&runId=run-1&retry=true'
+    );
+  });
+
+  test('passes modelId through image stream query', () => {
+    const eventSource = vi.fn(
+      () =>
+        ({
+          close: vi.fn(),
+        }) as unknown as EventSource
+    );
+    const client = new CopilotClient(vi.fn(), eventSource);
+
+    client.imagesStream(
+      'session-1',
+      'message-1',
+      'seed-1',
+      Endpoint.Images,
+      'lease-1',
+      'image-model'
+    );
+
+    expect(eventSource).toHaveBeenCalledWith(
+      '/api/copilot/chat/session-1/images?messageId=message-1&seed=seed-1&byokLeaseId=lease-1&modelId=image-model'
     );
   });
 

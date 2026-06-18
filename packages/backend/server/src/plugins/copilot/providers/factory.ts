@@ -3,13 +3,29 @@ import { Injectable, Logger } from '@nestjs/common';
 import { CopilotQuotaExceeded } from '../../../base';
 import { ServerFeature, ServerService } from '../../../core';
 import { type CopilotAccessContext, CopilotAccessPolicy } from '../access';
+import type {
+  CopilotModelDefinition,
+  CopilotProviderPrivacy,
+  CopilotProviderProfileSource,
+  CopilotProviderRoutePolicyFeatureKind,
+} from '../config';
 import type { RequiredStructuredOutputContract } from '../runtime/contracts';
 import { getProviderRuntimeHost } from '../runtime/provider-runtime-context';
 import type { CopilotProvider } from './provider';
 import {
+  type ResolvedProviderModel,
+  resolveModelContextWindow,
+} from './provider-model-runtime';
+import {
+  applyProviderRoutePolicy,
   buildProviderRegistry,
   type CopilotProviderRegistry,
+  describeProviderRoutePolicy,
+  describeProviderRoutePolicyCandidates,
+  getProfileModelIds,
+  isProviderRouteHealthy,
   type NormalizedCopilotProviderProfile,
+  providerProfileConfigPathHint,
   resolveModel,
   stripProviderPrefix,
 } from './provider-registry';
@@ -26,9 +42,12 @@ import {
   type CopilotChatOptions,
   type CopilotEmbeddingOptions,
   type CopilotImageOptions,
+  type CopilotProviderModel,
   CopilotProviderType,
   type CopilotRerankRequest,
   type CopilotStructuredOptions,
+  type ModelAttachmentCapability,
+  type ModelCapability,
   ModelFullConditions,
   ModelOutputType,
   type PromptMessage,
@@ -42,11 +61,73 @@ export type ResolvedCopilotProvider = {
   rawModelId?: string;
   modelId?: string;
   explicitProviderId?: string;
+  fallbackProviderIds?: string[];
   prepared?: PreparedNativeExecution;
   preparedStructured?: PreparedNativeStructuredExecution;
   preparedEmbedding?: PreparedNativeEmbeddingExecution;
   preparedRerank?: PreparedNativeRerankExecution;
   preparedImage?: PreparedNativeImageExecution;
+};
+
+type CopilotRouteModelDefinitionSource =
+  | 'native_registry'
+  | 'provider_profile'
+  | 'provider_runtime';
+
+export type CopilotProviderRouteCandidateDiagnostics = {
+  registryKind?: 'byok' | 'quota_backed';
+  registryAvailable?: boolean;
+  registrySelected?: boolean;
+  providerId: string;
+  providerName?: string;
+  providerSource?: CopilotProviderProfileSource;
+  providerProfileId?: string;
+  providerProfileSource?: CopilotProviderProfileSource;
+  providerProfileConfigPath?: string;
+  providerConfiguredModelIds?: string[];
+  providerConfiguredModelCount?: number;
+  providerType?: CopilotProviderType;
+  providerPriority?: number;
+  privacy?: CopilotProviderPrivacy;
+  health?: string;
+  healthCheckedAt?: string;
+  requestedModelId?: string;
+  modelId?: string;
+  routeRawModelId?: string;
+  routeModelDefinitionSource?: CopilotRouteModelDefinitionSource;
+  routeModelDefinitionId?: string;
+  routeModelDefinitionAliases?: string[];
+  routeModelAliasMatched?: boolean;
+  candidateModelIds?: string[];
+  matched: boolean;
+  reasons: string[];
+};
+
+export type CopilotProviderPrepareCandidateDiagnostics = {
+  providerId: string;
+  providerName?: string;
+  providerSource?: CopilotProviderProfileSource;
+  providerProfileId?: string;
+  providerProfileSource?: CopilotProviderProfileSource;
+  providerProfileConfigPath?: string;
+  providerConfiguredModelIds?: string[];
+  providerConfiguredModelCount?: number;
+  providerType?: CopilotProviderType;
+  providerPriority?: number;
+  privacy?: CopilotProviderPrivacy;
+  health?: string;
+  healthCheckedAt?: string;
+  modelId?: string;
+  routeRawModelId?: string;
+  routeModelDefinitionSource?: CopilotRouteModelDefinitionSource;
+  routeModelDefinitionId?: string;
+  routeModelDefinitionAliases?: string[];
+  routeModelAliasMatched?: boolean;
+  prepared: boolean;
+  preparedModelId?: string;
+  errorCode?: string;
+  errorCategory?: string;
+  reasons: string[];
 };
 
 type RoutePreparationResult = Partial<
@@ -66,6 +147,213 @@ type EffectiveProviderRegistry = {
   quotaBackedRegistry: CopilotProviderRegistry;
   quotaBackedRoutesAvailable: boolean;
 };
+
+type RouteContext = {
+  workspaceId?: string;
+  featureKind?: CopilotProviderRoutePolicyFeatureKind;
+};
+
+function unique<T>(values: T[]): T[] {
+  return Array.from(new Set(values));
+}
+
+function appendReasons(
+  candidate: CopilotProviderRouteCandidateDiagnostics,
+  reasons: string[]
+): CopilotProviderRouteCandidateDiagnostics {
+  if (!reasons.length) {
+    return candidate;
+  }
+
+  return {
+    ...candidate,
+    reasons: unique([...candidate.reasons, ...reasons]),
+  };
+}
+
+function routeCandidateProviderMetadata(
+  profile: NormalizedCopilotProviderProfile
+) {
+  const providerConfiguredModelIds = getProfileModelIds(profile);
+  const providerProfileConfigPath = providerProfileConfigPathHint(profile);
+
+  return {
+    ...(profile.displayName ? { providerName: profile.displayName } : {}),
+    providerSource: profile.source,
+    providerProfileId: profile.id,
+    providerProfileSource: profile.source,
+    ...(providerProfileConfigPath ? { providerProfileConfigPath } : {}),
+    ...(providerConfiguredModelIds.length
+      ? {
+          providerConfiguredModelIds,
+          providerConfiguredModelCount: providerConfiguredModelIds.length,
+        }
+      : {}),
+    providerType: profile.type,
+    providerPriority: profile.priority,
+    privacy: profile.privacy,
+    health: profile.health?.status ?? 'unknown',
+    ...(profile.health?.lastCheckedAt
+      ? { healthCheckedAt: profile.health.lastCheckedAt }
+      : {}),
+  };
+}
+
+function resolveProfileModelDefinition(
+  profile: NormalizedCopilotProviderProfile,
+  requestedModelId: string | undefined,
+  routeModelId: string | undefined
+) {
+  return profile.modelDefinitions.find(definition => {
+    const aliases = definition.aliases ?? [];
+    return [requestedModelId, routeModelId].some(
+      id =>
+        !!id &&
+        (definition.id === id ||
+          definition.rawModelId === id ||
+          aliases.includes(id))
+    );
+  });
+}
+
+function resolveModelDefinitionSource(
+  profile: NormalizedCopilotProviderProfile,
+  resolvedProviderModel: Partial<ResolvedProviderModel> | undefined,
+  profileDefinition: CopilotModelDefinition | undefined
+): CopilotRouteModelDefinitionSource | undefined {
+  if (profileDefinition) {
+    return 'provider_profile';
+  }
+  if (resolvedProviderModel?.canonicalKey) {
+    return 'native_registry';
+  }
+  return profile.models?.length ? 'provider_runtime' : undefined;
+}
+
+function routeCandidateModelDefinitionMetadata(
+  profile: NormalizedCopilotProviderProfile,
+  provider: CopilotProvider,
+  requestedModelId: string | undefined,
+  routeModelId: string | undefined,
+  execution: CopilotProviderExecution
+) {
+  const modelId = routeModelId ?? requestedModelId;
+  const providerModel = modelId
+    ? provider.resolveModel(modelId, execution)
+    : undefined;
+  const resolvedProviderModel = providerModel as
+    | Partial<ResolvedProviderModel>
+    | undefined;
+  const resolvedModelId = providerModel?.id ?? routeModelId ?? requestedModelId;
+  const profileDefinition = resolveProfileModelDefinition(
+    profile,
+    requestedModelId,
+    resolvedModelId
+  );
+  const routeModelDefinitionSource = resolveModelDefinitionSource(
+    profile,
+    resolvedProviderModel,
+    profileDefinition
+  );
+  const routeModelDefinitionId =
+    profileDefinition?.id ??
+    resolvedProviderModel?.canonicalKey ??
+    (routeModelDefinitionSource === 'provider_runtime'
+      ? resolvedModelId
+      : undefined);
+  const routeRawModelId =
+    profileDefinition?.rawModelId ??
+    (resolvedProviderModel?.id &&
+    resolvedProviderModel.id !== routeModelDefinitionId
+      ? resolvedProviderModel.id
+      : undefined);
+  const aliasMatchTarget = requestedModelId ?? routeModelId;
+  const routeModelAliasMatched =
+    aliasMatchTarget !== undefined
+      ? profileDefinition?.aliases?.includes(aliasMatchTarget)
+      : undefined;
+
+  return {
+    ...(routeRawModelId ? { routeRawModelId } : {}),
+    ...(routeModelDefinitionSource ? { routeModelDefinitionSource } : {}),
+    ...(routeModelDefinitionId ? { routeModelDefinitionId } : {}),
+    ...(profileDefinition?.aliases?.length
+      ? { routeModelDefinitionAliases: profileDefinition.aliases }
+      : {}),
+    ...(routeModelAliasMatched !== undefined ? { routeModelAliasMatched } : {}),
+  };
+}
+
+function prepareDiagnosticErrorCode(error: unknown) {
+  return error instanceof Error && error.name !== 'Error'
+    ? error.name
+    : 'provider_prepare_error';
+}
+
+function prepareDiagnosticErrorCategory(error: unknown) {
+  const code =
+    error instanceof Error
+      ? error.name
+      : typeof error === 'string'
+        ? error
+        : '';
+  const normalized = code.toLowerCase();
+
+  if (
+    normalized.includes('auth') ||
+    normalized.includes('credential') ||
+    normalized.includes('permission') ||
+    normalized.includes('unauthorized') ||
+    normalized.includes('forbidden')
+  ) {
+    return 'auth';
+  }
+
+  if (
+    normalized.includes('timeout') ||
+    normalized.includes('abort') ||
+    normalized.includes('network') ||
+    normalized.includes('connection') ||
+    normalized.includes('fetch')
+  ) {
+    return 'network';
+  }
+
+  if (normalized.includes('model') || normalized.includes('alias')) {
+    return 'model';
+  }
+
+  if (
+    normalized.includes('schema') ||
+    normalized.includes('json') ||
+    normalized.includes('validation') ||
+    normalized.includes('parse')
+  ) {
+    return 'schema';
+  }
+
+  return 'runtime';
+}
+
+function prepareDiagnosticErrorReason(errorCategory: string) {
+  return `provider_prepare_${errorCategory}_error`;
+}
+
+function capabilityForOutput(
+  capability: ModelCapability,
+  outputType?: ModelOutputType
+) {
+  return outputType ? capability.output.includes(outputType) : true;
+}
+
+function attachmentCapabilityForOutput(
+  capability: ModelCapability,
+  outputType?: ModelOutputType
+): ModelAttachmentCapability | undefined {
+  return outputType === ModelOutputType.Structured
+    ? (capability.structuredAttachments ?? capability.attachments)
+    : capability.attachments;
+}
 
 @Injectable()
 export class CopilotProviderFactory {
@@ -100,7 +388,10 @@ export class CopilotProviderFactory {
     providerId: string,
     profile: NormalizedCopilotProviderProfile
   ) {
-    return !!this.getProviderByProfile(providerId, profile);
+    return (
+      isProviderRouteHealthy(profile) &&
+      !!this.getProviderByProfile(providerId, profile)
+    );
   }
 
   private getAvailableProviderIds(registry: CopilotProviderRegistry) {
@@ -111,15 +402,431 @@ export class CopilotProviderFactory {
       .map(([providerId]) => providerId);
   }
 
+  private getProfileModelIds(profile: NormalizedCopilotProviderProfile) {
+    return getProfileModelIds(profile);
+  }
+
+  private profileAllowsModel(
+    profile: NormalizedCopilotProviderProfile,
+    modelId: string
+  ) {
+    const modelIds = this.getProfileModelIds(profile);
+    if (!modelIds.length) {
+      return true;
+    }
+
+    return (
+      modelIds.includes(modelId) ||
+      profile.modelDefinitions.some(
+        model =>
+          model.rawModelId === modelId ||
+          model.id === modelId ||
+          model.aliases?.includes(modelId)
+      )
+    );
+  }
+
+  private describeCapabilityMismatchReasons(
+    model: CopilotProviderModel | undefined,
+    cond: ModelFullConditions
+  ): string[] {
+    if (!model) {
+      return [];
+    }
+
+    const capabilities = model.capabilities ?? [];
+    if (!capabilities.length) {
+      return ['capability_not_declared'];
+    }
+
+    const outputCapabilities = capabilities.filter(capability =>
+      capabilityForOutput(capability, cond.outputType)
+    );
+    const reasons: string[] = [];
+    if (!outputCapabilities.length) {
+      reasons.push('output_not_supported');
+    }
+
+    const inputTypes = cond.inputTypes ?? [];
+    const inputCapabilities = outputCapabilities.length
+      ? outputCapabilities
+      : capabilities;
+    if (
+      inputTypes.length &&
+      !inputCapabilities.some(capability =>
+        inputTypes.every(inputType => capability.input.includes(inputType))
+      )
+    ) {
+      reasons.push('input_not_supported');
+    }
+
+    const attachmentKinds = cond.attachmentKinds ?? [];
+    const attachmentSourceKinds = cond.attachmentSourceKinds ?? [];
+    const requiresAttachmentCheck =
+      attachmentKinds.length ||
+      attachmentSourceKinds.length ||
+      cond.hasRemoteAttachments;
+    if (requiresAttachmentCheck) {
+      const attachmentCapabilities = inputCapabilities
+        .map(capability =>
+          attachmentCapabilityForOutput(capability, cond.outputType)
+        )
+        .filter(
+          (
+            capability
+          ): capability is NonNullable<
+            ReturnType<typeof attachmentCapabilityForOutput>
+          > => !!capability
+        );
+      if (!attachmentCapabilities.length) {
+        reasons.push('attachment_not_supported');
+      } else {
+        if (
+          attachmentKinds.length &&
+          !attachmentCapabilities.some(capability =>
+            attachmentKinds.every(kind => capability.kinds.includes(kind))
+          )
+        ) {
+          reasons.push('attachment_kind_not_supported');
+        }
+        if (
+          attachmentSourceKinds.length &&
+          !attachmentCapabilities.some(capability =>
+            attachmentSourceKinds.every(
+              sourceKind =>
+                !capability.sourceKinds?.length ||
+                capability.sourceKinds.includes(sourceKind)
+            )
+          )
+        ) {
+          reasons.push('attachment_source_not_supported');
+        }
+        if (
+          cond.hasRemoteAttachments &&
+          !attachmentCapabilities.some(capability => capability.allowRemoteUrls)
+        ) {
+          reasons.push('remote_attachment_not_supported');
+        }
+      }
+    }
+
+    return unique(reasons);
+  }
+
+  private describeCapabilityMismatchReasonsForModels(
+    provider: CopilotProvider,
+    execution: CopilotProviderExecution,
+    modelIds: string[],
+    cond: ModelFullConditions
+  ) {
+    return unique(
+      modelIds.flatMap(modelId =>
+        this.describeCapabilityMismatchReasons(
+          provider.resolveModel(modelId, execution),
+          { ...cond, modelId }
+        )
+      )
+    );
+  }
+
+  getConfiguredModelIds() {
+    const registry = this.getRegistry();
+    return unique(
+      registry.order.flatMap(providerId => {
+        const profile = registry.profiles.get(providerId);
+        if (!profile || !this.providerAvailable(providerId, profile)) {
+          return [];
+        }
+        return this.getProfileModelIds(profile).map(
+          modelId => `${providerId}/${modelId}`
+        );
+      })
+    );
+  }
+
+  describeRoutePolicy(context: RouteContext = {}) {
+    return describeProviderRoutePolicy(this.getRegistry(), context);
+  }
+
+  describeRoutePolicyCandidates(context: RouteContext = {}) {
+    const registry = this.getRegistry();
+    return describeProviderRoutePolicyCandidates(
+      registry,
+      registry.order,
+      context,
+      this.getAvailableProviderIds(registry)
+    );
+  }
+
+  private async describeRouteCandidatesFromRegistry(
+    registry: CopilotProviderRegistry,
+    cond: ModelFullConditions,
+    filter: {
+      prefer?: CopilotProviderType;
+    } = {},
+    context: CopilotAccessContext = {},
+    registryDiagnostics: Pick<
+      CopilotProviderRouteCandidateDiagnostics,
+      'registryAvailable' | 'registryKind' | 'registrySelected'
+    > = {}
+  ): Promise<CopilotProviderRouteCandidateDiagnostics[]> {
+    const routePolicyContext = {
+      workspaceId: context.workspaceId,
+      featureKind: context.featureKind,
+    };
+    const route = resolveModel({
+      registry,
+      modelId: cond.modelId,
+      outputType: cond.outputType,
+      availableProviderIds: this.getAvailableProviderIds(registry),
+      preferredProviderIds: this.getPreferredProviderIds(
+        registry,
+        filter.prefer,
+        routePolicyContext
+      ),
+      routePolicyContext,
+    });
+
+    return await Promise.all(
+      route.candidateProviderIds.map(async providerId => {
+        const profile = registry.profiles.get(providerId);
+        const provider = profile
+          ? this.getProviderByProfile(providerId, profile)
+          : undefined;
+        const candidateModelIds = profile
+          ? this.getProfileModelIds(profile)
+          : [];
+        const candidateModelMetadata = candidateModelIds.length
+          ? { candidateModelIds }
+          : {};
+        const providerMetadata = profile
+          ? routeCandidateProviderMetadata(profile)
+          : {};
+        if (!profile || !provider) {
+          return {
+            ...registryDiagnostics,
+            providerId,
+            ...providerMetadata,
+            ...candidateModelMetadata,
+            matched: false,
+            reasons: ['provider_runtime_unavailable'],
+          };
+        }
+
+        const normalizedCond = this.normalizeCond(registry, providerId, cond);
+        const requestedModelId = normalizedCond.modelId;
+        const execution = { providerId, profile };
+        if (
+          requestedModelId &&
+          !this.profileAllowsModel(profile, requestedModelId)
+        ) {
+          return {
+            ...registryDiagnostics,
+            providerId,
+            ...providerMetadata,
+            requestedModelId,
+            ...candidateModelMetadata,
+            matched: false,
+            reasons: ['profile_model_not_allowed'],
+          };
+        }
+
+        if (!requestedModelId && candidateModelIds.length) {
+          const matchedModelId = (
+            await Promise.all(
+              candidateModelIds.map(async modelId => {
+                try {
+                  return (await provider.match(
+                    { ...normalizedCond, modelId },
+                    execution
+                  ))
+                    ? modelId
+                    : null;
+                } catch {
+                  return null;
+                }
+              })
+            )
+          ).find((modelId): modelId is string => !!modelId);
+
+          const candidateMismatchReasons =
+            this.describeCapabilityMismatchReasonsForModels(
+              provider,
+              execution,
+              candidateModelIds,
+              normalizedCond
+            );
+          return matchedModelId
+            ? {
+                ...registryDiagnostics,
+                providerId,
+                ...providerMetadata,
+                modelId: matchedModelId,
+                ...routeCandidateModelDefinitionMetadata(
+                  profile,
+                  provider,
+                  matchedModelId,
+                  matchedModelId,
+                  execution
+                ),
+                ...candidateModelMetadata,
+                matched: true,
+                reasons: ['profile_model_matched', 'capability_matched'],
+              }
+            : {
+                ...registryDiagnostics,
+                providerId,
+                ...providerMetadata,
+                ...candidateModelMetadata,
+                matched: false,
+                reasons: unique([
+                  'no_profile_model_match',
+                  'capability_mismatch',
+                  ...candidateMismatchReasons,
+                ]),
+              };
+        }
+
+        let matched = false;
+        try {
+          matched = await provider.match(normalizedCond, execution);
+        } catch {
+          return {
+            ...registryDiagnostics,
+            providerId,
+            ...providerMetadata,
+            ...(requestedModelId ? { requestedModelId } : {}),
+            ...candidateModelMetadata,
+            matched: false,
+            reasons: ['capability_match_error'],
+          };
+        }
+
+        const requestedModel = requestedModelId
+          ? provider.resolveModel(requestedModelId, execution)
+          : undefined;
+        const modelDefinitionMetadata = requestedModelId
+          ? routeCandidateModelDefinitionMetadata(
+              profile,
+              provider,
+              requestedModelId,
+              requestedModelId,
+              execution
+            )
+          : {};
+        return {
+          ...registryDiagnostics,
+          providerId,
+          ...providerMetadata,
+          ...(requestedModelId
+            ? { requestedModelId, modelId: requestedModelId }
+            : {}),
+          ...modelDefinitionMetadata,
+          ...candidateModelMetadata,
+          matched,
+          reasons: matched
+            ? ['capability_matched']
+            : unique([
+                'capability_mismatch',
+                ...this.describeCapabilityMismatchReasons(
+                  requestedModel,
+                  normalizedCond
+                ),
+              ]),
+        };
+      })
+    );
+  }
+
+  async describeRouteCandidates(
+    cond: ModelFullConditions,
+    filter: {
+      prefer?: CopilotProviderType;
+    } = {},
+    context: CopilotAccessContext = {}
+  ) {
+    const { byokRegistry, quotaBackedRegistry, quotaBackedRoutesAvailable } =
+      await this.getEffectiveRegistry(context);
+    const byokCandidates = await this.describeRouteCandidatesFromRegistry(
+      byokRegistry,
+      cond,
+      filter,
+      context,
+      {
+        registryKind: 'byok',
+        registryAvailable: byokRegistry.order.length > 0,
+      }
+    );
+    const byokSelected = byokCandidates.some(candidate => candidate.matched);
+    const quotaBackedCandidates =
+      await this.describeRouteCandidatesFromRegistry(
+        quotaBackedRegistry,
+        cond,
+        filter,
+        context,
+        {
+          registryKind: 'quota_backed',
+          registryAvailable: quotaBackedRoutesAvailable,
+        }
+      );
+    const quotaBackedSelected =
+      !byokSelected &&
+      quotaBackedRoutesAvailable &&
+      quotaBackedCandidates.some(candidate => candidate.matched);
+
+    const annotateByokCandidate = (
+      candidate: CopilotProviderRouteCandidateDiagnostics
+    ) =>
+      appendReasons(
+        {
+          ...candidate,
+          registrySelected: byokSelected && candidate.matched,
+        },
+        [
+          byokSelected && candidate.matched ? 'registry_selected' : null,
+          !byokRegistry.order.length ? 'registry_unavailable' : null,
+        ].filter((reason): reason is string => !!reason)
+      );
+    const annotateQuotaBackedCandidate = (
+      candidate: CopilotProviderRouteCandidateDiagnostics
+    ) =>
+      appendReasons(
+        {
+          ...candidate,
+          registrySelected: quotaBackedSelected && candidate.matched,
+        },
+        [
+          quotaBackedSelected && candidate.matched ? 'registry_selected' : null,
+          !quotaBackedRoutesAvailable ? 'registry_unavailable' : null,
+          byokSelected ? 'registry_shadowed_by_byok' : null,
+          !quotaBackedSelected &&
+          !quotaBackedRoutesAvailable &&
+          context.quotaBackedRoutesAllowed !== false &&
+          candidate.matched
+            ? 'quota_exceeded_fallback_candidate'
+            : null,
+        ].filter((reason): reason is string => !!reason)
+      );
+
+    return [
+      ...byokCandidates.map(annotateByokCandidate),
+      ...quotaBackedCandidates.map(annotateQuotaBackedCandidate),
+    ];
+  }
+
   private getPreferredProviderIds(
     registry: CopilotProviderRegistry,
-    type?: CopilotProviderType
+    type?: CopilotProviderType,
+    context: RouteContext = {}
   ) {
     if (!type) return undefined;
-    return registry.byType.get(type)?.filter(providerId => {
+    const providerIds = registry.byType.get(type)?.filter(providerId => {
       const profile = registry.profiles.get(providerId);
       return profile ? this.providerAvailable(providerId, profile) : false;
     });
+    return providerIds
+      ? applyProviderRoutePolicy(registry, providerIds, context)
+      : undefined;
   }
 
   private normalizeCond(
@@ -184,6 +891,77 @@ export class CopilotProviderFactory {
     return this.filterPreparedRoutes(preparedRoutes);
   }
 
+  private async describePrepareCandidates<
+    TPrepared extends { route: { model: string } },
+  >(
+    routes: ResolvedCopilotProvider[],
+    prepare: (
+      route: ResolvedCopilotProvider
+    ) => Promise<TPrepared | null | undefined>
+  ): Promise<CopilotProviderPrepareCandidateDiagnostics[]> {
+    return await Promise.all(
+      routes.map(async route => {
+        const providerMetadata = routeCandidateProviderMetadata(route.profile);
+        const baseModelDefinitionMetadata =
+          routeCandidateModelDefinitionMetadata(
+            route.profile,
+            route.provider,
+            route.modelId,
+            route.modelId,
+            route.execution
+          );
+        try {
+          const prepared = await prepare(route);
+          if (!prepared) {
+            return {
+              providerId: route.providerId,
+              ...providerMetadata,
+              ...(route.modelId ? { modelId: route.modelId } : {}),
+              ...baseModelDefinitionMetadata,
+              prepared: false,
+              reasons: ['provider_prepare_returned_empty'],
+            };
+          }
+
+          const preparedModelDefinitionMetadata =
+            route.modelId === prepared.route.model
+              ? baseModelDefinitionMetadata
+              : routeCandidateModelDefinitionMetadata(
+                  route.profile,
+                  route.provider,
+                  route.modelId,
+                  prepared.route.model,
+                  route.execution
+                );
+          return {
+            providerId: route.providerId,
+            ...providerMetadata,
+            ...(route.modelId ? { modelId: route.modelId } : {}),
+            ...preparedModelDefinitionMetadata,
+            prepared: true,
+            preparedModelId: prepared.route.model,
+            reasons: ['provider_prepare_succeeded'],
+          };
+        } catch (error) {
+          const errorCategory = prepareDiagnosticErrorCategory(error);
+          return {
+            providerId: route.providerId,
+            ...providerMetadata,
+            ...(route.modelId ? { modelId: route.modelId } : {}),
+            ...baseModelDefinitionMetadata,
+            prepared: false,
+            errorCode: prepareDiagnosticErrorCode(error),
+            errorCategory,
+            reasons: [
+              'provider_prepare_error',
+              prepareDiagnosticErrorReason(errorCategory),
+            ],
+          };
+        }
+      })
+    );
+  }
+
   async resolveProvider(
     cond: ModelFullConditions,
     filter: {
@@ -192,6 +970,50 @@ export class CopilotProviderFactory {
     context: CopilotAccessContext = {}
   ): Promise<ResolvedCopilotProvider | null> {
     return (await this.resolveRoutes(cond, filter, context))[0] ?? null;
+  }
+
+  async resolveModelId(
+    cond: ModelFullConditions,
+    filter: {
+      prefer?: CopilotProviderType;
+    } = {},
+    context: CopilotAccessContext = {}
+  ): Promise<string | undefined> {
+    const route = await this.resolveProvider(cond, filter, context);
+    if (!route) {
+      return;
+    }
+
+    if (cond.modelId) {
+      return route.rawModelId ?? cond.modelId;
+    }
+
+    const model = route.provider.selectModel(
+      { ...cond, modelId: route.modelId },
+      route.execution
+    );
+
+    return `${route.providerId}/${route.modelId ?? model.id}`;
+  }
+
+  async resolveModelContextWindow(
+    cond: ModelFullConditions,
+    filter: {
+      prefer?: CopilotProviderType;
+    } = {},
+    context: CopilotAccessContext = {}
+  ): Promise<number | undefined> {
+    const route = await this.resolveProvider(cond, filter, context);
+    if (!route) {
+      return;
+    }
+
+    const model = route.provider.selectModel(
+      { ...cond, modelId: route.modelId },
+      route.execution
+    );
+
+    return resolveModelContextWindow(model);
   }
 
   async resolveRoutes(
@@ -209,7 +1031,8 @@ export class CopilotProviderFactory {
     const byokRoutes = await this.resolveRoutesFromRegistry(
       byokRegistry,
       cond,
-      filter
+      filter,
+      context
     );
     const resolved = byokRoutes.length
       ? byokRoutes
@@ -217,7 +1040,8 @@ export class CopilotProviderFactory {
         ? await this.resolveRoutesFromRegistry(
             quotaBackedRegistry,
             cond,
-            filter
+            filter,
+            context
           )
         : [];
     for (const route of resolved) {
@@ -234,14 +1058,16 @@ export class CopilotProviderFactory {
       const quotaBackedRoutes = await this.resolveRoutesFromRegistry(
         quotaBackedRegistry,
         cond,
-        filter
+        filter,
+        context
       );
       if (quotaBackedRoutes.length) {
         throw new CopilotQuotaExceeded();
       }
     }
 
-    return resolved;
+    const fallbackProviderIds = resolved.map(route => route.providerId);
+    return resolved.map(route => ({ ...route, fallbackProviderIds }));
   }
 
   private async resolveRoutesFromRegistry(
@@ -249,8 +1075,13 @@ export class CopilotProviderFactory {
     cond: ModelFullConditions,
     filter: {
       prefer?: CopilotProviderType;
-    } = {}
+    } = {},
+    context: CopilotAccessContext = {}
   ): Promise<ResolvedCopilotProvider[]> {
+    const routePolicyContext = {
+      workspaceId: context.workspaceId,
+      featureKind: context.featureKind,
+    };
     const route = resolveModel({
       registry,
       modelId: cond.modelId,
@@ -258,8 +1089,10 @@ export class CopilotProviderFactory {
       availableProviderIds: this.getAvailableProviderIds(registry),
       preferredProviderIds: this.getPreferredProviderIds(
         registry,
-        filter.prefer
+        filter.prefer,
+        routePolicyContext
       ),
+      routePolicyContext,
     });
 
     const resolved: ResolvedCopilotProvider[] = [];
@@ -273,13 +1106,37 @@ export class CopilotProviderFactory {
       const normalizedCond = this.normalizeCond(registry, providerId, cond);
       if (
         normalizedCond.modelId &&
-        profile.models?.length &&
-        !profile.models.includes(normalizedCond.modelId)
+        !this.profileAllowsModel(profile, normalizedCond.modelId)
       ) {
         continue;
       }
 
       const execution = { providerId, profile };
+      const profileModelIds = this.getProfileModelIds(profile);
+      if (!normalizedCond.modelId && profileModelIds.length) {
+        const matchedModelId = (
+          await Promise.all(
+            profileModelIds.map(async modelId =>
+              (await provider.match({ ...normalizedCond, modelId }, execution))
+                ? modelId
+                : null
+            )
+          )
+        ).find((modelId): modelId is string => !!modelId);
+        if (!matchedModelId) continue;
+
+        resolved.push({
+          providerId,
+          provider,
+          execution,
+          profile,
+          rawModelId: route.rawModelId,
+          modelId: matchedModelId,
+          explicitProviderId: route.explicitProviderId,
+        });
+        continue;
+      }
+
       const matched = await provider.match(normalizedCond, execution);
       if (!matched) continue;
 
@@ -368,7 +1225,7 @@ export class CopilotProviderFactory {
   }
 
   async prepareEmbeddingRoutes(
-    modelId: string,
+    modelId: string | undefined,
     input: string | string[],
     options: CopilotEmbeddingOptions = {}
   ): Promise<ResolvedCopilotProvider[]> {
@@ -399,8 +1256,35 @@ export class CopilotProviderFactory {
     });
   }
 
+  async describeEmbeddingPrepareCandidates(
+    modelId: string | undefined,
+    input: string | string[],
+    options: CopilotEmbeddingOptions = {}
+  ): Promise<CopilotProviderPrepareCandidateDiagnostics[]> {
+    try {
+      const routes = await this.resolveRoutes(
+        { modelId, outputType: ModelOutputType.Embedding },
+        {},
+        {
+          ...this.getRequestContext(options),
+          featureKind: options?.featureKind ?? 'embedding',
+        }
+      );
+      return await this.describePrepareCandidates(routes, route =>
+        getProviderRuntimeHost(route.provider).prepare.embedding(
+          { modelId: route.modelId },
+          input,
+          options,
+          route.execution
+        )
+      );
+    } catch {
+      return [];
+    }
+  }
+
   async prepareRerankRoutes(
-    modelId: string,
+    modelId: string | undefined,
     request: CopilotRerankRequest,
     options: CopilotChatOptions = {}
   ): Promise<ResolvedCopilotProvider[]> {
@@ -429,6 +1313,33 @@ export class CopilotProviderFactory {
         preparedRerank,
       };
     });
+  }
+
+  async describeRerankPrepareCandidates(
+    modelId: string | undefined,
+    request: CopilotRerankRequest,
+    options: CopilotChatOptions = {}
+  ): Promise<CopilotProviderPrepareCandidateDiagnostics[]> {
+    try {
+      const routes = await this.resolveRoutes(
+        {
+          modelId,
+          outputType: ModelOutputType.Rerank,
+        },
+        {},
+        { ...this.getRequestContext(options), featureKind: 'rerank' }
+      );
+      return await this.describePrepareCandidates(routes, route =>
+        getProviderRuntimeHost(route.provider).prepare.rerank(
+          { modelId: route.modelId },
+          request,
+          options,
+          route.execution
+        )
+      );
+    } catch {
+      return [];
+    }
   }
 
   async prepareImageRoutes(

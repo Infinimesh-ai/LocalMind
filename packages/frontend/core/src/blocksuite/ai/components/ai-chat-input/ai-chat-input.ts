@@ -330,6 +330,9 @@ export class AIChatInput extends SignalWatcher(
   accessor workspaceId!: string;
 
   @property({ attribute: false })
+  accessor promptName: string | undefined;
+
+  @property({ attribute: false })
   accessor docId: string | undefined;
 
   @property({ attribute: false })
@@ -431,6 +434,10 @@ export class AIChatInput extends SignalWatcher(
 
   private get _isReasoningActive() {
     return !!this.reasoningConfig.enabled.value;
+  }
+
+  private get activePromptName() {
+    return this.promptName ?? this.session?.promptName;
   }
 
   override connectedCallback() {
@@ -627,6 +634,8 @@ export class AIChatInput extends SignalWatcher(
         <div class="chat-input-footer-spacer"></div>
         <chat-input-preference
           .session=${this.session}
+          .workspaceId=${this.workspaceId}
+          .promptName=${this.activePromptName}
           .extendedThinking=${this._isReasoningActive}
           .onExtendedThinkingChange=${this._toggleReasoning}
           .serverService=${this.serverService}
@@ -859,6 +868,7 @@ export class AIChatInput extends SignalWatcher(
       reasoning: this._isReasoningActive,
       toolsConfig: this.aiToolsConfigService.config.value,
       modelId: this.aiModelService.modelId.value,
+      promptName: this.activePromptName,
       userInfo: {
         userId: userInfo?.id,
         userName: userInfo?.name,

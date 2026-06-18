@@ -1,0 +1,137 @@
+query getCopilotPrompts($workspaceId: String) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      prompts {
+        action
+        category
+        defaultPolicy
+        fingerprint
+        modelStrategyFingerprint
+        model
+        modelConfigPath
+        modelSource
+        name
+        optionalModelsConfigPath
+        optionalModelCount
+        optionalModels
+        optionalModelsSource
+        overrideApplied
+        paramCount
+        paramKeys
+        proModelsConfigPath
+        proModelCount
+        proModelsSource
+        registryFingerprint
+        registryId
+        registryMessageCount
+        registryModified
+        registryUpdatedAt
+        registryValidationBlockingCount
+        registryValidationDetail
+        registryValidationErrorCount
+        registryValidationIssueCount
+        registryValidationIssues {
+          code
+          detail
+          fieldLabel
+          message
+          messageIndex
+          path
+          publishBlocking
+          reason
+          severity
+          source
+          sourceLocator {
+            field
+            messageIndex
+            path
+            registryFingerprint
+            registryId
+            registryUpdatedAt
+            table
+          }
+        }
+        registryValidationPublishStatus
+        registryValidationRemediations {
+          detail
+          kind
+          label
+          target
+          targetLocator {
+            field
+            messageIndex
+            path
+            registryFingerprint
+            registryId
+            registryUpdatedAt
+            table
+          }
+        }
+        registryValidationReason
+        registryValidationStatus
+        revision
+        source
+        templateFingerprint
+        versionEvidence {
+          defaultPolicy
+          fingerprint
+          modelConfigPath
+          modelStrategyFingerprint
+          optionalModelsConfigPath
+          overrideApplied
+          proModelsConfigPath
+          registryFingerprint
+          registryId
+          registryMessageCount
+          registryModified
+          registryUpdatedAt
+          registryValidationBlockingCount
+          registryValidationDetail
+          registryValidationErrorCount
+          registryValidationIssueCount
+          registryValidationIssues {
+            code
+            detail
+            fieldLabel
+            message
+            messageIndex
+            path
+            publishBlocking
+            reason
+            severity
+            source
+            sourceLocator {
+              field
+              messageIndex
+              path
+              registryFingerprint
+              registryId
+            registryUpdatedAt
+            table
+          }
+        }
+          registryValidationPublishStatus
+          registryValidationRemediations {
+            detail
+            kind
+            label
+            target
+            targetLocator {
+              field
+              messageIndex
+              path
+              registryFingerprint
+              registryId
+              registryUpdatedAt
+              table
+            }
+          }
+          registryValidationReason
+          registryValidationStatus
+          revision
+          templateFingerprint
+        }
+      }
+    }
+  }
+}

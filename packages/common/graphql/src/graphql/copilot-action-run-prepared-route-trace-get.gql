@@ -1,0 +1,49 @@
+query getCopilotActionRunPreparedRouteTrace(
+  $runId: String!
+  $workspaceId: String!
+) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      actionRunPreparedRouteTrace(runId: $runId) {
+        status
+        type
+        steps {
+          actualRouteCount
+          fallbackProviderIds
+          kind
+          requestedModelId
+          requestedModelSource
+          routeCount
+          routeCountMismatch
+          routes {
+            fallbackOrderIndex
+            modelId
+            protocol
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerHealth
+            providerHealthCheckedAt
+            providerHealthLastError
+            providerId
+            providerName
+            providerPrivacy
+            providerPriority
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerSource
+            providerType
+            requestLayer
+            routeModelAliasMatched
+            routeModelDefinitionAliases
+            routeModelDefinitionId
+            routeModelDefinitionSource
+            routeRawModelId
+            routeIndex
+          }
+          stepId
+        }
+      }
+    }
+  }
+}

@@ -40,6 +40,7 @@ import {
 import type { AffineAIPanelWidget } from '../widgets/ai-panel/ai-panel';
 import type { AIActionAnswer } from '../widgets/ai-panel/type';
 import type { EdgelessCopilotWidget } from '../widgets/edgeless-copilot';
+import { applyActionModelId } from './action-model';
 import { actionToAnswerRenderer } from './answer-renderer';
 import { EXCLUDING_COPY_ACTIONS } from './consts';
 import { bindTextStream } from './doc-handler';
@@ -213,7 +214,7 @@ function actionToStream<T extends keyof BlockSuitePresets.AIActions>(
 
           stream = (await getAIRequestService().executeAction(
             id,
-            options
+            await applyActionModelId(host, id, options)
           )) as BlockSuitePresets.TextStream;
           if (!stream) return;
           yield* stream;
@@ -245,7 +246,7 @@ function actionToStream<T extends keyof BlockSuitePresets.AIActions>(
 
         stream = (await getAIRequestService().executeAction(
           id,
-          options
+          await applyActionModelId(host, id, options)
         )) as BlockSuitePresets.TextStream;
         if (!stream) return;
         yield* stream;

@@ -78,6 +78,9 @@ export class AIChatComposer extends SignalWatcher(
   accessor workspaceId!: string;
 
   @property({ attribute: false })
+  accessor promptName: string | undefined;
+
+  @property({ attribute: false })
   accessor docId: string | undefined;
 
   @property({ attribute: false })
@@ -149,6 +152,10 @@ export class AIChatComposer extends SignalWatcher(
   @state()
   accessor embeddingCompleted = false;
 
+  private get activePromptName() {
+    return this.promptName ?? this.session?.promptName;
+  }
+
   override render() {
     return html`
       <chat-panel-chips
@@ -167,6 +174,7 @@ export class AIChatComposer extends SignalWatcher(
         .independentMode=${this.independentMode}
         .host=${this.host}
         .workspaceId=${this.workspaceId}
+        .promptName=${this.activePromptName}
         .docId=${this.docId}
         .session=${this.session}
         .runtime=${this.runtime}
@@ -493,6 +501,7 @@ export class AIChatComposer extends SignalWatcher(
       await this.runtime?.dispatch({
         type: 'addContextItem',
         item: { kind: 'doc', docId: chip.docId, state: chip.state },
+        promptName: this.activePromptName,
       });
       this.syncChipsFromRuntime();
     } catch (e) {
@@ -514,6 +523,7 @@ export class AIChatComposer extends SignalWatcher(
           blobId: chip.blobId ?? undefined,
           state: chip.state,
         },
+        promptName: this.activePromptName,
       });
       this.syncChipsFromRuntime();
     } catch (e) {
@@ -534,6 +544,7 @@ export class AIChatComposer extends SignalWatcher(
           docIds: this.docDisplayConfig.getTagPageIds(chip.tagId),
           state: chip.state,
         },
+        promptName: this.activePromptName,
       });
       this.syncChipsFromRuntime();
     } catch (e) {
@@ -554,6 +565,7 @@ export class AIChatComposer extends SignalWatcher(
           docIds: this.docDisplayConfig.getCollectionPageIds(chip.collectionId),
           state: chip.state,
         },
+        promptName: this.activePromptName,
       });
       this.syncChipsFromRuntime();
     } catch (e) {
@@ -572,6 +584,7 @@ export class AIChatComposer extends SignalWatcher(
       await this.runtime?.dispatch({
         type: 'addContextItem',
         item: { kind: 'blob', blobId: chip.sourceId, state: chip.state },
+        promptName: this.activePromptName,
       });
       this.syncChipsFromRuntime();
     } catch (e) {

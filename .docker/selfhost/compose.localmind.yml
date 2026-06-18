@@ -1,0 +1,143 @@
+name: affine-localmind
+services:
+  affine:
+    image: ${LOCALMIND_AFFINE_IMAGE:-localmind-affine:local}
+    build:
+      context: ../..
+      dockerfile: Dockerfile.localmind
+    container_name: localmind_affine_server
+    ports:
+      - '${PORT:-3011}:3010'
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      affine_migration:
+        condition: service_completed_successfully
+    volumes:
+      - ${UPLOAD_LOCATION:-./data/localmind/storage}:/root/.affine/storage
+      - ${CONFIG_LOCATION:-./data/localmind/config}:/root/.affine/config
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - REDIS_SERVER_HOST=redis
+      - DATABASE_URL=postgresql://${DB_USERNAME:-affine}:${DB_PASSWORD:-affine}@postgres:5432/${DB_DATABASE:-affine}
+      - AFFINE_INDEXER_ENABLED=false
+    restart: unless-stopped
+
+  affine_migration:
+    image: ${LOCALMIND_AFFINE_IMAGE:-localmind-affine:local}
+    build:
+      context: ../..
+      dockerfile: Dockerfile.localmind
+    container_name: localmind_affine_migration_job
+    volumes:
+      - ${UPLOAD_LOCATION:-./data/localmind/storage}:/root/.affine/storage
+      - ${CONFIG_LOCATION:-./data/localmind/config}:/root/.affine/config
+    command: ['sh', '-c', 'node ./scripts/self-host-predeploy.js']
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - REDIS_SERVER_HOST=redis
+      - DATABASE_URL=postgresql://${DB_USERNAME:-affine}:${DB_PASSWORD:-affine}@postgres:5432/${DB_DATABASE:-affine}
+      - AFFINE_INDEXER_ENABLED=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  affine_test:
+    image: ${LOCALMIND_AFFINE_TEST_IMAGE:-localmind-affine:test}
+    build:
+      context: ../..
+      dockerfile: Dockerfile.localmind
+      target: test
+    profiles:
+      - test
+    container_name: localmind_affine_test_runner
+    depends_on:
+      test_redis:
+        condition: service_healthy
+      test_postgres:
+        condition: service_healthy
+    environment:
+      - REDIS_SERVER_HOST=test_redis
+      - DATABASE_URL=postgresql://affine:affine@test_postgres:5432/affine_test
+      - AFFINE_INDEXER_ENABLED=false
+      - CI=1
+    command:
+      [
+        'sh',
+        '-lc',
+        'yarn workspace @affine/server prisma migrate deploy && NODE_OPTIONS="--import=file:///workspace/tools/cli/register.js" yarn workspace @affine/server test src/__tests__/copilot/provider-registry.spec.ts src/__tests__/copilot/provider-middleware.spec.ts src/__tests__/copilot/provider-native.spec.ts src/__tests__/copilot/prompt-service.spec.ts src/__tests__/copilot/copilot.spec.ts src/__tests__/copilot/host-services.spec.ts && yarn vitest --run packages/frontend/core/src/modules/ai-button/services/models.spec.ts',
+      ]
+
+  redis:
+    image: redis
+    container_name: localmind_affine_redis
+    healthcheck:
+      test: ['CMD', 'redis-cli', '--raw', 'incr', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  test_redis:
+    image: redis
+    profiles:
+      - test
+    container_name: localmind_affine_test_redis
+    healthcheck:
+      test: ['CMD', 'redis-cli', '--raw', 'incr', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  test_postgres:
+    image: pgvector/pgvector:pg16
+    profiles:
+      - test
+    container_name: localmind_affine_test_postgres
+    volumes:
+      - ./data/localmind-test/postgres/pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: affine
+      POSTGRES_PASSWORD: affine
+      POSTGRES_DB: affine_test
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+      POSTGRES_HOST_AUTH_METHOD: trust
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'affine', '-d', 'affine_test']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: localmind_affine_postgres
+    volumes:
+      - ${DB_DATA_LOCATION:-./data/localmind/postgres/pgdata}:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-affine}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-affine}
+      POSTGRES_DB: ${DB_DATABASE:-affine}
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+      POSTGRES_HOST_AUTH_METHOD: trust
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'pg_isready',
+          '-U',
+          '${DB_USERNAME:-affine}',
+          '-d',
+          '${DB_DATABASE:-affine}',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped

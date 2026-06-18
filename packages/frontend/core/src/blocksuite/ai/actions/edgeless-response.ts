@@ -589,10 +589,16 @@ export function actionToResponse<T extends keyof BlockSuitePresets.AIActions>(
             testId: 'answer-continue-in-chat',
             icon: ChatWithAiIcon({}),
             handler: () => {
-              reportResponse('result:continue-in-chat', host);
-              edgelesContinueResponseHandler(id, host, ctx).catch(
-                console.error
+              const actionEvent = reportResponse(
+                'result:continue-in-chat',
+                host
               );
+              edgelesContinueResponseHandler(
+                id,
+                host,
+                ctx,
+                actionEvent?.promptName
+              ).catch(console.error);
             },
           },
           ...createInsertItems(id, host, ctx, variants),
@@ -674,7 +680,7 @@ function continueDefaultHandler(host: EditorHost) {
 
 async function edgelesContinueResponseHandler<
   T extends keyof BlockSuitePresets.AIActions,
->(id: T, host: EditorHost, ctx: AIContext) {
+>(id: T, host: EditorHost, ctx: AIContext, promptName?: string) {
   let context: Partial<ChatContextValue> | null = null;
   switch (id) {
     case 'expandMindmap':
@@ -704,6 +710,7 @@ async function edgelesContinueResponseHandler<
     host,
     context,
     fromAnswer: true,
+    promptName,
   });
   panel.hide();
 }

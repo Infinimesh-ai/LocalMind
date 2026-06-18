@@ -13,6 +13,7 @@ export interface AIChatParams {
   host: EditorHost;
   input?: string;
   mode?: 'page' | 'edgeless';
+  promptName?: string;
   // Auto select and append selection to input via `Continue in AI Chat` action.
   autoSelect?: boolean;
   context?: Partial<ChatContextValue | null>;

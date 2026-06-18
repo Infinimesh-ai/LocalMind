@@ -22,6 +22,7 @@ import { StorageModule, WorkspaceBlobStorage } from '../../core/storage';
 import {
   ContextCategories,
   CopilotSessionModel,
+  EMBEDDING_DIMENSIONS,
   Models,
   WorkspaceMemberStatus,
   WorkspaceModel,
@@ -63,8 +64,9 @@ import { ImageResultHost } from '../../plugins/copilot/runtime/hosts/image-resul
 import { ModelSelectionPolicy } from '../../plugins/copilot/runtime/model-selection-policy';
 import { PromptRuntime } from '../../plugins/copilot/runtime/prompt-runtime';
 import { getProviderRuntimeHost } from '../../plugins/copilot/runtime/provider-runtime-context';
+import { TaskPolicy } from '../../plugins/copilot/runtime/task-policy';
 import { TurnOrchestrator } from '../../plugins/copilot/runtime/turn-orchestrator';
-import { ChatSessionService } from '../../plugins/copilot/session';
+import { ChatSession, ChatSessionService } from '../../plugins/copilot/session';
 import { CopilotStorage } from '../../plugins/copilot/storage';
 import { CopilotTranscriptionService } from '../../plugins/copilot/transcript';
 import { CopilotWorkspaceService } from '../../plugins/copilot/workspace';
@@ -91,6 +93,7 @@ type Context = {
   workspaceEmbedding: CopilotWorkspaceService;
   factory: CopilotProviderFactory;
   session: ChatSessionService;
+  taskPolicy: TaskPolicy;
   promptRuntime: PromptRuntime;
   chatRuntime: CapabilityRuntime;
   conversationHost: ConversationHost;
@@ -186,6 +189,7 @@ test.before(async t => {
   const factory = module.get(CopilotProviderFactory);
 
   const session = module.get(ChatSessionService);
+  const taskPolicy = module.get(TaskPolicy);
   const promptRuntime = module.get(PromptRuntime);
   const chatRuntime = module.get(CapabilityRuntime);
   const conversationHost = module.get(ConversationHost);
@@ -214,6 +218,7 @@ test.before(async t => {
   t.context.prompt = prompt;
   t.context.factory = factory;
   t.context.session = session;
+  t.context.taskPolicy = taskPolicy;
   t.context.promptRuntime = promptRuntime;
   t.context.chatRuntime = chatRuntime;
   t.context.conversationHost = conversationHost;
@@ -605,6 +610,45 @@ test('should be able to manage chat session', async t => {
       'should create new session id when reuseLatestChat is false'
     );
   }
+});
+
+test('chat session should cap prompt render budget by model context window', t => {
+  const prompt = {
+    name: `context-window-${randomUUID()}`,
+    model: 'local-chat',
+    modelSource: 'compat',
+    optionalModels: [],
+    optionalModelsSource: 'compat',
+    paramKeys: [],
+    params: {},
+    source: 'compat',
+    category: 'text',
+    proModelsSource: 'compat',
+    overrideApplied: false,
+    messages: [{ role: 'system' as const, content: 'hello' }],
+    config: { maxTokens: 8192 },
+  };
+  const capturedBudgets: number[] = [];
+  const session = new ChatSession(
+    {
+      userId,
+      sessionId: randomUUID(),
+      workspaceId: 'workspace-1',
+      docId: 'doc-1',
+      turns: [],
+      prompt,
+    },
+    (_prompt, _turns, _params, maxTokenSize) => {
+      capturedBudgets.push(maxTokenSize);
+      return [];
+    }
+  );
+
+  session.finish({}, { contextWindow: 4096 });
+  session.finish({}, { contextWindow: 16384 });
+  session.finish({});
+
+  t.deepEqual(capturedBudgets, [4096, 8192, 8192]);
 });
 
 test('should be able to update chat session prompt', async t => {
@@ -1343,7 +1387,7 @@ test('turn orchestrator should persist generated image links through image resul
   t.deepEqual(
     (chatRuntime.streamImageArtifacts as Sinon.SinonStub).firstCall.args[0],
     {
-      modelId: undefined,
+      modelId: 'test-image-model',
       inputTypes: [ModelInputType.Image],
     }
   );
@@ -2176,9 +2220,132 @@ test('model selection policy should resolve requested optional models consistent
   );
 });
 
+test('capability policy host should fallback when prompt default model is not routable', async t => {
+  const { module } = t.context;
+  const capabilityPolicy = module.get(CapabilityPolicyHost);
+  const factory = module.get(CopilotProviderFactory);
+
+  Sinon.stub(factory, 'getConfiguredModelIds').returns([
+    'openai-default/gpt-5-mini',
+  ]);
+  Sinon.stub(factory, 'resolveModelId').callsFake(async cond => {
+    if (cond.modelId === 'gemini-2.5-flash') {
+      return undefined;
+    }
+    if (cond.modelId === 'openai-default/gpt-5-mini') {
+      return 'openai-default/gpt-5-mini';
+    }
+    if (!cond.modelId && cond.outputType === ModelOutputType.Text) {
+      return 'openai-default/gpt-5-mini';
+    }
+    return undefined;
+  });
+
+  const model = await capabilityPolicy.resolveChatModel({
+    userId,
+    defaultModel: 'gemini-2.5-flash',
+    optionalModels: ['gemini-2.5-flash'],
+    paymentEnabled: false,
+  });
+  t.is(model, 'openai-default/gpt-5-mini');
+
+  const requested = await capabilityPolicy.resolveChatModel({
+    userId,
+    defaultModel: 'gemini-2.5-flash',
+    optionalModels: ['gemini-2.5-flash'],
+    requestedModelId: 'openai-default/gpt-5-mini',
+    paymentEnabled: false,
+  });
+  t.is(requested, 'openai-default/gpt-5-mini');
+});
+
+test('capability policy host should select image routes with image output type', async t => {
+  const { module } = t.context;
+  const capabilityPolicy = module.get(CapabilityPolicyHost);
+  const factory = module.get(CopilotProviderFactory);
+  const routeContext = {
+    userId,
+    workspaceId: 'workspace-1',
+    byokLeaseId: 'lease-1',
+    featureKind: 'image' as const,
+    quotaBackedRoutesAllowed: false,
+  };
+
+  Sinon.stub(factory, 'getConfiguredModelIds').returns(['local-image-model']);
+  const resolveModelId = Sinon.stub(factory, 'resolveModelId').callsFake(
+    async cond =>
+      cond.outputType === ModelOutputType.Image &&
+      cond.modelId === 'local-image-model'
+        ? 'local-image-model'
+        : undefined
+  );
+  const resolveModelContextWindow = Sinon.stub(
+    factory,
+    'resolveModelContextWindow'
+  ).resolves(undefined);
+
+  const selected = await capabilityPolicy.selectChat(
+    {
+      config: {
+        userId,
+        workspaceId: 'workspace-1',
+        sessionId: 'session-1',
+        promptConfig: {},
+      },
+      model: 'prompt-image-model',
+      optionalModels: ['prompt-image-model', 'local-image-model'],
+    } as any,
+    {
+      responseMode: 'image',
+      modelId: 'local-image-model',
+      byokLeaseId: 'lease-1',
+      quotaBackedRoutesAllowed: false,
+    }
+  );
+
+  t.is(selected.model, 'local-image-model');
+  t.like(selected.providerOptions, {
+    user: userId,
+    session: 'session-1',
+    workspace: 'workspace-1',
+    byokLeaseId: 'lease-1',
+    featureKind: 'image',
+    quotaBackedRoutesAllowed: false,
+  });
+  t.true(
+    resolveModelId.getCalls().some(call => {
+      const [cond, filter, context] = call.args;
+      return (
+        cond.modelId === 'local-image-model' &&
+        cond.outputType === ModelOutputType.Image &&
+        Object.keys(filter).length === 0 &&
+        context?.workspaceId === routeContext.workspaceId &&
+        context.byokLeaseId === routeContext.byokLeaseId &&
+        context.featureKind === routeContext.featureKind &&
+        context.quotaBackedRoutesAllowed ===
+          routeContext.quotaBackedRoutesAllowed
+      );
+    })
+  );
+  Sinon.assert.calledOnceWithExactly(
+    resolveModelContextWindow,
+    {
+      modelId: 'local-image-model',
+      outputType: ModelOutputType.Image,
+    },
+    {},
+    routeContext
+  );
+});
+
 test('capability policy host should gate pro model requests by subscription status', async t => {
   const { quotaState, subscription, module } = t.context;
   const capabilityPolicy = module.get(CapabilityPolicyHost);
+  const defaultModel = 'gpt-5-mini';
+  const proModel = 'gpt-4.1';
+  const prefixedProModel = `openai-default/${proModel}`;
+  const optionalModels = [defaultModel, proModel];
+  const proModels = [proModel];
 
   const mockStatus = (status?: SubscriptionStatus) => {
     Sinon.restore();
@@ -2196,49 +2363,37 @@ test('capability policy host should gate pro model requests by subscription stat
   {
     const model1 = await capabilityPolicy.resolveChatModel({
       userId,
-      defaultModel: 'gemini-2.5-flash',
-      optionalModels: [
-        'gemini-2.5-flash',
-        'gemini-2.5-pro',
-        'claude-sonnet-4-5@20250929',
-      ],
-      proModels: ['gemini-2.5-pro', 'claude-sonnet-4-5@20250929'],
-      requestedModelId: 'gemini-2.5-pro',
+      defaultModel,
+      optionalModels,
+      proModels,
+      requestedModelId: proModel,
       paymentEnabled: false,
     });
-    t.snapshot(model1, 'should honor requested pro model');
+    t.is(model1, proModel, 'should honor requested pro model');
 
     const model1WithPrefix = await capabilityPolicy.resolveChatModel({
       userId,
-      defaultModel: 'gemini-2.5-flash',
-      optionalModels: [
-        'gemini-2.5-flash',
-        'gemini-2.5-pro',
-        'claude-sonnet-4-5@20250929',
-      ],
-      proModels: ['gemini-2.5-pro', 'claude-sonnet-4-5@20250929'],
-      requestedModelId: 'openai-default/gemini-2.5-pro',
+      defaultModel,
+      optionalModels,
+      proModels,
+      requestedModelId: prefixedProModel,
       paymentEnabled: false,
     });
     t.is(
       model1WithPrefix,
-      'openai-default/gemini-2.5-pro',
+      prefixedProModel,
       'should honor requested prefixed pro model'
     );
 
     const model2 = await capabilityPolicy.resolveChatModel({
       userId,
-      defaultModel: 'gemini-2.5-flash',
-      optionalModels: [
-        'gemini-2.5-flash',
-        'gemini-2.5-pro',
-        'claude-sonnet-4-5@20250929',
-      ],
-      proModels: ['gemini-2.5-pro', 'claude-sonnet-4-5@20250929'],
+      defaultModel,
+      optionalModels,
+      proModels,
       requestedModelId: 'not-in-optional',
       paymentEnabled: false,
     });
-    t.snapshot(model2, 'should fallback to default model');
+    t.is(model2, defaultModel, 'should fallback to default model');
   }
 
   // payment enabled + trialing: requesting pro should fallback to default
@@ -2246,66 +2401,56 @@ test('capability policy host should gate pro model requests by subscription stat
     mockStatus(SubscriptionStatus.Trialing);
     const model3 = await capabilityPolicy.resolveChatModel({
       userId,
-      defaultModel: 'gemini-2.5-flash',
-      optionalModels: [
-        'gemini-2.5-flash',
-        'gemini-2.5-pro',
-        'claude-sonnet-4-5@20250929',
-      ],
-      proModels: ['gemini-2.5-pro', 'claude-sonnet-4-5@20250929'],
-      requestedModelId: 'gemini-2.5-pro',
+      defaultModel,
+      optionalModels,
+      proModels,
+      requestedModelId: proModel,
       paymentEnabled: true,
     });
-    t.snapshot(
+    t.is(
       model3,
+      defaultModel,
       'should fallback to default model when requesting pro model during trialing'
     );
 
     const model3WithPrefix = await capabilityPolicy.resolveChatModel({
       userId,
-      defaultModel: 'gemini-2.5-flash',
-      optionalModels: [
-        'gemini-2.5-flash',
-        'gemini-2.5-pro',
-        'claude-sonnet-4-5@20250929',
-      ],
-      proModels: ['gemini-2.5-pro', 'claude-sonnet-4-5@20250929'],
-      requestedModelId: 'openai-default/gemini-2.5-pro',
+      defaultModel,
+      optionalModels,
+      proModels,
+      requestedModelId: prefixedProModel,
       paymentEnabled: true,
     });
     t.is(
       model3WithPrefix,
-      'gemini-2.5-flash',
+      defaultModel,
       'should fallback to default model when requesting prefixed pro model during trialing'
     );
 
     const model4 = await capabilityPolicy.resolveChatModel({
       userId,
-      defaultModel: 'gemini-2.5-flash',
-      optionalModels: [
-        'gemini-2.5-flash',
-        'gemini-2.5-pro',
-        'claude-sonnet-4-5@20250929',
-      ],
-      proModels: ['gemini-2.5-pro', 'claude-sonnet-4-5@20250929'],
-      requestedModelId: 'gemini-2.5-flash',
+      defaultModel,
+      optionalModels,
+      proModels,
+      requestedModelId: defaultModel,
       paymentEnabled: true,
     });
-    t.snapshot(model4, 'should honor requested non-pro model during trialing');
+    t.is(
+      model4,
+      defaultModel,
+      'should honor requested non-pro model during trialing'
+    );
 
     const model5 = await capabilityPolicy.resolveChatModel({
       userId,
-      defaultModel: 'gemini-2.5-flash',
-      optionalModels: [
-        'gemini-2.5-flash',
-        'gemini-2.5-pro',
-        'claude-sonnet-4-5@20250929',
-      ],
-      proModels: ['gemini-2.5-pro', 'claude-sonnet-4-5@20250929'],
+      defaultModel,
+      optionalModels,
+      proModels,
       paymentEnabled: true,
     });
-    t.snapshot(
+    t.is(
       model5,
+      defaultModel,
       'should pick default model when no requested model during trialing'
     );
   }
@@ -2315,66 +2460,52 @@ test('capability policy host should gate pro model requests by subscription stat
     mockStatus(SubscriptionStatus.Active);
     const model6 = await capabilityPolicy.resolveChatModel({
       userId,
-      defaultModel: 'gemini-2.5-flash',
-      optionalModels: [
-        'gemini-2.5-flash',
-        'gemini-2.5-pro',
-        'claude-sonnet-4-5@20250929',
-      ],
-      proModels: ['gemini-2.5-pro', 'claude-sonnet-4-5@20250929'],
+      defaultModel,
+      optionalModels,
+      proModels,
       paymentEnabled: true,
     });
-    t.snapshot(
+    t.is(
       model6,
+      defaultModel,
       'should pick default model when no requested model during active'
     );
 
     const model7 = await capabilityPolicy.resolveChatModel({
       userId,
-      defaultModel: 'gemini-2.5-flash',
-      optionalModels: [
-        'gemini-2.5-flash',
-        'gemini-2.5-pro',
-        'claude-sonnet-4-5@20250929',
-      ],
-      proModels: ['gemini-2.5-pro', 'claude-sonnet-4-5@20250929'],
-      requestedModelId: 'claude-sonnet-4-5@20250929',
+      defaultModel,
+      optionalModels,
+      proModels,
+      requestedModelId: proModel,
       paymentEnabled: true,
     });
-    t.snapshot(model7, 'should honor requested pro model during active');
+    t.is(model7, proModel, 'should honor requested pro model during active');
 
     const model7WithPrefix = await capabilityPolicy.resolveChatModel({
       userId,
-      defaultModel: 'gemini-2.5-flash',
-      optionalModels: [
-        'gemini-2.5-flash',
-        'gemini-2.5-pro',
-        'claude-sonnet-4-5@20250929',
-      ],
-      proModels: ['gemini-2.5-pro', 'claude-sonnet-4-5@20250929'],
-      requestedModelId: 'openai-default/claude-sonnet-4-5@20250929',
+      defaultModel,
+      optionalModels,
+      proModels,
+      requestedModelId: prefixedProModel,
       paymentEnabled: true,
     });
     t.is(
       model7WithPrefix,
-      'openai-default/claude-sonnet-4-5@20250929',
+      prefixedProModel,
       'should honor requested prefixed pro model during active'
     );
 
     const model8 = await capabilityPolicy.resolveChatModel({
       userId,
-      defaultModel: 'gemini-2.5-flash',
-      optionalModels: [
-        'gemini-2.5-flash',
-        'gemini-2.5-pro',
-        'claude-sonnet-4-5@20250929',
-      ],
-      proModels: ['gemini-2.5-pro', 'claude-sonnet-4-5@20250929'],
+      defaultModel,
+      optionalModels,
+      proModels,
       requestedModelId: 'not-in-optional',
       paymentEnabled: true,
     });
-    t.snapshot(
+    t.is(
       model8,
+      defaultModel,
       'should fallback to default model when requesting non-optional model during active'
     );
   }
@@ -2386,10 +2517,10 @@ test('prompt runtime should resolve prefixed optional models consistently', asyn
   const promptName = randomUUID().replaceAll('-', '');
   await prompt.set(
     promptName,
-    'gemini-2.5-flash',
+    'gpt-5-mini',
     [{ role: 'user', content: '{{content}}' }],
-    { proModels: ['gemini-2.5-pro'] },
-    { optionalModels: ['gemini-2.5-pro'] }
+    { proModels: ['gpt-4.1'] },
+    { optionalModels: ['gpt-4.1'] }
   );
 
   const textStub = Sinon.stub(chatRuntime, 'text').resolves('ok');
@@ -2397,11 +2528,11 @@ test('prompt runtime should resolve prefixed optional models consistently', asyn
   await promptRuntime.runText(
     promptName,
     { content: 'hello' },
-    { modelId: 'openai-default/gemini-2.5-pro' }
+    { modelId: 'openai-default/gpt-4.1' }
   );
   t.is(
     textStub.firstCall.args[0].modelId,
-    'openai-default/gemini-2.5-pro',
+    'openai-default/gpt-4.1',
     'should preserve accepted provider-prefixed optional model'
   );
 
@@ -2412,9 +2543,411 @@ test('prompt runtime should resolve prefixed optional models consistently', asyn
   );
   t.is(
     textStub.secondCall.args[0].modelId,
-    'gemini-2.5-flash',
+    'gpt-5-mini',
     'should fallback to default model for non-optional prefixed model'
   );
+});
+
+test('prompt runtime should resolve models with action route context', async t => {
+  const { prompt, promptRuntime, chatRuntime, factory } = t.context;
+
+  const promptName = randomUUID().replaceAll('-', '');
+  await prompt.set(
+    promptName,
+    'gemini-default',
+    [{ role: 'user', content: '{{content}}' }],
+    {},
+    { optionalModels: ['gemini-default', 'local/office-fast'] }
+  );
+
+  const resolveModelId = Sinon.stub(factory, 'resolveModelId').callsFake(
+    async (cond, _filter, context) => {
+      if (
+        cond.modelId === 'gemini-default' &&
+        context?.workspaceId === 'workspace-1' &&
+        context.featureKind === 'action'
+      ) {
+        return undefined;
+      }
+
+      if (
+        !cond.modelId &&
+        cond.outputType === ModelOutputType.Text &&
+        context?.workspaceId === 'workspace-1' &&
+        context.featureKind === 'action'
+      ) {
+        return 'local/office-fast';
+      }
+
+      return cond.modelId;
+    }
+  );
+  const textStub = Sinon.stub(chatRuntime, 'text').resolves('ok');
+
+  await promptRuntime.runText(
+    promptName,
+    { content: 'hello' },
+    {
+      providerOptions: {
+        user: 'user-1',
+        workspace: 'workspace-1',
+        session: 'session-1',
+        byokLeaseId: 'lease-1',
+        quotaBackedRoutesAllowed: false,
+      },
+    }
+  );
+
+  t.is(textStub.firstCall.args[0].modelId, 'local/office-fast');
+  t.like(textStub.firstCall.args[2], {
+    user: 'user-1',
+    workspace: 'workspace-1',
+    session: 'session-1',
+    byokLeaseId: 'lease-1',
+    quotaBackedRoutesAllowed: false,
+    featureKind: 'action',
+  });
+  t.true(
+    resolveModelId.getCalls().some(call => {
+      const [cond, , context] = call.args;
+      return (
+        cond.modelId === 'gemini-default' &&
+        context?.workspaceId === 'workspace-1' &&
+        context.featureKind === 'action' &&
+        context.byokLeaseId === 'lease-1' &&
+        context.quotaBackedRoutesAllowed === false
+      );
+    })
+  );
+});
+
+test('prompt runtime should infer image route context from prompt metadata', async t => {
+  const { promptRuntime, chatRuntime, factory } = t.context;
+
+  const resolveModelId = Sinon.stub(factory, 'resolveModelId').callsFake(
+    async (cond, _filter, context) => {
+      if (cond.modelId === 'gpt-image-1' && context?.featureKind === 'image') {
+        return undefined;
+      }
+
+      if (
+        !cond.modelId &&
+        cond.outputType === ModelOutputType.Text &&
+        context?.featureKind === 'image'
+      ) {
+        return 'local/image-text';
+      }
+
+      return cond.modelId;
+    }
+  );
+  Sinon.stub(factory, 'resolveModelContextWindow').resolves(undefined);
+  const textStub = Sinon.stub(chatRuntime, 'text').resolves('ok');
+
+  await promptRuntime.runText(
+    'Generate image',
+    { content: 'draw a quiet workspace' },
+    {
+      providerOptions: {
+        user: 'user-1',
+        workspace: 'workspace-1',
+      },
+    }
+  );
+
+  t.is(textStub.firstCall.args[0].modelId, 'local/image-text');
+  t.like(textStub.firstCall.args[2], {
+    user: 'user-1',
+    workspace: 'workspace-1',
+    featureKind: 'image',
+  });
+  t.true(
+    resolveModelId.getCalls().some(call => {
+      const [cond, , context] = call.args;
+      return (
+        cond.modelId === 'gpt-image-1' &&
+        cond.outputType === ModelOutputType.Text &&
+        context?.workspaceId === 'workspace-1' &&
+        context.featureKind === 'image'
+      );
+    })
+  );
+});
+
+test('prompt runtime should resolve structured prompts with structured route policy', async t => {
+  const { prompt, promptRuntime, chatRuntime, factory } = t.context;
+
+  const promptName = randomUUID().replaceAll('-', '');
+  await prompt.set(
+    promptName,
+    'office-chat-fast',
+    [{ role: 'user', content: '{{content}}' }],
+    {},
+    { optionalModels: ['office-chat-fast', 'office-structured'] }
+  );
+
+  const resolveModelId = Sinon.stub(factory, 'resolveModelId').callsFake(
+    async (cond, _filter, context) => {
+      if (
+        cond.modelId === 'office-chat-fast' &&
+        cond.outputType === ModelOutputType.Structured &&
+        context?.featureKind === 'action'
+      ) {
+        return undefined;
+      }
+
+      if (
+        !cond.modelId &&
+        cond.outputType === ModelOutputType.Structured &&
+        context?.featureKind === 'action'
+      ) {
+        return 'local/office-structured';
+      }
+
+      return cond.modelId;
+    }
+  );
+  Sinon.stub(factory, 'resolveModelContextWindow').resolves(undefined);
+  const structuredStub = Sinon.stub(
+    chatRuntime,
+    'generateStructuredValue'
+  ).resolves({
+    value: { result: 'ok' },
+    schemaHash: 'schema-hash',
+    schemaValidationVersion: 'json-schema-v1',
+    provider: 'auto',
+    model: 'local/office-structured',
+  });
+
+  await promptRuntime.runStructured(
+    promptName,
+    { content: 'hello' },
+    {
+      responseContract: {
+        responseSchemaJson: {
+          type: 'object',
+          properties: { result: { type: 'string' } },
+          required: ['result'],
+          additionalProperties: false,
+        },
+        schemaHash: 'schema-hash',
+      },
+      providerOptions: {
+        user: 'user-1',
+        workspace: 'workspace-1',
+      },
+    }
+  );
+
+  t.is(structuredStub.firstCall.args[0].modelId, 'local/office-structured');
+  t.true(
+    resolveModelId.getCalls().some(call => {
+      const [cond, , context] = call.args;
+      return (
+        cond.modelId === 'office-chat-fast' &&
+        cond.outputType === ModelOutputType.Structured &&
+        context?.workspaceId === 'workspace-1' &&
+        context.featureKind === 'action'
+      );
+    })
+  );
+});
+
+test('prompt runtime should infer transcript route context for structured prompts', async t => {
+  const { promptRuntime, chatRuntime, factory } = t.context;
+
+  const resolveModelId = Sinon.stub(factory, 'resolveModelId').callsFake(
+    async (cond, _filter, context) => {
+      if (
+        cond.modelId === 'gemini-2.5-flash' &&
+        cond.outputType === ModelOutputType.Structured &&
+        context?.featureKind === 'transcript'
+      ) {
+        return undefined;
+      }
+
+      if (
+        !cond.modelId &&
+        cond.outputType === ModelOutputType.Structured &&
+        context?.featureKind === 'transcript'
+      ) {
+        return 'local/transcript-structured';
+      }
+
+      return cond.modelId;
+    }
+  );
+  Sinon.stub(factory, 'resolveModelContextWindow').resolves(undefined);
+  const structuredStub = Sinon.stub(
+    chatRuntime,
+    'generateStructuredValue'
+  ).resolves({
+    value: { result: 'ok' },
+    schemaHash: 'schema-hash',
+    schemaValidationVersion: 'json-schema-v1',
+    provider: 'auto',
+    model: 'local/transcript-structured',
+  });
+
+  await promptRuntime.runStructured(
+    'Transcript audio structured',
+    { content: '{}' },
+    {
+      responseContract: {
+        responseSchemaJson: {
+          type: 'object',
+          properties: { result: { type: 'string' } },
+          required: ['result'],
+          additionalProperties: false,
+        },
+        schemaHash: 'schema-hash',
+      },
+      providerOptions: {
+        user: 'user-1',
+        workspace: 'workspace-1',
+      },
+    }
+  );
+
+  t.is(structuredStub.firstCall.args[0].modelId, 'local/transcript-structured');
+  t.like(structuredStub.firstCall.args[2], {
+    user: 'user-1',
+    workspace: 'workspace-1',
+    featureKind: 'transcript',
+  });
+  t.true(
+    resolveModelId.getCalls().some(call => {
+      const [cond, , context] = call.args;
+      return (
+        cond.modelId === 'gemini-2.5-flash' &&
+        cond.outputType === ModelOutputType.Structured &&
+        context?.workspaceId === 'workspace-1' &&
+        context.featureKind === 'transcript'
+      );
+    })
+  );
+});
+
+test('prompt runtime should keep explicit route feature context', async t => {
+  const { promptRuntime, chatRuntime, factory } = t.context;
+
+  const resolveModelId = Sinon.stub(factory, 'resolveModelId').callsFake(
+    async (cond, _filter, context) => {
+      if (
+        cond.modelId === 'gemini-2.5-flash' &&
+        cond.outputType === ModelOutputType.Structured &&
+        context?.featureKind === 'action'
+      ) {
+        return undefined;
+      }
+
+      if (
+        !cond.modelId &&
+        cond.outputType === ModelOutputType.Structured &&
+        context?.featureKind === 'action'
+      ) {
+        return 'local/action-structured';
+      }
+
+      return cond.modelId;
+    }
+  );
+  Sinon.stub(factory, 'resolveModelContextWindow').resolves(undefined);
+  const structuredStub = Sinon.stub(
+    chatRuntime,
+    'generateStructuredValue'
+  ).resolves({
+    value: { result: 'ok' },
+    schemaHash: 'schema-hash',
+    schemaValidationVersion: 'json-schema-v1',
+    provider: 'auto',
+    model: 'local/action-structured',
+  });
+
+  await promptRuntime.runStructured(
+    'Transcript audio structured',
+    { content: '{}' },
+    {
+      responseContract: {
+        responseSchemaJson: {
+          type: 'object',
+          properties: { result: { type: 'string' } },
+          required: ['result'],
+          additionalProperties: false,
+        },
+        schemaHash: 'schema-hash',
+      },
+      providerOptions: {
+        user: 'user-1',
+        workspace: 'workspace-1',
+        featureKind: 'action',
+      },
+    }
+  );
+
+  t.is(structuredStub.firstCall.args[0].modelId, 'local/action-structured');
+  t.like(structuredStub.firstCall.args[2], {
+    user: 'user-1',
+    workspace: 'workspace-1',
+    featureKind: 'action',
+  });
+  t.true(
+    resolveModelId.getCalls().some(call => {
+      const [cond, , context] = call.args;
+      return (
+        cond.modelId === 'gemini-2.5-flash' &&
+        cond.outputType === ModelOutputType.Structured &&
+        context?.workspaceId === 'workspace-1' &&
+        context.featureKind === 'action'
+      );
+    })
+  );
+});
+
+test('prompt runtime should cap appended prompt session by selected model context window', async t => {
+  const { prompt, promptRuntime, chatRuntime, factory } = t.context;
+
+  const promptName = randomUUID().replaceAll('-', '');
+  await prompt.set(
+    promptName,
+    'local/office-fast',
+    [{ role: 'system', content: 'summary' }],
+    { maxTokens: 8192 },
+    { optionalModels: ['local/office-fast'] }
+  );
+
+  Sinon.stub(factory, 'resolveModelId').callsFake(async cond => cond.modelId);
+  Sinon.stub(factory, 'resolveModelContextWindow').resolves(4096);
+  const renderSession = Sinon.stub(prompt, 'renderSession').returns([
+    { role: 'system', content: 'summary' },
+    { role: 'user', content: 'recent turn' },
+  ]);
+  const textStub = Sinon.stub(chatRuntime, 'text').resolves('ok');
+
+  await promptRuntime.runText(
+    promptName,
+    {},
+    {
+      appendMessages: [{ role: 'user', content: 'recent turn' }],
+      providerOptions: {
+        session: 'session-1',
+        workspace: 'workspace-1',
+      },
+    }
+  );
+
+  Sinon.assert.calledOnceWithExactly(
+    renderSession,
+    Sinon.match.has('name', promptName),
+    [{ role: 'user', content: 'recent turn' }],
+    {},
+    4096,
+    'session-1'
+  );
+  t.deepEqual(textStub.firstCall.args[1], [
+    { role: 'system', content: 'summary' },
+    { role: 'user', content: 'recent turn' },
+  ]);
 });
 
 test('resolver models should use resolved provider metadata for display names', async t => {
@@ -2436,11 +2969,771 @@ test('resolver models should use resolved provider metadata for display names', 
         providerId: 'openai-default',
         rawModelId: cond.modelId,
         modelId: cond.modelId,
+        fallbackProviderIds: ['openai-default', 'private-cloud-backup'],
         profile: {
           id: 'openai-default',
           type: CopilotProviderType.OpenAI,
           enabled: true,
           priority: 10,
+          privacy: 'private_cloud',
+          health: { status: 'degraded' },
+          config: {},
+          middleware: {},
+        },
+        provider: {
+          resolveModel: (modelId: string) => ({
+            id: modelId,
+            name: `Resolved ${modelId}`,
+          }),
+        },
+      }) as any
+  );
+  Sinon.stub(factory, 'describeRoutePolicy').returns({
+    enabled: true,
+    featureKind: 'chat',
+    allowedProviderIds: ['openai-default'],
+    allowedPrivacy: ['private_cloud'],
+    preferredPrivacy: ['private_cloud', 'cloud'],
+  });
+
+  const models = await resolver.models(promptName);
+
+  t.deepEqual(models.optionalModels, [
+    {
+      id: 'gemini-2.5-flash',
+      name: 'Resolved gemini-2.5-flash',
+      sources: ['default', 'prompt'],
+      promptName,
+      promptSource: 'compat',
+      promptCategory: 'text',
+      promptModelSource: 'compat',
+      promptModelSources: [
+        {
+          candidateSource: 'default',
+          modelSource: 'compat',
+        },
+        {
+          candidateSource: 'prompt',
+          modelSource: 'compat',
+        },
+      ],
+      promptOverrideApplied: false,
+      providerId: 'openai-default',
+      providerProfileId: 'openai-default',
+      routeModelId: 'gemini-2.5-flash',
+      routeFallbackProviderIds: ['openai-default', 'private-cloud-backup'],
+      providerType: CopilotProviderType.OpenAI,
+      providerPrivacy: 'private_cloud',
+      providerHealth: 'degraded',
+      providerPriority: 10,
+      routePolicyEnabled: true,
+      routePolicyFeatureKind: 'chat',
+      routePolicyAllowedProviderIds: ['openai-default'],
+      routePolicyAllowedPrivacy: ['private_cloud'],
+      routePolicyPreferredPrivacy: ['private_cloud', 'cloud'],
+    },
+    {
+      id: 'gemini-2.5-pro',
+      name: 'Resolved gemini-2.5-pro',
+      sources: ['prompt'],
+      promptName,
+      promptSource: 'compat',
+      promptCategory: 'text',
+      promptModelSource: 'compat',
+      promptModelSources: [
+        {
+          candidateSource: 'prompt',
+          modelSource: 'compat',
+        },
+      ],
+      promptOverrideApplied: false,
+      providerId: 'openai-default',
+      providerProfileId: 'openai-default',
+      routeModelId: 'gemini-2.5-pro',
+      routeFallbackProviderIds: ['openai-default', 'private-cloud-backup'],
+      providerType: CopilotProviderType.OpenAI,
+      providerPrivacy: 'private_cloud',
+      providerHealth: 'degraded',
+      providerPriority: 10,
+      routePolicyEnabled: true,
+      routePolicyFeatureKind: 'chat',
+      routePolicyAllowedProviderIds: ['openai-default'],
+      routePolicyAllowedPrivacy: ['private_cloud'],
+      routePolicyPreferredPrivacy: ['private_cloud', 'cloud'],
+    },
+  ]);
+  t.deepEqual(models.proModels, [
+    {
+      id: 'gemini-2.5-pro',
+      name: 'Resolved gemini-2.5-pro',
+      sources: ['pro'],
+      promptName,
+      promptSource: 'compat',
+      promptCategory: 'text',
+      promptModelSource: 'compat',
+      promptModelSources: [
+        {
+          candidateSource: 'pro',
+          modelSource: 'compat',
+        },
+      ],
+      promptOverrideApplied: false,
+      providerId: 'openai-default',
+      providerProfileId: 'openai-default',
+      routeModelId: 'gemini-2.5-pro',
+      routeFallbackProviderIds: ['openai-default', 'private-cloud-backup'],
+      providerType: CopilotProviderType.OpenAI,
+      providerPrivacy: 'private_cloud',
+      providerHealth: 'degraded',
+      providerPriority: 10,
+      routePolicyEnabled: true,
+      routePolicyFeatureKind: 'chat',
+      routePolicyAllowedProviderIds: ['openai-default'],
+      routePolicyAllowedPrivacy: ['private_cloud'],
+      routePolicyPreferredPrivacy: ['private_cloud', 'cloud'],
+    },
+  ]);
+  t.true(
+    resolveProvider.alwaysCalledWithMatch({
+      outputType: ModelOutputType.Text,
+    })
+  );
+  t.true(
+    resolveProvider.alwaysCalledWithMatch(Sinon.match.any, Sinon.match.any, {
+      featureKind: 'chat',
+    })
+  );
+});
+
+test('resolver prompts should expose safe prompt catalog metadata', async t => {
+  const { module } = t.context;
+  const resolver = module.get(CopilotResolver);
+
+  const prompts = await resolver.prompts();
+  const chat = prompts.find(prompt => prompt.name === 'Chat With AFFiNE AI');
+
+  t.true(prompts.length > 0);
+  t.truthy(chat);
+  t.is(chat?.source, 'built_in');
+  t.is(chat?.category, 'text');
+  t.is(chat?.modelSource, 'built_in');
+  t.is(chat?.modelConfigPath, undefined);
+  t.true(Array.isArray(chat?.optionalModels));
+  t.is(chat?.optionalModelsSource, 'built_in');
+  t.is(chat?.optionalModelsConfigPath, undefined);
+  t.is(chat?.optionalModelCount, chat?.optionalModels.length);
+  t.is(chat?.proModelsSource, 'built_in');
+  t.is(chat?.proModelsConfigPath, undefined);
+  t.is(chat?.paramCount, chat?.paramKeys.length);
+  t.false('messages' in (chat as object));
+  t.false('config' in (chat as object));
+});
+
+test('resolver action run prepared route trace should expose sanitized workspace scoped diagnostics', async t => {
+  const { models, module, workspace } = t.context;
+  const resolver = module.get(CopilotResolver);
+  const ws = await workspace.create(userId);
+  const run = await models.copilotActionRun.create({
+    userId,
+    workspaceId: ws.id,
+    actionId: 'mindmap.generate',
+    actionVersion: 'v1',
+  });
+
+  await models.copilotActionRun.complete(run.id, {
+    status: 'succeeded',
+    trace: {
+      native: { messages: [{ role: 'user', content: 'secret prompt' }] },
+      preparedRoutes: {
+        type: 'prepared_routes',
+        status: 'succeeded',
+        steps: [
+          {
+            stepId: 'generate',
+            kind: 'structured',
+            routeCount: 1,
+            requestedModelId: 'local/office-structured',
+            requestedModelSource: 'prompt_preference',
+            fallbackProviderIds: ['ollama-main', 'openai-default'],
+            routes: [
+              {
+                providerId: 'ollama-main',
+                modelId: 'local/office-structured',
+                routeIndex: 0,
+                fallbackOrderIndex: 0,
+                protocol: 'openai_chat',
+                requestLayer: 'chat_completions',
+                providerConfiguredModelCount: 2,
+                providerConfiguredModelIds: [
+                  'local/office-structured',
+                  'office-structured',
+                ],
+                providerHealth: 'healthy',
+                providerHealthCheckedAt: '2026-06-16T09:30:00.000Z',
+                providerName: 'Local Ollama',
+                providerPrivacy: 'local',
+                providerPriority: 10,
+                providerProfileConfigPath:
+                  'copilot.providers.profiles[id=ollama-main]',
+                providerProfileId: 'ollama-main',
+                providerProfileSource: 'configured',
+                providerSource: 'configured',
+                providerType: 'openaiCompatible',
+                routeModelAliasMatched: true,
+                routeModelDefinitionAliases: ['office-structured'],
+                routeModelDefinitionId: 'local/office-structured',
+                routeModelDefinitionSource: 'provider_profile',
+                routeRawModelId: 'qwen3:32b',
+                backendConfig: {
+                  base_url: 'http://host.docker.internal:11434/v1',
+                  auth_token: 'should-not-be-returned',
+                },
+              },
+            ],
+          },
+        ],
+      },
+    },
+  });
+
+  const trace = await resolver.actionRunPreparedRouteTrace(
+    { id: userId } as any,
+    { workspaceId: ws.id },
+    run.id
+  );
+
+  t.deepEqual(trace, {
+    type: 'prepared_routes',
+    status: 'succeeded',
+    steps: [
+      {
+        stepId: 'generate',
+        kind: 'structured',
+        routeCount: 1,
+        actualRouteCount: 1,
+        routeCountMismatch: false,
+        requestedModelId: 'local/office-structured',
+        requestedModelSource: 'prompt_preference',
+        fallbackProviderIds: ['ollama-main', 'openai-default'],
+        routes: [
+          {
+            providerId: 'ollama-main',
+            modelId: 'local/office-structured',
+            routeIndex: 0,
+            fallbackOrderIndex: 0,
+            protocol: 'openai_chat',
+            requestLayer: 'chat_completions',
+            providerConfiguredModelCount: 2,
+            providerConfiguredModelIds: [
+              'local/office-structured',
+              'office-structured',
+            ],
+            providerHealth: 'healthy',
+            providerHealthCheckedAt: '2026-06-16T09:30:00.000Z',
+            providerName: 'Local Ollama',
+            providerPrivacy: 'local',
+            providerPriority: 10,
+            providerProfileConfigPath:
+              'copilot.providers.profiles[id=ollama-main]',
+            providerProfileId: 'ollama-main',
+            providerProfileSource: 'configured',
+            providerSource: 'configured',
+            providerType: 'openaiCompatible',
+            routeModelAliasMatched: true,
+            routeModelDefinitionAliases: ['office-structured'],
+            routeModelDefinitionId: 'local/office-structured',
+            routeModelDefinitionSource: 'provider_profile',
+            routeRawModelId: 'qwen3:32b',
+          },
+        ],
+      },
+    ],
+  });
+});
+
+test('resolver action run prepared route trace should return null outside current workspace scope', async t => {
+  const { models, module, workspace } = t.context;
+  const resolver = module.get(CopilotResolver);
+  const ws = await workspace.create(userId);
+  const otherWs = await workspace.create(userId);
+  const run = await models.copilotActionRun.create({
+    userId,
+    workspaceId: otherWs.id,
+    actionId: 'image.filter.sketch',
+    actionVersion: 'v1',
+  });
+
+  await models.copilotActionRun.complete(run.id, {
+    status: 'succeeded',
+    trace: {
+      type: 'prepared_routes',
+      status: 'succeeded',
+      steps: [
+        {
+          stepId: 'generate-image',
+          kind: 'image',
+          fallbackProviderIds: ['openai-default'],
+          routes: [{ providerId: 'openai-default', modelId: 'gpt-image-1' }],
+        },
+      ],
+    },
+  });
+
+  t.is(
+    await resolver.actionRunPreparedRouteTrace(
+      { id: userId } as any,
+      { workspaceId: ws.id },
+      run.id
+    ),
+    null
+  );
+});
+
+test('resolver action runs should expose recent sanitized workspace scoped diagnostics', async t => {
+  const { models, module, workspace } = t.context;
+  const resolver = module.get(CopilotResolver);
+  const ws = await workspace.create(userId);
+  const otherWs = await workspace.create(userId);
+  const run = await models.copilotActionRun.create({
+    userId,
+    workspaceId: ws.id,
+    docId: 'doc-1',
+    actionId: 'mindmap.generate',
+    actionVersion: 'v1',
+  });
+  await models.copilotActionRun.complete(run.id, {
+    status: 'succeeded',
+    result: { secret: 'should-not-be-returned' },
+    artifacts: [{ id: 'artifact-1' }],
+    trace: {
+      native: { messages: [{ role: 'user', content: 'secret prompt' }] },
+      preparedRoutes: {
+        type: 'prepared_routes',
+        status: 'succeeded',
+        steps: [
+          {
+            stepId: 'generate',
+            kind: 'structured',
+            routeCount: 1,
+            requestedModelId: 'local/office-structured',
+            requestedModelSource: 'prompt_preference',
+            fallbackProviderIds: ['ollama-main'],
+            routes: [
+              {
+                providerId: 'ollama-main',
+                modelId: 'local/office-structured',
+                routeIndex: 0,
+                fallbackOrderIndex: 0,
+                protocol: 'openai_chat',
+                requestLayer: 'chat_completions',
+                backendConfig: {
+                  authToken: 'should-not-be-returned',
+                },
+              },
+            ],
+          },
+        ],
+      },
+    },
+  });
+  const failedRun = await models.copilotActionRun.create({
+    userId,
+    workspaceId: ws.id,
+    actionId: 'image.filter.sketch',
+    actionVersion: 'v1',
+    retryOf: run.id,
+  });
+  await models.copilotActionRun.complete(failedRun.id, {
+    status: 'failed',
+    errorCode: 'action_bridge_stream_error',
+    trace: { type: 'error', status: 'failed' },
+  });
+  await models.copilotActionRun.create({
+    userId,
+    workspaceId: otherWs.id,
+    actionId: 'other.workspace',
+    actionVersion: 'v1',
+  });
+
+  const diagnostics = await resolver.actionRuns(
+    { id: userId } as any,
+    { workspaceId: ws.id },
+    8
+  );
+
+  t.is(diagnostics.length, 2);
+  t.deepEqual(
+    diagnostics.map(item => item.id).sort(),
+    [run.id, failedRun.id].sort()
+  );
+  t.like(
+    diagnostics.find(item => item.id === run.id),
+    {
+      actionId: 'mindmap.generate',
+      actionVersion: 'v1',
+      status: 'succeeded',
+      attempt: 1,
+      retryOf: null,
+      docId: 'doc-1',
+      sessionId: null,
+      errorCode: null,
+      hasPreparedRouteTrace: true,
+      preparedRouteStepCount: 1,
+      preparedRouteCount: 1,
+      preparedRouteActualCount: 1,
+      preparedRouteStepRouteCounts: ['generate -> 1/1'],
+      preparedRouteStepRouteCountMismatches: [],
+      preparedRouteStepIds: ['generate'],
+      preparedRouteKinds: ['structured'],
+      preparedRouteModelIds: ['local/office-structured'],
+      preparedRouteProtocols: ['openai_chat'],
+      preparedRouteOrder: ['0 -> ollama-main/local/office-structured'],
+      preparedRouteFallbackOrder: ['0 -> ollama-main/local/office-structured'],
+      preparedRouteStepFallbackProviderIds: ['generate -> ollama-main'],
+      preparedRouteProviderIds: ['ollama-main'],
+      preparedRouteRequestedModelIds: ['local/office-structured'],
+      preparedRouteRequestedModelSources: ['prompt_preference'],
+      preparedRouteStepRequestedModelSources: ['generate -> prompt_preference'],
+      preparedRouteRequestLayers: ['chat_completions'],
+      preparedRouteStepProtocols: ['generate -> openai_chat'],
+      preparedRouteStepRequestLayers: ['generate -> chat_completions'],
+      preparedRouteStepOrder: [
+        'generate / 0 -> ollama-main/local/office-structured',
+      ],
+      preparedRouteStepFallbackOrder: [
+        'generate / 0 -> ollama-main/local/office-structured',
+      ],
+      preparedRouteFallbackProviderIds: ['ollama-main'],
+      preparedRouteTargets: ['ollama-main/local/office-structured'],
+      preparedRouteStepTargets: [
+        'generate -> ollama-main/local/office-structured',
+      ],
+      preparedRouteRequestedTargets: [
+        'local/office-structured -> ollama-main/local/office-structured',
+      ],
+      preparedRouteStepRequestedTargets: [
+        'generate / local/office-structured -> ollama-main/local/office-structured',
+      ],
+    }
+  );
+  t.like(
+    diagnostics.find(item => item.id === failedRun.id),
+    {
+      actionId: 'image.filter.sketch',
+      status: 'failed',
+      retryOf: run.id,
+      errorCode: 'action_bridge_stream_error',
+      hasPreparedRouteTrace: false,
+      preparedRouteStepCount: 0,
+      preparedRouteCount: 0,
+      preparedRouteActualCount: 0,
+      preparedRouteStepRouteCounts: [],
+      preparedRouteStepRouteCountMismatches: [],
+      preparedRouteStepIds: [],
+      preparedRouteKinds: [],
+      preparedRouteModelIds: [],
+      preparedRouteOrder: [],
+      preparedRouteFallbackOrder: [],
+      preparedRouteStepFallbackProviderIds: [],
+      preparedRouteProtocols: [],
+      preparedRouteProviderIds: [],
+      preparedRouteRequestedModelIds: [],
+      preparedRouteRequestedModelSources: [],
+      preparedRouteStepRequestedModelSources: [],
+      preparedRouteRequestLayers: [],
+      preparedRouteStepProtocols: [],
+      preparedRouteStepOrder: [],
+      preparedRouteStepFallbackOrder: [],
+      preparedRouteStepRequestLayers: [],
+      preparedRouteFallbackProviderIds: [],
+      preparedRouteTargets: [],
+      preparedRouteStepTargets: [],
+      preparedRouteRequestedTargets: [],
+      preparedRouteStepRequestedTargets: [],
+    }
+  );
+  t.false('trace' in diagnostics[0]);
+  t.false('inputSnapshot' in diagnostics[0]);
+  t.false('result' in diagnostics[0]);
+  t.false('artifacts' in diagnostics[0]);
+});
+
+test('resolver models should expose configured model limits metadata', async t => {
+  const { prompt, factory, module } = t.context;
+  const resolver = module.get(CopilotResolver);
+
+  const promptName = randomUUID().replaceAll('-', '');
+  await prompt.set(
+    promptName,
+    'ollama-main/office-chat-fast',
+    [{ role: 'system', content: 'test' }],
+    undefined,
+    { optionalModels: ['ollama-main/office-chat-fast'] }
+  );
+
+  Sinon.stub(factory, 'getConfiguredModelIds').returns([]);
+  Sinon.stub(factory, 'resolveModelId').callsFake(async cond => cond.modelId);
+  Sinon.stub(factory, 'describeRoutePolicy').returns({
+    enabled: true,
+    featureKind: 'chat',
+    preferredPrivacy: ['local', 'private_cloud', 'cloud'],
+  });
+  Sinon.stub(factory, 'resolveProvider').callsFake(async cond => {
+    if (cond.modelId !== 'ollama-main/office-chat-fast') {
+      return null;
+    }
+    return {
+      providerId: 'ollama-main',
+      rawModelId: cond.modelId,
+      modelId: 'office-chat-fast',
+      fallbackProviderIds: ['ollama-main', 'openai-default'],
+      profile: {
+        id: 'ollama-main',
+        displayName: 'Local Ollama',
+        type: CopilotProviderType.OpenAICompatible,
+        enabled: true,
+        priority: 10,
+        privacy: 'local',
+        health: { status: 'healthy' },
+        config: {},
+        middleware: {},
+      },
+      provider: {
+        resolveModel: (modelId: string) => ({
+          id: 'qwen3:32b',
+          name: `Resolved ${modelId}`,
+          backendKind: 'openai_chat',
+          canonicalKey: 'office-chat-fast',
+          protocol: 'openai_chat',
+          requestLayer: 'chat_completions',
+          behaviorFlags: ['disable_parallel_tool_calls'],
+          capabilities: [
+            {
+              input: [ModelInputType.Text],
+              output: [ModelOutputType.Text],
+            },
+            {
+              input: [ModelInputType.Text, ModelInputType.Image],
+              output: [ModelOutputType.Structured],
+            },
+          ],
+          limits: {
+            contextWindow: 32768,
+            maxOutputTokens: 4096,
+            embeddingDimensions: 1024,
+          },
+          cost: {
+            inputPer1M: 0.2,
+            outputPer1M: 0.8,
+          },
+        }),
+      },
+    } as any;
+  });
+
+  const models = await resolver.models(promptName);
+
+  t.is(models.defaultModel, 'ollama-main/office-chat-fast');
+  t.is(models.promptDefaultModel, 'ollama-main/office-chat-fast');
+  t.is(models.defaultModelSource, 'prompt');
+  t.is(models.defaultModelFallbackReason, undefined);
+  t.deepEqual(models.optionalModels, [
+    {
+      id: 'ollama-main/office-chat-fast',
+      name: 'Resolved office-chat-fast',
+      sources: ['default', 'prompt'],
+      promptName,
+      promptSource: 'compat',
+      promptCategory: 'text',
+      promptModelSource: 'compat',
+      promptModelSources: [
+        {
+          candidateSource: 'default',
+          modelSource: 'compat',
+        },
+        {
+          candidateSource: 'prompt',
+          modelSource: 'compat',
+        },
+      ],
+      promptOverrideApplied: false,
+      providerId: 'ollama-main',
+      providerName: 'Local Ollama',
+      providerProfileId: 'ollama-main',
+      routeModelId: 'qwen3:32b',
+      routeFallbackProviderIds: ['ollama-main', 'openai-default'],
+      routeBackendKind: 'openai_chat',
+      routeCanonicalModelKey: 'office-chat-fast',
+      routeModelDefinitionId: 'office-chat-fast',
+      routeModelDefinitionSource: 'native_registry',
+      routeProtocol: 'openai_chat',
+      routeRawModelId: 'qwen3:32b',
+      routeRequestLayer: 'chat_completions',
+      routeBehaviorFlags: ['disable_parallel_tool_calls'],
+      routeInputTypes: [ModelInputType.Text, ModelInputType.Image],
+      routeOutputTypes: [ModelOutputType.Text, ModelOutputType.Structured],
+      providerType: CopilotProviderType.OpenAICompatible,
+      providerPrivacy: 'local',
+      providerHealth: 'healthy',
+      providerPriority: 10,
+      routePolicyEnabled: true,
+      routePolicyFeatureKind: 'chat',
+      routePolicyPreferredPrivacy: ['local', 'private_cloud', 'cloud'],
+      contextWindow: 32768,
+      maxOutputTokens: 4096,
+      embeddingDimensions: 1024,
+      costInputPer1M: 0.2,
+      costOutputPer1M: 0.8,
+    },
+  ]);
+});
+
+test('resolver models should include configured provider models and fallback default', async t => {
+  const { prompt, factory, module } = t.context;
+  const resolver = module.get(CopilotResolver);
+
+  const promptName = randomUUID().replaceAll('-', '');
+  await prompt.set(
+    promptName,
+    'gemini-2.5-flash',
+    [{ role: 'system', content: 'test' }],
+    undefined,
+    { optionalModels: ['gemini-2.5-flash'] }
+  );
+
+  Sinon.stub(factory, 'getConfiguredModelIds').returns([
+    'openai-default/gpt-5-mini',
+  ]);
+  Sinon.stub(factory, 'describeRoutePolicy').returns({
+    enabled: true,
+    featureKind: 'chat',
+  });
+  Sinon.stub(factory, 'resolveModelId').callsFake(async cond => {
+    if (cond.modelId === 'gemini-2.5-flash') {
+      return undefined;
+    }
+    if (!cond.modelId && cond.outputType === ModelOutputType.Text) {
+      return 'openai-default/gpt-5-mini';
+    }
+    if (cond.modelId === 'openai-default/gpt-5-mini') {
+      return 'openai-default/gpt-5-mini';
+    }
+    return cond.modelId;
+  });
+  Sinon.stub(factory, 'resolveProvider').callsFake(async cond => {
+    if (cond.modelId !== 'openai-default/gpt-5-mini') {
+      return null;
+    }
+    return {
+      providerId: 'openai-default',
+      rawModelId: cond.modelId,
+      modelId: String(cond.modelId).replace('openai-default/', ''),
+      fallbackProviderIds: ['openai-default'],
+      profile: {
+        id: 'openai-default',
+        type: CopilotProviderType.OpenAI,
+        enabled: true,
+        priority: 10,
+        privacy: 'cloud',
+        health: { status: 'healthy' },
+        config: {},
+        middleware: {},
+      },
+      provider: {
+        resolveModel: (modelId: string) => ({
+          id: modelId,
+          name: `Resolved ${modelId}`,
+        }),
+      },
+    } as any;
+  });
+
+  const models = await resolver.models(promptName);
+
+  t.is(models.defaultModel, 'openai-default/gpt-5-mini');
+  t.is(models.promptDefaultModel, 'gemini-2.5-flash');
+  t.is(models.defaultModelSource, 'fallback_route');
+  t.is(models.defaultModelFallbackReason, 'prompt_default_unavailable');
+  t.deepEqual(
+    models.optionalModels.map(model => ({
+      id: model.id,
+      promptModelSources: model.promptModelSources,
+      routeModelId: model.routeModelId,
+      sources: model.sources,
+    })),
+    [
+      {
+        id: 'openai-default/gpt-5-mini',
+        promptModelSources: [
+          {
+            candidateSource: 'default',
+            modelSource: 'compat',
+          },
+          {
+            candidateSource: 'registry',
+          },
+        ],
+        routeModelId: 'gpt-5-mini',
+        sources: ['default', 'registry'],
+      },
+    ]
+  );
+});
+
+test('resolver models should inherit workspace route policy context from copilot parent', async t => {
+  const { prompt, factory, module } = t.context;
+  const resolver = module.get(CopilotResolver);
+
+  const promptName = randomUUID().replaceAll('-', '');
+  await prompt.set(
+    promptName,
+    'ollama-main/office-chat-fast',
+    [{ role: 'system', content: 'test' }],
+    undefined,
+    { optionalModels: ['ollama-main/office-chat-fast'] }
+  );
+
+  Sinon.stub(factory, 'getConfiguredModelIds').returns([]);
+  const describeRoutePolicy = Sinon.stub(
+    factory,
+    'describeRoutePolicy'
+  ).callsFake(context => {
+    if (context.featureKind === 'chat') {
+      return {
+        enabled: true,
+        featureKind: 'chat',
+        workspaceId: 'workspace-local-only',
+        allowedPrivacy: ['local'],
+        preferredPrivacy: ['local'],
+      };
+    }
+    return {
+      enabled: true,
+      featureKind: context.featureKind,
+      workspaceId: 'workspace-local-only',
+      preferredPrivacy: ['local'],
+    };
+  });
+  Sinon.stub(factory, 'resolveModelId').callsFake(async cond => cond.modelId);
+  const resolveProvider = Sinon.stub(factory, 'resolveProvider').callsFake(
+    async cond =>
+      ({
+        providerId: 'ollama-main',
+        rawModelId: cond.modelId,
+        modelId: 'office-chat-fast',
+        fallbackProviderIds: ['ollama-main'],
+        profile: {
+          id: 'ollama-main',
+          displayName: 'Local Ollama',
+          type: CopilotProviderType.OpenAICompatible,
+          enabled: true,
+          priority: 10,
+          privacy: 'local',
+          health: {
+            status: 'healthy',
+            lastCheckedAt: '2026-06-15T10:00:00.000Z',
+            lastError: 'previous timeout',
+          },
           config: {},
           middleware: {},
         },
@@ -2453,18 +3746,788 @@ test('resolver models should use resolved provider metadata for display names', 
       }) as any
   );
 
-  const models = await resolver.models(promptName);
+  const models = await resolver.models(promptName, {
+    workspaceId: 'workspace-local-only',
+  });
 
-  t.deepEqual(models.optionalModels, [
-    { id: 'gemini-2.5-flash', name: 'Resolved gemini-2.5-flash' },
-    { id: 'gemini-2.5-pro', name: 'Resolved gemini-2.5-pro' },
-  ]);
-  t.deepEqual(models.proModels, [
-    { id: 'gemini-2.5-pro', name: 'Resolved gemini-2.5-pro' },
-  ]);
   t.true(
-    resolveProvider.alwaysCalledWithMatch({
-      outputType: ModelOutputType.Text,
+    describeRoutePolicy.calledWithMatch({
+      featureKind: 'chat',
+      workspaceId: 'workspace-local-only',
     })
+  );
+  t.true(
+    resolveProvider.alwaysCalledWithMatch(Sinon.match.any, Sinon.match.any, {
+      featureKind: 'chat',
+      workspaceId: 'workspace-local-only',
+    })
+  );
+  t.deepEqual(models.optionalModels, [
+    {
+      id: 'ollama-main/office-chat-fast',
+      name: 'Resolved office-chat-fast',
+      sources: ['default', 'prompt'],
+      promptName,
+      promptSource: 'compat',
+      promptCategory: 'text',
+      promptModelSource: 'compat',
+      promptModelSources: [
+        {
+          candidateSource: 'default',
+          modelSource: 'compat',
+        },
+        {
+          candidateSource: 'prompt',
+          modelSource: 'compat',
+        },
+      ],
+      promptOverrideApplied: false,
+      providerId: 'ollama-main',
+      providerName: 'Local Ollama',
+      providerProfileId: 'ollama-main',
+      routeModelId: 'office-chat-fast',
+      routeFallbackProviderIds: ['ollama-main'],
+      providerType: CopilotProviderType.OpenAICompatible,
+      providerPrivacy: 'local',
+      providerHealth: 'healthy',
+      providerHealthCheckedAt: '2026-06-15T10:00:00.000Z',
+      providerHealthLastError: 'previous timeout',
+      providerPriority: 10,
+      routePolicyEnabled: true,
+      routePolicyFeatureKind: 'chat',
+      routePolicyWorkspaceId: 'workspace-local-only',
+      routePolicyAllowedPrivacy: ['local'],
+      routePolicyPreferredPrivacy: ['local'],
+    },
+  ]);
+});
+
+test('resolver models should expose workspace task route diagnostics', async t => {
+  const { prompt, factory, module, chatRuntime, taskPolicy } = t.context;
+  const resolver = module.get(CopilotResolver);
+
+  const promptName = randomUUID().replaceAll('-', '');
+  await prompt.set(
+    promptName,
+    'ollama-main/office-chat-fast',
+    [{ role: 'system', content: 'test' }],
+    undefined,
+    { optionalModels: ['ollama-main/office-chat-fast'] }
+  );
+
+  Sinon.stub(factory, 'getConfiguredModelIds').returns([]);
+  Sinon.stub(factory, 'describeRoutePolicy').callsFake(context => {
+    if (context.featureKind === 'workspace_indexing') {
+      return {
+        enabled: true,
+        featureKind: 'workspace_indexing',
+        workspaceId: 'workspace-local-only',
+        allowedProviderIds: ['ollama-main', 'openai-default'],
+        blockedProviderIds: ['blocked-cloud'],
+        allowedPrivacy: ['local', 'private_cloud'],
+        preferredPrivacy: ['local', 'private_cloud'],
+      };
+    }
+    if (context.featureKind === 'rerank') {
+      return {
+        enabled: true,
+        featureKind: 'rerank',
+        workspaceId: 'workspace-local-only',
+        allowedProviderIds: ['ollama-main'],
+        blockedProviderIds: ['blocked-cloud'],
+        allowedPrivacy: ['local'],
+        preferredPrivacy: ['local'],
+      };
+    }
+    return {
+      enabled: true,
+      featureKind: 'chat',
+    };
+  });
+  Sinon.stub(factory, 'describeRoutePolicyCandidates').callsFake(context => {
+    if (context.featureKind === 'workspace_indexing') {
+      return [
+        {
+          providerId: 'ollama-main',
+          privacy: 'local',
+          health: 'healthy',
+          available: true,
+          allowed: true,
+          reasons: ['candidate_allowed', 'privacy_preferred'],
+        },
+        {
+          providerId: 'openai-default',
+          privacy: 'private_cloud',
+          health: 'degraded',
+          available: true,
+          allowed: true,
+          reasons: ['candidate_allowed', 'privacy_preferred'],
+        },
+        {
+          providerId: 'blocked-cloud',
+          privacy: 'cloud',
+          health: 'healthy',
+          available: true,
+          allowed: false,
+          reasons: ['provider_blocked', 'privacy_not_allowed'],
+        },
+      ];
+    }
+    if (context.featureKind === 'rerank') {
+      return [
+        {
+          providerId: 'ollama-main',
+          privacy: 'local',
+          health: 'healthy',
+          available: true,
+          allowed: true,
+          reasons: ['candidate_allowed', 'privacy_preferred'],
+        },
+        {
+          providerId: 'blocked-cloud',
+          privacy: 'cloud',
+          health: 'down',
+          available: false,
+          allowed: false,
+          reasons: [
+            'provider_unavailable',
+            'provider_blocked',
+            'privacy_not_allowed',
+          ],
+        },
+      ];
+    }
+    return [];
+  });
+  Sinon.stub(factory, 'describeRouteCandidates').callsFake(async cond => {
+    if (cond.outputType === ModelOutputType.Embedding) {
+      return [
+        {
+          registryKind: 'byok',
+          registryAvailable: true,
+          registrySelected: true,
+          providerId: 'ollama-main',
+          requestedModelId: 'workspace-embedding',
+          modelId: 'workspace-embedding',
+          candidateModelIds: ['workspace-embedding', 'local-embedding'],
+          matched: true,
+          reasons: ['capability_matched'],
+        },
+        {
+          registryKind: 'byok',
+          registryAvailable: true,
+          registrySelected: true,
+          providerId: 'ollama-main',
+          requestedModelId: 'workspace-embedding-large',
+          modelId: 'workspace-embedding-large',
+          candidateModelIds: ['workspace-embedding-large'],
+          matched: true,
+          reasons: ['capability_matched'],
+        },
+        {
+          registryKind: 'quota_backed',
+          registryAvailable: true,
+          registrySelected: false,
+          providerId: 'openai-default',
+          candidateModelIds: ['text-embedding-3-small'],
+          matched: true,
+          modelId: 'text-embedding-3-small',
+          reasons: ['profile_model_matched', 'capability_matched'],
+        },
+        {
+          registryKind: 'quota_backed',
+          registryAvailable: true,
+          registrySelected: false,
+          providerId: 'openai-prepare-filtered',
+          candidateModelIds: ['text-embedding-3-large'],
+          matched: true,
+          modelId: 'text-embedding-3-large',
+          reasons: ['profile_model_matched', 'capability_matched'],
+        },
+      ];
+    }
+    if (cond.outputType === ModelOutputType.Rerank) {
+      return [
+        {
+          registryKind: 'byok',
+          registryAvailable: true,
+          registrySelected: true,
+          providerId: 'ollama-main',
+          requestedModelId: 'office-rerank',
+          modelId: 'office-rerank',
+          candidateModelIds: ['office-rerank'],
+          matched: true,
+          reasons: ['capability_matched'],
+        },
+        {
+          registryKind: 'quota_backed',
+          registryAvailable: false,
+          registrySelected: false,
+          providerId: 'blocked-cloud',
+          requestedModelId: 'office-rerank',
+          candidateModelIds: ['cloud-rerank'],
+          matched: false,
+          reasons: ['profile_model_not_allowed'],
+        },
+      ];
+    }
+    return [];
+  });
+  Sinon.stub(factory, 'describeEmbeddingPrepareCandidates').resolves([
+    {
+      providerId: 'ollama-main',
+      modelId: 'workspace-embedding',
+      prepared: true,
+      preparedModelId: 'nomic-embed-text',
+      reasons: ['provider_prepare_succeeded'],
+    },
+    {
+      providerId: 'openai-default',
+      modelId: 'text-embedding-3-small',
+      prepared: true,
+      preparedModelId: 'text-embedding-3-small',
+      reasons: ['provider_prepare_succeeded'],
+    },
+    {
+      providerId: 'openai-prepare-filtered',
+      modelId: 'text-embedding-3-large',
+      prepared: false,
+      reasons: ['provider_prepare_returned_empty'],
+    },
+  ]);
+  Sinon.stub(factory, 'describeRerankPrepareCandidates').resolves([
+    {
+      providerId: 'ollama-main',
+      modelId: 'office-rerank',
+      prepared: true,
+      preparedModelId: 'bge-reranker-v2',
+      reasons: ['provider_prepare_succeeded'],
+    },
+  ]);
+  Sinon.stub(factory, 'resolveModelId').callsFake(async cond => cond.modelId);
+  Sinon.stub(factory, 'resolveProvider').callsFake(
+    async cond =>
+      ({
+        providerId: 'ollama-main',
+        rawModelId: cond.modelId,
+        modelId: 'office-chat-fast',
+        fallbackProviderIds: ['ollama-main'],
+        profile: {
+          id: 'ollama-main',
+          displayName: 'Local Ollama',
+          type: CopilotProviderType.OpenAICompatible,
+          enabled: true,
+          priority: 10,
+          privacy: 'local',
+          health: { status: 'healthy' },
+          config: {},
+          middleware: {},
+        },
+        provider: {
+          resolveModel: (modelId: string) => ({
+            id: modelId,
+            name: `Resolved ${modelId}`,
+          }),
+        },
+      }) as any
+  );
+  Sinon.stub(taskPolicy, 'resolveWorkspaceIndexingModel').returns({
+    configKey: 'workspaceIndexing',
+    configPath: 'copilot.tasks.models.workspaceIndexing',
+    modelId: 'ollama-main/workspace-embedding',
+    source: 'workspace_indexing',
+  });
+  Sinon.stub(taskPolicy, 'resolveRerankModel').returns({
+    configKey: 'rerank',
+    configPath: 'copilot.tasks.models.rerank',
+    modelId: 'ollama-main/office-rerank',
+    source: 'rerank',
+  });
+  const describeEmbeddingRoute = Sinon.stub(
+    chatRuntime,
+    'describeEmbeddingRoute'
+  ).resolves({
+    configured: true,
+    errorCode: undefined,
+    errorMessage: undefined,
+    fallbackOrder: ['ollama-main', 'openai-default'],
+    preparedProviderCount: 2,
+    preparedRoutes: [
+      {
+        providerId: 'ollama-main',
+        modelId: 'nomic-embed-text',
+        protocol: 'openai_chat',
+        requestLayer: 'chat_completions',
+        modelBackendKind: 'openai_chat',
+        canonicalModelKey: 'workspace-embedding',
+        behaviorFlags: ['disable_batch_embeddings'],
+      },
+      {
+        providerId: 'openai-default',
+        modelId: 'text-embedding-3-small',
+        protocol: 'openai_responses',
+        requestLayer: 'responses',
+        modelBackendKind: 'openai_responses',
+        canonicalModelKey: 'workspace-embedding-fallback',
+        behaviorFlags: ['embedding_fallback'],
+      },
+    ],
+    requestedModelId: 'ollama-main/workspace-embedding',
+    providerId: 'ollama-main',
+    modelId: 'nomic-embed-text',
+    protocol: 'openai_chat',
+    requestLayer: 'chat_completions',
+    modelBackendKind: 'openai_chat',
+    canonicalModelKey: 'workspace-embedding',
+    behaviorFlags: ['disable_batch_embeddings'],
+    requestedDimensions: EMBEDDING_DIMENSIONS,
+    modelEmbeddingDimensions: 768,
+    dimensionMismatch: true,
+  });
+  const describeRerankRoute = Sinon.stub(
+    chatRuntime,
+    'describeRerankRoute'
+  ).resolves({
+    configured: true,
+    errorCode: undefined,
+    errorMessage: undefined,
+    fallbackOrder: ['ollama-main'],
+    preparedProviderCount: 1,
+    preparedRoutes: [
+      {
+        providerId: 'ollama-main',
+        modelId: 'bge-reranker-v2',
+        protocol: 'openai_chat',
+        requestLayer: 'chat_completions',
+        modelBackendKind: 'openai_chat',
+        canonicalModelKey: 'office-rerank',
+        behaviorFlags: ['rerank_cross_encoder'],
+      },
+    ],
+    requestedModelId: 'ollama-main/office-rerank',
+    providerId: 'ollama-main',
+    modelId: 'bge-reranker-v2',
+    protocol: 'openai_chat',
+    requestLayer: 'chat_completions',
+    modelBackendKind: 'openai_chat',
+    canonicalModelKey: 'office-rerank',
+    behaviorFlags: ['rerank_cross_encoder'],
+    candidateCount: 1,
+  });
+
+  const models = await resolver.models(promptName, {
+    workspaceId: 'workspace-local-only',
+  });
+  const embeddingMainCandidateKey = JSON.stringify([
+    'byok',
+    'ollama-main',
+    'workspace-embedding',
+    'workspace-embedding',
+    ['local-embedding', 'workspace-embedding'],
+  ]);
+  const embeddingLargeCandidateKey = JSON.stringify([
+    'byok',
+    'ollama-main',
+    'workspace-embedding-large',
+    'workspace-embedding-large',
+    ['workspace-embedding-large'],
+  ]);
+  const embeddingOpenAICandidateKey = JSON.stringify([
+    'quota_backed',
+    'openai-default',
+    '',
+    'text-embedding-3-small',
+    ['text-embedding-3-small'],
+  ]);
+  const embeddingFilteredCandidateKey = JSON.stringify([
+    'quota_backed',
+    'openai-prepare-filtered',
+    '',
+    'text-embedding-3-large',
+    ['text-embedding-3-large'],
+  ]);
+  const rerankMainCandidateKey = JSON.stringify([
+    'byok',
+    'ollama-main',
+    'office-rerank',
+    'office-rerank',
+    ['office-rerank'],
+  ]);
+  const rerankBlockedCandidateKey = JSON.stringify([
+    'quota_backed',
+    'blocked-cloud',
+    'office-rerank',
+    '',
+    ['cloud-rerank', 'office-rerank'],
+  ]);
+
+  t.deepEqual(models.embeddingRoute, {
+    configured: true,
+    diagnosticsErrors: [],
+    errorCode: undefined,
+    errorMessage: undefined,
+    featureKind: 'workspace_indexing',
+    policyEnabled: true,
+    policyFeatureKind: 'workspace_indexing',
+    policyWorkspaceId: 'workspace-local-only',
+    policyAllowedProviderIds: ['ollama-main', 'openai-default'],
+    policyBlockedProviderIds: ['blocked-cloud'],
+    policyAllowedPrivacy: ['local', 'private_cloud'],
+    policyPreferredPrivacy: ['local', 'private_cloud'],
+    policyCandidates: [
+      {
+        providerId: 'ollama-main',
+        privacy: 'local',
+        health: 'healthy',
+        available: true,
+        allowed: true,
+        reasons: ['candidate_allowed', 'privacy_preferred'],
+      },
+      {
+        providerId: 'openai-default',
+        privacy: 'private_cloud',
+        health: 'degraded',
+        available: true,
+        allowed: true,
+        reasons: ['candidate_allowed', 'privacy_preferred'],
+      },
+      {
+        providerId: 'blocked-cloud',
+        privacy: 'cloud',
+        health: 'healthy',
+        available: true,
+        allowed: false,
+        reasons: ['provider_blocked', 'privacy_not_allowed'],
+      },
+    ],
+    routeCandidates: [
+      {
+        candidateKey: embeddingMainCandidateKey,
+        registryKind: 'byok',
+        registryAvailable: true,
+        registrySelected: true,
+        providerId: 'ollama-main',
+        requestedModelId: 'workspace-embedding',
+        modelId: 'workspace-embedding',
+        candidateModelIds: ['workspace-embedding', 'local-embedding'],
+        matched: true,
+        reasons: ['capability_matched'],
+      },
+      {
+        candidateKey: embeddingLargeCandidateKey,
+        registryKind: 'byok',
+        registryAvailable: true,
+        registrySelected: true,
+        providerId: 'ollama-main',
+        requestedModelId: 'workspace-embedding-large',
+        modelId: 'workspace-embedding-large',
+        candidateModelIds: ['workspace-embedding-large'],
+        matched: true,
+        reasons: ['capability_matched'],
+      },
+      {
+        candidateKey: embeddingOpenAICandidateKey,
+        registryKind: 'quota_backed',
+        registryAvailable: true,
+        registrySelected: false,
+        providerId: 'openai-default',
+        candidateModelIds: ['text-embedding-3-small'],
+        matched: true,
+        modelId: 'text-embedding-3-small',
+        reasons: ['profile_model_matched', 'capability_matched'],
+      },
+      {
+        candidateKey: embeddingFilteredCandidateKey,
+        registryKind: 'quota_backed',
+        registryAvailable: true,
+        registrySelected: false,
+        providerId: 'openai-prepare-filtered',
+        candidateModelIds: ['text-embedding-3-large'],
+        matched: true,
+        modelId: 'text-embedding-3-large',
+        reasons: ['profile_model_matched', 'capability_matched'],
+      },
+    ],
+    routeTrace: [
+      {
+        phase: 'policy',
+        candidateCount: 3,
+        availableCount: 3,
+        selectedCount: 2,
+        blockedCount: 1,
+        reasons: [
+          'candidate_allowed',
+          'privacy_preferred',
+          'provider_blocked',
+          'privacy_not_allowed',
+        ],
+      },
+      {
+        phase: 'resolution',
+        candidateCount: 4,
+        availableCount: 4,
+        selectedCount: 2,
+        matchedCount: 4,
+        reasons: ['capability_matched', 'profile_model_matched'],
+      },
+      {
+        phase: 'prepared',
+        candidateCount: 4,
+        selectedCount: 1,
+        preparedCount: 2,
+        reasons: [
+          'prepared_route_filtered',
+          'provider_prepare_succeeded',
+          'provider_prepare_returned_empty',
+        ],
+      },
+    ],
+    prepareCandidates: [
+      {
+        candidateKey: embeddingMainCandidateKey,
+        registryKind: 'byok',
+        registryAvailable: true,
+        registrySelected: true,
+        providerId: 'ollama-main',
+        requestedModelId: 'workspace-embedding',
+        modelId: 'workspace-embedding',
+        candidateModelIds: ['workspace-embedding', 'local-embedding'],
+        prepared: true,
+        preparedModelId: 'nomic-embed-text',
+        reasons: [
+          'prepared_route_available',
+          'provider_prepare_succeeded',
+          'prepared_model_resolved',
+        ],
+      },
+      {
+        candidateKey: embeddingLargeCandidateKey,
+        registryKind: 'byok',
+        registryAvailable: true,
+        registrySelected: true,
+        providerId: 'ollama-main',
+        requestedModelId: 'workspace-embedding-large',
+        modelId: 'workspace-embedding-large',
+        candidateModelIds: ['workspace-embedding-large'],
+        prepared: false,
+        reasons: ['prepared_route_filtered'],
+      },
+      {
+        candidateKey: embeddingOpenAICandidateKey,
+        registryKind: 'quota_backed',
+        registryAvailable: true,
+        registrySelected: false,
+        providerId: 'openai-default',
+        modelId: 'text-embedding-3-small',
+        candidateModelIds: ['text-embedding-3-small'],
+        prepared: true,
+        preparedModelId: 'text-embedding-3-small',
+        reasons: ['prepared_route_available', 'provider_prepare_succeeded'],
+      },
+      {
+        candidateKey: embeddingFilteredCandidateKey,
+        registryKind: 'quota_backed',
+        registryAvailable: true,
+        registrySelected: false,
+        providerId: 'openai-prepare-filtered',
+        modelId: 'text-embedding-3-large',
+        candidateModelIds: ['text-embedding-3-large'],
+        prepared: false,
+        reasons: [
+          'prepared_route_not_selected',
+          'provider_prepare_returned_empty',
+        ],
+      },
+    ],
+    fallbackProviderIds: ['ollama-main', 'openai-default'],
+    preparedProviderCount: 2,
+    preparedRoutes: [
+      {
+        providerId: 'ollama-main',
+        modelId: 'nomic-embed-text',
+        protocol: 'openai_chat',
+        requestLayer: 'chat_completions',
+        modelBackendKind: 'openai_chat',
+        canonicalModelKey: 'workspace-embedding',
+        behaviorFlags: ['disable_batch_embeddings'],
+      },
+      {
+        providerId: 'openai-default',
+        modelId: 'text-embedding-3-small',
+        protocol: 'openai_responses',
+        requestLayer: 'responses',
+        modelBackendKind: 'openai_responses',
+        canonicalModelKey: 'workspace-embedding-fallback',
+        behaviorFlags: ['embedding_fallback'],
+      },
+    ],
+    requestedModelId: 'ollama-main/workspace-embedding',
+    requestedModelConfigKey: 'workspaceIndexing',
+    requestedModelConfigPath: 'copilot.tasks.models.workspaceIndexing',
+    requestedModelSource: 'workspace_indexing',
+    providerId: 'ollama-main',
+    modelId: 'nomic-embed-text',
+    protocol: 'openai_chat',
+    requestLayer: 'chat_completions',
+    modelBackendKind: 'openai_chat',
+    canonicalModelKey: 'workspace-embedding',
+    behaviorFlags: ['disable_batch_embeddings'],
+    requestedDimensions: EMBEDDING_DIMENSIONS,
+    modelEmbeddingDimensions: 768,
+    dimensionMismatch: true,
+  });
+  t.deepEqual(models.rerankRoute, {
+    configured: true,
+    diagnosticsErrors: [],
+    errorCode: undefined,
+    errorMessage: undefined,
+    featureKind: 'rerank',
+    policyEnabled: true,
+    policyFeatureKind: 'rerank',
+    policyWorkspaceId: 'workspace-local-only',
+    policyAllowedProviderIds: ['ollama-main'],
+    policyBlockedProviderIds: ['blocked-cloud'],
+    policyAllowedPrivacy: ['local'],
+    policyPreferredPrivacy: ['local'],
+    policyCandidates: [
+      {
+        providerId: 'ollama-main',
+        privacy: 'local',
+        health: 'healthy',
+        available: true,
+        allowed: true,
+        reasons: ['candidate_allowed', 'privacy_preferred'],
+      },
+      {
+        providerId: 'blocked-cloud',
+        privacy: 'cloud',
+        health: 'down',
+        available: false,
+        allowed: false,
+        reasons: [
+          'provider_unavailable',
+          'provider_blocked',
+          'privacy_not_allowed',
+        ],
+      },
+    ],
+    routeCandidates: [
+      {
+        candidateKey: rerankMainCandidateKey,
+        registryKind: 'byok',
+        registryAvailable: true,
+        registrySelected: true,
+        providerId: 'ollama-main',
+        requestedModelId: 'office-rerank',
+        modelId: 'office-rerank',
+        candidateModelIds: ['office-rerank'],
+        matched: true,
+        reasons: ['capability_matched'],
+      },
+      {
+        candidateKey: rerankBlockedCandidateKey,
+        registryKind: 'quota_backed',
+        registryAvailable: false,
+        registrySelected: false,
+        providerId: 'blocked-cloud',
+        requestedModelId: 'office-rerank',
+        candidateModelIds: ['cloud-rerank'],
+        matched: false,
+        reasons: ['profile_model_not_allowed'],
+      },
+    ],
+    routeTrace: [
+      {
+        phase: 'policy',
+        candidateCount: 2,
+        availableCount: 1,
+        selectedCount: 1,
+        blockedCount: 1,
+        reasons: [
+          'candidate_allowed',
+          'privacy_preferred',
+          'provider_unavailable',
+          'provider_blocked',
+          'privacy_not_allowed',
+        ],
+      },
+      {
+        phase: 'resolution',
+        candidateCount: 2,
+        availableCount: 1,
+        selectedCount: 1,
+        matchedCount: 1,
+        reasons: ['capability_matched', 'profile_model_not_allowed'],
+      },
+      {
+        phase: 'prepared',
+        candidateCount: 1,
+        selectedCount: 1,
+        preparedCount: 1,
+        reasons: ['provider_prepare_succeeded'],
+      },
+    ],
+    prepareCandidates: [
+      {
+        candidateKey: rerankMainCandidateKey,
+        registryKind: 'byok',
+        registryAvailable: true,
+        registrySelected: true,
+        providerId: 'ollama-main',
+        requestedModelId: 'office-rerank',
+        modelId: 'office-rerank',
+        candidateModelIds: ['office-rerank'],
+        prepared: true,
+        preparedModelId: 'bge-reranker-v2',
+        reasons: [
+          'prepared_route_available',
+          'provider_prepare_succeeded',
+          'prepared_model_resolved',
+        ],
+      },
+    ],
+    fallbackProviderIds: ['ollama-main'],
+    preparedProviderCount: 1,
+    preparedRoutes: [
+      {
+        providerId: 'ollama-main',
+        modelId: 'bge-reranker-v2',
+        protocol: 'openai_chat',
+        requestLayer: 'chat_completions',
+        modelBackendKind: 'openai_chat',
+        canonicalModelKey: 'office-rerank',
+        behaviorFlags: ['rerank_cross_encoder'],
+      },
+    ],
+    requestedModelId: 'ollama-main/office-rerank',
+    requestedModelConfigKey: 'rerank',
+    requestedModelConfigPath: 'copilot.tasks.models.rerank',
+    requestedModelSource: 'rerank',
+    providerId: 'ollama-main',
+    modelId: 'bge-reranker-v2',
+    protocol: 'openai_chat',
+    requestLayer: 'chat_completions',
+    modelBackendKind: 'openai_chat',
+    canonicalModelKey: 'office-rerank',
+    behaviorFlags: ['rerank_cross_encoder'],
+    candidateCount: 1,
+    topK: undefined,
+  });
+  Sinon.assert.calledOnceWithExactly(
+    describeEmbeddingRoute,
+    'ollama-main/workspace-embedding',
+    {
+      workspace: 'workspace-local-only',
+      dimensions: EMBEDDING_DIMENSIONS,
+      featureKind: 'workspace_indexing',
+    }
+  );
+  Sinon.assert.calledOnceWithExactly(
+    describeRerankRoute,
+    'ollama-main/office-rerank',
+    {
+      workspace: 'workspace-local-only',
+      featureKind: 'rerank',
+    }
   );
 });

@@ -89,6 +89,8 @@ const defaultActionOptions = [
   'docId',
   'workspaceId',
   'host',
+  'modelId',
+  'modelSelection',
   'models',
   'control',
   'where',
@@ -218,7 +220,7 @@ function inferControl(
   }
 }
 
-const toTrackedOptions = (
+export const toTrackedOptions = (
   event: AIRequestActionEvent
 ): {
   eventName: AIActionEventName;

@@ -20,6 +20,7 @@ import { CopilotActionRunModel } from './copilot-action-run';
 import { CopilotWorkspaceByokConfigModel } from './copilot-byok';
 import { CopilotContextModel } from './copilot-context';
 import { CopilotJobModel } from './copilot-job';
+import { CopilotPromptModel } from './copilot-prompt';
 import { CopilotSessionModel } from './copilot-session';
 import { CopilotTranscriptTaskModel } from './copilot-transcript-task';
 import { CopilotUsageModel } from './copilot-usage';
@@ -83,6 +84,7 @@ const MODELS = {
   copilotWorkspace: CopilotWorkspaceConfigModel,
   copilotWorkspaceByokConfig: CopilotWorkspaceByokConfigModel,
   copilotJob: CopilotJobModel,
+  copilotPrompt: CopilotPromptModel,
   appConfig: AppConfigModel,
   comment: CommentModel,
   commentAttachment: CommentAttachmentModel,
@@ -156,6 +158,7 @@ export * from './common';
 export * from './copilot-byok';
 export * from './copilot-context';
 export * from './copilot-job';
+export * from './copilot-prompt';
 export * from './copilot-session';
 export * from './copilot-transcript-task';
 export * from './copilot-usage';

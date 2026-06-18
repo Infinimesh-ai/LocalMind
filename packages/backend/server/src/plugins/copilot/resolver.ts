@@ -1,4 +1,6 @@
-import { NotFoundException } from '@nestjs/common';
+import { createHash } from 'node:crypto';
+
+import { NotFoundException, Optional } from '@nestjs/common';
 import {
   Args,
   Field,
@@ -28,14 +30,62 @@ import {
   TooManyRequest,
 } from '../../base';
 import { CurrentUser } from '../../core/auth';
-import { DocAction, PermissionAccess } from '../../core/permission';
+import {
+  DocAction,
+  PermissionAccess,
+  type WorkspaceAction,
+} from '../../core/permission';
 import { UserType } from '../../core/user';
-import type { ListSessionOptions, UpdateChatSession } from '../../models';
+import {
+  EMBEDDING_DIMENSIONS,
+  type ListSessionOptions,
+  Models,
+  type PromptRegistryPublishGateVerdict,
+  type UpdateChatSession,
+} from '../../models';
+import type {
+  CopilotActionRunDiagnosticsItem,
+  CopilotActionRunPreparedRouteTrace,
+} from '../../models/copilot-action-run';
 import { CompatHistoryProjector } from './compat/history-projector';
+import type {
+  CopilotProviderHealthStatus,
+  CopilotProviderPrivacy,
+  CopilotProviderRoutePolicyFeatureKind,
+} from './config';
 import { ConversationInboxService } from './conversation/inbox';
+import {
+  isImagePromptCategory,
+  isTranscriptPromptCategory,
+} from './prompt/category';
 import { PromptService } from './prompt/service';
-import { CopilotProviderFactory } from './providers/factory';
+import type {
+  PromptCatalogItem,
+  PromptCatalogVersionEvidence,
+  ResolvedPrompt,
+} from './prompt/spec';
+import {
+  CopilotProviderFactory,
+  type CopilotProviderPrepareCandidateDiagnostics,
+  type ResolvedCopilotProvider,
+} from './providers/factory';
+import {
+  type ResolvedProviderModel,
+  resolveModelLimits,
+} from './providers/provider-model-runtime';
+import type {
+  CopilotProviderRoutePolicyCandidateDiagnostics,
+  CopilotProviderRoutePolicySummary,
+} from './providers/provider-registry';
 import { ModelOutputType, type StreamObject } from './providers/types';
+import { CapabilityRuntime } from './runtime/capability-runtime';
+import {
+  buildStructuredResponseFromSchemaJson,
+  type ExecutionRouteDiagnostics,
+  type RequiredStructuredOutputContract,
+} from './runtime/contracts';
+import { ExecutionPlanBuilder } from './runtime/execution-plan';
+import { TaskPolicy } from './runtime/task-policy';
 import { ChatSessionService } from './session';
 import { type ChatHistory, type ChatMessage, SubmittedMessage } from './types';
 
@@ -122,6 +172,116 @@ class DeleteSessionInput {
 
   @Field(() => [String])
   sessionIds!: string[];
+}
+
+@InputType()
+class CopilotPromptRegistryPublishGateExpectedVersionInput {
+  @Field(() => String, { nullable: true })
+  registryFingerprint?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  registryId?: number;
+
+  @Field(() => String, { nullable: true })
+  registryUpdatedAt?: string;
+}
+
+@InputType()
+class CopilotPromptRegistryRepairSubmissionInput {
+  @Field(() => String)
+  approvalPolicyFingerprint!: string;
+
+  @Field(() => String)
+  authorizationFingerprint!: string;
+
+  @Field(() => String)
+  candidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  catalogFingerprint!: string;
+
+  @Field(() => String)
+  contractVersion!: string;
+
+  @Field(() => String)
+  expectedRegistryFingerprint!: string;
+
+  @Field(() => SafeIntResolver)
+  expectedRegistryId!: number;
+
+  @Field(() => String)
+  expectedRegistryUpdatedAt!: string;
+
+  @Field(() => String)
+  guardFingerprint!: string;
+
+  @Field(() => String)
+  idempotencyKey!: string;
+
+  @Field(() => String)
+  operationSetFingerprint!: string;
+
+  @Field(() => String)
+  previewFingerprint!: string;
+
+  @Field(() => [String])
+  requiredInputs!: string[];
+
+  @Field(() => String)
+  submissionFingerprint!: string;
+}
+
+@InputType()
+class CopilotPromptRegistryRepairExecutionRequestInput {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  name!: string;
+
+  @Field(() => CopilotPromptRegistryPublishGateExpectedVersionInput, {
+    nullable: true,
+  })
+  expectedVersion?: CopilotPromptRegistryPublishGateExpectedVersionInput;
+
+  @Field(() => CopilotPromptRegistryRepairSubmissionInput)
+  submission!: CopilotPromptRegistryRepairSubmissionInput;
+
+  @Field(() => String)
+  expectedApprovalRecordFingerprint!: string;
+
+  @Field(() => String)
+  expectedApprovalRequestFingerprint!: string;
+
+  @Field(() => String)
+  expectedAuditEventFingerprint!: string;
+
+  @Field(() => String)
+  expectedExecutionGateFingerprint!: string;
+
+  @Field(() => String)
+  expectedExecutionGateStatus!: string;
+
+  @Field(() => String)
+  expectedExecutionStateFingerprint!: string;
+
+  @Field(() => String)
+  expectedIdempotencyFingerprint!: string;
+
+  @Field(() => String)
+  expectedPolicyBindingFingerprint!: string;
+
+  @Field(() => String)
+  expectedPreflightStatus!: string;
+
+  @Field(() => String)
+  expectedRepairJobFingerprint!: string;
+
+  @Field(() => String)
+  expectedReviewBindingFingerprint!: string;
+
+  @Field(() => String)
+  expectedRollbackPlanFingerprint!: string;
 }
 
 @InputType()
@@ -303,6 +463,9236 @@ class CopilotQuotaType {
   used!: number;
 }
 
+type CopilotModelSource = 'default' | 'prompt' | 'registry' | 'pro';
+
+type CopilotModelPromptSource = {
+  candidateSource: CopilotModelSource;
+  modelConfigPath?: string;
+  modelSource?: string;
+};
+
+type CopilotModelCandidate = {
+  id: string;
+  promptModelConfigPath?: string;
+  promptModelSource?: string;
+  promptModelSources: CopilotModelPromptSource[];
+  sources: CopilotModelSource[];
+};
+
+type CopilotModelDefinitionSource =
+  | 'native_registry'
+  | 'provider_profile'
+  | 'provider_runtime';
+
+type CopilotPromptRegistryValidationIssue = NonNullable<
+  PromptCatalogItem['registryValidationIssues']
+>[number];
+
+type CopilotPromptRegistryValidationSourceLocator =
+  CopilotPromptRegistryValidationIssue['sourceLocator'];
+
+@ObjectType()
+class CopilotPromptRegistryValidationSourceLocatorType implements CopilotPromptRegistryValidationSourceLocator {
+  @Field(() => String)
+  field!: CopilotPromptRegistryValidationSourceLocator['field'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  messageIndex?: CopilotPromptRegistryValidationSourceLocator['messageIndex'];
+
+  @Field(() => String)
+  path!: CopilotPromptRegistryValidationSourceLocator['path'];
+
+  @Field(() => String)
+  registryFingerprint!: CopilotPromptRegistryValidationSourceLocator['registryFingerprint'];
+
+  @Field(() => SafeIntResolver)
+  registryId!: CopilotPromptRegistryValidationSourceLocator['registryId'];
+
+  @Field(() => String)
+  registryUpdatedAt!: CopilotPromptRegistryValidationSourceLocator['registryUpdatedAt'];
+
+  @Field(() => String)
+  table!: CopilotPromptRegistryValidationSourceLocator['table'];
+}
+
+@ObjectType()
+class CopilotPromptRegistryValidationIssueType implements CopilotPromptRegistryValidationIssue {
+  @Field(() => String)
+  code!: CopilotPromptRegistryValidationIssue['code'];
+
+  @Field(() => String)
+  detail!: CopilotPromptRegistryValidationIssue['detail'];
+
+  @Field(() => String)
+  fieldLabel!: CopilotPromptRegistryValidationIssue['fieldLabel'];
+
+  @Field(() => String, { nullable: true })
+  message?: CopilotPromptRegistryValidationIssue['message'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  messageIndex?: CopilotPromptRegistryValidationIssue['messageIndex'];
+
+  @Field(() => String)
+  path!: CopilotPromptRegistryValidationIssue['path'];
+
+  @Field(() => Boolean)
+  publishBlocking!: CopilotPromptRegistryValidationIssue['publishBlocking'];
+
+  @Field(() => String)
+  reason!: CopilotPromptRegistryValidationIssue['reason'];
+
+  @Field(() => String)
+  severity!: CopilotPromptRegistryValidationIssue['severity'];
+
+  @Field(() => String)
+  source!: CopilotPromptRegistryValidationIssue['source'];
+
+  @Field(() => CopilotPromptRegistryValidationSourceLocatorType)
+  sourceLocator!: CopilotPromptRegistryValidationIssue['sourceLocator'];
+}
+
+type CopilotPromptRegistryValidationRemediation = NonNullable<
+  PromptCatalogItem['registryValidationRemediations']
+>[number];
+
+type CopilotPromptRegistryPublishGateModelRoute = {
+  available: boolean;
+  behaviorFlags?: string[];
+  candidateCount: number;
+  candidateConfigPath?: string;
+  candidateIndex: number;
+  candidateKind: string;
+  canonicalModelKey?: string;
+  checked: boolean;
+  configured: boolean;
+  diagnosticsErrorCode?: string;
+  diagnosticsErrorMessage?: string;
+  diagnosticsErrorStage?: string;
+  fallbackProviderIds: string[];
+  featureKind: string;
+  matchedCandidateCount: number;
+  modelBackendKind?: string;
+  modelId?: string;
+  outputType: string;
+  policyAllowedPrivacy?: string[];
+  policyAllowedProviderIds?: string[];
+  policyBlockedProviderIds?: string[];
+  policyEnabled: boolean;
+  policyFeatureKind?: string;
+  policyPreferredPrivacy?: string[];
+  policyWorkspaceId?: string;
+  policyCandidates: CopilotPromptRegistryPublishGatePolicyCandidate[];
+  protocol?: string;
+  providerId?: string;
+  providerConfiguredModelCount?: number;
+  providerConfiguredModelIds?: string[];
+  providerHealth?: CopilotProviderHealthStatus;
+  providerHealthCheckedAt?: string;
+  providerHealthLastError?: string;
+  providerName?: string;
+  providerPrivacy?: CopilotProviderPrivacy;
+  providerPriority?: number;
+  providerProfileConfigPath?: string;
+  providerProfileId?: string;
+  providerProfileSource?: string;
+  providerSource?: string;
+  providerType?: string;
+  reasons: string[];
+  requestedModelId?: string;
+  requestedModelSource?: string;
+  requestLayer?: string;
+  routeModelAliasMatched?: boolean;
+  routeModelDefinitionAliases?: string[];
+  routeModelDefinitionId?: string;
+  routeModelDefinitionSource?: CopilotModelDefinitionSource;
+  routeRawModelId?: string;
+  routeCandidates: CopilotPromptRegistryPublishGateRouteCandidate[];
+  routeTrace: CopilotPromptRegistryPublishGateRouteTracePhase[];
+};
+
+type CopilotPromptRegistryPublishGatePolicyCandidate = {
+  allowed: boolean;
+  available: boolean;
+  health: string;
+  healthCheckedAt?: string;
+  privacy: string;
+  providerId: string;
+  providerConfiguredModelCount?: number;
+  providerConfiguredModelIds?: string[];
+  providerName?: string;
+  providerPriority?: number;
+  providerProfileConfigPath?: string;
+  providerProfileId?: string;
+  providerProfileSource?: string;
+  providerSource?: string;
+  providerType?: string;
+  reasons: string[];
+};
+
+type CopilotPromptRegistryPublishGateRouteCandidate = {
+  candidateModelIds?: string[];
+  health?: string;
+  healthCheckedAt?: string;
+  matched: boolean;
+  modelId?: string;
+  privacy?: string;
+  providerConfiguredModelCount?: number;
+  providerConfiguredModelIds?: string[];
+  providerId: string;
+  providerName?: string;
+  providerPriority?: number;
+  providerProfileConfigPath?: string;
+  providerProfileId?: string;
+  providerProfileSource?: string;
+  providerSource?: string;
+  providerType?: string;
+  reasons: string[];
+  registryAvailable?: boolean;
+  registryKind?: string;
+  registrySelected?: boolean;
+  requestedModelId?: string;
+  routeModelAliasMatched?: boolean;
+  routeModelDefinitionAliases?: string[];
+  routeModelDefinitionId?: string;
+  routeModelDefinitionSource?: CopilotModelDefinitionSource;
+  routeRawModelId?: string;
+};
+
+type CopilotPromptRegistryPublishGateRouteTracePhase = {
+  availableCount?: number;
+  blockedCount?: number;
+  candidateCount: number;
+  matchedCount?: number;
+  phase: string;
+  reasons: string[];
+  selectedCount?: number;
+};
+
+type CopilotPromptRegistryPublishGateTaskRoute =
+  CopilotTaskRouteDiagnosticsType;
+
+type CopilotTaskRoutePolicyCandidateWithKey =
+  CopilotProviderRoutePolicyCandidateDiagnostics & {
+    candidateFingerprint: string;
+    candidateKey: string;
+  };
+
+type CopilotTaskRouteDiagnosticsError = {
+  code: string;
+  message: string;
+  stage: string;
+};
+
+const COPILOT_PROMPT_REGISTRY_REPAIR_ACTION_CATALOG_VERSION =
+  'repair-actions/v1';
+
+type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
+  candidateFingerprint: string;
+  candidateIndex: number;
+  candidateKey?: string;
+  candidateModelIds?: string[];
+  modelId?: string;
+  preparedModelId?: string;
+  providerConfiguredModelCount?: number;
+  providerConfiguredModelIds?: string[];
+  providerId: string;
+  providerName?: string;
+  providerPriority?: number;
+  providerProfileConfigPath?: string;
+  providerProfileId?: string;
+  providerProfileSource?: string;
+  providerSource?: string;
+  providerType?: string;
+  reasons: string[];
+  requestedModelId?: string;
+  routeModelDefinitionId?: string;
+  scope: string;
+};
+
+type CopilotPromptRegistryPublishGateRepairRecommendation = {
+  candidateEvidence?: CopilotPromptRegistryPublishGateRepairCandidateEvidence[];
+  category: string;
+  code: string;
+  detail: string;
+  diagnosticsFingerprint: string;
+  evidence: string[];
+  instanceKey?: string;
+  severity: string;
+  suggestedAction: string;
+  suggestedActionCatalogVersion: string;
+  suggestedActionInputSchema: Record<string, unknown>;
+  suggestedActionKind: string;
+  suggestedActionRequiredCapabilities: string[];
+  suggestedActionSafety: string;
+  target: string;
+  targetLocator?: CopilotPromptRegistryPublishGateRepairTargetLocator;
+  title: string;
+};
+
+type CopilotPromptRegistryPublishGateRepairActionCatalogEntry = {
+  actionKind: string;
+  catalogVersion: string;
+  inputSchema: Record<string, unknown>;
+  recommendationCount: number;
+  requiredCapabilities: string[];
+  safety: string;
+};
+
+type CopilotPromptRegistryPublishGateRepairActionMutationGuard = {
+  auditSummary: string;
+  auditSummaryFingerprint: string;
+  catalogFingerprint: string;
+  catalogVersion: string;
+  expectedRegistryFingerprint: string;
+  expectedRegistryId: number;
+  expectedRegistryUpdatedAt: string;
+  guardFingerprint: string;
+  intentFingerprint: string;
+  inputSchemaFingerprint: string;
+  recommendationCategories: string[];
+  recommendationCount: number;
+  recommendationCodes: string[];
+  recommendationFingerprints: string[];
+  requiredCapabilities: string[];
+  requiredReviewModes: string[];
+  required: boolean;
+  safetyLevels: string[];
+  suggestedActionKinds: string[];
+  targetLocatorCount: number;
+  targetLocatorFingerprint: string;
+  targetLocatorKinds: string[];
+};
+
+type CopilotPromptRegistryPublishGateRepairActionPreviewOperation = {
+  actionKind: string;
+  candidateEvidenceCount: number;
+  candidateEvidenceFingerprint: string;
+  candidateEvidenceFingerprints: string[];
+  candidateEvidenceKeys: string[];
+  category: string;
+  code: string;
+  diagnosticsFingerprint: string;
+  inputSchema: Record<string, unknown>;
+  instanceKey?: string;
+  operationFingerprint: string;
+  previewStatus: string;
+  requiredCapabilities: string[];
+  reviewMode: string;
+  safety: string;
+  target: string;
+  targetLocator?: CopilotPromptRegistryPublishGateRepairTargetLocator;
+  targetLocatorFingerprint: string;
+};
+
+type CopilotPromptRegistryPublishGateRepairActionSubmissionContract = {
+  approvalPolicyFingerprint: string;
+  authorizationFingerprint: string;
+  candidateEvidenceSetFingerprint: string;
+  catalogFingerprint: string;
+  contractVersion: string;
+  expectedRegistryFingerprint: string;
+  expectedRegistryId: number;
+  expectedRegistryUpdatedAt: string;
+  guardFingerprint: string;
+  idempotencyKey: string;
+  mutationAvailable: boolean;
+  operationSetFingerprint: string;
+  previewFingerprint: string;
+  readOnly: boolean;
+  requiredInputs: string[];
+  status: string;
+  submissionFingerprint: string;
+};
+
+type CopilotPromptRegistryRepairPreflight = {
+  accepted: boolean;
+  actorFingerprint: string;
+  actorSnapshotInputs: string[];
+  actorSnapshotStatus: string;
+  actorSnapshotVersion: string;
+  actorType: string;
+  approvalCheckpoints: string[];
+  approvalModes: string[];
+  approvalRecordCreated: boolean;
+  approvalRecordFingerprint: string;
+  approvalRecordInputs: string[];
+  approvalRecordStatus: string;
+  approvalRecordVersion: string;
+  approvalRequestFingerprint: string;
+  approvalRequestInputs: string[];
+  approvalRequestStatus: string;
+  approvalRequestVersion: string;
+  approvalRequired: boolean;
+  auditBindingFingerprint: string;
+  auditBindingInputs: string[];
+  auditBindingStatus: string;
+  auditBindingVersion: string;
+  auditEventCreated: boolean;
+  auditEventFingerprint: string;
+  auditEventInputs: string[];
+  auditEventStatus: string;
+  auditEventVersion: string;
+  authorizationStatus: string;
+  candidateEvidenceSetFingerprint: string;
+  capabilityCheckMode: string;
+  capabilityFingerprint: string;
+  capabilitySource: string;
+  capabilityStatus: string;
+  contractVersion: string;
+  currentSubmissionFingerprint: string;
+  expectedSubmissionFingerprint: string;
+  executionGateFingerprint: string;
+  executionGateInputs: string[];
+  executionGateStatus: string;
+  executionGateVersion: string;
+  executionStateCreated: boolean;
+  executionStateFingerprint: string;
+  executionStateInputs: string[];
+  executionStateStatus: string;
+  executionStateVersion: string;
+  expectedCandidateEvidenceSetFingerprint: string;
+  idempotencyFingerprint: string;
+  idempotencyKey: string;
+  idempotencyLockAcquired: boolean;
+  idempotencyScope: string;
+  idempotencyStatus: string;
+  idempotencyVersion: string;
+  matchedFields: string[];
+  mismatchedFields: string[];
+  mutationAvailable: boolean;
+  permissionCheckMode: string;
+  permissionChecked: boolean;
+  permissionFingerprint: string;
+  permissionScope: string;
+  permissionStatus: string;
+  policyBindingFingerprint: string;
+  policyBindingInputs: string[];
+  policyBindingStatus: string;
+  policyBindingVersion: string;
+  policySource: string;
+  requiredCapabilities: string[];
+  requiredCapabilityCount: number;
+  requiredPermission: string;
+  repairJobCreated: boolean;
+  repairJobFingerprint: string;
+  repairJobInputs: string[];
+  repairJobStatus: string;
+  repairJobVersion: string;
+  reviewBindingFingerprint: string;
+  reviewBindingInputs: string[];
+  reviewBindingStatus: string;
+  reviewBindingVersion: string;
+  rollbackPlanCreated: boolean;
+  rollbackPlanFingerprint: string;
+  rollbackPlanInputs: string[];
+  rollbackPlanStatus: string;
+  rollbackPlanVersion: string;
+  readOnly: boolean;
+  status: string;
+  workspaceId?: string;
+};
+
+type CopilotPromptRegistryRepairExecutionRequest = {
+  accepted: boolean;
+  executionRequested: boolean;
+  approvalRecordRequestCreated: boolean;
+  approvalRecordRequestFingerprint: string;
+  approvalRecordRequestInputs: string[];
+  approvalRecordRequestStatus: string;
+  approvalRecordRequestVersion: string;
+  auditEventRequestCreated: boolean;
+  auditEventRequestFingerprint: string;
+  auditEventRequestInputs: string[];
+  auditEventRequestStatus: string;
+  auditEventRequestVersion: string;
+  executionCompletionEventRequestCreated: boolean;
+  executionCompletionEventRequestFingerprint: string;
+  executionCompletionEventRequestInputs: string[];
+  executionCompletionEventRequestStatus: string;
+  executionCompletionEventRequestVersion: string;
+  executionCompletionRequestCreated: boolean;
+  executionCompletionRequestFingerprint: string;
+  executionCompletionRequestInputs: string[];
+  executionCompletionRequestStatus: string;
+  executionCompletionRequestVersion: string;
+  executionFinalizationEventRequestCreated: boolean;
+  executionFinalizationEventRequestFingerprint: string;
+  executionFinalizationEventRequestInputs: string[];
+  executionFinalizationEventRequestStatus: string;
+  executionFinalizationEventRequestVersion: string;
+  executionFinalizationRequestCreated: boolean;
+  executionFinalizationRequestFingerprint: string;
+  executionFinalizationRequestInputs: string[];
+  executionFinalizationRequestStatus: string;
+  executionFinalizationRequestVersion: string;
+  executionStatusPollRequestCreated: boolean;
+  executionStatusPollRequestFingerprint: string;
+  executionStatusPollRequestInputs: string[];
+  executionStatusPollRequestStatus: string;
+  executionStatusPollRequestVersion: string;
+  executionOperationEntryRequestCreated: boolean;
+  executionOperationEntryRequestFingerprint: string;
+  executionOperationEntryRequestInputs: string[];
+  executionOperationEntryRequestStatus: string;
+  executionOperationEntryRequestVersion: string;
+  executionApprovalUiRequestCreated: boolean;
+  executionApprovalUiRequestFingerprint: string;
+  executionApprovalUiRequestInputs: string[];
+  executionApprovalUiRequestStatus: string;
+  executionApprovalUiRequestVersion: string;
+  executionDiffPreviewRequestCreated: boolean;
+  executionDiffPreviewRequestFingerprint: string;
+  executionDiffPreviewRequestInputs: string[];
+  executionDiffPreviewRequestStatus: string;
+  executionDiffPreviewRequestVersion: string;
+  executionApprovalDecisionRequestCreated: boolean;
+  executionApprovalDecisionRequestFingerprint: string;
+  executionApprovalDecisionRequestInputs: string[];
+  executionApprovalDecisionRequestStatus: string;
+  executionApprovalDecisionRequestVersion: string;
+  executionStartRequestCreated: boolean;
+  executionStartRequestFingerprint: string;
+  executionStartRequestInputs: string[];
+  executionStartRequestStatus: string;
+  executionStartRequestVersion: string;
+  executionQueueRequestCreated: boolean;
+  executionQueueRequestFingerprint: string;
+  executionQueueRequestInputs: string[];
+  executionQueueRequestStatus: string;
+  executionQueueRequestVersion: string;
+  executionWorkerLeaseRequestCreated: boolean;
+  executionWorkerLeaseRequestFingerprint: string;
+  executionWorkerLeaseRequestInputs: string[];
+  executionWorkerLeaseRequestStatus: string;
+  executionWorkerLeaseRequestVersion: string;
+  executionJobRunRequestCreated: boolean;
+  executionJobRunRequestFingerprint: string;
+  executionJobRunRequestInputs: string[];
+  executionJobRunRequestStatus: string;
+  executionJobRunRequestVersion: string;
+  executionRunStepRequestCreated: boolean;
+  executionRunStepRequestFingerprint: string;
+  executionRunStepRequestInputs: string[];
+  executionRunStepRequestStatus: string;
+  executionRunStepRequestVersion: string;
+  executionRunStepTraceRequestCreated: boolean;
+  executionRunStepTraceRequestFingerprint: string;
+  executionRunStepTraceRequestInputs: string[];
+  executionRunStepTraceRequestStatus: string;
+  executionRunStepTraceRequestVersion: string;
+  executionRunStepResultRequestCreated: boolean;
+  executionRunStepResultRequestFingerprint: string;
+  executionRunStepResultRequestInputs: string[];
+  executionRunStepResultRequestStatus: string;
+  executionRunStepResultRequestVersion: string;
+  executionRunStepCompletionRequestCreated: boolean;
+  executionRunStepCompletionRequestFingerprint: string;
+  executionRunStepCompletionRequestInputs: string[];
+  executionRunStepCompletionRequestStatus: string;
+  executionRunStepCompletionRequestVersion: string;
+  executionRunStepStatusEventRequestCreated: boolean;
+  executionRunStepStatusEventRequestFingerprint: string;
+  executionRunStepStatusEventRequestInputs: string[];
+  executionRunStepStatusEventRequestStatus: string;
+  executionRunStepStatusEventRequestVersion: string;
+  executionRunStepRetryRequestCreated: boolean;
+  executionRunStepRetryRequestFingerprint: string;
+  executionRunStepRetryRequestInputs: string[];
+  executionRunStepRetryRequestStatus: string;
+  executionRunStepRetryRequestVersion: string;
+  executionRunStepRetryAttemptRequestCreated: boolean;
+  executionRunStepRetryAttemptRequestFingerprint: string;
+  executionRunStepRetryAttemptRequestInputs: string[];
+  executionRunStepRetryAttemptRequestStatus: string;
+  executionRunStepRetryAttemptRequestVersion: string;
+  executionRunStepRetryAttemptStatusEventRequestCreated: boolean;
+  executionRunStepRetryAttemptStatusEventRequestFingerprint: string;
+  executionRunStepRetryAttemptStatusEventRequestInputs: string[];
+  executionRunStepRetryAttemptStatusEventRequestStatus: string;
+  executionRunStepRetryAttemptStatusEventRequestVersion: string;
+  executionRunStepRetryAttemptTraceRequestCreated: boolean;
+  executionRunStepRetryAttemptTraceRequestFingerprint: string;
+  executionRunStepRetryAttemptTraceRequestInputs: string[];
+  executionRunStepRetryAttemptTraceRequestStatus: string;
+  executionRunStepRetryAttemptTraceRequestVersion: string;
+  executionRunStepRetryAttemptResultRequestCreated: boolean;
+  executionRunStepRetryAttemptResultRequestFingerprint: string;
+  executionRunStepRetryAttemptResultRequestInputs: string[];
+  executionRunStepRetryAttemptResultRequestStatus: string;
+  executionRunStepRetryAttemptResultRequestVersion: string;
+  executionRunStepRetryAttemptCompletionRequestCreated: boolean;
+  executionRunStepRetryAttemptCompletionRequestFingerprint: string;
+  executionRunStepRetryAttemptCompletionRequestInputs: string[];
+  executionRunStepRetryAttemptCompletionRequestStatus: string;
+  executionRunStepRetryAttemptCompletionRequestVersion: string;
+  executionRunStepRetryAttemptCompletionStatusEventRequestCreated: boolean;
+  executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint: string;
+  executionRunStepRetryAttemptCompletionStatusEventRequestInputs: string[];
+  executionRunStepRetryAttemptCompletionStatusEventRequestStatus: string;
+  executionRunStepRetryAttemptCompletionStatusEventRequestVersion: string;
+  executionRunStepRetryAttemptFinalizationRequestCreated: boolean;
+  executionRunStepRetryAttemptFinalizationRequestFingerprint: string;
+  executionRunStepRetryAttemptFinalizationRequestInputs: string[];
+  executionRunStepRetryAttemptFinalizationRequestStatus: string;
+  executionRunStepRetryAttemptFinalizationRequestVersion: string;
+  executionRunStepRetryAttemptFinalizationStatusEventRequestCreated: boolean;
+  executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint: string;
+  executionRunStepRetryAttemptFinalizationStatusEventRequestInputs: string[];
+  executionRunStepRetryAttemptFinalizationStatusEventRequestStatus: string;
+  executionRunStepRetryAttemptFinalizationStatusEventRequestVersion: string;
+  executionRunStepRetryAttemptCloseRequestCreated: boolean;
+  executionRunStepRetryAttemptCloseRequestFingerprint: string;
+  executionRunStepRetryAttemptCloseRequestInputs: string[];
+  executionRunStepRetryAttemptCloseRequestStatus: string;
+  executionRunStepRetryAttemptCloseRequestVersion: string;
+  executionRunStepRetryAttemptCloseStatusEventRequestCreated: boolean;
+  executionRunStepRetryAttemptCloseStatusEventRequestFingerprint: string;
+  executionRunStepRetryAttemptCloseStatusEventRequestInputs: string[];
+  executionRunStepRetryAttemptCloseStatusEventRequestStatus: string;
+  executionRunStepRetryAttemptCloseStatusEventRequestVersion: string;
+  executionRunStepRetryAttemptRetentionPolicyRequestCreated: boolean;
+  executionRunStepRetryAttemptRetentionPolicyRequestFingerprint: string;
+  executionRunStepRetryAttemptRetentionPolicyRequestInputs: string[];
+  executionRunStepRetryAttemptRetentionPolicyRequestStatus: string;
+  executionRunStepRetryAttemptRetentionPolicyRequestVersion: string;
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestCreated: boolean;
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint: string;
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestInputs: string[];
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestStatus: string;
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestVersion: string;
+  executionRunStepRetryAttemptRetentionLeaseRequestCreated: boolean;
+  executionRunStepRetryAttemptRetentionLeaseRequestFingerprint: string;
+  executionRunStepRetryAttemptRetentionLeaseRequestInputs: string[];
+  executionRunStepRetryAttemptRetentionLeaseRequestStatus: string;
+  executionRunStepRetryAttemptRetentionLeaseRequestVersion: string;
+  executionRunStepRetryAttemptArchiveRequestCreated: boolean;
+  executionRunStepRetryAttemptArchiveRequestFingerprint: string;
+  executionRunStepRetryAttemptArchiveRequestInputs: string[];
+  executionRunStepRetryAttemptArchiveRequestStatus: string;
+  executionRunStepRetryAttemptArchiveRequestVersion: string;
+  executionFailureEventRequestCreated: boolean;
+  executionFailureEventRequestFingerprint: string;
+  executionFailureEventRequestInputs: string[];
+  executionFailureEventRequestStatus: string;
+  executionFailureEventRequestVersion: string;
+  executionProviderResponseRequestCreated: boolean;
+  executionProviderResponseRequestFingerprint: string;
+  executionProviderResponseRequestInputs: string[];
+  executionProviderResponseRequestStatus: string;
+  executionProviderResponseRequestVersion: string;
+  executionResultRequestCreated: boolean;
+  executionResultRequestFingerprint: string;
+  executionResultRequestInputs: string[];
+  executionResultRequestStatus: string;
+  executionResultRequestVersion: string;
+  executionRetryPolicyRequestCreated: boolean;
+  executionRetryPolicyRequestFingerprint: string;
+  executionRetryPolicyRequestInputs: string[];
+  executionRetryPolicyRequestStatus: string;
+  executionRetryPolicyRequestVersion: string;
+  executionRollbackExecutorRequestCreated: boolean;
+  executionRollbackExecutorRequestFingerprint: string;
+  executionRollbackExecutorRequestInputs: string[];
+  executionRollbackExecutorRequestStatus: string;
+  executionRollbackExecutorRequestVersion: string;
+  executionRollbackOperationRequestCreated: boolean;
+  executionRollbackOperationRequestFingerprint: string;
+  executionRollbackOperationRequestInputs: string[];
+  executionRollbackOperationRequestStatus: string;
+  executionRollbackOperationRequestVersion: string;
+  executionRollbackOutcomeRequestCreated: boolean;
+  executionRollbackOutcomeRequestFingerprint: string;
+  executionRollbackOutcomeRequestInputs: string[];
+  executionRollbackOutcomeRequestStatus: string;
+  executionRollbackOutcomeRequestVersion: string;
+  executionRollbackTriggerRequestCreated: boolean;
+  executionRollbackTriggerRequestFingerprint: string;
+  executionRollbackTriggerRequestInputs: string[];
+  executionRollbackTriggerRequestStatus: string;
+  executionRollbackTriggerRequestVersion: string;
+  executionTraceRequestCreated: boolean;
+  executionTraceRequestFingerprint: string;
+  executionTraceRequestInputs: string[];
+  executionTraceRequestStatus: string;
+  executionTraceRequestVersion: string;
+  executionStateRequestCreated: boolean;
+  executionStateRequestFingerprint: string;
+  executionStateRequestInputs: string[];
+  executionStateRequestStatus: string;
+  executionStateRequestVersion: string;
+  idempotencyLockAcquired: boolean;
+  idempotencyLockFingerprint: string;
+  idempotencyLockInputs: string[];
+  idempotencyLockScope: string;
+  idempotencyLockStatus: string;
+  idempotencyLockVersion: string;
+  matchedFields: string[];
+  mismatchedFields: string[];
+  mutationAvailable: boolean;
+  preflight: CopilotPromptRegistryRepairPreflight;
+  readOnly: boolean;
+  repairJobRequestCreated: boolean;
+  repairJobRequestFingerprint: string;
+  repairJobRequestInputs: string[];
+  repairJobRequestStatus: string;
+  repairJobRequestVersion: string;
+  rollbackPlanRequestCreated: boolean;
+  rollbackPlanRequestFingerprint: string;
+  rollbackPlanRequestInputs: string[];
+  rollbackPlanRequestStatus: string;
+  rollbackPlanRequestVersion: string;
+  requestFingerprint: string;
+  requestInputs: string[];
+  requestStatus: string;
+  requestVersion: string;
+};
+
+type CopilotPromptRegistryPublishGateRepairActionPreview = {
+  approvalCheckpoints: string[];
+  approvalModes: string[];
+  approvalPolicyFingerprint: string;
+  approvalPolicyVersion: string;
+  approvalRequired: boolean;
+  auditSummaryFingerprint: string;
+  authorizationFingerprint: string;
+  authorizationStatus: string;
+  candidateCount: number;
+  candidateEvidenceSetFingerprint: string;
+  catalogFingerprint: string;
+  catalogVersion: string;
+  guardFingerprint: string;
+  operationFingerprints: string[];
+  operationSetFingerprint: string;
+  operations: CopilotPromptRegistryPublishGateRepairActionPreviewOperation[];
+  previewFingerprint: string;
+  readOnly: boolean;
+  requiredCapabilities: string[];
+  status: string;
+  submissionContract: CopilotPromptRegistryPublishGateRepairActionSubmissionContract;
+};
+
+type CopilotPromptRegistryPublishGateRepairTargetLocator = {
+  actionId?: string;
+  candidateIndex?: number;
+  candidateKind?: string;
+  fallbackOrderIndex?: number;
+  featureKind?: string;
+  kind: string;
+  outputType?: string;
+  path: string;
+  providerId?: string;
+  providerProfileConfigPath?: string;
+  providerProfileId?: string;
+  providerProfileSource?: string;
+  registryFingerprint: string;
+  registryId: number;
+  registryUpdatedAt: string;
+  requestedModelConfigKey?: string;
+  requestedModelConfigPath?: string;
+  requestedModelId?: string;
+  requestedModelSource?: string;
+  routeIndex?: number;
+  status?: string;
+  stepId?: string;
+};
+
+type CopilotPromptRegistryPublishGateActionRouteDryRunRoute = {
+  fallbackOrderIndex?: number;
+  modelId: string;
+  protocol?: string;
+  providerConfiguredModelCount?: number;
+  providerConfiguredModelIds?: string[];
+  providerHealth?: string;
+  providerHealthCheckedAt?: string;
+  providerHealthLastError?: string;
+  providerId: string;
+  providerName?: string;
+  providerPrivacy?: string;
+  providerPriority?: number;
+  providerProfileConfigPath?: string;
+  providerProfileId?: string;
+  providerProfileSource?: string;
+  providerSource?: string;
+  providerType?: string;
+  requestLayer?: string;
+  routeIndex: number;
+  routeModelAliasMatched?: boolean;
+  routeModelDefinitionAliases?: string[];
+  routeModelDefinitionId?: string;
+  routeModelDefinitionSource?: string;
+  routeRawModelId?: string;
+};
+
+type CopilotPromptRegistryPublishGateActionRouteDryRunStep = {
+  actualRouteCount: number;
+  fallbackProviderIds: string[];
+  kind: CopilotActionRunPreparedRouteTrace['steps'][number]['kind'];
+  requestedModelId?: string;
+  requestedModelSource?: string;
+  routeCount: number;
+  routeCountMismatch: boolean;
+  routes: CopilotPromptRegistryPublishGateActionRouteDryRunRoute[];
+  stepId: string;
+};
+
+type CopilotPromptRegistryPublishGateActionRouteDryRun = {
+  actionId?: string;
+  actualRouteCount: number;
+  diagnosticsErrorCode?: string;
+  diagnosticsErrorMessage?: string;
+  diagnosticsErrorStage?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  expectedRouteCount: number;
+  featureKind: string;
+  missingRouteCount: number;
+  routeCountMismatch: boolean;
+  routeCountMismatchStepIds: string[];
+  status: 'failed' | 'skipped' | 'succeeded';
+  steps: CopilotPromptRegistryPublishGateActionRouteDryRunStep[];
+};
+
+type CopilotPromptRegistryPublishGateActionRouteDryRunPrompt = Pick<
+  ResolvedPrompt,
+  'category' | 'defaultPolicy' | 'model' | 'modelSource' | 'name'
+> &
+  Partial<Pick<ResolvedPrompt, 'action' | 'config' | 'messages'>>;
+
+@ObjectType()
+class CopilotPromptRegistryPublishGateModelRouteType implements CopilotPromptRegistryPublishGateModelRoute {
+  @Field(() => Boolean)
+  available!: CopilotPromptRegistryPublishGateModelRoute['available'];
+
+  @Field(() => [String], { nullable: true })
+  behaviorFlags?: CopilotPromptRegistryPublishGateModelRoute['behaviorFlags'];
+
+  @Field(() => SafeIntResolver)
+  candidateCount!: CopilotPromptRegistryPublishGateModelRoute['candidateCount'];
+
+  @Field(() => String, { nullable: true })
+  candidateConfigPath?: CopilotPromptRegistryPublishGateModelRoute['candidateConfigPath'];
+
+  @Field(() => SafeIntResolver)
+  candidateIndex!: CopilotPromptRegistryPublishGateModelRoute['candidateIndex'];
+
+  @Field(() => String)
+  candidateKind!: CopilotPromptRegistryPublishGateModelRoute['candidateKind'];
+
+  @Field(() => String, { nullable: true })
+  canonicalModelKey?: CopilotPromptRegistryPublishGateModelRoute['canonicalModelKey'];
+
+  @Field(() => Boolean)
+  checked!: CopilotPromptRegistryPublishGateModelRoute['checked'];
+
+  @Field(() => Boolean)
+  configured!: CopilotPromptRegistryPublishGateModelRoute['configured'];
+
+  @Field(() => String, { nullable: true })
+  diagnosticsErrorCode?: CopilotPromptRegistryPublishGateModelRoute['diagnosticsErrorCode'];
+
+  @Field(() => String, { nullable: true })
+  diagnosticsErrorMessage?: CopilotPromptRegistryPublishGateModelRoute['diagnosticsErrorMessage'];
+
+  @Field(() => String, { nullable: true })
+  diagnosticsErrorStage?: CopilotPromptRegistryPublishGateModelRoute['diagnosticsErrorStage'];
+
+  @Field(() => [String])
+  fallbackProviderIds!: CopilotPromptRegistryPublishGateModelRoute['fallbackProviderIds'];
+
+  @Field(() => String)
+  featureKind!: CopilotPromptRegistryPublishGateModelRoute['featureKind'];
+
+  @Field(() => SafeIntResolver)
+  matchedCandidateCount!: CopilotPromptRegistryPublishGateModelRoute['matchedCandidateCount'];
+
+  @Field(() => String, { nullable: true })
+  modelBackendKind?: CopilotPromptRegistryPublishGateModelRoute['modelBackendKind'];
+
+  @Field(() => String, { nullable: true })
+  modelId?: CopilotPromptRegistryPublishGateModelRoute['modelId'];
+
+  @Field(() => String)
+  outputType!: CopilotPromptRegistryPublishGateModelRoute['outputType'];
+
+  @Field(() => [String], { nullable: true })
+  policyAllowedPrivacy?: CopilotPromptRegistryPublishGateModelRoute['policyAllowedPrivacy'];
+
+  @Field(() => [String], { nullable: true })
+  policyAllowedProviderIds?: CopilotPromptRegistryPublishGateModelRoute['policyAllowedProviderIds'];
+
+  @Field(() => [String], { nullable: true })
+  policyBlockedProviderIds?: CopilotPromptRegistryPublishGateModelRoute['policyBlockedProviderIds'];
+
+  @Field(() => Boolean)
+  policyEnabled!: CopilotPromptRegistryPublishGateModelRoute['policyEnabled'];
+
+  @Field(() => String, { nullable: true })
+  policyFeatureKind?: CopilotPromptRegistryPublishGateModelRoute['policyFeatureKind'];
+
+  @Field(() => [String], { nullable: true })
+  policyPreferredPrivacy?: CopilotPromptRegistryPublishGateModelRoute['policyPreferredPrivacy'];
+
+  @Field(() => String, { nullable: true })
+  policyWorkspaceId?: CopilotPromptRegistryPublishGateModelRoute['policyWorkspaceId'];
+
+  @Field(() => [CopilotPromptRegistryPublishGatePolicyCandidateType])
+  policyCandidates!: CopilotPromptRegistryPublishGateModelRoute['policyCandidates'];
+
+  @Field(() => String, { nullable: true })
+  protocol?: CopilotPromptRegistryPublishGateModelRoute['protocol'];
+
+  @Field(() => String, { nullable: true })
+  providerId?: CopilotPromptRegistryPublishGateModelRoute['providerId'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerConfiguredModelCount?: CopilotPromptRegistryPublishGateModelRoute['providerConfiguredModelCount'];
+
+  @Field(() => [String], { nullable: true })
+  providerConfiguredModelIds?: CopilotPromptRegistryPublishGateModelRoute['providerConfiguredModelIds'];
+
+  @Field(() => String, { nullable: true })
+  providerHealth?: CopilotPromptRegistryPublishGateModelRoute['providerHealth'];
+
+  @Field(() => String, { nullable: true })
+  providerHealthCheckedAt?: CopilotPromptRegistryPublishGateModelRoute['providerHealthCheckedAt'];
+
+  @Field(() => String, { nullable: true })
+  providerHealthLastError?: CopilotPromptRegistryPublishGateModelRoute['providerHealthLastError'];
+
+  @Field(() => String, { nullable: true })
+  providerName?: CopilotPromptRegistryPublishGateModelRoute['providerName'];
+
+  @Field(() => String, { nullable: true })
+  providerPrivacy?: CopilotPromptRegistryPublishGateModelRoute['providerPrivacy'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerPriority?: CopilotPromptRegistryPublishGateModelRoute['providerPriority'];
+
+  @Field(() => String, { nullable: true })
+  providerProfileConfigPath?: CopilotPromptRegistryPublishGateModelRoute['providerProfileConfigPath'];
+
+  @Field(() => String, { nullable: true })
+  providerProfileId?: CopilotPromptRegistryPublishGateModelRoute['providerProfileId'];
+
+  @Field(() => String, { nullable: true })
+  providerProfileSource?: CopilotPromptRegistryPublishGateModelRoute['providerProfileSource'];
+
+  @Field(() => String, { nullable: true })
+  providerSource?: CopilotPromptRegistryPublishGateModelRoute['providerSource'];
+
+  @Field(() => String, { nullable: true })
+  providerType?: CopilotPromptRegistryPublishGateModelRoute['providerType'];
+
+  @Field(() => [String])
+  reasons!: CopilotPromptRegistryPublishGateModelRoute['reasons'];
+
+  @Field(() => String, { nullable: true })
+  requestedModelId?: CopilotPromptRegistryPublishGateModelRoute['requestedModelId'];
+
+  @Field(() => String, { nullable: true })
+  requestedModelSource?: CopilotPromptRegistryPublishGateModelRoute['requestedModelSource'];
+
+  @Field(() => String, { nullable: true })
+  requestLayer?: CopilotPromptRegistryPublishGateModelRoute['requestLayer'];
+
+  @Field(() => Boolean, { nullable: true })
+  routeModelAliasMatched?: CopilotPromptRegistryPublishGateModelRoute['routeModelAliasMatched'];
+
+  @Field(() => [String], { nullable: true })
+  routeModelDefinitionAliases?: CopilotPromptRegistryPublishGateModelRoute['routeModelDefinitionAliases'];
+
+  @Field(() => String, { nullable: true })
+  routeModelDefinitionId?: CopilotPromptRegistryPublishGateModelRoute['routeModelDefinitionId'];
+
+  @Field(() => String, { nullable: true })
+  routeModelDefinitionSource?: CopilotPromptRegistryPublishGateModelRoute['routeModelDefinitionSource'];
+
+  @Field(() => String, { nullable: true })
+  routeRawModelId?: CopilotPromptRegistryPublishGateModelRoute['routeRawModelId'];
+
+  @Field(() => [CopilotPromptRegistryPublishGateRouteCandidateType])
+  routeCandidates!: CopilotPromptRegistryPublishGateModelRoute['routeCandidates'];
+
+  @Field(() => [CopilotPromptRegistryPublishGateRouteTracePhaseType])
+  routeTrace!: CopilotPromptRegistryPublishGateModelRoute['routeTrace'];
+}
+
+@ObjectType()
+class CopilotPromptRegistryPublishGatePolicyCandidateType implements CopilotPromptRegistryPublishGatePolicyCandidate {
+  @Field(() => Boolean)
+  allowed!: CopilotPromptRegistryPublishGatePolicyCandidate['allowed'];
+
+  @Field(() => Boolean)
+  available!: CopilotPromptRegistryPublishGatePolicyCandidate['available'];
+
+  @Field(() => String)
+  health!: CopilotPromptRegistryPublishGatePolicyCandidate['health'];
+
+  @Field(() => String, { nullable: true })
+  healthCheckedAt?: CopilotPromptRegistryPublishGatePolicyCandidate['healthCheckedAt'];
+
+  @Field(() => String)
+  privacy!: CopilotPromptRegistryPublishGatePolicyCandidate['privacy'];
+
+  @Field(() => String)
+  providerId!: CopilotPromptRegistryPublishGatePolicyCandidate['providerId'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerConfiguredModelCount?: CopilotPromptRegistryPublishGatePolicyCandidate['providerConfiguredModelCount'];
+
+  @Field(() => [String], { nullable: true })
+  providerConfiguredModelIds?: CopilotPromptRegistryPublishGatePolicyCandidate['providerConfiguredModelIds'];
+
+  @Field(() => String, { nullable: true })
+  providerName?: CopilotPromptRegistryPublishGatePolicyCandidate['providerName'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerPriority?: CopilotPromptRegistryPublishGatePolicyCandidate['providerPriority'];
+
+  @Field(() => String, { nullable: true })
+  providerProfileConfigPath?: CopilotPromptRegistryPublishGatePolicyCandidate['providerProfileConfigPath'];
+
+  @Field(() => String, { nullable: true })
+  providerProfileId?: CopilotPromptRegistryPublishGatePolicyCandidate['providerProfileId'];
+
+  @Field(() => String, { nullable: true })
+  providerProfileSource?: CopilotPromptRegistryPublishGatePolicyCandidate['providerProfileSource'];
+
+  @Field(() => String, { nullable: true })
+  providerSource?: CopilotPromptRegistryPublishGatePolicyCandidate['providerSource'];
+
+  @Field(() => String, { nullable: true })
+  providerType?: CopilotPromptRegistryPublishGatePolicyCandidate['providerType'];
+
+  @Field(() => [String])
+  reasons!: CopilotPromptRegistryPublishGatePolicyCandidate['reasons'];
+}
+
+@ObjectType()
+class CopilotPromptRegistryPublishGateRouteTracePhaseType implements CopilotPromptRegistryPublishGateRouteTracePhase {
+  @Field(() => SafeIntResolver, { nullable: true })
+  availableCount?: CopilotPromptRegistryPublishGateRouteTracePhase['availableCount'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  blockedCount?: CopilotPromptRegistryPublishGateRouteTracePhase['blockedCount'];
+
+  @Field(() => SafeIntResolver)
+  candidateCount!: CopilotPromptRegistryPublishGateRouteTracePhase['candidateCount'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  matchedCount?: CopilotPromptRegistryPublishGateRouteTracePhase['matchedCount'];
+
+  @Field(() => String)
+  phase!: CopilotPromptRegistryPublishGateRouteTracePhase['phase'];
+
+  @Field(() => [String])
+  reasons!: CopilotPromptRegistryPublishGateRouteTracePhase['reasons'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  selectedCount?: CopilotPromptRegistryPublishGateRouteTracePhase['selectedCount'];
+}
+
+@ObjectType()
+class CopilotPromptRegistryPublishGateRouteCandidateType implements CopilotPromptRegistryPublishGateRouteCandidate {
+  @Field(() => [String], { nullable: true })
+  candidateModelIds?: CopilotPromptRegistryPublishGateRouteCandidate['candidateModelIds'];
+
+  @Field(() => String, { nullable: true })
+  health?: CopilotPromptRegistryPublishGateRouteCandidate['health'];
+
+  @Field(() => String, { nullable: true })
+  healthCheckedAt?: CopilotPromptRegistryPublishGateRouteCandidate['healthCheckedAt'];
+
+  @Field(() => Boolean)
+  matched!: CopilotPromptRegistryPublishGateRouteCandidate['matched'];
+
+  @Field(() => String, { nullable: true })
+  modelId?: CopilotPromptRegistryPublishGateRouteCandidate['modelId'];
+
+  @Field(() => String, { nullable: true })
+  privacy?: CopilotPromptRegistryPublishGateRouteCandidate['privacy'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerConfiguredModelCount?: CopilotPromptRegistryPublishGateRouteCandidate['providerConfiguredModelCount'];
+
+  @Field(() => [String], { nullable: true })
+  providerConfiguredModelIds?: CopilotPromptRegistryPublishGateRouteCandidate['providerConfiguredModelIds'];
+
+  @Field(() => String)
+  providerId!: CopilotPromptRegistryPublishGateRouteCandidate['providerId'];
+
+  @Field(() => String, { nullable: true })
+  providerName?: CopilotPromptRegistryPublishGateRouteCandidate['providerName'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerPriority?: CopilotPromptRegistryPublishGateRouteCandidate['providerPriority'];
+
+  @Field(() => String, { nullable: true })
+  providerProfileConfigPath?: CopilotPromptRegistryPublishGateRouteCandidate['providerProfileConfigPath'];
+
+  @Field(() => String, { nullable: true })
+  providerProfileId?: CopilotPromptRegistryPublishGateRouteCandidate['providerProfileId'];
+
+  @Field(() => String, { nullable: true })
+  providerProfileSource?: CopilotPromptRegistryPublishGateRouteCandidate['providerProfileSource'];
+
+  @Field(() => String, { nullable: true })
+  providerSource?: CopilotPromptRegistryPublishGateRouteCandidate['providerSource'];
+
+  @Field(() => String, { nullable: true })
+  providerType?: CopilotPromptRegistryPublishGateRouteCandidate['providerType'];
+
+  @Field(() => [String])
+  reasons!: CopilotPromptRegistryPublishGateRouteCandidate['reasons'];
+
+  @Field(() => Boolean, { nullable: true })
+  registryAvailable?: CopilotPromptRegistryPublishGateRouteCandidate['registryAvailable'];
+
+  @Field(() => String, { nullable: true })
+  registryKind?: CopilotPromptRegistryPublishGateRouteCandidate['registryKind'];
+
+  @Field(() => Boolean, { nullable: true })
+  registrySelected?: CopilotPromptRegistryPublishGateRouteCandidate['registrySelected'];
+
+  @Field(() => String, { nullable: true })
+  requestedModelId?: CopilotPromptRegistryPublishGateRouteCandidate['requestedModelId'];
+
+  @Field(() => Boolean, { nullable: true })
+  routeModelAliasMatched?: CopilotPromptRegistryPublishGateRouteCandidate['routeModelAliasMatched'];
+
+  @Field(() => [String], { nullable: true })
+  routeModelDefinitionAliases?: CopilotPromptRegistryPublishGateRouteCandidate['routeModelDefinitionAliases'];
+
+  @Field(() => String, { nullable: true })
+  routeModelDefinitionId?: CopilotPromptRegistryPublishGateRouteCandidate['routeModelDefinitionId'];
+
+  @Field(() => String, { nullable: true })
+  routeModelDefinitionSource?: CopilotPromptRegistryPublishGateRouteCandidate['routeModelDefinitionSource'];
+
+  @Field(() => String, { nullable: true })
+  routeRawModelId?: CopilotPromptRegistryPublishGateRouteCandidate['routeRawModelId'];
+}
+
+@ObjectType()
+class CopilotPromptRegistryValidationRemediationType implements CopilotPromptRegistryValidationRemediation {
+  @Field(() => String)
+  detail!: CopilotPromptRegistryValidationRemediation['detail'];
+
+  @Field(() => String)
+  kind!: CopilotPromptRegistryValidationRemediation['kind'];
+
+  @Field(() => String)
+  label!: CopilotPromptRegistryValidationRemediation['label'];
+
+  @Field(() => String)
+  target!: CopilotPromptRegistryValidationRemediation['target'];
+
+  @Field(() => CopilotPromptRegistryValidationSourceLocatorType)
+  targetLocator!: CopilotPromptRegistryValidationRemediation['targetLocator'];
+}
+
+@ObjectType()
+class CopilotPromptRegistryPublishGateRepairTargetLocatorType implements CopilotPromptRegistryPublishGateRepairTargetLocator {
+  @Field(() => String, { nullable: true })
+  actionId?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  candidateIndex?: number;
+
+  @Field(() => String, { nullable: true })
+  candidateKind?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  fallbackOrderIndex?: number;
+
+  @Field(() => String, { nullable: true })
+  featureKind?: string;
+
+  @Field(() => String)
+  kind!: string;
+
+  @Field(() => String, { nullable: true })
+  outputType?: string;
+
+  @Field(() => String)
+  path!: string;
+
+  @Field(() => String, { nullable: true })
+  providerId?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileConfigPath?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileId?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileSource?: string;
+
+  @Field(() => String)
+  registryFingerprint!: string;
+
+  @Field(() => SafeIntResolver)
+  registryId!: number;
+
+  @Field(() => String)
+  registryUpdatedAt!: string;
+
+  @Field(() => String, { nullable: true })
+  requestedModelConfigKey?: string;
+
+  @Field(() => String, { nullable: true })
+  requestedModelConfigPath?: string;
+
+  @Field(() => String, { nullable: true })
+  requestedModelId?: string;
+
+  @Field(() => String, { nullable: true })
+  requestedModelSource?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  routeIndex?: number;
+
+  @Field(() => String, { nullable: true })
+  status?: string;
+
+  @Field(() => String, { nullable: true })
+  stepId?: string;
+}
+
+@ObjectType()
+class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements CopilotPromptRegistryPublishGateRepairCandidateEvidence {
+  @Field(() => String)
+  candidateFingerprint!: CopilotPromptRegistryPublishGateRepairCandidateEvidence['candidateFingerprint'];
+
+  @Field(() => SafeIntResolver)
+  candidateIndex!: CopilotPromptRegistryPublishGateRepairCandidateEvidence['candidateIndex'];
+
+  @Field(() => String, { nullable: true })
+  candidateKey?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['candidateKey'];
+
+  @Field(() => [String], { nullable: true })
+  candidateModelIds?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['candidateModelIds'];
+
+  @Field(() => String, { nullable: true })
+  modelId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelId'];
+
+  @Field(() => String, { nullable: true })
+  preparedModelId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedModelId'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerConfiguredModelCount?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerConfiguredModelCount'];
+
+  @Field(() => [String], { nullable: true })
+  providerConfiguredModelIds?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerConfiguredModelIds'];
+
+  @Field(() => String)
+  providerId!: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerId'];
+
+  @Field(() => String, { nullable: true })
+  providerName?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerName'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerPriority?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerPriority'];
+
+  @Field(() => String, { nullable: true })
+  providerProfileConfigPath?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerProfileConfigPath'];
+
+  @Field(() => String, { nullable: true })
+  providerProfileId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerProfileId'];
+
+  @Field(() => String, { nullable: true })
+  providerProfileSource?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerProfileSource'];
+
+  @Field(() => String, { nullable: true })
+  providerSource?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerSource'];
+
+  @Field(() => String, { nullable: true })
+  providerType?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerType'];
+
+  @Field(() => [String])
+  reasons!: CopilotPromptRegistryPublishGateRepairCandidateEvidence['reasons'];
+
+  @Field(() => String, { nullable: true })
+  requestedModelId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['requestedModelId'];
+
+  @Field(() => String, { nullable: true })
+  routeModelDefinitionId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeModelDefinitionId'];
+
+  @Field(() => String)
+  scope!: CopilotPromptRegistryPublishGateRepairCandidateEvidence['scope'];
+}
+
+@ObjectType()
+class CopilotPromptRegistryPublishGateRepairRecommendationType implements CopilotPromptRegistryPublishGateRepairRecommendation {
+  @Field(() => [CopilotPromptRegistryPublishGateRepairCandidateEvidenceType], {
+    nullable: true,
+  })
+  candidateEvidence?: CopilotPromptRegistryPublishGateRepairRecommendation['candidateEvidence'];
+
+  @Field(() => String)
+  category!: string;
+
+  @Field(() => String)
+  code!: string;
+
+  @Field(() => String)
+  detail!: string;
+
+  @Field(() => String)
+  diagnosticsFingerprint!: string;
+
+  @Field(() => [String])
+  evidence!: string[];
+
+  @Field(() => String, { nullable: true })
+  instanceKey?: string;
+
+  @Field(() => String)
+  severity!: string;
+
+  @Field(() => String)
+  suggestedAction!: string;
+
+  @Field(() => String)
+  suggestedActionCatalogVersion!: string;
+
+  @Field(() => GraphQLJSON)
+  suggestedActionInputSchema!: Record<string, unknown>;
+
+  @Field(() => String)
+  suggestedActionKind!: string;
+
+  @Field(() => [String])
+  suggestedActionRequiredCapabilities!: string[];
+
+  @Field(() => String)
+  suggestedActionSafety!: string;
+
+  @Field(() => String)
+  target!: string;
+
+  @Field(() => CopilotPromptRegistryPublishGateRepairTargetLocatorType, {
+    nullable: true,
+  })
+  targetLocator?: CopilotPromptRegistryPublishGateRepairTargetLocator;
+
+  @Field(() => String)
+  title!: string;
+}
+
+@ObjectType()
+class CopilotPromptRegistryPublishGateRepairActionCatalogEntryType implements CopilotPromptRegistryPublishGateRepairActionCatalogEntry {
+  @Field(() => String)
+  actionKind!: string;
+
+  @Field(() => String)
+  catalogVersion!: string;
+
+  @Field(() => GraphQLJSON)
+  inputSchema!: Record<string, unknown>;
+
+  @Field(() => SafeIntResolver)
+  recommendationCount!: number;
+
+  @Field(() => [String])
+  requiredCapabilities!: string[];
+
+  @Field(() => String)
+  safety!: string;
+}
+
+@ObjectType()
+class CopilotPromptRegistryPublishGateRepairActionMutationGuardType implements CopilotPromptRegistryPublishGateRepairActionMutationGuard {
+  @Field(() => String)
+  auditSummary!: string;
+
+  @Field(() => String)
+  auditSummaryFingerprint!: string;
+
+  @Field(() => String)
+  catalogFingerprint!: string;
+
+  @Field(() => String)
+  catalogVersion!: string;
+
+  @Field(() => String)
+  expectedRegistryFingerprint!: string;
+
+  @Field(() => SafeIntResolver)
+  expectedRegistryId!: number;
+
+  @Field(() => String)
+  expectedRegistryUpdatedAt!: string;
+
+  @Field(() => String)
+  guardFingerprint!: string;
+
+  @Field(() => String)
+  intentFingerprint!: string;
+
+  @Field(() => String)
+  inputSchemaFingerprint!: string;
+
+  @Field(() => [String])
+  recommendationCategories!: string[];
+
+  @Field(() => SafeIntResolver)
+  recommendationCount!: number;
+
+  @Field(() => [String])
+  recommendationCodes!: string[];
+
+  @Field(() => [String])
+  recommendationFingerprints!: string[];
+
+  @Field(() => [String])
+  requiredCapabilities!: string[];
+
+  @Field(() => [String])
+  requiredReviewModes!: string[];
+
+  @Field(() => Boolean)
+  required!: boolean;
+
+  @Field(() => [String])
+  safetyLevels!: string[];
+
+  @Field(() => [String])
+  suggestedActionKinds!: string[];
+
+  @Field(() => SafeIntResolver)
+  targetLocatorCount!: number;
+
+  @Field(() => String)
+  targetLocatorFingerprint!: string;
+
+  @Field(() => [String])
+  targetLocatorKinds!: string[];
+}
+
+@ObjectType()
+class CopilotPromptRegistryPublishGateRepairActionPreviewOperationType implements CopilotPromptRegistryPublishGateRepairActionPreviewOperation {
+  @Field(() => String)
+  actionKind!: string;
+
+  @Field(() => SafeIntResolver)
+  candidateEvidenceCount!: number;
+
+  @Field(() => String)
+  candidateEvidenceFingerprint!: string;
+
+  @Field(() => [String])
+  candidateEvidenceFingerprints!: string[];
+
+  @Field(() => [String])
+  candidateEvidenceKeys!: string[];
+
+  @Field(() => String)
+  category!: string;
+
+  @Field(() => String)
+  code!: string;
+
+  @Field(() => String)
+  diagnosticsFingerprint!: string;
+
+  @Field(() => GraphQLJSON)
+  inputSchema!: Record<string, unknown>;
+
+  @Field(() => String, { nullable: true })
+  instanceKey?: string;
+
+  @Field(() => String)
+  operationFingerprint!: string;
+
+  @Field(() => String)
+  previewStatus!: string;
+
+  @Field(() => [String])
+  requiredCapabilities!: string[];
+
+  @Field(() => String)
+  reviewMode!: string;
+
+  @Field(() => String)
+  safety!: string;
+
+  @Field(() => String)
+  target!: string;
+
+  @Field(() => CopilotPromptRegistryPublishGateRepairTargetLocatorType, {
+    nullable: true,
+  })
+  targetLocator?: CopilotPromptRegistryPublishGateRepairTargetLocator;
+
+  @Field(() => String)
+  targetLocatorFingerprint!: string;
+}
+
+@ObjectType()
+class CopilotPromptRegistryPublishGateRepairActionSubmissionContractType implements CopilotPromptRegistryPublishGateRepairActionSubmissionContract {
+  @Field(() => String)
+  approvalPolicyFingerprint!: string;
+
+  @Field(() => String)
+  authorizationFingerprint!: string;
+
+  @Field(() => String)
+  candidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  catalogFingerprint!: string;
+
+  @Field(() => String)
+  contractVersion!: string;
+
+  @Field(() => String)
+  expectedRegistryFingerprint!: string;
+
+  @Field(() => SafeIntResolver)
+  expectedRegistryId!: number;
+
+  @Field(() => String)
+  expectedRegistryUpdatedAt!: string;
+
+  @Field(() => String)
+  guardFingerprint!: string;
+
+  @Field(() => String)
+  idempotencyKey!: string;
+
+  @Field(() => Boolean)
+  mutationAvailable!: boolean;
+
+  @Field(() => String)
+  operationSetFingerprint!: string;
+
+  @Field(() => String)
+  previewFingerprint!: string;
+
+  @Field(() => Boolean)
+  readOnly!: boolean;
+
+  @Field(() => [String])
+  requiredInputs!: string[];
+
+  @Field(() => String)
+  status!: string;
+
+  @Field(() => String)
+  submissionFingerprint!: string;
+}
+
+@ObjectType()
+class CopilotPromptRegistryPublishGateRepairActionPreviewType implements CopilotPromptRegistryPublishGateRepairActionPreview {
+  @Field(() => [String])
+  approvalCheckpoints!: string[];
+
+  @Field(() => [String])
+  approvalModes!: string[];
+
+  @Field(() => String)
+  approvalPolicyFingerprint!: string;
+
+  @Field(() => String)
+  approvalPolicyVersion!: string;
+
+  @Field(() => Boolean)
+  approvalRequired!: boolean;
+
+  @Field(() => String)
+  auditSummaryFingerprint!: string;
+
+  @Field(() => String)
+  authorizationFingerprint!: string;
+
+  @Field(() => String)
+  authorizationStatus!: string;
+
+  @Field(() => SafeIntResolver)
+  candidateCount!: number;
+
+  @Field(() => String)
+  candidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  catalogFingerprint!: string;
+
+  @Field(() => String)
+  catalogVersion!: string;
+
+  @Field(() => String)
+  guardFingerprint!: string;
+
+  @Field(() => [String])
+  operationFingerprints!: string[];
+
+  @Field(() => String)
+  operationSetFingerprint!: string;
+
+  @Field(() => [
+    CopilotPromptRegistryPublishGateRepairActionPreviewOperationType,
+  ])
+  operations!: CopilotPromptRegistryPublishGateRepairActionPreviewOperation[];
+
+  @Field(() => String)
+  previewFingerprint!: string;
+
+  @Field(() => Boolean)
+  readOnly!: boolean;
+
+  @Field(() => [String])
+  requiredCapabilities!: string[];
+
+  @Field(() => String)
+  status!: string;
+
+  @Field(
+    () => CopilotPromptRegistryPublishGateRepairActionSubmissionContractType
+  )
+  submissionContract!: CopilotPromptRegistryPublishGateRepairActionSubmissionContract;
+}
+
+@ObjectType()
+class CopilotPromptRegistryRepairPreflightType implements CopilotPromptRegistryRepairPreflight {
+  @Field(() => Boolean)
+  accepted!: boolean;
+
+  @Field(() => String)
+  actorFingerprint!: string;
+
+  @Field(() => [String])
+  actorSnapshotInputs!: string[];
+
+  @Field(() => String)
+  actorSnapshotStatus!: string;
+
+  @Field(() => String)
+  actorSnapshotVersion!: string;
+
+  @Field(() => String)
+  actorType!: string;
+
+  @Field(() => [String])
+  approvalCheckpoints!: string[];
+
+  @Field(() => [String])
+  approvalModes!: string[];
+
+  @Field(() => Boolean)
+  approvalRecordCreated!: boolean;
+
+  @Field(() => String)
+  approvalRecordFingerprint!: string;
+
+  @Field(() => [String])
+  approvalRecordInputs!: string[];
+
+  @Field(() => String)
+  approvalRecordStatus!: string;
+
+  @Field(() => String)
+  approvalRecordVersion!: string;
+
+  @Field(() => String)
+  approvalRequestFingerprint!: string;
+
+  @Field(() => [String])
+  approvalRequestInputs!: string[];
+
+  @Field(() => String)
+  approvalRequestStatus!: string;
+
+  @Field(() => String)
+  approvalRequestVersion!: string;
+
+  @Field(() => Boolean)
+  approvalRequired!: boolean;
+
+  @Field(() => String)
+  auditBindingFingerprint!: string;
+
+  @Field(() => [String])
+  auditBindingInputs!: string[];
+
+  @Field(() => String)
+  auditBindingStatus!: string;
+
+  @Field(() => String)
+  auditBindingVersion!: string;
+
+  @Field(() => Boolean)
+  auditEventCreated!: boolean;
+
+  @Field(() => String)
+  auditEventFingerprint!: string;
+
+  @Field(() => [String])
+  auditEventInputs!: string[];
+
+  @Field(() => String)
+  auditEventStatus!: string;
+
+  @Field(() => String)
+  auditEventVersion!: string;
+
+  @Field(() => String)
+  authorizationStatus!: string;
+
+  @Field(() => String)
+  candidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  capabilityCheckMode!: string;
+
+  @Field(() => String)
+  capabilityFingerprint!: string;
+
+  @Field(() => String)
+  capabilitySource!: string;
+
+  @Field(() => String)
+  capabilityStatus!: string;
+
+  @Field(() => String)
+  contractVersion!: string;
+
+  @Field(() => String)
+  currentSubmissionFingerprint!: string;
+
+  @Field(() => String)
+  expectedSubmissionFingerprint!: string;
+
+  @Field(() => String)
+  executionGateFingerprint!: string;
+
+  @Field(() => [String])
+  executionGateInputs!: string[];
+
+  @Field(() => String)
+  executionGateStatus!: string;
+
+  @Field(() => String)
+  executionGateVersion!: string;
+
+  @Field(() => Boolean)
+  executionStateCreated!: boolean;
+
+  @Field(() => String)
+  executionStateFingerprint!: string;
+
+  @Field(() => [String])
+  executionStateInputs!: string[];
+
+  @Field(() => String)
+  executionStateStatus!: string;
+
+  @Field(() => String)
+  executionStateVersion!: string;
+
+  @Field(() => String)
+  expectedCandidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  idempotencyFingerprint!: string;
+
+  @Field(() => String)
+  idempotencyKey!: string;
+
+  @Field(() => Boolean)
+  idempotencyLockAcquired!: boolean;
+
+  @Field(() => String)
+  idempotencyScope!: string;
+
+  @Field(() => String)
+  idempotencyStatus!: string;
+
+  @Field(() => String)
+  idempotencyVersion!: string;
+
+  @Field(() => [String])
+  matchedFields!: string[];
+
+  @Field(() => [String])
+  mismatchedFields!: string[];
+
+  @Field(() => Boolean)
+  mutationAvailable!: boolean;
+
+  @Field(() => String)
+  permissionCheckMode!: string;
+
+  @Field(() => Boolean)
+  permissionChecked!: boolean;
+
+  @Field(() => String)
+  permissionFingerprint!: string;
+
+  @Field(() => String)
+  permissionScope!: string;
+
+  @Field(() => String)
+  permissionStatus!: string;
+
+  @Field(() => String)
+  policyBindingFingerprint!: string;
+
+  @Field(() => [String])
+  policyBindingInputs!: string[];
+
+  @Field(() => String)
+  policyBindingStatus!: string;
+
+  @Field(() => String)
+  policyBindingVersion!: string;
+
+  @Field(() => String)
+  policySource!: string;
+
+  @Field(() => [String])
+  requiredCapabilities!: string[];
+
+  @Field(() => SafeIntResolver)
+  requiredCapabilityCount!: number;
+
+  @Field(() => String)
+  requiredPermission!: string;
+
+  @Field(() => Boolean)
+  repairJobCreated!: boolean;
+
+  @Field(() => String)
+  repairJobFingerprint!: string;
+
+  @Field(() => [String])
+  repairJobInputs!: string[];
+
+  @Field(() => String)
+  repairJobStatus!: string;
+
+  @Field(() => String)
+  repairJobVersion!: string;
+
+  @Field(() => String)
+  reviewBindingFingerprint!: string;
+
+  @Field(() => [String])
+  reviewBindingInputs!: string[];
+
+  @Field(() => String)
+  reviewBindingStatus!: string;
+
+  @Field(() => String)
+  reviewBindingVersion!: string;
+
+  @Field(() => Boolean)
+  rollbackPlanCreated!: boolean;
+
+  @Field(() => String)
+  rollbackPlanFingerprint!: string;
+
+  @Field(() => [String])
+  rollbackPlanInputs!: string[];
+
+  @Field(() => String)
+  rollbackPlanStatus!: string;
+
+  @Field(() => String)
+  rollbackPlanVersion!: string;
+
+  @Field(() => Boolean)
+  readOnly!: boolean;
+
+  @Field(() => String)
+  status!: string;
+
+  @Field(() => String, { nullable: true })
+  workspaceId?: string;
+}
+
+@ObjectType()
+class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRegistryRepairExecutionRequest {
+  @Field(() => Boolean)
+  accepted!: boolean;
+
+  @Field(() => Boolean)
+  executionRequested!: boolean;
+
+  @Field(() => Boolean)
+  approvalRecordRequestCreated!: boolean;
+
+  @Field(() => String)
+  approvalRecordRequestFingerprint!: string;
+
+  @Field(() => [String])
+  approvalRecordRequestInputs!: string[];
+
+  @Field(() => String)
+  approvalRecordRequestStatus!: string;
+
+  @Field(() => String)
+  approvalRecordRequestVersion!: string;
+
+  @Field(() => Boolean)
+  auditEventRequestCreated!: boolean;
+
+  @Field(() => String)
+  auditEventRequestFingerprint!: string;
+
+  @Field(() => [String])
+  auditEventRequestInputs!: string[];
+
+  @Field(() => String)
+  auditEventRequestStatus!: string;
+
+  @Field(() => String)
+  auditEventRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionCompletionEventRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionCompletionEventRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionCompletionEventRequestInputs!: string[];
+
+  @Field(() => String)
+  executionCompletionEventRequestStatus!: string;
+
+  @Field(() => String)
+  executionCompletionEventRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionCompletionRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionCompletionRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionCompletionRequestInputs!: string[];
+
+  @Field(() => String)
+  executionCompletionRequestStatus!: string;
+
+  @Field(() => String)
+  executionCompletionRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionFinalizationEventRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionFinalizationEventRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionFinalizationEventRequestInputs!: string[];
+
+  @Field(() => String)
+  executionFinalizationEventRequestStatus!: string;
+
+  @Field(() => String)
+  executionFinalizationEventRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionFinalizationRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionFinalizationRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionFinalizationRequestInputs!: string[];
+
+  @Field(() => String)
+  executionFinalizationRequestStatus!: string;
+
+  @Field(() => String)
+  executionFinalizationRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionStatusPollRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionStatusPollRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionStatusPollRequestInputs!: string[];
+
+  @Field(() => String)
+  executionStatusPollRequestStatus!: string;
+
+  @Field(() => String)
+  executionStatusPollRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionOperationEntryRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionOperationEntryRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionOperationEntryRequestInputs!: string[];
+
+  @Field(() => String)
+  executionOperationEntryRequestStatus!: string;
+
+  @Field(() => String)
+  executionOperationEntryRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionApprovalUiRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionApprovalUiRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionApprovalUiRequestInputs!: string[];
+
+  @Field(() => String)
+  executionApprovalUiRequestStatus!: string;
+
+  @Field(() => String)
+  executionApprovalUiRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionDiffPreviewRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionDiffPreviewRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionDiffPreviewRequestInputs!: string[];
+
+  @Field(() => String)
+  executionDiffPreviewRequestStatus!: string;
+
+  @Field(() => String)
+  executionDiffPreviewRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionApprovalDecisionRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionApprovalDecisionRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionApprovalDecisionRequestInputs!: string[];
+
+  @Field(() => String)
+  executionApprovalDecisionRequestStatus!: string;
+
+  @Field(() => String)
+  executionApprovalDecisionRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionStartRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionStartRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionStartRequestInputs!: string[];
+
+  @Field(() => String)
+  executionStartRequestStatus!: string;
+
+  @Field(() => String)
+  executionStartRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionQueueRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionQueueRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionQueueRequestInputs!: string[];
+
+  @Field(() => String)
+  executionQueueRequestStatus!: string;
+
+  @Field(() => String)
+  executionQueueRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionWorkerLeaseRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionWorkerLeaseRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionWorkerLeaseRequestInputs!: string[];
+
+  @Field(() => String)
+  executionWorkerLeaseRequestStatus!: string;
+
+  @Field(() => String)
+  executionWorkerLeaseRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionJobRunRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionJobRunRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionJobRunRequestInputs!: string[];
+
+  @Field(() => String)
+  executionJobRunRequestStatus!: string;
+
+  @Field(() => String)
+  executionJobRunRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepTraceRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepTraceRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepTraceRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepTraceRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepTraceRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepResultRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepResultRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepResultRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepResultRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepResultRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepCompletionRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepCompletionRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepCompletionRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepCompletionRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepCompletionRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepStatusEventRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepStatusEventRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepStatusEventRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepStatusEventRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepStatusEventRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepRetryRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepRetryRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepRetryRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepRetryRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepRetryRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepRetryAttemptRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepRetryAttemptRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepRetryAttemptRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepRetryAttemptStatusEventRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptStatusEventRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepRetryAttemptStatusEventRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepRetryAttemptStatusEventRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptStatusEventRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepRetryAttemptTraceRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptTraceRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepRetryAttemptTraceRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepRetryAttemptTraceRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptTraceRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepRetryAttemptResultRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptResultRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepRetryAttemptResultRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepRetryAttemptResultRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptResultRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepRetryAttemptCompletionRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptCompletionRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepRetryAttemptCompletionRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepRetryAttemptCompletionRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptCompletionRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepRetryAttemptCompletionStatusEventRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepRetryAttemptCompletionStatusEventRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepRetryAttemptCompletionStatusEventRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptCompletionStatusEventRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepRetryAttemptFinalizationRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptFinalizationRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepRetryAttemptFinalizationRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepRetryAttemptFinalizationRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptFinalizationRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepRetryAttemptFinalizationStatusEventRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepRetryAttemptFinalizationStatusEventRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepRetryAttemptFinalizationStatusEventRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptFinalizationStatusEventRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepRetryAttemptCloseRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptCloseRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepRetryAttemptCloseRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepRetryAttemptCloseRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptCloseRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepRetryAttemptCloseStatusEventRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptCloseStatusEventRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepRetryAttemptCloseStatusEventRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepRetryAttemptCloseStatusEventRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptCloseStatusEventRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepRetryAttemptRetentionPolicyRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptRetentionPolicyRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepRetryAttemptRetentionPolicyRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepRetryAttemptRetentionPolicyRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptRetentionPolicyRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepRetryAttemptRetentionLeaseRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptRetentionLeaseRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepRetryAttemptRetentionLeaseRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepRetryAttemptRetentionLeaseRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptRetentionLeaseRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRunStepRetryAttemptArchiveRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptArchiveRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRunStepRetryAttemptArchiveRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRunStepRetryAttemptArchiveRequestStatus!: string;
+
+  @Field(() => String)
+  executionRunStepRetryAttemptArchiveRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionFailureEventRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionFailureEventRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionFailureEventRequestInputs!: string[];
+
+  @Field(() => String)
+  executionFailureEventRequestStatus!: string;
+
+  @Field(() => String)
+  executionFailureEventRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionProviderResponseRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionProviderResponseRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionProviderResponseRequestInputs!: string[];
+
+  @Field(() => String)
+  executionProviderResponseRequestStatus!: string;
+
+  @Field(() => String)
+  executionProviderResponseRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionResultRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionResultRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionResultRequestInputs!: string[];
+
+  @Field(() => String)
+  executionResultRequestStatus!: string;
+
+  @Field(() => String)
+  executionResultRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRetryPolicyRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRetryPolicyRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRetryPolicyRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRetryPolicyRequestStatus!: string;
+
+  @Field(() => String)
+  executionRetryPolicyRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRollbackExecutorRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRollbackExecutorRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRollbackExecutorRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRollbackExecutorRequestStatus!: string;
+
+  @Field(() => String)
+  executionRollbackExecutorRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRollbackOperationRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRollbackOperationRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRollbackOperationRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRollbackOperationRequestStatus!: string;
+
+  @Field(() => String)
+  executionRollbackOperationRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRollbackOutcomeRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRollbackOutcomeRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRollbackOutcomeRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRollbackOutcomeRequestStatus!: string;
+
+  @Field(() => String)
+  executionRollbackOutcomeRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionRollbackTriggerRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionRollbackTriggerRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionRollbackTriggerRequestInputs!: string[];
+
+  @Field(() => String)
+  executionRollbackTriggerRequestStatus!: string;
+
+  @Field(() => String)
+  executionRollbackTriggerRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionTraceRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionTraceRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionTraceRequestInputs!: string[];
+
+  @Field(() => String)
+  executionTraceRequestStatus!: string;
+
+  @Field(() => String)
+  executionTraceRequestVersion!: string;
+
+  @Field(() => Boolean)
+  executionStateRequestCreated!: boolean;
+
+  @Field(() => String)
+  executionStateRequestFingerprint!: string;
+
+  @Field(() => [String])
+  executionStateRequestInputs!: string[];
+
+  @Field(() => String)
+  executionStateRequestStatus!: string;
+
+  @Field(() => String)
+  executionStateRequestVersion!: string;
+
+  @Field(() => Boolean)
+  repairJobRequestCreated!: boolean;
+
+  @Field(() => String)
+  repairJobRequestFingerprint!: string;
+
+  @Field(() => [String])
+  repairJobRequestInputs!: string[];
+
+  @Field(() => String)
+  repairJobRequestStatus!: string;
+
+  @Field(() => String)
+  repairJobRequestVersion!: string;
+
+  @Field(() => Boolean)
+  rollbackPlanRequestCreated!: boolean;
+
+  @Field(() => String)
+  rollbackPlanRequestFingerprint!: string;
+
+  @Field(() => [String])
+  rollbackPlanRequestInputs!: string[];
+
+  @Field(() => String)
+  rollbackPlanRequestStatus!: string;
+
+  @Field(() => String)
+  rollbackPlanRequestVersion!: string;
+
+  @Field(() => Boolean)
+  idempotencyLockAcquired!: boolean;
+
+  @Field(() => String)
+  idempotencyLockFingerprint!: string;
+
+  @Field(() => [String])
+  idempotencyLockInputs!: string[];
+
+  @Field(() => String)
+  idempotencyLockScope!: string;
+
+  @Field(() => String)
+  idempotencyLockStatus!: string;
+
+  @Field(() => String)
+  idempotencyLockVersion!: string;
+
+  @Field(() => [String])
+  matchedFields!: string[];
+
+  @Field(() => [String])
+  mismatchedFields!: string[];
+
+  @Field(() => Boolean)
+  mutationAvailable!: boolean;
+
+  @Field(() => CopilotPromptRegistryRepairPreflightType)
+  preflight!: CopilotPromptRegistryRepairPreflight;
+
+  @Field(() => Boolean)
+  readOnly!: boolean;
+
+  @Field(() => String)
+  requestFingerprint!: string;
+
+  @Field(() => [String])
+  requestInputs!: string[];
+
+  @Field(() => String)
+  requestStatus!: string;
+
+  @Field(() => String)
+  requestVersion!: string;
+}
+
+@ObjectType()
+class CopilotPromptRegistryPublishGateVerdictType implements PromptRegistryPublishGateVerdict {
+  @Field(() => CopilotPromptRegistryPublishGateActionRouteDryRunType, {
+    nullable: true,
+  })
+  actionRouteDryRun?: CopilotPromptRegistryPublishGateActionRouteDryRun;
+
+  @Field(() => Boolean)
+  allowed!: PromptRegistryPublishGateVerdict['allowed'];
+
+  @Field(() => SafeIntResolver)
+  blockingCount!: PromptRegistryPublishGateVerdict['blockingCount'];
+
+  @Field(() => SafeIntResolver)
+  errorCount!: PromptRegistryPublishGateVerdict['errorCount'];
+
+  @Field(() => SafeIntResolver)
+  issueCount!: PromptRegistryPublishGateVerdict['issueCount'];
+
+  @Field(() => [CopilotPromptRegistryValidationIssueType])
+  issues!: PromptRegistryPublishGateVerdict['issues'];
+
+  @Field(() => CopilotPromptRegistryPublishGateModelRouteType, {
+    nullable: true,
+  })
+  modelRoute?: CopilotPromptRegistryPublishGateModelRoute;
+
+  @Field(() => [CopilotPromptRegistryPublishGateModelRouteType])
+  modelRoutes!: CopilotPromptRegistryPublishGateModelRoute[];
+
+  @Field(() => [CopilotTaskRouteDiagnosticsType])
+  taskRoutes!: CopilotPromptRegistryPublishGateTaskRoute[];
+
+  @Field(() => String)
+  name!: PromptRegistryPublishGateVerdict['name'];
+
+  @Field(() => String)
+  publishStatus!: PromptRegistryPublishGateVerdict['publishStatus'];
+
+  @Field(() => String)
+  reason!: PromptRegistryPublishGateVerdict['reason'];
+
+  @Field(() => String)
+  registryFingerprint!: PromptRegistryPublishGateVerdict['registryFingerprint'];
+
+  @Field(() => SafeIntResolver)
+  registryId!: PromptRegistryPublishGateVerdict['registryId'];
+
+  @Field(() => Date)
+  registryUpdatedAt!: PromptRegistryPublishGateVerdict['registryUpdatedAt'];
+
+  @Field(() => [CopilotPromptRegistryValidationRemediationType])
+  remediations!: PromptRegistryPublishGateVerdict['remediations'];
+
+  @Field(() => [CopilotPromptRegistryPublishGateRepairRecommendationType])
+  repairRecommendations!: CopilotPromptRegistryPublishGateRepairRecommendation[];
+
+  @Field(() => [CopilotPromptRegistryPublishGateRepairActionCatalogEntryType])
+  repairActionCatalog!: CopilotPromptRegistryPublishGateRepairActionCatalogEntry[];
+
+  @Field(() => String)
+  repairActionCatalogFingerprint!: string;
+
+  @Field(() => CopilotPromptRegistryPublishGateRepairActionMutationGuardType)
+  repairActionMutationGuard!: CopilotPromptRegistryPublishGateRepairActionMutationGuard;
+
+  @Field(() => CopilotPromptRegistryPublishGateRepairActionPreviewType)
+  repairActionPreview!: CopilotPromptRegistryPublishGateRepairActionPreview;
+
+  @Field(() => Boolean)
+  stale!: PromptRegistryPublishGateVerdict['stale'];
+
+  @Field(() => [String])
+  staleReasons!: PromptRegistryPublishGateVerdict['staleReasons'];
+
+  @Field(() => String)
+  status!: PromptRegistryPublishGateVerdict['status'];
+}
+
+@ObjectType()
+class CopilotPromptCatalogVersionEvidenceType implements PromptCatalogVersionEvidence {
+  @Field(() => String)
+  revision!: string;
+
+  @Field(() => String)
+  fingerprint!: string;
+
+  @Field(() => String)
+  modelStrategyFingerprint!: string;
+
+  @Field(() => String)
+  templateFingerprint!: string;
+
+  @Field(() => String, { nullable: true })
+  defaultPolicy?: PromptCatalogVersionEvidence['defaultPolicy'];
+
+  @Field(() => Boolean)
+  overrideApplied!: boolean;
+
+  @Field(() => String, { nullable: true })
+  modelConfigPath?: PromptCatalogVersionEvidence['modelConfigPath'];
+
+  @Field(() => String, { nullable: true })
+  optionalModelsConfigPath?: PromptCatalogVersionEvidence['optionalModelsConfigPath'];
+
+  @Field(() => String, { nullable: true })
+  proModelsConfigPath?: PromptCatalogVersionEvidence['proModelsConfigPath'];
+
+  @Field(() => String, { nullable: true })
+  registryFingerprint?: PromptCatalogVersionEvidence['registryFingerprint'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  registryId?: PromptCatalogVersionEvidence['registryId'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  registryMessageCount?: PromptCatalogVersionEvidence['registryMessageCount'];
+
+  @Field(() => Boolean, { nullable: true })
+  registryModified?: PromptCatalogVersionEvidence['registryModified'];
+
+  @Field(() => Date, { nullable: true })
+  registryUpdatedAt?: PromptCatalogVersionEvidence['registryUpdatedAt'];
+
+  @Field(() => String, { nullable: true })
+  registryValidationDetail?: PromptCatalogVersionEvidence['registryValidationDetail'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  registryValidationBlockingCount?: PromptCatalogVersionEvidence['registryValidationBlockingCount'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  registryValidationErrorCount?: PromptCatalogVersionEvidence['registryValidationErrorCount'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  registryValidationIssueCount?: PromptCatalogVersionEvidence['registryValidationIssueCount'];
+
+  @Field(() => [CopilotPromptRegistryValidationIssueType], { nullable: true })
+  registryValidationIssues?: PromptCatalogVersionEvidence['registryValidationIssues'];
+
+  @Field(() => String, { nullable: true })
+  registryValidationPublishStatus?: PromptCatalogVersionEvidence['registryValidationPublishStatus'];
+
+  @Field(() => [CopilotPromptRegistryValidationRemediationType], {
+    nullable: true,
+  })
+  registryValidationRemediations?: PromptCatalogVersionEvidence['registryValidationRemediations'];
+
+  @Field(() => String, { nullable: true })
+  registryValidationReason?: PromptCatalogVersionEvidence['registryValidationReason'];
+
+  @Field(() => String, { nullable: true })
+  registryValidationStatus?: PromptCatalogVersionEvidence['registryValidationStatus'];
+}
+
+@ObjectType()
+class CopilotPromptCatalogItemType implements PromptCatalogItem {
+  @Field(() => String)
+  name!: string;
+
+  @Field(() => String)
+  revision!: string;
+
+  @Field(() => String)
+  fingerprint!: string;
+
+  @Field(() => String)
+  modelStrategyFingerprint!: string;
+
+  @Field(() => String)
+  templateFingerprint!: string;
+
+  @Field(() => CopilotPromptCatalogVersionEvidenceType)
+  versionEvidence!: PromptCatalogItem['versionEvidence'];
+
+  @Field(() => String, { nullable: true })
+  action?: string;
+
+  @Field(() => String)
+  model!: string;
+
+  @Field(() => String)
+  modelSource!: PromptCatalogItem['modelSource'];
+
+  @Field(() => String, { nullable: true })
+  modelConfigPath?: PromptCatalogItem['modelConfigPath'];
+
+  @Field(() => [String])
+  optionalModels!: string[];
+
+  @Field(() => String)
+  optionalModelsSource!: PromptCatalogItem['optionalModelsSource'];
+
+  @Field(() => String, { nullable: true })
+  optionalModelsConfigPath?: PromptCatalogItem['optionalModelsConfigPath'];
+
+  @Field(() => SafeIntResolver)
+  optionalModelCount!: number;
+
+  @Field(() => [String])
+  paramKeys!: string[];
+
+  @Field(() => SafeIntResolver)
+  paramCount!: number;
+
+  @Field(() => String)
+  source!: PromptCatalogItem['source'];
+
+  @Field(() => String)
+  category!: PromptCatalogItem['category'];
+
+  @Field(() => String, { nullable: true })
+  defaultPolicy?: PromptCatalogItem['defaultPolicy'];
+
+  @Field(() => Boolean)
+  overrideApplied!: boolean;
+
+  @Field(() => SafeIntResolver)
+  proModelCount!: number;
+
+  @Field(() => String)
+  proModelsSource!: PromptCatalogItem['proModelsSource'];
+
+  @Field(() => String, { nullable: true })
+  proModelsConfigPath?: PromptCatalogItem['proModelsConfigPath'];
+
+  @Field(() => String, { nullable: true })
+  registryFingerprint?: PromptCatalogItem['registryFingerprint'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  registryId?: PromptCatalogItem['registryId'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  registryMessageCount?: PromptCatalogItem['registryMessageCount'];
+
+  @Field(() => Boolean, { nullable: true })
+  registryModified?: PromptCatalogItem['registryModified'];
+
+  @Field(() => Date, { nullable: true })
+  registryUpdatedAt?: PromptCatalogItem['registryUpdatedAt'];
+
+  @Field(() => String, { nullable: true })
+  registryValidationDetail?: PromptCatalogItem['registryValidationDetail'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  registryValidationBlockingCount?: PromptCatalogItem['registryValidationBlockingCount'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  registryValidationErrorCount?: PromptCatalogItem['registryValidationErrorCount'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  registryValidationIssueCount?: PromptCatalogItem['registryValidationIssueCount'];
+
+  @Field(() => [CopilotPromptRegistryValidationIssueType], { nullable: true })
+  registryValidationIssues?: PromptCatalogItem['registryValidationIssues'];
+
+  @Field(() => String, { nullable: true })
+  registryValidationPublishStatus?: PromptCatalogItem['registryValidationPublishStatus'];
+
+  @Field(() => [CopilotPromptRegistryValidationRemediationType], {
+    nullable: true,
+  })
+  registryValidationRemediations?: PromptCatalogItem['registryValidationRemediations'];
+
+  @Field(() => String, { nullable: true })
+  registryValidationReason?: PromptCatalogItem['registryValidationReason'];
+
+  @Field(() => String, { nullable: true })
+  registryValidationStatus?: PromptCatalogItem['registryValidationStatus'];
+}
+
+@ObjectType()
+class CopilotModelPromptSourceType implements CopilotModelPromptSource {
+  @Field(() => String)
+  candidateSource!: CopilotModelPromptSource['candidateSource'];
+
+  @Field(() => String, { nullable: true })
+  modelSource?: CopilotModelPromptSource['modelSource'];
+
+  @Field(() => String, { nullable: true })
+  modelConfigPath?: CopilotModelPromptSource['modelConfigPath'];
+}
+
+@ObjectType()
+class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnosticsItem {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  actionId!: string;
+
+  @Field(() => String)
+  actionVersion!: string;
+
+  @Field(() => String)
+  status!: string;
+
+  @Field(() => SafeIntResolver)
+  attempt!: number;
+
+  @Field(() => String, { nullable: true })
+  retryOf!: string | null;
+
+  @Field(() => String, { nullable: true })
+  docId!: string | null;
+
+  @Field(() => String, { nullable: true })
+  sessionId!: string | null;
+
+  @Field(() => String, { nullable: true })
+  errorCode!: string | null;
+
+  @Field(() => Boolean)
+  hasPreparedRouteTrace!: boolean;
+
+  @Field(() => SafeIntResolver)
+  preparedRouteStepCount!: number;
+
+  @Field(() => SafeIntResolver)
+  preparedRouteCount!: number;
+
+  @Field(() => SafeIntResolver)
+  preparedRouteActualCount!: number;
+
+  @Field(() => [String])
+  preparedRouteStepRouteCounts!: string[];
+
+  @Field(() => [String])
+  preparedRouteStepRouteCountMismatches!: string[];
+
+  @Field(() => [String])
+  preparedRouteStepIds!: string[];
+
+  @Field(() => [String])
+  preparedRouteKinds!: string[];
+
+  @Field(() => [String])
+  preparedRouteOrder!: string[];
+
+  @Field(() => [String])
+  preparedRouteFallbackOrder!: string[];
+
+  @Field(() => [String])
+  preparedRouteProtocols!: string[];
+
+  @Field(() => [String])
+  preparedRouteRequestLayers!: string[];
+
+  @Field(() => [String])
+  preparedRouteStepOrder!: string[];
+
+  @Field(() => [String])
+  preparedRouteStepFallbackOrder!: string[];
+
+  @Field(() => [String])
+  preparedRouteStepProtocols!: string[];
+
+  @Field(() => [String])
+  preparedRouteStepRequestLayers!: string[];
+
+  @Field(() => [String])
+  preparedRouteProviderIds!: string[];
+
+  @Field(() => [String])
+  preparedRouteModelIds!: string[];
+
+  @Field(() => [String])
+  preparedRouteRequestedModelIds!: string[];
+
+  @Field(() => [String])
+  preparedRouteRequestedModelSources!: string[];
+
+  @Field(() => [String])
+  preparedRouteStepRequestedModelSources!: string[];
+
+  @Field(() => [String])
+  preparedRouteTargets!: string[];
+
+  @Field(() => [String])
+  preparedRouteStepTargets!: string[];
+
+  @Field(() => [String])
+  preparedRouteRequestedTargets!: string[];
+
+  @Field(() => [String])
+  preparedRouteStepRequestedTargets!: string[];
+
+  @Field(() => [String])
+  preparedRouteFallbackProviderIds!: string[];
+
+  @Field(() => [String])
+  preparedRouteStepFallbackProviderIds!: string[];
+
+  @Field(() => Date)
+  createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
+}
+
+function modelListRoutePolicyContext(workspaceId?: string | null) {
+  return {
+    featureKind: 'chat' as const,
+    ...(workspaceId ? { workspaceId } : {}),
+  };
+}
+
+type PromptRegistryPublishGateModelRouteTarget = {
+  featureKind: CopilotProviderRoutePolicyFeatureKind;
+  outputType: ModelOutputType;
+};
+
+type PromptRegistryPublishGateModelRouteCandidate = {
+  candidateConfigPath?: string;
+  candidateIndex: number;
+  candidateKind: 'default' | 'optional' | 'pro' | 'registry';
+  modelId: string;
+  requestedModelSource?: string;
+};
+
+type PromptRegistryPublishGateRoutePolicyMetadata = {
+  policyAllowedPrivacy?: string[];
+  policyAllowedProviderIds?: string[];
+  policyBlockedProviderIds?: string[];
+  policyEnabled: boolean;
+  policyFeatureKind?: string;
+  policyPreferredPrivacy?: string[];
+  policyWorkspaceId?: string;
+};
+
+type PromptRegistryPublishGateRouteCandidateDiagnostics = Awaited<
+  ReturnType<CopilotProviderFactory['describeRouteCandidates']>
+>[number];
+
+function resolvePromptRegistryPublishGateModelRouteTarget(
+  prompt: Pick<ResolvedPrompt, 'model' | 'name'> &
+    Partial<
+      Pick<ResolvedPrompt, 'action' | 'category' | 'config' | 'defaultPolicy'>
+    >
+): PromptRegistryPublishGateModelRouteTarget {
+  if (
+    prompt.defaultPolicy === 'image' ||
+    prompt.category === 'image' ||
+    isImagePromptCategory(prompt)
+  ) {
+    return {
+      featureKind: 'image',
+      outputType: ModelOutputType.Image,
+    };
+  }
+
+  if (prompt.defaultPolicy === 'structured') {
+    return {
+      featureKind: 'action',
+      outputType: ModelOutputType.Structured,
+    };
+  }
+
+  if (
+    prompt.defaultPolicy === 'transcript' ||
+    prompt.category === 'transcript' ||
+    isTranscriptPromptCategory(prompt)
+  ) {
+    return {
+      featureKind: 'transcript',
+      outputType: ModelOutputType.Text,
+    };
+  }
+
+  return {
+    featureKind: 'chat',
+    outputType: ModelOutputType.Object,
+  };
+}
+
+function resolvePromptRegistryPublishGateModelRouteCandidates(
+  prompt: Pick<ResolvedPrompt, 'config' | 'model'> &
+    Partial<
+      Pick<
+        ResolvedPrompt,
+        | 'modelConfigPath'
+        | 'modelSource'
+        | 'optionalModels'
+        | 'optionalModelsConfigPath'
+        | 'optionalModelsSource'
+        | 'proModelsConfigPath'
+        | 'proModelsSource'
+      >
+    >,
+  registryModelIds: string[] = []
+): PromptRegistryPublishGateModelRouteCandidate[] {
+  const candidates: PromptRegistryPublishGateModelRouteCandidate[] = [
+    {
+      candidateConfigPath:
+        prompt.modelConfigPath ?? 'ai_prompts_metadata.model',
+      candidateIndex: 0,
+      candidateKind: 'default',
+      modelId: prompt.model,
+      requestedModelSource: prompt.modelSource ?? 'registry',
+    },
+  ];
+
+  const optionalModels = prompt.optionalModels ?? [];
+  optionalModels.forEach((modelId, index) => {
+    candidates.push({
+      candidateConfigPath:
+        prompt.optionalModelsConfigPath ?? 'ai_prompts_metadata.optionalModels',
+      candidateIndex: index,
+      candidateKind: 'optional',
+      modelId,
+      requestedModelSource: prompt.optionalModelsSource ?? 'registry',
+    });
+  });
+
+  const proModels = prompt.config?.proModels ?? [];
+  proModels.forEach((modelId, index) => {
+    candidates.push({
+      candidateConfigPath:
+        prompt.proModelsConfigPath ?? 'ai_prompts_metadata.config.proModels',
+      candidateIndex: index,
+      candidateKind: 'pro',
+      modelId,
+      requestedModelSource: prompt.proModelsSource ?? 'registry',
+    });
+  });
+
+  const existingModelIds = new Set(
+    candidates.map(candidate => candidate.modelId)
+  );
+  uniqueStrings(registryModelIds)
+    .filter(modelId => !existingModelIds.has(modelId))
+    .forEach((modelId, index) => {
+      candidates.push({
+        candidateConfigPath: 'copilot.providers.profiles[].models',
+        candidateIndex: index,
+        candidateKind: 'registry',
+        modelId,
+        requestedModelSource: 'registry',
+      });
+    });
+
+  return candidates.filter(candidate => candidate.modelId);
+}
+
+function collectModelCapabilityTypes(
+  providerModel: Partial<ResolvedProviderModel> | undefined
+) {
+  const capabilities = providerModel?.capabilities;
+  if (!Array.isArray(capabilities) || !capabilities.length) {
+    return {};
+  }
+
+  const inputTypes = Array.from(
+    new Set(capabilities.flatMap(capability => capability.input ?? []))
+  );
+  const outputTypes = Array.from(
+    new Set(capabilities.flatMap(capability => capability.output ?? []))
+  );
+
+  return {
+    ...(inputTypes.length ? { routeInputTypes: inputTypes } : {}),
+    ...(outputTypes.length ? { routeOutputTypes: outputTypes } : {}),
+  };
+}
+
+function selectPromptRegistryPublishGateRouteCandidate(
+  candidates: PromptRegistryPublishGateRouteCandidateDiagnostics[]
+) {
+  return (
+    candidates.find(candidate => candidate.matched) ??
+    candidates.find(candidate => candidate.registrySelected) ??
+    candidates.find(candidate => candidate.registryAvailable !== false) ??
+    candidates[0]
+  );
+}
+
+function promptRegistryPublishGateRouteCandidateMetadata(
+  candidate: PromptRegistryPublishGateRouteCandidateDiagnostics | undefined
+): Partial<CopilotPromptRegistryPublishGateModelRoute> {
+  if (!candidate) {
+    return {};
+  }
+
+  return {
+    providerId: candidate.providerId,
+    ...(candidate.providerName ? { providerName: candidate.providerName } : {}),
+    ...(candidate.providerSource
+      ? { providerSource: candidate.providerSource }
+      : {}),
+    ...(candidate.providerProfileId
+      ? { providerProfileId: candidate.providerProfileId }
+      : {}),
+    ...(candidate.providerProfileSource
+      ? { providerProfileSource: candidate.providerProfileSource }
+      : {}),
+    ...(candidate.providerProfileConfigPath
+      ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
+      : {}),
+    ...(candidate.providerConfiguredModelIds !== undefined
+      ? { providerConfiguredModelIds: candidate.providerConfiguredModelIds }
+      : {}),
+    ...(candidate.providerConfiguredModelCount !== undefined
+      ? { providerConfiguredModelCount: candidate.providerConfiguredModelCount }
+      : {}),
+    ...(candidate.providerType ? { providerType: candidate.providerType } : {}),
+    ...(candidate.privacy ? { providerPrivacy: candidate.privacy } : {}),
+    ...(candidate.health ? { providerHealth: candidate.health } : {}),
+    ...(candidate.healthCheckedAt
+      ? { providerHealthCheckedAt: candidate.healthCheckedAt }
+      : {}),
+    ...(candidate.providerPriority !== undefined
+      ? { providerPriority: candidate.providerPriority }
+      : {}),
+    ...(candidate.modelId ? { modelId: candidate.modelId } : {}),
+    ...(candidate.routeRawModelId
+      ? { routeRawModelId: candidate.routeRawModelId }
+      : {}),
+    ...(candidate.routeModelDefinitionSource
+      ? { routeModelDefinitionSource: candidate.routeModelDefinitionSource }
+      : {}),
+    ...(candidate.routeModelDefinitionId
+      ? { routeModelDefinitionId: candidate.routeModelDefinitionId }
+      : {}),
+    ...(candidate.routeModelDefinitionAliases?.length
+      ? { routeModelDefinitionAliases: candidate.routeModelDefinitionAliases }
+      : {}),
+    ...(candidate.routeModelAliasMatched !== undefined
+      ? { routeModelAliasMatched: candidate.routeModelAliasMatched }
+      : {}),
+  };
+}
+
+function toPromptRegistryPublishGateRouteCandidate(
+  candidate: PromptRegistryPublishGateRouteCandidateDiagnostics
+): CopilotPromptRegistryPublishGateRouteCandidate {
+  return {
+    ...(candidate.candidateModelIds !== undefined
+      ? { candidateModelIds: candidate.candidateModelIds }
+      : {}),
+    ...(candidate.health ? { health: candidate.health } : {}),
+    ...(candidate.healthCheckedAt
+      ? { healthCheckedAt: candidate.healthCheckedAt }
+      : {}),
+    matched: candidate.matched,
+    ...(candidate.modelId ? { modelId: candidate.modelId } : {}),
+    ...(candidate.privacy ? { privacy: candidate.privacy } : {}),
+    ...(candidate.providerConfiguredModelCount !== undefined
+      ? { providerConfiguredModelCount: candidate.providerConfiguredModelCount }
+      : {}),
+    ...(candidate.providerConfiguredModelIds !== undefined
+      ? { providerConfiguredModelIds: candidate.providerConfiguredModelIds }
+      : {}),
+    providerId: candidate.providerId,
+    ...(candidate.providerName ? { providerName: candidate.providerName } : {}),
+    ...(candidate.providerPriority !== undefined
+      ? { providerPriority: candidate.providerPriority }
+      : {}),
+    ...(candidate.providerProfileConfigPath
+      ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
+      : {}),
+    ...(candidate.providerProfileId
+      ? { providerProfileId: candidate.providerProfileId }
+      : {}),
+    ...(candidate.providerProfileSource
+      ? { providerProfileSource: candidate.providerProfileSource }
+      : {}),
+    ...(candidate.providerSource
+      ? { providerSource: candidate.providerSource }
+      : {}),
+    ...(candidate.providerType ? { providerType: candidate.providerType } : {}),
+    reasons: candidate.reasons,
+    ...(candidate.registryAvailable !== undefined
+      ? { registryAvailable: candidate.registryAvailable }
+      : {}),
+    ...(candidate.registryKind ? { registryKind: candidate.registryKind } : {}),
+    ...(candidate.registrySelected !== undefined
+      ? { registrySelected: candidate.registrySelected }
+      : {}),
+    ...(candidate.requestedModelId
+      ? { requestedModelId: candidate.requestedModelId }
+      : {}),
+    ...(candidate.routeModelAliasMatched !== undefined
+      ? { routeModelAliasMatched: candidate.routeModelAliasMatched }
+      : {}),
+    ...(candidate.routeModelDefinitionAliases?.length
+      ? { routeModelDefinitionAliases: candidate.routeModelDefinitionAliases }
+      : {}),
+    ...(candidate.routeModelDefinitionId
+      ? { routeModelDefinitionId: candidate.routeModelDefinitionId }
+      : {}),
+    ...(candidate.routeModelDefinitionSource
+      ? { routeModelDefinitionSource: candidate.routeModelDefinitionSource }
+      : {}),
+    ...(candidate.routeRawModelId
+      ? { routeRawModelId: candidate.routeRawModelId }
+      : {}),
+  };
+}
+
+function buildPromptRegistryPublishGateRouteTrace(
+  policyCandidates: CopilotPromptRegistryPublishGatePolicyCandidate[],
+  routeCandidates: CopilotPromptRegistryPublishGateRouteCandidate[]
+): CopilotPromptRegistryPublishGateRouteTracePhase[] {
+  return [
+    {
+      phase: 'policy',
+      candidateCount: policyCandidates.length,
+      availableCount: policyCandidates.filter(candidate => candidate.available)
+        .length,
+      selectedCount: policyCandidates.filter(candidate => candidate.allowed)
+        .length,
+      blockedCount: policyCandidates.filter(candidate => !candidate.allowed)
+        .length,
+      reasons: uniqueStrings(
+        policyCandidates.flatMap(candidate => candidate.reasons)
+      ),
+    },
+    {
+      phase: 'resolution',
+      candidateCount: routeCandidates.length,
+      availableCount: routeCandidates.filter(
+        candidate => candidate.registryAvailable !== false
+      ).length,
+      selectedCount: routeCandidates.filter(
+        candidate => candidate.registrySelected
+      ).length,
+      matchedCount: routeCandidates.filter(candidate => candidate.matched)
+        .length,
+      reasons: uniqueStrings(
+        routeCandidates.flatMap(candidate => candidate.reasons)
+      ),
+    },
+  ];
+}
+
+function promptRegistryPublishGateDiagnosticsErrorMetadata(
+  stage: 'describe_route_candidates' | 'resolve_provider',
+  error: unknown
+) {
+  return {
+    diagnosticsErrorCode:
+      error instanceof Error && error.name !== 'Error' ? error.name : stage,
+    diagnosticsErrorMessage:
+      error instanceof Error ? error.message : 'Unknown diagnostics error',
+    diagnosticsErrorStage: stage,
+  };
+}
+
+function diagnosticsErrorCode(error: unknown, fallbackCode: string) {
+  return error instanceof Error && error.name !== 'Error'
+    ? error.name
+    : fallbackCode;
+}
+
+function diagnosticsErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Unknown diagnostics error';
+}
+
+async function settleTaskRouteDiagnosticsProbe<T>(
+  stage: string,
+  probe: () => Promise<T> | T
+): Promise<{ errors: CopilotTaskRouteDiagnosticsError[]; value?: T }> {
+  try {
+    return { errors: [], value: await probe() };
+  } catch (error) {
+    return {
+      errors: [
+        {
+          code: diagnosticsErrorCode(error, stage),
+          message: diagnosticsErrorMessage(error),
+          stage,
+        },
+      ],
+    };
+  }
+}
+
+function compactEvidence(
+  values: Array<string | undefined | null | false>,
+  maxCount = 10
+) {
+  return uniqueStrings(
+    values.filter((value): value is string => Boolean(value))
+  ).slice(0, maxCount);
+}
+
+function definedArray<T>(values: T[] | undefined) {
+  return values?.length ? values : undefined;
+}
+
+function taskRouteRepairCandidateEvidenceBase(
+  scope: string,
+  candidate: {
+    candidateKey?: string;
+    candidateModelIds?: string[];
+    modelId?: string;
+    preparedModelId?: string;
+    providerConfiguredModelCount?: number;
+    providerConfiguredModelIds?: string[];
+    providerId: string;
+    providerName?: string;
+    providerPriority?: number;
+    providerProfileConfigPath?: string;
+    providerProfileId?: string;
+    providerProfileSource?: string;
+    providerSource?: string;
+    providerType?: string;
+    reasons?: string[];
+    requestedModelId?: string;
+    routeModelDefinitionId?: string;
+  },
+  index: number
+): Omit<
+  CopilotPromptRegistryPublishGateRepairCandidateEvidence,
+  'candidateFingerprint'
+> {
+  return {
+    candidateIndex: index,
+    ...(candidate.candidateKey !== undefined
+      ? { candidateKey: candidate.candidateKey }
+      : {}),
+    ...(definedArray(candidate.candidateModelIds) !== undefined
+      ? { candidateModelIds: definedArray(candidate.candidateModelIds) }
+      : {}),
+    ...(candidate.modelId !== undefined ? { modelId: candidate.modelId } : {}),
+    ...(candidate.preparedModelId !== undefined
+      ? { preparedModelId: candidate.preparedModelId }
+      : {}),
+    ...(candidate.providerConfiguredModelCount !== undefined
+      ? { providerConfiguredModelCount: candidate.providerConfiguredModelCount }
+      : {}),
+    ...(definedArray(candidate.providerConfiguredModelIds) !== undefined
+      ? {
+          providerConfiguredModelIds: definedArray(
+            candidate.providerConfiguredModelIds
+          ),
+        }
+      : {}),
+    providerId: candidate.providerId,
+    ...(candidate.providerName !== undefined
+      ? { providerName: candidate.providerName }
+      : {}),
+    ...(candidate.providerPriority !== undefined
+      ? { providerPriority: candidate.providerPriority }
+      : {}),
+    ...(candidate.providerProfileConfigPath !== undefined
+      ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
+      : {}),
+    ...(candidate.providerProfileId !== undefined
+      ? { providerProfileId: candidate.providerProfileId }
+      : {}),
+    ...(candidate.providerProfileSource !== undefined
+      ? { providerProfileSource: candidate.providerProfileSource }
+      : {}),
+    ...(candidate.providerSource !== undefined
+      ? { providerSource: candidate.providerSource }
+      : {}),
+    ...(candidate.providerType !== undefined
+      ? { providerType: candidate.providerType }
+      : {}),
+    reasons: uniqueStrings(candidate.reasons ?? []),
+    ...(candidate.requestedModelId !== undefined
+      ? { requestedModelId: candidate.requestedModelId }
+      : {}),
+    ...(candidate.routeModelDefinitionId !== undefined
+      ? { routeModelDefinitionId: candidate.routeModelDefinitionId }
+      : {}),
+    scope,
+  };
+}
+
+function taskRouteCandidateProfileStructuredEvidence(
+  route: CopilotPromptRegistryPublishGateTaskRoute
+) {
+  const candidateEvidence = (
+    scope: string,
+    candidate: {
+      candidateKey?: string;
+      candidateModelIds?: string[];
+      modelId?: string;
+      preparedModelId?: string;
+      providerConfiguredModelCount?: number;
+      providerConfiguredModelIds?: string[];
+      providerId: string;
+      providerName?: string;
+      providerPriority?: number;
+      providerProfileConfigPath?: string;
+      providerProfileId?: string;
+      providerProfileSource?: string;
+      providerSource?: string;
+      providerType?: string;
+      reasons?: string[];
+      requestedModelId?: string;
+      routeModelDefinitionId?: string;
+    },
+    index: number
+  ): CopilotPromptRegistryPublishGateRepairCandidateEvidence => {
+    const evidence = taskRouteRepairCandidateEvidenceBase(
+      scope,
+      candidate,
+      index
+    );
+
+    return {
+      candidateFingerprint:
+        taskRouteRepairCandidateEvidenceFingerprint(evidence),
+      ...evidence,
+    };
+  };
+
+  return [
+    ...route.policyCandidates.map((candidate, index) =>
+      candidateEvidence('policyCandidate', candidate, index)
+    ),
+    ...route.routeCandidates.map((candidate, index) =>
+      candidateEvidence('routeCandidate', candidate, index)
+    ),
+    ...(route.prepareCandidates ?? []).map((candidate, index) =>
+      candidateEvidence('prepareCandidate', candidate, index)
+    ),
+  ];
+}
+
+function taskRouteCandidateProfileEvidence(
+  candidateEvidence: CopilotPromptRegistryPublishGateRepairCandidateEvidence[]
+) {
+  return uniqueStrings(
+    candidateEvidence.flatMap(candidate =>
+      compactEvidence(
+        [
+          `${candidate.scope}#${candidate.candidateIndex}:candidateFingerprint:${candidate.candidateFingerprint}`,
+          candidate.candidateKey
+            ? `${candidate.scope}#${candidate.candidateIndex}:candidateKey:${candidate.candidateKey}`
+            : null,
+          `${candidate.scope}#${candidate.candidateIndex}:providerId:${candidate.providerId}`,
+          candidate.providerName
+            ? `${candidate.scope}#${candidate.candidateIndex}:providerName:${candidate.providerName}`
+            : null,
+          candidate.providerSource
+            ? `${candidate.scope}#${candidate.candidateIndex}:providerSource:${candidate.providerSource}`
+            : null,
+          candidate.providerType
+            ? `${candidate.scope}#${candidate.candidateIndex}:providerType:${candidate.providerType}`
+            : null,
+          candidate.providerProfileId
+            ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileId:${candidate.providerProfileId}`
+            : null,
+          candidate.providerProfileSource
+            ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileSource:${candidate.providerProfileSource}`
+            : null,
+          candidate.providerProfileConfigPath
+            ? `${candidate.scope}#${candidate.candidateIndex}:providerProfileConfigPath:${candidate.providerProfileConfigPath}`
+            : null,
+          candidate.providerConfiguredModelCount != null
+            ? `${candidate.scope}#${candidate.candidateIndex}:providerConfiguredModelCount:${candidate.providerConfiguredModelCount}`
+            : null,
+          ...(candidate.providerConfiguredModelIds ?? []).map(
+            modelId =>
+              `${candidate.scope}#${candidate.candidateIndex}:providerConfiguredModel:${modelId}`
+          ),
+          candidate.requestedModelId
+            ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelId:${candidate.requestedModelId}`
+            : null,
+          candidate.modelId
+            ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
+            : null,
+          candidate.preparedModelId
+            ? `${candidate.scope}#${candidate.candidateIndex}:preparedModelId:${candidate.preparedModelId}`
+            : null,
+          candidate.routeModelDefinitionId
+            ? `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionId:${candidate.routeModelDefinitionId}`
+            : null,
+          ...(candidate.candidateModelIds ?? []).map(
+            modelId =>
+              `${candidate.scope}#${candidate.candidateIndex}:candidateModel:${modelId}`
+          ),
+          ...candidate.reasons.map(
+            reason =>
+              `${candidate.scope}#${candidate.candidateIndex}:reason:${reason}`
+          ),
+        ],
+        16
+      )
+    )
+  );
+}
+
+function providerHealthNeedsRepair(health: string | undefined | null) {
+  return Boolean(health && health !== 'healthy' && health !== 'unknown');
+}
+
+function routeRepairTarget(
+  route: Pick<
+    CopilotPromptRegistryPublishGateModelRoute,
+    | 'candidateConfigPath'
+    | 'candidateKind'
+    | 'featureKind'
+    | 'providerProfileConfigPath'
+    | 'requestedModelId'
+  >
+) {
+  return (
+    route.candidateConfigPath ??
+    route.providerProfileConfigPath ??
+    `copilot.providers.route.${route.featureKind}.${route.candidateKind}`
+  );
+}
+
+function modelRouteRepairInstanceKey(
+  route: Pick<
+    CopilotPromptRegistryPublishGateModelRoute,
+    | 'candidateIndex'
+    | 'candidateKind'
+    | 'featureKind'
+    | 'outputType'
+    | 'requestedModelId'
+  >
+) {
+  return [
+    route.featureKind,
+    route.outputType,
+    route.candidateKind,
+    route.candidateIndex,
+    route.requestedModelId ?? 'unknown',
+  ].join(':');
+}
+
+function taskRouteRepairTarget(
+  route: Pick<
+    CopilotPromptRegistryPublishGateTaskRoute,
+    'featureKind' | 'requestedModelConfigPath'
+  >
+) {
+  return (
+    route.requestedModelConfigPath ??
+    `copilot.tasks.models.${route.featureKind}`
+  );
+}
+
+function taskRouteRepairInstanceKey(
+  route: Pick<
+    CopilotPromptRegistryPublishGateTaskRoute,
+    'featureKind' | 'requestedModelId' | 'requestedModelConfigKey'
+  >,
+  suffix: string
+) {
+  return [
+    route.featureKind,
+    route.requestedModelConfigKey ?? 'task-config',
+    route.requestedModelId ?? 'default-route',
+    suffix,
+  ].join(':');
+}
+
+function repairTargetLocatorBase(
+  verdict: Pick<
+    PromptRegistryPublishGateVerdict,
+    'registryFingerprint' | 'registryId' | 'registryUpdatedAt'
+  >,
+  kind: string,
+  path: string
+) {
+  return {
+    kind,
+    path,
+    registryFingerprint: verdict.registryFingerprint,
+    registryId: verdict.registryId,
+    registryUpdatedAt: verdict.registryUpdatedAt.toISOString(),
+  };
+}
+
+function registryRepairTargetLocator(
+  verdict: PromptRegistryPublishGateVerdict,
+  path: string
+): CopilotPromptRegistryPublishGateRepairTargetLocator {
+  return repairTargetLocatorBase(verdict, 'prompt_registry', path);
+}
+
+function modelRouteRepairTargetLocator(
+  verdict: PromptRegistryPublishGateVerdict,
+  route: CopilotPromptRegistryPublishGateModelRoute,
+  target: string
+): CopilotPromptRegistryPublishGateRepairTargetLocator {
+  return {
+    ...repairTargetLocatorBase(verdict, 'model_route', target),
+    candidateIndex: route.candidateIndex,
+    candidateKind: route.candidateKind,
+    featureKind: route.featureKind,
+    outputType: route.outputType,
+    ...(route.providerId ? { providerId: route.providerId } : {}),
+    ...(route.providerProfileConfigPath
+      ? { providerProfileConfigPath: route.providerProfileConfigPath }
+      : {}),
+    ...(route.providerProfileId
+      ? { providerProfileId: route.providerProfileId }
+      : {}),
+    ...(route.providerProfileSource
+      ? { providerProfileSource: route.providerProfileSource }
+      : {}),
+    ...(route.requestedModelId
+      ? { requestedModelId: route.requestedModelId }
+      : {}),
+    ...(route.requestedModelSource
+      ? { requestedModelSource: route.requestedModelSource }
+      : {}),
+  };
+}
+
+function taskRouteRepairTargetLocator(
+  verdict: PromptRegistryPublishGateVerdict,
+  route: CopilotPromptRegistryPublishGateTaskRoute,
+  target: string
+): CopilotPromptRegistryPublishGateRepairTargetLocator {
+  return {
+    ...repairTargetLocatorBase(verdict, 'task_route', target),
+    featureKind: route.featureKind,
+    ...(route.providerId ? { providerId: route.providerId } : {}),
+    ...(route.providerProfileConfigPath
+      ? { providerProfileConfigPath: route.providerProfileConfigPath }
+      : {}),
+    ...(route.providerProfileId
+      ? { providerProfileId: route.providerProfileId }
+      : {}),
+    ...(route.providerProfileSource
+      ? { providerProfileSource: route.providerProfileSource }
+      : {}),
+    ...(route.requestedModelConfigKey
+      ? { requestedModelConfigKey: route.requestedModelConfigKey }
+      : {}),
+    ...(route.requestedModelConfigPath
+      ? { requestedModelConfigPath: route.requestedModelConfigPath }
+      : {}),
+    ...(route.requestedModelId
+      ? { requestedModelId: route.requestedModelId }
+      : {}),
+    ...(route.requestedModelSource
+      ? { requestedModelSource: route.requestedModelSource }
+      : {}),
+  };
+}
+
+function actionRouteRepairTargetLocator(
+  verdict: PromptRegistryPublishGateVerdict,
+  dryRun: CopilotPromptRegistryPublishGateActionRouteDryRun,
+  target: string,
+  input?: {
+    route?: CopilotPromptRegistryPublishGateActionRouteDryRunRoute;
+    step?: CopilotPromptRegistryPublishGateActionRouteDryRunStep;
+  }
+): CopilotPromptRegistryPublishGateRepairTargetLocator {
+  const route = input?.route;
+  const step = input?.step;
+  return {
+    ...repairTargetLocatorBase(verdict, 'action_route', target),
+    ...(dryRun.actionId ? { actionId: dryRun.actionId } : {}),
+    featureKind: dryRun.featureKind,
+    status: dryRun.status,
+    ...(step?.stepId ? { stepId: step.stepId } : {}),
+    ...(step?.requestedModelId
+      ? { requestedModelId: step.requestedModelId }
+      : {}),
+    ...(step?.requestedModelSource
+      ? { requestedModelSource: step.requestedModelSource }
+      : {}),
+    ...(route?.providerId ? { providerId: route.providerId } : {}),
+    ...(route?.providerProfileConfigPath
+      ? { providerProfileConfigPath: route.providerProfileConfigPath }
+      : {}),
+    ...(route?.providerProfileId
+      ? { providerProfileId: route.providerProfileId }
+      : {}),
+    ...(route?.providerProfileSource
+      ? { providerProfileSource: route.providerProfileSource }
+      : {}),
+    ...(route?.routeIndex != null ? { routeIndex: route.routeIndex } : {}),
+    ...(route?.fallbackOrderIndex != null
+      ? { fallbackOrderIndex: route.fallbackOrderIndex }
+      : {}),
+  };
+}
+
+function actionDryRunRepairTarget(
+  dryRun: CopilotPromptRegistryPublishGateActionRouteDryRun
+) {
+  return dryRun.actionId
+    ? `ai_prompts_metadata.action.${dryRun.actionId}`
+    : `ai_prompts_metadata.${dryRun.featureKind}`;
+}
+
+function actionDryRunRepairInstancePrefix(
+  dryRun: CopilotPromptRegistryPublishGateActionRouteDryRun
+) {
+  return dryRun.actionId ?? dryRun.featureKind;
+}
+
+function promptRegistryRepairActionSafety(suggestedActionKind: string) {
+  if (
+    suggestedActionKind === 'check_provider_health' ||
+    suggestedActionKind === 'check_action_provider_health' ||
+    suggestedActionKind === 'inspect_task_route_diagnostics'
+  ) {
+    return 'read_only_probe';
+  }
+  if (suggestedActionKind === 'refresh_publish_gate') {
+    return 'read_only_refresh';
+  }
+  if (
+    suggestedActionKind === 'fix_embedding_dimensions' ||
+    suggestedActionKind === 'relax_provider_route_policy' ||
+    suggestedActionKind === 'relax_task_route_policy'
+  ) {
+    return 'manual_review_required';
+  }
+  if (suggestedActionKind === 'review_action_route_dry_run') {
+    return 'dry_run_required';
+  }
+  return 'preview_required';
+}
+
+function promptRegistryRepairSafetyReviewMode(safety: string) {
+  if (safety === 'read_only_probe') {
+    return 'probe';
+  }
+  if (safety === 'read_only_refresh') {
+    return 'refresh';
+  }
+  if (safety === 'dry_run_required') {
+    return 'dry_run';
+  }
+  if (safety === 'manual_review_required') {
+    return 'manual_review';
+  }
+  return 'preview';
+}
+
+function promptRegistryRepairPreviewStatus(safety: string) {
+  if (safety === 'read_only_probe') {
+    return 'read_only_probe';
+  }
+  if (safety === 'read_only_refresh') {
+    return 'read_only_refresh';
+  }
+  if (safety === 'dry_run_required') {
+    return 'dry_run_required';
+  }
+  if (safety === 'manual_review_required') {
+    return 'manual_review_required';
+  }
+  return 'preview_required';
+}
+
+function promptRegistryRepairPreviewSummaryStatus(
+  operations: CopilotPromptRegistryPublishGateRepairActionPreviewOperation[]
+) {
+  const statuses = new Set(
+    operations.map(operation => operation.previewStatus)
+  );
+  if (!statuses.size) {
+    return 'ready';
+  }
+  if (statuses.has('manual_review_required')) {
+    return 'manual_review_required';
+  }
+  if (statuses.has('dry_run_required')) {
+    return 'dry_run_required';
+  }
+  if (statuses.has('preview_required')) {
+    return 'preview_required';
+  }
+  if (statuses.has('read_only_refresh')) {
+    return 'read_only_refresh';
+  }
+  return 'read_only_probe';
+}
+
+function promptRegistryRepairActionRequiredCapabilities(
+  suggestedActionKind: string
+) {
+  if (suggestedActionKind === 'refresh_publish_gate') {
+    return ['publish_gate.read'];
+  }
+  if (suggestedActionKind.startsWith('registry_')) {
+    return ['prompt_registry.read', 'prompt_registry.preview_write'];
+  }
+  if (
+    suggestedActionKind === 'repair_default_model_route' ||
+    suggestedActionKind === 'review_non_default_model_route'
+  ) {
+    return ['model_registry.read', 'provider_route.preview'];
+  }
+  if (
+    suggestedActionKind === 'relax_provider_route_policy' ||
+    suggestedActionKind === 'relax_task_route_policy'
+  ) {
+    return ['provider_route_policy.read', 'provider_route_policy.preview'];
+  }
+  if (
+    suggestedActionKind === 'check_provider_health' ||
+    suggestedActionKind === 'check_action_provider_health'
+  ) {
+    return ['provider_profile.read', 'provider_health.probe'];
+  }
+  if (suggestedActionKind === 'inspect_task_route_diagnostics') {
+    return ['task_route.read', 'provider_diagnostics.read'];
+  }
+  if (suggestedActionKind === 'repair_task_model_route') {
+    return ['task_route.read', 'model_registry.read', 'provider_route.preview'];
+  }
+  if (suggestedActionKind === 'fix_embedding_dimensions') {
+    return [
+      'task_route.read',
+      'embedding_index.read',
+      'embedding_index.migration_review',
+    ];
+  }
+  if (suggestedActionKind === 'review_action_route_dry_run') {
+    return ['action_route.read', 'action_route.dry_run'];
+  }
+  if (suggestedActionKind === 'repair_action_fallback_route_coverage') {
+    return ['action_route.read', 'provider_route.preview'];
+  }
+  return ['repair_action.review'];
+}
+
+function promptRegistryRepairActionInputSchema(suggestedActionKind: string) {
+  const baseProperties: Record<string, unknown> = {
+    diagnosticsFingerprint: {
+      description:
+        'Expected repair recommendation diagnostics fingerprint returned by the publish gate.',
+      type: 'string',
+    },
+    expectedRegistryFingerprint: {
+      description:
+        'Expected Prompt Registry fingerprint returned by the publish gate.',
+      type: 'string',
+    },
+    expectedRegistryId: {
+      description:
+        'Expected Prompt Registry row id returned by the publish gate.',
+      type: 'integer',
+    },
+    expectedRegistryUpdatedAt: {
+      description:
+        'Expected Prompt Registry updated timestamp returned by the publish gate.',
+      type: 'string',
+    },
+    targetLocator: {
+      additionalProperties: true,
+      description: 'Opaque repair target locator returned by the publish gate.',
+      type: 'object',
+    },
+  };
+  const baseRequired = ['diagnosticsFingerprint', 'targetLocator'];
+  const withProperties = (
+    properties: Record<string, unknown>,
+    required: string[] = []
+  ) => ({
+    additionalProperties: false,
+    properties: {
+      ...baseProperties,
+      ...properties,
+    },
+    required: [...baseRequired, ...required],
+    type: 'object',
+  });
+
+  if (
+    suggestedActionKind === 'check_provider_health' ||
+    suggestedActionKind === 'check_action_provider_health'
+  ) {
+    return withProperties({
+      probeOnly: {
+        const: true,
+        description: 'Provider health checks are read-only probes.',
+      },
+    });
+  }
+  if (suggestedActionKind === 'refresh_publish_gate') {
+    return withProperties({
+      refreshOnly: {
+        const: true,
+        description:
+          'Refreshes publish gate diagnostics without applying changes.',
+      },
+    });
+  }
+  if (suggestedActionKind === 'review_action_route_dry_run') {
+    return withProperties({
+      dryRunOnly: {
+        const: true,
+        description: 'Runs action route diagnostics without applying changes.',
+      },
+    });
+  }
+  if (suggestedActionKind === 'fix_embedding_dimensions') {
+    return withProperties({
+      migrationPlanRequired: {
+        const: true,
+        description:
+          'Embedding dimension repairs require an explicit index migration plan.',
+      },
+    });
+  }
+  return withProperties({
+    previewOnly: {
+      const: true,
+      description:
+        'Repair actions must produce a preview diff before any write is allowed.',
+    },
+  });
+}
+
+function stableRepairRecommendationStringify(value: unknown): string {
+  if (value === undefined) {
+    return 'undefined';
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableRepairRecommendationStringify).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value)
+      .sort()
+      .map(key => {
+        const item = (value as Record<string, unknown>)[key];
+        return item === undefined
+          ? null
+          : `${JSON.stringify(key)}:${stableRepairRecommendationStringify(item)}`;
+      })
+      .filter(Boolean)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function taskRouteRepairCandidateEvidenceFingerprint(
+  evidence: Omit<
+    CopilotPromptRegistryPublishGateRepairCandidateEvidence,
+    'candidateFingerprint'
+  >
+) {
+  return createHash('sha256')
+    .update(stableRepairRecommendationStringify(evidence))
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function promptRegistryRepairRecommendationFingerprint(
+  recommendation: Omit<
+    CopilotPromptRegistryPublishGateRepairRecommendation,
+    'diagnosticsFingerprint'
+  >
+) {
+  const payload = stableRepairRecommendationStringify({
+    category: recommendation.category,
+    code: recommendation.code,
+    evidence: recommendation.evidence,
+    instanceKey: recommendation.instanceKey,
+    suggestedActionCatalogVersion: recommendation.suggestedActionCatalogVersion,
+    suggestedActionInputSchema: recommendation.suggestedActionInputSchema,
+    suggestedActionKind: recommendation.suggestedActionKind,
+    suggestedActionRequiredCapabilities:
+      recommendation.suggestedActionRequiredCapabilities,
+    suggestedActionSafety: recommendation.suggestedActionSafety,
+    target: recommendation.target,
+    targetLocator: recommendation.targetLocator,
+  });
+
+  return createHash('sha256').update(payload).digest('hex').slice(0, 16);
+}
+
+function buildPromptRegistryPublishGateRepairRecommendations(input: {
+  actionRouteDryRun?: CopilotPromptRegistryPublishGateActionRouteDryRun;
+  modelRoutes: CopilotPromptRegistryPublishGateModelRoute[];
+  taskRoutes: CopilotPromptRegistryPublishGateTaskRoute[];
+  verdict: PromptRegistryPublishGateVerdict;
+}): CopilotPromptRegistryPublishGateRepairRecommendation[] {
+  const recommendations: CopilotPromptRegistryPublishGateRepairRecommendation[] =
+    [];
+  const seen = new Set<string>();
+  const pushRecommendation = (
+    recommendation: Omit<
+      CopilotPromptRegistryPublishGateRepairRecommendation,
+      | 'suggestedActionCatalogVersion'
+      | 'diagnosticsFingerprint'
+      | 'suggestedActionInputSchema'
+      | 'suggestedActionRequiredCapabilities'
+      | 'suggestedActionSafety'
+    >
+  ) => {
+    const key = [
+      recommendation.category,
+      recommendation.code,
+      recommendation.target,
+      recommendation.instanceKey,
+    ].join(':');
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    const preparedRecommendation: Omit<
+      CopilotPromptRegistryPublishGateRepairRecommendation,
+      'diagnosticsFingerprint'
+    > = {
+      ...recommendation,
+      evidence: uniqueStrings(recommendation.evidence).slice(
+        0,
+        recommendation.category === 'task_route' ? 64 : 10
+      ),
+      suggestedActionCatalogVersion:
+        COPILOT_PROMPT_REGISTRY_REPAIR_ACTION_CATALOG_VERSION,
+      suggestedActionInputSchema: promptRegistryRepairActionInputSchema(
+        recommendation.suggestedActionKind
+      ),
+      suggestedActionRequiredCapabilities:
+        promptRegistryRepairActionRequiredCapabilities(
+          recommendation.suggestedActionKind
+        ),
+      suggestedActionSafety: promptRegistryRepairActionSafety(
+        recommendation.suggestedActionKind
+      ),
+    };
+    recommendations.push({
+      ...preparedRecommendation,
+      diagnosticsFingerprint: promptRegistryRepairRecommendationFingerprint(
+        preparedRecommendation
+      ),
+    });
+  };
+
+  if (input.verdict.stale) {
+    pushRecommendation({
+      category: 'prompt_registry',
+      code: 'publish_gate_version_stale',
+      detail:
+        'The publish gate was evaluated against an older expected registry version.',
+      evidence: compactEvidence([
+        `registryId:${input.verdict.registryId}`,
+        `registryFingerprint:${input.verdict.registryFingerprint}`,
+        ...input.verdict.staleReasons.map(reason => `stale:${reason}`),
+      ]),
+      severity: 'warning',
+      suggestedAction:
+        'Refresh the Prompt Registry diagnostics before publishing or repairing this prompt.',
+      suggestedActionKind: 'refresh_publish_gate',
+      target: 'ai_prompts_metadata',
+      targetLocator: registryRepairTargetLocator(
+        input.verdict,
+        'ai_prompts_metadata'
+      ),
+      title: 'Refresh publish gate diagnostics',
+    });
+  }
+
+  for (const remediation of input.verdict.remediations ?? []) {
+    pushRecommendation({
+      category: 'prompt_registry',
+      code: `registry_${remediation.kind}`,
+      detail: remediation.detail,
+      evidence: compactEvidence([
+        `registryId:${input.verdict.registryId}`,
+        `target:${remediation.target}`,
+        `kind:${remediation.kind}`,
+      ]),
+      severity: input.verdict.allowed ? 'info' : 'error',
+      suggestedAction: remediation.detail,
+      suggestedActionKind: `registry_${remediation.kind}`,
+      target: remediation.target,
+      targetLocator: registryRepairTargetLocator(
+        input.verdict,
+        remediation.target
+      ),
+      title: remediation.label,
+    });
+  }
+
+  for (const route of input.modelRoutes) {
+    const target = routeRepairTarget(route);
+    const requestedModelId = route.requestedModelId ?? route.modelId;
+    if (!route.available) {
+      const isDefaultRoute = route.candidateKind === 'default';
+      pushRecommendation({
+        category: 'model_route',
+        code: `${route.candidateKind}_model_route_unavailable`,
+        detail: `No available ${route.outputType} provider route was found for ${route.candidateKind} model "${requestedModelId ?? 'unknown'}".`,
+        evidence: compactEvidence([
+          `candidate:${route.candidateKind}#${route.candidateIndex}`,
+          requestedModelId ? `requestedModelId:${requestedModelId}` : null,
+          route.requestedModelSource
+            ? `requestedModelSource:${route.requestedModelSource}`
+            : null,
+          `featureKind:${route.featureKind}`,
+          `outputType:${route.outputType}`,
+          `matchedCandidateCount:${route.matchedCandidateCount}`,
+          route.diagnosticsErrorStage
+            ? `diagnosticsStage:${route.diagnosticsErrorStage}`
+            : null,
+          route.diagnosticsErrorCode
+            ? `diagnosticsCode:${route.diagnosticsErrorCode}`
+            : null,
+          route.diagnosticsErrorMessage
+            ? `diagnosticsMessage:${route.diagnosticsErrorMessage}`
+            : null,
+          ...route.reasons.map(reason => `reason:${reason}`),
+        ]),
+        instanceKey: modelRouteRepairInstanceKey(route),
+        severity: isDefaultRoute ? 'error' : 'warning',
+        suggestedAction: isDefaultRoute
+          ? 'Configure a provider profile/model definition that supports the default prompt model and output type, or update ai_prompts_metadata.model to a routable alias.'
+          : 'Either add a provider route for this optional/pro/registry model, or remove the unroutable candidate from the prompt/model registry list.',
+        suggestedActionKind: isDefaultRoute
+          ? 'repair_default_model_route'
+          : 'review_non_default_model_route',
+        target,
+        targetLocator: modelRouteRepairTargetLocator(
+          input.verdict,
+          route,
+          target
+        ),
+        title: isDefaultRoute
+          ? 'Repair default model route'
+          : 'Review non-default model route',
+      });
+    }
+
+    const policyPhase = route.routeTrace.find(
+      phase => phase.phase === 'policy'
+    );
+    if (
+      policyPhase &&
+      policyPhase.candidateCount > 0 &&
+      (policyPhase.selectedCount ?? 0) === 0
+    ) {
+      pushRecommendation({
+        category: 'provider_policy',
+        code: `${route.featureKind}_provider_policy_blocks_route`,
+        detail: `Provider route policy selected no providers for ${route.featureKind}.`,
+        evidence: compactEvidence([
+          `featureKind:${route.featureKind}`,
+          route.policyWorkspaceId
+            ? `workspaceId:${route.policyWorkspaceId}`
+            : 'workspaceId:global',
+          ...(route.policyAllowedProviderIds ?? []).map(
+            providerId => `allowedProvider:${providerId}`
+          ),
+          ...(route.policyBlockedProviderIds ?? []).map(
+            providerId => `blockedProvider:${providerId}`
+          ),
+          ...(route.policyAllowedPrivacy ?? []).map(
+            privacy => `allowedPrivacy:${privacy}`
+          ),
+          ...policyPhase.reasons.map(reason => `reason:${reason}`),
+        ]),
+        instanceKey: modelRouteRepairInstanceKey(route),
+        severity: route.candidateKind === 'default' ? 'error' : 'warning',
+        suggestedAction:
+          'Update copilot provider route policy to allow at least one healthy provider that can serve this feature and privacy requirement.',
+        suggestedActionKind: 'relax_provider_route_policy',
+        target: `copilot.providers.routePolicy.${route.featureKind}`,
+        targetLocator: modelRouteRepairTargetLocator(
+          input.verdict,
+          route,
+          `copilot.providers.routePolicy.${route.featureKind}`
+        ),
+        title: 'Relax provider route policy',
+      });
+    }
+
+    if (providerHealthNeedsRepair(route.providerHealth)) {
+      pushRecommendation({
+        category: 'provider_health',
+        code: 'selected_provider_health_not_healthy',
+        detail: `Selected provider "${route.providerId ?? 'unknown'}" reports health "${route.providerHealth}".`,
+        evidence: compactEvidence([
+          route.providerId ? `providerId:${route.providerId}` : null,
+          route.providerHealth ? `health:${route.providerHealth}` : null,
+          route.providerHealthCheckedAt
+            ? `checkedAt:${route.providerHealthCheckedAt}`
+            : null,
+          route.providerHealthLastError
+            ? `lastError:${route.providerHealthLastError}`
+            : null,
+        ]),
+        instanceKey: modelRouteRepairInstanceKey(route),
+        severity: 'warning',
+        suggestedAction:
+          'Check the provider profile credentials, endpoint, and model availability before relying on this route.',
+        suggestedActionKind: 'check_provider_health',
+        target:
+          route.providerProfileConfigPath ??
+          route.providerId ??
+          'copilot.providers.profiles',
+        targetLocator: modelRouteRepairTargetLocator(
+          input.verdict,
+          route,
+          route.providerProfileConfigPath ??
+            route.providerId ??
+            'copilot.providers.profiles'
+        ),
+        title: 'Check provider health',
+      });
+    }
+  }
+
+  for (const route of input.taskRoutes) {
+    const target = taskRouteRepairTarget(route);
+    const diagnosticsErrors = route.diagnosticsErrors ?? [];
+    const candidateEvidence =
+      taskRouteCandidateProfileStructuredEvidence(route);
+    const candidateProfileEvidence =
+      taskRouteCandidateProfileEvidence(candidateEvidence);
+    const taskBlocked =
+      !route.configured ||
+      route.preparedProviderCount === 0 ||
+      Boolean(route.errorCode);
+    if (diagnosticsErrors.length) {
+      pushRecommendation({
+        candidateEvidence,
+        category: 'task_route',
+        code: `${route.featureKind}_task_route_diagnostics_error`,
+        detail: `Task route "${route.featureKind}" diagnostics reported probe errors.`,
+        evidence: compactEvidence(
+          [
+            `featureKind:${route.featureKind}`,
+            `configured:${route.configured}`,
+            `preparedProviderCount:${route.preparedProviderCount}`,
+            route.requestedModelId
+              ? `requestedModelId:${route.requestedModelId}`
+              : null,
+            ...diagnosticsErrors.flatMap(error => [
+              `diagnosticsStage:${error.stage}`,
+              `diagnosticsCode:${error.code}`,
+              `diagnosticsMessage:${error.message}`,
+            ]),
+            ...candidateProfileEvidence,
+          ],
+          64
+        ),
+        instanceKey: taskRouteRepairInstanceKey(route, 'diagnostics-error'),
+        severity: 'warning',
+        suggestedAction:
+          'Inspect provider diagnostics, route candidate probes, and prepare probes before relying on this task route evidence.',
+        suggestedActionKind: 'inspect_task_route_diagnostics',
+        target,
+        targetLocator: taskRouteRepairTargetLocator(
+          input.verdict,
+          route,
+          target
+        ),
+        title: 'Inspect task route diagnostics',
+      });
+    }
+    if (taskBlocked) {
+      pushRecommendation({
+        candidateEvidence,
+        category: 'task_route',
+        code: `${route.featureKind}_task_route_unavailable`,
+        detail: `Task route "${route.featureKind}" has no prepared provider route.`,
+        evidence: compactEvidence(
+          [
+            `featureKind:${route.featureKind}`,
+            `configured:${route.configured}`,
+            `preparedProviderCount:${route.preparedProviderCount}`,
+            route.requestedModelId
+              ? `requestedModelId:${route.requestedModelId}`
+              : null,
+            route.requestedModelSource
+              ? `requestedModelSource:${route.requestedModelSource}`
+              : null,
+            route.errorCode ? `errorCode:${route.errorCode}` : null,
+            ...diagnosticsErrors.flatMap(error => [
+              `diagnosticsStage:${error.stage}`,
+              `diagnosticsCode:${error.code}`,
+              `diagnosticsMessage:${error.message}`,
+            ]),
+            ...(route.routeTrace ?? []).flatMap(phase =>
+              phase.reasons.map(reason => `${phase.phase}:${reason}`)
+            ),
+            ...candidateProfileEvidence,
+          ],
+          64
+        ),
+        instanceKey: taskRouteRepairInstanceKey(route, 'unavailable'),
+        severity: 'warning',
+        suggestedAction:
+          'Configure copilot.tasks.models and provider model definitions so this task has a matching prepared route.',
+        suggestedActionKind: 'repair_task_model_route',
+        target,
+        targetLocator: taskRouteRepairTargetLocator(
+          input.verdict,
+          route,
+          target
+        ),
+        title: 'Repair task model route',
+      });
+    }
+
+    if (route.dimensionMismatch) {
+      pushRecommendation({
+        candidateEvidence,
+        category: 'task_route',
+        code: `${route.featureKind}_embedding_dimension_mismatch`,
+        detail: `Task route "${route.featureKind}" reports embedding dimension mismatch.`,
+        evidence: compactEvidence(
+          [
+            route.requestedDimensions != null
+              ? `requestedDimensions:${route.requestedDimensions}`
+              : null,
+            route.modelEmbeddingDimensions != null
+              ? `modelEmbeddingDimensions:${route.modelEmbeddingDimensions}`
+              : null,
+            route.modelId ? `modelId:${route.modelId}` : null,
+            ...candidateProfileEvidence,
+          ],
+          64
+        ),
+        instanceKey: taskRouteRepairInstanceKey(
+          route,
+          'embedding-dimension-mismatch'
+        ),
+        severity: 'error',
+        suggestedAction:
+          'Use an embedding model with the configured pgvector dimension, or migrate the index/schema before switching dimensions.',
+        suggestedActionKind: 'fix_embedding_dimensions',
+        target,
+        targetLocator: taskRouteRepairTargetLocator(
+          input.verdict,
+          route,
+          target
+        ),
+        title: 'Fix embedding dimensions',
+      });
+    }
+
+    const policyPhase = route.routeTrace.find(
+      phase => phase.phase === 'policy'
+    );
+    if (
+      policyPhase &&
+      policyPhase.candidateCount > 0 &&
+      (policyPhase.selectedCount ?? 0) === 0
+    ) {
+      pushRecommendation({
+        candidateEvidence,
+        category: 'provider_policy',
+        code: `${route.featureKind}_task_policy_blocks_route`,
+        detail: `Provider route policy selected no providers for task route "${route.featureKind}".`,
+        evidence: compactEvidence(
+          [
+            `featureKind:${route.featureKind}`,
+            route.policyWorkspaceId
+              ? `workspaceId:${route.policyWorkspaceId}`
+              : 'workspaceId:global',
+            ...(route.policyAllowedProviderIds ?? []).map(
+              providerId => `allowedProvider:${providerId}`
+            ),
+            ...(route.policyBlockedProviderIds ?? []).map(
+              providerId => `blockedProvider:${providerId}`
+            ),
+            ...policyPhase.reasons.map(reason => `reason:${reason}`),
+            ...candidateProfileEvidence,
+          ],
+          64
+        ),
+        instanceKey: taskRouteRepairInstanceKey(route, 'policy-blocked'),
+        severity: 'warning',
+        suggestedAction:
+          'Update route policy or provider privacy settings so embedding/rerank task providers are eligible.',
+        suggestedActionKind: 'relax_task_route_policy',
+        target: `copilot.providers.routePolicy.${route.featureKind}`,
+        targetLocator: taskRouteRepairTargetLocator(
+          input.verdict,
+          route,
+          `copilot.providers.routePolicy.${route.featureKind}`
+        ),
+        title: 'Relax task route policy',
+      });
+    }
+  }
+
+  const dryRun = input.actionRouteDryRun;
+  if (dryRun) {
+    if (dryRun.status !== 'succeeded') {
+      pushRecommendation({
+        category: 'action_route',
+        code: `action_route_dry_run_${dryRun.status}`,
+        detail: `Action route dry-run ${dryRun.status}.`,
+        evidence: compactEvidence([
+          dryRun.actionId ? `actionId:${dryRun.actionId}` : null,
+          `featureKind:${dryRun.featureKind}`,
+          dryRun.diagnosticsErrorStage
+            ? `diagnosticsStage:${dryRun.diagnosticsErrorStage}`
+            : null,
+          dryRun.diagnosticsErrorCode
+            ? `diagnosticsCode:${dryRun.diagnosticsErrorCode}`
+            : null,
+          dryRun.diagnosticsErrorMessage
+            ? `diagnosticsMessage:${dryRun.diagnosticsErrorMessage}`
+            : null,
+          dryRun.errorCode ? `errorCode:${dryRun.errorCode}` : null,
+          dryRun.errorMessage ? `errorMessage:${dryRun.errorMessage}` : null,
+        ]),
+        instanceKey: `${actionDryRunRepairInstancePrefix(dryRun)}:dry-run:${dryRun.status}`,
+        severity: dryRun.status === 'failed' ? 'warning' : 'info',
+        suggestedAction:
+          'Check the action prompt messages, default model, and provider route before enabling this action prompt for users.',
+        suggestedActionKind: 'review_action_route_dry_run',
+        target: actionDryRunRepairTarget(dryRun),
+        targetLocator: actionRouteRepairTargetLocator(
+          input.verdict,
+          dryRun,
+          actionDryRunRepairTarget(dryRun)
+        ),
+        title: 'Review action route dry-run',
+      });
+    }
+
+    for (const step of dryRun.steps) {
+      if (step.routeCountMismatch || step.actualRouteCount === 0) {
+        pushRecommendation({
+          category: 'action_route',
+          code: `${dryRun.featureKind}_${step.stepId}_route_count_mismatch`,
+          detail: `Action dry-run step "${step.stepId}" prepared ${step.actualRouteCount} route(s), expected ${step.routeCount}.`,
+          evidence: compactEvidence([
+            dryRun.actionId ? `actionId:${dryRun.actionId}` : null,
+            `stepId:${step.stepId}`,
+            `kind:${step.kind}`,
+            `actualRouteCount:${step.actualRouteCount}`,
+            `routeCount:${step.routeCount}`,
+            step.requestedModelId
+              ? `requestedModelId:${step.requestedModelId}`
+              : null,
+            ...step.fallbackProviderIds.map(
+              providerId => `fallbackProvider:${providerId}`
+            ),
+          ]),
+          instanceKey: `${actionDryRunRepairInstancePrefix(dryRun)}:${step.stepId}:route-count-mismatch`,
+          severity: 'warning',
+          suggestedAction:
+            'Add or repair provider routes for every fallback provider expected by this action step.',
+          suggestedActionKind: 'repair_action_fallback_route_coverage',
+          target: actionDryRunRepairTarget(dryRun),
+          targetLocator: actionRouteRepairTargetLocator(
+            input.verdict,
+            dryRun,
+            actionDryRunRepairTarget(dryRun),
+            { step }
+          ),
+          title: 'Repair action fallback route coverage',
+        });
+      }
+
+      for (const route of step.routes) {
+        if (providerHealthNeedsRepair(route.providerHealth)) {
+          pushRecommendation({
+            category: 'action_route',
+            code: `${dryRun.featureKind}_${step.stepId}_provider_health_not_healthy`,
+            detail: `Action dry-run step "${step.stepId}" selected provider "${route.providerId}" with health "${route.providerHealth}".`,
+            evidence: compactEvidence([
+              dryRun.actionId ? `actionId:${dryRun.actionId}` : null,
+              `stepId:${step.stepId}`,
+              `kind:${step.kind}`,
+              `providerId:${route.providerId}`,
+              `routeIndex:${route.routeIndex}`,
+              route.fallbackOrderIndex != null
+                ? `fallbackOrderIndex:${route.fallbackOrderIndex}`
+                : null,
+              route.providerHealth ? `health:${route.providerHealth}` : null,
+              route.providerHealthCheckedAt
+                ? `checkedAt:${route.providerHealthCheckedAt}`
+                : null,
+              route.providerHealthLastError
+                ? `lastError:${route.providerHealthLastError}`
+                : null,
+              route.providerProfileConfigPath
+                ? `providerProfileConfigPath:${route.providerProfileConfigPath}`
+                : null,
+              step.requestedModelId
+                ? `requestedModelId:${step.requestedModelId}`
+                : null,
+            ]),
+            instanceKey: [
+              actionDryRunRepairInstancePrefix(dryRun),
+              step.stepId,
+              route.providerId,
+              route.routeIndex,
+            ].join(':'),
+            severity: 'warning',
+            suggestedAction:
+              'Check the action route provider profile health before enabling this action prompt for users.',
+            suggestedActionKind: 'check_action_provider_health',
+            target: actionDryRunRepairTarget(dryRun),
+            targetLocator: actionRouteRepairTargetLocator(
+              input.verdict,
+              dryRun,
+              actionDryRunRepairTarget(dryRun),
+              { route, step }
+            ),
+            title: 'Check action provider health',
+          });
+        }
+      }
+    }
+  }
+
+  return recommendations;
+}
+
+function buildPromptRegistryPublishGateRepairActionCatalog(
+  recommendations: CopilotPromptRegistryPublishGateRepairRecommendation[]
+): CopilotPromptRegistryPublishGateRepairActionCatalogEntry[] {
+  const entries = new Map<
+    string,
+    CopilotPromptRegistryPublishGateRepairActionCatalogEntry
+  >();
+
+  for (const recommendation of recommendations) {
+    const key = [
+      recommendation.suggestedActionCatalogVersion,
+      recommendation.suggestedActionKind,
+    ].join(':');
+    const current = entries.get(key);
+    if (current) {
+      current.recommendationCount += 1;
+      continue;
+    }
+    entries.set(key, {
+      actionKind: recommendation.suggestedActionKind,
+      catalogVersion: recommendation.suggestedActionCatalogVersion,
+      inputSchema: recommendation.suggestedActionInputSchema,
+      recommendationCount: 1,
+      requiredCapabilities: recommendation.suggestedActionRequiredCapabilities,
+      safety: recommendation.suggestedActionSafety,
+    });
+  }
+
+  return [...entries.values()].sort((a, b) =>
+    `${a.catalogVersion}:${a.actionKind}`.localeCompare(
+      `${b.catalogVersion}:${b.actionKind}`
+    )
+  );
+}
+
+function promptRegistryPublishGateRepairActionCatalogFingerprint(
+  entries: CopilotPromptRegistryPublishGateRepairActionCatalogEntry[]
+) {
+  const payload = stableRepairRecommendationStringify(
+    entries.map(entry => ({
+      actionKind: entry.actionKind,
+      catalogVersion: entry.catalogVersion,
+      inputSchema: entry.inputSchema,
+      recommendationCount: entry.recommendationCount,
+      requiredCapabilities: entry.requiredCapabilities,
+      safety: entry.safety,
+    }))
+  );
+
+  return createHash('sha256').update(payload).digest('hex').slice(0, 16);
+}
+
+function buildPromptRegistryPublishGateRepairActionMutationGuard(input: {
+  catalogFingerprint: string;
+  recommendations: CopilotPromptRegistryPublishGateRepairRecommendation[];
+  verdict: PromptRegistryPublishGateVerdict;
+}): CopilotPromptRegistryPublishGateRepairActionMutationGuard {
+  const recommendationFingerprints = input.recommendations
+    .map(recommendation => recommendation.diagnosticsFingerprint)
+    .sort();
+  const recommendationCategories = uniqueStrings(
+    input.recommendations.map(recommendation => recommendation.category)
+  ).sort();
+  const recommendationCodes = uniqueStrings(
+    input.recommendations.map(recommendation => recommendation.code)
+  ).sort();
+  const suggestedActionKinds = uniqueStrings(
+    input.recommendations.map(
+      recommendation => recommendation.suggestedActionKind
+    )
+  ).sort();
+  const intentFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        recommendationCategories,
+        recommendationCodes,
+        suggestedActionKinds,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const requiredCapabilities = uniqueStrings(
+    input.recommendations.flatMap(
+      recommendation => recommendation.suggestedActionRequiredCapabilities
+    )
+  ).sort();
+  const safetyLevels = uniqueStrings(
+    input.recommendations.map(
+      recommendation => recommendation.suggestedActionSafety
+    )
+  ).sort();
+  const requiredReviewModes = uniqueStrings(
+    safetyLevels.map(promptRegistryRepairSafetyReviewMode)
+  ).sort();
+  const inputSchemaFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify(
+        uniqueStrings(
+          input.recommendations.map(recommendation =>
+            stableRepairRecommendationStringify(
+              recommendation.suggestedActionInputSchema
+            )
+          )
+        ).sort()
+      )
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const targetLocatorSnapshots = uniqueStrings(
+    input.recommendations.flatMap(recommendation =>
+      recommendation.targetLocator
+        ? [stableRepairRecommendationStringify(recommendation.targetLocator)]
+        : []
+    )
+  ).sort();
+  const targetLocatorFingerprint = createHash('sha256')
+    .update(stableRepairRecommendationStringify(targetLocatorSnapshots))
+    .digest('hex')
+    .slice(0, 16);
+  const targetLocatorKinds = uniqueStrings(
+    input.recommendations.flatMap(recommendation =>
+      recommendation.targetLocator?.kind
+        ? [recommendation.targetLocator.kind]
+        : []
+    )
+  ).sort();
+  const catalogVersion =
+    input.recommendations[0]?.suggestedActionCatalogVersion ??
+    COPILOT_PROMPT_REGISTRY_REPAIR_ACTION_CATALOG_VERSION;
+  const expectedRegistryUpdatedAt =
+    input.verdict.registryUpdatedAt.toISOString();
+  const auditSummary = [
+    `registry:${input.verdict.registryId}`,
+    `registryFingerprint:${input.verdict.registryFingerprint}`,
+    `catalog:${catalogVersion}`,
+    `catalogFingerprint:${input.catalogFingerprint}`,
+    `recommendations:${input.recommendations.length}`,
+    `intent:${intentFingerprint}`,
+    `targetLocators:${targetLocatorSnapshots.length}`,
+    `targetKinds:${targetLocatorKinds.join(',') || 'none'}`,
+    `reviewModes:${requiredReviewModes.join(',') || 'none'}`,
+    `safety:${safetyLevels.join(',') || 'none'}`,
+  ].join(' | ');
+  const auditSummaryFingerprint = createHash('sha256')
+    .update(auditSummary)
+    .digest('hex')
+    .slice(0, 16);
+  const guard: Omit<
+    CopilotPromptRegistryPublishGateRepairActionMutationGuard,
+    'guardFingerprint'
+  > = {
+    auditSummary,
+    auditSummaryFingerprint,
+    catalogFingerprint: input.catalogFingerprint,
+    catalogVersion,
+    expectedRegistryFingerprint: input.verdict.registryFingerprint,
+    expectedRegistryId: input.verdict.registryId,
+    expectedRegistryUpdatedAt,
+    intentFingerprint,
+    inputSchemaFingerprint,
+    recommendationCategories,
+    recommendationCount: input.recommendations.length,
+    recommendationCodes,
+    recommendationFingerprints,
+    requiredCapabilities,
+    requiredReviewModes,
+    required: input.recommendations.length > 0,
+    safetyLevels,
+    suggestedActionKinds,
+    targetLocatorCount: targetLocatorSnapshots.length,
+    targetLocatorFingerprint,
+    targetLocatorKinds,
+  };
+  const payload = stableRepairRecommendationStringify(guard);
+
+  return {
+    ...guard,
+    guardFingerprint: createHash('sha256')
+      .update(payload)
+      .digest('hex')
+      .slice(0, 16),
+  };
+}
+
+function promptRegistryRepairTargetLocatorFingerprint(
+  locator?: CopilotPromptRegistryPublishGateRepairTargetLocator
+) {
+  return createHash('sha256')
+    .update(stableRepairRecommendationStringify(locator ?? null))
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function promptRegistryRepairCandidateEvidenceSnapshot(
+  candidateEvidence:
+    | CopilotPromptRegistryPublishGateRepairCandidateEvidence[]
+    | undefined
+) {
+  const evidence = candidateEvidence ?? [];
+  const candidateEvidenceFingerprints = uniqueStrings(
+    evidence.map(candidate => candidate.candidateFingerprint)
+  ).sort();
+  const candidateEvidenceKeys = uniqueStrings(
+    evidence.flatMap(candidate =>
+      candidate.candidateKey ? [candidate.candidateKey] : []
+    )
+  ).sort();
+
+  return {
+    candidateEvidenceCount: evidence.length,
+    candidateEvidenceFingerprint: createHash('sha256')
+      .update(
+        stableRepairRecommendationStringify({
+          candidateEvidenceFingerprints,
+          candidateEvidenceKeys,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16),
+    candidateEvidenceFingerprints,
+    candidateEvidenceKeys,
+  };
+}
+
+function buildPromptRegistryPublishGateRepairActionPreview(input: {
+  catalogFingerprint: string;
+  guard: CopilotPromptRegistryPublishGateRepairActionMutationGuard;
+  recommendations: CopilotPromptRegistryPublishGateRepairRecommendation[];
+}): CopilotPromptRegistryPublishGateRepairActionPreview {
+  const operations = input.recommendations.map(recommendation => {
+    const targetLocatorFingerprint =
+      promptRegistryRepairTargetLocatorFingerprint(
+        recommendation.targetLocator
+      );
+    const candidateEvidenceSnapshot =
+      promptRegistryRepairCandidateEvidenceSnapshot(
+        recommendation.candidateEvidence
+      );
+    const operation: Omit<
+      CopilotPromptRegistryPublishGateRepairActionPreviewOperation,
+      'operationFingerprint'
+    > = {
+      actionKind: recommendation.suggestedActionKind,
+      ...candidateEvidenceSnapshot,
+      category: recommendation.category,
+      code: recommendation.code,
+      diagnosticsFingerprint: recommendation.diagnosticsFingerprint,
+      inputSchema: recommendation.suggestedActionInputSchema,
+      ...(recommendation.instanceKey
+        ? { instanceKey: recommendation.instanceKey }
+        : {}),
+      previewStatus: promptRegistryRepairPreviewStatus(
+        recommendation.suggestedActionSafety
+      ),
+      requiredCapabilities: [
+        ...recommendation.suggestedActionRequiredCapabilities,
+      ].sort(),
+      reviewMode: promptRegistryRepairSafetyReviewMode(
+        recommendation.suggestedActionSafety
+      ),
+      safety: recommendation.suggestedActionSafety,
+      target: recommendation.target,
+      ...(recommendation.targetLocator
+        ? { targetLocator: recommendation.targetLocator }
+        : {}),
+      targetLocatorFingerprint,
+    };
+    const operationFingerprint = createHash('sha256')
+      .update(
+        stableRepairRecommendationStringify({
+          actionKind: operation.actionKind,
+          catalogVersion: input.guard.catalogVersion,
+          candidateEvidenceFingerprint: operation.candidateEvidenceFingerprint,
+          code: operation.code,
+          diagnosticsFingerprint: operation.diagnosticsFingerprint,
+          inputSchema: operation.inputSchema,
+          previewStatus: operation.previewStatus,
+          requiredCapabilities: operation.requiredCapabilities,
+          reviewMode: operation.reviewMode,
+          safety: operation.safety,
+          target: operation.target,
+          targetLocatorFingerprint: operation.targetLocatorFingerprint,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16);
+
+    return {
+      ...operation,
+      operationFingerprint,
+    };
+  });
+  const operationFingerprints = operations
+    .map(operation => operation.operationFingerprint)
+    .sort();
+  const operationSetFingerprint = createHash('sha256')
+    .update(stableRepairRecommendationStringify(operationFingerprints))
+    .digest('hex')
+    .slice(0, 16);
+  const candidateEvidenceSetFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify(
+        operations
+          .map(operation => ({
+            candidateEvidenceFingerprint:
+              operation.candidateEvidenceFingerprint,
+            candidateEvidenceFingerprints:
+              operation.candidateEvidenceFingerprints,
+            candidateEvidenceKeys: operation.candidateEvidenceKeys,
+            diagnosticsFingerprint: operation.diagnosticsFingerprint,
+            operationFingerprint: operation.operationFingerprint,
+          }))
+          .sort((left, right) =>
+            left.operationFingerprint.localeCompare(right.operationFingerprint)
+          )
+      )
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const requiredCapabilities = uniqueStrings(
+    operations.flatMap(operation => operation.requiredCapabilities)
+  ).sort();
+  const approvalModes = uniqueStrings(
+    operations.map(operation => operation.reviewMode)
+  ).sort();
+  const approvalRequired = approvalModes.some(mode =>
+    ['dry_run', 'manual_review', 'preview'].includes(mode)
+  );
+  const authorizationStatus = operations.length
+    ? approvalRequired
+      ? 'approval_required'
+      : 'preauthorized_read_only'
+    : 'not_required';
+  const approvalPolicyVersion = 'repair-preview-approval/v1';
+  const approvalCheckpoints = [
+    'read_only_contract',
+    'operation_set',
+    'capability_scope',
+    'authorization_snapshot',
+    authorizationStatus,
+    ...approvalModes.map(mode => `review_mode:${mode}`),
+  ].sort();
+  const authorizationFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        approvalModes,
+        approvalRequired,
+        authorizationStatus,
+        operationSetFingerprint,
+        requiredCapabilities,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const approvalPolicyFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        approvalCheckpoints,
+        approvalModes,
+        approvalPolicyVersion,
+        approvalRequired,
+        authorizationFingerprint,
+        authorizationStatus,
+        operationSetFingerprint,
+        requiredCapabilities,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const previewPayload = stableRepairRecommendationStringify({
+    approvalPolicyFingerprint,
+    auditSummaryFingerprint: input.guard.auditSummaryFingerprint,
+    authorizationFingerprint,
+    candidateEvidenceSetFingerprint,
+    catalogFingerprint: input.catalogFingerprint,
+    catalogVersion: input.guard.catalogVersion,
+    guardFingerprint: input.guard.guardFingerprint,
+    operationSetFingerprint,
+    operations: operations.map(operation => ({
+      actionKind: operation.actionKind,
+      candidateEvidenceFingerprint: operation.candidateEvidenceFingerprint,
+      diagnosticsFingerprint: operation.diagnosticsFingerprint,
+      operationFingerprint: operation.operationFingerprint,
+      previewStatus: operation.previewStatus,
+      reviewMode: operation.reviewMode,
+      safety: operation.safety,
+      target: operation.target,
+      targetLocatorFingerprint: operation.targetLocatorFingerprint,
+    })),
+  });
+  const previewFingerprint = createHash('sha256')
+    .update(previewPayload)
+    .digest('hex')
+    .slice(0, 16);
+  const submissionContractVersion = 'repair-preview-submission/v1';
+  const submissionRequiredInputs = [
+    'approvalPolicyFingerprint',
+    'authorizationFingerprint',
+    'candidateEvidenceSetFingerprint',
+    'expectedRegistryFingerprint',
+    'expectedRegistryId',
+    'expectedRegistryUpdatedAt',
+    'guardFingerprint',
+    'operationSetFingerprint',
+    'previewFingerprint',
+  ].sort();
+  const submissionFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        approvalPolicyFingerprint,
+        authorizationFingerprint,
+        candidateEvidenceSetFingerprint,
+        catalogFingerprint: input.catalogFingerprint,
+        contractVersion: submissionContractVersion,
+        expectedRegistryFingerprint: input.guard.expectedRegistryFingerprint,
+        expectedRegistryId: input.guard.expectedRegistryId,
+        expectedRegistryUpdatedAt: input.guard.expectedRegistryUpdatedAt,
+        guardFingerprint: input.guard.guardFingerprint,
+        operationSetFingerprint,
+        previewFingerprint,
+        requiredInputs: submissionRequiredInputs,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const submissionContract: CopilotPromptRegistryPublishGateRepairActionSubmissionContract =
+    {
+      approvalPolicyFingerprint,
+      authorizationFingerprint,
+      candidateEvidenceSetFingerprint,
+      catalogFingerprint: input.catalogFingerprint,
+      contractVersion: submissionContractVersion,
+      expectedRegistryFingerprint: input.guard.expectedRegistryFingerprint,
+      expectedRegistryId: input.guard.expectedRegistryId,
+      expectedRegistryUpdatedAt: input.guard.expectedRegistryUpdatedAt,
+      guardFingerprint: input.guard.guardFingerprint,
+      idempotencyKey: [
+        input.guard.expectedRegistryId,
+        input.guard.expectedRegistryFingerprint,
+        previewFingerprint,
+        operationSetFingerprint,
+      ].join(':'),
+      mutationAvailable: false,
+      operationSetFingerprint,
+      previewFingerprint,
+      readOnly: true,
+      requiredInputs: submissionRequiredInputs,
+      status: 'read_only_contract',
+      submissionFingerprint,
+    };
+
+  return {
+    approvalCheckpoints,
+    approvalModes,
+    approvalPolicyFingerprint,
+    approvalPolicyVersion,
+    approvalRequired,
+    auditSummaryFingerprint: input.guard.auditSummaryFingerprint,
+    authorizationFingerprint,
+    authorizationStatus,
+    candidateCount: operations.length,
+    candidateEvidenceSetFingerprint,
+    catalogFingerprint: input.catalogFingerprint,
+    catalogVersion: input.guard.catalogVersion,
+    guardFingerprint: input.guard.guardFingerprint,
+    operationFingerprints,
+    operationSetFingerprint,
+    operations,
+    previewFingerprint,
+    readOnly: true,
+    requiredCapabilities,
+    status: promptRegistryRepairPreviewSummaryStatus(operations),
+    submissionContract,
+  };
+}
+
+function buildPromptRegistryRepairPreflight(
+  current: CopilotPromptRegistryPublishGateRepairActionSubmissionContract,
+  expected: CopilotPromptRegistryRepairSubmissionInput,
+  actor: {
+    actorId: string;
+    actorType: string;
+    source: string;
+  },
+  permission: {
+    checked: boolean;
+    checkMode: string;
+    requiredPermission: WorkspaceAction;
+    scope: string;
+    status: string;
+    workspaceId?: string;
+  },
+  capability: {
+    catalogFingerprint: string;
+    checkMode: string;
+    requiredCapabilities: string[];
+    source: string;
+    status: string;
+  },
+  approval: {
+    approvalCheckpoints: string[];
+    approvalModes: string[];
+    approvalPolicyFingerprint: string;
+    approvalRequired: boolean;
+    authorizationFingerprint: string;
+    authorizationStatus: string;
+  }
+): CopilotPromptRegistryRepairPreflight {
+  const checks: Array<
+    [keyof CopilotPromptRegistryRepairSubmissionInput, boolean]
+  > = [
+    [
+      'approvalPolicyFingerprint',
+      expected.approvalPolicyFingerprint === current.approvalPolicyFingerprint,
+    ],
+    [
+      'authorizationFingerprint',
+      expected.authorizationFingerprint === current.authorizationFingerprint,
+    ],
+    [
+      'candidateEvidenceSetFingerprint',
+      expected.candidateEvidenceSetFingerprint ===
+        current.candidateEvidenceSetFingerprint,
+    ],
+    [
+      'catalogFingerprint',
+      expected.catalogFingerprint === current.catalogFingerprint,
+    ],
+    ['contractVersion', expected.contractVersion === current.contractVersion],
+    [
+      'expectedRegistryFingerprint',
+      expected.expectedRegistryFingerprint ===
+        current.expectedRegistryFingerprint,
+    ],
+    [
+      'expectedRegistryId',
+      expected.expectedRegistryId === current.expectedRegistryId,
+    ],
+    [
+      'expectedRegistryUpdatedAt',
+      expected.expectedRegistryUpdatedAt === current.expectedRegistryUpdatedAt,
+    ],
+    [
+      'guardFingerprint',
+      expected.guardFingerprint === current.guardFingerprint,
+    ],
+    ['idempotencyKey', expected.idempotencyKey === current.idempotencyKey],
+    [
+      'operationSetFingerprint',
+      expected.operationSetFingerprint === current.operationSetFingerprint,
+    ],
+    [
+      'previewFingerprint',
+      expected.previewFingerprint === current.previewFingerprint,
+    ],
+    [
+      'requiredInputs',
+      stableRepairRecommendationStringify(expected.requiredInputs) ===
+        stableRepairRecommendationStringify(current.requiredInputs),
+    ],
+    [
+      'submissionFingerprint',
+      expected.submissionFingerprint === current.submissionFingerprint,
+    ],
+  ];
+  const matchedFields = checks
+    .filter(([, matched]) => matched)
+    .map(([field]) => field)
+    .sort();
+  const mismatchedFields = checks
+    .filter(([, matched]) => !matched)
+    .map(([field]) => field)
+    .sort();
+  const actorSnapshotVersion = 'repair-preflight-actor-snapshot/v1';
+  const actorSnapshotInputs = [
+    'actorHash',
+    'actorType',
+    'source',
+    'workspaceId',
+  ].sort();
+  const actorHash = createHash('sha256')
+    .update(actor.actorId)
+    .digest('hex')
+    .slice(0, 16);
+  const actorSnapshotStatus = actor.actorId
+    ? 'bound_to_current_user'
+    : 'missing_actor';
+  const actorFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        actorHash,
+        actorType: actor.actorType,
+        inputs: actorSnapshotInputs,
+        source: actor.source,
+        status: actorSnapshotStatus,
+        version: actorSnapshotVersion,
+        workspaceId: permission.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const permissionFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        checkMode: permission.checkMode,
+        checked: permission.checked,
+        requiredPermission: permission.requiredPermission,
+        scope: permission.scope,
+        status: permission.status,
+        workspaceId: permission.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const requiredCapabilities = [...capability.requiredCapabilities].sort();
+  const capabilityFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        catalogFingerprint: capability.catalogFingerprint,
+        checkMode: capability.checkMode,
+        requiredCapabilities,
+        source: capability.source,
+        status: capability.status,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const reviewBindingVersion = 'repair-preflight-review-binding/v1';
+  const reviewBindingInputs = [
+    'candidateEvidenceSetFingerprint',
+    'capabilityFingerprint',
+    'permissionFingerprint',
+    'submissionFingerprint',
+  ].sort();
+  const reviewBindingStatus = mismatchedFields.length
+    ? 'stale_submission'
+    : 'ready_for_review';
+  const reviewBindingFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        capabilityFingerprint,
+        contractVersion: current.contractVersion,
+        currentSubmissionFingerprint: current.submissionFingerprint,
+        candidateEvidenceSetFingerprint:
+          current.candidateEvidenceSetFingerprint,
+        expectedSubmissionFingerprint: expected.submissionFingerprint,
+        expectedCandidateEvidenceSetFingerprint:
+          expected.candidateEvidenceSetFingerprint,
+        inputs: reviewBindingInputs,
+        permissionFingerprint,
+        status: reviewBindingStatus,
+        version: reviewBindingVersion,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const auditBindingVersion = 'repair-preflight-audit-binding/v1';
+  const auditBindingInputs = [
+    'actorFingerprint',
+    'capabilityFingerprint',
+    'permissionFingerprint',
+    'reviewBindingFingerprint',
+  ].sort();
+  const auditBindingStatus = reviewBindingStatus;
+  const auditBindingFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        actorFingerprint,
+        capabilityFingerprint,
+        inputs: auditBindingInputs,
+        permissionFingerprint,
+        reviewBindingFingerprint,
+        status: auditBindingStatus,
+        version: auditBindingVersion,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const policyBindingVersion = 'repair-preflight-policy-binding/v1';
+  const policyBindingInputs = [
+    'actorFingerprint',
+    'approvalPolicyFingerprint',
+    'auditBindingFingerprint',
+    'authorizationFingerprint',
+    'capabilityFingerprint',
+    'permissionFingerprint',
+  ].sort();
+  const policyBindingStatus = reviewBindingStatus;
+  const policySource = 'repair_action_preview_policy_snapshot';
+  const policyBindingFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        actorFingerprint,
+        approvalPolicyFingerprint: current.approvalPolicyFingerprint,
+        auditBindingFingerprint,
+        authorizationFingerprint: current.authorizationFingerprint,
+        capabilityFingerprint,
+        inputs: policyBindingInputs,
+        permissionFingerprint,
+        source: policySource,
+        status: policyBindingStatus,
+        version: policyBindingVersion,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const approvalRequestVersion = 'repair-preflight-approval-request/v1';
+  const approvalModes = [...approval.approvalModes].sort();
+  const approvalCheckpoints = [...approval.approvalCheckpoints].sort();
+  const approvalRequestInputs = [
+    'approvalCheckpoints',
+    'approvalModes',
+    'approvalPolicyFingerprint',
+    'approvalRequired',
+    'authorizationFingerprint',
+    'authorizationStatus',
+    'policyBindingFingerprint',
+    'reviewBindingFingerprint',
+  ].sort();
+  const approvalRequestStatus = approval.approvalRequired
+    ? 'approval_required'
+    : 'approval_not_required';
+  const approvalRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        approvalCheckpoints,
+        approvalModes,
+        approvalPolicyFingerprint: approval.approvalPolicyFingerprint,
+        approvalRequired: approval.approvalRequired,
+        authorizationFingerprint: approval.authorizationFingerprint,
+        authorizationStatus: approval.authorizationStatus,
+        inputs: approvalRequestInputs,
+        policyBindingFingerprint,
+        reviewBindingFingerprint,
+        status: approvalRequestStatus,
+        version: approvalRequestVersion,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const approvalRecordVersion = 'repair-preflight-approval-record/v1';
+  const approvalRecordInputs = [
+    'actorFingerprint',
+    'approvalRequestFingerprint',
+    'auditBindingFingerprint',
+    'policyBindingFingerprint',
+    'reviewBindingFingerprint',
+    'workspaceId',
+  ].sort();
+  const approvalRecordStatus = 'not_created_read_only';
+  const approvalRecordFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        actorFingerprint,
+        approvalRequestFingerprint,
+        auditBindingFingerprint,
+        created: false,
+        inputs: approvalRecordInputs,
+        policyBindingFingerprint,
+        reviewBindingFingerprint,
+        status: approvalRecordStatus,
+        version: approvalRecordVersion,
+        workspaceId: permission.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const auditEventVersion = 'repair-preflight-audit-event/v1';
+  const auditEventInputs = [
+    'actorFingerprint',
+    'approvalRecordFingerprint',
+    'auditBindingFingerprint',
+    'candidateEvidenceSetFingerprint',
+    'operationSetFingerprint',
+    'policyBindingFingerprint',
+    'repairJobFingerprint',
+    'submissionFingerprint',
+  ].sort();
+  const auditEventStatus = 'not_created_read_only';
+  const idempotencyVersion = 'repair-preflight-idempotency/v1';
+  const idempotencyScope = permission.workspaceId
+    ? 'workspace'
+    : 'global_diagnostics';
+  const idempotencyStatus = 'not_acquired_read_only';
+  const idempotencyFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        candidateEvidenceSetFingerprint: current.candidateEvidenceSetFingerprint,
+        idempotencyKey: current.idempotencyKey,
+        lockAcquired: false,
+        reviewBindingFingerprint,
+        scope: idempotencyScope,
+        status: idempotencyStatus,
+        version: idempotencyVersion,
+        workspaceId: permission.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const repairJobVersion = 'repair-preflight-job-contract/v1';
+  const repairJobInputs = [
+    'actorFingerprint',
+    'auditBindingFingerprint',
+    'candidateEvidenceSetFingerprint',
+    'idempotencyFingerprint',
+    'operationSetFingerprint',
+    'policyBindingFingerprint',
+    'reviewBindingFingerprint',
+    'submissionFingerprint',
+  ].sort();
+  const repairJobStatus = 'not_created_read_only';
+  const repairJobFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        actorFingerprint,
+        auditBindingFingerprint,
+        candidateEvidenceSetFingerprint: current.candidateEvidenceSetFingerprint,
+        created: false,
+        idempotencyFingerprint,
+        inputs: repairJobInputs,
+        operationSetFingerprint: current.operationSetFingerprint,
+        policyBindingFingerprint,
+        reviewBindingFingerprint,
+        status: repairJobStatus,
+        submissionFingerprint: current.submissionFingerprint,
+        version: repairJobVersion,
+        workspaceId: permission.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const auditEventFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        actorFingerprint,
+        approvalRecordFingerprint,
+        auditBindingFingerprint,
+        candidateEvidenceSetFingerprint: current.candidateEvidenceSetFingerprint,
+        created: false,
+        inputs: auditEventInputs,
+        operationSetFingerprint: current.operationSetFingerprint,
+        policyBindingFingerprint,
+        repairJobFingerprint,
+        status: auditEventStatus,
+        submissionFingerprint: current.submissionFingerprint,
+        version: auditEventVersion,
+        workspaceId: permission.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionStateVersion = 'repair-preflight-execution-state/v1';
+  const executionStateInputs = [
+    'auditEventFingerprint',
+    'candidateEvidenceSetFingerprint',
+    'idempotencyFingerprint',
+    'operationSetFingerprint',
+    'repairJobFingerprint',
+    'reviewBindingFingerprint',
+    'submissionFingerprint',
+  ].sort();
+  const executionStateStatus = 'not_started_read_only';
+  const executionStateFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventFingerprint,
+        candidateEvidenceSetFingerprint: current.candidateEvidenceSetFingerprint,
+        created: false,
+        idempotencyFingerprint,
+        inputs: executionStateInputs,
+        operationSetFingerprint: current.operationSetFingerprint,
+        repairJobFingerprint,
+        reviewBindingFingerprint,
+        status: executionStateStatus,
+        submissionFingerprint: current.submissionFingerprint,
+        version: executionStateVersion,
+        workspaceId: permission.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const rollbackPlanVersion = 'repair-preflight-rollback-plan/v1';
+  const rollbackPlanInputs = [
+    'auditEventFingerprint',
+    'candidateEvidenceSetFingerprint',
+    'executionStateFingerprint',
+    'operationSetFingerprint',
+    'repairJobFingerprint',
+    'reviewBindingFingerprint',
+    'submissionFingerprint',
+  ].sort();
+  const rollbackPlanStatus = 'not_created_read_only';
+  const rollbackPlanFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventFingerprint,
+        candidateEvidenceSetFingerprint: current.candidateEvidenceSetFingerprint,
+        created: false,
+        executionStateFingerprint,
+        inputs: rollbackPlanInputs,
+        operationSetFingerprint: current.operationSetFingerprint,
+        repairJobFingerprint,
+        reviewBindingFingerprint,
+        status: rollbackPlanStatus,
+        submissionFingerprint: current.submissionFingerprint,
+        version: rollbackPlanVersion,
+        workspaceId: permission.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionGateVersion = 'repair-preflight-execution-gate/v1';
+  const executionGateInputs = [
+    'approvalRecordFingerprint',
+    'approvalRequestFingerprint',
+    'auditEventFingerprint',
+    'executionStateFingerprint',
+    'idempotencyFingerprint',
+    'mutationAvailable',
+    'policyBindingFingerprint',
+    'readOnly',
+    'repairJobFingerprint',
+    'reviewBindingFingerprint',
+    'rollbackPlanFingerprint',
+  ].sort();
+  const executionGateStatus = mismatchedFields.length
+    ? 'blocked_stale_submission'
+    : current.readOnly
+      ? 'blocked_read_only'
+      : 'blocked_precondition';
+  const executionGateFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        approvalRecordFingerprint,
+        approvalRequestFingerprint,
+        auditEventFingerprint,
+        executionStateFingerprint,
+        idempotencyFingerprint,
+        inputs: executionGateInputs,
+        mutationAvailable: current.mutationAvailable,
+        policyBindingFingerprint,
+        readOnly: current.readOnly,
+        repairJobFingerprint,
+        reviewBindingFingerprint,
+        rollbackPlanFingerprint,
+        status: executionGateStatus,
+        version: executionGateVersion,
+        workspaceId: permission.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+
+  const preflight: CopilotPromptRegistryRepairPreflight = {
+    accepted: false,
+    actorFingerprint,
+    actorSnapshotInputs,
+    actorSnapshotStatus,
+    actorSnapshotVersion,
+    actorType: actor.actorType,
+    approvalCheckpoints,
+    approvalModes,
+    approvalRecordCreated: false,
+    approvalRecordFingerprint,
+    approvalRecordInputs,
+    approvalRecordStatus,
+    approvalRecordVersion,
+    approvalRequestFingerprint,
+    approvalRequestInputs,
+    approvalRequestStatus,
+    approvalRequestVersion,
+    approvalRequired: approval.approvalRequired,
+    auditBindingFingerprint,
+    auditBindingInputs,
+    auditBindingStatus,
+    auditBindingVersion,
+    auditEventCreated: false,
+    auditEventFingerprint,
+    auditEventInputs,
+    auditEventStatus,
+    auditEventVersion,
+    authorizationStatus: approval.authorizationStatus,
+    candidateEvidenceSetFingerprint: current.candidateEvidenceSetFingerprint,
+    capabilityCheckMode: capability.checkMode,
+    capabilityFingerprint,
+    capabilitySource: capability.source,
+    capabilityStatus: capability.status,
+    contractVersion: current.contractVersion,
+    currentSubmissionFingerprint: current.submissionFingerprint,
+    expectedSubmissionFingerprint: expected.submissionFingerprint,
+    executionGateFingerprint,
+    executionGateInputs,
+    executionGateStatus,
+    executionGateVersion,
+    executionStateCreated: false,
+    executionStateFingerprint,
+    executionStateInputs,
+    executionStateStatus,
+    executionStateVersion,
+    expectedCandidateEvidenceSetFingerprint:
+      expected.candidateEvidenceSetFingerprint,
+    idempotencyFingerprint,
+    idempotencyKey: current.idempotencyKey,
+    idempotencyLockAcquired: false,
+    idempotencyScope,
+    idempotencyStatus,
+    idempotencyVersion,
+    matchedFields,
+    mismatchedFields,
+    mutationAvailable: false,
+    permissionCheckMode: permission.checkMode,
+    permissionChecked: permission.checked,
+    permissionFingerprint,
+    permissionScope: permission.scope,
+    permissionStatus: permission.status,
+    policyBindingFingerprint,
+    policyBindingInputs,
+    policyBindingStatus,
+    policyBindingVersion,
+    policySource,
+    requiredCapabilities,
+    requiredCapabilityCount: requiredCapabilities.length,
+    requiredPermission: permission.requiredPermission,
+    repairJobCreated: false,
+    repairJobFingerprint,
+    repairJobInputs,
+    repairJobStatus,
+    repairJobVersion,
+    reviewBindingFingerprint,
+    reviewBindingInputs,
+    reviewBindingStatus,
+    reviewBindingVersion,
+    rollbackPlanCreated: false,
+    rollbackPlanFingerprint,
+    rollbackPlanInputs,
+    rollbackPlanStatus,
+    rollbackPlanVersion,
+    readOnly: true,
+    status: reviewBindingStatus,
+  };
+  if (permission.workspaceId) {
+    preflight.workspaceId = permission.workspaceId;
+  }
+
+  return preflight;
+}
+
+function buildPromptRegistryRepairExecutionRequest(
+  input: CopilotPromptRegistryRepairExecutionRequestInput,
+  preflight: CopilotPromptRegistryRepairPreflight
+): CopilotPromptRegistryRepairExecutionRequest {
+  const checks: Array<
+    [keyof CopilotPromptRegistryRepairExecutionRequestInput, boolean]
+  > = [
+    [
+      'expectedApprovalRecordFingerprint',
+      input.expectedApprovalRecordFingerprint ===
+        preflight.approvalRecordFingerprint,
+    ],
+    [
+      'expectedApprovalRequestFingerprint',
+      input.expectedApprovalRequestFingerprint ===
+        preflight.approvalRequestFingerprint,
+    ],
+    [
+      'expectedAuditEventFingerprint',
+      input.expectedAuditEventFingerprint === preflight.auditEventFingerprint,
+    ],
+    [
+      'expectedExecutionGateFingerprint',
+      input.expectedExecutionGateFingerprint ===
+        preflight.executionGateFingerprint,
+    ],
+    [
+      'expectedExecutionGateStatus',
+      input.expectedExecutionGateStatus === preflight.executionGateStatus,
+    ],
+    [
+      'expectedExecutionStateFingerprint',
+      input.expectedExecutionStateFingerprint ===
+        preflight.executionStateFingerprint,
+    ],
+    [
+      'expectedIdempotencyFingerprint',
+      input.expectedIdempotencyFingerprint === preflight.idempotencyFingerprint,
+    ],
+    [
+      'expectedPolicyBindingFingerprint',
+      input.expectedPolicyBindingFingerprint ===
+        preflight.policyBindingFingerprint,
+    ],
+    [
+      'expectedPreflightStatus',
+      input.expectedPreflightStatus === preflight.status,
+    ],
+    [
+      'expectedRepairJobFingerprint',
+      input.expectedRepairJobFingerprint === preflight.repairJobFingerprint,
+    ],
+    [
+      'expectedReviewBindingFingerprint',
+      input.expectedReviewBindingFingerprint ===
+        preflight.reviewBindingFingerprint,
+    ],
+    [
+      'expectedRollbackPlanFingerprint',
+      input.expectedRollbackPlanFingerprint ===
+        preflight.rollbackPlanFingerprint,
+    ],
+  ];
+  const matchedFields = checks
+    .filter(([, matched]) => matched)
+    .map(([field]) => field)
+    .sort();
+  const mismatchedFields = checks
+    .filter(([, matched]) => !matched)
+    .map(([field]) => field)
+    .sort();
+  const requestVersion = 'repair-execution-request/v1';
+  const requestInputs = checks.map(([field]) => field).sort();
+  const requestStatus = preflight.mismatchedFields.length
+    ? 'blocked_stale_submission'
+    : mismatchedFields.length
+      ? 'blocked_stale_preflight'
+      : 'blocked_read_only';
+  const idempotencyLockVersion = 'repair-execution-idempotency-lock/v1';
+  const idempotencyLockStatus = 'not_acquired_read_only';
+  const idempotencyLockScope = preflight.idempotencyScope;
+  const idempotencyLockInputs = [
+    'idempotencyFingerprint',
+    'idempotencyKey',
+    'policyBindingFingerprint',
+    'requestStatus',
+    'reviewBindingFingerprint',
+    'submissionFingerprint',
+  ].sort();
+  const idempotencyLockFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        acquired: false,
+        idempotencyFingerprint: preflight.idempotencyFingerprint,
+        idempotencyKey: preflight.idempotencyKey,
+        inputs: idempotencyLockInputs,
+        policyBindingFingerprint: preflight.policyBindingFingerprint,
+        requestStatus,
+        reviewBindingFingerprint: preflight.reviewBindingFingerprint,
+        scope: idempotencyLockScope,
+        status: idempotencyLockStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: idempotencyLockVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const approvalRecordRequestVersion =
+    'repair-execution-approval-record-request/v1';
+  const approvalRecordRequestStatus = 'not_created_read_only';
+  const approvalRecordRequestInputs = [
+    'actorFingerprint',
+    'approvalRecordFingerprint',
+    'approvalRequestFingerprint',
+    'auditBindingFingerprint',
+    'idempotencyLockFingerprint',
+    'policyBindingFingerprint',
+    'requestStatus',
+    'reviewBindingFingerprint',
+    'workspaceId',
+  ].sort();
+  const approvalRecordRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        actorFingerprint: preflight.actorFingerprint,
+        approvalRecordFingerprint: preflight.approvalRecordFingerprint,
+        approvalRequestFingerprint: preflight.approvalRequestFingerprint,
+        auditBindingFingerprint: preflight.auditBindingFingerprint,
+        created: false,
+        idempotencyLockFingerprint,
+        inputs: approvalRecordRequestInputs,
+        policyBindingFingerprint: preflight.policyBindingFingerprint,
+        requestStatus,
+        reviewBindingFingerprint: preflight.reviewBindingFingerprint,
+        status: approvalRecordRequestStatus,
+        version: approvalRecordRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const auditEventRequestVersion = 'repair-execution-audit-event-request/v1';
+  const auditEventRequestStatus = 'not_created_read_only';
+  const auditEventRequestInputs = [
+    'actorFingerprint',
+    'approvalRecordRequestFingerprint',
+    'auditBindingFingerprint',
+    'auditEventFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'policyBindingFingerprint',
+    'repairJobFingerprint',
+    'requestStatus',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const auditEventRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        actorFingerprint: preflight.actorFingerprint,
+        approvalRecordRequestFingerprint,
+        auditBindingFingerprint: preflight.auditBindingFingerprint,
+        auditEventFingerprint: preflight.auditEventFingerprint,
+        created: false,
+        idempotencyLockFingerprint,
+        inputs: auditEventRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        policyBindingFingerprint: preflight.policyBindingFingerprint,
+        repairJobFingerprint: preflight.repairJobFingerprint,
+        requestStatus,
+        status: auditEventRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: auditEventRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const repairJobRequestVersion = 'repair-execution-repair-job-request/v1';
+  const repairJobRequestStatus = 'not_created_read_only';
+  const repairJobRequestInputs = [
+    'actorFingerprint',
+    'approvalRecordRequestFingerprint',
+    'auditEventRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'policyBindingFingerprint',
+    'repairJobFingerprint',
+    'requestStatus',
+    'reviewBindingFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const repairJobRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        actorFingerprint: preflight.actorFingerprint,
+        approvalRecordRequestFingerprint,
+        auditEventRequestFingerprint,
+        created: false,
+        idempotencyLockFingerprint,
+        inputs: repairJobRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        policyBindingFingerprint: preflight.policyBindingFingerprint,
+        repairJobFingerprint: preflight.repairJobFingerprint,
+        requestStatus,
+        reviewBindingFingerprint: preflight.reviewBindingFingerprint,
+        status: repairJobRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: repairJobRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionStateRequestVersion = 'repair-execution-state-request/v1';
+  const executionStateRequestStatus = 'not_started_read_only';
+  const executionStateRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionStateFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'reviewBindingFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionStateRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionStateFingerprint: preflight.executionStateFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionStateRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        reviewBindingFingerprint: preflight.reviewBindingFingerprint,
+        status: executionStateRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionStateRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const rollbackPlanRequestVersion =
+    'repair-execution-rollback-plan-request/v1';
+  const rollbackPlanRequestStatus = 'not_created_read_only';
+  const rollbackPlanRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'reviewBindingFingerprint',
+    'rollbackPlanFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const rollbackPlanRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionStateRequestFingerprint,
+        inputs: rollbackPlanRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        reviewBindingFingerprint: preflight.reviewBindingFingerprint,
+        rollbackPlanFingerprint: preflight.rollbackPlanFingerprint,
+        status: rollbackPlanRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: rollbackPlanRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionTraceRequestVersion = 'repair-execution-trace-request/v1';
+  const executionTraceRequestStatus = 'not_created_read_only';
+  const executionTraceRequestInputs = [
+    'actorFingerprint',
+    'approvalRecordRequestFingerprint',
+    'auditEventRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionTraceRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        actorFingerprint: preflight.actorFingerprint,
+        approvalRecordRequestFingerprint,
+        auditEventRequestFingerprint,
+        created: false,
+        executionStateRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionTraceRequestInputs,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionTraceRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionTraceRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionResultRequestVersion = 'repair-execution-result-request/v1';
+  const executionResultRequestStatus = 'not_recorded_read_only';
+  const executionResultRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionResultRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionStateRequestFingerprint,
+        executionTraceRequestFingerprint,
+        inputs: executionResultRequestInputs,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionResultRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionResultRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRetryPolicyRequestVersion =
+    'repair-execution-retry-policy-request/v1';
+  const executionRetryPolicyRequestStatus = 'not_created_read_only';
+  const executionRetryPolicyRequestInputs = [
+    'executionResultRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRetryPolicyRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        created: false,
+        executionResultRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionTraceRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionRetryPolicyRequestInputs,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRetryPolicyRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRetryPolicyRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionProviderResponseRequestVersion =
+    'repair-execution-provider-response-request/v1';
+  const executionProviderResponseRequestStatus = 'not_recorded_read_only';
+  const executionProviderResponseRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionProviderResponseRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionTraceRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionProviderResponseRequestInputs,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionProviderResponseRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionProviderResponseRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionFailureEventRequestVersion =
+    'repair-execution-failure-event-request/v1';
+  const executionFailureEventRequestStatus = 'not_recorded_read_only';
+  const executionFailureEventRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionProviderResponseRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionFailureEventRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionProviderResponseRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionTraceRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionFailureEventRequestInputs,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionFailureEventRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionFailureEventRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRollbackTriggerRequestVersion =
+    'repair-execution-rollback-trigger-request/v1';
+  const executionRollbackTriggerRequestStatus = 'not_created_read_only';
+  const executionRollbackTriggerRequestInputs = [
+    'executionFailureEventRequestFingerprint',
+    'executionProviderResponseRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRollbackTriggerRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        created: false,
+        executionFailureEventRequestFingerprint,
+        executionProviderResponseRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionTraceRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionRollbackTriggerRequestInputs,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRollbackTriggerRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRollbackTriggerRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRollbackExecutorRequestVersion =
+    'repair-execution-rollback-executor-request/v1';
+  const executionRollbackExecutorRequestStatus = 'not_started_read_only';
+  const executionRollbackExecutorRequestInputs = [
+    'executionFailureEventRequestFingerprint',
+    'executionProviderResponseRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRollbackTriggerRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRollbackExecutorRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        created: false,
+        executionFailureEventRequestFingerprint,
+        executionProviderResponseRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRollbackTriggerRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionTraceRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionRollbackExecutorRequestInputs,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRollbackExecutorRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRollbackExecutorRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRollbackOperationRequestVersion =
+    'repair-execution-rollback-operation-request/v1';
+  const executionRollbackOperationRequestStatus = 'not_created_read_only';
+  const executionRollbackOperationRequestInputs = [
+    'executionFailureEventRequestFingerprint',
+    'executionProviderResponseRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRollbackExecutorRequestFingerprint',
+    'executionRollbackTriggerRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRollbackOperationRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        created: false,
+        executionFailureEventRequestFingerprint,
+        executionProviderResponseRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRollbackExecutorRequestFingerprint,
+        executionRollbackTriggerRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionTraceRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionRollbackOperationRequestInputs,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRollbackOperationRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRollbackOperationRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRollbackOutcomeRequestVersion =
+    'repair-execution-rollback-outcome-request/v1';
+  const executionRollbackOutcomeRequestStatus = 'not_recorded_read_only';
+  const executionRollbackOutcomeRequestInputs = [
+    'executionFailureEventRequestFingerprint',
+    'executionProviderResponseRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRollbackExecutorRequestFingerprint',
+    'executionRollbackOperationRequestFingerprint',
+    'executionRollbackTriggerRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRollbackOutcomeRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        created: false,
+        executionFailureEventRequestFingerprint,
+        executionProviderResponseRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRollbackExecutorRequestFingerprint,
+        executionRollbackOperationRequestFingerprint,
+        executionRollbackTriggerRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionTraceRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionRollbackOutcomeRequestInputs,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRollbackOutcomeRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRollbackOutcomeRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionCompletionRequestVersion =
+    'repair-execution-completion-request/v1';
+  const executionCompletionRequestStatus = 'not_completed_read_only';
+  const executionCompletionRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionFailureEventRequestFingerprint',
+    'executionProviderResponseRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRollbackOutcomeRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionCompletionRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        completed: false,
+        executionFailureEventRequestFingerprint,
+        executionProviderResponseRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionRollbackOutcomeRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionTraceRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionCompletionRequestInputs,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionCompletionRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionCompletionRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionCompletionEventRequestVersion =
+    'repair-execution-completion-event-request/v1';
+  const executionCompletionEventRequestStatus = 'not_recorded_read_only';
+  const executionCompletionEventRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionCompletionRequestFingerprint',
+    'executionFailureEventRequestFingerprint',
+    'executionProviderResponseRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRollbackOutcomeRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionCompletionEventRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionCompletionRequestFingerprint,
+        executionFailureEventRequestFingerprint,
+        executionProviderResponseRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionRollbackOutcomeRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionTraceRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionCompletionEventRequestInputs,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionCompletionEventRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionCompletionEventRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionFinalizationRequestVersion =
+    'repair-execution-finalization-request/v1';
+  const executionFinalizationRequestStatus = 'not_finalized_read_only';
+  const executionFinalizationRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionCompletionEventRequestFingerprint',
+    'executionCompletionRequestFingerprint',
+    'executionFailureEventRequestFingerprint',
+    'executionProviderResponseRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRollbackOutcomeRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionFinalizationRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        executionCompletionEventRequestFingerprint,
+        executionCompletionRequestFingerprint,
+        executionFailureEventRequestFingerprint,
+        executionProviderResponseRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionRollbackOutcomeRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionTraceRequestFingerprint,
+        finalized: false,
+        idempotencyLockFingerprint,
+        inputs: executionFinalizationRequestInputs,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionFinalizationRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionFinalizationRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionFinalizationEventRequestVersion =
+    'repair-execution-finalization-event-request/v1';
+  const executionFinalizationEventRequestStatus = 'not_recorded_read_only';
+  const executionFinalizationEventRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionCompletionEventRequestFingerprint',
+    'executionCompletionRequestFingerprint',
+    'executionFailureEventRequestFingerprint',
+    'executionFinalizationRequestFingerprint',
+    'executionProviderResponseRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRollbackOutcomeRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionFinalizationEventRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionCompletionEventRequestFingerprint,
+        executionCompletionRequestFingerprint,
+        executionFailureEventRequestFingerprint,
+        executionFinalizationRequestFingerprint,
+        executionProviderResponseRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionRollbackOutcomeRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionTraceRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionFinalizationEventRequestInputs,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionFinalizationEventRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionFinalizationEventRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionStatusPollRequestVersion =
+    'repair-execution-status-poll-request/v1';
+  const executionStatusPollRequestStatus = 'not_started_read_only';
+  const executionStatusPollRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionCompletionEventRequestFingerprint',
+    'executionCompletionRequestFingerprint',
+    'executionFailureEventRequestFingerprint',
+    'executionFinalizationEventRequestFingerprint',
+    'executionFinalizationRequestFingerprint',
+    'executionProviderResponseRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRollbackOutcomeRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionStatusPollRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionCompletionEventRequestFingerprint,
+        executionCompletionRequestFingerprint,
+        executionFailureEventRequestFingerprint,
+        executionFinalizationEventRequestFingerprint,
+        executionFinalizationRequestFingerprint,
+        executionProviderResponseRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionRollbackOutcomeRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionTraceRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionStatusPollRequestInputs,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionStatusPollRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionStatusPollRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionOperationEntryRequestVersion =
+    'repair-execution-operation-entry-request/v1';
+  const executionOperationEntryRequestStatus = 'not_opened_read_only';
+  const executionOperationEntryRequestInputs = [
+    'approvalRecordRequestFingerprint',
+    'auditEventRequestFingerprint',
+    'executionCompletionEventRequestFingerprint',
+    'executionCompletionRequestFingerprint',
+    'executionFailureEventRequestFingerprint',
+    'executionFinalizationEventRequestFingerprint',
+    'executionFinalizationRequestFingerprint',
+    'executionProviderResponseRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRollbackOutcomeRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionOperationEntryRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        approvalRecordRequestFingerprint,
+        auditEventRequestFingerprint,
+        created: false,
+        executionCompletionEventRequestFingerprint,
+        executionCompletionRequestFingerprint,
+        executionFailureEventRequestFingerprint,
+        executionFinalizationEventRequestFingerprint,
+        executionFinalizationRequestFingerprint,
+        executionProviderResponseRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionRollbackOutcomeRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        executionTraceRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionOperationEntryRequestInputs,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionOperationEntryRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionOperationEntryRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionApprovalUiRequestVersion =
+    'repair-execution-approval-ui-request/v1';
+  const executionApprovalUiRequestStatus = 'not_rendered_read_only';
+  const executionApprovalUiRequestInputs = [
+    'approvalRecordRequestFingerprint',
+    'auditEventRequestFingerprint',
+    'executionOperationEntryRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionApprovalUiRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        approvalRecordRequestFingerprint,
+        auditEventRequestFingerprint,
+        created: false,
+        executionOperationEntryRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionApprovalUiRequestInputs,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionApprovalUiRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionApprovalUiRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionDiffPreviewRequestVersion =
+    'repair-execution-diff-preview-request/v1';
+  const executionDiffPreviewRequestStatus = 'not_generated_read_only';
+  const executionDiffPreviewRequestInputs = [
+    'approvalRecordRequestFingerprint',
+    'auditEventRequestFingerprint',
+    'executionApprovalUiRequestFingerprint',
+    'executionOperationEntryRequestFingerprint',
+    'guardFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'previewFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionDiffPreviewRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        approvalRecordRequestFingerprint,
+        auditEventRequestFingerprint,
+        created: false,
+        executionApprovalUiRequestFingerprint,
+        executionOperationEntryRequestFingerprint,
+        guardFingerprint: input.submission.guardFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionDiffPreviewRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        previewFingerprint: input.submission.previewFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionDiffPreviewRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionDiffPreviewRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionApprovalDecisionRequestVersion =
+    'repair-execution-approval-decision-request/v1';
+  const executionApprovalDecisionRequestStatus = 'not_recorded_read_only';
+  const executionApprovalDecisionRequestInputs = [
+    'approvalRecordRequestFingerprint',
+    'auditEventRequestFingerprint',
+    'executionApprovalUiRequestFingerprint',
+    'executionDiffPreviewRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionApprovalDecisionRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        approvalRecordRequestFingerprint,
+        auditEventRequestFingerprint,
+        created: false,
+        executionApprovalUiRequestFingerprint,
+        executionDiffPreviewRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionApprovalDecisionRequestInputs,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionApprovalDecisionRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionApprovalDecisionRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionStartRequestVersion = 'repair-execution-start-request/v1';
+  const executionStartRequestStatus = 'not_started_read_only';
+  const executionStartRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionApprovalDecisionRequestFingerprint',
+    'executionOperationEntryRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionStartRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionApprovalDecisionRequestFingerprint,
+        executionOperationEntryRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionStartRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionStartRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionStartRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionQueueRequestVersion = 'repair-execution-queue-request/v1';
+  const executionQueueRequestStatus = 'not_enqueued_read_only';
+  const executionQueueRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionQueueRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionStartRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionQueueRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionQueueRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionQueueRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionWorkerLeaseRequestVersion =
+    'repair-execution-worker-lease-request/v1';
+  const executionWorkerLeaseRequestStatus = 'not_acquired_read_only';
+  const executionWorkerLeaseRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionWorkerLeaseRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionQueueRequestFingerprint,
+        executionStartRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionWorkerLeaseRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionWorkerLeaseRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionWorkerLeaseRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionJobRunRequestVersion = 'repair-execution-job-run-request/v1';
+  const executionJobRunRequestStatus = 'not_started_read_only';
+  const executionJobRunRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionJobRunRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionQueueRequestFingerprint,
+        executionStartRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        executionWorkerLeaseRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionJobRunRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionJobRunRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionJobRunRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRunStepRequestVersion = 'repair-execution-run-step-request/v1';
+  const executionRunStepRequestStatus = 'not_created_read_only';
+  const executionRunStepRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionJobRunRequestFingerprint,
+        executionQueueRequestFingerprint,
+        executionStartRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        executionWorkerLeaseRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionRunStepRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRunStepRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRunStepRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRunStepTraceRequestVersion =
+    'repair-execution-run-step-trace-request/v1';
+  const executionRunStepTraceRequestStatus = 'not_created_read_only';
+  const executionRunStepTraceRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepTraceRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionJobRunRequestFingerprint,
+        executionQueueRequestFingerprint,
+        executionRunStepRequestFingerprint,
+        executionStartRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        executionTraceRequestFingerprint,
+        executionWorkerLeaseRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionRunStepTraceRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRunStepTraceRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRunStepTraceRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRunStepResultRequestVersion =
+    'repair-execution-run-step-result-request/v1';
+  const executionRunStepResultRequestStatus = 'not_recorded_read_only';
+  const executionRunStepResultRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionRunStepTraceRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepResultRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionJobRunRequestFingerprint,
+        executionQueueRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRunStepRequestFingerprint,
+        executionRunStepTraceRequestFingerprint,
+        executionStartRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        executionTraceRequestFingerprint,
+        executionWorkerLeaseRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionRunStepResultRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRunStepResultRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRunStepResultRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRunStepCompletionRequestVersion =
+    'repair-execution-run-step-completion-request/v1';
+  const executionRunStepCompletionRequestStatus = 'not_completed_read_only';
+  const executionRunStepCompletionRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionRunStepResultRequestFingerprint',
+    'executionRunStepTraceRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepCompletionRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        completed: false,
+        executionJobRunRequestFingerprint,
+        executionQueueRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRunStepRequestFingerprint,
+        executionRunStepResultRequestFingerprint,
+        executionRunStepTraceRequestFingerprint,
+        executionStartRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        executionTraceRequestFingerprint,
+        executionWorkerLeaseRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionRunStepCompletionRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRunStepCompletionRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRunStepCompletionRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRunStepStatusEventRequestVersion =
+    'repair-execution-run-step-status-event-request/v1';
+  const executionRunStepStatusEventRequestStatus = 'not_recorded_read_only';
+  const executionRunStepStatusEventRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRunStepCompletionRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionRunStepResultRequestFingerprint',
+    'executionRunStepTraceRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepStatusEventRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionJobRunRequestFingerprint,
+        executionQueueRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRunStepCompletionRequestFingerprint,
+        executionRunStepRequestFingerprint,
+        executionRunStepResultRequestFingerprint,
+        executionRunStepTraceRequestFingerprint,
+        executionStartRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        executionTraceRequestFingerprint,
+        executionWorkerLeaseRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionRunStepStatusEventRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRunStepStatusEventRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRunStepStatusEventRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRunStepRetryRequestVersion =
+    'repair-execution-run-step-retry-request/v1';
+  const executionRunStepRetryRequestStatus = 'not_scheduled_read_only';
+  const executionRunStepRetryRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRunStepCompletionRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionRunStepResultRequestFingerprint',
+    'executionRunStepStatusEventRequestFingerprint',
+    'executionRunStepTraceRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepRetryRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionJobRunRequestFingerprint,
+        executionQueueRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionRunStepCompletionRequestFingerprint,
+        executionRunStepRequestFingerprint,
+        executionRunStepResultRequestFingerprint,
+        executionRunStepStatusEventRequestFingerprint,
+        executionRunStepTraceRequestFingerprint,
+        executionStartRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        executionTraceRequestFingerprint,
+        executionWorkerLeaseRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionRunStepRetryRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRunStepRetryRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRunStepRetryRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRunStepRetryAttemptRequestVersion =
+    'repair-execution-run-step-retry-attempt-request/v1';
+  const executionRunStepRetryAttemptRequestStatus = 'not_created_read_only';
+  const executionRunStepRetryAttemptRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRunStepCompletionRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionRunStepResultRequestFingerprint',
+    'executionRunStepRetryRequestFingerprint',
+    'executionRunStepStatusEventRequestFingerprint',
+    'executionRunStepTraceRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepRetryAttemptRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionJobRunRequestFingerprint,
+        executionQueueRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionRunStepCompletionRequestFingerprint,
+        executionRunStepRequestFingerprint,
+        executionRunStepResultRequestFingerprint,
+        executionRunStepRetryRequestFingerprint,
+        executionRunStepStatusEventRequestFingerprint,
+        executionRunStepTraceRequestFingerprint,
+        executionStartRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        executionTraceRequestFingerprint,
+        executionWorkerLeaseRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionRunStepRetryAttemptRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRunStepRetryAttemptRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRunStepRetryAttemptRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRunStepRetryAttemptStatusEventRequestVersion =
+    'repair-execution-run-step-retry-attempt-status-event-request/v1';
+  const executionRunStepRetryAttemptStatusEventRequestStatus =
+    'not_recorded_read_only';
+  const executionRunStepRetryAttemptStatusEventRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRunStepCompletionRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionRunStepResultRequestFingerprint',
+    'executionRunStepRetryAttemptRequestFingerprint',
+    'executionRunStepRetryRequestFingerprint',
+    'executionRunStepStatusEventRequestFingerprint',
+    'executionRunStepTraceRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepRetryAttemptStatusEventRequestFingerprint = createHash(
+    'sha256'
+  )
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionJobRunRequestFingerprint,
+        executionQueueRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionRunStepCompletionRequestFingerprint,
+        executionRunStepRequestFingerprint,
+        executionRunStepResultRequestFingerprint,
+        executionRunStepRetryAttemptRequestFingerprint,
+        executionRunStepRetryRequestFingerprint,
+        executionRunStepStatusEventRequestFingerprint,
+        executionRunStepTraceRequestFingerprint,
+        executionStartRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        executionTraceRequestFingerprint,
+        executionWorkerLeaseRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionRunStepRetryAttemptStatusEventRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRunStepRetryAttemptStatusEventRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRunStepRetryAttemptStatusEventRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRunStepRetryAttemptTraceRequestVersion =
+    'repair-execution-run-step-retry-attempt-trace-request/v1';
+  const executionRunStepRetryAttemptTraceRequestStatus =
+    'not_created_read_only';
+  const executionRunStepRetryAttemptTraceRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRunStepCompletionRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionRunStepResultRequestFingerprint',
+    'executionRunStepRetryAttemptRequestFingerprint',
+    'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+    'executionRunStepRetryRequestFingerprint',
+    'executionRunStepStatusEventRequestFingerprint',
+    'executionRunStepTraceRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepRetryAttemptTraceRequestFingerprint = createHash(
+    'sha256'
+  )
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionJobRunRequestFingerprint,
+        executionQueueRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionRunStepCompletionRequestFingerprint,
+        executionRunStepRequestFingerprint,
+        executionRunStepResultRequestFingerprint,
+        executionRunStepRetryAttemptRequestFingerprint,
+        executionRunStepRetryAttemptStatusEventRequestFingerprint,
+        executionRunStepRetryRequestFingerprint,
+        executionRunStepStatusEventRequestFingerprint,
+        executionRunStepTraceRequestFingerprint,
+        executionStartRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        executionTraceRequestFingerprint,
+        executionWorkerLeaseRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionRunStepRetryAttemptTraceRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRunStepRetryAttemptTraceRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRunStepRetryAttemptTraceRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRunStepRetryAttemptResultRequestVersion =
+    'repair-execution-run-step-retry-attempt-result-request/v1';
+  const executionRunStepRetryAttemptResultRequestStatus =
+    'not_recorded_read_only';
+  const executionRunStepRetryAttemptResultRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRunStepCompletionRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionRunStepResultRequestFingerprint',
+    'executionRunStepRetryAttemptRequestFingerprint',
+    'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptTraceRequestFingerprint',
+    'executionRunStepRetryRequestFingerprint',
+    'executionRunStepStatusEventRequestFingerprint',
+    'executionRunStepTraceRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepRetryAttemptResultRequestFingerprint = createHash(
+    'sha256'
+  )
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        created: false,
+        executionJobRunRequestFingerprint,
+        executionQueueRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionRunStepCompletionRequestFingerprint,
+        executionRunStepRequestFingerprint,
+        executionRunStepResultRequestFingerprint,
+        executionRunStepRetryAttemptRequestFingerprint,
+        executionRunStepRetryAttemptStatusEventRequestFingerprint,
+        executionRunStepRetryAttemptTraceRequestFingerprint,
+        executionRunStepRetryRequestFingerprint,
+        executionRunStepStatusEventRequestFingerprint,
+        executionRunStepTraceRequestFingerprint,
+        executionStartRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        executionTraceRequestFingerprint,
+        executionWorkerLeaseRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionRunStepRetryAttemptResultRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRunStepRetryAttemptResultRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRunStepRetryAttemptResultRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRunStepRetryAttemptCompletionRequestVersion =
+    'repair-execution-run-step-retry-attempt-completion-request/v1';
+  const executionRunStepRetryAttemptCompletionRequestStatus =
+    'not_completed_read_only';
+  const executionRunStepRetryAttemptCompletionRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRunStepCompletionRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionRunStepResultRequestFingerprint',
+    'executionRunStepRetryAttemptRequestFingerprint',
+    'executionRunStepRetryAttemptResultRequestFingerprint',
+    'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptTraceRequestFingerprint',
+    'executionRunStepRetryRequestFingerprint',
+    'executionRunStepStatusEventRequestFingerprint',
+    'executionRunStepTraceRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepRetryAttemptCompletionRequestFingerprint = createHash(
+    'sha256'
+  )
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        completed: false,
+        executionJobRunRequestFingerprint,
+        executionQueueRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionRunStepCompletionRequestFingerprint,
+        executionRunStepRequestFingerprint,
+        executionRunStepResultRequestFingerprint,
+        executionRunStepRetryAttemptRequestFingerprint,
+        executionRunStepRetryAttemptResultRequestFingerprint,
+        executionRunStepRetryAttemptStatusEventRequestFingerprint,
+        executionRunStepRetryAttemptTraceRequestFingerprint,
+        executionRunStepRetryRequestFingerprint,
+        executionRunStepStatusEventRequestFingerprint,
+        executionRunStepTraceRequestFingerprint,
+        executionStartRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        executionTraceRequestFingerprint,
+        executionWorkerLeaseRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionRunStepRetryAttemptCompletionRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRunStepRetryAttemptCompletionRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRunStepRetryAttemptCompletionRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRunStepRetryAttemptCompletionStatusEventRequestVersion =
+    'repair-execution-run-step-retry-attempt-completion-status-event-request/v1';
+  const executionRunStepRetryAttemptCompletionStatusEventRequestStatus =
+    'not_recorded_read_only';
+  const executionRunStepRetryAttemptCompletionStatusEventRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRunStepCompletionRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionRunStepResultRequestFingerprint',
+    'executionRunStepRetryAttemptCompletionRequestFingerprint',
+    'executionRunStepRetryAttemptRequestFingerprint',
+    'executionRunStepRetryAttemptResultRequestFingerprint',
+    'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptTraceRequestFingerprint',
+    'executionRunStepRetryRequestFingerprint',
+    'executionRunStepStatusEventRequestFingerprint',
+    'executionRunStepTraceRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint =
+    createHash('sha256')
+      .update(
+        stableRepairRecommendationStringify({
+          auditEventRequestFingerprint,
+          created: false,
+          executionJobRunRequestFingerprint,
+          executionQueueRequestFingerprint,
+          executionResultRequestFingerprint,
+          executionRetryPolicyRequestFingerprint,
+          executionRunStepCompletionRequestFingerprint,
+          executionRunStepRequestFingerprint,
+          executionRunStepResultRequestFingerprint,
+          executionRunStepRetryAttemptCompletionRequestFingerprint,
+          executionRunStepRetryAttemptRequestFingerprint,
+          executionRunStepRetryAttemptResultRequestFingerprint,
+          executionRunStepRetryAttemptStatusEventRequestFingerprint,
+          executionRunStepRetryAttemptTraceRequestFingerprint,
+          executionRunStepRetryRequestFingerprint,
+          executionRunStepStatusEventRequestFingerprint,
+          executionRunStepTraceRequestFingerprint,
+          executionStartRequestFingerprint,
+          executionStateRequestFingerprint,
+          executionStatusPollRequestFingerprint,
+          executionTraceRequestFingerprint,
+          executionWorkerLeaseRequestFingerprint,
+          idempotencyLockFingerprint,
+          inputs:
+            executionRunStepRetryAttemptCompletionStatusEventRequestInputs,
+          operationSetFingerprint: input.submission.operationSetFingerprint,
+          repairJobRequestFingerprint,
+          requestStatus,
+          rollbackPlanRequestFingerprint,
+          status:
+            executionRunStepRetryAttemptCompletionStatusEventRequestStatus,
+          submissionFingerprint: preflight.currentSubmissionFingerprint,
+          version:
+            executionRunStepRetryAttemptCompletionStatusEventRequestVersion,
+          workspaceId: preflight.workspaceId ?? null,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16);
+  const executionRunStepRetryAttemptFinalizationRequestVersion =
+    'repair-execution-run-step-retry-attempt-finalization-request/v1';
+  const executionRunStepRetryAttemptFinalizationRequestStatus =
+    'not_finalized_read_only';
+  const executionRunStepRetryAttemptFinalizationRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRunStepCompletionRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionRunStepResultRequestFingerprint',
+    'executionRunStepRetryAttemptCompletionRequestFingerprint',
+    'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptRequestFingerprint',
+    'executionRunStepRetryAttemptResultRequestFingerprint',
+    'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptTraceRequestFingerprint',
+    'executionRunStepRetryRequestFingerprint',
+    'executionRunStepStatusEventRequestFingerprint',
+    'executionRunStepTraceRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepRetryAttemptFinalizationRequestFingerprint = createHash(
+    'sha256'
+  )
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        executionJobRunRequestFingerprint,
+        executionQueueRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionRunStepCompletionRequestFingerprint,
+        executionRunStepRequestFingerprint,
+        executionRunStepResultRequestFingerprint,
+        executionRunStepRetryAttemptCompletionRequestFingerprint,
+        executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint,
+        executionRunStepRetryAttemptRequestFingerprint,
+        executionRunStepRetryAttemptResultRequestFingerprint,
+        executionRunStepRetryAttemptStatusEventRequestFingerprint,
+        executionRunStepRetryAttemptTraceRequestFingerprint,
+        executionRunStepRetryRequestFingerprint,
+        executionRunStepStatusEventRequestFingerprint,
+        executionRunStepTraceRequestFingerprint,
+        executionStartRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        executionTraceRequestFingerprint,
+        executionWorkerLeaseRequestFingerprint,
+        finalized: false,
+        idempotencyLockFingerprint,
+        inputs: executionRunStepRetryAttemptFinalizationRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRunStepRetryAttemptFinalizationRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRunStepRetryAttemptFinalizationRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRunStepRetryAttemptFinalizationStatusEventRequestVersion =
+    'repair-execution-run-step-retry-attempt-finalization-status-event-request/v1';
+  const executionRunStepRetryAttemptFinalizationStatusEventRequestStatus =
+    'not_recorded_read_only';
+  const executionRunStepRetryAttemptFinalizationStatusEventRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRunStepCompletionRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionRunStepResultRequestFingerprint',
+    'executionRunStepRetryAttemptCompletionRequestFingerprint',
+    'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptFinalizationRequestFingerprint',
+    'executionRunStepRetryAttemptRequestFingerprint',
+    'executionRunStepRetryAttemptResultRequestFingerprint',
+    'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptTraceRequestFingerprint',
+    'executionRunStepRetryRequestFingerprint',
+    'executionRunStepStatusEventRequestFingerprint',
+    'executionRunStepTraceRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint =
+    createHash('sha256')
+      .update(
+        stableRepairRecommendationStringify({
+          auditEventRequestFingerprint,
+          created: false,
+          executionJobRunRequestFingerprint,
+          executionQueueRequestFingerprint,
+          executionResultRequestFingerprint,
+          executionRetryPolicyRequestFingerprint,
+          executionRunStepCompletionRequestFingerprint,
+          executionRunStepRequestFingerprint,
+          executionRunStepResultRequestFingerprint,
+          executionRunStepRetryAttemptCompletionRequestFingerprint,
+          executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint,
+          executionRunStepRetryAttemptFinalizationRequestFingerprint,
+          executionRunStepRetryAttemptRequestFingerprint,
+          executionRunStepRetryAttemptResultRequestFingerprint,
+          executionRunStepRetryAttemptStatusEventRequestFingerprint,
+          executionRunStepRetryAttemptTraceRequestFingerprint,
+          executionRunStepRetryRequestFingerprint,
+          executionRunStepStatusEventRequestFingerprint,
+          executionRunStepTraceRequestFingerprint,
+          executionStartRequestFingerprint,
+          executionStateRequestFingerprint,
+          executionStatusPollRequestFingerprint,
+          executionTraceRequestFingerprint,
+          executionWorkerLeaseRequestFingerprint,
+          idempotencyLockFingerprint,
+          inputs:
+            executionRunStepRetryAttemptFinalizationStatusEventRequestInputs,
+          operationSetFingerprint: input.submission.operationSetFingerprint,
+          repairJobRequestFingerprint,
+          requestStatus,
+          rollbackPlanRequestFingerprint,
+          status:
+            executionRunStepRetryAttemptFinalizationStatusEventRequestStatus,
+          submissionFingerprint: preflight.currentSubmissionFingerprint,
+          version:
+            executionRunStepRetryAttemptFinalizationStatusEventRequestVersion,
+          workspaceId: preflight.workspaceId ?? null,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16);
+  const executionRunStepRetryAttemptCloseRequestVersion =
+    'repair-execution-run-step-retry-attempt-close-request/v1';
+  const executionRunStepRetryAttemptCloseRequestStatus = 'not_closed_read_only';
+  const executionRunStepRetryAttemptCloseRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRunStepCompletionRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionRunStepResultRequestFingerprint',
+    'executionRunStepRetryAttemptCompletionRequestFingerprint',
+    'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptFinalizationRequestFingerprint',
+    'executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptRequestFingerprint',
+    'executionRunStepRetryAttemptResultRequestFingerprint',
+    'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptTraceRequestFingerprint',
+    'executionRunStepRetryRequestFingerprint',
+    'executionRunStepStatusEventRequestFingerprint',
+    'executionRunStepTraceRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepRetryAttemptCloseRequestFingerprint = createHash(
+    'sha256'
+  )
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventRequestFingerprint,
+        closed: false,
+        executionJobRunRequestFingerprint,
+        executionQueueRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionRunStepCompletionRequestFingerprint,
+        executionRunStepRequestFingerprint,
+        executionRunStepResultRequestFingerprint,
+        executionRunStepRetryAttemptCompletionRequestFingerprint,
+        executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint,
+        executionRunStepRetryAttemptFinalizationRequestFingerprint,
+        executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint,
+        executionRunStepRetryAttemptRequestFingerprint,
+        executionRunStepRetryAttemptResultRequestFingerprint,
+        executionRunStepRetryAttemptStatusEventRequestFingerprint,
+        executionRunStepRetryAttemptTraceRequestFingerprint,
+        executionRunStepRetryRequestFingerprint,
+        executionRunStepStatusEventRequestFingerprint,
+        executionRunStepTraceRequestFingerprint,
+        executionStartRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        executionTraceRequestFingerprint,
+        executionWorkerLeaseRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionRunStepRetryAttemptCloseRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRunStepRetryAttemptCloseRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRunStepRetryAttemptCloseRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const executionRunStepRetryAttemptCloseStatusEventRequestVersion =
+    'repair-execution-run-step-retry-attempt-close-status-event-request/v1';
+  const executionRunStepRetryAttemptCloseStatusEventRequestStatus =
+    'not_recorded_read_only';
+  const executionRunStepRetryAttemptCloseStatusEventRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRunStepCompletionRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionRunStepResultRequestFingerprint',
+    'executionRunStepRetryAttemptCloseRequestFingerprint',
+    'executionRunStepRetryAttemptCompletionRequestFingerprint',
+    'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptFinalizationRequestFingerprint',
+    'executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptRequestFingerprint',
+    'executionRunStepRetryAttemptResultRequestFingerprint',
+    'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptTraceRequestFingerprint',
+    'executionRunStepRetryRequestFingerprint',
+    'executionRunStepStatusEventRequestFingerprint',
+    'executionRunStepTraceRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepRetryAttemptCloseStatusEventRequestFingerprint =
+    createHash('sha256')
+      .update(
+        stableRepairRecommendationStringify({
+          auditEventRequestFingerprint,
+          created: false,
+          executionJobRunRequestFingerprint,
+          executionQueueRequestFingerprint,
+          executionResultRequestFingerprint,
+          executionRetryPolicyRequestFingerprint,
+          executionRunStepCompletionRequestFingerprint,
+          executionRunStepRequestFingerprint,
+          executionRunStepResultRequestFingerprint,
+          executionRunStepRetryAttemptCloseRequestFingerprint,
+          executionRunStepRetryAttemptCompletionRequestFingerprint,
+          executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint,
+          executionRunStepRetryAttemptFinalizationRequestFingerprint,
+          executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint,
+          executionRunStepRetryAttemptRequestFingerprint,
+          executionRunStepRetryAttemptResultRequestFingerprint,
+          executionRunStepRetryAttemptStatusEventRequestFingerprint,
+          executionRunStepRetryAttemptTraceRequestFingerprint,
+          executionRunStepRetryRequestFingerprint,
+          executionRunStepStatusEventRequestFingerprint,
+          executionRunStepTraceRequestFingerprint,
+          executionStartRequestFingerprint,
+          executionStateRequestFingerprint,
+          executionStatusPollRequestFingerprint,
+          executionTraceRequestFingerprint,
+          executionWorkerLeaseRequestFingerprint,
+          idempotencyLockFingerprint,
+          inputs: executionRunStepRetryAttemptCloseStatusEventRequestInputs,
+          operationSetFingerprint: input.submission.operationSetFingerprint,
+          repairJobRequestFingerprint,
+          requestStatus,
+          rollbackPlanRequestFingerprint,
+          status: executionRunStepRetryAttemptCloseStatusEventRequestStatus,
+          submissionFingerprint: preflight.currentSubmissionFingerprint,
+          version: executionRunStepRetryAttemptCloseStatusEventRequestVersion,
+          workspaceId: preflight.workspaceId ?? null,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16);
+  const executionRunStepRetryAttemptRetentionPolicyRequestVersion =
+    'repair-execution-run-step-retry-attempt-retention-policy-request/v1';
+  const executionRunStepRetryAttemptRetentionPolicyRequestStatus =
+    'not_created_read_only';
+  const executionRunStepRetryAttemptRetentionPolicyRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRunStepCompletionRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionRunStepResultRequestFingerprint',
+    'executionRunStepRetryAttemptCloseRequestFingerprint',
+    'executionRunStepRetryAttemptCloseStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptCompletionRequestFingerprint',
+    'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptFinalizationRequestFingerprint',
+    'executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptRequestFingerprint',
+    'executionRunStepRetryAttemptResultRequestFingerprint',
+    'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptTraceRequestFingerprint',
+    'executionRunStepRetryRequestFingerprint',
+    'executionRunStepStatusEventRequestFingerprint',
+    'executionRunStepTraceRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepRetryAttemptRetentionPolicyRequestFingerprint =
+    createHash('sha256')
+      .update(
+        stableRepairRecommendationStringify({
+          auditEventRequestFingerprint,
+          created: false,
+          executionJobRunRequestFingerprint,
+          executionQueueRequestFingerprint,
+          executionResultRequestFingerprint,
+          executionRetryPolicyRequestFingerprint,
+          executionRunStepCompletionRequestFingerprint,
+          executionRunStepRequestFingerprint,
+          executionRunStepResultRequestFingerprint,
+          executionRunStepRetryAttemptCloseRequestFingerprint,
+          executionRunStepRetryAttemptCloseStatusEventRequestFingerprint,
+          executionRunStepRetryAttemptCompletionRequestFingerprint,
+          executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint,
+          executionRunStepRetryAttemptFinalizationRequestFingerprint,
+          executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint,
+          executionRunStepRetryAttemptRequestFingerprint,
+          executionRunStepRetryAttemptResultRequestFingerprint,
+          executionRunStepRetryAttemptStatusEventRequestFingerprint,
+          executionRunStepRetryAttemptTraceRequestFingerprint,
+          executionRunStepRetryRequestFingerprint,
+          executionRunStepStatusEventRequestFingerprint,
+          executionRunStepTraceRequestFingerprint,
+          executionStartRequestFingerprint,
+          executionStateRequestFingerprint,
+          executionStatusPollRequestFingerprint,
+          executionTraceRequestFingerprint,
+          executionWorkerLeaseRequestFingerprint,
+          idempotencyLockFingerprint,
+          inputs: executionRunStepRetryAttemptRetentionPolicyRequestInputs,
+          operationSetFingerprint: input.submission.operationSetFingerprint,
+          repairJobRequestFingerprint,
+          requestStatus,
+          rollbackPlanRequestFingerprint,
+          status: executionRunStepRetryAttemptRetentionPolicyRequestStatus,
+          submissionFingerprint: preflight.currentSubmissionFingerprint,
+          version: executionRunStepRetryAttemptRetentionPolicyRequestVersion,
+          workspaceId: preflight.workspaceId ?? null,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16);
+  const executionRunStepRetryAttemptRetentionPolicyRuleRequestVersion =
+    'repair-execution-run-step-retry-attempt-retention-policy-rule-request/v1';
+  const executionRunStepRetryAttemptRetentionPolicyRuleRequestStatus =
+    'not_created_read_only';
+  const executionRunStepRetryAttemptRetentionPolicyRuleRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRunStepCompletionRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionRunStepResultRequestFingerprint',
+    'executionRunStepRetryAttemptCloseRequestFingerprint',
+    'executionRunStepRetryAttemptCloseStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptCompletionRequestFingerprint',
+    'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptFinalizationRequestFingerprint',
+    'executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptRequestFingerprint',
+    'executionRunStepRetryAttemptRetentionPolicyRequestFingerprint',
+    'executionRunStepRetryAttemptResultRequestFingerprint',
+    'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptTraceRequestFingerprint',
+    'executionRunStepRetryRequestFingerprint',
+    'executionRunStepStatusEventRequestFingerprint',
+    'executionRunStepTraceRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint =
+    createHash('sha256')
+      .update(
+        stableRepairRecommendationStringify({
+          auditEventRequestFingerprint,
+          created: false,
+          executionJobRunRequestFingerprint,
+          executionQueueRequestFingerprint,
+          executionResultRequestFingerprint,
+          executionRetryPolicyRequestFingerprint,
+          executionRunStepCompletionRequestFingerprint,
+          executionRunStepRequestFingerprint,
+          executionRunStepResultRequestFingerprint,
+          executionRunStepRetryAttemptCloseRequestFingerprint,
+          executionRunStepRetryAttemptCloseStatusEventRequestFingerprint,
+          executionRunStepRetryAttemptCompletionRequestFingerprint,
+          executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint,
+          executionRunStepRetryAttemptFinalizationRequestFingerprint,
+          executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint,
+          executionRunStepRetryAttemptRequestFingerprint,
+          executionRunStepRetryAttemptRetentionPolicyRequestFingerprint,
+          executionRunStepRetryAttemptResultRequestFingerprint,
+          executionRunStepRetryAttemptStatusEventRequestFingerprint,
+          executionRunStepRetryAttemptTraceRequestFingerprint,
+          executionRunStepRetryRequestFingerprint,
+          executionRunStepStatusEventRequestFingerprint,
+          executionRunStepTraceRequestFingerprint,
+          executionStartRequestFingerprint,
+          executionStateRequestFingerprint,
+          executionStatusPollRequestFingerprint,
+          executionTraceRequestFingerprint,
+          executionWorkerLeaseRequestFingerprint,
+          idempotencyLockFingerprint,
+          inputs: executionRunStepRetryAttemptRetentionPolicyRuleRequestInputs,
+          operationSetFingerprint: input.submission.operationSetFingerprint,
+          repairJobRequestFingerprint,
+          requestStatus,
+          rollbackPlanRequestFingerprint,
+          status: executionRunStepRetryAttemptRetentionPolicyRuleRequestStatus,
+          submissionFingerprint: preflight.currentSubmissionFingerprint,
+          version:
+            executionRunStepRetryAttemptRetentionPolicyRuleRequestVersion,
+          workspaceId: preflight.workspaceId ?? null,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16);
+  const executionRunStepRetryAttemptRetentionLeaseRequestVersion =
+    'repair-execution-run-step-retry-attempt-retention-lease-request/v1';
+  const executionRunStepRetryAttemptRetentionLeaseRequestStatus =
+    'not_acquired_read_only';
+  const executionRunStepRetryAttemptRetentionLeaseRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRunStepCompletionRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionRunStepResultRequestFingerprint',
+    'executionRunStepRetryAttemptCloseRequestFingerprint',
+    'executionRunStepRetryAttemptCloseStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptCompletionRequestFingerprint',
+    'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptFinalizationRequestFingerprint',
+    'executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptRequestFingerprint',
+    'executionRunStepRetryAttemptRetentionPolicyRequestFingerprint',
+    'executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint',
+    'executionRunStepRetryAttemptResultRequestFingerprint',
+    'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptTraceRequestFingerprint',
+    'executionRunStepRetryRequestFingerprint',
+    'executionRunStepStatusEventRequestFingerprint',
+    'executionRunStepTraceRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepRetryAttemptRetentionLeaseRequestFingerprint =
+    createHash('sha256')
+      .update(
+        stableRepairRecommendationStringify({
+          acquired: false,
+          auditEventRequestFingerprint,
+          executionJobRunRequestFingerprint,
+          executionQueueRequestFingerprint,
+          executionResultRequestFingerprint,
+          executionRetryPolicyRequestFingerprint,
+          executionRunStepCompletionRequestFingerprint,
+          executionRunStepRequestFingerprint,
+          executionRunStepResultRequestFingerprint,
+          executionRunStepRetryAttemptCloseRequestFingerprint,
+          executionRunStepRetryAttemptCloseStatusEventRequestFingerprint,
+          executionRunStepRetryAttemptCompletionRequestFingerprint,
+          executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint,
+          executionRunStepRetryAttemptFinalizationRequestFingerprint,
+          executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint,
+          executionRunStepRetryAttemptRequestFingerprint,
+          executionRunStepRetryAttemptRetentionPolicyRequestFingerprint,
+          executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint,
+          executionRunStepRetryAttemptResultRequestFingerprint,
+          executionRunStepRetryAttemptStatusEventRequestFingerprint,
+          executionRunStepRetryAttemptTraceRequestFingerprint,
+          executionRunStepRetryRequestFingerprint,
+          executionRunStepStatusEventRequestFingerprint,
+          executionRunStepTraceRequestFingerprint,
+          executionStartRequestFingerprint,
+          executionStateRequestFingerprint,
+          executionStatusPollRequestFingerprint,
+          executionTraceRequestFingerprint,
+          executionWorkerLeaseRequestFingerprint,
+          idempotencyLockFingerprint,
+          inputs: executionRunStepRetryAttemptRetentionLeaseRequestInputs,
+          operationSetFingerprint: input.submission.operationSetFingerprint,
+          repairJobRequestFingerprint,
+          requestStatus,
+          rollbackPlanRequestFingerprint,
+          status: executionRunStepRetryAttemptRetentionLeaseRequestStatus,
+          submissionFingerprint: preflight.currentSubmissionFingerprint,
+          version: executionRunStepRetryAttemptRetentionLeaseRequestVersion,
+          workspaceId: preflight.workspaceId ?? null,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16);
+  const executionRunStepRetryAttemptArchiveRequestVersion =
+    'repair-execution-run-step-retry-attempt-archive-request/v1';
+  const executionRunStepRetryAttemptArchiveRequestStatus =
+    'not_archived_read_only';
+  const executionRunStepRetryAttemptArchiveRequestInputs = [
+    'auditEventRequestFingerprint',
+    'executionJobRunRequestFingerprint',
+    'executionQueueRequestFingerprint',
+    'executionResultRequestFingerprint',
+    'executionRetryPolicyRequestFingerprint',
+    'executionRunStepCompletionRequestFingerprint',
+    'executionRunStepRequestFingerprint',
+    'executionRunStepResultRequestFingerprint',
+    'executionRunStepRetryAttemptCloseRequestFingerprint',
+    'executionRunStepRetryAttemptCloseStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptCompletionRequestFingerprint',
+    'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptFinalizationRequestFingerprint',
+    'executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptRequestFingerprint',
+    'executionRunStepRetryAttemptRetentionLeaseRequestFingerprint',
+    'executionRunStepRetryAttemptRetentionPolicyRequestFingerprint',
+    'executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint',
+    'executionRunStepRetryAttemptResultRequestFingerprint',
+    'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+    'executionRunStepRetryAttemptTraceRequestFingerprint',
+    'executionRunStepRetryRequestFingerprint',
+    'executionRunStepStatusEventRequestFingerprint',
+    'executionRunStepTraceRequestFingerprint',
+    'executionStartRequestFingerprint',
+    'executionStateRequestFingerprint',
+    'executionStatusPollRequestFingerprint',
+    'executionTraceRequestFingerprint',
+    'executionWorkerLeaseRequestFingerprint',
+    'idempotencyLockFingerprint',
+    'operationSetFingerprint',
+    'repairJobRequestFingerprint',
+    'requestStatus',
+    'rollbackPlanRequestFingerprint',
+    'submissionFingerprint',
+    'workspaceId',
+  ].sort();
+  const executionRunStepRetryAttemptArchiveRequestFingerprint = createHash(
+    'sha256'
+  )
+    .update(
+      stableRepairRecommendationStringify({
+        archived: false,
+        auditEventRequestFingerprint,
+        executionJobRunRequestFingerprint,
+        executionQueueRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionRunStepCompletionRequestFingerprint,
+        executionRunStepRequestFingerprint,
+        executionRunStepResultRequestFingerprint,
+        executionRunStepRetryAttemptCloseRequestFingerprint,
+        executionRunStepRetryAttemptCloseStatusEventRequestFingerprint,
+        executionRunStepRetryAttemptCompletionRequestFingerprint,
+        executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint,
+        executionRunStepRetryAttemptFinalizationRequestFingerprint,
+        executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint,
+        executionRunStepRetryAttemptRequestFingerprint,
+        executionRunStepRetryAttemptRetentionLeaseRequestFingerprint,
+        executionRunStepRetryAttemptRetentionPolicyRequestFingerprint,
+        executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint,
+        executionRunStepRetryAttemptResultRequestFingerprint,
+        executionRunStepRetryAttemptStatusEventRequestFingerprint,
+        executionRunStepRetryAttemptTraceRequestFingerprint,
+        executionRunStepRetryRequestFingerprint,
+        executionRunStepStatusEventRequestFingerprint,
+        executionRunStepTraceRequestFingerprint,
+        executionStartRequestFingerprint,
+        executionStateRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        executionTraceRequestFingerprint,
+        executionWorkerLeaseRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: executionRunStepRetryAttemptArchiveRequestInputs,
+        operationSetFingerprint: input.submission.operationSetFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanRequestFingerprint,
+        status: executionRunStepRetryAttemptArchiveRequestStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        version: executionRunStepRetryAttemptArchiveRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const requestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        executionApprovalDecisionRequestFingerprint,
+        approvalRecordRequestFingerprint,
+        auditEventRequestFingerprint,
+        executionApprovalUiRequestFingerprint,
+        executionCompletionEventRequestFingerprint,
+        executionCompletionRequestFingerprint,
+        executionDiffPreviewRequestFingerprint,
+        executionFinalizationEventRequestFingerprint,
+        executionFinalizationRequestFingerprint,
+        executionFailureEventRequestFingerprint,
+        executionJobRunRequestFingerprint,
+        executionOperationEntryRequestFingerprint,
+        executionProviderResponseRequestFingerprint,
+        executionQueueRequestFingerprint,
+        executionResultRequestFingerprint,
+        executionRetryPolicyRequestFingerprint,
+        executionRollbackExecutorRequestFingerprint,
+        executionRollbackOperationRequestFingerprint,
+        executionRollbackOutcomeRequestFingerprint,
+        executionRollbackTriggerRequestFingerprint,
+        executionRunStepCompletionRequestFingerprint,
+        executionRunStepRequestFingerprint,
+        executionRunStepResultRequestFingerprint,
+        executionRunStepRetryAttemptArchiveRequestFingerprint,
+        executionRunStepRetryAttemptCloseRequestFingerprint,
+        executionRunStepRetryAttemptCloseStatusEventRequestFingerprint,
+        executionRunStepRetryAttemptCompletionRequestFingerprint,
+        executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint,
+        executionRunStepRetryAttemptFinalizationRequestFingerprint,
+        executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint,
+        executionRunStepRetryAttemptRequestFingerprint,
+        executionRunStepRetryAttemptRetentionLeaseRequestFingerprint,
+        executionRunStepRetryAttemptRetentionPolicyRequestFingerprint,
+        executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint,
+        executionRunStepRetryAttemptResultRequestFingerprint,
+        executionRunStepRetryAttemptStatusEventRequestFingerprint,
+        executionRunStepRetryAttemptTraceRequestFingerprint,
+        executionRunStepRetryRequestFingerprint,
+        executionRunStepStatusEventRequestFingerprint,
+        executionRunStepTraceRequestFingerprint,
+        executionStartRequestFingerprint,
+        executionStatusPollRequestFingerprint,
+        executionWorkerLeaseRequestFingerprint,
+        executionGateFingerprint: preflight.executionGateFingerprint,
+        executionStateRequestFingerprint,
+        idempotencyLockFingerprint,
+        inputs: requestInputs,
+        matchedFields,
+        mismatchedFields,
+        preflightStatus: preflight.status,
+        readOnly: true,
+        repairJobFingerprint: preflight.repairJobFingerprint,
+        repairJobRequestFingerprint,
+        requestStatus,
+        rollbackPlanFingerprint: preflight.rollbackPlanFingerprint,
+        rollbackPlanRequestFingerprint,
+        executionTraceRequestFingerprint,
+        version: requestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+
+  return {
+    accepted: false,
+    executionRequested: false,
+    approvalRecordRequestCreated: false,
+    approvalRecordRequestFingerprint,
+    approvalRecordRequestInputs,
+    approvalRecordRequestStatus,
+    approvalRecordRequestVersion,
+    auditEventRequestCreated: false,
+    auditEventRequestFingerprint,
+    auditEventRequestInputs,
+    auditEventRequestStatus,
+    auditEventRequestVersion,
+    executionCompletionEventRequestCreated: false,
+    executionCompletionEventRequestFingerprint,
+    executionCompletionEventRequestInputs,
+    executionCompletionEventRequestStatus,
+    executionCompletionEventRequestVersion,
+    executionCompletionRequestCreated: false,
+    executionCompletionRequestFingerprint,
+    executionCompletionRequestInputs,
+    executionCompletionRequestStatus,
+    executionCompletionRequestVersion,
+    executionFinalizationEventRequestCreated: false,
+    executionFinalizationEventRequestFingerprint,
+    executionFinalizationEventRequestInputs,
+    executionFinalizationEventRequestStatus,
+    executionFinalizationEventRequestVersion,
+    executionFinalizationRequestCreated: false,
+    executionFinalizationRequestFingerprint,
+    executionFinalizationRequestInputs,
+    executionFinalizationRequestStatus,
+    executionFinalizationRequestVersion,
+    executionStatusPollRequestCreated: false,
+    executionStatusPollRequestFingerprint,
+    executionStatusPollRequestInputs,
+    executionStatusPollRequestStatus,
+    executionStatusPollRequestVersion,
+    executionOperationEntryRequestCreated: false,
+    executionOperationEntryRequestFingerprint,
+    executionOperationEntryRequestInputs,
+    executionOperationEntryRequestStatus,
+    executionOperationEntryRequestVersion,
+    executionApprovalUiRequestCreated: false,
+    executionApprovalUiRequestFingerprint,
+    executionApprovalUiRequestInputs,
+    executionApprovalUiRequestStatus,
+    executionApprovalUiRequestVersion,
+    executionDiffPreviewRequestCreated: false,
+    executionDiffPreviewRequestFingerprint,
+    executionDiffPreviewRequestInputs,
+    executionDiffPreviewRequestStatus,
+    executionDiffPreviewRequestVersion,
+    executionApprovalDecisionRequestCreated: false,
+    executionApprovalDecisionRequestFingerprint,
+    executionApprovalDecisionRequestInputs,
+    executionApprovalDecisionRequestStatus,
+    executionApprovalDecisionRequestVersion,
+    executionStartRequestCreated: false,
+    executionStartRequestFingerprint,
+    executionStartRequestInputs,
+    executionStartRequestStatus,
+    executionStartRequestVersion,
+    executionQueueRequestCreated: false,
+    executionQueueRequestFingerprint,
+    executionQueueRequestInputs,
+    executionQueueRequestStatus,
+    executionQueueRequestVersion,
+    executionWorkerLeaseRequestCreated: false,
+    executionWorkerLeaseRequestFingerprint,
+    executionWorkerLeaseRequestInputs,
+    executionWorkerLeaseRequestStatus,
+    executionWorkerLeaseRequestVersion,
+    executionJobRunRequestCreated: false,
+    executionJobRunRequestFingerprint,
+    executionJobRunRequestInputs,
+    executionJobRunRequestStatus,
+    executionJobRunRequestVersion,
+    executionRunStepRequestCreated: false,
+    executionRunStepRequestFingerprint,
+    executionRunStepRequestInputs,
+    executionRunStepRequestStatus,
+    executionRunStepRequestVersion,
+    executionRunStepTraceRequestCreated: false,
+    executionRunStepTraceRequestFingerprint,
+    executionRunStepTraceRequestInputs,
+    executionRunStepTraceRequestStatus,
+    executionRunStepTraceRequestVersion,
+    executionRunStepResultRequestCreated: false,
+    executionRunStepResultRequestFingerprint,
+    executionRunStepResultRequestInputs,
+    executionRunStepResultRequestStatus,
+    executionRunStepResultRequestVersion,
+    executionRunStepCompletionRequestCreated: false,
+    executionRunStepCompletionRequestFingerprint,
+    executionRunStepCompletionRequestInputs,
+    executionRunStepCompletionRequestStatus,
+    executionRunStepCompletionRequestVersion,
+    executionRunStepStatusEventRequestCreated: false,
+    executionRunStepStatusEventRequestFingerprint,
+    executionRunStepStatusEventRequestInputs,
+    executionRunStepStatusEventRequestStatus,
+    executionRunStepStatusEventRequestVersion,
+    executionRunStepRetryRequestCreated: false,
+    executionRunStepRetryRequestFingerprint,
+    executionRunStepRetryRequestInputs,
+    executionRunStepRetryRequestStatus,
+    executionRunStepRetryRequestVersion,
+    executionRunStepRetryAttemptRequestCreated: false,
+    executionRunStepRetryAttemptRequestFingerprint,
+    executionRunStepRetryAttemptRequestInputs,
+    executionRunStepRetryAttemptRequestStatus,
+    executionRunStepRetryAttemptRequestVersion,
+    executionRunStepRetryAttemptStatusEventRequestCreated: false,
+    executionRunStepRetryAttemptStatusEventRequestFingerprint,
+    executionRunStepRetryAttemptStatusEventRequestInputs,
+    executionRunStepRetryAttemptStatusEventRequestStatus,
+    executionRunStepRetryAttemptStatusEventRequestVersion,
+    executionRunStepRetryAttemptTraceRequestCreated: false,
+    executionRunStepRetryAttemptTraceRequestFingerprint,
+    executionRunStepRetryAttemptTraceRequestInputs,
+    executionRunStepRetryAttemptTraceRequestStatus,
+    executionRunStepRetryAttemptTraceRequestVersion,
+    executionRunStepRetryAttemptResultRequestCreated: false,
+    executionRunStepRetryAttemptResultRequestFingerprint,
+    executionRunStepRetryAttemptResultRequestInputs,
+    executionRunStepRetryAttemptResultRequestStatus,
+    executionRunStepRetryAttemptResultRequestVersion,
+    executionRunStepRetryAttemptCompletionRequestCreated: false,
+    executionRunStepRetryAttemptCompletionRequestFingerprint,
+    executionRunStepRetryAttemptCompletionRequestInputs,
+    executionRunStepRetryAttemptCompletionRequestStatus,
+    executionRunStepRetryAttemptCompletionRequestVersion,
+    executionRunStepRetryAttemptCompletionStatusEventRequestCreated: false,
+    executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint,
+    executionRunStepRetryAttemptCompletionStatusEventRequestInputs,
+    executionRunStepRetryAttemptCompletionStatusEventRequestStatus,
+    executionRunStepRetryAttemptCompletionStatusEventRequestVersion,
+    executionRunStepRetryAttemptFinalizationRequestCreated: false,
+    executionRunStepRetryAttemptFinalizationRequestFingerprint,
+    executionRunStepRetryAttemptFinalizationRequestInputs,
+    executionRunStepRetryAttemptFinalizationRequestStatus,
+    executionRunStepRetryAttemptFinalizationRequestVersion,
+    executionRunStepRetryAttemptFinalizationStatusEventRequestCreated: false,
+    executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint,
+    executionRunStepRetryAttemptFinalizationStatusEventRequestInputs,
+    executionRunStepRetryAttemptFinalizationStatusEventRequestStatus,
+    executionRunStepRetryAttemptFinalizationStatusEventRequestVersion,
+    executionRunStepRetryAttemptCloseRequestCreated: false,
+    executionRunStepRetryAttemptCloseRequestFingerprint,
+    executionRunStepRetryAttemptCloseRequestInputs,
+    executionRunStepRetryAttemptCloseRequestStatus,
+    executionRunStepRetryAttemptCloseRequestVersion,
+    executionRunStepRetryAttemptCloseStatusEventRequestCreated: false,
+    executionRunStepRetryAttemptCloseStatusEventRequestFingerprint,
+    executionRunStepRetryAttemptCloseStatusEventRequestInputs,
+    executionRunStepRetryAttemptCloseStatusEventRequestStatus,
+    executionRunStepRetryAttemptCloseStatusEventRequestVersion,
+    executionRunStepRetryAttemptRetentionPolicyRequestCreated: false,
+    executionRunStepRetryAttemptRetentionPolicyRequestFingerprint,
+    executionRunStepRetryAttemptRetentionPolicyRequestInputs,
+    executionRunStepRetryAttemptRetentionPolicyRequestStatus,
+    executionRunStepRetryAttemptRetentionPolicyRequestVersion,
+    executionRunStepRetryAttemptRetentionPolicyRuleRequestCreated: false,
+    executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint,
+    executionRunStepRetryAttemptRetentionPolicyRuleRequestInputs,
+    executionRunStepRetryAttemptRetentionPolicyRuleRequestStatus,
+    executionRunStepRetryAttemptRetentionPolicyRuleRequestVersion,
+    executionRunStepRetryAttemptRetentionLeaseRequestCreated: false,
+    executionRunStepRetryAttemptRetentionLeaseRequestFingerprint,
+    executionRunStepRetryAttemptRetentionLeaseRequestInputs,
+    executionRunStepRetryAttemptRetentionLeaseRequestStatus,
+    executionRunStepRetryAttemptRetentionLeaseRequestVersion,
+    executionRunStepRetryAttemptArchiveRequestCreated: false,
+    executionRunStepRetryAttemptArchiveRequestFingerprint,
+    executionRunStepRetryAttemptArchiveRequestInputs,
+    executionRunStepRetryAttemptArchiveRequestStatus,
+    executionRunStepRetryAttemptArchiveRequestVersion,
+    executionFailureEventRequestCreated: false,
+    executionFailureEventRequestFingerprint,
+    executionFailureEventRequestInputs,
+    executionFailureEventRequestStatus,
+    executionFailureEventRequestVersion,
+    executionProviderResponseRequestCreated: false,
+    executionProviderResponseRequestFingerprint,
+    executionProviderResponseRequestInputs,
+    executionProviderResponseRequestStatus,
+    executionProviderResponseRequestVersion,
+    executionResultRequestCreated: false,
+    executionResultRequestFingerprint,
+    executionResultRequestInputs,
+    executionResultRequestStatus,
+    executionResultRequestVersion,
+    executionRetryPolicyRequestCreated: false,
+    executionRetryPolicyRequestFingerprint,
+    executionRetryPolicyRequestInputs,
+    executionRetryPolicyRequestStatus,
+    executionRetryPolicyRequestVersion,
+    executionRollbackExecutorRequestCreated: false,
+    executionRollbackExecutorRequestFingerprint,
+    executionRollbackExecutorRequestInputs,
+    executionRollbackExecutorRequestStatus,
+    executionRollbackExecutorRequestVersion,
+    executionRollbackOperationRequestCreated: false,
+    executionRollbackOperationRequestFingerprint,
+    executionRollbackOperationRequestInputs,
+    executionRollbackOperationRequestStatus,
+    executionRollbackOperationRequestVersion,
+    executionRollbackOutcomeRequestCreated: false,
+    executionRollbackOutcomeRequestFingerprint,
+    executionRollbackOutcomeRequestInputs,
+    executionRollbackOutcomeRequestStatus,
+    executionRollbackOutcomeRequestVersion,
+    executionRollbackTriggerRequestCreated: false,
+    executionRollbackTriggerRequestFingerprint,
+    executionRollbackTriggerRequestInputs,
+    executionRollbackTriggerRequestStatus,
+    executionRollbackTriggerRequestVersion,
+    executionTraceRequestCreated: false,
+    executionTraceRequestFingerprint,
+    executionTraceRequestInputs,
+    executionTraceRequestStatus,
+    executionTraceRequestVersion,
+    executionStateRequestCreated: false,
+    executionStateRequestFingerprint,
+    executionStateRequestInputs,
+    executionStateRequestStatus,
+    executionStateRequestVersion,
+    idempotencyLockAcquired: false,
+    idempotencyLockFingerprint,
+    idempotencyLockInputs,
+    idempotencyLockScope,
+    idempotencyLockStatus,
+    idempotencyLockVersion,
+    matchedFields,
+    mismatchedFields,
+    mutationAvailable: false,
+    preflight,
+    readOnly: true,
+    repairJobRequestCreated: false,
+    repairJobRequestFingerprint,
+    repairJobRequestInputs,
+    repairJobRequestStatus,
+    repairJobRequestVersion,
+    rollbackPlanRequestCreated: false,
+    rollbackPlanRequestFingerprint,
+    rollbackPlanRequestInputs,
+    rollbackPlanRequestStatus,
+    rollbackPlanRequestVersion,
+    requestFingerprint,
+    requestInputs,
+    requestStatus,
+    requestVersion,
+  };
+}
+
+function promptRegistryPublishGateActionTextResultSchema() {
+  return {
+    type: 'object',
+    properties: {
+      result: { type: 'string' },
+    },
+    required: ['result'],
+    additionalProperties: false,
+  };
+}
+
+function isPromptRegistryPublishGateActionDryRunCandidate(
+  prompt: Pick<ResolvedPrompt, 'category' | 'defaultPolicy'> &
+    Partial<Pick<ResolvedPrompt, 'action' | 'model' | 'name' | 'config'>>
+) {
+  return (
+    prompt.defaultPolicy === 'structured' ||
+    prompt.defaultPolicy === 'image' ||
+    prompt.category === 'image' ||
+    isImagePromptCategory(prompt)
+  );
+}
+
+function promptRegistryPublishGateDryRunErrorCode(error: unknown) {
+  return error instanceof Error && error.name !== 'Error'
+    ? error.name
+    : 'action_route_dry_run_failed';
+}
+
+function promptRegistryPublishGateActionDryRunDiagnosticsErrorMetadata(
+  stage:
+    | 'build_image_plan'
+    | 'build_structured_plan'
+    | 'missing_execution_plan_builder'
+    | 'missing_prompt_messages',
+  error?: unknown
+) {
+  const code = error ? promptRegistryPublishGateDryRunErrorCode(error) : stage;
+  const message = error
+    ? error instanceof Error
+      ? error.message
+      : 'Unknown dry-run error'
+    : stage === 'missing_execution_plan_builder'
+      ? 'Action route dry-run requires execution plans.'
+      : 'Registry prompt does not expose messages for dry-run.';
+
+  return {
+    diagnosticsErrorCode: code,
+    diagnosticsErrorMessage: message,
+    diagnosticsErrorStage: stage,
+  };
+}
+
+function toPromptRegistryPublishGateActionRouteDryRunRoute(
+  route: ExecutionRouteDiagnostics,
+  routeIndex: number,
+  fallbackProviderIds: string[]
+): CopilotPromptRegistryPublishGateActionRouteDryRunRoute {
+  const fallbackOrderIndex = fallbackProviderIds.indexOf(route.providerId);
+
+  return {
+    providerId: route.providerId,
+    modelId: route.model,
+    routeIndex,
+    ...(fallbackOrderIndex >= 0 ? { fallbackOrderIndex } : {}),
+    protocol: route.protocol,
+    requestLayer: route.backendConfig.request_layer,
+    ...(route.providerName ? { providerName: route.providerName } : {}),
+    ...(route.providerSource ? { providerSource: route.providerSource } : {}),
+    ...(route.providerProfileId
+      ? { providerProfileId: route.providerProfileId }
+      : {}),
+    ...(route.providerProfileSource
+      ? { providerProfileSource: route.providerProfileSource }
+      : {}),
+    ...(route.providerProfileConfigPath
+      ? { providerProfileConfigPath: route.providerProfileConfigPath }
+      : {}),
+    ...(route.providerConfiguredModelIds?.length
+      ? { providerConfiguredModelIds: route.providerConfiguredModelIds }
+      : {}),
+    ...(route.providerConfiguredModelCount != null
+      ? { providerConfiguredModelCount: route.providerConfiguredModelCount }
+      : {}),
+    ...(route.providerType ? { providerType: route.providerType } : {}),
+    ...(route.providerPrivacy
+      ? { providerPrivacy: route.providerPrivacy }
+      : {}),
+    ...(route.providerHealth ? { providerHealth: route.providerHealth } : {}),
+    ...(route.providerHealthCheckedAt
+      ? { providerHealthCheckedAt: route.providerHealthCheckedAt }
+      : {}),
+    ...(route.providerHealthLastError
+      ? { providerHealthLastError: route.providerHealthLastError }
+      : {}),
+    ...(route.providerPriority != null
+      ? { providerPriority: route.providerPriority }
+      : {}),
+    ...(route.routeModelAliasMatched !== undefined
+      ? { routeModelAliasMatched: route.routeModelAliasMatched }
+      : {}),
+    ...(route.routeModelDefinitionAliases?.length
+      ? { routeModelDefinitionAliases: route.routeModelDefinitionAliases }
+      : {}),
+    ...(route.routeModelDefinitionId
+      ? { routeModelDefinitionId: route.routeModelDefinitionId }
+      : {}),
+    ...(route.routeModelDefinitionSource
+      ? { routeModelDefinitionSource: route.routeModelDefinitionSource }
+      : {}),
+    ...(route.routeRawModelId
+      ? { routeRawModelId: route.routeRawModelId }
+      : {}),
+  };
+}
+
+function toPromptRegistryPublishGateActionRouteDryRunStep(input: {
+  fallbackProviderIds: string[];
+  kind: CopilotPromptRegistryPublishGateActionRouteDryRunStep['kind'];
+  plan: {
+    routeDiagnostics?: ExecutionRouteDiagnostics[];
+    routePolicy: { fallbackOrder: string[] };
+  };
+  requestedModelId?: string;
+  requestedModelSource?: string;
+  stepId: string;
+}): CopilotPromptRegistryPublishGateActionRouteDryRunStep {
+  const fallbackProviderIds =
+    input.plan.routePolicy.fallbackOrder.length > 0
+      ? input.plan.routePolicy.fallbackOrder
+      : input.fallbackProviderIds;
+  const routes = (input.plan.routeDiagnostics ?? []).map((route, index) =>
+    toPromptRegistryPublishGateActionRouteDryRunRoute(
+      route,
+      index,
+      fallbackProviderIds
+    )
+  );
+  const routeCount = fallbackProviderIds.length || routes.length;
+
+  return {
+    actualRouteCount: routes.length,
+    fallbackProviderIds,
+    kind: input.kind,
+    ...(input.requestedModelId
+      ? { requestedModelId: input.requestedModelId }
+      : {}),
+    ...(input.requestedModelSource
+      ? { requestedModelSource: input.requestedModelSource }
+      : {}),
+    routeCount,
+    routeCountMismatch: routeCount !== routes.length,
+    routes,
+    stepId: input.stepId,
+  };
+}
+
+function promptRegistryPublishGateActionDryRunRouteCountSummary(
+  steps: CopilotPromptRegistryPublishGateActionRouteDryRunStep[]
+): Pick<
+  CopilotPromptRegistryPublishGateActionRouteDryRun,
+  | 'actualRouteCount'
+  | 'expectedRouteCount'
+  | 'missingRouteCount'
+  | 'routeCountMismatch'
+  | 'routeCountMismatchStepIds'
+> {
+  const actualRouteCount = steps.reduce(
+    (sum, step) => sum + step.actualRouteCount,
+    0
+  );
+  const expectedRouteCount = steps.reduce(
+    (sum, step) => sum + step.routeCount,
+    0
+  );
+  const routeCountMismatchStepIds = steps
+    .filter(step => step.routeCountMismatch || step.actualRouteCount === 0)
+    .map(step => step.stepId);
+
+  return {
+    actualRouteCount,
+    expectedRouteCount,
+    missingRouteCount: Math.max(expectedRouteCount - actualRouteCount, 0),
+    routeCountMismatch: routeCountMismatchStepIds.length > 0,
+    routeCountMismatchStepIds,
+  };
+}
+
+function promptRegistryPublishGateActionDryRunResult(
+  dryRun: Omit<
+    CopilotPromptRegistryPublishGateActionRouteDryRun,
+    | 'actualRouteCount'
+    | 'expectedRouteCount'
+    | 'missingRouteCount'
+    | 'routeCountMismatch'
+    | 'routeCountMismatchStepIds'
+  >
+): CopilotPromptRegistryPublishGateActionRouteDryRun {
+  return {
+    ...dryRun,
+    ...promptRegistryPublishGateActionDryRunRouteCountSummary(dryRun.steps),
+  };
+}
+
+function providerProfileConfigPath(
+  profile: Pick<ResolvedCopilotProvider['profile'], 'id' | 'source' | 'type'>
+) {
+  if (profile.source === 'configured') {
+    return `copilot.providers.profiles[id=${profile.id}]`;
+  }
+  if (profile.source === 'legacy') {
+    return `copilot.providers.${profile.type}`;
+  }
+  if (profile.source === 'byok_local') {
+    return 'workspace.byok.local';
+  }
+  if (profile.source === 'byok_server') {
+    return 'workspace.byok.server';
+  }
+  return undefined;
+}
+
+function resolveProfileModelDefinition(
+  profile: ResolvedCopilotProvider['profile'],
+  requestedModelId: string,
+  routeModelId: string
+) {
+  return (profile.modelDefinitions ?? []).find(definition => {
+    return (
+      definition.id === requestedModelId ||
+      definition.id === routeModelId ||
+      definition.rawModelId === requestedModelId ||
+      definition.rawModelId === routeModelId ||
+      definition.aliases?.includes(requestedModelId) ||
+      definition.aliases?.includes(routeModelId)
+    );
+  });
+}
+
+function resolveModelDefinitionSource(
+  profile: ResolvedCopilotProvider['profile'],
+  resolvedProviderModel: Partial<ResolvedProviderModel> | undefined,
+  profileDefinition: ReturnType<typeof resolveProfileModelDefinition>
+): CopilotModelDefinitionSource | undefined {
+  if (profileDefinition) {
+    return 'provider_profile';
+  }
+  if (resolvedProviderModel?.canonicalKey) {
+    return 'native_registry';
+  }
+  return profile.models?.length ? 'provider_runtime' : undefined;
+}
+
+function getProfileConfiguredModelIds(
+  profile: ResolvedCopilotProvider['profile']
+) {
+  return uniqueStrings([
+    ...(profile.models ?? []),
+    ...(profile.modelDefinitions ?? []).flatMap(model => [
+      model.id,
+      ...(model.aliases ?? []),
+    ]),
+  ]);
+}
+
+function uniqueStrings(values: string[]) {
+  return Array.from(new Set(values));
+}
+
+function buildTaskRouteCandidateKey(
+  candidate: Pick<
+    CopilotTaskRouteCandidateDiagnosticsType,
+    | 'candidateModelIds'
+    | 'modelId'
+    | 'providerId'
+    | 'registryKind'
+    | 'requestedModelId'
+  >
+) {
+  const modelIds = uniqueStrings([
+    ...(candidate.modelId ? [candidate.modelId] : []),
+    ...(candidate.requestedModelId ? [candidate.requestedModelId] : []),
+    ...(candidate.candidateModelIds ?? []),
+  ]).sort();
+
+  return JSON.stringify([
+    candidate.registryKind ?? 'unknown_registry',
+    candidate.providerId,
+    candidate.requestedModelId ?? '',
+    candidate.modelId ?? '',
+    modelIds,
+  ]);
+}
+
+function buildTaskRoutePolicyCandidateKey(input: {
+  candidate: CopilotProviderRoutePolicyCandidateDiagnostics;
+  featureKind: CopilotProviderRoutePolicyFeatureKind;
+  workspaceId?: string;
+}) {
+  return JSON.stringify([
+    'policy',
+    input.featureKind,
+    input.workspaceId ?? 'global',
+    input.candidate.providerId,
+    input.candidate.providerProfileId ?? '',
+    input.candidate.privacy,
+    input.candidate.health,
+    input.candidate.available,
+    input.candidate.allowed,
+  ]);
+}
+
+function withTaskRoutePolicyCandidateKeys(
+  candidates: CopilotProviderRoutePolicyCandidateDiagnostics[],
+  context: {
+    featureKind: CopilotProviderRoutePolicyFeatureKind;
+    workspaceId?: string;
+  }
+): CopilotTaskRoutePolicyCandidateWithKey[] {
+  return candidates.map((candidate, index) => {
+    const candidateKey = buildTaskRoutePolicyCandidateKey({
+      candidate,
+      ...context,
+    });
+    const evidence = taskRouteRepairCandidateEvidenceBase(
+      'policyCandidate',
+      { ...candidate, candidateKey },
+      index
+    );
+
+    return {
+      ...candidate,
+      candidateFingerprint:
+        taskRouteRepairCandidateEvidenceFingerprint(evidence),
+      candidateKey,
+    };
+  });
+}
+
+function taskRoutePolicyMetadata(
+  routePolicy: CopilotProviderRoutePolicySummary
+) {
+  const base = routePolicyMetadataBase(routePolicy);
+  return {
+    policyEnabled: base.enabled,
+    ...(base.featureKind ? { policyFeatureKind: base.featureKind } : {}),
+    ...(base.workspaceId ? { policyWorkspaceId: base.workspaceId } : {}),
+    ...(base.allowedProviderIds !== undefined
+      ? { policyAllowedProviderIds: base.allowedProviderIds }
+      : {}),
+    ...(base.blockedProviderIds !== undefined
+      ? { policyBlockedProviderIds: base.blockedProviderIds }
+      : {}),
+    ...(base.allowedPrivacy !== undefined
+      ? { policyAllowedPrivacy: base.allowedPrivacy }
+      : {}),
+    ...(base.preferredPrivacy !== undefined
+      ? { policyPreferredPrivacy: base.preferredPrivacy }
+      : {}),
+  };
+}
+
+function routePolicyMetadataBase(
+  routePolicy: CopilotProviderRoutePolicySummary
+) {
+  return {
+    enabled: routePolicy.enabled,
+    featureKind: routePolicy.featureKind,
+    workspaceId: routePolicy.workspaceId,
+    allowedProviderIds: routePolicy.allowedProviderIds,
+    blockedProviderIds: routePolicy.blockedProviderIds,
+    allowedPrivacy: routePolicy.allowedPrivacy,
+    preferredPrivacy: routePolicy.preferredPrivacy,
+  };
+}
+
+function buildTaskRoutePrepareCandidates(
+  routeCandidates: CopilotTaskRouteCandidateDiagnosticsType[],
+  preparedRoutes: CopilotPreparedTaskRouteDiagnosticsType[],
+  providerPrepareCandidates: CopilotProviderPrepareCandidateDiagnostics[] = []
+): CopilotTaskRoutePrepareCandidateDiagnosticsType[] {
+  const matchedCandidates = routeCandidates.filter(
+    candidate => candidate.matched
+  );
+  const matchedCandidateCountByProviderId = new Map<string, number>();
+  for (const candidate of matchedCandidates) {
+    matchedCandidateCountByProviderId.set(
+      candidate.providerId,
+      (matchedCandidateCountByProviderId.get(candidate.providerId) ?? 0) + 1
+    );
+  }
+
+  const providerPrepareCandidatesByProviderId = new Map<
+    string,
+    CopilotProviderPrepareCandidateDiagnostics
+  >();
+  const providerPrepareCandidatesByProviderModel = new Map<
+    string,
+    CopilotProviderPrepareCandidateDiagnostics
+  >();
+  const providerModelKey = (providerId: string, modelId?: string) =>
+    modelId ? JSON.stringify([providerId, modelId]) : null;
+  for (const candidate of providerPrepareCandidates) {
+    providerPrepareCandidatesByProviderId.set(candidate.providerId, candidate);
+    const key = providerModelKey(candidate.providerId, candidate.modelId);
+    if (key) {
+      providerPrepareCandidatesByProviderModel.set(key, candidate);
+    }
+  }
+
+  const candidateModelIds = (
+    candidate: CopilotTaskRouteCandidateDiagnosticsType
+  ) =>
+    uniqueStrings([
+      ...(candidate.modelId ? [candidate.modelId] : []),
+      ...(candidate.requestedModelId ? [candidate.requestedModelId] : []),
+      ...(candidate.candidateModelIds ?? []),
+    ]);
+  const isSingleCandidateProvider = (providerId: string) =>
+    (matchedCandidateCountByProviderId.get(providerId) ?? 0) <= 1;
+  const findProviderPrepareCandidate = (
+    candidate: CopilotTaskRouteCandidateDiagnosticsType
+  ) => {
+    for (const modelId of candidateModelIds(candidate)) {
+      const key = providerModelKey(candidate.providerId, modelId);
+      const providerPrepareCandidate = key
+        ? providerPrepareCandidatesByProviderModel.get(key)
+        : undefined;
+      if (providerPrepareCandidate) {
+        return providerPrepareCandidate;
+      }
+    }
+
+    return isSingleCandidateProvider(candidate.providerId)
+      ? providerPrepareCandidatesByProviderId.get(candidate.providerId)
+      : undefined;
+  };
+  const findPreparedRoute = (
+    candidate: CopilotTaskRouteCandidateDiagnosticsType,
+    providerPrepareCandidate:
+      | CopilotProviderPrepareCandidateDiagnostics
+      | undefined
+  ) => {
+    const models = new Set([
+      ...candidateModelIds(candidate),
+      ...(providerPrepareCandidate?.preparedModelId
+        ? [providerPrepareCandidate.preparedModelId]
+        : []),
+    ]);
+    const preparedRoute = preparedRoutes.find(route => {
+      if (route.providerId !== candidate.providerId) {
+        return false;
+      }
+      if (!models.size) {
+        return isSingleCandidateProvider(candidate.providerId);
+      }
+      return (
+        models.has(route.modelId) ||
+        (!!route.canonicalModelKey && models.has(route.canonicalModelKey))
+      );
+    });
+    if (preparedRoute) {
+      return preparedRoute;
+    }
+
+    return isSingleCandidateProvider(candidate.providerId)
+      ? preparedRoutes.find(route => route.providerId === candidate.providerId)
+      : undefined;
+  };
+
+  return matchedCandidates.map(candidate => {
+    const candidateKey =
+      candidate.candidateKey ?? buildTaskRouteCandidateKey(candidate);
+    const providerPrepareCandidate = findProviderPrepareCandidate(candidate);
+    const preparedRoute = findPreparedRoute(
+      candidate,
+      providerPrepareCandidate
+    );
+    const prepared = !!preparedRoute;
+    const preparedReasons = [
+      'prepared_route_available',
+      ...(providerPrepareCandidate?.reasons ?? []),
+    ];
+    if (
+      candidate.modelId &&
+      preparedRoute?.modelId &&
+      candidate.modelId !== preparedRoute.modelId
+    ) {
+      preparedReasons.push('prepared_model_resolved');
+    }
+    const reasons = prepared
+      ? uniqueStrings(preparedReasons)
+      : uniqueStrings([
+          candidate.registrySelected === false
+            ? 'prepared_route_not_selected'
+            : 'prepared_route_filtered',
+          ...(providerPrepareCandidate?.reasons ?? []),
+        ]);
+    const routeRawModelId =
+      candidate.routeRawModelId ?? providerPrepareCandidate?.routeRawModelId;
+    const routeModelDefinitionSource =
+      candidate.routeModelDefinitionSource ??
+      providerPrepareCandidate?.routeModelDefinitionSource;
+    const routeModelDefinitionId =
+      candidate.routeModelDefinitionId ??
+      providerPrepareCandidate?.routeModelDefinitionId;
+    const routeModelDefinitionAliases =
+      candidate.routeModelDefinitionAliases ??
+      providerPrepareCandidate?.routeModelDefinitionAliases;
+    const routeModelAliasMatched =
+      candidate.routeModelAliasMatched ??
+      providerPrepareCandidate?.routeModelAliasMatched;
+
+    const providerName =
+      candidate.providerName ?? providerPrepareCandidate?.providerName;
+    const providerSource =
+      candidate.providerSource ?? providerPrepareCandidate?.providerSource;
+    const providerProfileId =
+      candidate.providerProfileId ??
+      providerPrepareCandidate?.providerProfileId;
+    const providerProfileSource =
+      candidate.providerProfileSource ??
+      providerPrepareCandidate?.providerProfileSource;
+    const providerProfileConfigPath =
+      candidate.providerProfileConfigPath ??
+      providerPrepareCandidate?.providerProfileConfigPath;
+    const providerConfiguredModelIds =
+      candidate.providerConfiguredModelIds ??
+      providerPrepareCandidate?.providerConfiguredModelIds;
+    const providerConfiguredModelCount =
+      candidate.providerConfiguredModelCount ??
+      providerPrepareCandidate?.providerConfiguredModelCount;
+    const providerType =
+      candidate.providerType ?? providerPrepareCandidate?.providerType;
+    const providerPriority =
+      candidate.providerPriority ?? providerPrepareCandidate?.providerPriority;
+    const privacy = candidate.privacy ?? providerPrepareCandidate?.privacy;
+    const health = candidate.health ?? providerPrepareCandidate?.health;
+    const healthCheckedAt =
+      candidate.healthCheckedAt ?? providerPrepareCandidate?.healthCheckedAt;
+
+    return {
+      candidateKey,
+      providerId: candidate.providerId,
+      ...(providerName ? { providerName } : {}),
+      ...(providerSource ? { providerSource } : {}),
+      ...(providerProfileId ? { providerProfileId } : {}),
+      ...(providerProfileSource ? { providerProfileSource } : {}),
+      ...(providerProfileConfigPath ? { providerProfileConfigPath } : {}),
+      ...(providerConfiguredModelIds !== undefined
+        ? { providerConfiguredModelIds }
+        : {}),
+      ...(providerConfiguredModelCount !== undefined
+        ? { providerConfiguredModelCount }
+        : {}),
+      ...(providerType ? { providerType } : {}),
+      ...(providerPriority !== undefined ? { providerPriority } : {}),
+      ...(privacy ? { privacy } : {}),
+      ...(health ? { health } : {}),
+      ...(healthCheckedAt ? { healthCheckedAt } : {}),
+      ...(candidate.registryKind
+        ? { registryKind: candidate.registryKind }
+        : {}),
+      ...(candidate.registryAvailable !== undefined
+        ? { registryAvailable: candidate.registryAvailable }
+        : {}),
+      ...(candidate.registrySelected !== undefined
+        ? { registrySelected: candidate.registrySelected }
+        : {}),
+      ...(candidate.requestedModelId
+        ? { requestedModelId: candidate.requestedModelId }
+        : {}),
+      ...(candidate.modelId ? { modelId: candidate.modelId } : {}),
+      ...(routeRawModelId ? { routeRawModelId } : {}),
+      ...(routeModelDefinitionSource ? { routeModelDefinitionSource } : {}),
+      ...(routeModelDefinitionId ? { routeModelDefinitionId } : {}),
+      ...(routeModelDefinitionAliases ? { routeModelDefinitionAliases } : {}),
+      ...(routeModelAliasMatched !== undefined
+        ? { routeModelAliasMatched }
+        : {}),
+      ...(candidate.candidateModelIds !== undefined
+        ? { candidateModelIds: candidate.candidateModelIds }
+        : {}),
+      prepared,
+      ...(preparedRoute?.modelId
+        ? { preparedModelId: preparedRoute.modelId }
+        : {}),
+      ...(providerPrepareCandidate?.errorCode
+        ? { errorCode: providerPrepareCandidate.errorCode }
+        : {}),
+      ...(providerPrepareCandidate?.errorCategory
+        ? { errorCategory: providerPrepareCandidate.errorCategory }
+        : {}),
+      reasons,
+    };
+  });
+}
+
+function buildTaskRouteTrace(
+  policyCandidates: CopilotProviderRoutePolicyCandidateDiagnostics[],
+  routeCandidates: CopilotTaskRouteCandidateDiagnosticsType[],
+  preparedRoutes: CopilotPreparedTaskRouteDiagnosticsType[],
+  providerPrepareCandidates: CopilotProviderPrepareCandidateDiagnostics[] = []
+): CopilotTaskRouteTracePhaseDiagnosticsType[] {
+  const matchedRouteCandidateCount = routeCandidates.filter(
+    candidate => candidate.matched
+  ).length;
+  const preparedPhaseReasons = uniqueStrings([
+    ...(preparedRoutes.length < matchedRouteCandidateCount
+      ? ['prepared_route_filtered']
+      : []),
+    ...providerPrepareCandidates.flatMap(candidate => candidate.reasons),
+  ]);
+  return [
+    {
+      phase: 'policy',
+      candidateCount: policyCandidates.length,
+      availableCount: policyCandidates.filter(candidate => candidate.available)
+        .length,
+      selectedCount: policyCandidates.filter(candidate => candidate.allowed)
+        .length,
+      blockedCount: policyCandidates.filter(candidate => !candidate.allowed)
+        .length,
+      reasons: uniqueStrings(
+        policyCandidates.flatMap(candidate => candidate.reasons)
+      ),
+    },
+    {
+      phase: 'resolution',
+      candidateCount: routeCandidates.length,
+      availableCount: routeCandidates.filter(
+        candidate => candidate.registryAvailable !== false
+      ).length,
+      selectedCount: routeCandidates.filter(
+        candidate => candidate.registrySelected
+      ).length,
+      matchedCount: matchedRouteCandidateCount,
+      reasons: uniqueStrings(
+        routeCandidates.flatMap(candidate => candidate.reasons)
+      ),
+    },
+    {
+      phase: 'prepared',
+      candidateCount: matchedRouteCandidateCount,
+      selectedCount: preparedRoutes.length ? 1 : 0,
+      preparedCount: preparedRoutes.length,
+      reasons: preparedPhaseReasons,
+    },
+  ];
+}
+
 @ObjectType()
 class CopilotModelType {
   @Field(() => String)
@@ -310,6 +9700,897 @@ class CopilotModelType {
 
   @Field(() => String)
   name!: string;
+
+  @Field(() => [String])
+  sources!: CopilotModelSource[];
+
+  @Field(() => String)
+  promptName!: string;
+
+  @Field(() => String, { nullable: true })
+  promptAction?: string;
+
+  @Field(() => String)
+  promptSource!: string;
+
+  @Field(() => String)
+  promptCategory!: string;
+
+  @Field(() => String, { nullable: true })
+  promptDefaultPolicy?: string;
+
+  @Field(() => Boolean)
+  promptOverrideApplied!: boolean;
+
+  @Field(() => String, { nullable: true })
+  promptModelSource?: string;
+
+  @Field(() => String, { nullable: true })
+  promptModelConfigPath?: string;
+
+  @Field(() => [CopilotModelPromptSourceType])
+  promptModelSources!: CopilotModelPromptSourceType[];
+
+  @Field(() => String, { nullable: true })
+  providerId?: string;
+
+  @Field(() => String, { nullable: true })
+  providerName?: string;
+
+  @Field(() => String, { nullable: true })
+  providerSource?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileId?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileSource?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileConfigPath?: string;
+
+  @Field(() => [String], { nullable: true })
+  providerConfiguredModelIds?: string[];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerConfiguredModelCount?: number;
+
+  @Field(() => String, { nullable: true })
+  routeModelId?: string;
+
+  @Field(() => [String], { nullable: true })
+  routeFallbackProviderIds?: string[];
+
+  @Field(() => String, { nullable: true })
+  routeBackendKind?: string;
+
+  @Field(() => String, { nullable: true })
+  routeCanonicalModelKey?: string;
+
+  @Field(() => String, { nullable: true })
+  routeRawModelId?: string;
+
+  @Field(() => String, { nullable: true })
+  routeModelDefinitionSource?: CopilotModelDefinitionSource;
+
+  @Field(() => String, { nullable: true })
+  routeModelDefinitionId?: string;
+
+  @Field(() => [String], { nullable: true })
+  routeModelDefinitionAliases?: string[];
+
+  @Field(() => Boolean, { nullable: true })
+  routeModelAliasMatched?: boolean;
+
+  @Field(() => String, { nullable: true })
+  routeProtocol?: string;
+
+  @Field(() => String, { nullable: true })
+  routeRequestLayer?: string;
+
+  @Field(() => [String], { nullable: true })
+  routeBehaviorFlags?: string[];
+
+  @Field(() => [String], { nullable: true })
+  routeInputTypes?: string[];
+
+  @Field(() => [String], { nullable: true })
+  routeOutputTypes?: string[];
+
+  @Field(() => String, { nullable: true })
+  providerType?: string;
+
+  @Field(() => String, { nullable: true })
+  providerPrivacy?: CopilotProviderPrivacy;
+
+  @Field(() => String, { nullable: true })
+  providerHealth?: CopilotProviderHealthStatus;
+
+  @Field(() => String, { nullable: true })
+  providerHealthCheckedAt?: string;
+
+  @Field(() => String, { nullable: true })
+  providerHealthLastError?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerPriority?: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  contextWindow?: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  maxOutputTokens?: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  embeddingDimensions?: number;
+
+  @Field(() => Number, { nullable: true })
+  costInputPer1M?: number;
+
+  @Field(() => Number, { nullable: true })
+  costOutputPer1M?: number;
+
+  @Field(() => Boolean)
+  routePolicyEnabled!: boolean;
+
+  @Field(() => String, { nullable: true })
+  routePolicyFeatureKind?: string;
+
+  @Field(() => String, { nullable: true })
+  routePolicyWorkspaceId?: string;
+
+  @Field(() => [String], { nullable: true })
+  routePolicyAllowedProviderIds?: string[];
+
+  @Field(() => [String], { nullable: true })
+  routePolicyBlockedProviderIds?: string[];
+
+  @Field(() => [String], { nullable: true })
+  routePolicyAllowedPrivacy?: string[];
+
+  @Field(() => [String], { nullable: true })
+  routePolicyPreferredPrivacy?: string[];
+}
+
+@ObjectType()
+class CopilotPreparedTaskRouteDiagnosticsType {
+  @Field(() => String)
+  providerId!: string;
+
+  @Field(() => String, { nullable: true })
+  providerName?: string;
+
+  @Field(() => String, { nullable: true })
+  providerSource?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileId?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileSource?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileConfigPath?: string;
+
+  @Field(() => [String], { nullable: true })
+  providerConfiguredModelIds?: string[];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerConfiguredModelCount?: number;
+
+  @Field(() => String, { nullable: true })
+  providerType?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerPriority?: number;
+
+  @Field(() => String)
+  modelId!: string;
+
+  @Field(() => SafeIntResolver)
+  routeIndex!: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  fallbackOrderIndex?: number;
+
+  @Field(() => String, { nullable: true })
+  protocol?: string;
+
+  @Field(() => String, { nullable: true })
+  requestLayer?: string;
+
+  @Field(() => String, { nullable: true })
+  modelBackendKind?: string;
+
+  @Field(() => String, { nullable: true })
+  canonicalModelKey?: string;
+
+  @Field(() => [String], { nullable: true })
+  behaviorFlags?: string[];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  requestedDimensions?: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  modelEmbeddingDimensions?: number;
+
+  @Field(() => Boolean, { nullable: true })
+  dimensionMismatch?: boolean;
+}
+
+@ObjectType()
+class CopilotActionRunPreparedRouteDiagnosticsRouteType {
+  @Field(() => String)
+  providerId!: string;
+
+  @Field(() => String)
+  modelId!: string;
+
+  @Field(() => SafeIntResolver)
+  routeIndex!: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  fallbackOrderIndex?: number;
+
+  @Field(() => String, { nullable: true })
+  protocol?: string;
+
+  @Field(() => String, { nullable: true })
+  requestLayer?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerConfiguredModelCount?: number;
+
+  @Field(() => [String], { nullable: true })
+  providerConfiguredModelIds?: string[];
+
+  @Field(() => String, { nullable: true })
+  providerHealth?: string;
+
+  @Field(() => String, { nullable: true })
+  providerHealthCheckedAt?: string;
+
+  @Field(() => String, { nullable: true })
+  providerHealthLastError?: string;
+
+  @Field(() => String, { nullable: true })
+  providerName?: string;
+
+  @Field(() => String, { nullable: true })
+  providerPrivacy?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerPriority?: number;
+
+  @Field(() => String, { nullable: true })
+  providerProfileConfigPath?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileId?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileSource?: string;
+
+  @Field(() => String, { nullable: true })
+  providerSource?: string;
+
+  @Field(() => String, { nullable: true })
+  providerType?: string;
+
+  @Field(() => Boolean, { nullable: true })
+  routeModelAliasMatched?: boolean;
+
+  @Field(() => [String], { nullable: true })
+  routeModelDefinitionAliases?: string[];
+
+  @Field(() => String, { nullable: true })
+  routeModelDefinitionId?: string;
+
+  @Field(() => String, { nullable: true })
+  routeModelDefinitionSource?: string;
+
+  @Field(() => String, { nullable: true })
+  routeRawModelId?: string;
+}
+
+@ObjectType()
+class CopilotActionRunPreparedRouteDiagnosticsStepType {
+  @Field(() => String)
+  stepId!: string;
+
+  @Field(() => String)
+  kind!: CopilotActionRunPreparedRouteTrace['steps'][number]['kind'];
+
+  @Field(() => SafeIntResolver)
+  routeCount!: number;
+
+  @Field(() => SafeIntResolver)
+  actualRouteCount!: number;
+
+  @Field(() => Boolean)
+  routeCountMismatch!: boolean;
+
+  @Field(() => String, { nullable: true })
+  requestedModelId?: string;
+
+  @Field(() => String, { nullable: true })
+  requestedModelSource?: string;
+
+  @Field(() => [String])
+  fallbackProviderIds!: string[];
+
+  @Field(() => [CopilotActionRunPreparedRouteDiagnosticsRouteType])
+  routes!: CopilotActionRunPreparedRouteDiagnosticsRouteType[];
+}
+
+@ObjectType()
+class CopilotActionRunPreparedRouteDiagnosticsType {
+  @Field(() => String)
+  type!: 'prepared_routes';
+
+  @Field(() => String)
+  status!: 'succeeded';
+
+  @Field(() => [CopilotActionRunPreparedRouteDiagnosticsStepType])
+  steps!: CopilotActionRunPreparedRouteDiagnosticsStepType[];
+}
+
+@ObjectType()
+class CopilotPromptRegistryPublishGateActionRouteDryRunRouteType implements CopilotPromptRegistryPublishGateActionRouteDryRunRoute {
+  @Field(() => String)
+  providerId!: string;
+
+  @Field(() => String)
+  modelId!: string;
+
+  @Field(() => SafeIntResolver)
+  routeIndex!: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  fallbackOrderIndex?: number;
+
+  @Field(() => String, { nullable: true })
+  protocol?: string;
+
+  @Field(() => String, { nullable: true })
+  requestLayer?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerConfiguredModelCount?: number;
+
+  @Field(() => [String], { nullable: true })
+  providerConfiguredModelIds?: string[];
+
+  @Field(() => String, { nullable: true })
+  providerHealth?: string;
+
+  @Field(() => String, { nullable: true })
+  providerHealthCheckedAt?: string;
+
+  @Field(() => String, { nullable: true })
+  providerHealthLastError?: string;
+
+  @Field(() => String, { nullable: true })
+  providerName?: string;
+
+  @Field(() => String, { nullable: true })
+  providerPrivacy?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerPriority?: number;
+
+  @Field(() => String, { nullable: true })
+  providerProfileConfigPath?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileId?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileSource?: string;
+
+  @Field(() => String, { nullable: true })
+  providerSource?: string;
+
+  @Field(() => String, { nullable: true })
+  providerType?: string;
+
+  @Field(() => Boolean, { nullable: true })
+  routeModelAliasMatched?: boolean;
+
+  @Field(() => [String], { nullable: true })
+  routeModelDefinitionAliases?: string[];
+
+  @Field(() => String, { nullable: true })
+  routeModelDefinitionId?: string;
+
+  @Field(() => String, { nullable: true })
+  routeModelDefinitionSource?: string;
+
+  @Field(() => String, { nullable: true })
+  routeRawModelId?: string;
+}
+
+@ObjectType()
+class CopilotPromptRegistryPublishGateActionRouteDryRunStepType implements CopilotPromptRegistryPublishGateActionRouteDryRunStep {
+  @Field(() => String)
+  stepId!: string;
+
+  @Field(() => String)
+  kind!: CopilotPromptRegistryPublishGateActionRouteDryRunStep['kind'];
+
+  @Field(() => SafeIntResolver)
+  routeCount!: number;
+
+  @Field(() => SafeIntResolver)
+  actualRouteCount!: number;
+
+  @Field(() => Boolean)
+  routeCountMismatch!: boolean;
+
+  @Field(() => String, { nullable: true })
+  requestedModelId?: string;
+
+  @Field(() => String, { nullable: true })
+  requestedModelSource?: string;
+
+  @Field(() => [String])
+  fallbackProviderIds!: string[];
+
+  @Field(() => [CopilotPromptRegistryPublishGateActionRouteDryRunRouteType])
+  routes!: CopilotPromptRegistryPublishGateActionRouteDryRunRoute[];
+}
+
+@ObjectType()
+class CopilotPromptRegistryPublishGateActionRouteDryRunType implements CopilotPromptRegistryPublishGateActionRouteDryRun {
+  @Field(() => String, { nullable: true })
+  actionId?: string;
+
+  @Field(() => SafeIntResolver)
+  actualRouteCount!: CopilotPromptRegistryPublishGateActionRouteDryRun['actualRouteCount'];
+
+  @Field(() => String, { nullable: true })
+  diagnosticsErrorCode?: string;
+
+  @Field(() => String, { nullable: true })
+  diagnosticsErrorMessage?: string;
+
+  @Field(() => String, { nullable: true })
+  diagnosticsErrorStage?: string;
+
+  @Field(() => String, { nullable: true })
+  errorCode?: string;
+
+  @Field(() => String, { nullable: true })
+  errorMessage?: string;
+
+  @Field(() => SafeIntResolver)
+  expectedRouteCount!: CopilotPromptRegistryPublishGateActionRouteDryRun['expectedRouteCount'];
+
+  @Field(() => String)
+  featureKind!: string;
+
+  @Field(() => SafeIntResolver)
+  missingRouteCount!: CopilotPromptRegistryPublishGateActionRouteDryRun['missingRouteCount'];
+
+  @Field(() => Boolean)
+  routeCountMismatch!: CopilotPromptRegistryPublishGateActionRouteDryRun['routeCountMismatch'];
+
+  @Field(() => [String])
+  routeCountMismatchStepIds!: CopilotPromptRegistryPublishGateActionRouteDryRun['routeCountMismatchStepIds'];
+
+  @Field(() => String)
+  status!: CopilotPromptRegistryPublishGateActionRouteDryRun['status'];
+
+  @Field(() => [CopilotPromptRegistryPublishGateActionRouteDryRunStepType])
+  steps!: CopilotPromptRegistryPublishGateActionRouteDryRunStep[];
+}
+
+@ObjectType()
+class CopilotTaskRoutePolicyCandidateDiagnosticsType {
+  @Field(() => String)
+  candidateFingerprint!: string;
+
+  @Field(() => String)
+  candidateKey!: string;
+
+  @Field(() => String)
+  providerId!: string;
+
+  @Field(() => String, { nullable: true })
+  providerName?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileId?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileSource?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileConfigPath?: string;
+
+  @Field(() => [String], { nullable: true })
+  providerConfiguredModelIds?: string[];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerConfiguredModelCount?: number;
+
+  @Field(() => String, { nullable: true })
+  providerSource?: string;
+
+  @Field(() => String, { nullable: true })
+  providerType?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerPriority?: number;
+
+  @Field(() => String)
+  privacy!: string;
+
+  @Field(() => String)
+  health!: string;
+
+  @Field(() => String, { nullable: true })
+  healthCheckedAt?: string;
+
+  @Field(() => Boolean)
+  available!: boolean;
+
+  @Field(() => Boolean)
+  allowed!: boolean;
+
+  @Field(() => [String])
+  reasons!: string[];
+}
+
+@ObjectType()
+class CopilotTaskRouteCandidateDiagnosticsType {
+  @Field(() => String, { nullable: true })
+  candidateKey?: string;
+
+  @Field(() => String, { nullable: true })
+  registryKind?: string;
+
+  @Field(() => Boolean, { nullable: true })
+  registryAvailable?: boolean;
+
+  @Field(() => Boolean, { nullable: true })
+  registrySelected?: boolean;
+
+  @Field(() => String)
+  providerId!: string;
+
+  @Field(() => String, { nullable: true })
+  providerName?: string;
+
+  @Field(() => String, { nullable: true })
+  providerSource?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileId?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileSource?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileConfigPath?: string;
+
+  @Field(() => [String], { nullable: true })
+  providerConfiguredModelIds?: string[];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerConfiguredModelCount?: number;
+
+  @Field(() => String, { nullable: true })
+  providerType?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerPriority?: number;
+
+  @Field(() => String, { nullable: true })
+  privacy?: string;
+
+  @Field(() => String, { nullable: true })
+  health?: string;
+
+  @Field(() => String, { nullable: true })
+  healthCheckedAt?: string;
+
+  @Field(() => String, { nullable: true })
+  requestedModelId?: string;
+
+  @Field(() => String, { nullable: true })
+  modelId?: string;
+
+  @Field(() => String, { nullable: true })
+  routeRawModelId?: string;
+
+  @Field(() => String, { nullable: true })
+  routeModelDefinitionSource?: CopilotModelDefinitionSource;
+
+  @Field(() => String, { nullable: true })
+  routeModelDefinitionId?: string;
+
+  @Field(() => [String], { nullable: true })
+  routeModelDefinitionAliases?: string[];
+
+  @Field(() => Boolean, { nullable: true })
+  routeModelAliasMatched?: boolean;
+
+  @Field(() => [String], { nullable: true })
+  candidateModelIds?: string[];
+
+  @Field(() => Boolean)
+  matched!: boolean;
+
+  @Field(() => [String])
+  reasons!: string[];
+}
+
+@ObjectType()
+class CopilotTaskRoutePrepareCandidateDiagnosticsType {
+  @Field(() => String, { nullable: true })
+  candidateKey?: string;
+
+  @Field(() => String, { nullable: true })
+  registryKind?: string;
+
+  @Field(() => Boolean, { nullable: true })
+  registryAvailable?: boolean;
+
+  @Field(() => Boolean, { nullable: true })
+  registrySelected?: boolean;
+
+  @Field(() => String)
+  providerId!: string;
+
+  @Field(() => String, { nullable: true })
+  providerName?: string;
+
+  @Field(() => String, { nullable: true })
+  providerSource?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileId?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileSource?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileConfigPath?: string;
+
+  @Field(() => [String], { nullable: true })
+  providerConfiguredModelIds?: string[];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerConfiguredModelCount?: number;
+
+  @Field(() => String, { nullable: true })
+  providerType?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerPriority?: number;
+
+  @Field(() => String, { nullable: true })
+  privacy?: string;
+
+  @Field(() => String, { nullable: true })
+  health?: string;
+
+  @Field(() => String, { nullable: true })
+  healthCheckedAt?: string;
+
+  @Field(() => String, { nullable: true })
+  requestedModelId?: string;
+
+  @Field(() => String, { nullable: true })
+  modelId?: string;
+
+  @Field(() => String, { nullable: true })
+  routeRawModelId?: string;
+
+  @Field(() => String, { nullable: true })
+  routeModelDefinitionSource?: CopilotModelDefinitionSource;
+
+  @Field(() => String, { nullable: true })
+  routeModelDefinitionId?: string;
+
+  @Field(() => [String], { nullable: true })
+  routeModelDefinitionAliases?: string[];
+
+  @Field(() => Boolean, { nullable: true })
+  routeModelAliasMatched?: boolean;
+
+  @Field(() => [String], { nullable: true })
+  candidateModelIds?: string[];
+
+  @Field(() => Boolean)
+  prepared!: boolean;
+
+  @Field(() => String, { nullable: true })
+  preparedModelId?: string;
+
+  @Field(() => String, { nullable: true })
+  errorCode?: string;
+
+  @Field(() => String, { nullable: true })
+  errorCategory?: string;
+
+  @Field(() => [String])
+  reasons!: string[];
+}
+
+@ObjectType()
+class CopilotTaskRouteTracePhaseDiagnosticsType {
+  @Field(() => String)
+  phase!: string;
+
+  @Field(() => SafeIntResolver)
+  candidateCount!: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  availableCount?: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  selectedCount?: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  blockedCount?: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  matchedCount?: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  preparedCount?: number;
+
+  @Field(() => [String])
+  reasons!: string[];
+}
+
+@ObjectType()
+class CopilotTaskRouteDiagnosticsErrorType implements CopilotTaskRouteDiagnosticsError {
+  @Field(() => String)
+  code!: string;
+
+  @Field(() => String)
+  message!: string;
+
+  @Field(() => String)
+  stage!: string;
+}
+
+@ObjectType()
+class CopilotTaskRouteDiagnosticsType {
+  @Field(() => Boolean)
+  configured!: boolean;
+
+  @Field(() => [CopilotTaskRouteDiagnosticsErrorType])
+  diagnosticsErrors!: CopilotTaskRouteDiagnosticsError[];
+
+  @Field(() => String, { nullable: true })
+  errorCode?: string;
+
+  @Field(() => String, { nullable: true })
+  errorMessage?: string;
+
+  @Field(() => String)
+  featureKind!: string;
+
+  @Field(() => Boolean)
+  policyEnabled!: boolean;
+
+  @Field(() => String, { nullable: true })
+  policyFeatureKind?: string;
+
+  @Field(() => String, { nullable: true })
+  policyWorkspaceId?: string;
+
+  @Field(() => [String], { nullable: true })
+  policyAllowedProviderIds?: string[];
+
+  @Field(() => [String], { nullable: true })
+  policyBlockedProviderIds?: string[];
+
+  @Field(() => [String], { nullable: true })
+  policyAllowedPrivacy?: string[];
+
+  @Field(() => [String], { nullable: true })
+  policyPreferredPrivacy?: string[];
+
+  @Field(() => [CopilotTaskRoutePolicyCandidateDiagnosticsType])
+  policyCandidates!: CopilotTaskRoutePolicyCandidateDiagnosticsType[];
+
+  @Field(() => [CopilotTaskRouteCandidateDiagnosticsType])
+  routeCandidates!: CopilotTaskRouteCandidateDiagnosticsType[];
+
+  @Field(() => [CopilotTaskRouteTracePhaseDiagnosticsType])
+  routeTrace!: CopilotTaskRouteTracePhaseDiagnosticsType[];
+
+  @Field(() => [CopilotTaskRoutePrepareCandidateDiagnosticsType])
+  prepareCandidates!: CopilotTaskRoutePrepareCandidateDiagnosticsType[];
+
+  @Field(() => String, { nullable: true })
+  requestedModelId?: string;
+
+  @Field(() => String, { nullable: true })
+  requestedModelConfigKey?: string;
+
+  @Field(() => String, { nullable: true })
+  requestedModelConfigPath?: string;
+
+  @Field(() => String, { nullable: true })
+  requestedModelSource?: string;
+
+  @Field(() => String, { nullable: true })
+  providerId?: string;
+
+  @Field(() => String, { nullable: true })
+  providerName?: string;
+
+  @Field(() => String, { nullable: true })
+  providerSource?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileId?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileSource?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileConfigPath?: string;
+
+  @Field(() => [String], { nullable: true })
+  providerConfiguredModelIds?: string[];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerConfiguredModelCount?: number;
+
+  @Field(() => String, { nullable: true })
+  providerType?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  providerPriority?: number;
+
+  @Field(() => String, { nullable: true })
+  modelId?: string;
+
+  @Field(() => String, { nullable: true })
+  protocol?: string;
+
+  @Field(() => String, { nullable: true })
+  requestLayer?: string;
+
+  @Field(() => String, { nullable: true })
+  modelBackendKind?: string;
+
+  @Field(() => String, { nullable: true })
+  canonicalModelKey?: string;
+
+  @Field(() => [String], { nullable: true })
+  behaviorFlags?: string[];
+
+  @Field(() => [String])
+  fallbackProviderIds!: string[];
+
+  @Field(() => [CopilotPreparedTaskRouteDiagnosticsType])
+  preparedRoutes!: CopilotPreparedTaskRouteDiagnosticsType[];
+
+  @Field(() => SafeIntResolver)
+  preparedProviderCount!: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  requestedDimensions?: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  modelEmbeddingDimensions?: number;
+
+  @Field(() => Boolean, { nullable: true })
+  dimensionMismatch?: boolean;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  candidateCount?: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  topK?: number;
 }
 
 @ObjectType()
@@ -317,11 +10598,26 @@ export class CopilotModelsType {
   @Field(() => String)
   defaultModel!: string;
 
+  @Field(() => String)
+  promptDefaultModel!: string;
+
+  @Field(() => String)
+  defaultModelSource!: 'prompt' | 'fallback_route';
+
+  @Field(() => String, { nullable: true })
+  defaultModelFallbackReason?: string;
+
   @Field(() => [CopilotModelType])
   optionalModels!: CopilotModelType[];
 
   @Field(() => [CopilotModelType])
   proModels!: CopilotModelType[];
+
+  @Field(() => CopilotTaskRouteDiagnosticsType, { nullable: true })
+  embeddingRoute?: CopilotTaskRouteDiagnosticsType;
+
+  @Field(() => CopilotTaskRouteDiagnosticsType, { nullable: true })
+  rerankRoute?: CopilotTaskRouteDiagnosticsType;
 }
 
 @ObjectType()
@@ -371,7 +10667,11 @@ export class CopilotResolver {
     private readonly chatSession: ChatSessionService,
     private readonly historyProjector: CompatHistoryProjector,
     private readonly inbox: ConversationInboxService,
-    private readonly providerFactory: CopilotProviderFactory
+    private readonly providerFactory: CopilotProviderFactory,
+    private readonly capabilityRuntime: CapabilityRuntime,
+    private readonly taskPolicy: TaskPolicy,
+    private readonly modelsStore: Models,
+    @Optional() private readonly plans?: ExecutionPlanBuilder
   ) {}
 
   @ResolveField(() => CopilotQuotaType, {
@@ -408,35 +10708,1535 @@ export class CopilotResolver {
     return { userId: user.id, workspaceId, docId: docId || undefined };
   }
 
+  @ResolveField(() => [CopilotPromptCatalogItemType], {
+    description: 'List prompt catalog metadata for diagnostics',
+    complexity: 2,
+  })
+  async prompts(): Promise<CopilotPromptCatalogItemType[]> {
+    return this.prompt.listCatalog();
+  }
+
+  private async resolveTaskRouteDiagnostics(copilot?: CopilotType): Promise<{
+    embeddingRoute: CopilotTaskRouteDiagnosticsType;
+    rerankRoute: CopilotTaskRouteDiagnosticsType;
+  }> {
+    const taskRouteOptions = copilot?.workspaceId
+      ? { workspace: copilot.workspaceId }
+      : {};
+    const workspaceIndexingModel =
+      this.taskPolicy.resolveWorkspaceIndexingModel();
+    const rerankModel = this.taskPolicy.resolveRerankModel();
+    const workspaceIndexingModelId = workspaceIndexingModel.modelId;
+    const rerankModelId = rerankModel.modelId;
+    const embeddingRoutePolicyContext = {
+      ...(copilot?.workspaceId ? { workspaceId: copilot.workspaceId } : {}),
+      featureKind: 'workspace_indexing' as const,
+    };
+    const rerankRoutePolicyContext = {
+      ...(copilot?.workspaceId ? { workspaceId: copilot.workspaceId } : {}),
+      featureKind: 'rerank' as const,
+    };
+    const embeddingRoutePolicy = this.providerFactory.describeRoutePolicy(
+      embeddingRoutePolicyContext
+    );
+    const embeddingRoutePolicyCandidates = withTaskRoutePolicyCandidateKeys(
+      this.providerFactory.describeRoutePolicyCandidates(
+        embeddingRoutePolicyContext
+      ),
+      embeddingRoutePolicyContext
+    );
+    const describeEmbeddingRouteCandidates = () =>
+      this.providerFactory.describeRouteCandidates(
+        {
+          modelId: workspaceIndexingModelId,
+          outputType: ModelOutputType.Embedding,
+        },
+        {},
+        embeddingRoutePolicyContext
+      );
+    const describeEmbeddingPrepareCandidates = () =>
+      this.providerFactory.describeEmbeddingPrepareCandidates(
+        workspaceIndexingModelId,
+        'ping',
+        {
+          ...taskRouteOptions,
+          dimensions: EMBEDDING_DIMENSIONS,
+          featureKind: 'workspace_indexing',
+        }
+      );
+    const rerankRoutePolicy = this.providerFactory.describeRoutePolicy(
+      rerankRoutePolicyContext
+    );
+    const rerankRoutePolicyCandidates = withTaskRoutePolicyCandidateKeys(
+      this.providerFactory.describeRoutePolicyCandidates(
+        rerankRoutePolicyContext
+      ),
+      rerankRoutePolicyContext
+    );
+    const describeRerankRouteCandidates = () =>
+      this.providerFactory.describeRouteCandidates(
+        {
+          modelId: rerankModelId,
+          outputType: ModelOutputType.Rerank,
+        },
+        {},
+        rerankRoutePolicyContext
+      );
+    const rerankProbeRequest = {
+      query: 'ping',
+      candidates: [{ text: 'ping' }],
+    };
+    const describeRerankPrepareCandidates = () =>
+      this.providerFactory.describeRerankPrepareCandidates(
+        rerankModelId,
+        rerankProbeRequest,
+        {
+          ...taskRouteOptions,
+          featureKind: 'rerank',
+        }
+      );
+    const describeEmbeddingRoute =
+      async (): Promise<CopilotTaskRouteDiagnosticsType> => {
+        const [routeResult, routeCandidatesResult, prepareCandidatesResult] =
+          await Promise.all([
+            settleTaskRouteDiagnosticsProbe('describe_embedding_route', () =>
+              this.capabilityRuntime.describeEmbeddingRoute(
+                workspaceIndexingModelId,
+                {
+                  ...taskRouteOptions,
+                  dimensions: EMBEDDING_DIMENSIONS,
+                  featureKind: 'workspace_indexing',
+                }
+              )
+            ),
+            settleTaskRouteDiagnosticsProbe(
+              'describe_route_candidates',
+              describeEmbeddingRouteCandidates
+            ),
+            settleTaskRouteDiagnosticsProbe(
+              'describe_embedding_prepare_candidates',
+              describeEmbeddingPrepareCandidates
+            ),
+          ]);
+        const diagnosticsErrors = [
+          ...routeResult.errors,
+          ...routeCandidatesResult.errors,
+          ...prepareCandidatesResult.errors,
+        ];
+        const route = routeResult.value;
+        const routeCandidates = (routeCandidatesResult.value ?? []).map(
+          candidate => ({
+            ...candidate,
+            candidateKey: buildTaskRouteCandidateKey(candidate),
+          })
+        );
+        const providerPrepareCandidates = prepareCandidatesResult.value ?? [];
+        if (!route) {
+          return {
+            configured: false,
+            diagnosticsErrors,
+            errorCode: routeResult.errors[0]?.code,
+            errorMessage: routeResult.errors[0]?.message,
+            featureKind: 'workspace_indexing',
+            ...taskRoutePolicyMetadata(embeddingRoutePolicy),
+            policyCandidates: embeddingRoutePolicyCandidates,
+            routeCandidates,
+            routeTrace: buildTaskRouteTrace(
+              embeddingRoutePolicyCandidates,
+              routeCandidates,
+              [],
+              providerPrepareCandidates
+            ),
+            prepareCandidates: buildTaskRoutePrepareCandidates(
+              routeCandidates,
+              [],
+              providerPrepareCandidates
+            ),
+            requestedModelId: workspaceIndexingModelId,
+            requestedModelConfigKey: workspaceIndexingModel.configKey,
+            requestedModelConfigPath: workspaceIndexingModel.configPath,
+            requestedModelSource: workspaceIndexingModel.source,
+            fallbackProviderIds: [],
+            preparedRoutes: [],
+            preparedProviderCount: 0,
+            requestedDimensions: EMBEDDING_DIMENSIONS,
+          };
+        }
+        const prepareCandidates = buildTaskRoutePrepareCandidates(
+          routeCandidates,
+          route.preparedRoutes,
+          providerPrepareCandidates
+        );
+        return {
+          configured: route.configured,
+          diagnosticsErrors,
+          errorCode: route.errorCode,
+          errorMessage: route.errorMessage,
+          featureKind: 'workspace_indexing',
+          ...taskRoutePolicyMetadata(embeddingRoutePolicy),
+          policyCandidates: embeddingRoutePolicyCandidates,
+          routeCandidates,
+          routeTrace: buildTaskRouteTrace(
+            embeddingRoutePolicyCandidates,
+            routeCandidates,
+            route.preparedRoutes,
+            providerPrepareCandidates
+          ),
+          prepareCandidates,
+          requestedModelId: route.requestedModelId,
+          requestedModelConfigKey: workspaceIndexingModel.configKey,
+          requestedModelConfigPath: workspaceIndexingModel.configPath,
+          requestedModelSource: workspaceIndexingModel.source,
+          fallbackProviderIds: route.fallbackOrder,
+          preparedRoutes: route.preparedRoutes,
+          preparedProviderCount: route.preparedProviderCount,
+          providerId: route.providerId,
+          providerName: route.providerName,
+          providerSource: route.providerSource,
+          providerProfileId: route.providerProfileId,
+          providerProfileSource: route.providerProfileSource,
+          providerProfileConfigPath: route.providerProfileConfigPath,
+          providerConfiguredModelIds: route.providerConfiguredModelIds,
+          providerConfiguredModelCount: route.providerConfiguredModelCount,
+          providerType: route.providerType,
+          providerPriority: route.providerPriority,
+          modelId: route.modelId,
+          protocol: route.protocol,
+          requestLayer: route.requestLayer,
+          modelBackendKind: route.modelBackendKind,
+          canonicalModelKey: route.canonicalModelKey,
+          behaviorFlags: route.behaviorFlags,
+          requestedDimensions: route.requestedDimensions,
+          modelEmbeddingDimensions: route.modelEmbeddingDimensions,
+          dimensionMismatch: route.dimensionMismatch,
+        };
+      };
+    const describeRerankRoute =
+      async (): Promise<CopilotTaskRouteDiagnosticsType> => {
+        const [routeResult, routeCandidatesResult, prepareCandidatesResult] =
+          await Promise.all([
+            settleTaskRouteDiagnosticsProbe('describe_rerank_route', () =>
+              this.capabilityRuntime.describeRerankRoute(rerankModelId, {
+                ...taskRouteOptions,
+                featureKind: 'rerank',
+              })
+            ),
+            settleTaskRouteDiagnosticsProbe(
+              'describe_route_candidates',
+              describeRerankRouteCandidates
+            ),
+            settleTaskRouteDiagnosticsProbe(
+              'describe_rerank_prepare_candidates',
+              describeRerankPrepareCandidates
+            ),
+          ]);
+        const diagnosticsErrors = [
+          ...routeResult.errors,
+          ...routeCandidatesResult.errors,
+          ...prepareCandidatesResult.errors,
+        ];
+        const route = routeResult.value;
+        const routeCandidates = (routeCandidatesResult.value ?? []).map(
+          candidate => ({
+            ...candidate,
+            candidateKey: buildTaskRouteCandidateKey(candidate),
+          })
+        );
+        const providerPrepareCandidates = prepareCandidatesResult.value ?? [];
+        if (!route) {
+          return {
+            configured: false,
+            diagnosticsErrors,
+            errorCode: routeResult.errors[0]?.code,
+            errorMessage: routeResult.errors[0]?.message,
+            featureKind: 'rerank',
+            ...taskRoutePolicyMetadata(rerankRoutePolicy),
+            policyCandidates: rerankRoutePolicyCandidates,
+            routeCandidates,
+            routeTrace: buildTaskRouteTrace(
+              rerankRoutePolicyCandidates,
+              routeCandidates,
+              [],
+              providerPrepareCandidates
+            ),
+            prepareCandidates: buildTaskRoutePrepareCandidates(
+              routeCandidates,
+              [],
+              providerPrepareCandidates
+            ),
+            requestedModelId: rerankModelId,
+            requestedModelConfigKey: rerankModel.configKey,
+            requestedModelConfigPath: rerankModel.configPath,
+            requestedModelSource: rerankModel.source,
+            fallbackProviderIds: [],
+            preparedRoutes: [],
+            preparedProviderCount: 0,
+          };
+        }
+        const prepareCandidates = buildTaskRoutePrepareCandidates(
+          routeCandidates,
+          route.preparedRoutes,
+          providerPrepareCandidates
+        );
+        return {
+          configured: route.configured,
+          diagnosticsErrors,
+          errorCode: route.errorCode,
+          errorMessage: route.errorMessage,
+          featureKind: 'rerank',
+          ...taskRoutePolicyMetadata(rerankRoutePolicy),
+          policyCandidates: rerankRoutePolicyCandidates,
+          routeCandidates,
+          routeTrace: buildTaskRouteTrace(
+            rerankRoutePolicyCandidates,
+            routeCandidates,
+            route.preparedRoutes,
+            providerPrepareCandidates
+          ),
+          prepareCandidates,
+          requestedModelId: route.requestedModelId,
+          requestedModelConfigKey: rerankModel.configKey,
+          requestedModelConfigPath: rerankModel.configPath,
+          requestedModelSource: rerankModel.source,
+          fallbackProviderIds: route.fallbackOrder,
+          preparedRoutes: route.preparedRoutes,
+          preparedProviderCount: route.preparedProviderCount,
+          providerId: route.providerId,
+          providerName: route.providerName,
+          providerSource: route.providerSource,
+          providerProfileId: route.providerProfileId,
+          providerProfileSource: route.providerProfileSource,
+          providerProfileConfigPath: route.providerProfileConfigPath,
+          providerConfiguredModelIds: route.providerConfiguredModelIds,
+          providerConfiguredModelCount: route.providerConfiguredModelCount,
+          providerType: route.providerType,
+          providerPriority: route.providerPriority,
+          modelId: route.modelId,
+          protocol: route.protocol,
+          requestLayer: route.requestLayer,
+          modelBackendKind: route.modelBackendKind,
+          canonicalModelKey: route.canonicalModelKey,
+          behaviorFlags: route.behaviorFlags,
+          candidateCount: route.candidateCount,
+          topK: route.topK,
+        };
+      };
+
+    const [embeddingRoute, rerankRoute] = await Promise.all([
+      describeEmbeddingRoute(),
+      describeRerankRoute(),
+    ]);
+
+    return { embeddingRoute, rerankRoute };
+  }
+
+  private async resolvePromptRegistryPublishGateModelRouteCandidate(
+    candidate: PromptRegistryPublishGateModelRouteCandidate,
+    routeTarget: PromptRegistryPublishGateModelRouteTarget,
+    routePolicyContext: {
+      featureKind: CopilotProviderRoutePolicyFeatureKind;
+      workspaceId?: string;
+    },
+    routePolicyMetadata: PromptRegistryPublishGateRoutePolicyMetadata,
+    policyCandidates: CopilotPromptRegistryPublishGatePolicyCandidate[]
+  ): Promise<CopilotPromptRegistryPublishGateModelRoute> {
+    const baseRoute = {
+      candidateIndex: candidate.candidateIndex,
+      candidateKind: candidate.candidateKind,
+      ...(candidate.candidateConfigPath
+        ? { candidateConfigPath: candidate.candidateConfigPath }
+        : {}),
+      checked: true,
+      fallbackProviderIds: [],
+      featureKind: routeTarget.featureKind,
+      outputType: routeTarget.outputType,
+      policyCandidates,
+      ...(candidate.requestedModelSource
+        ? { requestedModelSource: candidate.requestedModelSource }
+        : {}),
+      ...routePolicyMetadata,
+    };
+
+    const condition = {
+      modelId: candidate.modelId,
+      outputType: routeTarget.outputType,
+    };
+    let candidates: Awaited<
+      ReturnType<CopilotProviderFactory['describeRouteCandidates']>
+    > = [];
+    try {
+      candidates = await this.providerFactory.describeRouteCandidates(
+        condition,
+        {},
+        routePolicyContext
+      );
+    } catch (error) {
+      return {
+        ...baseRoute,
+        ...promptRegistryPublishGateDiagnosticsErrorMetadata(
+          'describe_route_candidates',
+          error
+        ),
+        available: false,
+        candidateCount: 0,
+        configured: true,
+        matchedCandidateCount: 0,
+        reasons: uniqueStrings([
+          'model_route_unavailable',
+          'model_route_diagnostics_error',
+          error instanceof Error ? error.constructor.name : 'unknown_error',
+        ]),
+        requestedModelId: candidate.modelId,
+        routeCandidates: [],
+        routeTrace: buildPromptRegistryPublishGateRouteTrace(
+          policyCandidates,
+          []
+        ),
+      };
+    }
+    const matchedCandidates = candidates.filter(candidate => candidate.matched);
+    const routeCandidates = candidates.map(
+      toPromptRegistryPublishGateRouteCandidate
+    );
+    const routeTrace = buildPromptRegistryPublishGateRouteTrace(
+      policyCandidates,
+      routeCandidates
+    );
+
+    try {
+      const resolved = await this.providerFactory.resolveProvider(
+        condition,
+        {},
+        routePolicyContext
+      );
+      if (!resolved) {
+        const selectedCandidate =
+          selectPromptRegistryPublishGateRouteCandidate(candidates);
+        return {
+          ...baseRoute,
+          ...promptRegistryPublishGateRouteCandidateMetadata(selectedCandidate),
+          available: false,
+          candidateCount: candidates.length,
+          configured: true,
+          matchedCandidateCount: matchedCandidates.length,
+          reasons: uniqueStrings([
+            'model_route_unavailable',
+            candidates.length
+              ? 'no_matching_provider_route'
+              : 'no_provider_route_candidates',
+            ...candidates.flatMap(candidate => candidate.reasons),
+          ]),
+          requestedModelId: candidate.modelId,
+          routeCandidates,
+          routeTrace,
+        };
+      }
+
+      const providerModel = resolved.provider.resolveModel(
+        resolved.modelId ?? candidate.modelId,
+        resolved.execution
+      );
+      const resolvedProviderModel = providerModel as
+        | Partial<ResolvedProviderModel>
+        | undefined;
+      const routeModelId =
+        providerModel?.id ?? resolved.modelId ?? candidate.modelId;
+      const profileDefinition = resolveProfileModelDefinition(
+        resolved.profile,
+        candidate.modelId,
+        routeModelId
+      );
+      const routeModelDefinitionSource = resolveModelDefinitionSource(
+        resolved.profile,
+        resolvedProviderModel,
+        profileDefinition
+      );
+      const routeModelDefinitionId =
+        profileDefinition?.id ?? resolvedProviderModel?.canonicalKey;
+      const routeRawModelId =
+        profileDefinition?.rawModelId ??
+        (routeModelDefinitionId &&
+        resolvedProviderModel?.id &&
+        resolvedProviderModel.id !== routeModelDefinitionId
+          ? resolvedProviderModel.id
+          : undefined);
+      const profileConfigPath = providerProfileConfigPath(resolved.profile);
+      const profileModelIds = getProfileConfiguredModelIds(resolved.profile);
+
+      return {
+        ...baseRoute,
+        available: true,
+        candidateCount: candidates.length,
+        configured: true,
+        fallbackProviderIds: resolved.fallbackProviderIds ?? [],
+        matchedCandidateCount: matchedCandidates.length,
+        ...(resolvedProviderModel?.backendKind
+          ? { modelBackendKind: resolvedProviderModel.backendKind }
+          : {}),
+        modelId: routeModelId,
+        ...(resolvedProviderModel?.canonicalKey
+          ? { canonicalModelKey: resolvedProviderModel.canonicalKey }
+          : {}),
+        ...(resolvedProviderModel?.protocol
+          ? { protocol: resolvedProviderModel.protocol }
+          : {}),
+        providerId: resolved.providerId,
+        ...(resolved.profile.displayName
+          ? { providerName: resolved.profile.displayName }
+          : {}),
+        ...(resolved.profile.source
+          ? { providerSource: resolved.profile.source }
+          : {}),
+        providerProfileId: resolved.profile.id,
+        ...(resolved.profile.source
+          ? { providerProfileSource: resolved.profile.source }
+          : {}),
+        ...(profileConfigPath
+          ? { providerProfileConfigPath: profileConfigPath }
+          : {}),
+        ...(profileModelIds.length
+          ? {
+              providerConfiguredModelCount: profileModelIds.length,
+              providerConfiguredModelIds: profileModelIds,
+            }
+          : {}),
+        providerType: resolved.profile.type,
+        providerPrivacy: resolved.profile.privacy ?? 'cloud',
+        providerHealth: resolved.profile.health?.status ?? 'unknown',
+        ...(resolved.profile.health?.lastCheckedAt
+          ? { providerHealthCheckedAt: resolved.profile.health.lastCheckedAt }
+          : {}),
+        ...(resolved.profile.health?.lastError
+          ? { providerHealthLastError: resolved.profile.health.lastError }
+          : {}),
+        providerPriority: resolved.profile.priority,
+        reasons: uniqueStrings([
+          'model_route_available',
+          ...matchedCandidates.flatMap(candidate => candidate.reasons),
+        ]),
+        requestedModelId: candidate.modelId,
+        routeCandidates,
+        routeTrace,
+        ...(resolvedProviderModel?.requestLayer
+          ? { requestLayer: resolvedProviderModel.requestLayer }
+          : {}),
+        ...(resolvedProviderModel?.behaviorFlags?.length
+          ? { behaviorFlags: resolvedProviderModel.behaviorFlags }
+          : {}),
+        ...(profileDefinition?.aliases?.includes(candidate.modelId) !==
+        undefined
+          ? {
+              routeModelAliasMatched: profileDefinition?.aliases?.includes(
+                candidate.modelId
+              ),
+            }
+          : {}),
+        ...(profileDefinition?.aliases?.length
+          ? { routeModelDefinitionAliases: profileDefinition.aliases }
+          : {}),
+        ...(routeModelDefinitionId ? { routeModelDefinitionId } : {}),
+        ...(routeModelDefinitionSource ? { routeModelDefinitionSource } : {}),
+        ...(routeRawModelId ? { routeRawModelId } : {}),
+      };
+    } catch (error) {
+      const selectedCandidate =
+        selectPromptRegistryPublishGateRouteCandidate(candidates);
+      return {
+        ...baseRoute,
+        ...promptRegistryPublishGateRouteCandidateMetadata(selectedCandidate),
+        ...promptRegistryPublishGateDiagnosticsErrorMetadata(
+          'resolve_provider',
+          error
+        ),
+        available: false,
+        candidateCount: candidates.length,
+        configured: true,
+        matchedCandidateCount: matchedCandidates.length,
+        reasons: uniqueStrings([
+          'model_route_unavailable',
+          'model_route_resolution_error',
+          error instanceof Error ? error.constructor.name : 'unknown_error',
+          ...candidates.flatMap(candidate => candidate.reasons),
+        ]),
+        requestedModelId: candidate.modelId,
+        routeCandidates,
+        routeTrace,
+      };
+    }
+  }
+
+  private resolvePromptRegistryPublishGateUnavailableRegistryPromptRoute(
+    copilot?: CopilotType
+  ): CopilotPromptRegistryPublishGateModelRoute {
+    const routePolicyContext = modelListRoutePolicyContext(
+      copilot?.workspaceId
+    );
+    const routePolicy =
+      this.providerFactory.describeRoutePolicy(routePolicyContext);
+    const policyCandidates =
+      this.providerFactory.describeRoutePolicyCandidates(routePolicyContext);
+
+    return {
+      checked: true,
+      fallbackProviderIds: [],
+      featureKind: routePolicyContext.featureKind,
+      outputType: ModelOutputType.Text,
+      policyCandidates,
+      requestedModelSource: 'registry',
+      ...taskRoutePolicyMetadata(routePolicy),
+      available: false,
+      candidateCount: 0,
+      candidateIndex: 0,
+      candidateKind: 'default',
+      configured: false,
+      matchedCandidateCount: 0,
+      reasons: ['registry_prompt_unavailable'],
+      routeCandidates: [],
+      routeTrace: buildPromptRegistryPublishGateRouteTrace(
+        policyCandidates,
+        []
+      ),
+    };
+  }
+
+  private async resolvePromptRegistryPublishGateModelRoutes(
+    verdict: PromptRegistryPublishGateVerdict,
+    copilot?: CopilotType
+  ): Promise<CopilotPromptRegistryPublishGateModelRoute[]> {
+    const registryPrompt =
+      await this.modelsStore.copilotPrompt.getRegistryPrompt(verdict.name);
+    if (!registryPrompt?.model) {
+      return [
+        this.resolvePromptRegistryPublishGateUnavailableRegistryPromptRoute(
+          copilot
+        ),
+      ];
+    }
+
+    const resolvedPrompt = await this.prompt.get(verdict.name);
+    const prompt =
+      resolvedPrompt?.source === 'registry' ? resolvedPrompt : registryPrompt;
+    const routeTarget =
+      resolvePromptRegistryPublishGateModelRouteTarget(prompt);
+    const routePolicyContext = {
+      ...(copilot?.workspaceId ? { workspaceId: copilot.workspaceId } : {}),
+      featureKind: routeTarget.featureKind,
+    };
+    const routePolicy =
+      this.providerFactory.describeRoutePolicy(routePolicyContext);
+    const routePolicyMetadata = taskRoutePolicyMetadata(routePolicy);
+    const policyCandidates =
+      this.providerFactory.describeRoutePolicyCandidates(routePolicyContext);
+
+    const modelRouteCandidates =
+      resolvePromptRegistryPublishGateModelRouteCandidates(
+        prompt,
+        this.providerFactory.getConfiguredModelIds()
+      );
+
+    return await Promise.all(
+      modelRouteCandidates.map(candidate =>
+        this.resolvePromptRegistryPublishGateModelRouteCandidate(
+          candidate,
+          routeTarget,
+          routePolicyContext,
+          routePolicyMetadata,
+          policyCandidates
+        )
+      )
+    );
+  }
+
+  private async resolvePromptRegistryPublishGateActionRouteDryRun(
+    prompt: CopilotPromptRegistryPublishGateActionRouteDryRunPrompt,
+    copilot?: CopilotType
+  ): Promise<CopilotPromptRegistryPublishGateActionRouteDryRun | undefined> {
+    if (!isPromptRegistryPublishGateActionDryRunCandidate(prompt)) {
+      return undefined;
+    }
+
+    const actionId = prompt.action ?? prompt.name;
+    const featureKind =
+      prompt.defaultPolicy === 'image' ||
+      prompt.category === 'image' ||
+      isImagePromptCategory(prompt)
+        ? 'image'
+        : 'action';
+
+    if (!this.plans) {
+      const diagnostics =
+        promptRegistryPublishGateActionDryRunDiagnosticsErrorMetadata(
+          'missing_execution_plan_builder'
+        );
+      return promptRegistryPublishGateActionDryRunResult({
+        ...(actionId ? { actionId } : {}),
+        ...diagnostics,
+        errorCode: diagnostics.diagnosticsErrorCode,
+        errorMessage: diagnostics.diagnosticsErrorMessage,
+        featureKind,
+        status: 'skipped',
+        steps: [],
+      });
+    }
+
+    const messages = prompt.messages ?? [];
+    if (!messages.length) {
+      const diagnostics =
+        promptRegistryPublishGateActionDryRunDiagnosticsErrorMetadata(
+          'missing_prompt_messages'
+        );
+      return promptRegistryPublishGateActionDryRunResult({
+        ...(actionId ? { actionId } : {}),
+        ...diagnostics,
+        errorCode: diagnostics.diagnosticsErrorCode,
+        errorMessage: diagnostics.diagnosticsErrorMessage,
+        featureKind,
+        status: 'skipped',
+        steps: [],
+      });
+    }
+
+    try {
+      if (featureKind === 'image') {
+        try {
+          const plan = await this.plans.buildImagePlan(
+            { modelId: prompt.model },
+            messages,
+            {
+              ...prompt.config,
+              ...(copilot?.workspaceId
+                ? { workspace: copilot.workspaceId }
+                : {}),
+              featureKind: 'image',
+            }
+          );
+
+          return promptRegistryPublishGateActionDryRunResult({
+            ...(actionId ? { actionId } : {}),
+            featureKind,
+            status: 'succeeded',
+            steps: [
+              toPromptRegistryPublishGateActionRouteDryRunStep({
+                fallbackProviderIds: plan.routePolicy.fallbackOrder,
+                kind: 'image',
+                plan,
+                requestedModelId: prompt.model,
+                requestedModelSource: prompt.modelSource,
+                stepId: 'generate-image',
+              }),
+            ],
+          });
+        } catch (error) {
+          const diagnostics =
+            promptRegistryPublishGateActionDryRunDiagnosticsErrorMetadata(
+              'build_image_plan',
+              error
+            );
+          return promptRegistryPublishGateActionDryRunResult({
+            ...(actionId ? { actionId } : {}),
+            ...diagnostics,
+            errorCode: diagnostics.diagnosticsErrorCode,
+            errorMessage: diagnostics.diagnosticsErrorMessage,
+            featureKind,
+            status: 'failed',
+            steps: [],
+          });
+        }
+      }
+
+      const responseContract = buildStructuredResponseFromSchemaJson(
+        promptRegistryPublishGateActionTextResultSchema()
+      ) as RequiredStructuredOutputContract;
+      try {
+        const plan = await this.plans.buildStructuredPlan(
+          { modelId: prompt.model },
+          messages,
+          {
+            ...prompt.config,
+            ...(copilot?.workspaceId ? { workspace: copilot.workspaceId } : {}),
+            featureKind: 'action',
+          },
+          undefined,
+          responseContract
+        );
+
+        return promptRegistryPublishGateActionDryRunResult({
+          ...(actionId ? { actionId } : {}),
+          featureKind,
+          status: 'succeeded',
+          steps: [
+            toPromptRegistryPublishGateActionRouteDryRunStep({
+              fallbackProviderIds: plan.routePolicy.fallbackOrder,
+              kind: 'structured',
+              plan,
+              requestedModelId: prompt.model,
+              requestedModelSource: prompt.modelSource,
+              stepId: 'generate',
+            }),
+          ],
+        });
+      } catch (error) {
+        const diagnostics =
+          promptRegistryPublishGateActionDryRunDiagnosticsErrorMetadata(
+            'build_structured_plan',
+            error
+          );
+        return promptRegistryPublishGateActionDryRunResult({
+          ...(actionId ? { actionId } : {}),
+          ...diagnostics,
+          errorCode: diagnostics.diagnosticsErrorCode,
+          errorMessage: diagnostics.diagnosticsErrorMessage,
+          featureKind,
+          status: 'failed',
+          steps: [],
+        });
+      }
+    } catch (error) {
+      const diagnostics =
+        promptRegistryPublishGateActionDryRunDiagnosticsErrorMetadata(
+          featureKind === 'image'
+            ? 'build_image_plan'
+            : 'build_structured_plan',
+          error
+        );
+      return promptRegistryPublishGateActionDryRunResult({
+        ...(actionId ? { actionId } : {}),
+        ...diagnostics,
+        errorCode: diagnostics.diagnosticsErrorCode,
+        errorMessage: diagnostics.diagnosticsErrorMessage,
+        featureKind,
+        status: 'failed',
+        steps: [],
+      });
+    }
+  }
+
+  private async resolvePromptRegistryPublishGateActionRouteDryRunForVerdict(
+    verdict: PromptRegistryPublishGateVerdict,
+    copilot?: CopilotType
+  ): Promise<CopilotPromptRegistryPublishGateActionRouteDryRun | undefined> {
+    const prompt = await this.prompt.get(verdict.name);
+    if (!prompt || prompt.source !== 'registry') {
+      return undefined;
+    }
+
+    return await this.resolvePromptRegistryPublishGateActionRouteDryRun(
+      prompt,
+      copilot
+    );
+  }
+
+  private toPromptRegistryModelRouteIssue(
+    verdict: PromptRegistryPublishGateVerdict,
+    modelRoute: CopilotPromptRegistryPublishGateModelRoute
+  ): CopilotPromptRegistryValidationIssue {
+    const requestedModelId = modelRoute.requestedModelId ?? 'unknown';
+    const sourceLocator = {
+      field: 'model',
+      path: 'model',
+      registryFingerprint: verdict.registryFingerprint,
+      registryId: verdict.registryId,
+      registryUpdatedAt: verdict.registryUpdatedAt.toISOString(),
+      table: 'ai_prompts_metadata' as const,
+    };
+
+    return {
+      code: 'unavailable',
+      detail: `model.${requestedModelId}:route_unavailable`,
+      fieldLabel: 'Model Route',
+      message: `Prompt registry default model "${requestedModelId}" has no available ${modelRoute.outputType} provider route for ${modelRoute.featureKind}.`,
+      path: 'model',
+      publishBlocking: true,
+      reason: 'model_route_unavailable',
+      severity: 'error',
+      source: 'copilot.providers.route',
+      sourceLocator,
+    };
+  }
+
+  private toPromptRegistryModelRouteRemediation(
+    verdict: PromptRegistryPublishGateVerdict
+  ): CopilotPromptRegistryValidationRemediation {
+    return {
+      detail:
+        'Configure a provider route that supports the registry prompt default model and output type, or change ai_prompts_metadata.model to a routable model.',
+      kind: 'configure_model_route',
+      label: 'Configure model route',
+      target: 'copilot.providers / ai_prompts_metadata.model',
+      targetLocator: {
+        field: 'model',
+        path: 'model',
+        registryFingerprint: verdict.registryFingerprint,
+        registryId: verdict.registryId,
+        registryUpdatedAt: verdict.registryUpdatedAt.toISOString(),
+        table: 'ai_prompts_metadata',
+      },
+    };
+  }
+
+  private toPromptRegistryPublishGateVerdictWithRepairRecommendations(input: {
+    actionRouteDryRun?: CopilotPromptRegistryPublishGateActionRouteDryRun;
+    modelRoute?: CopilotPromptRegistryPublishGateModelRoute;
+    modelRoutes?: CopilotPromptRegistryPublishGateModelRoute[];
+    taskRoutes?: CopilotPromptRegistryPublishGateTaskRoute[];
+    verdict: PromptRegistryPublishGateVerdict;
+  }): CopilotPromptRegistryPublishGateVerdictType {
+    const modelRoutes =
+      input.modelRoutes ?? (input.modelRoute ? [input.modelRoute] : []);
+    const taskRoutes = input.taskRoutes ?? [];
+    const verdict = {
+      ...input.verdict,
+      ...(input.actionRouteDryRun
+        ? { actionRouteDryRun: input.actionRouteDryRun }
+        : {}),
+      ...(input.modelRoute ? { modelRoute: input.modelRoute } : {}),
+      modelRoutes,
+      taskRoutes,
+    };
+    const repairRecommendations =
+      buildPromptRegistryPublishGateRepairRecommendations({
+        actionRouteDryRun: input.actionRouteDryRun,
+        modelRoutes,
+        taskRoutes,
+        verdict,
+      });
+    const repairActionCatalog =
+      buildPromptRegistryPublishGateRepairActionCatalog(repairRecommendations);
+    const repairActionCatalogFingerprint =
+      promptRegistryPublishGateRepairActionCatalogFingerprint(
+        repairActionCatalog
+      );
+    const repairActionMutationGuard =
+      buildPromptRegistryPublishGateRepairActionMutationGuard({
+        catalogFingerprint: repairActionCatalogFingerprint,
+        recommendations: repairRecommendations,
+        verdict,
+      });
+
+    return {
+      ...verdict,
+      repairActionCatalog,
+      repairActionCatalogFingerprint,
+      repairActionMutationGuard,
+      repairActionPreview: buildPromptRegistryPublishGateRepairActionPreview({
+        catalogFingerprint: repairActionCatalogFingerprint,
+        guard: repairActionMutationGuard,
+        recommendations: repairRecommendations,
+      }),
+      repairRecommendations,
+    };
+  }
+
+  private async withPromptRegistryPublishGateRouteReadiness(
+    verdict: PromptRegistryPublishGateVerdict,
+    copilot?: CopilotType
+  ): Promise<CopilotPromptRegistryPublishGateVerdictType> {
+    const resolveTaskRoutes = async () => {
+      try {
+        const { embeddingRoute, rerankRoute } =
+          await this.resolveTaskRouteDiagnostics(copilot);
+        return [embeddingRoute, rerankRoute];
+      } catch {
+        return [];
+      }
+    };
+    const resolveActionRouteDryRun = async () => {
+      try {
+        return await this.resolvePromptRegistryPublishGateActionRouteDryRunForVerdict(
+          verdict,
+          copilot
+        );
+      } catch {
+        return undefined;
+      }
+    };
+
+    if (!verdict.allowed || verdict.reason !== 'ready') {
+      return this.toPromptRegistryPublishGateVerdictWithRepairRecommendations({
+        modelRoutes: [],
+        taskRoutes: [],
+        verdict,
+      });
+    }
+
+    const [modelRoutes, taskRoutes, actionRouteDryRun] = await Promise.all([
+      this.resolvePromptRegistryPublishGateModelRoutes(verdict, copilot),
+      resolveTaskRoutes(),
+      resolveActionRouteDryRun(),
+    ]);
+    const modelRoute = modelRoutes[0];
+    if (!modelRoute) {
+      return this.toPromptRegistryPublishGateVerdictWithRepairRecommendations({
+        actionRouteDryRun,
+        modelRoutes: [],
+        taskRoutes,
+        verdict,
+      });
+    }
+    if (modelRoute.available) {
+      return this.toPromptRegistryPublishGateVerdictWithRepairRecommendations({
+        actionRouteDryRun,
+        modelRoute,
+        modelRoutes,
+        taskRoutes,
+        verdict,
+      });
+    }
+
+    const issue = this.toPromptRegistryModelRouteIssue(verdict, modelRoute);
+
+    const blockedVerdict = {
+      ...verdict,
+      allowed: false,
+      blockingCount: verdict.blockingCount + 1,
+      errorCount: verdict.errorCount + 1,
+      issueCount: verdict.issueCount + 1,
+      issues: [...verdict.issues, issue],
+      actionRouteDryRun,
+      modelRoute,
+      modelRoutes,
+      publishStatus: 'blocked',
+      reason: 'model_route_unavailable',
+      remediations: [
+        ...verdict.remediations,
+        this.toPromptRegistryModelRouteRemediation(verdict),
+      ],
+      status: 'ignored',
+    };
+
+    return this.toPromptRegistryPublishGateVerdictWithRepairRecommendations({
+      actionRouteDryRun,
+      modelRoute,
+      modelRoutes,
+      taskRoutes,
+      verdict: blockedVerdict,
+    });
+  }
+
+  @ResolveField(() => CopilotPromptRegistryPublishGateVerdictType, {
+    nullable: true,
+    description:
+      'Evaluate whether the current prompt registry row can pass the publish gate',
+    complexity: 2,
+  })
+  async promptRegistryPublishGate(
+    @Parent() copilot: CopilotType,
+    @Args('name') name: string,
+    @Args('expectedVersion', {
+      type: () => CopilotPromptRegistryPublishGateExpectedVersionInput,
+      nullable: true,
+    })
+    expectedVersion?: CopilotPromptRegistryPublishGateExpectedVersionInput
+  ): Promise<CopilotPromptRegistryPublishGateVerdictType | null> {
+    const verdict =
+      await this.modelsStore.copilotPrompt.getRegistryPublishGateVerdict(
+        name,
+        expectedVersion ?? {}
+      );
+    if (!verdict) {
+      return null;
+    }
+
+    return await this.withPromptRegistryPublishGateRouteReadiness(
+      verdict,
+      copilot
+    );
+  }
+
+  private async buildPromptRegistryRepairPreflightForCurrentUser(
+    user: CurrentUser,
+    copilot: CopilotType,
+    name: string,
+    submission: CopilotPromptRegistryRepairSubmissionInput,
+    expectedVersion?: CopilotPromptRegistryPublishGateExpectedVersionInput
+  ): Promise<CopilotPromptRegistryRepairPreflightType | null> {
+    const requiredPermission: WorkspaceAction = 'Workspace.Copilot';
+    const permission = copilot.workspaceId
+      ? {
+          checked: true,
+          checkMode: 'workspace_assert',
+          requiredPermission,
+          scope: 'workspace',
+          status: 'granted',
+          workspaceId: copilot.workspaceId,
+        }
+      : {
+          checked: false,
+          checkMode: 'not_checked',
+          requiredPermission,
+          scope: 'global',
+          status: 'workspace_not_selected',
+        };
+    if (copilot.workspaceId) {
+      await this.ac
+        .user(user.id)
+        .workspace(copilot.workspaceId)
+        .allowLocal()
+        .assert(requiredPermission);
+    }
+
+    const verdict =
+      await this.modelsStore.copilotPrompt.getRegistryPublishGateVerdict(
+        name,
+        expectedVersion ?? {}
+      );
+    if (!verdict) {
+      return null;
+    }
+
+    const current = await this.withPromptRegistryPublishGateRouteReadiness(
+      verdict,
+      copilot
+    );
+
+    return buildPromptRegistryRepairPreflight(
+      current.repairActionPreview.submissionContract,
+      submission,
+      {
+        actorId: user.id,
+        actorType: 'user',
+        source: 'current_user',
+      },
+      permission,
+      {
+        catalogFingerprint: current.repairActionPreview.catalogFingerprint,
+        checkMode: 'preview_capability_snapshot',
+        requiredCapabilities: current.repairActionPreview.requiredCapabilities,
+        source: 'repair_action_preview',
+        status: current.repairActionPreview.requiredCapabilities.length
+          ? 'declared'
+          : 'not_required',
+      },
+      {
+        approvalCheckpoints: current.repairActionPreview.approvalCheckpoints,
+        approvalModes: current.repairActionPreview.approvalModes,
+        approvalPolicyFingerprint:
+          current.repairActionPreview.approvalPolicyFingerprint,
+        approvalRequired: current.repairActionPreview.approvalRequired,
+        authorizationFingerprint:
+          current.repairActionPreview.authorizationFingerprint,
+        authorizationStatus: current.repairActionPreview.authorizationStatus,
+      }
+    );
+  }
+
+  @ResolveField(() => CopilotPromptRegistryRepairPreflightType, {
+    nullable: true,
+    description:
+      'Read-only preflight for a prompt registry repair submission contract',
+    complexity: 2,
+  })
+  async promptRegistryRepairPreflight(
+    @CurrentUser() user: CurrentUser,
+    @Parent() copilot: CopilotType,
+    @Args('name') name: string,
+    @Args('submission', {
+      type: () => CopilotPromptRegistryRepairSubmissionInput,
+    })
+    submission: CopilotPromptRegistryRepairSubmissionInput,
+    @Args('expectedVersion', {
+      type: () => CopilotPromptRegistryPublishGateExpectedVersionInput,
+      nullable: true,
+    })
+    expectedVersion?: CopilotPromptRegistryPublishGateExpectedVersionInput
+  ): Promise<CopilotPromptRegistryRepairPreflightType | null> {
+    return await this.buildPromptRegistryRepairPreflightForCurrentUser(
+      user,
+      copilot,
+      name,
+      submission,
+      expectedVersion
+    );
+  }
+
+  @Mutation(() => CopilotPromptRegistryRepairExecutionRequestType, {
+    description:
+      'Request prompt registry repair execution. Current implementation is read-only and always blocks execution.',
+  })
+  @CallMetric('ai', 'prompt_registry_repair_execution_request')
+  async requestCopilotPromptRegistryRepairExecution(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotPromptRegistryRepairExecutionRequestInput,
+    })
+    input: CopilotPromptRegistryRepairExecutionRequestInput
+  ): Promise<CopilotPromptRegistryRepairExecutionRequestType> {
+    const preflight =
+      await this.buildPromptRegistryRepairPreflightForCurrentUser(
+        user,
+        { workspaceId: input.workspaceId },
+        input.name,
+        input.submission,
+        input.expectedVersion
+      );
+
+    if (!preflight) {
+      throw new NotFoundException('Prompt registry repair preflight not found');
+    }
+
+    return buildPromptRegistryRepairExecutionRequest(input, preflight);
+  }
+
+  @ResolveField(() => CopilotActionRunPreparedRouteDiagnosticsType, {
+    nullable: true,
+    description:
+      'Get sanitized prepared route diagnostics for an action run in the current workspace',
+    complexity: 2,
+  })
+  async actionRunPreparedRouteTrace(
+    @CurrentUser() user: CurrentUser,
+    @Parent() copilot: CopilotType,
+    @Args('runId') runId: string
+  ): Promise<CopilotActionRunPreparedRouteDiagnosticsType | null> {
+    const { workspaceId } = await this.assertPermission(user, copilot);
+
+    return await this.modelsStore.copilotActionRun.getPreparedRouteTrace(
+      runId,
+      {
+        userId: user.id,
+        workspaceId,
+      }
+    );
+  }
+
+  @ResolveField(() => [CopilotActionRunDiagnosticsItemType], {
+    description:
+      'List recent sanitized action runs for diagnostics in the current workspace',
+    complexity: 2,
+  })
+  async actionRuns(
+    @CurrentUser() user: CurrentUser,
+    @Parent() copilot: CopilotType,
+    @Args('limit', { type: () => SafeIntResolver, nullable: true })
+    limit?: number
+  ): Promise<CopilotActionRunDiagnosticsItemType[]> {
+    const { workspaceId } = await this.assertPermission(user, copilot);
+
+    return await this.modelsStore.copilotActionRun.listRecentDiagnostics(
+      {
+        userId: user.id,
+        workspaceId,
+      },
+      { limit }
+    );
+  }
+
   @ResolveField(() => CopilotModelsType, {
     description:
       'List available models for a prompt, with human-readable names',
     complexity: 2,
   })
   async models(
-    @Args('promptName') promptName: string
+    @Args('promptName') promptName: string,
+    @Parent() copilot?: CopilotType
   ): Promise<CopilotModelsType> {
     const prompt = await this.prompt.get(promptName);
     if (!prompt) {
       throw new NotFoundException('Prompt not found');
     }
-    const convertModels = async (ids: string[]) => {
-      const models = await Promise.all(
-        ids.map(async id => {
-          const cachedName = this.modelNames.get(id);
-          if (cachedName) return { id, name: cachedName };
+    const routePolicyContext = modelListRoutePolicyContext(
+      copilot?.workspaceId
+    );
+    const promptMetadata = {
+      promptName: prompt.name,
+      ...(prompt.action ? { promptAction: prompt.action } : {}),
+      promptSource: prompt.source,
+      promptCategory: prompt.category,
+      ...(prompt.defaultPolicy
+        ? { promptDefaultPolicy: prompt.defaultPolicy }
+        : {}),
+      promptOverrideApplied: prompt.overrideApplied,
+    };
+    const routePolicyMetadata = (
+      routePolicy: CopilotProviderRoutePolicySummary
+    ) => ({
+      routePolicyEnabled: routePolicy.enabled,
+      ...(routePolicy.featureKind
+        ? { routePolicyFeatureKind: routePolicy.featureKind }
+        : {}),
+      ...(routePolicy.workspaceId
+        ? { routePolicyWorkspaceId: routePolicy.workspaceId }
+        : {}),
+      ...(routePolicy.allowedProviderIds !== undefined
+        ? { routePolicyAllowedProviderIds: routePolicy.allowedProviderIds }
+        : {}),
+      ...(routePolicy.blockedProviderIds !== undefined
+        ? { routePolicyBlockedProviderIds: routePolicy.blockedProviderIds }
+        : {}),
+      ...(routePolicy.allowedPrivacy !== undefined
+        ? { routePolicyAllowedPrivacy: routePolicy.allowedPrivacy }
+        : {}),
+      ...(routePolicy.preferredPrivacy !== undefined
+        ? { routePolicyPreferredPrivacy: routePolicy.preferredPrivacy }
+        : {}),
+    });
+    const resolvePromptModelProvenance = (
+      sources: CopilotModelSource[]
+    ): Pick<
+      CopilotModelCandidate,
+      'promptModelConfigPath' | 'promptModelSource' | 'promptModelSources'
+    > => {
+      const promptModelSources = sources.map(source => {
+        if (source === 'default') {
+          return {
+            candidateSource: source,
+            ...(prompt.modelConfigPath
+              ? { modelConfigPath: prompt.modelConfigPath }
+              : {}),
+            modelSource: prompt.modelSource,
+          };
+        }
 
-          const resolved = await this.providerFactory.resolveProvider({
-            modelId: id,
-            outputType: ModelOutputType.Text,
-          });
-          const name = resolved?.provider.resolveModel(
+        if (source === 'prompt') {
+          return {
+            candidateSource: source,
+            ...(prompt.optionalModelsConfigPath
+              ? { modelConfigPath: prompt.optionalModelsConfigPath }
+              : {}),
+            modelSource: prompt.optionalModelsSource,
+          };
+        }
+
+        if (source === 'pro') {
+          return {
+            candidateSource: source,
+            ...(prompt.proModelsConfigPath
+              ? { modelConfigPath: prompt.proModelsConfigPath }
+              : {}),
+            modelSource: prompt.proModelsSource,
+          };
+        }
+
+        return {
+          candidateSource: source,
+        };
+      });
+
+      if (sources.includes('default')) {
+        return {
+          promptModelSources,
+          ...(prompt.modelConfigPath
+            ? { promptModelConfigPath: prompt.modelConfigPath }
+            : {}),
+          promptModelSource: prompt.modelSource,
+        };
+      }
+
+      if (sources.includes('prompt')) {
+        return {
+          promptModelSources,
+          ...(prompt.optionalModelsConfigPath
+            ? { promptModelConfigPath: prompt.optionalModelsConfigPath }
+            : {}),
+          promptModelSource: prompt.optionalModelsSource,
+        };
+      }
+
+      if (sources.includes('pro')) {
+        return {
+          promptModelSources,
+          ...(prompt.proModelsConfigPath
+            ? { promptModelConfigPath: prompt.proModelsConfigPath }
+            : {}),
+          promptModelSource: prompt.proModelsSource,
+        };
+      }
+
+      return { promptModelSources };
+    };
+    const collectCandidates = (
+      entries: Array<{ id?: string; source: CopilotModelSource }>
+    ): CopilotModelCandidate[] => {
+      const candidates = new Map<string, CopilotModelSource[]>();
+      for (const entry of entries) {
+        if (!entry.id) {
+          continue;
+        }
+        const sources = candidates.get(entry.id) ?? [];
+        if (!sources.includes(entry.source)) {
+          sources.push(entry.source);
+        }
+        candidates.set(entry.id, sources);
+      }
+      return Array.from(candidates.entries()).map(([id, sources]) => ({
+        id,
+        ...resolvePromptModelProvenance(sources),
+        sources,
+      }));
+    };
+    const convertModels = async (candidates: CopilotModelCandidate[]) => {
+      if (!candidates.length) {
+        return [];
+      }
+
+      const routePolicy =
+        this.providerFactory.describeRoutePolicy(routePolicyContext);
+      const models = await Promise.all(
+        candidates.map(async candidate => {
+          const {
+            id,
+            promptModelConfigPath,
+            promptModelSource,
+            promptModelSources,
+            sources,
+          } = candidate;
+          const resolved = await this.providerFactory.resolveProvider(
+            {
+              modelId: id,
+              outputType: ModelOutputType.Text,
+            },
+            {},
+            routePolicyContext
+          );
+          if (!resolved) {
+            return null;
+          }
+
+          const providerModel = resolved.provider.resolveModel(
             resolved.modelId ?? id,
             resolved.execution
-          )?.name;
+          );
+          const resolvedProviderModel = providerModel as
+            | Partial<ResolvedProviderModel>
+            | undefined;
+          const routeModelId = providerModel?.id ?? resolved.modelId ?? id;
+          const profileModelIds = getProfileConfiguredModelIds(
+            resolved.profile
+          );
+          const profileDefinition = resolveProfileModelDefinition(
+            resolved.profile,
+            id,
+            routeModelId
+          );
+          const routeModelDefinitionSource = resolveModelDefinitionSource(
+            resolved.profile,
+            resolvedProviderModel,
+            profileDefinition
+          );
+          const routeModelAliasMatched =
+            profileDefinition?.aliases?.includes(id);
+          const profileConfigPath = providerProfileConfigPath(resolved.profile);
+          const routeModelDefinitionId =
+            profileDefinition?.id ?? resolvedProviderModel?.canonicalKey;
+          const routeRawModelId =
+            profileDefinition?.rawModelId ??
+            (routeModelDefinitionId &&
+            resolvedProviderModel?.id &&
+            resolvedProviderModel.id !== routeModelDefinitionId
+              ? resolvedProviderModel.id
+              : undefined);
+          const modelDefinitionMetadata = {
+            ...(resolvedProviderModel?.backendKind
+              ? { routeBackendKind: resolvedProviderModel.backendKind }
+              : {}),
+            ...(resolvedProviderModel?.canonicalKey
+              ? {
+                  routeCanonicalModelKey: resolvedProviderModel.canonicalKey,
+                }
+              : {}),
+            ...(routeRawModelId ? { routeRawModelId } : {}),
+            ...(routeModelDefinitionSource
+              ? { routeModelDefinitionSource }
+              : {}),
+            ...(routeModelDefinitionId ? { routeModelDefinitionId } : {}),
+            ...(profileDefinition?.aliases?.length
+              ? { routeModelDefinitionAliases: profileDefinition.aliases }
+              : {}),
+            ...(routeModelAliasMatched !== undefined
+              ? { routeModelAliasMatched }
+              : {}),
+            ...(resolvedProviderModel?.protocol
+              ? { routeProtocol: resolvedProviderModel.protocol }
+              : {}),
+            ...(resolvedProviderModel?.requestLayer
+              ? { routeRequestLayer: resolvedProviderModel.requestLayer }
+              : {}),
+            ...(resolvedProviderModel?.behaviorFlags?.length
+              ? {
+                  routeBehaviorFlags: resolvedProviderModel.behaviorFlags,
+                }
+              : {}),
+            ...collectModelCapabilityTypes(resolvedProviderModel),
+          };
+          const baseModelMetadata = {
+            id,
+            sources,
+            ...promptMetadata,
+            ...(promptModelSource ? { promptModelSource } : {}),
+            ...(promptModelConfigPath ? { promptModelConfigPath } : {}),
+            promptModelSources,
+            providerId: resolved.providerId,
+            ...(resolved.profile.displayName
+              ? { providerName: resolved.profile.displayName }
+              : {}),
+            ...(resolved.profile.source
+              ? { providerSource: resolved.profile.source }
+              : {}),
+            providerProfileId: resolved.profile.id,
+            ...(resolved.profile.source
+              ? { providerProfileSource: resolved.profile.source }
+              : {}),
+            ...(profileConfigPath
+              ? { providerProfileConfigPath: profileConfigPath }
+              : {}),
+            ...(profileModelIds.length
+              ? {
+                  providerConfiguredModelIds: profileModelIds,
+                  providerConfiguredModelCount: profileModelIds.length,
+                }
+              : {}),
+            routeModelId,
+            ...(resolved.fallbackProviderIds?.length
+              ? { routeFallbackProviderIds: resolved.fallbackProviderIds }
+              : {}),
+            ...modelDefinitionMetadata,
+            providerType: resolved.profile.type,
+            providerPrivacy: resolved.profile.privacy ?? 'cloud',
+            providerHealth: resolved.profile.health?.status ?? 'unknown',
+            ...(resolved.profile.health?.lastCheckedAt
+              ? {
+                  providerHealthCheckedAt:
+                    resolved.profile.health.lastCheckedAt,
+                }
+              : {}),
+            ...(resolved.profile.health?.lastError
+              ? {
+                  providerHealthLastError: resolved.profile.health.lastError,
+                }
+              : {}),
+            providerPriority: resolved.profile.priority,
+            ...routePolicyMetadata(routePolicy),
+          };
+
+          const limits = providerModel
+            ? resolveModelLimits(providerModel)
+            : undefined;
+          const modelMetadata = {
+            ...baseModelMetadata,
+            ...(limits?.contextWindow !== undefined
+              ? { contextWindow: limits.contextWindow }
+              : {}),
+            ...(limits?.maxOutputTokens !== undefined
+              ? { maxOutputTokens: limits.maxOutputTokens }
+              : {}),
+            ...(limits?.embeddingDimensions !== undefined
+              ? { embeddingDimensions: limits.embeddingDimensions }
+              : {}),
+            ...(resolvedProviderModel?.cost?.inputPer1M !== undefined
+              ? { costInputPer1M: resolvedProviderModel.cost.inputPer1M }
+              : {}),
+            ...(resolvedProviderModel?.cost?.outputPer1M !== undefined
+              ? { costOutputPer1M: resolvedProviderModel.cost.outputPer1M }
+              : {}),
+          };
+
+          const cachedName = this.modelNames.get(id);
+          if (cachedName) return { ...modelMetadata, name: cachedName };
+
+          const name = providerModel?.name;
           if (name) {
             this.modelNames.set(id, name);
-            return { id, name };
+            return { ...modelMetadata, name };
           }
           return null;
         })
@@ -444,12 +12244,59 @@ export class CopilotResolver {
 
       return models.filter(model => !!model) as CopilotModelType[];
     };
+    const taskRoutes = await this.resolveTaskRouteDiagnostics(copilot);
     const proModels = prompt.config?.proModels || [];
+    const resolvedPromptDefault = await this.providerFactory.resolveModelId(
+      {
+        modelId: prompt.model,
+        outputType: ModelOutputType.Text,
+      },
+      {},
+      routePolicyContext
+    );
+    const defaultModel = resolvedPromptDefault
+      ? prompt.model
+      : ((await this.providerFactory.resolveModelId(
+          {
+            outputType: ModelOutputType.Text,
+          },
+          {},
+          routePolicyContext
+        )) ?? prompt.model);
+    const defaultModelSource = resolvedPromptDefault
+      ? ('prompt' as const)
+      : ('fallback_route' as const);
 
     return {
-      defaultModel: prompt.model,
-      optionalModels: await convertModels(prompt.optionalModels),
-      proModels: await convertModels(proModels),
+      defaultModel,
+      promptDefaultModel: prompt.model,
+      defaultModelSource,
+      ...(defaultModelSource === 'fallback_route'
+        ? { defaultModelFallbackReason: 'prompt_default_unavailable' }
+        : {}),
+      embeddingRoute: taskRoutes.embeddingRoute,
+      rerankRoute: taskRoutes.rerankRoute,
+      optionalModels: await convertModels(
+        collectCandidates([
+          { id: defaultModel, source: 'default' },
+          ...prompt.optionalModels.map(id => ({
+            id,
+            source: 'prompt' as const,
+          })),
+          ...this.providerFactory.getConfiguredModelIds().map(id => ({
+            id,
+            source: 'registry' as const,
+          })),
+        ])
+      ),
+      proModels: await convertModels(
+        collectCandidates(
+          proModels.map(id => ({
+            id,
+            source: 'pro' as const,
+          }))
+        )
+      ),
     };
   }
 

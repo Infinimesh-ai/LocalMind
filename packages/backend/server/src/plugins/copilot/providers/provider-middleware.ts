@@ -12,6 +12,9 @@ const DEFAULT_MIDDLEWARE_BY_TYPE: Record<
   [CopilotProviderType.OpenAI]: {
     node: { text: DEFAULT_NODE_TEXT_MIDDLEWARE },
   },
+  [CopilotProviderType.OpenAICompatible]: {
+    node: { text: DEFAULT_NODE_TEXT_MIDDLEWARE },
+  },
   [CopilotProviderType.CloudflareWorkersAi]: {
     node: { text: DEFAULT_NODE_TEXT_MIDDLEWARE },
   },

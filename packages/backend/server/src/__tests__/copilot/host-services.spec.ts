@@ -1,7 +1,7 @@
 import test from 'ava';
 import Sinon from 'sinon';
 
-import { type Models } from '../../models';
+import { EMBEDDING_DIMENSIONS, type Models } from '../../models';
 import { CopilotAccessPolicy } from '../../plugins/copilot/access';
 import type { ByokFeatureKind } from '../../plugins/copilot/byok/types';
 import { HistoryAttachmentUrlProjector } from '../../plugins/copilot/compat/history-attachment-url-projector';
@@ -11,7 +11,10 @@ import { HistoryVisibilityPolicy } from '../../plugins/copilot/compat/history-vi
 import { ConversationPolicy } from '../../plugins/copilot/conversation/policy';
 import type { Turn } from '../../plugins/copilot/core';
 import { CopilotEmbeddingClientService } from '../../plugins/copilot/embedding/client';
-import { CopilotProviderType } from '../../plugins/copilot/providers/types';
+import {
+  CopilotProviderType,
+  ModelOutputType,
+} from '../../plugins/copilot/providers/types';
 import {
   projectActionResultToAssistantTurn,
   summarizeActionResult,
@@ -637,13 +640,30 @@ test('action result projection should map image result url to assistant attachme
 test('CopilotEmbeddingClientService should keep dispatch client across global config refreshes', async t => {
   const taskPolicy = {
     resolveEmbeddingModelId: () => 'text-embedding-3-large',
+    resolveWorkspaceIndexingModelId: () => 'text-embedding-3-large',
+    resolveRerankModelId: () => undefined,
   };
   const runtime = {
-    embeddingConfigured: Sinon.stub()
+    describeEmbeddingRoute: Sinon.stub()
       .onFirstCall()
-      .resolves(true)
+      .resolves({
+        configured: true,
+        fallbackOrder: ['openai-default'],
+        dimensionMismatch: false,
+      })
       .onSecondCall()
-      .resolves(false),
+      .resolves({
+        configured: false,
+        fallbackOrder: [],
+        dimensionMismatch: false,
+      }),
+    describeRerankRoute: Sinon.stub().resolves({
+      configured: true,
+      fallbackOrder: ['openai-default'],
+      providerId: 'openai-default',
+      modelId: 'gpt-4o-mini',
+      candidateCount: 1,
+    }),
   };
   const service = new CopilotEmbeddingClientService(
     taskPolicy as any,
@@ -657,20 +677,37 @@ test('CopilotEmbeddingClientService should keep dispatch client across global co
   const second = await service.refresh();
   t.truthy(second);
   t.is(service.getClient(), second);
-  Sinon.assert.calledTwice(runtime.embeddingConfigured);
+  Sinon.assert.calledTwice(runtime.describeEmbeddingRoute);
   Sinon.assert.alwaysCalledWithExactly(
-    runtime.embeddingConfigured,
-    'text-embedding-3-large'
+    runtime.describeEmbeddingRoute,
+    'text-embedding-3-large',
+    {
+      dimensions: EMBEDDING_DIMENSIONS,
+      featureKind: 'workspace_indexing',
+    }
   );
+  Sinon.assert.calledTwice(runtime.describeRerankRoute);
+  Sinon.assert.alwaysCalledWithExactly(runtime.describeRerankRoute, undefined, {
+    featureKind: 'rerank',
+  });
 });
 
 test('CopilotEmbeddingClientService should keep workspace-routed embedding client without global provider', async t => {
   const taskPolicy = {
-    resolveEmbeddingModelId: () => 'gemini-embedding-001',
-    resolveRerankModelId: () => 'gpt-4o-mini',
+    resolveEmbeddingModelId: () => undefined,
+    resolveWorkspaceIndexingModelId: () => undefined,
+    resolveRerankModelId: () => undefined,
   };
   const runtime = {
-    embeddingConfigured: Sinon.stub().resolves(false),
+    describeEmbeddingRoute: Sinon.stub().resolves({
+      configured: false,
+      fallbackOrder: [],
+      dimensionMismatch: false,
+    }),
+    describeRerankRoute: Sinon.stub().resolves({
+      configured: false,
+      fallbackOrder: [],
+    }),
   };
   const service = new CopilotEmbeddingClientService(
     taskPolicy as any,
@@ -682,20 +719,125 @@ test('CopilotEmbeddingClientService should keep workspace-routed embedding clien
   t.truthy(client);
   t.is(service.getClient(), client);
   Sinon.assert.calledOnceWithExactly(
-    runtime.embeddingConfigured,
-    'gemini-embedding-001'
+    runtime.describeEmbeddingRoute,
+    undefined,
+    {
+      dimensions: EMBEDDING_DIMENSIONS,
+      featureKind: 'workspace_indexing',
+    }
+  );
+  Sinon.assert.calledOnceWithExactly(runtime.describeRerankRoute, undefined, {
+    featureKind: 'rerank',
+  });
+});
+
+test('CopilotEmbeddingClientService should surface workspace dimension contract diagnostics', async t => {
+  const taskPolicy = {
+    resolveEmbeddingModelId: () => undefined,
+    resolveWorkspaceIndexingModelId: () => undefined,
+    resolveRerankModelId: () => undefined,
+  };
+  const runtime = {
+    describeEmbeddingRoute: Sinon.stub().resolves({
+      configured: true,
+      fallbackOrder: ['ollama-main'],
+      providerId: 'ollama-main',
+      modelId: 'nomic-embed-text',
+      requestedDimensions: EMBEDDING_DIMENSIONS,
+      modelEmbeddingDimensions: 768,
+      dimensionMismatch: true,
+    }),
+    describeRerankRoute: Sinon.stub().resolves({
+      configured: true,
+      fallbackOrder: ['ollama-main'],
+      providerId: 'ollama-main',
+      modelId: 'bge-reranker-v2',
+      candidateCount: 1,
+    }),
+  };
+  const service = new CopilotEmbeddingClientService(
+    taskPolicy as any,
+    runtime as any
+  );
+
+  const client = await service.refresh();
+
+  t.truthy(client);
+  t.is(service.getClient(), client);
+  Sinon.assert.calledOnceWithExactly(
+    runtime.describeEmbeddingRoute,
+    undefined,
+    {
+      dimensions: EMBEDDING_DIMENSIONS,
+      featureKind: 'workspace_indexing',
+    }
+  );
+  Sinon.assert.calledOnceWithExactly(runtime.describeRerankRoute, undefined, {
+    featureKind: 'rerank',
+  });
+});
+
+test('CopilotEmbeddingClientService should surface rerank route diagnostics without blocking embedding client', async t => {
+  const taskPolicy = {
+    resolveEmbeddingModelId: () => undefined,
+    resolveWorkspaceIndexingModelId: () => undefined,
+    resolveRerankModelId: () => 'ollama-main/local-rerank',
+  };
+  const runtime = {
+    describeEmbeddingRoute: Sinon.stub().resolves({
+      configured: true,
+      fallbackOrder: ['ollama-main'],
+      dimensionMismatch: false,
+    }),
+    describeRerankRoute: Sinon.stub().resolves({
+      configured: true,
+      fallbackOrder: ['ollama-main'],
+      providerId: 'ollama-main',
+      modelId: 'bge-reranker-v2',
+      candidateCount: 1,
+    }),
+  };
+  const service = new CopilotEmbeddingClientService(
+    taskPolicy as any,
+    runtime as any
+  );
+
+  const client = await service.refresh();
+
+  t.truthy(client);
+  t.is(service.getClient(), client);
+  Sinon.assert.calledOnceWithExactly(
+    runtime.describeRerankRoute,
+    'ollama-main/local-rerank',
+    {
+      featureKind: 'rerank',
+    }
   );
 });
 
 test('CopilotEmbeddingClientService should pass workspace context into embedding routes', async t => {
   const signal = new AbortController().signal;
   const taskPolicy = {
-    resolveEmbeddingModelId: () => 'gemini-embedding-001',
-    resolveRerankModelId: () => 'gpt-4o-mini',
+    resolveEmbeddingModelId: () => undefined,
+    resolveWorkspaceIndexingModelId: () => undefined,
+    resolveRerankModelId: () => undefined,
   };
   const runtime = {
-    embeddingConfigured: Sinon.stub().resolves(true),
-    embed: Sinon.stub().resolves([[0.1]]),
+    describeEmbeddingRoute: Sinon.stub().resolves({
+      configured: true,
+      fallbackOrder: ['openai-default'],
+      dimensionMismatch: false,
+    }),
+    describeRerankRoute: Sinon.stub().resolves({
+      configured: true,
+      fallbackOrder: ['openai-default'],
+      providerId: 'openai-default',
+      modelId: 'gpt-4o-mini',
+      candidateCount: 1,
+    }),
+    embed: Sinon.stub().resolves([
+      Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.1),
+    ]),
     rerank: Sinon.stub().resolves([0.8]),
   };
   const service = new CopilotEmbeddingClientService(
@@ -712,18 +854,13 @@ test('CopilotEmbeddingClientService should pass workspace context into embedding
     signal,
   });
 
-  Sinon.assert.calledOnceWithMatch(
-    runtime.embed,
-    'gemini-embedding-001',
-    ['hello'],
-    {
-      dimensions: Sinon.match.number,
-      workspace: 'workspace-1',
-      user: 'user-1',
-      featureKind: 'workspace_indexing',
-      signal,
-    }
-  );
+  Sinon.assert.calledOnceWithMatch(runtime.embed, undefined, ['hello'], {
+    dimensions: Sinon.match.number,
+    workspace: 'workspace-1',
+    user: 'user-1',
+    featureKind: 'workspace_indexing',
+    signal,
+  });
 
   await client?.reRank(
     'hello',
@@ -739,7 +876,7 @@ test('CopilotEmbeddingClientService should pass workspace context into embedding
 
   Sinon.assert.calledOnceWithMatch(
     runtime.rerank,
-    'gpt-4o-mini',
+    undefined,
     {
       query: 'hello',
       candidates: [{ id: '0', text: 'hello' }],
@@ -751,6 +888,109 @@ test('CopilotEmbeddingClientService should pass workspace context into embedding
       signal,
     }
   );
+});
+
+test('CopilotEmbeddingClientService should use configured workspace indexing model alias', async t => {
+  const taskPolicy = {
+    resolveEmbeddingModelId: () => 'ollama-main/office-embedding',
+    resolveWorkspaceIndexingModelId: () => 'ollama-main/workspace-embedding',
+    resolveRerankModelId: () => 'ollama-main/office-rerank',
+  };
+  const runtime = {
+    describeEmbeddingRoute: Sinon.stub().resolves({
+      configured: true,
+      fallbackOrder: ['ollama-main'],
+      dimensionMismatch: false,
+    }),
+    describeRerankRoute: Sinon.stub().resolves({
+      configured: true,
+      fallbackOrder: ['ollama-main'],
+      providerId: 'ollama-main',
+      modelId: 'bge-reranker-v2',
+      candidateCount: 1,
+    }),
+    embed: Sinon.stub().resolves([
+      Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.1),
+    ]),
+  };
+  const service = new CopilotEmbeddingClientService(
+    taskPolicy as any,
+    runtime as any
+  );
+  const client = await service.refresh();
+
+  t.truthy(client);
+  Sinon.assert.calledOnceWithExactly(
+    runtime.describeEmbeddingRoute,
+    'ollama-main/workspace-embedding',
+    {
+      dimensions: EMBEDDING_DIMENSIONS,
+      featureKind: 'workspace_indexing',
+    }
+  );
+
+  await client?.getEmbeddings(['general embedding'], {
+    workspaceId: 'workspace-1',
+    featureKind: 'embedding',
+  });
+  await client?.getEmbeddings(['workspace indexing'], {
+    workspaceId: 'workspace-1',
+    featureKind: 'workspace_indexing',
+  });
+
+  t.is(runtime.embed.firstCall.args[0], 'ollama-main/office-embedding');
+  t.deepEqual(runtime.embed.firstCall.args[1], ['general embedding']);
+  t.like(runtime.embed.firstCall.args[2], {
+    workspace: 'workspace-1',
+    featureKind: 'embedding',
+  });
+  t.is(runtime.embed.secondCall.args[0], 'ollama-main/workspace-embedding');
+  t.deepEqual(runtime.embed.secondCall.args[1], ['workspace indexing']);
+  t.like(runtime.embed.secondCall.args[2], {
+    workspace: 'workspace-1',
+    featureKind: 'workspace_indexing',
+  });
+});
+
+test('CopilotEmbeddingClientService should reject embeddings that do not match workspace vector dimensions', async t => {
+  const taskPolicy = {
+    resolveEmbeddingModelId: () => undefined,
+    resolveWorkspaceIndexingModelId: () => undefined,
+    resolveRerankModelId: () => undefined,
+  };
+  const runtime = {
+    describeEmbeddingRoute: Sinon.stub().resolves({
+      configured: true,
+      fallbackOrder: ['openai-default'],
+      dimensionMismatch: false,
+    }),
+    describeRerankRoute: Sinon.stub().resolves({
+      configured: true,
+      fallbackOrder: ['openai-default'],
+      providerId: 'openai-default',
+      modelId: 'gpt-4o-mini',
+      candidateCount: 1,
+    }),
+    embed: Sinon.stub().resolves([Array.from({ length: 768 }, () => 0.1)]),
+  };
+  const service = new CopilotEmbeddingClientService(
+    taskPolicy as any,
+    runtime as any
+  );
+  const client = await service.refresh();
+
+  const error = await t.throwsAsync(() =>
+    client.getEmbeddings(['hello'], {
+      workspaceId: 'workspace-1',
+      featureKind: 'workspace_indexing',
+    })
+  );
+
+  t.regex(error?.message ?? '', /1024 embedding dimensions/);
+  Sinon.assert.calledOnceWithMatch(runtime.embed, undefined, ['hello'], {
+    dimensions: EMBEDDING_DIMENSIONS,
+    featureKind: 'workspace_indexing',
+  });
 });
 
 test('CompatHistoryProjector should compose visibility, prompt preload and attachment url projection', t => {
@@ -1284,6 +1524,7 @@ test('ActionRuntimeBridge should persist attachments and lightweight trace', asy
 
 test('ActionRuntimeBridge should inject prepared structured routes into native input', async t => {
   const capturedInputs: unknown[] = [];
+  const completedRuns: unknown[] = [];
   class TestActionRuntimeBridge extends ActionRuntimeBridge {
     protected override runNativeStream(input: unknown) {
       capturedInputs.push(input);
@@ -1294,6 +1535,7 @@ test('ActionRuntimeBridge should inject prepared structured routes into native i
           actionVersion: 'v1',
           status: 'succeeded' as const,
           result: { content: 'ok' },
+          trace: { lightweight: [{ type: 'action_trace' }] },
         };
       })();
     }
@@ -1301,7 +1543,10 @@ test('ActionRuntimeBridge should inject prepared structured routes into native i
   const actionRun = {
     create: async () => ({ id: 'run-1' }),
     markRunning: async (id: string) => ({ id, status: 'running' }),
-    complete: async (id: string, input: unknown) => ({ id, input }),
+    complete: async (id: string, input: unknown) => {
+      completedRuns.push({ id, input });
+      return { id, input };
+    },
   };
   const plans = {
     buildStructuredPlan: async (model: { modelId?: string }) => {
@@ -1312,6 +1557,49 @@ test('ActionRuntimeBridge should inject prepared structured routes into native i
             routes: [{ provider: 'openai', modelId: 'model-1' }],
           },
         },
+        routeDiagnostics: [
+          {
+            providerId: 'openai-default',
+            model: 'model-1',
+            protocol: 'openai_chat',
+            backendConfig: {
+              request_layer: 'chat_completions',
+              auth_token: 'should-not-be-traced',
+            },
+            providerConfiguredModelCount: 2,
+            providerConfiguredModelIds: ['model-1', 'model-alias'],
+            providerHealth: 'healthy',
+            providerHealthCheckedAt: '2026-06-16T09:30:00.000Z',
+            providerName: 'OpenAI Default',
+            providerPrivacy: 'cloud',
+            providerPriority: 10,
+            providerProfileConfigPath:
+              'copilot.providers.profiles[id=openai-default]',
+            providerProfileId: 'openai-default',
+            providerProfileSource: 'configured',
+            providerSource: 'configured',
+            providerType: 'openai',
+            routeModelAliasMatched: true,
+            routeModelDefinitionAliases: ['model-alias'],
+            routeModelDefinitionId: 'model-1',
+            routeModelDefinitionSource: 'provider_profile',
+            routeRawModelId: 'gpt-4o-mini',
+          },
+        ],
+        serializable: {
+          routes: [
+            {
+              providerId: 'openai-default',
+              model: 'model-1',
+              protocol: 'openai_chat',
+              backendConfig: {
+                request_layer: 'chat_completions',
+                auth_token: 'should-not-be-traced',
+              },
+            },
+          ],
+        },
+        routePolicy: { fallbackOrder: ['openai-default'] },
       };
     },
   };
@@ -1329,6 +1617,7 @@ test('ActionRuntimeBridge should inject prepared structured routes into native i
     prepareStructuredRoutes: {
       stepId: 'generate',
       modelId: 'model-1',
+      modelSelectionSource: 'prompt_preference',
       messages: [{ role: 'user', content: 'make a map' }],
     },
   })) {
@@ -1341,6 +1630,123 @@ test('ActionRuntimeBridge should inject prepared structured routes into native i
   t.deepEqual(nativeInput.input.preparedRoutes.generate, [
     { provider: 'openai', modelId: 'model-1' },
   ]);
+  t.deepEqual((completedRuns[0] as { input: { trace: unknown } }).input.trace, {
+    native: { lightweight: [{ type: 'action_trace' }] },
+    preparedRoutes: {
+      type: 'prepared_routes',
+      status: 'succeeded',
+      steps: [
+        {
+          stepId: 'generate',
+          kind: 'structured',
+          routeCount: 1,
+          requestedModelId: 'model-1',
+          requestedModelSource: 'prompt_preference',
+          fallbackProviderIds: ['openai-default'],
+          routes: [
+            {
+              providerId: 'openai-default',
+              modelId: 'model-1',
+              routeIndex: 0,
+              fallbackOrderIndex: 0,
+              protocol: 'openai_chat',
+              requestLayer: 'chat_completions',
+              providerConfiguredModelCount: 2,
+              providerConfiguredModelIds: ['model-1', 'model-alias'],
+              providerHealth: 'healthy',
+              providerHealthCheckedAt: '2026-06-16T09:30:00.000Z',
+              providerName: 'OpenAI Default',
+              providerPrivacy: 'cloud',
+              providerPriority: 10,
+              providerProfileConfigPath:
+                'copilot.providers.profiles[id=openai-default]',
+              providerProfileId: 'openai-default',
+              providerProfileSource: 'configured',
+              providerSource: 'configured',
+              providerType: 'openai',
+              routeModelAliasMatched: true,
+              routeModelDefinitionAliases: ['model-alias'],
+              routeModelDefinitionId: 'model-1',
+              routeModelDefinitionSource: 'provider_profile',
+              routeRawModelId: 'gpt-4o-mini',
+            },
+          ],
+        },
+      ],
+    },
+  });
+});
+
+test('ActionRuntimeBridge should sanitize prepared route model source before tracing', async t => {
+  const completedRuns: unknown[] = [];
+  class TestActionRuntimeBridge extends ActionRuntimeBridge {
+    protected override runNativeStream() {
+      return (async function* () {
+        yield {
+          type: 'action_done' as const,
+          actionId: 'mindmap.generate',
+          actionVersion: 'v1',
+          status: 'succeeded' as const,
+          result: { result: 'done' },
+        };
+      })();
+    }
+  }
+  const actionRun = {
+    create: async () => ({ id: 'run-1' }),
+    markRunning: async (id: string) => ({ id, status: 'running' }),
+    complete: async (id: string, input: unknown) => {
+      completedRuns.push({ id, input });
+      return { id, input };
+    },
+  };
+  const plans = {
+    buildStructuredPlan: async () => ({
+      nativeDispatch: {
+        structured: {
+          routes: [{ provider: 'openai', modelId: 'model-1' }],
+        },
+      },
+      serializable: {
+        routes: [
+          {
+            providerId: 'openai-default',
+            model: 'model-1',
+            backendConfig: {
+              request_layer: 'chat_completions',
+            },
+          },
+        ],
+      },
+      routePolicy: { fallbackOrder: ['openai-default'] },
+    }),
+  };
+  const bridge = new TestActionRuntimeBridge(
+    { copilotActionRun: actionRun } as unknown as Models,
+    stubTurnPersistence(),
+    plans as any
+  );
+
+  for await (const event of bridge.runStream({
+    userId: 'user-1',
+    workspaceId: 'workspace-1',
+    actionId: 'mindmap.generate',
+    actionVersion: 'v1',
+    prepareStructuredRoutes: {
+      stepId: 'generate',
+      modelId: 'model-1',
+      modelSelectionSource: 'unsafe-provider/model',
+      messages: [{ role: 'user', content: 'make a map' }],
+    },
+  })) {
+    void event;
+  }
+
+  const trace = (completedRuns[0] as { input: { trace: unknown } }).input
+    .trace as {
+    steps: Array<{ requestedModelSource?: string }>;
+  };
+  t.is(trace.steps[0].requestedModelSource, undefined);
 });
 
 test('ActionRuntimeBridge should inject prepared image routes and persist attachment events', async t => {
@@ -1383,6 +1789,31 @@ test('ActionRuntimeBridge should inject prepared image routes and persist attach
             routes: [{ provider: 'openai', modelId: 'gpt-image-1' }],
           },
         },
+        routeDiagnostics: [
+          {
+            providerId: 'openai-default',
+            model: 'gpt-image-1',
+            protocol: 'openai_image',
+            backendConfig: {
+              request_layer: 'images',
+              base_url: 'https://example.invalid',
+            },
+          },
+        ],
+        serializable: {
+          routes: [
+            {
+              providerId: 'openai-default',
+              model: 'gpt-image-1',
+              protocol: 'openai_image',
+              backendConfig: {
+                request_layer: 'images',
+                base_url: 'https://example.invalid',
+              },
+            },
+          ],
+        },
+        routePolicy: { fallbackOrder: ['openai-default', 'fal-backup'] },
       };
     },
   };
@@ -1401,6 +1832,7 @@ test('ActionRuntimeBridge should inject prepared image routes and persist attach
     prepareImageRoutes: {
       stepId: 'generate-image',
       modelId: 'gpt-image-1',
+      modelSelectionSource: 'explicit',
       messages: [{ role: 'user', content: 'draw' }],
     },
     persistAttachment: async attachment => ({
@@ -1420,6 +1852,30 @@ test('ActionRuntimeBridge should inject prepared image routes and persist attach
   t.deepEqual(events[0].attachment, { url: 'affine://image-result' });
   t.like((completedRuns[0] as { input: Record<string, unknown> }).input, {
     artifacts: [{ url: 'affine://image-result' }],
+  });
+  t.deepEqual((completedRuns[0] as { input: { trace: unknown } }).input.trace, {
+    type: 'prepared_routes',
+    status: 'succeeded',
+    steps: [
+      {
+        stepId: 'generate-image',
+        kind: 'image',
+        routeCount: 1,
+        requestedModelId: 'gpt-image-1',
+        requestedModelSource: 'explicit',
+        fallbackProviderIds: ['openai-default', 'fal-backup'],
+        routes: [
+          {
+            providerId: 'openai-default',
+            modelId: 'gpt-image-1',
+            routeIndex: 0,
+            fallbackOrderIndex: 0,
+            protocol: 'openai_image',
+            requestLayer: 'images',
+          },
+        ],
+      },
+    ],
   });
 });
 
@@ -1551,11 +2007,15 @@ test('ActionStreamHost should prepare action turn and bridge native stream', asy
       })();
     },
   };
+  const providers = {
+    resolveModelContextWindow: Sinon.stub().resolves(undefined),
+  };
   const host = new ActionStreamHost(
     conversations as any,
     bridge as unknown as ActionRuntimeBridge,
     prompts as any,
-    {} as any
+    {} as any,
+    providers as any
   );
 
   const prepared = await host.stream('user-1', 'session-1', {
@@ -1616,6 +2076,107 @@ test('ActionStreamHost should prepare action turn and bridge native stream', asy
     }
   );
   Sinon.assert.calledOnceWithExactly(prompts.get, 'mindmap.generate');
+  Sinon.assert.notCalled(providers.resolveModelContextWindow);
+});
+
+test('ActionStreamHost should cap session-backed action prompt by selected model context window', async t => {
+  const bridgeInputs: unknown[] = [];
+  const session = {
+    config: {
+      sessionId: 'session-1',
+      workspaceId: 'workspace-1',
+      docId: 'doc-1',
+      promptName: 'custom.action',
+      promptConfig: {},
+    },
+    finish: Sinon.stub().returns([
+      { role: 'user', content: 'make an outline' },
+    ]),
+  };
+  const conversations = {
+    prepareTurn: Sinon.stub().resolves({
+      messageId: 'submission-1',
+      params: { topic: 'planning' },
+      session,
+      latestTurn: { id: 'turn-1' },
+      quotaBackedRoutesAllowed: false,
+    }),
+    buildLatestTurnPromptParams: Sinon.stub().returns({
+      content: 'make an outline',
+    }),
+  };
+  const prompts = {
+    get: Sinon.stub(),
+    finish: Sinon.stub(),
+  };
+  const bridge = {
+    runStream: (input: unknown) => {
+      bridgeInputs.push(input);
+      return (async function* () {
+        yield {
+          type: 'action_done' as const,
+          actionId: 'custom.action',
+          actionVersion: 'v1',
+          status: 'succeeded' as const,
+          runId: 'run-1',
+          result: { content: 'ok' },
+        };
+      })();
+    },
+  };
+  const providers = {
+    resolveModelContextWindow: Sinon.stub().resolves(4096),
+  };
+  const host = new ActionStreamHost(
+    conversations as any,
+    bridge as unknown as ActionRuntimeBridge,
+    prompts as any,
+    {} as any,
+    providers as any
+  );
+
+  const prepared = await host.stream('user-1', 'session-1', {
+    actionId: 'custom.action',
+    actionVersion: 'v1',
+    modelId: 'local/office-fast',
+    byokLeaseId: 'lease-1',
+  });
+  for await (const event of prepared.stream) {
+    void event;
+  }
+
+  Sinon.assert.calledOnceWithExactly(
+    providers.resolveModelContextWindow,
+    {
+      modelId: 'local/office-fast',
+      outputType: ModelOutputType.Structured,
+    },
+    {},
+    {
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      byokLeaseId: 'lease-1',
+      featureKind: 'action',
+      quotaBackedRoutesAllowed: false,
+    }
+  );
+  Sinon.assert.calledOnceWithExactly(
+    session.finish,
+    {
+      topic: 'planning',
+      content: 'make an outline',
+    },
+    { contextWindow: 4096 }
+  );
+  t.like(
+    (bridgeInputs[0] as { prepareStructuredRoutes: Record<string, unknown> })
+      .prepareStructuredRoutes,
+    {
+      modelId: 'local/office-fast',
+      messages: [{ role: 'user', content: 'make an outline' }],
+    }
+  );
+  Sinon.assert.notCalled(prompts.get);
 });
 
 test('ActionStreamHost should prepare image action routes and persist native attachments', async t => {
@@ -1667,11 +2228,15 @@ test('ActionStreamHost should prepare image action routes and persist native att
       })();
     },
   };
+  const providers = {
+    resolveModelContextWindow: Sinon.stub().resolves(undefined),
+  };
   const host = new ActionStreamHost(
     conversations as any,
     bridge as unknown as ActionRuntimeBridge,
     prompts as any,
-    imageResults as any
+    imageResults as any,
+    providers as any
   );
 
   const prepared = await host.stream('user-1', 'session-1', {
@@ -1686,7 +2251,7 @@ test('ActionStreamHost should prepare image action routes and persist native att
   t.is(bridgeInputs[0].prepareStructuredRoutes, undefined);
   t.like(bridgeInputs[0].prepareImageRoutes, {
     stepId: 'generate-image',
-    modelId: 'gpt-image-1',
+    modelId: 'chat-model',
     messages: [{ role: 'user', content: 'make a sketch' }],
   });
   t.like(bridgeInputs[0].prepareImageRoutes.options, {
@@ -1708,6 +2273,7 @@ test('ActionStreamHost should prepare image action routes and persist native att
       media_type: 'image/png',
     }
   );
+  Sinon.assert.notCalled(providers.resolveModelContextWindow);
 });
 
 test('attachment materialization planner should keep admitted bytes inline', async t => {

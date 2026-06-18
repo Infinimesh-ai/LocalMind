@@ -394,6 +394,10 @@ test('byok service persists encrypted server keys and never returns plaintext', 
       `byok-${workspaceHash(workspace.id)}-openai-${primary.id}`,
     ]
   );
+  t.deepEqual(
+    profiles.map(profile => profile.source),
+    ['byok_server', 'byok_server']
+  );
 });
 
 test('byok service preserves server key fields during partial updates', async t => {
@@ -517,6 +521,10 @@ test('local leases are short lived and do not persist keys to server configs', a
   t.deepEqual(
     profiles.map(profile => profile.type),
     ['openai']
+  );
+  t.deepEqual(
+    profiles.map(profile => profile.source),
+    ['byok_local']
   );
 
   const otherWorkspace = await t.context.models.workspace.create(user.id);
@@ -1115,6 +1123,10 @@ test('effective profiles use local lease before server keys and skip disabled ke
   t.deepEqual(
     profiles.map(profile => profile.type),
     ['openai', 'gemini']
+  );
+  t.deepEqual(
+    profiles.map(profile => profile.source),
+    ['byok_local', 'byok_server']
   );
 
   const serverOnlyFeatureKinds: ByokFeatureKind[] = [

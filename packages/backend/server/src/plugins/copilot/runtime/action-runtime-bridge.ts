@@ -1,6 +1,10 @@
 import { Injectable, Optional } from '@nestjs/common';
 
 import { Models } from '../../../models';
+import {
+  type ActionModelSelectionSource,
+  normalizeActionModelSelectionSource,
+} from '../../../models/copilot-action-model-selection';
 import type { AiActionRunStatus } from '../../../models/copilot-action-run';
 import {
   type NativeActionEvent,
@@ -22,6 +26,7 @@ import {
   buildStructuredResponseFromSchemaJson,
   type RequiredStructuredOutputContract,
 } from './contracts';
+import type { ExecutionRouteDiagnostics } from './contracts/execution-plan-contract';
 import { ExecutionPlanBuilder } from './execution-plan';
 import { TurnPersistence } from './hosts/turn-persistence';
 
@@ -49,6 +54,7 @@ export type ActionRuntimeBridgeInput = {
   prepareStructuredRoutes?: {
     stepId?: string;
     modelId?: string;
+    modelSelectionSource?: ActionModelSelectionSource | string;
     messages: PromptMessage[];
     options?: CopilotStructuredOptions;
     prefer?: CopilotProviderType;
@@ -58,6 +64,7 @@ export type ActionRuntimeBridgeInput = {
   prepareImageRoutes?: {
     stepId?: string;
     modelId?: string;
+    modelSelectionSource?: ActionModelSelectionSource | string;
     messages: PromptMessage[];
     options?: CopilotImageOptions;
     prefer?: CopilotProviderType;
@@ -73,6 +80,45 @@ export type ActionRuntimeBridgeEvent = NativeActionEvent & {
 export type ActionRuntimeBridgeRunContext = {
   runId: string;
   attempt: number;
+};
+
+type PreparedActionRouteTrace = {
+  type: 'prepared_routes';
+  status: 'succeeded';
+  steps: Array<{
+    stepId: string;
+    kind: 'structured' | 'image';
+    routeCount: number;
+    requestedModelId?: string;
+    requestedModelSource?: ActionModelSelectionSource;
+    fallbackProviderIds: string[];
+    routes: Array<{
+      providerId: string;
+      modelId: string;
+      routeIndex: number;
+      fallbackOrderIndex?: number;
+      protocol?: string;
+      requestLayer?: string;
+      providerConfiguredModelCount?: number;
+      providerConfiguredModelIds?: string[];
+      providerHealth?: string;
+      providerHealthCheckedAt?: string;
+      providerHealthLastError?: string;
+      providerName?: string;
+      providerPrivacy?: string;
+      providerPriority?: number;
+      providerProfileConfigPath?: string;
+      providerProfileId?: string;
+      providerProfileSource?: string;
+      providerSource?: string;
+      providerType?: string;
+      routeModelAliasMatched?: boolean;
+      routeModelDefinitionAliases?: string[];
+      routeModelDefinitionId?: string;
+      routeModelDefinitionSource?: string;
+      routeRawModelId?: string;
+    }>;
+  }>;
 };
 
 function extractResultArtifacts(result: unknown) {
@@ -102,6 +148,109 @@ function resolveFinalStatus(
   return 'failed';
 }
 
+function describePreparedActionRoutes(
+  kind: PreparedActionRouteTrace['steps'][number]['kind'],
+  stepId: string,
+  requestedModelId: string | undefined,
+  requestedModelSource: unknown,
+  routes: ExecutionRouteDiagnostics[],
+  fallbackProviderIds: string[]
+): PreparedActionRouteTrace['steps'][number] {
+  const normalizedModelSource =
+    normalizeActionModelSelectionSource(requestedModelSource);
+
+  return {
+    stepId,
+    kind,
+    routeCount: routes.length,
+    ...(requestedModelId ? { requestedModelId } : {}),
+    ...(normalizedModelSource
+      ? { requestedModelSource: normalizedModelSource }
+      : {}),
+    fallbackProviderIds,
+    routes: routes.map((route, index) => {
+      const fallbackOrderIndex = fallbackProviderIds.indexOf(route.providerId);
+
+      return {
+        providerId: route.providerId,
+        modelId: route.model,
+        routeIndex: index,
+        ...(fallbackOrderIndex >= 0 ? { fallbackOrderIndex } : {}),
+        protocol: route.protocol,
+        requestLayer: route.backendConfig.request_layer,
+        ...(route.providerName ? { providerName: route.providerName } : {}),
+        ...(route.providerSource
+          ? { providerSource: route.providerSource }
+          : {}),
+        ...(route.providerProfileId
+          ? { providerProfileId: route.providerProfileId }
+          : {}),
+        ...(route.providerProfileSource
+          ? { providerProfileSource: route.providerProfileSource }
+          : {}),
+        ...(route.providerProfileConfigPath
+          ? { providerProfileConfigPath: route.providerProfileConfigPath }
+          : {}),
+        ...(route.providerConfiguredModelIds?.length
+          ? { providerConfiguredModelIds: route.providerConfiguredModelIds }
+          : {}),
+        ...(route.providerConfiguredModelCount != null
+          ? { providerConfiguredModelCount: route.providerConfiguredModelCount }
+          : {}),
+        ...(route.providerType ? { providerType: route.providerType } : {}),
+        ...(route.providerPrivacy
+          ? { providerPrivacy: route.providerPrivacy }
+          : {}),
+        ...(route.providerHealth
+          ? { providerHealth: route.providerHealth }
+          : {}),
+        ...(route.providerHealthCheckedAt
+          ? { providerHealthCheckedAt: route.providerHealthCheckedAt }
+          : {}),
+        ...(route.providerHealthLastError
+          ? { providerHealthLastError: route.providerHealthLastError }
+          : {}),
+        ...(route.providerPriority != null
+          ? { providerPriority: route.providerPriority }
+          : {}),
+        ...(route.routeModelAliasMatched !== undefined
+          ? { routeModelAliasMatched: route.routeModelAliasMatched }
+          : {}),
+        ...(route.routeModelDefinitionAliases?.length
+          ? { routeModelDefinitionAliases: route.routeModelDefinitionAliases }
+          : {}),
+        ...(route.routeModelDefinitionId
+          ? { routeModelDefinitionId: route.routeModelDefinitionId }
+          : {}),
+        ...(route.routeModelDefinitionSource
+          ? { routeModelDefinitionSource: route.routeModelDefinitionSource }
+          : {}),
+        ...(route.routeRawModelId
+          ? { routeRawModelId: route.routeRawModelId }
+          : {}),
+      };
+    }),
+  };
+}
+
+function mergeActionTrace(
+  nativeTrace: unknown,
+  preparedRouteTrace: PreparedActionRouteTrace | undefined
+) {
+  if (!preparedRouteTrace) {
+    return nativeTrace;
+  }
+
+  if (!nativeTrace) {
+    return preparedRouteTrace;
+  }
+
+  return {
+    native: nativeTrace,
+    preparedRoutes: preparedRouteTrace,
+  };
+}
+
 @Injectable()
 export class ActionRuntimeBridge {
   constructor(
@@ -117,9 +266,10 @@ export class ActionRuntimeBridge {
     return runNativeActionRecipePreparedStream(input, signal);
   }
 
-  private async prepareNativeInput(
-    input: ActionRuntimeBridgeInput
-  ): Promise<ActionRuntimeBridgeNativeInput & { input: unknown }> {
+  private async prepareNativeInput(input: ActionRuntimeBridgeInput): Promise<{
+    nativeInput: ActionRuntimeBridgeNativeInput & { input: unknown };
+    preparedRouteTrace?: PreparedActionRouteTrace;
+  }> {
     const nativeInput = {
       ...input.nativeInput,
       input: input.nativeInput?.input ?? {},
@@ -127,7 +277,7 @@ export class ActionRuntimeBridge {
     const structured = input.prepareStructuredRoutes;
     const image = input.prepareImageRoutes;
     if (!structured && !image) {
-      return nativeInput;
+      return { nativeInput };
     }
     if (!this.plans) {
       throw new Error('Action route preparation is not available');
@@ -136,6 +286,7 @@ export class ActionRuntimeBridge {
       nativeInput.input && typeof nativeInput.input === 'object'
         ? { ...(nativeInput.input as Record<string, unknown>) }
         : {};
+    const preparedRouteSteps: PreparedActionRouteTrace['steps'] = [];
 
     if (structured) {
       const responseContract =
@@ -154,6 +305,7 @@ export class ActionRuntimeBridge {
       if (!preparedRoutes?.length) {
         throw new Error('No native structured provider route prepared');
       }
+      const stepId = structured.stepId ?? 'generate';
 
       const existingPreparedRoutes =
         state.preparedRoutes &&
@@ -163,8 +315,18 @@ export class ActionRuntimeBridge {
           : {};
       state.preparedRoutes = {
         ...existingPreparedRoutes,
-        [structured.stepId ?? 'generate']: preparedRoutes,
+        [stepId]: preparedRoutes,
       };
+      preparedRouteSteps.push(
+        describePreparedActionRoutes(
+          'structured',
+          stepId,
+          structured.modelId,
+          structured.modelSelectionSource,
+          plan.routeDiagnostics ?? [],
+          plan.routePolicy.fallbackOrder
+        )
+      );
     }
 
     if (image) {
@@ -178,6 +340,7 @@ export class ActionRuntimeBridge {
       if (!preparedRoutes?.length) {
         throw new Error('No native image provider route prepared');
       }
+      const stepId = image.stepId ?? 'generate-image';
 
       const existingPreparedRoutes =
         state.preparedRoutes &&
@@ -187,13 +350,32 @@ export class ActionRuntimeBridge {
           : {};
       state.preparedRoutes = {
         ...existingPreparedRoutes,
-        [image.stepId ?? 'generate-image']: preparedRoutes,
+        [stepId]: preparedRoutes,
       };
+      preparedRouteSteps.push(
+        describePreparedActionRoutes(
+          'image',
+          stepId,
+          image.modelId,
+          image.modelSelectionSource,
+          plan.routeDiagnostics ?? [],
+          plan.routePolicy.fallbackOrder
+        )
+      );
     }
 
     return {
-      ...nativeInput,
-      input: state,
+      nativeInput: {
+        ...nativeInput,
+        input: state,
+      },
+      preparedRouteTrace: preparedRouteSteps.length
+        ? {
+            type: 'prepared_routes',
+            status: 'succeeded',
+            steps: preparedRouteSteps,
+          }
+        : undefined,
     };
   }
 
@@ -271,14 +453,16 @@ export class ActionRuntimeBridge {
 
     const inputWithBillingUnit = this.withBillingUnit(input, run.id);
     let finalEvent: NativeActionEvent | undefined;
+    let preparedRouteTrace: PreparedActionRouteTrace | undefined;
     const attachments: unknown[] = [];
     try {
-      const nativeInput = await this.prepareNativeInput({
+      const prepared = await this.prepareNativeInput({
         ...inputWithBillingUnit,
       });
+      preparedRouteTrace = prepared.preparedRouteTrace;
       for await (const event of this.runNativeStream(
         {
-          ...nativeInput,
+          ...prepared.nativeInput,
           recipeId: inputWithBillingUnit.actionId,
           recipeVersion: inputWithBillingUnit.actionVersion,
         },
@@ -339,7 +523,7 @@ export class ActionRuntimeBridge {
         resultSummary:
           status === 'succeeded' ? summarizeActionResult(result) : null,
         errorCode,
-        trace: finalEvent?.trace ?? undefined,
+        trace: mergeActionTrace(finalEvent?.trace, preparedRouteTrace),
         assistantMessageId,
       });
     }

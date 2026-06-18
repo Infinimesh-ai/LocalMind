@@ -1,3 +1,4 @@
+import { applyModelMaxOutputTokens } from '../providers/provider-model-runtime';
 import type {
   CopilotProviderExecution,
   PreparedNativeExecution,
@@ -66,7 +67,9 @@ export async function prepareNativeChatExecution(
   return await buildPreparedNativeExecution({
     ...prepared,
     execution: input.execution,
-    options: input.options,
+    options: prepared.resolvedModel
+      ? applyModelMaxOutputTokens(prepared.resolvedModel, input.options)
+      : input.options,
   });
 }
 

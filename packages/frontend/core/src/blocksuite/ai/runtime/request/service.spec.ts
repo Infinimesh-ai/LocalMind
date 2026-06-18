@@ -4,6 +4,7 @@
 import { UserFriendlyError } from '@affine/error';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
+import { resolveActionPromptName } from './action-definitions';
 import { type CopilotClient, Endpoint } from './copilot-client';
 import { textToText, toImage } from './message-transport';
 import { AIRequestService } from './service';
@@ -195,6 +196,50 @@ describe('AIRequestService action definitions', () => {
     electronApis.byokStorage = undefined;
   });
 
+  test('resolves static and dynamic action prompt names', () => {
+    expect(
+      resolveActionPromptName('createSlides', {
+        workspaceId: 'workspace-1',
+        input: 'make slides',
+      })
+    ).toBe('slides.outline');
+    expect(
+      resolveActionPromptName('makeItReal', {
+        workspaceId: 'workspace-1',
+        input: 'make html',
+        attachments: ['blob-1'],
+      })
+    ).toBe('Make it real');
+    expect(
+      resolveActionPromptName('makeItReal', {
+        workspaceId: 'workspace-1',
+        input: 'make html',
+      })
+    ).toBe('Make it real with text');
+    expect(
+      resolveActionPromptName('filterImage', {
+        workspaceId: 'workspace-1',
+        input: 'convert',
+        style: 'Sketch style',
+      })
+    ).toBe('image.filter.sketch');
+  });
+
+  test('throws when a dynamic action prompt cannot be resolved', () => {
+    expect(() =>
+      resolveActionPromptName('filterImage', {
+        workspaceId: 'workspace-1',
+        input: 'convert',
+      })
+    ).toThrow('filterImage requires a promptName');
+    expect(() =>
+      resolveActionPromptName('processImage', {
+        workspaceId: 'workspace-1',
+        input: 'process',
+      })
+    ).toThrow('processImage requires a promptName');
+  });
+
   test('routes action-stream requests through action endpoint', async () => {
     const client = createClient();
     const service = new AIRequestService(client);
@@ -246,6 +291,71 @@ describe('AIRequestService action definitions', () => {
     expect(client.imagesStream).not.toHaveBeenCalled();
   });
 
+  test('passes selected modelId through text and image action transports', async () => {
+    const client = createClient();
+    const service = new AIRequestService(client);
+
+    await drainActionResult(
+      (await service.executeAction('summary', {
+        workspaceId: 'workspace-1',
+        input: 'summarize',
+        modelId: 'text-model',
+        modelSelection: {
+          modelId: 'text-model',
+          promptName: 'Summary',
+          source: 'prompt_preference',
+        },
+        stream: true,
+      })) as AsyncIterable<unknown>
+    );
+    await drainActionResult(
+      (await service.executeAction('createImage', {
+        workspaceId: 'workspace-1',
+        input: 'draw',
+        modelId: 'image-model',
+        stream: true,
+      })) as AsyncIterable<unknown>
+    );
+    await drainActionResult(
+      (await service.executeAction('filterImage', {
+        workspaceId: 'workspace-1',
+        input: 'convert',
+        attachments: ['blob-1'],
+        style: 'Sketch style',
+        modelId: 'image-action-model',
+        modelSelection: {
+          modelId: 'image-action-model',
+          promptName: 'image.filter.sketch',
+          source: 'explicit',
+        },
+        stream: true,
+      })) as AsyncIterable<unknown>
+    );
+
+    expect(client.chatTextStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelId: 'text-model',
+        modelSelectionSource: 'prompt_preference',
+      }),
+      Endpoint.StreamObject
+    );
+    expect(client.imagesStream).toHaveBeenCalledWith(
+      'session:Generate image',
+      'message-1',
+      undefined,
+      undefined,
+      undefined,
+      'image-model'
+    );
+    expect(client.chatTextStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelId: 'image-action-model',
+        modelSelectionSource: 'explicit',
+      }),
+      Endpoint.Action
+    );
+  });
+
   test('reuses the last action session for retry', async () => {
     const client = createClient();
     const service = new AIRequestService(client);
@@ -289,7 +399,9 @@ describe('AIRequestService action definitions', () => {
     >;
     const subscription = service.actionEvents$.subscribe(event => {
       events.push(
-        `${event.options.host === hostOne ? 'one' : 'two'}:${event.event}`
+        `${event.options.host === hostOne ? 'one' : 'two'}:${event.event}:${
+          event.promptName
+        }:${event.modelSelection?.source ?? 'none'}`
       );
     });
 
@@ -298,6 +410,12 @@ describe('AIRequestService action definitions', () => {
         workspaceId: 'workspace-1',
         input: 'first',
         host: hostOne,
+        modelId: 'summary-model',
+        modelSelection: {
+          modelId: 'summary-model',
+          promptName: 'Summary',
+          source: 'prompt_preference',
+        },
         stream: true,
       })) as AsyncIterable<unknown>
     );
@@ -311,10 +429,36 @@ describe('AIRequestService action definitions', () => {
       })) as AsyncIterable<unknown>
     );
 
-    service.reportLastAction('result:insert', hostOne);
+    const reportedEvent = service.reportLastAction(
+      'result:continue-in-chat',
+      hostOne
+    );
     subscription.unsubscribe();
 
-    expect(events).toContain('one:result:insert');
+    expect(events).toEqual([
+      'one:started:Summary:prompt_preference',
+      'one:finished:Summary:prompt_preference',
+      'two:started:Translate to:none',
+      'two:finished:Translate to:none',
+      'one:result:continue-in-chat:Summary:prompt_preference',
+    ]);
+    expect(reportedEvent).toMatchObject({
+      action: 'summary',
+      event: 'result:continue-in-chat',
+      modelSelection: {
+        modelId: 'summary-model',
+        promptName: 'Summary',
+        source: 'prompt_preference',
+      },
+      options: {
+        modelSelection: {
+          modelId: 'summary-model',
+          promptName: 'Summary',
+          source: 'prompt_preference',
+        },
+      },
+      promptName: 'Summary',
+    });
   });
 
   test('loads sessions through history query with messages', async () => {

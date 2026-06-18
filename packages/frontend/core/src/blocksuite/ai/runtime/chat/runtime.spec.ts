@@ -181,6 +181,78 @@ describe('AIChatRuntime', () => {
     expect(runtime.getSnapshot().uiPolicy.canCreateNewSession).toBe(true);
   });
 
+  test('send creates a new session with the provided prompt scope', async () => {
+    const request = createRequest();
+    const runtime = createRuntime(request);
+    await runtime.dispatch({ type: 'initialize' });
+
+    await runtime.dispatch({
+      type: 'send',
+      input: 'create one image',
+      promptName: 'Generate image',
+    });
+
+    expect(request.createSessionWithHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        promptName: 'Generate image',
+      })
+    );
+    expect(request.executeAction).toHaveBeenCalledWith(
+      'chat',
+      expect.objectContaining({
+        modelId: undefined,
+        sessionId: 'session-1',
+      })
+    );
+  });
+
+  test('send keeps the default chat prompt when no prompt scope is provided', async () => {
+    const request = createRequest();
+    const runtime = createRuntime(request);
+    await runtime.dispatch({ type: 'initialize' });
+
+    await runtime.dispatch({ type: 'send', input: 'hello' });
+
+    expect(request.createSessionWithHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        promptName: 'Chat With AFFiNE AI',
+      })
+    );
+  });
+
+  test('send falls back to the default chat prompt when prompt scope is blank', async () => {
+    const request = createRequest();
+    const runtime = createRuntime(request);
+    await runtime.dispatch({ type: 'initialize' });
+
+    await runtime.dispatch({ type: 'send', input: 'hello', promptName: '   ' });
+
+    expect(request.createSessionWithHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        promptName: 'Chat With AFFiNE AI',
+      })
+    );
+  });
+
+  test('context creation uses the provided prompt scope before first send', async () => {
+    const request = createRequest();
+    const runtime = createRuntime(request);
+    await runtime.dispatch({ type: 'initialize' });
+
+    await runtime.dispatch({
+      type: 'addContextItem',
+      item: { kind: 'doc', docId: 'doc-2' },
+      promptName: 'slides.outline',
+    });
+
+    expect(request.createSessionWithHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        promptName: 'slides.outline',
+      })
+    );
+    expect(runtime.getSnapshot().activeSessionId).toBe('session-1');
+  });
+
   test('send binds an unbound session to the active doc after success', async () => {
     const unboundSession = session({ docId: null });
     const boundSession = session({ docId: 'doc-1' });

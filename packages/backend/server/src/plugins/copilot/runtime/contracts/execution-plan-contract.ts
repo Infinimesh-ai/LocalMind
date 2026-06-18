@@ -34,6 +34,27 @@ export type ExecutionRoute = {
   backendConfig: LlmBackendConfig;
 };
 
+export type ExecutionRouteDiagnostics = ExecutionRoute & {
+  providerConfiguredModelCount?: number;
+  providerConfiguredModelIds?: string[];
+  providerHealth?: string;
+  providerHealthCheckedAt?: string;
+  providerHealthLastError?: string;
+  providerName?: string;
+  providerPrivacy?: string;
+  providerPriority?: number;
+  providerProfileConfigPath?: string;
+  providerProfileId?: string;
+  providerProfileSource?: string;
+  providerSource?: string;
+  providerType?: string;
+  routeModelAliasMatched?: boolean;
+  routeModelDefinitionAliases?: string[];
+  routeModelDefinitionId?: string;
+  routeModelDefinitionSource?: string;
+  routeRawModelId?: string;
+};
+
 export type ExecutionTransportContract =
   | { kind: 'chat'; request: LlmRequest }
   | { kind: 'structured'; request: LlmStructuredRequest }
@@ -63,14 +84,14 @@ export type SerializableExecutionPlanRequest =
   | {
       kind: 'embedding';
       cond: ModelConditions;
-      modelId: string;
+      modelId?: string;
       input: string | string[];
       options?: Record<string, unknown>;
     }
   | {
       kind: 'rerank';
       cond: ModelConditions;
-      modelId: string;
+      modelId?: string;
       request: {
         query: string;
         candidates: { id?: string; text: string }[];

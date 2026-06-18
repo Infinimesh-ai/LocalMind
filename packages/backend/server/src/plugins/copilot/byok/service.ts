@@ -541,6 +541,7 @@ export class ByokService {
           type: byokProviderToCopilotType(provider),
           priority:
             BYOK_PROFILE_PRIORITY_BASE - SERVER_PROFILE_PRIORITY_OFFSET - index,
+          source: ByokProviderSource.Server,
           config: this.providerConfig(
             provider,
             row.encryptedApiKey,
@@ -584,6 +585,7 @@ export class ByokService {
           ),
           type: byokProviderToCopilotType(provider.provider),
           priority: BYOK_PROFILE_PRIORITY_BASE - index,
+          source: ByokProviderSource.Local,
           config: this.providerConfig(
             provider.provider,
             provider.encryptedApiKey,

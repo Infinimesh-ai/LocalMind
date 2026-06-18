@@ -81,3 +81,86 @@ describe('AIChatContent runtime snapshot sync', () => {
     expect(content.chatContextValue.status).toBe('idle');
   });
 });
+
+describe('AIChatContent open with chat prompt scope', () => {
+  test('stores promptName from matching open-with-chat request', () => {
+    const host = {} as NonNullable<AIChatContent['host']>;
+    const updateContext = vi.fn();
+    const content = Object.create(AIChatContent.prototype) as AIChatContent;
+    Object.defineProperty(content, 'host', {
+      configurable: true,
+      value: host,
+    });
+    Object.defineProperty(content, 'promptName', {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    });
+    Object.defineProperty(content, 'updateContext', {
+      configurable: true,
+      value: updateContext,
+    });
+
+    (content as any).handleOpenWithChat({
+      host,
+      fromAnswer: true,
+      context: { html: '<main></main>' },
+      promptName: 'Make it real',
+    });
+
+    expect((content as any).promptName).toBe('Make it real');
+    expect(updateContext).toHaveBeenCalledWith({ html: '<main></main>' });
+  });
+
+  test('uses handoff promptName before a session exists', () => {
+    const content = Object.create(AIChatContent.prototype) as AIChatContent;
+    Object.defineProperty(content, 'session', {
+      configurable: true,
+      value: null,
+    });
+    Object.defineProperty(content, 'promptName', {
+      configurable: true,
+      writable: true,
+      value: 'Make it real',
+    });
+
+    expect((content as any).activePromptName).toBe('Make it real');
+  });
+
+  test('uses session promptName over stale handoff promptName', () => {
+    const content = Object.create(AIChatContent.prototype) as AIChatContent;
+    Object.defineProperty(content, 'session', {
+      configurable: true,
+      value: { promptName: 'Chat With AFFiNE AI' },
+    });
+    Object.defineProperty(content, 'promptName', {
+      configurable: true,
+      writable: true,
+      value: 'Make it real',
+    });
+
+    expect((content as any).activePromptName).toBe('Chat With AFFiNE AI');
+  });
+
+  test('ignores promptName from a different host', () => {
+    const content = Object.create(AIChatContent.prototype) as AIChatContent;
+    Object.defineProperty(content, 'host', {
+      configurable: true,
+      value: {},
+    });
+    Object.defineProperty(content, 'promptName', {
+      configurable: true,
+      writable: true,
+      value: 'Summary',
+    });
+
+    (content as any).handleOpenWithChat({
+      host: {},
+      fromAnswer: true,
+      context: { html: '<main></main>' },
+      promptName: 'Make it real',
+    });
+
+    expect((content as any).promptName).toBe('Summary');
+  });
+});

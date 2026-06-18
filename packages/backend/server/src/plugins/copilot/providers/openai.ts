@@ -29,29 +29,39 @@ import { promptAttachmentToUrl } from './utils';
 
 export const DEFAULT_DIMENSIONS = 256;
 
+export type OpenAIRequestApiStyle = 'chat_completions' | 'responses' | 'auto';
+
 export type OpenAIConfig = {
   apiKey: string;
   baseURL?: string;
   oldApiStyle?: boolean;
 };
 
-export class OpenAIProvider extends CopilotProvider<OpenAIConfig> {
-  readonly type = CopilotProviderType.OpenAI;
+export type OpenAICompatibleConfig = {
+  apiKey?: string;
+  baseURL: string;
+  headers?: Record<string, string>;
+  apiStyle?: OpenAIRequestApiStyle;
+};
+
+abstract class OpenAIBaseProvider<
+  C extends {
+    apiKey?: string;
+    baseURL?: string;
+    headers?: Record<string, string>;
+  },
+> extends CopilotProvider<C> {
   @Inject() protected readonly attachmentMaterializer!: AttachmentMaterializer;
   @Inject()
   protected readonly attachmentAdmissionHost?: AttachmentAdmissionHost;
 
-  protected resolveModelBackendKind(execution?: CopilotProviderExecution) {
-    return this.getConfig(execution).oldApiStyle
-      ? ('openai_chat' as const)
-      : ('openai_responses' as const);
-  }
+  protected abstract resolveBaseUrl(config: C): string;
 
   override configured(execution?: CopilotProviderExecution): boolean {
-    return !!this.getConfig(execution).apiKey;
+    return !!this.resolveBaseUrl(this.getConfig(execution));
   }
 
-  private handleError(e: any) {
+  protected handleError(e: any) {
     if (e instanceof UserFriendlyError) {
       return e;
     }
@@ -66,10 +76,10 @@ export class OpenAIProvider extends CopilotProvider<OpenAIConfig> {
     execution?: CopilotProviderExecution
   ): LlmBackendConfig {
     const config = this.getConfig(execution);
-    const baseUrl = config.baseURL || 'https://api.openai.com/v1';
     return {
-      base_url: baseUrl.replace(/\/v1\/?$/, ''),
-      auth_token: config.apiKey,
+      base_url: this.resolveBaseUrl(config),
+      auth_token: config.apiKey ?? '',
+      ...(config.headers ? { headers: config.headers } : {}),
     };
   }
 
@@ -168,5 +178,40 @@ export class OpenAIProvider extends CopilotProvider<OpenAIConfig> {
           await this.prepareImageMessages(messages, options),
       },
     };
+  }
+}
+
+export class OpenAIProvider extends OpenAIBaseProvider<OpenAIConfig> {
+  readonly type = CopilotProviderType.OpenAI;
+
+  protected resolveModelBackendKind(execution?: CopilotProviderExecution) {
+    return this.getConfig(execution).oldApiStyle
+      ? ('openai_chat' as const)
+      : ('openai_responses' as const);
+  }
+
+  protected resolveBaseUrl(config: OpenAIConfig) {
+    return (config.baseURL || 'https://api.openai.com/v1').replace(
+      /\/v1\/?$/,
+      ''
+    );
+  }
+
+  override configured(execution?: CopilotProviderExecution): boolean {
+    return !!this.getConfig(execution).apiKey;
+  }
+}
+
+export class OpenAICompatibleProvider extends OpenAIBaseProvider<OpenAICompatibleConfig> {
+  readonly type = CopilotProviderType.OpenAICompatible;
+
+  protected resolveModelBackendKind(execution?: CopilotProviderExecution) {
+    return this.getConfig(execution).apiStyle === 'responses'
+      ? ('openai_responses' as const)
+      : ('openai_chat' as const);
+  }
+
+  protected resolveBaseUrl(config: OpenAICompatibleConfig) {
+    return config.baseURL.replace(/\/v1\/?$/, '').replace(/\/$/, '');
   }
 }

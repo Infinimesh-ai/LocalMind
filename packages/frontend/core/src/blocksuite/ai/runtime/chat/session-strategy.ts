@@ -3,6 +3,18 @@ import type { CopilotChatHistoryFragment } from '@affine/graphql';
 import type { AIRequestService } from '../request';
 import { type AIChatScope, type AIChatTab, createDraftTab } from './state';
 
+const DEFAULT_CHAT_PROMPT_NAME = 'Chat With AFFiNE AI';
+
+export type AIChatCreateSessionOptions = {
+  pinned?: boolean;
+  promptName?: string;
+};
+
+function getSessionPromptName(options: AIChatCreateSessionOptions = {}) {
+  const promptName = options.promptName?.trim();
+  return promptName || DEFAULT_CHAT_PROMPT_NAME;
+}
+
 export type OpenSessionResult =
   | {
       type: 'opened';
@@ -27,7 +39,7 @@ export interface AIChatSessionStrategy {
   createSession(
     scope: AIChatScope,
     request: AIRequestService,
-    options?: { pinned?: boolean }
+    options?: AIChatCreateSessionOptions
   ): Promise<CopilotChatHistoryFragment | null | undefined>;
   canOpenAsTab(
     session: CopilotChatHistoryFragment,
@@ -83,13 +95,13 @@ export class DocAIChatSessionStrategy implements AIChatSessionStrategy {
   createSession(
     scope: AIChatScope,
     request: AIRequestService,
-    options: { pinned?: boolean } = {}
+    options: AIChatCreateSessionOptions = {}
   ) {
     if (scope.kind !== 'doc') return Promise.resolve(null);
     return request.createSessionWithHistory({
       workspaceId: scope.workspaceId,
       docId: scope.docId,
-      promptName: 'Chat With AFFiNE AI',
+      promptName: getSessionPromptName(options),
       reuseLatestChat: false,
       pinned: options.pinned,
     });
@@ -141,11 +153,11 @@ export class WorkspaceAIChatSessionStrategy implements AIChatSessionStrategy {
   createSession(
     scope: AIChatScope,
     request: AIRequestService,
-    options: { pinned?: boolean } = {}
+    options: AIChatCreateSessionOptions = {}
   ) {
     return request.createSessionWithHistory({
       workspaceId: scope.workspaceId,
-      promptName: 'Chat With AFFiNE AI',
+      promptName: getSessionPromptName(options),
       reuseLatestChat: false,
       pinned: options.pinned,
     });
@@ -184,7 +196,7 @@ export class ForkAIChatSessionStrategy implements AIChatSessionStrategy {
   async createSession(
     scope: AIChatScope,
     request: AIRequestService,
-    options: { pinned?: boolean } = {}
+    options: AIChatCreateSessionOptions = {}
   ) {
     const docId = 'docId' in scope ? scope.docId : undefined;
     const parentSessionId =
@@ -193,7 +205,7 @@ export class ForkAIChatSessionStrategy implements AIChatSessionStrategy {
       return request.createSessionWithHistory({
         workspaceId: scope.workspaceId,
         docId,
-        promptName: 'Chat With AFFiNE AI',
+        promptName: getSessionPromptName(options),
         reuseLatestChat: false,
         pinned: options.pinned,
       });

@@ -1,0 +1,46 @@
+query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      actionRuns(limit: $limit) {
+        actionId
+        actionVersion
+        attempt
+        createdAt
+        docId
+        errorCode
+        hasPreparedRouteTrace
+        id
+        preparedRouteActualCount
+        preparedRouteCount
+        preparedRouteFallbackProviderIds
+        preparedRouteFallbackOrder
+        preparedRouteStepFallbackProviderIds
+        preparedRouteStepIds
+        preparedRouteKinds
+        preparedRouteModelIds
+        preparedRouteOrder
+        preparedRouteProtocols
+        preparedRouteProviderIds
+        preparedRouteRequestedModelIds
+        preparedRouteRequestedModelSources
+        preparedRouteStepRequestedModelSources
+        preparedRouteRequestLayers
+        preparedRouteStepFallbackOrder
+        preparedRouteStepOrder
+        preparedRouteStepRouteCountMismatches
+        preparedRouteStepRouteCounts
+        preparedRouteStepProtocols
+        preparedRouteStepRequestLayers
+        preparedRouteStepCount
+        preparedRouteTargets
+        preparedRouteStepTargets
+        preparedRouteRequestedTargets
+        preparedRouteStepRequestedTargets
+        retryOf
+        sessionId
+        status
+        updatedAt
+      }
+    }
+  }
+}

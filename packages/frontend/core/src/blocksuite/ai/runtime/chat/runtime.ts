@@ -47,7 +47,15 @@ type EmbeddingStatus = {
   total: number;
 };
 
+const DEFAULT_CHAT_PROMPT_NAME = 'Chat With AFFiNE AI';
 const CONTEXT_POLLING_INTERVAL = 10000;
+
+function normalizePromptScope(promptName?: string) {
+  const nextPromptName = promptName?.trim();
+  return nextPromptName && nextPromptName !== DEFAULT_CHAT_PROMPT_NAME
+    ? nextPromptName
+    : undefined;
+}
 
 export class AIChatRuntime {
   private readonly listeners = new Set<() => void>();
@@ -171,7 +179,7 @@ export class AIChatRuntime {
         });
         return;
       case 'addContextItem':
-        await this.addContextItem(action.item);
+        await this.addContextItem(action.item, action.promptName);
         return;
       case 'removeContextItem':
         await this.removeContextItem(action.item);
@@ -246,18 +254,20 @@ export class AIChatRuntime {
     };
   }
 
-  private getScopeKey(scope: AIChatScope) {
+  private getScopeKey(scope: AIChatScope, promptName?: string) {
+    const promptScope = normalizePromptScope(promptName);
+    const promptKey = promptScope ? `:prompt:${promptScope}` : '';
     switch (scope.kind) {
       case 'doc':
-        return `${scope.kind}:${scope.workspaceId}:${scope.docId}`;
+        return `${scope.kind}:${scope.workspaceId}:${scope.docId}${promptKey}`;
       case 'workspace':
-        return `${scope.kind}:${scope.workspaceId}`;
+        return `${scope.kind}:${scope.workspaceId}${promptKey}`;
       case 'fork':
-        return `${scope.kind}:${scope.workspaceId}:${scope.parentSessionId}:${scope.latestMessageId ?? ''}:${scope.docId ?? ''}`;
+        return `${scope.kind}:${scope.workspaceId}:${scope.parentSessionId}:${scope.latestMessageId ?? ''}:${scope.docId ?? ''}${promptKey}`;
       case 'chat-block':
-        return `${scope.kind}:${scope.workspaceId}:${scope.docId}:${scope.blockId}:${scope.parentSessionId ?? ''}:${scope.latestMessageId ?? ''}`;
+        return `${scope.kind}:${scope.workspaceId}:${scope.docId}:${scope.blockId}:${scope.parentSessionId ?? ''}:${scope.latestMessageId ?? ''}${promptKey}`;
       case 'playground':
-        return `${scope.kind}:${scope.workspaceId}:${scope.docId ?? ''}:${scope.parentSessionId ?? ''}:${scope.latestMessageId ?? ''}`;
+        return `${scope.kind}:${scope.workspaceId}:${scope.docId ?? ''}:${scope.parentSessionId ?? ''}:${scope.latestMessageId ?? ''}${promptKey}`;
     }
   }
 
@@ -303,7 +313,7 @@ export class AIChatRuntime {
     await this.initialize(scope);
   }
 
-  private async ensureSession() {
+  private async ensureSession(options: { promptName?: string } = {}) {
     const activeSessionId = this.snapshot.activeSessionId;
     if (activeSessionId) {
       return (
@@ -316,14 +326,17 @@ export class AIChatRuntime {
         )
       );
     }
-    const scopeKey = this.getScopeKey(this.snapshot.scope);
+    const promptName = normalizePromptScope(options.promptName);
+    const scopeKey = this.getScopeKey(this.snapshot.scope, promptName);
     if (
       !this.createSessionPromise ||
       this.createSessionPromiseKey !== scopeKey
     ) {
       this.createSessionPromiseKey = scopeKey;
       this.createSessionPromise = this.options.strategy
-        .createSession(this.snapshot.scope, this.options.request)
+        .createSession(this.snapshot.scope, this.options.request, {
+          promptName,
+        })
         .finally(() => {
           this.createSessionPromise = null;
           this.createSessionPromiseKey = null;
@@ -365,7 +378,9 @@ export class AIChatRuntime {
           ],
     });
     try {
-      const session = await this.ensureSession();
+      const session = await this.ensureSession({
+        promptName: options.promptName,
+      });
       if (seq !== this.requestSeq) return;
       if (!session) {
         this.commit({ status: 'error', error: new Error('Session not found') });
@@ -535,10 +550,10 @@ export class AIChatRuntime {
     });
   }
 
-  private async getContextId() {
+  private async getContextId(options: { promptName?: string } = {}) {
     const createdSession = this.snapshot.activeSessionId
       ? null
-      : await this.ensureSession();
+      : await this.ensureSession(options);
     if (createdSession) {
       this.openSessionObject(createdSession, true);
     }
@@ -564,11 +579,11 @@ export class AIChatRuntime {
     return contextId;
   }
 
-  private async addContextItem(item: AIChatContextItem) {
+  private async addContextItem(item: AIChatContextItem, promptName?: string) {
     const seq = ++this.contextRequestSeq;
     this.updateContextState({ loading: true, error: null });
     try {
-      const contextId = await this.getContextId();
+      const contextId = await this.getContextId({ promptName });
       if (!contextId) throw new Error('Context not found');
 
       const nextItem = await this.persistContextItem(contextId, item);

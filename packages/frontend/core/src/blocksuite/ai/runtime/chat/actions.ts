@@ -4,6 +4,7 @@ import type { AIChatContextItem, AIChatScope } from './state';
 
 export type AIChatSendOptions = {
   input?: string;
+  promptName?: string;
   contexts?: {
     docs?: unknown;
     files?: unknown;
@@ -48,7 +49,7 @@ export type AIChatAction =
   | { type: 'setModel'; modelId?: string }
   | { type: 'addAttachment'; attachment: string | Blob | File }
   | { type: 'removeAttachment'; index: number }
-  | { type: 'addContextItem'; item: AIChatContextItem }
+  | { type: 'addContextItem'; item: AIChatContextItem; promptName?: string }
   | { type: 'removeContextItem'; item: AIChatContextItem }
   | { type: 'loadContext' }
   | { type: 'pollContext' }

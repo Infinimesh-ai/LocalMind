@@ -15,8 +15,10 @@ import { Subject } from 'rxjs';
 import type { ActionEventType } from '../../provider';
 import {
   type AIActionId,
+  type AIActionModelSelection,
   type AIActionOptions,
   getActionDefinition,
+  resolveActionDefinitionPromptName,
   resolveDefinitionValue,
 } from './action-definitions';
 import {
@@ -31,6 +33,8 @@ export type AIRequestActionEvent = {
   action: AIActionId;
   options: AIActionOptions;
   event: ActionEventType;
+  modelSelection?: AIActionModelSelection;
+  promptName: CreateSessionOptions['promptName'];
 };
 
 export class AIRequestService {
@@ -38,6 +42,7 @@ export class AIRequestService {
   private readonly actionHistory: {
     action: AIActionId;
     options: AIActionOptions;
+    promptName: CreateSessionOptions['promptName'];
   }[] = [];
   readonly actionEvents$ = new Subject<AIRequestActionEvent>();
 
@@ -315,26 +320,43 @@ export class AIRequestService {
       ? this.actionHistory.findLast(item => item.options.host === host)
       : this.actionHistory.at(-1);
     if (!lastAction) return;
-    this.actionEvents$.next({
+    const actionEvent = {
       action: lastAction.action,
       options: lastAction.options,
       event,
-    });
+      modelSelection: lastAction.options.modelSelection,
+      promptName: lastAction.promptName,
+    };
+    this.actionEvents$.next(actionEvent);
+    return actionEvent;
   }
 
   private wrapTextStream(
     stream: AsyncIterable<string>,
     id: AIActionId,
-    options: AIActionOptions
+    options: AIActionOptions,
+    promptName: CreateSessionOptions['promptName']
   ): AsyncIterable<string> {
     const actionEvents$ = this.actionEvents$;
     return {
       async *[Symbol.asyncIterator]() {
         try {
           yield* stream;
-          actionEvents$.next({ action: id, options, event: 'finished' });
+          actionEvents$.next({
+            action: id,
+            options,
+            event: 'finished',
+            modelSelection: options.modelSelection,
+            promptName,
+          });
         } catch (error) {
-          actionEvents$.next({ action: id, options, event: 'error' });
+          actionEvents$.next({
+            action: id,
+            options,
+            event: 'error',
+            modelSelection: options.modelSelection,
+            promptName,
+          });
           throw error;
         }
       },
@@ -342,20 +364,24 @@ export class AIRequestService {
   }
 
   async executeAction(id: AIActionId, options: AIActionOptions) {
-    this.actionHistory.push({ action: id, options });
+    const definition = getActionDefinition(id);
+    definition.validate?.(options);
+    const promptName = resolveActionDefinitionPromptName(definition, options);
+
+    this.actionHistory.push({ action: id, options, promptName });
     if (this.actionHistory.length > 10) {
       this.actionHistory.shift();
     }
-    this.actionEvents$.next({ action: id, options, event: 'started' });
-    const definition = getActionDefinition(id);
-    definition.validate?.(options);
-    const promptName = resolveDefinitionValue(
-      definition.promptName,
-      options
-    ) as CreateSessionOptions['promptName'];
-    const sessionId = await this.createSession({
+    this.actionEvents$.next({
+      action: id,
+      options,
+      event: 'started',
+      modelSelection: options.modelSelection,
       promptName,
+    });
+    const sessionId = await this.createSession({
       ...options,
+      promptName,
     } as CreateSessionOptions);
     this.lastActionSessionId = sessionId;
 
@@ -374,13 +400,19 @@ export class AIRequestService {
       endpoint: definition.endpoint,
       actionId,
       actionVersion,
+      modelSelectionSource: options.modelSelection?.source,
     };
 
     const stream =
       definition.responseType === 'image'
         ? toImage(transportOptions)
         : textToText(transportOptions);
-    return this.wrapTextStream(stream as AsyncIterable<string>, id, options);
+    return this.wrapTextStream(
+      stream as AsyncIterable<string>,
+      id,
+      options,
+      promptName
+    );
   }
 }
 

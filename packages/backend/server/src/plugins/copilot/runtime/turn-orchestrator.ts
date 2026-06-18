@@ -68,30 +68,34 @@ export class TurnOrchestrator {
       latestTurn: prepared.latestTurn,
       includeContextFiles: selection.includeContextFiles,
     });
-    const finalMessage = prepared.session.finish({
-      ...prepared.params,
-      ...promptParams,
+    const selected = await this.capabilityPolicy.selectChat(prepared.session, {
+      responseMode: selection.responseMode,
+      modelId,
+      reasoning,
+      webSearch,
+      toolsConfig,
+      byokLeaseId,
+      billingUnitId: prepared.latestTurn?.id,
+      quotaBackedRoutesAllowed: prepared.quotaBackedRoutesAllowed,
+      featureKind:
+        selection.responseMode === 'image'
+          ? 'image'
+          : selection.responseMode === 'object'
+            ? 'action'
+            : 'chat',
     });
+    const finalMessage = prepared.session.finish(
+      {
+        ...prepared.params,
+        ...promptParams,
+      },
+      { contextWindow: selected.contextWindow }
+    );
 
     return {
       prepared,
       finalMessage,
-      selection: await this.capabilityPolicy.selectChat(prepared.session, {
-        responseMode: selection.responseMode,
-        modelId,
-        reasoning,
-        webSearch,
-        toolsConfig,
-        byokLeaseId,
-        billingUnitId: prepared.latestTurn?.id,
-        quotaBackedRoutesAllowed: prepared.quotaBackedRoutesAllowed,
-        featureKind:
-          selection.responseMode === 'image'
-            ? 'image'
-            : selection.responseMode === 'object'
-              ? 'action'
-              : 'chat',
-      }),
+      selection: selected,
     };
   }
 
@@ -223,7 +227,7 @@ export class TurnOrchestrator {
         userId,
         sessionId,
         prepared.session,
-        undefined,
+        selection.model,
         hasAttachment,
         finalMessage,
         {

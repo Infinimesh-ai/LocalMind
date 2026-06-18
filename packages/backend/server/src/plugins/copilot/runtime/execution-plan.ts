@@ -8,10 +8,13 @@ import type {
   LlmPreparedStructuredDispatchRoute,
 } from '../../../native';
 import { llmNormalizePreparedRoutes } from '../../../native';
+import type { CopilotModelDefinition } from '../config';
 import {
   CopilotProviderFactory,
   type ResolvedCopilotProvider,
 } from '../providers/factory';
+import type { ResolvedProviderModel } from '../providers/provider-model-runtime';
+import type { NormalizedCopilotProviderProfile } from '../providers/provider-registry';
 import type {
   PreparedNativeEmbeddingExecution,
   PreparedNativeExecution,
@@ -34,6 +37,7 @@ import type { RequiredStructuredOutputContract } from './contracts';
 import {
   type ExecutionRequestKind,
   type ExecutionRoute,
+  type ExecutionRouteDiagnostics,
   type ExecutionTransportContract,
   parseExecutionPlan,
   type SerializableExecutionPlan,
@@ -78,13 +82,13 @@ type ImageExecutionRequest = BaseExecutionRequest<'image'> & {
 };
 
 type EmbeddingExecutionRequest = BaseExecutionRequest<'embedding'> & {
-  modelId: string;
+  modelId?: string;
   input: string | string[];
   options?: CopilotEmbeddingOptions;
 };
 
 type RerankExecutionRequest = BaseExecutionRequest<'rerank'> & {
-  modelId: string;
+  modelId?: string;
   request: CopilotRerankRequest;
   options?: CopilotChatOptions;
 };
@@ -106,6 +110,7 @@ export type ExecutionPlanForKind<TKind extends ExecutionRequestKind> =
 type NativePreparedDispatchPlan<TRoute, TPrepared> = {
   routes: TRoute[];
   prepared: TPrepared;
+  preparedRoutes?: TPrepared[];
 };
 
 export type NativeChatDispatchPlan = NativePreparedDispatchPlan<
@@ -136,6 +141,7 @@ export type NativeImageDispatchPlan = NativePreparedDispatchPlan<
 >;
 
 export type ExecutionPlan = {
+  routeDiagnostics?: ExecutionRouteDiagnostics[];
   nativeDispatch?: {
     chat?: NativeChatDispatchPlan;
     structured?: NativeStructuredDispatchPlan;
@@ -225,7 +231,8 @@ function buildPreparedDispatchPlan<
   mapPreparedRoute: (prepared: TPrepared) => TRoute,
   buildPreparedDispatchResult?: (
     preparedRoutes: TRoute[],
-    prepared: TPrepared
+    prepared: TPrepared,
+    preparedExecutions: TPrepared[]
   ) => TDispatch
 ): TDispatch | undefined {
   const preparedRoutes = collectPreparedRoutes(
@@ -233,16 +240,28 @@ function buildPreparedDispatchPlan<
     getPrepared,
     mapPreparedRoute
   );
+  const preparedExecutions = collectPreparedRoutes(
+    routes,
+    getPrepared,
+    prepared => prepared
+  );
   const prepared = routes[0] && getPrepared(routes[0]);
-  if (!preparedRoutes || !prepared) {
+  if (!preparedRoutes || !preparedExecutions || !prepared) {
     return;
   }
 
   const normalizedRoutes = llmNormalizePreparedRoutes<TRoute[]>(preparedRoutes);
 
   return buildPreparedDispatchResult
-    ? buildPreparedDispatchResult(normalizedRoutes, prepared)
-    : ({ routes: normalizedRoutes, prepared } as TDispatch);
+    ? buildPreparedDispatchResult(
+        normalizedRoutes,
+        prepared,
+        preparedExecutions
+      )
+    : ({
+        routes: normalizedRoutes,
+        prepared,
+      } as TDispatch);
 }
 
 type DispatchPreparedRoute<TRequest> = {
@@ -276,7 +295,8 @@ type PreparedExecutionArtifactSpec<
   mapPreparedRoute: (prepared: TPrepared) => TRoute;
   buildPreparedDispatch?: (
     preparedRoutes: TRoute[],
-    prepared: TPrepared
+    prepared: TPrepared,
+    preparedExecutions: TPrepared[]
   ) => TDispatch;
 };
 
@@ -345,6 +365,11 @@ const embeddingArtifactSpec: PreparedExecutionArtifactSpec<
   transportKind: 'embedding',
   getPrepared: route => route.preparedEmbedding,
   mapPreparedRoute: mapPreparedDispatchRoute,
+  buildPreparedDispatch: (preparedRoutes, prepared, preparedExecutions) => ({
+    routes: preparedRoutes,
+    prepared,
+    preparedRoutes: preparedExecutions,
+  }),
 };
 
 const rerankArtifactSpec: PreparedExecutionArtifactSpec<
@@ -356,6 +381,11 @@ const rerankArtifactSpec: PreparedExecutionArtifactSpec<
   transportKind: 'rerank',
   getPrepared: route => route.preparedRerank,
   mapPreparedRoute: mapPreparedDispatchRoute,
+  buildPreparedDispatch: (preparedRoutes, prepared, preparedExecutions) => ({
+    routes: preparedRoutes,
+    prepared,
+    preparedRoutes: preparedExecutions,
+  }),
 };
 
 const imageArtifactSpec: PreparedExecutionArtifactSpec<
@@ -371,6 +401,71 @@ const imageArtifactSpec: PreparedExecutionArtifactSpec<
 
 function buildFallbackOrder(routes: ResolvedCopilotProvider[]) {
   return routes.map(route => route.providerId);
+}
+
+function providerProfileConfigPath(
+  profile: Pick<NormalizedCopilotProviderProfile, 'id' | 'source' | 'type'>
+) {
+  if (profile.source === 'configured') {
+    return `copilot.providers.profiles[id=${profile.id}]`;
+  }
+  if (profile.source === 'legacy') {
+    return `copilot.providers.${profile.type}`;
+  }
+  if (profile.source === 'byok_local') {
+    return 'workspace.byok.local';
+  }
+  if (profile.source === 'byok_server') {
+    return 'workspace.byok.server';
+  }
+  return undefined;
+}
+
+function getProfileConfiguredModelIds(
+  profile: NormalizedCopilotProviderProfile
+) {
+  const ids = new Set<string>();
+  for (const modelId of profile.models ?? []) {
+    ids.add(modelId);
+  }
+  for (const definition of profile.modelDefinitions ?? []) {
+    ids.add(definition.id);
+    for (const alias of definition.aliases ?? []) {
+      ids.add(alias);
+    }
+  }
+  return Array.from(ids);
+}
+
+function resolveProfileModelDefinition(
+  profile: NormalizedCopilotProviderProfile,
+  requestedModelId: string | undefined,
+  routeModelId: string
+): CopilotModelDefinition | undefined {
+  return (profile.modelDefinitions ?? []).find(definition => {
+    return (
+      definition.id === requestedModelId ||
+      definition.id === routeModelId ||
+      definition.rawModelId === requestedModelId ||
+      definition.rawModelId === routeModelId ||
+      definition.aliases?.includes(requestedModelId ?? '') ||
+      definition.aliases?.includes(routeModelId)
+    );
+  });
+}
+
+function resolveModelDefinitionSource(
+  profile: NormalizedCopilotProviderProfile,
+  resolvedModel: Partial<ResolvedProviderModel> | undefined,
+  profileDefinition: CopilotModelDefinition | undefined
+): 'native_registry' | 'provider_profile' | 'provider_runtime' | undefined {
+  if (profileDefinition) {
+    return 'provider_profile';
+  }
+  if (resolvedModel?.canonicalKey) {
+    return 'native_registry';
+  }
+  return profile.models?.length ? 'provider_runtime' : undefined;
 }
 
 function mapExecutionRoute(route: ResolvedCopilotProvider): ExecutionRoute {
@@ -391,6 +486,105 @@ function mapExecutionRoute(route: ResolvedCopilotProvider): ExecutionRoute {
   }
 
   const rawRoute = route as unknown as ExecutionRoute;
+  return {
+    providerId: rawRoute.providerId,
+    protocol: rawRoute.protocol,
+    model: rawRoute.model,
+    backendConfig: rawRoute.backendConfig,
+  };
+}
+
+function mapExecutionRouteDiagnostics(
+  route: ResolvedCopilotProvider
+): ExecutionRouteDiagnostics {
+  const preparedRoute =
+    route.prepared?.route ??
+    route.preparedStructured?.route ??
+    route.preparedEmbedding?.route ??
+    route.preparedRerank?.route ??
+    route.preparedImage?.route;
+
+  if (preparedRoute) {
+    const resolvedModel = route.provider.resolveModel(
+      preparedRoute.model,
+      route.execution
+    ) as Partial<ResolvedProviderModel> | undefined;
+    const profileDefinition = resolveProfileModelDefinition(
+      route.profile,
+      route.modelId,
+      preparedRoute.model
+    );
+    const profileConfigPath = providerProfileConfigPath(route.profile);
+    const profileModelIds = getProfileConfiguredModelIds(route.profile);
+    const routeModelDefinitionSource = resolveModelDefinitionSource(
+      route.profile,
+      resolvedModel,
+      profileDefinition
+    );
+    const routeModelDefinitionId =
+      profileDefinition?.id ??
+      resolvedModel?.canonicalKey ??
+      (routeModelDefinitionSource === 'provider_runtime'
+        ? preparedRoute.model
+        : undefined);
+    const routeRawModelId =
+      profileDefinition?.rawModelId ??
+      (routeModelDefinitionId &&
+      resolvedModel?.id &&
+      resolvedModel.id !== routeModelDefinitionId
+        ? resolvedModel.id
+        : undefined);
+
+    return {
+      providerId: preparedRoute.providerId,
+      protocol: preparedRoute.protocol,
+      model: preparedRoute.model,
+      backendConfig: preparedRoute.backendConfig,
+      ...(route.profile.displayName
+        ? { providerName: route.profile.displayName }
+        : {}),
+      ...(route.profile.source ? { providerSource: route.profile.source } : {}),
+      providerProfileId: route.profile.id,
+      ...(route.profile.source
+        ? { providerProfileSource: route.profile.source }
+        : {}),
+      ...(profileConfigPath
+        ? { providerProfileConfigPath: profileConfigPath }
+        : {}),
+      ...(profileModelIds.length
+        ? {
+            providerConfiguredModelCount: profileModelIds.length,
+            providerConfiguredModelIds: profileModelIds,
+          }
+        : {}),
+      providerType: route.profile.type,
+      providerPrivacy: route.profile.privacy ?? 'cloud',
+      providerHealth: route.profile.health?.status ?? 'unknown',
+      ...(route.profile.health?.lastCheckedAt
+        ? { providerHealthCheckedAt: route.profile.health.lastCheckedAt }
+        : {}),
+      ...(route.profile.health?.lastError
+        ? { providerHealthLastError: route.profile.health.lastError }
+        : {}),
+      providerPriority: route.profile.priority,
+      ...(route.modelId !== undefined &&
+      profileDefinition?.aliases?.includes(route.modelId) !== undefined
+        ? {
+            routeModelAliasMatched: profileDefinition?.aliases?.includes(
+              route.modelId
+            ),
+          }
+        : {}),
+      ...(profileDefinition?.aliases?.length
+        ? { routeModelDefinitionAliases: profileDefinition.aliases }
+        : {}),
+      ...(routeModelDefinitionId ? { routeModelDefinitionId } : {}),
+      ...(routeModelDefinitionSource ? { routeModelDefinitionSource } : {}),
+      ...(routeRawModelId ? { routeRawModelId } : {}),
+    };
+  }
+
+  const rawRoute = route as unknown as ExecutionRouteDiagnostics;
   return {
     providerId: rawRoute.providerId,
     protocol: rawRoute.protocol,
@@ -619,6 +813,7 @@ export class ExecutionPlanBuilder {
     } as Omit<ExecutionPlanForKind<TKind>, 'nativeDispatch' | 'serializable'>;
 
     return {
+      routeDiagnostics: routes.map(mapExecutionRouteDiagnostics),
       nativeDispatch,
       serializable: buildSerializableExecutionPlan(routes, plan),
       ...plan,
@@ -712,6 +907,7 @@ export class ExecutionPlanBuilder {
     >;
 
     return {
+      routeDiagnostics: routes.map(mapExecutionRouteDiagnostics),
       nativeDispatch,
       serializable: buildSerializableExecutionPlan(routes, plan),
       ...plan,
@@ -734,7 +930,7 @@ export class ExecutionPlanBuilder {
   }
 
   async buildEmbeddingPlan(
-    modelId: string,
+    modelId: string | undefined,
     input: string | string[],
     options?: CopilotEmbeddingOptions
   ): Promise<ExecutionPlanForKind<'embedding'>> {
@@ -773,6 +969,7 @@ export class ExecutionPlanBuilder {
     >;
 
     return {
+      routeDiagnostics: routes.map(mapExecutionRouteDiagnostics),
       nativeDispatch,
       serializable: buildSerializableExecutionPlan(routes, plan),
       ...plan,
@@ -780,7 +977,7 @@ export class ExecutionPlanBuilder {
   }
 
   async buildRerankPlan(
-    modelId: string,
+    modelId: string | undefined,
     request: CopilotRerankRequest,
     options?: CopilotChatOptions
   ): Promise<ExecutionPlanForKind<'rerank'>> {
@@ -819,6 +1016,7 @@ export class ExecutionPlanBuilder {
     >;
 
     return {
+      routeDiagnostics: routes.map(mapExecutionRouteDiagnostics),
       nativeDispatch,
       serializable: buildSerializableExecutionPlan(routes, plan),
       ...plan,

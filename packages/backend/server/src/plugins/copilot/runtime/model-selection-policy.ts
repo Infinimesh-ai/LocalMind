@@ -8,6 +8,7 @@ export type ResolveModelInput = {
   defaultModel: string;
   optionalModels?: string[] | null;
   requestedModelId?: string;
+  extraModels?: string[] | null;
 };
 
 @Injectable()
@@ -31,6 +32,12 @@ export class ModelSelectionPolicy {
     });
   }
 
+  mergeAvailableModels(...modelLists: Array<string[] | null | undefined>) {
+    return Array.from(
+      new Set(modelLists.flatMap(models => models ?? []).filter(Boolean))
+    );
+  }
+
   resolveRequestedModel(input: ResolveModelInput): {
     selectedModel: string;
     matchedOptionalModel: boolean;
@@ -38,8 +45,12 @@ export class ModelSelectionPolicy {
     if (!input.defaultModel) {
       throw new CopilotSessionInvalidInput('Model is required');
     }
+    const optionalModels = this.mergeAvailableModels(
+      input.optionalModels,
+      input.extraModels
+    );
     const matched = this.matchRequestedModel(
-      input.optionalModels ?? [],
+      optionalModels,
       input.requestedModelId,
       input.defaultModel
     );

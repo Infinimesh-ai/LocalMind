@@ -1,0 +1,102 @@
+query getCopilotPromptRegistryRepairPreflight(
+  $workspaceId: String
+  $name: String!
+  $expectedVersion: CopilotPromptRegistryPublishGateExpectedVersionInput
+  $submission: CopilotPromptRegistryRepairSubmissionInput!
+) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      promptRegistryRepairPreflight(
+        name: $name
+        expectedVersion: $expectedVersion
+        submission: $submission
+      ) {
+        accepted
+        actorFingerprint
+        actorSnapshotInputs
+        actorSnapshotStatus
+        actorSnapshotVersion
+        actorType
+        approvalCheckpoints
+        approvalModes
+        approvalRecordCreated
+        approvalRecordFingerprint
+        approvalRecordInputs
+        approvalRecordStatus
+        approvalRecordVersion
+        approvalRequestFingerprint
+        approvalRequestInputs
+        approvalRequestStatus
+        approvalRequestVersion
+        approvalRequired
+        auditBindingFingerprint
+        auditBindingInputs
+        auditBindingStatus
+        auditBindingVersion
+        auditEventCreated
+        auditEventFingerprint
+        auditEventInputs
+        auditEventStatus
+        auditEventVersion
+        authorizationStatus
+        candidateEvidenceSetFingerprint
+        capabilityCheckMode
+        capabilityFingerprint
+        capabilitySource
+        capabilityStatus
+        contractVersion
+        currentSubmissionFingerprint
+        expectedSubmissionFingerprint
+        executionGateFingerprint
+        executionGateInputs
+        executionGateStatus
+        executionGateVersion
+        executionStateCreated
+        executionStateFingerprint
+        executionStateInputs
+        executionStateStatus
+        executionStateVersion
+        expectedCandidateEvidenceSetFingerprint
+        idempotencyFingerprint
+        idempotencyKey
+        idempotencyLockAcquired
+        idempotencyScope
+        idempotencyStatus
+        idempotencyVersion
+        matchedFields
+        mismatchedFields
+        mutationAvailable
+        permissionCheckMode
+        permissionChecked
+        permissionFingerprint
+        permissionScope
+        permissionStatus
+        policyBindingFingerprint
+        policyBindingInputs
+        policyBindingStatus
+        policyBindingVersion
+        policySource
+        requiredCapabilities
+        requiredCapabilityCount
+        requiredPermission
+        repairJobCreated
+        repairJobFingerprint
+        repairJobInputs
+        repairJobStatus
+        repairJobVersion
+        reviewBindingFingerprint
+        reviewBindingInputs
+        reviewBindingStatus
+        reviewBindingVersion
+        rollbackPlanCreated
+        rollbackPlanFingerprint
+        rollbackPlanInputs
+        rollbackPlanStatus
+        rollbackPlanVersion
+        readOnly
+        status
+        workspaceId
+      }
+    }
+  }
+}

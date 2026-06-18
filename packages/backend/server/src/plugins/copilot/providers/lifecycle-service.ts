@@ -4,6 +4,7 @@ import { ModuleRef } from '@nestjs/core';
 import { OnEvent } from '../../../base';
 import { CopilotProviderFactory } from './factory';
 import type { CopilotProvider } from './provider';
+import { isProviderRouteHealthy } from './provider-registry';
 import type { CopilotProviderExecution } from './provider-runtime-contract';
 import { CopilotProviders } from './provider-tokens';
 import { CopilotProviderRegistryService } from './registry-service';
@@ -44,16 +45,23 @@ export class CopilotProviderLifecycleService {
   private async syncProvider(provider: CopilotProvider) {
     const registry = this.registries.getRegistry();
     const configuredIds = new Set<string>();
+    const unregisteredIds = new Set<string>();
 
     for (const providerId of registry.byType.get(provider.type) ?? []) {
       const profile = registry.profiles.get(providerId);
       if (!profile) {
         continue;
       }
+      if (!isProviderRouteHealthy(profile)) {
+        this.factory.unregister(providerId, provider);
+        unregisteredIds.add(providerId);
+        continue;
+      }
 
       const execution: CopilotProviderExecution = { providerId, profile };
       if (!provider.configured(execution)) {
         this.factory.unregister(providerId, provider);
+        unregisteredIds.add(providerId);
         continue;
       }
 
@@ -63,7 +71,7 @@ export class CopilotProviderLifecycleService {
 
     const previous = this.getRegisteredProviderIds(provider);
     for (const providerId of previous) {
-      if (!configuredIds.has(providerId)) {
+      if (!configuredIds.has(providerId) && !unregisteredIds.has(providerId)) {
         this.factory.unregister(providerId, provider);
       }
     }

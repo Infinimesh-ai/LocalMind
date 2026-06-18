@@ -1,7 +1,10 @@
 query getWorkspaces {
   workspaces {
+    enableAi
+    enableDocEmbedding
     id
     initialized
+    role
     team
     owner {
       id

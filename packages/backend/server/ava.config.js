@@ -1,10 +1,14 @@
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 const newE2E = process.env.TEST_MODE === 'e2e';
 const newE2ETests = './src/__tests__/e2e/**/*.spec.ts';
+const configDir = dirname(fileURLToPath(import.meta.url));
 
-const preludes = ['./src/prelude.ts'];
+const preludes = [resolve(configDir, 'src/prelude.ts')];
 
 if (newE2E) {
-  preludes.push('./src/__tests__/e2e/prelude.ts');
+  preludes.push(resolve(configDir, 'src/__tests__/e2e/prelude.ts'));
 }
 
 export default {

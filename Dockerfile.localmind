@@ -1,0 +1,133 @@
+ARG NODE_VERSION=22.22.3
+ARG RUST_VERSION=1.96.0
+ARG GITHUB_SHA=localmind
+
+FROM rust:${RUST_VERSION}-bookworm AS dev-base
+
+ARG TARGETARCH
+ARG TARGETVARIANT
+ARG GITHUB_SHA
+ENV NODE_ENV=development \
+    CI=1 \
+    YARN_ENABLE_GLOBAL_CACHE=true \
+    GITHUB_SHA=${GITHUB_SHA}
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    git \
+    gnupg \
+    libssl-dev \
+    pkg-config \
+    python3 \
+    build-essential \
+  && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+  && apt-get install -y --no-install-recommends nodejs \
+  && corepack enable \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+FROM dev-base AS deps
+
+COPY . .
+
+RUN NPM_TOKEN=NONE yarn install --immutable
+
+FROM deps AS native-build
+
+RUN yarn affine @affine/server-native build \
+  && native_file="$(find packages/backend/native -maxdepth 1 -name 'server-native*.node' | head -n 1)" \
+  && for native_alias in server-native.node server-native.x64.node server-native.arm64.node server-native.armv7.node; do \
+      native_target="packages/backend/native/${native_alias}"; \
+      if [ "${native_file}" != "${native_target}" ]; then cp "${native_file}" "${native_target}"; fi; \
+    done
+
+FROM native-build AS test
+
+FROM native-build AS verify
+
+RUN yarn prettier --ignore-unknown --check \
+    docs/ai-capability-modernization-plan.md \
+    packages/backend/server/src/schema.gql \
+    packages/backend/server/ava.config.js \
+    packages/backend/server/src/__tests__/copilot/copilot.spec.ts \
+    packages/backend/server/src/__tests__/copilot/host-services.spec.ts \
+    packages/backend/server/src/__tests__/copilot/prompt-service.spec.ts \
+    packages/backend/server/src/__tests__/copilot/provider-middleware.spec.ts \
+    packages/backend/server/src/__tests__/copilot/provider-native.spec.ts \
+    packages/backend/server/src/__tests__/copilot/provider-registry.spec.ts \
+    packages/backend/server/src/__tests__/mocks/prompt-service.mock.ts \
+    packages/backend/server/src/plugins/copilot/config.ts \
+    packages/backend/server/src/plugins/copilot/embedding/client.ts \
+    packages/backend/server/src/plugins/copilot/prompt/service.ts \
+    packages/backend/server/src/plugins/copilot/providers/factory.ts \
+    packages/backend/server/src/plugins/copilot/providers/index.ts \
+    packages/backend/server/src/plugins/copilot/providers/openai.ts \
+    packages/backend/server/src/plugins/copilot/providers/provider.ts \
+    packages/backend/server/src/plugins/copilot/providers/lifecycle-service.ts \
+    packages/backend/server/src/plugins/copilot/providers/provider-model-runtime.ts \
+    packages/backend/server/src/plugins/copilot/providers/provider-middleware.ts \
+    packages/backend/server/src/plugins/copilot/providers/provider-registry.ts \
+    packages/backend/server/src/plugins/copilot/providers/provider-runtime-contract.ts \
+    packages/backend/server/src/plugins/copilot/providers/provider-tokens.ts \
+    packages/backend/server/src/plugins/copilot/resolver.ts \
+    packages/backend/server/src/plugins/copilot/runtime/capability-runtime.ts \
+    packages/backend/server/src/plugins/copilot/runtime/contracts/execution-plan-contract.ts \
+    packages/backend/server/src/plugins/copilot/runtime/execution-plan.ts \
+    packages/backend/server/src/plugins/copilot/runtime/hosts/action-stream-host.ts \
+    packages/backend/server/src/plugins/copilot/runtime/hosts/capability-policy-host.ts \
+    packages/backend/server/src/plugins/copilot/runtime/model-selection-policy.ts \
+    packages/backend/server/src/plugins/copilot/runtime/turn-orchestrator.ts \
+    packages/backend/server/src/plugins/copilot/session.ts \
+    packages/backend/server/src/plugins/copilot/runtime/task-policy.ts \
+    packages/backend/server/src/plugins/copilot/providers/types.ts \
+    packages/common/graphql/src/graphql/copilot-models-get.gql \
+    packages/common/graphql/src/graphql/index.ts \
+    packages/common/graphql/src/schema.ts \
+    packages/frontend/core/src/blocksuite/ai/components/ai-chat-input/preference-popup.ts \
+    packages/frontend/core/src/modules/ai-button/services/models.ts \
+    packages/frontend/core/src/modules/ai-button/services/models.spec.ts \
+  && yarn affine bundle -p @affine/web \
+  && yarn affine bundle -p @affine/admin \
+  && yarn affine bundle -p @affine/mobile \
+  && yarn affine bundle -p @affine/server
+
+FROM verify AS package
+
+RUN rm -rf /app \
+  && mkdir -p /app \
+  && cp -a packages/backend/server/dist /app/dist \
+  && cp -a packages/backend/server/migrations /app/migrations \
+  && cp -a packages/backend/server/scripts /app/scripts \
+  && cp -a packages/frontend/apps/web/dist /app/static \
+  && mkdir -p /app/static/admin \
+  && cp -a packages/frontend/admin/dist/. /app/static/admin \
+  && mkdir -p /app/static/mobile \
+  && cp -a packages/frontend/apps/mobile/dist/. /app/static/mobile \
+  && cp packages/backend/server/package.json /app/package.json \
+  && cp packages/backend/server/schema.prisma /app/schema.prisma \
+  && cp -a node_modules /app/node_modules \
+  && cp packages/backend/native/server-native.node /app/dist/server-native.node \
+  && cp packages/backend/native/server-native.x64.node /app/dist/server-native.x64.node \
+  && cp packages/backend/native/server-native.arm64.node /app/dist/server-native.arm64.node \
+  && cp packages/backend/native/server-native.armv7.node /app/dist/server-native.armv7.node \
+  && AFFINE_DOCKER_CLEAN=1 APP_ROOT=/app TARGETARCH=${TARGETARCH} TARGETVARIANT=${TARGETVARIANT} node packages/backend/server/scripts/docker-clean.mjs
+
+FROM node:${NODE_VERSION}-bookworm-slim AS runtime
+
+ENV NODE_ENV=production \
+    AFFINE_INDEXER_ENABLED=false
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates libssl3 \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=package /app /app
+
+EXPOSE 3010
+
+CMD ["node", "./dist/main.js"]

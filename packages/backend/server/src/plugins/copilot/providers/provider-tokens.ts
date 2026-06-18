@@ -5,10 +5,11 @@ import {
 import { CloudflareWorkersAIProvider } from './cloudflare';
 import { FalProvider } from './fal';
 import { GeminiGenerativeProvider, GeminiVertexProvider } from './gemini';
-import { OpenAIProvider } from './openai';
+import { OpenAICompatibleProvider, OpenAIProvider } from './openai';
 
 export const CopilotProviders = [
   OpenAIProvider,
+  OpenAICompatibleProvider,
   CloudflareWorkersAIProvider,
   FalProvider,
   GeminiGenerativeProvider,

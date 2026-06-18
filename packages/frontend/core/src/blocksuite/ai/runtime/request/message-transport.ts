@@ -4,6 +4,7 @@ import { partition } from 'lodash-es';
 import { toTextStream } from '../../provider/event-source';
 import { createWorkspaceByokLocalLease } from './byok-local-lease';
 import { type CopilotClient, Endpoint } from './copilot-client';
+import type { AIActionModelSelectionSource } from './model-selection';
 
 const TIMEOUT = 50000;
 
@@ -25,6 +26,7 @@ export type TextToTextOptions = {
   isRootSession?: boolean;
   reasoning?: boolean;
   modelId?: string;
+  modelSelectionSource?: AIActionModelSelectionSource;
   toolsConfig?: AIToolsConfig;
 };
 
@@ -128,6 +130,7 @@ export function textToText({
   runId,
   reasoning,
   modelId,
+  modelSelectionSource,
   toolsConfig,
 }: TextToTextOptions) {
   let messageId: string | undefined;
@@ -162,6 +165,7 @@ export function textToText({
             messageId,
             reasoning,
             modelId,
+            modelSelectionSource,
             toolsConfig,
             actionId,
             actionVersion,
@@ -230,6 +234,7 @@ export function textToText({
           messageId,
           reasoning,
           modelId,
+          modelSelectionSource,
           toolsConfig,
           actionId,
           actionVersion,
@@ -288,6 +293,8 @@ export function toImage({
   actionId,
   actionVersion,
   runId,
+  modelId,
+  modelSelectionSource,
   client,
 }: ToImageOptions) {
   let messageId: string | undefined;
@@ -323,6 +330,8 @@ export function toImage({
                 actionId,
                 actionVersion,
                 runId,
+                modelId,
+                modelSelectionSource,
                 retry,
                 byokLeaseId,
               },
@@ -333,7 +342,8 @@ export function toImage({
               messageId,
               seed,
               endpoint,
-              byokLeaseId
+              byokLeaseId,
+              modelId
             );
 
       for await (const event of toTextStream(eventSource, {

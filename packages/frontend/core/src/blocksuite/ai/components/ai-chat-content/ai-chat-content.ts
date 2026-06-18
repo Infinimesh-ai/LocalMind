@@ -194,6 +194,9 @@ export class AIChatContent extends SignalWatcher(
   @state()
   private accessor previewPanelContent: TemplateResult<1> | null = null;
 
+  @state()
+  private accessor promptName: string | undefined;
+
   private readonly chatMessagesRef: Ref<AIChatMessages> =
     createRef<AIChatMessages>();
 
@@ -222,6 +225,10 @@ export class AIChatContent extends SignalWatcher(
     return (
       snapshot?.readiness === 'initializing' || !!snapshot?.history.loading
     );
+  }
+
+  private get activePromptName() {
+    return this.session?.promptName ?? this.promptName;
   }
 
   private readonly updateContext = (context: Partial<ChatContextValue>) => {
@@ -307,6 +314,26 @@ export class AIChatContent extends SignalWatcher(
     return this.showPreviewPanel;
   }
 
+  private handleOpenWithChat(params: AIChatParams | null) {
+    if (!params) {
+      return;
+    }
+    if (this.host === params.host) {
+      this.promptName = params.promptName;
+      if (params.fromAnswer && params.context) {
+        this.updateContext(params.context);
+      } else {
+        extractSelectedContent(params.host)
+          .then(context => {
+            if (!context) return;
+            this.updateContext(context);
+          })
+          .catch(console.error);
+      }
+    }
+    AIAppEvents.requestOpenWithChat.next(null);
+  }
+
   override connectedCallback() {
     super.connectedCallback();
 
@@ -328,25 +355,8 @@ export class AIChatContent extends SignalWatcher(
     this.subscriptionService.subscription.revalidate();
 
     this._disposables.add(
-      AIAppEvents.requestOpenWithChat.subscribe(
-        (params: AIChatParams | null) => {
-          if (!params) {
-            return;
-          }
-          if (this.host === params.host) {
-            if (params.fromAnswer && params.context) {
-              this.updateContext(params.context);
-            } else {
-              extractSelectedContent(params.host)
-                .then(context => {
-                  if (!context) return;
-                  this.updateContext(context);
-                })
-                .catch(console.error);
-            }
-          }
-          AIAppEvents.requestOpenWithChat.next(null);
-        }
+      AIAppEvents.requestOpenWithChat.subscribe(params =>
+        this.handleOpenWithChat(params)
       )
     );
   }
@@ -362,6 +372,7 @@ export class AIChatContent extends SignalWatcher(
         .host=${this.host}
         .workspaceId=${this.workspaceId}
         .docId=${this.docId}
+        .promptName=${this.activePromptName}
         .session=${this.session}
         .runtime=${this.runtime}
         .runtimeSnapshot=${this.runtimeSnapshot}
@@ -390,6 +401,7 @@ export class AIChatContent extends SignalWatcher(
         .independentMode=${this.independentMode}
         .host=${this.host}
         .workspaceId=${this.workspaceId}
+        .promptName=${this.activePromptName}
         .docId=${this.docId}
         .session=${this.session}
         .runtime=${this.runtime}

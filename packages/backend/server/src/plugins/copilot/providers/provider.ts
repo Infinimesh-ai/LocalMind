@@ -1,7 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { Config } from '../../../base';
-import type { NodeTextMiddleware, ProviderMiddlewareConfig } from '../config';
+import type {
+  CopilotModelDefinition,
+  NodeTextMiddleware,
+  ProviderMiddlewareConfig,
+} from '../config';
 import { ToolExecutorHost } from '../runtime/hosts/tool-executor-host';
 import { mapNativeSemanticError } from '../runtime/native-errors';
 import type { ToolLoopBackend } from '../runtime/tool/bridge';
@@ -66,6 +70,7 @@ export abstract class CopilotProvider<C = any> {
     return {
       type: this.type,
       backendKind: this.resolveModelBackendKind(execution),
+      modelDefinitions: this.getConfiguredModelDefinitions(execution),
     };
   }
 
@@ -149,6 +154,15 @@ export abstract class CopilotProvider<C = any> {
   protected getExecutionProfile(execution?: CopilotProviderExecution) {
     return execution?.profile?.type === this.type
       ? execution.profile
+      : undefined;
+  }
+
+  private getConfiguredModelDefinitions(
+    execution?: CopilotProviderExecution
+  ): CopilotModelDefinition[] | undefined {
+    const profile = this.getExecutionProfile(execution);
+    return profile?.modelDefinitions?.length
+      ? profile.modelDefinitions
       : undefined;
   }
 

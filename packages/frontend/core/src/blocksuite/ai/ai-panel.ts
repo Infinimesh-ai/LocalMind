@@ -43,7 +43,10 @@ import { findNoteBlockModel } from './utils/edgeless';
 import { copyTextAnswer } from './utils/editor-actions';
 import { getSelections } from './utils/selection-utils';
 import type { AffineAIPanelWidget } from './widgets/ai-panel/ai-panel';
-import type { AffineAIPanelWidgetConfig } from './widgets/ai-panel/type';
+import type {
+  AffineAIPanelWidgetConfig,
+  AIActionModelResolver,
+} from './widgets/ai-panel/type';
 
 function asCaption<T extends keyof BlockSuitePresets.AIActions>(
   host: EditorHost,
@@ -199,8 +202,11 @@ function buildPageResponseConfig<T extends keyof BlockSuitePresets.AIActions>(
           icon: ChatWithAiIcon(),
           testId: 'answer-continue-in-chat',
           handler: () => {
-            reportResponse('result:continue-in-chat', host);
-            AIAppEvents.requestOpenWithChat.next({ host });
+            const actionEvent = reportResponse('result:continue-in-chat', host);
+            AIAppEvents.requestOpenWithChat.next({
+              host,
+              promptName: actionEvent?.promptName,
+            });
             panel.hide();
           },
         },
@@ -299,10 +305,14 @@ export function buildCopyConfig(panel: AffineAIPanelWidget) {
 }
 
 export function buildAIPanelConfig(
-  panel: AffineAIPanelWidget
+  panel: AffineAIPanelWidget,
+  options?: {
+    resolveActionModelId?: AIActionModelResolver;
+  }
 ): AffineAIPanelWidgetConfig {
   const ctx = new AIContext();
   return {
+    resolveActionModelId: options?.resolveActionModelId,
     answerRenderer: createAIScrollableTextRenderer(
       {
         theme: panel.host.std.get(ThemeProvider).app$,

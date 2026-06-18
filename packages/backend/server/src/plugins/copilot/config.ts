@@ -5,6 +5,7 @@ import {
   StorageJSONSchema,
   StorageProviderConfig,
 } from '../../base';
+import type { LlmBackendConfig, LlmProtocol } from '../../native';
 import {
   AnthropicOfficialConfig,
   AnthropicVertexConfig,
@@ -12,15 +13,24 @@ import {
 import { CloudflareWorkersAIConfig } from './providers/cloudflare';
 import type { FalConfig } from './providers/fal';
 import { GeminiGenerativeConfig, GeminiVertexConfig } from './providers/gemini';
-import { OpenAIConfig } from './providers/openai';
+import { OpenAICompatibleConfig, OpenAIConfig } from './providers/openai';
 import {
+  type CopilotModelBackendKind,
   CopilotProviderType,
+  ModelInputType,
   ModelOutputType,
+  type PromptAttachmentKind,
+  PromptAttachmentKindSchema,
+  type PromptAttachmentSourceKind,
+  PromptAttachmentSourceKindSchema,
+  type PromptConfig,
+  PromptConfigStrictSchema,
   VertexSchema,
 } from './providers/types';
 
 export type CopilotProviderConfigMap = {
   [CopilotProviderType.OpenAI]: OpenAIConfig;
+  [CopilotProviderType.OpenAICompatible]: OpenAICompatibleConfig;
   [CopilotProviderType.CloudflareWorkersAi]: CloudflareWorkersAIConfig;
   [CopilotProviderType.FAL]: FalConfig;
   [CopilotProviderType.Gemini]: GeminiGenerativeConfig;
@@ -59,13 +69,112 @@ export type ProviderMiddlewareConfig = {
   node?: { text?: NodeTextMiddleware[] };
 };
 
+export const CopilotProviderHealthStatusValues = [
+  'unknown',
+  'healthy',
+  'degraded',
+  'down',
+] as const;
+export type CopilotProviderHealthStatus =
+  (typeof CopilotProviderHealthStatusValues)[number];
+
+export type CopilotProviderHealth = {
+  status: CopilotProviderHealthStatus;
+  lastCheckedAt?: string;
+  lastError?: string;
+};
+
+export const CopilotProviderProfileSourceValues = [
+  'configured',
+  'legacy',
+  'byok_server',
+  'byok_local',
+] as const;
+export type CopilotProviderProfileSource =
+  (typeof CopilotProviderProfileSourceValues)[number];
+
+export const CopilotProviderPrivacyValues = [
+  'cloud',
+  'private_cloud',
+  'local',
+] as const;
+export type CopilotProviderPrivacy =
+  (typeof CopilotProviderPrivacyValues)[number];
+
+export const CopilotProviderRoutePolicyFeatureKindValues = [
+  'chat',
+  'action',
+  'image',
+  'embedding',
+  'workspace_indexing',
+  'rerank',
+  'transcript',
+] as const;
+export type CopilotProviderRoutePolicyFeatureKind =
+  (typeof CopilotProviderRoutePolicyFeatureKindValues)[number];
+
+export type CopilotProviderRoutePolicyRule = {
+  allowedProviderIds?: string[];
+  blockedProviderIds?: string[];
+  allowedPrivacy?: CopilotProviderPrivacy[];
+  preferredPrivacy?: CopilotProviderPrivacy[];
+};
+
+export type CopilotProviderRoutePolicy = CopilotProviderRoutePolicyRule & {
+  enabled?: boolean;
+  byFeature?: Partial<
+    Record<
+      CopilotProviderRoutePolicyFeatureKind,
+      CopilotProviderRoutePolicyRule
+    >
+  >;
+  byWorkspace?: Record<string, CopilotProviderRoutePolicyRule>;
+};
+
+export const CopilotModelBackendKindValues = [
+  'openai_chat',
+  'openai_responses',
+  'anthropic',
+  'cloudflare_workers_ai',
+  'gemini_api',
+  'gemini_vertex',
+  'fal',
+  'anthropic_vertex',
+] as const;
+
+export const LlmProtocolValues = [
+  'openai_chat',
+  'openai_responses',
+  'openai_images',
+  'anthropic',
+  'gemini',
+  'fal_image',
+] as const;
+
+export const LlmRequestLayerValues = [
+  'anthropic',
+  'chat_completions',
+  'cloudflare_workers_ai',
+  'responses',
+  'openai_images',
+  'fal',
+  'vertex',
+  'vertex_anthropic',
+  'gemini_api',
+  'gemini_vertex',
+] as const;
+
 type CopilotProviderProfileCommon = {
   id: string;
   displayName?: string;
   priority?: number;
   enabled?: boolean;
   models?: string[];
+  modelDefinitions?: CopilotModelDefinition[];
+  privacy?: CopilotProviderPrivacy;
+  source?: CopilotProviderProfileSource;
   middleware?: ProviderMiddlewareConfig;
+  health?: CopilotProviderHealth;
 };
 
 type CopilotProviderProfileVariant<T extends CopilotProviderType> = {
@@ -79,10 +188,172 @@ export type CopilotProviderProfile = CopilotProviderProfileCommon &
   }[CopilotProviderType];
 
 export type CopilotProviderDefaults = Partial<
-  Record<Exclude<ModelOutputType, typeof ModelOutputType.Rerank>, string>
+  Record<ModelOutputType, string>
 > & {
   fallback?: string;
 };
+
+export type CopilotModelDefinitionCapability = {
+  input: ModelInputType[];
+  output: ModelOutputType[];
+  attachments?: {
+    kinds: PromptAttachmentKind[];
+    sourceKinds?: PromptAttachmentSourceKind[];
+    allowRemoteUrls?: boolean;
+  };
+  structuredAttachments?: {
+    kinds: PromptAttachmentKind[];
+    sourceKinds?: PromptAttachmentSourceKind[];
+    allowRemoteUrls?: boolean;
+  };
+  defaultForOutputType?: boolean;
+};
+
+export type CopilotModelRouteOverride = {
+  protocol?: LlmProtocol;
+  requestLayer?: LlmBackendConfig['request_layer'];
+};
+
+export type CopilotModelDefinition = {
+  id: string;
+  rawModelId?: string;
+  displayName?: string;
+  aliases?: string[];
+  enabled?: boolean;
+  backendKind?: CopilotModelBackendKind;
+  protocol?: LlmProtocol;
+  requestLayer?: LlmBackendConfig['request_layer'];
+  routeOverrides?: Partial<Record<ModelOutputType, CopilotModelRouteOverride>>;
+  behaviorFlags?: string[];
+  limits?: {
+    contextWindow?: number;
+    maxOutputTokens?: number;
+    embeddingDimensions?: number;
+  };
+  cost?: {
+    inputPer1M?: number;
+    outputPer1M?: number;
+  };
+  capabilities: CopilotModelDefinitionCapability[];
+};
+
+export type CopilotPromptOverride = {
+  name: string;
+  enabled?: boolean;
+  model?: string;
+  optionalModels?: string[];
+  config?: PromptConfig;
+};
+
+export type CopilotPromptModelDefault = {
+  enabled?: boolean;
+  model?: string;
+  optionalModels?: string[];
+  proModels?: string[];
+  includeNames?: string[];
+  excludeNames?: string[];
+  includeActions?: string[];
+  excludeActions?: string[];
+};
+
+export type CopilotPromptDefaults = {
+  text?: CopilotPromptModelDefault;
+  structured?: CopilotPromptModelDefault;
+  image?: CopilotPromptModelDefault;
+  transcript?: CopilotPromptModelDefault;
+};
+
+export type CopilotTaskModelDefaults = {
+  embedding?: string;
+  workspaceIndexing?: string;
+  rerank?: string;
+};
+
+const CopilotModelRouteOverrideShape = z.object({
+  protocol: z.enum(LlmProtocolValues).optional(),
+  requestLayer: z.enum(LlmRequestLayerValues).optional(),
+});
+
+const CopilotModelCapabilityShape = z.object({
+  input: z.array(z.nativeEnum(ModelInputType)).min(1),
+  output: z.array(z.nativeEnum(ModelOutputType)).min(1),
+  attachments: z
+    .object({
+      kinds: z.array(PromptAttachmentKindSchema).min(1),
+      sourceKinds: z.array(PromptAttachmentSourceKindSchema).optional(),
+      allowRemoteUrls: z.boolean().optional(),
+    })
+    .optional(),
+  structuredAttachments: z
+    .object({
+      kinds: z.array(PromptAttachmentKindSchema).min(1),
+      sourceKinds: z.array(PromptAttachmentSourceKindSchema).optional(),
+      allowRemoteUrls: z.boolean().optional(),
+    })
+    .optional(),
+  defaultForOutputType: z.boolean().optional(),
+});
+
+const CopilotModelDefinitionShape = z.object({
+  id: z.string().min(1),
+  rawModelId: z.string().min(1).optional(),
+  displayName: z.string().optional(),
+  aliases: z.array(z.string().min(1)).optional(),
+  enabled: z.boolean().optional(),
+  backendKind: z.enum(CopilotModelBackendKindValues).optional(),
+  protocol: z.enum(LlmProtocolValues).optional(),
+  requestLayer: z.enum(LlmRequestLayerValues).optional(),
+  routeOverrides: z
+    .object({
+      [ModelOutputType.Text]: CopilotModelRouteOverrideShape.optional(),
+      [ModelOutputType.Object]: CopilotModelRouteOverrideShape.optional(),
+      [ModelOutputType.Embedding]: CopilotModelRouteOverrideShape.optional(),
+      [ModelOutputType.Image]: CopilotModelRouteOverrideShape.optional(),
+      [ModelOutputType.Rerank]: CopilotModelRouteOverrideShape.optional(),
+      [ModelOutputType.Structured]: CopilotModelRouteOverrideShape.optional(),
+    })
+    .optional(),
+  behaviorFlags: z.array(z.string().min(1)).optional(),
+  limits: z
+    .object({
+      contextWindow: z.number().int().positive().optional(),
+      maxOutputTokens: z.number().int().positive().optional(),
+      embeddingDimensions: z.number().int().positive().optional(),
+    })
+    .optional(),
+  cost: z
+    .object({
+      inputPer1M: z.number().nonnegative().optional(),
+      outputPer1M: z.number().nonnegative().optional(),
+    })
+    .optional(),
+  capabilities: z.array(CopilotModelCapabilityShape).min(1),
+});
+
+const CopilotProviderPrivacyShape = z.enum(CopilotProviderPrivacyValues);
+
+const CopilotProviderRoutePolicyRuleShape = z.object({
+  allowedProviderIds: z.array(z.string().min(1)).optional(),
+  blockedProviderIds: z.array(z.string().min(1)).optional(),
+  allowedPrivacy: z.array(CopilotProviderPrivacyShape).optional(),
+  preferredPrivacy: z.array(CopilotProviderPrivacyShape).optional(),
+});
+
+const CopilotProviderRoutePolicyByFeatureShape = z.object(
+  Object.fromEntries(
+    CopilotProviderRoutePolicyFeatureKindValues.map(featureKind => [
+      featureKind,
+      CopilotProviderRoutePolicyRuleShape.optional(),
+    ])
+  )
+);
+
+const CopilotProviderRoutePolicyShape =
+  CopilotProviderRoutePolicyRuleShape.extend({
+    enabled: z.boolean().optional(),
+    byFeature: CopilotProviderRoutePolicyByFeatureShape.optional(),
+    byWorkspace: z.record(CopilotProviderRoutePolicyRuleShape).optional(),
+  });
 
 const CopilotProviderProfileBaseShape = z.object({
   id: z.string().regex(/^[a-zA-Z0-9-_]+$/),
@@ -90,6 +361,8 @@ const CopilotProviderProfileBaseShape = z.object({
   priority: z.number().optional(),
   enabled: z.boolean().optional(),
   models: z.array(z.string()).optional(),
+  modelDefinitions: z.array(CopilotModelDefinitionShape).optional(),
+  privacy: CopilotProviderPrivacyShape.optional(),
   middleware: z
     .object({
       rust: z
@@ -103,12 +376,26 @@ const CopilotProviderProfileBaseShape = z.object({
         .optional(),
     })
     .optional(),
+  health: z
+    .object({
+      status: z.enum(CopilotProviderHealthStatusValues),
+      lastCheckedAt: z.string().optional(),
+      lastError: z.string().optional(),
+    })
+    .optional(),
 });
 
 const OpenAIConfigShape = z.object({
   apiKey: z.string(),
   baseURL: z.string().optional(),
   oldApiStyle: z.boolean().optional(),
+});
+
+const OpenAICompatibleConfigShape = z.object({
+  apiKey: z.string().optional(),
+  baseURL: z.string(),
+  headers: z.record(z.string()).optional(),
+  apiStyle: z.enum(['chat_completions', 'responses', 'auto']).optional(),
 });
 
 const FalConfigShape = z.object({
@@ -143,6 +430,10 @@ const CopilotProviderProfileShape = z.discriminatedUnion('type', [
   CopilotProviderProfileBaseShape.extend({
     type: z.literal(CopilotProviderType.OpenAI),
     config: OpenAIConfigShape,
+  }),
+  CopilotProviderProfileBaseShape.extend({
+    type: z.literal(CopilotProviderType.OpenAICompatible),
+    config: OpenAICompatibleConfigShape,
   }),
   CopilotProviderProfileBaseShape.extend({
     type: z.literal(CopilotProviderType.FAL),
@@ -180,6 +471,38 @@ const CopilotProviderDefaultsShape = z.object({
   fallback: z.string().optional(),
 });
 
+const CopilotPromptOverrideShape = z.object({
+  name: z.string().min(1),
+  enabled: z.boolean().optional(),
+  model: z.string().min(1).optional(),
+  optionalModels: z.array(z.string().min(1)).optional(),
+  config: PromptConfigStrictSchema.nullable().optional(),
+});
+
+const CopilotPromptModelDefaultShape = z.object({
+  enabled: z.boolean().optional(),
+  model: z.string().min(1).optional(),
+  optionalModels: z.array(z.string().min(1)).optional(),
+  proModels: z.array(z.string().min(1)).optional(),
+  includeNames: z.array(z.string().min(1)).optional(),
+  excludeNames: z.array(z.string().min(1)).optional(),
+  includeActions: z.array(z.string().min(1)).optional(),
+  excludeActions: z.array(z.string().min(1)).optional(),
+});
+
+const CopilotPromptDefaultsShape = z.object({
+  text: CopilotPromptModelDefaultShape.optional(),
+  structured: CopilotPromptModelDefaultShape.optional(),
+  image: CopilotPromptModelDefaultShape.optional(),
+  transcript: CopilotPromptModelDefaultShape.optional(),
+});
+
+const CopilotTaskModelDefaultsShape = z.object({
+  embedding: z.string().min(1).optional(),
+  workspaceIndexing: z.string().min(1).optional(),
+  rerank: z.string().min(1).optional(),
+});
+
 declare global {
   interface AppConfigSchema {
     copilot: {
@@ -198,10 +521,19 @@ declare global {
         key: string;
       }>;
       storage: ConfigItem<StorageProviderConfig>;
+      prompts: {
+        defaults: ConfigItem<CopilotPromptDefaults>;
+        overrides: ConfigItem<CopilotPromptOverride[]>;
+      };
+      tasks: {
+        models: ConfigItem<CopilotTaskModelDefaults>;
+      };
       providers: {
         profiles: ConfigItem<CopilotProviderProfile[]>;
         defaults: ConfigItem<CopilotProviderDefaults>;
+        routePolicy: ConfigItem<CopilotProviderRoutePolicy>;
         openai: ConfigItem<OpenAIConfig>;
+        openaiCompatible: ConfigItem<OpenAICompatibleConfig>;
         cloudflareWorkersAi: ConfigItem<CloudflareWorkersAIConfig>;
         fal: ConfigItem<FalConfig>;
         gemini: ConfigItem<GeminiGenerativeConfig>;
@@ -243,6 +575,26 @@ defineModuleConfig('copilot', {
     default: {},
     shape: CopilotProviderDefaultsShape,
   },
+  'providers.routePolicy': {
+    desc: 'Config-driven provider route policy. Supports provider allow/block lists plus cloud/private_cloud/local privacy filters and preferences globally, per feature, or per workspace.',
+    default: {},
+    shape: CopilotProviderRoutePolicyShape,
+  },
+  'prompts.overrides': {
+    desc: 'Config-driven prompt metadata overrides. Built-in prompt messages remain native fallback unless a later Prompt Registry layer replaces them.',
+    default: [],
+    shape: z.array(CopilotPromptOverrideShape),
+  },
+  'prompts.defaults': {
+    desc: 'Global prompt model defaults for self-hosted deployments. The text bucket applies to text-like prompts, image/transcript apply to prompt category matches, and structured only applies to explicitly included structured prompts. Prompt overrides remain the more specific policy.',
+    default: {},
+    shape: CopilotPromptDefaultsShape,
+  },
+  'tasks.models': {
+    desc: 'Optional task model aliases for embedding, workspace indexing, and rerank. Leave empty to let provider defaults and modelDefinitions choose task routes.',
+    default: {},
+    shape: CopilotTaskModelDefaultsShape,
+  },
   'providers.openai': {
     desc: 'The config for the openai provider.',
     default: {
@@ -250,6 +602,15 @@ defineModuleConfig('copilot', {
       baseURL: 'https://api.openai.com/v1',
     },
     link: 'https://github.com/openai/openai-node',
+  },
+  'providers.openaiCompatible': {
+    desc: 'The config for OpenAI-compatible endpoints such as OpenRouter, DeepSeek, Ollama, LM Studio, vLLM and LocalAI.',
+    default: {
+      apiKey: '',
+      baseURL: '',
+      apiStyle: 'chat_completions',
+    },
+    shape: OpenAICompatibleConfigShape,
   },
   'providers.cloudflareWorkersAi': {
     desc: 'The config for the Cloudflare Workers AI provider.',

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { CopilotPromptInvalid } from '../../base';
+import { Config, CopilotPromptInvalid } from '../../base';
 import { llmGetBuiltInPromptSpec, llmRenderBuiltInPrompt } from '../../native';
 import { PromptService } from '../../plugins/copilot/prompt';
 import type { Prompt } from '../../plugins/copilot/prompt/spec';
@@ -13,6 +13,10 @@ import type {
 export class TestingPromptService extends PromptService {
   private readonly customPrompts = new Map<string, Prompt>();
   private readonly builtInPromptOverrides = new Map<string, Prompt>();
+
+  constructor(config: Config) {
+    super(config);
+  }
 
   reset() {
     this.customPrompts.clear();

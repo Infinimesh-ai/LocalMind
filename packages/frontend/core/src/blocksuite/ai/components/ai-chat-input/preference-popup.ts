@@ -1,5 +1,10 @@
 import type { AIToolsConfigService } from '@affine/core/modules/ai-button';
-import type { AIModelService } from '@affine/core/modules/ai-button/services/models';
+import {
+  type AIModelService,
+  formatAIModelDiagnosticsLabel,
+  formatAIModelMenuLabels,
+  resolveAIModelPromptName,
+} from '@affine/core/modules/ai-button/services/models';
 import type {
   ServerService,
   SubscriptionService,
@@ -28,7 +33,7 @@ import {
 import { ShadowlessElement } from '@blocksuite/std';
 import { autoPlacement, offset, shift } from '@floating-ui/dom';
 import { computed } from '@preact/signals-core';
-import { css, html } from 'lit';
+import { css, html, type PropertyValues } from 'lit';
 import { property } from 'lit/decorators.js';
 
 const modelSubMenuMiddleware = [
@@ -85,16 +90,42 @@ export class ChatInputPreference extends SignalWatcher(
     .ai-model-postfix svg:hover {
       color: ${unsafeCSSVarV2('icon/activated')};
     }
+    .ai-model-info {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      max-width: 220px;
+      min-width: 0;
+      margin-right: 40px;
+    }
     .ai-model-version {
       font-size: 12px;
       color: ${unsafeCSSVarV2('text/tertiary')};
-      line-height: 20px;
-      margin-right: 40px;
+      line-height: 18px;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .ai-model-provider-label {
+      font-size: 11px;
+      color: ${unsafeCSSVarV2('text/tertiary')};
+      line-height: 16px;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
   `;
 
   @property({ attribute: false })
   accessor session!: CopilotChatHistoryFragment | null | undefined;
+
+  @property({ attribute: false })
+  accessor workspaceId: string | undefined;
+
+  @property({ attribute: false })
+  accessor promptName: string | undefined;
   // --------- model props end ---------
 
   // --------- extended thinking props start ---------
@@ -136,6 +167,21 @@ export class ChatInputPreference extends SignalWatcher(
     return activeModel || defaultModel;
   });
 
+  protected override updated(changedProperties: PropertyValues) {
+    if (
+      this.aiModelService &&
+      (changedProperties.has('workspaceId') ||
+        changedProperties.has('promptName') ||
+        changedProperties.has('session') ||
+        changedProperties.has('aiModelService'))
+    ) {
+      this.aiModelService.setWorkspaceId(this.workspaceId);
+      this.aiModelService.setPromptName(
+        resolveAIModelPromptName(this.promptName, this.session?.promptName)
+      );
+    }
+  }
+
   openPreference(e: Event) {
     const element = e.currentTarget;
     if (!(element instanceof HTMLElement)) return;
@@ -160,10 +206,21 @@ export class ChatInputPreference extends SignalWatcher(
             const status =
               this.subscriptionService.subscription.ai$.value?.status;
             const isSubscribed = status === SubscriptionStatus.Active;
+            const menuLabels = formatAIModelMenuLabels(model);
+            const diagnosticsLabel = formatAIModelDiagnosticsLabel(model);
             return menu.action({
               name: model.category,
               info: html`
-                <span class="ai-model-version">${model.version}</span>
+                <span class="ai-model-info" title=${diagnosticsLabel}>
+                  <span class="ai-model-version">${model.version}</span>
+                  ${menuLabels.map(
+                    label => html`
+                      <span class="ai-model-provider-label" title=${label}>
+                        ${label}
+                      </span>
+                    `
+                  )}
+                </span>
               `,
               prefix: html`
                 <div class="ai-model-prefix">

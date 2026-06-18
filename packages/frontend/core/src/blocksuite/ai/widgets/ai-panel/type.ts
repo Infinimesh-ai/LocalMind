@@ -33,11 +33,24 @@ export type AIActionAnswer = {
   streamObjects?: StreamObject[];
 };
 
+export interface AIActionModelContext {
+  actionId: keyof BlockSuitePresets.AIActions;
+  promptName: string;
+  workspaceId: string;
+  docId?: string;
+  options: BlockSuitePresets.AITextActionOptions & Record<string, unknown>;
+}
+
+export type AIActionModelResolver = (
+  context: AIActionModelContext
+) => string | null | undefined | Promise<string | null | undefined>;
+
 export interface AffineAIPanelWidgetConfig {
   answerRenderer: (
     answer: string,
     state?: AffineAIPanelState
   ) => TemplateResult<1> | typeof nothing;
+  resolveActionModelId?: AIActionModelResolver;
   generateAnswer?: (props: {
     input: string;
     update: (answer: AIActionAnswer) => void;

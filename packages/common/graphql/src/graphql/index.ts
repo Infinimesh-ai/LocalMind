@@ -1350,19 +1350,1713 @@ export const createCopilotMessageMutation = {
 export const getPromptModelsQuery = {
   id: 'getPromptModelsQuery' as const,
   op: 'getPromptModels',
-  query: `query getPromptModels($promptName: String!) {
+  query: `query getPromptModels($promptName: String!, $workspaceId: String) {
   currentUser {
-    copilot {
+    copilot(workspaceId: $workspaceId) {
       models(promptName: $promptName) {
         defaultModel
+        embeddingRoute {
+          behaviorFlags
+          candidateCount
+          canonicalModelKey
+          configured
+          diagnosticsErrors {
+            code
+            message
+            stage
+          }
+          dimensionMismatch
+          errorCode
+          errorMessage
+          fallbackProviderIds
+          featureKind
+          modelBackendKind
+          modelEmbeddingDimensions
+          modelId
+          policyAllowedPrivacy
+          policyAllowedProviderIds
+          policyBlockedProviderIds
+          policyEnabled
+          policyFeatureKind
+          policyPreferredPrivacy
+          policyWorkspaceId
+          policyCandidates {
+            allowed
+            available
+            candidateFingerprint
+            candidateKey
+            health
+            healthCheckedAt
+            privacy
+            providerId
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerName
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerSource
+            providerPriority
+            providerType
+            reasons
+          }
+          routeCandidates {
+            candidateKey
+            candidateModelIds
+            matched
+            modelId
+            providerId
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerName
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerSource
+            providerType
+            providerPriority
+            privacy
+            health
+            healthCheckedAt
+            reasons
+            routeModelAliasMatched
+            routeModelDefinitionAliases
+            routeModelDefinitionId
+            routeModelDefinitionSource
+            routeRawModelId
+            registryAvailable
+            registryKind
+            registrySelected
+            requestedModelId
+          }
+          routeTrace {
+            availableCount
+            blockedCount
+            candidateCount
+            matchedCount
+            phase
+            preparedCount
+            reasons
+            selectedCount
+          }
+          prepareCandidates {
+            candidateKey
+            candidateModelIds
+            errorCode
+            modelId
+            prepared
+            preparedModelId
+            providerId
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerName
+            providerPriority
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerSource
+            providerType
+            privacy
+            reasons
+            routeModelAliasMatched
+            routeModelDefinitionAliases
+            routeModelDefinitionId
+            routeModelDefinitionSource
+            routeRawModelId
+            registryAvailable
+            registryKind
+            registrySelected
+            requestedModelId
+          }
+          preparedProviderCount
+          preparedRoutes {
+            behaviorFlags
+            canonicalModelKey
+            dimensionMismatch
+            modelBackendKind
+            modelEmbeddingDimensions
+            modelId
+            protocol
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerId
+            providerName
+            providerPriority
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerSource
+            providerType
+            requestedDimensions
+            requestLayer
+          }
+          providerId
+          providerConfiguredModelCount
+          providerConfiguredModelIds
+          providerName
+          providerPriority
+          providerProfileConfigPath
+          providerProfileId
+          providerProfileSource
+          providerSource
+          providerType
+          protocol
+          requestedModelConfigKey
+          requestedModelConfigPath
+          requestedModelId
+          requestedModelSource
+          requestedDimensions
+          requestLayer
+          topK
+        }
         optionalModels {
+          contextWindow
+          costInputPer1M
+          costOutputPer1M
+          embeddingDimensions
           id
+          maxOutputTokens
           name
+          promptAction
+          promptCategory
+          promptDefaultPolicy
+          promptModelConfigPath
+          promptModelSource
+          promptModelSources {
+            candidateSource
+            modelConfigPath
+            modelSource
+          }
+          promptName
+          promptOverrideApplied
+          promptSource
+          providerId
+          providerName
+          providerSource
+          providerConfiguredModelCount
+          providerConfiguredModelIds
+          providerProfileConfigPath
+          providerProfileId
+          providerProfileSource
+          routeModelId
+          providerType
+          providerPrivacy
+          providerHealth
+          providerHealthCheckedAt
+          providerHealthLastError
+          providerPriority
+          routeBackendKind
+          routeBehaviorFlags
+          routeCanonicalModelKey
+          routeFallbackProviderIds
+          routeInputTypes
+          routeModelAliasMatched
+          routeModelDefinitionAliases
+          routeModelDefinitionId
+          routeModelDefinitionSource
+          routeOutputTypes
+          routeProtocol
+          routeRawModelId
+          routeRequestLayer
+          routePolicyAllowedPrivacy
+          routePolicyAllowedProviderIds
+          routePolicyBlockedProviderIds
+          routePolicyEnabled
+          routePolicyFeatureKind
+          routePolicyPreferredPrivacy
+          routePolicyWorkspaceId
+          sources
         }
         proModels {
+          contextWindow
+          costInputPer1M
+          costOutputPer1M
+          embeddingDimensions
           id
+          maxOutputTokens
           name
+          promptAction
+          promptCategory
+          promptDefaultPolicy
+          promptModelConfigPath
+          promptModelSource
+          promptModelSources {
+            candidateSource
+            modelConfigPath
+            modelSource
+          }
+          promptName
+          promptOverrideApplied
+          promptSource
+          providerId
+          providerName
+          providerSource
+          providerConfiguredModelCount
+          providerConfiguredModelIds
+          providerProfileConfigPath
+          providerProfileId
+          providerProfileSource
+          routeModelId
+          providerType
+          providerPrivacy
+          providerHealth
+          providerHealthCheckedAt
+          providerHealthLastError
+          providerPriority
+          routeBackendKind
+          routeBehaviorFlags
+          routeCanonicalModelKey
+          routeFallbackProviderIds
+          routeInputTypes
+          routeModelAliasMatched
+          routeModelDefinitionAliases
+          routeModelDefinitionId
+          routeModelDefinitionSource
+          routeOutputTypes
+          routeProtocol
+          routeRawModelId
+          routeRequestLayer
+          routePolicyAllowedPrivacy
+          routePolicyAllowedProviderIds
+          routePolicyBlockedProviderIds
+          routePolicyEnabled
+          routePolicyFeatureKind
+          routePolicyPreferredPrivacy
+          routePolicyWorkspaceId
+          sources
         }
+        rerankRoute {
+          behaviorFlags
+          candidateCount
+          canonicalModelKey
+          configured
+          diagnosticsErrors {
+            code
+            message
+            stage
+          }
+          dimensionMismatch
+          errorCode
+          errorMessage
+          fallbackProviderIds
+          featureKind
+          modelBackendKind
+          modelEmbeddingDimensions
+          modelId
+          policyAllowedPrivacy
+          policyAllowedProviderIds
+          policyBlockedProviderIds
+          policyEnabled
+          policyFeatureKind
+          policyPreferredPrivacy
+          policyWorkspaceId
+          policyCandidates {
+            allowed
+            available
+            candidateFingerprint
+            candidateKey
+            health
+            healthCheckedAt
+            privacy
+            providerId
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerName
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerSource
+            providerPriority
+            providerType
+            reasons
+          }
+          routeCandidates {
+            candidateKey
+            candidateModelIds
+            matched
+            modelId
+            providerId
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerName
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerSource
+            providerType
+            providerPriority
+            privacy
+            health
+            healthCheckedAt
+            reasons
+            routeModelAliasMatched
+            routeModelDefinitionAliases
+            routeModelDefinitionId
+            routeModelDefinitionSource
+            routeRawModelId
+            registryAvailable
+            registryKind
+            registrySelected
+            requestedModelId
+          }
+          routeTrace {
+            availableCount
+            blockedCount
+            candidateCount
+            matchedCount
+            phase
+            preparedCount
+            reasons
+            selectedCount
+          }
+          prepareCandidates {
+            candidateKey
+            candidateModelIds
+            errorCode
+            modelId
+            prepared
+            preparedModelId
+            providerId
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerName
+            providerPriority
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerSource
+            providerType
+            privacy
+            reasons
+            routeModelAliasMatched
+            routeModelDefinitionAliases
+            routeModelDefinitionId
+            routeModelDefinitionSource
+            routeRawModelId
+            registryAvailable
+            registryKind
+            registrySelected
+            requestedModelId
+          }
+          preparedProviderCount
+          preparedRoutes {
+            behaviorFlags
+            canonicalModelKey
+            dimensionMismatch
+            modelBackendKind
+            modelEmbeddingDimensions
+            modelId
+            protocol
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerId
+            providerName
+            providerPriority
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerSource
+            providerType
+            requestedDimensions
+            requestLayer
+          }
+          providerId
+          providerConfiguredModelCount
+          providerConfiguredModelIds
+          providerName
+          providerPriority
+          providerProfileConfigPath
+          providerProfileId
+          providerProfileSource
+          providerSource
+          providerType
+          protocol
+          requestedModelConfigKey
+          requestedModelConfigPath
+          requestedModelId
+          requestedModelSource
+          requestedDimensions
+          requestLayer
+          topK
+        }
+      }
+    }
+  }
+}`,
+};
+
+export const getCopilotPromptsQuery = {
+  id: 'getCopilotPromptsQuery' as const,
+  op: 'getCopilotPrompts',
+  query: `query getCopilotPrompts($workspaceId: String) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      prompts {
+        action
+        category
+        defaultPolicy
+        fingerprint
+        modelStrategyFingerprint
+        model
+        modelConfigPath
+        modelSource
+        name
+        optionalModelsConfigPath
+        optionalModelCount
+        optionalModels
+        optionalModelsSource
+        overrideApplied
+        paramCount
+        paramKeys
+        proModelsConfigPath
+        proModelCount
+        proModelsSource
+        registryFingerprint
+        registryId
+        registryMessageCount
+        registryModified
+        registryUpdatedAt
+        registryValidationBlockingCount
+        registryValidationDetail
+        registryValidationErrorCount
+        registryValidationIssueCount
+        registryValidationIssues {
+          code
+          detail
+          fieldLabel
+          message
+          messageIndex
+          path
+          publishBlocking
+          reason
+          severity
+          source
+          sourceLocator {
+            field
+            messageIndex
+            path
+            registryFingerprint
+            registryId
+            registryUpdatedAt
+            table
+          }
+        }
+        registryValidationPublishStatus
+        registryValidationRemediations {
+          detail
+          kind
+          label
+          target
+          targetLocator {
+            field
+            messageIndex
+            path
+            registryFingerprint
+            registryId
+            registryUpdatedAt
+            table
+          }
+        }
+        registryValidationReason
+        registryValidationStatus
+        revision
+        source
+        templateFingerprint
+        versionEvidence {
+          defaultPolicy
+          fingerprint
+          modelConfigPath
+          modelStrategyFingerprint
+          optionalModelsConfigPath
+          overrideApplied
+          proModelsConfigPath
+          registryFingerprint
+          registryId
+          registryMessageCount
+          registryModified
+          registryUpdatedAt
+          registryValidationBlockingCount
+          registryValidationDetail
+          registryValidationErrorCount
+          registryValidationIssueCount
+          registryValidationIssues {
+            code
+            detail
+            fieldLabel
+            message
+            messageIndex
+            path
+            publishBlocking
+            reason
+            severity
+            source
+            sourceLocator {
+              field
+              messageIndex
+              path
+              registryFingerprint
+              registryId
+            registryUpdatedAt
+            table
+          }
+        }
+          registryValidationPublishStatus
+          registryValidationRemediations {
+            detail
+            kind
+            label
+            target
+            targetLocator {
+              field
+              messageIndex
+              path
+              registryFingerprint
+              registryId
+              registryUpdatedAt
+              table
+            }
+          }
+          registryValidationReason
+          registryValidationStatus
+          revision
+          templateFingerprint
+        }
+      }
+    }
+  }
+}`,
+};
+
+export const getCopilotPromptRegistryPublishGateQuery = {
+  id: 'getCopilotPromptRegistryPublishGateQuery' as const,
+  op: 'getCopilotPromptRegistryPublishGate',
+  query: `query getCopilotPromptRegistryPublishGate($workspaceId: String, $name: String!, $expectedVersion: CopilotPromptRegistryPublishGateExpectedVersionInput) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      promptRegistryPublishGate(name: $name, expectedVersion: $expectedVersion) {
+        actionRouteDryRun {
+          actionId
+          actualRouteCount
+          diagnosticsErrorCode
+          diagnosticsErrorMessage
+          diagnosticsErrorStage
+          errorCode
+          errorMessage
+          expectedRouteCount
+          featureKind
+          missingRouteCount
+          routeCountMismatch
+          routeCountMismatchStepIds
+          status
+          steps {
+            actualRouteCount
+            fallbackProviderIds
+            kind
+            requestedModelId
+            requestedModelSource
+            routeCount
+            routeCountMismatch
+            routes {
+              fallbackOrderIndex
+              modelId
+              protocol
+              providerConfiguredModelCount
+              providerConfiguredModelIds
+              providerHealth
+              providerHealthCheckedAt
+              providerHealthLastError
+              providerId
+              providerName
+              providerPrivacy
+              providerPriority
+              providerProfileConfigPath
+              providerProfileId
+              providerProfileSource
+              providerSource
+              providerType
+              requestLayer
+              routeIndex
+              routeModelAliasMatched
+              routeModelDefinitionAliases
+              routeModelDefinitionId
+              routeModelDefinitionSource
+              routeRawModelId
+            }
+            stepId
+          }
+        }
+        allowed
+        blockingCount
+        errorCount
+        issueCount
+        issues {
+          code
+          detail
+          fieldLabel
+          message
+          messageIndex
+          path
+          publishBlocking
+          reason
+          severity
+          source
+          sourceLocator {
+            field
+            messageIndex
+            path
+            registryFingerprint
+            registryId
+            registryUpdatedAt
+            table
+          }
+        }
+        modelRoute {
+          available
+          behaviorFlags
+          candidateCount
+          candidateConfigPath
+          candidateIndex
+          candidateKind
+          canonicalModelKey
+          checked
+          configured
+          diagnosticsErrorCode
+          diagnosticsErrorMessage
+          diagnosticsErrorStage
+          fallbackProviderIds
+          featureKind
+          matchedCandidateCount
+          modelBackendKind
+          modelId
+          outputType
+          policyAllowedPrivacy
+          policyAllowedProviderIds
+          policyBlockedProviderIds
+          policyEnabled
+          policyFeatureKind
+          policyPreferredPrivacy
+          policyWorkspaceId
+          policyCandidates {
+            allowed
+            available
+            candidateFingerprint
+            candidateKey
+            health
+            healthCheckedAt
+            privacy
+            providerId
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerName
+            providerPriority
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerSource
+            providerType
+            reasons
+          }
+          protocol
+          providerId
+          providerConfiguredModelCount
+          providerConfiguredModelIds
+          providerHealth
+          providerHealthCheckedAt
+          providerHealthLastError
+          providerName
+          providerPrivacy
+          providerPriority
+          providerProfileConfigPath
+          providerProfileId
+          providerProfileSource
+          providerSource
+          providerType
+          reasons
+          requestedModelId
+          requestedModelSource
+          requestLayer
+          routeModelAliasMatched
+          routeModelDefinitionAliases
+          routeModelDefinitionId
+          routeModelDefinitionSource
+          routeRawModelId
+          routeCandidates {
+            candidateModelIds
+            health
+            healthCheckedAt
+            matched
+            modelId
+            privacy
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerId
+            providerName
+            providerPriority
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerSource
+            providerType
+            reasons
+            registryAvailable
+            registryKind
+            registrySelected
+            requestedModelId
+            routeModelAliasMatched
+            routeModelDefinitionAliases
+            routeModelDefinitionId
+            routeModelDefinitionSource
+            routeRawModelId
+          }
+          routeTrace {
+            availableCount
+            blockedCount
+            candidateCount
+            matchedCount
+            phase
+            reasons
+            selectedCount
+          }
+        }
+        modelRoutes {
+          available
+          behaviorFlags
+          candidateCount
+          candidateConfigPath
+          candidateIndex
+          candidateKind
+          canonicalModelKey
+          checked
+          configured
+          diagnosticsErrorCode
+          diagnosticsErrorMessage
+          diagnosticsErrorStage
+          fallbackProviderIds
+          featureKind
+          matchedCandidateCount
+          modelBackendKind
+          modelId
+          outputType
+          policyAllowedPrivacy
+          policyAllowedProviderIds
+          policyBlockedProviderIds
+          policyEnabled
+          policyFeatureKind
+          policyPreferredPrivacy
+          policyWorkspaceId
+          policyCandidates {
+            allowed
+            available
+            health
+            healthCheckedAt
+            privacy
+            providerId
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerName
+            providerPriority
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerSource
+            providerType
+            reasons
+          }
+          protocol
+          providerId
+          providerConfiguredModelCount
+          providerConfiguredModelIds
+          providerHealth
+          providerHealthCheckedAt
+          providerHealthLastError
+          providerName
+          providerPrivacy
+          providerPriority
+          providerProfileConfigPath
+          providerProfileId
+          providerProfileSource
+          providerSource
+          providerType
+          reasons
+          requestedModelId
+          requestedModelSource
+          requestLayer
+          routeModelAliasMatched
+          routeModelDefinitionAliases
+          routeModelDefinitionId
+          routeModelDefinitionSource
+          routeRawModelId
+          routeCandidates {
+            candidateModelIds
+            health
+            healthCheckedAt
+            matched
+            modelId
+            privacy
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerId
+            providerName
+            providerPriority
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerSource
+            providerType
+            reasons
+            registryAvailable
+            registryKind
+            registrySelected
+            requestedModelId
+            routeModelAliasMatched
+            routeModelDefinitionAliases
+            routeModelDefinitionId
+            routeModelDefinitionSource
+            routeRawModelId
+          }
+          routeTrace {
+            availableCount
+            blockedCount
+            candidateCount
+            matchedCount
+            phase
+            reasons
+            selectedCount
+          }
+        }
+        taskRoutes {
+          behaviorFlags
+          candidateCount
+          canonicalModelKey
+          configured
+          diagnosticsErrors {
+            code
+            message
+            stage
+          }
+          dimensionMismatch
+          errorCode
+          errorMessage
+          fallbackProviderIds
+          featureKind
+          modelBackendKind
+          modelEmbeddingDimensions
+          modelId
+          policyAllowedPrivacy
+          policyAllowedProviderIds
+          policyBlockedProviderIds
+          policyEnabled
+          policyFeatureKind
+          policyPreferredPrivacy
+          policyWorkspaceId
+          policyCandidates {
+            allowed
+            available
+            health
+            healthCheckedAt
+            privacy
+            providerId
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerName
+            providerSource
+            providerPriority
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerType
+            reasons
+          }
+          routeCandidates {
+            candidateKey
+            candidateModelIds
+            matched
+            modelId
+            providerId
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerName
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerSource
+            providerType
+            providerPriority
+            privacy
+            health
+            healthCheckedAt
+            routeModelAliasMatched
+            routeModelDefinitionAliases
+            routeModelDefinitionId
+            routeModelDefinitionSource
+            routeRawModelId
+            reasons
+            registryAvailable
+            registryKind
+            registrySelected
+            requestedModelId
+          }
+          routeTrace {
+            availableCount
+            blockedCount
+            candidateCount
+            matchedCount
+            phase
+            preparedCount
+            reasons
+            selectedCount
+          }
+          prepareCandidates {
+            candidateKey
+            candidateModelIds
+            errorCategory
+            errorCode
+            health
+            healthCheckedAt
+            modelId
+            prepared
+            preparedModelId
+            providerId
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerName
+            providerPriority
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerSource
+            providerType
+            privacy
+            routeModelAliasMatched
+            routeModelDefinitionAliases
+            routeModelDefinitionId
+            routeModelDefinitionSource
+            routeRawModelId
+            reasons
+            registryAvailable
+            registryKind
+            registrySelected
+            requestedModelId
+          }
+          preparedProviderCount
+          preparedRoutes {
+            behaviorFlags
+            canonicalModelKey
+            dimensionMismatch
+            modelBackendKind
+            modelEmbeddingDimensions
+            modelId
+            protocol
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerId
+            providerName
+            providerPriority
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerSource
+            providerType
+            requestedDimensions
+            requestLayer
+          }
+          providerId
+          providerConfiguredModelCount
+          providerConfiguredModelIds
+          providerName
+          providerPriority
+          providerProfileConfigPath
+          providerProfileId
+          providerProfileSource
+          providerSource
+          providerType
+          protocol
+          requestedModelConfigKey
+          requestedModelConfigPath
+          requestedModelId
+          requestedModelSource
+          requestedDimensions
+          requestLayer
+          topK
+        }
+        name
+        publishStatus
+        reason
+        registryFingerprint
+        registryId
+        registryUpdatedAt
+        repairActionCatalog {
+          actionKind
+          catalogVersion
+          inputSchema
+          recommendationCount
+          requiredCapabilities
+          safety
+        }
+        repairActionCatalogFingerprint
+        repairActionMutationGuard {
+          auditSummary
+          auditSummaryFingerprint
+          catalogFingerprint
+          catalogVersion
+          expectedRegistryFingerprint
+          expectedRegistryId
+          expectedRegistryUpdatedAt
+          guardFingerprint
+          intentFingerprint
+          inputSchemaFingerprint
+          recommendationCategories
+          recommendationCount
+          recommendationCodes
+          recommendationFingerprints
+          requiredCapabilities
+          requiredReviewModes
+          required
+          safetyLevels
+          suggestedActionKinds
+          targetLocatorCount
+          targetLocatorFingerprint
+          targetLocatorKinds
+        }
+        repairActionPreview {
+          approvalCheckpoints
+          approvalModes
+          approvalPolicyFingerprint
+          approvalPolicyVersion
+          approvalRequired
+          auditSummaryFingerprint
+          authorizationFingerprint
+          authorizationStatus
+          candidateCount
+          candidateEvidenceSetFingerprint
+          catalogFingerprint
+          catalogVersion
+          guardFingerprint
+          operationFingerprints
+          operationSetFingerprint
+          operations {
+            actionKind
+            candidateEvidenceCount
+            candidateEvidenceFingerprint
+            candidateEvidenceFingerprints
+            candidateEvidenceKeys
+            category
+            code
+            diagnosticsFingerprint
+            inputSchema
+            instanceKey
+            operationFingerprint
+            previewStatus
+            requiredCapabilities
+            reviewMode
+            safety
+            target
+            targetLocator {
+              actionId
+              candidateIndex
+              candidateKind
+              fallbackOrderIndex
+              featureKind
+              kind
+              outputType
+              path
+              providerId
+              providerProfileConfigPath
+              providerProfileId
+              providerProfileSource
+              registryFingerprint
+              registryId
+              registryUpdatedAt
+              requestedModelConfigKey
+              requestedModelConfigPath
+              requestedModelId
+              requestedModelSource
+              routeIndex
+              status
+              stepId
+            }
+            targetLocatorFingerprint
+          }
+          previewFingerprint
+          readOnly
+          requiredCapabilities
+          status
+          submissionContract {
+            approvalPolicyFingerprint
+            authorizationFingerprint
+            candidateEvidenceSetFingerprint
+            catalogFingerprint
+            contractVersion
+            expectedRegistryFingerprint
+            expectedRegistryId
+            expectedRegistryUpdatedAt
+            guardFingerprint
+            idempotencyKey
+            mutationAvailable
+            operationSetFingerprint
+            previewFingerprint
+            readOnly
+            requiredInputs
+            status
+            submissionFingerprint
+          }
+        }
+        remediations {
+          detail
+          kind
+          label
+          target
+          targetLocator {
+            field
+            messageIndex
+            path
+            registryFingerprint
+            registryId
+            registryUpdatedAt
+            table
+          }
+        }
+        repairRecommendations {
+          candidateEvidence {
+            candidateFingerprint
+            candidateIndex
+            candidateKey
+            candidateModelIds
+            modelId
+            preparedModelId
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerId
+            providerName
+            providerPriority
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerSource
+            providerType
+            reasons
+            requestedModelId
+            routeModelDefinitionId
+            scope
+          }
+          category
+          code
+          detail
+          diagnosticsFingerprint
+          evidence
+          instanceKey
+          severity
+          suggestedAction
+          suggestedActionCatalogVersion
+          suggestedActionInputSchema
+          suggestedActionKind
+          suggestedActionRequiredCapabilities
+          suggestedActionSafety
+          target
+          targetLocator {
+            actionId
+            candidateIndex
+            candidateKind
+            fallbackOrderIndex
+            featureKind
+            kind
+            outputType
+            path
+            providerId
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            registryFingerprint
+            registryId
+            registryUpdatedAt
+            requestedModelConfigKey
+            requestedModelConfigPath
+            requestedModelId
+            requestedModelSource
+            routeIndex
+            status
+            stepId
+          }
+          title
+        }
+        stale
+        staleReasons
+        status
+      }
+    }
+  }
+}`,
+};
+
+export const getCopilotPromptRegistryRepairPreflightQuery = {
+  id: 'getCopilotPromptRegistryRepairPreflightQuery' as const,
+  op: 'getCopilotPromptRegistryRepairPreflight',
+  query: `query getCopilotPromptRegistryRepairPreflight($workspaceId: String, $name: String!, $expectedVersion: CopilotPromptRegistryPublishGateExpectedVersionInput, $submission: CopilotPromptRegistryRepairSubmissionInput!) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      promptRegistryRepairPreflight(name: $name, expectedVersion: $expectedVersion, submission: $submission) {
+        accepted
+        actorFingerprint
+        actorSnapshotInputs
+        actorSnapshotStatus
+        actorSnapshotVersion
+        actorType
+        approvalCheckpoints
+        approvalModes
+        approvalRecordCreated
+        approvalRecordFingerprint
+        approvalRecordInputs
+        approvalRecordStatus
+        approvalRecordVersion
+        approvalRequestFingerprint
+        approvalRequestInputs
+        approvalRequestStatus
+        approvalRequestVersion
+        approvalRequired
+        auditBindingFingerprint
+        auditBindingInputs
+        auditBindingStatus
+        auditBindingVersion
+        auditEventCreated
+        auditEventFingerprint
+        auditEventInputs
+        auditEventStatus
+        auditEventVersion
+        authorizationStatus
+        candidateEvidenceSetFingerprint
+        capabilityCheckMode
+        capabilityFingerprint
+        capabilitySource
+        capabilityStatus
+        contractVersion
+        currentSubmissionFingerprint
+        expectedSubmissionFingerprint
+        executionGateFingerprint
+        executionGateInputs
+        executionGateStatus
+        executionGateVersion
+        executionStateCreated
+        executionStateFingerprint
+        executionStateInputs
+        executionStateStatus
+        executionStateVersion
+        expectedCandidateEvidenceSetFingerprint
+        idempotencyFingerprint
+        idempotencyKey
+        idempotencyLockAcquired
+        idempotencyScope
+        idempotencyStatus
+        idempotencyVersion
+        matchedFields
+        mismatchedFields
+        mutationAvailable
+        permissionCheckMode
+        permissionChecked
+        permissionFingerprint
+        permissionScope
+        permissionStatus
+        policyBindingFingerprint
+        policyBindingInputs
+        policyBindingStatus
+        policyBindingVersion
+        policySource
+        requiredCapabilities
+        requiredCapabilityCount
+        requiredPermission
+        repairJobCreated
+        repairJobFingerprint
+        repairJobInputs
+        repairJobStatus
+        repairJobVersion
+        reviewBindingFingerprint
+        reviewBindingInputs
+        reviewBindingStatus
+        reviewBindingVersion
+        rollbackPlanCreated
+        rollbackPlanFingerprint
+        rollbackPlanInputs
+        rollbackPlanStatus
+        rollbackPlanVersion
+        readOnly
+        status
+        workspaceId
+      }
+    }
+  }
+}`,
+};
+
+export const requestCopilotPromptRegistryRepairExecutionMutation = {
+  id: 'requestCopilotPromptRegistryRepairExecutionMutation' as const,
+  op: 'requestCopilotPromptRegistryRepairExecution',
+  query: `mutation requestCopilotPromptRegistryRepairExecution($input: CopilotPromptRegistryRepairExecutionRequestInput!) {
+  requestCopilotPromptRegistryRepairExecution(input: $input) {
+    accepted
+    approvalRecordRequestCreated
+    approvalRecordRequestFingerprint
+    approvalRecordRequestInputs
+    approvalRecordRequestStatus
+    approvalRecordRequestVersion
+    auditEventRequestCreated
+    auditEventRequestFingerprint
+    auditEventRequestInputs
+    auditEventRequestStatus
+    auditEventRequestVersion
+    executionCompletionEventRequestCreated
+    executionCompletionEventRequestFingerprint
+    executionCompletionEventRequestInputs
+    executionCompletionEventRequestStatus
+    executionCompletionEventRequestVersion
+    executionCompletionRequestCreated
+    executionCompletionRequestFingerprint
+    executionCompletionRequestInputs
+    executionCompletionRequestStatus
+    executionCompletionRequestVersion
+    executionFinalizationEventRequestCreated
+    executionFinalizationEventRequestFingerprint
+    executionFinalizationEventRequestInputs
+    executionFinalizationEventRequestStatus
+    executionFinalizationEventRequestVersion
+    executionFinalizationRequestCreated
+    executionFinalizationRequestFingerprint
+    executionFinalizationRequestInputs
+    executionFinalizationRequestStatus
+    executionFinalizationRequestVersion
+    executionStatusPollRequestCreated
+    executionStatusPollRequestFingerprint
+    executionStatusPollRequestInputs
+    executionStatusPollRequestStatus
+    executionStatusPollRequestVersion
+    executionOperationEntryRequestCreated
+    executionOperationEntryRequestFingerprint
+    executionOperationEntryRequestInputs
+    executionOperationEntryRequestStatus
+    executionOperationEntryRequestVersion
+    executionApprovalUiRequestCreated
+    executionApprovalUiRequestFingerprint
+    executionApprovalUiRequestInputs
+    executionApprovalUiRequestStatus
+    executionApprovalUiRequestVersion
+    executionDiffPreviewRequestCreated
+    executionDiffPreviewRequestFingerprint
+    executionDiffPreviewRequestInputs
+    executionDiffPreviewRequestStatus
+    executionDiffPreviewRequestVersion
+    executionApprovalDecisionRequestCreated
+    executionApprovalDecisionRequestFingerprint
+    executionApprovalDecisionRequestInputs
+    executionApprovalDecisionRequestStatus
+    executionApprovalDecisionRequestVersion
+    executionStartRequestCreated
+    executionStartRequestFingerprint
+    executionStartRequestInputs
+    executionStartRequestStatus
+    executionStartRequestVersion
+    executionQueueRequestCreated
+    executionQueueRequestFingerprint
+    executionQueueRequestInputs
+    executionQueueRequestStatus
+    executionQueueRequestVersion
+    executionWorkerLeaseRequestCreated
+    executionWorkerLeaseRequestFingerprint
+    executionWorkerLeaseRequestInputs
+    executionWorkerLeaseRequestStatus
+    executionWorkerLeaseRequestVersion
+    executionJobRunRequestCreated
+    executionJobRunRequestFingerprint
+    executionJobRunRequestInputs
+    executionJobRunRequestStatus
+    executionJobRunRequestVersion
+    executionRunStepRequestCreated
+    executionRunStepRequestFingerprint
+    executionRunStepRequestInputs
+    executionRunStepRequestStatus
+    executionRunStepRequestVersion
+    executionRunStepTraceRequestCreated
+    executionRunStepTraceRequestFingerprint
+    executionRunStepTraceRequestInputs
+    executionRunStepTraceRequestStatus
+    executionRunStepTraceRequestVersion
+    executionRunStepResultRequestCreated
+    executionRunStepResultRequestFingerprint
+    executionRunStepResultRequestInputs
+    executionRunStepResultRequestStatus
+    executionRunStepResultRequestVersion
+    executionRunStepCompletionRequestCreated
+    executionRunStepCompletionRequestFingerprint
+    executionRunStepCompletionRequestInputs
+    executionRunStepCompletionRequestStatus
+    executionRunStepCompletionRequestVersion
+    executionRunStepStatusEventRequestCreated
+    executionRunStepStatusEventRequestFingerprint
+    executionRunStepStatusEventRequestInputs
+    executionRunStepStatusEventRequestStatus
+    executionRunStepStatusEventRequestVersion
+    executionRunStepRetryRequestCreated
+    executionRunStepRetryRequestFingerprint
+    executionRunStepRetryRequestInputs
+    executionRunStepRetryRequestStatus
+    executionRunStepRetryRequestVersion
+    executionRunStepRetryAttemptRequestCreated
+    executionRunStepRetryAttemptRequestFingerprint
+    executionRunStepRetryAttemptRequestInputs
+    executionRunStepRetryAttemptRequestStatus
+    executionRunStepRetryAttemptRequestVersion
+    executionRunStepRetryAttemptStatusEventRequestCreated
+    executionRunStepRetryAttemptStatusEventRequestFingerprint
+    executionRunStepRetryAttemptStatusEventRequestInputs
+    executionRunStepRetryAttemptStatusEventRequestStatus
+    executionRunStepRetryAttemptStatusEventRequestVersion
+    executionRunStepRetryAttemptTraceRequestCreated
+    executionRunStepRetryAttemptTraceRequestFingerprint
+    executionRunStepRetryAttemptTraceRequestInputs
+    executionRunStepRetryAttemptTraceRequestStatus
+    executionRunStepRetryAttemptTraceRequestVersion
+    executionRunStepRetryAttemptResultRequestCreated
+    executionRunStepRetryAttemptResultRequestFingerprint
+    executionRunStepRetryAttemptResultRequestInputs
+    executionRunStepRetryAttemptResultRequestStatus
+    executionRunStepRetryAttemptResultRequestVersion
+    executionRunStepRetryAttemptCompletionRequestCreated
+    executionRunStepRetryAttemptCompletionRequestFingerprint
+    executionRunStepRetryAttemptCompletionRequestInputs
+    executionRunStepRetryAttemptCompletionRequestStatus
+    executionRunStepRetryAttemptCompletionRequestVersion
+    executionRunStepRetryAttemptCompletionStatusEventRequestCreated
+    executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint
+    executionRunStepRetryAttemptCompletionStatusEventRequestInputs
+    executionRunStepRetryAttemptCompletionStatusEventRequestStatus
+    executionRunStepRetryAttemptCompletionStatusEventRequestVersion
+    executionRunStepRetryAttemptFinalizationRequestCreated
+    executionRunStepRetryAttemptFinalizationRequestFingerprint
+    executionRunStepRetryAttemptFinalizationRequestInputs
+    executionRunStepRetryAttemptFinalizationRequestStatus
+    executionRunStepRetryAttemptFinalizationRequestVersion
+    executionRunStepRetryAttemptFinalizationStatusEventRequestCreated
+    executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint
+    executionRunStepRetryAttemptFinalizationStatusEventRequestInputs
+    executionRunStepRetryAttemptFinalizationStatusEventRequestStatus
+    executionRunStepRetryAttemptFinalizationStatusEventRequestVersion
+    executionRunStepRetryAttemptCloseRequestCreated
+    executionRunStepRetryAttemptCloseRequestFingerprint
+    executionRunStepRetryAttemptCloseRequestInputs
+    executionRunStepRetryAttemptCloseRequestStatus
+    executionRunStepRetryAttemptCloseRequestVersion
+    executionRunStepRetryAttemptCloseStatusEventRequestCreated
+    executionRunStepRetryAttemptCloseStatusEventRequestFingerprint
+    executionRunStepRetryAttemptCloseStatusEventRequestInputs
+    executionRunStepRetryAttemptCloseStatusEventRequestStatus
+    executionRunStepRetryAttemptCloseStatusEventRequestVersion
+    executionRunStepRetryAttemptRetentionPolicyRequestCreated
+    executionRunStepRetryAttemptRetentionPolicyRequestFingerprint
+    executionRunStepRetryAttemptRetentionPolicyRequestInputs
+    executionRunStepRetryAttemptRetentionPolicyRequestStatus
+    executionRunStepRetryAttemptRetentionPolicyRequestVersion
+    executionRunStepRetryAttemptRetentionPolicyRuleRequestCreated
+    executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint
+    executionRunStepRetryAttemptRetentionPolicyRuleRequestInputs
+    executionRunStepRetryAttemptRetentionPolicyRuleRequestStatus
+    executionRunStepRetryAttemptRetentionPolicyRuleRequestVersion
+    executionRunStepRetryAttemptRetentionLeaseRequestCreated
+    executionRunStepRetryAttemptRetentionLeaseRequestFingerprint
+    executionRunStepRetryAttemptRetentionLeaseRequestInputs
+    executionRunStepRetryAttemptRetentionLeaseRequestStatus
+    executionRunStepRetryAttemptRetentionLeaseRequestVersion
+    executionRunStepRetryAttemptArchiveRequestCreated
+    executionRunStepRetryAttemptArchiveRequestFingerprint
+    executionRunStepRetryAttemptArchiveRequestInputs
+    executionRunStepRetryAttemptArchiveRequestStatus
+    executionRunStepRetryAttemptArchiveRequestVersion
+    executionFailureEventRequestCreated
+    executionFailureEventRequestFingerprint
+    executionFailureEventRequestInputs
+    executionFailureEventRequestStatus
+    executionFailureEventRequestVersion
+    executionProviderResponseRequestCreated
+    executionProviderResponseRequestFingerprint
+    executionProviderResponseRequestInputs
+    executionProviderResponseRequestStatus
+    executionProviderResponseRequestVersion
+    executionResultRequestCreated
+    executionResultRequestFingerprint
+    executionResultRequestInputs
+    executionResultRequestStatus
+    executionResultRequestVersion
+    executionRetryPolicyRequestCreated
+    executionRetryPolicyRequestFingerprint
+    executionRetryPolicyRequestInputs
+    executionRetryPolicyRequestStatus
+    executionRetryPolicyRequestVersion
+    executionRollbackExecutorRequestCreated
+    executionRollbackExecutorRequestFingerprint
+    executionRollbackExecutorRequestInputs
+    executionRollbackExecutorRequestStatus
+    executionRollbackExecutorRequestVersion
+    executionRollbackOperationRequestCreated
+    executionRollbackOperationRequestFingerprint
+    executionRollbackOperationRequestInputs
+    executionRollbackOperationRequestStatus
+    executionRollbackOperationRequestVersion
+    executionRollbackOutcomeRequestCreated
+    executionRollbackOutcomeRequestFingerprint
+    executionRollbackOutcomeRequestInputs
+    executionRollbackOutcomeRequestStatus
+    executionRollbackOutcomeRequestVersion
+    executionRollbackTriggerRequestCreated
+    executionRollbackTriggerRequestFingerprint
+    executionRollbackTriggerRequestInputs
+    executionRollbackTriggerRequestStatus
+    executionRollbackTriggerRequestVersion
+    executionTraceRequestCreated
+    executionTraceRequestFingerprint
+    executionTraceRequestInputs
+    executionTraceRequestStatus
+    executionTraceRequestVersion
+    executionStateRequestCreated
+    executionStateRequestFingerprint
+    executionStateRequestInputs
+    executionStateRequestStatus
+    executionStateRequestVersion
+    executionRequested
+    idempotencyLockAcquired
+    idempotencyLockFingerprint
+    idempotencyLockInputs
+    idempotencyLockScope
+    idempotencyLockStatus
+    idempotencyLockVersion
+    matchedFields
+    mismatchedFields
+    mutationAvailable
+    readOnly
+    repairJobRequestCreated
+    repairJobRequestFingerprint
+    repairJobRequestInputs
+    repairJobRequestStatus
+    repairJobRequestVersion
+    rollbackPlanRequestCreated
+    rollbackPlanRequestFingerprint
+    rollbackPlanRequestInputs
+    rollbackPlanRequestStatus
+    rollbackPlanRequestVersion
+    requestFingerprint
+    requestInputs
+    requestStatus
+    requestVersion
+    preflight {
+      approvalRecordFingerprint
+      approvalRequestFingerprint
+      auditEventFingerprint
+      executionGateFingerprint
+      executionGateStatus
+      executionStateFingerprint
+      idempotencyFingerprint
+      policyBindingFingerprint
+      repairJobFingerprint
+      reviewBindingFingerprint
+      rollbackPlanFingerprint
+      status
+      workspaceId
+    }
+  }
+}`,
+};
+
+export const getCopilotActionRunPreparedRouteTraceQuery = {
+  id: 'getCopilotActionRunPreparedRouteTraceQuery' as const,
+  op: 'getCopilotActionRunPreparedRouteTrace',
+  query: `query getCopilotActionRunPreparedRouteTrace($runId: String!, $workspaceId: String!) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      actionRunPreparedRouteTrace(runId: $runId) {
+        status
+        type
+        steps {
+          actualRouteCount
+          fallbackProviderIds
+          kind
+          requestedModelId
+          requestedModelSource
+          routeCount
+          routeCountMismatch
+          routes {
+            fallbackOrderIndex
+            modelId
+            protocol
+            providerConfiguredModelCount
+            providerConfiguredModelIds
+            providerHealth
+            providerHealthCheckedAt
+            providerHealthLastError
+            providerId
+            providerName
+            providerPrivacy
+            providerPriority
+            providerProfileConfigPath
+            providerProfileId
+            providerProfileSource
+            providerSource
+            providerType
+            requestLayer
+            routeModelAliasMatched
+            routeModelDefinitionAliases
+            routeModelDefinitionId
+            routeModelDefinitionSource
+            routeRawModelId
+            routeIndex
+          }
+          stepId
+        }
+      }
+    }
+  }
+}`,
+};
+
+export const getCopilotActionRunsQuery = {
+  id: 'getCopilotActionRunsQuery' as const,
+  op: 'getCopilotActionRuns',
+  query: `query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      actionRuns(limit: $limit) {
+        actionId
+        actionVersion
+        attempt
+        createdAt
+        docId
+        errorCode
+        hasPreparedRouteTrace
+        id
+        preparedRouteActualCount
+        preparedRouteCount
+        preparedRouteFallbackProviderIds
+        preparedRouteFallbackOrder
+        preparedRouteStepFallbackProviderIds
+        preparedRouteStepIds
+        preparedRouteKinds
+        preparedRouteModelIds
+        preparedRouteOrder
+        preparedRouteProtocols
+        preparedRouteProviderIds
+        preparedRouteRequestedModelIds
+        preparedRouteRequestedModelSources
+        preparedRouteStepRequestedModelSources
+        preparedRouteRequestLayers
+        preparedRouteStepFallbackOrder
+        preparedRouteStepOrder
+        preparedRouteStepRouteCountMismatches
+        preparedRouteStepRouteCounts
+        preparedRouteStepProtocols
+        preparedRouteStepRequestLayers
+        preparedRouteStepCount
+        preparedRouteTargets
+        preparedRouteStepTargets
+        preparedRouteRequestedTargets
+        preparedRouteStepRequestedTargets
+        retryOf
+        sessionId
+        status
+        updatedAt
       }
     }
   }
@@ -1409,7 +3103,9 @@ export const createCopilotSessionMutation = {
   query: `mutation createCopilotSession($options: CreateChatSessionInput!) {
   createCopilotSession(options: $options)
 }`,
-  deprecations: ["'createCopilotSession' is deprecated: use `createCopilotSessionWithHistory` instead"],
+  deprecations: [
+    "'createCopilotSession' is deprecated: use `createCopilotSessionWithHistory` instead",
+  ],
 };
 
 export const forkCopilotSessionMutation = {
@@ -1558,7 +3254,9 @@ export const getTranscriptTaskQuery = {
     }
   }
 }`,
-  deprecations: ["'transcriptTask' is deprecated: Use realtime subscription \"copilot.transcript.task.changed\" instead."],
+  deprecations: [
+    '\'transcriptTask\' is deprecated: Use realtime subscription "copilot.transcript.task.changed" instead.',
+  ],
 };
 
 export const retryTranscriptTaskMutation = {
@@ -2223,8 +3921,11 @@ export const getWorkspacesQuery = {
   op: 'getWorkspaces',
   query: `query getWorkspaces {
   workspaces {
+    enableAi
+    enableDocEmbedding
     id
     initialized
+    role
     team
     owner {
       id
@@ -2522,7 +4223,9 @@ export const quotaQuery = {
     }
   }
 }`,
-  deprecations: ["'storageQuota' is deprecated: use `UserQuotaType['usedStorageQuota']` instead"],
+  deprecations: [
+    "'storageQuota' is deprecated: use `UserQuotaType['usedStorageQuota']` instead",
+  ],
 };
 
 export const readAllNotificationsMutation = {
@@ -3060,7 +4763,9 @@ export const getWorkspaceRolePermissionsQuery = {
     }
   }
 }`,
-  deprecations: ["'workspaceRolePermissions' is deprecated: use WorkspaceType[permissions] instead"],
+  deprecations: [
+    "'workspaceRolePermissions' is deprecated: use WorkspaceType[permissions] instead",
+  ],
 };
 
 export const approveWorkspaceTeamMemberMutation = {

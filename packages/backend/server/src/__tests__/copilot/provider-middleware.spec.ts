@@ -25,6 +25,15 @@ test('resolveProviderMiddleware should merge defaults and overrides', t => {
   ]);
 });
 
+test('resolveProviderMiddleware should include OpenAI-compatible defaults', t => {
+  const middleware = resolveProviderMiddleware(
+    CopilotProviderType.OpenAICompatible
+  );
+
+  t.is(middleware.rust, undefined);
+  t.deepEqual(middleware.node?.text, ['citation_footnote', 'callout']);
+});
+
 test('buildProviderRegistry should normalize profile middleware defaults', t => {
   const registry = buildProviderRegistry({
     profiles: [

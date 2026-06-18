@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 
 import type { LlmImageResponse } from '../../../../native';
 import { PromptService } from '../../prompt';
-import type { PromptMessage } from '../../providers/types';
+import { CopilotProviderFactory } from '../../providers/factory';
+import { ModelOutputType, type PromptMessage } from '../../providers/types';
 import type { ChatSession } from '../../session';
 import { ChatQuerySchema } from '../../types';
 import { projectActionEventToChatEvent } from '../action-output-projector';
@@ -24,6 +25,7 @@ const ACTION_PROMPTS: Record<string, string> = {
 
 type ImageActionRoutePreparation = {
   modelId?: string;
+  modelSelectionSource?: string;
   messages: PromptMessage[];
   options: Record<string, unknown>;
 };
@@ -49,7 +51,8 @@ export class ActionStreamHost {
     private readonly conversations: ConversationHost,
     private readonly bridge: ActionRuntimeBridge,
     private readonly prompts: PromptService,
-    private readonly imageResults: ImageResultHost
+    private readonly imageResults: ImageResultHost,
+    private readonly providers: CopilotProviderFactory
   ) {}
 
   async stream(
@@ -83,13 +86,21 @@ export class ActionStreamHost {
     const finalMessage = await this.preparePromptMessages(
       actionId,
       prepared.session,
-      params
+      params,
+      {
+        userId,
+        modelId: parsedQuery.modelId,
+        byokLeaseId: parsedQuery.byokLeaseId,
+        quotaBackedRoutesAllowed: prepared.quotaBackedRoutesAllowed,
+      }
     );
     const imageRoutes = await this.prepareImageRoutes(
       actionId,
       prepared.session,
       params,
       userId,
+      parsedQuery.modelId,
+      parsedQuery.modelSelectionSource,
       parsedQuery.byokLeaseId,
       prepared.quotaBackedRoutesAllowed,
       signal
@@ -120,10 +131,8 @@ export class ActionStreamHost {
         ? undefined
         : {
             stepId: 'generate',
-            modelId:
-              typeof query.modelId === 'string' && query.modelId
-                ? query.modelId
-                : undefined,
+            modelId: parsedQuery.modelId,
+            modelSelectionSource: parsedQuery.modelSelectionSource,
             messages: finalMessage,
             responseSchemaJson: actionTextResultSchema(),
             options: {
@@ -141,6 +150,7 @@ export class ActionStreamHost {
         ? {
             stepId: 'generate-image',
             modelId: imageRoutes.modelId,
+            modelSelectionSource: imageRoutes.modelSelectionSource,
             messages: imageRoutes.messages,
             options: imageRoutes.options,
           }
@@ -159,11 +169,34 @@ export class ActionStreamHost {
   private async preparePromptMessages(
     actionId: string,
     session: ChatSession,
-    params: Record<string, unknown>
+    params: Record<string, unknown>,
+    routeContext: {
+      userId: string;
+      modelId?: string;
+      byokLeaseId?: string;
+      quotaBackedRoutesAllowed?: boolean;
+    }
   ): Promise<PromptMessage[]> {
     const promptName = ACTION_PROMPTS[actionId];
     if (!promptName) {
-      return session.finish(params);
+      const contextWindow = isImageAction(actionId)
+        ? undefined
+        : await this.providers.resolveModelContextWindow(
+            {
+              modelId: routeContext.modelId,
+              outputType: ModelOutputType.Structured,
+            },
+            {},
+            {
+              userId: routeContext.userId,
+              workspaceId: session.config.workspaceId,
+              byokLeaseId: routeContext.byokLeaseId,
+              featureKind: 'action',
+              quotaBackedRoutesAllowed: routeContext.quotaBackedRoutesAllowed,
+            }
+          );
+
+      return session.finish(params, { contextWindow });
     }
 
     const prompt = await this.prompts.get(promptName);
@@ -182,6 +215,8 @@ export class ActionStreamHost {
     session: ChatSession,
     params: Record<string, unknown>,
     userId: string,
+    modelId?: string,
+    modelSelectionSource?: string,
     byokLeaseId?: string,
     quotaBackedRoutesAllowed?: boolean,
     signal?: AbortSignal
@@ -200,7 +235,8 @@ export class ActionStreamHost {
       session.config.sessionId
     );
     return {
-      modelId: prompt.model,
+      modelId: modelId ?? prompt.model,
+      modelSelectionSource,
       messages: finalMessage,
       options: {
         ...prompt.config,

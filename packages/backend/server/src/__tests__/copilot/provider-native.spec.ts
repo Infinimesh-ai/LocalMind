@@ -29,7 +29,10 @@ import type {
   ProviderMiddlewareConfig,
 } from '../../plugins/copilot/config';
 import { CopilotProviderFactory } from '../../plugins/copilot/providers/factory';
-import { OpenAIProvider } from '../../plugins/copilot/providers/openai';
+import {
+  OpenAICompatibleProvider,
+  OpenAIProvider,
+} from '../../plugins/copilot/providers/openai';
 import { CopilotProvider } from '../../plugins/copilot/providers/provider';
 import { buildProviderRegistry } from '../../plugins/copilot/providers/provider-registry';
 import {
@@ -58,6 +61,7 @@ import { ExecutionPlanBuilder } from '../../plugins/copilot/runtime/execution-pl
 import { NativeExecutionEngine } from '../../plugins/copilot/runtime/native-execution-engine';
 import { buildNativeRequest } from '../../plugins/copilot/runtime/native-request-runtime';
 import { getProviderRuntimeHost } from '../../plugins/copilot/runtime/provider-runtime-context';
+import { TaskPolicy } from '../../plugins/copilot/runtime/task-policy';
 import { defineTool } from '../../plugins/copilot/tools/tool';
 import {
   nativeMessages,
@@ -385,11 +389,109 @@ test('CapabilityRuntime should route capability plans through plan builder and n
     }),
     buildEmbeddingPlan: Sinon.stub().resolves({
       kind: 'embedding-plan',
-      routePolicy: { fallbackOrder: ['openai-primary'] },
+      routePolicy: { fallbackOrder: ['openai-primary', 'openai-fallback'] },
+      nativeDispatch: {
+        embedding: {
+          prepared: {
+            route: {
+              providerId: 'openai-primary',
+              protocol: 'openai_chat',
+              model: 'text-embedding-3-small',
+              backendConfig: { request_layer: 'chat_completions' },
+            },
+            request: { dimensions: 1024 },
+            modelDefinition: {
+              backendKind: 'openai_chat',
+              canonicalKey: 'text-embedding-3-small',
+              behaviorFlags: ['disable_batch_embeddings'],
+            },
+            requestedDimensions: 1024,
+            modelLimits: { embeddingDimensions: 1024 },
+          },
+          preparedRoutes: [
+            {
+              route: {
+                providerId: 'openai-primary',
+                protocol: 'openai_chat',
+                model: 'text-embedding-3-small',
+                backendConfig: { request_layer: 'chat_completions' },
+              },
+              request: { dimensions: 1024 },
+              modelDefinition: {
+                backendKind: 'openai_chat',
+                canonicalKey: 'text-embedding-3-small',
+                behaviorFlags: ['disable_batch_embeddings'],
+              },
+            },
+            {
+              route: {
+                providerId: 'openai-fallback',
+                protocol: 'openai_responses',
+                model: 'text-embedding-3-large',
+                backendConfig: { request_layer: 'responses' },
+              },
+              request: { dimensions: 1024 },
+              modelDefinition: {
+                backendKind: 'openai_responses',
+                canonicalKey: 'workspace-embedding-large',
+                behaviorFlags: ['embedding_fallback'],
+              },
+            },
+          ],
+        },
+      },
     }),
     buildRerankPlan: Sinon.stub().resolves({
       kind: 'rerank-plan',
-      routePolicy: { fallbackOrder: ['openai-primary'] },
+      routePolicy: { fallbackOrder: ['openai-primary', 'openai-fallback'] },
+      nativeDispatch: {
+        rerank: {
+          prepared: {
+            route: {
+              providerId: 'openai-primary',
+              protocol: 'openai_chat',
+              model: 'gpt-4o-mini',
+              backendConfig: { request_layer: 'chat_completions' },
+            },
+            request: nativeRerankRequest('ping', [{ text: 'ping' }]),
+            modelDefinition: {
+              backendKind: 'openai_chat',
+              canonicalKey: 'gpt-4o-mini',
+              behaviorFlags: ['rerank_cross_encoder'],
+            },
+          },
+          preparedRoutes: [
+            {
+              route: {
+                providerId: 'openai-primary',
+                protocol: 'openai_chat',
+                model: 'gpt-4o-mini',
+                backendConfig: { request_layer: 'chat_completions' },
+              },
+              request: nativeRerankRequest('ping', [{ text: 'ping' }]),
+              modelDefinition: {
+                backendKind: 'openai_chat',
+                canonicalKey: 'gpt-4o-mini',
+                behaviorFlags: ['rerank_cross_encoder'],
+              },
+            },
+            {
+              route: {
+                providerId: 'openai-fallback',
+                protocol: 'openai_responses',
+                model: 'gpt-5-mini',
+                backendConfig: { request_layer: 'responses' },
+              },
+              request: nativeRerankRequest('ping', [{ text: 'ping' }]),
+              modelDefinition: {
+                backendKind: 'openai_responses',
+                canonicalKey: 'rerank-fallback',
+                behaviorFlags: ['rerank_fallback'],
+              },
+            },
+          ],
+        },
+      },
     }),
   };
   const engine = {
@@ -496,7 +598,57 @@ test('CapabilityRuntime should route capability plans through plan builder and n
       executionStub: engine.execute,
       expectedPlan: {
         kind: 'embedding-plan',
-        routePolicy: { fallbackOrder: ['openai-primary'] },
+        routePolicy: { fallbackOrder: ['openai-primary', 'openai-fallback'] },
+        nativeDispatch: {
+          embedding: {
+            prepared: {
+              route: {
+                providerId: 'openai-primary',
+                protocol: 'openai_chat',
+                model: 'text-embedding-3-small',
+                backendConfig: { request_layer: 'chat_completions' },
+              },
+              request: { dimensions: 1024 },
+              modelDefinition: {
+                backendKind: 'openai_chat',
+                canonicalKey: 'text-embedding-3-small',
+                behaviorFlags: ['disable_batch_embeddings'],
+              },
+              requestedDimensions: 1024,
+              modelLimits: { embeddingDimensions: 1024 },
+            },
+            preparedRoutes: [
+              {
+                route: {
+                  providerId: 'openai-primary',
+                  protocol: 'openai_chat',
+                  model: 'text-embedding-3-small',
+                  backendConfig: { request_layer: 'chat_completions' },
+                },
+                request: { dimensions: 1024 },
+                modelDefinition: {
+                  backendKind: 'openai_chat',
+                  canonicalKey: 'text-embedding-3-small',
+                  behaviorFlags: ['disable_batch_embeddings'],
+                },
+              },
+              {
+                route: {
+                  providerId: 'openai-fallback',
+                  protocol: 'openai_responses',
+                  model: 'text-embedding-3-large',
+                  backendConfig: { request_layer: 'responses' },
+                },
+                request: { dimensions: 1024 },
+                modelDefinition: {
+                  backendKind: 'openai_responses',
+                  canonicalKey: 'workspace-embedding-large',
+                  behaviorFlags: ['embedding_fallback'],
+                },
+              },
+            ],
+          },
+        },
       },
     },
     {
@@ -511,7 +663,55 @@ test('CapabilityRuntime should route capability plans through plan builder and n
       executionStub: engine.execute,
       expectedPlan: {
         kind: 'rerank-plan',
-        routePolicy: { fallbackOrder: ['openai-primary'] },
+        routePolicy: { fallbackOrder: ['openai-primary', 'openai-fallback'] },
+        nativeDispatch: {
+          rerank: {
+            prepared: {
+              route: {
+                providerId: 'openai-primary',
+                protocol: 'openai_chat',
+                model: 'gpt-4o-mini',
+                backendConfig: { request_layer: 'chat_completions' },
+              },
+              request: nativeRerankRequest('ping', [{ text: 'ping' }]),
+              modelDefinition: {
+                backendKind: 'openai_chat',
+                canonicalKey: 'gpt-4o-mini',
+                behaviorFlags: ['rerank_cross_encoder'],
+              },
+            },
+            preparedRoutes: [
+              {
+                route: {
+                  providerId: 'openai-primary',
+                  protocol: 'openai_chat',
+                  model: 'gpt-4o-mini',
+                  backendConfig: { request_layer: 'chat_completions' },
+                },
+                request: nativeRerankRequest('ping', [{ text: 'ping' }]),
+                modelDefinition: {
+                  backendKind: 'openai_chat',
+                  canonicalKey: 'gpt-4o-mini',
+                  behaviorFlags: ['rerank_cross_encoder'],
+                },
+              },
+              {
+                route: {
+                  providerId: 'openai-fallback',
+                  protocol: 'openai_responses',
+                  model: 'gpt-5-mini',
+                  backendConfig: { request_layer: 'responses' },
+                },
+                request: nativeRerankRequest('ping', [{ text: 'ping' }]),
+                modelDefinition: {
+                  backendKind: 'openai_responses',
+                  canonicalKey: 'rerank-fallback',
+                  behaviorFlags: ['rerank_fallback'],
+                },
+              },
+            ],
+          },
+        },
       },
     },
   ] as const;
@@ -521,6 +721,83 @@ test('CapabilityRuntime should route capability plans through plan builder and n
     Sinon.assert.calledOnce(testCase.planBuilder);
     Sinon.assert.calledWith(testCase.executionStub, testCase.expectedPlan);
   }
+
+  t.deepEqual(
+    await runtime.describeEmbeddingRoute('text-embedding-3-small', {
+      dimensions: 1024,
+    }),
+    {
+      configured: true,
+      fallbackOrder: ['openai-primary', 'openai-fallback'],
+      preparedRoutes: [
+        {
+          providerId: 'openai-primary',
+          modelId: 'text-embedding-3-small',
+          protocol: 'openai_chat',
+          requestLayer: 'chat_completions',
+          modelBackendKind: 'openai_chat',
+          canonicalModelKey: 'text-embedding-3-small',
+          behaviorFlags: ['disable_batch_embeddings'],
+        },
+        {
+          providerId: 'openai-fallback',
+          modelId: 'text-embedding-3-large',
+          protocol: 'openai_responses',
+          requestLayer: 'responses',
+          modelBackendKind: 'openai_responses',
+          canonicalModelKey: 'workspace-embedding-large',
+          behaviorFlags: ['embedding_fallback'],
+        },
+      ],
+      preparedProviderCount: 2,
+      requestedModelId: 'text-embedding-3-small',
+      providerId: 'openai-primary',
+      modelId: 'text-embedding-3-small',
+      protocol: 'openai_chat',
+      requestLayer: 'chat_completions',
+      modelBackendKind: 'openai_chat',
+      canonicalModelKey: 'text-embedding-3-small',
+      behaviorFlags: ['disable_batch_embeddings'],
+      requestedDimensions: 1024,
+      modelEmbeddingDimensions: 1024,
+      dimensionMismatch: false,
+    }
+  );
+  t.deepEqual(await runtime.describeRerankRoute('gpt-4o-mini'), {
+    configured: true,
+    fallbackOrder: ['openai-primary', 'openai-fallback'],
+    preparedRoutes: [
+      {
+        providerId: 'openai-primary',
+        modelId: 'gpt-4o-mini',
+        protocol: 'openai_chat',
+        requestLayer: 'chat_completions',
+        modelBackendKind: 'openai_chat',
+        canonicalModelKey: 'gpt-4o-mini',
+        behaviorFlags: ['rerank_cross_encoder'],
+      },
+      {
+        providerId: 'openai-fallback',
+        modelId: 'gpt-5-mini',
+        protocol: 'openai_responses',
+        requestLayer: 'responses',
+        modelBackendKind: 'openai_responses',
+        canonicalModelKey: 'rerank-fallback',
+        behaviorFlags: ['rerank_fallback'],
+      },
+    ],
+    preparedProviderCount: 2,
+    requestedModelId: 'gpt-4o-mini',
+    providerId: 'openai-primary',
+    modelId: 'gpt-4o-mini',
+    protocol: 'openai_chat',
+    requestLayer: 'chat_completions',
+    modelBackendKind: 'openai_chat',
+    canonicalModelKey: 'gpt-4o-mini',
+    behaviorFlags: ['rerank_cross_encoder'],
+    topK: undefined,
+    candidateCount: 1,
+  });
 });
 
 test('CapabilityRuntime should defer no-route embedding plans to native engine', async t => {
@@ -968,6 +1245,14 @@ test('CopilotProviderFactory should return no prepared routes when native prepar
           {
             id: 'openai-main',
             type: CopilotProviderType.OpenAI,
+            displayName: 'Primary OpenAI',
+            priority: 5,
+            privacy: 'private_cloud',
+            health: {
+              status: 'degraded',
+              lastCheckedAt: '2026-06-16T11:00:00.000Z',
+              lastError: 'sanitized health detail should not be exposed',
+            },
             config: { apiKey: 'test-key' },
           },
         ],
@@ -1038,6 +1323,130 @@ test('CopilotProviderFactory should return no prepared routes when native prepar
       prepared: rerankRoutes[0]?.preparedRerank,
     },
   });
+});
+
+test('CopilotProviderFactory should describe provider prepare diagnostics without changing prepare results', async t => {
+  const provider = new DriverOnlyProvider();
+  (provider as any).AFFiNEConfig = { copilot: { providers: { openai: {} } } };
+  (provider as any).toolExecutorHost = {
+    createNativeAdapter: () => {
+      throw new Error('native adapter should not be used');
+    },
+    getTools: async () => ({}),
+  };
+  const runtimeHost = getProviderRuntimeHost(provider);
+  runtimeHost.prepare.embedding = async () => null;
+  runtimeHost.prepare.rerank = async () => {
+    const error = new Error('prepare failed with internal endpoint details');
+    error.name = 'PrepareProbeFailure';
+    throw error;
+  };
+
+  const registryService = {
+    getRegistry: () =>
+      buildProviderRegistry({
+        profiles: [
+          {
+            id: 'openai-main',
+            type: CopilotProviderType.OpenAI,
+            displayName: 'Primary OpenAI',
+            priority: 5,
+            privacy: 'private_cloud',
+            health: {
+              status: 'degraded',
+              lastCheckedAt: '2026-06-16T11:00:00.000Z',
+              lastError: 'sanitized health detail should not be exposed',
+            },
+            config: { apiKey: 'test-key' },
+          },
+        ],
+        defaults: {},
+        openai: { apiKey: 'test-key' },
+      }),
+  };
+  const server = {
+    enableFeature: Sinon.stub(),
+    disableFeature: Sinon.stub(),
+  };
+  const access = {
+    resolveRouteAccess: Sinon.stub().resolves({
+      byokProfiles: [],
+      quotaBackedRoutesAvailable: true,
+    }),
+  };
+  const factory = new CopilotProviderFactory(
+    server as never,
+    registryService as never,
+    access as never
+  );
+  factory.register('openai-main', provider);
+
+  const preparedRoutes = await factory.prepareEmbeddingRoutes(
+    'text-embedding-3-small',
+    'hello world'
+  );
+  const embeddingDiagnostics = await factory.describeEmbeddingPrepareCandidates(
+    'text-embedding-3-small',
+    'hello world'
+  );
+  const rerankDiagnostics = await factory.describeRerankPrepareCandidates(
+    'gpt-4o-mini',
+    {
+      query: 'programming',
+      candidates: [{ text: 'React is a UI library.' }],
+    }
+  );
+
+  t.deepEqual(preparedRoutes, []);
+  t.true(
+    embeddingDiagnostics.some(
+      candidate =>
+        candidate.providerId === 'openai-main' &&
+        candidate.providerName === 'Primary OpenAI' &&
+        candidate.providerSource === 'configured' &&
+        candidate.providerType === CopilotProviderType.OpenAI &&
+        candidate.providerPriority === 5 &&
+        candidate.privacy === 'private_cloud' &&
+        candidate.health === 'degraded' &&
+        candidate.healthCheckedAt === '2026-06-16T11:00:00.000Z' &&
+        candidate.modelId === 'text-embedding-3-small' &&
+        candidate.prepared === false &&
+        candidate.reasons.includes('provider_prepare_returned_empty')
+    )
+  );
+  t.true(
+    rerankDiagnostics.some(
+      candidate =>
+        candidate.providerId === 'openai-main' &&
+        candidate.providerName === 'Primary OpenAI' &&
+        candidate.providerSource === 'configured' &&
+        candidate.providerType === CopilotProviderType.OpenAI &&
+        candidate.providerPriority === 5 &&
+        candidate.privacy === 'private_cloud' &&
+        candidate.health === 'degraded' &&
+        candidate.healthCheckedAt === '2026-06-16T11:00:00.000Z' &&
+        candidate.modelId === 'gpt-4o-mini' &&
+        candidate.prepared === false &&
+        candidate.errorCode === 'PrepareProbeFailure' &&
+        candidate.errorCategory === 'runtime' &&
+        candidate.reasons.includes('provider_prepare_error') &&
+        candidate.reasons.includes('provider_prepare_runtime_error')
+    )
+  );
+  t.true(
+    [...embeddingDiagnostics, ...rerankDiagnostics].every(
+      candidate =>
+        !('errorMessage' in candidate) &&
+        !('backendConfig' in candidate) &&
+        !('request' in candidate) &&
+        !('response' in candidate)
+    )
+  );
+  t.true(
+    [...embeddingDiagnostics, ...rerankDiagnostics].every(
+      candidate => !('lastError' in candidate)
+    )
+  );
 });
 
 test('driver-only provider should use base native driver templates', async t => {
@@ -1496,10 +1905,157 @@ test('CopilotProviderFactory should resolve legacy model ids through native regi
   t.is(provider.resolveModel('gpt-5-2025-08-07')?.id, 'gpt-5');
 });
 
+test('CopilotProviderFactory should skip down provider routes and configured models', async t => {
+  const provider = createProvider();
+  const registryService = {
+    getRegistry: () =>
+      buildProviderRegistry({
+        profiles: [
+          {
+            id: 'openai-main',
+            type: CopilotProviderType.OpenAI,
+            priority: 10,
+            config: { apiKey: 'primary-key' },
+            models: ['gpt-5-mini'],
+            health: {
+              status: 'down',
+              lastError: 'connection refused',
+            },
+          },
+          {
+            id: 'openai-backup',
+            type: CopilotProviderType.OpenAI,
+            priority: 5,
+            config: { apiKey: 'backup-key' },
+            models: ['gpt-5-mini'],
+            health: {
+              status: 'degraded',
+            },
+          },
+        ],
+        defaults: {
+          [ModelOutputType.Text]: 'openai-main',
+          fallback: 'openai-backup',
+        },
+      }),
+  };
+  const server = {
+    enableFeature: Sinon.stub(),
+    disableFeature: Sinon.stub(),
+  };
+  const access = {
+    resolveRouteAccess: Sinon.stub().resolves({
+      byokProfiles: [],
+      quotaBackedRoutesAvailable: true,
+    }),
+  };
+  const factory = new CopilotProviderFactory(
+    server as never,
+    registryService as never,
+    access as never
+  );
+  factory.register('openai-main', provider);
+  factory.register('openai-backup', provider);
+
+  const routes = await factory.resolveRoutes({
+    outputType: ModelOutputType.Text,
+  });
+
+  t.deepEqual(
+    routes.map(route => route.providerId),
+    ['openai-backup']
+  );
+  t.deepEqual(factory.getConfiguredModelIds(), ['openai-backup/gpt-5-mini']);
+});
+
+test('CopilotProviderFactory should apply provider route policy from request context', async t => {
+  const provider = createProvider();
+  const registryService = {
+    getRegistry: () =>
+      buildProviderRegistry({
+        profiles: [
+          {
+            id: 'cloud-main',
+            type: CopilotProviderType.OpenAI,
+            priority: 100,
+            privacy: 'cloud',
+            config: { apiKey: 'cloud-key' },
+            models: ['gpt-5-mini'],
+          },
+          {
+            id: 'local-main',
+            type: CopilotProviderType.OpenAI,
+            priority: 1,
+            privacy: 'local',
+            config: { apiKey: 'local-key' },
+            models: ['gpt-5-mini'],
+          },
+        ],
+        routePolicy: {
+          byFeature: {
+            workspace_indexing: {
+              allowedPrivacy: ['local'],
+              preferredPrivacy: ['local'],
+            },
+          },
+        },
+      }),
+  };
+  const server = {
+    enableFeature: Sinon.stub(),
+    disableFeature: Sinon.stub(),
+  };
+  const access = {
+    resolveRouteAccess: Sinon.stub().resolves({
+      byokProfiles: [],
+      quotaBackedRoutesAvailable: true,
+    }),
+  };
+  const factory = new CopilotProviderFactory(
+    server as never,
+    registryService as never,
+    access as never
+  );
+  factory.register('cloud-main', provider);
+  factory.register('local-main', provider);
+
+  const chatRoutes = await factory.resolveRoutes({
+    modelId: 'gpt-5-mini',
+    outputType: ModelOutputType.Text,
+  });
+  const indexingRoutes = await factory.resolveRoutes(
+    {
+      modelId: 'gpt-5-mini',
+      outputType: ModelOutputType.Text,
+    },
+    {},
+    {
+      workspaceId: 'workspace-1',
+      featureKind: 'workspace_indexing',
+    }
+  );
+
+  t.deepEqual(
+    chatRoutes.map(route => route.providerId),
+    ['cloud-main', 'local-main']
+  );
+  t.deepEqual(
+    indexingRoutes.map(route => route.providerId),
+    ['local-main']
+  );
+});
+
 const BYOK_OPENAI_PROFILE: CopilotProviderProfile = {
   id: 'byok-aaaaaaaaaaaa-openai-server-key1',
+  displayName: 'Workspace BYOK OpenAI',
   type: CopilotProviderType.OpenAI,
   priority: 10_000,
+  privacy: 'private_cloud',
+  source: 'byok_server',
+  health: {
+    status: 'healthy',
+    lastCheckedAt: '2026-06-16T10:00:00.000Z',
+  },
   config: { apiKey: 'byok-key' },
 };
 
@@ -1735,6 +2291,78 @@ test('selectModel should reject unknown models without online fallback', t => {
   t.regex((error as Error).message, /does not support|No model supports/);
 });
 
+test('configured model definitions should bypass native registry lookup', async t => {
+  const provider = new DriverOnlyProvider();
+  (provider as any).AFFiNEConfig = {
+    copilot: {
+      providers: {
+        profiles: [
+          {
+            id: 'openai-main',
+            type: CopilotProviderType.OpenAI,
+            config: { apiKey: 'test-key' },
+            modelDefinitions: [
+              {
+                id: 'local-chat',
+                displayName: 'Local Chat',
+                protocol: 'openai_chat',
+                requestLayer: 'chat_completions',
+                capabilities: [
+                  {
+                    input: [ModelInputType.Text],
+                    output: [ModelOutputType.Text, ModelOutputType.Structured],
+                    defaultForOutputType: true,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        defaults: {},
+        openai: { apiKey: 'legacy' },
+      },
+    },
+  };
+  (provider as any).toolExecutorHost = {
+    createNativeAdapter: () => {
+      throw new Error('native adapter should not be used');
+    },
+    getTools: async () => ({}),
+  };
+
+  const registry = buildProviderRegistry(
+    (provider as any).AFFiNEConfig.copilot.providers
+  );
+  const profile = registry.profiles.get('openai-main');
+  if (!profile) {
+    throw new Error('missing openai-main profile');
+  }
+  const execution = {
+    providerId: 'openai-main',
+    profile,
+  };
+
+  t.true(
+    await provider.match(
+      { modelId: 'local-chat', outputType: ModelOutputType.Text },
+      execution
+    )
+  );
+  t.is(provider.resolveModel('local-chat', execution)?.name, 'Local Chat');
+
+  const prepared = await getProviderRuntimeHost(provider).prepare.chat(
+    'text',
+    { modelId: 'local-chat' },
+    singleUserPromptMessages('hello'),
+    {},
+    execution
+  );
+
+  t.is(prepared?.route.model, 'local-chat');
+  t.is(prepared?.route.protocol, 'openai_chat');
+  t.is(prepared?.route.requestLayer, 'chat_completions');
+});
+
 test('OpenAI oldApiStyle should resolve chat backend variants from native registry', async t => {
   class LegacyOpenAIProvider extends OpenAIProvider {
     override get config() {
@@ -1769,6 +2397,1174 @@ test('OpenAI oldApiStyle should resolve chat backend variants from native regist
   t.is(prepared?.route.model, 'o3');
   t.is(prepared?.route.protocol, 'openai_chat');
   t.is(prepared?.route.requestLayer, 'chat_completions');
+});
+
+test('OpenAI-compatible provider should prepare configured chat-completions routes', async t => {
+  const provider = new OpenAICompatibleProvider();
+  (provider as any).AFFiNEConfig = {
+    copilot: {
+      providers: {
+        profiles: [
+          {
+            id: 'ollama-main',
+            type: CopilotProviderType.OpenAICompatible,
+            config: {
+              baseURL: 'http://ollama:11434/v1/',
+              headers: {
+                'X-Provider': 'localmind',
+              },
+            },
+            modelDefinitions: [
+              {
+                id: 'office-chat-fast',
+                rawModelId: 'llama3.1:8b',
+                displayName: 'Llama 3.1 8B',
+                aliases: ['local-chat'],
+                capabilities: [
+                  {
+                    input: [ModelInputType.Text],
+                    output: [ModelOutputType.Text, ModelOutputType.Structured],
+                    defaultForOutputType: true,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        defaults: {},
+        openaiCompatible: {
+          baseURL: '',
+          apiStyle: 'chat_completions',
+        },
+      },
+    },
+  };
+  (provider as any).toolExecutorHost = {
+    createNativeAdapter: () => {
+      throw new Error('native adapter should not be used');
+    },
+    getTools: async () => ({}),
+  };
+
+  const registry = buildProviderRegistry(
+    (provider as any).AFFiNEConfig.copilot.providers
+  );
+  const profile = registry.profiles.get('ollama-main');
+  if (!profile) {
+    throw new Error('missing ollama-main profile');
+  }
+  const execution = {
+    providerId: 'ollama-main',
+    profile,
+  };
+
+  t.true(
+    await provider.match(
+      { modelId: 'local-chat', outputType: ModelOutputType.Text },
+      execution
+    )
+  );
+
+  const prepared = await getProviderRuntimeHost(provider).prepare.chat(
+    'text',
+    { modelId: 'local-chat' },
+    singleUserPromptMessages('hello'),
+    {},
+    execution
+  );
+
+  t.deepEqual(prepared?.route, {
+    providerId: 'ollama-main',
+    protocol: 'openai_chat',
+    requestLayer: 'chat_completions',
+    model: 'llama3.1:8b',
+    backendConfig: {
+      base_url: 'http://ollama:11434',
+      auth_token: '',
+      headers: {
+        'X-Provider': 'localmind',
+      },
+      request_layer: 'chat_completions',
+    },
+  });
+});
+
+test('OpenAI-compatible apiStyle auto should let model definitions select response routes', async t => {
+  const provider = new OpenAICompatibleProvider();
+  (provider as any).AFFiNEConfig = {
+    copilot: {
+      providers: {
+        profiles: [
+          {
+            id: 'router-main',
+            type: CopilotProviderType.OpenAICompatible,
+            config: {
+              baseURL: 'https://router.example/v1',
+              apiStyle: 'auto',
+            },
+            modelDefinitions: [
+              {
+                id: 'office-responses',
+                rawModelId: 'openai/gpt-5-mini',
+                backendKind: 'openai_responses',
+                capabilities: [
+                  {
+                    input: [ModelInputType.Text],
+                    output: [ModelOutputType.Text],
+                    defaultForOutputType: true,
+                  },
+                ],
+              },
+              {
+                id: 'office-chat',
+                rawModelId: 'local/qwen3:32b',
+                capabilities: [
+                  {
+                    input: [ModelInputType.Text],
+                    output: [ModelOutputType.Text],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        defaults: {},
+        openaiCompatible: {
+          baseURL: '',
+          apiStyle: 'chat_completions',
+        },
+      },
+    },
+  };
+  (provider as any).toolExecutorHost = {
+    createNativeAdapter: () => {
+      throw new Error('native adapter should not be used');
+    },
+    getTools: async () => ({}),
+  };
+
+  const registry = buildProviderRegistry(
+    (provider as any).AFFiNEConfig.copilot.providers
+  );
+  const profile = registry.profiles.get('router-main');
+  if (!profile) {
+    throw new Error('missing router-main profile');
+  }
+  const execution = {
+    providerId: 'router-main',
+    profile,
+  };
+
+  const responsesPrepared = await getProviderRuntimeHost(provider).prepare.chat(
+    'text',
+    { modelId: 'office-responses' },
+    singleUserPromptMessages('hello'),
+    {},
+    execution
+  );
+  const chatPrepared = await getProviderRuntimeHost(provider).prepare.chat(
+    'text',
+    { modelId: 'office-chat' },
+    singleUserPromptMessages('hello'),
+    {},
+    execution
+  );
+
+  t.is(responsesPrepared?.route.model, 'openai/gpt-5-mini');
+  t.is(responsesPrepared?.route.protocol, 'openai_responses');
+  t.is(responsesPrepared?.route.requestLayer, 'responses');
+  t.is(responsesPrepared?.route.backendConfig.request_layer, 'responses');
+  t.is(chatPrepared?.route.model, 'local/qwen3:32b');
+  t.is(chatPrepared?.route.protocol, 'openai_chat');
+  t.is(chatPrepared?.route.requestLayer, 'chat_completions');
+  t.is(chatPrepared?.route.backendConfig.request_layer, 'chat_completions');
+});
+
+test('CopilotProviderFactory should expose configured model aliases as stable route ids', async t => {
+  const provider = new OpenAICompatibleProvider();
+  (provider as any).AFFiNEConfig = {
+    copilot: {
+      providers: {
+        profiles: [],
+        defaults: {},
+        openaiCompatible: {
+          baseURL: 'http://ollama:11434/v1',
+          apiStyle: 'chat_completions',
+        },
+      },
+    },
+  };
+  (provider as any).toolExecutorHost = {
+    createNativeAdapter: () => {
+      throw new Error('native adapter should not be used');
+    },
+    getTools: async () => ({}),
+  };
+  const registryService = {
+    getRegistry: () =>
+      buildProviderRegistry({
+        profiles: [
+          {
+            id: 'ollama-main',
+            type: CopilotProviderType.OpenAICompatible,
+            config: {
+              baseURL: 'http://ollama:11434/v1',
+            },
+            modelDefinitions: [
+              {
+                id: 'qwen3-32b',
+                rawModelId: 'qwen3:32b',
+                displayName: 'Qwen 3 32B',
+                aliases: ['office-chat-fast', 'office-chat-strong'],
+                capabilities: [
+                  {
+                    input: [ModelInputType.Text],
+                    output: [ModelOutputType.Text],
+                    defaultForOutputType: true,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+  };
+  const server = {
+    enableFeature: Sinon.stub(),
+    disableFeature: Sinon.stub(),
+  };
+  const access = {
+    resolveRouteAccess: Sinon.stub().resolves({
+      byokProfiles: [],
+      quotaBackedRoutesAvailable: true,
+    }),
+  };
+  const factory = new CopilotProviderFactory(
+    server as never,
+    registryService as never,
+    access as never
+  );
+  factory.register('ollama-main', provider);
+
+  t.deepEqual(factory.getConfiguredModelIds(), [
+    'ollama-main/qwen3-32b',
+    'ollama-main/office-chat-fast',
+    'ollama-main/office-chat-strong',
+  ]);
+  t.is(
+    await factory.resolveModelId({
+      modelId: 'ollama-main/office-chat-fast',
+      outputType: ModelOutputType.Text,
+    }),
+    'ollama-main/office-chat-fast'
+  );
+
+  const prepared = await factory.prepareRoutes(
+    'text',
+    {
+      modelId: 'ollama-main/office-chat-fast',
+      outputType: ModelOutputType.Text,
+    },
+    singleUserPromptMessages('hello')
+  );
+
+  t.is(prepared[0]?.prepared?.route.model, 'qwen3:32b');
+  t.is(prepared[0]?.prepared?.route.providerId, 'ollama-main');
+});
+
+test('CopilotProviderFactory should use model definition embedding dimensions for prepared embedding routes', async t => {
+  const provider = new OpenAICompatibleProvider();
+  (provider as any).AFFiNEConfig = {
+    copilot: {
+      providers: {
+        profiles: [],
+        defaults: {},
+        openaiCompatible: {
+          baseURL: 'http://ollama:11434/v1',
+          apiStyle: 'chat_completions',
+        },
+      },
+    },
+  };
+  (provider as any).toolExecutorHost = {
+    createNativeAdapter: () => {
+      throw new Error('native adapter should not be used');
+    },
+    getTools: async () => ({}),
+  };
+  const registryService = {
+    getRegistry: () =>
+      buildProviderRegistry({
+        profiles: [
+          {
+            id: 'ollama-main',
+            type: CopilotProviderType.OpenAICompatible,
+            config: {
+              baseURL: 'http://ollama:11434/v1',
+            },
+            modelDefinitions: [
+              {
+                id: 'office-embedding',
+                rawModelId: 'nomic-embed-text',
+                aliases: ['local-embedding'],
+                limits: {
+                  embeddingDimensions: 768,
+                },
+                capabilities: [
+                  {
+                    input: [ModelInputType.Text],
+                    output: [ModelOutputType.Embedding],
+                    defaultForOutputType: true,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+  };
+  const server = {
+    enableFeature: Sinon.stub(),
+    disableFeature: Sinon.stub(),
+  };
+  const access = {
+    resolveRouteAccess: Sinon.stub().resolves({
+      byokProfiles: [],
+      quotaBackedRoutesAvailable: true,
+    }),
+  };
+  const factory = new CopilotProviderFactory(
+    server as never,
+    registryService as never,
+    access as never
+  );
+  factory.register('ollama-main', provider);
+
+  const configuredRoutes = await factory.prepareEmbeddingRoutes(
+    'ollama-main/local-embedding',
+    ['alpha']
+  );
+  const overrideRoutes = await factory.prepareEmbeddingRoutes(
+    'ollama-main/local-embedding',
+    ['alpha'],
+    { dimensions: 1024 }
+  );
+
+  t.is(configuredRoutes[0]?.preparedEmbedding?.route.model, 'nomic-embed-text');
+  t.is(
+    configuredRoutes[0]?.preparedEmbedding?.request.model,
+    'nomic-embed-text'
+  );
+  t.is(configuredRoutes[0]?.preparedEmbedding?.request.dimensions, 768);
+  t.is(configuredRoutes[0]?.preparedEmbedding?.requestedDimensions, 768);
+  t.deepEqual(configuredRoutes[0]?.preparedEmbedding?.modelLimits, {
+    embeddingDimensions: 768,
+  });
+  t.is(overrideRoutes[0]?.preparedEmbedding?.request.dimensions, 1024);
+  t.is(overrideRoutes[0]?.preparedEmbedding?.requestedDimensions, 1024);
+  t.deepEqual(overrideRoutes[0]?.preparedEmbedding?.modelLimits, {
+    embeddingDimensions: 768,
+  });
+});
+
+test('TaskPolicy should defer embedding and rerank model defaults to provider routes', t => {
+  const policy = new TaskPolicy(
+    { copilot: { tasks: { models: {} } } } as never,
+    {} as never,
+    {} as never
+  );
+
+  t.is(policy.resolveEmbeddingModelId(), undefined);
+  t.is(policy.resolveWorkspaceIndexingModelId(), undefined);
+  t.is(policy.resolveRerankModelId(), undefined);
+  t.deepEqual(policy.resolveEmbeddingModel(), { source: 'provider_default' });
+  t.deepEqual(policy.resolveWorkspaceIndexingModel(), {
+    source: 'provider_default',
+  });
+  t.deepEqual(policy.resolveRerankModel(), { source: 'provider_default' });
+});
+
+test('TaskPolicy should resolve configured task model aliases', t => {
+  const policy = new TaskPolicy(
+    {
+      copilot: {
+        tasks: {
+          models: {
+            embedding: 'ollama-main/office-embedding',
+            workspaceIndexing: 'ollama-main/workspace-embedding',
+            rerank: 'ollama-main/office-rerank',
+          },
+        },
+      },
+    } as never,
+    {} as never,
+    {} as never
+  );
+
+  t.is(policy.resolveEmbeddingModelId(), 'ollama-main/office-embedding');
+  t.deepEqual(policy.resolveEmbeddingModel(), {
+    configKey: 'embedding',
+    configPath: 'copilot.tasks.models.embedding',
+    modelId: 'ollama-main/office-embedding',
+    source: 'embedding',
+  });
+  t.is(
+    policy.resolveWorkspaceIndexingModelId(),
+    'ollama-main/workspace-embedding'
+  );
+  t.deepEqual(policy.resolveWorkspaceIndexingModel(), {
+    configKey: 'workspaceIndexing',
+    configPath: 'copilot.tasks.models.workspaceIndexing',
+    modelId: 'ollama-main/workspace-embedding',
+    source: 'workspace_indexing',
+  });
+  t.is(policy.resolveRerankModelId(), 'ollama-main/office-rerank');
+  t.deepEqual(policy.resolveRerankModel(), {
+    configKey: 'rerank',
+    configPath: 'copilot.tasks.models.rerank',
+    modelId: 'ollama-main/office-rerank',
+    source: 'rerank',
+  });
+});
+
+test('TaskPolicy should use embedding model alias for workspace indexing when not overridden', t => {
+  const policy = new TaskPolicy(
+    {
+      copilot: {
+        tasks: {
+          models: {
+            embedding: 'ollama-main/office-embedding',
+          },
+        },
+      },
+    } as never,
+    {} as never,
+    {} as never
+  );
+
+  t.is(policy.resolveEmbeddingModelId(), 'ollama-main/office-embedding');
+  t.is(
+    policy.resolveWorkspaceIndexingModelId(),
+    'ollama-main/office-embedding'
+  );
+  t.deepEqual(policy.resolveWorkspaceIndexingModel(), {
+    configKey: 'embedding',
+    configPath: 'copilot.tasks.models.embedding',
+    modelId: 'ollama-main/office-embedding',
+    source: 'workspace_indexing_embedding_fallback',
+  });
+});
+
+test('CopilotProviderFactory should resolve embedding and rerank defaults from provider registry routes', async t => {
+  const provider = new OpenAICompatibleProvider();
+  (provider as any).AFFiNEConfig = {
+    copilot: {
+      providers: {
+        profiles: [],
+        defaults: {},
+        openaiCompatible: {
+          baseURL: 'http://ollama:11434/v1',
+          apiStyle: 'chat_completions',
+        },
+      },
+    },
+  };
+  (provider as any).toolExecutorHost = {
+    createNativeAdapter: () => {
+      throw new Error('native adapter should not be used');
+    },
+    getTools: async () => ({}),
+  };
+  const registryService = {
+    getRegistry: () =>
+      buildProviderRegistry({
+        defaults: {
+          [ModelOutputType.Embedding]: 'ollama-main',
+          [ModelOutputType.Rerank]: 'ollama-main',
+        },
+        profiles: [
+          {
+            id: 'ollama-main',
+            type: CopilotProviderType.OpenAICompatible,
+            config: {
+              baseURL: 'http://ollama:11434/v1',
+            },
+            modelDefinitions: [
+              {
+                id: 'office-embedding',
+                rawModelId: 'nomic-embed-text',
+                aliases: ['local-embedding'],
+                capabilities: [
+                  {
+                    input: [ModelInputType.Text],
+                    output: [ModelOutputType.Embedding],
+                    defaultForOutputType: true,
+                  },
+                ],
+              },
+              {
+                id: 'office-rerank',
+                rawModelId: 'bge-reranker-v2',
+                aliases: ['local-rerank'],
+                capabilities: [
+                  {
+                    input: [ModelInputType.Text],
+                    output: [ModelOutputType.Rerank],
+                    defaultForOutputType: true,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+  };
+  const server = {
+    enableFeature: Sinon.stub(),
+    disableFeature: Sinon.stub(),
+  };
+  const access = {
+    resolveRouteAccess: Sinon.stub().resolves({
+      byokProfiles: [],
+      quotaBackedRoutesAvailable: true,
+    }),
+  };
+  const factory = new CopilotProviderFactory(
+    server as never,
+    registryService as never,
+    access as never
+  );
+  factory.register('ollama-main', provider);
+
+  const embeddingRoutes = await factory.prepareEmbeddingRoutes(undefined, [
+    'alpha',
+  ]);
+  const rerankRoutes = await factory.prepareRerankRoutes(undefined, {
+    query: 'hello',
+    candidates: [{ text: 'hello world' }],
+  });
+
+  t.is(embeddingRoutes.length, 1);
+  t.is(embeddingRoutes[0]?.providerId, 'ollama-main');
+  t.is(embeddingRoutes[0]?.modelId, 'nomic-embed-text');
+  t.is(embeddingRoutes[0]?.preparedEmbedding?.route.model, 'nomic-embed-text');
+  t.is(
+    embeddingRoutes[0]?.preparedEmbedding?.request.model,
+    'nomic-embed-text'
+  );
+
+  t.is(rerankRoutes.length, 1);
+  t.is(rerankRoutes[0]?.providerId, 'ollama-main');
+  t.is(rerankRoutes[0]?.modelId, 'bge-reranker-v2');
+  t.is(rerankRoutes[0]?.preparedRerank?.route.model, 'bge-reranker-v2');
+  t.is(rerankRoutes[0]?.preparedRerank?.request.model, 'bge-reranker-v2');
+});
+
+test('CopilotProviderFactory should describe route candidates after policy filtering', async t => {
+  const provider = new OpenAICompatibleProvider();
+  (provider as any).AFFiNEConfig = {
+    copilot: {
+      providers: {
+        profiles: [],
+        defaults: {},
+        openaiCompatible: {
+          baseURL: 'http://ollama:11434/v1',
+          apiStyle: 'chat_completions',
+        },
+      },
+    },
+  };
+  (provider as any).toolExecutorHost = {
+    createNativeAdapter: () => {
+      throw new Error('native adapter should not be used');
+    },
+    getTools: async () => ({}),
+  };
+  const registryService = {
+    getRegistry: () =>
+      buildProviderRegistry({
+        profiles: [
+          {
+            id: 'embed-main',
+            type: CopilotProviderType.OpenAICompatible,
+            priority: 100,
+            config: {
+              baseURL: 'http://ollama:11434/v1',
+            },
+            modelDefinitions: [
+              {
+                id: 'office-embedding',
+                rawModelId: 'nomic-embed-text',
+                aliases: ['workspace-embedding'],
+                capabilities: [
+                  {
+                    input: [ModelInputType.Text],
+                    output: [ModelOutputType.Embedding],
+                    defaultForOutputType: true,
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            id: 'chat-only',
+            type: CopilotProviderType.OpenAICompatible,
+            priority: 50,
+            config: {
+              baseURL: 'http://chat-only:11434/v1',
+            },
+            modelDefinitions: [
+              {
+                id: 'office-chat',
+                rawModelId: 'qwen3:32b',
+                capabilities: [
+                  {
+                    input: [ModelInputType.Text],
+                    output: [ModelOutputType.Text],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            id: 'restricted',
+            type: CopilotProviderType.OpenAICompatible,
+            priority: 10,
+            config: {
+              baseURL: 'http://restricted:11434/v1',
+            },
+            models: ['another-embedding'],
+          },
+        ],
+      }),
+  };
+  const server = {
+    enableFeature: Sinon.stub(),
+    disableFeature: Sinon.stub(),
+  };
+  const access = {
+    resolveRouteAccess: Sinon.stub().resolves({
+      byokProfiles: [],
+      quotaBackedRoutesAvailable: true,
+    }),
+  };
+  const factory = new CopilotProviderFactory(
+    server as never,
+    registryService as never,
+    access as never
+  );
+  factory.register('embed-main', provider);
+  factory.register('chat-only', provider);
+  factory.register('restricted', provider);
+
+  t.deepEqual(
+    await factory.describeRouteCandidates(
+      {
+        outputType: ModelOutputType.Embedding,
+      },
+      {},
+      {
+        featureKind: 'workspace_indexing',
+      }
+    ),
+    [
+      {
+        registryKind: 'quota_backed',
+        registryAvailable: true,
+        registrySelected: true,
+        providerId: 'embed-main',
+        providerSource: 'configured',
+        providerProfileId: 'embed-main',
+        providerProfileSource: 'configured',
+        providerProfileConfigPath: 'copilot.providers.profiles[id=embed-main]',
+        providerType: CopilotProviderType.OpenAICompatible,
+        providerPriority: 100,
+        providerConfiguredModelIds: ['office-embedding', 'workspace-embedding'],
+        providerConfiguredModelCount: 2,
+        privacy: 'cloud',
+        health: 'unknown',
+        modelId: 'office-embedding',
+        routeRawModelId: 'nomic-embed-text',
+        routeModelDefinitionSource: 'provider_profile',
+        routeModelDefinitionId: 'office-embedding',
+        routeModelDefinitionAliases: ['workspace-embedding'],
+        routeModelAliasMatched: false,
+        candidateModelIds: ['office-embedding', 'workspace-embedding'],
+        matched: true,
+        reasons: [
+          'profile_model_matched',
+          'capability_matched',
+          'registry_selected',
+        ],
+      },
+      {
+        registryKind: 'quota_backed',
+        registryAvailable: true,
+        registrySelected: false,
+        providerId: 'chat-only',
+        providerSource: 'configured',
+        providerProfileId: 'chat-only',
+        providerProfileSource: 'configured',
+        providerProfileConfigPath: 'copilot.providers.profiles[id=chat-only]',
+        providerType: CopilotProviderType.OpenAICompatible,
+        providerPriority: 50,
+        providerConfiguredModelIds: ['office-chat'],
+        providerConfiguredModelCount: 1,
+        privacy: 'cloud',
+        health: 'unknown',
+        candidateModelIds: ['office-chat'],
+        matched: false,
+        reasons: [
+          'no_profile_model_match',
+          'capability_mismatch',
+          'output_not_supported',
+        ],
+      },
+      {
+        registryKind: 'quota_backed',
+        registryAvailable: true,
+        registrySelected: false,
+        providerId: 'restricted',
+        providerSource: 'configured',
+        providerProfileId: 'restricted',
+        providerProfileSource: 'configured',
+        providerProfileConfigPath: 'copilot.providers.profiles[id=restricted]',
+        providerType: CopilotProviderType.OpenAICompatible,
+        providerPriority: 10,
+        providerConfiguredModelIds: ['another-embedding'],
+        providerConfiguredModelCount: 1,
+        privacy: 'cloud',
+        health: 'unknown',
+        candidateModelIds: ['another-embedding'],
+        matched: false,
+        reasons: ['no_profile_model_match', 'capability_mismatch'],
+      },
+    ]
+  );
+
+  t.deepEqual(
+    await factory.describeRouteCandidates(
+      {
+        modelId: 'restricted/workspace-embedding',
+        outputType: ModelOutputType.Embedding,
+      },
+      {},
+      {
+        featureKind: 'workspace_indexing',
+      }
+    ),
+    [
+      {
+        registryKind: 'quota_backed',
+        registryAvailable: true,
+        registrySelected: false,
+        providerId: 'restricted',
+        providerSource: 'configured',
+        providerProfileId: 'restricted',
+        providerProfileSource: 'configured',
+        providerProfileConfigPath: 'copilot.providers.profiles[id=restricted]',
+        providerType: CopilotProviderType.OpenAICompatible,
+        providerPriority: 10,
+        providerConfiguredModelIds: ['another-embedding'],
+        providerConfiguredModelCount: 1,
+        privacy: 'cloud',
+        health: 'unknown',
+        requestedModelId: 'workspace-embedding',
+        candidateModelIds: ['another-embedding'],
+        matched: false,
+        reasons: ['profile_model_not_allowed'],
+      },
+    ]
+  );
+});
+
+test('CopilotProviderFactory should describe route candidate attachment mismatch hints', async t => {
+  const provider = new OpenAICompatibleProvider();
+  (provider as any).AFFiNEConfig = {
+    copilot: {
+      providers: {
+        profiles: [],
+        defaults: {},
+        openaiCompatible: {
+          baseURL: 'http://ollama:11434/v1',
+          apiStyle: 'chat_completions',
+        },
+      },
+    },
+  };
+  (provider as any).toolExecutorHost = {
+    createNativeAdapter: () => {
+      throw new Error('native adapter should not be used');
+    },
+    getTools: async () => ({}),
+  };
+  const registryService = {
+    getRegistry: () =>
+      buildProviderRegistry({
+        profiles: [
+          {
+            id: 'local-file',
+            type: CopilotProviderType.OpenAICompatible,
+            config: {
+              baseURL: 'http://ollama:11434/v1',
+            },
+            modelDefinitions: [
+              {
+                id: 'local-file-chat',
+                rawModelId: 'qwen-file',
+                capabilities: [
+                  {
+                    input: [ModelInputType.Text, ModelInputType.File],
+                    output: [ModelOutputType.Text],
+                    attachments: {
+                      kinds: ['file'],
+                      sourceKinds: ['file_handle'],
+                      allowRemoteUrls: false,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+  };
+  const server = {
+    enableFeature: Sinon.stub(),
+    disableFeature: Sinon.stub(),
+  };
+  const access = {
+    resolveRouteAccess: Sinon.stub().resolves({
+      byokProfiles: [],
+      quotaBackedRoutesAvailable: true,
+    }),
+  };
+  const factory = new CopilotProviderFactory(
+    server as never,
+    registryService as never,
+    access as never
+  );
+  factory.register('local-file', provider);
+
+  t.deepEqual(
+    await factory.describeRouteCandidates(
+      {
+        outputType: ModelOutputType.Text,
+        inputTypes: [ModelInputType.Text, ModelInputType.File],
+        attachmentKinds: ['file'],
+        attachmentSourceKinds: ['url'],
+        hasRemoteAttachments: true,
+      },
+      {},
+      {
+        featureKind: 'chat',
+      }
+    ),
+    [
+      {
+        registryKind: 'quota_backed',
+        registryAvailable: true,
+        registrySelected: false,
+        providerId: 'local-file',
+        providerSource: 'configured',
+        providerProfileId: 'local-file',
+        providerProfileSource: 'configured',
+        providerProfileConfigPath: 'copilot.providers.profiles[id=local-file]',
+        providerType: CopilotProviderType.OpenAICompatible,
+        providerPriority: 0,
+        providerConfiguredModelIds: ['local-file-chat'],
+        providerConfiguredModelCount: 1,
+        privacy: 'cloud',
+        health: 'unknown',
+        candidateModelIds: ['local-file-chat'],
+        matched: false,
+        reasons: [
+          'no_profile_model_match',
+          'capability_mismatch',
+          'attachment_source_not_supported',
+          'remote_attachment_not_supported',
+        ],
+      },
+    ]
+  );
+});
+
+test('CopilotProviderFactory should describe BYOK and quota-backed route branches', async t => {
+  const { factory } = createProviderFactoryWithByokRoutes();
+
+  t.deepEqual(
+    await factory.describeRouteCandidates(
+      { modelId: 'gpt-5-mini', outputType: ModelOutputType.Text },
+      {},
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    ),
+    [
+      {
+        registryKind: 'byok',
+        registryAvailable: true,
+        registrySelected: true,
+        providerId: 'byok-aaaaaaaaaaaa-openai-server-key1',
+        providerName: 'Workspace BYOK OpenAI',
+        providerSource: 'byok_server',
+        providerProfileId: 'byok-aaaaaaaaaaaa-openai-server-key1',
+        providerProfileSource: 'byok_server',
+        providerProfileConfigPath: 'workspace.byok.server',
+        providerType: CopilotProviderType.OpenAI,
+        providerPriority: 10_000,
+        privacy: 'private_cloud',
+        health: 'healthy',
+        healthCheckedAt: '2026-06-16T10:00:00.000Z',
+        requestedModelId: 'gpt-5-mini',
+        modelId: 'gpt-5-mini',
+        routeModelDefinitionSource: 'native_registry',
+        routeModelDefinitionId: 'gpt-5-mini',
+        matched: true,
+        reasons: ['capability_matched', 'registry_selected'],
+      },
+      {
+        registryKind: 'quota_backed',
+        registryAvailable: true,
+        registrySelected: false,
+        providerId: 'openai-main',
+        providerSource: 'configured',
+        providerProfileId: 'openai-main',
+        providerProfileSource: 'configured',
+        providerProfileConfigPath: 'copilot.providers.profiles[id=openai-main]',
+        providerType: CopilotProviderType.OpenAI,
+        providerPriority: 1,
+        privacy: 'cloud',
+        health: 'unknown',
+        requestedModelId: 'gpt-5-mini',
+        modelId: 'gpt-5-mini',
+        routeModelDefinitionSource: 'native_registry',
+        routeModelDefinitionId: 'gpt-5-mini',
+        matched: true,
+        reasons: ['capability_matched', 'registry_shadowed_by_byok'],
+      },
+    ]
+  );
+});
+
+test('CopilotProviderFactory should describe unavailable quota-backed route branch', async t => {
+  const { factory } = createProviderFactoryWithByokRoutes({
+    byokProfiles: [],
+    hasQuota: false,
+  });
+
+  t.deepEqual(
+    await factory.describeRouteCandidates(
+      { modelId: 'gpt-5-mini', outputType: ModelOutputType.Text },
+      {},
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    ),
+    [
+      {
+        registryKind: 'quota_backed',
+        registryAvailable: false,
+        registrySelected: false,
+        providerId: 'openai-main',
+        providerSource: 'configured',
+        providerProfileId: 'openai-main',
+        providerProfileSource: 'configured',
+        providerProfileConfigPath: 'copilot.providers.profiles[id=openai-main]',
+        providerType: CopilotProviderType.OpenAI,
+        providerPriority: 1,
+        privacy: 'cloud',
+        health: 'unknown',
+        requestedModelId: 'gpt-5-mini',
+        modelId: 'gpt-5-mini',
+        routeModelDefinitionSource: 'native_registry',
+        routeModelDefinitionId: 'gpt-5-mini',
+        matched: true,
+        reasons: [
+          'capability_matched',
+          'registry_unavailable',
+          'quota_exceeded_fallback_candidate',
+        ],
+      },
+    ]
+  );
+});
+
+test('CopilotProviderFactory should apply model max output tokens to prepared chat and structured routes', async t => {
+  const provider = new OpenAICompatibleProvider();
+  (provider as any).AFFiNEConfig = {
+    copilot: {
+      providers: {
+        profiles: [],
+        defaults: {},
+        openaiCompatible: {
+          baseURL: 'http://ollama:11434/v1',
+          apiStyle: 'chat_completions',
+        },
+      },
+    },
+  };
+  (provider as any).toolExecutorHost = {
+    createNativeAdapter: () => {
+      throw new Error('native adapter should not be used');
+    },
+    getTools: async () => ({}),
+  };
+  const registryService = {
+    getRegistry: () =>
+      buildProviderRegistry({
+        profiles: [
+          {
+            id: 'ollama-main',
+            type: CopilotProviderType.OpenAICompatible,
+            config: {
+              baseURL: 'http://ollama:11434/v1',
+            },
+            modelDefinitions: [
+              {
+                id: 'office-chat-fast',
+                rawModelId: 'qwen3:32b',
+                aliases: ['local-chat'],
+                limits: {
+                  maxOutputTokens: 256,
+                },
+                capabilities: [
+                  {
+                    input: [ModelInputType.Text],
+                    output: [ModelOutputType.Text, ModelOutputType.Structured],
+                    defaultForOutputType: true,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+  };
+  const server = {
+    enableFeature: Sinon.stub(),
+    disableFeature: Sinon.stub(),
+  };
+  const access = {
+    resolveRouteAccess: Sinon.stub().resolves({
+      byokProfiles: [],
+      quotaBackedRoutesAvailable: true,
+    }),
+  };
+  const factory = new CopilotProviderFactory(
+    server as never,
+    registryService as never,
+    access as never
+  );
+  factory.register('ollama-main', provider);
+  const contract = structuredContract(z.object({ answer: z.string() }));
+
+  const defaultRoutes = await factory.prepareRoutes(
+    'text',
+    {
+      modelId: 'ollama-main/local-chat',
+      outputType: ModelOutputType.Text,
+    },
+    singleUserPromptMessages('hello')
+  );
+  const overrideRoutes = await factory.prepareRoutes(
+    'text',
+    {
+      modelId: 'ollama-main/local-chat',
+      outputType: ModelOutputType.Text,
+    },
+    singleUserPromptMessages('hello'),
+    { maxTokens: 1024 }
+  );
+  const structuredRoutes = await factory.prepareStructuredRoutes(
+    {
+      modelId: 'ollama-main/local-chat',
+      outputType: ModelOutputType.Structured,
+    },
+    singleUserPromptMessages('hello'),
+    structuredOptions(z.object({ answer: z.string() })),
+    {},
+    contract
+  );
+
+  t.is(defaultRoutes[0]?.prepared?.route.model, 'qwen3:32b');
+  t.is(defaultRoutes[0]?.prepared?.request.maxTokens, 256);
+  t.is(overrideRoutes[0]?.prepared?.request.maxTokens, 1024);
+  t.is(structuredRoutes[0]?.preparedStructured?.route.model, 'qwen3:32b');
+  t.is(structuredRoutes[0]?.preparedStructured?.request.maxTokens, 256);
+});
+
+test('CopilotProviderFactory should expose model context window from configured model definitions', async t => {
+  const provider = new OpenAICompatibleProvider();
+  (provider as any).AFFiNEConfig = {
+    copilot: {
+      providers: {
+        profiles: [],
+        defaults: {},
+        openaiCompatible: {
+          baseURL: 'http://ollama:11434/v1',
+          apiStyle: 'chat_completions',
+        },
+      },
+    },
+  };
+  (provider as any).toolExecutorHost = {
+    createNativeAdapter: () => {
+      throw new Error('native adapter should not be used');
+    },
+    getTools: async () => ({}),
+  };
+  const registryService = {
+    getRegistry: () =>
+      buildProviderRegistry({
+        profiles: [
+          {
+            id: 'ollama-main',
+            type: CopilotProviderType.OpenAICompatible,
+            config: {
+              baseURL: 'http://ollama:11434/v1',
+            },
+            modelDefinitions: [
+              {
+                id: 'office-chat-fast',
+                rawModelId: 'qwen3:32b',
+                aliases: ['local-chat'],
+                limits: {
+                  contextWindow: 4096,
+                },
+                capabilities: [
+                  {
+                    input: [ModelInputType.Text],
+                    output: [ModelOutputType.Text],
+                    defaultForOutputType: true,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+  };
+  const server = {
+    enableFeature: Sinon.stub(),
+    disableFeature: Sinon.stub(),
+  };
+  const access = {
+    resolveRouteAccess: Sinon.stub().resolves({
+      byokProfiles: [],
+      quotaBackedRoutesAvailable: true,
+    }),
+  };
+  const factory = new CopilotProviderFactory(
+    server as never,
+    registryService as never,
+    access as never
+  );
+  factory.register('ollama-main', provider);
+
+  t.is(
+    await factory.resolveModelContextWindow({
+      modelId: 'ollama-main/local-chat',
+      outputType: ModelOutputType.Text,
+    }),
+    4096
+  );
 });
 
 test('OpenAI image driver should host-materialize remote edit inputs', async t => {
@@ -2149,6 +3945,44 @@ test('NativeExecutionEngine should reject single-route plans when no native rout
   );
 
   t.true(error instanceof NoCopilotProviderAvailable);
+});
+
+test('CapabilityRuntime should expose task route preflight errors', async t => {
+  const plans = {
+    buildEmbeddingPlan: Sinon.stub().rejects(
+      new NoCopilotProviderAvailable(
+        { modelId: 'office-embedding' },
+        'embedding route alias missing'
+      )
+    ),
+    buildRerankPlan: Sinon.stub().rejects(new Error('rerank provider down')),
+  };
+  const runtime = new CapabilityRuntime(plans as never, {} as never);
+
+  t.deepEqual(
+    await runtime.describeEmbeddingRoute('office-embedding', {
+      dimensions: 1024,
+    }),
+    {
+      configured: false,
+      errorCode: 'no_copilot_provider_available',
+      errorMessage: 'embedding route alias missing',
+      fallbackOrder: [],
+      preparedRoutes: [],
+      preparedProviderCount: 0,
+      requestedModelId: 'office-embedding',
+      dimensionMismatch: false,
+    }
+  );
+  t.deepEqual(await runtime.describeRerankRoute('office-rerank'), {
+    configured: false,
+    errorCode: 'route_preflight_error',
+    errorMessage: 'rerank provider down',
+    fallbackOrder: [],
+    preparedRoutes: [],
+    preparedProviderCount: 0,
+    requestedModelId: 'office-rerank',
+  });
 });
 
 test('NativeExecutionEngine should prefer prepared native fallback dispatch for explicit routes', async t => {
@@ -2796,6 +4630,10 @@ test('ExecutionPlanBuilder should build native prepared routes for structured, i
     },
   });
 
+  t.is(structuredPlan.nativeDispatch?.structured?.preparedRoutes, undefined);
+  t.is(imagePlan.nativeDispatch?.image?.preparedRoutes, undefined);
+  t.is(embeddingPlan.nativeDispatch?.embedding?.preparedRoutes?.length, 2);
+  t.is(rerankPlan.nativeDispatch?.rerank?.preparedRoutes?.length, 2);
   t.is(embeddingPlan.hostContext.signal, signal);
   t.truthy(embeddingPlan.serializable);
   const serializable = embeddingPlan.serializable!;

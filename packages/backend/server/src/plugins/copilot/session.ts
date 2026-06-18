@@ -48,6 +48,15 @@ declare global {
 
 const BACKGROUND_COPILOT_JOB_PRIORITY = 100;
 
+function resolveEffectiveMaxTokenSize(
+  promptMaxTokenSize: number,
+  contextWindow?: number
+) {
+  return contextWindow
+    ? Math.min(promptMaxTokenSize, contextWindow)
+    : promptMaxTokenSize;
+}
+
 export class ChatSession implements AsyncDisposable {
   private stashTurnCount = 0;
   private readonly renderPromptSession: (
@@ -135,12 +144,15 @@ export class ChatSession implements AsyncDisposable {
     );
   }
 
-  finish(params: PromptParams): PromptMessage[] {
+  finish(
+    params: PromptParams,
+    options: { contextWindow?: number } = {}
+  ): PromptMessage[] {
     return this.renderPromptSession(
       this.state.prompt,
       this.state.turns.map(turn => promptMessageFromTurn(turn)),
       params,
-      this.maxTokenSize,
+      resolveEffectiveMaxTokenSize(this.maxTokenSize, options.contextWindow),
       this.state.sessionId
     );
   }

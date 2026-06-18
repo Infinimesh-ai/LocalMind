@@ -9,6 +9,10 @@ import {
   type LlmProtocol,
   llmResolveModelRegistryVariant,
 } from '../../../native';
+import type {
+  CopilotModelDefinition,
+  CopilotModelRouteOverride,
+} from '../config';
 import { applyPromptAttachmentMimeTypeHintForNative } from './attachments';
 import {
   type CopilotChatOptions,
@@ -35,6 +39,7 @@ import {
 export type ProviderModelRuntimeContext = {
   type: CopilotProviderType;
   backendKind: CopilotModelBackendKind;
+  modelDefinitions?: CopilotModelDefinition[];
 };
 
 export type ResolvedProviderModel = CopilotProviderModel & {
@@ -52,7 +57,52 @@ export type ResolvedProviderModel = CopilotProviderModel & {
     >
   >;
   behaviorFlags?: string[];
+  limits?: {
+    contextWindow?: number;
+    maxOutputTokens?: number;
+    embeddingDimensions?: number;
+  };
+  cost?: {
+    inputPer1M?: number;
+    outputPer1M?: number;
+  };
 };
+
+type OptionsWithMaxTokens = NonNullable<CopilotChatOptions> & {
+  maxTokens?: number | null;
+};
+
+export function resolveModelMaxOutputTokens(
+  model: CopilotProviderModel
+): number | undefined {
+  return (model as ResolvedProviderModel).limits?.maxOutputTokens;
+}
+
+export function resolveModelContextWindow(
+  model: CopilotProviderModel
+): number | undefined {
+  return (model as ResolvedProviderModel).limits?.contextWindow;
+}
+
+export function resolveModelLimits(
+  model: CopilotProviderModel
+): ResolvedProviderModel['limits'] {
+  return (model as ResolvedProviderModel).limits;
+}
+
+export function applyModelMaxOutputTokens<
+  TOptions extends OptionsWithMaxTokens,
+>(model: CopilotProviderModel, options: TOptions): TOptions {
+  const maxOutputTokens = resolveModelMaxOutputTokens(model);
+  if (options.maxTokens != null || maxOutputTokens === undefined) {
+    return options;
+  }
+
+  return {
+    ...options,
+    maxTokens: maxOutputTokens,
+  } as TOptions;
+}
 
 function unique<T>(values: Iterable<T>) {
   return Array.from(new Set(values));
@@ -109,6 +159,185 @@ function toProviderModel(
   };
 }
 
+const DEFAULT_MODEL_ROUTE_BY_BACKEND_KIND: Record<
+  CopilotModelBackendKind,
+  {
+    protocol: LlmProtocol;
+    requestLayer: LlmBackendConfig['request_layer'];
+  }
+> = {
+  openai_chat: {
+    protocol: 'openai_chat',
+    requestLayer: 'chat_completions',
+  },
+  openai_responses: {
+    protocol: 'openai_responses',
+    requestLayer: 'responses',
+  },
+  anthropic: {
+    protocol: 'anthropic',
+    requestLayer: 'anthropic',
+  },
+  anthropic_vertex: {
+    protocol: 'anthropic',
+    requestLayer: 'vertex_anthropic',
+  },
+  cloudflare_workers_ai: {
+    protocol: 'openai_chat',
+    requestLayer: 'cloudflare_workers_ai',
+  },
+  gemini_api: {
+    protocol: 'gemini',
+    requestLayer: 'gemini_api',
+  },
+  gemini_vertex: {
+    protocol: 'gemini',
+    requestLayer: 'gemini_vertex',
+  },
+  fal: {
+    protocol: 'fal_image',
+    requestLayer: 'fal',
+  },
+};
+
+const DEFAULT_IMAGE_ROUTE_BY_BACKEND_KIND: Partial<
+  Record<
+    CopilotModelBackendKind,
+    {
+      protocol: LlmProtocol;
+      requestLayer: LlmBackendConfig['request_layer'];
+    }
+  >
+> = {
+  openai_responses: {
+    protocol: 'openai_images',
+    requestLayer: 'openai_images',
+  },
+  fal: {
+    protocol: 'fal_image',
+    requestLayer: 'fal',
+  },
+};
+
+function normalizeRouteOverrides(
+  backendKind: CopilotModelBackendKind,
+  routeOverrides?: Partial<Record<ModelOutputType, CopilotModelRouteOverride>>
+): ResolvedProviderModel['routeOverrides'] | undefined {
+  const outputOverrides = routeOverrides
+    ? Object.fromEntries(
+        Object.entries(routeOverrides).map(([outputType, override]) => [
+          outputType,
+          {
+            protocol: override?.protocol,
+            requestLayer: override?.requestLayer,
+          },
+        ])
+      )
+    : {};
+  const imageRoute = DEFAULT_IMAGE_ROUTE_BY_BACKEND_KIND[backendKind];
+
+  return {
+    ...(imageRoute ? { [ModelOutputType.Image]: imageRoute } : {}),
+    ...outputOverrides,
+  };
+}
+
+function toConfiguredProviderModel(
+  context: ProviderModelRuntimeContext,
+  definition: CopilotModelDefinition
+): ResolvedProviderModel {
+  const backendKind = definition.backendKind ?? context.backendKind;
+  const defaultRoute = DEFAULT_MODEL_ROUTE_BY_BACKEND_KIND[backendKind];
+
+  return {
+    id: definition.rawModelId ?? definition.id,
+    name: definition.displayName,
+    backendKind,
+    canonicalKey: definition.id,
+    protocol: definition.protocol ?? defaultRoute.protocol,
+    requestLayer: definition.requestLayer ?? defaultRoute.requestLayer,
+    routeOverrides: normalizeRouteOverrides(
+      backendKind,
+      definition.routeOverrides
+    ),
+    behaviorFlags: definition.behaviorFlags,
+    limits: definition.limits,
+    cost: definition.cost,
+    capabilities: definition.capabilities.map(capability => ({
+      input: [...capability.input],
+      output: [...capability.output],
+      attachments: capability.attachments
+        ? {
+            kinds: [...capability.attachments.kinds],
+            sourceKinds: capability.attachments.sourceKinds
+              ? [...capability.attachments.sourceKinds]
+              : undefined,
+            allowRemoteUrls: capability.attachments.allowRemoteUrls,
+          }
+        : undefined,
+      structuredAttachments: capability.structuredAttachments
+        ? {
+            kinds: [...capability.structuredAttachments.kinds],
+            sourceKinds: capability.structuredAttachments.sourceKinds
+              ? [...capability.structuredAttachments.sourceKinds]
+              : undefined,
+            allowRemoteUrls: capability.structuredAttachments.allowRemoteUrls,
+          }
+        : undefined,
+      defaultForOutputType: capability.defaultForOutputType,
+    })),
+  };
+}
+
+function getConfiguredModelEntries(
+  context: ProviderModelRuntimeContext
+): Array<{
+  definition: CopilotModelDefinition;
+  model: ResolvedProviderModel;
+}> {
+  return (context.modelDefinitions ?? [])
+    .filter(definition => definition.enabled !== false)
+    .map(definition => ({
+      definition,
+      model: toConfiguredProviderModel(context, definition),
+    }));
+}
+
+function matchConfiguredProviderModel(
+  context: ProviderModelRuntimeContext,
+  cond: ModelFullConditions
+): ResolvedProviderModel | undefined {
+  const entries = getConfiguredModelEntries(context);
+  if (!entries.length) {
+    return;
+  }
+
+  if (cond.modelId) {
+    const requested = entries.find(({ definition, model }) => {
+      return (
+        model.id === cond.modelId ||
+        model.canonicalKey === cond.modelId ||
+        definition?.aliases?.includes(cond.modelId)
+      );
+    });
+    if (!requested) {
+      return;
+    }
+
+    const matchedModelId = llmMatchModelCapabilities([requested.model], {
+      ...cond,
+      modelId: requested.model.id,
+    });
+    return matchedModelId ? requested.model : undefined;
+  }
+
+  const models = entries.map(entry => entry.model);
+  const matchedModelId = llmMatchModelCapabilities(models, cond);
+  return matchedModelId
+    ? models.find(model => model.id === matchedModelId)
+    : undefined;
+}
+
 export type ProviderModelSelection = {
   kind: 'configured';
   model: ResolvedProviderModel;
@@ -118,6 +347,14 @@ export function resolveProviderModelSelection(
   context: ProviderModelRuntimeContext,
   cond: ModelFullConditions
 ): ProviderModelSelection | undefined {
+  const configuredModel = matchConfiguredProviderModel(context, cond);
+  if (configuredModel) {
+    return {
+      kind: 'configured',
+      model: configuredModel,
+    };
+  }
+
   if (cond.modelId) {
     const resolved = llmResolveModelRegistryVariant({
       backendKind: context.backendKind,

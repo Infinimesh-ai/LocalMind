@@ -986,20 +986,34 @@ test('should cleanup empty sessions correctly', async t => {
     select: { id: true, deletedAt: true, pinned: true },
   });
 
+  const sessionTypeOrder = {
+    zeroCost: 0,
+    noMessages: 1,
+    recent: 2,
+    withMessages: 3,
+  };
+  const remainingSessionDiagnostics = remainingSessions
+    .map(s => {
+      const type = neverUsedSessionIds.includes(s.id)
+        ? 'zeroCost'
+        : emptySessionIds.includes(s.id)
+          ? 'noMessages'
+          : s.id === recentSessionId
+            ? 'recent'
+            : 'withMessages';
+
+      return {
+        deleted: !!s.deletedAt,
+        pinned: s.pinned,
+        type,
+      };
+    })
+    .sort((a, b) => sessionTypeOrder[a.type] - sessionTypeOrder[b.type]);
+
   t.snapshot(
     {
       cleanupResult: result,
-      remainingSessions: remainingSessions.map(s => ({
-        deleted: !!s.deletedAt,
-        pinned: s.pinned,
-        type: neverUsedSessionIds.includes(s.id)
-          ? 'zeroCost'
-          : emptySessionIds.includes(s.id)
-            ? 'noMessages'
-            : s.id === recentSessionId
-              ? 'recent'
-              : 'withMessages',
-      })),
+      remainingSessions: remainingSessionDiagnostics,
     },
     'cleanup empty sessions results'
   );
@@ -1143,6 +1157,446 @@ test('should count action runs without double-counting legacy action sessions', 
   });
   t.is(await copilotSession.countUserMessages(user.id), 4);
   t.truthy(legacyAction.sessionId);
+});
+
+test('should expose sanitized action run prepared route trace', async t => {
+  const { models } = t.context;
+  const run = await models.copilotActionRun.create({
+    userId: user.id,
+    workspaceId: workspace.id,
+    actionId: 'mindmap.generate',
+    actionVersion: 'v1',
+  });
+
+  await models.copilotActionRun.complete(run.id, {
+    status: 'succeeded',
+    trace: {
+      native: { prompt: 'should-not-be-returned' },
+      preparedRoutes: {
+        type: 'prepared_routes',
+        status: 'succeeded',
+        steps: [
+          {
+            stepId: 'generate',
+            kind: 'structured',
+            routeCount: 1,
+            requestedModelId: 'local/office-structured',
+            requestedModelSource: 'prompt_preference',
+            fallbackProviderIds: ['ollama-main', 'openai-default'],
+            routes: [
+              {
+                providerId: 'ollama-main',
+                modelId: 'local/office-structured',
+                routeIndex: 0,
+                fallbackOrderIndex: 0,
+                protocol: 'openai_chat',
+                requestLayer: 'chat_completions',
+                providerConfiguredModelCount: 2,
+                providerConfiguredModelIds: [
+                  'local/office-structured',
+                  'office-structured',
+                ],
+                providerHealth: 'healthy',
+                providerHealthCheckedAt: '2026-06-16T09:30:00.000Z',
+                providerHealthLastError: 'should-be-returned',
+                providerName: 'Local Ollama',
+                providerPrivacy: 'local',
+                providerPriority: 10,
+                providerProfileConfigPath:
+                  'copilot.providers.profiles[id=ollama-main]',
+                providerProfileId: 'ollama-main',
+                providerProfileSource: 'configured',
+                providerSource: 'configured',
+                providerType: 'openaiCompatible',
+                routeModelAliasMatched: true,
+                routeModelDefinitionAliases: ['office-structured'],
+                routeModelDefinitionId: 'local/office-structured',
+                routeModelDefinitionSource: 'provider_profile',
+                routeRawModelId: 'qwen3:32b',
+                backendConfig: {
+                  base_url: 'http://host.docker.internal:11434/v1',
+                  auth_token: 'should-not-be-returned',
+                },
+                messages: [{ role: 'user', content: 'secret prompt' }],
+              },
+            ],
+          },
+        ],
+      },
+    },
+  });
+
+  const trace = await models.copilotActionRun.getPreparedRouteTrace(run.id, {
+    userId: user.id,
+    workspaceId: workspace.id,
+  });
+
+  t.deepEqual(trace, {
+    type: 'prepared_routes',
+    status: 'succeeded',
+    steps: [
+      {
+        stepId: 'generate',
+        kind: 'structured',
+        routeCount: 1,
+        actualRouteCount: 1,
+        routeCountMismatch: false,
+        requestedModelId: 'local/office-structured',
+        requestedModelSource: 'prompt_preference',
+        fallbackProviderIds: ['ollama-main', 'openai-default'],
+        routes: [
+          {
+            providerId: 'ollama-main',
+            modelId: 'local/office-structured',
+            routeIndex: 0,
+            fallbackOrderIndex: 0,
+            protocol: 'openai_chat',
+            requestLayer: 'chat_completions',
+            providerConfiguredModelCount: 2,
+            providerConfiguredModelIds: [
+              'local/office-structured',
+              'office-structured',
+            ],
+            providerHealth: 'healthy',
+            providerHealthCheckedAt: '2026-06-16T09:30:00.000Z',
+            providerHealthLastError: 'should-be-returned',
+            providerName: 'Local Ollama',
+            providerPrivacy: 'local',
+            providerPriority: 10,
+            providerProfileConfigPath:
+              'copilot.providers.profiles[id=ollama-main]',
+            providerProfileId: 'ollama-main',
+            providerProfileSource: 'configured',
+            providerSource: 'configured',
+            providerType: 'openaiCompatible',
+            routeModelAliasMatched: true,
+            routeModelDefinitionAliases: ['office-structured'],
+            routeModelDefinitionId: 'local/office-structured',
+            routeModelDefinitionSource: 'provider_profile',
+            routeRawModelId: 'qwen3:32b',
+          },
+        ],
+      },
+    ],
+  });
+});
+
+test('should scope and normalize direct action run prepared route trace', async t => {
+  const { models } = t.context;
+  const run = await models.copilotActionRun.create({
+    userId: user.id,
+    workspaceId: workspace.id,
+    actionId: 'image.filter.sketch',
+    actionVersion: 'v1',
+  });
+
+  await models.copilotActionRun.complete(run.id, {
+    status: 'succeeded',
+    trace: {
+      type: 'prepared_routes',
+      status: 'succeeded',
+      steps: [
+        {
+          stepId: 'generate-image',
+          kind: 'image',
+          requestedModelId: 'gpt-image-1',
+          requestedModelSource: 'unsafe-provider/model',
+          fallbackProviderIds: ['openai-default'],
+          routes: [
+            {
+              providerId: 'openai-default',
+              modelId: 'gpt-image-1',
+              routeIndex: 0,
+              fallbackOrderIndex: 0,
+              baseURL: 'https://example.invalid/v1',
+            },
+            {
+              providerId: 123,
+              modelId: 'invalid',
+            },
+          ],
+        },
+      ],
+    },
+  });
+
+  t.is(
+    await models.copilotActionRun.getPreparedRouteTrace(run.id, {
+      userId: 'another-user',
+      workspaceId: workspace.id,
+    }),
+    null
+  );
+  t.deepEqual(await models.copilotActionRun.getPreparedRouteTrace(run.id), {
+    type: 'prepared_routes',
+    status: 'succeeded',
+    steps: [
+      {
+        stepId: 'generate-image',
+        kind: 'image',
+        routeCount: 1,
+        actualRouteCount: 1,
+        routeCountMismatch: false,
+        requestedModelId: 'gpt-image-1',
+        fallbackProviderIds: ['openai-default'],
+        routes: [
+          {
+            providerId: 'openai-default',
+            modelId: 'gpt-image-1',
+            routeIndex: 0,
+            fallbackOrderIndex: 0,
+          },
+        ],
+      },
+    ],
+  });
+});
+
+test('should list recent sanitized action run diagnostics', async t => {
+  const { models, user: userModel, workspace: workspaceModel } = t.context;
+  const first = await models.copilotActionRun.create({
+    userId: user.id,
+    workspaceId: workspace.id,
+    docId: 'doc-1',
+    actionId: 'mindmap.generate',
+    actionVersion: 'v1',
+  });
+  await models.copilotActionRun.complete(first.id, {
+    status: 'succeeded',
+    result: { secret: 'should-not-be-returned' },
+    artifacts: [{ url: 'https://example.invalid/private' }],
+    trace: {
+      native: { prompt: 'should-not-be-returned' },
+      preparedRoutes: {
+        type: 'prepared_routes',
+        status: 'succeeded',
+        steps: [
+          {
+            stepId: 'generate',
+            kind: 'structured',
+            routeCount: 2,
+            requestedModelId: 'local/office-structured',
+            requestedModelSource: 'prompt_preference',
+            fallbackProviderIds: ['ollama-main', 'openai-default'],
+            routes: [
+              {
+                providerId: 'ollama-main',
+                modelId: 'local/office-structured',
+                routeIndex: 0,
+                fallbackOrderIndex: 0,
+                protocol: 'openai_chat',
+                requestLayer: 'chat_completions',
+                backendConfig: { authToken: 'should-not-be-returned' },
+              },
+              {
+                providerId: 'openai-default',
+                modelId: 'gpt-5-mini',
+                routeIndex: 1,
+                fallbackOrderIndex: 1,
+                protocol: 'openai_chat',
+                requestLayer: 'chat_completions',
+                backendConfig: { authToken: 'should-not-be-returned' },
+              },
+            ],
+          },
+          {
+            stepId: 'fallback-image',
+            kind: 'image',
+            routeCount: 1,
+            requestedModelId: 'gpt-image-1',
+            requestedModelSource: 'explicit',
+            fallbackProviderIds: ['openai-default'],
+            routes: [
+              {
+                providerId: 'openai-default',
+                modelId: 'gpt-image-1',
+                routeIndex: 0,
+                fallbackOrderIndex: 0,
+                protocol: 'openai_image',
+                requestLayer: 'images',
+                backendConfig: { authToken: 'should-not-be-returned' },
+              },
+            ],
+          },
+        ],
+      },
+    },
+  });
+  const second = await models.copilotActionRun.create({
+    userId: user.id,
+    workspaceId: workspace.id,
+    actionId: 'image.filter.sketch',
+    actionVersion: 'v1',
+    retryOf: first.id,
+  });
+  await models.copilotActionRun.complete(second.id, {
+    status: 'failed',
+    errorCode: 'action_bridge_stream_error',
+    trace: { type: 'error', status: 'failed' },
+  });
+  const otherUser = await userModel.create({
+    email: 'other-action-run-owner@affine.pro',
+  });
+  const otherWorkspace = await workspaceModel.create(user.id);
+  await models.copilotActionRun.create({
+    userId: otherUser.id,
+    workspaceId: workspace.id,
+    actionId: 'other.user',
+    actionVersion: 'v1',
+  });
+  await models.copilotActionRun.create({
+    userId: user.id,
+    workspaceId: otherWorkspace.id,
+    actionId: 'other.workspace',
+    actionVersion: 'v1',
+  });
+
+  const diagnostics = await models.copilotActionRun.listRecentDiagnostics({
+    userId: user.id,
+    workspaceId: workspace.id,
+  });
+
+  t.is(diagnostics.length, 2);
+  t.deepEqual(
+    diagnostics.map(run => run.id).sort(),
+    [first.id, second.id].sort()
+  );
+  t.true(diagnostics.some(run => run.id === first.id));
+  t.true(diagnostics.some(run => run.id === second.id));
+  t.like(
+    diagnostics.find(run => run.id === first.id),
+    {
+      actionId: 'mindmap.generate',
+      actionVersion: 'v1',
+      status: 'succeeded',
+      attempt: 1,
+      retryOf: null,
+      docId: 'doc-1',
+      sessionId: null,
+      errorCode: null,
+      hasPreparedRouteTrace: true,
+      preparedRouteStepCount: 2,
+      preparedRouteCount: 3,
+      preparedRouteActualCount: 3,
+      preparedRouteStepRouteCounts: [
+        'generate -> 2/2',
+        'fallback-image -> 1/1',
+      ],
+      preparedRouteStepRouteCountMismatches: [],
+      preparedRouteStepIds: ['generate', 'fallback-image'],
+      preparedRouteKinds: ['structured', 'image'],
+      preparedRouteModelIds: [
+        'local/office-structured',
+        'gpt-5-mini',
+        'gpt-image-1',
+      ],
+      preparedRouteProtocols: ['openai_chat', 'openai_image'],
+      preparedRouteOrder: [
+        '0 -> ollama-main/local/office-structured',
+        '1 -> openai-default/gpt-5-mini',
+        '0 -> openai-default/gpt-image-1',
+      ],
+      preparedRouteFallbackOrder: [
+        '0 -> ollama-main/local/office-structured',
+        '1 -> openai-default/gpt-5-mini',
+        '0 -> openai-default/gpt-image-1',
+      ],
+      preparedRouteStepFallbackProviderIds: [
+        'generate -> ollama-main -> openai-default',
+        'fallback-image -> openai-default',
+      ],
+      preparedRouteProviderIds: ['ollama-main', 'openai-default'],
+      preparedRouteRequestedModelIds: [
+        'local/office-structured',
+        'gpt-image-1',
+      ],
+      preparedRouteRequestedModelSources: ['prompt_preference', 'explicit'],
+      preparedRouteStepRequestedModelSources: [
+        'generate -> prompt_preference',
+        'fallback-image -> explicit',
+      ],
+      preparedRouteRequestLayers: ['chat_completions', 'images'],
+      preparedRouteStepProtocols: [
+        'generate -> openai_chat',
+        'fallback-image -> openai_image',
+      ],
+      preparedRouteStepRequestLayers: [
+        'generate -> chat_completions',
+        'fallback-image -> images',
+      ],
+      preparedRouteStepOrder: [
+        'generate / 0 -> ollama-main/local/office-structured',
+        'generate / 1 -> openai-default/gpt-5-mini',
+        'fallback-image / 0 -> openai-default/gpt-image-1',
+      ],
+      preparedRouteStepFallbackOrder: [
+        'generate / 0 -> ollama-main/local/office-structured',
+        'generate / 1 -> openai-default/gpt-5-mini',
+        'fallback-image / 0 -> openai-default/gpt-image-1',
+      ],
+      preparedRouteFallbackProviderIds: ['ollama-main', 'openai-default'],
+      preparedRouteTargets: [
+        'ollama-main/local/office-structured',
+        'openai-default/gpt-5-mini',
+        'openai-default/gpt-image-1',
+      ],
+      preparedRouteStepTargets: [
+        'generate -> ollama-main/local/office-structured',
+        'generate -> openai-default/gpt-5-mini',
+        'fallback-image -> openai-default/gpt-image-1',
+      ],
+      preparedRouteRequestedTargets: [
+        'local/office-structured -> ollama-main/local/office-structured',
+        'local/office-structured -> openai-default/gpt-5-mini',
+        'gpt-image-1 -> openai-default/gpt-image-1',
+      ],
+      preparedRouteStepRequestedTargets: [
+        'generate / local/office-structured -> ollama-main/local/office-structured',
+        'generate / local/office-structured -> openai-default/gpt-5-mini',
+        'fallback-image / gpt-image-1 -> openai-default/gpt-image-1',
+      ],
+    }
+  );
+  t.like(
+    diagnostics.find(run => run.id === second.id),
+    {
+      actionId: 'image.filter.sketch',
+      status: 'failed',
+      retryOf: first.id,
+      errorCode: 'action_bridge_stream_error',
+      hasPreparedRouteTrace: false,
+      preparedRouteStepCount: 0,
+      preparedRouteCount: 0,
+      preparedRouteActualCount: 0,
+      preparedRouteStepRouteCounts: [],
+      preparedRouteStepRouteCountMismatches: [],
+      preparedRouteStepIds: [],
+      preparedRouteKinds: [],
+      preparedRouteModelIds: [],
+      preparedRouteOrder: [],
+      preparedRouteFallbackOrder: [],
+      preparedRouteStepFallbackProviderIds: [],
+      preparedRouteProtocols: [],
+      preparedRouteProviderIds: [],
+      preparedRouteRequestedModelIds: [],
+      preparedRouteRequestedModelSources: [],
+      preparedRouteStepRequestedModelSources: [],
+      preparedRouteRequestLayers: [],
+      preparedRouteStepProtocols: [],
+      preparedRouteStepOrder: [],
+      preparedRouteStepFallbackOrder: [],
+      preparedRouteStepRequestLayers: [],
+      preparedRouteFallbackProviderIds: [],
+      preparedRouteTargets: [],
+      preparedRouteStepTargets: [],
+      preparedRouteRequestedTargets: [],
+      preparedRouteStepRequestedTargets: [],
+    }
+  );
+  t.false('trace' in diagnostics[0]);
+  t.false('inputSnapshot' in diagnostics[0]);
+  t.false('result' in diagnostics[0]);
+  t.false('artifacts' in diagnostics[0]);
 });
 
 test('should exclude BYOK provider usage from copilot quota cost', async t => {

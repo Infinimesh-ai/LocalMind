@@ -16,13 +16,18 @@ import {
   parseNativeStructuredOutput,
 } from '../../../native';
 import type { ProviderMiddlewareConfig } from '../config';
-import { resolveProviderModelRoute } from '../providers/provider-model-runtime';
+import {
+  applyModelMaxOutputTokens,
+  type ResolvedProviderModel,
+  resolveProviderModelRoute,
+} from '../providers/provider-model-runtime';
 import type {
   CopilotProviderExecution,
   EmbeddingProviderDriver,
   ImageProviderDriver,
   PreparedNativeEmbeddingExecution,
   PreparedNativeImageExecution,
+  PreparedNativeModelDefinitionMetadata,
   PreparedNativeRerankExecution,
   PreparedNativeStructuredExecution,
   RerankProviderDriver,
@@ -46,6 +51,37 @@ import { type RequiredStructuredOutputContract } from './contracts';
 import { buildNativeStructuredRequest } from './native-request-runtime';
 
 const DEFAULT_EMBEDDING_TASK_TYPE = 'RETRIEVAL_DOCUMENT';
+
+function resolvePreparedModelDefinitionMetadata(
+  model: CopilotProviderModel
+): PreparedNativeModelDefinitionMetadata | undefined {
+  const resolved = model as Partial<ResolvedProviderModel>;
+  const metadata: PreparedNativeModelDefinitionMetadata = {};
+
+  if (resolved.backendKind) {
+    metadata.backendKind = resolved.backendKind;
+  }
+  if (resolved.canonicalKey) {
+    metadata.canonicalKey = resolved.canonicalKey;
+  }
+  if (resolved.behaviorFlags?.length) {
+    metadata.behaviorFlags = [...resolved.behaviorFlags];
+  }
+
+  return Object.keys(metadata).length ? metadata : undefined;
+}
+
+function resolveEmbeddingDimensions(
+  model: CopilotProviderModel,
+  driver: EmbeddingProviderDriver,
+  options: CopilotEmbeddingOptions = {}
+) {
+  return (
+    options?.dimensions ??
+    (model as ResolvedProviderModel).limits?.embeddingDimensions ??
+    driver.defaultDimensions
+  );
+}
 
 type MetricLabels = Record<string, string | number | boolean | undefined>;
 type DriverMetricNames = {
@@ -398,10 +434,11 @@ export async function prepareNativeStructuredExecution(
   if (!responseContract) {
     throw new CopilotPromptInvalid('Schema is required');
   }
+  const requestOptions = applyModelMaxOutputTokens(model, structuredOptions);
   const { request } = await buildNativeStructuredRequest({
     model: model.id,
     messages: preparedMessages,
-    options: structuredOptions,
+    options: requestOptions,
     responseContract,
     attachmentCapability: context.getAttachCapability(
       model,
@@ -511,19 +548,32 @@ export async function prepareNativeEmbeddingExecution(
       embeddings: values,
       options,
     },
-    buildPrepared: ({ driver, model, backendConfig, protocol }) =>
-      context.buildPreparedNativeEmbeddingExecution(
+    buildPrepared: ({ driver, model, backendConfig, protocol }) => {
+      const requestedDimensions = resolveEmbeddingDimensions(
+        model,
+        driver,
+        options
+      );
+      const prepared = context.buildPreparedNativeEmbeddingExecution(
         protocol,
         backendConfig,
         model.id,
         buildLlmEmbeddingRequest({
           model: model.id,
           inputs: values,
-          dimensions: options?.dimensions ?? driver.defaultDimensions,
+          dimensions: requestedDimensions,
           taskType: driver.taskType ?? DEFAULT_EMBEDDING_TASK_TYPE,
         }),
         execution
-      ),
+      );
+
+      return {
+        ...prepared,
+        modelDefinition: resolvePreparedModelDefinitionMetadata(model),
+        requestedDimensions,
+        modelLimits: (model as ResolvedProviderModel).limits,
+      };
+    },
   });
 }
 
@@ -592,14 +642,20 @@ export async function prepareNativeRerankExecution(
       messages: [],
       options,
     },
-    buildPrepared: ({ model, backendConfig, protocol }) =>
-      context.buildPreparedNativeRerankExecution(
+    buildPrepared: ({ model, backendConfig, protocol }) => {
+      const prepared = context.buildPreparedNativeRerankExecution(
         protocol,
         backendConfig,
         model.id,
         buildLlmRerankRequest(model.id, request),
         execution
-      ),
+      );
+
+      return {
+        ...prepared,
+        modelDefinition: resolvePreparedModelDefinitionMetadata(model),
+      };
+    },
   });
 }
 

@@ -3,6 +3,10 @@ import { ModuleRef } from '@nestjs/core';
 
 import { ServerFeature, ServerService } from '../../../../core';
 import { QuotaStateService } from '../../../../core/quota/state';
+import type { CopilotAccessContext } from '../../access';
+import type { CopilotProviderRoutePolicyFeatureKind } from '../../config';
+import { CopilotProviderFactory } from '../../providers/factory';
+import { ModelOutputType } from '../../providers/types';
 import type { ChatSession } from '../../session';
 import { type ToolsConfig } from '../../types';
 import { getTools } from '../../utils';
@@ -19,7 +23,7 @@ export type ChatSelectionOptions = {
   toolsConfig?: ToolsConfig;
   byokLeaseId?: string;
   billingUnitId?: string;
-  featureKind?: 'chat' | 'action' | 'image';
+  featureKind?: CopilotProviderRoutePolicyFeatureKind;
   quotaBackedRoutesAllowed?: boolean;
 };
 
@@ -27,6 +31,8 @@ type ResolvePolicyModelInput = ResolveModelInput & {
   proModels?: string[] | null;
   userId?: string;
   paymentEnabled?: boolean;
+  routeContext?: CopilotAccessContext;
+  outputType?: ModelOutputType;
 };
 
 @Injectable()
@@ -34,7 +40,8 @@ export class CapabilityPolicyHost {
   constructor(
     private readonly server: ServerService,
     private readonly moduleRef: ModuleRef,
-    private readonly modelSelection: ModelSelectionPolicy
+    private readonly modelSelection: ModelSelectionPolicy,
+    private readonly providerFactory: CopilotProviderFactory
   ) {}
 
   private async hasAiProAccess(
@@ -59,13 +66,39 @@ export class CapabilityPolicyHost {
     }
   }
 
-  private async resolveModel(input: ResolvePolicyModelInput) {
-    const resolved = this.modelSelection.resolveRequestedModel(input);
-    if (!resolved.matchedOptionalModel) {
-      return resolved.selectedModel;
-    }
+  private async resolveModel(
+    input: ResolvePolicyModelInput,
+    outputType: ModelOutputType = ModelOutputType.Text
+  ) {
+    const resolveDefaultOrAuto = async () => {
+      const defaultRoute = await this.providerFactory.resolveModelId(
+        {
+          modelId: input.defaultModel,
+          outputType,
+        },
+        {},
+        input.routeContext
+      );
+      if (defaultRoute) {
+        return input.defaultModel;
+      }
+
+      return (
+        (await this.providerFactory.resolveModelId(
+          { outputType },
+          {},
+          input.routeContext
+        )) ?? input.defaultModel
+      );
+    };
+    const extraModels = this.providerFactory.getConfiguredModelIds();
+    const resolved = this.modelSelection.resolveRequestedModel({
+      ...input,
+      extraModels,
+    });
 
     if (
+      resolved.matchedOptionalModel &&
       input.paymentEnabled &&
       this.modelSelection.matchesModelList(
         input.proModels ?? [],
@@ -73,27 +106,75 @@ export class CapabilityPolicyHost {
       ) &&
       !(await this.hasAiProAccess(input.userId, input.paymentEnabled))
     ) {
-      return input.defaultModel;
+      return await resolveDefaultOrAuto();
+    }
+
+    const resolvedRoute = await this.providerFactory.resolveModelId(
+      {
+        modelId: resolved.selectedModel,
+        outputType,
+      },
+      {},
+      input.routeContext
+    );
+    if (resolved.matchedOptionalModel && !resolvedRoute) {
+      return await resolveDefaultOrAuto();
+    }
+    if (!resolved.matchedOptionalModel) {
+      return await resolveDefaultOrAuto();
     }
 
     return resolved.selectedModel;
   }
 
+  private outputTypeForResponseMode(
+    responseMode: ChatSelectionOptions['responseMode']
+  ) {
+    return responseMode === 'image'
+      ? ModelOutputType.Image
+      : responseMode === 'object'
+        ? ModelOutputType.Object
+        : ModelOutputType.Text;
+  }
+
   async selectChat(session: ChatSession, options: ChatSelectionOptions) {
-    const model = await this.resolveChatModel({
+    const outputType = this.outputTypeForResponseMode(options.responseMode);
+    const routeContext = {
       userId: session.config.userId,
-      defaultModel: session.model,
-      optionalModels: session.optionalModels,
-      proModels: session.config.promptConfig?.proModels,
-      requestedModelId: options.modelId,
-      paymentEnabled: this.server.features.includes(ServerFeature.Payment),
-    });
+      workspaceId: session.config.workspaceId,
+      byokLeaseId: options.byokLeaseId,
+      featureKind:
+        options.featureKind ??
+        (options.responseMode === 'image' ? 'image' : 'chat'),
+      quotaBackedRoutesAllowed: options.quotaBackedRoutesAllowed,
+    };
+    const model = await this.resolveModel(
+      {
+        userId: session.config.userId,
+        defaultModel: session.model,
+        optionalModels: session.optionalModels,
+        proModels: session.config.promptConfig?.proModels,
+        requestedModelId: options.modelId,
+        paymentEnabled: this.server.features.includes(ServerFeature.Payment),
+        routeContext,
+      },
+      outputType
+    );
+    const contextWindow = await this.providerFactory.resolveModelContextWindow(
+      {
+        modelId: model,
+        outputType,
+      },
+      {},
+      routeContext
+    );
     const tools = getTools(
       session.config.promptConfig?.tools,
       options.toolsConfig
     );
     return {
       model,
+      contextWindow,
       providerOptions: {
         ...session.config.promptConfig,
         user: session.config.userId,
@@ -101,7 +182,7 @@ export class CapabilityPolicyHost {
         workspace: session.config.workspaceId,
         byokLeaseId: options.byokLeaseId,
         billingUnitId: options.billingUnitId,
-        featureKind: options.featureKind ?? 'chat',
+        featureKind: routeContext.featureKind,
         quotaBackedRoutesAllowed: options.quotaBackedRoutesAllowed,
         reasoning: options.reasoning,
         webSearch: options.webSearch,
@@ -111,14 +192,42 @@ export class CapabilityPolicyHost {
   }
 
   async resolveChatModel(input: ResolvePolicyModelInput) {
-    return await this.resolveModel(input);
+    return await this.resolveModel(input, ModelOutputType.Text);
   }
 
-  async resolvePromptModel(input: ResolveModelInput) {
-    return this.modelSelection.resolveRequestedModel(input).selectedModel;
+  async selectPrompt(
+    input: ResolveModelInput & {
+      outputType?: ModelOutputType;
+      routeContext?: CopilotAccessContext;
+    }
+  ) {
+    const outputType = input.outputType ?? ModelOutputType.Text;
+    const model = await this.resolveModel(input, outputType);
+    const contextWindow = await this.providerFactory.resolveModelContextWindow(
+      {
+        modelId: model,
+        outputType,
+      },
+      {},
+      input.routeContext
+    );
+
+    return {
+      model,
+      contextWindow,
+    };
+  }
+
+  async resolvePromptModel(
+    input: ResolveModelInput & {
+      outputType?: ModelOutputType;
+      routeContext?: CopilotAccessContext;
+    }
+  ) {
+    return (await this.selectPrompt(input)).model;
   }
 
   async resolveFixedTaskModel(input: ResolveModelInput) {
-    return this.modelSelection.resolveRequestedModel(input).selectedModel;
+    return await this.resolveModel(input, ModelOutputType.Text);
   }
 }

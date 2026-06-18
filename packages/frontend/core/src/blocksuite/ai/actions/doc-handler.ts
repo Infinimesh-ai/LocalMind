@@ -26,6 +26,7 @@ import {
 import { mergeStreamObjects } from '../utils/stream-objects';
 import type { AffineAIPanelWidget } from '../widgets/ai-panel/ai-panel';
 import type { AIActionAnswer } from '../widgets/ai-panel/type';
+import { applyActionModelId } from './action-model';
 import { actionToAnswerRenderer } from './answer-renderer';
 
 export function bindTextStream(
@@ -111,6 +112,7 @@ function actionToStream<T extends keyof BlockSuitePresets.AIActions>(
       const models = selectedBlocks?.map(block => block.model);
       const control = trackerOptions?.control ?? 'format-bar';
       const where = trackerOptions?.where ?? 'ai-panel';
+      const workspaceId = host.store.workspace.id;
       const options = {
         ...variants,
         attachments,
@@ -122,11 +124,11 @@ function actionToStream<T extends keyof BlockSuitePresets.AIActions>(
         control,
         where,
         docId: host.store.id,
-        workspaceId: host.store.workspace.id,
+        workspaceId,
       } as BlockSuitePresets.AITextActionOptions & Record<string, unknown>;
       stream = (await getAIRequestService().executeAction(
         id,
-        options
+        await applyActionModelId(host, id, options)
       )) as BlockSuitePresets.TextStream;
       if (!stream) return;
       yield* stream;

@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+import {
+  ACTION_MODEL_SELECTION_SOURCES,
+  normalizeActionModelSelectionSource,
+} from '../../models/copilot-action-model-selection';
 import type { Turn } from './core/types';
 import type { ResolvedPrompt } from './prompt';
 import { PromptMessageSchema, PureMessageSchema } from './providers/types';
@@ -15,6 +19,10 @@ const zMaybeString = z.preprocess(val => {
   const s = takeFirst(val);
   return s === '' || s == null ? undefined : s;
 }, z.string().min(1).optional());
+
+const zModelSelectionSource = z.preprocess(val => {
+  return normalizeActionModelSelectionSource(takeFirst(val));
+}, z.enum(ACTION_MODEL_SELECTION_SOURCES).optional());
 
 const ToolsConfigSchema = z.preprocess(
   val => {
@@ -37,6 +45,7 @@ export const ChatQuerySchema = z
   .object({
     messageId: zMaybeString,
     modelId: zMaybeString,
+    modelSelectionSource: zModelSelectionSource,
     byokLeaseId: zMaybeString,
     retry: zBool,
     reasoning: zBool,
@@ -48,6 +57,7 @@ export const ChatQuerySchema = z
     ({
       messageId,
       modelId,
+      modelSelectionSource,
       byokLeaseId,
       retry,
       reasoning,
@@ -57,6 +67,7 @@ export const ChatQuerySchema = z
     }) => ({
       messageId,
       modelId,
+      modelSelectionSource,
       byokLeaseId,
       retry,
       reasoning,

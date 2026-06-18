@@ -29,15 +29,74 @@ class ProductionEmbeddingClient extends EmbeddingClient {
   }
 
   override async configured(): Promise<boolean> {
-    const result = await this.runtime.embeddingConfigured(
-      this.taskPolicy.resolveEmbeddingModelId()
+    const embeddingDiagnostics = await this.runtime.describeEmbeddingRoute(
+      this.taskPolicy.resolveWorkspaceIndexingModelId(),
+      {
+        dimensions: EMBEDDING_DIMENSIONS,
+        featureKind: 'workspace_indexing',
+      }
     );
-    if (!result) {
+    if (!embeddingDiagnostics.configured) {
       this.logger.warn(
         'Copilot embedding client is not configured properly, please check your configuration.'
       );
     }
-    return result;
+    if (embeddingDiagnostics.dimensionMismatch) {
+      this.logger.warn(
+        `Copilot embedding route ${embeddingDiagnostics.providerId ?? 'auto'}/${
+          embeddingDiagnostics.modelId ?? 'auto'
+        } declares ${embeddingDiagnostics.modelEmbeddingDimensions} dimensions, ` +
+          `but workspace indexes require ${EMBEDDING_DIMENSIONS}. ` +
+          'The request will ask for the workspace dimension; rebuild indexes ' +
+          'or choose a compatible embedding model if the provider cannot honor it.'
+      );
+    }
+
+    const rerankDiagnostics = await this.runtime.describeRerankRoute(
+      this.taskPolicy.resolveRerankModelId(),
+      {
+        featureKind: 'rerank',
+      }
+    );
+    if (!rerankDiagnostics.configured) {
+      this.logger.warn(
+        'Copilot rerank route is not configured; workspace search will fall back to vector distance sorting.'
+      );
+    } else {
+      this.logger.verbose(
+        `Copilot rerank route configured: ${
+          rerankDiagnostics.providerId ?? 'auto'
+        }/${rerankDiagnostics.modelId ?? 'auto'}`
+      );
+    }
+
+    return embeddingDiagnostics.configured;
+  }
+
+  private validateEmbeddingDimensions(
+    modelId: string | undefined,
+    embeddings: number[][]
+  ) {
+    const invalid = embeddings.find(
+      embedding => embedding.length !== EMBEDDING_DIMENSIONS
+    );
+    if (!invalid) {
+      return;
+    }
+
+    const provider = modelId ?? 'auto';
+    const message =
+      `Expected ${EMBEDDING_DIMENSIONS} embedding dimensions, ` +
+      `got ${invalid.length}. Current workspace vector indexes require ` +
+      `${EMBEDDING_DIMENSIONS} dimensions; update the configured embedding ` +
+      'model or rebuild indexes before using this route.';
+    this.logger.error(
+      `Copilot embedding model ${provider} returned incompatible vector dimensions. ${message}`
+    );
+    throw new CopilotFailedToGenerateEmbedding({
+      provider,
+      message,
+    });
   }
 
   async getEmbeddings(
@@ -45,21 +104,26 @@ class ProductionEmbeddingClient extends EmbeddingClient {
     options?: EmbeddingCallOptionsInput
   ): Promise<Embedding[]> {
     const normalizedOptions = normalizeEmbeddingCallOptions(options);
-    const modelId = this.taskPolicy.resolveEmbeddingModelId();
+    const featureKind = normalizedOptions.featureKind ?? 'embedding';
+    const modelId =
+      featureKind === 'workspace_indexing'
+        ? this.taskPolicy.resolveWorkspaceIndexingModelId()
+        : this.taskPolicy.resolveEmbeddingModelId();
     const embeddings = await this.runtime.embed(modelId, input, {
       dimensions: EMBEDDING_DIMENSIONS,
       signal: normalizedOptions.signal,
       user: normalizedOptions.userId,
       workspace: normalizedOptions.workspaceId,
       byokLeaseId: normalizedOptions.byokLeaseId,
-      featureKind: normalizedOptions.featureKind ?? 'embedding',
+      featureKind,
     });
     if (embeddings.length !== input.length) {
       throw new CopilotFailedToGenerateEmbedding({
-        provider: modelId,
+        provider: modelId ?? 'auto',
         message: `Expected ${input.length} embeddings, got ${embeddings.length}`,
       });
     }
+    this.validateEmbeddingDimensions(modelId, embeddings);
 
     return Array.from(embeddings.entries()).map(([index, embedding]) => ({
       index,
