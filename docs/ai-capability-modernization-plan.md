@@ -12091,3 +12091,28 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - Admin 可见 timeline 仍是轻量只读 block，不支持正式 timeline 组件所需的 step 展开、过滤、排序、持续刷新、trace JSON 导出、support bundle、run cancellation、approval decision、retry/rollback operation、Codex adapter 管理或 MCP registry 管理。
 - schema readiness diagnostics 现在只能说明当前 action run projection 已有结构化 GraphQL timeline item 字段，不代表正式 AgentRun/AgentStep schema、GraphQL enum、migration、registry source of truth 或 runtime 状态机已经落地。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 353. P3 落地记录：Admin Structured Action Run Timeline Field View
+
+本轮继续收敛第 352 节剩余风险中 “Admin 可见 timeline 仍是轻量只读 block，不支持正式 timeline 组件所需的 step 展开、过滤、排序、持续刷新、trace JSON 导出或 support bundle” 的问题。实际代码与目标 Agent Runtime UI 的冲突点是：上一轮已经通过 GraphQL 暴露了 `agentRuntimeTimelineItems` 的结构化字段，但 Admin 可见 block 仍只显示 `item.label`，管理员无法直接看到 event type、status、step id、step type、kind 与 route coverage 等结构化字段是否被正确消费。正式 timeline 组件仍需要 DB-backed timeline event、step detail 与交互能力，本轮先让现有只读 block 和 copyable diagnostics text 都直接消费结构化字段。
+
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - `formatActionRunAgentRuntimeTimelineItem()` 改为从 `eventType`、`status`、`stepId`、`stepType`、`kind`、`actualRouteCount` 与 `routeCount` 生成可见摘要，而不是直接展示 `label`。
+  - 新增 `formatActionRunAgentRuntimeTimelineItems()`，让 copyable diagnostics text 同步输出结构化 timeline item 摘要；旧的 `agentRuntimeTimelineEntries` 仍保留，作为字符串兼容面和排障对照。
+- 测试覆盖：
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 断言可见 timeline block 显示 `Run Status`、`Model Step`、status、step、type、kind 与 route coverage。
+  - 同步断言 diagnostics text 中新增 `Agent runtime timeline items ...` 行，确保复制排查文本也消费结构化字段。
+
+该实现只扩展 Admin 只读展示与测试，不新增后端字段、不新增 GraphQL 字段、不新增 DB migration、不创建 AgentRun/AgentStep/timeline event 表、不改变 native action runtime、不执行 tool/MCP/Codex/approval/handoff step，不记录 step output/error、retry attempt、rollback state 或 cancellation event。它把第 352 节的结构化 projection 从“GraphQL 有字段但 UI 只展示 label”推进到“Admin 可见 block 和 diagnostics text 均直接展示结构化字段”，为后续正式 Agent timeline 组件降低字符串反解析依赖。
+
+验证策略：
+
+- 本轮为 Admin UI/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration、GraphQL schema 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与宿主源码 bind mount 运行 focused Prettier、oxlint 和 Admin AI Vitest。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- Admin timeline block 仍是轻量只读文本块，不是正式 timeline 组件；仍不支持 step 展开、过滤、排序、持续刷新、trace JSON 导出、support bundle、run cancellation、approval decision、retry/rollback operation、Codex adapter 管理或 MCP registry 管理。
+- 结构化字段仍由 `AiActionRun` projection 派生，不是持久化 Agent timeline event row；没有真实开始/结束时间、latency、token usage、cost、provider response、tool args、MCP server id、Codex sandbox policy、approval record、retry attempt id、rollback result 或 artifact patch。
+- 当前可见 event types 仍只有 `run_status` 与 `model_step`，不支持真实 tool step、approval step、handoff step、Codex step、MCP step、step output/error、retry attempt、rollback state 或 cancellation event。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

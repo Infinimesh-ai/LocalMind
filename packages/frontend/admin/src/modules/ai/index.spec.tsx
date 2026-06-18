@@ -6766,16 +6766,20 @@ describe('AiPage', () => {
     ).not.toBeNull();
     const visibleTimeline =
       screen.getByTestId('action-run-timeline-run-123').textContent ?? '';
-    expect(visibleTimeline).toContain('Timeline run -> completed');
     expect(visibleTimeline).toContain(
-      'Timeline generate -> model_step -> completed -> structured -> 2/2'
+      'Timeline Run Status / status Completed / run / routes 3/3'
     );
     expect(visibleTimeline).toContain(
-      'Timeline generate-image -> model_step -> completed -> image -> 1/1'
+      'Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 2/2'
+    );
+    expect(visibleTimeline).toContain(
+      'Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1'
     );
     const failedVisibleTimeline =
       screen.getByTestId('action-run-timeline-run-failed').textContent ?? '';
-    expect(failedVisibleTimeline).toContain('Timeline run -> failed');
+    expect(failedVisibleTimeline).toContain(
+      'Timeline Run Status / status Failed / run / routes 0/0'
+    );
     const actionRunDiagnostics =
       screen.getByTestId('action-run-diagnostics-run-123').textContent ?? '';
     expect(actionRunDiagnostics).toContain('Action run run-123');
@@ -6802,6 +6806,9 @@ describe('AiPage', () => {
     );
     expect(actionRunDiagnostics).toContain(
       'Agent runtime timeline entries run -> completed | generate -> model_step -> completed -> structured -> 2/2 | generate-image -> model_step -> completed -> image -> 1/1'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime timeline items Timeline Run Status / status Completed / run / routes 3/3 | Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 2/2 | Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1'
     );
     expect(actionRunDiagnostics).toContain(
       'Agent runtime timeline event types run_status | model_step'
@@ -6889,6 +6896,9 @@ describe('AiPage', () => {
     expect(failedRunDiagnostics).toContain('Agent runtime steps none');
     expect(failedRunDiagnostics).toContain(
       'Agent runtime timeline entries run -> failed'
+    );
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime timeline items Timeline Run Status / status Failed / run / routes 0/0'
     );
     expect(failedRunDiagnostics).toContain(
       'Agent runtime timeline event types run_status'

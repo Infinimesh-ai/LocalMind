@@ -4837,10 +4837,29 @@ function formatActionRunAgentRuntimeTimelineEntries(
   )}`;
 }
 
+function formatActionRunAgentRuntimeTimelineItems(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeTimelineItems.length) {
+    return 'Agent runtime timeline items none';
+  }
+
+  return `Agent runtime timeline items ${run.agentRuntimeTimelineItems
+    .map(item => formatActionRunAgentRuntimeTimelineItem(item))
+    .join(' | ')}`;
+}
+
 function formatActionRunAgentRuntimeTimelineItem(
   item: ActionRunDiagnosticsItem['agentRuntimeTimelineItems'][number]
 ) {
-  return `Timeline ${item.label}`;
+  return compactList([
+    `Timeline ${formatFeatureKind(item.eventType)}`,
+    `status ${formatFeatureKind(item.status)}`,
+    item.stepId ? `step ${item.stepId}` : 'run',
+    item.stepType ? `type ${formatFeatureKind(item.stepType)}` : null,
+    item.kind ? `kind ${formatFeatureKind(item.kind)}` : null,
+    `routes ${item.actualRouteCount}/${item.routeCount}`,
+  ]);
 }
 
 function formatActionRunAgentRuntimeTimelineEventTypes(
@@ -5122,6 +5141,7 @@ function buildActionRunDiagnosticsText(run: ActionRunDiagnosticsItem) {
     formatActionRunAgentRuntimeStepStatuses(run),
     formatActionRunAgentRuntimeStepKinds(run),
     formatActionRunAgentRuntimeTimelineEntries(run),
+    formatActionRunAgentRuntimeTimelineItems(run),
     formatActionRunAgentRuntimeTimelineEventTypes(run),
     formatActionRunAgentRuntimeTargetTimelineEventTypes(run),
     formatActionRunAgentRuntimeProjectedTimelineEventTypes(run),
