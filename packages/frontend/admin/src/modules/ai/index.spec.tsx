@@ -3607,6 +3607,7 @@ describe('AiPage', () => {
             : 'ddddffffcc997777',
           executionRunStepRetryAttemptCloseRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -3647,6 +3648,7 @@ describe('AiPage', () => {
             input.workspaceId ? 'aaaaffffdd997777' : 'ddddffffdd997777',
           executionRunStepRetryAttemptCloseStatusEventRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -3688,6 +3690,7 @@ describe('AiPage', () => {
             input.workspaceId ? 'aaaaffffaa997777' : 'ddddffffaa447777',
           executionRunStepRetryAttemptRetentionPolicyRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -3730,6 +3733,7 @@ describe('AiPage', () => {
             input.workspaceId ? 'aaaaffffaa887777' : 'ddddffffaa887777',
           executionRunStepRetryAttemptRetentionPolicyRuleRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -3773,6 +3777,7 @@ describe('AiPage', () => {
             input.workspaceId ? 'aaaaffffaa667777' : 'ddddffffaa667777',
           executionRunStepRetryAttemptRetentionLeaseRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -3817,6 +3822,7 @@ describe('AiPage', () => {
             input.workspaceId ? 'aaaaffffee997777' : 'ddddffffee997777',
           executionRunStepRetryAttemptArchiveRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',

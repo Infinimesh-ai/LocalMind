@@ -8355,6 +8355,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepRetryAttemptCloseRequestStatus = 'not_closed_read_only';
   const executionRunStepRetryAttemptCloseRequestInputs = [
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -8392,6 +8393,8 @@ function buildPromptRegistryRepairExecutionRequest(
     .update(
       stableRepairRecommendationStringify({
         auditEventRequestFingerprint,
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         closed: false,
         executionJobRunRequestFingerprint,
         executionQueueRequestFingerprint,
@@ -8436,6 +8439,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'not_recorded_read_only';
   const executionRunStepRetryAttemptCloseStatusEventRequestInputs = [
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -8473,6 +8477,8 @@ function buildPromptRegistryRepairExecutionRequest(
       .update(
         stableRepairRecommendationStringify({
           auditEventRequestFingerprint,
+          candidateEvidenceSetFingerprint:
+            preflight.candidateEvidenceSetFingerprint,
           created: false,
           executionJobRunRequestFingerprint,
           executionQueueRequestFingerprint,
@@ -8518,6 +8524,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'not_created_read_only';
   const executionRunStepRetryAttemptRetentionPolicyRequestInputs = [
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -8556,6 +8563,8 @@ function buildPromptRegistryRepairExecutionRequest(
       .update(
         stableRepairRecommendationStringify({
           auditEventRequestFingerprint,
+          candidateEvidenceSetFingerprint:
+            preflight.candidateEvidenceSetFingerprint,
           created: false,
           executionJobRunRequestFingerprint,
           executionQueueRequestFingerprint,
@@ -8602,6 +8611,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'not_created_read_only';
   const executionRunStepRetryAttemptRetentionPolicyRuleRequestInputs = [
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -8641,6 +8651,8 @@ function buildPromptRegistryRepairExecutionRequest(
       .update(
         stableRepairRecommendationStringify({
           auditEventRequestFingerprint,
+          candidateEvidenceSetFingerprint:
+            preflight.candidateEvidenceSetFingerprint,
           created: false,
           executionJobRunRequestFingerprint,
           executionQueueRequestFingerprint,
@@ -8689,6 +8701,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'not_acquired_read_only';
   const executionRunStepRetryAttemptRetentionLeaseRequestInputs = [
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -8730,6 +8743,8 @@ function buildPromptRegistryRepairExecutionRequest(
         stableRepairRecommendationStringify({
           acquired: false,
           auditEventRequestFingerprint,
+          candidateEvidenceSetFingerprint:
+            preflight.candidateEvidenceSetFingerprint,
           executionJobRunRequestFingerprint,
           executionQueueRequestFingerprint,
           executionResultRequestFingerprint,
@@ -8777,6 +8792,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'not_archived_read_only';
   const executionRunStepRetryAttemptArchiveRequestInputs = [
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -8820,6 +8836,8 @@ function buildPromptRegistryRepairExecutionRequest(
       stableRepairRecommendationStringify({
         archived: false,
         auditEventRequestFingerprint,
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         executionJobRunRequestFingerprint,
         executionQueueRequestFingerprint,
         executionResultRequestFingerprint,

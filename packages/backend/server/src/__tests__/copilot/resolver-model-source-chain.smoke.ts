@@ -2748,6 +2748,7 @@ async function main() {
     executionRequest.executionRunStepRetryAttemptCloseRequestInputs,
     [
       'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
       'executionJobRunRequestFingerprint',
       'executionQueueRequestFingerprint',
       'executionResultRequestFingerprint',
@@ -2800,6 +2801,7 @@ async function main() {
     executionRequest.executionRunStepRetryAttemptCloseStatusEventRequestInputs,
     [
       'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
       'executionJobRunRequestFingerprint',
       'executionQueueRequestFingerprint',
       'executionResultRequestFingerprint',
@@ -2853,6 +2855,7 @@ async function main() {
     executionRequest.executionRunStepRetryAttemptRetentionPolicyRequestInputs,
     [
       'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
       'executionJobRunRequestFingerprint',
       'executionQueueRequestFingerprint',
       'executionResultRequestFingerprint',
@@ -2907,6 +2910,7 @@ async function main() {
     executionRequest.executionRunStepRetryAttemptRetentionPolicyRuleRequestInputs,
     [
       'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
       'executionJobRunRequestFingerprint',
       'executionQueueRequestFingerprint',
       'executionResultRequestFingerprint',
@@ -2962,6 +2966,7 @@ async function main() {
     executionRequest.executionRunStepRetryAttemptRetentionLeaseRequestInputs,
     [
       'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
       'executionJobRunRequestFingerprint',
       'executionQueueRequestFingerprint',
       'executionResultRequestFingerprint',
@@ -3018,6 +3023,7 @@ async function main() {
     executionRequest.executionRunStepRetryAttemptArchiveRequestInputs,
     [
       'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
       'executionJobRunRequestFingerprint',
       'executionQueueRequestFingerprint',
       'executionResultRequestFingerprint',
