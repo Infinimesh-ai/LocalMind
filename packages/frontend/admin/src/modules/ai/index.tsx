@@ -3008,6 +3008,15 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
     evidence.requestedModelConfigPath
       ? `requested config path ${evidence.requestedModelConfigPath}`
       : null,
+    evidence.requestedDimensions != null
+      ? `requested ${evidence.requestedDimensions}d`
+      : null,
+    evidence.modelEmbeddingDimensions != null
+      ? `model dimensions ${evidence.modelEmbeddingDimensions}d`
+      : null,
+    evidence.dimensionMismatch != null
+      ? `dimension mismatch ${evidence.dimensionMismatch ? 'yes' : 'no'}`
+      : null,
     evidence.modelId ? `model ${evidence.modelId}` : null,
     evidence.preparedModelId ? `prepared ${evidence.preparedModelId}` : null,
     evidence.privacy

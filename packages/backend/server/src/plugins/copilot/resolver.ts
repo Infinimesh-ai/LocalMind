@@ -719,12 +719,14 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   candidateModelIds?: string[];
   diagnosticsErrors?: CopilotTaskRouteDiagnosticsError[];
   diagnosticsErrorSnapshotFingerprint?: string;
+  dimensionMismatch?: boolean;
   errorCategory?: string;
   errorCode?: string;
   fallbackProviderIds?: string[];
   health?: string;
   healthCheckedAt?: string;
   matched?: boolean;
+  modelEmbeddingDimensions?: number;
   modelId?: string;
   prepared?: boolean;
   preparedModelId?: string;
@@ -757,6 +759,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   registrySelected?: boolean;
   requestedModelConfigKey?: string;
   requestedModelConfigPath?: string;
+  requestedDimensions?: number;
   requestedModelId?: string;
   requestedModelSource?: string;
   routeCandidateSnapshotFingerprint?: string;
@@ -1809,6 +1812,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
   @Field(() => String, { nullable: true })
   diagnosticsErrorSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['diagnosticsErrorSnapshotFingerprint'];
 
+  @Field(() => Boolean, { nullable: true })
+  dimensionMismatch?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['dimensionMismatch'];
+
   @Field(() => String, { nullable: true })
   errorCategory?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['errorCategory'];
 
@@ -1826,6 +1832,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => Boolean, { nullable: true })
   matched?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['matched'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  modelEmbeddingDimensions?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelEmbeddingDimensions'];
 
   @Field(() => String, { nullable: true })
   modelId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelId'];
@@ -1924,6 +1933,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   requestedModelConfigPath?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['requestedModelConfigPath'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  requestedDimensions?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['requestedDimensions'];
 
   @Field(() => String, { nullable: true })
   requestedModelId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['requestedModelId'];
@@ -4393,12 +4405,14 @@ function taskRouteRepairCandidateEvidenceBase(
     candidateModelIds?: string[];
     diagnosticsErrors?: CopilotTaskRouteDiagnosticsError[];
     diagnosticsErrorSnapshotFingerprint?: string;
+    dimensionMismatch?: boolean;
     errorCategory?: string;
     errorCode?: string;
     fallbackProviderIds?: string[];
     health?: string;
     healthCheckedAt?: string;
     matched?: boolean;
+    modelEmbeddingDimensions?: number;
     modelId?: string;
     prepared?: boolean;
     preparedModelId?: string;
@@ -4431,6 +4445,7 @@ function taskRouteRepairCandidateEvidenceBase(
     registrySelected?: boolean;
     requestedModelConfigKey?: string;
     requestedModelConfigPath?: string;
+    requestedDimensions?: number;
     requestedModelId?: string;
     requestedModelSource?: string;
     routeCandidateSnapshotFingerprint?: string;
@@ -4469,6 +4484,9 @@ function taskRouteRepairCandidateEvidenceBase(
             candidate.diagnosticsErrorSnapshotFingerprint,
         }
       : {}),
+    ...(candidate.dimensionMismatch !== undefined
+      ? { dimensionMismatch: candidate.dimensionMismatch }
+      : {}),
     ...(candidate.errorCategory !== undefined
       ? { errorCategory: candidate.errorCategory }
       : {}),
@@ -4483,6 +4501,9 @@ function taskRouteRepairCandidateEvidenceBase(
       ? { healthCheckedAt: candidate.healthCheckedAt }
       : {}),
     ...(candidate.matched !== undefined ? { matched: candidate.matched } : {}),
+    ...(candidate.modelEmbeddingDimensions !== undefined
+      ? { modelEmbeddingDimensions: candidate.modelEmbeddingDimensions }
+      : {}),
     ...(candidate.modelId !== undefined ? { modelId: candidate.modelId } : {}),
     ...(candidate.prepared !== undefined
       ? { prepared: candidate.prepared }
@@ -4607,6 +4628,9 @@ function taskRouteRepairCandidateEvidenceBase(
     ...(candidate.requestedModelConfigPath !== undefined
       ? { requestedModelConfigPath: candidate.requestedModelConfigPath }
       : {}),
+    ...(candidate.requestedDimensions !== undefined
+      ? { requestedDimensions: candidate.requestedDimensions }
+      : {}),
     ...(candidate.requestedModelId !== undefined
       ? { requestedModelId: candidate.requestedModelId }
       : {}),
@@ -4666,12 +4690,14 @@ function taskRouteCandidateProfileStructuredEvidence(
       candidateModelIds?: string[];
       diagnosticsErrors?: CopilotTaskRouteDiagnosticsError[];
       diagnosticsErrorSnapshotFingerprint?: string;
+      dimensionMismatch?: boolean;
       errorCategory?: string;
       errorCode?: string;
       fallbackProviderIds?: string[];
       health?: string;
       healthCheckedAt?: string;
       matched?: boolean;
+      modelEmbeddingDimensions?: number;
       modelId?: string;
       prepared?: boolean;
       preparedModelId?: string;
@@ -4703,6 +4729,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       registrySelected?: boolean;
       requestedModelConfigKey?: string;
       requestedModelConfigPath?: string;
+      requestedDimensions?: number;
       requestedModelId?: string;
       requestedModelSource?: string;
       routeCandidateSnapshotFingerprint?: string;
@@ -4844,6 +4871,15 @@ function taskRouteCandidateProfileStructuredEvidence(
         policyCandidateSnapshotFingerprint: taskRouteSnapshotFingerprint(
           policyCandidateSnapshot
         ),
+        ...(route.dimensionMismatch !== undefined
+          ? { dimensionMismatch: route.dimensionMismatch }
+          : {}),
+        ...(route.modelEmbeddingDimensions !== undefined
+          ? { modelEmbeddingDimensions: route.modelEmbeddingDimensions }
+          : {}),
+        ...(route.requestedDimensions !== undefined
+          ? { requestedDimensions: route.requestedDimensions }
+          : {}),
         requestedModelConfigKey: route.requestedModelConfigKey,
         requestedModelConfigPath: route.requestedModelConfigPath,
         requestedModelSource: route.requestedModelSource,
@@ -4997,6 +5033,15 @@ function taskRouteCandidateProfileEvidence(
             : null,
           candidate.requestedModelConfigPath
             ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelConfigPath:${candidate.requestedModelConfigPath}`
+            : null,
+          candidate.requestedDimensions !== undefined
+            ? `${candidate.scope}#${candidate.candidateIndex}:requestedDimensions:${candidate.requestedDimensions}`
+            : null,
+          candidate.modelEmbeddingDimensions !== undefined
+            ? `${candidate.scope}#${candidate.candidateIndex}:modelEmbeddingDimensions:${candidate.modelEmbeddingDimensions}`
+            : null,
+          candidate.dimensionMismatch !== undefined
+            ? `${candidate.scope}#${candidate.candidateIndex}:dimensionMismatch:${candidate.dimensionMismatch}`
             : null,
           candidate.modelId
             ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
@@ -5200,6 +5245,15 @@ function taskRouteCandidateProfileEvidence(
         candidate.requestedModelConfigPath
           ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelConfigPath:${candidate.requestedModelConfigPath}`
           : null,
+        candidate.requestedDimensions !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:requestedDimensions:${candidate.requestedDimensions}`
+          : null,
+        candidate.modelEmbeddingDimensions !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:modelEmbeddingDimensions:${candidate.modelEmbeddingDimensions}`
+          : null,
+        candidate.dimensionMismatch !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:dimensionMismatch:${candidate.dimensionMismatch}`
+          : null,
         candidate.modelId
           ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
           : null,
@@ -5284,6 +5338,15 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.requestedModelConfigPath
           ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelConfigPath:${candidate.requestedModelConfigPath}`
+          : null,
+        candidate.requestedDimensions !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:requestedDimensions:${candidate.requestedDimensions}`
+          : null,
+        candidate.modelEmbeddingDimensions !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:modelEmbeddingDimensions:${candidate.modelEmbeddingDimensions}`
+          : null,
+        candidate.dimensionMismatch !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:dimensionMismatch:${candidate.dimensionMismatch}`
           : null,
         candidate.preparedModelId
           ? `${candidate.scope}#${candidate.candidateIndex}:preparedModelId:${candidate.preparedModelId}`
@@ -5414,6 +5477,15 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.requestedModelConfigPath
           ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelConfigPath:${candidate.requestedModelConfigPath}`
+          : null,
+        candidate.requestedDimensions !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:requestedDimensions:${candidate.requestedDimensions}`
+          : null,
+        candidate.modelEmbeddingDimensions !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:modelEmbeddingDimensions:${candidate.modelEmbeddingDimensions}`
+          : null,
+        candidate.dimensionMismatch !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:dimensionMismatch:${candidate.dimensionMismatch}`
           : null,
         candidate.modelId
           ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`

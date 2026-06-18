@@ -2587,7 +2587,9 @@ const readyPublishGateVerdict = withRepairActionPreview(
               taskRouteSnapshotFingerprintFixture(
                 blockedRoute.diagnosticsErrors
               ),
+            dimensionMismatch: blockedRoute.dimensionMismatch,
             fallbackProviderIds: blockedRoute.fallbackProviderIds,
+            modelEmbeddingDimensions: blockedRoute.modelEmbeddingDimensions,
             modelId: null,
             preparedModelId: null,
             prepareCandidateSnapshotFingerprint:
@@ -2646,6 +2648,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             providerSource: 'configured',
             providerType: 'openai_compatible',
             reasons: ['policy_allowed'],
+            requestedDimensions: blockedRoute.requestedDimensions,
             requestedModelId: null,
             requestedModelConfigKey: 'workspaceIndexing',
             requestedModelConfigPath: 'copilot.tasks.models.workspaceIndexing',
@@ -2672,7 +2675,9 @@ const readyPublishGateVerdict = withRepairActionPreview(
               taskRouteSnapshotFingerprintFixture(
                 blockedRoute.diagnosticsErrors
               ),
+            dimensionMismatch: blockedRoute.dimensionMismatch,
             matched: false,
+            modelEmbeddingDimensions: blockedRoute.modelEmbeddingDimensions,
             modelId: 'workspace-embedding',
             preparedModelId: null,
             prepareCandidateSnapshotFingerprint:
@@ -2735,6 +2740,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             registryAvailable: true,
             registryKind: 'byok',
             registrySelected: false,
+            requestedDimensions: blockedRoute.requestedDimensions,
             requestedModelId: 'workspace-embedding',
             requestedModelConfigKey: 'workspaceIndexing',
             requestedModelConfigPath: 'copilot.tasks.models.workspaceIndexing',
@@ -2767,6 +2773,8 @@ const readyPublishGateVerdict = withRepairActionPreview(
               taskRouteSnapshotFingerprintFixture(
                 blockedRoute.diagnosticsErrors
               ),
+            dimensionMismatch: blockedRoute.dimensionMismatch,
+            modelEmbeddingDimensions: blockedRoute.modelEmbeddingDimensions,
             modelId: 'workspace-embedding',
             prepared: false,
             preparedModelId: 'nomic-embed-text',
@@ -2830,6 +2838,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             registryAvailable: true,
             registryKind: 'byok',
             registrySelected: false,
+            requestedDimensions: blockedRoute.requestedDimensions,
             requestedModelId: 'workspace-embedding',
             requestedModelConfigKey: 'workspaceIndexing',
             requestedModelConfigPath: 'copilot.tasks.models.workspaceIndexing',
@@ -6804,6 +6813,9 @@ describe('AiPage', () => {
       `task route dimension snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteDimensionSnapshotFixture(blockedRoute))}`
     );
     expect(readyGateDiagnostics).toContain(
+      `requested ${blockedRoute.requestedDimensions}d / dimension mismatch no`
+    );
+    expect(readyGateDiagnostics).toContain(
       `task route model source snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteModelSourceSnapshotFixture(blockedRoute))}`
     );
     expect(readyGateDiagnostics).toContain(
@@ -6847,7 +6859,7 @@ describe('AiPage', () => {
       'Prepare Candidate #0 / fingerprint '
     );
     expect(readyGateDiagnostics).toContain(
-      'key prepare:ollama-main / provider ollama-main / prepared no / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding / requested workspace-embedding / requested source Workspace indexing task model / requested config key workspaceIndexing / requested config path copilot.tasks.models.workspaceIndexing / model workspace-embedding / prepared nomic-embed-text'
+      'key prepare:ollama-main / provider ollama-main / prepared no / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding / requested workspace-embedding / requested source Workspace indexing task model / requested config key workspaceIndexing / requested config path copilot.tasks.models.workspaceIndexing / requested 1024d / dimension mismatch no / model workspace-embedding / prepared nomic-embed-text'
     );
     expect(readyGateDiagnostics).toContain(
       'prepared nomic-embed-text / privacy Local / health Down / checked 2026-06-16T10:00:00.000Z / code prepare_failed / category Network / registry byok / registry available yes / registry selected no'

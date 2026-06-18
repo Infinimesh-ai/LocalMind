@@ -1525,6 +1525,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   candidateIndex: SafeInt!
   candidateKey: String
   candidateModelIds: [String!]
+  dimensionMismatch: Boolean
   diagnosticsErrors: [CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType!]
   diagnosticsErrorSnapshotFingerprint: String
   errorCategory: String
@@ -1533,6 +1534,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   health: String
   healthCheckedAt: String
   matched: Boolean
+  modelEmbeddingDimensions: SafeInt
   modelId: String
   prepared: Boolean
   preparedModelId: String
@@ -1565,6 +1567,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   registrySelected: Boolean
   requestedModelConfigKey: String
   requestedModelConfigPath: String
+  requestedDimensions: SafeInt
   requestedModelId: String
   requestedModelSource: String
   routeCandidateSnapshotFingerprint: String

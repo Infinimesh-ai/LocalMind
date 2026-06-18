@@ -630,6 +630,7 @@ query getCopilotPromptRegistryPublishGate(
             candidateIndex
             candidateKey
             candidateModelIds
+            dimensionMismatch
             diagnosticsErrors {
               code
               message
@@ -642,6 +643,7 @@ query getCopilotPromptRegistryPublishGate(
             health
             healthCheckedAt
             matched
+            modelEmbeddingDimensions
             modelId
             prepared
             preparedModelId
@@ -691,6 +693,7 @@ query getCopilotPromptRegistryPublishGate(
             registrySelected
             requestedModelConfigKey
             requestedModelConfigPath
+            requestedDimensions
             requestedModelId
             requestedModelSource
             routeCandidateSnapshotFingerprint

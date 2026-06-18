@@ -2604,6 +2604,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             candidateIndex
             candidateKey
             candidateModelIds
+            dimensionMismatch
             diagnosticsErrors {
               code
               message
@@ -2616,6 +2617,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             health
             healthCheckedAt
             matched
+            modelEmbeddingDimensions
             modelId
             prepared
             preparedModelId
@@ -2665,6 +2667,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             registrySelected
             requestedModelConfigKey
             requestedModelConfigPath
+            requestedDimensions
             requestedModelId
             requestedModelSource
             routeCandidateSnapshotFingerprint

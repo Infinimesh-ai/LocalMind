@@ -1750,6 +1750,7 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   candidateIndex: Scalars['SafeInt']['output'];
   candidateKey?: Maybe<Scalars['String']['output']>;
   candidateModelIds?: Maybe<Array<Scalars['String']['output']>>;
+  dimensionMismatch?: Maybe<Scalars['Boolean']['output']>;
   diagnosticsErrors?: Maybe<
     Array<CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType>
   >;
@@ -1760,6 +1761,7 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   health?: Maybe<Scalars['String']['output']>;
   healthCheckedAt?: Maybe<Scalars['String']['output']>;
   matched?: Maybe<Scalars['Boolean']['output']>;
+  modelEmbeddingDimensions?: Maybe<Scalars['SafeInt']['output']>;
   modelId?: Maybe<Scalars['String']['output']>;
   prepared?: Maybe<Scalars['Boolean']['output']>;
   preparedModelId?: Maybe<Scalars['String']['output']>;
@@ -1794,6 +1796,7 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   registrySelected?: Maybe<Scalars['Boolean']['output']>;
   requestedModelConfigKey?: Maybe<Scalars['String']['output']>;
   requestedModelConfigPath?: Maybe<Scalars['String']['output']>;
+  requestedDimensions?: Maybe<Scalars['SafeInt']['output']>;
   requestedModelId?: Maybe<Scalars['String']['output']>;
   requestedModelSource?: Maybe<Scalars['String']['output']>;
   routeCandidateSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
@@ -8023,6 +8026,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             candidateIndex: number;
             candidateKey: string | null;
             candidateModelIds: Array<string> | null;
+            dimensionMismatch: boolean | null;
             diagnosticsErrors: Array<{
               __typename?: 'CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType';
               code: string;
@@ -8036,6 +8040,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             health: string | null;
             healthCheckedAt: string | null;
             matched: boolean | null;
+            modelEmbeddingDimensions: number | null;
             modelId: string | null;
             prepared: boolean | null;
             preparedModelId: string | null;
@@ -8086,6 +8091,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             registrySelected: boolean | null;
             requestedModelConfigKey: string | null;
             requestedModelConfigPath: string | null;
+            requestedDimensions: number | null;
             requestedModelId: string | null;
             requestedModelSource: string | null;
             routeCandidateSnapshotFingerprint: string | null;

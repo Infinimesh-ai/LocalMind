@@ -1458,6 +1458,9 @@ async function main() {
       providerType: 'openaiCompatible',
       providerPriority: 10,
       modelId: 'nomic-embed-text',
+      requestedDimensions: 1024,
+      modelEmbeddingDimensions: 768,
+      dimensionMismatch: true,
       featureKind: 'workspace_indexing',
     }),
     describeRerankRoute: async () => ({
@@ -2197,6 +2200,22 @@ async function main() {
       ],
       [
         'task_route',
+        'workspace_indexing_embedding_dimension_mismatch',
+        'copilot.tasks.models.workspaceIndexing',
+        'workspace_indexing:workspaceIndexing:embed-alias:embedding-dimension-mismatch',
+        'repair-actions/v1',
+        'fix_embedding_dimensions',
+        [
+          'task_route.read',
+          'embedding_index.read',
+          'embedding_index.migration_review',
+        ],
+        'manual_review_required',
+        'task_route',
+        'copilot.tasks.models.workspaceIndexing',
+      ],
+      [
+        'task_route',
         'rerank_task_route_unavailable',
         'copilot.tasks.models.rerank',
         'rerank:task-config:default-route:unavailable',
@@ -2213,7 +2232,7 @@ async function main() {
     routeReadyGate?.repairRecommendations.map(recommendation =>
       /^[0-9a-f]{16}$/.test(recommendation.diagnosticsFingerprint)
     ),
-    [true, true, true]
+    routeReadyGate?.repairRecommendations.map(() => true)
   );
   assert.equal(
     new Set(
@@ -2228,6 +2247,7 @@ async function main() {
       recommendation => recommendation.suggestedActionInputSchema.required
     ),
     [
+      ['diagnosticsFingerprint', 'targetLocator'],
       ['diagnosticsFingerprint', 'targetLocator'],
       ['diagnosticsFingerprint', 'targetLocator'],
       ['diagnosticsFingerprint', 'targetLocator'],
@@ -2248,6 +2268,18 @@ async function main() {
         'check_provider_health',
         'read_only_probe',
         ['provider_profile.read', 'provider_health.probe'],
+        1,
+        ['diagnosticsFingerprint', 'targetLocator'],
+      ],
+      [
+        'repair-actions/v1',
+        'fix_embedding_dimensions',
+        'manual_review_required',
+        [
+          'task_route.read',
+          'embedding_index.read',
+          'embedding_index.migration_review',
+        ],
         1,
         ['diagnosticsFingerprint', 'targetLocator'],
       ],
@@ -2279,11 +2311,11 @@ async function main() {
   );
   assert.match(
     routeReadyGate?.repairActionMutationGuard.auditSummary ?? '',
-    /registry:7 .* catalog:repair-actions\/v1 .* recommendations:3/
+    /registry:7 .* catalog:repair-actions\/v1 .* recommendations:4/
   );
   assert.match(
     routeReadyGate?.repairActionMutationGuard.auditSummary ?? '',
-    /targetKinds:model_route,task_route .* reviewModes:preview,probe/
+    /targetKinds:model_route,task_route .* reviewModes:manual_review,preview,probe/
   );
   assert.match(
     routeReadyGate?.repairActionMutationGuard.auditSummaryFingerprint ?? '',
@@ -2326,12 +2358,14 @@ async function main() {
       'optional_model_route_unavailable',
       'rerank_task_route_unavailable',
       'selected_provider_health_not_healthy',
+      'workspace_indexing_embedding_dimension_mismatch',
     ]
   );
   assert.deepEqual(
     routeReadyGate?.repairActionMutationGuard.suggestedActionKinds,
     [
       'check_provider_health',
+      'fix_embedding_dimensions',
       'repair_task_model_route',
       'review_non_default_model_route',
     ]
@@ -2343,6 +2377,8 @@ async function main() {
   assert.deepEqual(
     routeReadyGate?.repairActionMutationGuard.requiredCapabilities,
     [
+      'embedding_index.migration_review',
+      'embedding_index.read',
       'model_registry.read',
       'provider_health.probe',
       'provider_profile.read',
@@ -2352,7 +2388,7 @@ async function main() {
   );
   assert.deepEqual(
     routeReadyGate?.repairActionMutationGuard.requiredReviewModes,
-    ['preview', 'probe']
+    ['manual_review', 'preview', 'probe']
   );
   assert.match(
     routeReadyGate?.repairActionMutationGuard.inputSchemaFingerprint ?? '',
@@ -2371,6 +2407,7 @@ async function main() {
     ['model_route', 'task_route']
   );
   assert.deepEqual(routeReadyGate?.repairActionMutationGuard.safetyLevels, [
+    'manual_review_required',
     'preview_required',
     'read_only_probe',
   ]);
@@ -2379,7 +2416,10 @@ async function main() {
     /^[0-9a-f]{16}$/
   );
   assert.equal(routeReadyGate?.repairActionPreview.readOnly, true);
-  assert.equal(routeReadyGate?.repairActionPreview.status, 'preview_required');
+  assert.equal(
+    routeReadyGate?.repairActionPreview.status,
+    'manual_review_required'
+  );
   assert.equal(
     routeReadyGate?.repairActionPreview.candidateCount,
     routeReadyGate?.repairRecommendations.length
@@ -2422,6 +2462,7 @@ async function main() {
     /^[0-9a-f]{16}$/
   );
   assert.deepEqual(routeReadyGate?.repairActionPreview.approvalModes, [
+    'manual_review',
     'preview',
     'probe',
   ]);
@@ -2431,10 +2472,13 @@ async function main() {
     'capability_scope',
     'operation_set',
     'read_only_contract',
+    'review_mode:manual_review',
     'review_mode:preview',
     'review_mode:probe',
   ]);
   assert.deepEqual(routeReadyGate?.repairActionPreview.requiredCapabilities, [
+    'embedding_index.migration_review',
+    'embedding_index.read',
     'model_registry.read',
     'provider_health.probe',
     'provider_profile.read',
@@ -5482,11 +5526,23 @@ async function main() {
         'model_route',
       ],
       [
+        'fix_embedding_dimensions',
+        'task_route',
+        'workspace_indexing_embedding_dimension_mismatch',
+        routeReadyGate?.repairRecommendations[2]?.diagnosticsFingerprint,
+        routeReadyGate?.repairActionPreview.operations[2]?.operationFingerprint,
+        'manual_review_required',
+        'manual_review',
+        'manual_review_required',
+        'copilot.tasks.models.workspaceIndexing',
+        'task_route',
+      ],
+      [
         'repair_task_model_route',
         'task_route',
         'rerank_task_route_unavailable',
-        routeReadyGate?.repairRecommendations[2]?.diagnosticsFingerprint,
-        routeReadyGate?.repairActionPreview.operations[2]?.operationFingerprint,
+        routeReadyGate?.repairRecommendations[3]?.diagnosticsFingerprint,
+        routeReadyGate?.repairActionPreview.operations[3]?.operationFingerprint,
         'preview_required',
         'preview',
         'preview_required',
@@ -5499,13 +5555,13 @@ async function main() {
     routeReadyGate?.repairActionPreview.operations.map(operation =>
       /^[0-9a-f]{16}$/.test(operation.targetLocatorFingerprint)
     ),
-    [true, true, true]
+    routeReadyGate?.repairActionPreview.operations.map(() => true)
   );
   assert.deepEqual(
     routeReadyGate?.repairActionPreview.operations.map(operation =>
       /^[0-9a-f]{16}$/.test(operation.operationFingerprint)
     ),
-    [true, true, true]
+    routeReadyGate?.repairActionPreview.operations.map(() => true)
   );
   assert.equal(
     new Set(
@@ -6950,6 +7006,27 @@ async function main() {
   );
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
+      'policyCandidate#0:requestedDimensions:1024'
+    ),
+    true,
+    'task diagnostics repair evidence should include requested embedding dimensions'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'policyCandidate#0:modelEmbeddingDimensions:768'
+    ),
+    true,
+    'task diagnostics repair evidence should include model embedding dimensions'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'policyCandidate#0:dimensionMismatch:true'
+    ),
+    true,
+    'task diagnostics repair evidence should include embedding dimension mismatch state'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
       `policyCandidate#0:taskRouteModelSourceSnapshotFingerprint:${taskDiagnosticsModelSourceSnapshotFingerprint}`
     ),
     true,
@@ -7212,6 +7289,21 @@ async function main() {
     'policy candidate evidence should bind the task route dimension snapshot fingerprint'
   );
   assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.requestedDimensions,
+    taskDiagnosticsErrorRoute?.requestedDimensions,
+    'policy candidate evidence should bind the task route requested dimensions'
+  );
+  assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.modelEmbeddingDimensions,
+    taskDiagnosticsErrorRoute?.modelEmbeddingDimensions,
+    'policy candidate evidence should bind the task route model embedding dimensions'
+  );
+  assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.dimensionMismatch,
+    taskDiagnosticsErrorRoute?.dimensionMismatch,
+    'policy candidate evidence should bind the task route dimension mismatch state'
+  );
+  assert.equal(
     taskDiagnosticsPolicyCandidateEvidence?.taskRouteModelSourceSnapshotFingerprint,
     taskDiagnosticsModelSourceSnapshotFingerprint,
     'policy candidate evidence should bind the task route model source snapshot fingerprint'
@@ -7371,6 +7463,21 @@ async function main() {
     taskDiagnosticsRouteCandidateEvidence?.taskRouteDimensionSnapshotFingerprint,
     taskDiagnosticsDimensionSnapshotFingerprint,
     'route candidate evidence should bind the task route dimension snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.requestedDimensions,
+    taskDiagnosticsErrorRoute?.requestedDimensions,
+    'route candidate evidence should bind the task route requested dimensions'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.modelEmbeddingDimensions,
+    taskDiagnosticsErrorRoute?.modelEmbeddingDimensions,
+    'route candidate evidence should bind the task route model embedding dimensions'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.dimensionMismatch,
+    taskDiagnosticsErrorRoute?.dimensionMismatch,
+    'route candidate evidence should bind the task route dimension mismatch state'
   );
   assert.equal(
     taskDiagnosticsRouteCandidateEvidence?.taskRouteModelSourceSnapshotFingerprint,
@@ -7539,6 +7646,21 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.taskRouteDimensionSnapshotFingerprint,
     taskDiagnosticsDimensionSnapshotFingerprint,
     'prepare candidate evidence should bind the task route dimension snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.requestedDimensions,
+    taskDiagnosticsErrorRoute?.requestedDimensions,
+    'prepare candidate evidence should bind the task route requested dimensions'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.modelEmbeddingDimensions,
+    taskDiagnosticsErrorRoute?.modelEmbeddingDimensions,
+    'prepare candidate evidence should bind the task route model embedding dimensions'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.dimensionMismatch,
+    taskDiagnosticsErrorRoute?.dimensionMismatch,
+    'prepare candidate evidence should bind the task route dimension mismatch state'
   );
   assert.equal(
     taskDiagnosticsPrepareCandidateEvidence?.taskRouteModelSourceSnapshotFingerprint,
