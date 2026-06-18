@@ -698,6 +698,7 @@ export interface CopilotActionRunAgentRuntimeTimelineItemType {
   routeCount: Scalars['SafeInt']['output'];
   routeCountMismatch: Scalars['Boolean']['output'];
   routeDimensionEvidence: Array<Scalars['String']['output']>;
+  routeEvidenceFingerprint: Scalars['String']['output'];
   routeModelBackendKinds: Array<Scalars['String']['output']>;
   routeTargets: Array<Scalars['String']['output']>;
   runId: Scalars['String']['output'];
@@ -8767,6 +8768,7 @@ export type GetCopilotActionRunsQuery = {
           routeCount: number;
           routeCountMismatch: boolean;
           routeDimensionEvidence: Array<string>;
+          routeEvidenceFingerprint: string;
           routeModelBackendKinds: Array<string>;
           routeTargets: Array<string>;
           runId: string;

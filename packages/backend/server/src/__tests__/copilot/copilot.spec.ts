@@ -142,6 +142,53 @@ function taskRouteTargetFingerprintFixture(input: {
     .slice(0, 16);
 }
 
+function stableActionRunDiagnosticsStringifyFixture(value: unknown): string {
+  if (value === undefined) {
+    return 'undefined';
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableActionRunDiagnosticsStringifyFixture).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value)
+      .sort()
+      .map(key => {
+        const item = (value as Record<string, unknown>)[key];
+        return item === undefined
+          ? null
+          : `${JSON.stringify(key)}:${stableActionRunDiagnosticsStringifyFixture(item)}`;
+      })
+      .filter(Boolean)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function actionRunTimelineRouteEvidenceFingerprintFixture(input: {
+  actualRouteCount: number;
+  eventType: string;
+  fallbackProviderIds: string[];
+  kind: string | null;
+  routeBehaviorFlags: string[];
+  routeCanonicalModelKeys: string[];
+  routeCount: number;
+  routeCountMismatch: boolean;
+  routeDimensionEvidence: string[];
+  routeModelBackendKinds: string[];
+  routeTargets: string[];
+  stepId: string | null;
+}) {
+  return createHash('sha256')
+    .update(
+      stableActionRunDiagnosticsStringifyFixture({
+        version: 'agent-runtime-timeline-route-evidence/v1',
+        ...input,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
 const test = ava as TestFn<Context>;
 let userId: string;
 let restoreMockCopilotNativeRuntime: (() => void) | undefined;
@@ -3510,6 +3557,23 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
           routeDimensionEvidence: [
             'requested 1024d / model 1024d / dimension mismatch no',
           ],
+          routeEvidenceFingerprint:
+            actionRunTimelineRouteEvidenceFingerprintFixture({
+              actualRouteCount: 1,
+              eventType: 'run_status',
+              fallbackProviderIds: ['ollama-main'],
+              kind: null,
+              routeBehaviorFlags: ['tool_calls'],
+              routeCanonicalModelKeys: ['local/office-structured'],
+              routeCount: 1,
+              routeCountMismatch: false,
+              routeDimensionEvidence: [
+                'requested 1024d / model 1024d / dimension mismatch no',
+              ],
+              routeModelBackendKinds: ['openai_chat'],
+              routeTargets: ['ollama-main/local/office-structured'],
+              stepId: null,
+            }),
         },
         {
           id: `${run.id}:0:generate:model_step`,
@@ -3533,6 +3597,23 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
           routeDimensionEvidence: [
             'requested 1024d / model 1024d / dimension mismatch no',
           ],
+          routeEvidenceFingerprint:
+            actionRunTimelineRouteEvidenceFingerprintFixture({
+              actualRouteCount: 1,
+              eventType: 'model_step',
+              fallbackProviderIds: ['ollama-main'],
+              kind: 'structured',
+              routeBehaviorFlags: ['tool_calls'],
+              routeCanonicalModelKeys: ['local/office-structured'],
+              routeCount: 1,
+              routeCountMismatch: false,
+              routeDimensionEvidence: [
+                'requested 1024d / model 1024d / dimension mismatch no',
+              ],
+              routeModelBackendKinds: ['openai_chat'],
+              routeTargets: ['ollama-main/local/office-structured'],
+              stepId: 'generate',
+            }),
         },
       ],
       agentRuntimeTargetRunStatuses: [
@@ -3778,6 +3859,21 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
           routeCanonicalModelKeys: [],
           routeBehaviorFlags: [],
           routeDimensionEvidence: [],
+          routeEvidenceFingerprint:
+            actionRunTimelineRouteEvidenceFingerprintFixture({
+              actualRouteCount: 0,
+              eventType: 'run_status',
+              fallbackProviderIds: [],
+              kind: null,
+              routeBehaviorFlags: [],
+              routeCanonicalModelKeys: [],
+              routeCount: 0,
+              routeCountMismatch: false,
+              routeDimensionEvidence: [],
+              routeModelBackendKinds: [],
+              routeTargets: [],
+              stepId: null,
+            }),
         },
       ],
       agentRuntimeTargetRunStatuses: [

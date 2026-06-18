@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { Prisma as PrismaClient } from '@prisma/client';
@@ -104,6 +106,7 @@ export type CopilotActionRunAgentRuntimeTimelineItem = {
   routeCanonicalModelKeys: string[];
   routeBehaviorFlags: string[];
   routeDimensionEvidence: string[];
+  routeEvidenceFingerprint: string;
 };
 
 export type CopilotActionRunDiagnosticsItem = {
@@ -219,6 +222,53 @@ function uniqueNonEmptyStrings(values: Array<string | undefined>) {
         .filter((value): value is string => !!value)
     )
   );
+}
+
+function stableActionRunDiagnosticsStringify(value: unknown): string {
+  if (value === undefined) {
+    return 'undefined';
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableActionRunDiagnosticsStringify).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value)
+      .sort()
+      .map(key => {
+        const item = (value as Record<string, unknown>)[key];
+        return item === undefined
+          ? null
+          : `${JSON.stringify(key)}:${stableActionRunDiagnosticsStringify(item)}`;
+      })
+      .filter(Boolean)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function actionRunTimelineRouteEvidenceFingerprint(input: {
+  actualRouteCount: number;
+  eventType: string;
+  fallbackProviderIds: string[];
+  kind: string | null;
+  routeBehaviorFlags: string[];
+  routeCanonicalModelKeys: string[];
+  routeCount: number;
+  routeCountMismatch: boolean;
+  routeDimensionEvidence: string[];
+  routeModelBackendKinds: string[];
+  routeTargets: string[];
+  stepId: string | null;
+}) {
+  return createHash('sha256')
+    .update(
+      stableActionRunDiagnosticsStringify({
+        version: 'agent-runtime-timeline-route-evidence/v1',
+        ...input,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
 }
 
 function formatPreparedRouteDimensionEvidence(route: {
@@ -758,60 +808,100 @@ function summarizePreparedRouteTrace(
         `${step.stepId} -> model_step -> ${agentRuntimeStepStatus} -> ${step.kind} -> ${step.routes.length}/${step.routeCount}`
     ) ?? []),
   ]);
+  const runTimelineRouteCountMismatch =
+    preparedRouteCount !== preparedRouteActualCount;
+  const agentRuntimeRunTimelineItem: CopilotActionRunAgentRuntimeTimelineItem =
+    {
+      id: `${runId}:run_status`,
+      eventKey: 'run_status',
+      sequence: 0,
+      eventType: 'run_status',
+      label: `run -> ${agentRuntimeRunStatus}`,
+      runId,
+      stepId: null,
+      stepType: null,
+      status: agentRuntimeRunStatus,
+      kind: null,
+      routeCount: preparedRouteCount,
+      actualRouteCount: preparedRouteActualCount,
+      routeCountMismatch: runTimelineRouteCountMismatch,
+      routeTargets: preparedRouteTargets,
+      fallbackProviderIds: preparedRouteFallbackProviderIds,
+      routeModelBackendKinds: preparedRouteModelBackendKinds,
+      routeCanonicalModelKeys: preparedRouteCanonicalModelKeys,
+      routeBehaviorFlags: preparedRouteBehaviorFlags,
+      routeDimensionEvidence: preparedRouteDimensionEvidence,
+      routeEvidenceFingerprint: actionRunTimelineRouteEvidenceFingerprint({
+        actualRouteCount: preparedRouteActualCount,
+        eventType: 'run_status',
+        fallbackProviderIds: preparedRouteFallbackProviderIds,
+        kind: null,
+        routeBehaviorFlags: preparedRouteBehaviorFlags,
+        routeCanonicalModelKeys: preparedRouteCanonicalModelKeys,
+        routeCount: preparedRouteCount,
+        routeCountMismatch: runTimelineRouteCountMismatch,
+        routeDimensionEvidence: preparedRouteDimensionEvidence,
+        routeModelBackendKinds: preparedRouteModelBackendKinds,
+        routeTargets: preparedRouteTargets,
+        stepId: null,
+      }),
+    };
   const agentRuntimeTimelineItems: CopilotActionRunAgentRuntimeTimelineItem[] =
     [
-      {
-        id: `${runId}:run_status`,
-        eventKey: 'run_status',
-        sequence: 0,
-        eventType: 'run_status',
-        label: `run -> ${agentRuntimeRunStatus}`,
-        runId,
-        stepId: null,
-        stepType: null,
-        status: agentRuntimeRunStatus,
-        kind: null,
-        routeCount: preparedRouteCount,
-        actualRouteCount: preparedRouteActualCount,
-        routeCountMismatch: preparedRouteCount !== preparedRouteActualCount,
-        routeTargets: preparedRouteTargets,
-        fallbackProviderIds: preparedRouteFallbackProviderIds,
-        routeModelBackendKinds: preparedRouteModelBackendKinds,
-        routeCanonicalModelKeys: preparedRouteCanonicalModelKeys,
-        routeBehaviorFlags: preparedRouteBehaviorFlags,
-        routeDimensionEvidence: preparedRouteDimensionEvidence,
-      },
-      ...(trace?.steps.map((step, index) => ({
-        id: `${runId}:${index}:${step.stepId}:model_step`,
-        eventKey: `model_step:${step.stepId}`,
-        sequence: index + 1,
-        eventType: 'model_step',
-        label: `${step.stepId} -> model_step -> ${agentRuntimeStepStatus} -> ${step.kind} -> ${step.routes.length}/${step.routeCount}`,
-        runId,
-        stepId: step.stepId,
-        stepType: agentRuntimeProjectedPreparedRouteStepType,
-        status: agentRuntimeStepStatus,
-        kind: step.kind,
-        routeCount: step.routeCount,
-        actualRouteCount: step.routes.length,
-        routeCountMismatch: step.routeCountMismatch,
-        routeTargets: uniqueNonEmptyStrings(
+      agentRuntimeRunTimelineItem,
+      ...(trace?.steps.map((step, index) => {
+        const routeTargets = uniqueNonEmptyStrings(
           step.routes.map(route => `${route.providerId}/${route.modelId}`)
-        ),
-        fallbackProviderIds: step.fallbackProviderIds,
-        routeModelBackendKinds: uniqueNonEmptyStrings(
+        );
+        const routeModelBackendKinds = uniqueNonEmptyStrings(
           step.routes.map(route => route.modelBackendKind)
-        ),
-        routeCanonicalModelKeys: uniqueNonEmptyStrings(
+        );
+        const routeCanonicalModelKeys = uniqueNonEmptyStrings(
           step.routes.map(route => route.canonicalModelKey)
-        ),
-        routeBehaviorFlags: uniqueNonEmptyStrings(
+        );
+        const routeBehaviorFlags = uniqueNonEmptyStrings(
           step.routes.flatMap(route => route.behaviorFlags ?? [])
-        ),
-        routeDimensionEvidence: uniqueNonEmptyStrings(
+        );
+        const routeDimensionEvidence = uniqueNonEmptyStrings(
           step.routes.map(route => formatPreparedRouteDimensionEvidence(route))
-        ),
-      })) ?? []),
+        );
+
+        return {
+          id: `${runId}:${index}:${step.stepId}:model_step`,
+          eventKey: `model_step:${step.stepId}`,
+          sequence: index + 1,
+          eventType: 'model_step',
+          label: `${step.stepId} -> model_step -> ${agentRuntimeStepStatus} -> ${step.kind} -> ${step.routes.length}/${step.routeCount}`,
+          runId,
+          stepId: step.stepId,
+          stepType: agentRuntimeProjectedPreparedRouteStepType,
+          status: agentRuntimeStepStatus,
+          kind: step.kind,
+          routeCount: step.routeCount,
+          actualRouteCount: step.routes.length,
+          routeCountMismatch: step.routeCountMismatch,
+          routeTargets,
+          fallbackProviderIds: step.fallbackProviderIds,
+          routeModelBackendKinds,
+          routeCanonicalModelKeys,
+          routeBehaviorFlags,
+          routeDimensionEvidence,
+          routeEvidenceFingerprint: actionRunTimelineRouteEvidenceFingerprint({
+            actualRouteCount: step.routes.length,
+            eventType: 'model_step',
+            fallbackProviderIds: step.fallbackProviderIds,
+            kind: step.kind,
+            routeBehaviorFlags,
+            routeCanonicalModelKeys,
+            routeCount: step.routeCount,
+            routeCountMismatch: step.routeCountMismatch,
+            routeDimensionEvidence,
+            routeModelBackendKinds,
+            routeTargets,
+            stepId: step.stepId,
+          }),
+        };
+      }) ?? []),
     ];
 
   return {

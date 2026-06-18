@@ -3271,6 +3271,7 @@ export const getCopilotActionRunsQuery = {
           routeCount
           routeCountMismatch
           routeDimensionEvidence
+          routeEvidenceFingerprint
           routeModelBackendKinds
           routeTargets
           runId

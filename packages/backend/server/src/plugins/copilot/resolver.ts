@@ -3773,6 +3773,9 @@ class CopilotActionRunAgentRuntimeTimelineItemType implements CopilotActionRunAg
 
   @Field(() => [String])
   routeDimensionEvidence!: string[];
+
+  @Field(() => String)
+  routeEvidenceFingerprint!: string;
 }
 
 @ObjectType()

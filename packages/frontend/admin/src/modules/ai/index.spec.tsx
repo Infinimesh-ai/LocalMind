@@ -101,6 +101,31 @@ function taskRouteSnapshotFingerprintFixture(candidates: unknown) {
     .slice(0, 16);
 }
 
+function actionRunTimelineRouteEvidenceFingerprintFixture(input: {
+  actualRouteCount: number;
+  eventType: string;
+  fallbackProviderIds: string[];
+  kind: string | null;
+  routeBehaviorFlags: string[];
+  routeCanonicalModelKeys: string[];
+  routeCount: number;
+  routeCountMismatch: boolean;
+  routeDimensionEvidence: string[];
+  routeModelBackendKinds: string[];
+  routeTargets: string[];
+  stepId: string | null;
+}) {
+  return createHash('sha256')
+    .update(
+      stableFixtureStringify({
+        version: 'agent-runtime-timeline-route-evidence/v1',
+        ...input,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
 function taskRoutePrepareCandidateSnapshotFixture<
   T extends {
     candidateModelIds?: string[] | null;
@@ -3557,6 +3582,78 @@ const actionRunPreparedRouteTracePayload = {
   ],
 };
 
+const actionRunTimelineRunRouteEvidenceFingerprint =
+  actionRunTimelineRouteEvidenceFingerprintFixture({
+    actualRouteCount: 3,
+    eventType: 'run_status',
+    fallbackProviderIds: ['ollama-main', 'openai-default'],
+    kind: null,
+    routeBehaviorFlags: ['tool_calls', 'image_generation'],
+    routeCanonicalModelKeys: ['local/office-structured', 'gpt-image-1'],
+    routeCount: 3,
+    routeCountMismatch: false,
+    routeDimensionEvidence: [
+      'requested 1024d / model 1024d / dimension mismatch no',
+    ],
+    routeModelBackendKinds: ['openai_chat', 'openai_image'],
+    routeTargets: [
+      'ollama-main/local/office-structured',
+      'openai-default/gpt-5-mini',
+      'openai-default/gpt-image-1',
+    ],
+    stepId: null,
+  });
+
+const actionRunTimelineGenerateRouteEvidenceFingerprint =
+  actionRunTimelineRouteEvidenceFingerprintFixture({
+    actualRouteCount: 1,
+    eventType: 'model_step',
+    fallbackProviderIds: ['ollama-main', 'openai-default'],
+    kind: 'structured',
+    routeBehaviorFlags: ['tool_calls'],
+    routeCanonicalModelKeys: ['local/office-structured'],
+    routeCount: 2,
+    routeCountMismatch: true,
+    routeDimensionEvidence: [
+      'requested 1024d / model 1024d / dimension mismatch no',
+    ],
+    routeModelBackendKinds: ['openai_chat'],
+    routeTargets: ['ollama-main/local/office-structured'],
+    stepId: 'generate',
+  });
+
+const actionRunTimelineImageRouteEvidenceFingerprint =
+  actionRunTimelineRouteEvidenceFingerprintFixture({
+    actualRouteCount: 1,
+    eventType: 'model_step',
+    fallbackProviderIds: ['openai-default'],
+    kind: 'image',
+    routeBehaviorFlags: ['image_generation'],
+    routeCanonicalModelKeys: ['gpt-image-1'],
+    routeCount: 1,
+    routeCountMismatch: false,
+    routeDimensionEvidence: [],
+    routeModelBackendKinds: ['openai_image'],
+    routeTargets: ['openai-default/gpt-image-1'],
+    stepId: 'generate-image',
+  });
+
+const failedActionRunTimelineRouteEvidenceFingerprint =
+  actionRunTimelineRouteEvidenceFingerprintFixture({
+    actualRouteCount: 0,
+    eventType: 'run_status',
+    fallbackProviderIds: [],
+    kind: null,
+    routeBehaviorFlags: [],
+    routeCanonicalModelKeys: [],
+    routeCount: 0,
+    routeCountMismatch: false,
+    routeDimensionEvidence: [],
+    routeModelBackendKinds: [],
+    routeTargets: [],
+    stepId: null,
+  });
+
 const actionRunsPayload = [
   {
     actionId: 'mindmap.generate',
@@ -3666,6 +3763,7 @@ const actionRunsPayload = [
         routeDimensionEvidence: [
           'requested 1024d / model 1024d / dimension mismatch no',
         ],
+        routeEvidenceFingerprint: actionRunTimelineRunRouteEvidenceFingerprint,
         runId: 'run-123',
         sequence: 0,
         status: 'completed',
@@ -3689,6 +3787,8 @@ const actionRunsPayload = [
         routeDimensionEvidence: [
           'requested 1024d / model 1024d / dimension mismatch no',
         ],
+        routeEvidenceFingerprint:
+          actionRunTimelineGenerateRouteEvidenceFingerprint,
         runId: 'run-123',
         sequence: 1,
         status: 'completed',
@@ -3710,6 +3810,8 @@ const actionRunsPayload = [
         routeCanonicalModelKeys: ['gpt-image-1'],
         routeBehaviorFlags: ['image_generation'],
         routeDimensionEvidence: [],
+        routeEvidenceFingerprint:
+          actionRunTimelineImageRouteEvidenceFingerprint,
         runId: 'run-123',
         sequence: 2,
         status: 'completed',
@@ -4001,6 +4103,8 @@ const actionRunsPayload = [
         routeCanonicalModelKeys: [],
         routeBehaviorFlags: [],
         routeDimensionEvidence: [],
+        routeEvidenceFingerprint:
+          failedActionRunTimelineRouteEvidenceFingerprint,
         runId: 'run-failed',
         sequence: 0,
         status: 'failed',
@@ -7949,18 +8053,18 @@ describe('AiPage', () => {
     const visibleTimeline =
       screen.getByTestId('action-run-timeline-run-123').textContent ?? '';
     expect(visibleTimeline).toContain(
-      '#0 / key run_status / Timeline Run Status / status Completed / run / routes 3/3 / targets ollama-main/local/office-structured -> openai-default/gpt-5-mini -> openai-default/gpt-image-1 / fallback ollama-main -> openai-default / backends openai_chat -> openai_image / canonical local/office-structured -> gpt-image-1 / behavior tool_calls -> image_generation / dimensions requested 1024d / model 1024d / dimension mismatch no'
+      `#0 / key run_status / Timeline Run Status / status Completed / run / routes 3/3 / targets ollama-main/local/office-structured -> openai-default/gpt-5-mini -> openai-default/gpt-image-1 / fallback ollama-main -> openai-default / backends openai_chat -> openai_image / canonical local/office-structured -> gpt-image-1 / behavior tool_calls -> image_generation / dimensions requested 1024d / model 1024d / dimension mismatch no / route fingerprint ${actionRunTimelineRunRouteEvidenceFingerprint}`
     );
     expect(visibleTimeline).toContain(
-      '#1 / key model_step:generate / Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 1/2 / route count mismatch / targets ollama-main/local/office-structured / fallback ollama-main -> openai-default / backends openai_chat / canonical local/office-structured / behavior tool_calls / dimensions requested 1024d / model 1024d / dimension mismatch no'
+      `#1 / key model_step:generate / Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 1/2 / route count mismatch / targets ollama-main/local/office-structured / fallback ollama-main -> openai-default / backends openai_chat / canonical local/office-structured / behavior tool_calls / dimensions requested 1024d / model 1024d / dimension mismatch no / route fingerprint ${actionRunTimelineGenerateRouteEvidenceFingerprint}`
     );
     expect(visibleTimeline).toContain(
-      '#2 / key model_step:generate-image / Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1 / targets openai-default/gpt-image-1 / fallback openai-default / backends openai_image / canonical gpt-image-1 / behavior image_generation'
+      `#2 / key model_step:generate-image / Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1 / targets openai-default/gpt-image-1 / fallback openai-default / backends openai_image / canonical gpt-image-1 / behavior image_generation / route fingerprint ${actionRunTimelineImageRouteEvidenceFingerprint}`
     );
     const failedVisibleTimeline =
       screen.getByTestId('action-run-timeline-run-failed').textContent ?? '';
     expect(failedVisibleTimeline).toContain(
-      '#0 / key run_status / Timeline Run Status / status Failed / run / routes 0/0'
+      `#0 / key run_status / Timeline Run Status / status Failed / run / routes 0/0 / route fingerprint ${failedActionRunTimelineRouteEvidenceFingerprint}`
     );
     const actionRunDiagnostics =
       screen.getByTestId('action-run-diagnostics-run-123').textContent ?? '';
@@ -7990,7 +8094,7 @@ describe('AiPage', () => {
       'Agent runtime timeline entries run -> completed | generate -> model_step -> completed -> structured -> 2/2 | generate-image -> model_step -> completed -> image -> 1/1'
     );
     expect(actionRunDiagnostics).toContain(
-      'Agent runtime timeline items #0 / key run_status / Timeline Run Status / status Completed / run / routes 3/3 / targets ollama-main/local/office-structured -> openai-default/gpt-5-mini -> openai-default/gpt-image-1 / fallback ollama-main -> openai-default / backends openai_chat -> openai_image / canonical local/office-structured -> gpt-image-1 / behavior tool_calls -> image_generation / dimensions requested 1024d / model 1024d / dimension mismatch no | #1 / key model_step:generate / Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 1/2 / route count mismatch / targets ollama-main/local/office-structured / fallback ollama-main -> openai-default / backends openai_chat / canonical local/office-structured / behavior tool_calls / dimensions requested 1024d / model 1024d / dimension mismatch no | #2 / key model_step:generate-image / Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1 / targets openai-default/gpt-image-1 / fallback openai-default / backends openai_image / canonical gpt-image-1 / behavior image_generation'
+      `Agent runtime timeline items #0 / key run_status / Timeline Run Status / status Completed / run / routes 3/3 / targets ollama-main/local/office-structured -> openai-default/gpt-5-mini -> openai-default/gpt-image-1 / fallback ollama-main -> openai-default / backends openai_chat -> openai_image / canonical local/office-structured -> gpt-image-1 / behavior tool_calls -> image_generation / dimensions requested 1024d / model 1024d / dimension mismatch no / route fingerprint ${actionRunTimelineRunRouteEvidenceFingerprint} | #1 / key model_step:generate / Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 1/2 / route count mismatch / targets ollama-main/local/office-structured / fallback ollama-main -> openai-default / backends openai_chat / canonical local/office-structured / behavior tool_calls / dimensions requested 1024d / model 1024d / dimension mismatch no / route fingerprint ${actionRunTimelineGenerateRouteEvidenceFingerprint} | #2 / key model_step:generate-image / Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1 / targets openai-default/gpt-image-1 / fallback openai-default / backends openai_image / canonical gpt-image-1 / behavior image_generation / route fingerprint ${actionRunTimelineImageRouteEvidenceFingerprint}`
     );
     expect(actionRunDiagnostics).toContain(
       'Agent runtime timeline event types run_status | model_step'

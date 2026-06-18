@@ -5320,6 +5320,7 @@ function formatActionRunAgentRuntimeTimelineItem(
     item.routeDimensionEvidence.length
       ? `dimensions ${item.routeDimensionEvidence.join(' | ')}`
       : null,
+    `route fingerprint ${item.routeEvidenceFingerprint}`,
   ]);
 }
 

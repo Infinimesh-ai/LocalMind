@@ -600,6 +600,7 @@ type CopilotActionRunAgentRuntimeTimelineItemType {
   routeCount: SafeInt!
   routeCountMismatch: Boolean!
   routeDimensionEvidence: [String!]!
+  routeEvidenceFingerprint: String!
   routeModelBackendKinds: [String!]!
   routeTargets: [String!]!
   runId: String!

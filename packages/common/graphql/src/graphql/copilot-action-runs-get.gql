@@ -39,6 +39,7 @@ query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
           routeCount
           routeCountMismatch
           routeDimensionEvidence
+          routeEvidenceFingerprint
           routeModelBackendKinds
           routeTargets
           runId
