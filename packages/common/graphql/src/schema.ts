@@ -2274,6 +2274,10 @@ export interface CopilotTaskRouteDiagnosticsType {
   configured: Scalars['Boolean']['output'];
   diagnosticsErrors: Array<CopilotTaskRouteDiagnosticsErrorType>;
   dimensionMismatch?: Maybe<Scalars['Boolean']['output']>;
+  embeddingIndexContractDimensions?: Maybe<Scalars['SafeInt']['output']>;
+  embeddingIndexContractFingerprint?: Maybe<Scalars['String']['output']>;
+  embeddingIndexContractStatus?: Maybe<Scalars['String']['output']>;
+  embeddingIndexContractVersion?: Maybe<Scalars['String']['output']>;
   errorCode?: Maybe<Scalars['String']['output']>;
   errorMessage?: Maybe<Scalars['String']['output']>;
   fallbackProviderIds: Array<Scalars['String']['output']>;
@@ -6967,6 +6971,10 @@ export type GetPromptModelsQuery = {
             stage: string;
           }>;
           dimensionMismatch: boolean | null;
+          embeddingIndexContractDimensions: number | null;
+          embeddingIndexContractFingerprint: string | null;
+          embeddingIndexContractStatus: string | null;
+          embeddingIndexContractVersion: string | null;
           errorCode: string | null;
           errorMessage: string | null;
           fallbackProviderIds: Array<string>;
@@ -7293,6 +7301,10 @@ export type GetPromptModelsQuery = {
             stage: string;
           }>;
           dimensionMismatch: boolean | null;
+          embeddingIndexContractDimensions: number | null;
+          embeddingIndexContractFingerprint: string | null;
+          embeddingIndexContractStatus: string | null;
+          embeddingIndexContractVersion: string | null;
           errorCode: string | null;
           errorMessage: string | null;
           fallbackProviderIds: Array<string>;

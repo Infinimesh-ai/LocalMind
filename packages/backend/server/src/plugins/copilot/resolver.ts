@@ -12315,6 +12315,47 @@ function buildTaskRoutePreparedTargetSummary(input: {
   };
 }
 
+function buildEmbeddingIndexContractSnapshot(input: {
+  dimensionMismatch?: boolean;
+  featureKind: string;
+  modelEmbeddingDimensions?: number;
+  modelId?: string;
+  requestedDimensions?: number;
+}) {
+  if (input.featureKind !== 'workspace_indexing') {
+    return {};
+  }
+
+  const embeddingIndexContractVersion = 'workspace-embedding-index/v1';
+  const embeddingIndexContractStatus =
+    input.dimensionMismatch === true
+      ? 'dimension_mismatch'
+      : 'compatible_with_current_pgvector_index';
+  const embeddingIndexContractDimensions = EMBEDDING_DIMENSIONS;
+  const embeddingIndexContractFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        dimensionMismatch: input.dimensionMismatch ?? null,
+        embeddingIndexContractDimensions,
+        embeddingIndexContractStatus,
+        embeddingIndexContractVersion,
+        featureKind: input.featureKind,
+        modelEmbeddingDimensions: input.modelEmbeddingDimensions ?? null,
+        modelId: input.modelId ?? null,
+        requestedDimensions: input.requestedDimensions ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+
+  return {
+    embeddingIndexContractDimensions,
+    embeddingIndexContractFingerprint,
+    embeddingIndexContractStatus,
+    embeddingIndexContractVersion,
+  };
+}
+
 function buildTaskRouteCandidateKey(
   candidate: Pick<
     CopilotTaskRouteCandidateDiagnosticsType,
@@ -13778,6 +13819,18 @@ class CopilotTaskRouteDiagnosticsType {
   @Field(() => Boolean, { nullable: true })
   dimensionMismatch?: boolean;
 
+  @Field(() => String, { nullable: true })
+  embeddingIndexContractVersion?: string;
+
+  @Field(() => String, { nullable: true })
+  embeddingIndexContractStatus?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  embeddingIndexContractDimensions?: number;
+
+  @Field(() => String, { nullable: true })
+  embeddingIndexContractFingerprint?: string;
+
   @Field(() => SafeIntResolver, { nullable: true })
   candidateCount?: number;
 
@@ -14058,6 +14111,10 @@ export class CopilotResolver {
             preparedProviderCount: 0,
             ...emptyPreparedTargetSummary,
             requestedDimensions: EMBEDDING_DIMENSIONS,
+            ...buildEmbeddingIndexContractSnapshot({
+              featureKind: 'workspace_indexing',
+              requestedDimensions: EMBEDDING_DIMENSIONS,
+            }),
           };
         }
         const prepareCandidates = buildTaskRoutePrepareCandidates(
@@ -14113,6 +14170,13 @@ export class CopilotResolver {
           requestedDimensions: route.requestedDimensions,
           modelEmbeddingDimensions: route.modelEmbeddingDimensions,
           dimensionMismatch: route.dimensionMismatch,
+          ...buildEmbeddingIndexContractSnapshot({
+            dimensionMismatch: route.dimensionMismatch,
+            featureKind: 'workspace_indexing',
+            modelEmbeddingDimensions: route.modelEmbeddingDimensions,
+            modelId: route.modelId,
+            requestedDimensions: route.requestedDimensions,
+          }),
         };
       };
     const describeRerankRoute =

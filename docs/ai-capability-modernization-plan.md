@@ -13972,3 +13972,34 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - metadata sidecar 的 `version`、export policy version、audit event version 与 retention policy version 仍是应用层字符串，不是 DB-backed Agent Runtime schema revision、Model Registry revision、Provider Registry revision、policy registry revision 或迁移版本。
 - Admin 展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、正式 export 控制、批量导出、签名、脱敏审计元数据持久化或 Agent Runtime 原生 lifecycle artifact。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 416. P3 落地记录：Workspace Indexing Embedding Index Contract Diagnostics
+
+本轮从第 415 节的 action run diagnostics 支线回到当前优先级中的 “Embedding/Rerank 硬编码” 风险收敛。实际代码与目标 AI 中间层架构的冲突点是：workspace indexing 当前仍以 `EMBEDDING_DIMENSIONS = 1024` 和既有 pgvector index 作为隐式兼容边界，但 Admin 的模型 route diagnostics 只能看到 `requestedDimensions`、`modelEmbeddingDimensions` 与 `dimensionMismatch`，不能明确知道这些数字对应的是当前索引契约而不是完整 Model Registry 维度协商。本轮在 workspace indexing task route diagnostics 中新增只读 embedding index contract snapshot，把现阶段 1024 维索引边界显式暴露给 GraphQL/common/Admin，不改变真实索引、provider route selection 或 embedding 请求参数。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - 新增 `buildEmbeddingIndexContractSnapshot()`，仅对 `featureKind === 'workspace_indexing'` 返回 `workspace-embedding-index/v1`、当前 `EMBEDDING_DIMENSIONS`、兼容状态与 16 位稳定 fingerprint。
+  - workspace indexing 未配置 route 与已解析 route 都返回该只读 snapshot；rerank route 和其他 task route 不返回该字段。
+- GraphQL 与 common client：
+  - `CopilotTaskRouteDiagnosticsType` 新增 `embeddingIndexContractVersion`、`embeddingIndexContractStatus`、`embeddingIndexContractDimensions` 与 `embeddingIndexContractFingerprint`。
+  - `getPromptModels` query、common query string 与 `schema.ts` 类型同步选择/声明新增字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - task route diagnostics 文本新增 embedding index contract、dimensions、status 与 fingerprint 行，使自部署管理员能在模型列表中直接看到 workspace indexing 当前索引契约。
+- 测试覆盖：
+  - backend resolver smoke test 断言 workspace indexing route 暴露 `workspace-embedding-index/v1`、1024 维、`dimension_mismatch` 状态与 fingerprint，rerank route 不暴露 workspace-only contract。
+  - Admin Vitest fixture/断言覆盖 blocked workspace indexing route 的 contract 展示，并断言 ready rerank diagnostics 不展示该 workspace-only 字段。
+
+该实现只扩展 workspace indexing task route diagnostics 的只读 GraphQL projection、common query/type、Admin 展示和测试，不新增 DB migration、不改变 pgvector index 维度、不重建 embedding 索引、不改变 `EMBEDDING_DIMENSIONS`、provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、repair mutation guard、Model Registry revision 或 Provider Registry revision。它把 “1024 维索引兼容边界” 从隐式常量推进到模型路由诊断契约，为后续真正支持非 1024 维 embedding 模型时的 index version、migration、rebuild 与 route explain 设计提供稳定观测点。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 backend model/source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- embedding index contract snapshot 仍是只读 diagnostics，不是 DB-backed index version registry、migration plan、reindex job、tenant-level index compatibility record 或真正的 embedding dimension negotiation。
+- 当前 `embeddingIndexContractStatus` 只基于 route 的 `dimensionMismatch` 派生，不能代表已持久化向量数据是否完成重建、历史文档是否混维、pgvector index 是否存在 drift，或 provider 实际运行时返回维度是否与 metadata 一致。
+- fingerprint 只绑定 feature kind、当前常量维度、route requested/model 维度和 mismatch 状态，不绑定数据库 schema revision、index OID、migration id、workspace id、provider revision、Model Registry revision 或 Provider Registry revision。
+- rerank route 仍只消费现有 diagnostics，不暴露独立 rerank index/runtime contract；后续若加入 rerank cache/index 或跨 provider rerank policy，仍需要单独 contract。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

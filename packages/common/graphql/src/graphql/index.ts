@@ -1366,6 +1366,10 @@ export const getPromptModelsQuery = {
             stage
           }
           dimensionMismatch
+          embeddingIndexContractDimensions
+          embeddingIndexContractFingerprint
+          embeddingIndexContractStatus
+          embeddingIndexContractVersion
           errorCode
           errorMessage
           fallbackProviderIds
@@ -1669,6 +1673,10 @@ export const getPromptModelsQuery = {
             stage
           }
           dimensionMismatch
+          embeddingIndexContractDimensions
+          embeddingIndexContractFingerprint
+          embeddingIndexContractStatus
+          embeddingIndexContractVersion
           errorCode
           errorMessage
           fallbackProviderIds

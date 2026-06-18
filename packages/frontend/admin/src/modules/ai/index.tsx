@@ -1360,6 +1360,20 @@ function buildTaskRouteDiagnosticsText({
     requestedModelConfigPath
       ? `Requested config ${requestedModelConfigPath}`
       : null,
+    rawRoute?.embeddingIndexContractVersion
+      ? `Embedding index contract ${rawRoute.embeddingIndexContractVersion}`
+      : null,
+    rawRoute?.embeddingIndexContractDimensions != null
+      ? `Embedding index dimensions ${rawRoute.embeddingIndexContractDimensions}d`
+      : null,
+    rawRoute?.embeddingIndexContractStatus
+      ? `Embedding index status ${formatFeatureKind(
+          rawRoute.embeddingIndexContractStatus
+        )}`
+      : null,
+    rawRoute?.embeddingIndexContractFingerprint
+      ? `Embedding index fingerprint ${rawRoute.embeddingIndexContractFingerprint}`
+      : null,
     `Prepared providers ${readiness.preparedProviderCount}`,
     preparedRouteTargets.length
       ? `Prepared targets ${preparedRouteTargets.join(' -> ')}`

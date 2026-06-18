@@ -792,6 +792,10 @@ const blockedRoute = {
     },
   ],
   dimensionMismatch: false,
+  embeddingIndexContractDimensions: 1024,
+  embeddingIndexContractFingerprint: 'eeee1111dddd2222',
+  embeddingIndexContractStatus: 'compatible_with_current_pgvector_index',
+  embeddingIndexContractVersion: 'workspace-embedding-index/v1',
   errorCode: 'no_provider_available',
   errorMessage: 'No provider is configured for embedding.',
   fallbackProviderIds: ['ollama-main', 'openai-fallback'],
@@ -971,6 +975,10 @@ const readyRoute = {
   errorMessage: null,
   fallbackProviderIds: ['ollama-main'],
   featureKind: 'rerank',
+  embeddingIndexContractDimensions: null,
+  embeddingIndexContractFingerprint: null,
+  embeddingIndexContractStatus: null,
+  embeddingIndexContractVersion: null,
   modelId: 'bge-reranker-v2',
   policyCandidates: [
     {
@@ -8873,6 +8881,18 @@ describe('AiPage', () => {
       'Requested config copilot.tasks.models.workspaceIndexing'
     );
     expect(workspaceIndexingDiagnostics).toContain(
+      'Embedding index contract workspace-embedding-index/v1'
+    );
+    expect(workspaceIndexingDiagnostics).toContain(
+      'Embedding index dimensions 1024d'
+    );
+    expect(workspaceIndexingDiagnostics).toContain(
+      'Embedding index status Compatible With Current Pgvector Index'
+    );
+    expect(workspaceIndexingDiagnostics).toContain(
+      'Embedding index fingerprint eeee1111dddd2222'
+    );
+    expect(workspaceIndexingDiagnostics).toContain(
       'Error code no_provider_available'
     );
     expect(workspaceIndexingDiagnostics).toContain(
@@ -8914,6 +8934,7 @@ describe('AiPage', () => {
     expect(rerankDiagnostics).toContain(
       `Prepared target fingerprint ${readyRoute.preparedRouteTargetFingerprint}`
     );
+    expect(rerankDiagnostics).not.toContain('Embedding index contract');
     expect(rerankDiagnostics).toContain(
       'Prepared route ollama-main/bge-reranker-v2'
     );

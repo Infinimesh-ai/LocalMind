@@ -17,6 +17,10 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
             stage
           }
           dimensionMismatch
+          embeddingIndexContractDimensions
+          embeddingIndexContractFingerprint
+          embeddingIndexContractStatus
+          embeddingIndexContractVersion
           errorCode
           errorMessage
           fallbackProviderIds
@@ -332,6 +336,10 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
             stage
           }
           dimensionMismatch
+          embeddingIndexContractDimensions
+          embeddingIndexContractFingerprint
+          embeddingIndexContractStatus
+          embeddingIndexContractVersion
           errorCode
           errorMessage
           fallbackProviderIds

@@ -2054,6 +2054,10 @@ type CopilotTaskRouteDiagnosticsType {
   configured: Boolean!
   diagnosticsErrors: [CopilotTaskRouteDiagnosticsErrorType!]!
   dimensionMismatch: Boolean
+  embeddingIndexContractDimensions: SafeInt
+  embeddingIndexContractFingerprint: String
+  embeddingIndexContractStatus: String
+  embeddingIndexContractVersion: String
   errorCode: String
   errorMessage: String
   fallbackProviderIds: [String!]!

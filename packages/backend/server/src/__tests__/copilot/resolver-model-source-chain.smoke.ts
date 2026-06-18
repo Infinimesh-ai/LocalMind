@@ -1900,6 +1900,26 @@ async function main() {
   assert.deepEqual(result.embeddingRoute?.diagnosticsErrors, []);
   assert.deepEqual(result.rerankRoute?.diagnosticsErrors, []);
   assert.equal(
+    result.embeddingRoute?.embeddingIndexContractVersion,
+    'workspace-embedding-index/v1'
+  );
+  assert.equal(result.embeddingRoute?.embeddingIndexContractDimensions, 1024);
+  assert.equal(
+    result.embeddingRoute?.embeddingIndexContractStatus,
+    'dimension_mismatch'
+  );
+  assert.match(
+    result.embeddingRoute?.embeddingIndexContractFingerprint ?? '',
+    /^[0-9a-f]{16}$/
+  );
+  assert.equal(result.rerankRoute?.embeddingIndexContractVersion, undefined);
+  assert.equal(result.rerankRoute?.embeddingIndexContractDimensions, undefined);
+  assert.equal(result.rerankRoute?.embeddingIndexContractStatus, undefined);
+  assert.equal(
+    result.rerankRoute?.embeddingIndexContractFingerprint,
+    undefined
+  );
+  assert.equal(
     result.embeddingRoute?.preparedRoutes[0]?.requestedDimensions,
     1024
   );
