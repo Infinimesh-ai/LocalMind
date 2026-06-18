@@ -11332,3 +11332,38 @@ repair recommendation 已经有结构化 `candidateEvidence`，task route policy
 - candidate evidence snapshot 不包含 provider secret、endpoint probe latency、quota usage、cost、native dispatch span、真实 embedding 返回向量长度、rerank provider response 或 runtime retry 结果；真实运行可用性仍需结合 provider health freshness policy 与 runtime telemetry。
 - Admin 页面仍是只读 diagnostics，不支持直接编辑 `copilot.tasks.models`、provider profile、model definition、route policy 或执行 task route repair mutation。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 328. P1 落地记录：Repair Execution Request Candidate Evidence Set Binding
+
+本轮继续收敛第 327 节剩余风险中 “`candidateEvidenceSetFingerprint` 绑定的是 candidate evidence set 摘要，不是可执行 mutation locator；未来 repair mutation 仍必须新增 explicit candidate locator/fingerprint input schema、guard fingerprint、权限模型、approval record、audit event 和 rollback plan” 的问题。实际代码与目标架构的冲突点是：
+repair submission 与 preflight 已经显式校验 candidate evidence set fingerprint，但 `requestCopilotPromptRegistryRepairExecution` 的 request input 仍只声明 approval、audit、execution gate/state、idempotency、policy、preflight、repair job、review 与 rollback 指纹。这样 request gate 虽然可以从 nested preflight 间接看到 candidate evidence set，但提交方没有在 execution request 层显式声明“我确认的 preflight candidate evidence set fingerprint”。本轮新增只读 `expectedCandidateEvidenceSetFingerprint`，把 evidence set 从 submission/preflight 继续绑定到 execution request stale 校验和 request diagnostics，不开放真实 repair mutation。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryRepairExecutionRequestInput` 新增必填 `expectedCandidateEvidenceSetFingerprint`，并在 `buildPromptRegistryRepairExecutionRequest()` 的 matched/mismatched/request inputs 中校验它必须等于当前 preflight `candidateEvidenceSetFingerprint`。
+  - `CopilotPromptRegistryRepairExecutionRequest` 与 GraphQL object type 新增 `expectedCandidateEvidenceSetFingerprint` 输出，方便 Admin 和后续审计对齐 request input 与 preflight snapshot。
+  - idempotency lock、approval record request、audit event request、repair job request、execution state request、rollback plan request、execution trace/result/retry policy/provider response request 和顶层 request fingerprint 的只读 payload 绑定 `candidateEvidenceSetFingerprint`，让 request gate 后续阶段对 evidence set stale 更敏感。
+- `packages/backend/server/src/schema.gql`、`packages/common/graphql/src/graphql/copilot-prompt-registry-repair-execution-request.gql`、`packages/common/graphql/src/graphql/index.ts` 与 `packages/common/graphql/src/schema.ts`：
+  - repair execution request input/output selection/type 同步新增 `expectedCandidateEvidenceSetFingerprint`。
+  - repair execution request 的 nested preflight selection/type 同步暴露 `candidateEvidenceSetFingerprint`，避免 Admin 只能从另一条 preflight query 间接比对。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - Admin 构造 repair execution request input 时传入 `repairPreflight.candidateEvidenceSetFingerprint`。
+  - Repair execution request 文本输出 expected candidate evidence set fingerprint 与 nested preflight candidate evidence set fingerprint，方便复制、比对和审计。
+- 测试覆盖：
+  - `packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts` 断言 execution request input matching、request inputs、idempotency/approval/audit/job/state/rollback/trace/result/retry/provider-response inputs 与 nested preflight candidate evidence set 对齐。
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 覆盖 Admin mutation input、mock execution request contract 和 copyable diagnostics 中的 expected/preflight candidate evidence set fingerprint。
+
+该实现只扩展只读 repair execution request gate contract、GraphQL selection/type、Admin 文本和测试，不新增 DB migration，不开放 repair mutation，不改变 provider route selection、fallback order、route policy、Prompt Registry publish gate 判定、repair target locator、repair action catalog、embedding/rerank request 参数、Action Runtime 状态机或 native dispatch。它把 candidate evidence 从“submission/preflight 层显式绑定 evidence set 指纹”推进到“execution request gate 层也必须显式确认同一 evidence set”，为后续 explicit candidate locator mutation input、approval record、audit event、rollback plan 和 DB-backed Provider Registry / Model Registry revision 对齐提供更清晰的 request 前置条件。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin diagnostics/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与宿主源码 bind mount 运行 focused Prettier、oxlint、resolver smoke 与 Admin AI Vitest。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `expectedCandidateEvidenceSetFingerprint` 仍是 request gate 只读 stale 校验字段，不是持久化 Provider Registry / Model Registry candidate row id；DB 化后仍需要 registry id、revision、scope、updatedAt、actor 与正式 candidate stable id。
+- 该字段确认的是 preflight candidate evidence set fingerprint，不是可执行 mutation locator；未来 repair mutation 仍必须新增 explicit candidate locator/fingerprint input schema、guard fingerprint、权限模型、approval record、audit event 和 rollback plan。
+- 本轮让 request gate 与部分只读 request fingerprints 对 candidate evidence set 敏感，但 repair recommendation `diagnosticsFingerprint` 仍不包含 candidate evidence；这保持 recommendation diagnostics guard 语义不漂移，后续正式 mutation guard 需要单独设计 candidate locator 语义。
+- candidate evidence set 不包含 provider secret、endpoint probe latency、quota usage、cost、native dispatch span、真实 embedding 返回向量长度、rerank provider response 或 runtime retry 结果；真实运行可用性仍需结合 provider health freshness policy 与 runtime telemetry。
+- Admin 页面仍是只读 diagnostics，不支持直接编辑 `copilot.tasks.models`、provider profile、model definition、route policy 或执行 task route repair mutation。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

@@ -905,6 +905,7 @@ type CopilotPromptRegistryRepairExecutionRequestType {
   auditEventRequestInputs: [String!]!
   auditEventRequestStatus: String!
   auditEventRequestVersion: String!
+  expectedCandidateEvidenceSetFingerprint: String!
   executionCompletionEventRequestCreated: Boolean!
   executionCompletionEventRequestFingerprint: String!
   executionCompletionEventRequestInputs: [String!]!
@@ -1152,6 +1153,7 @@ input CopilotPromptRegistryRepairExecutionRequestInput {
   expectedApprovalRecordFingerprint: String!
   expectedApprovalRequestFingerprint: String!
   expectedAuditEventFingerprint: String!
+  expectedCandidateEvidenceSetFingerprint: String!
   expectedExecutionGateFingerprint: String!
   expectedExecutionGateStatus: String!
   expectedExecutionStateFingerprint: String!

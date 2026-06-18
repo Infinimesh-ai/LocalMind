@@ -257,6 +257,9 @@ class CopilotPromptRegistryRepairExecutionRequestInput {
   expectedAuditEventFingerprint!: string;
 
   @Field(() => String)
+  expectedCandidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
   expectedExecutionGateFingerprint!: string;
 
   @Field(() => String)
@@ -895,6 +898,7 @@ type CopilotPromptRegistryRepairPreflight = {
 type CopilotPromptRegistryRepairExecutionRequest = {
   accepted: boolean;
   executionRequested: boolean;
+  expectedCandidateEvidenceSetFingerprint: string;
   approvalRecordRequestCreated: boolean;
   approvalRecordRequestFingerprint: string;
   approvalRecordRequestInputs: string[];
@@ -2319,6 +2323,9 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
 
   @Field(() => Boolean)
   executionRequested!: boolean;
+
+  @Field(() => String)
+  expectedCandidateEvidenceSetFingerprint!: string;
 
   @Field(() => Boolean)
   approvalRecordRequestCreated!: boolean;
@@ -5863,7 +5870,8 @@ function buildPromptRegistryRepairPreflight(
   const idempotencyFingerprint = createHash('sha256')
     .update(
       stableRepairRecommendationStringify({
-        candidateEvidenceSetFingerprint: current.candidateEvidenceSetFingerprint,
+        candidateEvidenceSetFingerprint:
+          current.candidateEvidenceSetFingerprint,
         idempotencyKey: current.idempotencyKey,
         lockAcquired: false,
         reviewBindingFingerprint,
@@ -5892,7 +5900,8 @@ function buildPromptRegistryRepairPreflight(
       stableRepairRecommendationStringify({
         actorFingerprint,
         auditBindingFingerprint,
-        candidateEvidenceSetFingerprint: current.candidateEvidenceSetFingerprint,
+        candidateEvidenceSetFingerprint:
+          current.candidateEvidenceSetFingerprint,
         created: false,
         idempotencyFingerprint,
         inputs: repairJobInputs,
@@ -5913,7 +5922,8 @@ function buildPromptRegistryRepairPreflight(
         actorFingerprint,
         approvalRecordFingerprint,
         auditBindingFingerprint,
-        candidateEvidenceSetFingerprint: current.candidateEvidenceSetFingerprint,
+        candidateEvidenceSetFingerprint:
+          current.candidateEvidenceSetFingerprint,
         created: false,
         inputs: auditEventInputs,
         operationSetFingerprint: current.operationSetFingerprint,
@@ -5942,7 +5952,8 @@ function buildPromptRegistryRepairPreflight(
     .update(
       stableRepairRecommendationStringify({
         auditEventFingerprint,
-        candidateEvidenceSetFingerprint: current.candidateEvidenceSetFingerprint,
+        candidateEvidenceSetFingerprint:
+          current.candidateEvidenceSetFingerprint,
         created: false,
         idempotencyFingerprint,
         inputs: executionStateInputs,
@@ -5972,7 +5983,8 @@ function buildPromptRegistryRepairPreflight(
     .update(
       stableRepairRecommendationStringify({
         auditEventFingerprint,
-        candidateEvidenceSetFingerprint: current.candidateEvidenceSetFingerprint,
+        candidateEvidenceSetFingerprint:
+          current.candidateEvidenceSetFingerprint,
         created: false,
         executionStateFingerprint,
         inputs: rollbackPlanInputs,
@@ -6145,6 +6157,11 @@ function buildPromptRegistryRepairExecutionRequest(
       input.expectedAuditEventFingerprint === preflight.auditEventFingerprint,
     ],
     [
+      'expectedCandidateEvidenceSetFingerprint',
+      input.expectedCandidateEvidenceSetFingerprint ===
+        preflight.candidateEvidenceSetFingerprint,
+    ],
+    [
       'expectedExecutionGateFingerprint',
       input.expectedExecutionGateFingerprint ===
         preflight.executionGateFingerprint,
@@ -6205,6 +6222,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const idempotencyLockStatus = 'not_acquired_read_only';
   const idempotencyLockScope = preflight.idempotencyScope;
   const idempotencyLockInputs = [
+    'candidateEvidenceSetFingerprint',
     'idempotencyFingerprint',
     'idempotencyKey',
     'policyBindingFingerprint',
@@ -6216,6 +6234,8 @@ function buildPromptRegistryRepairExecutionRequest(
     .update(
       stableRepairRecommendationStringify({
         acquired: false,
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         idempotencyFingerprint: preflight.idempotencyFingerprint,
         idempotencyKey: preflight.idempotencyKey,
         inputs: idempotencyLockInputs,
@@ -6239,6 +6259,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'approvalRecordFingerprint',
     'approvalRequestFingerprint',
     'auditBindingFingerprint',
+    'candidateEvidenceSetFingerprint',
     'idempotencyLockFingerprint',
     'policyBindingFingerprint',
     'requestStatus',
@@ -6252,6 +6273,8 @@ function buildPromptRegistryRepairExecutionRequest(
         approvalRecordFingerprint: preflight.approvalRecordFingerprint,
         approvalRequestFingerprint: preflight.approvalRequestFingerprint,
         auditBindingFingerprint: preflight.auditBindingFingerprint,
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         created: false,
         idempotencyLockFingerprint,
         inputs: approvalRecordRequestInputs,
@@ -6272,6 +6295,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'approvalRecordRequestFingerprint',
     'auditBindingFingerprint',
     'auditEventFingerprint',
+    'candidateEvidenceSetFingerprint',
     'idempotencyLockFingerprint',
     'operationSetFingerprint',
     'policyBindingFingerprint',
@@ -6287,6 +6311,8 @@ function buildPromptRegistryRepairExecutionRequest(
         approvalRecordRequestFingerprint,
         auditBindingFingerprint: preflight.auditBindingFingerprint,
         auditEventFingerprint: preflight.auditEventFingerprint,
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         created: false,
         idempotencyLockFingerprint,
         inputs: auditEventRequestInputs,
@@ -6308,6 +6334,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'actorFingerprint',
     'approvalRecordRequestFingerprint',
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'idempotencyLockFingerprint',
     'operationSetFingerprint',
     'policyBindingFingerprint',
@@ -6323,6 +6350,8 @@ function buildPromptRegistryRepairExecutionRequest(
         actorFingerprint: preflight.actorFingerprint,
         approvalRecordRequestFingerprint,
         auditEventRequestFingerprint,
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         created: false,
         idempotencyLockFingerprint,
         inputs: repairJobRequestInputs,
@@ -6343,6 +6372,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionStateRequestStatus = 'not_started_read_only';
   const executionStateRequestInputs = [
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionStateFingerprint',
     'idempotencyLockFingerprint',
     'operationSetFingerprint',
@@ -6356,6 +6386,8 @@ function buildPromptRegistryRepairExecutionRequest(
     .update(
       stableRepairRecommendationStringify({
         auditEventRequestFingerprint,
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         created: false,
         executionStateFingerprint: preflight.executionStateFingerprint,
         idempotencyLockFingerprint,
@@ -6377,6 +6409,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const rollbackPlanRequestStatus = 'not_created_read_only';
   const rollbackPlanRequestInputs = [
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionStateRequestFingerprint',
     'operationSetFingerprint',
     'repairJobRequestFingerprint',
@@ -6390,6 +6423,8 @@ function buildPromptRegistryRepairExecutionRequest(
     .update(
       stableRepairRecommendationStringify({
         auditEventRequestFingerprint,
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         created: false,
         executionStateRequestFingerprint,
         inputs: rollbackPlanRequestInputs,
@@ -6412,6 +6447,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'actorFingerprint',
     'approvalRecordRequestFingerprint',
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionStateRequestFingerprint',
     'idempotencyLockFingerprint',
     'repairJobRequestFingerprint',
@@ -6426,6 +6462,8 @@ function buildPromptRegistryRepairExecutionRequest(
         actorFingerprint: preflight.actorFingerprint,
         approvalRecordRequestFingerprint,
         auditEventRequestFingerprint,
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         created: false,
         executionStateRequestFingerprint,
         idempotencyLockFingerprint,
@@ -6445,6 +6483,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionResultRequestStatus = 'not_recorded_read_only';
   const executionResultRequestInputs = [
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionStateRequestFingerprint',
     'executionTraceRequestFingerprint',
     'repairJobRequestFingerprint',
@@ -6457,6 +6496,8 @@ function buildPromptRegistryRepairExecutionRequest(
     .update(
       stableRepairRecommendationStringify({
         auditEventRequestFingerprint,
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         created: false,
         executionStateRequestFingerprint,
         executionTraceRequestFingerprint,
@@ -6476,6 +6517,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'repair-execution-retry-policy-request/v1';
   const executionRetryPolicyRequestStatus = 'not_created_read_only';
   const executionRetryPolicyRequestInputs = [
+    'candidateEvidenceSetFingerprint',
     'executionResultRequestFingerprint',
     'executionStateRequestFingerprint',
     'executionTraceRequestFingerprint',
@@ -6490,6 +6532,8 @@ function buildPromptRegistryRepairExecutionRequest(
     .update(
       stableRepairRecommendationStringify({
         created: false,
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         executionResultRequestFingerprint,
         executionStateRequestFingerprint,
         executionTraceRequestFingerprint,
@@ -6511,6 +6555,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionProviderResponseRequestStatus = 'not_recorded_read_only';
   const executionProviderResponseRequestInputs = [
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionResultRequestFingerprint',
     'executionRetryPolicyRequestFingerprint',
     'executionStateRequestFingerprint',
@@ -6526,6 +6571,8 @@ function buildPromptRegistryRepairExecutionRequest(
     .update(
       stableRepairRecommendationStringify({
         auditEventRequestFingerprint,
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         created: false,
         executionResultRequestFingerprint,
         executionRetryPolicyRequestFingerprint,
@@ -8765,6 +8812,8 @@ function buildPromptRegistryRepairExecutionRequest(
         executionStartRequestFingerprint,
         executionStatusPollRequestFingerprint,
         executionWorkerLeaseRequestFingerprint,
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
         executionGateFingerprint: preflight.executionGateFingerprint,
         executionStateRequestFingerprint,
         idempotencyLockFingerprint,
@@ -8789,6 +8838,8 @@ function buildPromptRegistryRepairExecutionRequest(
   return {
     accepted: false,
     executionRequested: false,
+    expectedCandidateEvidenceSetFingerprint:
+      input.expectedCandidateEvidenceSetFingerprint,
     approvalRecordRequestCreated: false,
     approvalRecordRequestFingerprint,
     approvalRecordRequestInputs,

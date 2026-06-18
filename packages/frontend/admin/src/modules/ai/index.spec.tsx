@@ -1499,16 +1499,16 @@ const withRepairActionPreview = <
     return {
       approvalCheckpoints,
       approvalModes,
-        approvalPolicyFingerprint: input.approvalPolicyFingerprint,
-        approvalPolicyVersion: 'repair-preview-approval/v1',
-        approvalRequired,
-        auditSummaryFingerprint:
-          verdict.repairActionMutationGuard.auditSummaryFingerprint,
-        authorizationFingerprint: input.authorizationFingerprint,
-        authorizationStatus,
-        candidateCount: verdict.repairRecommendations.length,
-        candidateEvidenceSetFingerprint: input.candidateEvidenceSetFingerprint,
-        catalogFingerprint: verdict.repairActionCatalogFingerprint,
+      approvalPolicyFingerprint: input.approvalPolicyFingerprint,
+      approvalPolicyVersion: 'repair-preview-approval/v1',
+      approvalRequired,
+      auditSummaryFingerprint:
+        verdict.repairActionMutationGuard.auditSummaryFingerprint,
+      authorizationFingerprint: input.authorizationFingerprint,
+      authorizationStatus,
+      candidateCount: verdict.repairRecommendations.length,
+      candidateEvidenceSetFingerprint: input.candidateEvidenceSetFingerprint,
+      catalogFingerprint: verdict.repairActionCatalogFingerprint,
       catalogVersion: verdict.repairActionMutationGuard.catalogVersion,
       guardFingerprint: verdict.repairActionMutationGuard.guardFingerprint,
       operationFingerprints: [...input.operationFingerprints].sort(),
@@ -2777,6 +2777,7 @@ describe('AiPage', () => {
           expectedApprovalRecordFingerprint: string;
           expectedApprovalRequestFingerprint: string;
           expectedAuditEventFingerprint: string;
+          expectedCandidateEvidenceSetFingerprint: string;
           expectedExecutionGateFingerprint: string;
           expectedExecutionGateStatus: string;
           expectedExecutionStateFingerprint: string;
@@ -2800,6 +2801,7 @@ describe('AiPage', () => {
             'approvalRecordFingerprint',
             'approvalRequestFingerprint',
             'auditBindingFingerprint',
+            'candidateEvidenceSetFingerprint',
             'idempotencyLockFingerprint',
             'policyBindingFingerprint',
             'requestStatus',
@@ -2818,6 +2820,7 @@ describe('AiPage', () => {
             'approvalRecordRequestFingerprint',
             'auditBindingFingerprint',
             'auditEventFingerprint',
+            'candidateEvidenceSetFingerprint',
             'idempotencyLockFingerprint',
             'operationSetFingerprint',
             'policyBindingFingerprint',
@@ -3854,6 +3857,7 @@ describe('AiPage', () => {
             : 'ddddccccddddbbbb',
           executionProviderResponseRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionResultRequestFingerprint',
             'executionRetryPolicyRequestFingerprint',
             'executionStateRequestFingerprint',
@@ -3874,6 +3878,7 @@ describe('AiPage', () => {
             : 'ddddddddccccbbbb',
           executionResultRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionStateRequestFingerprint',
             'executionTraceRequestFingerprint',
             'repairJobRequestFingerprint',
@@ -3889,6 +3894,7 @@ describe('AiPage', () => {
             ? 'aaaabbbbddddcccc'
             : 'ddddbbbbddddcccc',
           executionRetryPolicyRequestInputs: [
+            'candidateEvidenceSetFingerprint',
             'executionResultRequestFingerprint',
             'executionStateRequestFingerprint',
             'executionTraceRequestFingerprint',
@@ -3997,6 +4003,7 @@ describe('AiPage', () => {
             'actorFingerprint',
             'approvalRecordRequestFingerprint',
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionStateRequestFingerprint',
             'idempotencyLockFingerprint',
             'repairJobRequestFingerprint',
@@ -4008,11 +4015,14 @@ describe('AiPage', () => {
           executionTraceRequestStatus: 'not_created_read_only',
           executionTraceRequestVersion: 'repair-execution-trace-request/v1',
           executionRequested: false,
+          expectedCandidateEvidenceSetFingerprint:
+            input.expectedCandidateEvidenceSetFingerprint,
           idempotencyLockAcquired: false,
           idempotencyLockFingerprint: input.workspaceId
             ? 'abab3333cdcd4444'
             : 'efef3333abab4444',
           idempotencyLockInputs: [
+            'candidateEvidenceSetFingerprint',
             'idempotencyFingerprint',
             'idempotencyKey',
             'policyBindingFingerprint',
@@ -4031,6 +4041,7 @@ describe('AiPage', () => {
             : 'dddd9999eeee0000',
           executionStateRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionStateFingerprint',
             'idempotencyLockFingerprint',
             'operationSetFingerprint',
@@ -4048,6 +4059,7 @@ describe('AiPage', () => {
             : 'ddddcccceeeedddd',
           rollbackPlanRequestInputs: [
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'executionStateRequestFingerprint',
             'operationSetFingerprint',
             'repairJobRequestFingerprint',
@@ -4068,6 +4080,7 @@ describe('AiPage', () => {
             'actorFingerprint',
             'approvalRecordRequestFingerprint',
             'auditEventRequestFingerprint',
+            'candidateEvidenceSetFingerprint',
             'idempotencyLockFingerprint',
             'operationSetFingerprint',
             'policyBindingFingerprint',
@@ -4083,6 +4096,7 @@ describe('AiPage', () => {
             'expectedApprovalRecordFingerprint',
             'expectedApprovalRequestFingerprint',
             'expectedAuditEventFingerprint',
+            'expectedCandidateEvidenceSetFingerprint',
             'expectedExecutionGateFingerprint',
             'expectedExecutionGateStatus',
             'expectedExecutionStateFingerprint',
@@ -4100,6 +4114,8 @@ describe('AiPage', () => {
             approvalRequestFingerprint:
               input.expectedApprovalRequestFingerprint,
             auditEventFingerprint: input.expectedAuditEventFingerprint,
+            candidateEvidenceSetFingerprint:
+              input.expectedCandidateEvidenceSetFingerprint,
             executionGateFingerprint: input.expectedExecutionGateFingerprint,
             executionGateStatus: input.expectedExecutionGateStatus,
             executionStateFingerprint: input.expectedExecutionStateFingerprint,
@@ -4119,6 +4135,7 @@ describe('AiPage', () => {
             'expectedApprovalRecordFingerprint',
             'expectedApprovalRequestFingerprint',
             'expectedAuditEventFingerprint',
+            'expectedCandidateEvidenceSetFingerprint',
             'expectedExecutionGateFingerprint',
             'expectedExecutionGateStatus',
             'expectedExecutionStateFingerprint',
@@ -4677,6 +4694,7 @@ describe('AiPage', () => {
           expectedApprovalRecordFingerprint: '8585aaaabbbb0000',
           expectedApprovalRequestFingerprint: '7474aaaabbbb9999',
           expectedAuditEventFingerprint: '9696aaaabbbb1111',
+          expectedCandidateEvidenceSetFingerprint: 'aaaa5555bbbb6666',
           expectedExecutionGateFingerprint: '5858aaaabbbb9999',
           expectedExecutionGateStatus: 'blocked_read_only',
           expectedExecutionStateFingerprint: 'b7b7aaaabbbb2222',
@@ -4729,7 +4747,7 @@ describe('AiPage', () => {
         screen.getByTestId('prompt-registry-publish-gate-Make it real')
           .textContent
       ).toContain(
-        'Repair execution request version repair-execution-request/v1 / status Blocked Read Only / read-only yes / mutation available no / accepted no / execution requested no / approval record request repair-execution-approval-record-request/v1 / approval record request status Not Created Read Only / approval record request created no / approval record request fingerprint dddd3333eeee4444'
+        'Repair execution request version repair-execution-request/v1 / status Blocked Read Only / read-only yes / mutation available no / accepted no / execution requested no / expected candidate evidence set fingerprint aaaa5555bbbb6666 / approval record request repair-execution-approval-record-request/v1 / approval record request status Not Created Read Only / approval record request created no / approval record request fingerprint dddd3333eeee4444'
       );
     });
     expect(
@@ -5018,6 +5036,12 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain('preflight execution gate fingerprint 5858aaaabbbb9999');
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'preflight candidate evidence set fingerprint aaaa5555bbbb6666'
+    );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent

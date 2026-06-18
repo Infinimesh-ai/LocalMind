@@ -1660,6 +1660,8 @@ async function main() {
           matchingPreflight?.approvalRequestFingerprint ?? '',
         expectedAuditEventFingerprint:
           matchingPreflight?.auditEventFingerprint ?? '',
+        expectedCandidateEvidenceSetFingerprint:
+          matchingPreflight?.candidateEvidenceSetFingerprint ?? '',
         expectedExecutionGateFingerprint:
           matchingPreflight?.executionGateFingerprint ?? '',
         expectedExecutionGateStatus:
@@ -1686,6 +1688,10 @@ async function main() {
   assert.equal(executionRequest.accepted, false);
   assert.equal(executionRequest.executionRequested, false);
   assert.equal(
+    executionRequest.expectedCandidateEvidenceSetFingerprint,
+    matchingPreflight?.candidateEvidenceSetFingerprint
+  );
+  assert.equal(
     executionRequest.approvalRecordRequestVersion,
     'repair-execution-approval-record-request/v1'
   );
@@ -1703,6 +1709,7 @@ async function main() {
     'approvalRecordFingerprint',
     'approvalRequestFingerprint',
     'auditBindingFingerprint',
+    'candidateEvidenceSetFingerprint',
     'idempotencyLockFingerprint',
     'policyBindingFingerprint',
     'requestStatus',
@@ -1724,6 +1731,7 @@ async function main() {
     'approvalRecordRequestFingerprint',
     'auditBindingFingerprint',
     'auditEventFingerprint',
+    'candidateEvidenceSetFingerprint',
     'idempotencyLockFingerprint',
     'operationSetFingerprint',
     'policyBindingFingerprint',
@@ -3062,6 +3070,7 @@ async function main() {
   );
   assert.deepEqual(executionRequest.executionProviderResponseRequestInputs, [
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionResultRequestFingerprint',
     'executionRetryPolicyRequestFingerprint',
     'executionStateRequestFingerprint',
@@ -3088,6 +3097,7 @@ async function main() {
   );
   assert.deepEqual(executionRequest.executionResultRequestInputs, [
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionStateRequestFingerprint',
     'executionTraceRequestFingerprint',
     'repairJobRequestFingerprint',
@@ -3110,6 +3120,7 @@ async function main() {
     /^[0-9a-f]{16}$/
   );
   assert.deepEqual(executionRequest.executionRetryPolicyRequestInputs, [
+    'candidateEvidenceSetFingerprint',
     'executionResultRequestFingerprint',
     'executionStateRequestFingerprint',
     'executionTraceRequestFingerprint',
@@ -3251,6 +3262,7 @@ async function main() {
     'actorFingerprint',
     'approvalRecordRequestFingerprint',
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionStateRequestFingerprint',
     'idempotencyLockFingerprint',
     'repairJobRequestFingerprint',
@@ -3274,6 +3286,7 @@ async function main() {
   );
   assert.deepEqual(executionRequest.executionStateRequestInputs, [
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionStateFingerprint',
     'idempotencyLockFingerprint',
     'operationSetFingerprint',
@@ -3298,6 +3311,7 @@ async function main() {
   );
   assert.deepEqual(executionRequest.rollbackPlanRequestInputs, [
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'executionStateRequestFingerprint',
     'operationSetFingerprint',
     'repairJobRequestFingerprint',
@@ -3321,6 +3335,7 @@ async function main() {
     'actorFingerprint',
     'approvalRecordRequestFingerprint',
     'auditEventRequestFingerprint',
+    'candidateEvidenceSetFingerprint',
     'idempotencyLockFingerprint',
     'operationSetFingerprint',
     'policyBindingFingerprint',
@@ -3342,6 +3357,7 @@ async function main() {
   assert.equal(executionRequest.idempotencyLockScope, 'workspace');
   assert.match(executionRequest.idempotencyLockFingerprint, /^[0-9a-f]{16}$/);
   assert.deepEqual(executionRequest.idempotencyLockInputs, [
+    'candidateEvidenceSetFingerprint',
     'idempotencyFingerprint',
     'idempotencyKey',
     'policyBindingFingerprint',
@@ -3355,6 +3371,7 @@ async function main() {
     'expectedApprovalRecordFingerprint',
     'expectedApprovalRequestFingerprint',
     'expectedAuditEventFingerprint',
+    'expectedCandidateEvidenceSetFingerprint',
     'expectedExecutionGateFingerprint',
     'expectedExecutionGateStatus',
     'expectedExecutionStateFingerprint',
@@ -3369,6 +3386,7 @@ async function main() {
     'expectedApprovalRecordFingerprint',
     'expectedApprovalRequestFingerprint',
     'expectedAuditEventFingerprint',
+    'expectedCandidateEvidenceSetFingerprint',
     'expectedExecutionGateFingerprint',
     'expectedExecutionGateStatus',
     'expectedExecutionStateFingerprint',
@@ -3382,6 +3400,10 @@ async function main() {
   assert.equal(
     executionRequest.preflight.executionGateFingerprint,
     matchingPreflight?.executionGateFingerprint
+  );
+  assert.equal(
+    executionRequest.preflight.candidateEvidenceSetFingerprint,
+    matchingPreflight?.candidateEvidenceSetFingerprint
   );
   assert.equal(
     executionRequest.preflight.rollbackPlanFingerprint,
@@ -3448,6 +3470,8 @@ async function main() {
           matchingPreflight?.approvalRequestFingerprint ?? '',
         expectedAuditEventFingerprint:
           matchingPreflight?.auditEventFingerprint ?? '',
+        expectedCandidateEvidenceSetFingerprint:
+          matchingPreflight?.candidateEvidenceSetFingerprint ?? '',
         expectedExecutionGateFingerprint: '0000aaaabbbbcccc',
         expectedExecutionGateStatus:
           matchingPreflight?.executionGateStatus ?? '',

@@ -414,6 +414,8 @@ function buildPromptRegistryRepairExecutionRequestInput({
     expectedApprovalRequestFingerprint:
       repairPreflight.approvalRequestFingerprint,
     expectedAuditEventFingerprint: repairPreflight.auditEventFingerprint,
+    expectedCandidateEvidenceSetFingerprint:
+      repairPreflight.candidateEvidenceSetFingerprint,
     expectedExecutionGateFingerprint: repairPreflight.executionGateFingerprint,
     expectedExecutionGateStatus: repairPreflight.executionGateStatus,
     expectedExecutionStateFingerprint:
@@ -3210,6 +3212,7 @@ function formatPromptRegistryRepairExecutionRequest(
     request.executionRequested
       ? 'execution requested yes'
       : 'execution requested no',
+    `expected candidate evidence set fingerprint ${request.expectedCandidateEvidenceSetFingerprint}`,
     `approval record request ${request.approvalRecordRequestVersion}`,
     `approval record request status ${formatFeatureKind(
       request.approvalRecordRequestStatus
@@ -3851,6 +3854,7 @@ function formatPromptRegistryRepairExecutionRequest(
     `preflight approval record fingerprint ${request.preflight.approvalRecordFingerprint}`,
     `preflight approval request fingerprint ${request.preflight.approvalRequestFingerprint}`,
     `preflight audit event fingerprint ${request.preflight.auditEventFingerprint}`,
+    `preflight candidate evidence set fingerprint ${request.preflight.candidateEvidenceSetFingerprint}`,
     `preflight execution state fingerprint ${request.preflight.executionStateFingerprint}`,
     `preflight idempotency fingerprint ${request.preflight.idempotencyFingerprint}`,
     `preflight policy binding fingerprint ${request.preflight.policyBindingFingerprint}`,

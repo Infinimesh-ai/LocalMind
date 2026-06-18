@@ -13,6 +13,7 @@ mutation requestCopilotPromptRegistryRepairExecution(
     auditEventRequestInputs
     auditEventRequestStatus
     auditEventRequestVersion
+    expectedCandidateEvidenceSetFingerprint
     executionCompletionEventRequestCreated
     executionCompletionEventRequestFingerprint
     executionCompletionEventRequestInputs
@@ -257,6 +258,7 @@ mutation requestCopilotPromptRegistryRepairExecution(
       approvalRecordFingerprint
       approvalRequestFingerprint
       auditEventFingerprint
+      candidateEvidenceSetFingerprint
       executionGateFingerprint
       executionGateStatus
       executionStateFingerprint

@@ -1068,6 +1068,7 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   auditEventRequestInputs: Array<Scalars['String']['output']>;
   auditEventRequestStatus: Scalars['String']['output'];
   auditEventRequestVersion: Scalars['String']['output'];
+  expectedCandidateEvidenceSetFingerprint: Scalars['String']['output'];
   executionCompletionEventRequestCreated: Scalars['Boolean']['output'];
   executionCompletionEventRequestFingerprint: Scalars['String']['output'];
   executionCompletionEventRequestInputs: Array<Scalars['String']['output']>;
@@ -1341,6 +1342,7 @@ export interface CopilotPromptRegistryRepairExecutionRequestInput {
   expectedApprovalRecordFingerprint: Scalars['String']['input'];
   expectedApprovalRequestFingerprint: Scalars['String']['input'];
   expectedAuditEventFingerprint: Scalars['String']['input'];
+  expectedCandidateEvidenceSetFingerprint: Scalars['String']['input'];
   expectedExecutionGateFingerprint: Scalars['String']['input'];
   expectedExecutionGateStatus: Scalars['String']['input'];
   expectedExecutionStateFingerprint: Scalars['String']['input'];
@@ -7941,6 +7943,7 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
     auditEventRequestInputs: Array<string>;
     auditEventRequestStatus: string;
     auditEventRequestVersion: string;
+    expectedCandidateEvidenceSetFingerprint: string;
     executionCompletionEventRequestCreated: boolean;
     executionCompletionEventRequestFingerprint: string;
     executionCompletionEventRequestInputs: Array<string>;
@@ -8186,6 +8189,7 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
       approvalRecordFingerprint: string;
       approvalRequestFingerprint: string;
       auditEventFingerprint: string;
+      candidateEvidenceSetFingerprint: string;
       executionGateFingerprint: string;
       executionGateStatus: string;
       executionStateFingerprint: string;

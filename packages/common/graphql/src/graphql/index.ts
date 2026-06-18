@@ -2702,6 +2702,7 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
     auditEventRequestInputs
     auditEventRequestStatus
     auditEventRequestVersion
+    expectedCandidateEvidenceSetFingerprint
     executionCompletionEventRequestCreated
     executionCompletionEventRequestFingerprint
     executionCompletionEventRequestInputs
@@ -2946,6 +2947,7 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
       approvalRecordFingerprint
       approvalRequestFingerprint
       auditEventFingerprint
+      candidateEvidenceSetFingerprint
       executionGateFingerprint
       executionGateStatus
       executionStateFingerprint
