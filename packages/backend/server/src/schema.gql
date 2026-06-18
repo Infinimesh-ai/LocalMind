@@ -611,6 +611,8 @@ type CopilotActionRunAgentRuntimeTimelineItemType {
 }
 
 type CopilotActionRunAgentRuntimeDiagnosticsManifestType {
+  actionId: String!
+  actionVersion: String!
   fingerprint: String!
   hasPreparedRouteTrace: Boolean!
   nativeTraceEventTypes: [String!]!
@@ -620,9 +622,12 @@ type CopilotActionRunAgentRuntimeDiagnosticsManifestType {
   projectionContractFingerprint: String!
   projectionGapCount: SafeInt!
   projectionSource: String!
+  runStatus: String!
   schemaReadiness: String!
   schemaReadinessGapCount: SafeInt!
+  timelineEventTypes: [String!]!
   timelineGapCount: SafeInt!
+  timelineItemCount: SafeInt!
   timelineRouteEvidenceSetFingerprint: String!
   version: String!
 }

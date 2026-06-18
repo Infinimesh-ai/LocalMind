@@ -3692,6 +3692,8 @@ const actionRunsPayload = [
     agentRuntimeDiagnosticsFingerprint:
       actionRunAgentRuntimeDiagnosticsFingerprint,
     agentRuntimeDiagnosticsManifest: {
+      actionId: 'mindmap.generate',
+      actionVersion: 'v1',
       fingerprint: actionRunAgentRuntimeDiagnosticsFingerprint,
       hasPreparedRouteTrace: true,
       nativeTraceEventTypes: ['action_trace', 'tool:dispatch'],
@@ -3701,9 +3703,12 @@ const actionRunsPayload = [
       projectionContractFingerprint: actionRunProjectionContractFingerprint,
       projectionGapCount: 5,
       projectionSource: 'ai_action_run_agent_runtime_projection/v1',
+      runStatus: 'completed',
       schemaReadiness: 'projection_contract_only',
       schemaReadinessGapCount: 7,
+      timelineEventTypes: ['run_status', 'model_step'],
       timelineGapCount: 10,
+      timelineItemCount: 3,
       timelineRouteEvidenceSetFingerprint:
         actionRunTimelineRouteEvidenceSetFingerprint,
       version: 'agent-runtime-diagnostics-manifest/v1',
@@ -4069,6 +4074,8 @@ const actionRunsPayload = [
     agentRuntimeDiagnosticsFingerprint:
       failedActionRunAgentRuntimeDiagnosticsFingerprint,
     agentRuntimeDiagnosticsManifest: {
+      actionId: 'image.filter.sketch',
+      actionVersion: 'v1',
       fingerprint: failedActionRunAgentRuntimeDiagnosticsFingerprint,
       hasPreparedRouteTrace: false,
       nativeTraceEventTypes: [],
@@ -4079,9 +4086,12 @@ const actionRunsPayload = [
         failedActionRunProjectionContractFingerprint,
       projectionGapCount: 6,
       projectionSource: 'ai_action_run_agent_runtime_projection/v1',
+      runStatus: 'failed',
       schemaReadiness: 'projection_contract_only',
       schemaReadinessGapCount: 7,
+      timelineEventTypes: ['run_status'],
       timelineGapCount: 11,
+      timelineItemCount: 1,
       timelineRouteEvidenceSetFingerprint:
         failedActionRunTimelineRouteEvidenceSetFingerprint,
       version: 'agent-runtime-diagnostics-manifest/v1',
@@ -8135,7 +8145,7 @@ describe('AiPage', () => {
     ).not.toBeNull();
     expect(
       screen.getByText(
-        `Agent runtime diagnostics manifest agent-runtime-diagnostics-manifest/v1 / fingerprint ${actionRunAgentRuntimeDiagnosticsFingerprint} / projection ${actionRunProjectionContractFingerprint} / timeline ${actionRunTimelineRouteEvidenceSetFingerprint} / source ai_action_run_agent_runtime_projection/v1 / schema projection_contract_only / prepared trace yes / routes 3/3 / steps 2 / projection gaps 5 / timeline gaps 10 / schema gaps 7 / native events action_trace -> tool:dispatch`
+        `Agent runtime diagnostics manifest agent-runtime-diagnostics-manifest/v1 / action mindmap.generate@v1 / run status Completed / fingerprint ${actionRunAgentRuntimeDiagnosticsFingerprint} / projection ${actionRunProjectionContractFingerprint} / timeline ${actionRunTimelineRouteEvidenceSetFingerprint} / source ai_action_run_agent_runtime_projection/v1 / schema projection_contract_only / prepared trace yes / routes 3/3 / steps 2 / timeline items 3 / projection gaps 5 / timeline gaps 10 / schema gaps 7 / timeline events run_status -> model_step / native events action_trace -> tool:dispatch`
       )
     ).not.toBeNull();
     expect(
@@ -8178,7 +8188,7 @@ describe('AiPage', () => {
       `Agent runtime diagnostics fingerprint ${actionRunAgentRuntimeDiagnosticsFingerprint}`
     );
     expect(actionRunDiagnostics).toContain(
-      `Agent runtime diagnostics manifest agent-runtime-diagnostics-manifest/v1 / fingerprint ${actionRunAgentRuntimeDiagnosticsFingerprint} / projection ${actionRunProjectionContractFingerprint} / timeline ${actionRunTimelineRouteEvidenceSetFingerprint} / source ai_action_run_agent_runtime_projection/v1 / schema projection_contract_only / prepared trace yes / routes 3/3 / steps 2 / projection gaps 5 / timeline gaps 10 / schema gaps 7 / native events action_trace -> tool:dispatch`
+      `Agent runtime diagnostics manifest agent-runtime-diagnostics-manifest/v1 / action mindmap.generate@v1 / run status Completed / fingerprint ${actionRunAgentRuntimeDiagnosticsFingerprint} / projection ${actionRunProjectionContractFingerprint} / timeline ${actionRunTimelineRouteEvidenceSetFingerprint} / source ai_action_run_agent_runtime_projection/v1 / schema projection_contract_only / prepared trace yes / routes 3/3 / steps 2 / timeline items 3 / projection gaps 5 / timeline gaps 10 / schema gaps 7 / timeline events run_status -> model_step / native events action_trace -> tool:dispatch`
     );
     expect(actionRunDiagnostics).toContain(
       'Agent runtime projection ai_action_run_agent_runtime_projection/v1'

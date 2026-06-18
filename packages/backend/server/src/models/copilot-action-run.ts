@@ -112,15 +112,20 @@ export type CopilotActionRunAgentRuntimeTimelineItem = {
 export type CopilotActionRunAgentRuntimeDiagnosticsManifest = {
   version: string;
   fingerprint: string;
+  actionId: string;
+  actionVersion: string;
+  runStatus: string;
   projectionContractFingerprint: string;
   timelineRouteEvidenceSetFingerprint: string;
   projectionSource: string;
   schemaReadiness: string;
   nativeTraceEventTypes: string[];
+  timelineEventTypes: string[];
   hasPreparedRouteTrace: boolean;
   preparedRouteStepCount: number;
   preparedRouteCount: number;
   preparedRouteActualCount: number;
+  timelineItemCount: number;
   projectionGapCount: number;
   timelineGapCount: number;
   schemaReadinessGapCount: number;
@@ -619,7 +624,9 @@ function normalizePreparedRouteTrace(
 function summarizePreparedRouteTrace(
   value: unknown,
   status: string,
-  runId: string
+  runId: string,
+  actionId: string,
+  actionVersion: string
 ) {
   const trace = normalizePreparedRouteTrace(value);
   const agentRuntimeRunStatus = mapActionRunStatusToAgentRuntimeStatus(status);
@@ -1039,16 +1046,21 @@ function summarizePreparedRouteTrace(
     {
       version: 'agent-runtime-diagnostics-manifest/v1',
       fingerprint: agentRuntimeDiagnosticsFingerprint,
+      actionId,
+      actionVersion,
+      runStatus: agentRuntimeRunStatus,
       projectionContractFingerprint: agentRuntimeProjectionContractFingerprint,
       timelineRouteEvidenceSetFingerprint:
         agentRuntimeTimelineRouteEvidenceSetFingerprint,
       projectionSource: AI_ACTION_RUN_AGENT_RUNTIME_PROJECTION_SOURCE,
       schemaReadiness: AI_ACTION_RUN_AGENT_RUNTIME_SCHEMA_READINESS,
       nativeTraceEventTypes: agentRuntimeNativeTraceEventTypes,
+      timelineEventTypes: agentRuntimeTimelineEventTypes,
       hasPreparedRouteTrace: !!trace,
       preparedRouteStepCount,
       preparedRouteCount,
       preparedRouteActualCount,
+      timelineItemCount: agentRuntimeTimelineItems.length,
       projectionGapCount: agentRuntimeProjectionGaps.length,
       timelineGapCount: agentRuntimeTimelineGaps.length,
       schemaReadinessGapCount: agentRuntimeSchemaReadinessGaps.length,
@@ -1243,7 +1255,9 @@ export class CopilotActionRunModel extends BaseModel {
       const traceSummary = summarizePreparedRouteTrace(
         row.trace,
         row.status,
-        row.id
+        row.id,
+        row.actionId,
+        row.actionVersion
       );
 
       return {

@@ -4188,6 +4188,9 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
   t.like(successfulDiagnostics!.agentRuntimeDiagnosticsManifest, {
     version: 'agent-runtime-diagnostics-manifest/v1',
     fingerprint: successfulDiagnostics!.agentRuntimeDiagnosticsFingerprint,
+    actionId: successfulDiagnostics!.actionId,
+    actionVersion: successfulDiagnostics!.actionVersion,
+    runStatus: successfulDiagnostics!.agentRuntimeRunStatus,
     projectionContractFingerprint:
       successfulDiagnostics!.agentRuntimeProjectionContractFingerprint,
     timelineRouteEvidenceSetFingerprint:
@@ -4196,10 +4199,12 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
     schemaReadiness: successfulDiagnostics!.agentRuntimeSchemaReadiness,
     nativeTraceEventTypes:
       successfulDiagnostics!.agentRuntimeNativeTraceEventTypes,
+    timelineEventTypes: successfulDiagnostics!.agentRuntimeTimelineEventTypes,
     hasPreparedRouteTrace: true,
     preparedRouteStepCount: 1,
     preparedRouteCount: 1,
     preparedRouteActualCount: 1,
+    timelineItemCount: successfulDiagnostics!.agentRuntimeTimelineItems.length,
     projectionGapCount:
       successfulDiagnostics!.agentRuntimeProjectionGaps.length,
     timelineGapCount: successfulDiagnostics!.agentRuntimeTimelineGaps.length,
@@ -4209,6 +4214,9 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
   t.like(failedDiagnostics!.agentRuntimeDiagnosticsManifest, {
     version: 'agent-runtime-diagnostics-manifest/v1',
     fingerprint: failedDiagnostics!.agentRuntimeDiagnosticsFingerprint,
+    actionId: failedDiagnostics!.actionId,
+    actionVersion: failedDiagnostics!.actionVersion,
+    runStatus: failedDiagnostics!.agentRuntimeRunStatus,
     projectionContractFingerprint:
       failedDiagnostics!.agentRuntimeProjectionContractFingerprint,
     timelineRouteEvidenceSetFingerprint:
@@ -4216,10 +4224,12 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
     projectionSource: failedDiagnostics!.agentRuntimeProjectionSource,
     schemaReadiness: failedDiagnostics!.agentRuntimeSchemaReadiness,
     nativeTraceEventTypes: failedDiagnostics!.agentRuntimeNativeTraceEventTypes,
+    timelineEventTypes: failedDiagnostics!.agentRuntimeTimelineEventTypes,
     hasPreparedRouteTrace: false,
     preparedRouteStepCount: 0,
     preparedRouteCount: 0,
     preparedRouteActualCount: 0,
+    timelineItemCount: failedDiagnostics!.agentRuntimeTimelineItems.length,
     projectionGapCount: failedDiagnostics!.agentRuntimeProjectionGaps.length,
     timelineGapCount: failedDiagnostics!.agentRuntimeTimelineGaps.length,
     schemaReadinessGapCount:

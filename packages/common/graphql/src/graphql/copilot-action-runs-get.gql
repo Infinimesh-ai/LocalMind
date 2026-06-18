@@ -6,6 +6,8 @@ query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
         actionVersion
         agentRuntimeDiagnosticsFingerprint
         agentRuntimeDiagnosticsManifest {
+          actionId
+          actionVersion
           fingerprint
           hasPreparedRouteTrace
           nativeTraceEventTypes
@@ -15,9 +17,12 @@ query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
           projectionContractFingerprint
           projectionGapCount
           projectionSource
+          runStatus
           schemaReadiness
           schemaReadinessGapCount
+          timelineEventTypes
           timelineGapCount
+          timelineItemCount
           timelineRouteEvidenceSetFingerprint
           version
         }

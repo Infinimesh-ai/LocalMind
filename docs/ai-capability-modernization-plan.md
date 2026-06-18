@@ -13723,3 +13723,34 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - manifest 的 `version` 是应用层字符串，不是 DB-backed Agent Runtime schema revision、Model Registry revision、Provider Registry revision 或迁移版本。
 - 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、筛选、JSON export、一键复制按钮或 Agent Runtime 原生 lifecycle artifact。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 407. P3 落地记录：Action Run Agent Runtime Diagnostics Manifest Scope Anchors
+
+本轮继续收敛第 406 节剩余风险中 “manifest 只包含摘要 anchor 和计数，作为 support bundle 输入时还缺少明确适用范围” 的问题。实际代码与目标 AI 中间层架构的冲突点是：`agentRuntimeDiagnosticsManifest` 已经提供版本、fingerprint 和 prepared route/gap 计数，但后续 route explain 或 support bundle 若只拿到 manifest，仍需要回读顶层字段才能确认该 manifest 属于哪个 action/version、映射到哪个 projected run status，以及包含多少 timeline item/event type。本轮在 manifest 中补充安全 scope anchors，不改变 trace 存储、真实 dispatch、Agent Runtime 状态机或持久化 schema。
+
+- `packages/backend/server/src/models/copilot-action-run.ts`：
+  - `CopilotActionRunAgentRuntimeDiagnosticsManifest` 新增 `actionId`、`actionVersion`、`runStatus`、`timelineEventTypes` 与 `timelineItemCount`。
+  - `summarizePreparedRouteTrace()` 接收 action identity，并把 projected run status、timeline event type 集合和 timeline item count 写入 manifest。
+  - 这些字段只来自既有脱敏 diagnostics projection，不读取 raw prepared route trace、timeline payload、provider response、prompt、secret、tool output 或 native lifecycle event payload。
+- GraphQL 与 common client：
+  - `CopilotActionRunAgentRuntimeDiagnosticsManifestType`、`schema.gql`、`getCopilotActionRuns` query、common query string 与 `schema.ts` 类型同步新增上述 manifest scope anchors。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - recent action runs 的 manifest 文本显示 `action ...@...`、`run status ...`、`timeline items ...` 与 `timeline events ...`。
+- 测试覆盖：
+  - resolver action runs 测试断言 manifest scope anchors 与顶层 action identity、Agent Runtime run status、timeline event types 和 timeline item count 保持一致。
+  - Admin Vitest fixture 与断言覆盖可见摘要和 copyable diagnostics text 中的 manifest scope anchors。
+
+该实现只扩展 `actionRuns` 列表的只读 structured diagnostics manifest、GraphQL selection/type、Admin 展示与测试，不新增 DB migration、不改变 action run trace 存储结构、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、repair mutation guard、正式 support bundle schema、Model Registry revision 或 Provider Registry revision。它把 manifest 从“摘要 anchor 可读”推进到“manifest 自身也携带安全 scope anchors”，降低后续导出或 route explain 再回读顶层字段的需求。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused copilot resolver AVA、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `agentRuntimeDiagnosticsManifest` 仍是 action run diagnostics 的只读 GraphQL projection，不是正式 support bundle download/export schema，也不提供 JSON 文件下载、一键复制按钮或筛选入口。
+- manifest scope anchors 仍是 action/run/timeline 的摘要，不包含完整 prepared route trace、timeline item payload、native trace event payload、tool output、Codex/MCP adapter 输出或审批结果。
+- manifest 的 `version` 仍是应用层字符串，不是 DB-backed Agent Runtime schema revision、Model Registry revision、Provider Registry revision 或迁移版本。
+- 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、筛选、JSON export、一键复制按钮或 Agent Runtime 原生 lifecycle artifact。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

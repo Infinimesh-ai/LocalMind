@@ -5278,6 +5278,8 @@ function formatActionRunAgentRuntimeDiagnosticsManifest(
 
   return compactList([
     `Agent runtime diagnostics manifest ${manifest.version}`,
+    `action ${manifest.actionId}@${manifest.actionVersion}`,
+    `run status ${formatFeatureKind(manifest.runStatus)}`,
     `fingerprint ${manifest.fingerprint}`,
     `projection ${manifest.projectionContractFingerprint}`,
     `timeline ${manifest.timelineRouteEvidenceSetFingerprint}`,
@@ -5286,9 +5288,13 @@ function formatActionRunAgentRuntimeDiagnosticsManifest(
     manifest.hasPreparedRouteTrace ? 'prepared trace yes' : 'prepared trace no',
     `routes ${manifest.preparedRouteActualCount}/${manifest.preparedRouteCount}`,
     `steps ${manifest.preparedRouteStepCount}`,
+    `timeline items ${manifest.timelineItemCount}`,
     `projection gaps ${manifest.projectionGapCount}`,
     `timeline gaps ${manifest.timelineGapCount}`,
     `schema gaps ${manifest.schemaReadinessGapCount}`,
+    manifest.timelineEventTypes.length
+      ? `timeline events ${manifest.timelineEventTypes.join(' -> ')}`
+      : 'timeline events none',
     manifest.nativeTraceEventTypes.length
       ? `native events ${manifest.nativeTraceEventTypes.join(' -> ')}`
       : 'native events none',

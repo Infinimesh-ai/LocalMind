@@ -690,6 +690,8 @@ export interface CopilotActionRunDiagnosticsItemType {
 
 export interface CopilotActionRunAgentRuntimeDiagnosticsManifestType {
   __typename?: 'CopilotActionRunAgentRuntimeDiagnosticsManifestType';
+  actionId: Scalars['String']['output'];
+  actionVersion: Scalars['String']['output'];
   fingerprint: Scalars['String']['output'];
   hasPreparedRouteTrace: Scalars['Boolean']['output'];
   nativeTraceEventTypes: Array<Scalars['String']['output']>;
@@ -699,9 +701,12 @@ export interface CopilotActionRunAgentRuntimeDiagnosticsManifestType {
   projectionContractFingerprint: Scalars['String']['output'];
   projectionGapCount: Scalars['SafeInt']['output'];
   projectionSource: Scalars['String']['output'];
+  runStatus: Scalars['String']['output'];
   schemaReadiness: Scalars['String']['output'];
   schemaReadinessGapCount: Scalars['SafeInt']['output'];
+  timelineEventTypes: Array<Scalars['String']['output']>;
   timelineGapCount: Scalars['SafeInt']['output'];
+  timelineItemCount: Scalars['SafeInt']['output'];
   timelineRouteEvidenceSetFingerprint: Scalars['String']['output'];
   version: Scalars['String']['output'];
 }
@@ -8757,6 +8762,8 @@ export type GetCopilotActionRunsQuery = {
         agentRuntimeDiagnosticsFingerprint: string;
         agentRuntimeDiagnosticsManifest: {
           __typename?: 'CopilotActionRunAgentRuntimeDiagnosticsManifestType';
+          actionId: string;
+          actionVersion: string;
           fingerprint: string;
           hasPreparedRouteTrace: boolean;
           nativeTraceEventTypes: Array<string>;
@@ -8766,9 +8773,12 @@ export type GetCopilotActionRunsQuery = {
           projectionContractFingerprint: string;
           projectionGapCount: number;
           projectionSource: string;
+          runStatus: string;
           schemaReadiness: string;
           schemaReadinessGapCount: number;
+          timelineEventTypes: Array<string>;
           timelineGapCount: number;
+          timelineItemCount: number;
           timelineRouteEvidenceSetFingerprint: string;
           version: string;
         };

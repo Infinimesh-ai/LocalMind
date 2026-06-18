@@ -3788,6 +3788,15 @@ class CopilotActionRunAgentRuntimeDiagnosticsManifestType implements CopilotActi
   fingerprint!: string;
 
   @Field(() => String)
+  actionId!: string;
+
+  @Field(() => String)
+  actionVersion!: string;
+
+  @Field(() => String)
+  runStatus!: string;
+
+  @Field(() => String)
   projectionContractFingerprint!: string;
 
   @Field(() => String)
@@ -3802,6 +3811,9 @@ class CopilotActionRunAgentRuntimeDiagnosticsManifestType implements CopilotActi
   @Field(() => [String])
   nativeTraceEventTypes!: string[];
 
+  @Field(() => [String])
+  timelineEventTypes!: string[];
+
   @Field(() => Boolean)
   hasPreparedRouteTrace!: boolean;
 
@@ -3813,6 +3825,9 @@ class CopilotActionRunAgentRuntimeDiagnosticsManifestType implements CopilotActi
 
   @Field(() => SafeIntResolver)
   preparedRouteActualCount!: number;
+
+  @Field(() => SafeIntResolver)
+  timelineItemCount!: number;
 
   @Field(() => SafeIntResolver)
   projectionGapCount!: number;

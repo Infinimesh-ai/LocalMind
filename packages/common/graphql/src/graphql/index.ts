@@ -3238,6 +3238,8 @@ export const getCopilotActionRunsQuery = {
         actionVersion
         agentRuntimeDiagnosticsFingerprint
         agentRuntimeDiagnosticsManifest {
+          actionId
+          actionVersion
           fingerprint
           hasPreparedRouteTrace
           nativeTraceEventTypes
@@ -3247,9 +3249,12 @@ export const getCopilotActionRunsQuery = {
           projectionContractFingerprint
           projectionGapCount
           projectionSource
+          runStatus
           schemaReadiness
           schemaReadinessGapCount
+          timelineEventTypes
           timelineGapCount
+          timelineItemCount
           timelineRouteEvidenceSetFingerprint
           version
         }
