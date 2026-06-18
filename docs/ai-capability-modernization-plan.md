@@ -12803,3 +12803,28 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - workspace indexing runtime 仍强制请求并校验 `EMBEDDING_DIMENSIONS = 1024`；切换到非 1024 维模型仍需要后续索引版本和重建机制。
 - 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Index Version record、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 376. P3 落地记录：Model List Provider Definition Cost/Limit Metadata Alignment
+
+本轮继续收敛“前端模型列表、自部署模型配置、Model Registry 元数据可见性”方向中的一处列表路径不一致。实际代码与目标 AI 中间层架构的冲突点是：task route candidate 已经在 `routeCandidateModelDefinitionMetadata()` 中逐字段优先使用 provider profile `modelDefinitions[].cost` 与 `modelDefinitions[].limits`，再回退 resolved provider model metadata；但 `CopilotResolver.models()` 的模型列表路径只从 resolved provider model 读取 cost，并直接读取 resolved model limits。真实 provider runtime 通常会把 configured model definition 合并进 resolved model，但 resolver 合约、测试 fake provider 或后续 adapter 不能依赖这一隐式前提，否则 Admin/AI button 的模型列表可能丢失自部署 profile definition 声明的价格和上下文/输出/embedding 维度元数据。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `models()` / `convertModels()` 中的 `contextWindow`、`maxOutputTokens`、`embeddingDimensions`、`costInputPer1M` 与 `costOutputPer1M` 改为逐字段优先读取 `profileDefinition.limits/cost`，再回退 `resolveModelLimits(providerModel)` 与 `resolvedProviderModel.cost`。
+  - 该优先级与 task route candidate metadata 保持一致；profile definition 只声明部分字段时，未声明字段仍可回退到 provider runtime/native registry metadata。
+- `packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts`：
+  - 在 `local/default-chat` 的 provider profile model definition fixture 中加入 limits 与 cost。
+  - 新增断言证明 `resolver.models()` 返回的模型列表会暴露 profile definition 的 cost/limit metadata，即使 fake provider `resolveModel()` 没有把这些字段合并进 resolved model。
+
+该实现只对齐模型列表只读 metadata 填充优先级与测试，不新增 GraphQL 字段、不改变 schema/codegen、不新增 DB migration、不创建 Model Registry/Provider Registry revision row、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把“模型列表依赖 provider runtime 恰好合并 profile definition metadata”的隐式假设推进到“resolver 列表合约显式按 profile definition 优先级暴露 cost/limits”，减少自部署模型配置在前端可见性上的漂移。
+
+验证策略：
+
+- 本轮为 TypeScript smoke test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration、GraphQL schema 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Prettier/oxlint 与 `git diff --check`。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- 模型列表仍只暴露 profile definition / provider runtime / native registry 已声明的静态 metadata，不执行真实 provider probing，不验证 provider 实际上下文窗口、输出上限、计费价格或 embedding 向量长度。
+- cost/limits 仍是只读 UI/diagnostics metadata，不参与 token budgeting、quota、route policy DSL、repair guard、billing、support bundle schema 或审计记录。
+- workspace indexing runtime 仍强制请求并校验 `EMBEDDING_DIMENSIONS = 1024`；模型列表显示非 1024 `embeddingDimensions` 只代表模型声明，不代表索引维度已迁移。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

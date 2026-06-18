@@ -13903,23 +13903,29 @@ export class CopilotResolver {
           const limits = providerModel
             ? resolveModelLimits(providerModel)
             : undefined;
+          const contextWindow =
+            profileDefinition?.limits?.contextWindow ?? limits?.contextWindow;
+          const maxOutputTokens =
+            profileDefinition?.limits?.maxOutputTokens ??
+            limits?.maxOutputTokens;
+          const embeddingDimensions =
+            profileDefinition?.limits?.embeddingDimensions ??
+            limits?.embeddingDimensions;
+          const costInputPer1M =
+            profileDefinition?.cost?.inputPer1M ??
+            resolvedProviderModel?.cost?.inputPer1M;
+          const costOutputPer1M =
+            profileDefinition?.cost?.outputPer1M ??
+            resolvedProviderModel?.cost?.outputPer1M;
           const modelMetadata = {
             ...baseModelMetadata,
-            ...(limits?.contextWindow !== undefined
-              ? { contextWindow: limits.contextWindow }
+            ...(contextWindow !== undefined ? { contextWindow } : {}),
+            ...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
+            ...(embeddingDimensions !== undefined
+              ? { embeddingDimensions }
               : {}),
-            ...(limits?.maxOutputTokens !== undefined
-              ? { maxOutputTokens: limits.maxOutputTokens }
-              : {}),
-            ...(limits?.embeddingDimensions !== undefined
-              ? { embeddingDimensions: limits.embeddingDimensions }
-              : {}),
-            ...(resolvedProviderModel?.cost?.inputPer1M !== undefined
-              ? { costInputPer1M: resolvedProviderModel.cost.inputPer1M }
-              : {}),
-            ...(resolvedProviderModel?.cost?.outputPer1M !== undefined
-              ? { costOutputPer1M: resolvedProviderModel.cost.outputPer1M }
-              : {}),
+            ...(costInputPer1M !== undefined ? { costInputPer1M } : {}),
+            ...(costOutputPer1M !== undefined ? { costOutputPer1M } : {}),
           };
 
           const cachedName = this.modelNames.get(id);

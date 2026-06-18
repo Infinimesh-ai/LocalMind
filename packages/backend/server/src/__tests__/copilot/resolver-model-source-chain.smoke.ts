@@ -1188,6 +1188,15 @@ async function main() {
               id: 'default-chat',
               rawModelId: 'qwen3:32b',
               aliases: ['default-alias'],
+              limits: {
+                contextWindow: 32768,
+                maxOutputTokens: 4096,
+                embeddingDimensions: 1024,
+              },
+              cost: {
+                inputPer1M: 0.13,
+                outputPer1M: 0.26,
+              },
             },
             {
               id: 'optional-chat',
@@ -1548,6 +1557,11 @@ async function main() {
     ['default-alias']
   );
   assert.equal(byId.get('local/default-chat')?.routeModelAliasMatched, false);
+  assert.equal(byId.get('local/default-chat')?.contextWindow, 32768);
+  assert.equal(byId.get('local/default-chat')?.maxOutputTokens, 4096);
+  assert.equal(byId.get('local/default-chat')?.embeddingDimensions, 1024);
+  assert.equal(byId.get('local/default-chat')?.costInputPer1M, 0.13);
+  assert.equal(byId.get('local/default-chat')?.costOutputPer1M, 0.26);
   assert.equal(
     result.embeddingRoute?.routeCandidates[0]?.providerProfileId,
     'local'
