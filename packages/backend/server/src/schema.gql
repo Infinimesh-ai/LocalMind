@@ -585,11 +585,13 @@ type CopilotActionRunAgentRuntimeTimelineItemType {
   actualRouteCount: SafeInt!
   eventKey: String!
   eventType: String!
+  fallbackProviderIds: [String!]!
   id: String!
   kind: String
   label: String!
   routeCount: SafeInt!
   routeCountMismatch: Boolean!
+  routeTargets: [String!]!
   runId: String!
   sequence: SafeInt!
   status: String!

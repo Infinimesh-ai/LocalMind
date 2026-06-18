@@ -2713,6 +2713,12 @@ const actionRunsPayload = [
         label: 'run -> completed',
         routeCount: 3,
         routeCountMismatch: false,
+        routeTargets: [
+          'ollama-main/local/office-structured',
+          'openai-default/gpt-5-mini',
+          'openai-default/gpt-image-1',
+        ],
+        fallbackProviderIds: ['ollama-main', 'openai-default'],
         runId: 'run-123',
         sequence: 0,
         status: 'completed',
@@ -2728,6 +2734,8 @@ const actionRunsPayload = [
         label: 'generate -> model_step -> completed -> structured -> 2/2',
         routeCount: 2,
         routeCountMismatch: true,
+        routeTargets: ['ollama-main/local/office-structured'],
+        fallbackProviderIds: ['ollama-main', 'openai-default'],
         runId: 'run-123',
         sequence: 1,
         status: 'completed',
@@ -2743,6 +2751,8 @@ const actionRunsPayload = [
         label: 'generate-image -> model_step -> completed -> image -> 1/1',
         routeCount: 1,
         routeCountMismatch: false,
+        routeTargets: ['openai-default/gpt-image-1'],
+        fallbackProviderIds: ['openai-default'],
         runId: 'run-123',
         sequence: 2,
         status: 'completed',
@@ -3007,6 +3017,8 @@ const actionRunsPayload = [
         label: 'run -> failed',
         routeCount: 0,
         routeCountMismatch: false,
+        routeTargets: [],
+        fallbackProviderIds: [],
         runId: 'run-failed',
         sequence: 0,
         status: 'failed',
@@ -6779,13 +6791,13 @@ describe('AiPage', () => {
     const visibleTimeline =
       screen.getByTestId('action-run-timeline-run-123').textContent ?? '';
     expect(visibleTimeline).toContain(
-      '#0 / key run_status / Timeline Run Status / status Completed / run / routes 3/3'
+      '#0 / key run_status / Timeline Run Status / status Completed / run / routes 3/3 / targets ollama-main/local/office-structured -> openai-default/gpt-5-mini -> openai-default/gpt-image-1 / fallback ollama-main -> openai-default'
     );
     expect(visibleTimeline).toContain(
-      '#1 / key model_step:generate / Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 1/2 / route count mismatch'
+      '#1 / key model_step:generate / Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 1/2 / route count mismatch / targets ollama-main/local/office-structured / fallback ollama-main -> openai-default'
     );
     expect(visibleTimeline).toContain(
-      '#2 / key model_step:generate-image / Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1'
+      '#2 / key model_step:generate-image / Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1 / targets openai-default/gpt-image-1 / fallback openai-default'
     );
     const failedVisibleTimeline =
       screen.getByTestId('action-run-timeline-run-failed').textContent ?? '';
@@ -6820,7 +6832,7 @@ describe('AiPage', () => {
       'Agent runtime timeline entries run -> completed | generate -> model_step -> completed -> structured -> 2/2 | generate-image -> model_step -> completed -> image -> 1/1'
     );
     expect(actionRunDiagnostics).toContain(
-      'Agent runtime timeline items #0 / key run_status / Timeline Run Status / status Completed / run / routes 3/3 | #1 / key model_step:generate / Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 1/2 / route count mismatch | #2 / key model_step:generate-image / Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1'
+      'Agent runtime timeline items #0 / key run_status / Timeline Run Status / status Completed / run / routes 3/3 / targets ollama-main/local/office-structured -> openai-default/gpt-5-mini -> openai-default/gpt-image-1 / fallback ollama-main -> openai-default | #1 / key model_step:generate / Timeline Model Step / status Completed / step generate / type Model / kind Structured / routes 1/2 / route count mismatch / targets ollama-main/local/office-structured / fallback ollama-main -> openai-default | #2 / key model_step:generate-image / Timeline Model Step / status Completed / step generate-image / type Model / kind Image / routes 1/1 / targets openai-default/gpt-image-1 / fallback openai-default'
     );
     expect(actionRunDiagnostics).toContain(
       'Agent runtime timeline event types run_status | model_step'

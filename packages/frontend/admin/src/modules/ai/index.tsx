@@ -4862,6 +4862,12 @@ function formatActionRunAgentRuntimeTimelineItem(
     item.kind ? `kind ${formatFeatureKind(item.kind)}` : null,
     `routes ${item.actualRouteCount}/${item.routeCount}`,
     item.routeCountMismatch ? 'route count mismatch' : null,
+    item.routeTargets.length
+      ? `targets ${item.routeTargets.join(' -> ')}`
+      : null,
+    item.fallbackProviderIds.length
+      ? `fallback ${item.fallbackProviderIds.join(' -> ')}`
+      : null,
   ]);
 }
 

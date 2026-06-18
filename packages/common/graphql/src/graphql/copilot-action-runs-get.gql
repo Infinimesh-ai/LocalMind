@@ -30,11 +30,13 @@ query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
           actualRouteCount
           eventKey
           eventType
+          fallbackProviderIds
           id
           kind
           label
           routeCount
           routeCountMismatch
+          routeTargets
           runId
           sequence
           status

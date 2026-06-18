@@ -12203,3 +12203,32 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 当前 eventKey 仅覆盖 `run_status` 与 `model_step:<stepId>`，不覆盖真实 tool step、approval step、handoff step、Codex step、MCP step、step output/error、retry attempt、rollback state 或 cancellation event。
 - timeline item 仍不是持久化 Agent timeline event row；没有真实开始/结束时间、latency、token usage、cost、provider response、tool args、MCP server id、Codex sandbox policy、approval record、retry attempt id、rollback result 或 artifact patch。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 357. P3 落地记录：Action Run Structured Timeline Route Target Projection
+
+本轮继续收敛第 356 节剩余风险中 “`eventKey` 只能定位 projected event，但不包含 model/provider route target 或 fallback provider；管理员仍需要结合 prepared route diagnostics 才能定位某个 projected model step 实际会走哪个 provider/model” 的问题。实际代码与目标 Agent Runtime 架构的冲突点是：正式 Agent timeline 仍应从 DB-backed AgentRun/AgentStep/timeline event 和 Codex/MCP adapter event ingestion 写入 provider/model、tool、approval、retry、rollback 等事件；但当前 `AiActionRun` 只有 prepared route trace。直接落持久化 timeline schema 会牵涉 migration、worker/queue、runtime 状态机和多 adapter 写入，本轮先把已有 prepared route target 与 fallback provider 纳入只读结构化 projection，避免 Admin 从长 prepared route trace 中手动拼接 model step 对应的路由目标。
+
+- `packages/backend/server/src/models/copilot-action-run.ts`：
+  - `CopilotActionRunAgentRuntimeTimelineItem` 新增 `routeTargets` 与 `fallbackProviderIds`。
+  - `run_status` item 使用全量去重的 `preparedRouteTargets` 与 `preparedRouteFallbackProviderIds`；`model_step` item 使用该 step 的 `providerId/modelId` targets 与 `fallbackProviderIds`。
+- GraphQL 与 common client：
+  - `CopilotActionRunAgentRuntimeTimelineItemType`、`schema.gql`、`getCopilotActionRuns` selection 与 `QueryResponse` 类型同步新增 `routeTargets` 和 `fallbackProviderIds`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - 结构化 timeline item 摘要在存在数据时显示 `targets ...` 与 `fallback ...`，让可见 timeline block 和 copyable diagnostics text 都能直接定位 projected event 的 provider/model 与 fallback provider chain。
+- 测试覆盖：
+  - `packages/backend/server/src/__tests__/copilot/copilot.spec.ts` 断言成功 run 的 run status 与 model step timeline items 返回 route target/fallback provider，失败 run 返回空数组。
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 更新 action run mock payload，并断言 Admin 可见 timeline 与 diagnostics text 均显示 targets/fallback。
+
+该实现只扩展只读 action run diagnostics、GraphQL selection/type、Admin 渲染与测试，不新增 DB migration、不创建 AgentRun/AgentStep/timeline event 表、不新增 queue/worker/lease、不改变 native action runtime、不执行 tool/MCP/Codex/approval/handoff step，不记录 step output/error、retry attempt、rollback state 或 cancellation event，不改变 prepared route selection、provider route policy、Prompt Registry、repair execution request contract、MCP registry、Codex adapter 或审批写入路径。它把第 352-356 节的结构化 timeline projection 从“能定位 event 和 route coverage，但仍要跳到 prepared route trace 才知道 provider/model”推进到“每个 projected timeline item 可直接带只读 route target 与 fallback provider summary”，为后续正式 Agent timeline schema、support bundle、trace export、repair guard 与 Codex/MCP event ingestion 提供更完整的过渡契约。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与宿主源码 bind mount 运行 focused Prettier、oxlint、backend copilot spec 与 Admin AI Vitest。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `routeTargets` 与 `fallbackProviderIds` 仍来自 prepared route projection，不代表 NativeExecutionEngine 最终执行阶段真实选中的 provider、retry/fallback 结果、provider response、token usage、latency 或 cost。
+- timeline item 仍不是持久化 Agent timeline event row；没有真实开始/结束时间、latency、token usage、cost、provider response、tool args、MCP server id、Codex sandbox policy、approval record、retry attempt id、rollback result 或 artifact patch。
+- 当前 route target 字段只覆盖 `run_status` 汇总与 `model_step`，不覆盖真实 tool step、approval step、handoff step、Codex step、MCP step、step output/error、retry attempt、rollback state 或 cancellation event。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

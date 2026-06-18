@@ -3469,6 +3469,8 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
           routeCount: 1,
           actualRouteCount: 1,
           routeCountMismatch: false,
+          routeTargets: ['ollama-main/local/office-structured'],
+          fallbackProviderIds: ['ollama-main'],
         },
         {
           id: `${run.id}:0:generate:model_step`,
@@ -3484,6 +3486,8 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
           routeCount: 1,
           actualRouteCount: 1,
           routeCountMismatch: false,
+          routeTargets: ['ollama-main/local/office-structured'],
+          fallbackProviderIds: ['ollama-main'],
         },
       ],
       agentRuntimeTargetRunStatuses: [
@@ -3709,6 +3713,8 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
           routeCount: 0,
           actualRouteCount: 0,
           routeCountMismatch: false,
+          routeTargets: [],
+          fallbackProviderIds: [],
         },
       ],
       agentRuntimeTargetRunStatuses: [

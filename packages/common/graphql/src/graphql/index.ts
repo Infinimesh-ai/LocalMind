@@ -3055,11 +3055,13 @@ export const getCopilotActionRunsQuery = {
           actualRouteCount
           eventKey
           eventType
+          fallbackProviderIds
           id
           kind
           label
           routeCount
           routeCountMismatch
+          routeTargets
           runId
           sequence
           status

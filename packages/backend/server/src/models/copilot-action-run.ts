@@ -92,6 +92,8 @@ export type CopilotActionRunAgentRuntimeTimelineItem = {
   routeCount: number;
   actualRouteCount: number;
   routeCountMismatch: boolean;
+  routeTargets: string[];
+  fallbackProviderIds: string[];
 };
 
 export type CopilotActionRunDiagnosticsItem = {
@@ -655,6 +657,8 @@ function summarizePreparedRouteTrace(
         routeCount: preparedRouteCount,
         actualRouteCount: preparedRouteActualCount,
         routeCountMismatch: preparedRouteCount !== preparedRouteActualCount,
+        routeTargets: preparedRouteTargets,
+        fallbackProviderIds: preparedRouteFallbackProviderIds,
       },
       ...(trace?.steps.map((step, index) => ({
         id: `${runId}:${index}:${step.stepId}:model_step`,
@@ -670,6 +674,10 @@ function summarizePreparedRouteTrace(
         routeCount: step.routeCount,
         actualRouteCount: step.routes.length,
         routeCountMismatch: step.routeCountMismatch,
+        routeTargets: uniqueNonEmptyStrings(
+          step.routes.map(route => `${route.providerId}/${route.modelId}`)
+        ),
+        fallbackProviderIds: step.fallbackProviderIds,
       })) ?? []),
     ];
 

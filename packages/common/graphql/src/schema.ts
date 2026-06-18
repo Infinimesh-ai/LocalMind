@@ -681,11 +681,13 @@ export interface CopilotActionRunAgentRuntimeTimelineItemType {
   actualRouteCount: Scalars['SafeInt']['output'];
   eventKey: Scalars['String']['output'];
   eventType: Scalars['String']['output'];
+  fallbackProviderIds: Array<Scalars['String']['output']>;
   id: Scalars['String']['output'];
   kind?: Maybe<Scalars['String']['output']>;
   label: Scalars['String']['output'];
   routeCount: Scalars['SafeInt']['output'];
   routeCountMismatch: Scalars['Boolean']['output'];
+  routeTargets: Array<Scalars['String']['output']>;
   runId: Scalars['String']['output'];
   sequence: Scalars['SafeInt']['output'];
   status: Scalars['String']['output'];
@@ -8365,11 +8367,13 @@ export type GetCopilotActionRunsQuery = {
           actualRouteCount: number;
           eventKey: string;
           eventType: string;
+          fallbackProviderIds: Array<string>;
           id: string;
           kind: string | null;
           label: string;
           routeCount: number;
           routeCountMismatch: boolean;
+          routeTargets: Array<string>;
           runId: string;
           sequence: number;
           status: string;

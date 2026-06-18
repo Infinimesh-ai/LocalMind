@@ -3422,6 +3422,12 @@ class CopilotActionRunAgentRuntimeTimelineItemType implements CopilotActionRunAg
 
   @Field(() => Boolean)
   routeCountMismatch!: boolean;
+
+  @Field(() => [String])
+  routeTargets!: string[];
+
+  @Field(() => [String])
+  fallbackProviderIds!: string[];
 }
 
 @ObjectType()
