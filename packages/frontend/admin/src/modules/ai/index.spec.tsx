@@ -94,9 +94,7 @@ function taskRouteTargetFingerprintFixture(input: {
     .slice(0, 16);
 }
 
-function taskRoutePolicyCandidateSnapshotFingerprintFixture(
-  candidates: unknown
-) {
+function taskRouteSnapshotFingerprintFixture(candidates: unknown) {
   return createHash('sha256')
     .update(stableFixtureStringify(candidates))
     .digest('hex')
@@ -1991,7 +1989,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
               blockedRoute.preparedRouteTargetFingerprint,
             policyCandidates: blockedRoute.policyCandidates,
             policyCandidateSnapshotFingerprint:
-              taskRoutePolicyCandidateSnapshotFingerprintFixture(
+              taskRouteSnapshotFingerprintFixture(
                 blockedRoute.policyCandidates
               ),
             providerConfiguredModelCount: 1,
@@ -2007,6 +2005,8 @@ const readyPublishGateVerdict = withRepairActionPreview(
             providerType: 'openai_compatible',
             reasons: ['policy_allowed'],
             requestedModelId: null,
+            routeCandidateSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(blockedRoute.routeCandidates),
             routeModelDefinitionId: null,
             routeTrace: blockedRoute.routeTrace,
             routeTracePhases: blockedRoute.routeTrace.map(phase => phase.phase),
@@ -2024,7 +2024,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
               blockedRoute.preparedRouteTargetFingerprint,
             policyCandidates: blockedRoute.policyCandidates,
             policyCandidateSnapshotFingerprint:
-              taskRoutePolicyCandidateSnapshotFingerprintFixture(
+              taskRouteSnapshotFingerprintFixture(
                 blockedRoute.policyCandidates
               ),
             providerConfiguredModelCount: 1,
@@ -2040,6 +2040,8 @@ const readyPublishGateVerdict = withRepairActionPreview(
             providerType: 'openai_compatible',
             reasons: ['model_alias_matched'],
             requestedModelId: 'workspace-embedding',
+            routeCandidateSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(blockedRoute.routeCandidates),
             routeModelDefinitionId: 'workspace-embedding',
             routeTrace: blockedRoute.routeTrace,
             routeTracePhases: blockedRoute.routeTrace.map(phase => phase.phase),
@@ -2057,7 +2059,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
               blockedRoute.preparedRouteTargetFingerprint,
             policyCandidates: blockedRoute.policyCandidates,
             policyCandidateSnapshotFingerprint:
-              taskRoutePolicyCandidateSnapshotFingerprintFixture(
+              taskRouteSnapshotFingerprintFixture(
                 blockedRoute.policyCandidates
               ),
             providerConfiguredModelCount: 1,
@@ -2073,6 +2075,8 @@ const readyPublishGateVerdict = withRepairActionPreview(
             providerType: 'openai_compatible',
             reasons: ['prepared_route_candidate'],
             requestedModelId: 'workspace-embedding',
+            routeCandidateSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(blockedRoute.routeCandidates),
             routeModelDefinitionId: 'workspace-embedding',
             routeTrace: blockedRoute.routeTrace,
             routeTracePhases: blockedRoute.routeTrace.map(phase => phase.phase),
@@ -6001,10 +6005,13 @@ describe('AiPage', () => {
       'route trace policy / candidates 1 / available 1 / blocked 0 / matched 1 / selected 1 / prepared 0 / reasons Candidate Allowed'
     );
     expect(readyGateDiagnostics).toContain(
-      `policy snapshot fingerprint ${taskRoutePolicyCandidateSnapshotFingerprintFixture(blockedRoute.policyCandidates)}`
+      `policy snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(blockedRoute.policyCandidates)}`
     );
     expect(readyGateDiagnostics).toContain(
       'policy candidates Local Ollama / ollama-main / type OpenAI-compatible / source BYOK local'
+    );
+    expect(readyGateDiagnostics).toContain(
+      `route snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(blockedRoute.routeCandidates)}`
     );
     expect(readyGateDiagnostics).toContain(
       'provider ollama-main / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding'

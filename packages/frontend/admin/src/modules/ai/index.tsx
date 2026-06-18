@@ -2983,6 +2983,9 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
           .map(formatPromptRegistryPublishGatePolicyCandidate)
           .join(' | ')}`
       : null,
+    evidence.routeCandidateSnapshotFingerprint
+      ? `route snapshot fingerprint ${evidence.routeCandidateSnapshotFingerprint}`
+      : null,
     evidence.reasons.length ? `reasons ${evidence.reasons.join(', ')}` : null,
   ]);
 }

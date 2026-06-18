@@ -638,6 +638,7 @@ query getCopilotPromptRegistryPublishGate(
             providerType
             reasons
             requestedModelId
+            routeCandidateSnapshotFingerprint
             routeModelDefinitionId
             routeTrace {
               availableCount

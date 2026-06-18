@@ -1742,6 +1742,7 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   providerType?: Maybe<Scalars['String']['output']>;
   reasons: Array<Scalars['String']['output']>;
   requestedModelId?: Maybe<Scalars['String']['output']>;
+  routeCandidateSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   routeModelDefinitionId?: Maybe<Scalars['String']['output']>;
   routeTrace?: Maybe<
     Array<CopilotPromptRegistryPublishGateRouteTracePhaseType>
@@ -7867,6 +7868,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             providerType: string | null;
             reasons: Array<string>;
             requestedModelId: string | null;
+            routeCandidateSnapshotFingerprint: string | null;
             routeModelDefinitionId: string | null;
             routeTrace: Array<{
               __typename?: 'CopilotPromptRegistryPublishGateRouteTracePhaseType';

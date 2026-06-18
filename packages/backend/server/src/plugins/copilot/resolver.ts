@@ -721,6 +721,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   providerType?: string;
   reasons: string[];
   requestedModelId?: string;
+  routeCandidateSnapshotFingerprint?: string;
   routeModelDefinitionId?: string;
   routeTrace?: CopilotPromptRegistryPublishGateRouteTracePhase[];
   routeTracePhases?: string[];
@@ -1758,6 +1759,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   requestedModelId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['requestedModelId'];
+
+  @Field(() => String, { nullable: true })
+  routeCandidateSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeCandidateSnapshotFingerprint'];
 
   @Field(() => String, { nullable: true })
   routeModelDefinitionId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeModelDefinitionId'];
@@ -4069,6 +4073,8 @@ function definedArray<T>(values: T[] | undefined) {
   return values?.length ? values : undefined;
 }
 
+const TASK_ROUTE_RECOMMENDATION_EVIDENCE_LIMIT = 96;
+
 function taskRouteRepairCandidateEvidenceBase(
   scope: string,
   candidate: {
@@ -4093,6 +4099,7 @@ function taskRouteRepairCandidateEvidenceBase(
     providerType?: string;
     reasons?: string[];
     requestedModelId?: string;
+    routeCandidateSnapshotFingerprint?: string;
     routeModelDefinitionId?: string;
     routeTrace?: CopilotPromptRegistryPublishGateRouteTracePhase[];
     routeTracePhases?: string[];
@@ -4173,6 +4180,12 @@ function taskRouteRepairCandidateEvidenceBase(
     ...(candidate.requestedModelId !== undefined
       ? { requestedModelId: candidate.requestedModelId }
       : {}),
+    ...(candidate.routeCandidateSnapshotFingerprint !== undefined
+      ? {
+          routeCandidateSnapshotFingerprint:
+            candidate.routeCandidateSnapshotFingerprint,
+        }
+      : {}),
     ...(candidate.routeModelDefinitionId !== undefined
       ? { routeModelDefinitionId: candidate.routeModelDefinitionId }
       : {}),
@@ -4213,6 +4226,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       providerType?: string;
       reasons?: string[];
       requestedModelId?: string;
+      routeCandidateSnapshotFingerprint?: string;
       routeModelDefinitionId?: string;
       routeTrace?: CopilotPromptRegistryPublishGateRouteTracePhase[];
       routeTracePhases?: string[];
@@ -4262,6 +4276,9 @@ function taskRouteCandidateProfileStructuredEvidence(
         : {}),
       reasons: candidate.reasons,
     }));
+    const routeCandidateSnapshot = route.routeCandidates.map(
+      toPromptRegistryPublishGateRouteCandidate
+    );
     const evidence = taskRouteRepairCandidateEvidenceBase(
       scope,
       {
@@ -4270,8 +4287,12 @@ function taskRouteCandidateProfileStructuredEvidence(
         preparedRouteTargets: route.preparedRouteTargets,
         preparedRouteTargetFingerprint: route.preparedRouteTargetFingerprint,
         policyCandidates: policyCandidateSnapshot,
-        policyCandidateSnapshotFingerprint:
-          taskRoutePolicyCandidateSnapshotFingerprint(policyCandidateSnapshot),
+        policyCandidateSnapshotFingerprint: taskRouteSnapshotFingerprint(
+          policyCandidateSnapshot
+        ),
+        routeCandidateSnapshotFingerprint: taskRouteSnapshotFingerprint(
+          routeCandidateSnapshot
+        ),
         routeTrace: route.routeTrace.map(phase => ({
           ...(phase.availableCount !== undefined
             ? { availableCount: phase.availableCount }
@@ -4329,6 +4350,24 @@ function taskRouteCandidateProfileEvidence(
             ? `${candidate.scope}#${candidate.candidateIndex}:candidateKey:${candidate.candidateKey}`
             : null,
           `${candidate.scope}#${candidate.candidateIndex}:providerId:${candidate.providerId}`,
+          candidate.requestedModelId
+            ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelId:${candidate.requestedModelId}`
+            : null,
+          candidate.modelId
+            ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
+            : null,
+          candidate.preparedModelId
+            ? `${candidate.scope}#${candidate.candidateIndex}:preparedModelId:${candidate.preparedModelId}`
+            : null,
+          candidate.policyCandidateSnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:policyCandidateSnapshotFingerprint:${candidate.policyCandidateSnapshotFingerprint}`
+            : null,
+          candidate.routeCandidateSnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:routeCandidateSnapshotFingerprint:${candidate.routeCandidateSnapshotFingerprint}`
+            : null,
+          candidate.routeModelDefinitionId
+            ? `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionId:${candidate.routeModelDefinitionId}`
+            : null,
           candidate.providerName
             ? `${candidate.scope}#${candidate.candidateIndex}:providerName:${candidate.providerName}`
             : null,
@@ -4354,21 +4393,6 @@ function taskRouteCandidateProfileEvidence(
             modelId =>
               `${candidate.scope}#${candidate.candidateIndex}:providerConfiguredModel:${modelId}`
           ),
-          candidate.requestedModelId
-            ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelId:${candidate.requestedModelId}`
-            : null,
-          candidate.modelId
-            ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
-            : null,
-          candidate.preparedModelId
-            ? `${candidate.scope}#${candidate.candidateIndex}:preparedModelId:${candidate.preparedModelId}`
-            : null,
-          candidate.policyCandidateSnapshotFingerprint
-            ? `${candidate.scope}#${candidate.candidateIndex}:policyCandidateSnapshotFingerprint:${candidate.policyCandidateSnapshotFingerprint}`
-            : null,
-          candidate.routeModelDefinitionId
-            ? `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionId:${candidate.routeModelDefinitionId}`
-            : null,
           ...(candidate.candidateModelIds ?? []).map(
             modelId =>
               `${candidate.scope}#${candidate.candidateIndex}:candidateModel:${modelId}`
@@ -4378,7 +4402,7 @@ function taskRouteCandidateProfileEvidence(
               `${candidate.scope}#${candidate.candidateIndex}:reason:${reason}`
           ),
         ],
-        16
+        20
       )
     )
   );
@@ -4843,9 +4867,7 @@ function taskRouteRepairCandidateEvidenceFingerprint(
     .slice(0, 16);
 }
 
-function taskRoutePolicyCandidateSnapshotFingerprint(
-  candidates: CopilotPromptRegistryPublishGatePolicyCandidate[]
-) {
+function taskRouteSnapshotFingerprint(candidates: unknown[]) {
   return createHash('sha256')
     .update(stableRepairRecommendationStringify(candidates))
     .digest('hex')
@@ -5141,7 +5163,7 @@ function buildPromptRegistryPublishGateRepairRecommendations(input: {
             ]),
             ...candidateProfileEvidence,
           ],
-          64
+          TASK_ROUTE_RECOMMENDATION_EVIDENCE_LIMIT
         ),
         instanceKey: taskRouteRepairInstanceKey(route, 'diagnostics-error'),
         severity: 'warning',
@@ -5185,7 +5207,7 @@ function buildPromptRegistryPublishGateRepairRecommendations(input: {
             ),
             ...candidateProfileEvidence,
           ],
-          64
+          TASK_ROUTE_RECOMMENDATION_EVIDENCE_LIMIT
         ),
         instanceKey: taskRouteRepairInstanceKey(route, 'unavailable'),
         severity: 'warning',
@@ -5219,7 +5241,7 @@ function buildPromptRegistryPublishGateRepairRecommendations(input: {
             route.modelId ? `modelId:${route.modelId}` : null,
             ...candidateProfileEvidence,
           ],
-          64
+          TASK_ROUTE_RECOMMENDATION_EVIDENCE_LIMIT
         ),
         instanceKey: taskRouteRepairInstanceKey(
           route,
@@ -5267,7 +5289,7 @@ function buildPromptRegistryPublishGateRepairRecommendations(input: {
             ...policyPhase.reasons.map(reason => `reason:${reason}`),
             ...candidateProfileEvidence,
           ],
-          64
+          TASK_ROUTE_RECOMMENDATION_EVIDENCE_LIMIT
         ),
         instanceKey: taskRouteRepairInstanceKey(route, 'policy-blocked'),
         severity: 'warning',

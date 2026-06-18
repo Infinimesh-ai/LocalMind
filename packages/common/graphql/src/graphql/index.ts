@@ -2567,6 +2567,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             providerType
             reasons
             requestedModelId
+            routeCandidateSnapshotFingerprint
             routeModelDefinitionId
             routeTrace {
               availableCount
