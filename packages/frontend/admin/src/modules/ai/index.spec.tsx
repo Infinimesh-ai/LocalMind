@@ -399,6 +399,89 @@ function taskRouteProviderCostSnapshotFixture(route: {
   ];
 }
 
+function taskRouteProviderCapabilitySnapshotFixture(route: {
+  routeCandidates: {
+    modelId?: string | null;
+    preparedModelId?: string | null;
+    providerId: string;
+    providerProfileConfigPath?: string | null;
+    providerProfileId?: string | null;
+    providerProfileSource?: string | null;
+    providerSource?: string | null;
+    providerType?: string | null;
+    requestedModelId?: string | null;
+    routeInputTypes?: string[] | null;
+    routeModelDefinitionId?: string | null;
+    routeModelDefinitionSource?: string | null;
+    routeOutputTypes?: string[] | null;
+    routeRawModelId?: string | null;
+  }[];
+  prepareCandidates: {
+    modelId?: string | null;
+    preparedModelId?: string | null;
+    providerId: string;
+    providerProfileConfigPath?: string | null;
+    providerProfileId?: string | null;
+    providerProfileSource?: string | null;
+    providerSource?: string | null;
+    providerType?: string | null;
+    requestedModelId?: string | null;
+    routeInputTypes?: string[] | null;
+    routeModelDefinitionId?: string | null;
+    routeModelDefinitionSource?: string | null;
+    routeOutputTypes?: string[] | null;
+    routeRawModelId?: string | null;
+  }[];
+}) {
+  const capabilityCandidate = (
+    scope: string,
+    candidate: {
+      modelId?: string | null;
+      preparedModelId?: string | null;
+      providerId: string;
+      providerProfileConfigPath?: string | null;
+      providerProfileId?: string | null;
+      providerProfileSource?: string | null;
+      providerSource?: string | null;
+      providerType?: string | null;
+      requestedModelId?: string | null;
+      routeInputTypes?: string[] | null;
+      routeModelDefinitionId?: string | null;
+      routeModelDefinitionSource?: string | null;
+      routeOutputTypes?: string[] | null;
+      routeRawModelId?: string | null;
+    },
+    index: number
+  ) =>
+    stripNullishFixtureFields({
+      candidateIndex: index,
+      modelId: candidate.modelId,
+      preparedModelId: candidate.preparedModelId,
+      providerId: candidate.providerId,
+      providerProfileConfigPath: candidate.providerProfileConfigPath,
+      providerProfileId: candidate.providerProfileId,
+      providerProfileSource: candidate.providerProfileSource,
+      providerSource: candidate.providerSource,
+      providerType: candidate.providerType,
+      requestedModelId: candidate.requestedModelId,
+      routeInputTypes: candidate.routeInputTypes,
+      routeModelDefinitionId: candidate.routeModelDefinitionId,
+      routeModelDefinitionSource: candidate.routeModelDefinitionSource,
+      routeOutputTypes: candidate.routeOutputTypes,
+      routeRawModelId: candidate.routeRawModelId,
+      scope,
+    });
+
+  return [
+    ...route.routeCandidates.map((candidate, index) =>
+      capabilityCandidate('routeCandidate', candidate, index)
+    ),
+    ...route.prepareCandidates.map((candidate, index) =>
+      capabilityCandidate('prepareCandidate', candidate, index)
+    ),
+  ];
+}
+
 function expectQueryCall(query: unknown, variables: Record<string, unknown>) {
   expect(useQueryMock).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -520,6 +603,8 @@ const blockedRoute = {
       healthCheckedAt: '2026-06-16T10:00:00.000Z',
       costInputPer1M: 0.01,
       costOutputPer1M: 0.02,
+      routeInputTypes: ['text'],
+      routeOutputTypes: ['embedding'],
       routeRawModelId: 'nomic-embed-text',
       routeModelDefinitionSource: 'provider_profile',
       routeModelDefinitionId: 'workspace-embedding',
@@ -557,6 +642,8 @@ const blockedRoute = {
       healthCheckedAt: '2026-06-16T10:00:00.000Z',
       costInputPer1M: 0.01,
       costOutputPer1M: 0.02,
+      routeInputTypes: ['text'],
+      routeOutputTypes: ['embedding'],
       routeRawModelId: 'nomic-embed-text',
       routeModelDefinitionSource: 'provider_profile',
       routeModelDefinitionId: 'workspace-embedding',
@@ -582,6 +669,8 @@ const blockedRoute = {
       health: 'degraded',
       costInputPer1M: 0.13,
       costOutputPer1M: 0.13,
+      routeInputTypes: ['text'],
+      routeOutputTypes: ['embedding'],
       reasons: ['provider_prepare_returned_empty'],
       registryAvailable: true,
       registryKind: 'quota_backed',
@@ -2300,6 +2389,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
                   blockedRoute.preparedRoutes
                 )
               ),
+            providerCapabilitySnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteProviderCapabilitySnapshotFixture(blockedRoute)
+              ),
             providerHealthSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRouteProviderHealthSnapshotFixture(blockedRoute)
@@ -2355,6 +2448,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
                   blockedRoute.preparedRoutes
                 )
               ),
+            providerCapabilitySnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteProviderCapabilitySnapshotFixture(blockedRoute)
+              ),
             providerHealthSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRouteProviderHealthSnapshotFixture(blockedRoute)
@@ -2409,6 +2506,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
                 taskRoutePreparedRouteSnapshotFixture(
                   blockedRoute.preparedRoutes
                 )
+              ),
+            providerCapabilitySnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteProviderCapabilitySnapshotFixture(blockedRoute)
               ),
             providerHealthSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
@@ -6382,6 +6483,9 @@ describe('AiPage', () => {
     );
     expect(readyGateDiagnostics).toContain(
       `prepared route snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRoutePreparedRouteSnapshotFixture(blockedRoute.preparedRoutes))}`
+    );
+    expect(readyGateDiagnostics).toContain(
+      `provider capability snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteProviderCapabilitySnapshotFixture(blockedRoute))}`
     );
     expect(readyGateDiagnostics).toContain(
       `provider cost snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteProviderCostSnapshotFixture(blockedRoute))}`

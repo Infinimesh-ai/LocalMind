@@ -1582,6 +1582,8 @@ export interface CopilotPromptRegistryPublishGateActionRouteDryRunType {
 export interface CopilotPromptRegistryPublishGateRouteCandidateType {
   __typename?: 'CopilotPromptRegistryPublishGateRouteCandidateType';
   candidateModelIds?: Maybe<Array<Scalars['String']['output']>>;
+  costInputPer1M?: Maybe<Scalars['Float']['output']>;
+  costOutputPer1M?: Maybe<Scalars['Float']['output']>;
   health?: Maybe<Scalars['String']['output']>;
   healthCheckedAt?: Maybe<Scalars['String']['output']>;
   matched: Scalars['Boolean']['output'];
@@ -1602,10 +1604,12 @@ export interface CopilotPromptRegistryPublishGateRouteCandidateType {
   registryKind?: Maybe<Scalars['String']['output']>;
   registrySelected?: Maybe<Scalars['Boolean']['output']>;
   requestedModelId?: Maybe<Scalars['String']['output']>;
+  routeInputTypes?: Maybe<Array<Scalars['String']['output']>>;
   routeModelAliasMatched?: Maybe<Scalars['Boolean']['output']>;
   routeModelDefinitionAliases?: Maybe<Array<Scalars['String']['output']>>;
   routeModelDefinitionId?: Maybe<Scalars['String']['output']>;
   routeModelDefinitionSource?: Maybe<Scalars['String']['output']>;
+  routeOutputTypes?: Maybe<Array<Scalars['String']['output']>>;
   routeRawModelId?: Maybe<Scalars['String']['output']>;
 }
 
@@ -1726,6 +1730,7 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   preparedModelId?: Maybe<Scalars['String']['output']>;
   prepareCandidateSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   preparedRouteSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
+  providerCapabilitySnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   providerCostSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   providerHealthSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   preparedRouteTargets?: Maybe<Array<Scalars['String']['output']>>;
@@ -1985,6 +1990,8 @@ export interface CopilotTaskRouteCandidateDiagnosticsType {
   candidateModelIds?: Maybe<Array<Scalars['String']['output']>>;
   costInputPer1M?: Maybe<Scalars['Float']['output']>;
   costOutputPer1M?: Maybe<Scalars['Float']['output']>;
+  routeInputTypes?: Maybe<Array<Scalars['String']['output']>>;
+  routeOutputTypes?: Maybe<Array<Scalars['String']['output']>>;
   matched: Scalars['Boolean']['output'];
   modelId?: Maybe<Scalars['String']['output']>;
   providerConfiguredModelCount?: Maybe<Scalars['SafeInt']['output']>;
@@ -2018,6 +2025,8 @@ export interface CopilotTaskRoutePrepareCandidateDiagnosticsType {
   candidateModelIds?: Maybe<Array<Scalars['String']['output']>>;
   costInputPer1M?: Maybe<Scalars['Float']['output']>;
   costOutputPer1M?: Maybe<Scalars['Float']['output']>;
+  routeInputTypes?: Maybe<Array<Scalars['String']['output']>>;
+  routeOutputTypes?: Maybe<Array<Scalars['String']['output']>>;
   errorCategory?: Maybe<Scalars['String']['output']>;
   errorCode?: Maybe<Scalars['String']['output']>;
   health?: Maybe<Scalars['String']['output']>;
@@ -6809,6 +6818,8 @@ export type GetPromptModelsQuery = {
             candidateModelIds: Array<string> | null;
             costInputPer1M: number | null;
             costOutputPer1M: number | null;
+            routeInputTypes: Array<string> | null;
+            routeOutputTypes: Array<string> | null;
             matched: boolean;
             modelId: string | null;
             providerConfiguredModelCount: number | null;
@@ -6852,6 +6863,8 @@ export type GetPromptModelsQuery = {
             candidateModelIds: Array<string> | null;
             costInputPer1M: number | null;
             costOutputPer1M: number | null;
+            routeInputTypes: Array<string> | null;
+            routeOutputTypes: Array<string> | null;
             errorCategory: string | null;
             errorCode: string | null;
             health: string | null;
@@ -7099,6 +7112,8 @@ export type GetPromptModelsQuery = {
             candidateModelIds: Array<string> | null;
             costInputPer1M: number | null;
             costOutputPer1M: number | null;
+            routeInputTypes: Array<string> | null;
+            routeOutputTypes: Array<string> | null;
             matched: boolean;
             modelId: string | null;
             providerConfiguredModelCount: number | null;
@@ -7142,6 +7157,8 @@ export type GetPromptModelsQuery = {
             candidateModelIds: Array<string> | null;
             costInputPer1M: number | null;
             costOutputPer1M: number | null;
+            routeInputTypes: Array<string> | null;
+            routeOutputTypes: Array<string> | null;
             errorCategory: string | null;
             errorCode: string | null;
             health: string | null;
@@ -7543,6 +7560,8 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
           routeCandidates: Array<{
             __typename?: 'CopilotPromptRegistryPublishGateRouteCandidateType';
             candidateModelIds: Array<string> | null;
+            costInputPer1M: number | null;
+            costOutputPer1M: number | null;
             health: string | null;
             healthCheckedAt: string | null;
             matched: boolean;
@@ -7563,10 +7582,12 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             registryKind: string | null;
             registrySelected: boolean | null;
             requestedModelId: string | null;
+            routeInputTypes: Array<string> | null;
             routeModelAliasMatched: boolean | null;
             routeModelDefinitionAliases: Array<string> | null;
             routeModelDefinitionId: string | null;
             routeModelDefinitionSource: string | null;
+            routeOutputTypes: Array<string> | null;
             routeRawModelId: string | null;
           }>;
           routeTrace: Array<{
@@ -7654,6 +7675,8 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
           routeCandidates: Array<{
             __typename?: 'CopilotPromptRegistryPublishGateRouteCandidateType';
             candidateModelIds: Array<string> | null;
+            costInputPer1M: number | null;
+            costOutputPer1M: number | null;
             health: string | null;
             healthCheckedAt: string | null;
             matched: boolean;
@@ -7674,10 +7697,12 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             registryKind: string | null;
             registrySelected: boolean | null;
             requestedModelId: string | null;
+            routeInputTypes: Array<string> | null;
             routeModelAliasMatched: boolean | null;
             routeModelDefinitionAliases: Array<string> | null;
             routeModelDefinitionId: string | null;
             routeModelDefinitionSource: string | null;
+            routeOutputTypes: Array<string> | null;
             routeRawModelId: string | null;
           }>;
           routeTrace: Array<{
@@ -7852,6 +7877,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             preparedModelId: string | null;
             prepareCandidateSnapshotFingerprint: string | null;
             preparedRouteSnapshotFingerprint: string | null;
+            providerCapabilitySnapshotFingerprint: string | null;
             providerCostSnapshotFingerprint: string | null;
             providerHealthSnapshotFingerprint: string | null;
             preparedRouteTargets: Array<string> | null;

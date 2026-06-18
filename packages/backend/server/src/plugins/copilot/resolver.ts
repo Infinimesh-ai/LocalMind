@@ -668,6 +668,8 @@ type CopilotPromptRegistryPublishGateRouteCandidate = {
   routeModelDefinitionId?: string;
   routeModelDefinitionSource?: CopilotModelDefinitionSource;
   routeRawModelId?: string;
+  routeInputTypes?: string[];
+  routeOutputTypes?: string[];
 };
 
 type CopilotPromptRegistryPublishGateRouteTracePhase = {
@@ -709,6 +711,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   preparedModelId?: string;
   prepareCandidateSnapshotFingerprint?: string;
   preparedRouteSnapshotFingerprint?: string;
+  providerCapabilitySnapshotFingerprint?: string;
   providerCostSnapshotFingerprint?: string;
   providerHealthSnapshotFingerprint?: string;
   preparedRouteTargets?: string[];
@@ -1536,6 +1539,12 @@ class CopilotPromptRegistryPublishGateRouteCandidateType implements CopilotPromp
   @Field(() => Number, { nullable: true })
   costOutputPer1M?: CopilotPromptRegistryPublishGateRouteCandidate['costOutputPer1M'];
 
+  @Field(() => [String], { nullable: true })
+  routeInputTypes?: CopilotPromptRegistryPublishGateRouteCandidate['routeInputTypes'];
+
+  @Field(() => [String], { nullable: true })
+  routeOutputTypes?: CopilotPromptRegistryPublishGateRouteCandidate['routeOutputTypes'];
+
   @Field(() => String, { nullable: true })
   health?: CopilotPromptRegistryPublishGateRouteCandidate['health'];
 
@@ -1727,6 +1736,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   preparedRouteSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedRouteSnapshotFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  providerCapabilitySnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerCapabilitySnapshotFingerprint'];
 
   @Field(() => String, { nullable: true })
   providerCostSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerCostSnapshotFingerprint'];
@@ -3952,6 +3964,12 @@ function toPromptRegistryPublishGateRouteCandidate(
     ...(candidate.costOutputPer1M !== undefined
       ? { costOutputPer1M: candidate.costOutputPer1M }
       : {}),
+    ...(definedArray(candidate.routeInputTypes) !== undefined
+      ? { routeInputTypes: definedArray(candidate.routeInputTypes) }
+      : {}),
+    ...(definedArray(candidate.routeOutputTypes) !== undefined
+      ? { routeOutputTypes: definedArray(candidate.routeOutputTypes) }
+      : {}),
     ...(candidate.health ? { health: candidate.health } : {}),
     ...(candidate.healthCheckedAt
       ? { healthCheckedAt: candidate.healthCheckedAt }
@@ -4115,6 +4133,7 @@ function taskRouteRepairCandidateEvidenceBase(
     preparedModelId?: string;
     prepareCandidateSnapshotFingerprint?: string;
     preparedRouteSnapshotFingerprint?: string;
+    providerCapabilitySnapshotFingerprint?: string;
     providerCostSnapshotFingerprint?: string;
     providerHealthSnapshotFingerprint?: string;
     preparedRouteTargets?: string[];
@@ -4168,6 +4187,12 @@ function taskRouteRepairCandidateEvidenceBase(
       ? {
           preparedRouteSnapshotFingerprint:
             candidate.preparedRouteSnapshotFingerprint,
+        }
+      : {}),
+    ...(candidate.providerCapabilitySnapshotFingerprint !== undefined
+      ? {
+          providerCapabilitySnapshotFingerprint:
+            candidate.providerCapabilitySnapshotFingerprint,
         }
       : {}),
     ...(candidate.providerCostSnapshotFingerprint !== undefined
@@ -4270,6 +4295,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       preparedModelId?: string;
       prepareCandidateSnapshotFingerprint?: string;
       preparedRouteSnapshotFingerprint?: string;
+      providerCapabilitySnapshotFingerprint?: string;
       providerCostSnapshotFingerprint?: string;
       providerHealthSnapshotFingerprint?: string;
       preparedRouteTargets?: string[];
@@ -4347,6 +4373,8 @@ function taskRouteCandidateProfileStructuredEvidence(
     const preparedRouteSnapshot = taskRoutePreparedRouteSnapshot(
       route.preparedRoutes
     );
+    const providerCapabilitySnapshot =
+      taskRouteProviderCapabilitySnapshot(route);
     const providerCostSnapshot = taskRouteProviderCostSnapshot(route);
     const providerHealthSnapshot = taskRouteProviderHealthSnapshot(route);
     const evidence = taskRouteRepairCandidateEvidenceBase(
@@ -4359,6 +4387,9 @@ function taskRouteCandidateProfileStructuredEvidence(
         ),
         preparedRouteSnapshotFingerprint: taskRouteSnapshotFingerprint(
           preparedRouteSnapshot
+        ),
+        providerCapabilitySnapshotFingerprint: taskRouteSnapshotFingerprint(
+          providerCapabilitySnapshot
         ),
         providerCostSnapshotFingerprint:
           taskRouteSnapshotFingerprint(providerCostSnapshot),
@@ -4435,6 +4466,9 @@ function taskRouteCandidateProfileEvidence(
         candidate.preparedRouteSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:preparedRouteSnapshotFingerprint:${candidate.preparedRouteSnapshotFingerprint}`
           : null,
+        candidate.providerCapabilitySnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerCapabilitySnapshotFingerprint:${candidate.providerCapabilitySnapshotFingerprint}`
+          : null,
         candidate.providerCostSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:providerCostSnapshotFingerprint:${candidate.providerCostSnapshotFingerprint}`
           : null,
@@ -4483,6 +4517,9 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.preparedRouteSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:preparedRouteSnapshotFingerprint:${candidate.preparedRouteSnapshotFingerprint}`
+          : null,
+        candidate.providerCapabilitySnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:providerCapabilitySnapshotFingerprint:${candidate.providerCapabilitySnapshotFingerprint}`
           : null,
         candidate.providerCostSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:providerCostSnapshotFingerprint:${candidate.providerCostSnapshotFingerprint}`
@@ -5012,6 +5049,12 @@ function taskRoutePrepareCandidateSnapshot(
     ...(candidate.costOutputPer1M !== undefined
       ? { costOutputPer1M: candidate.costOutputPer1M }
       : {}),
+    ...(definedArray(candidate.routeInputTypes) !== undefined
+      ? { routeInputTypes: definedArray(candidate.routeInputTypes) }
+      : {}),
+    ...(definedArray(candidate.routeOutputTypes) !== undefined
+      ? { routeOutputTypes: definedArray(candidate.routeOutputTypes) }
+      : {}),
     ...(candidate.errorCategory
       ? { errorCategory: candidate.errorCategory }
       : {}),
@@ -5085,6 +5128,79 @@ function taskRoutePrepareCandidateSnapshot(
       ? { routeRawModelId: candidate.routeRawModelId }
       : {}),
   }));
+}
+
+function taskRouteProviderCapabilitySnapshot(
+  route: CopilotPromptRegistryPublishGateTaskRoute
+) {
+  const capabilityCandidate = (
+    scope: string,
+    candidate: {
+      modelId?: string;
+      preparedModelId?: string;
+      providerId: string;
+      providerProfileConfigPath?: string;
+      providerProfileId?: string;
+      providerProfileSource?: string;
+      providerSource?: string;
+      providerType?: string;
+      requestedModelId?: string;
+      routeInputTypes?: string[];
+      routeModelDefinitionId?: string;
+      routeModelDefinitionSource?: string;
+      routeOutputTypes?: string[];
+      routeRawModelId?: string;
+    },
+    index: number
+  ) => ({
+    candidateIndex: index,
+    ...(candidate.modelId ? { modelId: candidate.modelId } : {}),
+    ...(candidate.preparedModelId
+      ? { preparedModelId: candidate.preparedModelId }
+      : {}),
+    providerId: candidate.providerId,
+    ...(candidate.providerProfileConfigPath
+      ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
+      : {}),
+    ...(candidate.providerProfileId
+      ? { providerProfileId: candidate.providerProfileId }
+      : {}),
+    ...(candidate.providerProfileSource
+      ? { providerProfileSource: candidate.providerProfileSource }
+      : {}),
+    ...(candidate.providerSource
+      ? { providerSource: candidate.providerSource }
+      : {}),
+    ...(candidate.providerType ? { providerType: candidate.providerType } : {}),
+    ...(candidate.requestedModelId
+      ? { requestedModelId: candidate.requestedModelId }
+      : {}),
+    ...(definedArray(candidate.routeInputTypes) !== undefined
+      ? { routeInputTypes: definedArray(candidate.routeInputTypes) }
+      : {}),
+    ...(candidate.routeModelDefinitionId
+      ? { routeModelDefinitionId: candidate.routeModelDefinitionId }
+      : {}),
+    ...(candidate.routeModelDefinitionSource
+      ? { routeModelDefinitionSource: candidate.routeModelDefinitionSource }
+      : {}),
+    ...(definedArray(candidate.routeOutputTypes) !== undefined
+      ? { routeOutputTypes: definedArray(candidate.routeOutputTypes) }
+      : {}),
+    ...(candidate.routeRawModelId
+      ? { routeRawModelId: candidate.routeRawModelId }
+      : {}),
+    scope,
+  });
+
+  return [
+    ...route.routeCandidates.map((candidate, index) =>
+      capabilityCandidate('routeCandidate', candidate, index)
+    ),
+    ...(route.prepareCandidates ?? []).map((candidate, index) =>
+      capabilityCandidate('prepareCandidate', candidate, index)
+    ),
+  ];
 }
 
 function taskRouteProviderCostSnapshot(
@@ -10641,6 +10757,10 @@ function buildTaskRoutePrepareCandidates(
       candidate.costInputPer1M ?? providerPrepareCandidate?.costInputPer1M;
     const costOutputPer1M =
       candidate.costOutputPer1M ?? providerPrepareCandidate?.costOutputPer1M;
+    const routeInputTypes =
+      candidate.routeInputTypes ?? providerPrepareCandidate?.routeInputTypes;
+    const routeOutputTypes =
+      candidate.routeOutputTypes ?? providerPrepareCandidate?.routeOutputTypes;
 
     const providerName =
       candidate.providerName ?? providerPrepareCandidate?.providerName;
@@ -10711,6 +10831,8 @@ function buildTaskRoutePrepareCandidates(
         : {}),
       ...(costInputPer1M !== undefined ? { costInputPer1M } : {}),
       ...(costOutputPer1M !== undefined ? { costOutputPer1M } : {}),
+      ...(routeInputTypes !== undefined ? { routeInputTypes } : {}),
+      ...(routeOutputTypes !== undefined ? { routeOutputTypes } : {}),
       ...(candidate.candidateModelIds !== undefined
         ? { candidateModelIds: candidate.candidateModelIds }
         : {}),
@@ -11342,6 +11464,12 @@ class CopilotTaskRouteCandidateDiagnosticsType {
   @Field(() => Number, { nullable: true })
   costOutputPer1M?: number;
 
+  @Field(() => [String], { nullable: true })
+  routeInputTypes?: string[];
+
+  @Field(() => [String], { nullable: true })
+  routeOutputTypes?: string[];
+
   @Field(() => String, { nullable: true })
   registryKind?: string;
 
@@ -11431,6 +11559,12 @@ class CopilotTaskRoutePrepareCandidateDiagnosticsType {
 
   @Field(() => Number, { nullable: true })
   costOutputPer1M?: number;
+
+  @Field(() => [String], { nullable: true })
+  routeInputTypes?: string[];
+
+  @Field(() => [String], { nullable: true })
+  routeOutputTypes?: string[];
 
   @Field(() => String, { nullable: true })
   registryKind?: string;

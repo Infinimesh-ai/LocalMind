@@ -1387,6 +1387,8 @@ type CopilotPromptRegistryPublishGateActionRouteDryRunType {
 
 type CopilotPromptRegistryPublishGateRouteCandidateType {
   candidateModelIds: [String!]
+  costInputPer1M: Float
+  costOutputPer1M: Float
   health: String
   healthCheckedAt: String
   matched: Boolean!
@@ -1407,10 +1409,12 @@ type CopilotPromptRegistryPublishGateRouteCandidateType {
   registryKind: String
   registrySelected: Boolean
   requestedModelId: String
+  routeInputTypes: [String!]
   routeModelAliasMatched: Boolean
   routeModelDefinitionAliases: [String!]
   routeModelDefinitionId: String
   routeModelDefinitionSource: String
+  routeOutputTypes: [String!]
   routeRawModelId: String
 }
 
@@ -1509,6 +1513,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   preparedModelId: String
   prepareCandidateSnapshotFingerprint: String
   preparedRouteSnapshotFingerprint: String
+  providerCapabilitySnapshotFingerprint: String
   providerCostSnapshotFingerprint: String
   providerHealthSnapshotFingerprint: String
   preparedRouteTargets: [String!]
@@ -1818,9 +1823,11 @@ type CopilotTaskRouteCandidateDiagnosticsType {
   health: String
   healthCheckedAt: String
   routeModelAliasMatched: Boolean
+  routeInputTypes: [String!]
   routeModelDefinitionAliases: [String!]
   routeModelDefinitionId: String
   routeModelDefinitionSource: String
+  routeOutputTypes: [String!]
   routeRawModelId: String
   reasons: [String!]!
   registryAvailable: Boolean
@@ -1853,9 +1860,11 @@ type CopilotTaskRoutePrepareCandidateDiagnosticsType {
   providerType: String
   privacy: String
   routeModelAliasMatched: Boolean
+  routeInputTypes: [String!]
   routeModelDefinitionAliases: [String!]
   routeModelDefinitionId: String
   routeModelDefinitionSource: String
+  routeOutputTypes: [String!]
   routeRawModelId: String
   reasons: [String!]!
   registryAvailable: Boolean

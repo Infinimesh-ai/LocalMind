@@ -150,10 +150,12 @@ function taskRouteCandidateEvidenceFixture<
     registryKind?: string;
     registrySelected?: boolean;
     requestedModelId?: string;
+    routeInputTypes?: string[];
     routeModelAliasMatched?: boolean;
     routeModelDefinitionAliases?: string[];
     routeModelDefinitionId?: string;
     routeModelDefinitionSource?: string;
+    routeOutputTypes?: string[];
     routeRawModelId?: string;
   },
 >(candidates: T[] | undefined) {
@@ -209,6 +211,9 @@ function taskRouteCandidateEvidenceFixture<
     ...(candidate.requestedModelId
       ? { requestedModelId: candidate.requestedModelId }
       : {}),
+    ...(candidate.routeInputTypes?.length
+      ? { routeInputTypes: candidate.routeInputTypes }
+      : {}),
     ...(candidate.routeModelAliasMatched !== undefined
       ? { routeModelAliasMatched: candidate.routeModelAliasMatched }
       : {}),
@@ -220,6 +225,9 @@ function taskRouteCandidateEvidenceFixture<
       : {}),
     ...(candidate.routeModelDefinitionSource
       ? { routeModelDefinitionSource: candidate.routeModelDefinitionSource }
+      : {}),
+    ...(candidate.routeOutputTypes?.length
+      ? { routeOutputTypes: candidate.routeOutputTypes }
       : {}),
     ...(candidate.routeRawModelId
       ? { routeRawModelId: candidate.routeRawModelId }
@@ -255,10 +263,12 @@ function taskRoutePrepareCandidateEvidenceFixture<
     registryKind?: string;
     registrySelected?: boolean;
     requestedModelId?: string;
+    routeInputTypes?: string[];
     routeModelAliasMatched?: boolean;
     routeModelDefinitionAliases?: string[];
     routeModelDefinitionId?: string;
     routeModelDefinitionSource?: string;
+    routeOutputTypes?: string[];
     routeRawModelId?: string;
   },
 >(candidates: T[] | undefined) {
@@ -321,6 +331,9 @@ function taskRoutePrepareCandidateEvidenceFixture<
     ...(candidate.requestedModelId
       ? { requestedModelId: candidate.requestedModelId }
       : {}),
+    ...(candidate.routeInputTypes?.length
+      ? { routeInputTypes: candidate.routeInputTypes }
+      : {}),
     ...(candidate.routeModelAliasMatched !== undefined
       ? { routeModelAliasMatched: candidate.routeModelAliasMatched }
       : {}),
@@ -332,6 +345,9 @@ function taskRoutePrepareCandidateEvidenceFixture<
       : {}),
     ...(candidate.routeModelDefinitionSource
       ? { routeModelDefinitionSource: candidate.routeModelDefinitionSource }
+      : {}),
+    ...(candidate.routeOutputTypes?.length
+      ? { routeOutputTypes: candidate.routeOutputTypes }
       : {}),
     ...(candidate.routeRawModelId
       ? { routeRawModelId: candidate.routeRawModelId }
@@ -627,6 +643,114 @@ function taskRouteProviderCostSnapshotFixture(
   ];
 }
 
+function taskRouteProviderCapabilitySnapshotFixture(
+  route:
+    | {
+        routeCandidates?: {
+          modelId?: string;
+          preparedModelId?: string;
+          providerId: string;
+          providerProfileConfigPath?: string;
+          providerProfileId?: string;
+          providerProfileSource?: string;
+          providerSource?: string;
+          providerType?: string;
+          requestedModelId?: string;
+          routeInputTypes?: string[];
+          routeModelDefinitionId?: string;
+          routeModelDefinitionSource?: string;
+          routeOutputTypes?: string[];
+          routeRawModelId?: string;
+        }[];
+        prepareCandidates?: {
+          modelId?: string;
+          preparedModelId?: string;
+          providerId: string;
+          providerProfileConfigPath?: string;
+          providerProfileId?: string;
+          providerProfileSource?: string;
+          providerSource?: string;
+          providerType?: string;
+          requestedModelId?: string;
+          routeInputTypes?: string[];
+          routeModelDefinitionId?: string;
+          routeModelDefinitionSource?: string;
+          routeOutputTypes?: string[];
+          routeRawModelId?: string;
+        }[];
+      }
+    | undefined
+) {
+  const capabilityCandidate = (
+    scope: string,
+    candidate: {
+      modelId?: string;
+      preparedModelId?: string;
+      providerId: string;
+      providerProfileConfigPath?: string;
+      providerProfileId?: string;
+      providerProfileSource?: string;
+      providerSource?: string;
+      providerType?: string;
+      requestedModelId?: string;
+      routeInputTypes?: string[];
+      routeModelDefinitionId?: string;
+      routeModelDefinitionSource?: string;
+      routeOutputTypes?: string[];
+      routeRawModelId?: string;
+    },
+    index: number
+  ) => ({
+    candidateIndex: index,
+    ...(candidate.modelId ? { modelId: candidate.modelId } : {}),
+    ...(candidate.preparedModelId
+      ? { preparedModelId: candidate.preparedModelId }
+      : {}),
+    providerId: candidate.providerId,
+    ...(candidate.providerProfileConfigPath
+      ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
+      : {}),
+    ...(candidate.providerProfileId
+      ? { providerProfileId: candidate.providerProfileId }
+      : {}),
+    ...(candidate.providerProfileSource
+      ? { providerProfileSource: candidate.providerProfileSource }
+      : {}),
+    ...(candidate.providerSource
+      ? { providerSource: candidate.providerSource }
+      : {}),
+    ...(candidate.providerType ? { providerType: candidate.providerType } : {}),
+    ...(candidate.requestedModelId
+      ? { requestedModelId: candidate.requestedModelId }
+      : {}),
+    ...(candidate.routeInputTypes?.length
+      ? { routeInputTypes: candidate.routeInputTypes }
+      : {}),
+    ...(candidate.routeModelDefinitionId
+      ? { routeModelDefinitionId: candidate.routeModelDefinitionId }
+      : {}),
+    ...(candidate.routeModelDefinitionSource
+      ? { routeModelDefinitionSource: candidate.routeModelDefinitionSource }
+      : {}),
+    ...(candidate.routeOutputTypes?.length
+      ? { routeOutputTypes: candidate.routeOutputTypes }
+      : {}),
+    ...(candidate.routeRawModelId
+      ? { routeRawModelId: candidate.routeRawModelId }
+      : {}),
+    scope,
+  });
+
+  return [
+    ...(route?.routeCandidates ?? []).map((candidate, index) =>
+      capabilityCandidate('routeCandidate', candidate, index)
+    ),
+    ...(route?.prepareCandidates ?? []).map((candidate, index) =>
+      capabilityCandidate('prepareCandidate', candidate, index)
+    ),
+  ];
+}
+
 async function main() {
   process.env.NODE_ENV = 'test';
   process.env.DEPLOYMENT_TYPE = 'affine';
@@ -852,6 +976,8 @@ async function main() {
           health: 'healthy',
           costInputPer1M: 0.01,
           costOutputPer1M: 0.02,
+          routeInputTypes: ['text'],
+          routeOutputTypes: ['embedding'],
           requestedModelId: 'embed-alias',
           modelId: 'embed-alias',
           routeRawModelId: 'nomic-embed-text',
@@ -882,6 +1008,8 @@ async function main() {
           health: 'healthy',
           costInputPer1M: 0.01,
           costOutputPer1M: 0.02,
+          routeInputTypes: ['text'],
+          routeOutputTypes: ['embedding'],
           modelId: 'embed-alias',
           routeRawModelId: 'nomic-embed-text',
           routeModelDefinitionSource: 'provider_profile',
@@ -1121,6 +1249,13 @@ async function main() {
     result.embeddingRoute?.routeCandidates[0]?.costOutputPer1M,
     0.02
   );
+  assert.deepEqual(result.embeddingRoute?.routeCandidates[0]?.routeInputTypes, [
+    'text',
+  ]);
+  assert.deepEqual(
+    result.embeddingRoute?.routeCandidates[0]?.routeOutputTypes,
+    ['embedding']
+  );
   assert.equal(
     result.embeddingRoute?.prepareCandidates[0]?.routeRawModelId,
     'nomic-embed-text'
@@ -1136,6 +1271,14 @@ async function main() {
   assert.equal(
     result.embeddingRoute?.prepareCandidates[0]?.costOutputPer1M,
     0.02
+  );
+  assert.deepEqual(
+    result.embeddingRoute?.prepareCandidates[0]?.routeInputTypes,
+    ['text']
+  );
+  assert.deepEqual(
+    result.embeddingRoute?.prepareCandidates[0]?.routeOutputTypes,
+    ['embedding']
   );
   assert.deepEqual(result.embeddingRoute?.diagnosticsErrors, []);
   assert.deepEqual(result.rerankRoute?.diagnosticsErrors, []);
@@ -6181,6 +6324,12 @@ async function main() {
     taskRouteProviderCostSnapshotFixture(taskDiagnosticsErrorRoute);
   const taskDiagnosticsProviderCostSnapshotFingerprint =
     taskRouteSnapshotFingerprintFixture(taskDiagnosticsProviderCostSnapshot);
+  const taskDiagnosticsProviderCapabilitySnapshot =
+    taskRouteProviderCapabilitySnapshotFixture(taskDiagnosticsErrorRoute);
+  const taskDiagnosticsProviderCapabilitySnapshotFingerprint =
+    taskRouteSnapshotFingerprintFixture(
+      taskDiagnosticsProviderCapabilitySnapshot
+    );
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
       `policyCandidate#0:policyCandidateSnapshotFingerprint:${taskDiagnosticsPolicyCandidateSnapshotFingerprint}`
@@ -6208,6 +6357,13 @@ async function main() {
     ),
     true,
     'task diagnostics repair evidence should include prepared route snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      `policyCandidate#0:providerCapabilitySnapshotFingerprint:${taskDiagnosticsProviderCapabilitySnapshotFingerprint}`
+    ),
+    true,
+    'task diagnostics repair evidence should include provider capability snapshot fingerprint'
   );
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
@@ -6317,6 +6473,11 @@ async function main() {
     'policy candidate evidence should bind the task route prepared route snapshot fingerprint'
   );
   assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.providerCapabilitySnapshotFingerprint,
+    taskDiagnosticsProviderCapabilitySnapshotFingerprint,
+    'policy candidate evidence should bind the task route provider capability snapshot fingerprint'
+  );
+  assert.equal(
     taskDiagnosticsPolicyCandidateEvidence?.providerHealthSnapshotFingerprint,
     taskDiagnosticsProviderHealthSnapshotFingerprint,
     'policy candidate evidence should bind the task route provider health snapshot fingerprint'
@@ -6401,6 +6562,11 @@ async function main() {
     'route candidate evidence should bind the task route prepared route snapshot fingerprint'
   );
   assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.providerCapabilitySnapshotFingerprint,
+    taskDiagnosticsProviderCapabilitySnapshotFingerprint,
+    'route candidate evidence should bind the task route provider capability snapshot fingerprint'
+  );
+  assert.equal(
     taskDiagnosticsRouteCandidateEvidence?.providerHealthSnapshotFingerprint,
     taskDiagnosticsProviderHealthSnapshotFingerprint,
     'route candidate evidence should bind the task route provider health snapshot fingerprint'
@@ -6479,6 +6645,11 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.preparedRouteSnapshotFingerprint,
     taskDiagnosticsPreparedRouteSnapshotFingerprint,
     'prepare candidate evidence should bind the task route prepared route snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.providerCapabilitySnapshotFingerprint,
+    taskDiagnosticsProviderCapabilitySnapshotFingerprint,
+    'prepare candidate evidence should bind the task route provider capability snapshot fingerprint'
   );
   assert.equal(
     taskDiagnosticsPrepareCandidateEvidence?.providerHealthSnapshotFingerprint,

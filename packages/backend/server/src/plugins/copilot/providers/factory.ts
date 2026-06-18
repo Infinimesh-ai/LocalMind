@@ -100,6 +100,8 @@ export type CopilotProviderRouteCandidateDiagnostics = {
   routeModelAliasMatched?: boolean;
   costInputPer1M?: number;
   costOutputPer1M?: number;
+  routeInputTypes?: string[];
+  routeOutputTypes?: string[];
   candidateModelIds?: string[];
   matched: boolean;
   reasons: string[];
@@ -127,6 +129,8 @@ export type CopilotProviderPrepareCandidateDiagnostics = {
   routeModelAliasMatched?: boolean;
   costInputPer1M?: number;
   costOutputPer1M?: number;
+  routeInputTypes?: string[];
+  routeOutputTypes?: string[];
   prepared: boolean;
   preparedModelId?: string;
   errorCode?: string;
@@ -234,6 +238,27 @@ function resolveModelDefinitionSource(
   return profile.models?.length ? 'provider_runtime' : undefined;
 }
 
+function collectProviderModelCapabilityTypes(
+  providerModel: CopilotProviderModel | undefined
+) {
+  const capabilities = providerModel?.capabilities ?? [];
+  if (!capabilities.length) {
+    return {};
+  }
+
+  const routeInputTypes = unique(
+    capabilities.flatMap(capability => capability.input ?? [])
+  );
+  const routeOutputTypes = unique(
+    capabilities.flatMap(capability => capability.output ?? [])
+  );
+
+  return {
+    ...(routeInputTypes.length ? { routeInputTypes } : {}),
+    ...(routeOutputTypes.length ? { routeOutputTypes } : {}),
+  };
+}
+
 function routeCandidateModelDefinitionMetadata(
   profile: NormalizedCopilotProviderProfile,
   provider: CopilotProvider,
@@ -293,6 +318,7 @@ function routeCandidateModelDefinitionMetadata(
     ...(routeModelAliasMatched !== undefined ? { routeModelAliasMatched } : {}),
     ...(costInputPer1M !== undefined ? { costInputPer1M } : {}),
     ...(costOutputPer1M !== undefined ? { costOutputPer1M } : {}),
+    ...collectProviderModelCapabilityTypes(providerModel),
   };
 }
 
