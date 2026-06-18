@@ -48,6 +48,7 @@ query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
           stepId
           stepType
         }
+        agentRuntimeTimelineRouteEvidenceSetFingerprint
         agentRuntimeTargetRunStatuses
         agentRuntimeTargetSchemaComponents
         agentRuntimeTargetStepStatuses

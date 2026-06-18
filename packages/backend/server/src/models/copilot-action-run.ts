@@ -136,6 +136,7 @@ export type CopilotActionRunDiagnosticsItem = {
   agentRuntimeTimelineEventTypes: string[];
   agentRuntimeTimelineGaps: string[];
   agentRuntimeTimelineItems: CopilotActionRunAgentRuntimeTimelineItem[];
+  agentRuntimeTimelineRouteEvidenceSetFingerprint: string;
   agentRuntimeTargetRunStatuses: string[];
   agentRuntimeTargetSchemaComponents: string[];
   agentRuntimeTargetStepStatuses: string[];
@@ -265,6 +266,20 @@ function actionRunTimelineRouteEvidenceFingerprint(input: {
       stableActionRunDiagnosticsStringify({
         version: 'agent-runtime-timeline-route-evidence/v1',
         ...input,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function actionRunTimelineRouteEvidenceSetFingerprint(
+  routeEvidenceFingerprints: string[]
+) {
+  return createHash('sha256')
+    .update(
+      stableActionRunDiagnosticsStringify({
+        version: 'agent-runtime-timeline-route-evidence-set/v1',
+        routeEvidenceFingerprints,
       })
     )
     .digest('hex')
@@ -903,6 +918,10 @@ function summarizePreparedRouteTrace(
         };
       }) ?? []),
     ];
+  const agentRuntimeTimelineRouteEvidenceSetFingerprint =
+    actionRunTimelineRouteEvidenceSetFingerprint(
+      agentRuntimeTimelineItems.map(item => item.routeEvidenceFingerprint)
+    );
 
   return {
     agentRuntimeNativeTraceEventTypes,
@@ -928,6 +947,7 @@ function summarizePreparedRouteTrace(
     agentRuntimeTimelineEventTypes,
     agentRuntimeTimelineGaps,
     agentRuntimeTimelineItems,
+    agentRuntimeTimelineRouteEvidenceSetFingerprint,
     agentRuntimeTargetRunStatuses,
     agentRuntimeTargetSchemaComponents,
     agentRuntimeTargetStepStatuses,

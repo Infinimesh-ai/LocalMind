@@ -636,6 +636,7 @@ type CopilotActionRunDiagnosticsItemType {
   agentRuntimeTimelineEventTypes: [String!]!
   agentRuntimeTimelineGaps: [String!]!
   agentRuntimeTimelineItems: [CopilotActionRunAgentRuntimeTimelineItemType!]!
+  agentRuntimeTimelineRouteEvidenceSetFingerprint: String!
   agentRuntimeTargetRunStatuses: [String!]!
   agentRuntimeTargetSchemaComponents: [String!]!
   agentRuntimeTargetStepStatuses: [String!]!

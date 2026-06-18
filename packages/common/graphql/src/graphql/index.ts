@@ -3280,6 +3280,7 @@ export const getCopilotActionRunsQuery = {
           stepId
           stepType
         }
+        agentRuntimeTimelineRouteEvidenceSetFingerprint
         agentRuntimeTargetRunStatuses
         agentRuntimeTargetSchemaComponents
         agentRuntimeTargetStepStatuses

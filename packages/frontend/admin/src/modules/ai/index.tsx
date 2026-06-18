@@ -5289,6 +5289,12 @@ function formatActionRunAgentRuntimeTimelineItems(
     .join(' | ')}`;
 }
 
+function formatActionRunAgentRuntimeTimelineRouteEvidenceSetFingerprint(
+  run: ActionRunDiagnosticsItem
+) {
+  return `Agent runtime timeline route evidence set fingerprint ${run.agentRuntimeTimelineRouteEvidenceSetFingerprint}`;
+}
+
 function formatActionRunAgentRuntimeTimelineItem(
   item: ActionRunDiagnosticsItem['agentRuntimeTimelineItems'][number]
 ) {
@@ -5604,6 +5610,7 @@ function buildActionRunDiagnosticsText(run: ActionRunDiagnosticsItem) {
     formatActionRunAgentRuntimeStepKinds(run),
     formatActionRunAgentRuntimeTimelineEntries(run),
     formatActionRunAgentRuntimeTimelineItems(run),
+    formatActionRunAgentRuntimeTimelineRouteEvidenceSetFingerprint(run),
     formatActionRunAgentRuntimeTimelineEventTypes(run),
     formatActionRunAgentRuntimeTargetTimelineEventTypes(run),
     formatActionRunAgentRuntimeProjectedTimelineEventTypes(run),
@@ -5767,6 +5774,11 @@ function ActionRunRecentList({
                           {formatActionRunAgentRuntimeTimelineItem(item)}
                         </div>
                       ))}
+                      <div className="break-words text-xs text-muted-foreground">
+                        {formatActionRunAgentRuntimeTimelineRouteEvidenceSetFingerprint(
+                          run
+                        )}
+                      </div>
                     </div>
                   ) : null}
                 </TableCell>

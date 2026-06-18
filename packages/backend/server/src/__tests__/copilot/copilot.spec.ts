@@ -189,6 +189,20 @@ function actionRunTimelineRouteEvidenceFingerprintFixture(input: {
     .slice(0, 16);
 }
 
+function actionRunTimelineRouteEvidenceSetFingerprintFixture(
+  routeEvidenceFingerprints: string[]
+) {
+  return createHash('sha256')
+    .update(
+      stableActionRunDiagnosticsStringifyFixture({
+        version: 'agent-runtime-timeline-route-evidence-set/v1',
+        routeEvidenceFingerprints,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
 const test = ava as TestFn<Context>;
 let userId: string;
 let restoreMockCopilotNativeRuntime: (() => void) | undefined;
@@ -3453,6 +3467,55 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
     diagnostics.map(item => item.id).sort(),
     [run.id, failedRun.id].sort()
   );
+  const runTimelineRouteEvidenceFingerprint =
+    actionRunTimelineRouteEvidenceFingerprintFixture({
+      actualRouteCount: 1,
+      eventType: 'run_status',
+      fallbackProviderIds: ['ollama-main'],
+      kind: null,
+      routeBehaviorFlags: ['tool_calls'],
+      routeCanonicalModelKeys: ['local/office-structured'],
+      routeCount: 1,
+      routeCountMismatch: false,
+      routeDimensionEvidence: [
+        'requested 1024d / model 1024d / dimension mismatch no',
+      ],
+      routeModelBackendKinds: ['openai_chat'],
+      routeTargets: ['ollama-main/local/office-structured'],
+      stepId: null,
+    });
+  const generateTimelineRouteEvidenceFingerprint =
+    actionRunTimelineRouteEvidenceFingerprintFixture({
+      actualRouteCount: 1,
+      eventType: 'model_step',
+      fallbackProviderIds: ['ollama-main'],
+      kind: 'structured',
+      routeBehaviorFlags: ['tool_calls'],
+      routeCanonicalModelKeys: ['local/office-structured'],
+      routeCount: 1,
+      routeCountMismatch: false,
+      routeDimensionEvidence: [
+        'requested 1024d / model 1024d / dimension mismatch no',
+      ],
+      routeModelBackendKinds: ['openai_chat'],
+      routeTargets: ['ollama-main/local/office-structured'],
+      stepId: 'generate',
+    });
+  const failedTimelineRouteEvidenceFingerprint =
+    actionRunTimelineRouteEvidenceFingerprintFixture({
+      actualRouteCount: 0,
+      eventType: 'run_status',
+      fallbackProviderIds: [],
+      kind: null,
+      routeBehaviorFlags: [],
+      routeCanonicalModelKeys: [],
+      routeCount: 0,
+      routeCountMismatch: false,
+      routeDimensionEvidence: [],
+      routeModelBackendKinds: [],
+      routeTargets: [],
+      stepId: null,
+    });
   t.like(
     diagnostics.find(item => item.id === run.id),
     {
@@ -3557,23 +3620,7 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
           routeDimensionEvidence: [
             'requested 1024d / model 1024d / dimension mismatch no',
           ],
-          routeEvidenceFingerprint:
-            actionRunTimelineRouteEvidenceFingerprintFixture({
-              actualRouteCount: 1,
-              eventType: 'run_status',
-              fallbackProviderIds: ['ollama-main'],
-              kind: null,
-              routeBehaviorFlags: ['tool_calls'],
-              routeCanonicalModelKeys: ['local/office-structured'],
-              routeCount: 1,
-              routeCountMismatch: false,
-              routeDimensionEvidence: [
-                'requested 1024d / model 1024d / dimension mismatch no',
-              ],
-              routeModelBackendKinds: ['openai_chat'],
-              routeTargets: ['ollama-main/local/office-structured'],
-              stepId: null,
-            }),
+          routeEvidenceFingerprint: runTimelineRouteEvidenceFingerprint,
         },
         {
           id: `${run.id}:0:generate:model_step`,
@@ -3597,25 +3644,14 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
           routeDimensionEvidence: [
             'requested 1024d / model 1024d / dimension mismatch no',
           ],
-          routeEvidenceFingerprint:
-            actionRunTimelineRouteEvidenceFingerprintFixture({
-              actualRouteCount: 1,
-              eventType: 'model_step',
-              fallbackProviderIds: ['ollama-main'],
-              kind: 'structured',
-              routeBehaviorFlags: ['tool_calls'],
-              routeCanonicalModelKeys: ['local/office-structured'],
-              routeCount: 1,
-              routeCountMismatch: false,
-              routeDimensionEvidence: [
-                'requested 1024d / model 1024d / dimension mismatch no',
-              ],
-              routeModelBackendKinds: ['openai_chat'],
-              routeTargets: ['ollama-main/local/office-structured'],
-              stepId: 'generate',
-            }),
+          routeEvidenceFingerprint: generateTimelineRouteEvidenceFingerprint,
         },
       ],
+      agentRuntimeTimelineRouteEvidenceSetFingerprint:
+        actionRunTimelineRouteEvidenceSetFingerprintFixture([
+          runTimelineRouteEvidenceFingerprint,
+          generateTimelineRouteEvidenceFingerprint,
+        ]),
       agentRuntimeTargetRunStatuses: [
         'queued',
         'running',
@@ -3859,23 +3895,13 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
           routeCanonicalModelKeys: [],
           routeBehaviorFlags: [],
           routeDimensionEvidence: [],
-          routeEvidenceFingerprint:
-            actionRunTimelineRouteEvidenceFingerprintFixture({
-              actualRouteCount: 0,
-              eventType: 'run_status',
-              fallbackProviderIds: [],
-              kind: null,
-              routeBehaviorFlags: [],
-              routeCanonicalModelKeys: [],
-              routeCount: 0,
-              routeCountMismatch: false,
-              routeDimensionEvidence: [],
-              routeModelBackendKinds: [],
-              routeTargets: [],
-              stepId: null,
-            }),
+          routeEvidenceFingerprint: failedTimelineRouteEvidenceFingerprint,
         },
       ],
+      agentRuntimeTimelineRouteEvidenceSetFingerprint:
+        actionRunTimelineRouteEvidenceSetFingerprintFixture([
+          failedTimelineRouteEvidenceFingerprint,
+        ]),
       agentRuntimeTargetRunStatuses: [
         'queued',
         'running',

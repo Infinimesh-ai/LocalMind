@@ -3858,6 +3858,9 @@ class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnostics
   @Field(() => [CopilotActionRunAgentRuntimeTimelineItemType])
   agentRuntimeTimelineItems!: CopilotActionRunAgentRuntimeTimelineItem[];
 
+  @Field(() => String)
+  agentRuntimeTimelineRouteEvidenceSetFingerprint!: string;
+
   @Field(() => [String])
   agentRuntimeTargetRunStatuses!: string[];
 
