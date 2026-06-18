@@ -5819,6 +5819,18 @@ function ActionRunDiagnosticsPanel({
           >
             Download JSON
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              navigator.clipboard
+                ?.writeText(exportMetadataText)
+                .catch(() => {});
+            }}
+          >
+            Copy metadata
+          </Button>
         </div>
         <pre
           className="mt-1 whitespace-pre-wrap break-words text-xs text-muted-foreground"

@@ -8249,6 +8249,12 @@ describe('AiPage', () => {
     expect(actionRunExportMetadata).toContain(
       'Boundary manifest_only_no_raw_trace_or_provider_payload'
     );
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'Copy metadata' })[0]
+    );
+    await waitFor(() => {
+      expect(writeTextMock).toHaveBeenCalledWith(actionRunExportMetadata);
+    });
     const actionRunManifestJson =
       screen.getByTestId('action-run-diagnostics-manifest-json-run-123')
         .textContent ?? '';
