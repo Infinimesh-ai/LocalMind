@@ -6942,6 +6942,18 @@ async function main() {
   );
   assert.equal(taskDiagnosticsPolicyCandidateEvidence?.providerId, 'local');
   assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.requestedModelConfigKey,
+    'workspaceIndexing'
+  );
+  assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.requestedModelConfigPath,
+    'copilot.tasks.models.workspaceIndexing'
+  );
+  assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.requestedModelSource,
+    'workspace_indexing'
+  );
+  assert.equal(
     taskDiagnosticsPolicyCandidateEvidence?.providerProfileId,
     'local'
   );
@@ -7060,6 +7072,18 @@ async function main() {
     true
   );
   assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.requestedModelConfigKey,
+    'workspaceIndexing'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.requestedModelConfigPath,
+    'copilot.tasks.models.workspaceIndexing'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.requestedModelSource,
+    'workspace_indexing'
+  );
+  assert.equal(
     taskDiagnosticsRouteCandidateEvidence?.preparedRouteTargetFingerprint,
     taskDiagnosticsErrorRoute?.preparedRouteTargetFingerprint,
     'route candidate evidence should bind the task route target fingerprint'
@@ -7154,6 +7178,18 @@ async function main() {
   assert.equal(
     taskDiagnosticsPrepareCandidateEvidence?.preparedModelId,
     'nomic-embed-text'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.requestedModelConfigKey,
+    'workspaceIndexing'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.requestedModelConfigPath,
+    'copilot.tasks.models.workspaceIndexing'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.requestedModelSource,
+    'workspace_indexing'
   );
   assert.equal(
     taskDiagnosticsPrepareCandidateEvidence?.providerProfileConfigPath,

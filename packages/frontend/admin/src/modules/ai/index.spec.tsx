@@ -2640,6 +2640,9 @@ const readyPublishGateVerdict = withRepairActionPreview(
             providerType: 'openai_compatible',
             reasons: ['policy_allowed'],
             requestedModelId: null,
+            requestedModelConfigKey: 'workspaceIndexing',
+            requestedModelConfigPath: 'copilot.tasks.models.workspaceIndexing',
+            requestedModelSource: 'workspace_indexing',
             routeCandidateSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(blockedRoute.routeCandidates),
             routeModelDefinitionId: null,
@@ -2711,6 +2714,9 @@ const readyPublishGateVerdict = withRepairActionPreview(
             providerType: 'openai_compatible',
             reasons: ['model_alias_matched'],
             requestedModelId: 'workspace-embedding',
+            requestedModelConfigKey: 'workspaceIndexing',
+            requestedModelConfigPath: 'copilot.tasks.models.workspaceIndexing',
+            requestedModelSource: 'workspace_indexing',
             routeCandidateSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(blockedRoute.routeCandidates),
             routeModelDefinitionId: 'workspace-embedding',
@@ -2782,6 +2788,9 @@ const readyPublishGateVerdict = withRepairActionPreview(
             providerType: 'openai_compatible',
             reasons: ['prepared_route_candidate'],
             requestedModelId: 'workspace-embedding',
+            requestedModelConfigKey: 'workspaceIndexing',
+            requestedModelConfigPath: 'copilot.tasks.models.workspaceIndexing',
+            requestedModelSource: 'workspace_indexing',
             routeCandidateSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(blockedRoute.routeCandidates),
             routeModelDefinitionId: 'workspace-embedding',
@@ -6697,6 +6706,9 @@ describe('AiPage', () => {
       `key policy:workspace_indexing:global:ollama-main / provider ollama-main`
     );
     expect(readyGateDiagnostics).toContain(
+      'requested source Workspace indexing task model / requested config key workspaceIndexing / requested config path copilot.tasks.models.workspaceIndexing'
+    );
+    expect(readyGateDiagnostics).toContain(
       `targets ${blockedRoute.preparedRouteTargets.join(', ')}`
     );
     expect(readyGateDiagnostics).toContain(
@@ -6761,7 +6773,7 @@ describe('AiPage', () => {
       'Prepare Candidate #0 / fingerprint '
     );
     expect(readyGateDiagnostics).toContain(
-      'key prepare:ollama-main / provider ollama-main / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding / requested workspace-embedding / model workspace-embedding / prepared nomic-embed-text'
+      'key prepare:ollama-main / provider ollama-main / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding / requested workspace-embedding / requested source Workspace indexing task model / requested config key workspaceIndexing / requested config path copilot.tasks.models.workspaceIndexing / model workspace-embedding / prepared nomic-embed-text'
     );
     expect(readyGateDiagnostics).toContain(
       'capability input text / output embedding / attachments file / attachment sources url / remote attachments yes'

@@ -741,7 +741,10 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   providerSource?: string;
   providerType?: string;
   reasons: string[];
+  requestedModelConfigKey?: string;
+  requestedModelConfigPath?: string;
   requestedModelId?: string;
+  requestedModelSource?: string;
   routeCandidateSnapshotFingerprint?: string;
   routeModelDefinitionId?: string;
   routeTrace?: CopilotPromptRegistryPublishGateRouteTracePhase[];
@@ -1842,7 +1845,16 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
   reasons!: CopilotPromptRegistryPublishGateRepairCandidateEvidence['reasons'];
 
   @Field(() => String, { nullable: true })
+  requestedModelConfigKey?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['requestedModelConfigKey'];
+
+  @Field(() => String, { nullable: true })
+  requestedModelConfigPath?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['requestedModelConfigPath'];
+
+  @Field(() => String, { nullable: true })
   requestedModelId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['requestedModelId'];
+
+  @Field(() => String, { nullable: true })
+  requestedModelSource?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['requestedModelSource'];
 
   @Field(() => String, { nullable: true })
   routeCandidateSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeCandidateSnapshotFingerprint'];
@@ -4313,7 +4325,10 @@ function taskRouteRepairCandidateEvidenceBase(
     providerSource?: string;
     providerType?: string;
     reasons?: string[];
+    requestedModelConfigKey?: string;
+    requestedModelConfigPath?: string;
     requestedModelId?: string;
+    requestedModelSource?: string;
     routeCandidateSnapshotFingerprint?: string;
     routeModelDefinitionId?: string;
     routeTrace?: CopilotPromptRegistryPublishGateRouteTracePhase[];
@@ -4440,8 +4455,17 @@ function taskRouteRepairCandidateEvidenceBase(
       ? { providerType: candidate.providerType }
       : {}),
     reasons: uniqueStrings(candidate.reasons ?? []),
+    ...(candidate.requestedModelConfigKey !== undefined
+      ? { requestedModelConfigKey: candidate.requestedModelConfigKey }
+      : {}),
+    ...(candidate.requestedModelConfigPath !== undefined
+      ? { requestedModelConfigPath: candidate.requestedModelConfigPath }
+      : {}),
     ...(candidate.requestedModelId !== undefined
       ? { requestedModelId: candidate.requestedModelId }
+      : {}),
+    ...(candidate.requestedModelSource !== undefined
+      ? { requestedModelSource: candidate.requestedModelSource }
       : {}),
     ...(candidate.routeCandidateSnapshotFingerprint !== undefined
       ? {
@@ -4495,7 +4519,10 @@ function taskRouteCandidateProfileStructuredEvidence(
       providerSource?: string;
       providerType?: string;
       reasons?: string[];
+      requestedModelConfigKey?: string;
+      requestedModelConfigPath?: string;
       requestedModelId?: string;
+      requestedModelSource?: string;
       routeCandidateSnapshotFingerprint?: string;
       routeModelDefinitionId?: string;
       routeTrace?: CopilotPromptRegistryPublishGateRouteTracePhase[];
@@ -4597,6 +4624,9 @@ function taskRouteCandidateProfileStructuredEvidence(
         policyCandidateSnapshotFingerprint: taskRouteSnapshotFingerprint(
           policyCandidateSnapshot
         ),
+        requestedModelConfigKey: route.requestedModelConfigKey,
+        requestedModelConfigPath: route.requestedModelConfigPath,
+        requestedModelSource: route.requestedModelSource,
         routeCandidateSnapshotFingerprint: taskRouteSnapshotFingerprint(
           routeCandidateSnapshot
         ),
@@ -4652,6 +4682,12 @@ function taskRouteCandidateProfileEvidence(
     compactEvidence(
       [
         `${candidate.scope}#${candidate.candidateIndex}:providerId:${candidate.providerId}`,
+        candidate.requestedModelSource
+          ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelSource:${candidate.requestedModelSource}`
+          : null,
+        candidate.requestedModelConfigPath
+          ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelConfigPath:${candidate.requestedModelConfigPath}`
+          : null,
         candidate.preparedModelId
           ? `${candidate.scope}#${candidate.candidateIndex}:preparedModelId:${candidate.preparedModelId}`
           : null,
@@ -4696,7 +4732,7 @@ function taskRouteCandidateProfileEvidence(
             `${candidate.scope}#${candidate.candidateIndex}:providerConfiguredModel:${modelId}`
         ),
       ],
-      16
+      20
     )
   );
   const detailedEvidence = candidateEvidence.flatMap(candidate =>
@@ -4709,6 +4745,15 @@ function taskRouteCandidateProfileEvidence(
         `${candidate.scope}#${candidate.candidateIndex}:providerId:${candidate.providerId}`,
         candidate.requestedModelId
           ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelId:${candidate.requestedModelId}`
+          : null,
+        candidate.requestedModelSource
+          ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelSource:${candidate.requestedModelSource}`
+          : null,
+        candidate.requestedModelConfigKey
+          ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelConfigKey:${candidate.requestedModelConfigKey}`
+          : null,
+        candidate.requestedModelConfigPath
+          ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelConfigPath:${candidate.requestedModelConfigPath}`
           : null,
         candidate.modelId
           ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`

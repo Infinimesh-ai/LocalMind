@@ -12915,3 +12915,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
 - workspace indexing runtime 仍强制请求并校验 `EMBEDDING_DIMENSIONS = 1024`；切换到非 1024 维模型仍需要后续索引版本和重建机制。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 380. P3 落地记录：Task Route Model Source Evidence Fields
+
+本轮继续收敛第 379 节剩余风险中 “`taskRouteModelSourceSnapshotFingerprint` 是可比较指纹，但 repair candidate evidence 仍不能直接展开任务模型 alias 来源字段” 的问题。实际代码与目标 AI 中间层架构的冲突点是：Admin task route 顶层 diagnostics 已显示 `requestedModelSource`、`requestedModelConfigKey` 与 `requestedModelConfigPath`，但 repair recommendation 的每条 candidate evidence 只有 `requestedModelId` 与 model source snapshot fingerprint；support bundle、route explain 或人工排障仍需要跳回 task route 顶层才能确认该 candidate 是由 `copilot.tasks.models.workspaceIndexing`、embedding fallback、rerank task model 还是 provider default 触发。本轮把同一组只读来源字段直接绑定到 policy/route/prepare candidate evidence，不改变 routing 行为。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 新增 `requestedModelConfigKey`、`requestedModelConfigPath` 与 `requestedModelSource`。
+  - `taskRouteCandidateProfileStructuredEvidence()` 将 task route 顶层任务模型来源字段写入每条 policy/route/prepare candidate evidence。
+  - `taskRouteCandidateProfileEvidence()` 的可复制 evidence 文本同步加入 `requestedModelSource`、`requestedModelConfigKey` 与 `requestedModelConfigPath`，让 repair recommendation 自身能解释任务 alias 来源。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、common query string 与 `schema.ts` 类型同步新增 repair candidate evidence 的可读 task model source 字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence diagnostics text 显示 `requested source ...`、`requested config key ...` 与 `requested config path ...`。
+- 测试覆盖：
+  - resolver source chain smoke 断言 policy/route/prepare candidate evidence 都携带 `workspaceIndexing`、`copilot.tasks.models.workspaceIndexing` 与 `workspace_indexing`。
+  - Admin Vitest fixture 注入上述字段，并断言 publish gate diagnostics text 显示可读来源信息。
+
+该实现只扩展只读 diagnostics/evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 Model Registry/Provider Registry revision row、不改变 repair action catalog、不新增 mutation input、不改变 preview/preflight/execution gate 字段名、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把 task route model source 契约从“candidate evidence 只能用 fingerprint 感知来源变化”推进到“candidate evidence 自身携带可读任务模型来源字段”，为后续 support bundle、route explain、repair guard 与 Model Registry revision 对齐提供更自包含的过渡证据。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Admin AI Vitest、Prettier/oxlint 与 `git diff --check`。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- repair candidate evidence 的 model source 字段仍只反映 diagnostics probe 时的 task alias 解析结果，不代表后续真实 embedding/rerank dispatch 一定经过同一 provider/model、fallback attempt 或 execution result。
+- 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
+- workspace indexing runtime 仍强制请求并校验 `EMBEDDING_DIMENSIONS = 1024`；切换到非 1024 维模型仍需要后续索引版本和重建机制。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

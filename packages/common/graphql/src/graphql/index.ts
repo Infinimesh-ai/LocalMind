@@ -2645,7 +2645,10 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             providerSource
             providerType
             reasons
+            requestedModelConfigKey
+            requestedModelConfigPath
             requestedModelId
+            requestedModelSource
             routeCandidateSnapshotFingerprint
             routeModelDefinitionId
             routeTrace {

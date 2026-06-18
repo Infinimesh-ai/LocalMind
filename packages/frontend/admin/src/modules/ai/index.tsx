@@ -2987,6 +2987,15 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
       ? `configured model ids ${evidence.providerConfiguredModelIds.join(', ')}`
       : null,
     evidence.requestedModelId ? `requested ${evidence.requestedModelId}` : null,
+    evidence.requestedModelSource
+      ? `requested source ${formatAIModelTaskModelSourceLabel(evidence.requestedModelSource)}`
+      : null,
+    evidence.requestedModelConfigKey
+      ? `requested config key ${evidence.requestedModelConfigKey}`
+      : null,
+    evidence.requestedModelConfigPath
+      ? `requested config path ${evidence.requestedModelConfigPath}`
+      : null,
     evidence.modelId ? `model ${evidence.modelId}` : null,
     evidence.preparedModelId ? `prepared ${evidence.preparedModelId}` : null,
     evidence.prepareCandidateSnapshotFingerprint

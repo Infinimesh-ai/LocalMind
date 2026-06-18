@@ -671,7 +671,10 @@ query getCopilotPromptRegistryPublishGate(
             providerSource
             providerType
             reasons
+            requestedModelConfigKey
+            requestedModelConfigPath
             requestedModelId
+            requestedModelSource
             routeCandidateSnapshotFingerprint
             routeModelDefinitionId
             routeTrace {

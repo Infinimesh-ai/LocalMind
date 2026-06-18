@@ -1549,7 +1549,10 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   providerSource: String
   providerType: String
   reasons: [String!]!
+  requestedModelConfigKey: String
+  requestedModelConfigPath: String
   requestedModelId: String
+  requestedModelSource: String
   routeCandidateSnapshotFingerprint: String
   routeModelDefinitionId: String
   routeTrace: [CopilotPromptRegistryPublishGateRouteTracePhaseType!]
