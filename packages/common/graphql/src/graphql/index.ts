@@ -2529,6 +2529,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             candidateIndex
             candidateKey
             candidateModelIds
+            fallbackProviderIds
             modelId
             preparedModelId
             preparedRouteTargets

@@ -1720,6 +1720,7 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   candidateIndex: Scalars['SafeInt']['output'];
   candidateKey?: Maybe<Scalars['String']['output']>;
   candidateModelIds?: Maybe<Array<Scalars['String']['output']>>;
+  fallbackProviderIds?: Maybe<Array<Scalars['String']['output']>>;
   modelId?: Maybe<Scalars['String']['output']>;
   preparedModelId?: Maybe<Scalars['String']['output']>;
   preparedRouteTargets?: Maybe<Array<Scalars['String']['output']>>;
@@ -7818,6 +7819,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             candidateIndex: number;
             candidateKey: string | null;
             candidateModelIds: Array<string> | null;
+            fallbackProviderIds: Array<string> | null;
             modelId: string | null;
             preparedModelId: string | null;
             preparedRouteTargets: Array<string> | null;

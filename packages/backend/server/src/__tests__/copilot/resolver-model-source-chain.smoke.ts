@@ -5425,6 +5425,7 @@ async function main() {
   ]);
   assert.equal(taskDiagnosticsErrorRoute?.providerId, 'local');
   assert.equal(taskDiagnosticsErrorRoute?.preparedProviderCount, 1);
+  assert.deepEqual(taskDiagnosticsErrorRoute?.fallbackProviderIds, ['local']);
   assert.deepEqual(taskDiagnosticsErrorRoute?.preparedRouteTargets, [
     'local/nomic-embed-text',
   ]);
@@ -5589,6 +5590,11 @@ async function main() {
     taskDiagnosticsErrorRoute?.preparedRouteTargets,
     'policy candidate evidence should bind the task route targets'
   );
+  assert.deepEqual(
+    taskDiagnosticsPolicyCandidateEvidence?.fallbackProviderIds,
+    taskDiagnosticsErrorRoute?.fallbackProviderIds,
+    'policy candidate evidence should bind the task route fallback providers'
+  );
   const taskDiagnosticsRouteCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'routeCandidate'
@@ -5623,6 +5629,11 @@ async function main() {
     taskDiagnosticsErrorRoute?.preparedRouteTargets,
     'route candidate evidence should bind the task route targets'
   );
+  assert.deepEqual(
+    taskDiagnosticsRouteCandidateEvidence?.fallbackProviderIds,
+    taskDiagnosticsErrorRoute?.fallbackProviderIds,
+    'route candidate evidence should bind the task route fallback providers'
+  );
   const taskDiagnosticsPrepareCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'prepareCandidate'
@@ -5652,6 +5663,11 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.preparedRouteTargets,
     taskDiagnosticsErrorRoute?.preparedRouteTargets,
     'prepare candidate evidence should bind the task route targets'
+  );
+  assert.deepEqual(
+    taskDiagnosticsPrepareCandidateEvidence?.fallbackProviderIds,
+    taskDiagnosticsErrorRoute?.fallbackProviderIds,
+    'prepare candidate evidence should bind the task route fallback providers'
   );
   const taskDiagnosticsErrorPreviewOperation =
     taskDiagnosticsErrorGate?.repairActionPreview.operations.find(

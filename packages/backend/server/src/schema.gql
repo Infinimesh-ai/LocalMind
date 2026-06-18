@@ -1503,6 +1503,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   candidateIndex: SafeInt!
   candidateKey: String
   candidateModelIds: [String!]
+  fallbackProviderIds: [String!]
   modelId: String
   preparedModelId: String
   preparedRouteTargets: [String!]

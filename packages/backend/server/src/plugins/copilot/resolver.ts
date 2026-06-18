@@ -701,6 +701,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   candidateIndex: number;
   candidateKey?: string;
   candidateModelIds?: string[];
+  fallbackProviderIds?: string[];
   modelId?: string;
   preparedModelId?: string;
   preparedRouteTargets?: string[];
@@ -1690,6 +1691,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => [String], { nullable: true })
   candidateModelIds?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['candidateModelIds'];
+
+  @Field(() => [String], { nullable: true })
+  fallbackProviderIds?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['fallbackProviderIds'];
 
   @Field(() => String, { nullable: true })
   modelId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelId'];
@@ -4046,6 +4050,7 @@ function taskRouteRepairCandidateEvidenceBase(
   candidate: {
     candidateKey?: string;
     candidateModelIds?: string[];
+    fallbackProviderIds?: string[];
     modelId?: string;
     preparedModelId?: string;
     preparedRouteTargets?: string[];
@@ -4076,6 +4081,9 @@ function taskRouteRepairCandidateEvidenceBase(
       : {}),
     ...(definedArray(candidate.candidateModelIds) !== undefined
       ? { candidateModelIds: definedArray(candidate.candidateModelIds) }
+      : {}),
+    ...(candidate.fallbackProviderIds !== undefined
+      ? { fallbackProviderIds: candidate.fallbackProviderIds }
       : {}),
     ...(candidate.modelId !== undefined ? { modelId: candidate.modelId } : {}),
     ...(candidate.preparedModelId !== undefined
@@ -4143,6 +4151,7 @@ function taskRouteCandidateProfileStructuredEvidence(
     candidate: {
       candidateKey?: string;
       candidateModelIds?: string[];
+      fallbackProviderIds?: string[];
       modelId?: string;
       preparedModelId?: string;
       preparedRouteTargets?: string[];
@@ -4167,6 +4176,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       scope,
       {
         ...candidate,
+        fallbackProviderIds: route.fallbackProviderIds,
         preparedRouteTargets: route.preparedRouteTargets,
         preparedRouteTargetFingerprint: route.preparedRouteTargetFingerprint,
       },

@@ -2963,6 +2963,9 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
     evidence.candidateModelIds?.length
       ? `candidate models ${evidence.candidateModelIds.join(', ')}`
       : null,
+    evidence.fallbackProviderIds?.length
+      ? `fallback ${evidence.fallbackProviderIds.join(' -> ')}`
+      : null,
     evidence.reasons.length ? `reasons ${evidence.reasons.join(', ')}` : null,
   ]);
 }

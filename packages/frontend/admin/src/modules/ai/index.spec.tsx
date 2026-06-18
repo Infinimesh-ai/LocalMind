@@ -160,7 +160,7 @@ const blockedRoute = {
   dimensionMismatch: false,
   errorCode: 'no_provider_available',
   errorMessage: 'No provider is configured for embedding.',
-  fallbackProviderIds: [],
+  fallbackProviderIds: ['ollama-main', 'openai-fallback'],
   featureKind: 'workspace_indexing',
   modelBackendKind: null,
   modelEmbeddingDimensions: null,
@@ -302,6 +302,7 @@ const readyRoute = {
   diagnosticsErrors: [],
   errorCode: null,
   errorMessage: null,
+  fallbackProviderIds: ['ollama-main'],
   featureKind: 'rerank',
   modelId: 'bge-reranker-v2',
   policyCandidates: [
@@ -1973,6 +1974,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             candidateIndex: 0,
             candidateKey: 'policy:workspace_indexing:global:ollama-main',
             candidateModelIds: null,
+            fallbackProviderIds: blockedRoute.fallbackProviderIds,
             modelId: null,
             preparedModelId: null,
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
@@ -1998,6 +2000,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             candidateIndex: 0,
             candidateKey: 'route:ollama-main',
             candidateModelIds: ['workspace-embedding'],
+            fallbackProviderIds: blockedRoute.fallbackProviderIds,
             modelId: 'workspace-embedding',
             preparedModelId: null,
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
@@ -2023,6 +2026,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             candidateIndex: 0,
             candidateKey: 'prepare:ollama-main',
             candidateModelIds: ['workspace-embedding'],
+            fallbackProviderIds: blockedRoute.fallbackProviderIds,
             modelId: 'workspace-embedding',
             preparedModelId: 'nomic-embed-text',
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
@@ -5956,6 +5960,9 @@ describe('AiPage', () => {
     );
     expect(readyGateDiagnostics).toContain(
       `target fingerprint ${blockedRoute.preparedRouteTargetFingerprint}`
+    );
+    expect(readyGateDiagnostics).toContain(
+      `fallback ${blockedRoute.fallbackProviderIds.join(' -> ')}`
     );
     expect(readyGateDiagnostics).toContain(
       'provider ollama-main / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding'

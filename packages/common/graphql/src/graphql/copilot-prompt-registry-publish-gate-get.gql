@@ -600,6 +600,7 @@ query getCopilotPromptRegistryPublishGate(
             candidateIndex
             candidateKey
             candidateModelIds
+            fallbackProviderIds
             modelId
             preparedModelId
             preparedRouteTargets
