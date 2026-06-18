@@ -283,6 +283,24 @@ function taskRouteDimensionSnapshotFixture(route: {
   });
 }
 
+function taskRouteModelSourceSnapshotFixture(route: {
+  featureKind: string;
+  requestedModelConfigKey?: string | null;
+  requestedModelConfigPath?: string | null;
+  requestedModelId?: string | null;
+  requestedModelSource?: string | null;
+}) {
+  return [
+    stripNullishFixtureFields({
+      featureKind: route.featureKind,
+      requestedModelConfigKey: route.requestedModelConfigKey,
+      requestedModelConfigPath: route.requestedModelConfigPath,
+      requestedModelId: route.requestedModelId,
+      requestedModelSource: route.requestedModelSource,
+    }),
+  ];
+}
+
 function taskRouteProviderHealthSnapshotFixture(route: {
   policyCandidates: {
     health?: string | null;
@@ -2597,6 +2615,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
               taskRouteSnapshotFingerprintFixture(
                 taskRouteDimensionSnapshotFixture(blockedRoute)
               ),
+            taskRouteModelSourceSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteModelSourceSnapshotFixture(blockedRoute)
+              ),
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
@@ -2664,6 +2686,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
               taskRouteSnapshotFingerprintFixture(
                 taskRouteDimensionSnapshotFixture(blockedRoute)
               ),
+            taskRouteModelSourceSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteModelSourceSnapshotFixture(blockedRoute)
+              ),
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
               blockedRoute.preparedRouteTargetFingerprint,
@@ -2730,6 +2756,10 @@ const readyPublishGateVerdict = withRepairActionPreview(
             taskRouteDimensionSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRouteDimensionSnapshotFixture(blockedRoute)
+              ),
+            taskRouteModelSourceSnapshotFingerprint:
+              taskRouteSnapshotFingerprintFixture(
+                taskRouteModelSourceSnapshotFixture(blockedRoute)
               ),
             preparedRouteTargets: blockedRoute.preparedRouteTargets,
             preparedRouteTargetFingerprint:
@@ -6707,6 +6737,9 @@ describe('AiPage', () => {
     );
     expect(readyGateDiagnostics).toContain(
       `task route dimension snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteDimensionSnapshotFixture(blockedRoute))}`
+    );
+    expect(readyGateDiagnostics).toContain(
+      `task route model source snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteModelSourceSnapshotFixture(blockedRoute))}`
     );
     expect(readyGateDiagnostics).toContain(
       `provider health snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteProviderHealthSnapshotFixture(blockedRoute))}`

@@ -638,6 +638,7 @@ query getCopilotPromptRegistryPublishGate(
             providerHealthSnapshotFingerprint
             providerLimitSnapshotFingerprint
             taskRouteDimensionSnapshotFingerprint
+            taskRouteModelSourceSnapshotFingerprint
             preparedRouteTargets
             preparedRouteTargetFingerprint
             policyCandidates {

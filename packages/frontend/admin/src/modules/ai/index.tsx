@@ -3010,6 +3010,9 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
     evidence.taskRouteDimensionSnapshotFingerprint
       ? `task route dimension snapshot fingerprint ${evidence.taskRouteDimensionSnapshotFingerprint}`
       : null,
+    evidence.taskRouteModelSourceSnapshotFingerprint
+      ? `task route model source snapshot fingerprint ${evidence.taskRouteModelSourceSnapshotFingerprint}`
+      : null,
     evidence.preparedRouteTargets?.length
       ? `targets ${evidence.preparedRouteTargets.join(', ')}`
       : null,

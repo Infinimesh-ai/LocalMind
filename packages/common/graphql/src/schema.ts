@@ -1758,6 +1758,7 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   providerHealthSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   providerLimitSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   taskRouteDimensionSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
+  taskRouteModelSourceSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   preparedRouteTargets?: Maybe<Array<Scalars['String']['output']>>;
   preparedRouteTargetFingerprint?: Maybe<Scalars['String']['output']>;
   policyCandidates?: Maybe<
@@ -7999,6 +8000,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             providerHealthSnapshotFingerprint: string | null;
             providerLimitSnapshotFingerprint: string | null;
             taskRouteDimensionSnapshotFingerprint: string | null;
+            taskRouteModelSourceSnapshotFingerprint: string | null;
             preparedRouteTargets: Array<string> | null;
             preparedRouteTargetFingerprint: string | null;
             policyCandidates: Array<{

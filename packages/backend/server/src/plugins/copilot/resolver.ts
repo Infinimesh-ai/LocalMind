@@ -725,6 +725,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   providerHealthSnapshotFingerprint?: string;
   providerLimitSnapshotFingerprint?: string;
   taskRouteDimensionSnapshotFingerprint?: string;
+  taskRouteModelSourceSnapshotFingerprint?: string;
   preparedRouteTargets?: string[];
   preparedRouteTargetFingerprint?: string;
   policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
@@ -1789,6 +1790,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   taskRouteDimensionSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['taskRouteDimensionSnapshotFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  taskRouteModelSourceSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['taskRouteModelSourceSnapshotFingerprint'];
 
   @Field(() => [String], { nullable: true })
   preparedRouteTargets?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedRouteTargets'];
@@ -4293,6 +4297,7 @@ function taskRouteRepairCandidateEvidenceBase(
     providerHealthSnapshotFingerprint?: string;
     providerLimitSnapshotFingerprint?: string;
     taskRouteDimensionSnapshotFingerprint?: string;
+    taskRouteModelSourceSnapshotFingerprint?: string;
     preparedRouteTargets?: string[];
     preparedRouteTargetFingerprint?: string;
     policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
@@ -4374,6 +4379,12 @@ function taskRouteRepairCandidateEvidenceBase(
       ? {
           taskRouteDimensionSnapshotFingerprint:
             candidate.taskRouteDimensionSnapshotFingerprint,
+        }
+      : {}),
+    ...(candidate.taskRouteModelSourceSnapshotFingerprint !== undefined
+      ? {
+          taskRouteModelSourceSnapshotFingerprint:
+            candidate.taskRouteModelSourceSnapshotFingerprint,
         }
       : {}),
     ...(candidate.preparedRouteTargets !== undefined
@@ -4468,6 +4479,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       providerCostSnapshotFingerprint?: string;
       providerHealthSnapshotFingerprint?: string;
       taskRouteDimensionSnapshotFingerprint?: string;
+      taskRouteModelSourceSnapshotFingerprint?: string;
       preparedRouteTargets?: string[];
       preparedRouteTargetFingerprint?: string;
       policyCandidates?: CopilotPromptRegistryPublishGatePolicyCandidate[];
@@ -4549,6 +4561,8 @@ function taskRouteCandidateProfileStructuredEvidence(
     const providerHealthSnapshot = taskRouteProviderHealthSnapshot(route);
     const providerLimitSnapshot = taskRouteProviderLimitSnapshot(route);
     const taskRouteDimensionSnapshotValue = taskRouteDimensionSnapshot(route);
+    const taskRouteModelSourceSnapshotValue =
+      taskRouteModelSourceSnapshot(route);
     const evidence = taskRouteRepairCandidateEvidenceBase(
       scope,
       {
@@ -4573,6 +4587,9 @@ function taskRouteCandidateProfileStructuredEvidence(
         ),
         taskRouteDimensionSnapshotFingerprint: taskRouteSnapshotFingerprint(
           taskRouteDimensionSnapshotValue
+        ),
+        taskRouteModelSourceSnapshotFingerprint: taskRouteSnapshotFingerprint(
+          taskRouteModelSourceSnapshotValue
         ),
         preparedRouteTargets: route.preparedRouteTargets,
         preparedRouteTargetFingerprint: route.preparedRouteTargetFingerprint,
@@ -4659,6 +4676,9 @@ function taskRouteCandidateProfileEvidence(
         candidate.taskRouteDimensionSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteDimensionSnapshotFingerprint:${candidate.taskRouteDimensionSnapshotFingerprint}`
           : null,
+        candidate.taskRouteModelSourceSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteModelSourceSnapshotFingerprint:${candidate.taskRouteModelSourceSnapshotFingerprint}`
+          : null,
         candidate.policyCandidateSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:policyCandidateSnapshotFingerprint:${candidate.policyCandidateSnapshotFingerprint}`
           : null,
@@ -4716,6 +4736,9 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.taskRouteDimensionSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteDimensionSnapshotFingerprint:${candidate.taskRouteDimensionSnapshotFingerprint}`
+          : null,
+        candidate.taskRouteModelSourceSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteModelSourceSnapshotFingerprint:${candidate.taskRouteModelSourceSnapshotFingerprint}`
           : null,
         candidate.policyCandidateSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:policyCandidateSnapshotFingerprint:${candidate.policyCandidateSnapshotFingerprint}`
@@ -5726,6 +5749,28 @@ function taskRouteDimensionSnapshot(
       ? { requestedModelId: route.requestedModelId }
       : {}),
   };
+}
+
+function taskRouteModelSourceSnapshot(
+  route: CopilotPromptRegistryPublishGateTaskRoute
+) {
+  return [
+    {
+      featureKind: route.featureKind,
+      ...(route.requestedModelConfigKey
+        ? { requestedModelConfigKey: route.requestedModelConfigKey }
+        : {}),
+      ...(route.requestedModelConfigPath
+        ? { requestedModelConfigPath: route.requestedModelConfigPath }
+        : {}),
+      ...(route.requestedModelId
+        ? { requestedModelId: route.requestedModelId }
+        : {}),
+      ...(route.requestedModelSource
+        ? { requestedModelSource: route.requestedModelSource }
+        : {}),
+    },
+  ];
 }
 
 function taskRouteProviderHealthSnapshot(

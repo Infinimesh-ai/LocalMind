@@ -1533,6 +1533,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   providerHealthSnapshotFingerprint: String
   providerLimitSnapshotFingerprint: String
   taskRouteDimensionSnapshotFingerprint: String
+  taskRouteModelSourceSnapshotFingerprint: String
   preparedRouteTargets: [String!]
   preparedRouteTargetFingerprint: String
   policyCandidates: [CopilotPromptRegistryPublishGatePolicyCandidateType!]

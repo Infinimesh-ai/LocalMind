@@ -12884,3 +12884,34 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - provider runtime definition id fallback 仍只是只读 diagnostics metadata，不代表已经创建 Model Registry revision、Provider Registry revision、persistent route event、support bundle schema 或审计记录。
 - 当 provider runtime 返回的 `routeModelId` 本身不稳定或 provider adapter 对同一模型使用多个别名时，该字段仍只能反映当前 resolver 选择结果，不提供跨 provider 的全局规范化。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 379. P3 落地记录：Task Route Model Source Snapshot Fingerprint
+
+本轮继续收敛 task route diagnostics 与 Prompt Registry repair evidence 的自包含性。实际代码与目标 AI 中间层架构的冲突点是：`CopilotResolver.models()` 与 Admin task route diagnostics 已经能显示 workspace indexing / rerank 的 `requestedModelId`、`requestedModelSource`、`requestedModelConfigKey` 与 `requestedModelConfigPath`，用于区分显式 `copilot.tasks.models.workspaceIndexing`、embedding fallback、rerank task model 或 provider default；但 repair candidate evidence 只绑定 route/prepare/provider/dimension 等 snapshot fingerprint，缺少一个可独立比对的 task model source 契约指纹。后续 Model Registry revision、support bundle、repair guard 或 route explain 需要判断“同一 provider/model route 是由哪个任务 alias 配置来源触发”，不能只依赖候选 provider/model 指纹。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 新增 `taskRouteModelSourceSnapshotFingerprint`。
+  - 新增 `taskRouteModelSourceSnapshot()`，投影 task route 的 `featureKind`、`requestedModelId`、`requestedModelSource`、`requestedModelConfigKey` 与 `requestedModelConfigPath`。
+  - `taskRouteCandidateProfileStructuredEvidence()` 将该 snapshot fingerprint 写入 policy/route/prepare candidate evidence；candidate fingerprint、preview operation fingerprint 与 evidence set fingerprint 会对任务模型 alias 来源变化敏感。
+  - 文本 evidence 同步加入 `taskRouteModelSourceSnapshotFingerprint`，让 repair recommendation 可复制证据链能直接定位任务模型配置来源变化。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、common query string 与 `schema.ts` 类型同步新增 repair candidate evidence 的 `taskRouteModelSourceSnapshotFingerprint`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence diagnostics text 显示 `task route model source snapshot fingerprint ...`，方便管理员在自部署配置排障时比对显式 task alias、fallback 和 provider default 的来源变化。
+- 测试覆盖：
+  - resolver source chain smoke 断言 task route diagnostics repair evidence 和 policy/route/prepare candidate evidence 都携带与 task route model source snapshot 一致的 fingerprint。
+  - Admin Vitest fixture 注入该 fingerprint，并断言 publish gate diagnostics text 显示该 fingerprint。
+
+该实现只扩展只读 diagnostics/evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 Model Registry/Provider Registry revision row、不改变 repair action catalog、不新增 mutation input、不改变 preview/preflight/execution gate 字段名、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把 task route model source 契约从“只在顶层 diagnostics 文本可见”推进到“repair candidate evidence snapshot 也能用独立 fingerprint 感知任务模型 alias 来源变化”，为后续 support bundle、route explain、repair guard 与 Model Registry revision 对齐提供更可审计的过渡证据。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Admin AI Vitest、Prettier/oxlint 与 `git diff --check`。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `taskRouteModelSourceSnapshotFingerprint` 只覆盖当前 diagnostics 中公开的任务模型 alias 来源字段，不覆盖真实 provider dispatch result、runtime fallback attempt、provider response、latency、token/embedding usage 或最终 rerank fallback 行为。
+- 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
+- workspace indexing runtime 仍强制请求并校验 `EMBEDDING_DIMENSIONS = 1024`；切换到非 1024 维模型仍需要后续索引版本和重建机制。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

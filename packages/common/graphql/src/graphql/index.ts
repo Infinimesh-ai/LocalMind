@@ -2612,6 +2612,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             providerHealthSnapshotFingerprint
             providerLimitSnapshotFingerprint
             taskRouteDimensionSnapshotFingerprint
+            taskRouteModelSourceSnapshotFingerprint
             preparedRouteTargets
             preparedRouteTargetFingerprint
             policyCandidates {

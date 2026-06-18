@@ -905,6 +905,32 @@ function taskRouteDimensionSnapshotFixture(route: {
   };
 }
 
+function taskRouteModelSourceSnapshotFixture(route: {
+  featureKind: string;
+  requestedModelConfigKey?: string;
+  requestedModelConfigPath?: string;
+  requestedModelId?: string;
+  requestedModelSource?: string;
+}) {
+  return [
+    {
+      featureKind: route.featureKind,
+      ...(route.requestedModelConfigKey
+        ? { requestedModelConfigKey: route.requestedModelConfigKey }
+        : {}),
+      ...(route.requestedModelConfigPath
+        ? { requestedModelConfigPath: route.requestedModelConfigPath }
+        : {}),
+      ...(route.requestedModelId
+        ? { requestedModelId: route.requestedModelId }
+        : {}),
+      ...(route.requestedModelSource
+        ? { requestedModelSource: route.requestedModelSource }
+        : {}),
+    },
+  ];
+}
+
 function taskRouteProviderCapabilitySnapshotFixture(
   route:
     | {
@@ -6812,6 +6838,10 @@ async function main() {
   );
   const taskDiagnosticsDimensionSnapshotFingerprint =
     taskRouteSnapshotFingerprintFixture(taskDiagnosticsDimensionSnapshot);
+  const taskDiagnosticsModelSourceSnapshot =
+    taskRouteModelSourceSnapshotFixture(taskDiagnosticsErrorRoute);
+  const taskDiagnosticsModelSourceSnapshotFingerprint =
+    taskRouteSnapshotFingerprintFixture(taskDiagnosticsModelSourceSnapshot);
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
       `policyCandidate#0:policyCandidateSnapshotFingerprint:${taskDiagnosticsPolicyCandidateSnapshotFingerprint}`
@@ -6874,6 +6904,13 @@ async function main() {
     ),
     true,
     'task diagnostics repair evidence should include task route dimension snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      `policyCandidate#0:taskRouteModelSourceSnapshotFingerprint:${taskDiagnosticsModelSourceSnapshotFingerprint}`
+    ),
+    true,
+    'task diagnostics repair evidence should include task route model source snapshot fingerprint'
   );
   assert.match(
     taskDiagnosticsPolicyCandidateEvidence?.candidateFingerprint ?? '',
@@ -6993,6 +7030,11 @@ async function main() {
     taskDiagnosticsDimensionSnapshotFingerprint,
     'policy candidate evidence should bind the task route dimension snapshot fingerprint'
   );
+  assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.taskRouteModelSourceSnapshotFingerprint,
+    taskDiagnosticsModelSourceSnapshotFingerprint,
+    'policy candidate evidence should bind the task route model source snapshot fingerprint'
+  );
   const taskDiagnosticsRouteCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'routeCandidate'
@@ -7092,6 +7134,11 @@ async function main() {
     taskDiagnosticsDimensionSnapshotFingerprint,
     'route candidate evidence should bind the task route dimension snapshot fingerprint'
   );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.taskRouteModelSourceSnapshotFingerprint,
+    taskDiagnosticsModelSourceSnapshotFingerprint,
+    'route candidate evidence should bind the task route model source snapshot fingerprint'
+  );
   const taskDiagnosticsPrepareCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'prepareCandidate'
@@ -7186,6 +7233,11 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.taskRouteDimensionSnapshotFingerprint,
     taskDiagnosticsDimensionSnapshotFingerprint,
     'prepare candidate evidence should bind the task route dimension snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.taskRouteModelSourceSnapshotFingerprint,
+    taskDiagnosticsModelSourceSnapshotFingerprint,
+    'prepare candidate evidence should bind the task route model source snapshot fingerprint'
   );
   const taskDiagnosticsErrorPreviewOperation =
     taskDiagnosticsErrorGate?.repairActionPreview.operations.find(
