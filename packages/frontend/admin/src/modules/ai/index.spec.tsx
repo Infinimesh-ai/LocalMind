@@ -35,6 +35,7 @@ const useQueryMock = vi.fn();
 const useMutationMock = vi.fn();
 const mutateMock = vi.fn();
 const requestRepairExecutionMock = vi.fn();
+const writeTextMock = vi.fn();
 
 function stableFixtureStringify(value: unknown): string {
   if (value === undefined) {
@@ -4351,10 +4352,18 @@ describe('AiPage', () => {
   });
 
   beforeEach(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: writeTextMock,
+      },
+    });
     useQueryMock.mockReset();
     useMutationMock.mockReset();
     mutateMock.mockReset();
     mutateMock.mockResolvedValue(undefined);
+    writeTextMock.mockReset();
+    writeTextMock.mockResolvedValue(undefined);
     requestRepairExecutionMock.mockReset();
     requestRepairExecutionMock.mockImplementation(
       async ({
@@ -8196,6 +8205,10 @@ describe('AiPage', () => {
     expect(JSON.parse(actionRunManifestJson)).toEqual(
       actionRunsPayload[0].agentRuntimeDiagnosticsManifest
     );
+    fireEvent.click(screen.getAllByRole('button', { name: 'Copy JSON' })[0]);
+    await waitFor(() => {
+      expect(writeTextMock).toHaveBeenCalledWith(actionRunManifestJson);
+    });
     expect(actionRunDiagnostics).toContain(
       'Agent runtime projection ai_action_run_agent_runtime_projection/v1'
     );

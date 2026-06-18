@@ -13780,3 +13780,29 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - manifest 的 `version` 仍是应用层字符串，不是 DB-backed Agent Runtime schema revision、Model Registry revision、Provider Registry revision 或迁移版本。
 - 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、筛选、download/export 控制或 Agent Runtime 原生 lifecycle artifact。
 - 当前 runtime 镜像未包含本轮纯前端源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 409. P3 落地记录：Admin Action Run Diagnostics Manifest Copy Control
+
+本轮继续收敛第 408 节剩余风险中 “JSON preview 仍没有一键复制按钮” 的问题。实际代码与目标 AI 中间层架构的冲突点是：Admin 已经能展示 `agentRuntimeDiagnosticsManifest` 的机器可读 JSON preview，但自部署管理员仍需要手动选择 `<pre>` 文本才能带走 support-bundle-ready manifest。本轮在 manifest JSON preview 上新增 `Copy JSON` 控制，直接复制当前已脱敏 manifest JSON，不改变后端 schema、trace 存储、真实 dispatch、Agent Runtime 状态机或持久化 schema。
+
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - `ActionRunDiagnosticsPanel` 的 `Diagnostics manifest JSON` 标题旁新增 `Copy JSON` 按钮。
+  - 点击按钮调用 `navigator.clipboard.writeText(manifestJson)`，复制的内容与页面 JSON preview 完全一致。
+  - clipboard 不可用时使用可选链静默降级，保留页面内 JSON preview。
+- 测试覆盖：
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` stub `navigator.clipboard.writeText`，点击 `Copy JSON` 后断言复制内容等于当前 run 的 manifest JSON preview。
+
+该实现只调整 Admin 只读展示、手动复制控制与测试，不新增 GraphQL 字段、不新增 DB migration、不改变 action run trace 存储结构、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、repair mutation guard、正式 support bundle schema、Model Registry revision 或 Provider Registry revision。它把 manifest JSON preview 从“可读”推进到“可一键复制”，为后续下载 support bundle 和 route explain JSON 契约提供更接近实际排障流程的 Admin 入口。
+
+验证策略：
+
+- 本轮为 Admin UI test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `Copy JSON` 仍是手动复制当前 manifest preview，不是正式 support bundle download/export API，也没有文件命名、批量导出、筛选或脱敏审计元数据。
+- 复制内容仅包含当前 GraphQL manifest 对象，不包含完整 prepared route trace、timeline item payload、native trace event payload、tool output、Codex/MCP adapter 输出或审批结果。
+- manifest 的 `version` 仍是应用层字符串，不是 DB-backed Agent Runtime schema revision、Model Registry revision、Provider Registry revision 或迁移版本。
+- 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、下载/export 控制或 Agent Runtime 原生 lifecycle artifact。
+- 当前 runtime 镜像未包含本轮纯前端源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

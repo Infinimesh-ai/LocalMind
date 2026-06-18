@@ -5749,7 +5749,19 @@ function ActionRunDiagnosticsPanel({
         </pre>
       </div>
       <div>
-        <div className="text-xs font-medium">Diagnostics manifest JSON</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="text-xs font-medium">Diagnostics manifest JSON</div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              navigator.clipboard?.writeText(manifestJson).catch(() => {});
+            }}
+          >
+            Copy JSON
+          </Button>
+        </div>
         <pre
           className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-muted-foreground"
           data-testid={`action-run-diagnostics-manifest-json-${runId}`}
