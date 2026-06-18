@@ -3188,8 +3188,13 @@ export const getCopilotActionRunPreparedRouteTraceQuery = {
           routeCount
           routeCountMismatch
           routes {
+            behaviorFlags
+            canonicalModelKey
+            dimensionMismatch
             fallbackOrderIndex
             modelId
+            modelBackendKind
+            modelEmbeddingDimensions
             protocol
             providerConfiguredModelCount
             providerConfiguredModelIds
@@ -3206,6 +3211,7 @@ export const getCopilotActionRunPreparedRouteTraceQuery = {
             providerSource
             providerType
             requestLayer
+            requestedDimensions
             routeModelAliasMatched
             routeModelDefinitionAliases
             routeModelDefinitionId

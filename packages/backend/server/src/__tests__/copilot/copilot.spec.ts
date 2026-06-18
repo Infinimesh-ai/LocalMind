@@ -3172,12 +3172,18 @@ test('resolver action run prepared route trace should expose sanitized workspace
             fallbackProviderIds: ['ollama-main', 'openai-default'],
             routes: [
               {
+                behaviorFlags: ['tool_calls'],
+                canonicalModelKey: 'local/office-structured',
+                dimensionMismatch: true,
                 providerId: 'ollama-main',
                 modelId: 'local/office-structured',
+                modelBackendKind: 'openai_chat',
+                modelEmbeddingDimensions: 1536,
                 routeIndex: 0,
                 fallbackOrderIndex: 0,
                 protocol: 'openai_chat',
                 requestLayer: 'chat_completions',
+                requestedDimensions: 1024,
                 providerConfiguredModelCount: 2,
                 providerConfiguredModelIds: [
                   'local/office-structured',
@@ -3232,12 +3238,18 @@ test('resolver action run prepared route trace should expose sanitized workspace
         fallbackProviderIds: ['ollama-main', 'openai-default'],
         routes: [
           {
+            behaviorFlags: ['tool_calls'],
+            canonicalModelKey: 'local/office-structured',
+            dimensionMismatch: true,
             providerId: 'ollama-main',
             modelId: 'local/office-structured',
+            modelBackendKind: 'openai_chat',
+            modelEmbeddingDimensions: 1536,
             routeIndex: 0,
             fallbackOrderIndex: 0,
             protocol: 'openai_chat',
             requestLayer: 'chat_completions',
+            requestedDimensions: 1024,
             providerConfiguredModelCount: 2,
             providerConfiguredModelIds: [
               'local/office-structured',
@@ -4066,15 +4078,14 @@ test('resolver models should include configured provider models and fallback def
         id: 'openai-default/gpt-5-mini',
         promptModelSources: [
           {
-            candidateSource: 'default',
-            modelSource: 'compat',
+            candidateSource: 'fallback_route',
           },
           {
             candidateSource: 'registry',
           },
         ],
         routeModelId: 'gpt-5-mini',
-        sources: ['default', 'registry'],
+        sources: ['fallback_route', 'registry'],
       },
     ]
   );

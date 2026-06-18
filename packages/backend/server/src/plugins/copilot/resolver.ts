@@ -12835,6 +12835,24 @@ class CopilotActionRunPreparedRouteDiagnosticsRouteType {
   @Field(() => String, { nullable: true })
   requestLayer?: string;
 
+  @Field(() => String, { nullable: true })
+  modelBackendKind?: string;
+
+  @Field(() => String, { nullable: true })
+  canonicalModelKey?: string;
+
+  @Field(() => [String], { nullable: true })
+  behaviorFlags?: string[];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  requestedDimensions?: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  modelEmbeddingDimensions?: number;
+
+  @Field(() => Boolean, { nullable: true })
+  dimensionMismatch?: boolean;
+
   @Field(() => SafeIntResolver, { nullable: true })
   providerConfiguredModelCount?: number;
 

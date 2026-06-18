@@ -16,8 +16,13 @@ query getCopilotActionRunPreparedRouteTrace(
           routeCount
           routeCountMismatch
           routes {
+            behaviorFlags
+            canonicalModelKey
+            dimensionMismatch
             fallbackOrderIndex
             modelId
+            modelBackendKind
+            modelEmbeddingDimensions
             protocol
             providerConfiguredModelCount
             providerConfiguredModelIds
@@ -34,6 +39,7 @@ query getCopilotActionRunPreparedRouteTrace(
             providerSource
             providerType
             requestLayer
+            requestedDimensions
             routeModelAliasMatched
             routeModelDefinitionAliases
             routeModelDefinitionId

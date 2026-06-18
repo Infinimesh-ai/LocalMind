@@ -13472,3 +13472,37 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - Provider profile evidence 仍来自当前配置层/native prepared route，不是 DB-backed Provider Registry / Model Registry revision，也不包含最后修改人、健康探测延迟或 endpoint telemetry。
 - 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、表格筛选、JSON export、一键复制按钮或 support bundle schema。
 - 当前 runtime 镜像未包含本轮纯前端源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 399. P3 落地记录：Action Run Prepared Route Model Evidence Trace Alignment
+
+本轮继续收敛第 398 节之后的 Agent Runtime / action run route diagnostics 可观测性缺口。实际代码与目标 AI 中间层架构的冲突点是：task route diagnostics 与 prepared route 表格已经能展示 provider profile、provider source/type/priority 以及模型定义相关 evidence，但 action run 的 `prepared_routes` trace 只保留 provider profile/source/type/priority、protocol 和 request layer，缺少 `modelBackendKind`、`canonicalModelKey`、`behaviorFlags` 与维度契约字段。自部署管理员排查办公 Agent Runtime 或 Codex/MCP adapter 接入前的 action route 准备结果时，仍需要在 action run trace 与 task route diagnostics 之间人工对照。本轮把这些已存在于 route diagnostics 的安全模型 evidence 贯通到 action run prepared route trace，不改变真实 dispatch 行为。
+
+- `packages/backend/server/src/plugins/copilot/runtime/contracts/execution-plan-contract.ts` 与 `packages/backend/server/src/plugins/copilot/runtime/execution-plan.ts`：
+  - `ExecutionRouteDiagnostics` 声明并填充 `modelBackendKind`、`canonicalModelKey`、`behaviorFlags`、`requestedDimensions`、`modelEmbeddingDimensions` 与 `dimensionMismatch`。
+  - structured/image action route 当前主要从 provider resolved model 读取 backend/canonical/behavior evidence；维度字段仅在 prepared route 已提供时透出，不为非 embedding 路径强造维度。
+- `packages/backend/server/src/plugins/copilot/runtime/action-runtime-bridge.ts` 与 `packages/backend/server/src/models/copilot-action-run.ts`：
+  - prepared action route trace 写入并清洗上述只读字段。
+  - 继续只保留字符串、数字、布尔与字符串数组等安全 metadata，不透出 `backendConfig`、base URL、auth token、headers、prompt、native request body 或 provider response。
+- GraphQL 与 common client：
+  - `schema.gql`、`copilot-action-run-prepared-route-trace-get.gql`、common query string 与 `schema.ts` 类型同步新增 action run prepared route trace 字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - action run trace 表格与 copyable diagnostics 显示 backend/canonical/behavior 与维度 evidence。
+  - 维度 evidence 复用 Admin 文本 formatter，只在字段存在时展示，缺失时保留原只读失败态。
+- 测试覆盖：
+  - resolver action run prepared route trace 测试断言新增字段被清洗后返回，同时既有 secret/backend config 仍不在返回结构中。
+  - Admin Vitest fixture 与断言覆盖 action run trace diagnostics 和页面表格显示新增模型 evidence。
+
+该实现只扩展 action run prepared route trace 的只读 diagnostics/type/query/Admin 展示与测试，不新增 DB migration、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、repair mutation guard、support bundle schema、Model Registry revision 或 Provider Registry revision。它把 action run trace 从“只知道 provider/profile/protocol/layer”推进到“也能携带与 task route diagnostics 对齐的安全模型定义 evidence”，为后续办公 Agent Runtime、Codex CLI/MCP adapter、route explain 与 support bundle 对齐提供更完整的只读中间层证据。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused copilot resolver AVA、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- action run prepared route trace 仍是准备阶段的只读 sanitized trace，不代表后续真实 dispatch 已持久化 route event、provider response、latency、usage、cost、token budget 或最终执行结果。
+- structured/image action route 的维度字段通常为空；本轮只提供字段通道，不把 embedding/rerank 维度契约强行套用到所有 action 类型。
+- backend/canonical/behavior evidence 仍来自 provider resolved model/profile/native registry 的静态声明，不是 DB-backed Model Registry / Provider Registry revision，也不包含最后修改人、健康探测延迟或 endpoint telemetry。
+- 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、JSON export、一键复制按钮、support bundle schema 或 Agent Runtime 原生 lifecycle artifact。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

@@ -728,8 +728,13 @@ export interface CopilotPromptRegistryRepairPreflightArgs {
 
 export interface CopilotActionRunPreparedRouteDiagnosticsRouteType {
   __typename?: 'CopilotActionRunPreparedRouteDiagnosticsRouteType';
+  behaviorFlags?: Maybe<Array<Scalars['String']['output']>>;
+  canonicalModelKey?: Maybe<Scalars['String']['output']>;
+  dimensionMismatch?: Maybe<Scalars['Boolean']['output']>;
   fallbackOrderIndex?: Maybe<Scalars['SafeInt']['output']>;
   modelId: Scalars['String']['output'];
+  modelBackendKind?: Maybe<Scalars['String']['output']>;
+  modelEmbeddingDimensions?: Maybe<Scalars['SafeInt']['output']>;
   protocol?: Maybe<Scalars['String']['output']>;
   providerConfiguredModelCount?: Maybe<Scalars['SafeInt']['output']>;
   providerConfiguredModelIds?: Maybe<Array<Scalars['String']['output']>>;
@@ -746,6 +751,7 @@ export interface CopilotActionRunPreparedRouteDiagnosticsRouteType {
   providerSource?: Maybe<Scalars['String']['output']>;
   providerType?: Maybe<Scalars['String']['output']>;
   requestLayer?: Maybe<Scalars['String']['output']>;
+  requestedDimensions?: Maybe<Scalars['SafeInt']['output']>;
   routeModelAliasMatched?: Maybe<Scalars['Boolean']['output']>;
   routeModelDefinitionAliases?: Maybe<Array<Scalars['String']['output']>>;
   routeModelDefinitionId?: Maybe<Scalars['String']['output']>;
@@ -8661,8 +8667,13 @@ export type GetCopilotActionRunPreparedRouteTraceQuery = {
           stepId: string;
           routes: Array<{
             __typename?: 'CopilotActionRunPreparedRouteDiagnosticsRouteType';
+            behaviorFlags: Array<string> | null;
+            canonicalModelKey: string | null;
+            dimensionMismatch: boolean | null;
             fallbackOrderIndex: number | null;
             modelId: string;
+            modelBackendKind: string | null;
+            modelEmbeddingDimensions: number | null;
             protocol: string | null;
             providerConfiguredModelCount: number | null;
             providerConfiguredModelIds: Array<string> | null;
@@ -8679,6 +8690,7 @@ export type GetCopilotActionRunPreparedRouteTraceQuery = {
             providerSource: string | null;
             providerType: string | null;
             requestLayer: string | null;
+            requestedDimensions: number | null;
             routeModelAliasMatched: boolean | null;
             routeModelDefinitionAliases: Array<string> | null;
             routeModelDefinitionId: string | null;

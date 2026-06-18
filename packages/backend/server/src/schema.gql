@@ -537,8 +537,13 @@ type Copilot {
 }
 
 type CopilotActionRunPreparedRouteDiagnosticsRouteType {
+  behaviorFlags: [String!]
+  canonicalModelKey: String
+  dimensionMismatch: Boolean
   fallbackOrderIndex: SafeInt
   modelId: String!
+  modelBackendKind: String
+  modelEmbeddingDimensions: SafeInt
   protocol: String
   providerConfiguredModelCount: SafeInt
   providerConfiguredModelIds: [String!]
@@ -555,6 +560,7 @@ type CopilotActionRunPreparedRouteDiagnosticsRouteType {
   providerSource: String
   providerType: String
   requestLayer: String
+  requestedDimensions: SafeInt
   routeModelAliasMatched: Boolean
   routeModelDefinitionAliases: [String!]
   routeModelDefinitionId: String

@@ -950,6 +950,27 @@ function formatRoutePolicyText(
   ]);
 }
 
+function formatDimensionEvidenceLabel(
+  route: {
+    dimensionMismatch?: boolean | null;
+    modelEmbeddingDimensions?: number | null;
+    requestedDimensions?: number | null;
+  },
+  options: { includeNegativeMismatch?: boolean } = {}
+) {
+  return compactList([
+    route.requestedDimensions != null
+      ? `requested ${route.requestedDimensions}d`
+      : null,
+    route.modelEmbeddingDimensions != null
+      ? `model ${route.modelEmbeddingDimensions}d`
+      : null,
+    route.dimensionMismatch || options.includeNegativeMismatch
+      ? `dimension mismatch ${route.dimensionMismatch ? 'yes' : 'no'}`
+      : null,
+  ]);
+}
+
 function formatTaskRoutePreparedRouteText(route: AIModelPreparedTaskRoute) {
   const providerProfileLabel = formatAIModelProviderProfileLabel({
     providerConfiguredModelCount: route.providerConfiguredModelCount,
@@ -985,13 +1006,10 @@ function formatTaskRoutePreparedRouteText(route: AIModelPreparedTaskRoute) {
       ? `priority ${route.providerPriority}`
       : null,
     providerProfileLabel ? `profile ${providerProfileLabel}` : null,
-    route.requestedDimensions != null
-      ? `requested ${route.requestedDimensions}d`
-      : null,
-    route.modelEmbeddingDimensions != null
-      ? `model ${route.modelEmbeddingDimensions}d`
-      : null,
-    route.dimensionMismatch ? 'dimension mismatch' : null,
+    formatDimensionEvidenceLabel(route).replace(
+      'dimension mismatch yes',
+      'dimension mismatch'
+    ),
   ]);
 }
 
@@ -4565,13 +4583,16 @@ function ActionRunTraceRoutes({
           ) : null}
           {route.routeModelDefinitionId ||
           route.routeRawModelId ||
+          route.modelBackendKind ||
+          route.canonicalModelKey ||
+          route.behaviorFlags?.length ||
           route.routeModelDefinitionAliases?.length ? (
             <div className="break-words text-xs text-muted-foreground">
               Definition{' '}
               {formatAIModelDefinitionLabel({
-                routeBackendKind: null,
-                routeBehaviorFlags: null,
-                routeCanonicalModelKey: null,
+                routeBackendKind: route.modelBackendKind,
+                routeBehaviorFlags: route.behaviorFlags,
+                routeCanonicalModelKey: route.canonicalModelKey,
                 routeModelAliasMatched: route.routeModelAliasMatched,
                 routeModelDefinitionAliases: route.routeModelDefinitionAliases,
                 routeModelDefinitionId: route.routeModelDefinitionId,
@@ -4582,6 +4603,16 @@ function ActionRunTraceRoutes({
               })}
             </div>
           ) : null}
+          {route.requestedDimensions != null ||
+          route.modelEmbeddingDimensions != null ||
+          route.dimensionMismatch != null ? (
+            <div className="break-words text-xs text-muted-foreground">
+              Dimensions{' '}
+              {formatDimensionEvidenceLabel(route, {
+                includeNegativeMismatch: true,
+              })}
+            </div>
+          ) : null}
         </div>
       ))}
     </div>
@@ -4589,8 +4620,13 @@ function ActionRunTraceRoutes({
 }
 
 function formatPreparedRouteTraceRoute(route: {
+  behaviorFlags?: string[] | null;
+  canonicalModelKey?: string | null;
+  dimensionMismatch?: boolean | null;
   fallbackOrderIndex?: number | null;
   modelId: string;
+  modelBackendKind?: string | null;
+  modelEmbeddingDimensions?: number | null;
   protocol?: string | null;
   providerConfiguredModelCount?: number | null;
   providerConfiguredModelIds?: string[] | null;
@@ -4607,6 +4643,7 @@ function formatPreparedRouteTraceRoute(route: {
   providerSource?: string | null;
   providerType?: string | null;
   requestLayer?: string | null;
+  requestedDimensions?: number | null;
   routeIndex: number;
   routeModelAliasMatched?: boolean | null;
   routeModelDefinitionAliases?: string[] | null;
@@ -4630,6 +4667,18 @@ function formatPreparedRouteTraceRoute(route: {
       : null,
     route.protocol ? `protocol ${route.protocol}` : null,
     route.requestLayer ? `layer ${route.requestLayer}` : null,
+    route.modelBackendKind ? `backend ${route.modelBackendKind}` : null,
+    route.canonicalModelKey ? `canonical ${route.canonicalModelKey}` : null,
+    route.behaviorFlags?.length
+      ? `behavior ${route.behaviorFlags.join(', ')}`
+      : null,
+    route.requestedDimensions != null ||
+    route.modelEmbeddingDimensions != null ||
+    route.dimensionMismatch != null
+      ? `dimensions ${formatDimensionEvidenceLabel(route, {
+          includeNegativeMismatch: true,
+        })}`
+      : null,
     route.providerName ? `provider name ${route.providerName}` : null,
     route.providerType
       ? `provider type ${formatProviderMetadata(route.providerType, PROVIDER_TYPE_LABELS)}`
@@ -4654,9 +4703,9 @@ function formatPreparedRouteTraceRoute(route: {
       ? `provider priority ${route.providerPriority}`
       : null,
     formatAIModelDefinitionLabel({
-      routeBackendKind: null,
-      routeBehaviorFlags: null,
-      routeCanonicalModelKey: null,
+      routeBackendKind: route.modelBackendKind,
+      routeBehaviorFlags: route.behaviorFlags,
+      routeCanonicalModelKey: route.canonicalModelKey,
       routeModelAliasMatched: route.routeModelAliasMatched,
       routeModelDefinitionAliases: route.routeModelDefinitionAliases,
       routeModelDefinitionId: route.routeModelDefinitionId,

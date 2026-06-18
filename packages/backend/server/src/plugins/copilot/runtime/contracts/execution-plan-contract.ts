@@ -35,6 +35,11 @@ export type ExecutionRoute = {
 };
 
 export type ExecutionRouteDiagnostics = ExecutionRoute & {
+  behaviorFlags?: string[];
+  canonicalModelKey?: string;
+  dimensionMismatch?: boolean;
+  modelBackendKind?: string;
+  modelEmbeddingDimensions?: number;
   providerConfiguredModelCount?: number;
   providerConfiguredModelIds?: string[];
   providerHealth?: string;
@@ -53,6 +58,7 @@ export type ExecutionRouteDiagnostics = ExecutionRoute & {
   routeModelDefinitionId?: string;
   routeModelDefinitionSource?: string;
   routeRawModelId?: string;
+  requestedDimensions?: number;
 };
 
 export type ExecutionTransportContract =

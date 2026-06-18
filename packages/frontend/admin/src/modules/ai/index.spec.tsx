@@ -3497,8 +3497,13 @@ const actionRunPreparedRouteTracePayload = {
       routeCountMismatch: true,
       routes: [
         {
+          behaviorFlags: ['tool_calls'],
+          canonicalModelKey: 'local/office-structured',
+          dimensionMismatch: true,
           fallbackOrderIndex: 0,
           modelId: 'local/office-structured',
+          modelBackendKind: 'openai_chat',
+          modelEmbeddingDimensions: 1536,
           protocol: 'openai_chat',
           providerConfiguredModelCount: 2,
           providerConfiguredModelIds: [
@@ -3519,6 +3524,7 @@ const actionRunPreparedRouteTracePayload = {
           providerSource: 'configured',
           providerType: 'openaiCompatible',
           requestLayer: 'chat_completions',
+          requestedDimensions: 1024,
           routeModelAliasMatched: true,
           routeModelDefinitionAliases: ['office-structured'],
           routeModelDefinitionId: 'local/office-structured',
@@ -8104,7 +8110,7 @@ describe('AiPage', () => {
       'Fallback ollama-main -> openai-default'
     );
     expect(traceDiagnostics).toContain(
-      'Route ollama-main/local/office-structured / route #1 / fallback #1 / protocol openai_chat / layer chat_completions'
+      'Route ollama-main/local/office-structured / route #1 / fallback #1 / protocol openai_chat / layer chat_completions / backend openai_chat / canonical local/office-structured / behavior tool_calls / dimensions requested 1024d / model 1536d / dimension mismatch yes'
     );
     expect(traceDiagnostics).toContain(
       'provider name Local Ollama / provider type OpenAI-compatible / provider source Configured'
@@ -8113,7 +8119,7 @@ describe('AiPage', () => {
       'profile Profile ollama-main / Configured / config copilot.providers.profiles[id=ollama-main] / 2 configured models / models local/office-structured, office-structured'
     );
     expect(traceDiagnostics).toContain(
-      'Provider profile / Definition local/office-structured / Raw qwen3:32b / Aliases office-structured / Alias matched / Protocol openai_chat / Layer chat_completions'
+      'Provider profile / Definition local/office-structured / Raw qwen3:32b / Aliases office-structured / Alias matched / openai_chat / Canonical local/office-structured / Protocol openai_chat / Layer chat_completions / Flags tool_calls'
     );
     expect(traceDiagnostics).toContain('Step generate-image');
     expect(traceDiagnostics).toContain('Fallback none');
@@ -8148,7 +8154,12 @@ describe('AiPage', () => {
     ).not.toBeNull();
     expect(
       screen.getByText(
-        'Definition Provider profile / Definition local/office-structured / Raw qwen3:32b / Aliases office-structured / Alias matched / Protocol openai_chat / Layer chat_completions'
+        'Definition Provider profile / Definition local/office-structured / Raw qwen3:32b / Aliases office-structured / Alias matched / openai_chat / Canonical local/office-structured / Protocol openai_chat / Layer chat_completions / Flags tool_calls'
+      )
+    ).not.toBeNull();
+    expect(
+      screen.getByText(
+        'Dimensions requested 1024d / model 1536d / dimension mismatch yes'
       )
     ).not.toBeNull();
     expect(

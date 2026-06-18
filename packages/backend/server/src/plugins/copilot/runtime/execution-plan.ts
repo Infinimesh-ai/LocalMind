@@ -540,6 +540,15 @@ function mapExecutionRouteDiagnostics(
       protocol: preparedRoute.protocol,
       model: preparedRoute.model,
       backendConfig: preparedRoute.backendConfig,
+      ...(resolvedModel?.backendKind
+        ? { modelBackendKind: resolvedModel.backendKind }
+        : {}),
+      ...(resolvedModel?.canonicalKey
+        ? { canonicalModelKey: resolvedModel.canonicalKey }
+        : {}),
+      ...(resolvedModel?.behaviorFlags?.length
+        ? { behaviorFlags: resolvedModel.behaviorFlags }
+        : {}),
       ...(route.profile.displayName
         ? { providerName: route.profile.displayName }
         : {}),

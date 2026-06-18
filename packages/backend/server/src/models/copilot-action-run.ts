@@ -56,6 +56,12 @@ export type CopilotActionRunPreparedRouteTrace = {
       fallbackOrderIndex?: number;
       protocol?: string;
       requestLayer?: string;
+      modelBackendKind?: string;
+      canonicalModelKey?: string;
+      behaviorFlags?: string[];
+      requestedDimensions?: number;
+      modelEmbeddingDimensions?: number;
+      dimensionMismatch?: boolean;
       providerConfiguredModelCount?: number;
       providerConfiguredModelIds?: string[];
       providerHealth?: string;
@@ -270,6 +276,32 @@ function normalizePreparedRouteTraceStep(
               : {}),
             ...(typeof route.requestLayer === 'string'
               ? { requestLayer: route.requestLayer }
+              : {}),
+            ...(typeof route.modelBackendKind === 'string'
+              ? { modelBackendKind: route.modelBackendKind }
+              : {}),
+            ...(typeof route.canonicalModelKey === 'string'
+              ? { canonicalModelKey: route.canonicalModelKey }
+              : {}),
+            ...(Array.isArray(route.behaviorFlags)
+              ? {
+                  behaviorFlags: route.behaviorFlags.filter(
+                    (flag): flag is string => typeof flag === 'string'
+                  ),
+                }
+              : {}),
+            ...(typeof route.requestedDimensions === 'number' &&
+            Number.isSafeInteger(route.requestedDimensions) &&
+            route.requestedDimensions > 0
+              ? { requestedDimensions: route.requestedDimensions }
+              : {}),
+            ...(typeof route.modelEmbeddingDimensions === 'number' &&
+            Number.isSafeInteger(route.modelEmbeddingDimensions) &&
+            route.modelEmbeddingDimensions > 0
+              ? { modelEmbeddingDimensions: route.modelEmbeddingDimensions }
+              : {}),
+            ...(typeof route.dimensionMismatch === 'boolean'
+              ? { dimensionMismatch: route.dimensionMismatch }
               : {}),
             ...(typeof route.providerName === 'string'
               ? { providerName: route.providerName }

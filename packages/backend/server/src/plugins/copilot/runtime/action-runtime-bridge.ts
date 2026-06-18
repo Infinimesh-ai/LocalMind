@@ -99,6 +99,12 @@ type PreparedActionRouteTrace = {
       fallbackOrderIndex?: number;
       protocol?: string;
       requestLayer?: string;
+      modelBackendKind?: string;
+      canonicalModelKey?: string;
+      behaviorFlags?: string[];
+      requestedDimensions?: number;
+      modelEmbeddingDimensions?: number;
+      dimensionMismatch?: boolean;
       providerConfiguredModelCount?: number;
       providerConfiguredModelIds?: string[];
       providerHealth?: string;
@@ -178,6 +184,24 @@ function describePreparedActionRoutes(
         ...(fallbackOrderIndex >= 0 ? { fallbackOrderIndex } : {}),
         protocol: route.protocol,
         requestLayer: route.backendConfig.request_layer,
+        ...(route.modelBackendKind
+          ? { modelBackendKind: route.modelBackendKind }
+          : {}),
+        ...(route.canonicalModelKey
+          ? { canonicalModelKey: route.canonicalModelKey }
+          : {}),
+        ...(route.behaviorFlags?.length
+          ? { behaviorFlags: route.behaviorFlags }
+          : {}),
+        ...(route.requestedDimensions !== undefined
+          ? { requestedDimensions: route.requestedDimensions }
+          : {}),
+        ...(route.modelEmbeddingDimensions !== undefined
+          ? { modelEmbeddingDimensions: route.modelEmbeddingDimensions }
+          : {}),
+        ...(route.dimensionMismatch !== undefined
+          ? { dimensionMismatch: route.dimensionMismatch }
+          : {}),
         ...(route.providerName ? { providerName: route.providerName } : {}),
         ...(route.providerSource
           ? { providerSource: route.providerSource }
