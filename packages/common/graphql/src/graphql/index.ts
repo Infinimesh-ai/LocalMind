@@ -2645,6 +2645,9 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             providerSource
             providerType
             reasons
+            registryAvailable
+            registryKind
+            registrySelected
             requestedModelConfigKey
             requestedModelConfigPath
             requestedModelId

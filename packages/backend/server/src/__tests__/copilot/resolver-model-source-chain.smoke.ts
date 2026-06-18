@@ -6947,6 +6947,27 @@ async function main() {
     true,
     'task diagnostics repair evidence should include route candidate raw model id'
   );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'routeCandidate#0:registryKind:byok'
+    ),
+    true,
+    'task diagnostics repair evidence should include route candidate registry kind'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'routeCandidate#0:registryAvailable:true'
+    ),
+    true,
+    'task diagnostics repair evidence should include route candidate registry availability'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'routeCandidate#0:registrySelected:true'
+    ),
+    true,
+    'task diagnostics repair evidence should include route candidate registry selected state'
+  );
   assert.match(
     taskDiagnosticsPolicyCandidateEvidence?.candidateFingerprint ?? '',
     /^[0-9a-f]{16}$/
@@ -7118,6 +7139,9 @@ async function main() {
     taskDiagnosticsRouteCandidateEvidence?.requestedModelSource,
     'workspace_indexing'
   );
+  assert.equal(taskDiagnosticsRouteCandidateEvidence?.registryKind, 'byok');
+  assert.equal(taskDiagnosticsRouteCandidateEvidence?.registryAvailable, true);
+  assert.equal(taskDiagnosticsRouteCandidateEvidence?.registrySelected, true);
   assert.equal(
     taskDiagnosticsRouteCandidateEvidence?.routeModelAliasMatched,
     true
@@ -7246,6 +7270,12 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.requestedModelSource,
     'workspace_indexing'
   );
+  assert.equal(taskDiagnosticsPrepareCandidateEvidence?.registryKind, 'byok');
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.registryAvailable,
+    true
+  );
+  assert.equal(taskDiagnosticsPrepareCandidateEvidence?.registrySelected, true);
   assert.equal(
     taskDiagnosticsPrepareCandidateEvidence?.routeModelAliasMatched,
     true

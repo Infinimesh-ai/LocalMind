@@ -2713,6 +2713,9 @@ const readyPublishGateVerdict = withRepairActionPreview(
             providerSource: 'configured',
             providerType: 'openai_compatible',
             reasons: ['model_alias_matched'],
+            registryAvailable: true,
+            registryKind: 'byok',
+            registrySelected: false,
             requestedModelId: 'workspace-embedding',
             requestedModelConfigKey: 'workspaceIndexing',
             requestedModelConfigPath: 'copilot.tasks.models.workspaceIndexing',
@@ -2791,6 +2794,9 @@ const readyPublishGateVerdict = withRepairActionPreview(
             providerSource: 'configured',
             providerType: 'openai_compatible',
             reasons: ['prepared_route_candidate'],
+            registryAvailable: true,
+            registryKind: 'byok',
+            registrySelected: false,
             requestedModelId: 'workspace-embedding',
             requestedModelConfigKey: 'workspaceIndexing',
             requestedModelConfigPath: 'copilot.tasks.models.workspaceIndexing',
@@ -6772,6 +6778,9 @@ describe('AiPage', () => {
       'key route:ollama-main / provider ollama-main'
     );
     expect(readyGateDiagnostics).toContain(
+      'registry byok / registry available yes / registry selected no'
+    );
+    expect(readyGateDiagnostics).toContain(
       'definition source Provider Profile / definition workspace-embedding / definition aliases nomic-embed-text / alias matched no / raw model nomic-embed-text'
     );
     expect(readyGateDiagnostics).toContain(
@@ -6785,6 +6794,9 @@ describe('AiPage', () => {
     );
     expect(readyGateDiagnostics).toContain(
       'key prepare:ollama-main / provider ollama-main / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding / requested workspace-embedding / requested source Workspace indexing task model / requested config key workspaceIndexing / requested config path copilot.tasks.models.workspaceIndexing / model workspace-embedding / prepared nomic-embed-text'
+    );
+    expect(readyGateDiagnostics).toContain(
+      'prepared nomic-embed-text / registry byok / registry available yes / registry selected no'
     );
     expect(readyGateDiagnostics).toContain(
       'capability input text / output embedding / attachments file / attachment sources url / remote attachments yes'

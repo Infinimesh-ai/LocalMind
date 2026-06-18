@@ -2998,6 +2998,13 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
       : null,
     evidence.modelId ? `model ${evidence.modelId}` : null,
     evidence.preparedModelId ? `prepared ${evidence.preparedModelId}` : null,
+    evidence.registryKind ? `registry ${evidence.registryKind}` : null,
+    evidence.registryAvailable != null
+      ? `registry available ${evidence.registryAvailable ? 'yes' : 'no'}`
+      : null,
+    evidence.registrySelected != null
+      ? `registry selected ${evidence.registrySelected ? 'yes' : 'no'}`
+      : null,
     evidence.prepareCandidateSnapshotFingerprint
       ? `prepare snapshot fingerprint ${evidence.prepareCandidateSnapshotFingerprint}`
       : null,

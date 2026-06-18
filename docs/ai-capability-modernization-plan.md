@@ -12975,3 +12975,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、Provider Registry revision、support bundle schema、repair mutation guard input 或审计记录。
 - 当 provider runtime 对同一模型返回多个别名、alias 命中依赖 adapter 私有规则，或 `routeRawModelId` 本身不稳定时，当前 evidence 只能记录本次 resolver 看到的值，不能提供跨 provider 的全局规范化。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 382. P3 落地记录：Task Route Repair Candidate Registry Selection Evidence
+
+本轮继续收敛第 381 节剩余风险中 “repair candidate evidence 已能解释模型 definition，但仍不能直接说明该候选来自哪个 registry bucket、registry 是否可用、是否被当前 route 选中” 的问题。实际代码与目标 AI 中间层架构的冲突点是：task route diagnostics 的 route/prepare candidate 已经暴露 `registryKind`、`registryAvailable` 与 `registrySelected`，用于区分 byok、quota-backed、provider profile/native fallback 等过渡 registry 来源；但 repair recommendation 的 candidate evidence 没有这些字段，Admin、support bundle 或人工排障仍需要回看 task route candidate 列表才能判断同一模型 definition 是可用未选中、不可用，还是最终 selected。本轮把同一组只读 registry 选择字段补进 repair candidate evidence，不改变 registry 选择、provider fallback 或模型解析行为。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 新增 `registryKind`、`registryAvailable` 与 `registrySelected`。
+  - `taskRouteRepairCandidateEvidenceBase()` 将 route/prepare candidate 中已有的 registry 选择元数据复制到 repair candidate evidence；candidate fingerprint、preview operation fingerprint 与 evidence set fingerprint 会对 registry 可用/选中状态变化敏感。
+  - `taskRouteCandidateProfileEvidence()` 的可复制 evidence 文本加入 registry kind/available/selected，让 recommendation 摘要能解释候选来自哪个过渡 registry 以及是否被选中。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、common query string 与 `schema.ts` 类型同步新增 repair candidate evidence 的 registry 选择字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence diagnostics text 显示 `registry ...`、`registry available ...` 与 `registry selected ...`。
+- 测试覆盖：
+  - resolver source chain smoke 断言 route/prepare repair candidate evidence 都携带 `byok`、available 与 selected 状态，并断言可复制 evidence 文本包含这些字段。
+  - Admin Vitest fixture 注入上述字段，并断言 publish gate diagnostics text 显示 registry 选择状态。
+
+该实现只扩展只读 diagnostics/evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 Model Registry/Provider Registry revision row、不改变 repair action catalog、不新增 mutation input、不改变 preview/preflight/execution gate 字段名、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把 task route repair evidence 从“能看到模型 definition 但缺少 registry 选择状态”推进到“可自包含解释 registry bucket、可用性与选中状态”，为后续 support bundle、route explain、repair guard 与 DB-backed Model Registry revision 对齐提供更完整的过渡证据。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Admin AI Vitest、Prettier/oxlint 与 `git diff --check`。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- registry 选择字段仍只反映 diagnostics probe 时的 route/prepare candidate 元数据，不代表后续真实 dispatch 的 provider response、latency、usage、fallback attempt、registry health probe 或最终 embedding/rerank 结果。
+- 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、Provider Registry revision、support bundle schema、repair mutation guard input、route policy DSL 或审计记录。
+- `registryKind` 仍是当前过渡层字符串，不是 DB-backed registry/revision 主键；未来 Model Registry 产品化时需要映射到稳定 registry source/revision/id。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

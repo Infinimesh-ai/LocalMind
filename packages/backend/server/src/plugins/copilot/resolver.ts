@@ -741,6 +741,9 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   providerSource?: string;
   providerType?: string;
   reasons: string[];
+  registryAvailable?: boolean;
+  registryKind?: string;
+  registrySelected?: boolean;
   requestedModelConfigKey?: string;
   requestedModelConfigPath?: string;
   requestedModelId?: string;
@@ -1847,6 +1850,15 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => [String])
   reasons!: CopilotPromptRegistryPublishGateRepairCandidateEvidence['reasons'];
+
+  @Field(() => Boolean, { nullable: true })
+  registryAvailable?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['registryAvailable'];
+
+  @Field(() => String, { nullable: true })
+  registryKind?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['registryKind'];
+
+  @Field(() => Boolean, { nullable: true })
+  registrySelected?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['registrySelected'];
 
   @Field(() => String, { nullable: true })
   requestedModelConfigKey?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['requestedModelConfigKey'];
@@ -4341,6 +4353,9 @@ function taskRouteRepairCandidateEvidenceBase(
     providerSource?: string;
     providerType?: string;
     reasons?: string[];
+    registryAvailable?: boolean;
+    registryKind?: string;
+    registrySelected?: boolean;
     requestedModelConfigKey?: string;
     requestedModelConfigPath?: string;
     requestedModelId?: string;
@@ -4475,6 +4490,15 @@ function taskRouteRepairCandidateEvidenceBase(
       ? { providerType: candidate.providerType }
       : {}),
     reasons: uniqueStrings(candidate.reasons ?? []),
+    ...(candidate.registryAvailable !== undefined
+      ? { registryAvailable: candidate.registryAvailable }
+      : {}),
+    ...(candidate.registryKind !== undefined
+      ? { registryKind: candidate.registryKind }
+      : {}),
+    ...(candidate.registrySelected !== undefined
+      ? { registrySelected: candidate.registrySelected }
+      : {}),
     ...(candidate.requestedModelConfigKey !== undefined
       ? { requestedModelConfigKey: candidate.requestedModelConfigKey }
       : {}),
@@ -4555,6 +4579,9 @@ function taskRouteCandidateProfileStructuredEvidence(
       providerSource?: string;
       providerType?: string;
       reasons?: string[];
+      registryAvailable?: boolean;
+      registryKind?: string;
+      registrySelected?: boolean;
       requestedModelConfigKey?: string;
       requestedModelConfigPath?: string;
       requestedModelId?: string;
@@ -4737,6 +4764,15 @@ function taskRouteCandidateProfileEvidence(
         candidate.preparedModelId
           ? `${candidate.scope}#${candidate.candidateIndex}:preparedModelId:${candidate.preparedModelId}`
           : null,
+        candidate.registryKind
+          ? `${candidate.scope}#${candidate.candidateIndex}:registryKind:${candidate.registryKind}`
+          : null,
+        candidate.registryAvailable !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:registryAvailable:${candidate.registryAvailable}`
+          : null,
+        candidate.registrySelected !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:registrySelected:${candidate.registrySelected}`
+          : null,
         candidate.routeModelDefinitionSource
           ? `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionSource:${candidate.routeModelDefinitionSource}`
           : null,
@@ -4810,6 +4846,15 @@ function taskRouteCandidateProfileEvidence(
         candidate.routeCandidateSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:routeCandidateSnapshotFingerprint:${candidate.routeCandidateSnapshotFingerprint}`
           : null,
+        candidate.registryKind
+          ? `${candidate.scope}#${candidate.candidateIndex}:registryKind:${candidate.registryKind}`
+          : null,
+        candidate.registryAvailable !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:registryAvailable:${candidate.registryAvailable}`
+          : null,
+        candidate.registrySelected !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:registrySelected:${candidate.registrySelected}`
+          : null,
         candidate.routeModelDefinitionSource
           ? `${candidate.scope}#${candidate.candidateIndex}:routeModelDefinitionSource:${candidate.routeModelDefinitionSource}`
           : null,
@@ -4865,6 +4910,15 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.preparedModelId
           ? `${candidate.scope}#${candidate.candidateIndex}:preparedModelId:${candidate.preparedModelId}`
+          : null,
+        candidate.registryKind
+          ? `${candidate.scope}#${candidate.candidateIndex}:registryKind:${candidate.registryKind}`
+          : null,
+        candidate.registryAvailable !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:registryAvailable:${candidate.registryAvailable}`
+          : null,
+        candidate.registrySelected !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:registrySelected:${candidate.registrySelected}`
           : null,
         candidate.prepareCandidateSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:prepareCandidateSnapshotFingerprint:${candidate.prepareCandidateSnapshotFingerprint}`

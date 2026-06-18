@@ -671,6 +671,9 @@ query getCopilotPromptRegistryPublishGate(
             providerSource
             providerType
             reasons
+            registryAvailable
+            registryKind
+            registrySelected
             requestedModelConfigKey
             requestedModelConfigPath
             requestedModelId

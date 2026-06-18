@@ -1549,6 +1549,9 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   providerSource: String
   providerType: String
   reasons: [String!]!
+  registryAvailable: Boolean
+  registryKind: String
+  registrySelected: Boolean
   requestedModelConfigKey: String
   requestedModelConfigPath: String
   requestedModelId: String

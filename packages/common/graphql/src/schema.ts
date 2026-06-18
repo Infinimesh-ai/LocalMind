@@ -1776,6 +1776,9 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   providerSource?: Maybe<Scalars['String']['output']>;
   providerType?: Maybe<Scalars['String']['output']>;
   reasons: Array<Scalars['String']['output']>;
+  registryAvailable?: Maybe<Scalars['Boolean']['output']>;
+  registryKind?: Maybe<Scalars['String']['output']>;
+  registrySelected?: Maybe<Scalars['Boolean']['output']>;
   requestedModelConfigKey?: Maybe<Scalars['String']['output']>;
   requestedModelConfigPath?: Maybe<Scalars['String']['output']>;
   requestedModelId?: Maybe<Scalars['String']['output']>;
@@ -8041,6 +8044,9 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             providerSource: string | null;
             providerType: string | null;
             reasons: Array<string>;
+            registryAvailable: boolean | null;
+            registryKind: string | null;
+            registrySelected: boolean | null;
             requestedModelConfigKey: string | null;
             requestedModelConfigPath: string | null;
             requestedModelId: string | null;
