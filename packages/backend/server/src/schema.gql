@@ -1669,6 +1669,7 @@ type CopilotPromptRegistryPublishGateRepairActionPreviewOperationType {
   inputSchema: JSONObject!
   instanceKey: String
   operationFingerprint: String!
+  preparedRouteOrderFingerprints: [String!]!
   previewStatus: String!
   requiredCapabilities: [String!]!
   reviewMode: String!

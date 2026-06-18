@@ -4148,6 +4148,9 @@ function formatPromptRegistryPublishGateRepairActionPreviewOperation(
     operation.candidateEvidenceKeys.length
       ? `candidate evidence keys ${operation.candidateEvidenceKeys.join(', ')}`
       : 'candidate evidence keys none',
+    operation.preparedRouteOrderFingerprints.length
+      ? `prepared route order fingerprints ${operation.preparedRouteOrderFingerprints.join(', ')}`
+      : 'prepared route order fingerprints none',
     `fingerprint ${operation.diagnosticsFingerprint}`,
     `operation fingerprint ${operation.operationFingerprint}`,
     `target locator fingerprint ${operation.targetLocatorFingerprint}`,

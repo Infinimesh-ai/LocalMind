@@ -2531,6 +2531,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             inputSchema
             instanceKey
             operationFingerprint
+            preparedRouteOrderFingerprints
             previewStatus
             requiredCapabilities
             reviewMode

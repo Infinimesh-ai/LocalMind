@@ -13274,3 +13274,34 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 该指纹只能证明 order-only 投影发生或未发生变化，不能替代完整 `preparedRoutes`、route trace、provider health freshness、capability metadata、成本、token/embedding usage 或容器日志。
 - 这些字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、support bundle schema、repair mutation guard input、Model Registry revision、Provider Registry revision 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 392. P3 落地记录：Repair Preview Prepared Route Order Evidence Set
+
+本轮继续收敛第 391 节剩余风险中 “`preparedRouteOrderFingerprint` 只存在于 repair candidate evidence，preview operation 需要遍历 candidate evidence 才能知道本次 operation 绑定了哪些 prepared route order anchor” 的问题。实际代码与目标 AI 中间层架构的冲突点是：repair preview operation 已经有 `candidateEvidenceFingerprint`、`candidateEvidenceFingerprints` 与 `candidateEvidenceKeys`，但 Admin、support bundle 或后续 guard review 若只想确认某个 preview operation 是否绑定 prepared route order 证据，还必须展开完整 candidate evidence。本轮新增只读 `preparedRouteOrderFingerprints` 集合字段，由 operation 的 candidate evidence 派生，不改变 operation fingerprint、candidate evidence set fingerprint、submission/preflight、repair mutation input 或执行路径。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairActionPreviewOperation` 与 GraphQL ObjectType 新增 `preparedRouteOrderFingerprints: string[]`。
+  - `promptRegistryRepairCandidateEvidenceSnapshot()` 从 candidate evidence 中收集 `preparedRouteOrderFingerprint`，排序去重后写入 preview operation。
+  - 该字段只作为只读 projection 暴露，不纳入 `operationFingerprint`、`candidateEvidenceSetFingerprint`、submission contract 或 preflight stale 校验 payload。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、common query string 与 `schema.ts` 类型同步新增 preview operation 的 `preparedRouteOrderFingerprints`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair action preview operation diagnostics text 显示 `prepared route order fingerprints ...` 或 `prepared route order fingerprints none`。
+- 测试覆盖：
+  - resolver source chain smoke 断言 task route repair preview operation 的 `preparedRouteOrderFingerprints` 等于 candidate evidence 中的 order fingerprint 集合。
+  - Admin Vitest fixture 从 candidate evidence 派生该集合，并断言无 candidate evidence 的 operation 显示 none、task route repair operation 显示 order fingerprint。
+
+该实现只扩展只读 preview operation evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 support bundle schema、不改变 repair action catalog、mutation input、submission contract、preflight stale 校验、operation fingerprint、candidate evidence set fingerprint、provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把 prepared route order evidence 从“只能在 candidate evidence 内部查找”推进到“preview operation 自身携带 order fingerprint 集合”，为后续 support bundle、route explain、repair guard 和 DB-backed route event 对齐提供更直接的只读锚点。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `preparedRouteOrderFingerprints` 仍只反映 diagnostics probe 阶段的 candidate evidence，不代表后续真实 embedding/rerank dispatch 一定按同一顺序执行、命中同一 provider/model 或产生同一 fallback attempt。
+- 本轮没有把该集合纳入 `operationFingerprint`、`candidateEvidenceSetFingerprint`、submission contract 或 preflight stale 校验；它是只读展示锚点，不是可执行 mutation guard。
+- 该字段不能替代完整 `preparedRoutes`、candidate evidence、route trace、provider health freshness、capability metadata、成本、token/embedding usage 或容器日志。
+- 这些字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、support bundle schema、repair mutation guard input、Model Registry revision、Provider Registry revision 或审计记录。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

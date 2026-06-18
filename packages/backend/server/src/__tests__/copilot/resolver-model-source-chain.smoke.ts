@@ -7953,6 +7953,18 @@ async function main() {
       )
     ).sort()
   );
+  assert.deepEqual(
+    taskDiagnosticsErrorPreviewOperation?.preparedRouteOrderFingerprints,
+    Array.from(
+      new Set(
+        taskDiagnosticsCandidateEvidence.flatMap(evidence =>
+          evidence.preparedRouteOrderFingerprint
+            ? [evidence.preparedRouteOrderFingerprint]
+            : []
+        )
+      )
+    ).sort()
+  );
 
   console.log('resolver source chain smoke passed');
 }

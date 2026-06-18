@@ -553,6 +553,7 @@ query getCopilotPromptRegistryPublishGate(
             inputSchema
             instanceKey
             operationFingerprint
+            preparedRouteOrderFingerprints
             previewStatus
             requiredCapabilities
             reviewMode

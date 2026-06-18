@@ -1888,6 +1888,7 @@ export interface CopilotPromptRegistryPublishGateRepairActionPreviewOperationTyp
   inputSchema: Scalars['JSONObject']['output'];
   instanceKey?: Maybe<Scalars['String']['output']>;
   operationFingerprint: Scalars['String']['output'];
+  preparedRouteOrderFingerprints: Array<Scalars['String']['output']>;
   previewStatus: Scalars['String']['output'];
   requiredCapabilities: Array<Scalars['String']['output']>;
   reviewMode: Scalars['String']['output'];
@@ -7966,6 +7967,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             inputSchema: any;
             instanceKey: string | null;
             operationFingerprint: string;
+            preparedRouteOrderFingerprints: Array<string>;
             previewStatus: string;
             requiredCapabilities: Array<string>;
             reviewMode: string;

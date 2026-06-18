@@ -855,6 +855,7 @@ type CopilotPromptRegistryPublishGateRepairActionPreviewOperation = {
   inputSchema: Record<string, unknown>;
   instanceKey?: string;
   operationFingerprint: string;
+  preparedRouteOrderFingerprints: string[];
   previewStatus: string;
   requiredCapabilities: string[];
   reviewMode: string;
@@ -2218,6 +2219,9 @@ class CopilotPromptRegistryPublishGateRepairActionPreviewOperationType implement
 
   @Field(() => String)
   operationFingerprint!: string;
+
+  @Field(() => [String])
+  preparedRouteOrderFingerprints!: string[];
 
   @Field(() => String)
   previewStatus!: string;
@@ -7666,6 +7670,13 @@ function promptRegistryRepairCandidateEvidenceSnapshot(
       candidate.candidateKey ? [candidate.candidateKey] : []
     )
   ).sort();
+  const preparedRouteOrderFingerprints = uniqueStrings(
+    evidence.flatMap(candidate =>
+      candidate.preparedRouteOrderFingerprint
+        ? [candidate.preparedRouteOrderFingerprint]
+        : []
+    )
+  ).sort();
 
   return {
     candidateEvidenceCount: evidence.length,
@@ -7680,6 +7691,7 @@ function promptRegistryRepairCandidateEvidenceSnapshot(
       .slice(0, 16),
     candidateEvidenceFingerprints,
     candidateEvidenceKeys,
+    preparedRouteOrderFingerprints,
   };
 }
 
