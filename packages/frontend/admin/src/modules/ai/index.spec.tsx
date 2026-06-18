@@ -2620,7 +2620,15 @@ const actionRunsPayload = [
   {
     actionId: 'mindmap.generate',
     actionVersion: 'v1',
+    agentRuntimeNativeTraceEventTypes: ['action_trace', 'tool:dispatch'],
     agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
+    agentRuntimeProjectionGaps: [
+      'tool -> not_projected',
+      'approval -> not_projected',
+      'handoff -> not_projected',
+      'codex -> not_projected',
+      'mcp -> not_projected',
+    ],
     agentRuntimeRunId: 'run-123',
     agentRuntimeRunStatus: 'completed',
     agentRuntimeStepCount: 2,
@@ -2634,6 +2642,13 @@ const actionRunsPayload = [
       'generate-image -> completed',
     ],
     agentRuntimeStepTypes: ['generate -> model', 'generate-image -> model'],
+    agentRuntimeUnsupportedStepTypes: [
+      'tool',
+      'approval',
+      'handoff',
+      'codex',
+      'mcp',
+    ],
     attempt: 2,
     createdAt: '2026-06-16T09:00:00.000Z',
     docId: 'doc-1',
@@ -2722,7 +2737,16 @@ const actionRunsPayload = [
   {
     actionId: 'image.filter.sketch',
     actionVersion: 'v1',
+    agentRuntimeNativeTraceEventTypes: [],
     agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
+    agentRuntimeProjectionGaps: [
+      'model -> no_prepared_route_trace',
+      'tool -> not_projected',
+      'approval -> not_projected',
+      'handoff -> not_projected',
+      'codex -> not_projected',
+      'mcp -> not_projected',
+    ],
     agentRuntimeRunId: 'run-failed',
     agentRuntimeRunStatus: 'failed',
     agentRuntimeStepCount: 0,
@@ -2730,6 +2754,13 @@ const actionRunsPayload = [
     agentRuntimeStepKinds: [],
     agentRuntimeStepStatuses: [],
     agentRuntimeStepTypes: [],
+    agentRuntimeUnsupportedStepTypes: [
+      'tool',
+      'approval',
+      'handoff',
+      'codex',
+      'mcp',
+    ],
     attempt: 1,
     createdAt: '2026-06-16T08:00:00.000Z',
     docId: null,
@@ -6432,6 +6463,15 @@ describe('AiPage', () => {
     expect(actionRunDiagnostics).toContain(
       'Agent runtime step kinds generate -> structured | generate-image -> image'
     );
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime projection gaps tool -> not_projected | approval -> not_projected | handoff -> not_projected | codex -> not_projected | mcp -> not_projected'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime unsupported step types tool | approval | handoff | codex | mcp'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime native trace events action_trace | tool:dispatch'
+    );
     expect(actionRunDiagnostics).toContain('2 steps / 3 routes');
     expect(actionRunDiagnostics).toContain(
       'Requested sources Prompt Preference -> Explicit'
@@ -6450,6 +6490,12 @@ describe('AiPage', () => {
     expect(failedRunDiagnostics).toContain('Agent runtime run run-failed');
     expect(failedRunDiagnostics).toContain('Agent runtime status Failed');
     expect(failedRunDiagnostics).toContain('Agent runtime steps none');
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime projection gaps model -> no_prepared_route_trace | tool -> not_projected | approval -> not_projected | handoff -> not_projected | codex -> not_projected | mcp -> not_projected'
+    );
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime native trace events none'
+    );
     expect(failedRunDiagnostics).toContain('Prepared trace no');
     expect(failedRunDiagnostics).toContain('No prepared route trace');
     expect(screen.getByText('No prepared route trace')).not.toBeNull();

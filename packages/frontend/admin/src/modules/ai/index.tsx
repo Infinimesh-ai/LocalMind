@@ -4825,6 +4825,42 @@ function formatActionRunAgentRuntimeStepKinds(run: ActionRunDiagnosticsItem) {
   return `Agent runtime step kinds ${run.agentRuntimeStepKinds.join(' | ')}`;
 }
 
+function formatActionRunAgentRuntimeProjectionGaps(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeProjectionGaps.length) {
+    return 'Agent runtime projection gaps none';
+  }
+
+  return `Agent runtime projection gaps ${run.agentRuntimeProjectionGaps.join(
+    ' | '
+  )}`;
+}
+
+function formatActionRunAgentRuntimeUnsupportedStepTypes(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeUnsupportedStepTypes.length) {
+    return 'Agent runtime unsupported step types none';
+  }
+
+  return `Agent runtime unsupported step types ${run.agentRuntimeUnsupportedStepTypes.join(
+    ' | '
+  )}`;
+}
+
+function formatActionRunAgentRuntimeNativeTraceEvents(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeNativeTraceEventTypes.length) {
+    return 'Agent runtime native trace events none';
+  }
+
+  return `Agent runtime native trace events ${run.agentRuntimeNativeTraceEventTypes.join(
+    ' | '
+  )}`;
+}
+
 function buildActionRunDiagnosticsText(run: ActionRunDiagnosticsItem) {
   const actualRouteCountLabel = formatActionRunPreparedRouteActualSummary(run);
   const routeCountMismatchLabel =
@@ -4851,6 +4887,9 @@ function buildActionRunDiagnosticsText(run: ActionRunDiagnosticsItem) {
     formatActionRunAgentRuntimeStepTypes(run),
     formatActionRunAgentRuntimeStepStatuses(run),
     formatActionRunAgentRuntimeStepKinds(run),
+    formatActionRunAgentRuntimeProjectionGaps(run),
+    formatActionRunAgentRuntimeUnsupportedStepTypes(run),
+    formatActionRunAgentRuntimeNativeTraceEvents(run),
     `Prepared trace ${run.hasPreparedRouteTrace ? 'yes' : 'no'}`,
     formatActionRunPreparedRouteSummary(run),
   ];
@@ -4957,6 +4996,12 @@ function ActionRunRecentList({
                     / {run.agentRuntimeStepCount} step
                     {run.agentRuntimeStepCount === 1 ? '' : 's'}
                   </div>
+                  {run.agentRuntimeProjectionGaps.length ? (
+                    <div className="mt-1 break-words text-xs text-amber-700">
+                      {run.agentRuntimeProjectionGaps.length} projection gap
+                      {run.agentRuntimeProjectionGaps.length === 1 ? '' : 's'}
+                    </div>
+                  ) : null}
                 </TableCell>
                 <TableCell>{formatFeatureKind(run.status)}</TableCell>
                 <TableCell>

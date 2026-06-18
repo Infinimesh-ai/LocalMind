@@ -584,7 +584,9 @@ type CopilotActionRunPreparedRouteDiagnosticsType {
 type CopilotActionRunDiagnosticsItemType {
   actionId: String!
   actionVersion: String!
+  agentRuntimeNativeTraceEventTypes: [String!]!
   agentRuntimeProjectionSource: String!
+  agentRuntimeProjectionGaps: [String!]!
   agentRuntimeRunId: String!
   agentRuntimeRunStatus: String!
   agentRuntimeStepCount: SafeInt!
@@ -592,6 +594,7 @@ type CopilotActionRunDiagnosticsItemType {
   agentRuntimeStepKinds: [String!]!
   agentRuntimeStepStatuses: [String!]!
   agentRuntimeStepTypes: [String!]!
+  agentRuntimeUnsupportedStepTypes: [String!]!
   attempt: SafeInt!
   createdAt: DateTime!
   docId: String

@@ -3029,7 +3029,9 @@ export const getCopilotActionRunsQuery = {
       actionRuns(limit: $limit) {
         actionId
         actionVersion
+        agentRuntimeNativeTraceEventTypes
         agentRuntimeProjectionSource
+        agentRuntimeProjectionGaps
         agentRuntimeRunId
         agentRuntimeRunStatus
         agentRuntimeStepCount
@@ -3037,6 +3039,7 @@ export const getCopilotActionRunsQuery = {
         agentRuntimeStepKinds
         agentRuntimeStepStatuses
         agentRuntimeStepTypes
+        agentRuntimeUnsupportedStepTypes
         attempt
         createdAt
         docId

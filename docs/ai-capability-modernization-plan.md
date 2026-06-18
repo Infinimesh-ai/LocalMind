@@ -11836,3 +11836,34 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - run status 映射只覆盖当前 action run 的 created/running/succeeded/failed/aborted 语义，未表达 waiting_approval、partially_completed、retrying、rollback_running 或 archived 等未来状态。
 - Admin 页面仍是只读 diagnostics，不支持 Agent timeline 交互、step 展开、trace JSON 导出、run cancellation、approval decision、Codex sandbox policy 或 MCP registry 管理。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 345. P3 落地记录：Action Run Agent Runtime Projection Gap Diagnostics
+
+本轮继续收敛第 344 节剩余风险中 “projection step type 当前固定映射为 `model`，不覆盖 tool/approval/handoff/Codex/MCP step” 的问题。实际代码与目标架构的冲突点是：
+第 8.2 节定义的 `AgentStep.type` 包含 `model`、`tool`、`approval`、`handoff`、`codex` 与 `mcp`，但当前 `AiActionRun.trace` 能安全、稳定读取的只有 sanitized prepared route steps 与 native lightweight trace event type；如果 Admin 只显示 `model` step，容易让后续 Agent Runtime 接入误以为现有 action run projection 已覆盖完整 AgentStep taxonomy。本轮新增只读 gap diagnostics，明确标出哪些目标 step type 仍未投影，并只暴露 native lightweight trace 的安全 event type 名称，不暴露 prompt、payload、token 或 provider secret。
+
+- `packages/backend/server/src/models/copilot-action-run.ts`：
+  - `CopilotActionRunDiagnosticsItem` 新增 `agentRuntimeProjectionGaps`、`agentRuntimeUnsupportedStepTypes` 与 `agentRuntimeNativeTraceEventTypes`。
+  - `summarizePreparedRouteTrace()` 保持 prepared route step 映射为 `model`，同时固定输出 `tool/approval/handoff/codex/mcp -> not_projected` gap；当 run 没有 prepared route trace 时额外输出 `model -> no_prepared_route_trace`。
+  - `extractNativeTraceEventTypes()` 只读取 `trace.native.lightweight[].type` 或 legacy native trace `lightweight[].type`，并通过安全字符白名单过滤，避免把 native trace payload、prompt、message、token、auth 或 provider backend config 泄露到 diagnostics。
+- GraphQL 与 Admin：
+  - `CopilotActionRunDiagnosticsItemType`、`packages/backend/server/src/schema.gql`、`packages/common/graphql/src/graphql/copilot-action-runs-get.gql`、`packages/common/graphql/src/graphql/index.ts` 与 `packages/common/graphql/src/schema.ts` 同步新增 projection gap、unsupported step type 与 native trace event type 字段。
+  - `packages/frontend/admin/src/modules/ai/index.tsx` 的 recent action runs diagnostics text 新增 projection gaps、unsupported step types 与 native trace event types；列表行增加 projection gap 数量提示。
+- 测试覆盖：
+  - `packages/backend/server/src/__tests__/copilot/copilot.spec.ts` 覆盖成功 run 的 sanitized native lightweight event types、未投影 step type gap、失败 run 的 `model -> no_prepared_route_trace` gap，并断言 secret prompt、secret token 与不安全 event type 不会出现在 diagnostics JSON。
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 更新 action run mock payload 与 diagnostics text 断言，覆盖 Admin 可复制文本中的 projection gaps、unsupported step types 与 native trace events。
+
+该实现只扩展只读 action run diagnostics、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 AgentRun/AgentStep 表、不新增 Agent timeline UI、不改变 native action runtime、prepared route selection、Prompt Registry、repair execution request contract、provider route policy、MCP registry、Codex adapter 或审批写入路径。它把当前 projection 从“仅展示已投影 model steps”推进到“同时展示未投影 AgentStep taxonomy 与有限 native event evidence”，为后续真正的 tool/MCP/Codex/approval/handoff step schema、adapter event parser 和 timeline UI 提供更清晰的缺口清单。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与宿主源码 bind mount 运行 focused Prettier、oxlint、backend copilot spec 与 Admin AI Vitest。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- projection gaps 仍是只读 taxonomy gap，不是真实 AgentRun/AgentStep row，不支持 tool execution、approval decision、handoff resume、Codex JSONL event ingestion、MCP tool call、step output、step error、retry attempt 或 rollback state。
+- `agentRuntimeNativeTraceEventTypes` 只暴露 native lightweight trace event type 名称；它不能重建完整 native span、latency、token usage、provider response、tool args、MCP server id、Codex sandbox policy 或 approval record。
+- unsupported step type 列表当前由目标架构固定枚举派生，不会自动感知未来新增 AgentStep.type；后续正式 Agent Runtime schema 落地时需要改为 schema/registry 驱动。
+- Admin 页面仍是只读 diagnostics，不支持按 gap 跳转到配置修复、Agent timeline 展开、trace JSON 导出、run cancellation、approval decision、Codex adapter 管理或 MCP registry 管理。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

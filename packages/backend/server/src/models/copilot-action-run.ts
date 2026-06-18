@@ -57,7 +57,9 @@ export type CopilotActionRunDiagnosticsItem = {
   id: string;
   actionId: string;
   actionVersion: string;
+  agentRuntimeNativeTraceEventTypes: string[];
   agentRuntimeProjectionSource: string;
+  agentRuntimeProjectionGaps: string[];
   agentRuntimeRunId: string;
   agentRuntimeRunStatus: string;
   agentRuntimeStepCount: number;
@@ -65,6 +67,7 @@ export type CopilotActionRunDiagnosticsItem = {
   agentRuntimeStepKinds: string[];
   agentRuntimeStepStatuses: string[];
   agentRuntimeStepTypes: string[];
+  agentRuntimeUnsupportedStepTypes: string[];
   status: string;
   attempt: number;
   retryOf: string | null;
@@ -168,6 +171,41 @@ function mapActionRunStatusToAgentRuntimeStepStatus(status: string) {
     default:
       return 'failed';
   }
+}
+
+const AGENT_RUNTIME_UNSUPPORTED_STEP_TYPES = [
+  'tool',
+  'approval',
+  'handoff',
+  'codex',
+  'mcp',
+];
+
+function normalizeNativeTraceEventType(value: unknown) {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const eventType = value.trim();
+
+  return /^[a-zA-Z0-9_.:-]{1,80}$/.test(eventType) ? eventType : undefined;
+}
+
+function extractNativeTraceEventTypes(value: unknown) {
+  if (!isRecord(value)) {
+    return [];
+  }
+
+  const nativeTrace = isRecord(value.native) ? value.native : value;
+  if (!Array.isArray(nativeTrace.lightweight)) {
+    return [];
+  }
+
+  return uniqueNonEmptyStrings(
+    nativeTrace.lightweight.map(event =>
+      isRecord(event) ? normalizeNativeTraceEventType(event.type) : undefined
+    )
+  );
 }
 
 function normalizePreparedRouteTraceStep(
@@ -520,9 +558,21 @@ function summarizePreparedRouteTrace(
   const agentRuntimeStepTypes = uniqueNonEmptyStrings(
     trace?.steps.map(step => `${step.stepId} -> model`) ?? []
   );
+  const agentRuntimeNativeTraceEventTypes = extractNativeTraceEventTypes(value);
+  const agentRuntimeUnsupportedStepTypes = [
+    ...AGENT_RUNTIME_UNSUPPORTED_STEP_TYPES,
+  ];
+  const agentRuntimeProjectionGaps = uniqueNonEmptyStrings([
+    ...(trace ? [] : ['model -> no_prepared_route_trace']),
+    ...agentRuntimeUnsupportedStepTypes.map(
+      stepType => `${stepType} -> not_projected`
+    ),
+  ]);
 
   return {
+    agentRuntimeNativeTraceEventTypes,
     agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
+    agentRuntimeProjectionGaps,
     agentRuntimeRunId: runId,
     agentRuntimeRunStatus: mapActionRunStatusToAgentRuntimeStatus(status),
     agentRuntimeStepCount: agentRuntimeStepIds.length,
@@ -530,6 +580,7 @@ function summarizePreparedRouteTrace(
     agentRuntimeStepKinds,
     agentRuntimeStepStatuses,
     agentRuntimeStepTypes,
+    agentRuntimeUnsupportedStepTypes,
     hasPreparedRouteTrace: !!trace,
     preparedRouteActualCount,
     preparedRouteCount,

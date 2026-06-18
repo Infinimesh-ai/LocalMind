@@ -3306,7 +3306,14 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
     result: { secret: 'should-not-be-returned' },
     artifacts: [{ id: 'artifact-1' }],
     trace: {
-      native: { messages: [{ role: 'user', content: 'secret prompt' }] },
+      native: {
+        lightweight: [
+          { type: 'action_trace', prompt: 'should-not-be-returned' },
+          { type: 'tool:dispatch', payload: { token: 'secret-token' } },
+          { type: 'unsafe event name with spaces' },
+        ],
+        messages: [{ role: 'user', content: 'secret prompt' }],
+      },
       preparedRoutes: {
         type: 'prepared_routes',
         status: 'succeeded',
@@ -3371,7 +3378,15 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
     {
       actionId: 'mindmap.generate',
       actionVersion: 'v1',
+      agentRuntimeNativeTraceEventTypes: ['action_trace', 'tool:dispatch'],
       agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
+      agentRuntimeProjectionGaps: [
+        'tool -> not_projected',
+        'approval -> not_projected',
+        'handoff -> not_projected',
+        'codex -> not_projected',
+        'mcp -> not_projected',
+      ],
       agentRuntimeRunId: run.id,
       agentRuntimeRunStatus: 'completed',
       agentRuntimeStepCount: 1,
@@ -3379,6 +3394,13 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       agentRuntimeStepKinds: ['generate -> structured'],
       agentRuntimeStepStatuses: ['generate -> completed'],
       agentRuntimeStepTypes: ['generate -> model'],
+      agentRuntimeUnsupportedStepTypes: [
+        'tool',
+        'approval',
+        'handoff',
+        'codex',
+        'mcp',
+      ],
       status: 'succeeded',
       attempt: 1,
       retryOf: null,
@@ -3428,7 +3450,16 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
     diagnostics.find(item => item.id === failedRun.id),
     {
       actionId: 'image.filter.sketch',
+      agentRuntimeNativeTraceEventTypes: [],
       agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
+      agentRuntimeProjectionGaps: [
+        'model -> no_prepared_route_trace',
+        'tool -> not_projected',
+        'approval -> not_projected',
+        'handoff -> not_projected',
+        'codex -> not_projected',
+        'mcp -> not_projected',
+      ],
       agentRuntimeRunId: failedRun.id,
       agentRuntimeRunStatus: 'failed',
       agentRuntimeStepCount: 0,
@@ -3436,6 +3467,13 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       agentRuntimeStepKinds: [],
       agentRuntimeStepStatuses: [],
       agentRuntimeStepTypes: [],
+      agentRuntimeUnsupportedStepTypes: [
+        'tool',
+        'approval',
+        'handoff',
+        'codex',
+        'mcp',
+      ],
       status: 'failed',
       retryOf: run.id,
       errorCode: 'action_bridge_stream_error',
@@ -3472,6 +3510,10 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
   t.false('inputSnapshot' in diagnostics[0]);
   t.false('result' in diagnostics[0]);
   t.false('artifacts' in diagnostics[0]);
+  const diagnosticsJson = JSON.stringify(diagnostics);
+  t.false(diagnosticsJson.includes('secret prompt'));
+  t.false(diagnosticsJson.includes('secret-token'));
+  t.false(diagnosticsJson.includes('unsafe event name with spaces'));
 });
 
 test('resolver models should expose configured model limits metadata', async t => {

@@ -4,7 +4,9 @@ query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
       actionRuns(limit: $limit) {
         actionId
         actionVersion
+        agentRuntimeNativeTraceEventTypes
         agentRuntimeProjectionSource
+        agentRuntimeProjectionGaps
         agentRuntimeRunId
         agentRuntimeRunStatus
         agentRuntimeStepCount
@@ -12,6 +14,7 @@ query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
         agentRuntimeStepKinds
         agentRuntimeStepStatuses
         agentRuntimeStepTypes
+        agentRuntimeUnsupportedStepTypes
         attempt
         createdAt
         docId
