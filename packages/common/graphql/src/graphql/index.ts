@@ -3030,6 +3030,7 @@ export const getCopilotActionRunsQuery = {
         actionId
         actionVersion
         agentRuntimeNativeTraceEventTypes
+        agentRuntimeProjectedSchemaComponents
         agentRuntimeProjectedRunStatuses
         agentRuntimeProjectedStepStatuses
         agentRuntimeProjectedStepTypes
@@ -3038,6 +3039,8 @@ export const getCopilotActionRunsQuery = {
         agentRuntimeRunStatusGaps
         agentRuntimeRunId
         agentRuntimeRunStatus
+        agentRuntimeSchemaReadiness
+        agentRuntimeSchemaReadinessGaps
         agentRuntimeStepCount
         agentRuntimeStepStatusGaps
         agentRuntimeStepIds
@@ -3045,6 +3048,7 @@ export const getCopilotActionRunsQuery = {
         agentRuntimeStepStatuses
         agentRuntimeStepTypes
         agentRuntimeTargetRunStatuses
+        agentRuntimeTargetSchemaComponents
         agentRuntimeTargetStepStatuses
         agentRuntimeTargetStepTypes
         agentRuntimeUnsupportedRunStatuses

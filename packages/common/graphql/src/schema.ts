@@ -607,6 +607,7 @@ export interface CopilotActionRunDiagnosticsItemType {
   actionId: Scalars['String']['output'];
   actionVersion: Scalars['String']['output'];
   agentRuntimeNativeTraceEventTypes: Array<Scalars['String']['output']>;
+  agentRuntimeProjectedSchemaComponents: Array<Scalars['String']['output']>;
   agentRuntimeProjectedRunStatuses: Array<Scalars['String']['output']>;
   agentRuntimeProjectedStepStatuses: Array<Scalars['String']['output']>;
   agentRuntimeProjectedStepTypes: Array<Scalars['String']['output']>;
@@ -615,6 +616,8 @@ export interface CopilotActionRunDiagnosticsItemType {
   agentRuntimeRunStatusGaps: Array<Scalars['String']['output']>;
   agentRuntimeRunId: Scalars['String']['output'];
   agentRuntimeRunStatus: Scalars['String']['output'];
+  agentRuntimeSchemaReadiness: Scalars['String']['output'];
+  agentRuntimeSchemaReadinessGaps: Array<Scalars['String']['output']>;
   agentRuntimeStepCount: Scalars['SafeInt']['output'];
   agentRuntimeStepStatusGaps: Array<Scalars['String']['output']>;
   agentRuntimeStepIds: Array<Scalars['String']['output']>;
@@ -622,6 +625,7 @@ export interface CopilotActionRunDiagnosticsItemType {
   agentRuntimeStepStatuses: Array<Scalars['String']['output']>;
   agentRuntimeStepTypes: Array<Scalars['String']['output']>;
   agentRuntimeTargetRunStatuses: Array<Scalars['String']['output']>;
+  agentRuntimeTargetSchemaComponents: Array<Scalars['String']['output']>;
   agentRuntimeTargetStepStatuses: Array<Scalars['String']['output']>;
   agentRuntimeTargetStepTypes: Array<Scalars['String']['output']>;
   agentRuntimeUnsupportedRunStatuses: Array<Scalars['String']['output']>;
@@ -8311,6 +8315,7 @@ export type GetCopilotActionRunsQuery = {
         actionId: string;
         actionVersion: string;
         agentRuntimeNativeTraceEventTypes: Array<string>;
+        agentRuntimeProjectedSchemaComponents: Array<string>;
         agentRuntimeProjectedRunStatuses: Array<string>;
         agentRuntimeProjectedStepStatuses: Array<string>;
         agentRuntimeProjectedStepTypes: Array<string>;
@@ -8319,6 +8324,8 @@ export type GetCopilotActionRunsQuery = {
         agentRuntimeRunStatusGaps: Array<string>;
         agentRuntimeRunId: string;
         agentRuntimeRunStatus: string;
+        agentRuntimeSchemaReadiness: string;
+        agentRuntimeSchemaReadinessGaps: Array<string>;
         agentRuntimeStepCount: number;
         agentRuntimeStepStatusGaps: Array<string>;
         agentRuntimeStepIds: Array<string>;
@@ -8326,6 +8333,7 @@ export type GetCopilotActionRunsQuery = {
         agentRuntimeStepStatuses: Array<string>;
         agentRuntimeStepTypes: Array<string>;
         agentRuntimeTargetRunStatuses: Array<string>;
+        agentRuntimeTargetSchemaComponents: Array<string>;
         agentRuntimeTargetStepStatuses: Array<string>;
         agentRuntimeTargetStepTypes: Array<string>;
         agentRuntimeUnsupportedRunStatuses: Array<string>;

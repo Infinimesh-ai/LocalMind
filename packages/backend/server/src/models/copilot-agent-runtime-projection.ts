@@ -1,6 +1,27 @@
 export const AI_ACTION_RUN_AGENT_RUNTIME_PROJECTION_SOURCE =
   'ai_action_run_agent_runtime_projection/v1';
 
+export const AI_ACTION_RUN_AGENT_RUNTIME_SCHEMA_READINESS =
+  'projection_contract_only';
+
+export const AGENT_RUNTIME_TARGET_SCHEMA_COMPONENTS = [
+  'db_agent_run_table',
+  'db_agent_step_table',
+  'graphql_run_status_enum',
+  'graphql_step_status_enum',
+  'graphql_step_type_enum',
+  'schema_migration',
+  'registry_source_of_truth',
+] as const;
+
+export type AgentRuntimeSchemaComponent =
+  (typeof AGENT_RUNTIME_TARGET_SCHEMA_COMPONENTS)[number];
+
+export const AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_SCHEMA_COMPONENTS = [
+  'typescript_projection_contract',
+  'graphql_string_diagnostics_fields',
+] as const;
+
 export const AGENT_RUNTIME_TARGET_RUN_STATUSES = [
   'queued',
   'running',
@@ -101,6 +122,10 @@ export function getActionRunAgentRuntimeProjectedStepTypes() {
   return [...AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_STEP_TYPES];
 }
 
+export function getActionRunAgentRuntimeProjectedSchemaComponents() {
+  return [...AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_SCHEMA_COMPONENTS];
+}
+
 export function getActionRunAgentRuntimeProjectedStepStatuses() {
   return [...AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_STEP_STATUSES];
 }
@@ -111,6 +136,10 @@ export function getActionRunAgentRuntimeProjectedRunStatuses() {
 
 export function getAgentRuntimeTargetStepTypes() {
   return [...AGENT_RUNTIME_TARGET_STEP_TYPES];
+}
+
+export function getAgentRuntimeTargetSchemaComponents() {
+  return [...AGENT_RUNTIME_TARGET_SCHEMA_COMPONENTS];
 }
 
 export function getAgentRuntimeTargetStepStatuses() {
@@ -155,6 +184,18 @@ export function getActionRunAgentRuntimeStepStatusGaps() {
   return getActionRunAgentRuntimeUnsupportedStepStatuses().map(
     status => `${status} -> not_projected`
   );
+}
+
+export function getActionRunAgentRuntimeSchemaReadinessGaps() {
+  return [
+    'db_agent_run_table -> not_persisted',
+    'db_agent_step_table -> not_persisted',
+    'graphql_run_status_enum -> string_field',
+    'graphql_step_status_enum -> string_field',
+    'graphql_step_type_enum -> string_field',
+    'schema_migration -> not_created',
+    'registry_source_of_truth -> not_created',
+  ];
 }
 
 export function getActionRunAgentRuntimeRunStatusGaps() {

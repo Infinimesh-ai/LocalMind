@@ -3396,6 +3396,9 @@ class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnostics
   agentRuntimeNativeTraceEventTypes!: string[];
 
   @Field(() => [String])
+  agentRuntimeProjectedSchemaComponents!: string[];
+
+  @Field(() => [String])
   agentRuntimeProjectedRunStatuses!: string[];
 
   @Field(() => [String])
@@ -3419,6 +3422,12 @@ class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnostics
   @Field(() => String)
   agentRuntimeRunStatus!: string;
 
+  @Field(() => String)
+  agentRuntimeSchemaReadiness!: string;
+
+  @Field(() => [String])
+  agentRuntimeSchemaReadinessGaps!: string[];
+
   @Field(() => SafeIntResolver)
   agentRuntimeStepCount!: number;
 
@@ -3439,6 +3448,9 @@ class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnostics
 
   @Field(() => [String])
   agentRuntimeTargetRunStatuses!: string[];
+
+  @Field(() => [String])
+  agentRuntimeTargetSchemaComponents!: string[];
 
   @Field(() => [String])
   agentRuntimeTargetStepStatuses!: string[];

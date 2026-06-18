@@ -11968,3 +11968,36 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - Admin 页面仍是只读 diagnostics，不支持按 step status gap 跳转到配置修复、Agent timeline 展开、step cancellation、approval decision、retry/rollback operation、Codex adapter 管理或 MCP registry 管理。
 - `agentRuntimeStepStatusGaps` 只说明目标 step 状态未被当前 action run projection 覆盖，不代表 runtime 已经记录或能够执行这些状态。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 349. P3 落地记录：Action Run Agent Runtime Schema Readiness Diagnostics
+
+本轮继续收敛第 348 节剩余风险中 “step/run status taxonomy contract 仍是 TypeScript helper，不是 DB-backed AgentRun/AgentStep schema、GraphQL enum、migration 或 registry row” 的问题。实际代码与目标架构的冲突点是：
+第 8.2 节定义的 `AgentRun` / `AgentStep` 目标数据模型需要 DB 表、GraphQL enum、schema migration 与单一 schema/registry source of truth；但当前 action run projection 仍只是在 `AiActionRun` 诊断上派生字符串字段。上一轮已经暴露 run/step type 与 status taxonomy gap，本轮进一步把 schema readiness 也变成只读 diagnostics，明确当前处于 `projection_contract_only`，并列出缺少的 schema 组件，避免后续 Agent Runtime / Codex / MCP 接入误以为已有正式 runtime schema。
+
+- `packages/backend/server/src/models/copilot-agent-runtime-projection.ts`：
+  - 新增 `AI_ACTION_RUN_AGENT_RUNTIME_SCHEMA_READINESS`、`AGENT_RUNTIME_TARGET_SCHEMA_COMPONENTS` 与 `AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_SCHEMA_COMPONENTS`。
+  - 新增 `getAgentRuntimeTargetSchemaComponents()`、`getActionRunAgentRuntimeProjectedSchemaComponents()` 与 `getActionRunAgentRuntimeSchemaReadinessGaps()`，统一产出 DB AgentRun/AgentStep 表、GraphQL enum、migration 与 registry source-of-truth 的缺口。
+- `packages/backend/server/src/models/copilot-action-run.ts`：
+  - `CopilotActionRunDiagnosticsItem` 新增 `agentRuntimeSchemaReadiness`、`agentRuntimeTargetSchemaComponents`、`agentRuntimeProjectedSchemaComponents` 与 `agentRuntimeSchemaReadinessGaps`。
+  - `summarizePreparedRouteTrace()` 从 projection contract 派生 schema readiness diagnostics，继续保持只读，不创建 AgentRun/AgentStep row。
+- GraphQL 与 Admin：
+  - `CopilotActionRunDiagnosticsItemType`、`packages/backend/server/src/schema.gql`、`packages/common/graphql/src/graphql/copilot-action-runs-get.gql`、`packages/common/graphql/src/graphql/index.ts` 与 `packages/common/graphql/src/schema.ts` 同步新增 schema readiness 字段。
+  - `packages/frontend/admin/src/modules/ai/index.tsx` 的 recent action run diagnostics text 新增 schema readiness、target/projected schema components 与 readiness gaps。
+- 测试覆盖：
+  - `packages/backend/server/src/__tests__/copilot/copilot.spec.ts` 断言成功 run 与失败 run 均返回 schema readiness diagnostics。
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 更新 action run mock payload 与 diagnostics text 断言，覆盖 Admin 可复制文本中的 schema readiness 信息。
+
+该实现只扩展只读 action run diagnostics、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 AgentRun/AgentStep 表、不改为 GraphQL enum、不引入 registry row、不改变 native action runtime、不新增 waiting approval、retry、rollback、blocked 状态机，不改变 prepared route selection、provider route policy、Prompt Registry、repair execution request contract、MCP registry、Codex adapter 或审批写入路径。它把当前 projection 从“只暴露 taxonomy/status gap”推进到“同时暴露正式 Agent Runtime schema 仍未落地的组件缺口”，为后续 DB-backed AgentRun/AgentStep schema、Codex/MCP adapter timeline、审批/恢复/rollback 状态机提供更清楚的迁移边界。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与宿主源码 bind mount 运行 focused Prettier、oxlint、backend copilot spec 与 Admin AI Vitest。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- schema readiness diagnostics 仍是只读 gap，不是 DB-backed AgentRun/AgentStep schema、GraphQL enum、migration、registry row 或 runtime 状态机。
+- 当前 projected schema components 只有 `typescript_projection_contract` 与 `graphql_string_diagnostics_fields`，仍不支持持久化 run/step output、tool/MCP/Codex step、approval record、retry attempt、rollback record、timeline event 或 state recovery。
+- Admin 页面仍是只读 diagnostics，不支持从 readiness gap 跳转到 migration 生成、schema registry 管理、Agent timeline 展开、run cancellation、approval decision、retry/rollback operation、Codex adapter 管理或 MCP registry 管理。
+- `agentRuntimeSchemaReadinessGaps` 只说明目标 schema 组件尚未由当前 action run projection 覆盖，不代表 runtime 已经记录或能够执行这些组件。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

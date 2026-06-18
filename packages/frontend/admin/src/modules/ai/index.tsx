@@ -4825,6 +4825,42 @@ function formatActionRunAgentRuntimeStepKinds(run: ActionRunDiagnosticsItem) {
   return `Agent runtime step kinds ${run.agentRuntimeStepKinds.join(' | ')}`;
 }
 
+function formatActionRunAgentRuntimeTargetSchemaComponents(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeTargetSchemaComponents.length) {
+    return 'Agent runtime target schema components none';
+  }
+
+  return `Agent runtime target schema components ${run.agentRuntimeTargetSchemaComponents.join(
+    ' | '
+  )}`;
+}
+
+function formatActionRunAgentRuntimeProjectedSchemaComponents(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeProjectedSchemaComponents.length) {
+    return 'Agent runtime projected schema components none';
+  }
+
+  return `Agent runtime projected schema components ${run.agentRuntimeProjectedSchemaComponents.join(
+    ' | '
+  )}`;
+}
+
+function formatActionRunAgentRuntimeSchemaReadinessGaps(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeSchemaReadinessGaps.length) {
+    return 'Agent runtime schema readiness gaps none';
+  }
+
+  return `Agent runtime schema readiness gaps ${run.agentRuntimeSchemaReadinessGaps.join(
+    ' | '
+  )}`;
+}
+
 function formatActionRunAgentRuntimeTargetRunStatuses(
   run: ActionRunDiagnosticsItem
 ) {
@@ -5007,6 +5043,12 @@ function buildActionRunDiagnosticsText(run: ActionRunDiagnosticsItem) {
     formatActionRunAgentRuntimeStepTypes(run),
     formatActionRunAgentRuntimeStepStatuses(run),
     formatActionRunAgentRuntimeStepKinds(run),
+    `Agent runtime schema readiness ${formatFeatureKind(
+      run.agentRuntimeSchemaReadiness
+    )}`,
+    formatActionRunAgentRuntimeTargetSchemaComponents(run),
+    formatActionRunAgentRuntimeProjectedSchemaComponents(run),
+    formatActionRunAgentRuntimeSchemaReadinessGaps(run),
     formatActionRunAgentRuntimeTargetRunStatuses(run),
     formatActionRunAgentRuntimeProjectedRunStatuses(run),
     formatActionRunAgentRuntimeUnsupportedRunStatuses(run),

@@ -585,6 +585,7 @@ type CopilotActionRunDiagnosticsItemType {
   actionId: String!
   actionVersion: String!
   agentRuntimeNativeTraceEventTypes: [String!]!
+  agentRuntimeProjectedSchemaComponents: [String!]!
   agentRuntimeProjectedRunStatuses: [String!]!
   agentRuntimeProjectedStepStatuses: [String!]!
   agentRuntimeProjectedStepTypes: [String!]!
@@ -593,6 +594,8 @@ type CopilotActionRunDiagnosticsItemType {
   agentRuntimeRunStatusGaps: [String!]!
   agentRuntimeRunId: String!
   agentRuntimeRunStatus: String!
+  agentRuntimeSchemaReadiness: String!
+  agentRuntimeSchemaReadinessGaps: [String!]!
   agentRuntimeStepCount: SafeInt!
   agentRuntimeStepStatusGaps: [String!]!
   agentRuntimeStepIds: [String!]!
@@ -600,6 +603,7 @@ type CopilotActionRunDiagnosticsItemType {
   agentRuntimeStepStatuses: [String!]!
   agentRuntimeStepTypes: [String!]!
   agentRuntimeTargetRunStatuses: [String!]!
+  agentRuntimeTargetSchemaComponents: [String!]!
   agentRuntimeTargetStepStatuses: [String!]!
   agentRuntimeTargetStepTypes: [String!]!
   agentRuntimeUnsupportedRunStatuses: [String!]!

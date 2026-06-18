@@ -3379,6 +3379,10 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       actionId: 'mindmap.generate',
       actionVersion: 'v1',
       agentRuntimeNativeTraceEventTypes: ['action_trace', 'tool:dispatch'],
+      agentRuntimeProjectedSchemaComponents: [
+        'typescript_projection_contract',
+        'graphql_string_diagnostics_fields',
+      ],
       agentRuntimeProjectedRunStatuses: [
         'queued',
         'running',
@@ -3410,6 +3414,16 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       ],
       agentRuntimeRunId: run.id,
       agentRuntimeRunStatus: 'completed',
+      agentRuntimeSchemaReadiness: 'projection_contract_only',
+      agentRuntimeSchemaReadinessGaps: [
+        'db_agent_run_table -> not_persisted',
+        'db_agent_step_table -> not_persisted',
+        'graphql_run_status_enum -> string_field',
+        'graphql_step_status_enum -> string_field',
+        'graphql_step_type_enum -> string_field',
+        'schema_migration -> not_created',
+        'registry_source_of_truth -> not_created',
+      ],
       agentRuntimeStepCount: 1,
       agentRuntimeStepStatusGaps: [
         'waiting_approval -> not_projected',
@@ -3431,6 +3445,15 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
         'retrying',
         'rollback_running',
         'archived',
+      ],
+      agentRuntimeTargetSchemaComponents: [
+        'db_agent_run_table',
+        'db_agent_step_table',
+        'graphql_run_status_enum',
+        'graphql_step_status_enum',
+        'graphql_step_type_enum',
+        'schema_migration',
+        'registry_source_of_truth',
       ],
       agentRuntimeTargetStepStatuses: [
         'pending',
@@ -3520,6 +3543,10 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
     {
       actionId: 'image.filter.sketch',
       agentRuntimeNativeTraceEventTypes: [],
+      agentRuntimeProjectedSchemaComponents: [
+        'typescript_projection_contract',
+        'graphql_string_diagnostics_fields',
+      ],
       agentRuntimeProjectedRunStatuses: [
         'queued',
         'running',
@@ -3552,6 +3579,16 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       ],
       agentRuntimeRunId: failedRun.id,
       agentRuntimeRunStatus: 'failed',
+      agentRuntimeSchemaReadiness: 'projection_contract_only',
+      agentRuntimeSchemaReadinessGaps: [
+        'db_agent_run_table -> not_persisted',
+        'db_agent_step_table -> not_persisted',
+        'graphql_run_status_enum -> string_field',
+        'graphql_step_status_enum -> string_field',
+        'graphql_step_type_enum -> string_field',
+        'schema_migration -> not_created',
+        'registry_source_of_truth -> not_created',
+      ],
       agentRuntimeStepCount: 0,
       agentRuntimeStepStatusGaps: [
         'waiting_approval -> not_projected',
@@ -3573,6 +3610,15 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
         'retrying',
         'rollback_running',
         'archived',
+      ],
+      agentRuntimeTargetSchemaComponents: [
+        'db_agent_run_table',
+        'db_agent_step_table',
+        'graphql_run_status_enum',
+        'graphql_step_status_enum',
+        'graphql_step_type_enum',
+        'schema_migration',
+        'registry_source_of_truth',
       ],
       agentRuntimeTargetStepStatuses: [
         'pending',

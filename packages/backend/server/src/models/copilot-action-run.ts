@@ -6,16 +6,20 @@ import { BaseModel } from './base';
 import { normalizeActionModelSelectionSource } from './copilot-action-model-selection';
 import {
   AI_ACTION_RUN_AGENT_RUNTIME_PROJECTION_SOURCE,
+  AI_ACTION_RUN_AGENT_RUNTIME_SCHEMA_READINESS,
   getActionRunAgentRuntimeProjectedRunStatuses,
+  getActionRunAgentRuntimeProjectedSchemaComponents,
   getActionRunAgentRuntimeProjectedStepStatuses,
   getActionRunAgentRuntimeProjectedStepTypes,
   getActionRunAgentRuntimeProjectionGaps,
   getActionRunAgentRuntimeRunStatusGaps,
+  getActionRunAgentRuntimeSchemaReadinessGaps,
   getActionRunAgentRuntimeStepStatusGaps,
   getActionRunAgentRuntimeUnsupportedRunStatuses,
   getActionRunAgentRuntimeUnsupportedStepStatuses,
   getActionRunAgentRuntimeUnsupportedStepTypes,
   getAgentRuntimeTargetRunStatuses,
+  getAgentRuntimeTargetSchemaComponents,
   getAgentRuntimeTargetStepStatuses,
   getAgentRuntimeTargetStepTypes,
   mapActionRunStatusToAgentRuntimeStatus,
@@ -75,6 +79,7 @@ export type CopilotActionRunDiagnosticsItem = {
   actionId: string;
   actionVersion: string;
   agentRuntimeNativeTraceEventTypes: string[];
+  agentRuntimeProjectedSchemaComponents: string[];
   agentRuntimeProjectedRunStatuses: string[];
   agentRuntimeProjectedStepStatuses: string[];
   agentRuntimeProjectedStepTypes: string[];
@@ -83,6 +88,8 @@ export type CopilotActionRunDiagnosticsItem = {
   agentRuntimeRunStatusGaps: string[];
   agentRuntimeRunId: string;
   agentRuntimeRunStatus: string;
+  agentRuntimeSchemaReadiness: string;
+  agentRuntimeSchemaReadinessGaps: string[];
   agentRuntimeStepCount: number;
   agentRuntimeStepStatusGaps: string[];
   agentRuntimeStepIds: string[];
@@ -90,6 +97,7 @@ export type CopilotActionRunDiagnosticsItem = {
   agentRuntimeStepStatuses: string[];
   agentRuntimeStepTypes: string[];
   agentRuntimeTargetRunStatuses: string[];
+  agentRuntimeTargetSchemaComponents: string[];
   agentRuntimeTargetStepStatuses: string[];
   agentRuntimeTargetStepTypes: string[];
   agentRuntimeUnsupportedRunStatuses: string[];
@@ -550,11 +558,15 @@ function summarizePreparedRouteTrace(
     ) ?? []
   );
   const agentRuntimeNativeTraceEventTypes = extractNativeTraceEventTypes(value);
+  const agentRuntimeProjectedSchemaComponents =
+    getActionRunAgentRuntimeProjectedSchemaComponents();
   const agentRuntimeProjectedRunStatuses =
     getActionRunAgentRuntimeProjectedRunStatuses();
   const agentRuntimeProjectedStepStatuses =
     getActionRunAgentRuntimeProjectedStepStatuses();
   const agentRuntimeTargetStepTypes = getAgentRuntimeTargetStepTypes();
+  const agentRuntimeTargetSchemaComponents =
+    getAgentRuntimeTargetSchemaComponents();
   const agentRuntimeTargetStepStatuses = getAgentRuntimeTargetStepStatuses();
   const agentRuntimeTargetRunStatuses = getAgentRuntimeTargetRunStatuses();
   const agentRuntimeUnsupportedRunStatuses =
@@ -569,6 +581,9 @@ function summarizePreparedRouteTrace(
   const agentRuntimeStepStatusGaps = uniqueNonEmptyStrings(
     getActionRunAgentRuntimeStepStatusGaps()
   );
+  const agentRuntimeSchemaReadinessGaps = uniqueNonEmptyStrings(
+    getActionRunAgentRuntimeSchemaReadinessGaps()
+  );
   const agentRuntimeProjectionGaps = uniqueNonEmptyStrings(
     getActionRunAgentRuntimeProjectionGaps({
       hasPreparedRouteTrace: !!trace,
@@ -577,6 +592,7 @@ function summarizePreparedRouteTrace(
 
   return {
     agentRuntimeNativeTraceEventTypes,
+    agentRuntimeProjectedSchemaComponents,
     agentRuntimeProjectedRunStatuses,
     agentRuntimeProjectedStepStatuses,
     agentRuntimeProjectedStepTypes,
@@ -585,6 +601,8 @@ function summarizePreparedRouteTrace(
     agentRuntimeRunStatusGaps,
     agentRuntimeRunId: runId,
     agentRuntimeRunStatus: mapActionRunStatusToAgentRuntimeStatus(status),
+    agentRuntimeSchemaReadiness: AI_ACTION_RUN_AGENT_RUNTIME_SCHEMA_READINESS,
+    agentRuntimeSchemaReadinessGaps,
     agentRuntimeStepCount: agentRuntimeStepIds.length,
     agentRuntimeStepStatusGaps,
     agentRuntimeStepIds,
@@ -592,6 +610,7 @@ function summarizePreparedRouteTrace(
     agentRuntimeStepStatuses,
     agentRuntimeStepTypes,
     agentRuntimeTargetRunStatuses,
+    agentRuntimeTargetSchemaComponents,
     agentRuntimeTargetStepStatuses,
     agentRuntimeTargetStepTypes,
     agentRuntimeUnsupportedRunStatuses,

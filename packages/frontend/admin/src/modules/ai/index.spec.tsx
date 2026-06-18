@@ -2621,6 +2621,10 @@ const actionRunsPayload = [
     actionId: 'mindmap.generate',
     actionVersion: 'v1',
     agentRuntimeNativeTraceEventTypes: ['action_trace', 'tool:dispatch'],
+    agentRuntimeProjectedSchemaComponents: [
+      'typescript_projection_contract',
+      'graphql_string_diagnostics_fields',
+    ],
     agentRuntimeProjectedRunStatuses: [
       'queued',
       'running',
@@ -2652,6 +2656,16 @@ const actionRunsPayload = [
     ],
     agentRuntimeRunId: 'run-123',
     agentRuntimeRunStatus: 'completed',
+    agentRuntimeSchemaReadiness: 'projection_contract_only',
+    agentRuntimeSchemaReadinessGaps: [
+      'db_agent_run_table -> not_persisted',
+      'db_agent_step_table -> not_persisted',
+      'graphql_run_status_enum -> string_field',
+      'graphql_step_status_enum -> string_field',
+      'graphql_step_type_enum -> string_field',
+      'schema_migration -> not_created',
+      'registry_source_of_truth -> not_created',
+    ],
     agentRuntimeStepCount: 2,
     agentRuntimeStepStatusGaps: [
       'waiting_approval -> not_projected',
@@ -2679,6 +2693,15 @@ const actionRunsPayload = [
       'retrying',
       'rollback_running',
       'archived',
+    ],
+    agentRuntimeTargetSchemaComponents: [
+      'db_agent_run_table',
+      'db_agent_step_table',
+      'graphql_run_status_enum',
+      'graphql_step_status_enum',
+      'graphql_step_type_enum',
+      'schema_migration',
+      'registry_source_of_truth',
     ],
     agentRuntimeTargetStepStatuses: [
       'pending',
@@ -2807,6 +2830,10 @@ const actionRunsPayload = [
     actionId: 'image.filter.sketch',
     actionVersion: 'v1',
     agentRuntimeNativeTraceEventTypes: [],
+    agentRuntimeProjectedSchemaComponents: [
+      'typescript_projection_contract',
+      'graphql_string_diagnostics_fields',
+    ],
     agentRuntimeProjectedRunStatuses: [
       'queued',
       'running',
@@ -2839,6 +2866,16 @@ const actionRunsPayload = [
     ],
     agentRuntimeRunId: 'run-failed',
     agentRuntimeRunStatus: 'failed',
+    agentRuntimeSchemaReadiness: 'projection_contract_only',
+    agentRuntimeSchemaReadinessGaps: [
+      'db_agent_run_table -> not_persisted',
+      'db_agent_step_table -> not_persisted',
+      'graphql_run_status_enum -> string_field',
+      'graphql_step_status_enum -> string_field',
+      'graphql_step_type_enum -> string_field',
+      'schema_migration -> not_created',
+      'registry_source_of_truth -> not_created',
+    ],
     agentRuntimeStepCount: 0,
     agentRuntimeStepStatusGaps: [
       'waiting_approval -> not_projected',
@@ -2860,6 +2897,15 @@ const actionRunsPayload = [
       'retrying',
       'rollback_running',
       'archived',
+    ],
+    agentRuntimeTargetSchemaComponents: [
+      'db_agent_run_table',
+      'db_agent_step_table',
+      'graphql_run_status_enum',
+      'graphql_step_status_enum',
+      'graphql_step_type_enum',
+      'schema_migration',
+      'registry_source_of_truth',
     ],
     agentRuntimeTargetStepStatuses: [
       'pending',
@@ -6602,6 +6648,18 @@ describe('AiPage', () => {
       'Agent runtime step kinds generate -> structured | generate-image -> image'
     );
     expect(actionRunDiagnostics).toContain(
+      'Agent runtime schema readiness Projection Contract Only'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime target schema components db_agent_run_table | db_agent_step_table | graphql_run_status_enum | graphql_step_status_enum | graphql_step_type_enum | schema_migration | registry_source_of_truth'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime projected schema components typescript_projection_contract | graphql_string_diagnostics_fields'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime schema readiness gaps db_agent_run_table -> not_persisted | db_agent_step_table -> not_persisted | graphql_run_status_enum -> string_field | graphql_step_status_enum -> string_field | graphql_step_type_enum -> string_field | schema_migration -> not_created | registry_source_of_truth -> not_created'
+    );
+    expect(actionRunDiagnostics).toContain(
       'Agent runtime target run statuses queued | running | waiting_approval | completed | failed | cancelled | retrying | rollback_running | archived'
     );
     expect(actionRunDiagnostics).toContain(
@@ -6658,6 +6716,18 @@ describe('AiPage', () => {
     expect(failedRunDiagnostics).toContain('Agent runtime run run-failed');
     expect(failedRunDiagnostics).toContain('Agent runtime status Failed');
     expect(failedRunDiagnostics).toContain('Agent runtime steps none');
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime schema readiness Projection Contract Only'
+    );
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime target schema components db_agent_run_table | db_agent_step_table | graphql_run_status_enum | graphql_step_status_enum | graphql_step_type_enum | schema_migration | registry_source_of_truth'
+    );
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime projected schema components typescript_projection_contract | graphql_string_diagnostics_fields'
+    );
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime schema readiness gaps db_agent_run_table -> not_persisted | db_agent_step_table -> not_persisted | graphql_run_status_enum -> string_field | graphql_step_status_enum -> string_field | graphql_step_type_enum -> string_field | schema_migration -> not_created | registry_source_of_truth -> not_created'
+    );
     expect(failedRunDiagnostics).toContain(
       'Agent runtime target run statuses queued | running | waiting_approval | completed | failed | cancelled | retrying | rollback_running | archived'
     );
