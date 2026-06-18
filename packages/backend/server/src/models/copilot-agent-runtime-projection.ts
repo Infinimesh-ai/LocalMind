@@ -22,6 +22,29 @@ export const AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_SCHEMA_COMPONENTS = [
   'graphql_string_diagnostics_fields',
 ] as const;
 
+export const AGENT_RUNTIME_TARGET_TIMELINE_EVENT_TYPES = [
+  'run_status',
+  'model_step',
+  'tool_step',
+  'approval_step',
+  'handoff_step',
+  'codex_step',
+  'mcp_step',
+  'step_output',
+  'step_error',
+  'retry_attempt',
+  'rollback_state',
+  'run_cancellation',
+] as const;
+
+export type AgentRuntimeTimelineEventType =
+  (typeof AGENT_RUNTIME_TARGET_TIMELINE_EVENT_TYPES)[number];
+
+export const AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_TIMELINE_EVENT_TYPES = [
+  'run_status',
+  'model_step',
+] as const satisfies readonly AgentRuntimeTimelineEventType[];
+
 export const AGENT_RUNTIME_TARGET_RUN_STATUSES = [
   'queued',
   'running',
@@ -122,6 +145,10 @@ export function getActionRunAgentRuntimeProjectedStepTypes() {
   return [...AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_STEP_TYPES];
 }
 
+export function getActionRunAgentRuntimeProjectedTimelineEventTypes() {
+  return [...AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_TIMELINE_EVENT_TYPES];
+}
+
 export function getActionRunAgentRuntimeProjectedSchemaComponents() {
   return [...AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_SCHEMA_COMPONENTS];
 }
@@ -136,6 +163,10 @@ export function getActionRunAgentRuntimeProjectedRunStatuses() {
 
 export function getAgentRuntimeTargetStepTypes() {
   return [...AGENT_RUNTIME_TARGET_STEP_TYPES];
+}
+
+export function getAgentRuntimeTargetTimelineEventTypes() {
+  return [...AGENT_RUNTIME_TARGET_TIMELINE_EVENT_TYPES];
 }
 
 export function getAgentRuntimeTargetSchemaComponents() {
@@ -180,10 +211,33 @@ export function getActionRunAgentRuntimeUnsupportedStepTypes() {
   );
 }
 
+export function getActionRunAgentRuntimeUnsupportedTimelineEventTypes() {
+  const projectedTimelineEventTypes = new Set<AgentRuntimeTimelineEventType>(
+    AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_TIMELINE_EVENT_TYPES
+  );
+
+  return AGENT_RUNTIME_TARGET_TIMELINE_EVENT_TYPES.filter(
+    eventType => !projectedTimelineEventTypes.has(eventType)
+  );
+}
+
 export function getActionRunAgentRuntimeStepStatusGaps() {
   return getActionRunAgentRuntimeUnsupportedStepStatuses().map(
     status => `${status} -> not_projected`
   );
+}
+
+export function getActionRunAgentRuntimeTimelineGaps(input: {
+  hasPreparedRouteTrace: boolean;
+}) {
+  return [
+    ...(input.hasPreparedRouteTrace
+      ? []
+      : ['model_step -> no_prepared_route_trace']),
+    ...getActionRunAgentRuntimeUnsupportedTimelineEventTypes().map(
+      eventType => `${eventType} -> not_projected`
+    ),
+  ];
 }
 
 export function getActionRunAgentRuntimeSchemaReadinessGaps() {

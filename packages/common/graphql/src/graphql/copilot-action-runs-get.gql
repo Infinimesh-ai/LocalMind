@@ -9,6 +9,7 @@ query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
         agentRuntimeProjectedRunStatuses
         agentRuntimeProjectedStepStatuses
         agentRuntimeProjectedStepTypes
+        agentRuntimeProjectedTimelineEventTypes
         agentRuntimeProjectionSource
         agentRuntimeProjectionGaps
         agentRuntimeRunStatusGaps
@@ -22,13 +23,18 @@ query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
         agentRuntimeStepKinds
         agentRuntimeStepStatuses
         agentRuntimeStepTypes
+        agentRuntimeTimelineEntries
+        agentRuntimeTimelineEventTypes
+        agentRuntimeTimelineGaps
         agentRuntimeTargetRunStatuses
         agentRuntimeTargetSchemaComponents
         agentRuntimeTargetStepStatuses
         agentRuntimeTargetStepTypes
+        agentRuntimeTargetTimelineEventTypes
         agentRuntimeUnsupportedRunStatuses
         agentRuntimeUnsupportedStepStatuses
         agentRuntimeUnsupportedStepTypes
+        agentRuntimeUnsupportedTimelineEventTypes
         attempt
         createdAt
         docId

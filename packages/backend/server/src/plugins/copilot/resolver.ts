@@ -3407,6 +3407,9 @@ class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnostics
   @Field(() => [String])
   agentRuntimeProjectedStepTypes!: string[];
 
+  @Field(() => [String])
+  agentRuntimeProjectedTimelineEventTypes!: string[];
+
   @Field(() => String)
   agentRuntimeProjectionSource!: string;
 
@@ -3447,6 +3450,15 @@ class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnostics
   agentRuntimeStepTypes!: string[];
 
   @Field(() => [String])
+  agentRuntimeTimelineEntries!: string[];
+
+  @Field(() => [String])
+  agentRuntimeTimelineEventTypes!: string[];
+
+  @Field(() => [String])
+  agentRuntimeTimelineGaps!: string[];
+
+  @Field(() => [String])
   agentRuntimeTargetRunStatuses!: string[];
 
   @Field(() => [String])
@@ -3459,6 +3471,9 @@ class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnostics
   agentRuntimeTargetStepTypes!: string[];
 
   @Field(() => [String])
+  agentRuntimeTargetTimelineEventTypes!: string[];
+
+  @Field(() => [String])
   agentRuntimeUnsupportedRunStatuses!: string[];
 
   @Field(() => [String])
@@ -3466,6 +3481,9 @@ class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnostics
 
   @Field(() => [String])
   agentRuntimeUnsupportedStepTypes!: string[];
+
+  @Field(() => [String])
+  agentRuntimeUnsupportedTimelineEventTypes!: string[];
 
   @Field(() => String)
   status!: string;

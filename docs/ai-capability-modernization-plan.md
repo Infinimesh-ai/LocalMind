@@ -12001,3 +12001,36 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - Admin 页面仍是只读 diagnostics，不支持从 readiness gap 跳转到 migration 生成、schema registry 管理、Agent timeline 展开、run cancellation、approval decision、retry/rollback operation、Codex adapter 管理或 MCP registry 管理。
 - `agentRuntimeSchemaReadinessGaps` 只说明目标 schema 组件尚未由当前 action run projection 覆盖，不代表 runtime 已经记录或能够执行这些组件。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 350. P3 落地记录：Action Run Agent Runtime Timeline Projection Diagnostics
+
+本轮继续收敛第 349 节剩余风险中 “Admin 页面仍是只读 diagnostics，不支持 Agent timeline 展开” 以及 “当前 projected schema components 仍不支持 timeline event 或 state recovery” 的问题。实际代码与目标架构的冲突点是：
+第 8.2 与第 9.3 节描述的正式 Agent Runtime / Codex adapter 需要能展示 run status、model/tool/approval/handoff/Codex/MCP step、step output/error、retry attempt、rollback 与 cancellation 等 timeline event；但当前 `AiActionRun` 仍只有 run 状态、脱敏 prepared route steps 与有限 native trace event type。直接建设 DB-backed AgentRun/AgentStep/timeline event schema 会涉及 migration、worker/queue 和 runtime 状态机，本轮先继续用只读 projection 方式把“当前能投影的 timeline”和“仍缺失的 timeline event taxonomy”暴露出来，避免 Admin 只有 flat diagnostics 文本。
+
+- `packages/backend/server/src/models/copilot-agent-runtime-projection.ts`：
+  - 新增 `AGENT_RUNTIME_TARGET_TIMELINE_EVENT_TYPES`、`AI_ACTION_RUN_AGENT_RUNTIME_PROJECTED_TIMELINE_EVENT_TYPES` 与 `AgentRuntimeTimelineEventType`。
+  - 新增 `getAgentRuntimeTargetTimelineEventTypes()`、`getActionRunAgentRuntimeProjectedTimelineEventTypes()`、`getActionRunAgentRuntimeUnsupportedTimelineEventTypes()` 与 `getActionRunAgentRuntimeTimelineGaps()`，集中产出目标 timeline taxonomy 与当前 action run projection 缺口。
+- `packages/backend/server/src/models/copilot-action-run.ts`：
+  - `CopilotActionRunDiagnosticsItem` 新增 `agentRuntimeTimelineEntries`、`agentRuntimeTimelineEventTypes`、`agentRuntimeTargetTimelineEventTypes`、`agentRuntimeProjectedTimelineEventTypes`、`agentRuntimeUnsupportedTimelineEventTypes` 与 `agentRuntimeTimelineGaps`。
+  - `summarizePreparedRouteTrace()` 从 action run status 派生 `run_status` timeline entry，并从 prepared route steps 派生 `model_step` timeline entries，格式包含 step id、派生 status、kind 与 route count；无 prepared route trace 时明确输出 `model_step -> no_prepared_route_trace` gap。
+- GraphQL 与 Admin：
+  - `CopilotActionRunDiagnosticsItemType`、`packages/backend/server/src/schema.gql`、`packages/common/graphql/src/graphql/copilot-action-runs-get.gql`、`packages/common/graphql/src/graphql/index.ts` 与 `packages/common/graphql/src/schema.ts` 同步新增 timeline projection 字段。
+  - `packages/frontend/admin/src/modules/ai/index.tsx` 的 recent action run diagnostics text 新增 timeline entries、event types、target/projected/unsupported timeline taxonomy 与 timeline gaps；列表摘要新增 timeline gap 计数信号。
+- 测试覆盖：
+  - `packages/backend/server/src/__tests__/copilot/copilot.spec.ts` 断言成功 run 暴露 `run_status` + `model_step` timeline entries，失败且无 prepared trace 的 run 暴露 `run_status` 与 `model_step -> no_prepared_route_trace` gap。
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 更新 action run mock payload 与 diagnostics text 断言，覆盖 Admin 可复制文本中的 timeline projection 信息。
+
+该实现只扩展只读 action run diagnostics、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 AgentRun/AgentStep/timeline event 表、不新增 queue/worker/lease、不改变 native action runtime、不执行 tool/MCP/Codex/approval/handoff step，不记录 step output/error、retry attempt、rollback state 或 cancellation event，不改变 prepared route selection、provider route policy、Prompt Registry、repair execution request contract、MCP registry、Codex adapter 或审批写入路径。它把当前 projection 从“run/step taxonomy 和 schema readiness gap”推进到“可用 Agent timeline 术语解释当前 action run 的最小只读事件序列”，为后续正式 Agent timeline UI、Codex JSONL event ingestion、MCP tool call timeline、审批/恢复/rollback 状态机提供更清楚的过渡观测面。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与宿主源码 bind mount 运行 focused Prettier、oxlint、backend copilot spec 与 Admin AI Vitest。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- timeline projection 仍是从 `AiActionRun` 与 prepared route trace 派生的只读字符串列表，不是持久化 AgentRun/AgentStep/timeline event row。
+- 当前 projected timeline event types 只有 `run_status` 与 `model_step`，仍不支持真实 tool step、approval step、handoff step、Codex step、MCP step、step output/error、retry attempt、rollback state 或 cancellation event。
+- timeline entry 当前只包含 step id、派生状态、prepared route kind 与 route count，不包含真实开始/结束时间、latency、token usage、cost、provider response、tool args、MCP server id、Codex sandbox policy、approval record、retry attempt id、rollback result 或 artifact patch。
+- Admin 页面仍是只读 diagnostics 和列表信号，不支持真正的 timeline 组件、step 展开、trace JSON 导出、run cancellation、approval decision、retry/rollback operation、Codex adapter 管理或 MCP registry 管理。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

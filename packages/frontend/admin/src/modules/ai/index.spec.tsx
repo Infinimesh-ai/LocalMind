@@ -2640,6 +2640,7 @@ const actionRunsPayload = [
       'skipped',
     ],
     agentRuntimeProjectedStepTypes: ['model'],
+    agentRuntimeProjectedTimelineEventTypes: ['run_status', 'model_step'],
     agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
     agentRuntimeProjectionGaps: [
       'tool -> not_projected',
@@ -2683,6 +2684,24 @@ const actionRunsPayload = [
       'generate-image -> completed',
     ],
     agentRuntimeStepTypes: ['generate -> model', 'generate-image -> model'],
+    agentRuntimeTimelineEntries: [
+      'run -> completed',
+      'generate -> model_step -> completed -> structured -> 2/2',
+      'generate-image -> model_step -> completed -> image -> 1/1',
+    ],
+    agentRuntimeTimelineEventTypes: ['run_status', 'model_step'],
+    agentRuntimeTimelineGaps: [
+      'tool_step -> not_projected',
+      'approval_step -> not_projected',
+      'handoff_step -> not_projected',
+      'codex_step -> not_projected',
+      'mcp_step -> not_projected',
+      'step_output -> not_projected',
+      'step_error -> not_projected',
+      'retry_attempt -> not_projected',
+      'rollback_state -> not_projected',
+      'run_cancellation -> not_projected',
+    ],
     agentRuntimeTargetRunStatuses: [
       'queued',
       'running',
@@ -2722,6 +2741,20 @@ const actionRunsPayload = [
       'codex',
       'mcp',
     ],
+    agentRuntimeTargetTimelineEventTypes: [
+      'run_status',
+      'model_step',
+      'tool_step',
+      'approval_step',
+      'handoff_step',
+      'codex_step',
+      'mcp_step',
+      'step_output',
+      'step_error',
+      'retry_attempt',
+      'rollback_state',
+      'run_cancellation',
+    ],
     agentRuntimeUnsupportedRunStatuses: [
       'waiting_approval',
       'retrying',
@@ -2740,6 +2773,18 @@ const actionRunsPayload = [
       'handoff',
       'codex',
       'mcp',
+    ],
+    agentRuntimeUnsupportedTimelineEventTypes: [
+      'tool_step',
+      'approval_step',
+      'handoff_step',
+      'codex_step',
+      'mcp_step',
+      'step_output',
+      'step_error',
+      'retry_attempt',
+      'rollback_state',
+      'run_cancellation',
     ],
     attempt: 2,
     createdAt: '2026-06-16T09:00:00.000Z',
@@ -2849,6 +2894,7 @@ const actionRunsPayload = [
       'skipped',
     ],
     agentRuntimeProjectedStepTypes: ['model'],
+    agentRuntimeProjectedTimelineEventTypes: ['run_status', 'model_step'],
     agentRuntimeProjectionSource: 'ai_action_run_agent_runtime_projection/v1',
     agentRuntimeProjectionGaps: [
       'model -> no_prepared_route_trace',
@@ -2887,6 +2933,21 @@ const actionRunsPayload = [
     agentRuntimeStepKinds: [],
     agentRuntimeStepStatuses: [],
     agentRuntimeStepTypes: [],
+    agentRuntimeTimelineEntries: ['run -> failed'],
+    agentRuntimeTimelineEventTypes: ['run_status'],
+    agentRuntimeTimelineGaps: [
+      'model_step -> no_prepared_route_trace',
+      'tool_step -> not_projected',
+      'approval_step -> not_projected',
+      'handoff_step -> not_projected',
+      'codex_step -> not_projected',
+      'mcp_step -> not_projected',
+      'step_output -> not_projected',
+      'step_error -> not_projected',
+      'retry_attempt -> not_projected',
+      'rollback_state -> not_projected',
+      'run_cancellation -> not_projected',
+    ],
     agentRuntimeTargetRunStatuses: [
       'queued',
       'running',
@@ -2926,6 +2987,20 @@ const actionRunsPayload = [
       'codex',
       'mcp',
     ],
+    agentRuntimeTargetTimelineEventTypes: [
+      'run_status',
+      'model_step',
+      'tool_step',
+      'approval_step',
+      'handoff_step',
+      'codex_step',
+      'mcp_step',
+      'step_output',
+      'step_error',
+      'retry_attempt',
+      'rollback_state',
+      'run_cancellation',
+    ],
     agentRuntimeUnsupportedRunStatuses: [
       'waiting_approval',
       'retrying',
@@ -2944,6 +3019,18 @@ const actionRunsPayload = [
       'handoff',
       'codex',
       'mcp',
+    ],
+    agentRuntimeUnsupportedTimelineEventTypes: [
+      'tool_step',
+      'approval_step',
+      'handoff_step',
+      'codex_step',
+      'mcp_step',
+      'step_output',
+      'step_error',
+      'retry_attempt',
+      'rollback_state',
+      'run_cancellation',
     ],
     attempt: 1,
     createdAt: '2026-06-16T08:00:00.000Z',
@@ -6648,6 +6735,24 @@ describe('AiPage', () => {
       'Agent runtime step kinds generate -> structured | generate-image -> image'
     );
     expect(actionRunDiagnostics).toContain(
+      'Agent runtime timeline entries run -> completed | generate -> model_step -> completed -> structured -> 2/2 | generate-image -> model_step -> completed -> image -> 1/1'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime timeline event types run_status | model_step'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime target timeline event types run_status | model_step | tool_step | approval_step | handoff_step | codex_step | mcp_step | step_output | step_error | retry_attempt | rollback_state | run_cancellation'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime projected timeline event types run_status | model_step'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime unsupported timeline event types tool_step | approval_step | handoff_step | codex_step | mcp_step | step_output | step_error | retry_attempt | rollback_state | run_cancellation'
+    );
+    expect(actionRunDiagnostics).toContain(
+      'Agent runtime timeline gaps tool_step -> not_projected | approval_step -> not_projected | handoff_step -> not_projected | codex_step -> not_projected | mcp_step -> not_projected | step_output -> not_projected | step_error -> not_projected | retry_attempt -> not_projected | rollback_state -> not_projected | run_cancellation -> not_projected'
+    );
+    expect(actionRunDiagnostics).toContain(
       'Agent runtime schema readiness Projection Contract Only'
     );
     expect(actionRunDiagnostics).toContain(
@@ -6716,6 +6821,24 @@ describe('AiPage', () => {
     expect(failedRunDiagnostics).toContain('Agent runtime run run-failed');
     expect(failedRunDiagnostics).toContain('Agent runtime status Failed');
     expect(failedRunDiagnostics).toContain('Agent runtime steps none');
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime timeline entries run -> failed'
+    );
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime timeline event types run_status'
+    );
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime target timeline event types run_status | model_step | tool_step | approval_step | handoff_step | codex_step | mcp_step | step_output | step_error | retry_attempt | rollback_state | run_cancellation'
+    );
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime projected timeline event types run_status | model_step'
+    );
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime unsupported timeline event types tool_step | approval_step | handoff_step | codex_step | mcp_step | step_output | step_error | retry_attempt | rollback_state | run_cancellation'
+    );
+    expect(failedRunDiagnostics).toContain(
+      'Agent runtime timeline gaps model_step -> no_prepared_route_trace | tool_step -> not_projected | approval_step -> not_projected | handoff_step -> not_projected | codex_step -> not_projected | mcp_step -> not_projected | step_output -> not_projected | step_error -> not_projected | retry_attempt -> not_projected | rollback_state -> not_projected | run_cancellation -> not_projected'
+    );
     expect(failedRunDiagnostics).toContain(
       'Agent runtime schema readiness Projection Contract Only'
     );

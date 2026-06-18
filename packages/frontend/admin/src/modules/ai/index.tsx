@@ -4825,6 +4825,78 @@ function formatActionRunAgentRuntimeStepKinds(run: ActionRunDiagnosticsItem) {
   return `Agent runtime step kinds ${run.agentRuntimeStepKinds.join(' | ')}`;
 }
 
+function formatActionRunAgentRuntimeTimelineEntries(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeTimelineEntries.length) {
+    return 'Agent runtime timeline entries none';
+  }
+
+  return `Agent runtime timeline entries ${run.agentRuntimeTimelineEntries.join(
+    ' | '
+  )}`;
+}
+
+function formatActionRunAgentRuntimeTimelineEventTypes(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeTimelineEventTypes.length) {
+    return 'Agent runtime timeline event types none';
+  }
+
+  return `Agent runtime timeline event types ${run.agentRuntimeTimelineEventTypes.join(
+    ' | '
+  )}`;
+}
+
+function formatActionRunAgentRuntimeTargetTimelineEventTypes(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeTargetTimelineEventTypes.length) {
+    return 'Agent runtime target timeline event types none';
+  }
+
+  return `Agent runtime target timeline event types ${run.agentRuntimeTargetTimelineEventTypes.join(
+    ' | '
+  )}`;
+}
+
+function formatActionRunAgentRuntimeProjectedTimelineEventTypes(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeProjectedTimelineEventTypes.length) {
+    return 'Agent runtime projected timeline event types none';
+  }
+
+  return `Agent runtime projected timeline event types ${run.agentRuntimeProjectedTimelineEventTypes.join(
+    ' | '
+  )}`;
+}
+
+function formatActionRunAgentRuntimeUnsupportedTimelineEventTypes(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeUnsupportedTimelineEventTypes.length) {
+    return 'Agent runtime unsupported timeline event types none';
+  }
+
+  return `Agent runtime unsupported timeline event types ${run.agentRuntimeUnsupportedTimelineEventTypes.join(
+    ' | '
+  )}`;
+}
+
+function formatActionRunAgentRuntimeTimelineGaps(
+  run: ActionRunDiagnosticsItem
+) {
+  if (!run.agentRuntimeTimelineGaps.length) {
+    return 'Agent runtime timeline gaps none';
+  }
+
+  return `Agent runtime timeline gaps ${run.agentRuntimeTimelineGaps.join(
+    ' | '
+  )}`;
+}
+
 function formatActionRunAgentRuntimeTargetSchemaComponents(
   run: ActionRunDiagnosticsItem
 ) {
@@ -5043,6 +5115,12 @@ function buildActionRunDiagnosticsText(run: ActionRunDiagnosticsItem) {
     formatActionRunAgentRuntimeStepTypes(run),
     formatActionRunAgentRuntimeStepStatuses(run),
     formatActionRunAgentRuntimeStepKinds(run),
+    formatActionRunAgentRuntimeTimelineEntries(run),
+    formatActionRunAgentRuntimeTimelineEventTypes(run),
+    formatActionRunAgentRuntimeTargetTimelineEventTypes(run),
+    formatActionRunAgentRuntimeProjectedTimelineEventTypes(run),
+    formatActionRunAgentRuntimeUnsupportedTimelineEventTypes(run),
+    formatActionRunAgentRuntimeTimelineGaps(run),
     `Agent runtime schema readiness ${formatFeatureKind(
       run.agentRuntimeSchemaReadiness
     )}`,
@@ -5172,6 +5250,12 @@ function ActionRunRecentList({
                     <div className="mt-1 break-words text-xs text-amber-700">
                       {run.agentRuntimeProjectionGaps.length} projection gap
                       {run.agentRuntimeProjectionGaps.length === 1 ? '' : 's'}
+                    </div>
+                  ) : null}
+                  {run.agentRuntimeTimelineGaps.length ? (
+                    <div className="mt-1 break-words text-xs text-amber-700">
+                      {run.agentRuntimeTimelineGaps.length} timeline gap
+                      {run.agentRuntimeTimelineGaps.length === 1 ? '' : 's'}
                     </div>
                   ) : null}
                 </TableCell>
