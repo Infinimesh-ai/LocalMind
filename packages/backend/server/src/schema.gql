@@ -1884,6 +1884,7 @@ type CopilotTaskRouteDiagnosticsType {
   routeTrace: [CopilotTaskRouteTracePhaseDiagnosticsType!]!
   prepareCandidates: [CopilotTaskRoutePrepareCandidateDiagnosticsType!]!
   preparedProviderCount: SafeInt!
+  preparedRouteTargets: [String!]!
   preparedRoutes: [CopilotPreparedTaskRouteDiagnosticsType!]!
   providerConfiguredModelCount: SafeInt
   providerConfiguredModelIds: [String!]

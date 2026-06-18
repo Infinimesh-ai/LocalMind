@@ -5409,6 +5409,9 @@ async function main() {
   ]);
   assert.equal(taskDiagnosticsErrorRoute?.providerId, 'local');
   assert.equal(taskDiagnosticsErrorRoute?.preparedProviderCount, 1);
+  assert.deepEqual(taskDiagnosticsErrorRoute?.preparedRouteTargets, [
+    'local/nomic-embed-text',
+  ]);
   assert.deepEqual(
     taskDiagnosticsErrorRoute?.routeCandidates.map(
       candidate => candidate.providerId

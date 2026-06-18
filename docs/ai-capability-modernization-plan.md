@@ -12232,3 +12232,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - timeline item 仍不是持久化 Agent timeline event row；没有真实开始/结束时间、latency、token usage、cost、provider response、tool args、MCP server id、Codex sandbox policy、approval record、retry attempt id、rollback result 或 artifact patch。
 - 当前 route target 字段只覆盖 `run_status` 汇总与 `model_step`，不覆盖真实 tool step、approval step、handoff step、Codex step、MCP step、step output/error、retry attempt、rollback state 或 cancellation event。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 358. P3 落地记录：Task Route Prepared Target Projection
+
+本轮回到第 3.5、3.6 与 P0/P1 中“Embedding/Rerank 默认模型改为路由驱动”和“前端/管理员需要看到实际可用模型路线”的主线，继续收敛第 357 节剩余风险中 “route target 字段只覆盖 action run timeline，不覆盖 embedding/rerank task route diagnostics” 的问题。实际代码与目标 AI 中间层架构的冲突点是：完整 Model Registry 应该能把 task model alias、provider route、prepared backend model、health、privacy、dimension/capability 等信息统一作为可审计路由事件暴露；但当前 `currentUser.copilot.models(promptName)` 的 task route diagnostics 虽然已有 `preparedRoutes` 明细，Admin 仍需要从多条 prepared route 中手动拼接 `providerId/modelId` 才能快速判断 workspace indexing 或 rerank 最终会走哪个 provider/model。本轮先把 prepared route targets 纳入 task route 只读 diagnostics 汇总。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotTaskRouteDiagnosticsType` 新增 `preparedRouteTargets`。
+  - workspace indexing 与 rerank route 成功时从 `preparedRoutes` 去重生成 `providerId/modelId` targets；未配置或 diagnostics probe 失败时返回空数组。
+- GraphQL 与 common client：
+  - `schema.gql`、`getPromptModels` selection、common GraphQL query string 与 `GetPromptModelsQuery` 类型同步新增 `preparedRouteTargets`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - task route diagnostics text 显示 `Prepared targets ...`。
+  - Prompt Registry publish gate 的 task route 摘要在存在 targets 时显示 `targets ...`，让发布前 route evidence 和 Admin route diagnostics 使用同一个目标摘要语义。
+  - task route summary card 在 prepared provider count 下方显示 prepared target chain，减少管理员从 prepared route 明细中手动反推。
+- 测试覆盖：
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 更新 blocked workspace indexing 与 ready rerank mock payload，断言 ready rerank diagnostics 和 publish gate 文本显示 `ollama-main/bge-reranker-v2` target。
+
+该实现只扩展只读 task route diagnostics、GraphQL selection/type、Admin 渲染与测试，不新增 DB migration、不创建 DB-backed Model Registry/Provider Registry row、不改变 provider route selection、fallback order、route policy、Prompt Registry publish gate 判定、embedding/rerank request 参数、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把 task route diagnostics 从“有 prepared route 明细但缺少一眼可读的 target summary”推进到“embedding/rerank task route 与 action timeline 一样能直接暴露 provider/model target summary”，为后续 DB-backed Model Registry、support bundle、route explain、repair guard 与 Admin route UI 提供更稳定的过渡契约。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与宿主源码 bind mount 运行 focused Prettier、oxlint、backend copilot spec 与 Admin AI Vitest。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `preparedRouteTargets` 仍来自 diagnostics probe 的 prepared route projection，不代表后续真实 embedding/rerank 调用一定命中同一 provider/model、latency、cost、token/embedding usage 或 provider response。
+- 字段仍是 GraphQL/config/native route 的只读汇总，不是 DB-backed Model Registry revision、route event、health probe result 或 support bundle artifact。
+- workspace indexing 仍受 `EMBEDDING_DIMENSIONS = 1024` 与当前 pgvector schema 约束；本轮不改变 embedding 维度迁移策略。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

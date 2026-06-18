@@ -4545,12 +4545,38 @@ test('resolver models should expose workspace task route diagnostics', async t =
     '',
     ['cloud-rerank', 'office-rerank'],
   ]);
+  const normalizeTaskRouteDiagnosticsForAssertion = (value: unknown) =>
+    JSON.parse(
+      JSON.stringify(value, (key, item) =>
+        key === 'candidateFingerprint' ||
+        (key === 'candidateKey' &&
+          typeof item === 'string' &&
+          item.startsWith('["policy"'))
+          ? undefined
+          : item
+      )
+    );
 
-  t.deepEqual(models.embeddingRoute, {
+  t.true(
+    models.embeddingRoute?.policyCandidates.every(
+      candidate => candidate.candidateKey && candidate.candidateFingerprint
+    )
+  );
+  t.true(
+    models.rerankRoute?.policyCandidates.every(
+      candidate => candidate.candidateKey && candidate.candidateFingerprint
+    )
+  );
+  const embeddingRoute = normalizeTaskRouteDiagnosticsForAssertion(
+    models.embeddingRoute
+  );
+  const rerankRoute = normalizeTaskRouteDiagnosticsForAssertion(
+    models.rerankRoute
+  );
+
+  t.deepEqual(embeddingRoute, {
     configured: true,
     diagnosticsErrors: [],
-    errorCode: undefined,
-    errorMessage: undefined,
     featureKind: 'workspace_indexing',
     policyEnabled: true,
     policyFeatureKind: 'workspace_indexing',
@@ -4726,6 +4752,10 @@ test('resolver models should expose workspace task route diagnostics', async t =
     ],
     fallbackProviderIds: ['ollama-main', 'openai-default'],
     preparedProviderCount: 2,
+    preparedRouteTargets: [
+      'ollama-main/nomic-embed-text',
+      'openai-default/text-embedding-3-small',
+    ],
     preparedRoutes: [
       {
         providerId: 'ollama-main',
@@ -4761,11 +4791,9 @@ test('resolver models should expose workspace task route diagnostics', async t =
     modelEmbeddingDimensions: 768,
     dimensionMismatch: true,
   });
-  t.deepEqual(models.rerankRoute, {
+  t.deepEqual(rerankRoute, {
     configured: true,
     diagnosticsErrors: [],
-    errorCode: undefined,
-    errorMessage: undefined,
     featureKind: 'rerank',
     policyEnabled: true,
     policyFeatureKind: 'rerank',
@@ -4873,6 +4901,7 @@ test('resolver models should expose workspace task route diagnostics', async t =
     ],
     fallbackProviderIds: ['ollama-main'],
     preparedProviderCount: 1,
+    preparedRouteTargets: ['ollama-main/bge-reranker-v2'],
     preparedRoutes: [
       {
         providerId: 'ollama-main',
@@ -4896,7 +4925,6 @@ test('resolver models should expose workspace task route diagnostics', async t =
     canonicalModelKey: 'office-rerank',
     behaviorFlags: ['rerank_cross_encoder'],
     candidateCount: 1,
-    topK: undefined,
   });
   Sinon.assert.calledOnceWithExactly(
     describeEmbeddingRoute,

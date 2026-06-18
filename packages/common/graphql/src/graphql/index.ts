@@ -1469,6 +1469,7 @@ export const getPromptModelsQuery = {
             requestedModelId
           }
           preparedProviderCount
+          preparedRouteTargets
           preparedRoutes {
             behaviorFlags
             canonicalModelKey
@@ -1739,6 +1740,7 @@ export const getPromptModelsQuery = {
             requestedModelId
           }
           preparedProviderCount
+          preparedRouteTargets
           preparedRoutes {
             behaviorFlags
             canonicalModelKey
@@ -2339,6 +2341,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             requestedModelId
           }
           preparedProviderCount
+          preparedRouteTargets
           preparedRoutes {
             behaviorFlags
             canonicalModelKey

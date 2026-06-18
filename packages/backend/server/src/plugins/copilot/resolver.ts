@@ -11036,6 +11036,9 @@ class CopilotTaskRouteDiagnosticsType {
   @Field(() => SafeIntResolver)
   preparedProviderCount!: number;
 
+  @Field(() => [String])
+  preparedRouteTargets!: string[];
+
   @Field(() => SafeIntResolver, { nullable: true })
   requestedDimensions?: number;
 
@@ -11318,6 +11321,7 @@ export class CopilotResolver {
             fallbackProviderIds: [],
             preparedRoutes: [],
             preparedProviderCount: 0,
+            preparedRouteTargets: [],
             requestedDimensions: EMBEDDING_DIMENSIONS,
           };
         }
@@ -11349,6 +11353,12 @@ export class CopilotResolver {
           fallbackProviderIds: route.fallbackOrder,
           preparedRoutes: route.preparedRoutes,
           preparedProviderCount: route.preparedProviderCount,
+          preparedRouteTargets: uniqueStrings(
+            route.preparedRoutes.map(
+              preparedRoute =>
+                `${preparedRoute.providerId}/${preparedRoute.modelId}`
+            )
+          ),
           providerId: route.providerId,
           providerName: route.providerName,
           providerSource: route.providerSource,
@@ -11430,6 +11440,7 @@ export class CopilotResolver {
             fallbackProviderIds: [],
             preparedRoutes: [],
             preparedProviderCount: 0,
+            preparedRouteTargets: [],
           };
         }
         const prepareCandidates = buildTaskRoutePrepareCandidates(
@@ -11460,6 +11471,12 @@ export class CopilotResolver {
           fallbackProviderIds: route.fallbackOrder,
           preparedRoutes: route.preparedRoutes,
           preparedProviderCount: route.preparedProviderCount,
+          preparedRouteTargets: uniqueStrings(
+            route.preparedRoutes.map(
+              preparedRoute =>
+                `${preparedRoute.providerId}/${preparedRoute.modelId}`
+            )
+          ),
           providerId: route.providerId,
           providerName: route.providerName,
           providerSource: route.providerSource,

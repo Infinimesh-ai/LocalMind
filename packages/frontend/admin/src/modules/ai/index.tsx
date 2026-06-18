@@ -1120,6 +1120,7 @@ function formatPromptRegistryPublishGateTaskRoute(route: {
     readiness.requestedModelSource ?? route.raw.requestedModelSource;
   const requestedModelConfigPath =
     readiness.requestedModelConfigPath ?? route.raw.requestedModelConfigPath;
+  const preparedRouteTargets = route.raw.preparedRouteTargets ?? [];
   const providerProfileLabel = formatAIModelProviderProfileLabel({
     providerConfiguredModelCount: route.raw.providerConfiguredModelCount,
     providerConfiguredModelIds: route.raw.providerConfiguredModelIds,
@@ -1142,6 +1143,9 @@ function formatPromptRegistryPublishGateTaskRoute(route: {
       : null,
     requestedModelConfigPath ? `config ${requestedModelConfigPath}` : null,
     `prepared providers ${readiness.preparedProviderCount}`,
+    preparedRouteTargets.length
+      ? `targets ${preparedRouteTargets.join(' -> ')}`
+      : null,
     readiness.errorCode ? `code ${readiness.errorCode}` : null,
     route.diagnostics.reasonSummary.reasons.length
       ? `reasons ${formatReasonSummaryText(route.diagnostics.reasonSummary)}`
@@ -1226,6 +1230,7 @@ function buildTaskRouteDiagnosticsText({
   const requestedModelConfigPath =
     readiness.requestedModelConfigPath ?? rawRoute?.requestedModelConfigPath;
   const preparedRoutes = rawRoute?.preparedRoutes ?? [];
+  const preparedRouteTargets = rawRoute?.preparedRouteTargets ?? [];
 
   return [
     `Task route ${label}`,
@@ -1244,6 +1249,9 @@ function buildTaskRouteDiagnosticsText({
       ? `Requested config ${requestedModelConfigPath}`
       : null,
     `Prepared providers ${readiness.preparedProviderCount}`,
+    preparedRouteTargets.length
+      ? `Prepared targets ${preparedRouteTargets.join(' -> ')}`
+      : null,
     readiness.errorCode ? `Error code ${readiness.errorCode}` : null,
     readiness.errorMessage ? `Error ${readiness.errorMessage}` : null,
     `Diagnostics errors ${rawRoute?.diagnosticsErrors?.length ?? 0}`,
@@ -1300,6 +1308,7 @@ function RouteSummaryCard({
   const requestedModelConfigPath =
     readiness.requestedModelConfigPath ?? rawRoute?.requestedModelConfigPath;
   const preparedRoutes = rawRoute?.preparedRoutes ?? [];
+  const preparedRouteTargets = rawRoute?.preparedRouteTargets ?? [];
   const diagnosticsText = buildTaskRouteDiagnosticsText({
     label,
     rawRoute,
@@ -1363,6 +1372,11 @@ function RouteSummaryCard({
             <div className="mt-1 font-medium">
               {readiness.preparedProviderCount}
             </div>
+            {preparedRouteTargets.length ? (
+              <div className="mt-1 break-words text-xs text-muted-foreground">
+                {preparedRouteTargets.join(' -> ')}
+              </div>
+            ) : null}
           </div>
           <div>
             <div className="text-xs text-muted-foreground">Checks</div>
