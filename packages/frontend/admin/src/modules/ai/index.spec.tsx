@@ -3670,6 +3670,7 @@ describe('AiPage', () => {
             'requestStatus',
             'rollbackPlanRequestFingerprint',
             'submissionFingerprint',
+            'targetLocatorFingerprint',
             'workspaceId',
           ],
           executionRunStepRetryAttemptCloseRequestStatus:
@@ -3712,6 +3713,7 @@ describe('AiPage', () => {
             'requestStatus',
             'rollbackPlanRequestFingerprint',
             'submissionFingerprint',
+            'targetLocatorFingerprint',
             'workspaceId',
           ],
           executionRunStepRetryAttemptCloseStatusEventRequestStatus:
@@ -3755,6 +3757,7 @@ describe('AiPage', () => {
             'requestStatus',
             'rollbackPlanRequestFingerprint',
             'submissionFingerprint',
+            'targetLocatorFingerprint',
             'workspaceId',
           ],
           executionRunStepRetryAttemptRetentionPolicyRequestStatus:
@@ -3799,6 +3802,7 @@ describe('AiPage', () => {
             'requestStatus',
             'rollbackPlanRequestFingerprint',
             'submissionFingerprint',
+            'targetLocatorFingerprint',
             'workspaceId',
           ],
           executionRunStepRetryAttemptRetentionPolicyRuleRequestStatus:
@@ -3844,6 +3848,7 @@ describe('AiPage', () => {
             'requestStatus',
             'rollbackPlanRequestFingerprint',
             'submissionFingerprint',
+            'targetLocatorFingerprint',
             'workspaceId',
           ],
           executionRunStepRetryAttemptRetentionLeaseRequestStatus:
@@ -3890,6 +3895,7 @@ describe('AiPage', () => {
             'requestStatus',
             'rollbackPlanRequestFingerprint',
             'submissionFingerprint',
+            'targetLocatorFingerprint',
             'workspaceId',
           ],
           executionRunStepRetryAttemptArchiveRequestStatus:
