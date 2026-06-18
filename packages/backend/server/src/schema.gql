@@ -1409,12 +1409,18 @@ type CopilotPromptRegistryPublishGateRouteCandidateType {
   registryKind: String
   registrySelected: Boolean
   requestedModelId: String
+  routeAttachmentAllowRemoteUrls: Boolean
+  routeAttachmentKinds: [String!]
+  routeAttachmentSourceKinds: [String!]
   routeInputTypes: [String!]
   routeModelAliasMatched: Boolean
   routeModelDefinitionAliases: [String!]
   routeModelDefinitionId: String
   routeModelDefinitionSource: String
   routeOutputTypes: [String!]
+  routeStructuredAttachmentAllowRemoteUrls: Boolean
+  routeStructuredAttachmentKinds: [String!]
+  routeStructuredAttachmentSourceKinds: [String!]
   routeRawModelId: String
 }
 
@@ -1823,11 +1829,17 @@ type CopilotTaskRouteCandidateDiagnosticsType {
   health: String
   healthCheckedAt: String
   routeModelAliasMatched: Boolean
+  routeAttachmentAllowRemoteUrls: Boolean
+  routeAttachmentKinds: [String!]
+  routeAttachmentSourceKinds: [String!]
   routeInputTypes: [String!]
   routeModelDefinitionAliases: [String!]
   routeModelDefinitionId: String
   routeModelDefinitionSource: String
   routeOutputTypes: [String!]
+  routeStructuredAttachmentAllowRemoteUrls: Boolean
+  routeStructuredAttachmentKinds: [String!]
+  routeStructuredAttachmentSourceKinds: [String!]
   routeRawModelId: String
   reasons: [String!]!
   registryAvailable: Boolean
@@ -1860,11 +1872,17 @@ type CopilotTaskRoutePrepareCandidateDiagnosticsType {
   providerType: String
   privacy: String
   routeModelAliasMatched: Boolean
+  routeAttachmentAllowRemoteUrls: Boolean
+  routeAttachmentKinds: [String!]
+  routeAttachmentSourceKinds: [String!]
   routeInputTypes: [String!]
   routeModelDefinitionAliases: [String!]
   routeModelDefinitionId: String
   routeModelDefinitionSource: String
   routeOutputTypes: [String!]
+  routeStructuredAttachmentAllowRemoteUrls: Boolean
+  routeStructuredAttachmentKinds: [String!]
+  routeStructuredAttachmentSourceKinds: [String!]
   routeRawModelId: String
   reasons: [String!]!
   registryAvailable: Boolean

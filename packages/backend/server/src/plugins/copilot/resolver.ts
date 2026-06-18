@@ -670,6 +670,12 @@ type CopilotPromptRegistryPublishGateRouteCandidate = {
   routeRawModelId?: string;
   routeInputTypes?: string[];
   routeOutputTypes?: string[];
+  routeAttachmentKinds?: string[];
+  routeAttachmentSourceKinds?: string[];
+  routeAttachmentAllowRemoteUrls?: boolean;
+  routeStructuredAttachmentKinds?: string[];
+  routeStructuredAttachmentSourceKinds?: string[];
+  routeStructuredAttachmentAllowRemoteUrls?: boolean;
 };
 
 type CopilotPromptRegistryPublishGateRouteTracePhase = {
@@ -1544,6 +1550,24 @@ class CopilotPromptRegistryPublishGateRouteCandidateType implements CopilotPromp
 
   @Field(() => [String], { nullable: true })
   routeOutputTypes?: CopilotPromptRegistryPublishGateRouteCandidate['routeOutputTypes'];
+
+  @Field(() => [String], { nullable: true })
+  routeAttachmentKinds?: CopilotPromptRegistryPublishGateRouteCandidate['routeAttachmentKinds'];
+
+  @Field(() => [String], { nullable: true })
+  routeAttachmentSourceKinds?: CopilotPromptRegistryPublishGateRouteCandidate['routeAttachmentSourceKinds'];
+
+  @Field(() => Boolean, { nullable: true })
+  routeAttachmentAllowRemoteUrls?: CopilotPromptRegistryPublishGateRouteCandidate['routeAttachmentAllowRemoteUrls'];
+
+  @Field(() => [String], { nullable: true })
+  routeStructuredAttachmentKinds?: CopilotPromptRegistryPublishGateRouteCandidate['routeStructuredAttachmentKinds'];
+
+  @Field(() => [String], { nullable: true })
+  routeStructuredAttachmentSourceKinds?: CopilotPromptRegistryPublishGateRouteCandidate['routeStructuredAttachmentSourceKinds'];
+
+  @Field(() => Boolean, { nullable: true })
+  routeStructuredAttachmentAllowRemoteUrls?: CopilotPromptRegistryPublishGateRouteCandidate['routeStructuredAttachmentAllowRemoteUrls'];
 
   @Field(() => String, { nullable: true })
   health?: CopilotPromptRegistryPublishGateRouteCandidate['health'];
@@ -3970,6 +3994,43 @@ function toPromptRegistryPublishGateRouteCandidate(
     ...(definedArray(candidate.routeOutputTypes) !== undefined
       ? { routeOutputTypes: definedArray(candidate.routeOutputTypes) }
       : {}),
+    ...(definedArray(candidate.routeAttachmentKinds) !== undefined
+      ? { routeAttachmentKinds: definedArray(candidate.routeAttachmentKinds) }
+      : {}),
+    ...(definedArray(candidate.routeAttachmentSourceKinds) !== undefined
+      ? {
+          routeAttachmentSourceKinds: definedArray(
+            candidate.routeAttachmentSourceKinds
+          ),
+        }
+      : {}),
+    ...(candidate.routeAttachmentAllowRemoteUrls !== undefined
+      ? {
+          routeAttachmentAllowRemoteUrls:
+            candidate.routeAttachmentAllowRemoteUrls,
+        }
+      : {}),
+    ...(definedArray(candidate.routeStructuredAttachmentKinds) !== undefined
+      ? {
+          routeStructuredAttachmentKinds: definedArray(
+            candidate.routeStructuredAttachmentKinds
+          ),
+        }
+      : {}),
+    ...(definedArray(candidate.routeStructuredAttachmentSourceKinds) !==
+    undefined
+      ? {
+          routeStructuredAttachmentSourceKinds: definedArray(
+            candidate.routeStructuredAttachmentSourceKinds
+          ),
+        }
+      : {}),
+    ...(candidate.routeStructuredAttachmentAllowRemoteUrls !== undefined
+      ? {
+          routeStructuredAttachmentAllowRemoteUrls:
+            candidate.routeStructuredAttachmentAllowRemoteUrls,
+        }
+      : {}),
     ...(candidate.health ? { health: candidate.health } : {}),
     ...(candidate.healthCheckedAt
       ? { healthCheckedAt: candidate.healthCheckedAt }
@@ -5055,6 +5116,43 @@ function taskRoutePrepareCandidateSnapshot(
     ...(definedArray(candidate.routeOutputTypes) !== undefined
       ? { routeOutputTypes: definedArray(candidate.routeOutputTypes) }
       : {}),
+    ...(definedArray(candidate.routeAttachmentKinds) !== undefined
+      ? { routeAttachmentKinds: definedArray(candidate.routeAttachmentKinds) }
+      : {}),
+    ...(definedArray(candidate.routeAttachmentSourceKinds) !== undefined
+      ? {
+          routeAttachmentSourceKinds: definedArray(
+            candidate.routeAttachmentSourceKinds
+          ),
+        }
+      : {}),
+    ...(candidate.routeAttachmentAllowRemoteUrls !== undefined
+      ? {
+          routeAttachmentAllowRemoteUrls:
+            candidate.routeAttachmentAllowRemoteUrls,
+        }
+      : {}),
+    ...(definedArray(candidate.routeStructuredAttachmentKinds) !== undefined
+      ? {
+          routeStructuredAttachmentKinds: definedArray(
+            candidate.routeStructuredAttachmentKinds
+          ),
+        }
+      : {}),
+    ...(definedArray(candidate.routeStructuredAttachmentSourceKinds) !==
+    undefined
+      ? {
+          routeStructuredAttachmentSourceKinds: definedArray(
+            candidate.routeStructuredAttachmentSourceKinds
+          ),
+        }
+      : {}),
+    ...(candidate.routeStructuredAttachmentAllowRemoteUrls !== undefined
+      ? {
+          routeStructuredAttachmentAllowRemoteUrls:
+            candidate.routeStructuredAttachmentAllowRemoteUrls,
+        }
+      : {}),
     ...(candidate.errorCategory
       ? { errorCategory: candidate.errorCategory }
       : {}),
@@ -5149,6 +5247,12 @@ function taskRouteProviderCapabilitySnapshot(
       routeModelDefinitionId?: string;
       routeModelDefinitionSource?: string;
       routeOutputTypes?: string[];
+      routeAttachmentKinds?: string[];
+      routeAttachmentSourceKinds?: string[];
+      routeAttachmentAllowRemoteUrls?: boolean;
+      routeStructuredAttachmentKinds?: string[];
+      routeStructuredAttachmentSourceKinds?: string[];
+      routeStructuredAttachmentAllowRemoteUrls?: boolean;
       routeRawModelId?: string;
     },
     index: number
@@ -5186,6 +5290,43 @@ function taskRouteProviderCapabilitySnapshot(
       : {}),
     ...(definedArray(candidate.routeOutputTypes) !== undefined
       ? { routeOutputTypes: definedArray(candidate.routeOutputTypes) }
+      : {}),
+    ...(definedArray(candidate.routeAttachmentKinds) !== undefined
+      ? { routeAttachmentKinds: definedArray(candidate.routeAttachmentKinds) }
+      : {}),
+    ...(definedArray(candidate.routeAttachmentSourceKinds) !== undefined
+      ? {
+          routeAttachmentSourceKinds: definedArray(
+            candidate.routeAttachmentSourceKinds
+          ),
+        }
+      : {}),
+    ...(candidate.routeAttachmentAllowRemoteUrls !== undefined
+      ? {
+          routeAttachmentAllowRemoteUrls:
+            candidate.routeAttachmentAllowRemoteUrls,
+        }
+      : {}),
+    ...(definedArray(candidate.routeStructuredAttachmentKinds) !== undefined
+      ? {
+          routeStructuredAttachmentKinds: definedArray(
+            candidate.routeStructuredAttachmentKinds
+          ),
+        }
+      : {}),
+    ...(definedArray(candidate.routeStructuredAttachmentSourceKinds) !==
+    undefined
+      ? {
+          routeStructuredAttachmentSourceKinds: definedArray(
+            candidate.routeStructuredAttachmentSourceKinds
+          ),
+        }
+      : {}),
+    ...(candidate.routeStructuredAttachmentAllowRemoteUrls !== undefined
+      ? {
+          routeStructuredAttachmentAllowRemoteUrls:
+            candidate.routeStructuredAttachmentAllowRemoteUrls,
+        }
       : {}),
     ...(candidate.routeRawModelId
       ? { routeRawModelId: candidate.routeRawModelId }
@@ -10761,6 +10902,24 @@ function buildTaskRoutePrepareCandidates(
       candidate.routeInputTypes ?? providerPrepareCandidate?.routeInputTypes;
     const routeOutputTypes =
       candidate.routeOutputTypes ?? providerPrepareCandidate?.routeOutputTypes;
+    const routeAttachmentKinds =
+      candidate.routeAttachmentKinds ??
+      providerPrepareCandidate?.routeAttachmentKinds;
+    const routeAttachmentSourceKinds =
+      candidate.routeAttachmentSourceKinds ??
+      providerPrepareCandidate?.routeAttachmentSourceKinds;
+    const routeAttachmentAllowRemoteUrls =
+      candidate.routeAttachmentAllowRemoteUrls ??
+      providerPrepareCandidate?.routeAttachmentAllowRemoteUrls;
+    const routeStructuredAttachmentKinds =
+      candidate.routeStructuredAttachmentKinds ??
+      providerPrepareCandidate?.routeStructuredAttachmentKinds;
+    const routeStructuredAttachmentSourceKinds =
+      candidate.routeStructuredAttachmentSourceKinds ??
+      providerPrepareCandidate?.routeStructuredAttachmentSourceKinds;
+    const routeStructuredAttachmentAllowRemoteUrls =
+      candidate.routeStructuredAttachmentAllowRemoteUrls ??
+      providerPrepareCandidate?.routeStructuredAttachmentAllowRemoteUrls;
 
     const providerName =
       candidate.providerName ?? providerPrepareCandidate?.providerName;
@@ -10833,6 +10992,22 @@ function buildTaskRoutePrepareCandidates(
       ...(costOutputPer1M !== undefined ? { costOutputPer1M } : {}),
       ...(routeInputTypes !== undefined ? { routeInputTypes } : {}),
       ...(routeOutputTypes !== undefined ? { routeOutputTypes } : {}),
+      ...(routeAttachmentKinds !== undefined ? { routeAttachmentKinds } : {}),
+      ...(routeAttachmentSourceKinds !== undefined
+        ? { routeAttachmentSourceKinds }
+        : {}),
+      ...(routeAttachmentAllowRemoteUrls !== undefined
+        ? { routeAttachmentAllowRemoteUrls }
+        : {}),
+      ...(routeStructuredAttachmentKinds !== undefined
+        ? { routeStructuredAttachmentKinds }
+        : {}),
+      ...(routeStructuredAttachmentSourceKinds !== undefined
+        ? { routeStructuredAttachmentSourceKinds }
+        : {}),
+      ...(routeStructuredAttachmentAllowRemoteUrls !== undefined
+        ? { routeStructuredAttachmentAllowRemoteUrls }
+        : {}),
       ...(candidate.candidateModelIds !== undefined
         ? { candidateModelIds: candidate.candidateModelIds }
         : {}),
@@ -11470,6 +11645,24 @@ class CopilotTaskRouteCandidateDiagnosticsType {
   @Field(() => [String], { nullable: true })
   routeOutputTypes?: string[];
 
+  @Field(() => [String], { nullable: true })
+  routeAttachmentKinds?: string[];
+
+  @Field(() => [String], { nullable: true })
+  routeAttachmentSourceKinds?: string[];
+
+  @Field(() => Boolean, { nullable: true })
+  routeAttachmentAllowRemoteUrls?: boolean;
+
+  @Field(() => [String], { nullable: true })
+  routeStructuredAttachmentKinds?: string[];
+
+  @Field(() => [String], { nullable: true })
+  routeStructuredAttachmentSourceKinds?: string[];
+
+  @Field(() => Boolean, { nullable: true })
+  routeStructuredAttachmentAllowRemoteUrls?: boolean;
+
   @Field(() => String, { nullable: true })
   registryKind?: string;
 
@@ -11565,6 +11758,24 @@ class CopilotTaskRoutePrepareCandidateDiagnosticsType {
 
   @Field(() => [String], { nullable: true })
   routeOutputTypes?: string[];
+
+  @Field(() => [String], { nullable: true })
+  routeAttachmentKinds?: string[];
+
+  @Field(() => [String], { nullable: true })
+  routeAttachmentSourceKinds?: string[];
+
+  @Field(() => Boolean, { nullable: true })
+  routeAttachmentAllowRemoteUrls?: boolean;
+
+  @Field(() => [String], { nullable: true })
+  routeStructuredAttachmentKinds?: string[];
+
+  @Field(() => [String], { nullable: true })
+  routeStructuredAttachmentSourceKinds?: string[];
+
+  @Field(() => Boolean, { nullable: true })
+  routeStructuredAttachmentAllowRemoteUrls?: boolean;
 
   @Field(() => String, { nullable: true })
   registryKind?: string;

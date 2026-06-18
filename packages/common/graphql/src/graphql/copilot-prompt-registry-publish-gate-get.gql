@@ -349,8 +349,14 @@ query getCopilotPromptRegistryPublishGate(
             candidateModelIds
             costInputPer1M
             costOutputPer1M
+            routeAttachmentAllowRemoteUrls
+            routeAttachmentKinds
+            routeAttachmentSourceKinds
             routeInputTypes
             routeOutputTypes
+            routeStructuredAttachmentAllowRemoteUrls
+            routeStructuredAttachmentKinds
+            routeStructuredAttachmentSourceKinds
             matched
             modelId
             providerId
@@ -392,8 +398,14 @@ query getCopilotPromptRegistryPublishGate(
             candidateModelIds
             costInputPer1M
             costOutputPer1M
+            routeAttachmentAllowRemoteUrls
+            routeAttachmentKinds
+            routeAttachmentSourceKinds
             routeInputTypes
             routeOutputTypes
+            routeStructuredAttachmentAllowRemoteUrls
+            routeStructuredAttachmentKinds
+            routeStructuredAttachmentSourceKinds
             errorCategory
             errorCode
             health

@@ -54,6 +54,16 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
           routeCandidates {
             candidateKey
             candidateModelIds
+            costInputPer1M
+            costOutputPer1M
+            routeAttachmentAllowRemoteUrls
+            routeAttachmentKinds
+            routeAttachmentSourceKinds
+            routeInputTypes
+            routeOutputTypes
+            routeStructuredAttachmentAllowRemoteUrls
+            routeStructuredAttachmentKinds
+            routeStructuredAttachmentSourceKinds
             matched
             modelId
             providerId
@@ -93,6 +103,16 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
           prepareCandidates {
             candidateKey
             candidateModelIds
+            costInputPer1M
+            costOutputPer1M
+            routeAttachmentAllowRemoteUrls
+            routeAttachmentKinds
+            routeAttachmentSourceKinds
+            routeInputTypes
+            routeOutputTypes
+            routeStructuredAttachmentAllowRemoteUrls
+            routeStructuredAttachmentKinds
+            routeStructuredAttachmentSourceKinds
             errorCategory
             errorCode
             health
@@ -329,6 +349,16 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
           routeCandidates {
             candidateKey
             candidateModelIds
+            costInputPer1M
+            costOutputPer1M
+            routeAttachmentAllowRemoteUrls
+            routeAttachmentKinds
+            routeAttachmentSourceKinds
+            routeInputTypes
+            routeOutputTypes
+            routeStructuredAttachmentAllowRemoteUrls
+            routeStructuredAttachmentKinds
+            routeStructuredAttachmentSourceKinds
             matched
             modelId
             providerId
@@ -368,6 +398,16 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
           prepareCandidates {
             candidateKey
             candidateModelIds
+            costInputPer1M
+            costOutputPer1M
+            routeAttachmentAllowRemoteUrls
+            routeAttachmentKinds
+            routeAttachmentSourceKinds
+            routeInputTypes
+            routeOutputTypes
+            routeStructuredAttachmentAllowRemoteUrls
+            routeStructuredAttachmentKinds
+            routeStructuredAttachmentSourceKinds
             errorCategory
             errorCode
             health

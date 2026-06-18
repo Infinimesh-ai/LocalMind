@@ -436,10 +436,18 @@ export interface AIModelTaskRouteCandidateTraceRow {
   registryKind?: string | null;
   registrySelected?: boolean | null;
   requestedModelId?: string | null;
+  routeAttachmentAllowRemoteUrls?: boolean | null;
+  routeAttachmentKinds?: string[] | null;
+  routeAttachmentSourceKinds?: string[] | null;
+  routeInputTypes?: string[] | null;
   routeModelAliasMatched?: boolean | null;
   routeModelDefinitionAliases?: string[] | null;
   routeModelDefinitionId?: string | null;
   routeModelDefinitionSource?: string | null;
+  routeOutputTypes?: string[] | null;
+  routeStructuredAttachmentAllowRemoteUrls?: boolean | null;
+  routeStructuredAttachmentKinds?: string[] | null;
+  routeStructuredAttachmentSourceKinds?: string[] | null;
   routeRawModelId?: string | null;
   severity: AIModelTaskRouteReasonSeverity;
   status: AIModelTaskRouteCandidateTraceStatus;
@@ -1657,6 +1665,22 @@ export function getAIModelTaskRouteCandidateTrace(
         routeCandidate?.requestedModelId ??
         prepareCandidate?.requestedModelId ??
         null,
+      routeAttachmentAllowRemoteUrls:
+        routeCandidate?.routeAttachmentAllowRemoteUrls ??
+        prepareCandidate?.routeAttachmentAllowRemoteUrls ??
+        null,
+      routeAttachmentKinds:
+        routeCandidate?.routeAttachmentKinds ??
+        prepareCandidate?.routeAttachmentKinds ??
+        null,
+      routeAttachmentSourceKinds:
+        routeCandidate?.routeAttachmentSourceKinds ??
+        prepareCandidate?.routeAttachmentSourceKinds ??
+        null,
+      routeInputTypes:
+        routeCandidate?.routeInputTypes ??
+        prepareCandidate?.routeInputTypes ??
+        null,
       routeModelAliasMatched:
         routeCandidate?.routeModelAliasMatched ??
         prepareCandidate?.routeModelAliasMatched ??
@@ -1672,6 +1696,22 @@ export function getAIModelTaskRouteCandidateTrace(
       routeModelDefinitionSource:
         routeCandidate?.routeModelDefinitionSource ??
         prepareCandidate?.routeModelDefinitionSource ??
+        null,
+      routeOutputTypes:
+        routeCandidate?.routeOutputTypes ??
+        prepareCandidate?.routeOutputTypes ??
+        null,
+      routeStructuredAttachmentAllowRemoteUrls:
+        routeCandidate?.routeStructuredAttachmentAllowRemoteUrls ??
+        prepareCandidate?.routeStructuredAttachmentAllowRemoteUrls ??
+        null,
+      routeStructuredAttachmentKinds:
+        routeCandidate?.routeStructuredAttachmentKinds ??
+        prepareCandidate?.routeStructuredAttachmentKinds ??
+        null,
+      routeStructuredAttachmentSourceKinds:
+        routeCandidate?.routeStructuredAttachmentSourceKinds ??
+        prepareCandidate?.routeStructuredAttachmentSourceKinds ??
         null,
       routeRawModelId:
         routeCandidate?.routeRawModelId ??

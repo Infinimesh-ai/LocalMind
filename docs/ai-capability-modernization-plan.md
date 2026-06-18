@@ -12703,3 +12703,39 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - capability snapshot 仍来自 diagnostics probe 的 route/prepare projection，不代表后续真实 embedding/rerank 调用一定使用同一 provider/model 或具备同一完整 capability matrix。
 - 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Capability Registry row、Model Registry revision、support bundle schema、repair mutation guard input、route policy DSL 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 373. P3 落地记录：Task Route Provider Attachment Capability Snapshot Evidence
+
+本轮继续收敛第 372 节剩余风险中 “`providerCapabilitySnapshotFingerprint` 不覆盖 attachment capability、structured attachment capability” 的过渡证据问题。实际代码与目标 AI 中间层架构的冲突点是：Model Registry / Provider Registry 后续需要能解释 recommendation 生成时 provider profile/model definition 是否声明了附件 kind、附件来源和远程 URL 规则；但上一轮 capability snapshot 只覆盖 input/output，Admin、route explain 或后续 repair guard 仍无法用同一个 evidence fingerprint 判断附件能力摘要是否变化。本轮先把 task route diagnostics 已公开的 attachment/structured attachment capability 摘要纳入 provider capability ordered snapshot，不把它提升为 Capability Registry、policy DSL、附件探测或真实附件准入审计。
+
+- `packages/backend/server/src/plugins/copilot/providers/factory.ts`：
+  - `collectProviderModelCapabilityTypes()` 从 `provider.resolveModel()` 返回的 `capabilities[].attachments` 与 `capabilities[].structuredAttachments` 汇总 `routeAttachmentKinds`、`routeAttachmentSourceKinds`、`routeAttachmentAllowRemoteUrls`、`routeStructuredAttachmentKinds`、`routeStructuredAttachmentSourceKinds` 与 `routeStructuredAttachmentAllowRemoteUrls`。
+  - `allowRemoteUrls: false` 也会在存在对应 attachment capability 时进入 diagnostics，避免只记录 true 而无法证明模型明确不允许远程附件。
+  - 该摘要只来自 provider profile / native registry / provider runtime 已声明 capability，不读取 prompt message、附件 URL、文件内容、MIME payload、token、secret 或 provider response。
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRouteCandidate`、`CopilotTaskRouteCandidateDiagnosticsType` 与 `CopilotTaskRoutePrepareCandidateDiagnosticsType` 透出上述附件能力摘要字段。
+  - `taskRouteProviderCapabilitySnapshot()` 在原 input/output capability snapshot 中加入 attachment 与 structured attachment 摘要，因此 `providerCapabilitySnapshotFingerprint`、candidate fingerprint、preview operation fingerprint 与 evidence set fingerprint 会对这些公开附件能力元数据变化敏感。
+  - `buildTaskRoutePrepareCandidates()` 将 route candidate 与 provider prepare candidate 的附件能力摘要合并到 prepare diagnostics，保持 route/prepare evidence 同步。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、`getPromptModels` selection、common query string 与 `schema.ts` 类型同步新增 task route route/prepare candidate 附件能力摘要字段。
+- Admin 与前端模型 trace：
+  - `packages/frontend/core/src/modules/ai-button/services/models.ts` 将 route/prepare candidate 的附件能力摘要带入 `AIModelTaskRouteCandidateTraceRow`。
+  - `packages/frontend/admin/src/modules/ai/index.tsx` 的 task route candidate diagnostics text 显示 input/output、attachments/source/remote 与 structured attachments/source/remote，方便管理员复制和归档。
+- 测试覆盖：
+  - resolver source chain smoke 断言 embedding task route 的 route/prepare candidate 附件能力摘要透传，并断言 provider capability ordered snapshot fingerprint 对附件能力摘要敏感。
+  - Admin Vitest fixture 覆盖 route/prepare candidate 附件能力摘要，并断言 publish gate diagnostics text 显示 `capability ... attachments ... structured attachments ...`。
+
+该实现只扩展只读 diagnostics/evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 Capability Registry、Model Registry/Provider Registry revision row、不改变 route policy DSL、不改变 repair action catalog、不新增 mutation input、不改变 preview/preflight/execution gate 字段名、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、审批写入路径、附件 materializer 或真实 provider capability probing。它把 task route capability evidence 从“只能证明 input/output 摘要变化”推进到“同一个 provider capability snapshot 也能感知附件能力安全摘要变化”，为后续 support bundle、route explain、repair guard、DB-backed route event、Capability Policy 与 Model Registry revision 对齐提供更可审计的过渡证据。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Admin AI Vitest、Prettier/oxlint 与 `git diff --check`。
+
+剩余风险：
+
+- `providerCapabilitySnapshotFingerprint` 仍只覆盖当前 task route route/prepare candidate 公开 diagnostics 字段中的 input/output、attachment 与 structured attachment 摘要，不覆盖 tool calling mode、streaming、reasoning、vision/audio/file 细节、context/output limits、cost、health freshness、latency、token/embedding usage、provider response 或 dispatch result。
+- attachment capability snapshot 仍来自静态声明或 provider runtime resolved model metadata，不是实时附件 probe；声明错误仍可能导致运行时请求失败。
+- 该摘要不记录真实 prompt attachments、远程 URL、文件句柄、文件内容、MIME sniff 结果、materializer 输出、host fetch admission 结果或 provider-specific upload result。
+- 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Capability Registry row、Model Registry revision、support bundle schema、repair mutation guard input、route policy DSL 或审计记录。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

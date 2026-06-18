@@ -129,10 +129,16 @@ function taskRoutePrepareCandidateSnapshotFixture<
     registryKind?: string | null;
     registrySelected?: boolean | null;
     requestedModelId?: string | null;
+    routeAttachmentAllowRemoteUrls?: boolean | null;
+    routeAttachmentKinds?: string[] | null;
+    routeAttachmentSourceKinds?: string[] | null;
     routeModelAliasMatched?: boolean | null;
     routeModelDefinitionAliases?: string[] | null;
     routeModelDefinitionId?: string | null;
     routeModelDefinitionSource?: string | null;
+    routeStructuredAttachmentAllowRemoteUrls?: boolean | null;
+    routeStructuredAttachmentKinds?: string[] | null;
+    routeStructuredAttachmentSourceKinds?: string[] | null;
     routeRawModelId?: string | null;
   },
 >(candidates: T[]) {
@@ -164,10 +170,18 @@ function taskRoutePrepareCandidateSnapshotFixture<
       registryKind: candidate.registryKind,
       registrySelected: candidate.registrySelected,
       requestedModelId: candidate.requestedModelId,
+      routeAttachmentAllowRemoteUrls: candidate.routeAttachmentAllowRemoteUrls,
+      routeAttachmentKinds: candidate.routeAttachmentKinds,
+      routeAttachmentSourceKinds: candidate.routeAttachmentSourceKinds,
       routeModelAliasMatched: candidate.routeModelAliasMatched,
       routeModelDefinitionAliases: candidate.routeModelDefinitionAliases,
       routeModelDefinitionId: candidate.routeModelDefinitionId,
       routeModelDefinitionSource: candidate.routeModelDefinitionSource,
+      routeStructuredAttachmentAllowRemoteUrls:
+        candidate.routeStructuredAttachmentAllowRemoteUrls,
+      routeStructuredAttachmentKinds: candidate.routeStructuredAttachmentKinds,
+      routeStructuredAttachmentSourceKinds:
+        candidate.routeStructuredAttachmentSourceKinds,
       routeRawModelId: candidate.routeRawModelId,
     })
   );
@@ -410,10 +424,16 @@ function taskRouteProviderCapabilitySnapshotFixture(route: {
     providerSource?: string | null;
     providerType?: string | null;
     requestedModelId?: string | null;
+    routeAttachmentAllowRemoteUrls?: boolean | null;
+    routeAttachmentKinds?: string[] | null;
+    routeAttachmentSourceKinds?: string[] | null;
     routeInputTypes?: string[] | null;
     routeModelDefinitionId?: string | null;
     routeModelDefinitionSource?: string | null;
     routeOutputTypes?: string[] | null;
+    routeStructuredAttachmentAllowRemoteUrls?: boolean | null;
+    routeStructuredAttachmentKinds?: string[] | null;
+    routeStructuredAttachmentSourceKinds?: string[] | null;
     routeRawModelId?: string | null;
   }[];
   prepareCandidates: {
@@ -426,10 +446,16 @@ function taskRouteProviderCapabilitySnapshotFixture(route: {
     providerSource?: string | null;
     providerType?: string | null;
     requestedModelId?: string | null;
+    routeAttachmentAllowRemoteUrls?: boolean | null;
+    routeAttachmentKinds?: string[] | null;
+    routeAttachmentSourceKinds?: string[] | null;
     routeInputTypes?: string[] | null;
     routeModelDefinitionId?: string | null;
     routeModelDefinitionSource?: string | null;
     routeOutputTypes?: string[] | null;
+    routeStructuredAttachmentAllowRemoteUrls?: boolean | null;
+    routeStructuredAttachmentKinds?: string[] | null;
+    routeStructuredAttachmentSourceKinds?: string[] | null;
     routeRawModelId?: string | null;
   }[];
 }) {
@@ -445,10 +471,16 @@ function taskRouteProviderCapabilitySnapshotFixture(route: {
       providerSource?: string | null;
       providerType?: string | null;
       requestedModelId?: string | null;
+      routeAttachmentAllowRemoteUrls?: boolean | null;
+      routeAttachmentKinds?: string[] | null;
+      routeAttachmentSourceKinds?: string[] | null;
       routeInputTypes?: string[] | null;
       routeModelDefinitionId?: string | null;
       routeModelDefinitionSource?: string | null;
       routeOutputTypes?: string[] | null;
+      routeStructuredAttachmentAllowRemoteUrls?: boolean | null;
+      routeStructuredAttachmentKinds?: string[] | null;
+      routeStructuredAttachmentSourceKinds?: string[] | null;
       routeRawModelId?: string | null;
     },
     index: number
@@ -464,10 +496,18 @@ function taskRouteProviderCapabilitySnapshotFixture(route: {
       providerSource: candidate.providerSource,
       providerType: candidate.providerType,
       requestedModelId: candidate.requestedModelId,
+      routeAttachmentAllowRemoteUrls: candidate.routeAttachmentAllowRemoteUrls,
+      routeAttachmentKinds: candidate.routeAttachmentKinds,
+      routeAttachmentSourceKinds: candidate.routeAttachmentSourceKinds,
       routeInputTypes: candidate.routeInputTypes,
       routeModelDefinitionId: candidate.routeModelDefinitionId,
       routeModelDefinitionSource: candidate.routeModelDefinitionSource,
       routeOutputTypes: candidate.routeOutputTypes,
+      routeStructuredAttachmentAllowRemoteUrls:
+        candidate.routeStructuredAttachmentAllowRemoteUrls,
+      routeStructuredAttachmentKinds: candidate.routeStructuredAttachmentKinds,
+      routeStructuredAttachmentSourceKinds:
+        candidate.routeStructuredAttachmentSourceKinds,
       routeRawModelId: candidate.routeRawModelId,
       scope,
     });
@@ -605,6 +645,12 @@ const blockedRoute = {
       costOutputPer1M: 0.02,
       routeInputTypes: ['text'],
       routeOutputTypes: ['embedding'],
+      routeAttachmentKinds: ['file'],
+      routeAttachmentSourceKinds: ['url', 'data'],
+      routeAttachmentAllowRemoteUrls: true,
+      routeStructuredAttachmentKinds: ['image'],
+      routeStructuredAttachmentSourceKinds: ['file_handle'],
+      routeStructuredAttachmentAllowRemoteUrls: false,
       routeRawModelId: 'nomic-embed-text',
       routeModelDefinitionSource: 'provider_profile',
       routeModelDefinitionId: 'workspace-embedding',
@@ -644,6 +690,12 @@ const blockedRoute = {
       costOutputPer1M: 0.02,
       routeInputTypes: ['text'],
       routeOutputTypes: ['embedding'],
+      routeAttachmentKinds: ['file'],
+      routeAttachmentSourceKinds: ['url', 'data'],
+      routeAttachmentAllowRemoteUrls: true,
+      routeStructuredAttachmentKinds: ['image'],
+      routeStructuredAttachmentSourceKinds: ['file_handle'],
+      routeStructuredAttachmentAllowRemoteUrls: false,
       routeRawModelId: 'nomic-embed-text',
       routeModelDefinitionSource: 'provider_profile',
       routeModelDefinitionId: 'workspace-embedding',
@@ -671,6 +723,9 @@ const blockedRoute = {
       costOutputPer1M: 0.13,
       routeInputTypes: ['text'],
       routeOutputTypes: ['embedding'],
+      routeAttachmentKinds: ['file'],
+      routeAttachmentSourceKinds: ['url'],
+      routeAttachmentAllowRemoteUrls: true,
       reasons: ['provider_prepare_returned_empty'],
       registryAvailable: true,
       registryKind: 'quota_backed',
@@ -6501,10 +6556,16 @@ describe('AiPage', () => {
       'key route:ollama-main / provider ollama-main'
     );
     expect(readyGateDiagnostics).toContain(
+      'capability input text / output embedding / attachments file / attachment sources url, data / remote attachments yes / structured attachments image / structured attachment sources file_handle / structured remote attachments no'
+    );
+    expect(readyGateDiagnostics).toContain(
       'Prepare Candidate #0 / fingerprint '
     );
     expect(readyGateDiagnostics).toContain(
       'key prepare:ollama-main / provider ollama-main / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding / requested workspace-embedding / model workspace-embedding / prepared nomic-embed-text'
+    );
+    expect(readyGateDiagnostics).toContain(
+      'capability input text / output embedding / attachments file / attachment sources url / remote attachments yes'
     );
     expect(readyGateDiagnostics).toContain(
       'Repair recommendation Warning / Action Route / action_generate_provider_health_not_healthy / Check action provider health / ai_prompts_metadata.action.make-it-real / instance make-it-real:generate:openai-fallback:0 / fingerprint 4444555566667777 / action catalog repair-actions/v1 / input schema required diagnosticsFingerprint, targetLocator / action kind Check Action Provider Health / action safety Read Only Probe / required capabilities provider_profile.read, provider_health.probe'

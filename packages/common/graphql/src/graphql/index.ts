@@ -1405,8 +1405,14 @@ export const getPromptModelsQuery = {
             candidateModelIds
             costInputPer1M
             costOutputPer1M
+            routeAttachmentAllowRemoteUrls
+            routeAttachmentKinds
+            routeAttachmentSourceKinds
             routeInputTypes
             routeOutputTypes
+            routeStructuredAttachmentAllowRemoteUrls
+            routeStructuredAttachmentKinds
+            routeStructuredAttachmentSourceKinds
             matched
             modelId
             providerId
@@ -1446,7 +1452,20 @@ export const getPromptModelsQuery = {
           prepareCandidates {
             candidateKey
             candidateModelIds
+            costInputPer1M
+            costOutputPer1M
+            routeAttachmentAllowRemoteUrls
+            routeAttachmentKinds
+            routeAttachmentSourceKinds
+            routeInputTypes
+            routeOutputTypes
+            routeStructuredAttachmentAllowRemoteUrls
+            routeStructuredAttachmentKinds
+            routeStructuredAttachmentSourceKinds
+            errorCategory
             errorCode
+            health
+            healthCheckedAt
             modelId
             prepared
             preparedModelId
@@ -1679,6 +1698,16 @@ export const getPromptModelsQuery = {
           routeCandidates {
             candidateKey
             candidateModelIds
+            costInputPer1M
+            costOutputPer1M
+            routeAttachmentAllowRemoteUrls
+            routeAttachmentKinds
+            routeAttachmentSourceKinds
+            routeInputTypes
+            routeOutputTypes
+            routeStructuredAttachmentAllowRemoteUrls
+            routeStructuredAttachmentKinds
+            routeStructuredAttachmentSourceKinds
             matched
             modelId
             providerId
@@ -1718,7 +1747,20 @@ export const getPromptModelsQuery = {
           prepareCandidates {
             candidateKey
             candidateModelIds
+            costInputPer1M
+            costOutputPer1M
+            routeAttachmentAllowRemoteUrls
+            routeAttachmentKinds
+            routeAttachmentSourceKinds
+            routeInputTypes
+            routeOutputTypes
+            routeStructuredAttachmentAllowRemoteUrls
+            routeStructuredAttachmentKinds
+            routeStructuredAttachmentSourceKinds
+            errorCategory
             errorCode
+            health
+            healthCheckedAt
             modelId
             prepared
             preparedModelId
@@ -2321,8 +2363,14 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             candidateModelIds
             costInputPer1M
             costOutputPer1M
+            routeAttachmentAllowRemoteUrls
+            routeAttachmentKinds
+            routeAttachmentSourceKinds
             routeInputTypes
             routeOutputTypes
+            routeStructuredAttachmentAllowRemoteUrls
+            routeStructuredAttachmentKinds
+            routeStructuredAttachmentSourceKinds
             errorCategory
             errorCode
             health

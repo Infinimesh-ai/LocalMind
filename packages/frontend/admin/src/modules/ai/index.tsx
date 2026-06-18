@@ -1070,6 +1070,32 @@ function formatTaskRouteCandidateText(row: AIModelTaskRouteCandidateTraceRow) {
     routeRawModelId: row.routeRawModelId,
     routeRequestLayer: null,
   });
+  const capabilityLabel = compactList([
+    row.routeInputTypes?.length
+      ? `input ${row.routeInputTypes.join(', ')}`
+      : null,
+    row.routeOutputTypes?.length
+      ? `output ${row.routeOutputTypes.join(', ')}`
+      : null,
+    row.routeAttachmentKinds?.length
+      ? `attachments ${row.routeAttachmentKinds.join(', ')}`
+      : null,
+    row.routeAttachmentSourceKinds?.length
+      ? `attachment sources ${row.routeAttachmentSourceKinds.join(', ')}`
+      : null,
+    row.routeAttachmentAllowRemoteUrls != null
+      ? `remote attachments ${row.routeAttachmentAllowRemoteUrls ? 'yes' : 'no'}`
+      : null,
+    row.routeStructuredAttachmentKinds?.length
+      ? `structured attachments ${row.routeStructuredAttachmentKinds.join(', ')}`
+      : null,
+    row.routeStructuredAttachmentSourceKinds?.length
+      ? `structured attachment sources ${row.routeStructuredAttachmentSourceKinds.join(', ')}`
+      : null,
+    row.routeStructuredAttachmentAllowRemoteUrls != null
+      ? `structured remote attachments ${row.routeStructuredAttachmentAllowRemoteUrls ? 'yes' : 'no'}`
+      : null,
+  ]);
 
   return compactList([
     row.candidateKey ?? null,
@@ -1096,6 +1122,7 @@ function formatTaskRouteCandidateText(row: AIModelTaskRouteCandidateTraceRow) {
     row.healthCheckedAt ? `checked ${row.healthCheckedAt}` : null,
     providerProfileLabel ? `profile ${providerProfileLabel}` : null,
     modelDefinitionLabel ? `definition ${modelDefinitionLabel}` : null,
+    capabilityLabel ? `capability ${capabilityLabel}` : null,
     row.candidateModelIds?.length
       ? `profile models ${row.candidateModelIds.join(', ')}`
       : null,

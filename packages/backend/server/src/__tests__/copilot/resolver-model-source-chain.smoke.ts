@@ -150,12 +150,18 @@ function taskRouteCandidateEvidenceFixture<
     registryKind?: string;
     registrySelected?: boolean;
     requestedModelId?: string;
+    routeAttachmentAllowRemoteUrls?: boolean;
+    routeAttachmentKinds?: string[];
+    routeAttachmentSourceKinds?: string[];
     routeInputTypes?: string[];
     routeModelAliasMatched?: boolean;
     routeModelDefinitionAliases?: string[];
     routeModelDefinitionId?: string;
     routeModelDefinitionSource?: string;
     routeOutputTypes?: string[];
+    routeStructuredAttachmentAllowRemoteUrls?: boolean;
+    routeStructuredAttachmentKinds?: string[];
+    routeStructuredAttachmentSourceKinds?: string[];
     routeRawModelId?: string;
   },
 >(candidates: T[] | undefined) {
@@ -211,6 +217,18 @@ function taskRouteCandidateEvidenceFixture<
     ...(candidate.requestedModelId
       ? { requestedModelId: candidate.requestedModelId }
       : {}),
+    ...(candidate.routeAttachmentAllowRemoteUrls !== undefined
+      ? {
+          routeAttachmentAllowRemoteUrls:
+            candidate.routeAttachmentAllowRemoteUrls,
+        }
+      : {}),
+    ...(candidate.routeAttachmentKinds?.length
+      ? { routeAttachmentKinds: candidate.routeAttachmentKinds }
+      : {}),
+    ...(candidate.routeAttachmentSourceKinds?.length
+      ? { routeAttachmentSourceKinds: candidate.routeAttachmentSourceKinds }
+      : {}),
     ...(candidate.routeInputTypes?.length
       ? { routeInputTypes: candidate.routeInputTypes }
       : {}),
@@ -228,6 +246,24 @@ function taskRouteCandidateEvidenceFixture<
       : {}),
     ...(candidate.routeOutputTypes?.length
       ? { routeOutputTypes: candidate.routeOutputTypes }
+      : {}),
+    ...(candidate.routeStructuredAttachmentAllowRemoteUrls !== undefined
+      ? {
+          routeStructuredAttachmentAllowRemoteUrls:
+            candidate.routeStructuredAttachmentAllowRemoteUrls,
+        }
+      : {}),
+    ...(candidate.routeStructuredAttachmentKinds?.length
+      ? {
+          routeStructuredAttachmentKinds:
+            candidate.routeStructuredAttachmentKinds,
+        }
+      : {}),
+    ...(candidate.routeStructuredAttachmentSourceKinds?.length
+      ? {
+          routeStructuredAttachmentSourceKinds:
+            candidate.routeStructuredAttachmentSourceKinds,
+        }
       : {}),
     ...(candidate.routeRawModelId
       ? { routeRawModelId: candidate.routeRawModelId }
@@ -263,12 +299,18 @@ function taskRoutePrepareCandidateEvidenceFixture<
     registryKind?: string;
     registrySelected?: boolean;
     requestedModelId?: string;
+    routeAttachmentAllowRemoteUrls?: boolean;
+    routeAttachmentKinds?: string[];
+    routeAttachmentSourceKinds?: string[];
     routeInputTypes?: string[];
     routeModelAliasMatched?: boolean;
     routeModelDefinitionAliases?: string[];
     routeModelDefinitionId?: string;
     routeModelDefinitionSource?: string;
     routeOutputTypes?: string[];
+    routeStructuredAttachmentAllowRemoteUrls?: boolean;
+    routeStructuredAttachmentKinds?: string[];
+    routeStructuredAttachmentSourceKinds?: string[];
     routeRawModelId?: string;
   },
 >(candidates: T[] | undefined) {
@@ -331,6 +373,18 @@ function taskRoutePrepareCandidateEvidenceFixture<
     ...(candidate.requestedModelId
       ? { requestedModelId: candidate.requestedModelId }
       : {}),
+    ...(candidate.routeAttachmentAllowRemoteUrls !== undefined
+      ? {
+          routeAttachmentAllowRemoteUrls:
+            candidate.routeAttachmentAllowRemoteUrls,
+        }
+      : {}),
+    ...(candidate.routeAttachmentKinds?.length
+      ? { routeAttachmentKinds: candidate.routeAttachmentKinds }
+      : {}),
+    ...(candidate.routeAttachmentSourceKinds?.length
+      ? { routeAttachmentSourceKinds: candidate.routeAttachmentSourceKinds }
+      : {}),
     ...(candidate.routeInputTypes?.length
       ? { routeInputTypes: candidate.routeInputTypes }
       : {}),
@@ -348,6 +402,24 @@ function taskRoutePrepareCandidateEvidenceFixture<
       : {}),
     ...(candidate.routeOutputTypes?.length
       ? { routeOutputTypes: candidate.routeOutputTypes }
+      : {}),
+    ...(candidate.routeStructuredAttachmentAllowRemoteUrls !== undefined
+      ? {
+          routeStructuredAttachmentAllowRemoteUrls:
+            candidate.routeStructuredAttachmentAllowRemoteUrls,
+        }
+      : {}),
+    ...(candidate.routeStructuredAttachmentKinds?.length
+      ? {
+          routeStructuredAttachmentKinds:
+            candidate.routeStructuredAttachmentKinds,
+        }
+      : {}),
+    ...(candidate.routeStructuredAttachmentSourceKinds?.length
+      ? {
+          routeStructuredAttachmentSourceKinds:
+            candidate.routeStructuredAttachmentSourceKinds,
+        }
       : {}),
     ...(candidate.routeRawModelId
       ? { routeRawModelId: candidate.routeRawModelId }
@@ -656,10 +728,16 @@ function taskRouteProviderCapabilitySnapshotFixture(
           providerSource?: string;
           providerType?: string;
           requestedModelId?: string;
+          routeAttachmentAllowRemoteUrls?: boolean;
+          routeAttachmentKinds?: string[];
+          routeAttachmentSourceKinds?: string[];
           routeInputTypes?: string[];
           routeModelDefinitionId?: string;
           routeModelDefinitionSource?: string;
           routeOutputTypes?: string[];
+          routeStructuredAttachmentAllowRemoteUrls?: boolean;
+          routeStructuredAttachmentKinds?: string[];
+          routeStructuredAttachmentSourceKinds?: string[];
           routeRawModelId?: string;
         }[];
         prepareCandidates?: {
@@ -672,10 +750,16 @@ function taskRouteProviderCapabilitySnapshotFixture(
           providerSource?: string;
           providerType?: string;
           requestedModelId?: string;
+          routeAttachmentAllowRemoteUrls?: boolean;
+          routeAttachmentKinds?: string[];
+          routeAttachmentSourceKinds?: string[];
           routeInputTypes?: string[];
           routeModelDefinitionId?: string;
           routeModelDefinitionSource?: string;
           routeOutputTypes?: string[];
+          routeStructuredAttachmentAllowRemoteUrls?: boolean;
+          routeStructuredAttachmentKinds?: string[];
+          routeStructuredAttachmentSourceKinds?: string[];
           routeRawModelId?: string;
         }[];
       }
@@ -693,10 +777,16 @@ function taskRouteProviderCapabilitySnapshotFixture(
       providerSource?: string;
       providerType?: string;
       requestedModelId?: string;
+      routeAttachmentAllowRemoteUrls?: boolean;
+      routeAttachmentKinds?: string[];
+      routeAttachmentSourceKinds?: string[];
       routeInputTypes?: string[];
       routeModelDefinitionId?: string;
       routeModelDefinitionSource?: string;
       routeOutputTypes?: string[];
+      routeStructuredAttachmentAllowRemoteUrls?: boolean;
+      routeStructuredAttachmentKinds?: string[];
+      routeStructuredAttachmentSourceKinds?: string[];
       routeRawModelId?: string;
     },
     index: number
@@ -723,6 +813,18 @@ function taskRouteProviderCapabilitySnapshotFixture(
     ...(candidate.requestedModelId
       ? { requestedModelId: candidate.requestedModelId }
       : {}),
+    ...(candidate.routeAttachmentAllowRemoteUrls !== undefined
+      ? {
+          routeAttachmentAllowRemoteUrls:
+            candidate.routeAttachmentAllowRemoteUrls,
+        }
+      : {}),
+    ...(candidate.routeAttachmentKinds?.length
+      ? { routeAttachmentKinds: candidate.routeAttachmentKinds }
+      : {}),
+    ...(candidate.routeAttachmentSourceKinds?.length
+      ? { routeAttachmentSourceKinds: candidate.routeAttachmentSourceKinds }
+      : {}),
     ...(candidate.routeInputTypes?.length
       ? { routeInputTypes: candidate.routeInputTypes }
       : {}),
@@ -734,6 +836,24 @@ function taskRouteProviderCapabilitySnapshotFixture(
       : {}),
     ...(candidate.routeOutputTypes?.length
       ? { routeOutputTypes: candidate.routeOutputTypes }
+      : {}),
+    ...(candidate.routeStructuredAttachmentAllowRemoteUrls !== undefined
+      ? {
+          routeStructuredAttachmentAllowRemoteUrls:
+            candidate.routeStructuredAttachmentAllowRemoteUrls,
+        }
+      : {}),
+    ...(candidate.routeStructuredAttachmentKinds?.length
+      ? {
+          routeStructuredAttachmentKinds:
+            candidate.routeStructuredAttachmentKinds,
+        }
+      : {}),
+    ...(candidate.routeStructuredAttachmentSourceKinds?.length
+      ? {
+          routeStructuredAttachmentSourceKinds:
+            candidate.routeStructuredAttachmentSourceKinds,
+        }
       : {}),
     ...(candidate.routeRawModelId
       ? { routeRawModelId: candidate.routeRawModelId }
@@ -978,6 +1098,12 @@ async function main() {
           costOutputPer1M: 0.02,
           routeInputTypes: ['text'],
           routeOutputTypes: ['embedding'],
+          routeAttachmentKinds: ['file'],
+          routeAttachmentSourceKinds: ['url', 'data'],
+          routeAttachmentAllowRemoteUrls: true,
+          routeStructuredAttachmentKinds: ['image'],
+          routeStructuredAttachmentSourceKinds: ['file_handle'],
+          routeStructuredAttachmentAllowRemoteUrls: false,
           requestedModelId: 'embed-alias',
           modelId: 'embed-alias',
           routeRawModelId: 'nomic-embed-text',
@@ -1010,6 +1136,12 @@ async function main() {
           costOutputPer1M: 0.02,
           routeInputTypes: ['text'],
           routeOutputTypes: ['embedding'],
+          routeAttachmentKinds: ['file'],
+          routeAttachmentSourceKinds: ['url', 'data'],
+          routeAttachmentAllowRemoteUrls: true,
+          routeStructuredAttachmentKinds: ['image'],
+          routeStructuredAttachmentSourceKinds: ['file_handle'],
+          routeStructuredAttachmentAllowRemoteUrls: false,
           modelId: 'embed-alias',
           routeRawModelId: 'nomic-embed-text',
           routeModelDefinitionSource: 'provider_profile',
@@ -1256,6 +1388,32 @@ async function main() {
     result.embeddingRoute?.routeCandidates[0]?.routeOutputTypes,
     ['embedding']
   );
+  assert.deepEqual(
+    result.embeddingRoute?.routeCandidates[0]?.routeAttachmentKinds,
+    ['file']
+  );
+  assert.deepEqual(
+    result.embeddingRoute?.routeCandidates[0]?.routeAttachmentSourceKinds,
+    ['url', 'data']
+  );
+  assert.equal(
+    result.embeddingRoute?.routeCandidates[0]?.routeAttachmentAllowRemoteUrls,
+    true
+  );
+  assert.deepEqual(
+    result.embeddingRoute?.routeCandidates[0]?.routeStructuredAttachmentKinds,
+    ['image']
+  );
+  assert.deepEqual(
+    result.embeddingRoute?.routeCandidates[0]
+      ?.routeStructuredAttachmentSourceKinds,
+    ['file_handle']
+  );
+  assert.equal(
+    result.embeddingRoute?.routeCandidates[0]
+      ?.routeStructuredAttachmentAllowRemoteUrls,
+    false
+  );
   assert.equal(
     result.embeddingRoute?.prepareCandidates[0]?.routeRawModelId,
     'nomic-embed-text'
@@ -1279,6 +1437,32 @@ async function main() {
   assert.deepEqual(
     result.embeddingRoute?.prepareCandidates[0]?.routeOutputTypes,
     ['embedding']
+  );
+  assert.deepEqual(
+    result.embeddingRoute?.prepareCandidates[0]?.routeAttachmentKinds,
+    ['file']
+  );
+  assert.deepEqual(
+    result.embeddingRoute?.prepareCandidates[0]?.routeAttachmentSourceKinds,
+    ['url', 'data']
+  );
+  assert.equal(
+    result.embeddingRoute?.prepareCandidates[0]?.routeAttachmentAllowRemoteUrls,
+    true
+  );
+  assert.deepEqual(
+    result.embeddingRoute?.prepareCandidates[0]?.routeStructuredAttachmentKinds,
+    ['image']
+  );
+  assert.deepEqual(
+    result.embeddingRoute?.prepareCandidates[0]
+      ?.routeStructuredAttachmentSourceKinds,
+    ['file_handle']
+  );
+  assert.equal(
+    result.embeddingRoute?.prepareCandidates[0]
+      ?.routeStructuredAttachmentAllowRemoteUrls,
+    false
   );
   assert.deepEqual(result.embeddingRoute?.diagnosticsErrors, []);
   assert.deepEqual(result.rerankRoute?.diagnosticsErrors, []);

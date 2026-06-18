@@ -102,6 +102,12 @@ export type CopilotProviderRouteCandidateDiagnostics = {
   costOutputPer1M?: number;
   routeInputTypes?: string[];
   routeOutputTypes?: string[];
+  routeAttachmentKinds?: string[];
+  routeAttachmentSourceKinds?: string[];
+  routeAttachmentAllowRemoteUrls?: boolean;
+  routeStructuredAttachmentKinds?: string[];
+  routeStructuredAttachmentSourceKinds?: string[];
+  routeStructuredAttachmentAllowRemoteUrls?: boolean;
   candidateModelIds?: string[];
   matched: boolean;
   reasons: string[];
@@ -131,6 +137,12 @@ export type CopilotProviderPrepareCandidateDiagnostics = {
   costOutputPer1M?: number;
   routeInputTypes?: string[];
   routeOutputTypes?: string[];
+  routeAttachmentKinds?: string[];
+  routeAttachmentSourceKinds?: string[];
+  routeAttachmentAllowRemoteUrls?: boolean;
+  routeStructuredAttachmentKinds?: string[];
+  routeStructuredAttachmentSourceKinds?: string[];
+  routeStructuredAttachmentAllowRemoteUrls?: boolean;
   prepared: boolean;
   preparedModelId?: string;
   errorCode?: string;
@@ -252,10 +264,54 @@ function collectProviderModelCapabilityTypes(
   const routeOutputTypes = unique(
     capabilities.flatMap(capability => capability.output ?? [])
   );
+  const routeAttachmentKinds = unique(
+    capabilities.flatMap(capability => capability.attachments?.kinds ?? [])
+  );
+  const routeAttachmentSourceKinds = unique(
+    capabilities.flatMap(
+      capability => capability.attachments?.sourceKinds ?? []
+    )
+  );
+  const hasRouteAttachmentCapability = capabilities.some(
+    capability => capability.attachments !== undefined
+  );
+  const routeAttachmentAllowRemoteUrls = capabilities.some(
+    capability => capability.attachments?.allowRemoteUrls === true
+  );
+  const routeStructuredAttachmentKinds = unique(
+    capabilities.flatMap(
+      capability => capability.structuredAttachments?.kinds ?? []
+    )
+  );
+  const routeStructuredAttachmentSourceKinds = unique(
+    capabilities.flatMap(
+      capability => capability.structuredAttachments?.sourceKinds ?? []
+    )
+  );
+  const hasRouteStructuredAttachmentCapability = capabilities.some(
+    capability => capability.structuredAttachments !== undefined
+  );
+  const routeStructuredAttachmentAllowRemoteUrls = capabilities.some(
+    capability => capability.structuredAttachments?.allowRemoteUrls === true
+  );
 
   return {
     ...(routeInputTypes.length ? { routeInputTypes } : {}),
     ...(routeOutputTypes.length ? { routeOutputTypes } : {}),
+    ...(routeAttachmentKinds.length ? { routeAttachmentKinds } : {}),
+    ...(routeAttachmentSourceKinds.length
+      ? { routeAttachmentSourceKinds }
+      : {}),
+    ...(hasRouteAttachmentCapability ? { routeAttachmentAllowRemoteUrls } : {}),
+    ...(routeStructuredAttachmentKinds.length
+      ? { routeStructuredAttachmentKinds }
+      : {}),
+    ...(routeStructuredAttachmentSourceKinds.length
+      ? { routeStructuredAttachmentSourceKinds }
+      : {}),
+    ...(hasRouteStructuredAttachmentCapability
+      ? { routeStructuredAttachmentAllowRemoteUrls }
+      : {}),
   };
 }
 
