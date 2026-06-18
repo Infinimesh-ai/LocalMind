@@ -3717,6 +3717,22 @@ const actionRunsPayload = [
         actionRunTimelineRouteEvidenceSetFingerprint,
       version: 'agent-runtime-diagnostics-manifest/v1',
     },
+    agentRuntimeDiagnosticsManifestExportMetadata: {
+      actionId: 'mindmap.generate',
+      actionVersion: 'v1',
+      artifact: 'action_run_diagnostics_manifest_json',
+      boundary: 'manifest_only_no_raw_trace_or_provider_payload',
+      filename: 'action-run-diagnostics-manifest-run-123.json',
+      manifestFingerprint: actionRunAgentRuntimeDiagnosticsFingerprint,
+      manifestVersion: 'agent-runtime-diagnostics-manifest/v1',
+      metadataFilename: 'action-run-diagnostics-manifest-metadata-run-123.json',
+      mime: 'application/json;charset=utf-8',
+      projectionSource: 'ai_action_run_agent_runtime_projection/v1',
+      runId: 'run-123',
+      runStatus: 'completed',
+      schemaReadiness: 'projection_contract_only',
+      version: 'action-run-diagnostics-manifest-export-metadata/v1',
+    },
     agentRuntimeNativeTraceEventTypes: ['action_trace', 'tool:dispatch'],
     agentRuntimeProjectedSchemaComponents: [
       'typescript_projection_contract',
@@ -4099,6 +4115,23 @@ const actionRunsPayload = [
       timelineRouteEvidenceSetFingerprint:
         failedActionRunTimelineRouteEvidenceSetFingerprint,
       version: 'agent-runtime-diagnostics-manifest/v1',
+    },
+    agentRuntimeDiagnosticsManifestExportMetadata: {
+      actionId: 'image.filter.sketch',
+      actionVersion: 'v1',
+      artifact: 'action_run_diagnostics_manifest_json',
+      boundary: 'manifest_only_no_raw_trace_or_provider_payload',
+      filename: 'action-run-diagnostics-manifest-run-failed.json',
+      manifestFingerprint: failedActionRunAgentRuntimeDiagnosticsFingerprint,
+      manifestVersion: 'agent-runtime-diagnostics-manifest/v1',
+      metadataFilename:
+        'action-run-diagnostics-manifest-metadata-run-failed.json',
+      mime: 'application/json;charset=utf-8',
+      projectionSource: 'ai_action_run_agent_runtime_projection/v1',
+      runId: 'run-failed',
+      runStatus: 'failed',
+      schemaReadiness: 'projection_contract_only',
+      version: 'action-run-diagnostics-manifest-export-metadata/v1',
     },
     agentRuntimeNativeTraceEventTypes: [],
     agentRuntimeProjectedSchemaComponents: [
@@ -8265,22 +8298,9 @@ describe('AiPage', () => {
       screen.getByTestId(
         'action-run-diagnostics-manifest-export-metadata-json-run-123'
       ).textContent ?? '';
-    expect(JSON.parse(actionRunExportMetadataJson)).toEqual({
-      actionId: 'mindmap.generate',
-      actionVersion: 'v1',
-      artifact: 'action_run_diagnostics_manifest_json',
-      boundary: 'manifest_only_no_raw_trace_or_provider_payload',
-      filename: 'action-run-diagnostics-manifest-run-123.json',
-      manifestFingerprint: actionRunAgentRuntimeDiagnosticsFingerprint,
-      manifestVersion: 'agent-runtime-diagnostics-manifest/v1',
-      metadataFilename: 'action-run-diagnostics-manifest-metadata-run-123.json',
-      mime: 'application/json;charset=utf-8',
-      projectionSource: 'ai_action_run_agent_runtime_projection/v1',
-      runId: 'run-123',
-      runStatus: 'completed',
-      schemaReadiness: 'projection_contract_only',
-      version: 'action-run-diagnostics-manifest-export-metadata/v1',
-    });
+    expect(JSON.parse(actionRunExportMetadataJson)).toEqual(
+      actionRunsPayload[0].agentRuntimeDiagnosticsManifestExportMetadata
+    );
     fireEvent.click(
       screen.getAllByRole('button', { name: 'Copy metadata JSON' })[0]
     );
@@ -8479,15 +8499,7 @@ describe('AiPage', () => {
         'action-run-diagnostics-manifest-export-metadata-json-run-failed'
       ).textContent ?? '';
     expect(JSON.parse(failedRunExportMetadataJson)).toEqual(
-      expect.objectContaining({
-        boundary: 'manifest_only_no_raw_trace_or_provider_payload',
-        filename: 'action-run-diagnostics-manifest-run-failed.json',
-        metadataFilename:
-          'action-run-diagnostics-manifest-metadata-run-failed.json',
-        runId: 'run-failed',
-        runStatus: 'failed',
-        version: 'action-run-diagnostics-manifest-export-metadata/v1',
-      })
+      actionRunsPayload[1].agentRuntimeDiagnosticsManifestExportMetadata
     );
     expect(failedRunDiagnostics).toContain('Action run run-failed');
     expect(failedRunDiagnostics).toContain('Status Failed');

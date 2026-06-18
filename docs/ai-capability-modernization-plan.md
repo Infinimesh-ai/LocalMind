@@ -13910,3 +13910,34 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - metadata sidecar 的 `version` 和 manifest 的 `version` 仍是应用层字符串，不是 DB-backed Agent Runtime schema revision、Model Registry revision、Provider Registry revision 或迁移版本。
 - 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、正式 export 控制、批量导出、签名、脱敏审计元数据或 Agent Runtime 原生 lifecycle artifact。
 - 当前 runtime 镜像未包含本轮纯前端源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 414. P3 落地记录：Action Run Diagnostics Manifest Export Metadata GraphQL Contract
+
+本轮继续收敛第 413 节剩余风险中 “metadata JSON sidecar 仍是前端派生 artifact” 的问题。实际代码与目标 AI 中间层架构的冲突点是：Admin 已经能展示、复制和下载 machine-readable metadata sidecar，但 sidecar 字段口径仍由前端根据 `agentRuntimeDiagnosticsManifest` 临时拼装；后续 route explain、support bundle 原型或其他客户端若复用该 sidecar，需要重复实现同一组 artifact scope、filename、MIME、fingerprint、run scope 与脱敏边界。本轮把 sidecar 提升为 action run diagnostics 的后端 GraphQL 只读 projection：`agentRuntimeDiagnosticsManifestExportMetadata`，Admin 只负责展示/复制/下载该字段，不再独自定义 sidecar 契约。
+
+- `packages/backend/server/src/models/copilot-action-run.ts`：
+  - 新增 `CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadata`，随 `CopilotActionRunDiagnosticsItem` 返回。
+  - metadata 由后端基于 run id 和 `agentRuntimeDiagnosticsManifest` 生成，包含 `action-run-diagnostics-manifest-export-metadata/v1`、artifact kind、manifest filename、metadata filename、MIME、manifest version/fingerprint、action/version、run id/status、projection source、schema readiness 与 `manifest_only_no_raw_trace_or_provider_payload` 边界。
+- GraphQL 与 common client：
+  - 新增 `CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType`，并在 `getCopilotActionRuns` query、common query string 与 `schema.ts` 类型中同步选择/声明该字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - export metadata 文本、JSON preview、copy/download 入口改为消费后端返回的 `run.agentRuntimeDiagnosticsManifestExportMetadata`。
+  - manifest JSON 与 metadata JSON 的下载文件名均使用后端 metadata 字段，前端只保留浏览器下载 fallback。
+- 测试覆盖：
+  - backend resolver action runs 测试断言成功 run 与失败 run 的 export metadata 与 manifest fingerprint、action/run scope、projection/schema readiness 和脱敏边界一致。
+  - Admin Vitest fixture/断言覆盖 metadata JSON 与 GraphQL fixture 完全一致，避免前端重新拼装不同口径。
+
+该实现只扩展 action run diagnostics 的只读 GraphQL projection、common query/type、Admin 展示和测试，不新增 DB migration、不改变 action run trace 存储结构、不改变 manifest JSON payload、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、repair mutation guard、正式 support bundle schema、Model Registry revision 或 Provider Registry revision。它把 metadata sidecar 从“Admin 前端原型”推进到“后端 GraphQL 可复用契约”，降低后续多个客户端或 support bundle 原型重复拼装 artifact metadata 的风险。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused copilot resolver AVA、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `agentRuntimeDiagnosticsManifestExportMetadata` 仍是只读 GraphQL projection，不是服务端签名的 support bundle manifest、下载审计记录、retention policy 或 DB-backed export artifact。
+- metadata 和 manifest 下载内容仍仅覆盖当前 GraphQL manifest 对象，不包含完整 prepared route trace、timeline item payload、native trace event payload、tool output、Codex/MCP adapter 输出或审批结果。
+- metadata sidecar 的 `version` 和 manifest 的 `version` 仍是应用层字符串，不是 DB-backed Agent Runtime schema revision、Model Registry revision、Provider Registry revision 或迁移版本。
+- Admin 展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、正式 export 控制、批量导出、签名、脱敏审计元数据或 Agent Runtime 原生 lifecycle artifact。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

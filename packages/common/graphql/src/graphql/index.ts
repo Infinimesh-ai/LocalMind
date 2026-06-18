@@ -3258,6 +3258,22 @@ export const getCopilotActionRunsQuery = {
           timelineRouteEvidenceSetFingerprint
           version
         }
+        agentRuntimeDiagnosticsManifestExportMetadata {
+          actionId
+          actionVersion
+          artifact
+          boundary
+          filename
+          manifestFingerprint
+          manifestVersion
+          metadataFilename
+          mime
+          projectionSource
+          runId
+          runStatus
+          schemaReadiness
+          version
+        }
         agentRuntimeNativeTraceEventTypes
         agentRuntimeProjectedSchemaComponents
         agentRuntimeProjectedRunStatuses

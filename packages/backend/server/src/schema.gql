@@ -632,11 +632,29 @@ type CopilotActionRunAgentRuntimeDiagnosticsManifestType {
   version: String!
 }
 
+type CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType {
+  actionId: String!
+  actionVersion: String!
+  artifact: String!
+  boundary: String!
+  filename: String!
+  manifestFingerprint: String!
+  manifestVersion: String!
+  metadataFilename: String!
+  mime: String!
+  projectionSource: String!
+  runId: String!
+  runStatus: String!
+  schemaReadiness: String!
+  version: String!
+}
+
 type CopilotActionRunDiagnosticsItemType {
   actionId: String!
   actionVersion: String!
   agentRuntimeDiagnosticsFingerprint: String!
   agentRuntimeDiagnosticsManifest: CopilotActionRunAgentRuntimeDiagnosticsManifestType!
+  agentRuntimeDiagnosticsManifestExportMetadata: CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType!
   agentRuntimeNativeTraceEventTypes: [String!]!
   agentRuntimeProjectedSchemaComponents: [String!]!
   agentRuntimeProjectedRunStatuses: [String!]!

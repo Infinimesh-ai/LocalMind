@@ -4211,6 +4211,24 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
     schemaReadinessGapCount:
       successfulDiagnostics!.agentRuntimeSchemaReadinessGaps.length,
   });
+  t.like(successfulDiagnostics!.agentRuntimeDiagnosticsManifestExportMetadata, {
+    version: 'action-run-diagnostics-manifest-export-metadata/v1',
+    artifact: 'action_run_diagnostics_manifest_json',
+    filename: `action-run-diagnostics-manifest-${successfulDiagnostics!.id}.json`,
+    mime: 'application/json;charset=utf-8',
+    metadataFilename: `action-run-diagnostics-manifest-metadata-${successfulDiagnostics!.id}.json`,
+    manifestVersion:
+      successfulDiagnostics!.agentRuntimeDiagnosticsManifest.version,
+    manifestFingerprint:
+      successfulDiagnostics!.agentRuntimeDiagnosticsManifest.fingerprint,
+    actionId: successfulDiagnostics!.actionId,
+    actionVersion: successfulDiagnostics!.actionVersion,
+    runId: successfulDiagnostics!.id,
+    runStatus: successfulDiagnostics!.agentRuntimeRunStatus,
+    projectionSource: successfulDiagnostics!.agentRuntimeProjectionSource,
+    schemaReadiness: successfulDiagnostics!.agentRuntimeSchemaReadiness,
+    boundary: 'manifest_only_no_raw_trace_or_provider_payload',
+  });
   t.like(failedDiagnostics!.agentRuntimeDiagnosticsManifest, {
     version: 'agent-runtime-diagnostics-manifest/v1',
     fingerprint: failedDiagnostics!.agentRuntimeDiagnosticsFingerprint,
@@ -4234,6 +4252,23 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
     timelineGapCount: failedDiagnostics!.agentRuntimeTimelineGaps.length,
     schemaReadinessGapCount:
       failedDiagnostics!.agentRuntimeSchemaReadinessGaps.length,
+  });
+  t.like(failedDiagnostics!.agentRuntimeDiagnosticsManifestExportMetadata, {
+    version: 'action-run-diagnostics-manifest-export-metadata/v1',
+    artifact: 'action_run_diagnostics_manifest_json',
+    filename: `action-run-diagnostics-manifest-${failedDiagnostics!.id}.json`,
+    mime: 'application/json;charset=utf-8',
+    metadataFilename: `action-run-diagnostics-manifest-metadata-${failedDiagnostics!.id}.json`,
+    manifestVersion: failedDiagnostics!.agentRuntimeDiagnosticsManifest.version,
+    manifestFingerprint:
+      failedDiagnostics!.agentRuntimeDiagnosticsManifest.fingerprint,
+    actionId: failedDiagnostics!.actionId,
+    actionVersion: failedDiagnostics!.actionVersion,
+    runId: failedDiagnostics!.id,
+    runStatus: failedDiagnostics!.agentRuntimeRunStatus,
+    projectionSource: failedDiagnostics!.agentRuntimeProjectionSource,
+    schemaReadiness: failedDiagnostics!.agentRuntimeSchemaReadiness,
+    boundary: 'manifest_only_no_raw_trace_or_provider_payload',
   });
   t.false('inputSnapshot' in diagnostics[0]);
   t.false('result' in diagnostics[0]);

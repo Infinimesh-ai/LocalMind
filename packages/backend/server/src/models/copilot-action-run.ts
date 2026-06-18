@@ -131,12 +131,30 @@ export type CopilotActionRunAgentRuntimeDiagnosticsManifest = {
   schemaReadinessGapCount: number;
 };
 
+export type CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadata = {
+  version: string;
+  artifact: string;
+  filename: string;
+  mime: string;
+  metadataFilename: string;
+  manifestVersion: string;
+  manifestFingerprint: string;
+  actionId: string;
+  actionVersion: string;
+  runId: string;
+  runStatus: string;
+  projectionSource: string;
+  schemaReadiness: string;
+  boundary: string;
+};
+
 export type CopilotActionRunDiagnosticsItem = {
   id: string;
   actionId: string;
   actionVersion: string;
   agentRuntimeDiagnosticsFingerprint: string;
   agentRuntimeDiagnosticsManifest: CopilotActionRunAgentRuntimeDiagnosticsManifest;
+  agentRuntimeDiagnosticsManifestExportMetadata: CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadata;
   agentRuntimeNativeTraceEventTypes: string[];
   agentRuntimeProjectedSchemaComponents: string[];
   agentRuntimeProjectedRunStatuses: string[];
@@ -248,6 +266,20 @@ function uniqueNonEmptyStrings(values: Array<string | undefined>) {
         .filter((value): value is string => !!value)
     )
   );
+}
+
+function actionRunDiagnosticsManifestFilename(runId: string) {
+  const safeRunId =
+    runId.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'run';
+
+  return `action-run-diagnostics-manifest-${safeRunId}.json`;
+}
+
+function actionRunDiagnosticsManifestMetadataFilename(runId: string) {
+  const safeRunId =
+    runId.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'run';
+
+  return `action-run-diagnostics-manifest-metadata-${safeRunId}.json`;
 }
 
 function stableActionRunDiagnosticsStringify(value: unknown): string {
@@ -1065,10 +1097,28 @@ function summarizePreparedRouteTrace(
       timelineGapCount: agentRuntimeTimelineGaps.length,
       schemaReadinessGapCount: agentRuntimeSchemaReadinessGaps.length,
     };
+  const agentRuntimeDiagnosticsManifestExportMetadata: CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadata =
+    {
+      version: 'action-run-diagnostics-manifest-export-metadata/v1',
+      artifact: 'action_run_diagnostics_manifest_json',
+      filename: actionRunDiagnosticsManifestFilename(runId),
+      mime: 'application/json;charset=utf-8',
+      metadataFilename: actionRunDiagnosticsManifestMetadataFilename(runId),
+      manifestVersion: agentRuntimeDiagnosticsManifest.version,
+      manifestFingerprint: agentRuntimeDiagnosticsManifest.fingerprint,
+      actionId: agentRuntimeDiagnosticsManifest.actionId,
+      actionVersion: agentRuntimeDiagnosticsManifest.actionVersion,
+      runId,
+      runStatus: agentRuntimeDiagnosticsManifest.runStatus,
+      projectionSource: agentRuntimeDiagnosticsManifest.projectionSource,
+      schemaReadiness: agentRuntimeDiagnosticsManifest.schemaReadiness,
+      boundary: 'manifest_only_no_raw_trace_or_provider_payload',
+    };
 
   return {
     agentRuntimeDiagnosticsFingerprint,
     agentRuntimeDiagnosticsManifest,
+    agentRuntimeDiagnosticsManifestExportMetadata,
     agentRuntimeNativeTraceEventTypes,
     agentRuntimeProjectedSchemaComponents,
     agentRuntimeProjectedRunStatuses,

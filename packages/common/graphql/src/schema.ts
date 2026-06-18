@@ -608,6 +608,7 @@ export interface CopilotActionRunDiagnosticsItemType {
   actionVersion: Scalars['String']['output'];
   agentRuntimeDiagnosticsFingerprint: Scalars['String']['output'];
   agentRuntimeDiagnosticsManifest: CopilotActionRunAgentRuntimeDiagnosticsManifestType;
+  agentRuntimeDiagnosticsManifestExportMetadata: CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType;
   agentRuntimeNativeTraceEventTypes: Array<Scalars['String']['output']>;
   agentRuntimeProjectedSchemaComponents: Array<Scalars['String']['output']>;
   agentRuntimeProjectedRunStatuses: Array<Scalars['String']['output']>;
@@ -708,6 +709,24 @@ export interface CopilotActionRunAgentRuntimeDiagnosticsManifestType {
   timelineGapCount: Scalars['SafeInt']['output'];
   timelineItemCount: Scalars['SafeInt']['output'];
   timelineRouteEvidenceSetFingerprint: Scalars['String']['output'];
+  version: Scalars['String']['output'];
+}
+
+export interface CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType {
+  __typename?: 'CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType';
+  actionId: Scalars['String']['output'];
+  actionVersion: Scalars['String']['output'];
+  artifact: Scalars['String']['output'];
+  boundary: Scalars['String']['output'];
+  filename: Scalars['String']['output'];
+  manifestFingerprint: Scalars['String']['output'];
+  manifestVersion: Scalars['String']['output'];
+  metadataFilename: Scalars['String']['output'];
+  mime: Scalars['String']['output'];
+  projectionSource: Scalars['String']['output'];
+  runId: Scalars['String']['output'];
+  runStatus: Scalars['String']['output'];
+  schemaReadiness: Scalars['String']['output'];
   version: Scalars['String']['output'];
 }
 
@@ -8780,6 +8799,23 @@ export type GetCopilotActionRunsQuery = {
           timelineGapCount: number;
           timelineItemCount: number;
           timelineRouteEvidenceSetFingerprint: string;
+          version: string;
+        };
+        agentRuntimeDiagnosticsManifestExportMetadata: {
+          __typename?: 'CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType';
+          actionId: string;
+          actionVersion: string;
+          artifact: string;
+          boundary: string;
+          filename: string;
+          manifestFingerprint: string;
+          manifestVersion: string;
+          metadataFilename: string;
+          mime: string;
+          projectionSource: string;
+          runId: string;
+          runStatus: string;
+          schemaReadiness: string;
           version: string;
         };
         agentRuntimeNativeTraceEventTypes: Array<string>;

@@ -5742,33 +5742,10 @@ function buildActionRunDiagnosticsManifestMetadataFilename(runId: string) {
   return `action-run-diagnostics-manifest-metadata-${safeRunId}.json`;
 }
 
-function buildActionRunDiagnosticsManifestExportMetadataArtifact(
-  run: ActionRunDiagnosticsItem
-) {
-  const manifest = run.agentRuntimeDiagnosticsManifest;
-
-  return {
-    version: 'action-run-diagnostics-manifest-export-metadata/v1',
-    artifact: 'action_run_diagnostics_manifest_json',
-    filename: buildActionRunDiagnosticsManifestFilename(run.id),
-    mime: 'application/json;charset=utf-8',
-    metadataFilename: buildActionRunDiagnosticsManifestMetadataFilename(run.id),
-    manifestVersion: manifest.version,
-    manifestFingerprint: manifest.fingerprint,
-    actionId: manifest.actionId,
-    actionVersion: manifest.actionVersion,
-    runId: run.id,
-    runStatus: manifest.runStatus,
-    projectionSource: manifest.projectionSource,
-    schemaReadiness: manifest.schemaReadiness,
-    boundary: 'manifest_only_no_raw_trace_or_provider_payload',
-  };
-}
-
 function buildActionRunDiagnosticsManifestExportMetadata(
   run: ActionRunDiagnosticsItem
 ) {
-  const metadata = buildActionRunDiagnosticsManifestExportMetadataArtifact(run);
+  const metadata = run.agentRuntimeDiagnosticsManifestExportMetadata;
 
   return [
     `Export artifact ${metadata.artifact}`,
@@ -5791,7 +5768,7 @@ function buildActionRunDiagnosticsManifestExportMetadataJson(
   run: ActionRunDiagnosticsItem
 ) {
   return JSON.stringify(
-    buildActionRunDiagnosticsManifestExportMetadataArtifact(run),
+    run.agentRuntimeDiagnosticsManifestExportMetadata,
     null,
     2
   );
@@ -5799,6 +5776,7 @@ function buildActionRunDiagnosticsManifestExportMetadataJson(
 
 function downloadActionRunDiagnosticsManifestJson(
   runId: string,
+  manifestFilename: string,
   manifestJson: string
 ) {
   const blob = new Blob([manifestJson], {
@@ -5808,7 +5786,8 @@ function downloadActionRunDiagnosticsManifestJson(
   const link = document.createElement('a');
 
   link.href = url;
-  link.download = buildActionRunDiagnosticsManifestFilename(runId);
+  link.download =
+    manifestFilename || buildActionRunDiagnosticsManifestFilename(runId);
   link.style.display = 'none';
   document.body.append(link);
   link.click();
@@ -5818,6 +5797,7 @@ function downloadActionRunDiagnosticsManifestJson(
 
 function downloadActionRunDiagnosticsManifestMetadataJson(
   runId: string,
+  metadataFilename: string,
   metadataJson: string
 ) {
   const blob = new Blob([metadataJson], {
@@ -5827,7 +5807,9 @@ function downloadActionRunDiagnosticsManifestMetadataJson(
   const link = document.createElement('a');
 
   link.href = url;
-  link.download = buildActionRunDiagnosticsManifestMetadataFilename(runId);
+  link.download =
+    metadataFilename ||
+    buildActionRunDiagnosticsManifestMetadataFilename(runId);
   link.style.display = 'none';
   document.body.append(link);
   link.click();
@@ -5838,13 +5820,17 @@ function downloadActionRunDiagnosticsManifestMetadataJson(
 function ActionRunDiagnosticsPanel({
   diagnosticsText,
   exportMetadataJson,
+  exportMetadataFilename,
   exportMetadataText,
+  manifestFilename,
   manifestJson,
   runId,
 }: {
   diagnosticsText: string;
   exportMetadataJson: string;
+  exportMetadataFilename: string;
   exportMetadataText: string;
+  manifestFilename: string;
   manifestJson: string;
   runId: string;
 }) {
@@ -5877,7 +5863,11 @@ function ActionRunDiagnosticsPanel({
             variant="outline"
             size="sm"
             onClick={() => {
-              downloadActionRunDiagnosticsManifestJson(runId, manifestJson);
+              downloadActionRunDiagnosticsManifestJson(
+                runId,
+                manifestFilename,
+                manifestJson
+              );
             }}
           >
             Download JSON
@@ -5913,6 +5903,7 @@ function ActionRunDiagnosticsPanel({
             onClick={() => {
               downloadActionRunDiagnosticsManifestMetadataJson(
                 runId,
+                exportMetadataFilename,
                 exportMetadataJson
               );
             }}
@@ -5988,6 +5979,11 @@ function ActionRunRecentList({
             const diagnosticsText = buildActionRunDiagnosticsText(run);
             const exportMetadataJson =
               buildActionRunDiagnosticsManifestExportMetadataJson(run);
+            const exportMetadataFilename =
+              run.agentRuntimeDiagnosticsManifestExportMetadata
+                .metadataFilename;
+            const manifestFilename =
+              run.agentRuntimeDiagnosticsManifestExportMetadata.filename;
             const exportMetadataText =
               buildActionRunDiagnosticsManifestExportMetadata(run);
             const manifestJson = buildActionRunDiagnosticsManifestJson(run);
@@ -6200,7 +6196,9 @@ function ActionRunRecentList({
                         <ActionRunDiagnosticsPanel
                           diagnosticsText={diagnosticsText}
                           exportMetadataJson={exportMetadataJson}
+                          exportMetadataFilename={exportMetadataFilename}
                           exportMetadataText={exportMetadataText}
+                          manifestFilename={manifestFilename}
                           manifestJson={manifestJson}
                           runId={run.id}
                         />
@@ -6209,7 +6207,9 @@ function ActionRunRecentList({
                       <ActionRunDiagnosticsPanel
                         diagnosticsText={diagnosticsText}
                         exportMetadataJson={exportMetadataJson}
+                        exportMetadataFilename={exportMetadataFilename}
                         exportMetadataText={exportMetadataText}
+                        manifestFilename={manifestFilename}
                         manifestJson={manifestJson}
                         runId={run.id}
                       />

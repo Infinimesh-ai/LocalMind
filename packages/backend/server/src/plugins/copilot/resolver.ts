@@ -45,6 +45,7 @@ import {
 } from '../../models';
 import type {
   CopilotActionRunAgentRuntimeDiagnosticsManifest,
+  CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadata,
   CopilotActionRunAgentRuntimeTimelineItem,
   CopilotActionRunDiagnosticsItem,
   CopilotActionRunPreparedRouteTrace,
@@ -3840,6 +3841,51 @@ class CopilotActionRunAgentRuntimeDiagnosticsManifestType implements CopilotActi
 }
 
 @ObjectType()
+class CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType implements CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadata {
+  @Field(() => String)
+  version!: string;
+
+  @Field(() => String)
+  artifact!: string;
+
+  @Field(() => String)
+  filename!: string;
+
+  @Field(() => String)
+  mime!: string;
+
+  @Field(() => String)
+  metadataFilename!: string;
+
+  @Field(() => String)
+  manifestVersion!: string;
+
+  @Field(() => String)
+  manifestFingerprint!: string;
+
+  @Field(() => String)
+  actionId!: string;
+
+  @Field(() => String)
+  actionVersion!: string;
+
+  @Field(() => String)
+  runId!: string;
+
+  @Field(() => String)
+  runStatus!: string;
+
+  @Field(() => String)
+  projectionSource!: string;
+
+  @Field(() => String)
+  schemaReadiness!: string;
+
+  @Field(() => String)
+  boundary!: string;
+}
+
+@ObjectType()
 class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnosticsItem {
   @Field(() => String)
   id!: string;
@@ -3855,6 +3901,11 @@ class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnostics
 
   @Field(() => CopilotActionRunAgentRuntimeDiagnosticsManifestType)
   agentRuntimeDiagnosticsManifest!: CopilotActionRunAgentRuntimeDiagnosticsManifest;
+
+  @Field(
+    () => CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType
+  )
+  agentRuntimeDiagnosticsManifestExportMetadata!: CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadata;
 
   @Field(() => [String])
   agentRuntimeNativeTraceEventTypes!: string[];
