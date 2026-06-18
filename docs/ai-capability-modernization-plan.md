@@ -13661,3 +13661,34 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 该 contract fingerprint 仍是字符串摘要，不是 DB-backed Agent Runtime schema revision、Model Registry revision、Provider Registry revision 或正式 support bundle artifact。
 - 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、筛选、JSON export、一键复制按钮或 Agent Runtime 原生 lifecycle artifact。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 405. P3 落地记录：Action Run Agent Runtime Diagnostics Fingerprint
+
+本轮继续收敛第 404 节剩余风险中 “projection contract fingerprint 不绑定 timeline route evidence set、完整 prepared route trace 或未来 support bundle schema” 的问题。实际代码与目标 AI 中间层架构的冲突点是：`actionRuns` 列表已经分别暴露 projection contract fingerprint 与 timeline route evidence set fingerprint，但 Admin 或后续 route explain/support bundle 若要判断一次 action run 的 Agent Runtime diagnostics 摘要是否整体漂移，仍需要同时比较多个字段与 prepared route 计数。本轮新增只读 `agentRuntimeDiagnosticsFingerprint`，把现有已脱敏 projection contract、timeline route evidence set、native trace event type 与 prepared trace 计数/错配摘要组合成稳定短指纹，不改变 trace 存储、真实 dispatch、Agent Runtime 状态机或持久化 schema。
+
+- `packages/backend/server/src/models/copilot-action-run.ts`：
+  - `CopilotActionRunDiagnosticsItem` 新增 `agentRuntimeDiagnosticsFingerprint`。
+  - fingerprint 使用 `agent-runtime-diagnostics/v1` 版本前缀，并绑定 `agentRuntimeProjectionContractFingerprint`、`agentRuntimeTimelineRouteEvidenceSetFingerprint`、`agentRuntimeNativeTraceEventTypes`、`hasPreparedRouteTrace`、prepared route step/declared/actual counts 与 step route count mismatch 摘要。
+  - 该 fingerprint 不绑定 `runId`、真实 run status、raw prepared route trace、provider response、latency、usage、cost、prompt、secret、backend config 或 native lifecycle event payload。
+- GraphQL 与 common client：
+  - `CopilotActionRunDiagnosticsItemType`、`schema.gql`、`getCopilotActionRuns` query、common query string 与 `schema.ts` 类型同步新增 `agentRuntimeDiagnosticsFingerprint`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - recent action runs 的 Agent Runtime 摘要与 copyable diagnostics text 显示 `Agent runtime diagnostics fingerprint ...`。
+- 测试覆盖：
+  - resolver action runs 测试断言成功 run 与无 prepared route trace 的失败 run 都携带由当前 diagnostics 字段计算出的 fingerprint。
+  - Admin Vitest fixture 与断言覆盖可见摘要和 copyable diagnostics text 中的 diagnostics fingerprint。
+
+该实现只扩展 `actionRuns` 列表的只读 diagnostics bundle fingerprint、GraphQL selection/type、Admin 展示与测试，不新增 DB migration、不改变 action run trace 存储结构、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、repair mutation guard、support bundle schema、Model Registry revision 或 Provider Registry revision。它把 Agent Runtime diagnostics 从“多个只读 fingerprint 和计数字段分别可读”推进到“整次 run 的 diagnostics 摘要也可稳定比较”，为后续 route explain、support bundle 和 Agent Runtime lifecycle artifact 对齐提供更方便的 run 级漂移检测输入。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused copilot resolver AVA、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `agentRuntimeDiagnosticsFingerprint` 仍是准备阶段 action run diagnostics 的即时 projection，不代表真实 dispatch 已持久化 Agent Runtime run/step/lifecycle event、provider response、latency、usage、cost、token budget 或最终执行结果。
+- fingerprint 仅绑定当前已脱敏 diagnostics 摘要字段，不绑定完整 prepared route trace、native trace event payload、正式 support bundle schema、DB-backed Agent Runtime schema revision、Model Registry revision 或 Provider Registry revision。
+- native trace event type 仍只是安全事件类型集合，不包含事件 payload、tool output、Codex/MCP adapter 输出或审批结果。
+- 该展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、筛选、JSON export、一键复制按钮或 Agent Runtime 原生 lifecycle artifact。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

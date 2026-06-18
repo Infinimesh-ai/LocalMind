@@ -606,6 +606,7 @@ export interface CopilotActionRunDiagnosticsItemType {
   __typename?: 'CopilotActionRunDiagnosticsItemType';
   actionId: Scalars['String']['output'];
   actionVersion: Scalars['String']['output'];
+  agentRuntimeDiagnosticsFingerprint: Scalars['String']['output'];
   agentRuntimeNativeTraceEventTypes: Array<Scalars['String']['output']>;
   agentRuntimeProjectedSchemaComponents: Array<Scalars['String']['output']>;
   agentRuntimeProjectedRunStatuses: Array<Scalars['String']['output']>;
@@ -8734,6 +8735,7 @@ export type GetCopilotActionRunsQuery = {
         __typename?: 'CopilotActionRunDiagnosticsItemType';
         actionId: string;
         actionVersion: string;
+        agentRuntimeDiagnosticsFingerprint: string;
         agentRuntimeNativeTraceEventTypes: Array<string>;
         agentRuntimeProjectedSchemaComponents: Array<string>;
         agentRuntimeProjectedRunStatuses: Array<string>;

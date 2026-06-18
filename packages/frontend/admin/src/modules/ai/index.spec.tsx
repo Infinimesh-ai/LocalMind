@@ -3682,11 +3682,15 @@ const failedActionRunTimelineRouteEvidenceSetFingerprint =
 
 const actionRunProjectionContractFingerprint = 'abcd1111eeee2222';
 const failedActionRunProjectionContractFingerprint = 'abcd3333eeee4444';
+const actionRunAgentRuntimeDiagnosticsFingerprint = 'feed1111beef2222';
+const failedActionRunAgentRuntimeDiagnosticsFingerprint = 'feed3333beef4444';
 
 const actionRunsPayload = [
   {
     actionId: 'mindmap.generate',
     actionVersion: 'v1',
+    agentRuntimeDiagnosticsFingerprint:
+      actionRunAgentRuntimeDiagnosticsFingerprint,
     agentRuntimeNativeTraceEventTypes: ['action_trace', 'tool:dispatch'],
     agentRuntimeProjectedSchemaComponents: [
       'typescript_projection_contract',
@@ -4045,6 +4049,8 @@ const actionRunsPayload = [
   {
     actionId: 'image.filter.sketch',
     actionVersion: 'v1',
+    agentRuntimeDiagnosticsFingerprint:
+      failedActionRunAgentRuntimeDiagnosticsFingerprint,
     agentRuntimeNativeTraceEventTypes: [],
     agentRuntimeProjectedSchemaComponents: [
       'typescript_projection_contract',
@@ -8089,6 +8095,11 @@ describe('AiPage', () => {
     ).not.toBeNull();
     expect(
       screen.getByText(
+        `Agent runtime diagnostics fingerprint ${actionRunAgentRuntimeDiagnosticsFingerprint}`
+      )
+    ).not.toBeNull();
+    expect(
+      screen.getByText(
         `Agent runtime projection contract fingerprint ${actionRunProjectionContractFingerprint}`
       )
     ).not.toBeNull();
@@ -8123,6 +8134,9 @@ describe('AiPage', () => {
     expect(actionRunDiagnostics).toContain('Doc doc-1');
     expect(actionRunDiagnostics).toContain('Session session-1');
     expect(actionRunDiagnostics).toContain('Prepared trace yes');
+    expect(actionRunDiagnostics).toContain(
+      `Agent runtime diagnostics fingerprint ${actionRunAgentRuntimeDiagnosticsFingerprint}`
+    );
     expect(actionRunDiagnostics).toContain(
       'Agent runtime projection ai_action_run_agent_runtime_projection/v1'
     );

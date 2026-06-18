@@ -3236,6 +3236,7 @@ export const getCopilotActionRunsQuery = {
       actionRuns(limit: $limit) {
         actionId
         actionVersion
+        agentRuntimeDiagnosticsFingerprint
         agentRuntimeNativeTraceEventTypes
         agentRuntimeProjectedSchemaComponents
         agentRuntimeProjectedRunStatuses

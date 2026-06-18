@@ -113,6 +113,7 @@ export type CopilotActionRunDiagnosticsItem = {
   id: string;
   actionId: string;
   actionVersion: string;
+  agentRuntimeDiagnosticsFingerprint: string;
   agentRuntimeNativeTraceEventTypes: string[];
   agentRuntimeProjectedSchemaComponents: string[];
   agentRuntimeProjectedRunStatuses: string[];
@@ -314,6 +315,28 @@ function actionRunAgentRuntimeProjectionContractFingerprint(input: {
     .update(
       stableActionRunDiagnosticsStringify({
         version: 'agent-runtime-projection-contract/v1',
+        ...input,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function actionRunAgentRuntimeDiagnosticsFingerprint(input: {
+  agentRuntimeNativeTraceEventTypes: string[];
+  agentRuntimeProjectionContractFingerprint: string;
+  agentRuntimeTimelineRouteEvidenceSetFingerprint: string;
+  hasPreparedRouteTrace: boolean;
+  preparedRouteActualCount: number;
+  preparedRouteCount: number;
+  preparedRouteStepCount: number;
+  preparedRouteStepRouteCountMismatches: string[];
+  preparedRouteStepRouteCounts: string[];
+}) {
+  return createHash('sha256')
+    .update(
+      stableActionRunDiagnosticsStringify({
+        version: 'agent-runtime-diagnostics/v1',
         ...input,
       })
     )
@@ -982,8 +1005,21 @@ function summarizePreparedRouteTrace(
       agentRuntimeUnsupportedStepTypes,
       agentRuntimeUnsupportedTimelineEventTypes,
     });
+  const agentRuntimeDiagnosticsFingerprint =
+    actionRunAgentRuntimeDiagnosticsFingerprint({
+      agentRuntimeNativeTraceEventTypes,
+      agentRuntimeProjectionContractFingerprint,
+      agentRuntimeTimelineRouteEvidenceSetFingerprint,
+      hasPreparedRouteTrace: !!trace,
+      preparedRouteActualCount,
+      preparedRouteCount,
+      preparedRouteStepCount,
+      preparedRouteStepRouteCountMismatches,
+      preparedRouteStepRouteCounts,
+    });
 
   return {
+    agentRuntimeDiagnosticsFingerprint,
     agentRuntimeNativeTraceEventTypes,
     agentRuntimeProjectedSchemaComponents,
     agentRuntimeProjectedRunStatuses,

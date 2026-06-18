@@ -5265,6 +5265,12 @@ function formatActionRunAgentRuntimeStepKinds(run: ActionRunDiagnosticsItem) {
   return `Agent runtime step kinds ${run.agentRuntimeStepKinds.join(' | ')}`;
 }
 
+function formatActionRunAgentRuntimeDiagnosticsFingerprint(
+  run: ActionRunDiagnosticsItem
+) {
+  return `Agent runtime diagnostics fingerprint ${run.agentRuntimeDiagnosticsFingerprint}`;
+}
+
 function formatActionRunAgentRuntimeProjectionContractFingerprint(
   run: ActionRunDiagnosticsItem
 ) {
@@ -5606,6 +5612,7 @@ function buildActionRunDiagnosticsText(run: ActionRunDiagnosticsItem) {
     run.errorCode ? `Error ${run.errorCode}` : null,
     `Created ${run.createdAt}`,
     `Updated ${run.updatedAt}`,
+    formatActionRunAgentRuntimeDiagnosticsFingerprint(run),
     `Agent runtime projection ${run.agentRuntimeProjectionSource}`,
     formatActionRunAgentRuntimeProjectionContractFingerprint(run),
     `Agent runtime run ${run.agentRuntimeRunId}`,
@@ -5755,6 +5762,9 @@ function ActionRunRecentList({
                     Agent runtime {formatFeatureKind(run.agentRuntimeRunStatus)}{' '}
                     / {run.agentRuntimeStepCount} step
                     {run.agentRuntimeStepCount === 1 ? '' : 's'}
+                  </div>
+                  <div className="mt-1 break-words text-xs text-muted-foreground">
+                    {formatActionRunAgentRuntimeDiagnosticsFingerprint(run)}
                   </div>
                   <div className="mt-1 break-words text-xs text-muted-foreground">
                     {formatActionRunAgentRuntimeProjectionContractFingerprint(

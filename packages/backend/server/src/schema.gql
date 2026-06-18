@@ -613,6 +613,7 @@ type CopilotActionRunAgentRuntimeTimelineItemType {
 type CopilotActionRunDiagnosticsItemType {
   actionId: String!
   actionVersion: String!
+  agentRuntimeDiagnosticsFingerprint: String!
   agentRuntimeNativeTraceEventTypes: [String!]!
   agentRuntimeProjectedSchemaComponents: [String!]!
   agentRuntimeProjectedRunStatuses: [String!]!

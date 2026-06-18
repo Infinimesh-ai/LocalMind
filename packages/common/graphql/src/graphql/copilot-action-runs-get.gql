@@ -4,6 +4,7 @@ query getCopilotActionRuns($workspaceId: String!, $limit: SafeInt) {
       actionRuns(limit: $limit) {
         actionId
         actionVersion
+        agentRuntimeDiagnosticsFingerprint
         agentRuntimeNativeTraceEventTypes
         agentRuntimeProjectedSchemaComponents
         agentRuntimeProjectedRunStatuses

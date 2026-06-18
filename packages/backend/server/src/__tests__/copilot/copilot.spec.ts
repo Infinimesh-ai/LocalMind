@@ -290,6 +290,55 @@ function actionRunAgentRuntimeProjectionContractFingerprintFromDiagnosticsFixtur
   });
 }
 
+function actionRunAgentRuntimeDiagnosticsFingerprintFixture(input: {
+  agentRuntimeNativeTraceEventTypes: string[];
+  agentRuntimeProjectionContractFingerprint: string;
+  agentRuntimeTimelineRouteEvidenceSetFingerprint: string;
+  hasPreparedRouteTrace: boolean;
+  preparedRouteActualCount: number;
+  preparedRouteCount: number;
+  preparedRouteStepCount: number;
+  preparedRouteStepRouteCountMismatches: string[];
+  preparedRouteStepRouteCounts: string[];
+}) {
+  return createHash('sha256')
+    .update(
+      stableActionRunDiagnosticsStringifyFixture({
+        version: 'agent-runtime-diagnostics/v1',
+        ...input,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function actionRunAgentRuntimeDiagnosticsFingerprintFromDiagnosticsFixture(item: {
+  agentRuntimeNativeTraceEventTypes: string[];
+  agentRuntimeProjectionContractFingerprint: string;
+  agentRuntimeTimelineRouteEvidenceSetFingerprint: string;
+  hasPreparedRouteTrace: boolean;
+  preparedRouteActualCount: number;
+  preparedRouteCount: number;
+  preparedRouteStepCount: number;
+  preparedRouteStepRouteCountMismatches: string[];
+  preparedRouteStepRouteCounts: string[];
+}) {
+  return actionRunAgentRuntimeDiagnosticsFingerprintFixture({
+    agentRuntimeNativeTraceEventTypes: item.agentRuntimeNativeTraceEventTypes,
+    agentRuntimeProjectionContractFingerprint:
+      item.agentRuntimeProjectionContractFingerprint,
+    agentRuntimeTimelineRouteEvidenceSetFingerprint:
+      item.agentRuntimeTimelineRouteEvidenceSetFingerprint,
+    hasPreparedRouteTrace: item.hasPreparedRouteTrace,
+    preparedRouteActualCount: item.preparedRouteActualCount,
+    preparedRouteCount: item.preparedRouteCount,
+    preparedRouteStepCount: item.preparedRouteStepCount,
+    preparedRouteStepRouteCountMismatches:
+      item.preparedRouteStepRouteCountMismatches,
+    preparedRouteStepRouteCounts: item.preparedRouteStepRouteCounts,
+  });
+}
+
 const test = ava as TestFn<Context>;
 let userId: string;
 let restoreMockCopilotNativeRuntime: (() => void) | undefined;
@@ -4114,6 +4163,22 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
     failedDiagnostics?.agentRuntimeProjectionContractFingerprint,
     failedDiagnostics
       ? actionRunAgentRuntimeProjectionContractFingerprintFromDiagnosticsFixture(
+          failedDiagnostics
+        )
+      : undefined
+  );
+  t.is(
+    successfulDiagnostics?.agentRuntimeDiagnosticsFingerprint,
+    successfulDiagnostics
+      ? actionRunAgentRuntimeDiagnosticsFingerprintFromDiagnosticsFixture(
+          successfulDiagnostics
+        )
+      : undefined
+  );
+  t.is(
+    failedDiagnostics?.agentRuntimeDiagnosticsFingerprint,
+    failedDiagnostics
+      ? actionRunAgentRuntimeDiagnosticsFingerprintFromDiagnosticsFixture(
           failedDiagnostics
         )
       : undefined

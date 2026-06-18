@@ -3789,6 +3789,9 @@ class CopilotActionRunDiagnosticsItemType implements CopilotActionRunDiagnostics
   @Field(() => String)
   actionVersion!: string;
 
+  @Field(() => String)
+  agentRuntimeDiagnosticsFingerprint!: string;
+
   @Field(() => [String])
   agentRuntimeNativeTraceEventTypes!: string[];
 
