@@ -2547,6 +2547,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             reasons
             requestedModelId
             routeModelDefinitionId
+            routeTracePhases
             scope
           }
           category

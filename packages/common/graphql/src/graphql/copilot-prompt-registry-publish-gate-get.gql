@@ -618,6 +618,7 @@ query getCopilotPromptRegistryPublishGate(
             reasons
             requestedModelId
             routeModelDefinitionId
+            routeTracePhases
             scope
           }
           category

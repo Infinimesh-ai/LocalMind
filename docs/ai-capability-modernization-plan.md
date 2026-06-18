@@ -12385,3 +12385,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - candidate evidence 仍不携带 route trace phases、policy candidates 全量排序、provider health freshness、capability metadata、embedding dimensions、latency、cost 或 token usage。
 - 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 363. P3 落地记录：Task Route Trace Phase Candidate Evidence
+
+本轮继续收敛第 362 节剩余风险中 “candidate evidence 仍不携带 route trace phases” 的问题。实际代码与目标 AI 中间层架构的冲突点是：完整 route explain、support bundle 与 repair guard 应该能把 route trace phase、候选排序、health/capability/cost 等证据纳入同一份审计 snapshot；但当前 Prompt Registry repair candidate evidence 虽然已经携带 prepared targets、target fingerprint 与 fallback provider order，仍不能证明 recommendation 生成时 task route diagnostics 经过了哪些 trace phase。本轮先把 task route 的 phase 名称顺序纳入只读 candidate evidence。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 新增 `routeTracePhases`。
+  - `taskRouteCandidateProfileStructuredEvidence()` 为 policy candidate、route candidate 与 prepare candidate evidence 统一写入当前 task route 的 `routeTrace.map(phase => phase.phase)`。
+  - 该字段只记录 phase 名称顺序，不复制每个 phase 的 candidate/count/reason 明细；完整 trace 明细仍保留在 task route diagnostics。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、common query string 与 `GetCopilotPromptRegistryPublishGateQuery` 类型同步新增 repair candidate evidence 的 `routeTracePhases`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence diagnostics text 在存在 phase summary 时显示 `route phases ...`，让 copyable publish gate/repair evidence 可以同时看到 target、fallback 与 phase 顺序。
+- 测试覆盖：
+  - resolver source chain smoke 断言 task diagnostics repair recommendation 的 policy/route/prepare candidate evidence 都携带与 task route 一致的 `routeTracePhases`。
+  - Admin Vitest fixture 为 task route repair candidate evidence 注入 phase list，并断言 diagnostics text 显示该 phase order。
+
+该实现只扩展只读 repair candidate evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 Model Registry/Provider Registry revision row、不改变 repair action catalog、不新增 mutation input、不改变 preview/preflight/execution gate 字段名、不改变 provider route selection、fallback order、route policy、Prompt Registry publish gate 判定、embedding/rerank request 参数、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter 或审批写入路径。它把 task route candidate evidence 从“绑定 target/fallback，但缺少 route trace phase summary”推进到“candidate evidence snapshot 自身也携带 route phase order”，为后续 support bundle、route explain、repair guard、DB-backed route event 与 Model Registry revision 对齐提供更完整的过渡证据链。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused Prettier、oxlint、resolver source chain smoke 与 Admin AI Vitest。
+
+剩余风险：
+
+- `routeTracePhases`、`fallbackProviderIds`、`preparedRouteTargets` 与 fingerprint 仍只来自 diagnostics probe 的 prepared route projection，不代表后续真实 embedding/rerank 调用一定经过同一 phase 结果、按同一 fallback 顺序命中 provider/model、latency、cost、token/embedding usage、provider response 或真实 dispatch result。
+- candidate evidence 仍不携带完整 route trace phase counts/reasons、policy candidates 全量排序、provider health freshness、capability metadata、embedding dimensions、latency、cost 或 token usage。
+- 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

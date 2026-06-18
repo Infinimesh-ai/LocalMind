@@ -1521,6 +1521,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   reasons: [String!]!
   requestedModelId: String
   routeModelDefinitionId: String
+  routeTracePhases: [String!]
   scope: String!
 }
 

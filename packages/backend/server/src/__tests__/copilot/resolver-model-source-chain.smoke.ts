@@ -5595,6 +5595,11 @@ async function main() {
     taskDiagnosticsErrorRoute?.fallbackProviderIds,
     'policy candidate evidence should bind the task route fallback providers'
   );
+  assert.deepEqual(
+    taskDiagnosticsPolicyCandidateEvidence?.routeTracePhases,
+    taskDiagnosticsErrorRoute?.routeTrace.map(phase => phase.phase),
+    'policy candidate evidence should bind the task route trace phases'
+  );
   const taskDiagnosticsRouteCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'routeCandidate'
@@ -5634,6 +5639,11 @@ async function main() {
     taskDiagnosticsErrorRoute?.fallbackProviderIds,
     'route candidate evidence should bind the task route fallback providers'
   );
+  assert.deepEqual(
+    taskDiagnosticsRouteCandidateEvidence?.routeTracePhases,
+    taskDiagnosticsErrorRoute?.routeTrace.map(phase => phase.phase),
+    'route candidate evidence should bind the task route trace phases'
+  );
   const taskDiagnosticsPrepareCandidateEvidence =
     taskDiagnosticsErrorRepair?.candidateEvidence?.find(
       evidence => evidence.scope === 'prepareCandidate'
@@ -5668,6 +5678,11 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.fallbackProviderIds,
     taskDiagnosticsErrorRoute?.fallbackProviderIds,
     'prepare candidate evidence should bind the task route fallback providers'
+  );
+  assert.deepEqual(
+    taskDiagnosticsPrepareCandidateEvidence?.routeTracePhases,
+    taskDiagnosticsErrorRoute?.routeTrace.map(phase => phase.phase),
+    'prepare candidate evidence should bind the task route trace phases'
   );
   const taskDiagnosticsErrorPreviewOperation =
     taskDiagnosticsErrorGate?.repairActionPreview.operations.find(

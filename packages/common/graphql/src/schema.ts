@@ -1738,6 +1738,7 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   reasons: Array<Scalars['String']['output']>;
   requestedModelId?: Maybe<Scalars['String']['output']>;
   routeModelDefinitionId?: Maybe<Scalars['String']['output']>;
+  routeTracePhases?: Maybe<Array<Scalars['String']['output']>>;
   scope: Scalars['String']['output'];
 }
 
@@ -7837,6 +7838,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             reasons: Array<string>;
             requestedModelId: string | null;
             routeModelDefinitionId: string | null;
+            routeTracePhases: Array<string> | null;
             scope: string;
           }> | null;
           category: string;

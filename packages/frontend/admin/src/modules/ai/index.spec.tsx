@@ -1994,6 +1994,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             reasons: ['policy_allowed'],
             requestedModelId: null,
             routeModelDefinitionId: null,
+            routeTracePhases: blockedRoute.routeTrace.map(phase => phase.phase),
             scope: 'policyCandidate',
           }),
           candidateEvidenceFixture({
@@ -2020,6 +2021,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             reasons: ['model_alias_matched'],
             requestedModelId: 'workspace-embedding',
             routeModelDefinitionId: 'workspace-embedding',
+            routeTracePhases: blockedRoute.routeTrace.map(phase => phase.phase),
             scope: 'routeCandidate',
           }),
           candidateEvidenceFixture({
@@ -2046,6 +2048,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             reasons: ['prepared_route_candidate'],
             requestedModelId: 'workspace-embedding',
             routeModelDefinitionId: 'workspace-embedding',
+            routeTracePhases: blockedRoute.routeTrace.map(phase => phase.phase),
             scope: 'prepareCandidate',
           }),
         ],
@@ -5963,6 +5966,9 @@ describe('AiPage', () => {
     );
     expect(readyGateDiagnostics).toContain(
       `fallback ${blockedRoute.fallbackProviderIds.join(' -> ')}`
+    );
+    expect(readyGateDiagnostics).toContain(
+      `route phases ${blockedRoute.routeTrace.map(phase => phase.phase).join(' -> ')}`
     );
     expect(readyGateDiagnostics).toContain(
       'provider ollama-main / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding'

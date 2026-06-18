@@ -719,6 +719,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   reasons: string[];
   requestedModelId?: string;
   routeModelDefinitionId?: string;
+  routeTracePhases?: string[];
   scope: string;
 };
 
@@ -1745,6 +1746,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   routeModelDefinitionId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeModelDefinitionId'];
+
+  @Field(() => [String], { nullable: true })
+  routeTracePhases?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeTracePhases'];
 
   @Field(() => String)
   scope!: CopilotPromptRegistryPublishGateRepairCandidateEvidence['scope'];
@@ -4068,6 +4072,7 @@ function taskRouteRepairCandidateEvidenceBase(
     reasons?: string[];
     requestedModelId?: string;
     routeModelDefinitionId?: string;
+    routeTracePhases?: string[];
   },
   index: number
 ): Omit<
@@ -4139,6 +4144,9 @@ function taskRouteRepairCandidateEvidenceBase(
     ...(candidate.routeModelDefinitionId !== undefined
       ? { routeModelDefinitionId: candidate.routeModelDefinitionId }
       : {}),
+    ...(candidate.routeTracePhases !== undefined
+      ? { routeTracePhases: candidate.routeTracePhases }
+      : {}),
     scope,
   };
 }
@@ -4169,6 +4177,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       reasons?: string[];
       requestedModelId?: string;
       routeModelDefinitionId?: string;
+      routeTracePhases?: string[];
     },
     index: number
   ): CopilotPromptRegistryPublishGateRepairCandidateEvidence => {
@@ -4179,6 +4188,7 @@ function taskRouteCandidateProfileStructuredEvidence(
         fallbackProviderIds: route.fallbackProviderIds,
         preparedRouteTargets: route.preparedRouteTargets,
         preparedRouteTargetFingerprint: route.preparedRouteTargetFingerprint,
+        routeTracePhases: route.routeTrace.map(phase => phase.phase),
       },
       index
     );
