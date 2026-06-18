@@ -5735,24 +5735,66 @@ function buildActionRunDiagnosticsManifestFilename(runId: string) {
   return `action-run-diagnostics-manifest-${safeRunId}.json`;
 }
 
-function buildActionRunDiagnosticsManifestExportMetadata(
+function buildActionRunDiagnosticsManifestMetadataFilename(runId: string) {
+  const safeRunId =
+    runId.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'run';
+
+  return `action-run-diagnostics-manifest-metadata-${safeRunId}.json`;
+}
+
+function buildActionRunDiagnosticsManifestExportMetadataArtifact(
   run: ActionRunDiagnosticsItem
 ) {
   const manifest = run.agentRuntimeDiagnosticsManifest;
 
+  return {
+    version: 'action-run-diagnostics-manifest-export-metadata/v1',
+    artifact: 'action_run_diagnostics_manifest_json',
+    filename: buildActionRunDiagnosticsManifestFilename(run.id),
+    mime: 'application/json;charset=utf-8',
+    metadataFilename: buildActionRunDiagnosticsManifestMetadataFilename(run.id),
+    manifestVersion: manifest.version,
+    manifestFingerprint: manifest.fingerprint,
+    actionId: manifest.actionId,
+    actionVersion: manifest.actionVersion,
+    runId: run.id,
+    runStatus: manifest.runStatus,
+    projectionSource: manifest.projectionSource,
+    schemaReadiness: manifest.schemaReadiness,
+    boundary: 'manifest_only_no_raw_trace_or_provider_payload',
+  };
+}
+
+function buildActionRunDiagnosticsManifestExportMetadata(
+  run: ActionRunDiagnosticsItem
+) {
+  const metadata = buildActionRunDiagnosticsManifestExportMetadataArtifact(run);
+
   return [
-    `Export artifact action_run_diagnostics_manifest_json`,
-    `Filename ${buildActionRunDiagnosticsManifestFilename(run.id)}`,
-    `MIME application/json;charset=utf-8`,
-    `Manifest ${manifest.version}`,
-    `Fingerprint ${manifest.fingerprint}`,
-    `Action ${manifest.actionId}@${manifest.actionVersion}`,
-    `Run ${run.id}`,
-    `Run status ${manifest.runStatus}`,
-    `Projection source ${manifest.projectionSource}`,
-    `Schema readiness ${manifest.schemaReadiness}`,
-    `Boundary manifest_only_no_raw_trace_or_provider_payload`,
+    `Export artifact ${metadata.artifact}`,
+    `Filename ${metadata.filename}`,
+    `MIME ${metadata.mime}`,
+    `Metadata filename ${metadata.metadataFilename}`,
+    `Metadata ${metadata.version}`,
+    `Manifest ${metadata.manifestVersion}`,
+    `Fingerprint ${metadata.manifestFingerprint}`,
+    `Action ${metadata.actionId}@${metadata.actionVersion}`,
+    `Run ${metadata.runId}`,
+    `Run status ${metadata.runStatus}`,
+    `Projection source ${metadata.projectionSource}`,
+    `Schema readiness ${metadata.schemaReadiness}`,
+    `Boundary ${metadata.boundary}`,
   ].join('\n');
+}
+
+function buildActionRunDiagnosticsManifestExportMetadataJson(
+  run: ActionRunDiagnosticsItem
+) {
+  return JSON.stringify(
+    buildActionRunDiagnosticsManifestExportMetadataArtifact(run),
+    null,
+    2
+  );
 }
 
 function downloadActionRunDiagnosticsManifestJson(
@@ -5774,13 +5816,34 @@ function downloadActionRunDiagnosticsManifestJson(
   URL.revokeObjectURL(url);
 }
 
+function downloadActionRunDiagnosticsManifestMetadataJson(
+  runId: string,
+  metadataJson: string
+) {
+  const blob = new Blob([metadataJson], {
+    type: 'application/json;charset=utf-8',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href = url;
+  link.download = buildActionRunDiagnosticsManifestMetadataFilename(runId);
+  link.style.display = 'none';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function ActionRunDiagnosticsPanel({
   diagnosticsText,
+  exportMetadataJson,
   exportMetadataText,
   manifestJson,
   runId,
 }: {
   diagnosticsText: string;
+  exportMetadataJson: string;
   exportMetadataText: string;
   manifestJson: string;
   runId: string;
@@ -5831,12 +5894,43 @@ function ActionRunDiagnosticsPanel({
           >
             Copy metadata
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              navigator.clipboard
+                ?.writeText(exportMetadataJson)
+                .catch(() => {});
+            }}
+          >
+            Copy metadata JSON
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              downloadActionRunDiagnosticsManifestMetadataJson(
+                runId,
+                exportMetadataJson
+              );
+            }}
+          >
+            Download metadata JSON
+          </Button>
         </div>
         <pre
           className="mt-1 whitespace-pre-wrap break-words text-xs text-muted-foreground"
           data-testid={`action-run-diagnostics-manifest-export-metadata-${runId}`}
         >
           {exportMetadataText}
+        </pre>
+        <pre
+          className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-muted-foreground"
+          data-testid={`action-run-diagnostics-manifest-export-metadata-json-${runId}`}
+        >
+          {exportMetadataJson}
         </pre>
         <pre
           className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-muted-foreground"
@@ -5892,6 +5986,8 @@ function ActionRunRecentList({
         <TableBody>
           {actionRuns.map(run => {
             const diagnosticsText = buildActionRunDiagnosticsText(run);
+            const exportMetadataJson =
+              buildActionRunDiagnosticsManifestExportMetadataJson(run);
             const exportMetadataText =
               buildActionRunDiagnosticsManifestExportMetadata(run);
             const manifestJson = buildActionRunDiagnosticsManifestJson(run);
@@ -6103,6 +6199,7 @@ function ActionRunRecentList({
                         ) : null}
                         <ActionRunDiagnosticsPanel
                           diagnosticsText={diagnosticsText}
+                          exportMetadataJson={exportMetadataJson}
                           exportMetadataText={exportMetadataText}
                           manifestJson={manifestJson}
                           runId={run.id}
@@ -6111,6 +6208,7 @@ function ActionRunRecentList({
                     ) : (
                       <ActionRunDiagnosticsPanel
                         diagnosticsText={diagnosticsText}
+                        exportMetadataJson={exportMetadataJson}
                         exportMetadataText={exportMetadataText}
                         manifestJson={manifestJson}
                         runId={run.id}

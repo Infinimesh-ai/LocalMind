@@ -8232,6 +8232,12 @@ describe('AiPage', () => {
       'MIME application/json;charset=utf-8'
     );
     expect(actionRunExportMetadata).toContain(
+      'Metadata filename action-run-diagnostics-manifest-metadata-run-123.json'
+    );
+    expect(actionRunExportMetadata).toContain(
+      'Metadata action-run-diagnostics-manifest-export-metadata/v1'
+    );
+    expect(actionRunExportMetadata).toContain(
       'Manifest agent-runtime-diagnostics-manifest/v1'
     );
     expect(actionRunExportMetadata).toContain(
@@ -8254,6 +8260,32 @@ describe('AiPage', () => {
     );
     await waitFor(() => {
       expect(writeTextMock).toHaveBeenCalledWith(actionRunExportMetadata);
+    });
+    const actionRunExportMetadataJson =
+      screen.getByTestId(
+        'action-run-diagnostics-manifest-export-metadata-json-run-123'
+      ).textContent ?? '';
+    expect(JSON.parse(actionRunExportMetadataJson)).toEqual({
+      actionId: 'mindmap.generate',
+      actionVersion: 'v1',
+      artifact: 'action_run_diagnostics_manifest_json',
+      boundary: 'manifest_only_no_raw_trace_or_provider_payload',
+      filename: 'action-run-diagnostics-manifest-run-123.json',
+      manifestFingerprint: actionRunAgentRuntimeDiagnosticsFingerprint,
+      manifestVersion: 'agent-runtime-diagnostics-manifest/v1',
+      metadataFilename: 'action-run-diagnostics-manifest-metadata-run-123.json',
+      mime: 'application/json;charset=utf-8',
+      projectionSource: 'ai_action_run_agent_runtime_projection/v1',
+      runId: 'run-123',
+      runStatus: 'completed',
+      schemaReadiness: 'projection_contract_only',
+      version: 'action-run-diagnostics-manifest-export-metadata/v1',
+    });
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'Copy metadata JSON' })[0]
+    );
+    await waitFor(() => {
+      expect(writeTextMock).toHaveBeenCalledWith(actionRunExportMetadataJson);
     });
     const actionRunManifestJson =
       screen.getByTestId('action-run-diagnostics-manifest-json-run-123')
@@ -8282,6 +8314,17 @@ describe('AiPage', () => {
     expect(revokeObjectURLMock).toHaveBeenCalledWith(
       'blob:action-run-manifest'
     );
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'Download metadata JSON' })[0]
+    );
+    expect(createObjectURLMock).toHaveBeenCalledTimes(2);
+    const metadataDownloadAnchor = anchorClickMock.mock
+      .contexts[1] as HTMLAnchorElement;
+    expect(metadataDownloadAnchor.download).toBe(
+      'action-run-diagnostics-manifest-metadata-run-123.json'
+    );
+    expect(metadataDownloadAnchor.href).toBe('blob:action-run-manifest');
+    expect(revokeObjectURLMock).toHaveBeenCalledTimes(2);
     expect(actionRunDiagnostics).toContain(
       'Agent runtime projection ai_action_run_agent_runtime_projection/v1'
     );
@@ -8424,9 +8467,27 @@ describe('AiPage', () => {
     expect(failedRunExportMetadata).toContain(
       'Filename action-run-diagnostics-manifest-run-failed.json'
     );
+    expect(failedRunExportMetadata).toContain(
+      'Metadata filename action-run-diagnostics-manifest-metadata-run-failed.json'
+    );
     expect(failedRunExportMetadata).toContain('Run status failed');
     expect(failedRunExportMetadata).toContain(
       'Boundary manifest_only_no_raw_trace_or_provider_payload'
+    );
+    const failedRunExportMetadataJson =
+      screen.getByTestId(
+        'action-run-diagnostics-manifest-export-metadata-json-run-failed'
+      ).textContent ?? '';
+    expect(JSON.parse(failedRunExportMetadataJson)).toEqual(
+      expect.objectContaining({
+        boundary: 'manifest_only_no_raw_trace_or_provider_payload',
+        filename: 'action-run-diagnostics-manifest-run-failed.json',
+        metadataFilename:
+          'action-run-diagnostics-manifest-metadata-run-failed.json',
+        runId: 'run-failed',
+        runStatus: 'failed',
+        version: 'action-run-diagnostics-manifest-export-metadata/v1',
+      })
     );
     expect(failedRunDiagnostics).toContain('Action run run-failed');
     expect(failedRunDiagnostics).toContain('Status Failed');
