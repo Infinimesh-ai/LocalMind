@@ -13391,3 +13391,32 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 本轮只绑定 execution request 的核心只读 artifact，没有把该字段扩展到 execution completion/finalization/status poll、job run、run step、retry attempt、retention、archive、rollback executor/outcome 等更广泛生命周期 artifact；这些仍通过相邻 artifact fingerprint、candidate evidence set、submission、preflight 或顶层 request fingerprint 间接感知。
 - 该字段仍不是真实 repair mutation 写入 guard、持久化 route event、support bundle schema、Model Registry revision、Provider Registry revision、provider response、latency、usage、cost 或最终索引写入结果。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 396. P3 落地记录：Prompt Default Fallback Route Provenance
+
+本轮继续收敛自部署模型列表与 Prompt 默认模型 diagnostics 的来源表达问题。实际代码与目标 AI 中间层架构的冲突点是：`CopilotResolver.models()` 已能在 prompt default model 不可路由时返回 `defaultModelSource: fallback_route` 与 `defaultModelFallbackReason: prompt_default_unavailable`，但被选中的 fallback default 候选仍以 `default` candidate source 进入 `sources` / `promptModelSources`。这会让 Admin 与 AI button 模型列表把 fallback route 误读成 prompt default policy 命中，弱化自部署管理员排查“默认模型不可路由后实际使用了哪个 registry/provider fallback”的能力。本轮将 active fallback default 的候选来源明确标记为 `fallback_route`，不改变真实 provider route selection 或 fallback 顺序。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotModelSource` 新增 `fallback_route`，并在 prompt default 不可路由时把默认候选写入 `fallback_route` source，而不是继续写入 `default` source。
+  - `resolvePromptModelProvenance()` 对 `fallback_route` 只输出 `{ candidateSource: 'fallback_route' }`，避免把不可路由的 prompt default model config path/source 继承到 active fallback 候选上。
+  - 当同一个 fallback model 同时来自 optional prompt 或 pro model 时，既有 `prompt` / `pro` 顶层 provenance 仍保留优先级；单纯 fallback+registry 命中的候选则不再展示 prompt default policy 作为 model source。
+- `packages/frontend/core/src/modules/ai-button/services/models.ts`：
+  - 模型来源标签新增 `Fallback Route`。
+  - `formatAIModelSourcesLabel()` 在 `sources` 已包含 `fallback_route` 时不再因 `isDefault` 额外补入 `Default`，避免菜单与 diagnostics 同时显示互相冲突的 default/fallback 来源。
+- 测试覆盖：
+  - resolver source chain smoke 新增 prompt default 不可路由、fallback route 命中 registry model 的场景，断言 `defaultModelSource`、fallback reason、`promptModelSources` 与 `sources` 都使用 `fallback_route`。
+  - core model service 与 Admin Vitest fixture/断言同步覆盖 `Fallback Route -> Registry`、`Fallback Route / Registry` 与 fallback+prompt+registry 的来源展示。
+
+该实现只调整只读模型列表 provenance、前端 diagnostics 文案与测试 fixture，不新增 GraphQL 字段、不新增 DB migration、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、审批写入路径、repair mutation guard、support bundle schema、Model Registry revision 或 Provider Registry revision。它把 prompt default fallback 从“默认模型来源与 fallback 路由来源混在一起显示”推进到“active fallback default 有独立 candidate source”，为后续 Model Registry / Prompt Registry / route explain 对齐提供更清晰的只读来源链。
+
+验证策略：
+
+- 本轮为 TypeScript/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、core/admin Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `fallback_route` 仍是模型列表 diagnostics provenance，不代表后续真实 chat/agent dispatch 已持久化 route event、provider response、latency、usage、cost 或最终执行结果。
+- 本轮没有新增 GraphQL enum 或 codegen 类型收敛；相关字段当前仍通过既有 string scalar 传输，后续若推进 Model Registry / Prompt Registry contract 强类型化，需要同步收敛 schema 与客户端类型。
+- fallback route 命中 provider runtime alias 时仍依赖当前 resolver/provider adapter 返回的 route metadata；它不替代完整 provider registry revision、native model registry revision 或 support bundle schema。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

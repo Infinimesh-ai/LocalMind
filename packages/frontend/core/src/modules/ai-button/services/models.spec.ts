@@ -2059,17 +2059,16 @@ describe('AIModelService model registry helpers', () => {
           promptSource: 'built_in',
           promptCategory: 'text',
           promptDefaultPolicy: 'text',
-          promptModelConfigPath: 'copilot.prompts.defaults.text.model',
-          promptModelSource: 'default_policy',
+          promptModelConfigPath: 'copilot.prompts.overrides[].optionalModels',
+          promptModelSource: 'override',
           promptModelSources: [
             {
-              candidateSource: 'default',
-              modelConfigPath: 'copilot.prompts.defaults.text.model',
-              modelSource: 'default_policy',
+              candidateSource: 'fallback_route',
             },
             {
               candidateSource: 'prompt',
-              modelSource: 'built_in',
+              modelConfigPath: 'copilot.prompts.overrides[].optionalModels',
+              modelSource: 'override',
             },
             {
               candidateSource: 'registry',
@@ -2119,7 +2118,7 @@ describe('AIModelService model registry helpers', () => {
           embeddingDimensions: null,
           costInputPer1M: 0.2,
           costOutputPer1M: 0.8,
-          sources: ['default', 'prompt', 'registry'],
+          sources: ['fallback_route', 'prompt', 'registry'],
           routePolicyEnabled: true,
           routePolicyFeatureKind: 'chat',
           routePolicyWorkspaceId: null,
@@ -2300,17 +2299,16 @@ describe('AIModelService model registry helpers', () => {
         promptCategory: 'text',
         promptDefaultModel: 'gemini-2.5-flash',
         promptDefaultPolicy: 'text',
-        promptModelConfigPath: 'copilot.prompts.defaults.text.model',
-        promptModelSource: 'default_policy',
+        promptModelConfigPath: 'copilot.prompts.overrides[].optionalModels',
+        promptModelSource: 'override',
         promptModelSources: [
           {
-            candidateSource: 'default',
-            modelConfigPath: 'copilot.prompts.defaults.text.model',
-            modelSource: 'default_policy',
+            candidateSource: 'fallback_route',
           },
           {
             candidateSource: 'prompt',
-            modelSource: 'built_in',
+            modelConfigPath: 'copilot.prompts.overrides[].optionalModels',
+            modelSource: 'override',
           },
           {
             candidateSource: 'registry',
@@ -2360,7 +2358,7 @@ describe('AIModelService model registry helpers', () => {
         embeddingDimensions: null,
         costInputPer1M: 0.2,
         costOutputPer1M: 0.8,
-        sources: ['default', 'prompt', 'registry'],
+        sources: ['fallback_route', 'prompt', 'registry'],
         routePolicyEnabled: true,
         routePolicyFeatureKind: 'chat',
         routePolicyWorkspaceId: null,
@@ -2890,6 +2888,13 @@ describe('AIModelService model registry helpers', () => {
         isPro: false,
       })
     ).toBe('Default');
+    expect(
+      formatAIModelSourcesLabel({
+        sources: ['fallback_route', 'registry'],
+        isDefault: true,
+        isPro: false,
+      })
+    ).toBe('Fallback Route / Registry');
   });
 
   test('formats resolved route labels for the model menu', () => {
@@ -3563,13 +3568,11 @@ describe('AIModelService model registry helpers', () => {
         defaultModelSource: 'fallback_route',
         defaultModelFallbackReason: 'prompt_default_unavailable',
         promptDefaultPolicy: 'text',
-        promptModelConfigPath: 'copilot.prompts.defaults.text.model',
-        promptModelSource: 'default_policy',
+        promptModelConfigPath: null,
+        promptModelSource: null,
         promptModelSources: [
           {
-            candidateSource: 'default',
-            modelConfigPath: 'copilot.prompts.defaults.text.model',
-            modelSource: 'default_policy',
+            candidateSource: 'fallback_route',
           },
           {
             candidateSource: 'registry',
@@ -3743,7 +3746,7 @@ describe('AIModelService model registry helpers', () => {
           fallbackProviderIds: ['ollama-main'],
           candidateCount: 1,
         },
-        sources: ['default', 'registry'],
+        sources: ['fallback_route', 'registry'],
         routePolicyEnabled: true,
         routePolicyFeatureKind: 'chat',
         routePolicyWorkspaceId: 'workspace-local-only',
@@ -3757,7 +3760,7 @@ describe('AIModelService model registry helpers', () => {
     ).toBe(
       [
         'Candidate ollama-main/office-chat-fast',
-        'Prompt Chat With AFFiNE AI / Built-in / Prompt default gemini-2.5-flash / Default source Fallback Route / Fallback Prompt default unavailable / Model source Prompt default policy / Config copilot.prompts.defaults.text.model / Source chain Default Prompt default policy config copilot.prompts.defaults.text.model -> Registry / Category Text / Text default',
+        'Prompt Chat With AFFiNE AI / Built-in / Prompt default gemini-2.5-flash / Default source Fallback Route / Fallback Prompt default unavailable / Source chain Fallback Route -> Registry / Category Text / Text default',
         'Provider Local Ollama (ollama-main) / BYOK local / Local / Healthy',
         'Provider profile Profile ollama-main / BYOK local / config workspace.byok.local / 3 configured models / models office-chat-fast, office-chat, qwen-office',
         'Provider health Checked 2026-06-15T10:00:00.000Z / Last error previous timeout',
@@ -3768,7 +3771,7 @@ describe('AIModelService model registry helpers', () => {
         'Capabilities Input text, image / Output text, structured',
         'Policy Chat / Workspace workspace-local-only / Allowed Local / Preferred Local, Cloud / Providers ollama-main / Blocked openai-default',
         'Task routes Workspace indexing / requested ollama-main/workspace-embedding / source Workspace indexing task model / config copilot.tasks.models.workspaceIndexing / ollama-main/nomic-embed-text / fallback ollama-main -> openai-default / 2 prepared providers / protocol openai_chat / layer chat_completions / backend openai_chat / canonical workspace-embedding / flags disable_batch_embeddings / profile Profile ollama-main / BYOK local / config workspace.byok.local / 2 configured models / models workspace-embedding, nomic-embed-text / policy Workspace indexing / Workspace workspace-local-only / Allowed Local, Private cloud / Preferred Local, Private cloud / Providers ollama-main, openai-default / Blocked blocked-cloud / prepared routes ollama-main/nomic-embed-text protocol openai_chat layer chat_completions backend openai_chat canonical workspace-embedding flags disable_batch_embeddings type openaiCompatible source BYOK local priority 10 profile Profile ollama-main / BYOK local / config workspace.byok.local / 2 configured models / models workspace-embedding, nomic-embed-text requested 1024d model 1024d -> openai-default/text-embedding-3-small protocol openai_responses layer responses backend openai_responses canonical workspace-embedding-fallback flags embedding_fallback type openai source Configured priority 1 profile Profile openai-default / Configured / config copilot.providers.profiles[id=openai-default] / 1 configured model / models text-embedding-3-small requested 1024d model 1024d / requested 1024d / model 1024d | Rerank / requested ollama-main/office-rerank / source Rerank task model / config copilot.tasks.models.rerank / ollama-main/bge-reranker-v2 / fallback ollama-main / 1 prepared provider / protocol openai_chat / layer chat_completions / backend openai_chat / canonical office-rerank / flags rerank_cross_encoder / profile Profile ollama-main / BYOK local / config workspace.byok.local / 2 configured models / models office-rerank, bge-reranker-v2 / policy Rerank / Workspace workspace-local-only / Allowed Local / Preferred Local / Providers ollama-main / Blocked blocked-cloud / prepared routes ollama-main/bge-reranker-v2 protocol openai_chat layer chat_completions backend openai_chat canonical office-rerank flags rerank_cross_encoder type openaiCompatible source BYOK local priority 10 profile Profile ollama-main / BYOK local / config workspace.byok.local / 2 configured models / models office-rerank, bge-reranker-v2 / 1 candidates',
-        'Sources Default / Registry',
+        'Sources Fallback Route / Registry',
         'Limits 32.8K ctx / 4.1K out',
         'Cost $0.2000/M in / $0.8000/M out',
       ].join('\n')

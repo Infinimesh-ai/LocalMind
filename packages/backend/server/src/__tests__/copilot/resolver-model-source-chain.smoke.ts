@@ -1602,6 +1602,80 @@ async function main() {
       modelSource: 'override',
     },
   ]);
+
+  const fallbackPrompt = {
+    ...prompt,
+    model: 'missing/default-chat',
+    modelConfigPath: 'copilot.prompts.defaults.text.model',
+    optionalModels: ['registry/only-chat'],
+    optionalModelsConfigPath: 'copilot.prompts.overrides[].optionalModels',
+  };
+  const fallbackProviderFactory = {
+    ...providerFactory,
+    getConfiguredModelIds() {
+      return ['registry/only-chat'];
+    },
+    async resolveModelId(condition: { modelId?: string }) {
+      if (condition.modelId === fallbackPrompt.model) {
+        return undefined;
+      }
+      return condition.modelId || 'registry/only-chat';
+    },
+  };
+  const fallbackResolver = new CopilotResolver(
+    {} as any,
+    {} as any,
+    { get: async () => fallbackPrompt } as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    fallbackProviderFactory as any,
+    capabilityRuntime as any,
+    taskPolicy as any,
+    {} as any
+  );
+  const fallbackResult = await fallbackResolver.models(promptName, {
+    workspaceId: 'workspace-smoke',
+  } as any);
+  assert.equal(fallbackResult.defaultModel, 'registry/only-chat');
+  assert.equal(fallbackResult.defaultModelSource, 'fallback_route');
+  assert.equal(
+    fallbackResult.defaultModelFallbackReason,
+    'prompt_default_unavailable'
+  );
+  assert.deepEqual(
+    fallbackResult.optionalModels.find(
+      model => model.id === 'registry/only-chat'
+    )?.promptModelSources,
+    [
+      { candidateSource: 'fallback_route' },
+      {
+        candidateSource: 'prompt',
+        modelConfigPath: 'copilot.prompts.overrides[].optionalModels',
+        modelSource: 'override',
+      },
+      { candidateSource: 'registry' },
+    ]
+  );
+  assert.deepEqual(
+    fallbackResult.optionalModels.find(
+      model => model.id === 'registry/only-chat'
+    )?.sources,
+    ['fallback_route', 'prompt', 'registry']
+  );
+  assert.equal(
+    fallbackResult.optionalModels.find(
+      model => model.id === 'registry/only-chat'
+    )?.promptModelConfigPath,
+    'copilot.prompts.overrides[].optionalModels'
+  );
+  assert.equal(
+    fallbackResult.optionalModels.find(
+      model => model.id === 'registry/only-chat'
+    )?.promptModelSource,
+    'override'
+  );
+
   assert.deepEqual(byId.get('registry/only-chat')?.promptModelSources, [
     { candidateSource: 'registry' },
   ]);

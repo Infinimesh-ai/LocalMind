@@ -604,6 +604,7 @@ const PROVIDER_PRIVACY_SORT_ORDER: Record<string, number> = {
 
 const MODEL_SOURCE_LABELS: Record<string, string> = {
   default: 'Default',
+  fallback_route: 'Fallback Route',
   prompt: 'Prompt',
   registry: 'Registry',
   pro: 'Pro',
@@ -2305,7 +2306,11 @@ export function formatAIModelSourcesLabel(
   model: Pick<AIModel, 'isDefault' | 'isPro' | 'sources'>
 ) {
   const sources = [...(model.sources ?? [])];
-  if (model.isDefault && !sources.includes('default')) {
+  if (
+    model.isDefault &&
+    !sources.includes('default') &&
+    !sources.includes('fallback_route')
+  ) {
     sources.unshift('default');
   }
   if (model.isPro && !sources.includes('pro')) {

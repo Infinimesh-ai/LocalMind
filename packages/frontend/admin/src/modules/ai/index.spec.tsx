@@ -1088,6 +1088,9 @@ const modelsPayload = {
       promptModelSource: 'override',
       promptModelSources: [
         {
+          candidateSource: 'fallback_route',
+        },
+        {
           candidateSource: 'prompt',
           modelConfigPath: 'copilot.prompts.overrides[].optionalModels',
           modelSource: 'override',
@@ -1134,7 +1137,7 @@ const modelsPayload = {
       routePolicyFeatureKind: 'chat',
       routePolicyPreferredPrivacy: ['local'],
       routePolicyWorkspaceId: null,
-      sources: ['prompt', 'registry'],
+      sources: ['fallback_route', 'prompt', 'registry'],
     },
   ],
   proModels: [],
@@ -6106,7 +6109,7 @@ describe('AiPage', () => {
     expect(screen.getByText('Model source Override')).not.toBeNull();
     expect(
       screen.getByText(
-        'Source chain Prompt Prompt override config copilot.prompts.overrides[].optionalModels -> Registry'
+        'Source chain Fallback Route -> Prompt Prompt override config copilot.prompts.overrides[].optionalModels -> Registry'
       )
     ).not.toBeNull();
     expect(
@@ -8239,7 +8242,9 @@ describe('AiPage', () => {
         'Provider profile / Definition workspace-embedding / Raw nomic-embed-text / Aliases nomic-embed-text'
       ).length
     ).toBeGreaterThan(0);
-    expect(screen.getAllByText('Default / Prompt / Registry').length).toBe(1);
+    expect(
+      screen.getAllByText('Fallback Route / Prompt / Registry').length
+    ).toBe(1);
     expect(screen.queryByText('prompt, registry')).toBeNull();
     expect(screen.getAllByText('Route openai-main/gpt-4o-mini').length).toBe(1);
     expect(screen.getAllByText('ollama-main -> openai-default').length).toBe(1);
@@ -8350,7 +8355,7 @@ describe('AiPage', () => {
     );
     expect(modelCandidateDiagnostics).toContain('Policy Chat');
     expect(modelCandidateDiagnostics).toContain(
-      'Sources Default / Prompt / Registry'
+      'Sources Fallback Route / Prompt / Registry'
     );
     expect(modelCandidateDiagnostics).toContain('Limits 128K ctx / 16K out');
     expect(modelCandidateDiagnostics).toContain(

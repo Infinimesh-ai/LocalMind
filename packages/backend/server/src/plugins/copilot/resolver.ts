@@ -479,7 +479,12 @@ class CopilotQuotaType {
   used!: number;
 }
 
-type CopilotModelSource = 'default' | 'prompt' | 'registry' | 'pro';
+type CopilotModelSource =
+  | 'default'
+  | 'fallback_route'
+  | 'prompt'
+  | 'registry'
+  | 'pro';
 
 type CopilotModelPromptSource = {
   candidateSource: CopilotModelSource;
@@ -14987,6 +14992,12 @@ export class CopilotResolver {
           };
         }
 
+        if (source === 'fallback_route') {
+          return {
+            candidateSource: source,
+          };
+        }
+
         if (source === 'prompt') {
           return {
             candidateSource: source,
@@ -15291,7 +15302,13 @@ export class CopilotResolver {
       rerankRoute: taskRoutes.rerankRoute,
       optionalModels: await convertModels(
         collectCandidates([
-          { id: defaultModel, source: 'default' },
+          {
+            id: defaultModel,
+            source:
+              defaultModelSource === 'fallback_route'
+                ? 'fallback_route'
+                : 'default',
+          },
           ...prompt.optionalModels.map(id => ({
             id,
             source: 'prompt' as const,
