@@ -3053,6 +3053,7 @@ export const getCopilotActionRunsQuery = {
         agentRuntimeTimelineGaps
         agentRuntimeTimelineItems {
           actualRouteCount
+          eventKey
           eventType
           id
           kind

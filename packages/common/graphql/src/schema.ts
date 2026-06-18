@@ -679,6 +679,7 @@ export interface CopilotActionRunDiagnosticsItemType {
 export interface CopilotActionRunAgentRuntimeTimelineItemType {
   __typename?: 'CopilotActionRunAgentRuntimeTimelineItemType';
   actualRouteCount: Scalars['SafeInt']['output'];
+  eventKey: Scalars['String']['output'];
   eventType: Scalars['String']['output'];
   id: Scalars['String']['output'];
   kind?: Maybe<Scalars['String']['output']>;
@@ -8362,6 +8363,7 @@ export type GetCopilotActionRunsQuery = {
         agentRuntimeTimelineItems: Array<{
           __typename?: 'CopilotActionRunAgentRuntimeTimelineItemType';
           actualRouteCount: number;
+          eventKey: string;
           eventType: string;
           id: string;
           kind: string | null;

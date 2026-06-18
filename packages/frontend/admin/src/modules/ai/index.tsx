@@ -4854,6 +4854,7 @@ function formatActionRunAgentRuntimeTimelineItem(
 ) {
   return compactList([
     `#${item.sequence}`,
+    `key ${item.eventKey}`,
     `Timeline ${formatFeatureKind(item.eventType)}`,
     `status ${formatFeatureKind(item.status)}`,
     item.stepId ? `step ${item.stepId}` : 'run',

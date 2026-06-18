@@ -12174,3 +12174,32 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - timeline item 仍不是持久化 Agent timeline event row；没有真实开始/结束时间、latency、token usage、cost、provider response、tool args、MCP server id、Codex sandbox policy、approval record、retry attempt id、rollback result 或 artifact patch。
 - 当前 sequence 仅覆盖 `run_status` 与 `model_step`，不覆盖真实 tool step、approval step、handoff step、Codex step、MCP step、step output/error、retry attempt、rollback state 或 cancellation event。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 356. P3 落地记录：Action Run Structured Timeline Event Key Projection
+
+本轮继续收敛第 355 节剩余风险中 “`sequence` 仍是从当前 projection 生成的静态顺序，不是持久化 event sequence、数据库自增序列、真实 event timestamp 或跨 worker ordering guarantee” 的问题。实际代码与目标 Agent Runtime UI 的冲突点是：`agentRuntimeTimelineItems.id` 当前同时承载 run id、数组 index、step id 与 event type，Admin、support bundle、trace export 或未来 repair guard 如果要定位某个 projected event，就可能继续解析 `id` 字符串。本轮先新增不含 run id 的局部 `eventKey`，明确事件定位语义，降低客户端从 `id` 反解析的依赖。
+
+- `packages/backend/server/src/models/copilot-action-run.ts`：
+  - `CopilotActionRunAgentRuntimeTimelineItem` 新增 `eventKey`。
+  - `run_status` item 使用 `eventKey: "run_status"`；prepared route `model_step` items 使用 `eventKey: "model_step:<stepId>"`，让当前最小 timeline 的局部定位键稳定可读。
+- GraphQL 与 common client：
+  - `CopilotActionRunAgentRuntimeTimelineItemType`、`schema.gql`、`getCopilotActionRuns` selection 与 `QueryResponse` 类型同步新增 `eventKey`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - 结构化 timeline item 摘要显示 `key <eventKey>`，让可见 block 和 copyable diagnostics text 能直接复制事件定位键。
+- 测试覆盖：
+  - `packages/backend/server/src/__tests__/copilot/copilot.spec.ts` 断言成功 run 与失败 run 的 timeline items 返回稳定 eventKey。
+  - `packages/frontend/admin/src/modules/ai/index.spec.tsx` 断言可见 timeline 与 diagnostics text 都显示 `key run_status`、`key model_step:generate` 与 `key model_step:generate-image`。
+
+该实现只扩展只读 action run diagnostics、GraphQL selection/type、Admin 渲染与测试，不新增 DB migration、不创建 AgentRun/AgentStep/timeline event 表、不新增 queue/worker/lease、不改变 native action runtime、不执行 tool/MCP/Codex/approval/handoff step，不记录 step output/error、retry attempt、rollback state 或 cancellation event。它把第 352-355 节的结构化 timeline projection 从“需要从 id 或 step 字段组合定位事件”推进到“每个只读 item 都带稳定局部 eventKey”，为后续正式 Agent timeline schema、event ingestion、support bundle、trace export 与 repair guard 提供更清晰的定位字段。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与宿主源码 bind mount 运行 focused Prettier、oxlint、backend copilot spec 与 Admin AI Vitest。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `eventKey` 仍是 action-run projection 的局部定位键，不是持久化 timeline event id、数据库主键、跨 retry attempt 的稳定 identity 或 Codex/MCP adapter event id。
+- 当前 eventKey 仅覆盖 `run_status` 与 `model_step:<stepId>`，不覆盖真实 tool step、approval step、handoff step、Codex step、MCP step、step output/error、retry attempt、rollback state 或 cancellation event。
+- timeline item 仍不是持久化 Agent timeline event row；没有真实开始/结束时间、latency、token usage、cost、provider response、tool args、MCP server id、Codex sandbox policy、approval record、retry attempt id、rollback result 或 artifact patch。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

@@ -3387,6 +3387,9 @@ class CopilotActionRunAgentRuntimeTimelineItemType implements CopilotActionRunAg
   @Field(() => String)
   id!: string;
 
+  @Field(() => String)
+  eventKey!: string;
+
   @Field(() => SafeIntResolver)
   sequence!: number;
 
