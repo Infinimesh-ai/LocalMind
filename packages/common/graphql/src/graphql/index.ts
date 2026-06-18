@@ -2598,6 +2598,8 @@ export const getCopilotPromptRegistryPublishGateQuery = {
         }
         repairRecommendations {
           candidateEvidence {
+            allowed
+            available
             candidateFingerprint
             candidateIndex
             candidateKey
@@ -2607,7 +2609,9 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             fallbackProviderIds
             health
             healthCheckedAt
+            matched
             modelId
+            prepared
             preparedModelId
             prepareCandidateSnapshotFingerprint
             preparedRouteSnapshotFingerprint

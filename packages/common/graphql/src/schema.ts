@@ -1744,6 +1744,8 @@ export interface CopilotPromptRegistryPublishGateRepairRecommendationType {
 
 export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   __typename?: 'CopilotPromptRegistryPublishGateRepairCandidateEvidenceType';
+  allowed?: Maybe<Scalars['Boolean']['output']>;
+  available?: Maybe<Scalars['Boolean']['output']>;
   candidateFingerprint: Scalars['String']['output'];
   candidateIndex: Scalars['SafeInt']['output'];
   candidateKey?: Maybe<Scalars['String']['output']>;
@@ -1753,7 +1755,9 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   fallbackProviderIds?: Maybe<Array<Scalars['String']['output']>>;
   health?: Maybe<Scalars['String']['output']>;
   healthCheckedAt?: Maybe<Scalars['String']['output']>;
+  matched?: Maybe<Scalars['Boolean']['output']>;
   modelId?: Maybe<Scalars['String']['output']>;
+  prepared?: Maybe<Scalars['Boolean']['output']>;
   preparedModelId?: Maybe<Scalars['String']['output']>;
   prepareCandidateSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   preparedRouteSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
@@ -8001,6 +8005,8 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
           __typename?: 'CopilotPromptRegistryPublishGateRepairRecommendationType';
           candidateEvidence: Array<{
             __typename?: 'CopilotPromptRegistryPublishGateRepairCandidateEvidenceType';
+            allowed: boolean | null;
+            available: boolean | null;
             candidateFingerprint: string;
             candidateIndex: number;
             candidateKey: string | null;
@@ -8010,7 +8016,9 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             fallbackProviderIds: Array<string> | null;
             health: string | null;
             healthCheckedAt: string | null;
+            matched: boolean | null;
             modelId: string | null;
+            prepared: boolean | null;
             preparedModelId: string | null;
             prepareCandidateSnapshotFingerprint: string | null;
             preparedRouteSnapshotFingerprint: string | null;

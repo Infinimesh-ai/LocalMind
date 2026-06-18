@@ -13037,3 +13037,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - `errorCode` 与 `errorCategory` 仍是已脱敏的安全摘要，不包含 provider 原始错误消息、endpoint、headers、token、request payload 或 stack trace；深度排障仍需结合容器日志。
 - 该字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Provider Health audit record、Model Registry revision、support bundle schema、repair mutation guard input 或审计记录。
 - 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 384. P3 落地记录：Task Route Repair Candidate Status Evidence
+
+本轮继续收敛第 383 节剩余风险中 “repair candidate evidence 能展开 health/privacy/error 摘要，但仍不能直接看到候选在 policy、resolution、prepare 阶段的状态位” 的问题。实际代码与目标 AI 中间层架构的冲突点是：task route diagnostics 的 policy candidate 已经暴露 `allowed` 与 `available`，route candidate 已经暴露 `matched`，prepare candidate 已经暴露 `prepared`；但 Prompt Registry repair recommendation 的 candidate evidence 只携带 provider/model/registry/health 等上下文，support bundle、route explain 或人工排障仍需要回看 task route candidate 列表才能判断推荐生成时该候选是被 policy 允许、registry 可用、route 命中还是 prepare 成功。本轮把这四个只读状态位补进 repair candidate evidence，不改变 policy、route selection、prepare 或 fallback 行为。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairCandidateEvidence` 新增 `allowed`、`available`、`matched` 与 `prepared`。
+  - `taskRouteRepairCandidateEvidenceBase()` 将 policy/route/prepare candidate 中已有状态位复制到 repair candidate evidence；candidate fingerprint、preview operation fingerprint 与 evidence set fingerprint 会对这些状态变化敏感。
+  - `taskRouteCandidateProfileEvidence()` 的可复制 evidence 文本加入 `allowed`、`available`、`matched` 与 `prepared`，让 recommendation 摘要能解释候选在 policy、resolution、prepare 阶段的状态。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` selection、common query string 与 `schema.ts` 类型同步新增 repair candidate evidence 的候选状态字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair candidate evidence diagnostics text 显示 `allowed yes/no`、`available yes/no`、`matched yes/no` 与 `prepared yes/no`。
+- 测试覆盖：
+  - resolver source chain smoke 断言 task route diagnostics repair evidence 文本包含 policy allowed/available、route matched 与 prepare prepared 状态，并断言结构化 policy/route/prepare candidate evidence 分别携带这些字段。
+  - Admin Vitest fixture 注入上述字段，并断言 publish gate diagnostics text 显示候选状态。
+
+该实现只扩展只读 diagnostics/evidence、GraphQL selection/type、Admin 文本和测试，不新增 DB migration、不创建 Provider Health probe、Model Registry/Provider Registry revision row、不改变 repair action catalog、不新增 mutation input、不改变 preview/preflight/execution gate 字段名、不改变 provider route selection、fallback order、Prompt Registry publish gate 判定、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、错误脱敏或审批写入路径。它把 task route repair evidence 从“能解释候选上下文但缺少阶段状态位”推进到“candidate evidence snapshot 自身可说明 policy/route/prepare 状态”，为后续 support bundle、route explain、repair guard、DB-backed route event 与 Model Registry revision 对齐提供更自包含的过渡证据。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused resolver source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `allowed`、`available`、`matched` 与 `prepared` 仍只反映 diagnostics probe 时的候选状态，不代表后续真实 embedding/rerank dispatch 一定命中同一 provider/model、fallback attempt 或 execution result。
+- 这些字段仍是 GraphQL diagnostics / repair preview 的只读 evidence，不是持久化 route event、Provider Health audit record、Model Registry revision、support bundle schema、repair mutation guard input、route policy DSL 或审计记录。
+- 状态位只能说明当前候选链的阶段结果，不能替代完整 `routeTrace`、provider health freshness、capability metadata、latency、cost、token/embedding usage 或 provider response。
+- 当前 runtime 镜像未包含本轮纯源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

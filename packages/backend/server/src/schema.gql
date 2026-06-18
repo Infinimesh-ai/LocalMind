@@ -1519,6 +1519,8 @@ type CopilotPromptRegistryPublishGateModelRouteType {
 }
 
 type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
+  allowed: Boolean
+  available: Boolean
   candidateFingerprint: String!
   candidateIndex: SafeInt!
   candidateKey: String
@@ -1528,7 +1530,9 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   fallbackProviderIds: [String!]
   health: String
   healthCheckedAt: String
+  matched: Boolean
   modelId: String
+  prepared: Boolean
   preparedModelId: String
   prepareCandidateSnapshotFingerprint: String
   preparedRouteSnapshotFingerprint: String

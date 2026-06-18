@@ -624,6 +624,8 @@ query getCopilotPromptRegistryPublishGate(
         }
         repairRecommendations {
           candidateEvidence {
+            allowed
+            available
             candidateFingerprint
             candidateIndex
             candidateKey
@@ -633,7 +635,9 @@ query getCopilotPromptRegistryPublishGate(
             fallbackProviderIds
             health
             healthCheckedAt
+            matched
             modelId
+            prepared
             preparedModelId
             prepareCandidateSnapshotFingerprint
             preparedRouteSnapshotFingerprint

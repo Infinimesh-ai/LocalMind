@@ -711,6 +711,8 @@ const COPILOT_PROMPT_REGISTRY_REPAIR_ACTION_CATALOG_VERSION =
   'repair-actions/v1';
 
 type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
+  allowed?: boolean;
+  available?: boolean;
   candidateFingerprint: string;
   candidateIndex: number;
   candidateKey?: string;
@@ -720,7 +722,9 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   fallbackProviderIds?: string[];
   health?: string;
   healthCheckedAt?: string;
+  matched?: boolean;
   modelId?: string;
+  prepared?: boolean;
   preparedModelId?: string;
   prepareCandidateSnapshotFingerprint?: string;
   preparedRouteSnapshotFingerprint?: string;
@@ -1764,6 +1768,12 @@ class CopilotPromptRegistryPublishGateRepairTargetLocatorType implements Copilot
 
 @ObjectType()
 class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements CopilotPromptRegistryPublishGateRepairCandidateEvidence {
+  @Field(() => Boolean, { nullable: true })
+  allowed?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['allowed'];
+
+  @Field(() => Boolean, { nullable: true })
+  available?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['available'];
+
   @Field(() => String)
   candidateFingerprint!: CopilotPromptRegistryPublishGateRepairCandidateEvidence['candidateFingerprint'];
 
@@ -1791,8 +1801,14 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
   @Field(() => String, { nullable: true })
   healthCheckedAt?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['healthCheckedAt'];
 
+  @Field(() => Boolean, { nullable: true })
+  matched?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['matched'];
+
   @Field(() => String, { nullable: true })
   modelId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelId'];
+
+  @Field(() => Boolean, { nullable: true })
+  prepared?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['prepared'];
 
   @Field(() => String, { nullable: true })
   preparedModelId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedModelId'];
@@ -4345,6 +4361,8 @@ const TASK_ROUTE_RECOMMENDATION_EVIDENCE_LIMIT = 160;
 function taskRouteRepairCandidateEvidenceBase(
   scope: string,
   candidate: {
+    allowed?: boolean;
+    available?: boolean;
     candidateKey?: string;
     candidateModelIds?: string[];
     errorCategory?: string;
@@ -4352,7 +4370,9 @@ function taskRouteRepairCandidateEvidenceBase(
     fallbackProviderIds?: string[];
     health?: string;
     healthCheckedAt?: string;
+    matched?: boolean;
     modelId?: string;
+    prepared?: boolean;
     preparedModelId?: string;
     prepareCandidateSnapshotFingerprint?: string;
     preparedRouteSnapshotFingerprint?: string;
@@ -4400,6 +4420,10 @@ function taskRouteRepairCandidateEvidenceBase(
   'candidateFingerprint'
 > {
   return {
+    ...(candidate.allowed !== undefined ? { allowed: candidate.allowed } : {}),
+    ...(candidate.available !== undefined
+      ? { available: candidate.available }
+      : {}),
     candidateIndex: index,
     ...(candidate.candidateKey !== undefined
       ? { candidateKey: candidate.candidateKey }
@@ -4420,7 +4444,11 @@ function taskRouteRepairCandidateEvidenceBase(
     ...(candidate.healthCheckedAt !== undefined
       ? { healthCheckedAt: candidate.healthCheckedAt }
       : {}),
+    ...(candidate.matched !== undefined ? { matched: candidate.matched } : {}),
     ...(candidate.modelId !== undefined ? { modelId: candidate.modelId } : {}),
+    ...(candidate.prepared !== undefined
+      ? { prepared: candidate.prepared }
+      : {}),
     ...(candidate.preparedModelId !== undefined
       ? { preparedModelId: candidate.preparedModelId }
       : {}),
@@ -4588,6 +4616,8 @@ function taskRouteCandidateProfileStructuredEvidence(
   const candidateEvidence = (
     scope: string,
     candidate: {
+      allowed?: boolean;
+      available?: boolean;
       candidateKey?: string;
       candidateModelIds?: string[];
       errorCategory?: string;
@@ -4595,7 +4625,9 @@ function taskRouteCandidateProfileStructuredEvidence(
       fallbackProviderIds?: string[];
       health?: string;
       healthCheckedAt?: string;
+      matched?: boolean;
       modelId?: string;
+      prepared?: boolean;
       preparedModelId?: string;
       prepareCandidateSnapshotFingerprint?: string;
       preparedRouteSnapshotFingerprint?: string;
@@ -4792,6 +4824,18 @@ function taskRouteCandidateProfileEvidence(
       compactEvidence(
         [
           `${candidate.scope}#${candidate.candidateIndex}:providerId:${candidate.providerId}`,
+          candidate.allowed !== undefined
+            ? `${candidate.scope}#${candidate.candidateIndex}:allowed:${candidate.allowed}`
+            : null,
+          candidate.available !== undefined
+            ? `${candidate.scope}#${candidate.candidateIndex}:available:${candidate.available}`
+            : null,
+          candidate.matched !== undefined
+            ? `${candidate.scope}#${candidate.candidateIndex}:matched:${candidate.matched}`
+            : null,
+          candidate.prepared !== undefined
+            ? `${candidate.scope}#${candidate.candidateIndex}:prepared:${candidate.prepared}`
+            : null,
           candidate.modelId
             ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
             : null,
@@ -4859,6 +4903,18 @@ function taskRouteCandidateProfileEvidence(
         [
           `${candidate.scope}#${candidate.candidateIndex}:candidateFingerprint:${candidate.candidateFingerprint}`,
           `${candidate.scope}#${candidate.candidateIndex}:providerId:${candidate.providerId}`,
+          candidate.allowed !== undefined
+            ? `${candidate.scope}#${candidate.candidateIndex}:allowed:${candidate.allowed}`
+            : null,
+          candidate.available !== undefined
+            ? `${candidate.scope}#${candidate.candidateIndex}:available:${candidate.available}`
+            : null,
+          candidate.matched !== undefined
+            ? `${candidate.scope}#${candidate.candidateIndex}:matched:${candidate.matched}`
+            : null,
+          candidate.prepared !== undefined
+            ? `${candidate.scope}#${candidate.candidateIndex}:prepared:${candidate.prepared}`
+            : null,
           candidate.requestedModelId
             ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelId:${candidate.requestedModelId}`
             : null,
@@ -5037,6 +5093,18 @@ function taskRouteCandidateProfileEvidence(
     compactEvidence(
       [
         `${candidate.scope}#${candidate.candidateIndex}:providerId:${candidate.providerId}`,
+        candidate.allowed !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:allowed:${candidate.allowed}`
+          : null,
+        candidate.available !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:available:${candidate.available}`
+          : null,
+        candidate.matched !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:matched:${candidate.matched}`
+          : null,
+        candidate.prepared !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:prepared:${candidate.prepared}`
+          : null,
         candidate.requestedModelId
           ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelId:${candidate.requestedModelId}`
           : null,
@@ -5110,6 +5178,18 @@ function taskRouteCandidateProfileEvidence(
     compactEvidence(
       [
         `${candidate.scope}#${candidate.candidateIndex}:providerId:${candidate.providerId}`,
+        candidate.allowed !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:allowed:${candidate.allowed}`
+          : null,
+        candidate.available !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:available:${candidate.available}`
+          : null,
+        candidate.matched !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:matched:${candidate.matched}`
+          : null,
+        candidate.prepared !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:prepared:${candidate.prepared}`
+          : null,
         candidate.requestedModelSource
           ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelSource:${candidate.requestedModelSource}`
           : null,
@@ -5211,6 +5291,18 @@ function taskRouteCandidateProfileEvidence(
           ? `${candidate.scope}#${candidate.candidateIndex}:candidateKey:${candidate.candidateKey}`
           : null,
         `${candidate.scope}#${candidate.candidateIndex}:providerId:${candidate.providerId}`,
+        candidate.allowed !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:allowed:${candidate.allowed}`
+          : null,
+        candidate.available !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:available:${candidate.available}`
+          : null,
+        candidate.matched !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:matched:${candidate.matched}`
+          : null,
+        candidate.prepared !== undefined
+          ? `${candidate.scope}#${candidate.candidateIndex}:prepared:${candidate.prepared}`
+          : null,
         candidate.requestedModelId
           ? `${candidate.scope}#${candidate.candidateIndex}:requestedModelId:${candidate.requestedModelId}`
           : null,
@@ -6445,7 +6537,9 @@ function buildPromptRegistryPublishGateRepairRecommendations(input: {
       ...recommendation,
       evidence: uniqueStrings(recommendation.evidence).slice(
         0,
-        recommendation.category === 'task_route' ? 64 : 10
+        recommendation.category === 'task_route'
+          ? TASK_ROUTE_RECOMMENDATION_EVIDENCE_LIMIT
+          : 10
       ),
       suggestedActionCatalogVersion:
         COPILOT_PROMPT_REGISTRY_REPAIR_ACTION_CATALOG_VERSION,

@@ -2963,6 +2963,18 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
     `fingerprint ${evidence.candidateFingerprint}`,
     evidence.candidateKey ? `key ${evidence.candidateKey}` : null,
     `provider ${evidence.providerId}`,
+    evidence.allowed != null
+      ? `allowed ${evidence.allowed ? 'yes' : 'no'}`
+      : null,
+    evidence.available != null
+      ? `available ${evidence.available ? 'yes' : 'no'}`
+      : null,
+    evidence.matched != null
+      ? `matched ${evidence.matched ? 'yes' : 'no'}`
+      : null,
+    evidence.prepared != null
+      ? `prepared ${evidence.prepared ? 'yes' : 'no'}`
+      : null,
     evidence.providerName ? `name ${evidence.providerName}` : null,
     evidence.providerSource
       ? `source ${formatFeatureKind(evidence.providerSource)}`

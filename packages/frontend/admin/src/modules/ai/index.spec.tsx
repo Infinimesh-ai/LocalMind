@@ -2577,6 +2577,8 @@ const readyPublishGateVerdict = withRepairActionPreview(
       {
         candidateEvidence: [
           candidateEvidenceFixture({
+            allowed: true,
+            available: false,
             candidateIndex: 0,
             candidateKey: 'policy:workspace_indexing:global:ollama-main',
             candidateModelIds: null,
@@ -2657,6 +2659,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             fallbackProviderIds: blockedRoute.fallbackProviderIds,
             health: 'down',
             healthCheckedAt: '2026-06-16T10:00:00.000Z',
+            matched: false,
             modelId: 'workspace-embedding',
             preparedModelId: null,
             prepareCandidateSnapshotFingerprint:
@@ -2744,6 +2747,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             health: 'down',
             healthCheckedAt: '2026-06-16T10:00:00.000Z',
             modelId: 'workspace-embedding',
+            prepared: false,
             preparedModelId: 'nomic-embed-text',
             prepareCandidateSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
@@ -6779,11 +6783,17 @@ describe('AiPage', () => {
       `provider health snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteProviderHealthSnapshotFixture(blockedRoute))}`
     );
     expect(readyGateDiagnostics).toContain(
-      'provider ollama-main / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding'
+      'provider ollama-main / allowed yes / available no / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding'
+    );
+    expect(readyGateDiagnostics).toContain(
+      'Policy Candidate #0 / fingerprint '
+    );
+    expect(readyGateDiagnostics).toContain(
+      'provider ollama-main / allowed yes / available no'
     );
     expect(readyGateDiagnostics).toContain('Route Candidate #0 / fingerprint ');
     expect(readyGateDiagnostics).toContain(
-      'key route:ollama-main / provider ollama-main'
+      'key route:ollama-main / provider ollama-main / matched no'
     );
     expect(readyGateDiagnostics).toContain(
       'registry byok / registry available yes / registry selected no'
@@ -6804,7 +6814,7 @@ describe('AiPage', () => {
       'Prepare Candidate #0 / fingerprint '
     );
     expect(readyGateDiagnostics).toContain(
-      'key prepare:ollama-main / provider ollama-main / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding / requested workspace-embedding / requested source Workspace indexing task model / requested config key workspaceIndexing / requested config path copilot.tasks.models.workspaceIndexing / model workspace-embedding / prepared nomic-embed-text'
+      'key prepare:ollama-main / provider ollama-main / prepared no / name Local Ollama / source Configured / type Openai Compatible / priority 10 / profile ollama-main / profile source Configured / profile path copilot.providers.profiles[id=ollama-main] / configured models 1 / configured model ids workspace-embedding / requested workspace-embedding / requested source Workspace indexing task model / requested config key workspaceIndexing / requested config path copilot.tasks.models.workspaceIndexing / model workspace-embedding / prepared nomic-embed-text'
     );
     expect(readyGateDiagnostics).toContain(
       'prepared nomic-embed-text / privacy Local / health Down / checked 2026-06-16T10:00:00.000Z / code prepare_failed / category Network / registry byok / registry available yes / registry selected no'

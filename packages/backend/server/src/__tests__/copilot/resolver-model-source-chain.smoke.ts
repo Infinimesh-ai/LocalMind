@@ -6775,6 +6775,34 @@ async function main() {
   );
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
+      'policyCandidate#0:allowed:true'
+    ),
+    true,
+    'task diagnostics repair evidence should include policy candidate allowed state'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'policyCandidate#0:available:true'
+    ),
+    true,
+    'task diagnostics repair evidence should include policy candidate availability state'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'routeCandidate#0:matched:true'
+    ),
+    true,
+    'task diagnostics repair evidence should include route candidate matched state'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
+      'prepareCandidate#0:prepared:true'
+    ),
+    true,
+    'task diagnostics repair evidence should include prepare candidate prepared state'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
       'routeCandidate#0:providerConfiguredModel:workspace-embedding'
     ),
     true,
@@ -7034,6 +7062,8 @@ async function main() {
     true
   );
   assert.equal(taskDiagnosticsPolicyCandidateEvidence?.providerId, 'local');
+  assert.equal(taskDiagnosticsPolicyCandidateEvidence?.allowed, true);
+  assert.equal(taskDiagnosticsPolicyCandidateEvidence?.available, true);
   assert.equal(
     taskDiagnosticsPolicyCandidateEvidence?.requestedModelConfigKey,
     'workspaceIndexing'
@@ -7176,6 +7206,7 @@ async function main() {
     taskDiagnosticsRouteCandidateEvidence?.requestedModelSource,
     'workspace_indexing'
   );
+  assert.equal(taskDiagnosticsRouteCandidateEvidence?.matched, true);
   assert.equal(taskDiagnosticsRouteCandidateEvidence?.registryKind, 'byok');
   assert.equal(taskDiagnosticsRouteCandidateEvidence?.registryAvailable, true);
   assert.equal(taskDiagnosticsRouteCandidateEvidence?.registrySelected, true);
@@ -7301,6 +7332,7 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.preparedModelId,
     'nomic-embed-text'
   );
+  assert.equal(taskDiagnosticsPrepareCandidateEvidence?.prepared, true);
   assert.equal(
     taskDiagnosticsPrepareCandidateEvidence?.requestedModelConfigKey,
     'workspaceIndexing'
