@@ -1207,7 +1207,19 @@ export interface CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType 
   candidateIndex: Scalars['SafeInt']['output'];
   preparedRouteOrderFingerprint?: Maybe<Scalars['String']['output']>;
   taskRouteEffectiveSourceFingerprint?: Maybe<Scalars['String']['output']>;
+  taskRouteModelSourceSnapshotEntries?: Maybe<
+    Array<CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType>
+  >;
   taskRouteModelSourceSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType {
+  __typename?: 'CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType';
+  featureKind: Scalars['String']['output'];
+  requestedModelConfigKey?: Maybe<Scalars['String']['output']>;
+  requestedModelConfigPath?: Maybe<Scalars['String']['output']>;
+  requestedModelId?: Maybe<Scalars['String']['output']>;
+  requestedModelSource?: Maybe<Scalars['String']['output']>;
 }
 
 export interface CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType {
@@ -9235,6 +9247,14 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
         candidateIndex: number;
         preparedRouteOrderFingerprint: string | null;
         taskRouteEffectiveSourceFingerprint: string | null;
+        taskRouteModelSourceSnapshotEntries: Array<{
+          __typename?: 'CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType';
+          featureKind: string;
+          requestedModelConfigKey: string | null;
+          requestedModelConfigPath: string | null;
+          requestedModelId: string | null;
+          requestedModelSource: string | null;
+        }> | null;
         taskRouteModelSourceSnapshotFingerprint: string | null;
       }>;
       candidateEvidenceFingerprint: string;

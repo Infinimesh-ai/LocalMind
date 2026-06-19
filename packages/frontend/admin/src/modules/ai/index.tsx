@@ -4036,6 +4036,28 @@ function formatPromptRegistryRepairExecutionRequest(
                           }:${
                             candidate.taskRouteModelSourceSnapshotFingerprint ??
                             'modelSource:none'
+                          }:modelSourceEntries:${
+                            candidate.taskRouteModelSourceSnapshotEntries
+                              ?.length
+                              ? candidate.taskRouteModelSourceSnapshotEntries
+                                  .map(
+                                    sourceEntry =>
+                                      `${sourceEntry.featureKind}:${
+                                        sourceEntry.requestedModelConfigKey ??
+                                        'configKey:none'
+                                      }:${
+                                        sourceEntry.requestedModelConfigPath ??
+                                        'configPath:none'
+                                      }:${
+                                        sourceEntry.requestedModelId ??
+                                        'requestedModel:none'
+                                      }:${
+                                        sourceEntry.requestedModelSource ??
+                                        'requestedSource:none'
+                                      }`
+                                  )
+                                  .join('^')
+                              : 'modelSourceEntries:none'
                           }`
                       )
                       .join('|')

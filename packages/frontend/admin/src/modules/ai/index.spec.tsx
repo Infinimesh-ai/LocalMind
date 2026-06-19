@@ -233,6 +233,13 @@ function candidateEvidenceReferenceEntriesFixture(
     providerId: string;
     scope: string;
     taskRouteEffectiveSourceFingerprint?: string | null;
+    taskRouteModelSourceSnapshotEntries?: Array<{
+      featureKind: string;
+      requestedModelConfigKey?: string | null;
+      requestedModelConfigPath?: string | null;
+      requestedModelId?: string | null;
+      requestedModelSource?: string | null;
+    }> | null;
     taskRouteModelSourceSnapshotFingerprint?: string | null;
   }>
 ) {
@@ -250,6 +257,8 @@ function candidateEvidenceReferenceEntriesFixture(
         candidate.preparedRouteOrderFingerprint ?? null,
       taskRouteEffectiveSourceFingerprint:
         candidate.taskRouteEffectiveSourceFingerprint ?? null,
+      taskRouteModelSourceSnapshotEntries:
+        candidate.taskRouteModelSourceSnapshotEntries ?? null,
       taskRouteModelSourceSnapshotFingerprint:
         candidate.taskRouteModelSourceSnapshotFingerprint ?? null,
     }))
@@ -1452,6 +1461,8 @@ const rerankRepairCandidateEvidence = candidateEvidenceFixture({
   taskRouteRerankRuntimeContractSnapshotFingerprint:
     readyRouteRerankRuntimeContractSnapshotFingerprint,
   taskRouteEffectiveSourceFingerprint: readyRoute.effectiveSourceFingerprint,
+  taskRouteModelSourceSnapshotEntries:
+    taskRouteModelSourceSnapshotFixture(readyRoute),
   taskRouteModelSourceSnapshotFingerprint: taskRouteSnapshotFingerprintFixture(
     taskRouteModelSourceSnapshotFixture(readyRoute)
   ),
@@ -3387,6 +3398,8 @@ const readyPublishGateVerdict = withRepairActionPreview(
               ),
             taskRouteEffectiveSourceFingerprint:
               blockedRoute.effectiveSourceFingerprint,
+            taskRouteModelSourceSnapshotEntries:
+              taskRouteModelSourceSnapshotFixture(blockedRoute),
             taskRouteModelSourceSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRouteModelSourceSnapshotFixture(blockedRoute)
@@ -3497,6 +3510,8 @@ const readyPublishGateVerdict = withRepairActionPreview(
               ),
             taskRouteEffectiveSourceFingerprint:
               blockedRoute.effectiveSourceFingerprint,
+            taskRouteModelSourceSnapshotEntries:
+              taskRouteModelSourceSnapshotFixture(blockedRoute),
             taskRouteModelSourceSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRouteModelSourceSnapshotFixture(blockedRoute)
@@ -3630,6 +3645,8 @@ const readyPublishGateVerdict = withRepairActionPreview(
               ),
             taskRouteEffectiveSourceFingerprint:
               blockedRoute.effectiveSourceFingerprint,
+            taskRouteModelSourceSnapshotEntries:
+              taskRouteModelSourceSnapshotFixture(blockedRoute),
             taskRouteModelSourceSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRouteModelSourceSnapshotFixture(blockedRoute)
@@ -7889,11 +7906,18 @@ describe('AiPage', () => {
     const taskRouteSourceCandidateEntry =
       taskRouteSourceEntry?.candidateEvidenceEntries[0];
     expect(taskRouteSourceCandidateEntry).toBeTruthy();
+    const taskRouteSourceCandidateModelSourceEntries =
+      taskRouteSourceCandidateEntry?.taskRouteModelSourceSnapshotEntries
+        ?.map(
+          entry =>
+            `${entry.featureKind}:${entry.requestedModelConfigKey ?? 'configKey:none'}:${entry.requestedModelConfigPath ?? 'configPath:none'}:${entry.requestedModelId ?? 'requestedModel:none'}:${entry.requestedModelSource ?? 'requestedSource:none'}`
+        )
+        .join('^') ?? 'modelSourceEntries:none';
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      `candidateEvidenceEntries:${taskRouteSourceCandidateEntry?.candidateEvidenceScope}#${taskRouteSourceCandidateEntry?.candidateIndex}:${taskRouteSourceCandidateEntry?.candidateEvidenceCategory}:${taskRouteSourceCandidateEntry?.candidateEvidenceProviderId}:${taskRouteSourceCandidateEntry?.candidateEvidenceKey}:${taskRouteSourceCandidateEntry?.candidateEvidenceFingerprint}:${taskRouteSourceCandidateEntry?.preparedRouteOrderFingerprint ?? 'prepared:none'}:${taskRouteSourceCandidateEntry?.taskRouteEffectiveSourceFingerprint ?? 'source:none'}:${taskRouteSourceCandidateEntry?.taskRouteModelSourceSnapshotFingerprint ?? 'modelSource:none'}`
+      `candidateEvidenceEntries:${taskRouteSourceCandidateEntry?.candidateEvidenceScope}#${taskRouteSourceCandidateEntry?.candidateIndex}:${taskRouteSourceCandidateEntry?.candidateEvidenceCategory}:${taskRouteSourceCandidateEntry?.candidateEvidenceProviderId}:${taskRouteSourceCandidateEntry?.candidateEvidenceKey}:${taskRouteSourceCandidateEntry?.candidateEvidenceFingerprint}:${taskRouteSourceCandidateEntry?.preparedRouteOrderFingerprint ?? 'prepared:none'}:${taskRouteSourceCandidateEntry?.taskRouteEffectiveSourceFingerprint ?? 'source:none'}:${taskRouteSourceCandidateEntry?.taskRouteModelSourceSnapshotFingerprint ?? 'modelSource:none'}:modelSourceEntries:${taskRouteSourceCandidateModelSourceEntries}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

@@ -1003,6 +1003,9 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   taskRouteRerankRuntimeContractSnapshotFingerprint?: string;
   taskRouteDimensionSnapshotFingerprint?: string;
   taskRouteEffectiveSourceFingerprint?: string;
+  taskRouteEffectiveSourceFingerprintInputs?: string[];
+  taskRouteEffectiveSourceFingerprintVersion?: string;
+  taskRouteModelSourceSnapshotEntries?: CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntry[];
   taskRouteModelSourceSnapshotFingerprint?: string;
   preparedRouteTargets?: string[];
   preparedRouteTargetFingerprint?: string;
@@ -1049,6 +1052,14 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   routeTracePhases?: string[];
   routeTraceSnapshotFingerprint?: string;
   scope: string;
+};
+
+type CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntry = {
+  featureKind: string;
+  requestedModelConfigKey?: string;
+  requestedModelConfigPath?: string;
+  requestedModelId?: string;
+  requestedModelSource?: string;
 };
 
 type CopilotPromptRegistryPublishGateRepairRecommendation = {
@@ -1114,6 +1125,7 @@ type CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry = {
   candidateIndex: number;
   preparedRouteOrderFingerprint?: string;
   taskRouteEffectiveSourceFingerprint?: string;
+  taskRouteModelSourceSnapshotEntries?: CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntry[];
   taskRouteModelSourceSnapshotFingerprint?: string;
 };
 
@@ -3442,6 +3454,24 @@ class CopilotPromptRegistryRepairPreflightType implements CopilotPromptRegistryR
 }
 
 @ObjectType()
+class CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType implements CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntry {
+  @Field(() => String)
+  featureKind!: string;
+
+  @Field(() => String, { nullable: true })
+  requestedModelConfigKey?: string;
+
+  @Field(() => String, { nullable: true })
+  requestedModelConfigPath?: string;
+
+  @Field(() => String, { nullable: true })
+  requestedModelId?: string;
+
+  @Field(() => String, { nullable: true })
+  requestedModelSource?: string;
+}
+
+@ObjectType()
 class CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType implements CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry {
   @Field(() => String, { nullable: true })
   candidateEvidenceCategory?: string;
@@ -3466,6 +3496,14 @@ class CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType implements 
 
   @Field(() => String, { nullable: true })
   taskRouteEffectiveSourceFingerprint?: string;
+
+  @Field(
+    () => [CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType],
+    {
+      nullable: true,
+    }
+  )
+  taskRouteModelSourceSnapshotEntries?: CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntry[];
 
   @Field(() => String, { nullable: true })
   taskRouteModelSourceSnapshotFingerprint?: string;
@@ -6573,6 +6611,7 @@ function taskRouteCandidateProfileStructuredEvidence(
               COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_VERSION,
           }
         : {}),
+      taskRouteModelSourceSnapshotEntries: taskRouteModelSourceSnapshotValue,
     };
   };
 
@@ -9341,6 +9380,12 @@ function promptRegistryRepairCandidateEvidenceSnapshot(
           ? {
               taskRouteEffectiveSourceFingerprint:
                 candidate.taskRouteEffectiveSourceFingerprint,
+            }
+          : {}),
+        ...(candidate.taskRouteModelSourceSnapshotEntries?.length
+          ? {
+              taskRouteModelSourceSnapshotEntries:
+                candidate.taskRouteModelSourceSnapshotEntries,
             }
           : {}),
         ...(candidate.taskRouteModelSourceSnapshotFingerprint

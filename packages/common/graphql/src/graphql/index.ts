@@ -3409,6 +3409,13 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
         candidateIndex
         preparedRouteOrderFingerprint
         taskRouteEffectiveSourceFingerprint
+        taskRouteModelSourceSnapshotEntries {
+          featureKind
+          requestedModelConfigKey
+          requestedModelConfigPath
+          requestedModelId
+          requestedModelSource
+        }
         taskRouteModelSourceSnapshotFingerprint
       }
       candidateEvidenceFingerprint
