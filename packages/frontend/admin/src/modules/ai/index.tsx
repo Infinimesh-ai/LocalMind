@@ -4030,6 +4030,8 @@ function formatPromptRegistryRepairExecutionRequest(
                       '|'
                     )
                   : 'referenceSchemaFingerprintInputs:none'
+              }:referenceSchemaRegistryStatus:${
+                entry.candidateEvidenceReferenceSchemaRegistryStatus
               }:candidateEvidenceEntries:${
                 entry.candidateEvidenceEntries.length
                   ? entry.candidateEvidenceEntries

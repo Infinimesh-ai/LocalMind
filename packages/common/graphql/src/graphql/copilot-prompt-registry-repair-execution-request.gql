@@ -342,6 +342,7 @@ mutation requestCopilotPromptRegistryRepairExecution(
       candidateEvidenceReferenceSchemaFields
       candidateEvidenceReferenceSchemaFingerprint
       candidateEvidenceReferenceSchemaFingerprintInputs
+      candidateEvidenceReferenceSchemaRegistryStatus
       candidateEvidenceReferenceSchemaVersion
       candidateEvidenceEntries {
         candidateEvidenceCategory

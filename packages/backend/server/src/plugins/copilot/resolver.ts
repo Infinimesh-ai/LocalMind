@@ -982,6 +982,8 @@ const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_FINGERP
     'candidateEvidenceReferenceSchemaFields',
     'candidateEvidenceReferenceSchemaVersion',
   ] as const;
+const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_REGISTRY_STATUS =
+  'not_persisted_read_only';
 const COPILOT_PROMPT_REGISTRY_REPAIR_ACTION_CATALOG_VERSION =
   'repair-actions/v1';
 
@@ -1390,6 +1392,7 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
   candidateEvidenceReferenceSchemaFields: string[];
   candidateEvidenceReferenceSchemaFingerprint: string;
   candidateEvidenceReferenceSchemaFingerprintInputs: string[];
+  candidateEvidenceReferenceSchemaRegistryStatus: string;
   candidateEvidenceReferenceSchemaVersion: string;
   candidateEvidenceFingerprint: string;
   candidateEvidenceFingerprints: string[];
@@ -3590,6 +3593,9 @@ class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType impleme
 
   @Field(() => [String])
   candidateEvidenceReferenceSchemaFingerprintInputs!: string[];
+
+  @Field(() => String)
+  candidateEvidenceReferenceSchemaRegistryStatus!: string;
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaVersion!: string;
@@ -11137,6 +11143,8 @@ function buildPromptRegistryRepairExecutionRequest(
           candidateEvidenceReferenceSchemaFingerprintInputs: [
             ...COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_FINGERPRINT_INPUTS,
           ],
+          candidateEvidenceReferenceSchemaRegistryStatus:
+            COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_REGISTRY_STATUS,
           candidateEvidenceReferenceSchemaVersion:
             COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_VERSION,
           candidateEvidenceFingerprint: operation.candidateEvidenceFingerprint,

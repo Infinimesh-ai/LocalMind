@@ -162,6 +162,8 @@ const candidateEvidenceReferenceSchemaFingerprintInputsFixture = [
   'candidateEvidenceReferenceSchemaFields',
   'candidateEvidenceReferenceSchemaVersion',
 ];
+const candidateEvidenceReferenceSchemaRegistryStatusFixture =
+  'not_persisted_read_only';
 const candidateEvidenceReferenceSchemaFingerprintFixture = createHash('sha256')
   .update(
     stableFixtureStringify({
@@ -7182,6 +7184,8 @@ describe('AiPage', () => {
                   candidateEvidenceReferenceSchemaFingerprintInputs: [
                     ...candidateEvidenceReferenceSchemaFingerprintInputsFixture,
                   ],
+                  candidateEvidenceReferenceSchemaRegistryStatus:
+                    candidateEvidenceReferenceSchemaRegistryStatusFixture,
                   candidateEvidenceReferenceSchemaVersion:
                     candidateEvidenceReferenceSchemaVersionFixture,
                   candidateEvidenceEntries: [
@@ -8109,6 +8113,12 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       `referenceSchemaFingerprintInputs:${candidateEvidenceReferenceSchemaFingerprintInputsFixture.join('|')}`
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `referenceSchemaRegistryStatus:${candidateEvidenceReferenceSchemaRegistryStatusFixture}`
     );
     const taskRouteSourceCandidateEntry =
       taskRouteSourceEntry?.candidateEvidenceEntries[0];
