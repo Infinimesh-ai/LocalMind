@@ -158,6 +158,18 @@ const candidateEvidenceReferenceSchemaFieldsFixture = [
   'taskRouteModelSourceSnapshotEntries',
   'taskRouteModelSourceSnapshotFingerprint',
 ];
+const candidateEvidenceReferenceSchemaFingerprintFixture = createHash('sha256')
+  .update(
+    stableFixtureStringify({
+      candidateEvidenceReferenceSchemaFields: [
+        ...candidateEvidenceReferenceSchemaFieldsFixture,
+      ],
+      candidateEvidenceReferenceSchemaVersion:
+        candidateEvidenceReferenceSchemaVersionFixture,
+    })
+  )
+  .digest('hex')
+  .slice(0, 16);
 
 function candidateEvidenceCategoryFromKeyFixture(key?: string) {
   if (!key) {
@@ -7161,6 +7173,8 @@ describe('AiPage', () => {
                   candidateEvidenceReferenceSchemaFields: [
                     ...candidateEvidenceReferenceSchemaFieldsFixture,
                   ],
+                  candidateEvidenceReferenceSchemaFingerprint:
+                    candidateEvidenceReferenceSchemaFingerprintFixture,
                   candidateEvidenceReferenceSchemaVersion:
                     candidateEvidenceReferenceSchemaVersionFixture,
                   candidateEvidenceEntries: [
@@ -8076,6 +8090,12 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       `referenceSchema:${candidateEvidenceReferenceSchemaVersionFixture}:${candidateEvidenceReferenceSchemaFieldsFixture.join('|')}`
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `referenceSchemaFingerprint:${candidateEvidenceReferenceSchemaFingerprintFixture}`
     );
     const taskRouteSourceCandidateEntry =
       taskRouteSourceEntry?.candidateEvidenceEntries[0];

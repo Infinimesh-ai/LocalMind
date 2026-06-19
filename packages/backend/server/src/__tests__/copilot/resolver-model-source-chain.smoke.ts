@@ -130,6 +130,18 @@ const candidateEvidenceReferenceSchemaFieldsFixture = [
   'taskRouteModelSourceSnapshotEntries',
   'taskRouteModelSourceSnapshotFingerprint',
 ] as const;
+const candidateEvidenceReferenceSchemaFingerprintFixture = createHash('sha256')
+  .update(
+    stableFingerprintFixtureStringify({
+      candidateEvidenceReferenceSchemaFields: [
+        ...candidateEvidenceReferenceSchemaFieldsFixture,
+      ],
+      candidateEvidenceReferenceSchemaVersion:
+        candidateEvidenceReferenceSchemaVersionFixture,
+    })
+  )
+  .digest('hex')
+  .slice(0, 16);
 
 function candidateEvidenceClassificationSummaryFixture(
   candidateEvidenceKeys: string[]
@@ -4789,6 +4801,8 @@ async function main() {
           candidateEvidenceReferenceSchemaFields: [
             ...candidateEvidenceReferenceSchemaFieldsFixture,
           ],
+          candidateEvidenceReferenceSchemaFingerprint:
+            candidateEvidenceReferenceSchemaFingerprintFixture,
           candidateEvidenceReferenceSchemaVersion:
             candidateEvidenceReferenceSchemaVersionFixture,
           candidateEvidenceEntries: operation.candidateEvidenceEntries,
@@ -4830,6 +4844,10 @@ async function main() {
   assert.deepEqual(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaFields,
     [...candidateEvidenceReferenceSchemaFieldsFixture]
+  );
+  assert.equal(
+    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaFingerprint,
+    candidateEvidenceReferenceSchemaFingerprintFixture
   );
   assert.equal(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaVersion,

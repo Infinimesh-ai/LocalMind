@@ -1383,6 +1383,7 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
   candidateEvidenceCount: number;
   candidateEvidenceEntries: CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry[];
   candidateEvidenceReferenceSchemaFields: string[];
+  candidateEvidenceReferenceSchemaFingerprint: string;
   candidateEvidenceReferenceSchemaVersion: string;
   candidateEvidenceFingerprint: string;
   candidateEvidenceFingerprints: string[];
@@ -3577,6 +3578,9 @@ class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType impleme
 
   @Field(() => [String])
   candidateEvidenceReferenceSchemaFields!: string[];
+
+  @Field(() => String)
+  candidateEvidenceReferenceSchemaFingerprint!: string;
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaVersion!: string;
@@ -7965,6 +7969,21 @@ function stableRepairRecommendationStringify(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function promptRegistryRepairCandidateEvidenceReferenceSchemaFingerprint() {
+  return createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        candidateEvidenceReferenceSchemaFields: [
+          ...COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_FIELDS,
+        ],
+        candidateEvidenceReferenceSchemaVersion:
+          COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_VERSION,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
 function taskRouteRepairCandidateEvidenceFingerprint(
   evidence: Omit<
     CopilotPromptRegistryPublishGateRepairCandidateEvidence,
@@ -11088,6 +11107,8 @@ function buildPromptRegistryRepairExecutionRequest(
     repairActionPreview.operations
       .map(operation => operation.operationFingerprint)
       .sort();
+  const candidateEvidenceReferenceSchemaFingerprint =
+    promptRegistryRepairCandidateEvidenceReferenceSchemaFingerprint();
   const supportBundleTaskRouteEffectiveSourceEvidenceSetEntries =
     repairActionPreview.operations
       .map(operation => {
@@ -11102,6 +11123,8 @@ function buildPromptRegistryRepairExecutionRequest(
           candidateEvidenceReferenceSchemaFields: [
             ...COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_FIELDS,
           ],
+          candidateEvidenceReferenceSchemaFingerprint:
+            candidateEvidenceReferenceSchemaFingerprint,
           candidateEvidenceReferenceSchemaVersion:
             COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_VERSION,
           candidateEvidenceFingerprint: operation.candidateEvidenceFingerprint,
