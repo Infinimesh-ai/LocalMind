@@ -4065,6 +4065,14 @@ function formatPromptRegistryRepairExecutionRequest(
                   : 'referenceSchemaArtifactRecordStorageFingerprintInputs:none'
               }:referenceSchemaArtifactRecordStorageBackendFingerprint:${
                 entry.candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprint
+              }:referenceSchemaArtifactRecordStorageBackendFingerprintInputs:${
+                entry
+                  .candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputs
+                  .length
+                  ? entry.candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputs.join(
+                      '|'
+                    )
+                  : 'referenceSchemaArtifactRecordStorageBackendFingerprintInputs:none'
               }:referenceSchemaArtifactRecordStorageBackendStatus:${
                 entry.candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus
               }:referenceSchemaArtifactRecordStorageStatus:${

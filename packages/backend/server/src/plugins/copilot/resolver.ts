@@ -1022,6 +1022,13 @@ const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFAC
   ] as const;
 const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_BACKEND_STATUS =
   'not_selected_read_only';
+const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_BACKEND_FINGERPRINT_INPUTS =
+  [
+    'backendStatus',
+    'schemaFingerprint',
+    'storageFingerprint',
+    'storageStatus',
+  ] as const;
 const COPILOT_PROMPT_REGISTRY_REPAIR_ACTION_CATALOG_VERSION =
   'repair-actions/v1';
 
@@ -1437,6 +1444,7 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
   candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprint: string;
   candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputs: string[];
   candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprint: string;
+  candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputs: string[];
   candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus: string;
   candidateEvidenceReferenceSchemaArtifactRecordStorageStatus: string;
   candidateEvidenceReferenceSchemaArtifactRecordStatus: string;
@@ -3666,6 +3674,9 @@ class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType impleme
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprint!: string;
+
+  @Field(() => [String])
+  candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputs!: string[];
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus!: string;
@@ -11386,6 +11397,10 @@ function buildPromptRegistryRepairExecutionRequest(
             ],
           candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprint:
             candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprint,
+          candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputs:
+            [
+              ...COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_BACKEND_FINGERPRINT_INPUTS,
+            ],
           candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus:
             COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_BACKEND_STATUS,
           candidateEvidenceReferenceSchemaArtifactRecordStorageStatus:
