@@ -3985,6 +3985,19 @@ function formatPromptRegistryRepairExecutionRequest(
           ', '
         )}`
       : 'support bundle audit persistence request inputs none',
+    `support bundle retention cleanup request ${request.supportBundleRetentionCleanupRequestVersion}`,
+    `support bundle retention cleanup request status ${formatFeatureKind(
+      request.supportBundleRetentionCleanupRequestStatus
+    )}`,
+    request.supportBundleRetentionCleanupRequestCreated
+      ? 'support bundle retention cleanup request created yes'
+      : 'support bundle retention cleanup request created no',
+    `support bundle retention cleanup request fingerprint ${request.supportBundleRetentionCleanupRequestFingerprint}`,
+    request.supportBundleRetentionCleanupRequestInputs.length
+      ? `support bundle retention cleanup request inputs ${request.supportBundleRetentionCleanupRequestInputs.join(
+          ', '
+        )}`
+      : 'support bundle retention cleanup request inputs none',
     `support bundle download authorization status ${formatFeatureKind(
       request.supportBundleDownloadAuthorizationStatus
     )}`,

@@ -6578,6 +6578,23 @@ describe('AiPage', () => {
           supportBundlePackageStatus: 'not_created_read_only',
           supportBundlePackageVersion:
             'prompt-registry-repair-gate-support-bundle-package/v1',
+          supportBundleRetentionCleanupRequestCreated: false,
+          supportBundleRetentionCleanupRequestFingerprint: input.workspaceId
+            ? 'aaaa9999bbbb0000'
+            : 'eeee9999ffff0000',
+          supportBundleRetentionCleanupRequestInputs: [
+            'actorFingerprint',
+            'auditPersistenceRequestFingerprint',
+            'manifestFingerprint',
+            'requestStatus',
+            'retentionCleanupStatus',
+            'retentionPolicyFingerprint',
+            'retentionPolicyStatus',
+            'supportBundlePackageFingerprint',
+          ],
+          supportBundleRetentionCleanupRequestStatus: 'not_scheduled_read_only',
+          supportBundleRetentionCleanupRequestVersion:
+            'prompt-registry-repair-gate-support-bundle-retention-cleanup-request/v1',
           supportBundleRetentionCleanupStatus: 'not_scheduled_read_only',
         },
       })
@@ -7318,6 +7335,18 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       'support bundle audit persistence request inputs actorFingerprint, auditEventFingerprint, auditEventStatus, auditPersistenceStatus, downloadAuthorizationRequestFingerprint'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle retention cleanup request prompt-registry-repair-gate-support-bundle-retention-cleanup-request/v1 / support bundle retention cleanup request status Not Scheduled Read Only / support bundle retention cleanup request created no / support bundle retention cleanup request fingerprint eeee9999ffff0000'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle retention cleanup request inputs actorFingerprint, auditPersistenceRequestFingerprint, manifestFingerprint, requestStatus, retentionCleanupStatus'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

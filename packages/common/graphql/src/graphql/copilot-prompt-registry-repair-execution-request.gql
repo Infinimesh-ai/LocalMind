@@ -287,6 +287,11 @@ mutation requestCopilotPromptRegistryRepairExecution(
     supportBundlePackageInputs
     supportBundlePackageStatus
     supportBundlePackageVersion
+    supportBundleRetentionCleanupRequestCreated
+    supportBundleRetentionCleanupRequestFingerprint
+    supportBundleRetentionCleanupRequestInputs
+    supportBundleRetentionCleanupRequestStatus
+    supportBundleRetentionCleanupRequestVersion
     supportBundleRetentionCleanupStatus
     preflight {
       approvalRecordFingerprint

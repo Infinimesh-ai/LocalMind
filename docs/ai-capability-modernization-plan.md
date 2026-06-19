@@ -14372,3 +14372,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - request fingerprint 只绑定 actor fingerprint、manifest export metadata、download authorization request fingerprint 与 support bundle package fingerprint，不绑定真实用户会话、tenant audit policy registry、download token、workspace secret、网络来源、过期时间、真实下载行为或正式 repair execution output。
 - package lifecycle 仍未覆盖 retention cleanup request、DB-backed artifact table、正式 support bundle package 内容、可下载归档或签名快照。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 429. P3 落地记录：Prompt Registry Repair Support Bundle Retention Cleanup Request Projection
+
+本轮继续收敛第 428 节剩余风险中 “package lifecycle 仍未覆盖 retention cleanup request” 的问题。实际代码与目标 AI 中间层架构的冲突点是：repair execution request 已经有 support bundle package lifecycle、download authorization request 与 audit persistence request projection，但 retention cleanup 仍只有 `not_scheduled_read_only` 状态；后续若要接入正式 retention cleanup job 或 DB-backed support bundle artifact table，仍缺少一个把 actor、audit persistence request、retention policy、manifest 与 package fingerprint 绑定起来的只读 request projection。本轮新增 `prompt-registry-repair-gate-support-bundle-retention-cleanup-request/v1`，不创建后台任务、不写 DB、不创建 artifact row、不删除或归档任何文件。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryRepairExecutionRequest` / GraphQL type 新增 `supportBundleRetentionCleanupRequest*` 字段。
+  - `buildPromptRegistryRepairExecutionRequest()` 新增只读 retention cleanup request projection：状态为 `not_scheduled_read_only`，输入绑定 actor fingerprint、audit persistence request fingerprint、manifest fingerprint、retention cleanup status、retention policy fingerprint/status、request status 与 support bundle package fingerprint。
+  - request fingerprint 同步纳入 `supportBundleRetentionCleanupRequestFingerprint`，使 retention cleanup request projection 漂移会影响 request-level anchor。
+- GraphQL 与 common client：
+  - `schema.gql`、repair execution request mutation、common query string 与 `schema.ts` 类型同步暴露 retention cleanup request 字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair execution request diagnostics 展示 retention cleanup request version/status/created/fingerprint/inputs。
+- 测试覆盖：
+  - backend model/source chain smoke test 断言 retention cleanup request 字段、输入集合与 fingerprint 重算。
+  - Admin Vitest fixture/断言覆盖 retention cleanup request diagnostics 展示。
+
+该实现只扩展 repair execution request 的只读 GraphQL projection、common query/type、Admin 展示和测试，不新增 DB migration、不创建 DB-backed support bundle、不新增后端 download resolver、不创建下载 URL、不执行真实权限检查、不创建 audit event、不持久化 audit trail、不调度 retention cleanup job、不删除或归档文件、不改变 repair mutation 可执行性、不改变 preflight/execution gate 判定、不改变 provider route selection、fallback order、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、Model Registry revision 或 Provider Registry revision。它把 “retention cleanup 尚未调度” 从单个状态值推进到可比较的 request-level projection，为后续正式 retention cleanup worker、DB-backed artifact table、support bundle retention policy 与 signed archive lifecycle 提供更明确的迁移输入。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 backend model/source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `supportBundleRetentionCleanupRequest*` 仍是只读 GraphQL projection，不是 DB-backed retention cleanup job、support bundle artifact row、workspace-level retention policy decision、真实 retention record、文件删除、归档任务或 signed archive lifecycle。
+- request fingerprint 只绑定 actor fingerprint、audit persistence request fingerprint、manifest/export metadata retention policy 与 support bundle package fingerprint，不绑定真实用户会话、tenant retention policy registry、download token、workspace secret、网络来源、过期时间、真实下载行为、正式 repair execution output 或实际 artifact storage key。
+- package lifecycle 仍未覆盖 DB-backed artifact table、正式 support bundle package 内容、可下载归档、签名快照或真实 lifecycle worker。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

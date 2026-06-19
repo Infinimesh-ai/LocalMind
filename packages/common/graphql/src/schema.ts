@@ -1509,6 +1509,13 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   supportBundlePackageInputs: Array<Scalars['String']['output']>;
   supportBundlePackageStatus: Scalars['String']['output'];
   supportBundlePackageVersion: Scalars['String']['output'];
+  supportBundleRetentionCleanupRequestCreated: Scalars['Boolean']['output'];
+  supportBundleRetentionCleanupRequestFingerprint: Scalars['String']['output'];
+  supportBundleRetentionCleanupRequestInputs: Array<
+    Scalars['String']['output']
+  >;
+  supportBundleRetentionCleanupRequestStatus: Scalars['String']['output'];
+  supportBundleRetentionCleanupRequestVersion: Scalars['String']['output'];
   supportBundleRetentionCleanupStatus: Scalars['String']['output'];
 }
 
@@ -8963,6 +8970,11 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
     supportBundlePackageInputs: Array<string>;
     supportBundlePackageStatus: string;
     supportBundlePackageVersion: string;
+    supportBundleRetentionCleanupRequestCreated: boolean;
+    supportBundleRetentionCleanupRequestFingerprint: string;
+    supportBundleRetentionCleanupRequestInputs: Array<string>;
+    supportBundleRetentionCleanupRequestStatus: string;
+    supportBundleRetentionCleanupRequestVersion: string;
     supportBundleRetentionCleanupStatus: string;
     preflight: {
       __typename?: 'CopilotPromptRegistryRepairPreflightType';

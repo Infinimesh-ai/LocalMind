@@ -1307,6 +1307,11 @@ type CopilotPromptRegistryRepairExecutionRequestType {
   supportBundlePackageInputs: [String!]!
   supportBundlePackageStatus: String!
   supportBundlePackageVersion: String!
+  supportBundleRetentionCleanupRequestCreated: Boolean!
+  supportBundleRetentionCleanupRequestFingerprint: String!
+  supportBundleRetentionCleanupRequestInputs: [String!]!
+  supportBundleRetentionCleanupRequestStatus: String!
+  supportBundleRetentionCleanupRequestVersion: String!
   supportBundleRetentionCleanupStatus: String!
 }
 

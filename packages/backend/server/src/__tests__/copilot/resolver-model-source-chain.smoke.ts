@@ -4243,6 +4243,67 @@ async function main() {
       .slice(0, 16)
   );
   assert.equal(
+    executionRequest.supportBundleRetentionCleanupRequestVersion,
+    'prompt-registry-repair-gate-support-bundle-retention-cleanup-request/v1'
+  );
+  assert.equal(
+    executionRequest.supportBundleRetentionCleanupRequestStatus,
+    'not_scheduled_read_only'
+  );
+  assert.equal(
+    executionRequest.supportBundleRetentionCleanupRequestCreated,
+    false
+  );
+  assert.match(
+    executionRequest.supportBundleRetentionCleanupRequestFingerprint,
+    /^[0-9a-f]{16}$/
+  );
+  assert.deepEqual(
+    executionRequest.supportBundleRetentionCleanupRequestInputs,
+    [
+      'actorFingerprint',
+      'auditPersistenceRequestFingerprint',
+      'manifestFingerprint',
+      'requestStatus',
+      'retentionCleanupStatus',
+      'retentionPolicyFingerprint',
+      'retentionPolicyStatus',
+      'supportBundlePackageFingerprint',
+    ]
+  );
+  assert.equal(
+    executionRequest.supportBundleRetentionCleanupRequestFingerprint,
+    createHash('sha256')
+      .update(
+        stableFingerprintFixtureStringify({
+          actorFingerprint: matchingPreflight?.actorFingerprint,
+          auditPersistenceRequestFingerprint:
+            executionRequest.supportBundleAuditPersistenceRequestFingerprint,
+          created: false,
+          inputs: executionRequest.supportBundleRetentionCleanupRequestInputs,
+          manifestFilename:
+            routeReadyGate.repairGateManifestExportMetadata.filename,
+          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+          requestStatus: executionRequest.requestStatus,
+          retentionCleanupStatus:
+            executionRequest.supportBundleRetentionCleanupStatus,
+          retentionPolicyFingerprint:
+            routeReadyGate.repairGateManifestExportMetadata
+              .retentionPolicyFingerprint,
+          retentionPolicyStatus:
+            routeReadyGate.repairGateManifestExportMetadata
+              .retentionPolicyStatus,
+          status: executionRequest.supportBundleRetentionCleanupRequestStatus,
+          supportBundlePackageFingerprint:
+            executionRequest.supportBundlePackageFingerprint,
+          version: executionRequest.supportBundleRetentionCleanupRequestVersion,
+          workspaceId: matchingPreflight?.workspaceId ?? null,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16)
+  );
+  assert.equal(
     executionRequest.approvalRecordRequestVersion,
     'repair-execution-approval-record-request/v1'
   );
