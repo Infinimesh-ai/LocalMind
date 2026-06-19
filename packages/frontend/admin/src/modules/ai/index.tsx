@@ -4075,6 +4075,8 @@ function formatPromptRegistryRepairExecutionRequest(
                   : 'referenceSchemaArtifactRecordStorageBackendFingerprintInputs:none'
               }:referenceSchemaArtifactRecordStorageBackendStatus:${
                 entry.candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus
+              }:referenceSchemaArtifactRecordStorageObjectArchiveInclusionStatus:${
+                entry.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatus
               }:referenceSchemaArtifactRecordStorageObjectFingerprint:${
                 entry.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint
               }:referenceSchemaArtifactRecordStorageObjectFingerprintInputs:${
