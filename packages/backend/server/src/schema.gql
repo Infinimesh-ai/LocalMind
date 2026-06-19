@@ -1337,6 +1337,13 @@ type CopilotPromptRegistryRepairExecutionRequestType {
   supportBundleRetentionCleanupRequestStatus: String!
   supportBundleRetentionCleanupRequestVersion: String!
   supportBundleRetentionCleanupStatus: String!
+  supportBundleSignedUrlPolicy: String!
+  supportBundleSignedUrlRequestCreated: Boolean!
+  supportBundleSignedUrlRequestFingerprint: String!
+  supportBundleSignedUrlRequestInputs: [String!]!
+  supportBundleSignedUrlRequestStatus: String!
+  supportBundleSignedUrlRequestVersion: String!
+  supportBundleSignedUrlScope: String!
   supportBundleStorageKeyRequestCreated: Boolean!
   supportBundleStorageKeyRequestFingerprint: String!
   supportBundleStorageKeyRequestInputs: [String!]!

@@ -4052,6 +4052,25 @@ function formatPromptRegistryRepairExecutionRequest(
     `support bundle download resolver route ${formatFeatureKind(
       request.supportBundleDownloadResolverRoute
     )}`,
+    `support bundle signed url request ${request.supportBundleSignedUrlRequestVersion}`,
+    `support bundle signed url request status ${formatFeatureKind(
+      request.supportBundleSignedUrlRequestStatus
+    )}`,
+    request.supportBundleSignedUrlRequestCreated
+      ? 'support bundle signed url request created yes'
+      : 'support bundle signed url request created no',
+    `support bundle signed url request fingerprint ${request.supportBundleSignedUrlRequestFingerprint}`,
+    request.supportBundleSignedUrlRequestInputs.length
+      ? `support bundle signed url request inputs ${request.supportBundleSignedUrlRequestInputs.join(
+          ', '
+        )}`
+      : 'support bundle signed url request inputs none',
+    `support bundle signed url policy ${formatFeatureKind(
+      request.supportBundleSignedUrlPolicy
+    )}`,
+    `support bundle signed url scope ${formatFeatureKind(
+      request.supportBundleSignedUrlScope
+    )}`,
     `support bundle audit persistence request ${request.supportBundleAuditPersistenceRequestVersion}`,
     `support bundle audit persistence request status ${formatFeatureKind(
       request.supportBundleAuditPersistenceRequestStatus

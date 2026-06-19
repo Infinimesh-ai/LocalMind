@@ -14552,3 +14552,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - request fingerprint 只绑定当前 authorization/archive/signature/storage/artifact request、manifest fingerprint、package fingerprint 与 route 名称，不绑定真实 artifact payload、storage backend、workspace secret、tenant route registry、真实下载行为、正式 repair execution output、archive bytes、signature bytes、URL expiry 或 client network identity。
 - package lifecycle 仍未覆盖真实 download resolver、route registry、signed URL policy、archive retention worker 或 lifecycle worker。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 435. P3 落地记录：Prompt Registry Repair Support Bundle Signed URL Request Projection
+
+本轮继续收敛第 434 节剩余风险中 “package lifecycle 仍未覆盖 signed URL policy” 的问题。实际代码与目标 AI 中间层架构的冲突点是：repair execution request 已经有 download resolver request projection，但后续正式 support bundle 若要返回签名 URL，仍缺少一个把 download resolver、download authorization、archive signature、storage key、artifact record 与 signed URL policy/scope 绑定起来的只读 request anchor。本轮新增 `prompt-registry-repair-gate-support-bundle-signed-url-request/v1`，不生成真实 URL、不创建 token、不设置过期时间、不暴露文件。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryRepairExecutionRequest` / GraphQL type 新增 `supportBundleSignedUrlRequest*` 字段，以及 `supportBundleSignedUrlPolicy` 与 `supportBundleSignedUrlScope`。
+  - `buildPromptRegistryRepairExecutionRequest()` 新增只读 signed URL request projection：状态为 `not_issued_read_only`，policy 为 `support_bundle_signed_url_read_only`，scope 为 `support_bundle_download_resolver`，输入绑定 download resolver request fingerprint、download authorization request fingerprint、archive signature request fingerprint、storage key request fingerprint、artifact record request fingerprint、manifest fingerprint、package fingerprint 与 request status。
+  - request fingerprint 同步纳入 `supportBundleSignedUrlRequestFingerprint`，使 signed URL request projection 漂移会影响 request-level anchor。
+- GraphQL 与 common client：
+  - `schema.gql`、repair execution request mutation、common query string 与 `schema.ts` 类型同步暴露 signed URL request 字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair execution request diagnostics 展示 signed URL request version/status/created/fingerprint/inputs、policy 与 scope。
+- 测试覆盖：
+  - backend model/source chain smoke test 断言 signed URL request 字段、输入集合、policy/scope 与 fingerprint 重算。
+  - Admin Vitest fixture/断言覆盖 signed URL request diagnostics 展示。
+
+该实现只扩展 repair execution request 的只读 GraphQL projection、common query/type、Admin 展示和测试，不新增 DB migration、不创建 DB-backed support bundle、不新增后端 download resolver、不创建下载 URL、不生成 token、不设置过期时间、不执行真实权限检查、不创建 audit event、不持久化 audit trail、不调度 retention cleanup job、不删除或归档文件、不写 artifact row、不分配 storage key、不生成真实 archive、不创建真实 signature、不创建 signed archive、不注册真实 resolver、不改变 repair mutation 可执行性、不改变 preflight/execution gate 判定、不改变 provider route selection、fallback order、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、Model Registry revision 或 Provider Registry revision。它把 “signed URL policy 尚未落地” 从文档风险推进到可比较的 request-level projection，为后续正式 support bundle signed URL issuer、download resolver 与真实 lifecycle worker 提供更明确的迁移输入。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 backend model/source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `supportBundleSignedUrlRequest*` 仍是只读 GraphQL projection，不是签名 URL、download token、URL expiry、后端 download resolver、真实权限检查、真实 audit trail 或 lifecycle worker。
+- request fingerprint 只绑定当前 resolver/authorization/archive signature/storage/artifact request、manifest fingerprint、package fingerprint 与 signed URL policy/scope，不绑定真实 artifact payload、storage backend、workspace secret、tenant signed URL policy registry、真实下载行为、正式 repair execution output、archive bytes、signature bytes、URL expiry 或 client network identity。
+- package lifecycle 仍未覆盖真实 signed URL issuer、route registry、download resolver、archive retention worker 或 lifecycle worker。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

@@ -4615,6 +4615,71 @@ async function main() {
       .slice(0, 16)
   );
   assert.equal(
+    executionRequest.supportBundleSignedUrlRequestVersion,
+    'prompt-registry-repair-gate-support-bundle-signed-url-request/v1'
+  );
+  assert.equal(
+    executionRequest.supportBundleSignedUrlRequestStatus,
+    'not_issued_read_only'
+  );
+  assert.equal(executionRequest.supportBundleSignedUrlRequestCreated, false);
+  assert.equal(
+    executionRequest.supportBundleSignedUrlPolicy,
+    'support_bundle_signed_url_read_only'
+  );
+  assert.equal(
+    executionRequest.supportBundleSignedUrlScope,
+    'support_bundle_download_resolver'
+  );
+  assert.match(
+    executionRequest.supportBundleSignedUrlRequestFingerprint,
+    /^[0-9a-f]{16}$/
+  );
+  assert.deepEqual(executionRequest.supportBundleSignedUrlRequestInputs, [
+    'archiveSignatureRequestFingerprint',
+    'artifactRecordRequestFingerprint',
+    'downloadAuthorizationRequestFingerprint',
+    'downloadResolverRequestFingerprint',
+    'manifestFingerprint',
+    'packageFingerprint',
+    'requestStatus',
+    'signedUrlPolicy',
+    'signedUrlScope',
+    'storageKeyRequestFingerprint',
+  ]);
+  assert.equal(
+    executionRequest.supportBundleSignedUrlRequestFingerprint,
+    createHash('sha256')
+      .update(
+        stableFingerprintFixtureStringify({
+          archiveSignatureRequestFingerprint:
+            executionRequest.supportBundleArchiveSignatureRequestFingerprint,
+          artifactRecordRequestFingerprint:
+            executionRequest.supportBundleArtifactRecordRequestFingerprint,
+          created: false,
+          downloadAuthorizationRequestFingerprint:
+            executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
+          downloadResolverRequestFingerprint:
+            executionRequest.supportBundleDownloadResolverRequestFingerprint,
+          inputs: executionRequest.supportBundleSignedUrlRequestInputs,
+          manifestFilename:
+            routeReadyGate.repairGateManifestExportMetadata.filename,
+          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+          packageFingerprint: executionRequest.supportBundlePackageFingerprint,
+          requestStatus: executionRequest.requestStatus,
+          signedUrlPolicy: executionRequest.supportBundleSignedUrlPolicy,
+          signedUrlScope: executionRequest.supportBundleSignedUrlScope,
+          status: executionRequest.supportBundleSignedUrlRequestStatus,
+          storageKeyRequestFingerprint:
+            executionRequest.supportBundleStorageKeyRequestFingerprint,
+          version: executionRequest.supportBundleSignedUrlRequestVersion,
+          workspaceId: matchingPreflight?.workspaceId ?? null,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16)
+  );
+  assert.equal(
     executionRequest.approvalRecordRequestVersion,
     'repair-execution-approval-record-request/v1'
   );

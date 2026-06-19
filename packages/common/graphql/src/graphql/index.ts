@@ -3314,6 +3314,13 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
     supportBundleRetentionCleanupRequestStatus
     supportBundleRetentionCleanupRequestVersion
     supportBundleRetentionCleanupStatus
+    supportBundleSignedUrlPolicy
+    supportBundleSignedUrlRequestCreated
+    supportBundleSignedUrlRequestFingerprint
+    supportBundleSignedUrlRequestInputs
+    supportBundleSignedUrlRequestStatus
+    supportBundleSignedUrlRequestVersion
+    supportBundleSignedUrlScope
     supportBundleStorageKeyRequestCreated
     supportBundleStorageKeyRequestFingerprint
     supportBundleStorageKeyRequestInputs

@@ -1545,6 +1545,13 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   supportBundleRetentionCleanupRequestStatus: Scalars['String']['output'];
   supportBundleRetentionCleanupRequestVersion: Scalars['String']['output'];
   supportBundleRetentionCleanupStatus: Scalars['String']['output'];
+  supportBundleSignedUrlPolicy: Scalars['String']['output'];
+  supportBundleSignedUrlRequestCreated: Scalars['Boolean']['output'];
+  supportBundleSignedUrlRequestFingerprint: Scalars['String']['output'];
+  supportBundleSignedUrlRequestInputs: Array<Scalars['String']['output']>;
+  supportBundleSignedUrlRequestStatus: Scalars['String']['output'];
+  supportBundleSignedUrlRequestVersion: Scalars['String']['output'];
+  supportBundleSignedUrlScope: Scalars['String']['output'];
   supportBundleStorageKeyRequestCreated: Scalars['Boolean']['output'];
   supportBundleStorageKeyRequestFingerprint: Scalars['String']['output'];
   supportBundleStorageKeyRequestInputs: Array<Scalars['String']['output']>;
@@ -9034,6 +9041,13 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
     supportBundleRetentionCleanupRequestStatus: string;
     supportBundleRetentionCleanupRequestVersion: string;
     supportBundleRetentionCleanupStatus: string;
+    supportBundleSignedUrlPolicy: string;
+    supportBundleSignedUrlRequestCreated: boolean;
+    supportBundleSignedUrlRequestFingerprint: string;
+    supportBundleSignedUrlRequestInputs: Array<string>;
+    supportBundleSignedUrlRequestStatus: string;
+    supportBundleSignedUrlRequestVersion: string;
+    supportBundleSignedUrlScope: string;
     supportBundleStorageKeyRequestCreated: boolean;
     supportBundleStorageKeyRequestFingerprint: string;
     supportBundleStorageKeyRequestInputs: Array<string>;

@@ -6647,6 +6647,27 @@ describe('AiPage', () => {
             'prompt-registry-repair-gate-support-bundle-download-resolver-request/v1',
           supportBundleDownloadResolverRoute:
             'support_bundle_signed_archive_download',
+          supportBundleSignedUrlPolicy: 'support_bundle_signed_url_read_only',
+          supportBundleSignedUrlRequestCreated: false,
+          supportBundleSignedUrlRequestFingerprint: input.workspaceId
+            ? 'aaaa7777bbbb8888'
+            : 'eeee7777ffff8888',
+          supportBundleSignedUrlRequestInputs: [
+            'archiveSignatureRequestFingerprint',
+            'artifactRecordRequestFingerprint',
+            'downloadAuthorizationRequestFingerprint',
+            'downloadResolverRequestFingerprint',
+            'manifestFingerprint',
+            'packageFingerprint',
+            'requestStatus',
+            'signedUrlPolicy',
+            'signedUrlScope',
+            'storageKeyRequestFingerprint',
+          ],
+          supportBundleSignedUrlRequestStatus: 'not_issued_read_only',
+          supportBundleSignedUrlRequestVersion:
+            'prompt-registry-repair-gate-support-bundle-signed-url-request/v1',
+          supportBundleSignedUrlScope: 'support_bundle_download_resolver',
           supportBundleManifestFilename: `prompt-registry-repair-gate-manifest-42-${input.expectedRepairGateManifestFingerprint}.json`,
           supportBundleManifestFingerprint:
             input.expectedRepairGateManifestFingerprint,
@@ -7503,6 +7524,24 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       'support bundle download resolver route Support Bundle Signed Archive Download'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle signed url request prompt-registry-repair-gate-support-bundle-signed-url-request/v1 / support bundle signed url request status Not Issued Read Only / support bundle signed url request created no / support bundle signed url request fingerprint eeee7777ffff8888'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle signed url request inputs archiveSignatureRequestFingerprint, artifactRecordRequestFingerprint, downloadAuthorizationRequestFingerprint, downloadResolverRequestFingerprint, manifestFingerprint'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle signed url policy Support Bundle Signed Url Read Only / support bundle signed url scope Support Bundle Download Resolver'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
