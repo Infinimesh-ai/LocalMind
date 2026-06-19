@@ -4063,6 +4063,8 @@ function formatPromptRegistryRepairExecutionRequest(
                       '|'
                     )
                   : 'referenceSchemaArtifactRecordStorageFingerprintInputs:none'
+              }:referenceSchemaArtifactRecordStorageBackendStatus:${
+                entry.candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus
               }:referenceSchemaArtifactRecordStorageStatus:${
                 entry.candidateEvidenceReferenceSchemaArtifactRecordStorageStatus
               }:referenceSchemaArtifactRecordStatus:${
