@@ -986,6 +986,13 @@ const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_REGISTR
   'not_persisted_read_only';
 const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_STATUS =
   'not_created_read_only';
+const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_FINGERPRINT_INPUTS =
+  [
+    'artifactStatus',
+    'registryStatus',
+    'schemaFingerprint',
+    'schemaVersion',
+  ] as const;
 const COPILOT_PROMPT_REGISTRY_REPAIR_ACTION_CATALOG_VERSION =
   'repair-actions/v1';
 
@@ -1392,6 +1399,7 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
   candidateEvidenceCount: number;
   candidateEvidenceEntries: CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry[];
   candidateEvidenceReferenceSchemaArtifactFingerprint: string;
+  candidateEvidenceReferenceSchemaArtifactFingerprintInputs: string[];
   candidateEvidenceReferenceSchemaArtifactStatus: string;
   candidateEvidenceReferenceSchemaFields: string[];
   candidateEvidenceReferenceSchemaFingerprint: string;
@@ -3591,6 +3599,9 @@ class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType impleme
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaArtifactFingerprint!: string;
+
+  @Field(() => [String])
+  candidateEvidenceReferenceSchemaArtifactFingerprintInputs!: string[];
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaArtifactStatus!: string;
@@ -11170,6 +11181,9 @@ function buildPromptRegistryRepairExecutionRequest(
           candidateEvidenceEntries: operation.candidateEvidenceEntries,
           candidateEvidenceReferenceSchemaArtifactFingerprint:
             candidateEvidenceReferenceSchemaArtifactFingerprint,
+          candidateEvidenceReferenceSchemaArtifactFingerprintInputs: [
+            ...COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_FINGERPRINT_INPUTS,
+          ],
           candidateEvidenceReferenceSchemaArtifactStatus:
             COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_STATUS,
           candidateEvidenceReferenceSchemaFields: [
