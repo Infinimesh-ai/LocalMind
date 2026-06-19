@@ -6514,6 +6514,24 @@ describe('AiPage', () => {
           supportBundleArtifactStatus: 'not_created_read_only',
           supportBundleArtifactVersion:
             'prompt-registry-repair-gate-support-bundle-artifact/v1',
+          supportBundleAuditPersistenceRequestCreated: false,
+          supportBundleAuditPersistenceRequestFingerprint: input.workspaceId
+            ? 'ffff9999eeeeaaaa'
+            : 'dddd9999ccccaaaa',
+          supportBundleAuditPersistenceRequestInputs: [
+            'actorFingerprint',
+            'auditEventFingerprint',
+            'auditEventStatus',
+            'auditPersistenceStatus',
+            'downloadAuthorizationRequestFingerprint',
+            'exportPolicyFingerprint',
+            'manifestFingerprint',
+            'requestStatus',
+            'supportBundlePackageFingerprint',
+          ],
+          supportBundleAuditPersistenceRequestStatus: 'not_created_read_only',
+          supportBundleAuditPersistenceRequestVersion:
+            'prompt-registry-repair-gate-support-bundle-audit-persistence-request/v1',
           supportBundleAuditPersistenceStatus: 'not_persisted_read_only',
           supportBundleDownloadAuthorizationRequestCreated: false,
           supportBundleDownloadAuthorizationRequestFingerprint:
@@ -7288,6 +7306,18 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       'support bundle download authorization request inputs actorFingerprint, authorizationStatus, downloadAuthorizationStatus, exportPolicyFingerprint, manifestFingerprint'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle audit persistence request prompt-registry-repair-gate-support-bundle-audit-persistence-request/v1 / support bundle audit persistence request status Not Created Read Only / support bundle audit persistence request created no / support bundle audit persistence request fingerprint dddd9999ccccaaaa'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle audit persistence request inputs actorFingerprint, auditEventFingerprint, auditEventStatus, auditPersistenceStatus, downloadAuthorizationRequestFingerprint'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

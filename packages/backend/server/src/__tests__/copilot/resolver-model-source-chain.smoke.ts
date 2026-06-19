@@ -4108,6 +4108,70 @@ async function main() {
     'not_persisted_read_only'
   );
   assert.equal(
+    executionRequest.supportBundleAuditPersistenceRequestVersion,
+    'prompt-registry-repair-gate-support-bundle-audit-persistence-request/v1'
+  );
+  assert.equal(
+    executionRequest.supportBundleAuditPersistenceRequestStatus,
+    'not_created_read_only'
+  );
+  assert.equal(
+    executionRequest.supportBundleAuditPersistenceRequestCreated,
+    false
+  );
+  assert.match(
+    executionRequest.supportBundleAuditPersistenceRequestFingerprint,
+    /^[0-9a-f]{16}$/
+  );
+  assert.deepEqual(
+    executionRequest.supportBundleAuditPersistenceRequestInputs,
+    [
+      'actorFingerprint',
+      'auditEventFingerprint',
+      'auditEventStatus',
+      'auditPersistenceStatus',
+      'downloadAuthorizationRequestFingerprint',
+      'exportPolicyFingerprint',
+      'manifestFingerprint',
+      'requestStatus',
+      'supportBundlePackageFingerprint',
+    ]
+  );
+  assert.equal(
+    executionRequest.supportBundleAuditPersistenceRequestFingerprint,
+    createHash('sha256')
+      .update(
+        stableFingerprintFixtureStringify({
+          actorFingerprint: matchingPreflight?.actorFingerprint,
+          auditEventFingerprint:
+            routeReadyGate.repairGateManifestExportMetadata
+              .auditEventFingerprint,
+          auditEventStatus:
+            routeReadyGate.repairGateManifestExportMetadata.auditEventStatus,
+          auditPersistenceStatus:
+            executionRequest.supportBundleAuditPersistenceStatus,
+          created: false,
+          downloadAuthorizationRequestFingerprint:
+            executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
+          exportPolicyFingerprint:
+            routeReadyGate.repairGateManifestExportMetadata
+              .exportPolicyFingerprint,
+          inputs: executionRequest.supportBundleAuditPersistenceRequestInputs,
+          manifestFilename:
+            routeReadyGate.repairGateManifestExportMetadata.filename,
+          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+          requestStatus: executionRequest.requestStatus,
+          status: executionRequest.supportBundleAuditPersistenceRequestStatus,
+          supportBundlePackageFingerprint:
+            executionRequest.supportBundlePackageFingerprint,
+          version: executionRequest.supportBundleAuditPersistenceRequestVersion,
+          workspaceId: matchingPreflight?.workspaceId ?? null,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16)
+  );
+  assert.equal(
     executionRequest.supportBundleRetentionCleanupStatus,
     'not_scheduled_read_only'
   );

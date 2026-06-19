@@ -3972,6 +3972,19 @@ function formatPromptRegistryRepairExecutionRequest(
           ', '
         )}`
       : 'support bundle download authorization request inputs none',
+    `support bundle audit persistence request ${request.supportBundleAuditPersistenceRequestVersion}`,
+    `support bundle audit persistence request status ${formatFeatureKind(
+      request.supportBundleAuditPersistenceRequestStatus
+    )}`,
+    request.supportBundleAuditPersistenceRequestCreated
+      ? 'support bundle audit persistence request created yes'
+      : 'support bundle audit persistence request created no',
+    `support bundle audit persistence request fingerprint ${request.supportBundleAuditPersistenceRequestFingerprint}`,
+    request.supportBundleAuditPersistenceRequestInputs.length
+      ? `support bundle audit persistence request inputs ${request.supportBundleAuditPersistenceRequestInputs.join(
+          ', '
+        )}`
+      : 'support bundle audit persistence request inputs none',
     `support bundle download authorization status ${formatFeatureKind(
       request.supportBundleDownloadAuthorizationStatus
     )}`,

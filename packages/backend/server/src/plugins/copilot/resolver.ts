@@ -1362,6 +1362,11 @@ type CopilotPromptRegistryRepairExecutionRequest = {
   supportBundleArtifactInputs: string[];
   supportBundleArtifactStatus: string;
   supportBundleArtifactVersion: string;
+  supportBundleAuditPersistenceRequestCreated: boolean;
+  supportBundleAuditPersistenceRequestFingerprint: string;
+  supportBundleAuditPersistenceRequestInputs: string[];
+  supportBundleAuditPersistenceRequestStatus: string;
+  supportBundleAuditPersistenceRequestVersion: string;
   supportBundleAuditPersistenceStatus: string;
   supportBundleDownloadAuthorizationRequestCreated: boolean;
   supportBundleDownloadAuthorizationRequestFingerprint: string;
@@ -3840,6 +3845,21 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
 
   @Field(() => String)
   supportBundleArtifactVersion!: string;
+
+  @Field(() => Boolean)
+  supportBundleAuditPersistenceRequestCreated!: boolean;
+
+  @Field(() => String)
+  supportBundleAuditPersistenceRequestFingerprint!: string;
+
+  @Field(() => [String])
+  supportBundleAuditPersistenceRequestInputs!: string[];
+
+  @Field(() => String)
+  supportBundleAuditPersistenceRequestStatus!: string;
+
+  @Field(() => String)
+  supportBundleAuditPersistenceRequestVersion!: string;
 
   @Field(() => String)
   supportBundleAuditPersistenceStatus!: string;
@@ -10178,6 +10198,45 @@ function buildPromptRegistryRepairExecutionRequest(
     )
     .digest('hex')
     .slice(0, 16);
+  const supportBundleAuditPersistenceRequestVersion =
+    'prompt-registry-repair-gate-support-bundle-audit-persistence-request/v1';
+  const supportBundleAuditPersistenceRequestStatus = 'not_created_read_only';
+  const supportBundleAuditPersistenceRequestInputs = [
+    'actorFingerprint',
+    'auditEventFingerprint',
+    'auditEventStatus',
+    'auditPersistenceStatus',
+    'downloadAuthorizationRequestFingerprint',
+    'exportPolicyFingerprint',
+    'manifestFingerprint',
+    'requestStatus',
+    'supportBundlePackageFingerprint',
+  ].sort();
+  const supportBundleAuditPersistenceRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        actorFingerprint: preflight.actorFingerprint,
+        auditEventFingerprint:
+          repairGateManifestExportMetadata.auditEventFingerprint,
+        auditEventStatus: repairGateManifestExportMetadata.auditEventStatus,
+        auditPersistenceStatus: supportBundleAuditPersistenceStatus,
+        created: false,
+        downloadAuthorizationRequestFingerprint:
+          supportBundleDownloadAuthorizationRequestFingerprint,
+        exportPolicyFingerprint:
+          repairGateManifestExportMetadata.exportPolicyFingerprint,
+        inputs: supportBundleAuditPersistenceRequestInputs,
+        manifestFilename: repairGateManifestExportMetadata.filename,
+        manifestFingerprint: repairGateManifest.fingerprint,
+        requestStatus,
+        status: supportBundleAuditPersistenceRequestStatus,
+        supportBundlePackageFingerprint,
+        version: supportBundleAuditPersistenceRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
   const idempotencyLockVersion = 'repair-execution-idempotency-lock/v1';
   const idempotencyLockStatus = 'not_acquired_read_only';
   const idempotencyLockScope = preflight.idempotencyScope;
@@ -13040,6 +13099,7 @@ function buildPromptRegistryRepairExecutionRequest(
         rollbackPlanFingerprint: preflight.rollbackPlanFingerprint,
         rollbackPlanRequestFingerprint,
         supportBundleArtifactFingerprint,
+        supportBundleAuditPersistenceRequestFingerprint,
         supportBundleDownloadAuthorizationRequestFingerprint,
         supportBundlePackageFingerprint,
         targetLocatorFingerprint: preflight.targetLocatorFingerprint,
@@ -13324,6 +13384,11 @@ function buildPromptRegistryRepairExecutionRequest(
     supportBundleArtifactInputs,
     supportBundleArtifactStatus,
     supportBundleArtifactVersion,
+    supportBundleAuditPersistenceRequestCreated: false,
+    supportBundleAuditPersistenceRequestFingerprint,
+    supportBundleAuditPersistenceRequestInputs,
+    supportBundleAuditPersistenceRequestStatus,
+    supportBundleAuditPersistenceRequestVersion,
     supportBundleAuditPersistenceStatus,
     supportBundleDownloadAuthorizationRequestCreated: false,
     supportBundleDownloadAuthorizationRequestFingerprint,

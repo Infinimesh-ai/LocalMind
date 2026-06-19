@@ -14342,3 +14342,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - request fingerprint 只绑定 actor fingerprint、preflight authorization status、manifest/export policy 与 support bundle artifact fingerprint，不绑定真实用户会话、download token、workspace secret、tenant policy registry、网络来源、过期时间或实际下载行为。
 - package lifecycle 仍未覆盖 audit persistence request、retention cleanup request、DB-backed artifact table、正式 support bundle package 内容或可下载归档。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 428. P3 落地记录：Prompt Registry Repair Support Bundle Audit Persistence Request Projection
+
+本轮继续收敛第 427 节剩余风险中 “package lifecycle 仍未覆盖 audit persistence request” 的问题。实际代码与目标 AI 中间层架构的冲突点是：repair execution request 已经有 support bundle package lifecycle 与 download authorization request projection，但 audit persistence 仍只有 `not_persisted_read_only` 状态；后续若要接入正式 audit trail 或 DB-backed support bundle artifact，仍缺少一个把 actor、audit event metadata、download authorization request、package fingerprint 与 manifest/export policy 绑定起来的只读 request projection。本轮新增 `prompt-registry-repair-gate-support-bundle-audit-persistence-request/v1`，不创建真实 audit event、不写 DB、不创建 support bundle artifact row、不调度 retention cleanup。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryRepairExecutionRequest` / GraphQL type 新增 `supportBundleAuditPersistenceRequest*` 字段。
+  - `buildPromptRegistryRepairExecutionRequest()` 新增只读 audit persistence request projection：状态为 `not_created_read_only`，输入绑定 actor fingerprint、manifest export metadata 的 audit event fingerprint/status、audit persistence status、download authorization request fingerprint、manifest fingerprint、export policy fingerprint、request status 与 support bundle package fingerprint。
+  - request fingerprint 同步纳入 `supportBundleAuditPersistenceRequestFingerprint`，使 audit persistence request projection 漂移会影响 request-level anchor。
+- GraphQL 与 common client：
+  - `schema.gql`、repair execution request mutation、common query string 与 `schema.ts` 类型同步暴露 audit persistence request 字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair execution request diagnostics 展示 audit persistence request version/status/created/fingerprint/inputs。
+- 测试覆盖：
+  - backend model/source chain smoke test 断言 audit persistence request 字段、输入集合与 fingerprint 重算。
+  - Admin Vitest fixture/断言覆盖 audit persistence request diagnostics 展示。
+
+该实现只扩展 repair execution request 的只读 GraphQL projection、common query/type、Admin 展示和测试，不新增 DB migration、不创建 DB-backed support bundle、不新增后端 download resolver、不创建下载 URL、不执行真实权限检查、不创建 audit event、不持久化 audit trail、不改变 retention 存储、不改变 repair mutation 可执行性、不改变 preflight/execution gate 判定、不改变 provider route selection、fallback order、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、Model Registry revision 或 Provider Registry revision。它把 “audit persistence 尚未落地” 从单个状态值推进到可比较的 request-level projection，为后续正式 audit event persistence、support bundle artifact table 与 retention cleanup 提供更明确的迁移输入。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 backend model/source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `supportBundleAuditPersistenceRequest*` 仍是只读 GraphQL projection，不是 DB-backed audit event、support bundle artifact row、workspace-level audit policy decision、真实 audit trail 或 retention cleanup job。
+- request fingerprint 只绑定 actor fingerprint、manifest export metadata、download authorization request fingerprint 与 support bundle package fingerprint，不绑定真实用户会话、tenant audit policy registry、download token、workspace secret、网络来源、过期时间、真实下载行为或正式 repair execution output。
+- package lifecycle 仍未覆盖 retention cleanup request、DB-backed artifact table、正式 support bundle package 内容、可下载归档或签名快照。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

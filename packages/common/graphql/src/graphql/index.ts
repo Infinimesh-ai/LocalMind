@@ -3263,6 +3263,11 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
     supportBundleArtifactInputs
     supportBundleArtifactStatus
     supportBundleArtifactVersion
+    supportBundleAuditPersistenceRequestCreated
+    supportBundleAuditPersistenceRequestFingerprint
+    supportBundleAuditPersistenceRequestInputs
+    supportBundleAuditPersistenceRequestStatus
+    supportBundleAuditPersistenceRequestVersion
     supportBundleAuditPersistenceStatus
     supportBundleDownloadAuthorizationRequestCreated
     supportBundleDownloadAuthorizationRequestFingerprint
