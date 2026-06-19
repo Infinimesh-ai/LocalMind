@@ -4033,6 +4033,14 @@ function formatPromptRegistryRepairExecutionRequest(
                   : 'referenceSchemaArtifactFingerprintInputs:none'
               }:referenceSchemaArtifactRecordFingerprint:${
                 entry.candidateEvidenceReferenceSchemaArtifactRecordFingerprint
+              }:referenceSchemaArtifactRecordFingerprintInputs:${
+                entry
+                  .candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs
+                  .length
+                  ? entry.candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs.join(
+                      '|'
+                    )
+                  : 'referenceSchemaArtifactRecordFingerprintInputs:none'
               }:referenceSchemaArtifactRecordStatus:${
                 entry.candidateEvidenceReferenceSchemaArtifactRecordStatus
               }:referenceSchemaArtifactStatus:${

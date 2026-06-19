@@ -15629,6 +15629,38 @@ Remaining risk:
 - Repair action remains read-only/blocked; true repair execution, support bundle persistence, download authorization, audit persistence, and retention cleanup worker remain future work.
 - The current runtime image does not include this local source change; before broader stage acceptance a full `localmind-affine:local` build and container verification is still required.
 
+## 477. P1 landing record: Support Bundle Source Evidence Candidate Reference Schema Artifact Record Fingerprint Inputs Projection
+
+This round continues the section 476 residual risk where candidate evidence reference schema artifact record fingerprint remains runtime read-only metadata, not a persisted artifact record, DB-backed schema registry, audit event, or persistent repair job snapshot. The conflict with the target AI middle-layer architecture is that auditors can compare the schema artifact record placeholder fingerprint, but still need the support bundle response itself to declare which fields feed that record fingerprint without reading resolver source.
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`:
+  - Adds `COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_FINGERPRINT_INPUTS` with `artifactFingerprint`, `artifactStatus`, `recordStatus`, and `schemaFingerprint`.
+  - `CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry` and its GraphQL object type expose `candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs` once per source evidence entry.
+  - `buildPromptRegistryRepairExecutionRequest()` projects the artifact record fingerprint input list alongside the artifact record fingerprint and artifact record status.
+  - The artifact record fingerprint input list is explanatory runtime metadata only. It does not create a schema artifact record, registry row, audit event, repair job snapshot, or storage object, and it is not added to candidate evidence fingerprint, candidate evidence set fingerprint, operation fingerprint, task-route source evidence-set fingerprint, repair gate manifest fingerprint, execution request fingerprint, or support bundle lifecycle request fingerprint payloads.
+- `packages/backend/server/src/schema.gql`, `packages/common/graphql/src/graphql/index.ts`, `packages/common/graphql/src/graphql/copilot-prompt-registry-repair-execution-request.gql`, and `packages/common/graphql/src/schema.ts`:
+  - Synchronize execution request mutation response selection/type for `candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs`.
+- `packages/frontend/admin/src/modules/ai/index.tsx`:
+  - Execution request copyable diagnostics add `referenceSchemaArtifactRecordFingerprintInputs:<inputs>` after `referenceSchemaArtifactRecordFingerprint:<fingerprint>` and before `referenceSchemaArtifactRecordStatus:<status>`.
+- Test coverage:
+  - `resolver-model-source-chain.smoke.ts` asserts source evidence entries carry the expected schema artifact record fingerprint input list.
+  - `admin/src/modules/ai/index.spec.tsx` covers the GraphQL fixture field and Admin `referenceSchemaArtifactRecordFingerprintInputs` output.
+
+This implementation only extends read-only support bundle source evidence entry-level schema artifact record fingerprint input metadata projection, GraphQL/common query/type coverage, Admin diagnostics labels, and focused tests. It does not add a DB migration, create a DB-backed evidence object/schema registry/artifact record/audit event/persistent repair job snapshot, persist registry revision/workspace policy revision/provider snapshot/task route snapshot/model availability snapshot/archive bytes/signed URL material/storage backend, change any existing fingerprint payload, alter repair action executability, provider route selection, fallback order, BYOK lease, quota, health checks, `copilot.tasks.models` config format, embedding/rerank native request parameters, `EMBEDDING_DIMENSIONS`, pgvector dimensions, MCP registry, Codex adapter, or Action Runtime state machine.
+
+Validation strategy:
+
+- This round changes TypeScript resolver/common/admin/test files plus this plan document only; it does not touch dependencies, Dockerfile, native build, DB migration, or runtime packaging, and does not rebuild `localmind-affine:test`.
+- Continue using the fixed test image `localmind-affine:test` with image ID prefix `c3389960f5ed`. Validation uses `docker run --rm -v "${PWD}:/host:ro" -w /workspace localmind-affine:test ...`, copies current source dirs into the image workspace, and runs focused backend smoke, Admin Vitest, oxlint, Prettier check, and host `git diff --check`.
+
+Remaining risk:
+
+- Candidate evidence reference schema artifact record fingerprint inputs remain runtime read-only metadata, not a persisted artifact record, DB-backed schema registry, audit event, or persistent repair job snapshot.
+- Reference entries now expose the current task route source/candidate payload family, an entry-level schema marker, schema fingerprint, fingerprint input list, registry status, artifact status, artifact fingerprint, artifact fingerprint input list, artifact record status, artifact record fingerprint, and artifact record fingerprint input list, but still do not provide a formal DB-backed candidate evidence schema or persisted support bundle artifact.
+- The source guard fingerprint still derives from operation/candidate evidence perspective and does not bind real request payloads, provider credentials, BYOK lease, tenant policy registry, storage backend, archive bytes, signed URL secret/material, health probe timestamp, request dispatch outcome, or billing/quota execution result.
+- Repair action remains read-only/blocked; true repair execution, support bundle persistence, download authorization, audit persistence, and retention cleanup worker remain future work.
+- The current runtime image does not include this local source change; before broader stage acceptance a full `localmind-affine:local` build and container verification is still required.
+
 ## 467. P1 landing record: Support Bundle Source Evidence Candidate Prepared Route Payload Entries Projection
 
 This round continues the section 466 residual risk where reference entries expose task route source, prepared route order, model/source payload entries, policy candidate payload entries, route candidate payload entries, and prepare candidate payload entries, but still do not expose prepared-route payload entries. The conflict with the target AI middle-layer architecture is that auditors can see the prepared route order fingerprint and prepare outcome, but still need raw candidate evidence to inspect the final prepared route provider/model/profile, route index, fallback index, backend kind, request layer, configured models, and dimension metadata.

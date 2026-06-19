@@ -995,6 +995,13 @@ const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFAC
   ] as const;
 const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STATUS =
   'not_created_read_only';
+const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_FINGERPRINT_INPUTS =
+  [
+    'artifactFingerprint',
+    'artifactStatus',
+    'recordStatus',
+    'schemaFingerprint',
+  ] as const;
 const COPILOT_PROMPT_REGISTRY_REPAIR_ACTION_CATALOG_VERSION =
   'repair-actions/v1';
 
@@ -1403,6 +1410,7 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
   candidateEvidenceReferenceSchemaArtifactFingerprint: string;
   candidateEvidenceReferenceSchemaArtifactFingerprintInputs: string[];
   candidateEvidenceReferenceSchemaArtifactRecordFingerprint: string;
+  candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs: string[];
   candidateEvidenceReferenceSchemaArtifactRecordStatus: string;
   candidateEvidenceReferenceSchemaArtifactStatus: string;
   candidateEvidenceReferenceSchemaFields: string[];
@@ -3609,6 +3617,9 @@ class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType impleme
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaArtifactRecordFingerprint!: string;
+
+  @Field(() => [String])
+  candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs!: string[];
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaArtifactRecordStatus!: string;
@@ -11223,6 +11234,9 @@ function buildPromptRegistryRepairExecutionRequest(
           ],
           candidateEvidenceReferenceSchemaArtifactRecordFingerprint:
             candidateEvidenceReferenceSchemaArtifactRecordFingerprint,
+          candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs: [
+            ...COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_FINGERPRINT_INPUTS,
+          ],
           candidateEvidenceReferenceSchemaArtifactRecordStatus:
             COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STATUS,
           candidateEvidenceReferenceSchemaArtifactStatus:
