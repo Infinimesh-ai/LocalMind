@@ -1205,6 +1205,7 @@ export interface CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType 
   candidateEvidenceProviderId: Scalars['String']['output'];
   candidateEvidenceScope: Scalars['String']['output'];
   candidateIndex: Scalars['SafeInt']['output'];
+  taskRouteEffectiveSourceFingerprint?: Maybe<Scalars['String']['output']>;
 }
 
 export interface CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType {
@@ -9230,6 +9231,7 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
         candidateEvidenceProviderId: string;
         candidateEvidenceScope: string;
         candidateIndex: number;
+        taskRouteEffectiveSourceFingerprint: string | null;
       }>;
       candidateEvidenceFingerprint: string;
       candidateEvidenceFingerprints: Array<string>;

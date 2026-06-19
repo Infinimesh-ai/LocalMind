@@ -4027,7 +4027,10 @@ function formatPromptRegistryRepairExecutionRequest(
                           }:${candidate.candidateEvidenceProviderId}:${
                             candidate.candidateEvidenceKey ??
                             'candidateEvidenceKey:none'
-                          }:${candidate.candidateEvidenceFingerprint}`
+                          }:${candidate.candidateEvidenceFingerprint}:${
+                            candidate.taskRouteEffectiveSourceFingerprint ??
+                            'source:none'
+                          }`
                       )
                       .join('|')
                   : 'candidateEvidenceEntries:none'

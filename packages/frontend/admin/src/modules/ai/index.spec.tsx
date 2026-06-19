@@ -231,6 +231,7 @@ function candidateEvidenceReferenceEntriesFixture(
     candidateKey?: string;
     providerId: string;
     scope: string;
+    taskRouteEffectiveSourceFingerprint?: string | null;
   }>
 ) {
   return candidateEvidence
@@ -243,6 +244,8 @@ function candidateEvidenceReferenceEntriesFixture(
       candidateEvidenceProviderId: candidate.providerId,
       candidateEvidenceScope: candidate.scope,
       candidateIndex: candidate.candidateIndex,
+      taskRouteEffectiveSourceFingerprint:
+        candidate.taskRouteEffectiveSourceFingerprint ?? null,
     }))
     .sort((left, right) =>
       [
@@ -7884,7 +7887,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      `candidateEvidenceEntries:${taskRouteSourceCandidateEntry?.candidateEvidenceScope}#${taskRouteSourceCandidateEntry?.candidateIndex}:${taskRouteSourceCandidateEntry?.candidateEvidenceCategory}:${taskRouteSourceCandidateEntry?.candidateEvidenceProviderId}:${taskRouteSourceCandidateEntry?.candidateEvidenceKey}:${taskRouteSourceCandidateEntry?.candidateEvidenceFingerprint}`
+      `candidateEvidenceEntries:${taskRouteSourceCandidateEntry?.candidateEvidenceScope}#${taskRouteSourceCandidateEntry?.candidateIndex}:${taskRouteSourceCandidateEntry?.candidateEvidenceCategory}:${taskRouteSourceCandidateEntry?.candidateEvidenceProviderId}:${taskRouteSourceCandidateEntry?.candidateEvidenceKey}:${taskRouteSourceCandidateEntry?.candidateEvidenceFingerprint}:${taskRouteSourceCandidateEntry?.taskRouteEffectiveSourceFingerprint ?? 'source:none'}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
