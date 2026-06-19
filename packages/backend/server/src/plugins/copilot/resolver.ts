@@ -951,6 +951,13 @@ const COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_INPUTS = [
   'routeTrace',
   'topK',
 ] as const;
+const COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_EVIDENCE_SET_FINGERPRINT_VERSION =
+  'copilot-task-route-effective-source-evidence-set/v1';
+const COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_EVIDENCE_SET_FINGERPRINT_INPUTS = [
+  'diagnosticsFingerprint',
+  'operationFingerprint',
+  'taskRouteEffectiveSourceFingerprints',
+] as const;
 const COPILOT_PROMPT_REGISTRY_REPAIR_ACTION_CATALOG_VERSION =
   'repair-actions/v1';
 
@@ -1128,6 +1135,8 @@ type CopilotPromptRegistryPublishGateRepairActionSubmissionContract = {
   authorizationFingerprint: string;
   candidateEvidenceSetFingerprint: string;
   taskRouteEffectiveSourceEvidenceSetFingerprint: string;
+  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: string[];
+  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: string;
   embeddingIndexContractEvidenceSetFingerprint: string;
   rerankRuntimeContractEvidenceSetFingerprint: string;
   preparedRouteOrderEvidenceSetFingerprint: string;
@@ -1167,6 +1176,8 @@ type CopilotPromptRegistryPublishGateRepairGateManifest = {
   submissionFingerprint: string;
   candidateEvidenceSetFingerprint: string;
   taskRouteEffectiveSourceEvidenceSetFingerprint: string;
+  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: string[];
+  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: string;
   embeddingIndexContractEvidenceSetFingerprint: string;
   rerankRuntimeContractEvidenceSetFingerprint: string;
   preparedRouteOrderEvidenceSetFingerprint: string;
@@ -1245,6 +1256,8 @@ type CopilotPromptRegistryRepairPreflight = {
   authorizationStatus: string;
   candidateEvidenceSetFingerprint: string;
   taskRouteEffectiveSourceEvidenceSetFingerprint: string;
+  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: string[];
+  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: string;
   embeddingIndexContractEvidenceSetFingerprint: string;
   rerankRuntimeContractEvidenceSetFingerprint: string;
   preparedRouteOrderEvidenceSetFingerprint: string;
@@ -1266,6 +1279,8 @@ type CopilotPromptRegistryRepairPreflight = {
   executionStateVersion: string;
   expectedCandidateEvidenceSetFingerprint: string;
   expectedTaskRouteEffectiveSourceEvidenceSetFingerprint: string;
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: string[];
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: string;
   expectedEmbeddingIndexContractEvidenceSetFingerprint: string;
   expectedRerankRuntimeContractEvidenceSetFingerprint: string;
   expectedPreparedRouteOrderEvidenceSetFingerprint: string;
@@ -1317,6 +1332,8 @@ type CopilotPromptRegistryRepairExecutionRequest = {
   executionRequested: boolean;
   expectedCandidateEvidenceSetFingerprint: string;
   expectedTaskRouteEffectiveSourceEvidenceSetFingerprint: string;
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: string[];
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: string;
   expectedEmbeddingIndexContractEvidenceSetFingerprint: string;
   expectedRerankRuntimeContractEvidenceSetFingerprint: string;
   expectedPreparedRouteOrderEvidenceSetFingerprint: string;
@@ -1657,6 +1674,8 @@ type CopilotPromptRegistryPublishGateRepairActionPreview = {
   candidateCount: number;
   candidateEvidenceSetFingerprint: string;
   taskRouteEffectiveSourceEvidenceSetFingerprint: string;
+  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: string[];
+  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: string;
   embeddingIndexContractEvidenceSetFingerprint: string;
   rerankRuntimeContractEvidenceSetFingerprint: string;
   preparedRouteOrderEvidenceSetFingerprint: string;
@@ -2361,6 +2380,12 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
   @Field(() => String, { nullable: true })
   taskRouteEffectiveSourceFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['taskRouteEffectiveSourceFingerprint'];
 
+  @Field(() => [String], { nullable: true })
+  taskRouteEffectiveSourceFingerprintInputs?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['taskRouteEffectiveSourceFingerprintInputs'];
+
+  @Field(() => String, { nullable: true })
+  taskRouteEffectiveSourceFingerprintVersion?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['taskRouteEffectiveSourceFingerprintVersion'];
+
   @Field(() => String, { nullable: true })
   taskRouteModelSourceSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['taskRouteModelSourceSnapshotFingerprint'];
 
@@ -2737,6 +2762,12 @@ class CopilotPromptRegistryPublishGateRepairActionSubmissionContractType impleme
   @Field(() => String)
   taskRouteEffectiveSourceEvidenceSetFingerprint!: string;
 
+  @Field(() => [String])
+  taskRouteEffectiveSourceEvidenceSetFingerprintInputs!: string[];
+
+  @Field(() => String)
+  taskRouteEffectiveSourceEvidenceSetFingerprintVersion!: string;
+
   @Field(() => String)
   embeddingIndexContractEvidenceSetFingerprint!: string;
 
@@ -2826,6 +2857,12 @@ class CopilotPromptRegistryPublishGateRepairActionPreviewType implements Copilot
 
   @Field(() => String)
   taskRouteEffectiveSourceEvidenceSetFingerprint!: string;
+
+  @Field(() => [String])
+  taskRouteEffectiveSourceEvidenceSetFingerprintInputs!: string[];
+
+  @Field(() => String)
+  taskRouteEffectiveSourceEvidenceSetFingerprintVersion!: string;
 
   @Field(() => String)
   embeddingIndexContractEvidenceSetFingerprint!: string;
@@ -2929,6 +2966,12 @@ class CopilotPromptRegistryPublishGateRepairGateManifestType implements CopilotP
 
   @Field(() => String)
   taskRouteEffectiveSourceEvidenceSetFingerprint!: string;
+
+  @Field(() => [String])
+  taskRouteEffectiveSourceEvidenceSetFingerprintInputs!: string[];
+
+  @Field(() => String)
+  taskRouteEffectiveSourceEvidenceSetFingerprintVersion!: string;
 
   @Field(() => String)
   embeddingIndexContractEvidenceSetFingerprint!: string;
@@ -3152,6 +3195,12 @@ class CopilotPromptRegistryRepairPreflightType implements CopilotPromptRegistryR
   @Field(() => String)
   taskRouteEffectiveSourceEvidenceSetFingerprint!: string;
 
+  @Field(() => [String])
+  taskRouteEffectiveSourceEvidenceSetFingerprintInputs!: string[];
+
+  @Field(() => String)
+  taskRouteEffectiveSourceEvidenceSetFingerprintVersion!: string;
+
   @Field(() => String)
   embeddingIndexContractEvidenceSetFingerprint!: string;
 
@@ -3214,6 +3263,12 @@ class CopilotPromptRegistryRepairPreflightType implements CopilotPromptRegistryR
 
   @Field(() => String)
   expectedTaskRouteEffectiveSourceEvidenceSetFingerprint!: string;
+
+  @Field(() => [String])
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs!: string[];
+
+  @Field(() => String)
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion!: string;
 
   @Field(() => String)
   expectedEmbeddingIndexContractEvidenceSetFingerprint!: string;
@@ -3361,6 +3416,12 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
 
   @Field(() => String)
   expectedTaskRouteEffectiveSourceEvidenceSetFingerprint!: string;
+
+  @Field(() => [String])
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs!: string[];
+
+  @Field(() => String)
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion!: string;
 
   @Field(() => String)
   expectedEmbeddingIndexContractEvidenceSetFingerprint!: string;
@@ -6373,6 +6434,15 @@ function taskRouteCandidateProfileStructuredEvidence(
       candidateFingerprint:
         taskRouteRepairCandidateEvidenceFingerprint(evidence),
       ...evidence,
+      ...(evidence.taskRouteEffectiveSourceFingerprint
+        ? {
+            taskRouteEffectiveSourceFingerprintInputs: [
+              ...COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_INPUTS,
+            ],
+            taskRouteEffectiveSourceFingerprintVersion:
+              COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_VERSION,
+          }
+        : {}),
     };
   };
 
@@ -9280,6 +9350,11 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
     )
     .digest('hex')
     .slice(0, 16);
+  const taskRouteEffectiveSourceEvidenceSetFingerprintInputs = [
+    ...COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_EVIDENCE_SET_FINGERPRINT_INPUTS,
+  ];
+  const taskRouteEffectiveSourceEvidenceSetFingerprintVersion =
+    COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_EVIDENCE_SET_FINGERPRINT_VERSION;
   const embeddingIndexContractEvidenceSetFingerprint = createHash('sha256')
     .update(
       stableRepairRecommendationStringify(
@@ -9464,6 +9539,8 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
       authorizationFingerprint,
       candidateEvidenceSetFingerprint,
       taskRouteEffectiveSourceEvidenceSetFingerprint,
+      taskRouteEffectiveSourceEvidenceSetFingerprintInputs,
+      taskRouteEffectiveSourceEvidenceSetFingerprintVersion,
       catalogFingerprint: input.catalogFingerprint,
       contractVersion: submissionContractVersion,
       embeddingIndexContractEvidenceSetFingerprint,
@@ -9501,6 +9578,8 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
     candidateCount: operations.length,
     candidateEvidenceSetFingerprint,
     taskRouteEffectiveSourceEvidenceSetFingerprint,
+    taskRouteEffectiveSourceEvidenceSetFingerprintInputs,
+    taskRouteEffectiveSourceEvidenceSetFingerprintVersion,
     embeddingIndexContractEvidenceSetFingerprint,
     preparedRouteOrderEvidenceSetFingerprint,
     rerankRuntimeContractEvidenceSetFingerprint,
@@ -9579,6 +9658,10 @@ function buildPromptRegistryPublishGateRepairGateManifest(input: {
 
   return {
     ...manifestWithoutFingerprint,
+    taskRouteEffectiveSourceEvidenceSetFingerprintInputs:
+      input.preview.taskRouteEffectiveSourceEvidenceSetFingerprintInputs,
+    taskRouteEffectiveSourceEvidenceSetFingerprintVersion:
+      input.preview.taskRouteEffectiveSourceEvidenceSetFingerprintVersion,
     fingerprint,
   };
 }
@@ -10401,6 +10484,11 @@ function buildPromptRegistryRepairPreflight(
     candidateEvidenceSetFingerprint: current.candidateEvidenceSetFingerprint,
     taskRouteEffectiveSourceEvidenceSetFingerprint:
       current.taskRouteEffectiveSourceEvidenceSetFingerprint,
+    taskRouteEffectiveSourceEvidenceSetFingerprintInputs: [
+      ...COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_EVIDENCE_SET_FINGERPRINT_INPUTS,
+    ],
+    taskRouteEffectiveSourceEvidenceSetFingerprintVersion:
+      COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_EVIDENCE_SET_FINGERPRINT_VERSION,
     embeddingIndexContractEvidenceSetFingerprint:
       current.embeddingIndexContractEvidenceSetFingerprint,
     preparedRouteOrderEvidenceSetFingerprint:
@@ -10427,6 +10515,11 @@ function buildPromptRegistryRepairPreflight(
       expected.candidateEvidenceSetFingerprint,
     expectedTaskRouteEffectiveSourceEvidenceSetFingerprint:
       expected.taskRouteEffectiveSourceEvidenceSetFingerprint,
+    expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: [
+      ...COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_EVIDENCE_SET_FINGERPRINT_INPUTS,
+    ],
+    expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion:
+      COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_EVIDENCE_SET_FINGERPRINT_VERSION,
     expectedEmbeddingIndexContractEvidenceSetFingerprint:
       expected.embeddingIndexContractEvidenceSetFingerprint,
     expectedPreparedRouteOrderEvidenceSetFingerprint:
@@ -14137,6 +14230,11 @@ function buildPromptRegistryRepairExecutionRequest(
       input.expectedCandidateEvidenceSetFingerprint,
     expectedTaskRouteEffectiveSourceEvidenceSetFingerprint:
       input.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
+    expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: [
+      ...COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_EVIDENCE_SET_FINGERPRINT_INPUTS,
+    ],
+    expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion:
+      COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_EVIDENCE_SET_FINGERPRINT_VERSION,
     expectedEmbeddingIndexContractEvidenceSetFingerprint:
       input.expectedEmbeddingIndexContractEvidenceSetFingerprint,
     expectedRerankRuntimeContractEvidenceSetFingerprint:

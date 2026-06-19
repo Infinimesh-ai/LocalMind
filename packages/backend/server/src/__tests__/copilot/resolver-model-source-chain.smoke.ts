@@ -48,6 +48,71 @@ function taskRouteTargetFingerprintFixture(input: {
     .slice(0, 16);
 }
 
+const taskRouteEffectiveSourceFingerprintInputsFixture = [
+  'behaviorFlags',
+  'candidateCount',
+  'canonicalModelKey',
+  'configured',
+  'diagnosticsErrors',
+  'dimensionMismatch',
+  'embeddingIndexContractDimensions',
+  'embeddingIndexContractFingerprint',
+  'embeddingIndexContractStatus',
+  'embeddingIndexContractVersion',
+  'errorCode',
+  'fallbackProviderIds',
+  'featureKind',
+  'modelBackendKind',
+  'modelEmbeddingDimensions',
+  'modelId',
+  'policyAllowedPrivacy',
+  'policyAllowedProviderIds',
+  'policyBlockedProviderIds',
+  'policyCandidates',
+  'policyEnabled',
+  'policyFeatureKind',
+  'policyPreferredPrivacy',
+  'policyWorkspaceId',
+  'prepareCandidates',
+  'preparedProviderCount',
+  'preparedRouteOrder',
+  'preparedRouteTargetFingerprint',
+  'preparedRouteTargets',
+  'preparedRoutes',
+  'protocol',
+  'providerConfiguredModelCount',
+  'providerConfiguredModelIds',
+  'providerId',
+  'providerPriority',
+  'providerProfileConfigPath',
+  'providerProfileId',
+  'providerProfileSource',
+  'providerSource',
+  'providerType',
+  'rerankRuntimeContractFingerprint',
+  'rerankRuntimeContractStatus',
+  'rerankRuntimeContractTopK',
+  'rerankRuntimeContractVersion',
+  'requestedDimensions',
+  'requestedModelConfigKey',
+  'requestedModelConfigPath',
+  'requestedModelId',
+  'requestedModelSource',
+  'requestLayer',
+  'routeCandidates',
+  'routeTrace',
+  'topK',
+] as const;
+const taskRouteEffectiveSourceFingerprintVersionFixture =
+  'copilot-task-route-effective-source/v1';
+const taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture = [
+  'diagnosticsFingerprint',
+  'operationFingerprint',
+  'taskRouteEffectiveSourceFingerprints',
+] as const;
+const taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture =
+  'copilot-task-route-effective-source-evidence-set/v1';
+
 function repairPreviewOperationFingerprintFixture(input: {
   actionKind: string;
   candidateEvidenceFingerprint: string;
@@ -3442,6 +3507,16 @@ async function main() {
     routeReadyGate?.repairActionPreview
       .taskRouteEffectiveSourceEvidenceSetFingerprint
   );
+  assert.deepEqual(
+    routeReadyGate?.repairGateManifest
+      .taskRouteEffectiveSourceEvidenceSetFingerprintInputs,
+    [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
+  );
+  assert.equal(
+    routeReadyGate?.repairGateManifest
+      .taskRouteEffectiveSourceEvidenceSetFingerprintVersion,
+    taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
+  );
   assert.equal(
     routeReadyGate?.repairGateManifest
       .embeddingIndexContractEvidenceSetFingerprint,
@@ -3822,6 +3897,16 @@ async function main() {
     routeReadyGate?.repairActionPreview.candidateEvidenceSetFingerprint ?? '',
     /^[0-9a-f]{16}$/
   );
+  assert.deepEqual(
+    routeReadyGate?.repairActionPreview
+      .taskRouteEffectiveSourceEvidenceSetFingerprintInputs,
+    [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
+  );
+  assert.equal(
+    routeReadyGate?.repairActionPreview
+      .taskRouteEffectiveSourceEvidenceSetFingerprintVersion,
+    taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
+  );
   assert.match(
     routeReadyGate?.repairActionPreview
       .preparedRouteOrderEvidenceSetFingerprint ?? '',
@@ -3836,6 +3921,16 @@ async function main() {
     routeReadyGate?.repairActionPreview.submissionContract
       .candidateEvidenceSetFingerprint,
     routeReadyGate?.repairActionPreview.candidateEvidenceSetFingerprint
+  );
+  assert.deepEqual(
+    routeReadyGate?.repairActionPreview.submissionContract
+      .taskRouteEffectiveSourceEvidenceSetFingerprintInputs,
+    [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
+  );
+  assert.equal(
+    routeReadyGate?.repairActionPreview.submissionContract
+      .taskRouteEffectiveSourceEvidenceSetFingerprintVersion,
+    taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
   );
   assert.equal(
     routeReadyGate?.repairActionPreview.submissionContract
@@ -4090,6 +4185,14 @@ async function main() {
     routeReadyGate.repairActionPreview
       .taskRouteEffectiveSourceEvidenceSetFingerprint
   );
+  assert.deepEqual(
+    matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprintInputs,
+    [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
+  );
+  assert.equal(
+    matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprintVersion,
+    taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
+  );
   assert.equal(
     matchingPreflight?.embeddingIndexContractEvidenceSetFingerprint,
     routeReadyGate.repairActionPreview
@@ -4112,6 +4215,14 @@ async function main() {
     matchingPreflight?.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
     routeReadyGate.repairActionPreview
       .taskRouteEffectiveSourceEvidenceSetFingerprint
+  );
+  assert.deepEqual(
+    matchingPreflight?.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs,
+    [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
+  );
+  assert.equal(
+    matchingPreflight?.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion,
+    taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
   );
   assert.equal(
     matchingPreflight?.expectedEmbeddingIndexContractEvidenceSetFingerprint,
@@ -4530,6 +4641,18 @@ async function main() {
   assert.equal(
     executionRequest.expectedCandidateEvidenceSetFingerprint,
     matchingPreflight?.candidateEvidenceSetFingerprint
+  );
+  assert.equal(
+    executionRequest.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
+    matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint
+  );
+  assert.deepEqual(
+    executionRequest.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs,
+    [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
+  );
+  assert.equal(
+    executionRequest.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion,
+    taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
   );
   assert.equal(
     executionRequest.expectedEmbeddingIndexContractEvidenceSetFingerprint,
@@ -9924,6 +10047,16 @@ async function main() {
     'policy candidate evidence should bind the task route effective source fingerprint'
   );
   assert.deepEqual(
+    taskDiagnosticsPolicyCandidateEvidence?.taskRouteEffectiveSourceFingerprintInputs,
+    [...taskRouteEffectiveSourceFingerprintInputsFixture],
+    'policy candidate evidence should expose the task route effective source fingerprint inputs'
+  );
+  assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.taskRouteEffectiveSourceFingerprintVersion,
+    taskRouteEffectiveSourceFingerprintVersionFixture,
+    'policy candidate evidence should expose the task route effective source fingerprint version'
+  );
+  assert.deepEqual(
     taskDiagnosticsPolicyCandidateEvidence?.diagnosticsErrors,
     taskDiagnosticsErrorRoute?.diagnosticsErrors,
     'policy candidate evidence should bind the task route diagnostics errors'
@@ -10186,6 +10319,16 @@ async function main() {
     taskDiagnosticsRouteCandidateEvidence?.taskRouteEffectiveSourceFingerprint,
     taskDiagnosticsErrorRoute?.effectiveSourceFingerprint,
     'route candidate evidence should bind the task route effective source fingerprint'
+  );
+  assert.deepEqual(
+    taskDiagnosticsRouteCandidateEvidence?.taskRouteEffectiveSourceFingerprintInputs,
+    [...taskRouteEffectiveSourceFingerprintInputsFixture],
+    'route candidate evidence should expose the task route effective source fingerprint inputs'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.taskRouteEffectiveSourceFingerprintVersion,
+    taskRouteEffectiveSourceFingerprintVersionFixture,
+    'route candidate evidence should expose the task route effective source fingerprint version'
   );
   assert.deepEqual(
     taskDiagnosticsRouteCandidateEvidence?.diagnosticsErrors,
@@ -10458,6 +10601,16 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.taskRouteEffectiveSourceFingerprint,
     taskDiagnosticsErrorRoute?.effectiveSourceFingerprint,
     'prepare candidate evidence should bind the task route effective source fingerprint'
+  );
+  assert.deepEqual(
+    taskDiagnosticsPrepareCandidateEvidence?.taskRouteEffectiveSourceFingerprintInputs,
+    [...taskRouteEffectiveSourceFingerprintInputsFixture],
+    'prepare candidate evidence should expose the task route effective source fingerprint inputs'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.taskRouteEffectiveSourceFingerprintVersion,
+    taskRouteEffectiveSourceFingerprintVersionFixture,
+    'prepare candidate evidence should expose the task route effective source fingerprint version'
   );
   assert.deepEqual(
     taskDiagnosticsPrepareCandidateEvidence?.diagnosticsErrors,

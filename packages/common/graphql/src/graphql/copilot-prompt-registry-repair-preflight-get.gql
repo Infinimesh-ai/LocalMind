@@ -40,6 +40,9 @@ query getCopilotPromptRegistryRepairPreflight(
         auditEventVersion
         authorizationStatus
         candidateEvidenceSetFingerprint
+        taskRouteEffectiveSourceEvidenceSetFingerprint
+        taskRouteEffectiveSourceEvidenceSetFingerprintInputs
+        taskRouteEffectiveSourceEvidenceSetFingerprintVersion
         embeddingIndexContractEvidenceSetFingerprint
         rerankRuntimeContractEvidenceSetFingerprint
         preparedRouteOrderEvidenceSetFingerprint
@@ -60,6 +63,9 @@ query getCopilotPromptRegistryRepairPreflight(
         executionStateStatus
         executionStateVersion
         expectedCandidateEvidenceSetFingerprint
+        expectedTaskRouteEffectiveSourceEvidenceSetFingerprint
+        expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs
+        expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion
         expectedEmbeddingIndexContractEvidenceSetFingerprint
         expectedRerankRuntimeContractEvidenceSetFingerprint
         expectedPreparedRouteOrderEvidenceSetFingerprint

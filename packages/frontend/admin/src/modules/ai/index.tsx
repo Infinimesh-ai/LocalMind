@@ -3311,6 +3311,12 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
     evidence.taskRouteEffectiveSourceFingerprint
       ? `task route source fingerprint ${evidence.taskRouteEffectiveSourceFingerprint}`
       : null,
+    evidence.taskRouteEffectiveSourceFingerprintVersion
+      ? `task route source version ${evidence.taskRouteEffectiveSourceFingerprintVersion}`
+      : null,
+    evidence.taskRouteEffectiveSourceFingerprintInputs?.length
+      ? `task route source inputs ${evidence.taskRouteEffectiveSourceFingerprintInputs.join(', ')}`
+      : null,
     evidence.taskRouteModelSourceSnapshotFingerprint
       ? `task route model source snapshot fingerprint ${evidence.taskRouteModelSourceSnapshotFingerprint}`
       : null,
@@ -3460,6 +3466,10 @@ function formatPromptRegistryPublishGateRepairActionPreview(
     `authorization fingerprint ${preview.authorizationFingerprint}`,
     `candidate evidence set fingerprint ${preview.candidateEvidenceSetFingerprint}`,
     `task route source evidence set fingerprint ${preview.taskRouteEffectiveSourceEvidenceSetFingerprint}`,
+    `task route source evidence set version ${preview.taskRouteEffectiveSourceEvidenceSetFingerprintVersion}`,
+    preview.taskRouteEffectiveSourceEvidenceSetFingerprintInputs.length
+      ? `task route source evidence set inputs ${preview.taskRouteEffectiveSourceEvidenceSetFingerprintInputs.join(', ')}`
+      : 'task route source evidence set inputs none',
     `embedding index contract evidence set fingerprint ${preview.embeddingIndexContractEvidenceSetFingerprint}`,
     `rerank runtime contract evidence set fingerprint ${preview.rerankRuntimeContractEvidenceSetFingerprint}`,
     `prepared route order evidence set fingerprint ${preview.preparedRouteOrderEvidenceSetFingerprint}`,
@@ -3486,6 +3496,10 @@ function formatPromptRegistryPublishGateRepairActionPreview(
     `submission fingerprint ${submission.submissionFingerprint}`,
     `submission candidate evidence set fingerprint ${submission.candidateEvidenceSetFingerprint}`,
     `submission task route source evidence set fingerprint ${submission.taskRouteEffectiveSourceEvidenceSetFingerprint}`,
+    `submission task route source evidence set version ${submission.taskRouteEffectiveSourceEvidenceSetFingerprintVersion}`,
+    submission.taskRouteEffectiveSourceEvidenceSetFingerprintInputs.length
+      ? `submission task route source evidence set inputs ${submission.taskRouteEffectiveSourceEvidenceSetFingerprintInputs.join(', ')}`
+      : 'submission task route source evidence set inputs none',
     `submission embedding index contract evidence set fingerprint ${submission.embeddingIndexContractEvidenceSetFingerprint}`,
     `submission rerank runtime contract evidence set fingerprint ${submission.rerankRuntimeContractEvidenceSetFingerprint}`,
     `submission prepared route order evidence set fingerprint ${submission.preparedRouteOrderEvidenceSetFingerprint}`,
@@ -3530,6 +3544,10 @@ function formatPromptRegistryPublishGateRepairGateManifest(
     `submission ${manifest.submissionFingerprint}`,
     `candidate evidence set ${manifest.candidateEvidenceSetFingerprint}`,
     `task route source evidence set ${manifest.taskRouteEffectiveSourceEvidenceSetFingerprint}`,
+    `task route source evidence set version ${manifest.taskRouteEffectiveSourceEvidenceSetFingerprintVersion}`,
+    manifest.taskRouteEffectiveSourceEvidenceSetFingerprintInputs.length
+      ? `task route source evidence set inputs ${manifest.taskRouteEffectiveSourceEvidenceSetFingerprintInputs.join(', ')}`
+      : 'task route source evidence set inputs none',
     `embedding index contract evidence set ${manifest.embeddingIndexContractEvidenceSetFingerprint}`,
     `rerank runtime contract evidence set ${manifest.rerankRuntimeContractEvidenceSetFingerprint}`,
     `prepared route order evidence set ${manifest.preparedRouteOrderEvidenceSetFingerprint}`,
@@ -3798,11 +3816,20 @@ function formatPromptRegistryRepairPreflight(
     `authorization status ${formatFeatureKind(preflight.authorizationStatus)}`,
     `candidate evidence set fingerprint ${preflight.candidateEvidenceSetFingerprint}`,
     `task route source evidence set fingerprint ${preflight.taskRouteEffectiveSourceEvidenceSetFingerprint}`,
+    `task route source evidence set version ${preflight.taskRouteEffectiveSourceEvidenceSetFingerprintVersion}`,
+    preflight.taskRouteEffectiveSourceEvidenceSetFingerprintInputs.length
+      ? `task route source evidence set inputs ${preflight.taskRouteEffectiveSourceEvidenceSetFingerprintInputs.join(', ')}`
+      : 'task route source evidence set inputs none',
     `embedding index contract evidence set fingerprint ${preflight.embeddingIndexContractEvidenceSetFingerprint}`,
     `rerank runtime contract evidence set fingerprint ${preflight.rerankRuntimeContractEvidenceSetFingerprint}`,
     `prepared route order evidence set fingerprint ${preflight.preparedRouteOrderEvidenceSetFingerprint}`,
     `expected candidate evidence set fingerprint ${preflight.expectedCandidateEvidenceSetFingerprint}`,
     `expected task route source evidence set fingerprint ${preflight.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint}`,
+    `expected task route source evidence set version ${preflight.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion}`,
+    preflight.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs
+      .length
+      ? `expected task route source evidence set inputs ${preflight.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs.join(', ')}`
+      : 'expected task route source evidence set inputs none',
     `expected embedding index contract evidence set fingerprint ${preflight.expectedEmbeddingIndexContractEvidenceSetFingerprint}`,
     `expected rerank runtime contract evidence set fingerprint ${preflight.expectedRerankRuntimeContractEvidenceSetFingerprint}`,
     `expected prepared route order evidence set fingerprint ${preflight.expectedPreparedRouteOrderEvidenceSetFingerprint}`,
@@ -3944,6 +3971,10 @@ function formatPromptRegistryRepairExecutionRequest(
       : 'execution requested no',
     `expected candidate evidence set fingerprint ${request.expectedCandidateEvidenceSetFingerprint}`,
     `expected task route source evidence set fingerprint ${request.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint}`,
+    `expected task route source evidence set version ${request.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion}`,
+    request.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs.length
+      ? `expected task route source evidence set inputs ${request.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs.join(', ')}`
+      : 'expected task route source evidence set inputs none',
     `expected embedding index contract evidence set fingerprint ${request.expectedEmbeddingIndexContractEvidenceSetFingerprint}`,
     `expected rerank runtime contract evidence set fingerprint ${request.expectedRerankRuntimeContractEvidenceSetFingerprint}`,
     `expected prepared route order evidence set fingerprint ${request.expectedPreparedRouteOrderEvidenceSetFingerprint}`,
@@ -4771,10 +4802,20 @@ function formatPromptRegistryRepairExecutionRequest(
     `preflight audit event fingerprint ${request.preflight.auditEventFingerprint}`,
     `preflight candidate evidence set fingerprint ${request.preflight.candidateEvidenceSetFingerprint}`,
     `preflight task route source evidence set fingerprint ${request.preflight.taskRouteEffectiveSourceEvidenceSetFingerprint}`,
+    `preflight task route source evidence set version ${request.preflight.taskRouteEffectiveSourceEvidenceSetFingerprintVersion}`,
+    request.preflight.taskRouteEffectiveSourceEvidenceSetFingerprintInputs
+      .length
+      ? `preflight task route source evidence set inputs ${request.preflight.taskRouteEffectiveSourceEvidenceSetFingerprintInputs.join(', ')}`
+      : 'preflight task route source evidence set inputs none',
     `preflight embedding index contract evidence set fingerprint ${request.preflight.embeddingIndexContractEvidenceSetFingerprint}`,
     `preflight rerank runtime contract evidence set fingerprint ${request.preflight.rerankRuntimeContractEvidenceSetFingerprint}`,
     `preflight prepared route order evidence set fingerprint ${request.preflight.preparedRouteOrderEvidenceSetFingerprint}`,
     `preflight expected task route source evidence set fingerprint ${request.preflight.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint}`,
+    `preflight expected task route source evidence set version ${request.preflight.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion}`,
+    request.preflight
+      .expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs.length
+      ? `preflight expected task route source evidence set inputs ${request.preflight.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs.join(', ')}`
+      : 'preflight expected task route source evidence set inputs none',
     `preflight expected embedding index contract evidence set fingerprint ${request.preflight.expectedEmbeddingIndexContractEvidenceSetFingerprint}`,
     `preflight expected rerank runtime contract evidence set fingerprint ${request.preflight.expectedRerankRuntimeContractEvidenceSetFingerprint}`,
     `preflight expected prepared route order evidence set fingerprint ${request.preflight.expectedPreparedRouteOrderEvidenceSetFingerprint}`,

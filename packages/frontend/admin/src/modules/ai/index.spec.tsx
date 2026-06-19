@@ -76,15 +76,91 @@ function stripNullishFixtureFields(value: unknown): unknown {
   return value;
 }
 
+const taskRouteEffectiveSourceFingerprintInputsFixture = [
+  'behaviorFlags',
+  'candidateCount',
+  'canonicalModelKey',
+  'configured',
+  'diagnosticsErrors',
+  'dimensionMismatch',
+  'embeddingIndexContractDimensions',
+  'embeddingIndexContractFingerprint',
+  'embeddingIndexContractStatus',
+  'embeddingIndexContractVersion',
+  'errorCode',
+  'fallbackProviderIds',
+  'featureKind',
+  'modelBackendKind',
+  'modelEmbeddingDimensions',
+  'modelId',
+  'policyAllowedPrivacy',
+  'policyAllowedProviderIds',
+  'policyBlockedProviderIds',
+  'policyCandidates',
+  'policyEnabled',
+  'policyFeatureKind',
+  'policyPreferredPrivacy',
+  'policyWorkspaceId',
+  'prepareCandidates',
+  'preparedProviderCount',
+  'preparedRouteOrder',
+  'preparedRouteTargetFingerprint',
+  'preparedRouteTargets',
+  'preparedRoutes',
+  'protocol',
+  'providerConfiguredModelCount',
+  'providerConfiguredModelIds',
+  'providerId',
+  'providerPriority',
+  'providerProfileConfigPath',
+  'providerProfileId',
+  'providerProfileSource',
+  'providerSource',
+  'providerType',
+  'rerankRuntimeContractFingerprint',
+  'rerankRuntimeContractStatus',
+  'rerankRuntimeContractTopK',
+  'rerankRuntimeContractVersion',
+  'requestedDimensions',
+  'requestedModelConfigKey',
+  'requestedModelConfigPath',
+  'requestedModelId',
+  'requestedModelSource',
+  'requestLayer',
+  'routeCandidates',
+  'routeTrace',
+  'topK',
+];
+const taskRouteEffectiveSourceFingerprintVersionFixture =
+  'copilot-task-route-effective-source/v1';
+const taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture = [
+  'diagnosticsFingerprint',
+  'operationFingerprint',
+  'taskRouteEffectiveSourceFingerprints',
+];
+const taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture =
+  'copilot-task-route-effective-source-evidence-set/v1';
+
 function candidateEvidenceFixture<T extends Record<string, unknown>>(
   evidence: T
 ) {
+  const candidateFingerprint = createHash('sha256')
+    .update(stableFixtureStringify(stripNullishFixtureFields(evidence)))
+    .digest('hex')
+    .slice(0, 16);
+
   return {
-    candidateFingerprint: createHash('sha256')
-      .update(stableFixtureStringify(stripNullishFixtureFields(evidence)))
-      .digest('hex')
-      .slice(0, 16),
+    candidateFingerprint,
     ...evidence,
+    ...(evidence.taskRouteEffectiveSourceFingerprint
+      ? {
+          taskRouteEffectiveSourceFingerprintInputs: [
+            ...taskRouteEffectiveSourceFingerprintInputsFixture,
+          ],
+          taskRouteEffectiveSourceFingerprintVersion:
+            taskRouteEffectiveSourceFingerprintVersionFixture,
+        }
+      : {}),
   };
 }
 
@@ -2275,6 +2351,8 @@ function withRepairActionPreview<
         taskRouteEmbeddingIndexContractSnapshotFingerprint?: string | null;
         taskRouteRerankRuntimeContractSnapshotFingerprint?: string | null;
         taskRouteEffectiveSourceFingerprint?: string | null;
+        taskRouteEffectiveSourceFingerprintInputs?: string[] | null;
+        taskRouteEffectiveSourceFingerprintVersion?: string | null;
         preparedRouteOrderFingerprint?: string | null;
       }> | null;
       category: string;
@@ -2430,6 +2508,11 @@ function withRepairActionPreview<
       candidateEvidenceSetFingerprint: input.candidateEvidenceSetFingerprint,
       taskRouteEffectiveSourceEvidenceSetFingerprint:
         input.taskRouteEffectiveSourceEvidenceSetFingerprint,
+      taskRouteEffectiveSourceEvidenceSetFingerprintInputs: [
+        ...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture,
+      ],
+      taskRouteEffectiveSourceEvidenceSetFingerprintVersion:
+        taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture,
       embeddingIndexContractEvidenceSetFingerprint:
         input.embeddingIndexContractEvidenceSetFingerprint,
       rerankRuntimeContractEvidenceSetFingerprint:
@@ -2452,6 +2535,11 @@ function withRepairActionPreview<
         candidateEvidenceSetFingerprint: input.candidateEvidenceSetFingerprint,
         taskRouteEffectiveSourceEvidenceSetFingerprint:
           input.taskRouteEffectiveSourceEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprintInputs: [
+          ...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture,
+        ],
+        taskRouteEffectiveSourceEvidenceSetFingerprintVersion:
+          taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture,
         embeddingIndexContractEvidenceSetFingerprint:
           input.embeddingIndexContractEvidenceSetFingerprint,
         rerankRuntimeContractEvidenceSetFingerprint:
@@ -2521,6 +2609,10 @@ function withRepairActionPreview<
       repairActionPreview.candidateEvidenceSetFingerprint,
     taskRouteEffectiveSourceEvidenceSetFingerprint:
       repairActionPreview.taskRouteEffectiveSourceEvidenceSetFingerprint,
+    taskRouteEffectiveSourceEvidenceSetFingerprintInputs:
+      repairActionPreview.taskRouteEffectiveSourceEvidenceSetFingerprintInputs,
+    taskRouteEffectiveSourceEvidenceSetFingerprintVersion:
+      repairActionPreview.taskRouteEffectiveSourceEvidenceSetFingerprintVersion,
     embeddingIndexContractEvidenceSetFingerprint:
       repairActionPreview.embeddingIndexContractEvidenceSetFingerprint,
     rerankRuntimeContractEvidenceSetFingerprint:
@@ -6425,6 +6517,11 @@ describe('AiPage', () => {
             input.expectedCandidateEvidenceSetFingerprint,
           expectedTaskRouteEffectiveSourceEvidenceSetFingerprint:
             input.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
+          expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: [
+            ...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture,
+          ],
+          expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion:
+            taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture,
           expectedEmbeddingIndexContractEvidenceSetFingerprint:
             input.expectedEmbeddingIndexContractEvidenceSetFingerprint,
           expectedRerankRuntimeContractEvidenceSetFingerprint:
@@ -6560,6 +6657,11 @@ describe('AiPage', () => {
               input.expectedCandidateEvidenceSetFingerprint,
             taskRouteEffectiveSourceEvidenceSetFingerprint:
               input.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
+            taskRouteEffectiveSourceEvidenceSetFingerprintInputs: [
+              ...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture,
+            ],
+            taskRouteEffectiveSourceEvidenceSetFingerprintVersion:
+              taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture,
             embeddingIndexContractEvidenceSetFingerprint:
               input.expectedEmbeddingIndexContractEvidenceSetFingerprint,
             rerankRuntimeContractEvidenceSetFingerprint:
@@ -6568,6 +6670,11 @@ describe('AiPage', () => {
               input.expectedPreparedRouteOrderEvidenceSetFingerprint,
             expectedTaskRouteEffectiveSourceEvidenceSetFingerprint:
               input.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
+            expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: [
+              ...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture,
+            ],
+            expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion:
+              taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture,
             expectedEmbeddingIndexContractEvidenceSetFingerprint:
               input.expectedEmbeddingIndexContractEvidenceSetFingerprint,
             expectedRerankRuntimeContractEvidenceSetFingerprint:
@@ -7029,6 +7136,11 @@ describe('AiPage', () => {
                   taskRouteEffectiveSourceEvidenceSetFingerprint:
                     submission?.taskRouteEffectiveSourceEvidenceSetFingerprint ??
                     '',
+                  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: [
+                    ...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture,
+                  ],
+                  taskRouteEffectiveSourceEvidenceSetFingerprintVersion:
+                    taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture,
                   embeddingIndexContractEvidenceSetFingerprint:
                     submission?.embeddingIndexContractEvidenceSetFingerprint ??
                     '',
@@ -7091,6 +7203,12 @@ describe('AiPage', () => {
                   expectedTaskRouteEffectiveSourceEvidenceSetFingerprint:
                     submission?.taskRouteEffectiveSourceEvidenceSetFingerprint ??
                     '',
+                  expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs:
+                    [
+                      ...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture,
+                    ],
+                  expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion:
+                    taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture,
                   expectedEmbeddingIndexContractEvidenceSetFingerprint:
                     submission?.embeddingIndexContractEvidenceSetFingerprint ??
                     '',
@@ -7527,7 +7645,7 @@ describe('AiPage', () => {
         screen.getByTestId('prompt-registry-publish-gate-Make it real')
           .textContent
       ).toContain(
-        'Repair execution request version repair-execution-request/v1 / status Blocked Read Only / read-only yes / mutation available no / accepted no / execution requested no / expected candidate evidence set fingerprint aaaa5555bbbb6666 / expected task route source evidence set fingerprint aaaa5656bbbb6767 / expected embedding index contract evidence set fingerprint aaaa6666bbbb7777 / expected rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / expected prepared route order evidence set fingerprint aaaa7777bbbb8888 / expected target locator fingerprint ddd111eee222ffff'
+        'Repair execution request version repair-execution-request/v1 / status Blocked Read Only / read-only yes / mutation available no / accepted no / execution requested no / expected candidate evidence set fingerprint aaaa5555bbbb6666 / expected task route source evidence set fingerprint aaaa5656bbbb6767 / expected task route source evidence set version copilot-task-route-effective-source-evidence-set/v1 / expected task route source evidence set inputs diagnosticsFingerprint, operationFingerprint, taskRouteEffectiveSourceFingerprints / expected embedding index contract evidence set fingerprint aaaa6666bbbb7777 / expected rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / expected prepared route order evidence set fingerprint aaaa7777bbbb8888 / expected target locator fingerprint ddd111eee222ffff'
       );
     });
     expect(
@@ -8501,13 +8619,13 @@ describe('AiPage', () => {
     revokeObjectURLMock.mockClear();
     anchorClickMock.mockClear();
     expect(readyGateDiagnostics).toContain(
-      'candidate evidence set aaaa5555bbbb6666 / task route source evidence set aaaa5656bbbb6767 / embedding index contract evidence set aaaa6666bbbb7777 / rerank runtime contract evidence set aaaa8888bbbb9999 / prepared route order evidence set aaaa7777bbbb8888'
+      'candidate evidence set aaaa5555bbbb6666 / task route source evidence set aaaa5656bbbb6767 / task route source evidence set version copilot-task-route-effective-source-evidence-set/v1 / task route source evidence set inputs diagnosticsFingerprint, operationFingerprint, taskRouteEffectiveSourceFingerprints / embedding index contract evidence set aaaa6666bbbb7777 / rerank runtime contract evidence set aaaa8888bbbb9999 / prepared route order evidence set aaaa7777bbbb8888'
     );
     expect(readyGateDiagnostics).toContain(
-      'candidate evidence set fingerprint aaaa5555bbbb6666 / task route source evidence set fingerprint aaaa5656bbbb6767 / embedding index contract evidence set fingerprint aaaa6666bbbb7777 / rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / prepared route order evidence set fingerprint aaaa7777bbbb8888'
+      'candidate evidence set fingerprint aaaa5555bbbb6666 / task route source evidence set fingerprint aaaa5656bbbb6767 / task route source evidence set version copilot-task-route-effective-source-evidence-set/v1 / task route source evidence set inputs diagnosticsFingerprint, operationFingerprint, taskRouteEffectiveSourceFingerprints / embedding index contract evidence set fingerprint aaaa6666bbbb7777 / rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / prepared route order evidence set fingerprint aaaa7777bbbb8888'
     );
     expect(readyGateDiagnostics).toContain(
-      'submission candidate evidence set fingerprint aaaa5555bbbb6666 / submission task route source evidence set fingerprint aaaa5656bbbb6767 / submission embedding index contract evidence set fingerprint aaaa6666bbbb7777 / submission rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / submission prepared route order evidence set fingerprint aaaa7777bbbb8888'
+      'submission candidate evidence set fingerprint aaaa5555bbbb6666 / submission task route source evidence set fingerprint aaaa5656bbbb6767 / submission task route source evidence set version copilot-task-route-effective-source-evidence-set/v1 / submission task route source evidence set inputs diagnosticsFingerprint, operationFingerprint, taskRouteEffectiveSourceFingerprints / submission embedding index contract evidence set fingerprint aaaa6666bbbb7777 / submission rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / submission prepared route order evidence set fingerprint aaaa7777bbbb8888'
     );
     expect(readyGateDiagnostics).toContain(
       'submission required inputs approvalPolicyFingerprint, authorizationFingerprint, candidateEvidenceSetFingerprint'
@@ -8519,7 +8637,7 @@ describe('AiPage', () => {
       'Repair action preflight status Ready For Review / read-only yes / mutation available no / accepted no'
     );
     expect(readyGateDiagnostics).toContain(
-      'candidate evidence set fingerprint aaaa5555bbbb6666 / task route source evidence set fingerprint aaaa5656bbbb6767 / embedding index contract evidence set fingerprint aaaa6666bbbb7777 / rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / prepared route order evidence set fingerprint aaaa7777bbbb8888 / expected candidate evidence set fingerprint aaaa5555bbbb6666 / expected task route source evidence set fingerprint aaaa5656bbbb6767 / expected embedding index contract evidence set fingerprint aaaa6666bbbb7777 / expected rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / expected prepared route order evidence set fingerprint aaaa7777bbbb8888'
+      'candidate evidence set fingerprint aaaa5555bbbb6666 / task route source evidence set fingerprint aaaa5656bbbb6767 / task route source evidence set version copilot-task-route-effective-source-evidence-set/v1 / task route source evidence set inputs diagnosticsFingerprint, operationFingerprint, taskRouteEffectiveSourceFingerprints / embedding index contract evidence set fingerprint aaaa6666bbbb7777 / rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / prepared route order evidence set fingerprint aaaa7777bbbb8888 / expected candidate evidence set fingerprint aaaa5555bbbb6666 / expected task route source evidence set fingerprint aaaa5656bbbb6767 / expected task route source evidence set version copilot-task-route-effective-source-evidence-set/v1 / expected task route source evidence set inputs diagnosticsFingerprint, operationFingerprint, taskRouteEffectiveSourceFingerprints / expected embedding index contract evidence set fingerprint aaaa6666bbbb7777 / expected rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / expected prepared route order evidence set fingerprint aaaa7777bbbb8888'
     );
     expect(readyGateDiagnostics).toContain(
       'audit event inputs actorFingerprint, approvalRecordFingerprint, auditBindingFingerprint, candidateEvidenceSetFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint, embeddingIndexContractEvidenceSetFingerprint'
@@ -8646,6 +8764,12 @@ describe('AiPage', () => {
     );
     expect(readyGateDiagnostics).toContain(
       `task route source fingerprint ${blockedRoute.effectiveSourceFingerprint}`
+    );
+    expect(readyGateDiagnostics).toContain(
+      `task route source version ${taskRouteEffectiveSourceFingerprintVersionFixture}`
+    );
+    expect(readyGateDiagnostics).toContain(
+      `task route source inputs ${taskRouteEffectiveSourceFingerprintInputsFixture.join(', ')}`
     );
     expect(readyGateDiagnostics).toContain(
       `embedding index contract ${blockedRoute.embeddingIndexContractVersion} / embedding index dimensions ${blockedRoute.embeddingIndexContractDimensions}d / embedding index status Compatible With Current Pgvector Index / embedding index fingerprint ${blockedRoute.embeddingIndexContractFingerprint}`
@@ -8825,10 +8949,10 @@ describe('AiPage', () => {
       'Repair action preview status Dry Run Required / read-only yes / fingerprint 7777aaaabbbbcccc'
     );
     expect(failedDryRunDiagnostics).toContain(
-      'candidate evidence set fingerprint cccc7777dddd8888 / task route source evidence set fingerprint cccc7878dddd8989 / embedding index contract evidence set fingerprint cccc8888dddd9999 / rerank runtime contract evidence set fingerprint cccc0000dddd1111 / prepared route order evidence set fingerprint cccc9999dddd0000'
+      'candidate evidence set fingerprint cccc7777dddd8888 / task route source evidence set fingerprint cccc7878dddd8989 / task route source evidence set version copilot-task-route-effective-source-evidence-set/v1 / task route source evidence set inputs diagnosticsFingerprint, operationFingerprint, taskRouteEffectiveSourceFingerprints / embedding index contract evidence set fingerprint cccc8888dddd9999 / rerank runtime contract evidence set fingerprint cccc0000dddd1111 / prepared route order evidence set fingerprint cccc9999dddd0000'
     );
     expect(failedDryRunDiagnostics).toContain(
-      'expected candidate evidence set fingerprint cccc7777dddd8888 / expected task route source evidence set fingerprint cccc7878dddd8989 / expected embedding index contract evidence set fingerprint cccc8888dddd9999 / expected rerank runtime contract evidence set fingerprint cccc0000dddd1111 / expected prepared route order evidence set fingerprint cccc9999dddd0000'
+      'expected candidate evidence set fingerprint cccc7777dddd8888 / expected task route source evidence set fingerprint cccc7878dddd8989 / expected task route source evidence set version copilot-task-route-effective-source-evidence-set/v1 / expected task route source evidence set inputs diagnosticsFingerprint, operationFingerprint, taskRouteEffectiveSourceFingerprints / expected embedding index contract evidence set fingerprint cccc8888dddd9999 / expected rerank runtime contract evidence set fingerprint cccc0000dddd1111 / expected prepared route order evidence set fingerprint cccc9999dddd0000'
     );
     expect(failedDryRunDiagnostics).toMatch(
       /Repair action preview operation Dry Run Required \/ action kind Review Action Route Dry Run .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ rerank runtime contract evidence fingerprints none \/ task route source fingerprints none \/ fingerprint 777788889999aaaa \/ operation fingerprint 7777aaaa8888bbbb \/ target locator fingerprint aaaa7777bbbb8888 \/ required capabilities action_route\.read, action_route\.dry_run \/ input schema required diagnosticsFingerprint, targetLocator/
@@ -8911,6 +9035,12 @@ describe('AiPage', () => {
     );
     expect(diagnostics).toContain(
       `task route source fingerprint ${readyRoute.effectiveSourceFingerprint}`
+    );
+    expect(diagnostics).toContain(
+      `task route source version ${taskRouteEffectiveSourceFingerprintVersionFixture}`
+    );
+    expect(diagnostics).toContain(
+      `task route source inputs ${taskRouteEffectiveSourceFingerprintInputsFixture.join(', ')}`
     );
     expect(diagnostics).toContain(
       `task route source fingerprints ${readyRoute.effectiveSourceFingerprint}`
@@ -9360,10 +9490,10 @@ describe('AiPage', () => {
       'retention policy prompt-registry-repair-gate-manifest-retention-policy/v1 / retention status Not Persisted Read Only'
     );
     expect(blockedGateDiagnostics).toContain(
-      'candidate evidence set fingerprint bbbb6666cccc7777 / task route source evidence set fingerprint bbbb6767cccc7878 / embedding index contract evidence set fingerprint bbbb7777cccc8888 / rerank runtime contract evidence set fingerprint bbbb9999cccc0000 / prepared route order evidence set fingerprint bbbb8888cccc9999'
+      'candidate evidence set fingerprint bbbb6666cccc7777 / task route source evidence set fingerprint bbbb6767cccc7878 / task route source evidence set version copilot-task-route-effective-source-evidence-set/v1 / task route source evidence set inputs diagnosticsFingerprint, operationFingerprint, taskRouteEffectiveSourceFingerprints / embedding index contract evidence set fingerprint bbbb7777cccc8888 / rerank runtime contract evidence set fingerprint bbbb9999cccc0000 / prepared route order evidence set fingerprint bbbb8888cccc9999'
     );
     expect(blockedGateDiagnostics).toContain(
-      'expected candidate evidence set fingerprint bbbb6666cccc7777 / expected task route source evidence set fingerprint bbbb6767cccc7878 / expected embedding index contract evidence set fingerprint bbbb7777cccc8888 / expected rerank runtime contract evidence set fingerprint bbbb9999cccc0000 / expected prepared route order evidence set fingerprint bbbb8888cccc9999'
+      'expected candidate evidence set fingerprint bbbb6666cccc7777 / expected task route source evidence set fingerprint bbbb6767cccc7878 / expected task route source evidence set version copilot-task-route-effective-source-evidence-set/v1 / expected task route source evidence set inputs diagnosticsFingerprint, operationFingerprint, taskRouteEffectiveSourceFingerprints / expected embedding index contract evidence set fingerprint bbbb7777cccc8888 / expected rerank runtime contract evidence set fingerprint bbbb9999cccc0000 / expected prepared route order evidence set fingerprint bbbb8888cccc9999'
     );
     expect(blockedGateDiagnostics).toMatch(
       /Repair action preview operation Preview Required \/ action kind Registry Add Messages .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ rerank runtime contract evidence fingerprints none \/ task route source fingerprints none \/ fingerprint 5555666677778888 \/ operation fingerprint 5555eeee6666ffff \/ target locator fingerprint eeee5555ffff6666 \/ required capabilities prompt_registry\.read, prompt_registry\.preview_write \/ input schema required diagnosticsFingerprint, targetLocator/

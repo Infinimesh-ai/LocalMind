@@ -554,6 +554,8 @@ query getCopilotPromptRegistryPublishGate(
           candidateCount
           candidateEvidenceSetFingerprint
           taskRouteEffectiveSourceEvidenceSetFingerprint
+          taskRouteEffectiveSourceEvidenceSetFingerprintInputs
+          taskRouteEffectiveSourceEvidenceSetFingerprintVersion
           embeddingIndexContractEvidenceSetFingerprint
           rerankRuntimeContractEvidenceSetFingerprint
           preparedRouteOrderEvidenceSetFingerprint
@@ -618,6 +620,8 @@ query getCopilotPromptRegistryPublishGate(
             authorizationFingerprint
             candidateEvidenceSetFingerprint
             taskRouteEffectiveSourceEvidenceSetFingerprint
+            taskRouteEffectiveSourceEvidenceSetFingerprintInputs
+            taskRouteEffectiveSourceEvidenceSetFingerprintVersion
             embeddingIndexContractEvidenceSetFingerprint
             rerankRuntimeContractEvidenceSetFingerprint
             preparedRouteOrderEvidenceSetFingerprint
@@ -657,6 +661,8 @@ query getCopilotPromptRegistryPublishGate(
           submissionFingerprint
           candidateEvidenceSetFingerprint
           taskRouteEffectiveSourceEvidenceSetFingerprint
+          taskRouteEffectiveSourceEvidenceSetFingerprintInputs
+          taskRouteEffectiveSourceEvidenceSetFingerprintVersion
           embeddingIndexContractEvidenceSetFingerprint
           rerankRuntimeContractEvidenceSetFingerprint
           preparedRouteOrderEvidenceSetFingerprint
@@ -786,6 +792,8 @@ query getCopilotPromptRegistryPublishGate(
             taskRouteRerankRuntimeContractSnapshotFingerprint
             taskRouteDimensionSnapshotFingerprint
             taskRouteEffectiveSourceFingerprint
+            taskRouteEffectiveSourceFingerprintInputs
+            taskRouteEffectiveSourceFingerprintVersion
             taskRouteModelSourceSnapshotFingerprint
             preparedRouteTargets
             preparedRouteTargetFingerprint
