@@ -1392,6 +1392,12 @@ type CopilotPromptRegistryRepairExecutionRequest = {
   supportBundleDownloadAuthorizationRequestStatus: string;
   supportBundleDownloadAuthorizationRequestVersion: string;
   supportBundleDownloadAuthorizationStatus: string;
+  supportBundleDownloadResolverRequestCreated: boolean;
+  supportBundleDownloadResolverRequestFingerprint: string;
+  supportBundleDownloadResolverRequestInputs: string[];
+  supportBundleDownloadResolverRequestStatus: string;
+  supportBundleDownloadResolverRequestVersion: string;
+  supportBundleDownloadResolverRoute: string;
   supportBundleManifestFilename: string;
   supportBundleManifestFingerprint: string;
   supportBundleManifestMetadataFilename: string;
@@ -3964,6 +3970,24 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
 
   @Field(() => String)
   supportBundleDownloadAuthorizationStatus!: string;
+
+  @Field(() => Boolean)
+  supportBundleDownloadResolverRequestCreated!: boolean;
+
+  @Field(() => String)
+  supportBundleDownloadResolverRequestFingerprint!: string;
+
+  @Field(() => [String])
+  supportBundleDownloadResolverRequestInputs!: string[];
+
+  @Field(() => String)
+  supportBundleDownloadResolverRequestStatus!: string;
+
+  @Field(() => String)
+  supportBundleDownloadResolverRequestVersion!: string;
+
+  @Field(() => String)
+  supportBundleDownloadResolverRoute!: string;
 
   @Field(() => String)
   supportBundleManifestFilename!: string;
@@ -10550,6 +10574,47 @@ function buildPromptRegistryRepairExecutionRequest(
     )
     .digest('hex')
     .slice(0, 16);
+  const supportBundleDownloadResolverRequestVersion =
+    'prompt-registry-repair-gate-support-bundle-download-resolver-request/v1';
+  const supportBundleDownloadResolverRequestStatus = 'not_registered_read_only';
+  const supportBundleDownloadResolverRoute =
+    'support_bundle_signed_archive_download';
+  const supportBundleDownloadResolverRequestInputs = [
+    'archiveRequestFingerprint',
+    'archiveSignatureRequestFingerprint',
+    'artifactRecordRequestFingerprint',
+    'downloadAuthorizationRequestFingerprint',
+    'downloadResolverRoute',
+    'manifestFingerprint',
+    'packageFingerprint',
+    'requestStatus',
+    'storageKeyRequestFingerprint',
+  ].sort();
+  const supportBundleDownloadResolverRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        archiveRequestFingerprint: supportBundleArchiveRequestFingerprint,
+        archiveSignatureRequestFingerprint:
+          supportBundleArchiveSignatureRequestFingerprint,
+        artifactRecordRequestFingerprint:
+          supportBundleArtifactRecordRequestFingerprint,
+        created: false,
+        downloadAuthorizationRequestFingerprint:
+          supportBundleDownloadAuthorizationRequestFingerprint,
+        downloadResolverRoute: supportBundleDownloadResolverRoute,
+        inputs: supportBundleDownloadResolverRequestInputs,
+        manifestFilename: repairGateManifestExportMetadata.filename,
+        manifestFingerprint: repairGateManifest.fingerprint,
+        packageFingerprint: supportBundlePackageFingerprint,
+        requestStatus,
+        status: supportBundleDownloadResolverRequestStatus,
+        storageKeyRequestFingerprint: supportBundleStorageKeyRequestFingerprint,
+        version: supportBundleDownloadResolverRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
   const idempotencyLockVersion = 'repair-execution-idempotency-lock/v1';
   const idempotencyLockStatus = 'not_acquired_read_only';
   const idempotencyLockScope = preflight.idempotencyScope;
@@ -13417,6 +13482,7 @@ function buildPromptRegistryRepairExecutionRequest(
         supportBundleArchiveSignatureRequestFingerprint,
         supportBundleAuditPersistenceRequestFingerprint,
         supportBundleDownloadAuthorizationRequestFingerprint,
+        supportBundleDownloadResolverRequestFingerprint,
         supportBundlePackageFingerprint,
         supportBundleRetentionCleanupRequestFingerprint,
         supportBundleStorageKeyRequestFingerprint,
@@ -13732,6 +13798,12 @@ function buildPromptRegistryRepairExecutionRequest(
     supportBundleDownloadAuthorizationRequestStatus,
     supportBundleDownloadAuthorizationRequestVersion,
     supportBundleDownloadAuthorizationStatus,
+    supportBundleDownloadResolverRequestCreated: false,
+    supportBundleDownloadResolverRequestFingerprint,
+    supportBundleDownloadResolverRequestInputs,
+    supportBundleDownloadResolverRequestStatus,
+    supportBundleDownloadResolverRequestVersion,
+    supportBundleDownloadResolverRoute,
     supportBundleManifestFilename: repairGateManifestExportMetadata.filename,
     supportBundleManifestFingerprint: repairGateManifest.fingerprint,
     supportBundleManifestMetadataFilename:

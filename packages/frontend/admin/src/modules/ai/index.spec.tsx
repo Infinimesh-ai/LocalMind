@@ -6626,6 +6626,27 @@ describe('AiPage', () => {
           supportBundleDownloadAuthorizationRequestVersion:
             'prompt-registry-repair-gate-support-bundle-download-authorization-request/v1',
           supportBundleDownloadAuthorizationStatus: 'not_checked_read_only',
+          supportBundleDownloadResolverRequestCreated: false,
+          supportBundleDownloadResolverRequestFingerprint: input.workspaceId
+            ? 'ffff7777aaaa8888'
+            : 'dddd7777eeee8888',
+          supportBundleDownloadResolverRequestInputs: [
+            'archiveRequestFingerprint',
+            'archiveSignatureRequestFingerprint',
+            'artifactRecordRequestFingerprint',
+            'downloadAuthorizationRequestFingerprint',
+            'downloadResolverRoute',
+            'manifestFingerprint',
+            'packageFingerprint',
+            'requestStatus',
+            'storageKeyRequestFingerprint',
+          ],
+          supportBundleDownloadResolverRequestStatus:
+            'not_registered_read_only',
+          supportBundleDownloadResolverRequestVersion:
+            'prompt-registry-repair-gate-support-bundle-download-resolver-request/v1',
+          supportBundleDownloadResolverRoute:
+            'support_bundle_signed_archive_download',
           supportBundleManifestFilename: `prompt-registry-repair-gate-manifest-42-${input.expectedRepairGateManifestFingerprint}.json`,
           supportBundleManifestFingerprint:
             input.expectedRepairGateManifestFingerprint,
@@ -7464,6 +7485,24 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       'support bundle download authorization request inputs actorFingerprint, authorizationStatus, downloadAuthorizationStatus, exportPolicyFingerprint, manifestFingerprint'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle download resolver request prompt-registry-repair-gate-support-bundle-download-resolver-request/v1 / support bundle download resolver request status Not Registered Read Only / support bundle download resolver request created no / support bundle download resolver request fingerprint dddd7777eeee8888'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle download resolver request inputs archiveRequestFingerprint, archiveSignatureRequestFingerprint, artifactRecordRequestFingerprint, downloadAuthorizationRequestFingerprint, downloadResolverRoute'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle download resolver route Support Bundle Signed Archive Download'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

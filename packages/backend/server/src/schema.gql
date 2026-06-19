@@ -1316,6 +1316,12 @@ type CopilotPromptRegistryRepairExecutionRequestType {
   supportBundleDownloadAuthorizationRequestStatus: String!
   supportBundleDownloadAuthorizationRequestVersion: String!
   supportBundleDownloadAuthorizationStatus: String!
+  supportBundleDownloadResolverRequestCreated: Boolean!
+  supportBundleDownloadResolverRequestFingerprint: String!
+  supportBundleDownloadResolverRequestInputs: [String!]!
+  supportBundleDownloadResolverRequestStatus: String!
+  supportBundleDownloadResolverRequestVersion: String!
+  supportBundleDownloadResolverRoute: String!
   supportBundleManifestFilename: String!
   supportBundleManifestFingerprint: String!
   supportBundleManifestMetadataFilename: String!

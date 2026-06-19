@@ -4036,6 +4036,22 @@ function formatPromptRegistryRepairExecutionRequest(
           ', '
         )}`
       : 'support bundle download authorization request inputs none',
+    `support bundle download resolver request ${request.supportBundleDownloadResolverRequestVersion}`,
+    `support bundle download resolver request status ${formatFeatureKind(
+      request.supportBundleDownloadResolverRequestStatus
+    )}`,
+    request.supportBundleDownloadResolverRequestCreated
+      ? 'support bundle download resolver request created yes'
+      : 'support bundle download resolver request created no',
+    `support bundle download resolver request fingerprint ${request.supportBundleDownloadResolverRequestFingerprint}`,
+    request.supportBundleDownloadResolverRequestInputs.length
+      ? `support bundle download resolver request inputs ${request.supportBundleDownloadResolverRequestInputs.join(
+          ', '
+        )}`
+      : 'support bundle download resolver request inputs none',
+    `support bundle download resolver route ${formatFeatureKind(
+      request.supportBundleDownloadResolverRoute
+    )}`,
     `support bundle audit persistence request ${request.supportBundleAuditPersistenceRequestVersion}`,
     `support bundle audit persistence request status ${formatFeatureKind(
       request.supportBundleAuditPersistenceRequestStatus

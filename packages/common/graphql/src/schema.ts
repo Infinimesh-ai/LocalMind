@@ -1520,6 +1520,14 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   supportBundleDownloadAuthorizationRequestStatus: Scalars['String']['output'];
   supportBundleDownloadAuthorizationRequestVersion: Scalars['String']['output'];
   supportBundleDownloadAuthorizationStatus: Scalars['String']['output'];
+  supportBundleDownloadResolverRequestCreated: Scalars['Boolean']['output'];
+  supportBundleDownloadResolverRequestFingerprint: Scalars['String']['output'];
+  supportBundleDownloadResolverRequestInputs: Array<
+    Scalars['String']['output']
+  >;
+  supportBundleDownloadResolverRequestStatus: Scalars['String']['output'];
+  supportBundleDownloadResolverRequestVersion: Scalars['String']['output'];
+  supportBundleDownloadResolverRoute: Scalars['String']['output'];
   supportBundleManifestFilename: Scalars['String']['output'];
   supportBundleManifestFingerprint: Scalars['String']['output'];
   supportBundleManifestMetadataFilename: Scalars['String']['output'];
@@ -9005,6 +9013,12 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
     supportBundleDownloadAuthorizationRequestStatus: string;
     supportBundleDownloadAuthorizationRequestVersion: string;
     supportBundleDownloadAuthorizationStatus: string;
+    supportBundleDownloadResolverRequestCreated: boolean;
+    supportBundleDownloadResolverRequestFingerprint: string;
+    supportBundleDownloadResolverRequestInputs: Array<string>;
+    supportBundleDownloadResolverRequestStatus: string;
+    supportBundleDownloadResolverRequestVersion: string;
+    supportBundleDownloadResolverRoute: string;
     supportBundleManifestFilename: string;
     supportBundleManifestFingerprint: string;
     supportBundleManifestMetadataFilename: string;
