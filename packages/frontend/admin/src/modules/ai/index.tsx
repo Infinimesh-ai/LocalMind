@@ -2439,6 +2439,12 @@ function PromptRegistryPublishGateResult({
     repairExecutionRequest,
     repairPreflight
   );
+  const repairGateManifestJson =
+    buildPromptRegistryRepairGateManifestJson(verdict);
+  const repairGateManifestExportMetadataText =
+    buildPromptRegistryRepairGateManifestExportMetadataText(verdict);
+  const repairGateManifestExportMetadataJson =
+    buildPromptRegistryRepairGateManifestExportMetadataJson(verdict);
   const modelRoutes = resolvePromptRegistryPublishGateModelRoutes(verdict);
   const taskRouteDiagnostics = getAIModelTaskRoutesDiagnostics({
     embeddingRoute: verdict.taskRoutes.find(
@@ -2516,6 +2522,13 @@ function PromptRegistryPublishGateResult({
       >
         {diagnosticsText}
       </pre>
+      <PromptRegistryRepairGateManifestArtifactPanel
+        manifestJson={repairGateManifestJson}
+        metadataJson={repairGateManifestExportMetadataJson}
+        metadataText={repairGateManifestExportMetadataText}
+        promptName={promptName}
+        verdict={verdict}
+      />
       {repairExecutionRequest ? (
         <div className="mt-2 break-words text-xs text-muted-foreground">
           Repair execution request{' '}
@@ -3553,6 +3566,184 @@ function formatPromptRegistryPublishGateRepairGateManifestExportMetadata(
     `retention status ${formatFeatureKind(metadata.retentionPolicyStatus)}`,
     `retention fingerprint ${metadata.retentionPolicyFingerprint}`,
   ]);
+}
+
+function buildPromptRegistryRepairGateManifestJson(
+  verdict: PromptRegistryPublishGateVerdict
+) {
+  return JSON.stringify(verdict.repairGateManifest, null, 2);
+}
+
+function buildPromptRegistryRepairGateManifestExportMetadataText(
+  verdict: PromptRegistryPublishGateVerdict
+) {
+  const metadata = verdict.repairGateManifestExportMetadata;
+
+  return [
+    `Export artifact ${metadata.artifact}`,
+    `Filename ${metadata.filename}`,
+    `MIME ${metadata.mime}`,
+    `Metadata filename ${metadata.metadataFilename}`,
+    `Metadata ${metadata.version}`,
+    `Manifest ${metadata.manifestVersion}`,
+    `Fingerprint ${metadata.manifestFingerprint}`,
+    `Registry ${metadata.registryId}`,
+    `Registry fingerprint ${metadata.registryFingerprint}`,
+    `Registry updated ${metadata.registryUpdatedAt}`,
+    `Gate status ${metadata.gateStatus}`,
+    `Publish status ${metadata.publishStatus}`,
+    `Boundary ${metadata.boundary}`,
+    `Redaction policy ${metadata.redactionPolicyVersion}`,
+    `Redaction policy status ${metadata.redactionPolicyStatus}`,
+    `Redaction policy fingerprint ${metadata.redactionPolicyFingerprint}`,
+    `Export policy ${metadata.exportPolicyVersion}`,
+    `Export policy status ${metadata.exportPolicyStatus}`,
+    `Export policy fingerprint ${metadata.exportPolicyFingerprint}`,
+    `Audit event ${metadata.auditEventVersion}`,
+    `Audit event status ${metadata.auditEventStatus}`,
+    `Audit event created ${metadata.auditEventCreated ? 'yes' : 'no'}`,
+    `Audit event fingerprint ${metadata.auditEventFingerprint}`,
+    `Retention policy ${metadata.retentionPolicyVersion}`,
+    `Retention policy status ${metadata.retentionPolicyStatus}`,
+    `Retention policy fingerprint ${metadata.retentionPolicyFingerprint}`,
+  ].join('\n');
+}
+
+function buildPromptRegistryRepairGateManifestExportMetadataJson(
+  verdict: PromptRegistryPublishGateVerdict
+) {
+  return JSON.stringify(verdict.repairGateManifestExportMetadata, null, 2);
+}
+
+function downloadPromptRegistryRepairGateManifestJson(
+  verdict: PromptRegistryPublishGateVerdict,
+  manifestJson: string
+) {
+  const blob = new Blob([manifestJson], {
+    type: 'application/json;charset=utf-8',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href = url;
+  link.download = verdict.repairGateManifestExportMetadata.filename;
+  link.style.display = 'none';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function downloadPromptRegistryRepairGateManifestMetadataJson(
+  verdict: PromptRegistryPublishGateVerdict,
+  metadataJson: string
+) {
+  const blob = new Blob([metadataJson], {
+    type: 'application/json;charset=utf-8',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href = url;
+  link.download = verdict.repairGateManifestExportMetadata.metadataFilename;
+  link.style.display = 'none';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function PromptRegistryRepairGateManifestArtifactPanel({
+  manifestJson,
+  metadataJson,
+  metadataText,
+  promptName,
+  verdict,
+}: {
+  manifestJson: string;
+  metadataJson: string;
+  metadataText: string;
+  promptName: string;
+  verdict: PromptRegistryPublishGateVerdict;
+}) {
+  return (
+    <div className="mt-2 space-y-2 rounded-md border border-border/70 bg-muted/30 p-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="text-xs font-medium">Repair gate manifest artifact</div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            navigator.clipboard?.writeText(manifestJson).catch(() => {});
+          }}
+        >
+          Copy manifest JSON
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            downloadPromptRegistryRepairGateManifestJson(verdict, manifestJson);
+          }}
+        >
+          Download manifest JSON
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            navigator.clipboard?.writeText(metadataText).catch(() => {});
+          }}
+        >
+          Copy manifest metadata
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            navigator.clipboard?.writeText(metadataJson).catch(() => {});
+          }}
+        >
+          Copy manifest metadata JSON
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            downloadPromptRegistryRepairGateManifestMetadataJson(
+              verdict,
+              metadataJson
+            );
+          }}
+        >
+          Download manifest metadata JSON
+        </Button>
+      </div>
+      <pre
+        className="mt-1 whitespace-pre-wrap break-words text-xs text-muted-foreground"
+        data-testid={`prompt-registry-repair-gate-manifest-export-metadata-${promptName}`}
+      >
+        {metadataText}
+      </pre>
+      <pre
+        className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-muted-foreground"
+        data-testid={`prompt-registry-repair-gate-manifest-export-metadata-json-${promptName}`}
+      >
+        {metadataJson}
+      </pre>
+      <pre
+        className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-muted-foreground"
+        data-testid={`prompt-registry-repair-gate-manifest-json-${promptName}`}
+      >
+        {manifestJson}
+      </pre>
+    </div>
+  );
 }
 
 function formatPromptRegistryRepairPreflight(

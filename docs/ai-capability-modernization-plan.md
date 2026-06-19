@@ -14223,3 +14223,30 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - redaction/export/retention policy 目前是 code-level projection，不是 tenant-level policy registry、workspace-level compliance setting 或可配置的数据保留规则。
 - 该 metadata 尚未覆盖 preflight/execution request 的 full lifecycle artifact、approval record、idempotency lock、retry/rollback executor、support bundle packaging、下载授权或 audit persistence；后续若要做正式 support bundle，需要继续定义 DB-backed artifact、download resolver、audit event persistence 与 retention cleanup。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 424. P3 落地记录：Prompt Registry Repair Gate Manifest Client Export Path
+
+本轮继续收敛第 423 节剩余风险中 “仍无文件下载路径” 的问题。实际代码与目标 AI 中间层架构的冲突点是：publish gate 已经暴露 `repairGateManifest` 与 `repairGateManifestExportMetadata`，但 Admin 只能查看 diagnostics 文本，无法把同一组脱敏 manifest / metadata JSON 作为可交付 artifact 保存或复制；后续 support bundle、route explain 或人工审核仍需要手动从长文本中拼接字段。本轮新增 Admin 端只读 JSON artifact 面板，复用现有 action-run diagnostics manifest 的浏览器 Blob 下载模式，不引入后端 download resolver、DB artifact 或 audit persistence。
+
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - 新增 Prompt Registry repair gate manifest / metadata JSON builder，JSON 内容直接来自 GraphQL 的 `repairGateManifest` 与 `repairGateManifestExportMetadata`。
+  - 新增 `PromptRegistryRepairGateManifestArtifactPanel`，提供 Copy manifest JSON、Download manifest JSON、Copy manifest metadata、Copy manifest metadata JSON、Download manifest metadata JSON。
+  - 下载文件名使用 `repairGateManifestExportMetadata.filename` 与 `metadataFilename`；不从 prompt name、provider id、provider payload、secret、raw trace 或执行结果构造文件名。
+  - 面板位于 publish gate diagnostics 下方，继续标注为只读 artifact；不新增后端 mutation，不改变 repair/preflight/execution request gate。
+- 测试覆盖：
+  - Admin Vitest 断言 manifest JSON 与 metadata JSON 可解析且与 GraphQL fixture 一致。
+  - 测试覆盖 copy manifest JSON、copy metadata text、copy metadata JSON，以及两个 Blob 下载按钮的 MIME 与 filename。
+
+该实现只扩展 Admin 客户端只读 artifact 导出路径与测试，不新增 DB migration、不创建 DB-backed support bundle、不新增后端 download resolver、不创建 audit event、不改变 retention 存储、不改变 repair mutation 可执行性、不改变 preflight/execution request gate 判定、不改变 provider route selection、fallback order、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、Model Registry revision 或 Provider Registry revision。它把 “repair gate manifest 可下载文件路径” 从缺失推进到 Admin 客户端可复制/下载的脱敏 JSON artifact，为后续正式 support bundle packaging 与后端 artifact lifecycle 提供可验证的 UI/contract 起点。
+
+验证策略：
+
+- 本轮为 frontend/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- 该路径仍是浏览器客户端 Blob 下载，不是正式 support bundle schema、DB-backed artifact、签名快照、后端 download resolver、下载授权检查、真实 audit event 或真实 retention record。
+- metadata 中的 redaction/export/retention policy 仍是 code-level projection，不是 tenant-level policy registry、workspace-level compliance setting 或可配置的数据保留规则。
+- 下载动作不会写入 audit event，也不会创建 idempotency lock、approval record、support bundle package、retry/rollback executor 或 retention cleanup job；后续若要做正式 support bundle，需要继续定义 DB-backed artifact、download resolver、audit event persistence 与 retention cleanup。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

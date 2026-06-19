@@ -7767,6 +7767,139 @@ describe('AiPage', () => {
     expect(readyGateDiagnostics).toContain(
       'retention policy prompt-registry-repair-gate-manifest-retention-policy/v1 / retention status Not Persisted Read Only'
     );
+    const readyManifestExportMetadata =
+      screen.getByTestId(
+        'prompt-registry-repair-gate-manifest-export-metadata-Make it real'
+      ).textContent ?? '';
+    expect(readyManifestExportMetadata).toContain(
+      'Export artifact prompt_registry_repair_gate_manifest_json'
+    );
+    expect(readyManifestExportMetadata).toContain(
+      `Filename prompt-registry-repair-gate-manifest-42-${readyPublishGateVerdict.repairGateManifest.fingerprint}.json`
+    );
+    expect(readyManifestExportMetadata).toContain(
+      'MIME application/json;charset=utf-8'
+    );
+    expect(readyManifestExportMetadata).toContain(
+      `Metadata filename prompt-registry-repair-gate-manifest-metadata-42-${readyPublishGateVerdict.repairGateManifest.fingerprint}.json`
+    );
+    expect(readyManifestExportMetadata).toContain(
+      'Metadata prompt-registry-repair-gate-manifest-export-metadata/v1'
+    );
+    expect(readyManifestExportMetadata).toContain(
+      'Manifest prompt-registry-repair-gate-manifest/v1'
+    );
+    expect(readyManifestExportMetadata).toContain(
+      `Fingerprint ${readyPublishGateVerdict.repairGateManifest.fingerprint}`
+    );
+    expect(readyManifestExportMetadata).toContain('Registry 42');
+    expect(readyManifestExportMetadata).toContain(
+      'Registry fingerprint b1c2d3e4f5061728'
+    );
+    expect(readyManifestExportMetadata).toContain(
+      'Registry updated 2026-06-17T04:05:06.000Z'
+    );
+    expect(readyManifestExportMetadata).toContain('Gate status ready');
+    expect(readyManifestExportMetadata).toContain('Publish status allowed');
+    expect(readyManifestExportMetadata).toContain(
+      'Boundary repair_gate_manifest_only_no_prompt_or_provider_payload'
+    );
+    expect(readyManifestExportMetadata).toContain(
+      'Redaction policy prompt-registry-repair-gate-manifest-redaction-policy/v1'
+    );
+    expect(readyManifestExportMetadata).toContain(
+      'Redaction policy status redacted_projection_no_prompt_provider_payload_or_secret'
+    );
+    expect(readyManifestExportMetadata).toContain(
+      `Redaction policy fingerprint ${readyPublishGateVerdict.repairGateManifestExportMetadata.redactionPolicyFingerprint}`
+    );
+    expect(readyManifestExportMetadata).toContain(
+      'Export policy prompt-registry-repair-gate-manifest-export-policy/v1'
+    );
+    expect(readyManifestExportMetadata).toContain(
+      'Export policy status read_only_projection'
+    );
+    expect(readyManifestExportMetadata).toContain(
+      `Export policy fingerprint ${readyPublishGateVerdict.repairGateManifestExportMetadata.exportPolicyFingerprint}`
+    );
+    expect(readyManifestExportMetadata).toContain(
+      'Audit event prompt-registry-repair-gate-manifest-export-audit-event/v1'
+    );
+    expect(readyManifestExportMetadata).toContain(
+      'Audit event status not_created_read_only'
+    );
+    expect(readyManifestExportMetadata).toContain('Audit event created no');
+    expect(readyManifestExportMetadata).toContain(
+      `Audit event fingerprint ${readyPublishGateVerdict.repairGateManifestExportMetadata.auditEventFingerprint}`
+    );
+    expect(readyManifestExportMetadata).toContain(
+      'Retention policy prompt-registry-repair-gate-manifest-retention-policy/v1'
+    );
+    expect(readyManifestExportMetadata).toContain(
+      'Retention policy status not_persisted_read_only'
+    );
+    expect(readyManifestExportMetadata).toContain(
+      `Retention policy fingerprint ${readyPublishGateVerdict.repairGateManifestExportMetadata.retentionPolicyFingerprint}`
+    );
+    const readyManifestJson =
+      screen.getByTestId(
+        'prompt-registry-repair-gate-manifest-json-Make it real'
+      ).textContent ?? '';
+    expect(JSON.parse(readyManifestJson)).toEqual(
+      readyPublishGateVerdict.repairGateManifest
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Copy manifest JSON' }));
+    await waitFor(() => {
+      expect(writeTextMock).toHaveBeenCalledWith(readyManifestJson);
+    });
+    const readyManifestMetadataJson =
+      screen.getByTestId(
+        'prompt-registry-repair-gate-manifest-export-metadata-json-Make it real'
+      ).textContent ?? '';
+    expect(JSON.parse(readyManifestMetadataJson)).toEqual(
+      readyPublishGateVerdict.repairGateManifestExportMetadata
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Copy manifest metadata' })
+    );
+    await waitFor(() => {
+      expect(writeTextMock).toHaveBeenCalledWith(readyManifestExportMetadata);
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Copy manifest metadata JSON' })
+    );
+    await waitFor(() => {
+      expect(writeTextMock).toHaveBeenCalledWith(readyManifestMetadataJson);
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Download manifest JSON' })
+    );
+    expect(createObjectURLMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'application/json;charset=utf-8',
+      })
+    );
+    const repairManifestDownloadAnchor = anchorClickMock.mock
+      .contexts[0] as HTMLAnchorElement;
+    expect(repairManifestDownloadAnchor.download).toBe(
+      readyPublishGateVerdict.repairGateManifestExportMetadata.filename
+    );
+    expect(revokeObjectURLMock).toHaveBeenCalledWith(
+      'blob:action-run-manifest'
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Download manifest metadata JSON' })
+    );
+    expect(createObjectURLMock).toHaveBeenCalledTimes(2);
+    const repairManifestMetadataDownloadAnchor = anchorClickMock.mock
+      .contexts[1] as HTMLAnchorElement;
+    expect(repairManifestMetadataDownloadAnchor.download).toBe(
+      readyPublishGateVerdict.repairGateManifestExportMetadata.metadataFilename
+    );
+    expect(revokeObjectURLMock).toHaveBeenCalledTimes(2);
+    createObjectURLMock.mockClear();
+    revokeObjectURLMock.mockClear();
+    anchorClickMock.mockClear();
     expect(readyGateDiagnostics).toContain(
       'candidate evidence set aaaa5555bbbb6666 / embedding index contract evidence set aaaa6666bbbb7777 / rerank runtime contract evidence set aaaa8888bbbb9999 / prepared route order evidence set aaaa7777bbbb8888'
     );
