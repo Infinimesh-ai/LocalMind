@@ -1105,9 +1105,19 @@ type CopilotPromptRegistryPublishGateRepairActionMutationGuard = {
   targetLocatorKinds: string[];
 };
 
+type CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry = {
+  candidateEvidenceCategory?: string;
+  candidateEvidenceFingerprint: string;
+  candidateEvidenceKey?: string;
+  candidateEvidenceProviderId: string;
+  candidateEvidenceScope: string;
+  candidateIndex: number;
+};
+
 type CopilotPromptRegistryPublishGateRepairActionPreviewOperation = {
   actionKind: string;
   candidateEvidenceCount: number;
+  candidateEvidenceEntries: CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry[];
   candidateEvidenceFingerprint: string;
   candidateEvidenceFingerprints: string[];
   candidateEvidenceKeys: string[];
@@ -1331,6 +1341,7 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
   candidateEvidenceCategoryCount: number;
   candidateEvidenceCategories: string[];
   candidateEvidenceCount: number;
+  candidateEvidenceEntries: CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry[];
   candidateEvidenceFingerprint: string;
   candidateEvidenceFingerprints: string[];
   candidateEvidenceKeys: string[];
@@ -2706,6 +2717,9 @@ class CopilotPromptRegistryPublishGateRepairActionPreviewOperationType implement
   @Field(() => SafeIntResolver)
   candidateEvidenceCount!: number;
 
+  @Field(() => [CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType])
+  candidateEvidenceEntries!: CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry[];
+
   @Field(() => String)
   candidateEvidenceFingerprint!: string;
 
@@ -3425,6 +3439,27 @@ class CopilotPromptRegistryRepairPreflightType implements CopilotPromptRegistryR
 }
 
 @ObjectType()
+class CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType implements CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry {
+  @Field(() => String, { nullable: true })
+  candidateEvidenceCategory?: string;
+
+  @Field(() => String)
+  candidateEvidenceFingerprint!: string;
+
+  @Field(() => String, { nullable: true })
+  candidateEvidenceKey?: string;
+
+  @Field(() => String)
+  candidateEvidenceProviderId!: string;
+
+  @Field(() => String)
+  candidateEvidenceScope!: string;
+
+  @Field(() => SafeIntResolver)
+  candidateIndex!: number;
+}
+
+@ObjectType()
 class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType implements CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry {
   @Field(() => SafeIntResolver)
   candidateEvidenceCategoryCount!: number;
@@ -3434,6 +3469,9 @@ class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType impleme
 
   @Field(() => SafeIntResolver)
   candidateEvidenceCount!: number;
+
+  @Field(() => [CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType])
+  candidateEvidenceEntries!: CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry[];
 
   @Field(() => String)
   candidateEvidenceFingerprint!: string;
@@ -9239,12 +9277,67 @@ function promptRegistryRepairTargetLocatorFingerprint(
     .slice(0, 16);
 }
 
+function candidateEvidenceCategoryFromKey(key?: string) {
+  if (!key) {
+    return undefined;
+  }
+
+  const trimmedKey = key.trim();
+  if (trimmedKey.startsWith('[')) {
+    try {
+      const parsed: unknown = JSON.parse(trimmedKey);
+      if (Array.isArray(parsed)) {
+        return parsed[0] === 'policy' ? 'policy' : 'route';
+      }
+    } catch {
+      return undefined;
+    }
+  }
+
+  const [category] = key.split(':');
+  return category || undefined;
+}
+
 function promptRegistryRepairCandidateEvidenceSnapshot(
   candidateEvidence:
     | CopilotPromptRegistryPublishGateRepairCandidateEvidence[]
     | undefined
 ) {
   const evidence = candidateEvidence ?? [];
+  const candidateEvidenceEntries = evidence
+    .map(candidate => {
+      const candidateEvidenceCategory = candidateEvidenceCategoryFromKey(
+        candidate.candidateKey
+      );
+
+      return {
+        ...(candidateEvidenceCategory ? { candidateEvidenceCategory } : {}),
+        candidateEvidenceFingerprint: candidate.candidateFingerprint,
+        ...(candidate.candidateKey
+          ? { candidateEvidenceKey: candidate.candidateKey }
+          : {}),
+        candidateEvidenceProviderId: candidate.providerId,
+        candidateEvidenceScope: candidate.scope,
+        candidateIndex: candidate.candidateIndex,
+      };
+    })
+    .sort((left, right) =>
+      [
+        left.candidateEvidenceScope,
+        String(left.candidateIndex),
+        left.candidateEvidenceProviderId,
+        left.candidateEvidenceFingerprint,
+      ]
+        .join(':')
+        .localeCompare(
+          [
+            right.candidateEvidenceScope,
+            String(right.candidateIndex),
+            right.candidateEvidenceProviderId,
+            right.candidateEvidenceFingerprint,
+          ].join(':')
+        )
+    );
   const candidateEvidenceFingerprints = uniqueStrings(
     evidence.map(candidate => candidate.candidateFingerprint)
   ).sort();
@@ -9284,6 +9377,7 @@ function promptRegistryRepairCandidateEvidenceSnapshot(
 
   return {
     candidateEvidenceCount: evidence.length,
+    candidateEvidenceEntries,
     candidateEvidenceFingerprint: createHash('sha256')
       .update(
         stableRepairRecommendationStringify({
@@ -10857,6 +10951,7 @@ function buildPromptRegistryRepairExecutionRequest(
         return {
           ...candidateEvidenceClassificationSummary(candidateEvidenceKeys),
           candidateEvidenceCount: operation.candidateEvidenceCount,
+          candidateEvidenceEntries: operation.candidateEvidenceEntries,
           candidateEvidenceFingerprint: operation.candidateEvidenceFingerprint,
           candidateEvidenceFingerprints: [
             ...operation.candidateEvidenceFingerprints,

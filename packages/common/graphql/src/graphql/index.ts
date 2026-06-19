@@ -3400,6 +3400,14 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
       candidateEvidenceCategoryCount
       candidateEvidenceCategories
       candidateEvidenceCount
+      candidateEvidenceEntries {
+        candidateEvidenceCategory
+        candidateEvidenceFingerprint
+        candidateEvidenceKey
+        candidateEvidenceProviderId
+        candidateEvidenceScope
+        candidateIndex
+      }
       candidateEvidenceFingerprint
       candidateEvidenceFingerprints
       candidateEvidenceKeys

@@ -1197,11 +1197,22 @@ export interface CopilotPromptRegistryPublishGateExpectedVersionInput {
   registryUpdatedAt?: InputMaybe<Scalars['String']['input']>;
 }
 
+export interface CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType {
+  __typename?: 'CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType';
+  candidateEvidenceCategory?: Maybe<Scalars['String']['output']>;
+  candidateEvidenceFingerprint: Scalars['String']['output'];
+  candidateEvidenceKey?: Maybe<Scalars['String']['output']>;
+  candidateEvidenceProviderId: Scalars['String']['output'];
+  candidateEvidenceScope: Scalars['String']['output'];
+  candidateIndex: Scalars['SafeInt']['output'];
+}
+
 export interface CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType {
   __typename?: 'CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType';
   candidateEvidenceCategoryCount: Scalars['SafeInt']['output'];
   candidateEvidenceCategories: Array<Scalars['String']['output']>;
   candidateEvidenceCount: Scalars['SafeInt']['output'];
+  candidateEvidenceEntries: Array<CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType>;
   candidateEvidenceFingerprint: Scalars['String']['output'];
   candidateEvidenceFingerprints: Array<Scalars['String']['output']>;
   candidateEvidenceKeys: Array<Scalars['String']['output']>;
@@ -2134,6 +2145,7 @@ export interface CopilotPromptRegistryPublishGateRepairActionPreviewOperationTyp
   __typename?: 'CopilotPromptRegistryPublishGateRepairActionPreviewOperationType';
   actionKind: Scalars['String']['output'];
   candidateEvidenceCount: Scalars['SafeInt']['output'];
+  candidateEvidenceEntries: Array<CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType>;
   candidateEvidenceFingerprint: Scalars['String']['output'];
   candidateEvidenceFingerprints: Array<Scalars['String']['output']>;
   candidateEvidenceKeys: Array<Scalars['String']['output']>;
@@ -9210,6 +9222,15 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
       candidateEvidenceCategoryCount: number;
       candidateEvidenceCategories: Array<string>;
       candidateEvidenceCount: number;
+      candidateEvidenceEntries: Array<{
+        __typename?: 'CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType';
+        candidateEvidenceCategory: string | null;
+        candidateEvidenceFingerprint: string;
+        candidateEvidenceKey: string | null;
+        candidateEvidenceProviderId: string;
+        candidateEvidenceScope: string;
+        candidateIndex: number;
+      }>;
       candidateEvidenceFingerprint: string;
       candidateEvidenceFingerprints: Array<string>;
       candidateEvidenceKeys: Array<string>;

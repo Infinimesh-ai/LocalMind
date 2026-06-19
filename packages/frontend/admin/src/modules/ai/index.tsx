@@ -4016,6 +4016,21 @@ function formatPromptRegistryRepairExecutionRequest(
                 entry.candidateEvidenceKeys.length
                   ? entry.candidateEvidenceKeys.join('|')
                   : 'candidateEvidenceKeys:none'
+              }:candidateEvidenceEntries:${
+                entry.candidateEvidenceEntries.length
+                  ? entry.candidateEvidenceEntries
+                      .map(
+                        candidate =>
+                          `${candidate.candidateEvidenceScope}#${candidate.candidateIndex}:${
+                            candidate.candidateEvidenceCategory ??
+                            'category:none'
+                          }:${candidate.candidateEvidenceProviderId}:${
+                            candidate.candidateEvidenceKey ??
+                            'candidateEvidenceKey:none'
+                          }:${candidate.candidateEvidenceFingerprint}`
+                      )
+                      .join('|')
+                  : 'candidateEvidenceEntries:none'
               }:candidateEvidenceCategories:${entry.candidateEvidenceCategoryCount}:${
                 entry.candidateEvidenceCategories.length
                   ? entry.candidateEvidenceCategories.join('|')

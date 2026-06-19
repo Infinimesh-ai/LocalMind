@@ -4768,6 +4768,7 @@ async function main() {
             candidateEvidenceKeys
           ),
           candidateEvidenceCount: operation.candidateEvidenceCount,
+          candidateEvidenceEntries: operation.candidateEvidenceEntries,
           candidateEvidenceFingerprint: operation.candidateEvidenceFingerprint,
           candidateEvidenceFingerprints: [
             ...operation.candidateEvidenceFingerprints,
@@ -4783,6 +4784,25 @@ async function main() {
       .sort((left, right) =>
         left.operationFingerprint.localeCompare(right.operationFingerprint)
       )
+  );
+  const taskRouteSourceEvidenceEntry =
+    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetEntries.find(
+      entry => entry.taskRouteEffectiveSourceFingerprints.length
+    );
+  const taskRouteSourcePreviewOperation =
+    routeReadyGate.repairActionPreview.operations.find(
+      operation =>
+        operation.operationFingerprint ===
+        taskRouteSourceEvidenceEntry?.operationFingerprint
+    );
+  assert.notEqual(
+    taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.length,
+    0,
+    'task route source evidence entry should expose per-candidate evidence references'
+  );
+  assert.deepEqual(
+    taskRouteSourceEvidenceEntry?.candidateEvidenceEntries,
+    taskRouteSourcePreviewOperation?.candidateEvidenceEntries
   );
   assert.deepEqual(
     executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints,

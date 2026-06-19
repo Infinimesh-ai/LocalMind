@@ -1032,6 +1032,7 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType {
   candidateEvidenceCategoryCount: SafeInt!
   candidateEvidenceCategories: [String!]!
   candidateEvidenceCount: SafeInt!
+  candidateEvidenceEntries: [CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType!]!
   candidateEvidenceFingerprint: String!
   candidateEvidenceFingerprints: [String!]!
   candidateEvidenceKeys: [String!]!
@@ -1040,6 +1041,15 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType {
   diagnosticsFingerprint: String!
   operationFingerprint: String!
   taskRouteEffectiveSourceFingerprints: [String!]!
+}
+
+type CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType {
+  candidateEvidenceCategory: String
+  candidateEvidenceFingerprint: String!
+  candidateEvidenceKey: String
+  candidateEvidenceProviderId: String!
+  candidateEvidenceScope: String!
+  candidateIndex: SafeInt!
 }
 
 type CopilotPromptRegistryRepairExecutionRequestType {
@@ -1877,6 +1887,7 @@ type CopilotPromptRegistryPublishGateRepairActionMutationGuardType {
 type CopilotPromptRegistryPublishGateRepairActionPreviewOperationType {
   actionKind: String!
   candidateEvidenceCount: SafeInt!
+  candidateEvidenceEntries: [CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType!]!
   candidateEvidenceFingerprint: String!
   candidateEvidenceFingerprints: [String!]!
   candidateEvidenceKeys: [String!]!

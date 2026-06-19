@@ -141,6 +141,26 @@ const taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture = [
 const taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture =
   'copilot-task-route-effective-source-evidence-set/v1';
 
+function candidateEvidenceCategoryFromKeyFixture(key?: string) {
+  if (!key) {
+    return null;
+  }
+
+  const trimmedKey = key.trim();
+  if (trimmedKey.startsWith('[')) {
+    try {
+      const parsed: unknown = JSON.parse(trimmedKey);
+      if (Array.isArray(parsed)) {
+        return parsed[0] === 'policy' ? 'policy' : 'route';
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  return key.split(':')[0] || null;
+}
+
 function candidateEvidenceClassificationSummaryFixture(
   candidateEvidenceKeys: string[]
 ) {
@@ -202,6 +222,45 @@ function candidateEvidenceClassificationSummaryFixture(
     candidateEvidenceProviderIds: Array.from(new Set(providerIds)).sort(),
     candidateEvidenceScopes: Array.from(new Set(scopes)).sort(),
   };
+}
+
+function candidateEvidenceReferenceEntriesFixture(
+  candidateEvidence: Array<{
+    candidateFingerprint: string;
+    candidateIndex: number;
+    candidateKey?: string;
+    providerId: string;
+    scope: string;
+  }>
+) {
+  return candidateEvidence
+    .map(candidate => ({
+      candidateEvidenceCategory: candidateEvidenceCategoryFromKeyFixture(
+        candidate.candidateKey
+      ),
+      candidateEvidenceFingerprint: candidate.candidateFingerprint,
+      candidateEvidenceKey: candidate.candidateKey ?? null,
+      candidateEvidenceProviderId: candidate.providerId,
+      candidateEvidenceScope: candidate.scope,
+      candidateIndex: candidate.candidateIndex,
+    }))
+    .sort((left, right) =>
+      [
+        left.candidateEvidenceScope,
+        String(left.candidateIndex),
+        left.candidateEvidenceProviderId,
+        left.candidateEvidenceFingerprint,
+      ]
+        .join(':')
+        .localeCompare(
+          [
+            right.candidateEvidenceScope,
+            String(right.candidateIndex),
+            right.candidateEvidenceProviderId,
+            right.candidateEvidenceFingerprint,
+          ].join(':')
+        )
+    );
 }
 
 function candidateEvidenceFixture<T extends Record<string, unknown>>(
@@ -2504,6 +2563,8 @@ function withRepairActionPreview<
         return {
           actionKind: recommendation.suggestedActionKind,
           candidateEvidenceCount: candidateEvidence.length,
+          candidateEvidenceEntries:
+            candidateEvidenceReferenceEntriesFixture(candidateEvidence),
           candidateEvidenceFingerprint: createHash('sha256')
             .update(
               stableFixtureStringify({
@@ -6908,6 +6969,9 @@ describe('AiPage', () => {
                     candidateEvidenceKeys
                   ),
                   candidateEvidenceCount: operation.candidateEvidenceCount,
+                  candidateEvidenceEntries: [
+                    ...operation.candidateEvidenceEntries,
+                  ],
                   candidateEvidenceFingerprint:
                     operation.candidateEvidenceFingerprint,
                   candidateEvidenceFingerprints: [
@@ -7796,7 +7860,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      'candidateEvidenceCategories:0:candidateEvidenceCategories:none:candidateEvidenceProviderIds:none:candidateEvidenceScopes:none'
+      'candidateEvidenceEntries:candidateEvidenceEntries:none:candidateEvidenceCategories:0:candidateEvidenceCategories:none:candidateEvidenceProviderIds:none:candidateEvidenceScopes:none'
     );
     const taskRouteSourceEntry =
       readyPublishGateVerdict.repairActionPreview.operations.find(
@@ -7812,6 +7876,15 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       `${taskRouteSourceEntry?.operationFingerprint}:${taskRouteSourceEntry?.diagnosticsFingerprint}:${taskRouteSourceEntry?.taskRouteEffectiveSourceFingerprints.join('|')}:candidateEvidence:${taskRouteSourceEntry?.candidateEvidenceCount}:${taskRouteSourceEntry?.candidateEvidenceFingerprint}`
+    );
+    const taskRouteSourceCandidateEntry =
+      taskRouteSourceEntry?.candidateEvidenceEntries[0];
+    expect(taskRouteSourceCandidateEntry).toBeTruthy();
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `candidateEvidenceEntries:${taskRouteSourceCandidateEntry?.candidateEvidenceScope}#${taskRouteSourceCandidateEntry?.candidateIndex}:${taskRouteSourceCandidateEntry?.candidateEvidenceCategory}:${taskRouteSourceCandidateEntry?.candidateEvidenceProviderId}:${taskRouteSourceCandidateEntry?.candidateEvidenceKey}:${taskRouteSourceCandidateEntry?.candidateEvidenceFingerprint}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
