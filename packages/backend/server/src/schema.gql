@@ -1029,10 +1029,14 @@ input CopilotPromptRegistryPublishGateExpectedVersionInput {
 }
 
 type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType {
+  candidateEvidenceCategoryCount: SafeInt!
+  candidateEvidenceCategories: [String!]!
   candidateEvidenceCount: SafeInt!
   candidateEvidenceFingerprint: String!
   candidateEvidenceFingerprints: [String!]!
   candidateEvidenceKeys: [String!]!
+  candidateEvidenceProviderIds: [String!]!
+  candidateEvidenceScopes: [String!]!
   diagnosticsFingerprint: String!
   operationFingerprint: String!
   taskRouteEffectiveSourceFingerprints: [String!]!

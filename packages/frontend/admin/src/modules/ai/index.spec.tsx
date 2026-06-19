@@ -141,6 +141,69 @@ const taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture = [
 const taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture =
   'copilot-task-route-effective-source-evidence-set/v1';
 
+function candidateEvidenceClassificationSummaryFixture(
+  candidateEvidenceKeys: string[]
+) {
+  const categories: string[] = [];
+  const providerIds: string[] = [];
+  const scopes: string[] = [];
+
+  for (const key of candidateEvidenceKeys) {
+    const trimmedKey = key.trim();
+    if (trimmedKey.startsWith('[')) {
+      try {
+        const parsed: unknown = JSON.parse(trimmedKey);
+        if (!Array.isArray(parsed)) {
+          continue;
+        }
+        if (parsed[0] === 'policy') {
+          const [, featureKind, workspaceId, providerId] = parsed;
+          categories.push('policy');
+          if (typeof providerId === 'string' && providerId) {
+            providerIds.push(providerId);
+          }
+          const scopeParts = [featureKind, workspaceId].filter(
+            (part): part is string => typeof part === 'string' && !!part
+          );
+          if (scopeParts.length) {
+            scopes.push(scopeParts.join(':'));
+          }
+        } else {
+          const [registryKind, providerId] = parsed;
+          categories.push('route');
+          if (typeof providerId === 'string' && providerId) {
+            providerIds.push(providerId);
+          }
+          if (typeof registryKind === 'string' && registryKind) {
+            scopes.push(registryKind);
+          }
+        }
+      } catch {
+        // Keep opaque keys as anchors without inventing classifications.
+      }
+      continue;
+    }
+
+    const parts = key.split(':');
+    if (parts.length >= 2) {
+      categories.push(parts[0]);
+      providerIds.push(parts[parts.length - 1]);
+      if (parts.length >= 3) {
+        scopes.push(parts.slice(1, -1).join(':'));
+      }
+    }
+  }
+
+  const candidateEvidenceCategories = Array.from(new Set(categories)).sort();
+
+  return {
+    candidateEvidenceCategoryCount: candidateEvidenceCategories.length,
+    candidateEvidenceCategories,
+    candidateEvidenceProviderIds: Array.from(new Set(providerIds)).sort(),
+    candidateEvidenceScopes: Array.from(new Set(scopes)).sort(),
+  };
+}
+
 function candidateEvidenceFixture<T extends Record<string, unknown>>(
   evidence: T
 ) {
@@ -6835,22 +6898,29 @@ describe('AiPage', () => {
             ).sort(),
           supportBundleTaskRouteEffectiveSourceEvidenceSetEntries:
             readyPublishGateVerdict.repairActionPreview.operations
-              .map(operation => ({
-                candidateEvidenceCount: operation.candidateEvidenceCount,
-                candidateEvidenceFingerprint:
-                  operation.candidateEvidenceFingerprint,
-                candidateEvidenceFingerprints: [
-                  ...operation.candidateEvidenceFingerprints,
-                ].sort(),
-                candidateEvidenceKeys: [
+              .map(operation => {
+                const candidateEvidenceKeys = [
                   ...operation.candidateEvidenceKeys,
-                ].sort(),
-                diagnosticsFingerprint: operation.diagnosticsFingerprint,
-                operationFingerprint: operation.operationFingerprint,
-                taskRouteEffectiveSourceFingerprints: [
-                  ...operation.taskRouteEffectiveSourceFingerprints,
-                ].sort(),
-              }))
+                ].sort();
+
+                return {
+                  ...candidateEvidenceClassificationSummaryFixture(
+                    candidateEvidenceKeys
+                  ),
+                  candidateEvidenceCount: operation.candidateEvidenceCount,
+                  candidateEvidenceFingerprint:
+                    operation.candidateEvidenceFingerprint,
+                  candidateEvidenceFingerprints: [
+                    ...operation.candidateEvidenceFingerprints,
+                  ].sort(),
+                  candidateEvidenceKeys,
+                  diagnosticsFingerprint: operation.diagnosticsFingerprint,
+                  operationFingerprint: operation.operationFingerprint,
+                  taskRouteEffectiveSourceFingerprints: [
+                    ...operation.taskRouteEffectiveSourceFingerprints,
+                  ].sort(),
+                };
+              })
               .sort((left, right) =>
                 left.operationFingerprint.localeCompare(
                   right.operationFingerprint
@@ -7720,18 +7790,34 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      'support bundle task route source evidence set entries 1111aaaa2222bbbb:1111222233334444:sources:none:candidateEvidence:0'
+      'support bundle task route source evidence set entries 1111aaaa2222bbbb:1111222233334444:sources:none:candidateEvidence:0:'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'candidateEvidenceCategories:0:candidateEvidenceCategories:none:candidateEvidenceProviderIds:none:candidateEvidenceScopes:none'
     );
     const taskRouteSourceEntry =
       readyPublishGateVerdict.repairActionPreview.operations.find(
         operation => operation.taskRouteEffectiveSourceFingerprints.length
       );
     expect(taskRouteSourceEntry).toBeTruthy();
+    const taskRouteSourceEntryClassification =
+      candidateEvidenceClassificationSummaryFixture(
+        [...(taskRouteSourceEntry?.candidateEvidenceKeys ?? [])].sort()
+      );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
       `${taskRouteSourceEntry?.operationFingerprint}:${taskRouteSourceEntry?.diagnosticsFingerprint}:${taskRouteSourceEntry?.taskRouteEffectiveSourceFingerprints.join('|')}:candidateEvidence:${taskRouteSourceEntry?.candidateEvidenceCount}:${taskRouteSourceEntry?.candidateEvidenceFingerprint}`
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `candidateEvidenceCategories:${taskRouteSourceEntryClassification.candidateEvidenceCategoryCount}:${taskRouteSourceEntryClassification.candidateEvidenceCategories.join('|')}:${taskRouteSourceEntryClassification.candidateEvidenceProviderIds.join('|')}:${taskRouteSourceEntryClassification.candidateEvidenceScopes.join('|')}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

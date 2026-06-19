@@ -1199,10 +1199,14 @@ export interface CopilotPromptRegistryPublishGateExpectedVersionInput {
 
 export interface CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType {
   __typename?: 'CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType';
+  candidateEvidenceCategoryCount: Scalars['SafeInt']['output'];
+  candidateEvidenceCategories: Array<Scalars['String']['output']>;
   candidateEvidenceCount: Scalars['SafeInt']['output'];
   candidateEvidenceFingerprint: Scalars['String']['output'];
   candidateEvidenceFingerprints: Array<Scalars['String']['output']>;
   candidateEvidenceKeys: Array<Scalars['String']['output']>;
+  candidateEvidenceProviderIds: Array<Scalars['String']['output']>;
+  candidateEvidenceScopes: Array<Scalars['String']['output']>;
   diagnosticsFingerprint: Scalars['String']['output'];
   operationFingerprint: Scalars['String']['output'];
   taskRouteEffectiveSourceFingerprints: Array<Scalars['String']['output']>;
@@ -9203,10 +9207,14 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
     supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints: Array<string>;
     supportBundleTaskRouteEffectiveSourceEvidenceSetEntries: Array<{
       __typename?: 'CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType';
+      candidateEvidenceCategoryCount: number;
+      candidateEvidenceCategories: Array<string>;
       candidateEvidenceCount: number;
       candidateEvidenceFingerprint: string;
       candidateEvidenceFingerprints: Array<string>;
       candidateEvidenceKeys: Array<string>;
+      candidateEvidenceProviderIds: Array<string>;
+      candidateEvidenceScopes: Array<string>;
       diagnosticsFingerprint: string;
       operationFingerprint: string;
       taskRouteEffectiveSourceFingerprints: Array<string>;

@@ -3397,10 +3397,14 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
     supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint
     supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints
     supportBundleTaskRouteEffectiveSourceEvidenceSetEntries {
+      candidateEvidenceCategoryCount
+      candidateEvidenceCategories
       candidateEvidenceCount
       candidateEvidenceFingerprint
       candidateEvidenceFingerprints
       candidateEvidenceKeys
+      candidateEvidenceProviderIds
+      candidateEvidenceScopes
       diagnosticsFingerprint
       operationFingerprint
       taskRouteEffectiveSourceFingerprints

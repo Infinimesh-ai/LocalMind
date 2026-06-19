@@ -15347,3 +15347,34 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - source guard fingerprint 仍来自 operation/candidate evidence 视角，不绑定真实请求 payload、provider credentials、BYOK lease、tenant policy registry、storage backend、archive bytes、signed URL secret/material、health probe timestamp、request dispatch outcome 或 billing/quota execution result。
 - repair action 仍是 read-only/blocked contract；尚未实现真实修复执行、support bundle 持久化、download authorization、audit persistence 或 retention cleanup worker。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 458. P1 落地记录：Support Bundle Source Evidence Candidate Classification Entries Projection
+
+本轮继续收敛第 457 节剩余风险中 “entries 现在绑定 candidate evidence summary，但仍不展开 candidate evidence payload、policy candidates、route candidates、prepare candidates、prepared routes 或 model/source payload” 的前置分类缺口。实际代码与目标 AI 中间层架构的冲突点是：support bundle source evidence entries 已能看到 candidate evidence count/fingerprint/keys，但 Admin diagnostics 仍需要人工从 candidate key 反推该 entry 关联的是 policy、route 还是 prepare 类证据，以及涉及哪些 provider 与 route scope；后续做真实 support bundle artifact、download package manifest 或 audit persistence 时，这会降低 source guard 审计解释的可读性。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry` / GraphQL object type 新增只读 `candidateEvidenceCategoryCount`、`candidateEvidenceCategories`、`candidateEvidenceProviderIds` 与 `candidateEvidenceScopes` 字段。
+  - `buildPromptRegistryRepairExecutionRequest()` 从当前 operation 的 `candidateEvidenceKeys` 派生分类摘要，兼容现有 `policy:...` / `route:...` / `prepare:...` key 与 JSON task route key；无法可靠解析的 key 继续只作为 evidence anchor 保留。
+  - 保持 operation fingerprint、candidate evidence fingerprint、task route source evidence-set fingerprint、repair gate manifest fingerprint、execution request fingerprint 与 support bundle lifecycle request fingerprint payload 不变；新增字段只作为 hash 计算后的只读 diagnostic projection。
+- `packages/backend/server/src/schema.gql`、`packages/common/graphql/src/graphql/index.ts`、`packages/common/graphql/src/graphql/copilot-prompt-registry-repair-execution-request.gql` 与 `packages/common/graphql/src/schema.ts`：
+  - 同步 source evidence entry classification selection/type，让 Admin mutation response 能在 source evidence entry 上直接读取 candidate evidence categories、providers 与 scopes。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - execution request copyable diagnostics 的 support bundle source evidence entries 增加 candidate evidence category count/categories、provider ids 与 scopes。
+- 测试覆盖：
+  - `resolver-model-source-chain.smoke.ts` 断言 execution request entries 的 candidate evidence classification 与当前 repair action preview operation 的 candidate evidence keys 派生结果一致。
+  - `admin/src/modules/ai/index.spec.tsx` 覆盖 no-source entry 的 classification none 输出，以及 task-route source entry 的 category/provider/scope 输出。
+
+该实现只扩展 Prompt Registry repair execution request 的只读 support bundle source evidence entry classification projection、GraphQL/common query/type、Admin diagnostics label 与 focused tests，不新增 DB migration、不创建 DB-backed evidence object、schema registry、artifact record、audit event 或持久化 repair job snapshot、不持久化 registry revision、workspace policy revision、provider snapshot、task route snapshot、model availability snapshot、archive bytes、signed URL secret/material 或 storage backend、不改变 support bundle lifecycle fingerprint payload、不改变 repair action 可执行性、不改变 provider route selection、fallback order、BYOK lease、quota、health check、`copilot.tasks.models` 配置格式、embedding/rerank native request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、MCP registry、Codex adapter 或 Action Runtime 状态机。它让 support bundle lifecycle source guard 的 evidence entry 能直接解释到 candidate evidence category/provider/scope，为后续展开 policy/route/prepare/prepared-route payload 和真实 artifact/audit 持久化预留更可读的只读分类面。
+
+验证策略：
+
+- 本轮为 TypeScript resolver/common/admin/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有测试镜像 `localmind-affine:test`，镜像 ID 预期保持 `c3389960f5ed`；沿用第 453-457 节确认的 `docker run --rm -v "${PWD}:/host:ro" -w /workspace localmind-affine:test ...` 方式，在容器内复制当前相关源码到镜像自带 `/workspace`，保留镜像内依赖后运行 focused smoke、Admin Vitest、oxlint、Prettier check 与宿主 `git diff --check`。该流程不重建 `localmind-affine:test`。
+
+剩余风险：
+
+- source evidence entries 仍是 runtime 只读 projection，不是 DB-backed evidence object、schema registry、artifact record、audit event 或持久化 repair job snapshot。
+- classification 字段从 candidate evidence keys 派生，只提供 category/provider/scope 摘要；仍不展开 candidate evidence payload、policy candidates、route candidates、prepare candidates、prepared routes 或 model/source payload。
+- source guard fingerprint 仍来自 operation/candidate evidence 视角，不绑定真实请求 payload、provider credentials、BYOK lease、tenant policy registry、storage backend、archive bytes、signed URL secret/material、health probe timestamp、request dispatch outcome 或 billing/quota execution result。
+- repair action 仍是 read-only/blocked contract；尚未实现真实修复执行、support bundle 持久化、download authorization、audit persistence 或 retention cleanup worker。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

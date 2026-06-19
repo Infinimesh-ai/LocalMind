@@ -113,6 +113,69 @@ const taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture = [
 const taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture =
   'copilot-task-route-effective-source-evidence-set/v1';
 
+function candidateEvidenceClassificationSummaryFixture(
+  candidateEvidenceKeys: string[]
+) {
+  const categories: string[] = [];
+  const providerIds: string[] = [];
+  const scopes: string[] = [];
+
+  for (const key of candidateEvidenceKeys) {
+    const trimmedKey = key.trim();
+    if (trimmedKey.startsWith('[')) {
+      try {
+        const parsed: unknown = JSON.parse(trimmedKey);
+        if (!Array.isArray(parsed)) {
+          continue;
+        }
+        if (parsed[0] === 'policy') {
+          const [, featureKind, workspaceId, providerId] = parsed;
+          categories.push('policy');
+          if (typeof providerId === 'string' && providerId) {
+            providerIds.push(providerId);
+          }
+          const scopeParts = [featureKind, workspaceId].filter(
+            (part): part is string => typeof part === 'string' && !!part
+          );
+          if (scopeParts.length) {
+            scopes.push(scopeParts.join(':'));
+          }
+        } else {
+          const [registryKind, providerId] = parsed;
+          categories.push('route');
+          if (typeof providerId === 'string' && providerId) {
+            providerIds.push(providerId);
+          }
+          if (typeof registryKind === 'string' && registryKind) {
+            scopes.push(registryKind);
+          }
+        }
+      } catch {
+        // Keep opaque keys as anchors without inventing classifications.
+      }
+      continue;
+    }
+
+    const parts = key.split(':');
+    if (parts.length >= 2) {
+      categories.push(parts[0]);
+      providerIds.push(parts[parts.length - 1]);
+      if (parts.length >= 3) {
+        scopes.push(parts.slice(1, -1).join(':'));
+      }
+    }
+  }
+
+  const candidateEvidenceCategories = Array.from(new Set(categories)).sort();
+
+  return {
+    candidateEvidenceCategoryCount: candidateEvidenceCategories.length,
+    candidateEvidenceCategories,
+    candidateEvidenceProviderIds: Array.from(new Set(providerIds)).sort(),
+    candidateEvidenceScopes: Array.from(new Set(scopes)).sort(),
+  };
+}
+
 function repairPreviewOperationFingerprintFixture(input: {
   actionKind: string;
   candidateEvidenceFingerprint: string;
@@ -4695,19 +4758,28 @@ async function main() {
   assert.deepEqual(
     executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetEntries,
     routeReadyGate.repairActionPreview.operations
-      .map(operation => ({
-        candidateEvidenceCount: operation.candidateEvidenceCount,
-        candidateEvidenceFingerprint: operation.candidateEvidenceFingerprint,
-        candidateEvidenceFingerprints: [
-          ...operation.candidateEvidenceFingerprints,
-        ].sort(),
-        candidateEvidenceKeys: [...operation.candidateEvidenceKeys].sort(),
-        diagnosticsFingerprint: operation.diagnosticsFingerprint,
-        operationFingerprint: operation.operationFingerprint,
-        taskRouteEffectiveSourceFingerprints: [
-          ...operation.taskRouteEffectiveSourceFingerprints,
-        ].sort(),
-      }))
+      .map(operation => {
+        const candidateEvidenceKeys = [
+          ...operation.candidateEvidenceKeys,
+        ].sort();
+
+        return {
+          ...candidateEvidenceClassificationSummaryFixture(
+            candidateEvidenceKeys
+          ),
+          candidateEvidenceCount: operation.candidateEvidenceCount,
+          candidateEvidenceFingerprint: operation.candidateEvidenceFingerprint,
+          candidateEvidenceFingerprints: [
+            ...operation.candidateEvidenceFingerprints,
+          ].sort(),
+          candidateEvidenceKeys,
+          diagnosticsFingerprint: operation.diagnosticsFingerprint,
+          operationFingerprint: operation.operationFingerprint,
+          taskRouteEffectiveSourceFingerprints: [
+            ...operation.taskRouteEffectiveSourceFingerprints,
+          ].sort(),
+        };
+      })
       .sort((left, right) =>
         left.operationFingerprint.localeCompare(right.operationFingerprint)
       )

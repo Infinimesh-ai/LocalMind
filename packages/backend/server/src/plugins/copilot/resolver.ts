@@ -1328,10 +1328,14 @@ type CopilotPromptRegistryRepairPreflight = {
 };
 
 type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
+  candidateEvidenceCategoryCount: number;
+  candidateEvidenceCategories: string[];
   candidateEvidenceCount: number;
   candidateEvidenceFingerprint: string;
   candidateEvidenceFingerprints: string[];
   candidateEvidenceKeys: string[];
+  candidateEvidenceProviderIds: string[];
+  candidateEvidenceScopes: string[];
   diagnosticsFingerprint: string;
   operationFingerprint: string;
   taskRouteEffectiveSourceFingerprints: string[];
@@ -3423,6 +3427,12 @@ class CopilotPromptRegistryRepairPreflightType implements CopilotPromptRegistryR
 @ObjectType()
 class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType implements CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry {
   @Field(() => SafeIntResolver)
+  candidateEvidenceCategoryCount!: number;
+
+  @Field(() => [String])
+  candidateEvidenceCategories!: string[];
+
+  @Field(() => SafeIntResolver)
   candidateEvidenceCount!: number;
 
   @Field(() => String)
@@ -3433,6 +3443,12 @@ class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType impleme
 
   @Field(() => [String])
   candidateEvidenceKeys!: string[];
+
+  @Field(() => [String])
+  candidateEvidenceProviderIds!: string[];
+
+  @Field(() => [String])
+  candidateEvidenceScopes!: string[];
 
   @Field(() => String)
   diagnosticsFingerprint!: string;
@@ -10638,6 +10654,69 @@ function buildPromptRegistryRepairPreflight(
   return preflight;
 }
 
+function candidateEvidenceClassificationSummary(
+  candidateEvidenceKeys: string[]
+) {
+  const categories: string[] = [];
+  const providerIds: string[] = [];
+  const scopes: string[] = [];
+
+  for (const key of candidateEvidenceKeys) {
+    const trimmedKey = key.trim();
+    if (trimmedKey.startsWith('[')) {
+      try {
+        const parsed: unknown = JSON.parse(trimmedKey);
+        if (!Array.isArray(parsed)) {
+          continue;
+        }
+        if (parsed[0] === 'policy') {
+          const [, featureKind, workspaceId, providerId] = parsed;
+          categories.push('policy');
+          if (typeof providerId === 'string' && providerId) {
+            providerIds.push(providerId);
+          }
+          const scopeParts = [featureKind, workspaceId].filter(
+            (part): part is string => typeof part === 'string' && !!part
+          );
+          if (scopeParts.length) {
+            scopes.push(scopeParts.join(':'));
+          }
+        } else {
+          const [registryKind, providerId] = parsed;
+          categories.push('route');
+          if (typeof providerId === 'string' && providerId) {
+            providerIds.push(providerId);
+          }
+          if (typeof registryKind === 'string' && registryKind) {
+            scopes.push(registryKind);
+          }
+        }
+      } catch {
+        // Non-structured keys remain valid evidence anchors without a summary.
+      }
+      continue;
+    }
+
+    const parts = key.split(':');
+    if (parts.length >= 2) {
+      categories.push(parts[0]);
+      providerIds.push(parts[parts.length - 1]);
+      if (parts.length >= 3) {
+        scopes.push(parts.slice(1, -1).join(':'));
+      }
+    }
+  }
+
+  const candidateEvidenceCategories = uniqueStrings(categories).sort();
+
+  return {
+    candidateEvidenceCategoryCount: candidateEvidenceCategories.length,
+    candidateEvidenceCategories,
+    candidateEvidenceProviderIds: uniqueStrings(providerIds).sort(),
+    candidateEvidenceScopes: uniqueStrings(scopes).sort(),
+  };
+}
+
 function buildPromptRegistryRepairExecutionRequest(
   input: CopilotPromptRegistryRepairExecutionRequestInput,
   preflight: CopilotPromptRegistryRepairPreflight,
@@ -10770,19 +10849,26 @@ function buildPromptRegistryRepairExecutionRequest(
       .sort();
   const supportBundleTaskRouteEffectiveSourceEvidenceSetEntries =
     repairActionPreview.operations
-      .map(operation => ({
-        candidateEvidenceCount: operation.candidateEvidenceCount,
-        candidateEvidenceFingerprint: operation.candidateEvidenceFingerprint,
-        candidateEvidenceFingerprints: [
-          ...operation.candidateEvidenceFingerprints,
-        ].sort(),
-        candidateEvidenceKeys: [...operation.candidateEvidenceKeys].sort(),
-        diagnosticsFingerprint: operation.diagnosticsFingerprint,
-        operationFingerprint: operation.operationFingerprint,
-        taskRouteEffectiveSourceFingerprints: [
-          ...operation.taskRouteEffectiveSourceFingerprints,
-        ].sort(),
-      }))
+      .map(operation => {
+        const candidateEvidenceKeys = [
+          ...operation.candidateEvidenceKeys,
+        ].sort();
+
+        return {
+          ...candidateEvidenceClassificationSummary(candidateEvidenceKeys),
+          candidateEvidenceCount: operation.candidateEvidenceCount,
+          candidateEvidenceFingerprint: operation.candidateEvidenceFingerprint,
+          candidateEvidenceFingerprints: [
+            ...operation.candidateEvidenceFingerprints,
+          ].sort(),
+          candidateEvidenceKeys,
+          diagnosticsFingerprint: operation.diagnosticsFingerprint,
+          operationFingerprint: operation.operationFingerprint,
+          taskRouteEffectiveSourceFingerprints: [
+            ...operation.taskRouteEffectiveSourceFingerprints,
+          ].sort(),
+        };
+      })
       .sort((left, right) =>
         left.operationFingerprint.localeCompare(right.operationFingerprint)
       );
