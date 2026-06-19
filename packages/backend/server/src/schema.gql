@@ -1028,6 +1028,12 @@ input CopilotPromptRegistryPublishGateExpectedVersionInput {
   registryUpdatedAt: String
 }
 
+type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType {
+  diagnosticsFingerprint: String!
+  operationFingerprint: String!
+  taskRouteEffectiveSourceFingerprints: [String!]!
+}
+
 type CopilotPromptRegistryRepairExecutionRequestType {
   accepted: Boolean!
   approvalRecordRequestCreated: Boolean!
@@ -1363,6 +1369,7 @@ type CopilotPromptRegistryRepairExecutionRequestType {
   supportBundleStorageKeyScope: String!
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint: String!
   supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints: [String!]!
+  supportBundleTaskRouteEffectiveSourceEvidenceSetEntries: [CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType!]!
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: [String!]!
   supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints: [String!]!
   supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints: [String!]!

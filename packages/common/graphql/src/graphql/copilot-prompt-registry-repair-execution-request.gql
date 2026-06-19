@@ -335,6 +335,11 @@ mutation requestCopilotPromptRegistryRepairExecution(
     supportBundleStorageKeyScope
     supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint
     supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints
+    supportBundleTaskRouteEffectiveSourceEvidenceSetEntries {
+      diagnosticsFingerprint
+      operationFingerprint
+      taskRouteEffectiveSourceFingerprints
+    }
     supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs
     supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints
     supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints

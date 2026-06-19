@@ -3998,6 +3998,18 @@ function formatPromptRegistryRepairExecutionRequest(
           ', '
         )}`
       : 'support bundle task route source evidence set diagnostics none',
+    request.supportBundleTaskRouteEffectiveSourceEvidenceSetEntries.length
+      ? `support bundle task route source evidence set entries ${request.supportBundleTaskRouteEffectiveSourceEvidenceSetEntries
+          .map(
+            entry =>
+              `${entry.operationFingerprint}:${entry.diagnosticsFingerprint}:${
+                entry.taskRouteEffectiveSourceFingerprints.length
+                  ? entry.taskRouteEffectiveSourceFingerprints.join('|')
+                  : 'sources:none'
+              }`
+          )
+          .join(', ')}`
+      : 'support bundle task route source evidence set entries none',
     request.supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints
       .length
       ? `support bundle task route source evidence set sources ${request.supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints.join(

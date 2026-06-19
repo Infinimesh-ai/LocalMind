@@ -1197,6 +1197,13 @@ export interface CopilotPromptRegistryPublishGateExpectedVersionInput {
   registryUpdatedAt?: InputMaybe<Scalars['String']['input']>;
 }
 
+export interface CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType {
+  __typename?: 'CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType';
+  diagnosticsFingerprint: Scalars['String']['output'];
+  operationFingerprint: Scalars['String']['output'];
+  taskRouteEffectiveSourceFingerprints: Array<Scalars['String']['output']>;
+}
+
 export interface CopilotPromptRegistryRepairExecutionRequestType {
   __typename?: 'CopilotPromptRegistryRepairExecutionRequestType';
   accepted: Scalars['Boolean']['output'];
@@ -1573,6 +1580,7 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints: Array<
     Scalars['String']['output']
   >;
+  supportBundleTaskRouteEffectiveSourceEvidenceSetEntries: Array<CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType>;
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<
     Scalars['String']['output']
   >;
@@ -9189,6 +9197,12 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
     supportBundleStorageKeyScope: string;
     supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint: string;
     supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints: Array<string>;
+    supportBundleTaskRouteEffectiveSourceEvidenceSetEntries: Array<{
+      __typename?: 'CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType';
+      diagnosticsFingerprint: string;
+      operationFingerprint: string;
+      taskRouteEffectiveSourceFingerprints: Array<string>;
+    }>;
     supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<string>;
     supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints: Array<string>;
     supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints: Array<string>;

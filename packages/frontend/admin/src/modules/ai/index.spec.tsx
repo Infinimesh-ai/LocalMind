@@ -6833,6 +6833,20 @@ describe('AiPage', () => {
                 )
               )
             ).sort(),
+          supportBundleTaskRouteEffectiveSourceEvidenceSetEntries:
+            readyPublishGateVerdict.repairActionPreview.operations
+              .map(operation => ({
+                diagnosticsFingerprint: operation.diagnosticsFingerprint,
+                operationFingerprint: operation.operationFingerprint,
+                taskRouteEffectiveSourceFingerprints: [
+                  ...operation.taskRouteEffectiveSourceFingerprints,
+                ].sort(),
+              }))
+              .sort((left, right) =>
+                left.operationFingerprint.localeCompare(
+                  right.operationFingerprint
+                )
+              ),
           supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: [
             ...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture,
           ],
@@ -7692,6 +7706,23 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       'support bundle task route source evidence set operations 1111aaaa2222bbbb, 2222bbbb3333cccc, 3333cccc4444dddd, 4444dddd5555eeee / support bundle task route source evidence set diagnostics 1111222233334444, 2222333344445555, 3333444455556666, 4444555566667777'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle task route source evidence set entries 1111aaaa2222bbbb:1111222233334444:sources:none, 2222bbbb3333cccc:2222333344445555:sources:none'
+    );
+    const taskRouteSourceEntry =
+      readyPublishGateVerdict.repairActionPreview.operations.find(
+        operation => operation.taskRouteEffectiveSourceFingerprints.length
+      );
+    expect(taskRouteSourceEntry).toBeTruthy();
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `${taskRouteSourceEntry?.operationFingerprint}:${taskRouteSourceEntry?.diagnosticsFingerprint}:${taskRouteSourceEntry?.taskRouteEffectiveSourceFingerprints.join('|')}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

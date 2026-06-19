@@ -4693,6 +4693,20 @@ async function main() {
       .sort()
   );
   assert.deepEqual(
+    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetEntries,
+    routeReadyGate.repairActionPreview.operations
+      .map(operation => ({
+        diagnosticsFingerprint: operation.diagnosticsFingerprint,
+        operationFingerprint: operation.operationFingerprint,
+        taskRouteEffectiveSourceFingerprints: [
+          ...operation.taskRouteEffectiveSourceFingerprints,
+        ].sort(),
+      }))
+      .sort((left, right) =>
+        left.operationFingerprint.localeCompare(right.operationFingerprint)
+      )
+  );
+  assert.deepEqual(
     executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints,
     Array.from(
       new Set(

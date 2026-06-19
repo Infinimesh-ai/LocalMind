@@ -15285,3 +15285,34 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - source guard fingerprint 仍来自 operation/candidate evidence 视角，不绑定真实请求 payload、provider credentials、BYOK lease、tenant policy registry、storage backend、archive bytes、signed URL secret/material、health probe timestamp、request dispatch outcome 或 billing/quota execution result。
 - repair action 仍是 read-only/blocked contract；尚未实现真实修复执行、support bundle 持久化、download authorization、audit persistence 或 retention cleanup worker。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 456. P1 落地记录：Support Bundle Source Evidence Operation Entries Projection
+
+本轮继续收敛第 455 节剩余风险中 “detail 字段暴露 operation/diagnostics/source fingerprint 列表，但仍不展开 policy candidates、route candidates、prepared routes、operation candidate evidence 等嵌套 payload” 的第一层结构化缺口。实际代码与目标 AI 中间层架构的冲突点是：第 455 节让 Admin 能看到 support bundle source evidence set 的三组扁平列表，但这些列表没有保留 operation fingerprint、diagnostics fingerprint 与 task route source fingerprints 的 per-operation 关系；后续做真实 support bundle artifact 或 audit persistence 时，审计方仍需要把列表重新和 repair action preview operations 对齐。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - 新增只读 `CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry` / GraphQL object type。
+  - `CopilotPromptRegistryRepairExecutionRequest` 新增 `supportBundleTaskRouteEffectiveSourceEvidenceSetEntries`，每个 entry 绑定 `operationFingerprint`、`diagnosticsFingerprint` 与该 operation 的 `taskRouteEffectiveSourceFingerprints`。
+  - `buildPromptRegistryRepairExecutionRequest()` 从当前 repair action preview operations 派生按 operation fingerprint 排序的 entries；不把 entries 纳入 task route source evidence-set fingerprint、repair gate manifest fingerprint、execution request fingerprint 或 support bundle lifecycle request fingerprint payload。
+- `packages/backend/server/src/schema.gql`、`packages/common/graphql/src/graphql/index.ts`、`packages/common/graphql/src/graphql/copilot-prompt-registry-repair-execution-request.gql` 与 `packages/common/graphql/src/schema.ts`：
+  - 同步 source evidence entry object、execution request selection/type，让 Admin mutation response 能直接读取 per-operation source evidence 结构。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - execution request copyable diagnostics 输出 support bundle task route source evidence set entries，格式为 `operationFingerprint:diagnosticsFingerprint:sourceFingerprint|...`，无 source anchor 的 operation 显示 `sources:none`。
+- 测试覆盖：
+  - `resolver-model-source-chain.smoke.ts` 断言 execution request entries 与当前 repair action preview operations 的 per-operation evidence 关系一致。
+  - `admin/src/modules/ai/index.spec.tsx` 覆盖 Admin repair execution diagnostics 中 no-source entry 与 task-route source entry 的可见输出。
+
+该实现只扩展 Prompt Registry repair execution request 的只读 support bundle source evidence per-operation entries projection、GraphQL/common query/type、Admin diagnostics label 与 focused tests，不新增 DB migration、不创建 DB-backed evidence object、schema registry、artifact record、audit event 或持久化 repair job snapshot、不持久化 registry revision、workspace policy revision、provider snapshot、task route snapshot、model availability snapshot、archive bytes、signed URL secret/material 或 storage backend、不改变 support bundle lifecycle fingerprint payload、不改变 repair action 可执行性、不改变 provider route selection、fallback order、BYOK lease、quota、health check、`copilot.tasks.models` 配置格式、embedding/rerank native request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、MCP registry、Codex adapter 或 Action Runtime 状态机。它把 support bundle lifecycle source guard 的 evidence 解释从三组扁平列表推进到 operation 粒度，为后续结构化 candidate evidence object、真实 artifact/audit 持久化和下载包 manifest 预留更清楚的只读关系面。
+
+验证策略：
+
+- 本轮为 TypeScript resolver/common/admin/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有测试镜像 `localmind-affine:test`，镜像 ID 预期保持 `c3389960f5ed`；沿用第 453-455 节确认的 `docker run --rm -v "${PWD}:/host:ro" -w /workspace localmind-affine:test ...` 方式，在容器内复制当前相关源码到镜像自带 `/workspace`，保留镜像内依赖后运行 focused smoke、Admin Vitest、oxlint、Prettier check 与宿主 `git diff --check`。该流程不重建 `localmind-affine:test`。
+
+剩余风险：
+
+- source evidence entries 仍是 runtime 只读 projection，不是 DB-backed evidence object、schema registry、artifact record、audit event 或持久化 repair job snapshot。
+- entries 只绑定 operation、diagnostics 与 task route source fingerprints，仍不展开 candidate evidence、policy candidates、route candidates、prepare candidates、prepared routes 或 model/source payload。
+- source guard fingerprint 仍来自 operation/candidate evidence 视角，不绑定真实请求 payload、provider credentials、BYOK lease、tenant policy registry、storage backend、archive bytes、signed URL secret/material、health probe timestamp、request dispatch outcome 或 billing/quota execution result。
+- repair action 仍是 read-only/blocked contract；尚未实现真实修复执行、support bundle 持久化、download authorization、audit persistence 或 retention cleanup worker。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

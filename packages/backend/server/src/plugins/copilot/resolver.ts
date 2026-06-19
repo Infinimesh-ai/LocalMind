@@ -1327,6 +1327,12 @@ type CopilotPromptRegistryRepairPreflight = {
   workspaceId?: string;
 };
 
+type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
+  diagnosticsFingerprint: string;
+  operationFingerprint: string;
+  taskRouteEffectiveSourceFingerprints: string[];
+};
+
 type CopilotPromptRegistryRepairExecutionRequest = {
   accepted: boolean;
   executionRequested: boolean;
@@ -1662,6 +1668,7 @@ type CopilotPromptRegistryRepairExecutionRequest = {
   supportBundleStorageKeyScope: string;
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint: string;
   supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints: string[];
+  supportBundleTaskRouteEffectiveSourceEvidenceSetEntries: CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry[];
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: string[];
   supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints: string[];
   supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints: string[];
@@ -3410,6 +3417,18 @@ class CopilotPromptRegistryRepairPreflightType implements CopilotPromptRegistryR
 }
 
 @ObjectType()
+class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType implements CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry {
+  @Field(() => String)
+  diagnosticsFingerprint!: string;
+
+  @Field(() => String)
+  operationFingerprint!: string;
+
+  @Field(() => [String])
+  taskRouteEffectiveSourceFingerprints!: string[];
+}
+
+@ObjectType()
 class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRegistryRepairExecutionRequest {
   @Field(() => Boolean)
   accepted!: boolean;
@@ -4412,6 +4431,11 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
 
   @Field(() => [String])
   supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints!: string[];
+
+  @Field(() => [
+    CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType,
+  ])
+  supportBundleTaskRouteEffectiveSourceEvidenceSetEntries!: CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry[];
 
   @Field(() => [String])
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs!: string[];
@@ -10728,6 +10752,18 @@ function buildPromptRegistryRepairExecutionRequest(
     repairActionPreview.operations
       .map(operation => operation.operationFingerprint)
       .sort();
+  const supportBundleTaskRouteEffectiveSourceEvidenceSetEntries =
+    repairActionPreview.operations
+      .map(operation => ({
+        diagnosticsFingerprint: operation.diagnosticsFingerprint,
+        operationFingerprint: operation.operationFingerprint,
+        taskRouteEffectiveSourceFingerprints: [
+          ...operation.taskRouteEffectiveSourceFingerprints,
+        ].sort(),
+      }))
+      .sort((left, right) =>
+        left.operationFingerprint.localeCompare(right.operationFingerprint)
+      );
   const supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints =
     uniqueStrings(
       repairActionPreview.operations.map(
@@ -14613,6 +14649,7 @@ function buildPromptRegistryRepairExecutionRequest(
     supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint:
       preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
     supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints,
+    supportBundleTaskRouteEffectiveSourceEvidenceSetEntries,
     supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: [
       ...COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_EVIDENCE_SET_FINGERPRINT_INPUTS,
     ],
