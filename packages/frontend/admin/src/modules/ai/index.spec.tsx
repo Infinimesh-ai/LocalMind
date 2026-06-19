@@ -6514,12 +6514,35 @@ describe('AiPage', () => {
           supportBundleArtifactStatus: 'not_created_read_only',
           supportBundleArtifactVersion:
             'prompt-registry-repair-gate-support-bundle-artifact/v1',
+          supportBundleAuditPersistenceStatus: 'not_persisted_read_only',
+          supportBundleDownloadAuthorizationStatus: 'not_checked_read_only',
           supportBundleManifestFilename: `prompt-registry-repair-gate-manifest-42-${input.expectedRepairGateManifestFingerprint}.json`,
           supportBundleManifestFingerprint:
             input.expectedRepairGateManifestFingerprint,
           supportBundleManifestMetadataFilename: `prompt-registry-repair-gate-manifest-metadata-42-${input.expectedRepairGateManifestFingerprint}.json`,
           supportBundleManifestMetadataFingerprint:
             input.expectedRepairGateManifestExportPolicyFingerprint,
+          supportBundlePackageCreated: false,
+          supportBundlePackageFingerprint: input.workspaceId
+            ? 'cdcd7777efef8888'
+            : 'abab7777cdcd8888',
+          supportBundlePackageInputs: [
+            'auditEventFingerprint',
+            'auditEventStatus',
+            'auditPersistenceStatus',
+            'downloadAuthorizationStatus',
+            'exportPolicyFingerprint',
+            'manifestFingerprint',
+            'manifestMetadataFingerprint',
+            'redactionPolicyFingerprint',
+            'retentionCleanupStatus',
+            'retentionPolicyFingerprint',
+            'supportBundleArtifactFingerprint',
+          ],
+          supportBundlePackageStatus: 'not_created_read_only',
+          supportBundlePackageVersion:
+            'prompt-registry-repair-gate-support-bundle-package/v1',
+          supportBundleRetentionCleanupStatus: 'not_scheduled_read_only',
         },
       })
     );
@@ -7223,6 +7246,24 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       `support bundle manifest metadata prompt-registry-repair-gate-manifest-metadata-42-${readyPublishGateVerdict.repairGateManifest.fingerprint}.json / support bundle manifest metadata fingerprint ${readyPublishGateVerdict.repairGateManifestExportMetadata.exportPolicyFingerprint}`
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle package prompt-registry-repair-gate-support-bundle-package/v1 / support bundle package status Not Created Read Only / support bundle package created no / support bundle package fingerprint abab7777cdcd8888'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle package inputs auditEventFingerprint, auditEventStatus, auditPersistenceStatus, downloadAuthorizationStatus, exportPolicyFingerprint'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle download authorization status Not Checked Read Only / support bundle audit persistence status Not Persisted Read Only / support bundle retention cleanup status Not Scheduled Read Only'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

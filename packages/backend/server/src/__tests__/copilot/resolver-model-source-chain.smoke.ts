@@ -4026,6 +4026,91 @@ async function main() {
     routeReadyGate.repairGateManifestExportMetadata.exportPolicyFingerprint
   );
   assert.equal(
+    executionRequest.supportBundlePackageVersion,
+    'prompt-registry-repair-gate-support-bundle-package/v1'
+  );
+  assert.equal(
+    executionRequest.supportBundlePackageStatus,
+    'not_created_read_only'
+  );
+  assert.equal(executionRequest.supportBundlePackageCreated, false);
+  assert.equal(
+    executionRequest.supportBundleDownloadAuthorizationStatus,
+    'not_checked_read_only'
+  );
+  assert.equal(
+    executionRequest.supportBundleAuditPersistenceStatus,
+    'not_persisted_read_only'
+  );
+  assert.equal(
+    executionRequest.supportBundleRetentionCleanupStatus,
+    'not_scheduled_read_only'
+  );
+  assert.match(
+    executionRequest.supportBundlePackageFingerprint,
+    /^[0-9a-f]{16}$/
+  );
+  assert.deepEqual(executionRequest.supportBundlePackageInputs, [
+    'auditEventFingerprint',
+    'auditEventStatus',
+    'auditPersistenceStatus',
+    'downloadAuthorizationStatus',
+    'exportPolicyFingerprint',
+    'manifestFingerprint',
+    'manifestMetadataFingerprint',
+    'redactionPolicyFingerprint',
+    'retentionCleanupStatus',
+    'retentionPolicyFingerprint',
+    'supportBundleArtifactFingerprint',
+  ]);
+  assert.equal(
+    executionRequest.supportBundlePackageFingerprint,
+    createHash('sha256')
+      .update(
+        stableFingerprintFixtureStringify({
+          auditEventFingerprint:
+            routeReadyGate.repairGateManifestExportMetadata
+              .auditEventFingerprint,
+          auditEventStatus:
+            routeReadyGate.repairGateManifestExportMetadata.auditEventStatus,
+          auditPersistenceStatus:
+            executionRequest.supportBundleAuditPersistenceStatus,
+          created: false,
+          downloadAuthorizationStatus:
+            executionRequest.supportBundleDownloadAuthorizationStatus,
+          exportPolicyFingerprint:
+            routeReadyGate.repairGateManifestExportMetadata
+              .exportPolicyFingerprint,
+          inputs: executionRequest.supportBundlePackageInputs,
+          manifestFilename:
+            routeReadyGate.repairGateManifestExportMetadata.filename,
+          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+          manifestMetadataFilename:
+            routeReadyGate.repairGateManifestExportMetadata.metadataFilename,
+          manifestMetadataFingerprint:
+            routeReadyGate.repairGateManifestExportMetadata
+              .exportPolicyFingerprint,
+          redactionPolicyFingerprint:
+            routeReadyGate.repairGateManifestExportMetadata
+              .redactionPolicyFingerprint,
+          retentionCleanupStatus:
+            executionRequest.supportBundleRetentionCleanupStatus,
+          retentionPolicyFingerprint:
+            routeReadyGate.repairGateManifestExportMetadata
+              .retentionPolicyFingerprint,
+          status: executionRequest.supportBundlePackageStatus,
+          supportBundleArtifactFingerprint:
+            executionRequest.supportBundleArtifactFingerprint,
+          supportBundleArtifactStatus:
+            executionRequest.supportBundleArtifactStatus,
+          version: executionRequest.supportBundlePackageVersion,
+          workspaceId: matchingPreflight?.workspaceId ?? null,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16)
+  );
+  assert.equal(
     executionRequest.approvalRecordRequestVersion,
     'repair-execution-approval-record-request/v1'
   );

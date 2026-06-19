@@ -3946,6 +3946,28 @@ function formatPromptRegistryRepairExecutionRequest(
     `support bundle manifest fingerprint ${request.supportBundleManifestFingerprint}`,
     `support bundle manifest metadata ${request.supportBundleManifestMetadataFilename}`,
     `support bundle manifest metadata fingerprint ${request.supportBundleManifestMetadataFingerprint}`,
+    `support bundle package ${request.supportBundlePackageVersion}`,
+    `support bundle package status ${formatFeatureKind(
+      request.supportBundlePackageStatus
+    )}`,
+    request.supportBundlePackageCreated
+      ? 'support bundle package created yes'
+      : 'support bundle package created no',
+    `support bundle package fingerprint ${request.supportBundlePackageFingerprint}`,
+    request.supportBundlePackageInputs.length
+      ? `support bundle package inputs ${request.supportBundlePackageInputs.join(
+          ', '
+        )}`
+      : 'support bundle package inputs none',
+    `support bundle download authorization status ${formatFeatureKind(
+      request.supportBundleDownloadAuthorizationStatus
+    )}`,
+    `support bundle audit persistence status ${formatFeatureKind(
+      request.supportBundleAuditPersistenceStatus
+    )}`,
+    `support bundle retention cleanup status ${formatFeatureKind(
+      request.supportBundleRetentionCleanupStatus
+    )}`,
     `approval record request ${request.approvalRecordRequestVersion}`,
     `approval record request status ${formatFeatureKind(
       request.approvalRecordRequestStatus

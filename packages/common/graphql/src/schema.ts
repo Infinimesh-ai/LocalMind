@@ -1484,10 +1484,18 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   supportBundleArtifactInputs: Array<Scalars['String']['output']>;
   supportBundleArtifactStatus: Scalars['String']['output'];
   supportBundleArtifactVersion: Scalars['String']['output'];
+  supportBundleAuditPersistenceStatus: Scalars['String']['output'];
+  supportBundleDownloadAuthorizationStatus: Scalars['String']['output'];
   supportBundleManifestFilename: Scalars['String']['output'];
   supportBundleManifestFingerprint: Scalars['String']['output'];
   supportBundleManifestMetadataFilename: Scalars['String']['output'];
   supportBundleManifestMetadataFingerprint: Scalars['String']['output'];
+  supportBundlePackageCreated: Scalars['Boolean']['output'];
+  supportBundlePackageFingerprint: Scalars['String']['output'];
+  supportBundlePackageInputs: Array<Scalars['String']['output']>;
+  supportBundlePackageStatus: Scalars['String']['output'];
+  supportBundlePackageVersion: Scalars['String']['output'];
+  supportBundleRetentionCleanupStatus: Scalars['String']['output'];
 }
 
 export interface CopilotPromptRegistryRepairExecutionRequestInput {
@@ -8920,10 +8928,18 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
     supportBundleArtifactInputs: Array<string>;
     supportBundleArtifactStatus: string;
     supportBundleArtifactVersion: string;
+    supportBundleAuditPersistenceStatus: string;
+    supportBundleDownloadAuthorizationStatus: string;
     supportBundleManifestFilename: string;
     supportBundleManifestFingerprint: string;
     supportBundleManifestMetadataFilename: string;
     supportBundleManifestMetadataFingerprint: string;
+    supportBundlePackageCreated: boolean;
+    supportBundlePackageFingerprint: string;
+    supportBundlePackageInputs: Array<string>;
+    supportBundlePackageStatus: string;
+    supportBundlePackageVersion: string;
+    supportBundleRetentionCleanupStatus: string;
     preflight: {
       __typename?: 'CopilotPromptRegistryRepairPreflightType';
       approvalRecordFingerprint: string;

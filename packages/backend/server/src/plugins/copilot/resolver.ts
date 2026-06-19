@@ -1362,10 +1362,18 @@ type CopilotPromptRegistryRepairExecutionRequest = {
   supportBundleArtifactInputs: string[];
   supportBundleArtifactStatus: string;
   supportBundleArtifactVersion: string;
+  supportBundleAuditPersistenceStatus: string;
+  supportBundleDownloadAuthorizationStatus: string;
   supportBundleManifestFilename: string;
   supportBundleManifestFingerprint: string;
   supportBundleManifestMetadataFilename: string;
   supportBundleManifestMetadataFingerprint: string;
+  supportBundlePackageCreated: boolean;
+  supportBundlePackageFingerprint: string;
+  supportBundlePackageInputs: string[];
+  supportBundlePackageStatus: string;
+  supportBundlePackageVersion: string;
+  supportBundleRetentionCleanupStatus: string;
 };
 
 type CopilotPromptRegistryPublishGateRepairActionPreview = {
@@ -3829,6 +3837,12 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
   supportBundleArtifactVersion!: string;
 
   @Field(() => String)
+  supportBundleAuditPersistenceStatus!: string;
+
+  @Field(() => String)
+  supportBundleDownloadAuthorizationStatus!: string;
+
+  @Field(() => String)
   supportBundleManifestFilename!: string;
 
   @Field(() => String)
@@ -3839,6 +3853,24 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
 
   @Field(() => String)
   supportBundleManifestMetadataFingerprint!: string;
+
+  @Field(() => Boolean)
+  supportBundlePackageCreated!: boolean;
+
+  @Field(() => String)
+  supportBundlePackageFingerprint!: string;
+
+  @Field(() => [String])
+  supportBundlePackageInputs!: string[];
+
+  @Field(() => String)
+  supportBundlePackageStatus!: string;
+
+  @Field(() => String)
+  supportBundlePackageVersion!: string;
+
+  @Field(() => String)
+  supportBundleRetentionCleanupStatus!: string;
 }
 
 @ObjectType()
@@ -10031,6 +10063,57 @@ function buildPromptRegistryRepairExecutionRequest(
     )
     .digest('hex')
     .slice(0, 16);
+  const supportBundlePackageVersion =
+    'prompt-registry-repair-gate-support-bundle-package/v1';
+  const supportBundlePackageStatus = 'not_created_read_only';
+  const supportBundleDownloadAuthorizationStatus = 'not_checked_read_only';
+  const supportBundleAuditPersistenceStatus = 'not_persisted_read_only';
+  const supportBundleRetentionCleanupStatus = 'not_scheduled_read_only';
+  const supportBundlePackageInputs = [
+    'auditEventFingerprint',
+    'auditEventStatus',
+    'auditPersistenceStatus',
+    'downloadAuthorizationStatus',
+    'exportPolicyFingerprint',
+    'manifestFingerprint',
+    'manifestMetadataFingerprint',
+    'redactionPolicyFingerprint',
+    'retentionCleanupStatus',
+    'retentionPolicyFingerprint',
+    'supportBundleArtifactFingerprint',
+  ].sort();
+  const supportBundlePackageFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        auditEventFingerprint:
+          repairGateManifestExportMetadata.auditEventFingerprint,
+        auditEventStatus: repairGateManifestExportMetadata.auditEventStatus,
+        auditPersistenceStatus: supportBundleAuditPersistenceStatus,
+        created: false,
+        downloadAuthorizationStatus: supportBundleDownloadAuthorizationStatus,
+        exportPolicyFingerprint:
+          repairGateManifestExportMetadata.exportPolicyFingerprint,
+        inputs: supportBundlePackageInputs,
+        manifestFilename: repairGateManifestExportMetadata.filename,
+        manifestFingerprint: repairGateManifest.fingerprint,
+        manifestMetadataFilename:
+          repairGateManifestExportMetadata.metadataFilename,
+        manifestMetadataFingerprint:
+          repairGateManifestExportMetadata.exportPolicyFingerprint,
+        redactionPolicyFingerprint:
+          repairGateManifestExportMetadata.redactionPolicyFingerprint,
+        retentionCleanupStatus: supportBundleRetentionCleanupStatus,
+        retentionPolicyFingerprint:
+          repairGateManifestExportMetadata.retentionPolicyFingerprint,
+        status: supportBundlePackageStatus,
+        supportBundleArtifactFingerprint,
+        supportBundleArtifactStatus,
+        version: supportBundlePackageVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
   const idempotencyLockVersion = 'repair-execution-idempotency-lock/v1';
   const idempotencyLockStatus = 'not_acquired_read_only';
   const idempotencyLockScope = preflight.idempotencyScope;
@@ -12893,6 +12976,7 @@ function buildPromptRegistryRepairExecutionRequest(
         rollbackPlanFingerprint: preflight.rollbackPlanFingerprint,
         rollbackPlanRequestFingerprint,
         supportBundleArtifactFingerprint,
+        supportBundlePackageFingerprint,
         targetLocatorFingerprint: preflight.targetLocatorFingerprint,
         executionTraceRequestFingerprint,
         version: requestVersion,
@@ -13175,12 +13259,20 @@ function buildPromptRegistryRepairExecutionRequest(
     supportBundleArtifactInputs,
     supportBundleArtifactStatus,
     supportBundleArtifactVersion,
+    supportBundleAuditPersistenceStatus,
+    supportBundleDownloadAuthorizationStatus,
     supportBundleManifestFilename: repairGateManifestExportMetadata.filename,
     supportBundleManifestFingerprint: repairGateManifest.fingerprint,
     supportBundleManifestMetadataFilename:
       repairGateManifestExportMetadata.metadataFilename,
     supportBundleManifestMetadataFingerprint:
       repairGateManifestExportMetadata.exportPolicyFingerprint,
+    supportBundlePackageCreated: false,
+    supportBundlePackageFingerprint,
+    supportBundlePackageInputs,
+    supportBundlePackageStatus,
+    supportBundlePackageVersion,
+    supportBundleRetentionCleanupStatus,
   };
 }
 

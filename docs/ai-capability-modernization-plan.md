@@ -14282,3 +14282,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - artifact anchor 只绑定当前 `repairGateManifest` / `repairGateManifestExportMetadata` 与 repair request anchors，不绑定 prompt body、provider response、Provider Registry revision、Model Registry revision、workspace secret、真实 repair job、rollback result 或执行输出。
 - 下载动作仍是 Admin 浏览器 Blob；execution request 只声明 artifact anchor，不创建文件、不写 audit event、不创建 approval record、idempotency lock、support bundle package、retry/rollback executor 或 retention cleanup job。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 426. P3 落地记录：Prompt Registry Repair Support Bundle Package Lifecycle Projection
+
+本轮继续收敛第 425 节剩余风险中 “execution request 只声明 artifact anchor，不创建 support bundle package、下载授权、audit persistence 或 retention cleanup job” 的问题。实际代码与目标 AI 中间层架构的冲突点是：repair execution request 已经绑定 `supportBundleArtifact*`、manifest filename/fingerprint 与 manifest export metadata fingerprint，但后续正式 support bundle 若要从 request 级 anchor 迁移到 package lifecycle，仍缺少一个能明确表达 package 尚未创建、下载授权尚未检查、audit 尚未持久化、retention cleanup 尚未调度的只读 projection。本轮新增 `prompt-registry-repair-gate-support-bundle-package/v1`，把 artifact fingerprint、manifest export metadata、redaction/export/audit/retention policy fingerprints 与生命周期状态聚合成 package fingerprint，不创建真实 support bundle 包、不写 DB、不创建 audit event、不新增 download resolver。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryRepairExecutionRequest` / GraphQL type 新增 `supportBundlePackage*` 字段，以及 `supportBundleDownloadAuthorizationStatus`、`supportBundleAuditPersistenceStatus`、`supportBundleRetentionCleanupStatus`。
+  - `buildPromptRegistryRepairExecutionRequest()` 新增只读 package projection：`supportBundlePackageStatus` 为 `not_created_read_only`，download authorization 为 `not_checked_read_only`，audit persistence 为 `not_persisted_read_only`，retention cleanup 为 `not_scheduled_read_only`。
+  - package fingerprint 绑定 `supportBundleArtifactFingerprint`、manifest filename/fingerprint、manifest metadata filename/fingerprint、redaction/export/audit/retention policy fingerprints 与上述 lifecycle statuses；request fingerprint 同步纳入 `supportBundlePackageFingerprint`，使 package lifecycle projection 漂移会影响 request-level anchor。
+- GraphQL 与 common client：
+  - `schema.gql`、repair execution request mutation、common query string 与 `schema.ts` 类型同步暴露 support bundle package lifecycle 字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair execution request diagnostics 展示 support bundle package version/status/created/fingerprint/inputs，以及 download authorization、audit persistence、retention cleanup 三个只读 lifecycle 状态。
+- 测试覆盖：
+  - backend model/source chain smoke test 断言 package lifecycle 字段、输入集合与 fingerprint 重算。
+  - Admin Vitest fixture/断言覆盖 package diagnostics 与三类 lifecycle status 展示。
+
+该实现只扩展 repair execution request 的只读 GraphQL projection、common query/type、Admin 展示和测试，不新增 DB migration、不创建 DB-backed support bundle、不新增后端 download resolver、不创建 audit event、不改变 retention 存储、不改变 repair mutation 可执行性、不改变 preflight/execution gate 判定、不改变 provider route selection、fallback order、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、Model Registry revision 或 Provider Registry revision。它把 “support bundle artifact anchor” 从单一 artifact fingerprint 推进到可比较的 package lifecycle projection，为后续正式 support bundle artifact table、download authorization resolver、audit persistence 与 retention cleanup 提供更明确的迁移边界。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 backend model/source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `supportBundlePackage*` 仍是只读 GraphQL projection，不是正式 support bundle schema、DB-backed artifact、签名快照、后端 download resolver、下载授权检查、真实 audit event、真实 retention record 或 retention cleanup job。
+- package fingerprint 只绑定当前 `supportBundleArtifact*`、`repairGateManifestExportMetadata` 与只读 lifecycle statuses，不绑定 prompt body、provider response、Provider Registry revision、Model Registry revision、workspace secret、真实 repair job、rollback result、执行输出或实际下载请求。
+- download authorization、audit persistence 与 retention cleanup 仍是 code-level read-only statuses，不是 workspace-level compliance policy、tenant-level retention policy registry、可配置授权策略或后台任务。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
