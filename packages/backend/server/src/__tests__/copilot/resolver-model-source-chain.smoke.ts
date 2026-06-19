@@ -217,6 +217,21 @@ const candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs
   ] as const;
 const candidateEvidenceReferenceSchemaArtifactRecordStorageStatusFixture =
   'not_allocated_read_only';
+const candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintFixture =
+  createHash('sha256')
+    .update(
+      stableFingerprintFixtureStringify({
+        recordFingerprint:
+          candidateEvidenceReferenceSchemaArtifactRecordFingerprintFixture,
+        recordStatus:
+          candidateEvidenceReferenceSchemaArtifactRecordStatusFixture,
+        schemaFingerprint: candidateEvidenceReferenceSchemaFingerprintFixture,
+        storageStatus:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageStatusFixture,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
 
 function candidateEvidenceClassificationSummaryFixture(
   candidateEvidenceKeys: string[]
@@ -4891,6 +4906,8 @@ async function main() {
             ],
           candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus:
             candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatusFixture,
+          candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprint:
+            candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintFixture,
           candidateEvidenceReferenceSchemaArtifactRecordStorageStatus:
             candidateEvidenceReferenceSchemaArtifactRecordStorageStatusFixture,
           candidateEvidenceReferenceSchemaArtifactRecordStatus:
@@ -4978,6 +4995,10 @@ async function main() {
   assert.equal(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus,
     candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatusFixture
+  );
+  assert.equal(
+    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprint,
+    candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintFixture
   );
   assert.equal(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageStatus,

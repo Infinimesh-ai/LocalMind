@@ -245,6 +245,21 @@ const candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs
   ];
 const candidateEvidenceReferenceSchemaArtifactRecordStorageStatusFixture =
   'not_allocated_read_only';
+const candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintFixture =
+  createHash('sha256')
+    .update(
+      stableFixtureStringify({
+        recordFingerprint:
+          candidateEvidenceReferenceSchemaArtifactRecordFingerprintFixture,
+        recordStatus:
+          candidateEvidenceReferenceSchemaArtifactRecordStatusFixture,
+        schemaFingerprint: candidateEvidenceReferenceSchemaFingerprintFixture,
+        storageStatus:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageStatusFixture,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
 
 function candidateEvidenceCategoryFromKeyFixture(key?: string) {
   if (!key) {
@@ -7258,6 +7273,8 @@ describe('AiPage', () => {
                     ],
                   candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus:
                     candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatusFixture,
+                  candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprint:
+                    candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintFixture,
                   candidateEvidenceReferenceSchemaArtifactRecordStorageStatus:
                     candidateEvidenceReferenceSchemaArtifactRecordStorageStatusFixture,
                   candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint:
@@ -8237,6 +8254,12 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       `referenceSchemaArtifactRecordPersistenceStatus:${candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatusFixture}`
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `referenceSchemaArtifactRecordStorageFingerprint:${candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintFixture}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
