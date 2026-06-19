@@ -2520,11 +2520,133 @@ function withRepairActionPreview<
       .digest('hex')
       .slice(0, 16),
   };
+  const repairGateManifestExportMetadata = (() => {
+    const artifact = 'prompt_registry_repair_gate_manifest_json';
+    const filename = `prompt-registry-repair-gate-manifest-${repairGateManifest.registryId}-${repairGateManifest.fingerprint}.json`;
+    const metadataFilename = `prompt-registry-repair-gate-manifest-metadata-${repairGateManifest.registryId}-${repairGateManifest.fingerprint}.json`;
+    const mime = 'application/json;charset=utf-8';
+    const redactionPolicyVersion =
+      'prompt-registry-repair-gate-manifest-redaction-policy/v1';
+    const redactionPolicyStatus =
+      'redacted_projection_no_prompt_provider_payload_or_secret';
+    const redactionPolicyFingerprint = createHash('sha256')
+      .update(
+        stableFixtureStringify({
+          version:
+            'prompt-registry-repair-gate-manifest-redaction-policy-fingerprint/v1',
+          artifact,
+          boundary: repairGateManifest.boundary,
+          manifestFingerprint: repairGateManifest.fingerprint,
+          manifestVersion: repairGateManifest.version,
+          redactionPolicyStatus,
+          redactionPolicyVersion,
+          registryFingerprint: repairGateManifest.registryFingerprint,
+          registryId: repairGateManifest.registryId,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16);
+    const exportPolicyVersion =
+      'prompt-registry-repair-gate-manifest-export-policy/v1';
+    const exportPolicyStatus = 'read_only_projection';
+    const exportPolicyFingerprint = createHash('sha256')
+      .update(
+        stableFixtureStringify({
+          version:
+            'prompt-registry-repair-gate-manifest-export-policy-fingerprint/v1',
+          artifact,
+          boundary: repairGateManifest.boundary,
+          exportPolicyStatus,
+          exportPolicyVersion,
+          filename,
+          gateStatus: repairGateManifest.gateStatus,
+          manifestFingerprint: repairGateManifest.fingerprint,
+          manifestVersion: repairGateManifest.version,
+          metadataFilename,
+          mime,
+          publishStatus: repairGateManifest.publishStatus,
+          redactionPolicyFingerprint,
+          registryFingerprint: repairGateManifest.registryFingerprint,
+          registryId: repairGateManifest.registryId,
+          registryUpdatedAt: repairGateManifest.registryUpdatedAt,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16);
+    const auditEventVersion =
+      'prompt-registry-repair-gate-manifest-export-audit-event/v1';
+    const auditEventStatus = 'not_created_read_only';
+    const auditEventCreated = false;
+    const auditEventFingerprint = createHash('sha256')
+      .update(
+        stableFixtureStringify({
+          version:
+            'prompt-registry-repair-gate-manifest-audit-event-fingerprint/v1',
+          auditEventCreated,
+          auditEventStatus,
+          auditEventVersion,
+          exportPolicyFingerprint,
+          manifestFingerprint: repairGateManifest.fingerprint,
+          registryId: repairGateManifest.registryId,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16);
+    const retentionPolicyVersion =
+      'prompt-registry-repair-gate-manifest-retention-policy/v1';
+    const retentionPolicyStatus = 'not_persisted_read_only';
+    const retentionPolicyFingerprint = createHash('sha256')
+      .update(
+        stableFixtureStringify({
+          version:
+            'prompt-registry-repair-gate-manifest-retention-policy-fingerprint/v1',
+          artifact,
+          boundary: repairGateManifest.boundary,
+          exportPolicyFingerprint,
+          manifestFingerprint: repairGateManifest.fingerprint,
+          registryId: repairGateManifest.registryId,
+          retentionPolicyStatus,
+          retentionPolicyVersion,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16);
+
+    return {
+      version: 'prompt-registry-repair-gate-manifest-export-metadata/v1',
+      artifact,
+      filename,
+      mime,
+      metadataFilename,
+      manifestVersion: repairGateManifest.version,
+      manifestFingerprint: repairGateManifest.fingerprint,
+      registryFingerprint: repairGateManifest.registryFingerprint,
+      registryId: repairGateManifest.registryId,
+      registryUpdatedAt: repairGateManifest.registryUpdatedAt,
+      gateStatus: repairGateManifest.gateStatus,
+      publishStatus: repairGateManifest.publishStatus,
+      boundary: repairGateManifest.boundary,
+      redactionPolicyVersion,
+      redactionPolicyStatus,
+      redactionPolicyFingerprint,
+      exportPolicyVersion,
+      exportPolicyStatus,
+      exportPolicyFingerprint,
+      auditEventVersion,
+      auditEventStatus,
+      auditEventCreated,
+      auditEventFingerprint,
+      retentionPolicyVersion,
+      retentionPolicyStatus,
+      retentionPolicyFingerprint,
+    };
+  })();
 
   return {
     ...verdict,
     repairActionPreview,
     repairGateManifest,
+    repairGateManifestExportMetadata,
   };
 }
 
@@ -7631,6 +7753,21 @@ describe('AiPage', () => {
       `Repair gate manifest prompt-registry-repair-gate-manifest/v1 / fingerprint ${readyPublishGateVerdict.repairGateManifest.fingerprint} / boundary repair_gate_manifest_only_no_prompt_or_provider_payload / registry 42 / registry fingerprint b1c2d3e4f5061728 / registry updated 2026-06-17T04:05:06.000Z / gate Ready / publish Allowed / reason Ready / issues 0 / blocking 0 / recommendations 4 / operations 4`
     );
     expect(readyGateDiagnostics).toContain(
+      `Repair gate manifest export metadata prompt-registry-repair-gate-manifest-export-metadata/v1 / artifact prompt_registry_repair_gate_manifest_json / filename prompt-registry-repair-gate-manifest-42-${readyPublishGateVerdict.repairGateManifest.fingerprint}.json / mime application/json;charset=utf-8 / metadata filename prompt-registry-repair-gate-manifest-metadata-42-${readyPublishGateVerdict.repairGateManifest.fingerprint}.json / manifest prompt-registry-repair-gate-manifest/v1 / manifest fingerprint ${readyPublishGateVerdict.repairGateManifest.fingerprint}`
+    );
+    expect(readyGateDiagnostics).toContain(
+      'redaction policy prompt-registry-repair-gate-manifest-redaction-policy/v1 / redaction status Redacted Projection No Prompt Provider Payload Or Secret'
+    );
+    expect(readyGateDiagnostics).toContain(
+      'export policy prompt-registry-repair-gate-manifest-export-policy/v1 / export status Read Only Projection'
+    );
+    expect(readyGateDiagnostics).toContain(
+      'audit event prompt-registry-repair-gate-manifest-export-audit-event/v1 / audit status Not Created Read Only / audit event created no'
+    );
+    expect(readyGateDiagnostics).toContain(
+      'retention policy prompt-registry-repair-gate-manifest-retention-policy/v1 / retention status Not Persisted Read Only'
+    );
+    expect(readyGateDiagnostics).toContain(
       'candidate evidence set aaaa5555bbbb6666 / embedding index contract evidence set aaaa6666bbbb7777 / rerank runtime contract evidence set aaaa8888bbbb9999 / prepared route order evidence set aaaa7777bbbb8888'
     );
     expect(readyGateDiagnostics).toContain(
@@ -8467,6 +8604,15 @@ describe('AiPage', () => {
     );
     expect(blockedGateDiagnostics).toContain(
       `Repair gate manifest prompt-registry-repair-gate-manifest/v1 / fingerprint ${blockedPublishGateVerdict.repairGateManifest.fingerprint} / boundary repair_gate_manifest_only_no_prompt_or_provider_payload / registry 84 / registry fingerprint feedfacecafebeef / registry updated 2026-06-17T05:06:07.000Z / gate Ignored / publish Blocked / reason Missing Messages / issues 3 / blocking 3 / recommendations 2 / operations 2`
+    );
+    expect(blockedGateDiagnostics).toContain(
+      `Repair gate manifest export metadata prompt-registry-repair-gate-manifest-export-metadata/v1 / artifact prompt_registry_repair_gate_manifest_json / filename prompt-registry-repair-gate-manifest-84-${blockedPublishGateVerdict.repairGateManifest.fingerprint}.json / mime application/json;charset=utf-8 / metadata filename prompt-registry-repair-gate-manifest-metadata-84-${blockedPublishGateVerdict.repairGateManifest.fingerprint}.json / manifest prompt-registry-repair-gate-manifest/v1 / manifest fingerprint ${blockedPublishGateVerdict.repairGateManifest.fingerprint}`
+    );
+    expect(blockedGateDiagnostics).toContain(
+      'redaction policy prompt-registry-repair-gate-manifest-redaction-policy/v1 / redaction status Redacted Projection No Prompt Provider Payload Or Secret'
+    );
+    expect(blockedGateDiagnostics).toContain(
+      'retention policy prompt-registry-repair-gate-manifest-retention-policy/v1 / retention status Not Persisted Read Only'
     );
     expect(blockedGateDiagnostics).toContain(
       'candidate evidence set fingerprint bbbb6666cccc7777 / embedding index contract evidence set fingerprint bbbb7777cccc8888 / rerank runtime contract evidence set fingerprint bbbb9999cccc0000 / prepared route order evidence set fingerprint bbbb8888cccc9999'

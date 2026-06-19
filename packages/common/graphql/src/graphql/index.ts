@@ -2655,6 +2655,34 @@ export const getCopilotPromptRegistryPublishGateQuery = {
           operationFingerprints
           recommendationFingerprints
         }
+        repairGateManifestExportMetadata {
+          version
+          artifact
+          filename
+          mime
+          metadataFilename
+          manifestVersion
+          manifestFingerprint
+          registryFingerprint
+          registryId
+          registryUpdatedAt
+          gateStatus
+          publishStatus
+          boundary
+          redactionPolicyVersion
+          redactionPolicyStatus
+          redactionPolicyFingerprint
+          exportPolicyVersion
+          exportPolicyStatus
+          exportPolicyFingerprint
+          auditEventVersion
+          auditEventStatus
+          auditEventCreated
+          auditEventFingerprint
+          retentionPolicyVersion
+          retentionPolicyStatus
+          retentionPolicyFingerprint
+        }
         remediations {
           detail
           kind

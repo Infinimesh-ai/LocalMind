@@ -14190,3 +14190,36 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - manifest 只绑定当前 publish gate repair guard/preview/submission 中已经暴露的脱敏 anchors，不绑定 prompt body、provider response、provider revision、Model Registry revision、Provider Registry revision、workspace secret、真实 repair job、rollback result 或执行输出。
 - 该 manifest 尚未覆盖 preflight/execution request 的 full lifecycle artifact、approval record、audit event、idempotency lock、retry/rollback executor 或 support bundle metadata；后续若要做正式 support bundle，需要继续定义 export metadata、redaction policy、retention policy 和文件下载路径。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 423. P3 落地记录：Prompt Registry Repair Gate Manifest Export Metadata Projection
+
+本轮继续收敛第 422 节剩余风险中 “support bundle manifest 尚未定义导出元数据、redaction policy、retention policy” 的问题。实际代码与目标 AI 中间层架构的冲突点是：`repairGateManifest` 已经把 Prompt Registry repair gate 的脱敏 anchors 聚合成单一 manifest projection，但 Admin 或后续 support bundle 若要解释该 manifest 如何被安全导出、是否会创建审计事件、以及是否有保留策略，仍缺少与 manifest fingerprint 绑定的只读 export metadata。本轮新增 `prompt-registry-repair-gate-manifest-export-metadata/v1`，把 filename、MIME、redaction/export/audit/retention policy fingerprints 作为只读 projection 暴露，不创建真实文件、下载按钮、DB artifact 或 audit event。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - 新增 `CopilotPromptRegistryPublishGateRepairGateManifestExportMetadata` / GraphQL type，并在 publish gate verdict 上暴露 `repairGateManifestExportMetadata`。
+  - 新增 `buildPromptRegistryPublishGateRepairGateManifestExportMetadata()`，以 `repairGateManifest.fingerprint`、registry id/fingerprint/updatedAt、gate/publish status 与 `repair_gate_manifest_only_no_prompt_or_provider_payload` boundary 生成稳定 metadata。
+  - 新增 redaction/export/audit/retention policy fingerprints；redaction status 明确为 `redacted_projection_no_prompt_provider_payload_or_secret`，audit event status 为 `not_created_read_only`，retention status 为 `not_persisted_read_only`。
+  - 文件名只包含 registry id 与 manifest fingerprint，不包含 prompt name、prompt body、provider id、provider payload、secret、raw trace 或执行结果。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` query、common query string 与 `schema.ts` 类型同步暴露 `repairGateManifestExportMetadata` 全量只读字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - Prompt Registry publish gate diagnostics 新增 `Repair gate manifest export metadata ...` 文本，展示 artifact、filename、manifest fingerprint、redaction/export/audit/retention policy version/status/fingerprint。
+  - 本轮不新增下载按钮或 JSON export UI，避免把只读 metadata projection 误认为已经存在真实 export path。
+- 测试覆盖：
+  - backend model/source chain smoke test 断言 export metadata 与 manifest fingerprint、registry version、boundary、gate/publish status 一致，并重算 redaction/export/audit/retention fingerprints。
+  - Admin Vitest fixture 按同一稳定 fingerprint 规则生成 metadata，并断言 ready/blocked gate diagnostics 中可见 export metadata、redaction policy、audit status 与 retention policy。
+
+该实现只扩展 Prompt Registry publish gate 的只读 GraphQL projection、common query/type、Admin 展示和测试，不新增 DB migration、不创建 support bundle 文件、不新增下载按钮、不创建 audit event、不改变 retention 存储、不改变 repair mutation 可执行性、不改变 preflight/execution request gate 判定、不改变 provider route selection、fallback order、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、Model Registry revision 或 Provider Registry revision。它把 “repair gate manifest 如何被安全导出” 从未定义状态推进到可比较的只读 metadata projection，为后续正式 support bundle artifact、route explain、repair review 和下载路径提供稳定输入。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 backend model/source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `repairGateManifestExportMetadata` 仍是只读 GraphQL projection，不是正式 support bundle schema、DB-backed artifact、可下载文件、签名快照、真实 audit event 或真实 retention record。
+- export metadata 只绑定当前 `repairGateManifest` 中已经暴露的脱敏 anchors 与只读 policy fingerprints，不绑定 prompt body、provider response、provider revision、Model Registry revision、Provider Registry revision、workspace secret、真实 repair job、rollback result 或执行输出。
+- redaction/export/retention policy 目前是 code-level projection，不是 tenant-level policy registry、workspace-level compliance setting 或可配置的数据保留规则。
+- 该 metadata 尚未覆盖 preflight/execution request 的 full lifecycle artifact、approval record、idempotency lock、retry/rollback executor、support bundle packaging、下载授权或 audit persistence；后续若要做正式 support bundle，需要继续定义 DB-backed artifact、download resolver、audit event persistence 与 retention cleanup。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

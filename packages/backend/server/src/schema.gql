@@ -1864,6 +1864,35 @@ type CopilotPromptRegistryPublishGateRepairGateManifestType {
   recommendationFingerprints: [String!]!
 }
 
+type CopilotPromptRegistryPublishGateRepairGateManifestExportMetadataType {
+  version: String!
+  artifact: String!
+  filename: String!
+  mime: String!
+  metadataFilename: String!
+  manifestVersion: String!
+  manifestFingerprint: String!
+  registryFingerprint: String!
+  registryId: SafeInt!
+  registryUpdatedAt: String!
+  gateStatus: String!
+  publishStatus: String!
+  boundary: String!
+  redactionPolicyVersion: String!
+  redactionPolicyStatus: String!
+  redactionPolicyFingerprint: String!
+  exportPolicyVersion: String!
+  exportPolicyStatus: String!
+  exportPolicyFingerprint: String!
+  auditEventVersion: String!
+  auditEventStatus: String!
+  auditEventCreated: Boolean!
+  auditEventFingerprint: String!
+  retentionPolicyVersion: String!
+  retentionPolicyStatus: String!
+  retentionPolicyFingerprint: String!
+}
+
 type CopilotPromptRegistryPublishGateRepairTargetLocatorType {
   actionId: String
   candidateIndex: SafeInt
@@ -1910,6 +1939,7 @@ type CopilotPromptRegistryPublishGateVerdictType {
   repairActionMutationGuard: CopilotPromptRegistryPublishGateRepairActionMutationGuardType!
   repairActionPreview: CopilotPromptRegistryPublishGateRepairActionPreviewType!
   repairGateManifest: CopilotPromptRegistryPublishGateRepairGateManifestType!
+  repairGateManifestExportMetadata: CopilotPromptRegistryPublishGateRepairGateManifestExportMetadataType!
   remediations: [CopilotPromptRegistryValidationRemediationType!]!
   repairRecommendations: [CopilotPromptRegistryPublishGateRepairRecommendationType!]!
   stale: Boolean!

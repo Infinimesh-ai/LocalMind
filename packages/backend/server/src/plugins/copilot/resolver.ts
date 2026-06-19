@@ -962,6 +962,35 @@ type CopilotPromptRegistryPublishGateRepairGateManifest = {
   recommendationFingerprints: string[];
 };
 
+type CopilotPromptRegistryPublishGateRepairGateManifestExportMetadata = {
+  version: string;
+  artifact: string;
+  filename: string;
+  mime: string;
+  metadataFilename: string;
+  manifestVersion: string;
+  manifestFingerprint: string;
+  registryFingerprint: string;
+  registryId: number;
+  registryUpdatedAt: string;
+  gateStatus: string;
+  publishStatus: string;
+  boundary: string;
+  redactionPolicyVersion: string;
+  redactionPolicyStatus: string;
+  redactionPolicyFingerprint: string;
+  exportPolicyVersion: string;
+  exportPolicyStatus: string;
+  exportPolicyFingerprint: string;
+  auditEventVersion: string;
+  auditEventStatus: string;
+  auditEventCreated: boolean;
+  auditEventFingerprint: string;
+  retentionPolicyVersion: string;
+  retentionPolicyStatus: string;
+  retentionPolicyFingerprint: string;
+};
+
 type CopilotPromptRegistryRepairPreflight = {
   accepted: boolean;
   actorFingerprint: string;
@@ -2619,6 +2648,87 @@ class CopilotPromptRegistryPublishGateRepairGateManifestType implements CopilotP
 }
 
 @ObjectType()
+class CopilotPromptRegistryPublishGateRepairGateManifestExportMetadataType implements CopilotPromptRegistryPublishGateRepairGateManifestExportMetadata {
+  @Field(() => String)
+  version!: string;
+
+  @Field(() => String)
+  artifact!: string;
+
+  @Field(() => String)
+  filename!: string;
+
+  @Field(() => String)
+  mime!: string;
+
+  @Field(() => String)
+  metadataFilename!: string;
+
+  @Field(() => String)
+  manifestVersion!: string;
+
+  @Field(() => String)
+  manifestFingerprint!: string;
+
+  @Field(() => String)
+  registryFingerprint!: string;
+
+  @Field(() => SafeIntResolver)
+  registryId!: number;
+
+  @Field(() => String)
+  registryUpdatedAt!: string;
+
+  @Field(() => String)
+  gateStatus!: string;
+
+  @Field(() => String)
+  publishStatus!: string;
+
+  @Field(() => String)
+  boundary!: string;
+
+  @Field(() => String)
+  redactionPolicyVersion!: string;
+
+  @Field(() => String)
+  redactionPolicyStatus!: string;
+
+  @Field(() => String)
+  redactionPolicyFingerprint!: string;
+
+  @Field(() => String)
+  exportPolicyVersion!: string;
+
+  @Field(() => String)
+  exportPolicyStatus!: string;
+
+  @Field(() => String)
+  exportPolicyFingerprint!: string;
+
+  @Field(() => String)
+  auditEventVersion!: string;
+
+  @Field(() => String)
+  auditEventStatus!: string;
+
+  @Field(() => Boolean)
+  auditEventCreated!: boolean;
+
+  @Field(() => String)
+  auditEventFingerprint!: string;
+
+  @Field(() => String)
+  retentionPolicyVersion!: string;
+
+  @Field(() => String)
+  retentionPolicyStatus!: string;
+
+  @Field(() => String)
+  retentionPolicyFingerprint!: string;
+}
+
+@ObjectType()
 class CopilotPromptRegistryRepairPreflightType implements CopilotPromptRegistryRepairPreflight {
   @Field(() => Boolean)
   accepted!: boolean;
@@ -3745,6 +3855,11 @@ class CopilotPromptRegistryPublishGateVerdictType implements PromptRegistryPubli
 
   @Field(() => CopilotPromptRegistryPublishGateRepairGateManifestType)
   repairGateManifest!: CopilotPromptRegistryPublishGateRepairGateManifest;
+
+  @Field(
+    () => CopilotPromptRegistryPublishGateRepairGateManifestExportMetadataType
+  )
+  repairGateManifestExportMetadata!: CopilotPromptRegistryPublishGateRepairGateManifestExportMetadata;
 
   @Field(() => Boolean)
   stale!: PromptRegistryPublishGateVerdict['stale'];
@@ -8820,6 +8935,211 @@ function buildPromptRegistryPublishGateRepairGateManifest(input: {
   return {
     ...manifestWithoutFingerprint,
     fingerprint,
+  };
+}
+
+function promptRegistryRepairGateManifestFilename(
+  manifest: CopilotPromptRegistryPublishGateRepairGateManifest
+) {
+  return `prompt-registry-repair-gate-manifest-${manifest.registryId}-${manifest.fingerprint}.json`;
+}
+
+function promptRegistryRepairGateManifestMetadataFilename(
+  manifest: CopilotPromptRegistryPublishGateRepairGateManifest
+) {
+  return `prompt-registry-repair-gate-manifest-metadata-${manifest.registryId}-${manifest.fingerprint}.json`;
+}
+
+function promptRegistryRepairGateManifestRedactionPolicyFingerprint(input: {
+  artifact: string;
+  boundary: string;
+  manifestFingerprint: string;
+  manifestVersion: string;
+  redactionPolicyStatus: string;
+  redactionPolicyVersion: string;
+  registryFingerprint: string;
+  registryId: number;
+}) {
+  return createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        version:
+          'prompt-registry-repair-gate-manifest-redaction-policy-fingerprint/v1',
+        ...input,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function promptRegistryRepairGateManifestExportPolicyFingerprint(input: {
+  artifact: string;
+  boundary: string;
+  exportPolicyStatus: string;
+  exportPolicyVersion: string;
+  filename: string;
+  gateStatus: string;
+  manifestFingerprint: string;
+  manifestVersion: string;
+  metadataFilename: string;
+  mime: string;
+  publishStatus: string;
+  redactionPolicyFingerprint: string;
+  registryFingerprint: string;
+  registryId: number;
+  registryUpdatedAt: string;
+}) {
+  return createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        version:
+          'prompt-registry-repair-gate-manifest-export-policy-fingerprint/v1',
+        ...input,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function promptRegistryRepairGateManifestAuditEventFingerprint(input: {
+  auditEventCreated: boolean;
+  auditEventStatus: string;
+  auditEventVersion: string;
+  exportPolicyFingerprint: string;
+  manifestFingerprint: string;
+  registryId: number;
+}) {
+  return createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        version:
+          'prompt-registry-repair-gate-manifest-audit-event-fingerprint/v1',
+        ...input,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function promptRegistryRepairGateManifestRetentionPolicyFingerprint(input: {
+  artifact: string;
+  boundary: string;
+  exportPolicyFingerprint: string;
+  manifestFingerprint: string;
+  registryId: number;
+  retentionPolicyStatus: string;
+  retentionPolicyVersion: string;
+}) {
+  return createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        version:
+          'prompt-registry-repair-gate-manifest-retention-policy-fingerprint/v1',
+        ...input,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function buildPromptRegistryPublishGateRepairGateManifestExportMetadata(
+  manifest: CopilotPromptRegistryPublishGateRepairGateManifest
+): CopilotPromptRegistryPublishGateRepairGateManifestExportMetadata {
+  const artifact = 'prompt_registry_repair_gate_manifest_json';
+  const filename = promptRegistryRepairGateManifestFilename(manifest);
+  const metadataFilename =
+    promptRegistryRepairGateManifestMetadataFilename(manifest);
+  const mime = 'application/json;charset=utf-8';
+  const redactionPolicyVersion =
+    'prompt-registry-repair-gate-manifest-redaction-policy/v1';
+  const redactionPolicyStatus =
+    'redacted_projection_no_prompt_provider_payload_or_secret';
+  const redactionPolicyFingerprint =
+    promptRegistryRepairGateManifestRedactionPolicyFingerprint({
+      artifact,
+      boundary: manifest.boundary,
+      manifestFingerprint: manifest.fingerprint,
+      manifestVersion: manifest.version,
+      redactionPolicyStatus,
+      redactionPolicyVersion,
+      registryFingerprint: manifest.registryFingerprint,
+      registryId: manifest.registryId,
+    });
+  const exportPolicyVersion =
+    'prompt-registry-repair-gate-manifest-export-policy/v1';
+  const exportPolicyStatus = 'read_only_projection';
+  const exportPolicyFingerprint =
+    promptRegistryRepairGateManifestExportPolicyFingerprint({
+      artifact,
+      boundary: manifest.boundary,
+      exportPolicyStatus,
+      exportPolicyVersion,
+      filename,
+      gateStatus: manifest.gateStatus,
+      manifestFingerprint: manifest.fingerprint,
+      manifestVersion: manifest.version,
+      metadataFilename,
+      mime,
+      publishStatus: manifest.publishStatus,
+      redactionPolicyFingerprint,
+      registryFingerprint: manifest.registryFingerprint,
+      registryId: manifest.registryId,
+      registryUpdatedAt: manifest.registryUpdatedAt,
+    });
+  const auditEventVersion =
+    'prompt-registry-repair-gate-manifest-export-audit-event/v1';
+  const auditEventStatus = 'not_created_read_only';
+  const auditEventCreated = false;
+  const auditEventFingerprint =
+    promptRegistryRepairGateManifestAuditEventFingerprint({
+      auditEventCreated,
+      auditEventStatus,
+      auditEventVersion,
+      exportPolicyFingerprint,
+      manifestFingerprint: manifest.fingerprint,
+      registryId: manifest.registryId,
+    });
+  const retentionPolicyVersion =
+    'prompt-registry-repair-gate-manifest-retention-policy/v1';
+  const retentionPolicyStatus = 'not_persisted_read_only';
+  const retentionPolicyFingerprint =
+    promptRegistryRepairGateManifestRetentionPolicyFingerprint({
+      artifact,
+      boundary: manifest.boundary,
+      exportPolicyFingerprint,
+      manifestFingerprint: manifest.fingerprint,
+      registryId: manifest.registryId,
+      retentionPolicyStatus,
+      retentionPolicyVersion,
+    });
+
+  return {
+    version: 'prompt-registry-repair-gate-manifest-export-metadata/v1',
+    artifact,
+    filename,
+    mime,
+    metadataFilename,
+    manifestVersion: manifest.version,
+    manifestFingerprint: manifest.fingerprint,
+    registryFingerprint: manifest.registryFingerprint,
+    registryId: manifest.registryId,
+    registryUpdatedAt: manifest.registryUpdatedAt,
+    gateStatus: manifest.gateStatus,
+    publishStatus: manifest.publishStatus,
+    boundary: manifest.boundary,
+    redactionPolicyVersion,
+    redactionPolicyStatus,
+    redactionPolicyFingerprint,
+    exportPolicyVersion,
+    exportPolicyStatus,
+    exportPolicyFingerprint,
+    auditEventVersion,
+    auditEventStatus,
+    auditEventCreated,
+    auditEventFingerprint,
+    retentionPolicyVersion,
+    retentionPolicyStatus,
+    retentionPolicyFingerprint,
   };
 }
 
@@ -15672,6 +15992,10 @@ export class CopilotResolver {
         verdict,
       }
     );
+    const repairGateManifestExportMetadata =
+      buildPromptRegistryPublishGateRepairGateManifestExportMetadata(
+        repairGateManifest
+      );
 
     return {
       ...verdict,
@@ -15680,6 +16004,7 @@ export class CopilotResolver {
       repairActionMutationGuard,
       repairActionPreview,
       repairGateManifest,
+      repairGateManifestExportMetadata,
       repairRecommendations,
     };
   }

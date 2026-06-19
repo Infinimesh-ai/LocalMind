@@ -2071,6 +2071,36 @@ export interface CopilotPromptRegistryPublishGateRepairGateManifestType {
   recommendationFingerprints: Array<Scalars['String']['output']>;
 }
 
+export interface CopilotPromptRegistryPublishGateRepairGateManifestExportMetadataType {
+  __typename?: 'CopilotPromptRegistryPublishGateRepairGateManifestExportMetadataType';
+  version: Scalars['String']['output'];
+  artifact: Scalars['String']['output'];
+  filename: Scalars['String']['output'];
+  mime: Scalars['String']['output'];
+  metadataFilename: Scalars['String']['output'];
+  manifestVersion: Scalars['String']['output'];
+  manifestFingerprint: Scalars['String']['output'];
+  registryFingerprint: Scalars['String']['output'];
+  registryId: Scalars['SafeInt']['output'];
+  registryUpdatedAt: Scalars['String']['output'];
+  gateStatus: Scalars['String']['output'];
+  publishStatus: Scalars['String']['output'];
+  boundary: Scalars['String']['output'];
+  redactionPolicyVersion: Scalars['String']['output'];
+  redactionPolicyStatus: Scalars['String']['output'];
+  redactionPolicyFingerprint: Scalars['String']['output'];
+  exportPolicyVersion: Scalars['String']['output'];
+  exportPolicyStatus: Scalars['String']['output'];
+  exportPolicyFingerprint: Scalars['String']['output'];
+  auditEventVersion: Scalars['String']['output'];
+  auditEventStatus: Scalars['String']['output'];
+  auditEventCreated: Scalars['Boolean']['output'];
+  auditEventFingerprint: Scalars['String']['output'];
+  retentionPolicyVersion: Scalars['String']['output'];
+  retentionPolicyStatus: Scalars['String']['output'];
+  retentionPolicyFingerprint: Scalars['String']['output'];
+}
+
 export interface CopilotPromptRegistryPublishGateRepairActionSubmissionContractType {
   __typename?: 'CopilotPromptRegistryPublishGateRepairActionSubmissionContractType';
   approvalPolicyFingerprint: Scalars['String']['output'];
@@ -2144,6 +2174,7 @@ export interface CopilotPromptRegistryPublishGateVerdictType {
   repairActionMutationGuard: CopilotPromptRegistryPublishGateRepairActionMutationGuardType;
   repairActionPreview: CopilotPromptRegistryPublishGateRepairActionPreviewType;
   repairGateManifest: CopilotPromptRegistryPublishGateRepairGateManifestType;
+  repairGateManifestExportMetadata: CopilotPromptRegistryPublishGateRepairGateManifestExportMetadataType;
   remediations: Array<CopilotPromptRegistryValidationRemediationType>;
   repairRecommendations: Array<CopilotPromptRegistryPublishGateRepairRecommendationType>;
   stale: Scalars['Boolean']['output'];
@@ -8245,6 +8276,35 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
           safetyLevels: Array<string>;
           operationFingerprints: Array<string>;
           recommendationFingerprints: Array<string>;
+        };
+        repairGateManifestExportMetadata: {
+          __typename?: 'CopilotPromptRegistryPublishGateRepairGateManifestExportMetadataType';
+          version: string;
+          artifact: string;
+          filename: string;
+          mime: string;
+          metadataFilename: string;
+          manifestVersion: string;
+          manifestFingerprint: string;
+          registryFingerprint: string;
+          registryId: number;
+          registryUpdatedAt: string;
+          gateStatus: string;
+          publishStatus: string;
+          boundary: string;
+          redactionPolicyVersion: string;
+          redactionPolicyStatus: string;
+          redactionPolicyFingerprint: string;
+          exportPolicyVersion: string;
+          exportPolicyStatus: string;
+          exportPolicyFingerprint: string;
+          auditEventVersion: string;
+          auditEventStatus: string;
+          auditEventCreated: boolean;
+          auditEventFingerprint: string;
+          retentionPolicyVersion: string;
+          retentionPolicyStatus: string;
+          retentionPolicyFingerprint: string;
         };
         remediations: Array<{
           __typename?: 'CopilotPromptRegistryValidationRemediationType';

@@ -2921,6 +2921,9 @@ function buildPromptRegistryPublishGateDiagnosticsText(
     `Repair gate manifest ${formatPromptRegistryPublishGateRepairGateManifest(
       verdict.repairGateManifest
     )}`,
+    `Repair gate manifest export metadata ${formatPromptRegistryPublishGateRepairGateManifestExportMetadata(
+      verdict.repairGateManifestExportMetadata
+    )}`,
     repairPreflight
       ? `Repair action preflight ${formatPromptRegistryRepairPreflight(repairPreflight)}`
       : 'Repair action preflight not checked',
@@ -3514,6 +3517,41 @@ function formatPromptRegistryPublishGateRepairGateManifest(
     manifest.recommendationFingerprints.length
       ? `recommendation fingerprints ${manifest.recommendationFingerprints.join(', ')}`
       : 'recommendation fingerprints none',
+  ]);
+}
+
+function formatPromptRegistryPublishGateRepairGateManifestExportMetadata(
+  metadata: PromptRegistryPublishGateVerdict['repairGateManifestExportMetadata']
+) {
+  return compactList([
+    `${metadata.version}`,
+    `artifact ${metadata.artifact}`,
+    `filename ${metadata.filename}`,
+    `mime ${metadata.mime}`,
+    `metadata filename ${metadata.metadataFilename}`,
+    `manifest ${metadata.manifestVersion}`,
+    `manifest fingerprint ${metadata.manifestFingerprint}`,
+    `registry ${metadata.registryId}`,
+    `registry fingerprint ${metadata.registryFingerprint}`,
+    `registry updated ${metadata.registryUpdatedAt}`,
+    `gate ${formatFeatureKind(metadata.gateStatus)}`,
+    `publish ${formatFeatureKind(metadata.publishStatus)}`,
+    `boundary ${metadata.boundary}`,
+    `redaction policy ${metadata.redactionPolicyVersion}`,
+    `redaction status ${formatFeatureKind(metadata.redactionPolicyStatus)}`,
+    `redaction fingerprint ${metadata.redactionPolicyFingerprint}`,
+    `export policy ${metadata.exportPolicyVersion}`,
+    `export status ${formatFeatureKind(metadata.exportPolicyStatus)}`,
+    `export fingerprint ${metadata.exportPolicyFingerprint}`,
+    `audit event ${metadata.auditEventVersion}`,
+    `audit status ${formatFeatureKind(metadata.auditEventStatus)}`,
+    metadata.auditEventCreated
+      ? 'audit event created yes'
+      : 'audit event created no',
+    `audit fingerprint ${metadata.auditEventFingerprint}`,
+    `retention policy ${metadata.retentionPolicyVersion}`,
+    `retention status ${formatFeatureKind(metadata.retentionPolicyStatus)}`,
+    `retention fingerprint ${metadata.retentionPolicyFingerprint}`,
   ]);
 }
 
