@@ -14783,3 +14783,37 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - `CapabilityPolicyHost` 的 pro model gate 仍按 prompt `proModels` 名单与 native matcher 结果判定，不区分 BYOK 与 quota-backed registry；如果后续要求 BYOK 自带密钥绕过 subscription pro gate，需要新增明确的 policy 决策而不是隐式依赖 provider id scope。
 - `CopilotResolver.models()`、Prompt Registry publish gate model route 的 `configured` 标记和前端模型列表仍有同步 `getConfiguredModelIds()` 调用点；本轮只收敛执行侧 CapabilityPolicyHost，下一轮应继续把只读 UI/model diagnostics 拆到 async effective model list projection。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 442. P1 落地记录：Model List Effective Configured Candidates
+
+本轮继续收敛第 441 节剩余风险中 “`CopilotResolver.models()`、Prompt Registry publish gate model route 的 `configured` 标记和前端模型列表仍有同步 `getConfiguredModelIds()` 调用点” 的只读诊断差异。实际代码与目标 AI 中间层架构的冲突点是：执行侧 `CapabilityPolicyHost` 已经通过 `getEffectiveModelSelectionScope()` 把 BYOK provider ids 与显式 BYOK configured models 纳入 requested model matching；但前端模型列表与 Prompt Registry publish gate model route 候选仍直接调用同步 `getConfiguredModelIds()`，只枚举 quota-backed Provider Registry。这样同一个 workspace 中，执行侧可接受的 BYOK provider-prefixed 模型或显式 BYOK profile models，仍可能不出现在 Admin/前端 model diagnostics 的 registry candidates 中。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - 新增 `resolveEffectiveConfiguredModelIds(routePolicyContext)`，优先读取 `providerFactory.getEffectiveModelSelectionScope(...).configuredModelIds`，并保留旧 `getConfiguredModelIds()` fallback，避免测试 double 或未来局部迁移被强制 async API 绑死。
+  - `resolvePromptRegistryPublishGateModelRoutes()` 的 registry model route candidates 改为使用 effective configured ids，使 publish gate 的 model route 列表与 execution-side effective source scope 对齐。
+  - `models()` GraphQL resolver 的 `optionalModels` registry candidates 改为使用同一 effective configured ids；列表结构、GraphQL schema、frontend query 与 `CopilotModelType` 字段不变。
+- 测试覆盖：
+  - `resolver-model-source-chain.smoke.ts` 的 provider factory fixture 增加 `getEffectiveModelSelectionScope()`，返回 quota-backed `registry/only-chat` 与 BYOK `byok/effective-chat`。
+  - smoke 断言 `models()` 通过 effective scope 获取 registry candidates，且 `byok/effective-chat` 进入前端可见 optional model list。
+  - smoke 断言 Prompt Registry publish gate 的 `modelRoutes` 同步包含 effective BYOK registry candidate，并覆盖 ready/blocked 两条 gate 路径的 candidate order 与 route diagnostics calls。
+
+该实现只调整 resolver 只读模型候选来源与 focused smoke，不新增 DB migration、不改变 provider route selection、fallback order、BYOK lease 获取、quota 判定、provider health check、Prompt Registry publish gate allowed/blocking 判定、GraphQL schema、前端查询或 UI 展示字段、`copilot.tasks.models` 配置格式、embedding/rerank native request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、MCP registry、Codex adapter、support bundle lifecycle 或 Action Runtime 状态机。它让 “模型列表和 publish gate model route 的 registry candidates” 与 `CapabilityPolicyHost` 使用的 effective model selection scope 使用同一份 configured model projection，减少 BYOK 自部署模型在执行侧和诊断侧之间的漂移。
+
+验证策略：
+
+- 本轮为 TypeScript resolver/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有测试镜像 `localmind-affine:test`，镜像 ID 为 `c3389960f5ed`；通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行验证。
+- 容器内已通过：
+  - `yarn r packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts`
+  - `yarn oxlint packages/backend/server/src/plugins/copilot/resolver.ts packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts`
+  - `yarn prettier --check docs/ai-capability-modernization-plan.md packages/backend/server/src/plugins/copilot/resolver.ts packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts`
+  - `git diff --check`
+- 镜像 ID 复核仍为 `c3389960f5ed`，未重建 test-runner。
+
+剩余风险：
+
+- effective configured candidates 仍是 runtime 只读 projection，不是 DB-backed Model Registry effective source table，也不记录 registry revision、workspace policy revision 或 provider snapshot。
+- BYOK server/local profiles 当前默认不携带在线模型列表；只有 profile 显式声明 `models` / `modelDefinitions` 时才会作为 registry candidate 出现在 `models()` 与 publish gate model routes 中。
+- GraphQL schema 与前端 UI 仍没有单独标识 candidate 来自 BYOK registry 还是 quota-backed registry；来源差异继续通过 provider profile source/config path、route candidates 与 policy candidates 诊断间接体现。
+- `getConfiguredModelIds()` 仍保留给尚未 async 化或不需要 workspace/user context 的调用点；后续正式 Model Registry effective source table 落地后，需要统一收敛同步/异步 model candidate API 的职责边界。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

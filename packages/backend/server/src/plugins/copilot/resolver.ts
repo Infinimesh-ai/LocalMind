@@ -50,6 +50,7 @@ import type {
   CopilotActionRunDiagnosticsItem,
   CopilotActionRunPreparedRouteTrace,
 } from '../../models/copilot-action-run';
+import type { CopilotAccessContext } from './access';
 import { CompatHistoryProjector } from './compat/history-projector';
 import type {
   CopilotProviderHealthStatus,
@@ -16647,11 +16648,13 @@ export class CopilotResolver {
       await this.providerFactory.describeEffectiveRoutePolicyCandidates(
         routePolicyContext
       );
+    const configuredModelIds =
+      await this.resolveEffectiveConfiguredModelIds(routePolicyContext);
 
     const modelRouteCandidates =
       resolvePromptRegistryPublishGateModelRouteCandidates(
         prompt,
-        this.providerFactory.getConfiguredModelIds(routePolicyContext)
+        configuredModelIds
       );
 
     return await Promise.all(
@@ -16665,6 +16668,20 @@ export class CopilotResolver {
         )
       )
     );
+  }
+
+  private async resolveEffectiveConfiguredModelIds(
+    routePolicyContext: CopilotAccessContext
+  ) {
+    if (this.providerFactory.getEffectiveModelSelectionScope) {
+      return (
+        await this.providerFactory.getEffectiveModelSelectionScope(
+          routePolicyContext
+        )
+      ).configuredModelIds;
+    }
+
+    return this.providerFactory.getConfiguredModelIds(routePolicyContext);
   }
 
   private async resolvePromptRegistryPublishGateActionRouteDryRun(
@@ -17630,6 +17647,8 @@ export class CopilotResolver {
     };
     const taskRoutes = await this.resolveTaskRouteDiagnostics(copilot);
     const proModels = prompt.config?.proModels || [];
+    const configuredModelIds =
+      await this.resolveEffectiveConfiguredModelIds(routePolicyContext);
     const resolvedPromptDefault = await this.providerFactory.resolveModelId(
       {
         modelId: prompt.model,
@@ -17673,12 +17692,10 @@ export class CopilotResolver {
             id,
             source: 'prompt' as const,
           })),
-          ...this.providerFactory
-            .getConfiguredModelIds(routePolicyContext)
-            .map(id => ({
-              id,
-              source: 'registry' as const,
-            })),
+          ...configuredModelIds.map(id => ({
+            id,
+            source: 'registry' as const,
+          })),
         ])
       ),
       proModels: await convertModels(

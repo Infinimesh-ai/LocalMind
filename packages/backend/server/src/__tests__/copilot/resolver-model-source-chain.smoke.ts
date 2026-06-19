@@ -1520,8 +1520,9 @@ async function main() {
     featureKind?: string;
     workspaceId?: string;
   }> = [];
-  const configuredModelContextCalls: Array<{
+  const effectiveModelSelectionScopeContextCalls: Array<{
     featureKind?: string;
+    method: 'getConfiguredModelIds' | 'getEffectiveModelSelectionScope';
     workspaceId?: string;
   }> = [];
   const promptName = 'Smoke prompt';
@@ -1638,13 +1639,28 @@ async function main() {
       featureKind?: string;
       workspaceId?: string;
     }) {
-      configuredModelContextCalls.push({
+      effectiveModelSelectionScopeContextCalls.push({
         featureKind: context?.featureKind,
+        method: 'getConfiguredModelIds',
         workspaceId: context?.workspaceId,
       });
       return context?.featureKind && context.workspaceId
         ? ['registry/only-chat']
         : ['blocked-cloud/global-only-chat'];
+    },
+    async getEffectiveModelSelectionScope(context?: {
+      featureKind?: string;
+      workspaceId?: string;
+    }) {
+      effectiveModelSelectionScopeContextCalls.push({
+        featureKind: context?.featureKind,
+        method: 'getEffectiveModelSelectionScope',
+        workspaceId: context?.workspaceId,
+      });
+      return {
+        providerIds: ['local', 'byok'],
+        configuredModelIds: ['registry/only-chat', 'byok/effective-chat'],
+      };
     },
     async resolveModelId(condition: { modelId?: string }) {
       return condition.modelId || prompt.model;
@@ -2024,9 +2040,10 @@ async function main() {
     workspaceId: 'workspace-smoke',
   } as any);
   const byId = new Map(result.optionalModels.map(model => [model.id, model]));
-  assert.deepEqual(configuredModelContextCalls.slice(-1), [
+  assert.deepEqual(effectiveModelSelectionScopeContextCalls.slice(-1), [
     {
       featureKind: 'chat',
+      method: 'getEffectiveModelSelectionScope',
       workspaceId: 'workspace-smoke',
     },
   ]);
@@ -2058,11 +2075,26 @@ async function main() {
       featureKind?: string;
       workspaceId?: string;
     }) {
-      configuredModelContextCalls.push({
+      effectiveModelSelectionScopeContextCalls.push({
         featureKind: context?.featureKind,
+        method: 'getConfiguredModelIds',
         workspaceId: context?.workspaceId,
       });
       return ['registry/only-chat'];
+    },
+    async getEffectiveModelSelectionScope(context?: {
+      featureKind?: string;
+      workspaceId?: string;
+    }) {
+      effectiveModelSelectionScopeContextCalls.push({
+        featureKind: context?.featureKind,
+        method: 'getEffectiveModelSelectionScope',
+        workspaceId: context?.workspaceId,
+      });
+      return {
+        providerIds: ['local'],
+        configuredModelIds: ['registry/only-chat'],
+      };
     },
     async resolveModelId(condition: { modelId?: string }) {
       if (condition.modelId === fallbackPrompt.model) {
@@ -2128,6 +2160,14 @@ async function main() {
   assert.deepEqual(byId.get('registry/only-chat')?.promptModelSources, [
     { candidateSource: 'registry' },
   ]);
+  assert.deepEqual(byId.get('byok/effective-chat')?.promptModelSources, [
+    { candidateSource: 'registry' },
+  ]);
+  assert.equal(byId.get('byok/effective-chat')?.providerProfileId, 'byok');
+  assert.equal(
+    byId.get('byok/effective-chat')?.routeModelDefinitionId,
+    'effective-chat'
+  );
   assert.equal(
     byId.get('registry/only-chat')?.routeModelDefinitionSource,
     'provider_runtime'
@@ -2546,9 +2586,10 @@ async function main() {
     }
   );
   assert.equal(routeReadyGate?.allowed, true);
-  assert.deepEqual(configuredModelContextCalls.slice(-1), [
+  assert.deepEqual(effectiveModelSelectionScopeContextCalls.slice(-1), [
     {
       featureKind: 'chat',
+      method: 'getEffectiveModelSelectionScope',
       workspaceId: 'workspace-smoke',
     },
   ]);
@@ -2762,7 +2803,7 @@ async function main() {
     routeReadyGate?.modelRoute?.candidateConfigPath,
     'copilot.prompts.defaults.text.model'
   );
-  assert.equal(routeReadyGate?.modelRoutes?.length, 5);
+  assert.equal(routeReadyGate?.modelRoutes?.length, 6);
   assert.deepEqual(
     routeReadyGate?.modelRoutes?.map(route => [
       route.candidateKind,
@@ -2776,6 +2817,7 @@ async function main() {
       ['optional', 1, 'local/optional-chat', false],
       ['pro', 0, 'cloud/pro-chat', true],
       ['registry', 0, 'registry/only-chat', true],
+      ['registry', 1, 'byok/effective-chat', true],
     ]
   );
   assert.deepEqual(routeReadyGate?.modelRoutes?.[1]?.reasons, [
@@ -7831,7 +7873,7 @@ async function main() {
       call.outputType === 'object'
   );
   assert.deepEqual(
-    sortRouteCalls(routeReadyGateModelRouteCalls.slice(-10)),
+    sortRouteCalls(routeReadyGateModelRouteCalls.slice(-12)),
     sortRouteCalls([
       {
         method: 'describeRouteCandidates',
@@ -7899,6 +7941,20 @@ async function main() {
       {
         method: 'resolveProvider',
         modelId: 'registry/only-chat',
+        outputType: 'object',
+        featureKind: 'chat',
+        workspaceId: 'workspace-smoke',
+      },
+      {
+        method: 'describeRouteCandidates',
+        modelId: 'byok/effective-chat',
+        outputType: 'object',
+        featureKind: 'chat',
+        workspaceId: 'workspace-smoke',
+      },
+      {
+        method: 'resolveProvider',
+        modelId: 'byok/effective-chat',
         outputType: 'object',
         featureKind: 'chat',
         workspaceId: 'workspace-smoke',
@@ -8716,7 +8772,7 @@ async function main() {
     ),
     true
   );
-  assert.equal(routeBlockedGate?.modelRoutes?.length, 5);
+  assert.equal(routeBlockedGate?.modelRoutes?.length, 6);
   assert.deepEqual(
     routeBlockedGate?.modelRoutes?.map(route => [
       route.candidateKind,
@@ -8729,6 +8785,7 @@ async function main() {
       ['optional', 'local/optional-chat', false],
       ['pro', 'cloud/pro-chat', false],
       ['registry', 'registry/only-chat', false],
+      ['registry', 'byok/effective-chat', false],
     ]
   );
   assert.deepEqual(routeBlockedGate?.modelRoute?.reasons, [
