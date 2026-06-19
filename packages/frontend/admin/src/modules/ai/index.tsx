@@ -4041,6 +4041,8 @@ function formatPromptRegistryRepairExecutionRequest(
                       '|'
                     )
                   : 'referenceSchemaArtifactRecordFingerprintInputs:none'
+              }:referenceSchemaArtifactRecordPersistenceFingerprint:${
+                entry.candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint
               }:referenceSchemaArtifactRecordPersistenceStatus:${
                 entry.candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus
               }:referenceSchemaArtifactRecordStatus:${

@@ -193,6 +193,21 @@ const candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputsFixture = [
 ] as const;
 const candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatusFixture =
   'not_persisted_read_only';
+const candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintFixture =
+  createHash('sha256')
+    .update(
+      stableFingerprintFixtureStringify({
+        persistenceStatus:
+          candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatusFixture,
+        recordFingerprint:
+          candidateEvidenceReferenceSchemaArtifactRecordFingerprintFixture,
+        recordStatus:
+          candidateEvidenceReferenceSchemaArtifactRecordStatusFixture,
+        schemaFingerprint: candidateEvidenceReferenceSchemaFingerprintFixture,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
 
 function candidateEvidenceClassificationSummaryFixture(
   candidateEvidenceKeys: string[]
@@ -4859,6 +4874,8 @@ async function main() {
           candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs: [
             ...candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputsFixture,
           ],
+          candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint:
+            candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintFixture,
           candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus:
             candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatusFixture,
           candidateEvidenceReferenceSchemaArtifactRecordStatus:
@@ -4932,6 +4949,10 @@ async function main() {
   assert.deepEqual(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs,
     [...candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputsFixture]
+  );
+  assert.equal(
+    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint,
+    candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintFixture
   );
   assert.equal(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus,
