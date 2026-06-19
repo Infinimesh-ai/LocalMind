@@ -1002,6 +1002,8 @@ const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFAC
     'recordStatus',
     'schemaFingerprint',
   ] as const;
+const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_PERSISTENCE_STATUS =
+  'not_persisted_read_only';
 const COPILOT_PROMPT_REGISTRY_REPAIR_ACTION_CATALOG_VERSION =
   'repair-actions/v1';
 
@@ -1411,6 +1413,7 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
   candidateEvidenceReferenceSchemaArtifactFingerprintInputs: string[];
   candidateEvidenceReferenceSchemaArtifactRecordFingerprint: string;
   candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs: string[];
+  candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus: string;
   candidateEvidenceReferenceSchemaArtifactRecordStatus: string;
   candidateEvidenceReferenceSchemaArtifactStatus: string;
   candidateEvidenceReferenceSchemaFields: string[];
@@ -3620,6 +3623,9 @@ class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType impleme
 
   @Field(() => [String])
   candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs!: string[];
+
+  @Field(() => String)
+  candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus!: string;
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaArtifactRecordStatus!: string;
@@ -11237,6 +11243,8 @@ function buildPromptRegistryRepairExecutionRequest(
           candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs: [
             ...COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_FINGERPRINT_INPUTS,
           ],
+          candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus:
+            COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_PERSISTENCE_STATUS,
           candidateEvidenceReferenceSchemaArtifactRecordStatus:
             COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STATUS,
           candidateEvidenceReferenceSchemaArtifactStatus:
