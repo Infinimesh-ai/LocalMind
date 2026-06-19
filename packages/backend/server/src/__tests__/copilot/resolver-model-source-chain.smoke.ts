@@ -4365,6 +4365,56 @@ async function main() {
       .slice(0, 16)
   );
   assert.equal(
+    executionRequest.supportBundleStorageKeyRequestVersion,
+    'prompt-registry-repair-gate-support-bundle-storage-key-request/v1'
+  );
+  assert.equal(
+    executionRequest.supportBundleStorageKeyRequestStatus,
+    'not_allocated_read_only'
+  );
+  assert.equal(executionRequest.supportBundleStorageKeyRequestCreated, false);
+  assert.equal(
+    executionRequest.supportBundleStorageKeyScope,
+    'support_bundle_artifact_record'
+  );
+  assert.match(
+    executionRequest.supportBundleStorageKeyRequestFingerprint,
+    /^[0-9a-f]{16}$/
+  );
+  assert.deepEqual(executionRequest.supportBundleStorageKeyRequestInputs, [
+    'artifactFingerprint',
+    'artifactRecordRequestFingerprint',
+    'manifestFingerprint',
+    'packageFingerprint',
+    'requestStatus',
+    'storageKeyScope',
+  ]);
+  assert.equal(
+    executionRequest.supportBundleStorageKeyRequestFingerprint,
+    createHash('sha256')
+      .update(
+        stableFingerprintFixtureStringify({
+          artifactFingerprint:
+            executionRequest.supportBundleArtifactFingerprint,
+          artifactRecordRequestFingerprint:
+            executionRequest.supportBundleArtifactRecordRequestFingerprint,
+          created: false,
+          inputs: executionRequest.supportBundleStorageKeyRequestInputs,
+          manifestFilename:
+            routeReadyGate.repairGateManifestExportMetadata.filename,
+          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+          packageFingerprint: executionRequest.supportBundlePackageFingerprint,
+          requestStatus: executionRequest.requestStatus,
+          scope: executionRequest.supportBundleStorageKeyScope,
+          status: executionRequest.supportBundleStorageKeyRequestStatus,
+          version: executionRequest.supportBundleStorageKeyRequestVersion,
+          workspaceId: matchingPreflight?.workspaceId ?? null,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16)
+  );
+  assert.equal(
     executionRequest.approvalRecordRequestVersion,
     'repair-execution-approval-record-request/v1'
   );

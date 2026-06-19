@@ -3955,6 +3955,22 @@ function formatPromptRegistryRepairExecutionRequest(
           ', '
         )}`
       : 'support bundle artifact record request inputs none',
+    `support bundle storage key request ${request.supportBundleStorageKeyRequestVersion}`,
+    `support bundle storage key request status ${formatFeatureKind(
+      request.supportBundleStorageKeyRequestStatus
+    )}`,
+    request.supportBundleStorageKeyRequestCreated
+      ? 'support bundle storage key request created yes'
+      : 'support bundle storage key request created no',
+    `support bundle storage key request fingerprint ${request.supportBundleStorageKeyRequestFingerprint}`,
+    request.supportBundleStorageKeyRequestInputs.length
+      ? `support bundle storage key request inputs ${request.supportBundleStorageKeyRequestInputs.join(
+          ', '
+        )}`
+      : 'support bundle storage key request inputs none',
+    `support bundle storage key scope ${formatFeatureKind(
+      request.supportBundleStorageKeyScope
+    )}`,
     `support bundle manifest ${request.supportBundleManifestFilename}`,
     `support bundle manifest fingerprint ${request.supportBundleManifestFingerprint}`,
     `support bundle manifest metadata ${request.supportBundleManifestMetadataFilename}`,

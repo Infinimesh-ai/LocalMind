@@ -3295,6 +3295,12 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
     supportBundleRetentionCleanupRequestStatus
     supportBundleRetentionCleanupRequestVersion
     supportBundleRetentionCleanupStatus
+    supportBundleStorageKeyRequestCreated
+    supportBundleStorageKeyRequestFingerprint
+    supportBundleStorageKeyRequestInputs
+    supportBundleStorageKeyRequestStatus
+    supportBundleStorageKeyRequestVersion
+    supportBundleStorageKeyScope
     preflight {
       approvalRecordFingerprint
       approvalRequestFingerprint

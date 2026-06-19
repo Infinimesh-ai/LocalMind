@@ -1318,6 +1318,12 @@ type CopilotPromptRegistryRepairExecutionRequestType {
   supportBundleRetentionCleanupRequestStatus: String!
   supportBundleRetentionCleanupRequestVersion: String!
   supportBundleRetentionCleanupStatus: String!
+  supportBundleStorageKeyRequestCreated: Boolean!
+  supportBundleStorageKeyRequestFingerprint: String!
+  supportBundleStorageKeyRequestInputs: [String!]!
+  supportBundleStorageKeyRequestStatus: String!
+  supportBundleStorageKeyRequestVersion: String!
+  supportBundleStorageKeyScope: String!
 }
 
 input CopilotPromptRegistryRepairExecutionRequestInput {

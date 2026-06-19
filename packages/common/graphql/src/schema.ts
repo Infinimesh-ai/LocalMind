@@ -1522,6 +1522,12 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   supportBundleRetentionCleanupRequestStatus: Scalars['String']['output'];
   supportBundleRetentionCleanupRequestVersion: Scalars['String']['output'];
   supportBundleRetentionCleanupStatus: Scalars['String']['output'];
+  supportBundleStorageKeyRequestCreated: Scalars['Boolean']['output'];
+  supportBundleStorageKeyRequestFingerprint: Scalars['String']['output'];
+  supportBundleStorageKeyRequestInputs: Array<Scalars['String']['output']>;
+  supportBundleStorageKeyRequestStatus: Scalars['String']['output'];
+  supportBundleStorageKeyRequestVersion: Scalars['String']['output'];
+  supportBundleStorageKeyScope: Scalars['String']['output'];
 }
 
 export interface CopilotPromptRegistryRepairExecutionRequestInput {
@@ -8986,6 +8992,12 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
     supportBundleRetentionCleanupRequestStatus: string;
     supportBundleRetentionCleanupRequestVersion: string;
     supportBundleRetentionCleanupStatus: string;
+    supportBundleStorageKeyRequestCreated: boolean;
+    supportBundleStorageKeyRequestFingerprint: string;
+    supportBundleStorageKeyRequestInputs: Array<string>;
+    supportBundleStorageKeyRequestStatus: string;
+    supportBundleStorageKeyRequestVersion: string;
+    supportBundleStorageKeyScope: string;
     preflight: {
       __typename?: 'CopilotPromptRegistryRepairPreflightType';
       approvalRecordFingerprint: string;

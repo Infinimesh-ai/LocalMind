@@ -6532,6 +6532,22 @@ describe('AiPage', () => {
           supportBundleArtifactStatus: 'not_created_read_only',
           supportBundleArtifactVersion:
             'prompt-registry-repair-gate-support-bundle-artifact/v1',
+          supportBundleStorageKeyRequestCreated: false,
+          supportBundleStorageKeyRequestFingerprint: input.workspaceId
+            ? 'cccc9999dddd0000'
+            : 'aaaa9999dddd0000',
+          supportBundleStorageKeyRequestInputs: [
+            'artifactFingerprint',
+            'artifactRecordRequestFingerprint',
+            'manifestFingerprint',
+            'packageFingerprint',
+            'requestStatus',
+            'storageKeyScope',
+          ],
+          supportBundleStorageKeyRequestStatus: 'not_allocated_read_only',
+          supportBundleStorageKeyRequestVersion:
+            'prompt-registry-repair-gate-support-bundle-storage-key-request/v1',
+          supportBundleStorageKeyScope: 'support_bundle_artifact_record',
           supportBundleAuditPersistenceRequestCreated: false,
           supportBundleAuditPersistenceRequestFingerprint: input.workspaceId
             ? 'ffff9999eeeeaaaa'
@@ -7317,6 +7333,24 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       'support bundle artifact record request inputs artifactFingerprint, artifactStatus, auditPersistenceRequestFingerprint, downloadAuthorizationRequestFingerprint, manifestFingerprint'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle storage key request prompt-registry-repair-gate-support-bundle-storage-key-request/v1 / support bundle storage key request status Not Allocated Read Only / support bundle storage key request created no / support bundle storage key request fingerprint aaaa9999dddd0000'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle storage key request inputs artifactFingerprint, artifactRecordRequestFingerprint, manifestFingerprint, packageFingerprint, requestStatus'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle storage key scope Support Bundle Artifact Record'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
