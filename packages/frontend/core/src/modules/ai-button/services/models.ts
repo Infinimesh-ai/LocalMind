@@ -216,6 +216,9 @@ export interface AIModelTaskRoutePolicyCandidate {
   providerSource?: string | null;
   providerPriority?: number | null;
   providerType?: string | null;
+  registryAvailable?: boolean | null;
+  registryKind?: string | null;
+  registrySelected?: boolean | null;
   reasons: string[];
 }
 
@@ -494,6 +497,9 @@ export interface AIModelTaskRoutePolicyCandidateTraceRow {
   providerSource?: string | null;
   providerPriority?: number | null;
   providerType?: string | null;
+  registryAvailable?: boolean | null;
+  registryKind?: string | null;
+  registrySelected?: boolean | null;
   reasonSummary: AIModelTaskRouteReasonSummary;
   severity: AIModelTaskRouteReasonSeverity;
   status: AIModelTaskRoutePolicyCandidateTraceStatus;
@@ -1808,6 +1814,9 @@ export function getAIModelTaskRoutePolicyCandidateTrace(
       providerSource: candidate.providerSource ?? null,
       providerPriority: candidate.providerPriority ?? null,
       providerType: candidate.providerType,
+      registryAvailable: candidate.registryAvailable ?? null,
+      registryKind: candidate.registryKind ?? null,
+      registrySelected: candidate.registrySelected ?? null,
       reasonSummary,
       severity: reasonSummary.highestSeverity,
       status: taskRoutePolicyCandidateTraceStatus(candidate),
@@ -2653,6 +2662,9 @@ function formatTaskRoutePolicyCandidate(
     candidate.providerPriority != null
       ? `priority ${candidate.providerPriority}`
       : null,
+    candidate.registryKind ? `registry ${candidate.registryKind}` : null,
+    candidate.registrySelected ? 'selected registry' : null,
+    candidate.registryAvailable === false ? 'registry unavailable' : null,
     candidate.allowed ? 'allowed' : 'blocked',
     candidate.available ? 'available' : 'unavailable',
     formatProviderMetadataLabel(candidate.privacy, PROVIDER_PRIVACY_LABELS),

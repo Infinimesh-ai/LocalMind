@@ -110,6 +110,9 @@ function taskRoutePolicyCandidateEvidenceFixture<
     providerProfileSource?: string;
     providerSource?: string;
     providerType?: string;
+    registryAvailable?: boolean;
+    registryKind?: string;
+    registrySelected?: boolean;
     reasons: string[];
   },
 >(candidates: T[] | undefined) {
@@ -145,6 +148,13 @@ function taskRoutePolicyCandidateEvidenceFixture<
       ? { providerSource: candidate.providerSource }
       : {}),
     ...(candidate.providerType ? { providerType: candidate.providerType } : {}),
+    ...(candidate.registryAvailable !== undefined
+      ? { registryAvailable: candidate.registryAvailable }
+      : {}),
+    ...(candidate.registryKind ? { registryKind: candidate.registryKind } : {}),
+    ...(candidate.registrySelected !== undefined
+      ? { registrySelected: candidate.registrySelected }
+      : {}),
     reasons: candidate.reasons,
   }));
 }
@@ -1466,6 +1476,48 @@ async function main() {
         },
       ];
     },
+    async describeEffectiveRoutePolicyCandidates() {
+      return [
+        {
+          providerId: 'local',
+          providerName: 'Local profile',
+          providerSource: 'configured',
+          providerProfileId: 'local',
+          providerProfileSource: 'configured',
+          providerProfileConfigPath: 'copilot.providers.profiles[id=local]',
+          providerConfiguredModelIds: ['workspace-embedding', 'embed-alias'],
+          providerConfiguredModelCount: 2,
+          providerType: 'openaiCompatible',
+          providerPriority: 10,
+          privacy: 'local',
+          health: 'healthy',
+          available: true,
+          allowed: true,
+          registryKind: 'byok',
+          registryAvailable: true,
+          registrySelected: true,
+          reasons: ['candidate_allowed', 'registry_selected'],
+        },
+        {
+          providerId: 'cloud',
+          providerName: 'Cloud fallback',
+          providerSource: 'configured',
+          providerProfileId: 'cloud',
+          providerProfileSource: 'configured',
+          providerProfileConfigPath: 'copilot.providers.profiles[id=cloud]',
+          providerType: 'openai',
+          providerPriority: 1,
+          privacy: 'cloud',
+          health: 'healthy',
+          available: true,
+          allowed: false,
+          registryKind: 'quota_backed',
+          registryAvailable: true,
+          registrySelected: false,
+          reasons: ['provider_not_allowed', 'registry_shadowed_by_byok'],
+        },
+      ];
+    },
     getConfiguredModelIds(context?: {
       featureKind?: string;
       workspaceId?: string;
@@ -2284,6 +2336,18 @@ async function main() {
   assert.equal(
     result.embeddingRoute?.policyCandidates[0]?.providerProfileConfigPath,
     'copilot.providers.profiles[id=local]'
+  );
+  assert.equal(
+    result.embeddingRoute?.policyCandidates[0]?.registryKind,
+    'byok'
+  );
+  assert.equal(
+    result.embeddingRoute?.policyCandidates[0]?.registryAvailable,
+    true
+  );
+  assert.equal(
+    result.embeddingRoute?.policyCandidates[0]?.registrySelected,
+    true
   );
   assert.deepEqual(
     result.embeddingRoute?.policyCandidates[0]?.providerConfiguredModelIds,

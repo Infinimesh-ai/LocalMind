@@ -20,6 +20,7 @@ import {
   applyProviderRoutePolicy,
   buildProviderRegistry,
   type CopilotProviderRegistry,
+  type CopilotProviderRoutePolicyCandidateDiagnostics,
   describeProviderRoutePolicy,
   describeProviderRoutePolicyCandidates,
   getProfileModelIds,
@@ -115,6 +116,13 @@ export type CopilotProviderRouteCandidateDiagnostics = {
   matched: boolean;
   reasons: string[];
 };
+
+export type CopilotProviderEffectiveRoutePolicyCandidateDiagnostics =
+  CopilotProviderRoutePolicyCandidateDiagnostics & {
+    registryKind?: 'byok' | 'quota_backed';
+    registryAvailable?: boolean;
+    registrySelected?: boolean;
+  };
 
 export type CopilotProviderPrepareCandidateDiagnostics = {
   providerId: string;
@@ -679,6 +687,61 @@ export class CopilotProviderFactory {
       context,
       this.getAvailableProviderIds(registry)
     );
+  }
+
+  async describeEffectiveRoutePolicyCandidates(
+    context: CopilotAccessContext = {}
+  ): Promise<CopilotProviderEffectiveRoutePolicyCandidateDiagnostics[]> {
+    const { byokRegistry, quotaBackedRegistry, quotaBackedRoutesAvailable } =
+      await this.getEffectiveRegistry(context);
+    const routePolicyContext = {
+      workspaceId: context.workspaceId,
+      featureKind: context.featureKind,
+    };
+    const byokRegistryAvailable = byokRegistry.order.length > 0;
+    const byokCandidates = describeProviderRoutePolicyCandidates(
+      byokRegistry,
+      byokRegistry.order,
+      routePolicyContext,
+      this.getAvailableProviderIds(byokRegistry)
+    ).map(candidate => {
+      const registrySelected = byokRegistryAvailable && candidate.allowed;
+      return {
+        ...candidate,
+        registryKind: 'byok' as const,
+        registryAvailable: byokRegistryAvailable,
+        registrySelected,
+        reasons: unique([
+          ...candidate.reasons,
+          ...(!byokRegistryAvailable ? ['registry_unavailable'] : []),
+          ...(registrySelected ? ['registry_selected'] : []),
+        ]),
+      };
+    });
+    const byokSelected = byokCandidates.some(candidate => candidate.allowed);
+    const quotaBackedCandidates = describeProviderRoutePolicyCandidates(
+      quotaBackedRegistry,
+      quotaBackedRegistry.order,
+      routePolicyContext,
+      this.getAvailableProviderIds(quotaBackedRegistry)
+    ).map(candidate => {
+      const registrySelected =
+        !byokSelected && quotaBackedRoutesAvailable && candidate.allowed;
+      return {
+        ...candidate,
+        registryKind: 'quota_backed' as const,
+        registryAvailable: quotaBackedRoutesAvailable,
+        registrySelected,
+        reasons: unique([
+          ...candidate.reasons,
+          ...(!quotaBackedRoutesAvailable ? ['registry_unavailable'] : []),
+          ...(byokSelected ? ['registry_shadowed_by_byok'] : []),
+          ...(registrySelected ? ['registry_selected'] : []),
+        ]),
+      };
+    });
+
+    return [...byokCandidates, ...quotaBackedCandidates];
   }
 
   private async describeRouteCandidatesFromRegistry(

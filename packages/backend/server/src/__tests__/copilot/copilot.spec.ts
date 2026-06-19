@@ -4726,61 +4726,96 @@ test('resolver models should expose workspace task route diagnostics', async t =
       featureKind: 'chat',
     };
   });
-  Sinon.stub(factory, 'describeRoutePolicyCandidates').callsFake(context => {
-    if (context.featureKind === 'workspace_indexing') {
-      return [
-        {
-          providerId: 'ollama-main',
-          privacy: 'local',
-          health: 'healthy',
-          available: true,
-          allowed: true,
-          reasons: ['candidate_allowed', 'privacy_preferred'],
-        },
-        {
-          providerId: 'openai-default',
-          privacy: 'private_cloud',
-          health: 'degraded',
-          available: true,
-          allowed: true,
-          reasons: ['candidate_allowed', 'privacy_preferred'],
-        },
-        {
-          providerId: 'blocked-cloud',
-          privacy: 'cloud',
-          health: 'healthy',
-          available: true,
-          allowed: false,
-          reasons: ['provider_blocked', 'privacy_not_allowed'],
-        },
-      ];
+  Sinon.stub(factory, 'describeEffectiveRoutePolicyCandidates').callsFake(
+    async context => {
+      if (context.featureKind === 'workspace_indexing') {
+        return [
+          {
+            providerId: 'ollama-main',
+            privacy: 'local',
+            health: 'healthy',
+            available: true,
+            allowed: true,
+            registryKind: 'byok',
+            registryAvailable: true,
+            registrySelected: true,
+            reasons: [
+              'candidate_allowed',
+              'privacy_preferred',
+              'registry_selected',
+            ],
+          },
+          {
+            providerId: 'openai-default',
+            privacy: 'private_cloud',
+            health: 'degraded',
+            available: true,
+            allowed: true,
+            registryKind: 'quota_backed',
+            registryAvailable: true,
+            registrySelected: false,
+            reasons: [
+              'candidate_allowed',
+              'privacy_preferred',
+              'registry_shadowed_by_byok',
+            ],
+          },
+          {
+            providerId: 'blocked-cloud',
+            privacy: 'cloud',
+            health: 'healthy',
+            available: true,
+            allowed: false,
+            registryKind: 'quota_backed',
+            registryAvailable: true,
+            registrySelected: false,
+            reasons: [
+              'provider_blocked',
+              'privacy_not_allowed',
+              'registry_shadowed_by_byok',
+            ],
+          },
+        ];
+      }
+      if (context.featureKind === 'rerank') {
+        return [
+          {
+            providerId: 'ollama-main',
+            privacy: 'local',
+            health: 'healthy',
+            available: true,
+            allowed: true,
+            registryKind: 'byok',
+            registryAvailable: true,
+            registrySelected: true,
+            reasons: [
+              'candidate_allowed',
+              'privacy_preferred',
+              'registry_selected',
+            ],
+          },
+          {
+            providerId: 'blocked-cloud',
+            privacy: 'cloud',
+            health: 'down',
+            available: false,
+            allowed: false,
+            registryKind: 'quota_backed',
+            registryAvailable: false,
+            registrySelected: false,
+            reasons: [
+              'provider_unavailable',
+              'provider_blocked',
+              'privacy_not_allowed',
+              'registry_unavailable',
+              'registry_shadowed_by_byok',
+            ],
+          },
+        ];
+      }
+      return [];
     }
-    if (context.featureKind === 'rerank') {
-      return [
-        {
-          providerId: 'ollama-main',
-          privacy: 'local',
-          health: 'healthy',
-          available: true,
-          allowed: true,
-          reasons: ['candidate_allowed', 'privacy_preferred'],
-        },
-        {
-          providerId: 'blocked-cloud',
-          privacy: 'cloud',
-          health: 'down',
-          available: false,
-          allowed: false,
-          reasons: [
-            'provider_unavailable',
-            'provider_blocked',
-            'privacy_not_allowed',
-          ],
-        },
-      ];
-    }
-    return [];
-  });
+  );
   Sinon.stub(factory, 'describeRouteCandidates').callsFake(async cond => {
     if (cond.outputType === ModelOutputType.Embedding) {
       return [
@@ -5089,7 +5124,14 @@ test('resolver models should expose workspace task route diagnostics', async t =
         health: 'healthy',
         available: true,
         allowed: true,
-        reasons: ['candidate_allowed', 'privacy_preferred'],
+        registryKind: 'byok',
+        registryAvailable: true,
+        registrySelected: true,
+        reasons: [
+          'candidate_allowed',
+          'privacy_preferred',
+          'registry_selected',
+        ],
       },
       {
         providerId: 'openai-default',
@@ -5097,7 +5139,14 @@ test('resolver models should expose workspace task route diagnostics', async t =
         health: 'degraded',
         available: true,
         allowed: true,
-        reasons: ['candidate_allowed', 'privacy_preferred'],
+        registryKind: 'quota_backed',
+        registryAvailable: true,
+        registrySelected: false,
+        reasons: [
+          'candidate_allowed',
+          'privacy_preferred',
+          'registry_shadowed_by_byok',
+        ],
       },
       {
         providerId: 'blocked-cloud',
@@ -5105,7 +5154,14 @@ test('resolver models should expose workspace task route diagnostics', async t =
         health: 'healthy',
         available: true,
         allowed: false,
-        reasons: ['provider_blocked', 'privacy_not_allowed'],
+        registryKind: 'quota_backed',
+        registryAvailable: true,
+        registrySelected: false,
+        reasons: [
+          'provider_blocked',
+          'privacy_not_allowed',
+          'registry_shadowed_by_byok',
+        ],
       },
     ],
     routeCandidates: [
@@ -5166,6 +5222,8 @@ test('resolver models should expose workspace task route diagnostics', async t =
         reasons: [
           'candidate_allowed',
           'privacy_preferred',
+          'registry_selected',
+          'registry_shadowed_by_byok',
           'provider_blocked',
           'privacy_not_allowed',
         ],
@@ -5317,7 +5375,14 @@ test('resolver models should expose workspace task route diagnostics', async t =
         health: 'healthy',
         available: true,
         allowed: true,
-        reasons: ['candidate_allowed', 'privacy_preferred'],
+        registryKind: 'byok',
+        registryAvailable: true,
+        registrySelected: true,
+        reasons: [
+          'candidate_allowed',
+          'privacy_preferred',
+          'registry_selected',
+        ],
       },
       {
         providerId: 'blocked-cloud',
@@ -5325,10 +5390,15 @@ test('resolver models should expose workspace task route diagnostics', async t =
         health: 'down',
         available: false,
         allowed: false,
+        registryKind: 'quota_backed',
+        registryAvailable: false,
+        registrySelected: false,
         reasons: [
           'provider_unavailable',
           'provider_blocked',
           'privacy_not_allowed',
+          'registry_unavailable',
+          'registry_shadowed_by_byok',
         ],
       },
     ],
@@ -5367,9 +5437,12 @@ test('resolver models should expose workspace task route diagnostics', async t =
         reasons: [
           'candidate_allowed',
           'privacy_preferred',
+          'registry_selected',
           'provider_unavailable',
           'provider_blocked',
           'privacy_not_allowed',
+          'registry_unavailable',
+          'registry_shadowed_by_byok',
         ],
       },
       {

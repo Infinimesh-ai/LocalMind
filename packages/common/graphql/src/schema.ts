@@ -1823,6 +1823,9 @@ export interface CopilotPromptRegistryPublishGatePolicyCandidateType {
   providerPriority?: Maybe<Scalars['SafeInt']['output']>;
   providerSource?: Maybe<Scalars['String']['output']>;
   providerType?: Maybe<Scalars['String']['output']>;
+  registryAvailable?: Maybe<Scalars['Boolean']['output']>;
+  registryKind?: Maybe<Scalars['String']['output']>;
+  registrySelected?: Maybe<Scalars['Boolean']['output']>;
   reasons: Array<Scalars['String']['output']>;
 }
 
@@ -2331,6 +2334,9 @@ export interface CopilotTaskRoutePolicyCandidateDiagnosticsType {
   providerSource?: Maybe<Scalars['String']['output']>;
   providerPriority?: Maybe<Scalars['SafeInt']['output']>;
   providerType?: Maybe<Scalars['String']['output']>;
+  registryAvailable?: Maybe<Scalars['Boolean']['output']>;
+  registryKind?: Maybe<Scalars['String']['output']>;
+  registrySelected?: Maybe<Scalars['Boolean']['output']>;
   reasons: Array<Scalars['String']['output']>;
 }
 
@@ -7198,6 +7204,9 @@ export type GetPromptModelsQuery = {
             providerSource: string | null;
             providerPriority: number | null;
             providerType: string | null;
+            registryAvailable: boolean | null;
+            registryKind: string | null;
+            registrySelected: boolean | null;
             reasons: Array<string>;
           }>;
           routeCandidates: Array<{
@@ -7532,6 +7541,9 @@ export type GetPromptModelsQuery = {
             providerSource: string | null;
             providerPriority: number | null;
             providerType: string | null;
+            registryAvailable: boolean | null;
+            registryKind: string | null;
+            registrySelected: boolean | null;
             reasons: Array<string>;
           }>;
           routeCandidates: Array<{
@@ -7983,6 +7995,9 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             providerProfileSource: string | null;
             providerSource: string | null;
             providerType: string | null;
+            registryAvailable: boolean | null;
+            registryKind: string | null;
+            registrySelected: boolean | null;
             reasons: Array<string>;
           }>;
           protocol: string | null;
@@ -8107,6 +8122,9 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             providerProfileSource: string | null;
             providerSource: string | null;
             providerType: string | null;
+            registryAvailable: boolean | null;
+            registryKind: string | null;
+            registrySelected: boolean | null;
             reasons: Array<string>;
           }>;
           protocol: string | null;
@@ -8500,6 +8518,9 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
               providerProfileSource: string | null;
               providerSource: string | null;
               providerType: string | null;
+              registryAvailable: boolean | null;
+              registryKind: string | null;
+              registrySelected: boolean | null;
               reasons: Array<string>;
             }> | null;
             policyCandidateSnapshotFingerprint: string | null;

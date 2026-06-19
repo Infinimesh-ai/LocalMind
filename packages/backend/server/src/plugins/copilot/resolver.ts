@@ -68,6 +68,7 @@ import type {
   ResolvedPrompt,
 } from './prompt/spec';
 import {
+  type CopilotProviderEffectiveRoutePolicyCandidateDiagnostics,
   CopilotProviderFactory,
   type CopilotProviderPrepareCandidateDiagnostics,
   type ResolvedCopilotProvider,
@@ -670,6 +671,9 @@ type CopilotPromptRegistryPublishGatePolicyCandidate = {
   providerProfileSource?: string;
   providerSource?: string;
   providerType?: string;
+  registryAvailable?: boolean;
+  registryKind?: string;
+  registrySelected?: boolean;
   reasons: string[];
 };
 
@@ -730,7 +734,7 @@ type CopilotPromptRegistryPublishGateTaskRoute =
   CopilotTaskRouteDiagnosticsType;
 
 type CopilotTaskRoutePolicyCandidateWithKey =
-  CopilotProviderRoutePolicyCandidateDiagnostics & {
+  CopilotProviderEffectiveRoutePolicyCandidateDiagnostics & {
     candidateFingerprint: string;
     candidateKey: string;
   };
@@ -1747,6 +1751,15 @@ class CopilotPromptRegistryPublishGatePolicyCandidateType implements CopilotProm
 
   @Field(() => String, { nullable: true })
   providerType?: CopilotPromptRegistryPublishGatePolicyCandidate['providerType'];
+
+  @Field(() => Boolean, { nullable: true })
+  registryAvailable?: CopilotPromptRegistryPublishGatePolicyCandidate['registryAvailable'];
+
+  @Field(() => String, { nullable: true })
+  registryKind?: CopilotPromptRegistryPublishGatePolicyCandidate['registryKind'];
+
+  @Field(() => Boolean, { nullable: true })
+  registrySelected?: CopilotPromptRegistryPublishGatePolicyCandidate['registrySelected'];
 
   @Field(() => [String])
   reasons!: CopilotPromptRegistryPublishGatePolicyCandidate['reasons'];
@@ -5894,6 +5907,15 @@ function taskRouteCandidateProfileStructuredEvidence(
         : {}),
       ...(candidate.providerType
         ? { providerType: candidate.providerType }
+        : {}),
+      ...(candidate.registryAvailable !== undefined
+        ? { registryAvailable: candidate.registryAvailable }
+        : {}),
+      ...(candidate.registryKind
+        ? { registryKind: candidate.registryKind }
+        : {}),
+      ...(candidate.registrySelected !== undefined
+        ? { registrySelected: candidate.registrySelected }
         : {}),
       reasons: candidate.reasons,
     }));
@@ -14321,7 +14343,7 @@ function buildTaskRouteCandidateKey(
 }
 
 function buildTaskRoutePolicyCandidateKey(input: {
-  candidate: CopilotProviderRoutePolicyCandidateDiagnostics;
+  candidate: CopilotProviderEffectiveRoutePolicyCandidateDiagnostics;
   featureKind: CopilotProviderRoutePolicyFeatureKind;
   workspaceId?: string;
 }) {
@@ -14331,6 +14353,9 @@ function buildTaskRoutePolicyCandidateKey(input: {
     input.workspaceId ?? 'global',
     input.candidate.providerId,
     input.candidate.providerProfileId ?? '',
+    input.candidate.registryKind ?? 'unknown_registry',
+    input.candidate.registryAvailable ?? null,
+    input.candidate.registrySelected ?? null,
     input.candidate.privacy,
     input.candidate.health,
     input.candidate.available,
@@ -14339,7 +14364,7 @@ function buildTaskRoutePolicyCandidateKey(input: {
 }
 
 function withTaskRoutePolicyCandidateKeys(
-  candidates: CopilotProviderRoutePolicyCandidateDiagnostics[],
+  candidates: CopilotProviderEffectiveRoutePolicyCandidateDiagnostics[],
   context: {
     featureKind: CopilotProviderRoutePolicyFeatureKind;
     workspaceId?: string;
@@ -15308,6 +15333,15 @@ class CopilotTaskRoutePolicyCandidateDiagnosticsType {
   @Field(() => String, { nullable: true })
   providerType?: string;
 
+  @Field(() => Boolean, { nullable: true })
+  registryAvailable?: boolean;
+
+  @Field(() => String, { nullable: true })
+  registryKind?: string;
+
+  @Field(() => Boolean, { nullable: true })
+  registrySelected?: boolean;
+
   @Field(() => SafeIntResolver, { nullable: true })
   providerPriority?: number;
 
@@ -15935,12 +15969,10 @@ export class CopilotResolver {
     const embeddingRoutePolicy = this.providerFactory.describeRoutePolicy(
       embeddingRoutePolicyContext
     );
-    const embeddingRoutePolicyCandidates = withTaskRoutePolicyCandidateKeys(
-      this.providerFactory.describeRoutePolicyCandidates(
+    const describeEmbeddingRoutePolicyCandidates = () =>
+      this.providerFactory.describeEffectiveRoutePolicyCandidates(
         embeddingRoutePolicyContext
-      ),
-      embeddingRoutePolicyContext
-    );
+      );
     const describeEmbeddingRouteCandidates = () =>
       this.providerFactory.describeRouteCandidates(
         {
@@ -15963,12 +15995,10 @@ export class CopilotResolver {
     const rerankRoutePolicy = this.providerFactory.describeRoutePolicy(
       rerankRoutePolicyContext
     );
-    const rerankRoutePolicyCandidates = withTaskRoutePolicyCandidateKeys(
-      this.providerFactory.describeRoutePolicyCandidates(
+    const describeRerankRoutePolicyCandidates = () =>
+      this.providerFactory.describeEffectiveRoutePolicyCandidates(
         rerankRoutePolicyContext
-      ),
-      rerankRoutePolicyContext
-    );
+      );
     const describeRerankRouteCandidates = () =>
       this.providerFactory.describeRouteCandidates(
         {
@@ -15993,32 +16023,45 @@ export class CopilotResolver {
       );
     const describeEmbeddingRoute =
       async (): Promise<CopilotTaskRouteDiagnosticsType> => {
-        const [routeResult, routeCandidatesResult, prepareCandidatesResult] =
-          await Promise.all([
-            settleTaskRouteDiagnosticsProbe('describe_embedding_route', () =>
-              this.capabilityRuntime.describeEmbeddingRoute(
-                workspaceIndexingModelId,
-                {
-                  ...taskRouteOptions,
-                  dimensions: EMBEDDING_DIMENSIONS,
-                  featureKind: 'workspace_indexing',
-                }
-              )
-            ),
-            settleTaskRouteDiagnosticsProbe(
-              'describe_route_candidates',
-              describeEmbeddingRouteCandidates
-            ),
-            settleTaskRouteDiagnosticsProbe(
-              'describe_embedding_prepare_candidates',
-              describeEmbeddingPrepareCandidates
-            ),
-          ]);
+        const [
+          routePolicyCandidatesResult,
+          routeResult,
+          routeCandidatesResult,
+          prepareCandidatesResult,
+        ] = await Promise.all([
+          settleTaskRouteDiagnosticsProbe(
+            'describe_route_policy_candidates',
+            describeEmbeddingRoutePolicyCandidates
+          ),
+          settleTaskRouteDiagnosticsProbe('describe_embedding_route', () =>
+            this.capabilityRuntime.describeEmbeddingRoute(
+              workspaceIndexingModelId,
+              {
+                ...taskRouteOptions,
+                dimensions: EMBEDDING_DIMENSIONS,
+                featureKind: 'workspace_indexing',
+              }
+            )
+          ),
+          settleTaskRouteDiagnosticsProbe(
+            'describe_route_candidates',
+            describeEmbeddingRouteCandidates
+          ),
+          settleTaskRouteDiagnosticsProbe(
+            'describe_embedding_prepare_candidates',
+            describeEmbeddingPrepareCandidates
+          ),
+        ]);
         const diagnosticsErrors = [
+          ...routePolicyCandidatesResult.errors,
           ...routeResult.errors,
           ...routeCandidatesResult.errors,
           ...prepareCandidatesResult.errors,
         ];
+        const embeddingRoutePolicyCandidates = withTaskRoutePolicyCandidateKeys(
+          routePolicyCandidatesResult.value ?? [],
+          embeddingRoutePolicyContext
+        );
         const route = routeResult.value;
         const routeCandidates = (routeCandidatesResult.value ?? []).map(
           candidate => ({
@@ -16140,28 +16183,41 @@ export class CopilotResolver {
       };
     const describeRerankRoute =
       async (): Promise<CopilotTaskRouteDiagnosticsType> => {
-        const [routeResult, routeCandidatesResult, prepareCandidatesResult] =
-          await Promise.all([
-            settleTaskRouteDiagnosticsProbe('describe_rerank_route', () =>
-              this.capabilityRuntime.describeRerankRoute(rerankModelId, {
-                ...taskRouteOptions,
-                featureKind: 'rerank',
-              })
-            ),
-            settleTaskRouteDiagnosticsProbe(
-              'describe_route_candidates',
-              describeRerankRouteCandidates
-            ),
-            settleTaskRouteDiagnosticsProbe(
-              'describe_rerank_prepare_candidates',
-              describeRerankPrepareCandidates
-            ),
-          ]);
+        const [
+          routePolicyCandidatesResult,
+          routeResult,
+          routeCandidatesResult,
+          prepareCandidatesResult,
+        ] = await Promise.all([
+          settleTaskRouteDiagnosticsProbe(
+            'describe_route_policy_candidates',
+            describeRerankRoutePolicyCandidates
+          ),
+          settleTaskRouteDiagnosticsProbe('describe_rerank_route', () =>
+            this.capabilityRuntime.describeRerankRoute(rerankModelId, {
+              ...taskRouteOptions,
+              featureKind: 'rerank',
+            })
+          ),
+          settleTaskRouteDiagnosticsProbe(
+            'describe_route_candidates',
+            describeRerankRouteCandidates
+          ),
+          settleTaskRouteDiagnosticsProbe(
+            'describe_rerank_prepare_candidates',
+            describeRerankPrepareCandidates
+          ),
+        ]);
         const diagnosticsErrors = [
+          ...routePolicyCandidatesResult.errors,
           ...routeResult.errors,
           ...routeCandidatesResult.errors,
           ...prepareCandidatesResult.errors,
         ];
+        const rerankRoutePolicyCandidates = withTaskRoutePolicyCandidateKeys(
+          routePolicyCandidatesResult.value ?? [],
+          rerankRoutePolicyContext
+        );
         const route = routeResult.value;
         const routeCandidates = (routeCandidatesResult.value ?? []).map(
           candidate => ({

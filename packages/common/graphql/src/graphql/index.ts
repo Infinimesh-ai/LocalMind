@@ -1402,6 +1402,9 @@ export const getPromptModelsQuery = {
             providerSource
             providerPriority
             providerType
+            registryAvailable
+            registryKind
+            registrySelected
             reasons
           }
           routeCandidates {
@@ -1713,6 +1716,9 @@ export const getPromptModelsQuery = {
             providerSource
             providerPriority
             providerType
+            registryAvailable
+            registryKind
+            registrySelected
             reasons
           }
           routeCandidates {
@@ -2136,6 +2142,9 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             providerProfileSource
             providerSource
             providerType
+            registryAvailable
+            registryKind
+            registrySelected
             reasons
           }
           protocol
@@ -2243,6 +2252,9 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             providerProfileSource
             providerSource
             providerType
+            registryAvailable
+            registryKind
+            registrySelected
             reasons
           }
           protocol
@@ -2353,6 +2365,9 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             providerProfileId
             providerProfileSource
             providerType
+            registryAvailable
+            registryKind
+            registrySelected
             reasons
           }
           routeCandidates {
@@ -2785,6 +2800,9 @@ export const getCopilotPromptRegistryPublishGateQuery = {
               providerProfileSource
               providerSource
               providerType
+              registryAvailable
+              registryKind
+              registrySelected
               reasons
             }
             policyCandidateSnapshotFingerprint

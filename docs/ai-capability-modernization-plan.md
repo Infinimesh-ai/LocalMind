@@ -14668,3 +14668,44 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - workspace embedding 仍受 `EMBEDDING_DIMENSIONS = 1024` 与当前 pgvector 表结构约束；本轮不实现多维度索引、模型变更检测、历史索引重建任务或多维索引共存。
 - BYOK 动态 profiles 仍未进入同步 `getConfiguredModelIds()` / requested model matcher 的 configured candidate 输入；执行路由继续通过 `resolveProvider()` / `resolveModelId()` 与 route diagnostics 接入。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 439. P1 落地记录：Task Route Policy Candidate Effective Registry Diagnostics
+
+本轮继续收敛第 438 节剩余风险中 “BYOK 动态 profiles 仍未进入同步 configured candidate 输入，但执行路由已通过 effective registry 接入” 的观测差异。实际代码与目标 AI 中间层架构的冲突点是：embedding/rerank task route 的 `routeCandidates` 已经通过 `describeRouteCandidates()` 走 `getEffectiveRegistry()`，能同时展示 workspace BYOK registry 与 quota-backed registry；但同一条 task route 的 `policyCandidates` 仍调用同步 `describeRoutePolicyCandidates()`，只枚举 quota-backed Provider Registry。这样当 workspace BYOK route 实际优先选中时，Admin/repair evidence 的 policy phase 仍像只看 quota-backed provider，导致 BYOK shadow、quota fallback 与 route policy blocked provider 的诊断证据不一致。
+
+- `packages/backend/server/src/plugins/copilot/providers/factory.ts`：
+  - 新增 `describeEffectiveRoutePolicyCandidates(context)`，复用现有 `getEffectiveRegistry(context)` 同时枚举 BYOK 与 quota-backed registry 的 policy candidates。
+  - policy candidates 新增 `registryKind`、`registryAvailable` 与 `registrySelected` 诊断字段；BYOK 可用且 policy allowed 时标记 `registry_selected`，quota-backed 在 BYOK 已有 allowed candidate 时标记 `registry_shadowed_by_byok`，quota 不可用时标记 `registry_unavailable`。
+  - 保留原同步 `describeRoutePolicyCandidates()`，继续供 Prompt Registry model route publish gate 等同步调用点使用，不把 BYOK 动态 profile 强行塞进同步 configured candidate 枚举。
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - embedding/rerank task route diagnostics 改为通过 async probe 调用 `describeEffectiveRoutePolicyCandidates()`，并把失败纳入 `diagnosticsErrors`，与 route/prepare probes 一致。
+  - `CopilotTaskRoutePolicyCandidateDiagnosticsType` 与 Prompt Registry repair evidence 的 policy candidate snapshot 绑定 registry branch 字段，避免 BYOK 与 quota-backed policy evidence 在同一 provider id/health/allow 状态下合并。
+  - Prompt Registry publish gate policy candidate GraphQL type 也暴露 registry branch 字段，便于 task route repair evidence 与 model route diagnostics 共用同一只读 projection 结构。
+- `packages/common/graphql/src/graphql/index.ts`、`packages/common/graphql/src/schema.ts` 与 `packages/frontend/core/src/modules/ai-button/services/models.ts`：
+  - common query/type 与前端 task route policy trace 增加 `registryKind`、`registryAvailable`、`registrySelected`。
+  - 前端模型 diagnostics 文本展示 policy candidate 所属 registry、selected registry 与 registry unavailable 状态。
+- 测试覆盖：
+  - `resolver-model-source-chain.smoke.ts` 容器 smoke 覆盖 task route policy candidate registry fields、repair evidence policy candidate snapshot fingerprint 与 BYOK/quota-backed evidence binding。
+  - `copilot.spec.ts` fixture 同步 task route policy candidates 的 BYOK selected、quota-backed shadowed/unavailable 与 route trace reason 语义。
+
+该实现只扩展 task route policy candidate diagnostics、GraphQL/common/frontend 只读字段、repair evidence snapshot 与 focused tests，不新增 DB migration、不改变 provider route selection、fallback order、BYOK lease 获取、quota 判定、provider health check、Prompt Registry model route publish gate 判定、`copilot.tasks.models` 配置格式、embedding/rerank native request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、MCP registry、Codex adapter、support bundle lifecycle 或 Action Runtime 状态机。它把 “task route policy phase 看到的是 BYOK registry 还是 quota-backed registry” 从隐式 route candidate 推断推进到 policy candidate 本身，为自部署 BYOK embedding/rerank 排障、Prompt Registry repair evidence 和后续 Model Registry effective source chain 提供稳定观测点。
+
+验证策略：
+
+- 本轮为 TypeScript resolver/provider/common/frontend/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 已确认现有测试镜像 `localmind-affine:test` 存在，镜像 ID 为 `c3389960f5ed`；通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行验证。
+- 容器内通过：
+  - `yarn r packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts`
+  - `yarn oxlint packages/backend/server/src/plugins/copilot/providers/factory.ts packages/backend/server/src/plugins/copilot/resolver.ts packages/backend/server/src/__tests__/copilot/copilot.spec.ts packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts packages/common/graphql/src/graphql/index.ts packages/common/graphql/src/schema.ts packages/frontend/core/src/modules/ai-button/services/models.ts`
+  - `yarn prettier --check packages/backend/server/src/plugins/copilot/providers/factory.ts packages/backend/server/src/plugins/copilot/resolver.ts packages/backend/server/src/__tests__/copilot/copilot.spec.ts packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts packages/common/graphql/src/graphql/index.ts packages/common/graphql/src/schema.ts packages/frontend/core/src/modules/ai-button/services/models.ts`
+  - `git diff --check`
+- 尝试在容器内直接运行 AVA 目标用例 `packages/backend/server/src/__tests__/copilot/copilot.spec.ts` 时，当前测试镜像仍触发既有 `ERR_MODULE_NOT_FOUND: Cannot find module '/workspace/packages/backend/server/src/env' imported from /workspace/packages/backend/server/src/prelude.ts`，且没有命中目标用例；本轮继续以 `yarn r ...resolver-model-source-chain.smoke.ts` 作为可靠 backend focused 验证入口。
+- 当前本机 Docker Compose `run` 帮助未暴露 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never`、`--no-deps` 与镜像 ID 不变作为不重建 test-runner 的证据。
+
+剩余风险：
+
+- `describeEffectiveRoutePolicyCandidates()` 仍是只读 diagnostics，不是 DB-backed Model Registry effective source table，也不把 BYOK 动态 profiles 写入同步 `getConfiguredModelIds()` 或 native requested model matcher 的 provider id 输入。
+- `registrySelected` 表示 policy/access registry branch 当前是否可被优先使用，不等同于最终 capability match、prepare success 或真实 request route；最终选中仍以 `routeCandidates`、`prepareCandidates` 与 prepared routes 为准。
+- Prompt Registry model route publish gate 仍使用同步 quota-backed policy candidate 枚举；本轮仅让 task route diagnostics 与 execution effective registry 对齐。后续若要让 model route publish gate 展示 BYOK branch，需要拆出 async gate path 或新增单独的 effective diagnostics projection。
+- repair evidence snapshot 现在绑定 registry branch 字段，会改变相关只读 fingerprint；既有未更新的外部快照如果依赖旧 fingerprint，需要按新 evidence schema 重新生成。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
