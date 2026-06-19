@@ -263,6 +263,8 @@ const candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInp
     'storageFingerprint',
     'storageStatus',
   ] as const;
+const candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatusFixture =
+  'not_materialized_read_only';
 
 function candidateEvidenceClassificationSummaryFixture(
   candidateEvidenceKeys: string[]
@@ -4951,6 +4953,8 @@ async function main() {
             ],
           candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus:
             candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatusFixture,
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatus:
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatusFixture,
           candidateEvidenceReferenceSchemaArtifactRecordStorageStatus:
             candidateEvidenceReferenceSchemaArtifactRecordStorageStatusFixture,
           candidateEvidenceReferenceSchemaArtifactRecordStatus:
@@ -5062,6 +5066,10 @@ async function main() {
   assert.equal(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus,
     candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatusFixture
+  );
+  assert.equal(
+    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatus,
+    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatusFixture
   );
   assert.equal(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageStatus,
