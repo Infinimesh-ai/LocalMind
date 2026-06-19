@@ -1367,6 +1367,8 @@ export const getPromptModelsQuery = {
           }
           dimensionMismatch
           effectiveSourceFingerprint
+          effectiveSourceFingerprintInputs
+          effectiveSourceFingerprintVersion
           embeddingIndexContractDimensions
           embeddingIndexContractFingerprint
           embeddingIndexContractStatus
@@ -1594,6 +1596,8 @@ export const getPromptModelsQuery = {
           registryKind
           registrySelected
           effectiveSourceFingerprint
+          effectiveSourceFingerprintInputs
+          effectiveSourceFingerprintVersion
           routeBackendKind
           routeBehaviorFlags
           routeCanonicalModelKey
@@ -1656,6 +1660,8 @@ export const getPromptModelsQuery = {
           registryKind
           registrySelected
           effectiveSourceFingerprint
+          effectiveSourceFingerprintInputs
+          effectiveSourceFingerprintVersion
           routeBackendKind
           routeBehaviorFlags
           routeCanonicalModelKey
@@ -1690,6 +1696,8 @@ export const getPromptModelsQuery = {
           }
           dimensionMismatch
           effectiveSourceFingerprint
+          effectiveSourceFingerprintInputs
+          effectiveSourceFingerprintVersion
           embeddingIndexContractDimensions
           embeddingIndexContractFingerprint
           embeddingIndexContractStatus
@@ -2122,6 +2130,8 @@ export const getCopilotPromptRegistryPublishGateQuery = {
           diagnosticsErrorMessage
           diagnosticsErrorStage
           effectiveSourceFingerprint
+          effectiveSourceFingerprintInputs
+          effectiveSourceFingerprintVersion
           fallbackProviderIds
           featureKind
           matchedCandidateCount
@@ -2235,6 +2245,8 @@ export const getCopilotPromptRegistryPublishGateQuery = {
           diagnosticsErrorMessage
           diagnosticsErrorStage
           effectiveSourceFingerprint
+          effectiveSourceFingerprintInputs
+          effectiveSourceFingerprintVersion
           fallbackProviderIds
           featureKind
           matchedCandidateCount
@@ -2344,6 +2356,8 @@ export const getCopilotPromptRegistryPublishGateQuery = {
           }
           dimensionMismatch
           effectiveSourceFingerprint
+          effectiveSourceFingerprintInputs
+          effectiveSourceFingerprintVersion
           embeddingIndexContractDimensions
           embeddingIndexContractFingerprint
           embeddingIndexContractStatus

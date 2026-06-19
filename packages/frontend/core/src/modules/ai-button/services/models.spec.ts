@@ -3134,6 +3134,9 @@ describe('AIModelService model registry helpers', () => {
         providerPrivacy: 'local',
         providerType: 'openaiCompatible',
         effectiveSourceFingerprint: 'abc123ef45678900',
+        effectiveSourceFingerprintInputs: ['id', 'providerId'],
+        effectiveSourceFingerprintVersion:
+          'copilot-model-list-effective-source/v1',
         routeFallbackProviderIds: ['openai-default'],
         routeAttachmentKinds: ['file'],
         routeAttachmentSourceKinds: ['url', 'data'],
@@ -3157,7 +3160,7 @@ describe('AIModelService model registry helpers', () => {
       'Local Ollama (ollama-main) / Local / Healthy',
       'Route ollama-main/qwen3:32b',
       'Fallback openai-default',
-      'Source fingerprint abc123ef45678900',
+      'Source fingerprint abc123ef45678900 / Source version copilot-model-list-effective-source/v1 / Source inputs id, providerId',
       'Input text / Output text / Attachments file / Attachment sources url, data / Remote attachments no / Structured attachments image / Structured attachment sources file_handle / Structured remote attachments yes',
       'Policy Chat / Workspace workspace-local-only / Allowed Local, Private cloud / Preferred Local / Providers ollama-main / Blocked blocked-cloud',
       'Default / Prompt / Registry',
@@ -3395,6 +3398,13 @@ describe('AIModelService model registry helpers', () => {
         modelEmbeddingDimensions: 768,
         dimensionMismatch: true,
         effectiveSourceFingerprint: 'taskfeed12345678',
+        effectiveSourceFingerprintInputs: [
+          'featureKind',
+          'preparedRoutes',
+          'routeCandidates',
+        ],
+        effectiveSourceFingerprintVersion:
+          'copilot-task-route-effective-source/v1',
       },
       rerankRoute: {
         configured: true,
@@ -3497,6 +3507,12 @@ describe('AIModelService model registry helpers', () => {
       'Workspace indexing / requested ollama-main/workspace-embedding / source Workspace indexing task model / config copilot.tasks.models.workspaceIndexing'
     );
     expect(taskRouteLabel).toContain('source fingerprint taskfeed12345678');
+    expect(taskRouteLabel).toContain(
+      'source version copilot-task-route-effective-source/v1'
+    );
+    expect(taskRouteLabel).toContain(
+      'source inputs featureKind, preparedRoutes, routeCandidates'
+    );
     expect(taskRouteLabel).toContain(
       'profile Profile ollama-main / BYOK local / config workspace.byok.local / 2 configured models / models workspace-embedding, nomic-embed-text'
     );
@@ -3603,6 +3619,9 @@ describe('AIModelService model registry helpers', () => {
         providerHealthLastError: 'previous timeout',
         providerPriority: 10,
         effectiveSourceFingerprint: 'abc123ef45678900',
+        effectiveSourceFingerprintInputs: ['id', 'providerId'],
+        effectiveSourceFingerprintVersion:
+          'copilot-model-list-effective-source/v1',
         routeBackendKind: 'openai_chat',
         routeCanonicalModelKey: 'office-chat-fast',
         routeRawModelId: 'qwen3:32b',
@@ -3772,7 +3791,7 @@ describe('AIModelService model registry helpers', () => {
         'Provider priority 10',
         'Route ollama-main/qwen3:32b',
         'Fallback providers ollama-main -> openai-default',
-        'Source fingerprint abc123ef45678900',
+        'Source fingerprint abc123ef45678900 / Source version copilot-model-list-effective-source/v1 / Source inputs id, providerId',
         'Model definition Provider profile / Definition office-chat-fast / Raw qwen3:32b / Aliases office-chat, qwen-office / Alias matched / openai_chat / Canonical office-chat-fast / Protocol openai_chat / Layer chat_completions / Flags disable_parallel_tool_calls',
         'Capabilities Input text, image / Output text, structured',
         'Policy Chat / Workspace workspace-local-only / Allowed Local / Preferred Local, Cloud / Providers ollama-main / Blocked openai-default',

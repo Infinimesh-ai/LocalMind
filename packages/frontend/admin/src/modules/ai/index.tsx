@@ -1272,6 +1272,12 @@ function formatPromptRegistryPublishGateTaskRoute(route: {
     route.raw.effectiveSourceFingerprint
       ? `source fingerprint ${route.raw.effectiveSourceFingerprint}`
       : null,
+    route.raw.effectiveSourceFingerprintVersion
+      ? `source version ${route.raw.effectiveSourceFingerprintVersion}`
+      : null,
+    route.raw.effectiveSourceFingerprintInputs?.length
+      ? `source inputs ${route.raw.effectiveSourceFingerprintInputs.join(', ')}`
+      : null,
     route.raw.rerankRuntimeContractVersion
       ? `rerank runtime contract ${route.raw.rerankRuntimeContractVersion}`
       : null,
@@ -4908,6 +4914,12 @@ function formatPromptRegistryPublishGateModelRoute(
       : null,
     route.effectiveSourceFingerprint
       ? `source fingerprint ${route.effectiveSourceFingerprint}`
+      : null,
+    route.effectiveSourceFingerprintVersion
+      ? `source version ${route.effectiveSourceFingerprintVersion}`
+      : null,
+    route.effectiveSourceFingerprintInputs?.length
+      ? `source inputs ${route.effectiveSourceFingerprintInputs.join(', ')}`
       : null,
     `feature ${formatFeatureKind(route.featureKind)}`,
     `output ${formatFeatureKind(route.outputType)}`,

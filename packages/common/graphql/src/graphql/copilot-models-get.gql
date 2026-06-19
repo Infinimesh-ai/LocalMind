@@ -18,6 +18,8 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
           }
           dimensionMismatch
           effectiveSourceFingerprint
+          effectiveSourceFingerprintInputs
+          effectiveSourceFingerprintVersion
           embeddingIndexContractDimensions
           embeddingIndexContractFingerprint
           embeddingIndexContractStatus
@@ -238,6 +240,12 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
           providerHealthCheckedAt
           providerHealthLastError
           providerPriority
+          registryAvailable
+          registryKind
+          registrySelected
+          effectiveSourceFingerprint
+          effectiveSourceFingerprintInputs
+          effectiveSourceFingerprintVersion
           routeBackendKind
           routeBehaviorFlags
           routeCanonicalModelKey
@@ -302,6 +310,12 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
           providerHealthCheckedAt
           providerHealthLastError
           providerPriority
+          registryAvailable
+          registryKind
+          registrySelected
+          effectiveSourceFingerprint
+          effectiveSourceFingerprintInputs
+          effectiveSourceFingerprintVersion
           routeBackendKind
           routeBehaviorFlags
           routeCanonicalModelKey
@@ -342,6 +356,8 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
           }
           dimensionMismatch
           effectiveSourceFingerprint
+          effectiveSourceFingerprintInputs
+          effectiveSourceFingerprintVersion
           embeddingIndexContractDimensions
           embeddingIndexContractFingerprint
           embeddingIndexContractStatus

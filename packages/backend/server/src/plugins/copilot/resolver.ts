@@ -621,6 +621,8 @@ type CopilotPromptRegistryPublishGateModelRoute = {
   diagnosticsErrorMessage?: string;
   diagnosticsErrorStage?: string;
   effectiveSourceFingerprint?: string;
+  effectiveSourceFingerprintInputs?: string[];
+  effectiveSourceFingerprintVersion?: string;
   fallbackProviderIds: string[];
   featureKind: string;
   matchedCandidateCount: number;
@@ -809,6 +811,146 @@ type CopilotTaskRouteEffectiveSourceFingerprintInput = Pick<
   | 'topK'
 >;
 
+const COPILOT_MODEL_LIST_EFFECTIVE_SOURCE_FINGERPRINT_VERSION =
+  'copilot-model-list-effective-source/v1';
+const COPILOT_MODEL_LIST_EFFECTIVE_SOURCE_FINGERPRINT_INPUTS = [
+  'id',
+  'promptAction',
+  'promptCategory',
+  'promptDefaultPolicy',
+  'promptModelConfigPath',
+  'promptModelSource',
+  'promptModelSources',
+  'promptName',
+  'promptOverrideApplied',
+  'promptSource',
+  'providerConfiguredModelCount',
+  'providerConfiguredModelIds',
+  'providerId',
+  'providerPrivacy',
+  'providerPriority',
+  'providerProfileConfigPath',
+  'providerProfileId',
+  'providerProfileSource',
+  'providerSource',
+  'providerType',
+  'registryAvailable',
+  'registryKind',
+  'registrySelected',
+  'routeBackendKind',
+  'routeCanonicalModelKey',
+  'routeFallbackProviderIds',
+  'routeModelAliasMatched',
+  'routeModelDefinitionAliases',
+  'routeModelDefinitionId',
+  'routeModelDefinitionSource',
+  'routeModelId',
+  'routePolicyAllowedPrivacy',
+  'routePolicyAllowedProviderIds',
+  'routePolicyBlockedProviderIds',
+  'routePolicyEnabled',
+  'routePolicyFeatureKind',
+  'routePolicyPreferredPrivacy',
+  'routePolicyWorkspaceId',
+  'routeRawModelId',
+  'sources',
+] as const;
+const PROMPT_REGISTRY_PUBLISH_GATE_MODEL_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_VERSION =
+  'prompt-registry-publish-gate-model-route-effective-source/v1';
+const PROMPT_REGISTRY_PUBLISH_GATE_MODEL_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_INPUTS =
+  [
+    'candidateConfigPath',
+    'candidateIndex',
+    'candidateKind',
+    'configured',
+    'fallbackProviderIds',
+    'featureKind',
+    'modelId',
+    'outputType',
+    'policyAllowedPrivacy',
+    'policyAllowedProviderIds',
+    'policyBlockedProviderIds',
+    'policyCandidates',
+    'policyEnabled',
+    'policyFeatureKind',
+    'policyPreferredPrivacy',
+    'policyWorkspaceId',
+    'providerConfiguredModelCount',
+    'providerConfiguredModelIds',
+    'providerId',
+    'providerPrivacy',
+    'providerPriority',
+    'providerProfileConfigPath',
+    'providerProfileId',
+    'providerProfileSource',
+    'providerSource',
+    'providerType',
+    'requestedModelId',
+    'requestedModelSource',
+    'routeCandidates',
+    'routeModelAliasMatched',
+    'routeModelDefinitionAliases',
+    'routeModelDefinitionId',
+    'routeModelDefinitionSource',
+    'routeRawModelId',
+  ] as const;
+const COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_VERSION =
+  'copilot-task-route-effective-source/v1';
+const COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_INPUTS = [
+  'behaviorFlags',
+  'candidateCount',
+  'canonicalModelKey',
+  'configured',
+  'diagnosticsErrors',
+  'dimensionMismatch',
+  'embeddingIndexContractDimensions',
+  'embeddingIndexContractFingerprint',
+  'embeddingIndexContractStatus',
+  'embeddingIndexContractVersion',
+  'errorCode',
+  'fallbackProviderIds',
+  'featureKind',
+  'modelBackendKind',
+  'modelEmbeddingDimensions',
+  'modelId',
+  'policyAllowedPrivacy',
+  'policyAllowedProviderIds',
+  'policyBlockedProviderIds',
+  'policyCandidates',
+  'policyEnabled',
+  'policyFeatureKind',
+  'policyPreferredPrivacy',
+  'policyWorkspaceId',
+  'prepareCandidates',
+  'preparedProviderCount',
+  'preparedRouteOrder',
+  'preparedRouteTargetFingerprint',
+  'preparedRouteTargets',
+  'preparedRoutes',
+  'protocol',
+  'providerConfiguredModelCount',
+  'providerConfiguredModelIds',
+  'providerId',
+  'providerPriority',
+  'providerProfileConfigPath',
+  'providerProfileId',
+  'providerProfileSource',
+  'providerSource',
+  'providerType',
+  'rerankRuntimeContractFingerprint',
+  'rerankRuntimeContractStatus',
+  'rerankRuntimeContractTopK',
+  'rerankRuntimeContractVersion',
+  'requestedDimensions',
+  'requestedModelConfigKey',
+  'requestedModelConfigPath',
+  'requestedModelId',
+  'requestedModelSource',
+  'requestLayer',
+  'routeCandidates',
+  'routeTrace',
+  'topK',
+] as const;
 const COPILOT_PROMPT_REGISTRY_REPAIR_ACTION_CATALOG_VERSION =
   'repair-actions/v1';
 
@@ -1658,6 +1800,12 @@ class CopilotPromptRegistryPublishGateModelRouteType implements CopilotPromptReg
 
   @Field(() => String, { nullable: true })
   effectiveSourceFingerprint?: CopilotPromptRegistryPublishGateModelRoute['effectiveSourceFingerprint'];
+
+  @Field(() => [String], { nullable: true })
+  effectiveSourceFingerprintInputs?: CopilotPromptRegistryPublishGateModelRoute['effectiveSourceFingerprintInputs'];
+
+  @Field(() => String, { nullable: true })
+  effectiveSourceFingerprintVersion?: CopilotPromptRegistryPublishGateModelRoute['effectiveSourceFingerprintVersion'];
 
   @Field(() => [String])
   fallbackProviderIds!: CopilotPromptRegistryPublishGateModelRoute['fallbackProviderIds'];
@@ -5412,6 +5560,11 @@ function withPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint(
     ...route,
     effectiveSourceFingerprint:
       buildPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint(route),
+    effectiveSourceFingerprintInputs: [
+      ...PROMPT_REGISTRY_PUBLISH_GATE_MODEL_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_INPUTS,
+    ],
+    effectiveSourceFingerprintVersion:
+      PROMPT_REGISTRY_PUBLISH_GATE_MODEL_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_VERSION,
   };
 }
 
@@ -14635,7 +14788,7 @@ function buildModelListEffectiveSourceFingerprint(
     .update(
       stableRepairRecommendationStringify({
         effectiveSourceFingerprintVersion:
-          'copilot-model-list-effective-source/v1',
+          COPILOT_MODEL_LIST_EFFECTIVE_SOURCE_FINGERPRINT_VERSION,
         id: model.id,
         promptAction: model.promptAction ?? null,
         promptCategory: model.promptCategory,
@@ -14728,7 +14881,7 @@ function buildPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint(
     .update(
       stableRepairRecommendationStringify({
         effectiveSourceFingerprintVersion:
-          'prompt-registry-publish-gate-model-route-effective-source/v1',
+          PROMPT_REGISTRY_PUBLISH_GATE_MODEL_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_VERSION,
         candidateConfigPath: route.candidateConfigPath ?? null,
         candidateIndex: route.candidateIndex,
         candidateKind: route.candidateKind,
@@ -14938,7 +15091,7 @@ function buildTaskRouteEffectiveSourceFingerprint(
     .update(
       stableRepairRecommendationStringify({
         effectiveSourceFingerprintVersion:
-          'copilot-task-route-effective-source/v1',
+          COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_VERSION,
         behaviorFlags: route.behaviorFlags ?? null,
         candidateCount: route.candidateCount ?? null,
         canonicalModelKey: route.canonicalModelKey ?? null,
@@ -15021,6 +15174,11 @@ function withTaskRouteEffectiveSourceFingerprint<
   return {
     ...route,
     effectiveSourceFingerprint: buildTaskRouteEffectiveSourceFingerprint(route),
+    effectiveSourceFingerprintInputs: [
+      ...COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_INPUTS,
+    ],
+    effectiveSourceFingerprintVersion:
+      COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_VERSION,
   };
 }
 
@@ -15670,6 +15828,12 @@ class CopilotModelType {
 
   @Field(() => String, { nullable: true })
   effectiveSourceFingerprint?: string;
+
+  @Field(() => [String], { nullable: true })
+  effectiveSourceFingerprintInputs?: string[];
+
+  @Field(() => String, { nullable: true })
+  effectiveSourceFingerprintVersion?: string;
 
   @Field(() => String, { nullable: true })
   routeModelId?: string;
@@ -16504,6 +16668,12 @@ class CopilotTaskRouteDiagnosticsType {
 
   @Field(() => String, { nullable: true })
   effectiveSourceFingerprint?: string;
+
+  @Field(() => [String], { nullable: true })
+  effectiveSourceFingerprintInputs?: string[];
+
+  @Field(() => String, { nullable: true })
+  effectiveSourceFingerprintVersion?: string;
 
   @Field(() => [CopilotTaskRouteDiagnosticsErrorType])
   diagnosticsErrors!: CopilotTaskRouteDiagnosticsError[];
@@ -18489,12 +18659,20 @@ export class CopilotResolver {
           };
           const effectiveSourceFingerprint =
             buildModelListEffectiveSourceFingerprint(modelMetadata);
+          const effectiveSourceMetadata = {
+            effectiveSourceFingerprint,
+            effectiveSourceFingerprintInputs: [
+              ...COPILOT_MODEL_LIST_EFFECTIVE_SOURCE_FINGERPRINT_INPUTS,
+            ],
+            effectiveSourceFingerprintVersion:
+              COPILOT_MODEL_LIST_EFFECTIVE_SOURCE_FINGERPRINT_VERSION,
+          };
 
           const cachedName = this.modelNames.get(id);
           if (cachedName) {
             return {
               ...modelMetadata,
-              effectiveSourceFingerprint,
+              ...effectiveSourceMetadata,
               name: cachedName,
             };
           }
@@ -18502,7 +18680,7 @@ export class CopilotResolver {
           const name = providerModel?.name;
           if (name) {
             this.modelNames.set(id, name);
-            return { ...modelMetadata, effectiveSourceFingerprint, name };
+            return { ...modelMetadata, ...effectiveSourceMetadata, name };
           }
           return null;
         })

@@ -2197,6 +2197,20 @@ async function main() {
     /^[a-f0-9]{16}$/
   );
   assert.equal(
+    byId.get('byok/effective-chat')?.effectiveSourceFingerprintVersion,
+    'copilot-model-list-effective-source/v1'
+  );
+  assert.ok(
+    byId
+      .get('byok/effective-chat')
+      ?.effectiveSourceFingerprintInputs?.includes('providerId')
+  );
+  assert.ok(
+    byId
+      .get('byok/effective-chat')
+      ?.effectiveSourceFingerprintInputs?.includes('routeModelDefinitionId')
+  );
+  assert.equal(
     byId.get('byok/effective-chat')?.routeModelDefinitionId,
     'effective-chat'
   );
@@ -2447,6 +2461,20 @@ async function main() {
   assert.match(
     result.embeddingRoute?.effectiveSourceFingerprint ?? '',
     /^[0-9a-f]{16}$/
+  );
+  assert.equal(
+    result.embeddingRoute?.effectiveSourceFingerprintVersion,
+    'copilot-task-route-effective-source/v1'
+  );
+  assert.ok(
+    result.embeddingRoute?.effectiveSourceFingerprintInputs?.includes(
+      'preparedRoutes'
+    )
+  );
+  assert.ok(
+    result.embeddingRoute?.effectiveSourceFingerprintInputs?.includes(
+      'embeddingIndexContractFingerprint'
+    )
   );
   assert.equal(result.rerankRoute?.embeddingIndexContractVersion, undefined);
   assert.equal(result.rerankRoute?.embeddingIndexContractDimensions, undefined);
@@ -2785,6 +2813,20 @@ async function main() {
   assert.match(
     routeReadyGate?.modelRoute?.effectiveSourceFingerprint ?? '',
     /^[0-9a-f]{16}$/
+  );
+  assert.equal(
+    routeReadyGate?.modelRoute?.effectiveSourceFingerprintVersion,
+    'prompt-registry-publish-gate-model-route-effective-source/v1'
+  );
+  assert.ok(
+    routeReadyGate?.modelRoute?.effectiveSourceFingerprintInputs?.includes(
+      'routeCandidates'
+    )
+  );
+  assert.ok(
+    routeReadyGate?.modelRoute?.effectiveSourceFingerprintInputs?.includes(
+      'policyCandidates'
+    )
   );
   assert.deepEqual(
     routeReadyGate?.modelRoute?.policyCandidates.map(candidate => [

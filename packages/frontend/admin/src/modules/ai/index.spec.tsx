@@ -860,6 +860,12 @@ const blockedRoute = {
   ],
   dimensionMismatch: false,
   effectiveSourceFingerprint: 'blocked1111222233',
+  effectiveSourceFingerprintInputs: [
+    'featureKind',
+    'preparedRoutes',
+    'routeCandidates',
+  ],
+  effectiveSourceFingerprintVersion: 'copilot-task-route-effective-source/v1',
   embeddingIndexContractDimensions: 1024,
   embeddingIndexContractFingerprint: 'eeee1111dddd2222',
   embeddingIndexContractStatus: 'compatible_with_current_pgvector_index',
@@ -1194,6 +1200,13 @@ const readyRouteRerankRuntimeContractSnapshotFingerprint =
   taskRouteSnapshotFingerprintFixture(
     taskRouteRerankRuntimeContractSnapshotFixture(readyRoute)
   );
+const modelRouteEffectiveSourceFingerprintInputs = [
+  'candidateKind',
+  'policyCandidates',
+  'routeCandidates',
+];
+const modelRouteEffectiveSourceFingerprintVersion =
+  'prompt-registry-publish-gate-model-route-effective-source/v1';
 
 const rerankRepairCandidateEvidence = candidateEvidenceFixture({
   allowed: true,
@@ -2695,6 +2708,11 @@ const readyPublishGateVerdict = withRepairActionPreview(
       canonicalModelKey: 'claude-3-5-sonnet-latest',
       checked: true,
       configured: true,
+      effectiveSourceFingerprint: 'modelroute11112222',
+      effectiveSourceFingerprintInputs:
+        modelRouteEffectiveSourceFingerprintInputs,
+      effectiveSourceFingerprintVersion:
+        modelRouteEffectiveSourceFingerprintVersion,
       fallbackProviderIds: ['anthropic-main', 'openai-fallback'],
       featureKind: 'chat',
       matchedCandidateCount: 1,
@@ -2739,6 +2757,11 @@ const readyPublishGateVerdict = withRepairActionPreview(
         canonicalModelKey: 'claude-3-5-sonnet-latest',
         checked: true,
         configured: true,
+        effectiveSourceFingerprint: 'modelroute11112222',
+        effectiveSourceFingerprintInputs:
+          modelRouteEffectiveSourceFingerprintInputs,
+        effectiveSourceFingerprintVersion:
+          modelRouteEffectiveSourceFingerprintVersion,
         fallbackProviderIds: ['anthropic-main', 'openai-fallback'],
         featureKind: 'chat',
         matchedCandidateCount: 1,
@@ -2785,6 +2808,11 @@ const readyPublishGateVerdict = withRepairActionPreview(
         diagnosticsErrorCode: 'RouteDiagnosticsFailure',
         diagnosticsErrorMessage: 'provider registry diagnostics unavailable',
         diagnosticsErrorStage: 'describe_route_candidates',
+        effectiveSourceFingerprint: 'modelroute33334444',
+        effectiveSourceFingerprintInputs:
+          modelRouteEffectiveSourceFingerprintInputs,
+        effectiveSourceFingerprintVersion:
+          modelRouteEffectiveSourceFingerprintVersion,
         fallbackProviderIds: [],
         featureKind: 'chat',
         matchedCandidateCount: 0,
@@ -2840,6 +2868,11 @@ const readyPublishGateVerdict = withRepairActionPreview(
         canonicalModelKey: 'office-chat-fast',
         checked: true,
         configured: true,
+        effectiveSourceFingerprint: 'modelroute55556666',
+        effectiveSourceFingerprintInputs:
+          modelRouteEffectiveSourceFingerprintInputs,
+        effectiveSourceFingerprintVersion:
+          modelRouteEffectiveSourceFingerprintVersion,
         fallbackProviderIds: ['openai-fallback'],
         featureKind: 'chat',
         matchedCandidateCount: 1,
@@ -8237,6 +8270,15 @@ describe('AiPage', () => {
       'Model route candidate trace Default#0 1'
     );
     expect(readyGateDiagnostics).toContain(
+      'source fingerprint modelroute11112222'
+    );
+    expect(readyGateDiagnostics).toContain(
+      'source version prompt-registry-publish-gate-model-route-effective-source/v1'
+    );
+    expect(readyGateDiagnostics).toContain(
+      'source inputs candidateKind, policyCandidates, routeCandidates'
+    );
+    expect(readyGateDiagnostics).toContain(
       'Model route candidate trace Optional#0 2'
     );
     expect(readyGateDiagnostics).toContain(
@@ -8262,13 +8304,19 @@ describe('AiPage', () => {
       'source fingerprint blocked1111222233'
     );
     expect(readyGateDiagnostics).toContain(
+      'source version copilot-task-route-effective-source/v1'
+    );
+    expect(readyGateDiagnostics).toContain(
+      'source inputs featureKind, preparedRoutes, routeCandidates'
+    );
+    expect(readyGateDiagnostics).toContain(
       'Task route phase trace Workspace indexing 2'
     );
     expect(readyGateDiagnostics).toContain(
       'Local Ollama / ollama-main / requested workspace-embedding'
     );
     expect(readyGateDiagnostics).toContain(
-      `Task route Rerank / status Ready / configured yes / provider ollama-main / model bge-reranker-v2 / profile Profile ollama-main / Configured / config copilot.providers.profiles[id=ollama-main] / 2 configured models / models workspace-rerank, bge-reranker-v2 / requested workspace-rerank / source Rerank task model / config copilot.tasks.models.rerank / source fingerprint ready444455556666 / rerank runtime contract workspace-rerank-runtime/v1 / rerank runtime topK 5 / rerank runtime status Prepared Route Available / rerank runtime fingerprint eeee2222ffff3333 / prepared providers 1 / targets ollama-main/bge-reranker-v2 / target fingerprint ${readyRoute.preparedRouteTargetFingerprint}`
+      `Task route Rerank / status Ready / configured yes / provider ollama-main / model bge-reranker-v2 / profile Profile ollama-main / Configured / config copilot.providers.profiles[id=ollama-main] / 2 configured models / models workspace-rerank, bge-reranker-v2 / requested workspace-rerank / source Rerank task model / config copilot.tasks.models.rerank / source fingerprint ready444455556666 / source version copilot-task-route-effective-source/v1 / source inputs featureKind, preparedRoutes, routeCandidates / rerank runtime contract workspace-rerank-runtime/v1 / rerank runtime topK 5 / rerank runtime status Prepared Route Available / rerank runtime fingerprint eeee2222ffff3333 / prepared providers 1 / targets ollama-main/bge-reranker-v2 / target fingerprint ${readyRoute.preparedRouteTargetFingerprint}`
     );
     expect(readyGateDiagnostics).toContain(
       'Task route prepare candidates Rerank 1'

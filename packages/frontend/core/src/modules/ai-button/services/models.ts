@@ -80,6 +80,8 @@ export interface AIModel {
   registryKind?: string | null;
   registrySelected?: boolean | null;
   effectiveSourceFingerprint?: string | null;
+  effectiveSourceFingerprintInputs?: string[] | null;
+  effectiveSourceFingerprintVersion?: string | null;
   routeBackendKind?: string | null;
   routeCanonicalModelKey?: string | null;
   routeRawModelId?: string | null;
@@ -131,6 +133,8 @@ export interface AIModelTaskRoute {
   diagnosticsErrors?: AIModelTaskRouteDiagnosticsError[] | null;
   dimensionMismatch?: boolean | null;
   effectiveSourceFingerprint?: string | null;
+  effectiveSourceFingerprintInputs?: string[] | null;
+  effectiveSourceFingerprintVersion?: string | null;
   errorCode?: string | null;
   errorMessage?: string | null;
   fallbackProviderIds?: string[] | null;
@@ -2061,6 +2065,10 @@ export function buildAIModels(models: CopilotModels): AIModel[] {
         providerPriority: model.providerPriority,
         registryAvailable: model.registryAvailable,
         effectiveSourceFingerprint: model.effectiveSourceFingerprint,
+        effectiveSourceFingerprintInputs:
+          model.effectiveSourceFingerprintInputs,
+        effectiveSourceFingerprintVersion:
+          model.effectiveSourceFingerprintVersion,
         registryKind: model.registryKind,
         registrySelected: model.registrySelected,
         routeBackendKind: model.routeBackendKind,
@@ -2249,11 +2257,26 @@ export function formatAIModelRegistryBranchLabel(
 }
 
 export function formatAIModelEffectiveSourceLabel(
-  model: Pick<AIModel, 'effectiveSourceFingerprint'>
+  model: Pick<
+    AIModel,
+    | 'effectiveSourceFingerprint'
+    | 'effectiveSourceFingerprintInputs'
+    | 'effectiveSourceFingerprintVersion'
+  >
 ) {
-  return model.effectiveSourceFingerprint
-    ? `Source fingerprint ${model.effectiveSourceFingerprint}`
-    : '';
+  return [
+    model.effectiveSourceFingerprint
+      ? `Source fingerprint ${model.effectiveSourceFingerprint}`
+      : null,
+    model.effectiveSourceFingerprintVersion
+      ? `Source version ${model.effectiveSourceFingerprintVersion}`
+      : null,
+    model.effectiveSourceFingerprintInputs?.length
+      ? `Source inputs ${model.effectiveSourceFingerprintInputs.join(', ')}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(' / ');
 }
 
 export function formatAIModelDefinitionLabel(
@@ -2920,6 +2943,12 @@ function formatAIModelTaskRoute(route: AIModelTaskRoute | null | undefined) {
     route.effectiveSourceFingerprint
       ? `source fingerprint ${route.effectiveSourceFingerprint}`
       : null,
+    route.effectiveSourceFingerprintVersion
+      ? `source version ${route.effectiveSourceFingerprintVersion}`
+      : null,
+    route.effectiveSourceFingerprintInputs?.length
+      ? `source inputs ${route.effectiveSourceFingerprintInputs.join(', ')}`
+      : null,
     formatTaskRouteIdentity(route),
     route.fallbackProviderIds?.length
       ? `fallback ${route.fallbackProviderIds.join(' -> ')}`
@@ -2971,6 +3000,8 @@ export function formatAIModelMenuLabels(
     | 'costInputPer1M'
     | 'costOutputPer1M'
     | 'effectiveSourceFingerprint'
+    | 'effectiveSourceFingerprintInputs'
+    | 'effectiveSourceFingerprintVersion'
     | 'embeddingDimensions'
     | 'isDefault'
     | 'isPro'
@@ -3046,6 +3077,8 @@ export function formatAIModelDiagnosticsLabel(
     | 'defaultModelFallbackReason'
     | 'defaultModelSource'
     | 'effectiveSourceFingerprint'
+    | 'effectiveSourceFingerprintInputs'
+    | 'effectiveSourceFingerprintVersion'
     | 'providerHealth'
     | 'providerHealthCheckedAt'
     | 'providerHealthLastError'

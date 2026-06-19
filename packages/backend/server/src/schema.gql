@@ -903,6 +903,8 @@ type CopilotModelType {
   registryKind: String
   registrySelected: Boolean
   effectiveSourceFingerprint: String
+  effectiveSourceFingerprintInputs: [String!]
+  effectiveSourceFingerprintVersion: String
   routeBackendKind: String
   routeBehaviorFlags: [String!]
   routeCanonicalModelKey: String
@@ -1647,6 +1649,8 @@ type CopilotPromptRegistryPublishGateModelRouteType {
   diagnosticsErrorMessage: String
   diagnosticsErrorStage: String
   effectiveSourceFingerprint: String
+  effectiveSourceFingerprintInputs: [String!]
+  effectiveSourceFingerprintVersion: String
   fallbackProviderIds: [String!]!
   featureKind: String!
   matchedCandidateCount: SafeInt!
@@ -2236,6 +2240,8 @@ type CopilotTaskRouteDiagnosticsType {
   diagnosticsErrors: [CopilotTaskRouteDiagnosticsErrorType!]!
   dimensionMismatch: Boolean
   effectiveSourceFingerprint: String
+  effectiveSourceFingerprintInputs: [String!]
+  effectiveSourceFingerprintVersion: String
   embeddingIndexContractDimensions: SafeInt
   embeddingIndexContractFingerprint: String
   embeddingIndexContractStatus: String

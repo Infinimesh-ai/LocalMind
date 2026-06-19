@@ -99,6 +99,8 @@ query getCopilotPromptRegistryPublishGate(
           diagnosticsErrorMessage
           diagnosticsErrorStage
           effectiveSourceFingerprint
+          effectiveSourceFingerprintInputs
+          effectiveSourceFingerprintVersion
           fallbackProviderIds
           featureKind
           matchedCandidateCount
@@ -207,6 +209,8 @@ query getCopilotPromptRegistryPublishGate(
           diagnosticsErrorMessage
           diagnosticsErrorStage
           effectiveSourceFingerprint
+          effectiveSourceFingerprintInputs
+          effectiveSourceFingerprintVersion
           fallbackProviderIds
           featureKind
           matchedCandidateCount
@@ -315,6 +319,8 @@ query getCopilotPromptRegistryPublishGate(
           }
           dimensionMismatch
           effectiveSourceFingerprint
+          effectiveSourceFingerprintInputs
+          effectiveSourceFingerprintVersion
           embeddingIndexContractDimensions
           embeddingIndexContractFingerprint
           embeddingIndexContractStatus

@@ -15127,3 +15127,35 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - support bundle lifecycle contract 仍不绑定真实 storage backend、archive bytes、signed URL secret/material、provider credentials、BYOK lease、tenant policy registry、health probe timestamp、request dispatch outcome 或 billing/quota execution result。
 - 模型列表、publish gate model routes、task routes、repair candidate evidence、preview operation、repair stale guard 与 support bundle lifecycle 的 effective source payload schema 仍不完全一致；后续若要统一审计，需要抽取正式跨 projection effective source evidence schema，并决定哪些字段进入 DB-backed snapshot/revision。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 451. P1 落地记录：Effective Source Fingerprint Schema Metadata Projection
+
+本轮继续收敛第 450 节剩余风险中 “模型列表、publish gate model routes、task routes、repair candidate evidence、preview operation、repair stale guard 与 support bundle lifecycle 的 effective source payload schema 仍不完全一致” 的前置观测缺口。实际代码与目标 AI 中间层架构的冲突点是：模型列表、Prompt Registry publish gate model route 与 embedding/rerank task route 已经暴露 `effectiveSourceFingerprint`，但前端/Admin 只能看到 16 位 hash，不能直接确认该 hash 属于哪个 schema version、绑定哪些顶层输入字段。这样后续要抽取 DB-backed Model Registry effective source row、snapshot/revision 或跨 projection audit schema 时，仍需要回读源码才能判断 hash 语义。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - 为模型列表、Prompt Registry publish gate model route 与 task route 的 effective source hash 抽出稳定 schema version 常量和顶层 inputs 常量。
+  - `CopilotModelType`、`CopilotPromptRegistryPublishGateModelRouteType` 与 `CopilotTaskRouteDiagnosticsType` 新增只读 `effectiveSourceFingerprintVersion` / `effectiveSourceFingerprintInputs` 字段。
+  - 保持原有 `effectiveSourceFingerprint` payload 与 hash 值语义不变，只额外暴露当前 hash 的 schema metadata。
+- `packages/backend/server/src/schema.gql`、`packages/common/graphql/src/graphql/index.ts`、`packages/common/graphql/src/graphql/copilot-models-get.gql`、`packages/common/graphql/src/graphql/copilot-prompt-registry-publish-gate-get.gql` 与 `packages/common/graphql/src/schema.ts`：
+  - 模型列表 optional/pro models、embedding/rerank task route、publish gate `modelRoute` / `modelRoutes` / `taskRoutes` selection/type 增加 effective source version 与 inputs。
+  - 同步修正 `copilot-models-get.gql` 中 optional/pro models 源 query 漏选 `effectiveSourceFingerprint` 的问题，避免后续 codegen 覆盖已有内联 query/type 字段。
+- `packages/frontend/core/src/modules/ai-button/services/models.ts` 与 `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - 模型菜单/诊断 label、task route diagnostics、Prompt Registry publish gate model/task route diagnostics 输出 source version 与 source inputs，便于复制诊断时直接带上 schema 证据。
+- 测试覆盖：
+  - `resolver-model-source-chain.smoke.ts` 断言模型列表、task route 与 publish gate model route 都返回对应 schema version，并包含关键 inputs。
+  - `models.spec.ts` 覆盖模型菜单/诊断与 task route diagnostics 的 version/inputs 输出。
+  - `admin/src/modules/ai/index.spec.tsx` 覆盖 publish gate model route 和 task route copyable diagnostics 的 version/inputs 输出。
+
+该实现只扩展 effective source fingerprint 的只读 schema metadata projection、GraphQL/common query/type、前端/Admin diagnostics label 与 focused tests，不新增 DB migration、不创建 DB-backed Model Registry effective source table、不持久化 registry revision、workspace policy revision、provider snapshot、task route snapshot 或 model availability snapshot、不改变 provider route selection、fallback order、BYOK lease、quota、health check、Prompt Registry publish gate allowed/blocking 判定、repair action、support bundle lifecycle、`copilot.tasks.models` 配置格式、embedding/rerank native request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、MCP registry、Codex adapter 或 Action Runtime 状态机。它让当前 runtime hash 具备显式 schema metadata，为后续统一 effective source evidence schema 和 DB-backed snapshot/revision 提供可观察契约。
+
+验证策略：
+
+- 本轮为 TypeScript resolver/common/frontend/admin/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有测试镜像 `localmind-affine:test`，镜像 ID 预期保持 `c3389960f5ed`；通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused smoke、frontend/core Vitest、Admin Vitest、oxlint、Prettier check 与 `git diff --check`。当前本机 Docker Compose `run` 帮助未暴露 `--no-build` flag，因此继续以镜像已存在、不传 `--build`、`--pull never`、`--no-deps` 与镜像 ID 不变作为不重建 test-runner 的证据。
+
+剩余风险：
+
+- `effectiveSourceFingerprintVersion` / `effectiveSourceFingerprintInputs` 仍是 runtime 只读 projection，不是 DB-backed effective source schema registry，也不保证跨 projection payload 已完全统一。
+- inputs 只列出顶层 payload 字段；policy candidates、route candidates、prepared routes 等嵌套字段仍需要后续 schema 文档化或结构化 evidence object 才能做到完整审计。
+- repair candidate evidence、preview operation、repair stale guard 与 support bundle lifecycle 已经引用 task route source anchors，但尚未统一暴露同一套 schema metadata；后续应决定是否把 version/inputs 继续下沉到这些 repair/support bundle projection。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

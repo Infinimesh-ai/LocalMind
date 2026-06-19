@@ -1045,6 +1045,8 @@ export interface CopilotModelType {
   registryKind?: Maybe<Scalars['String']['output']>;
   registrySelected?: Maybe<Scalars['Boolean']['output']>;
   effectiveSourceFingerprint?: Maybe<Scalars['String']['output']>;
+  effectiveSourceFingerprintInputs?: Maybe<Array<Scalars['String']['output']>>;
+  effectiveSourceFingerprintVersion?: Maybe<Scalars['String']['output']>;
   routeBackendKind?: Maybe<Scalars['String']['output']>;
   routeBehaviorFlags?: Maybe<Array<Scalars['String']['output']>>;
   routeCanonicalModelKey?: Maybe<Scalars['String']['output']>;
@@ -1865,6 +1867,8 @@ export interface CopilotPromptRegistryPublishGateModelRouteType {
   diagnosticsErrorMessage?: Maybe<Scalars['String']['output']>;
   diagnosticsErrorStage?: Maybe<Scalars['String']['output']>;
   effectiveSourceFingerprint?: Maybe<Scalars['String']['output']>;
+  effectiveSourceFingerprintInputs?: Maybe<Array<Scalars['String']['output']>>;
+  effectiveSourceFingerprintVersion?: Maybe<Scalars['String']['output']>;
   fallbackProviderIds: Array<Scalars['String']['output']>;
   featureKind: Scalars['String']['output'];
   matchedCandidateCount: Scalars['SafeInt']['output'];
@@ -2482,6 +2486,8 @@ export interface CopilotTaskRouteDiagnosticsType {
   diagnosticsErrors: Array<CopilotTaskRouteDiagnosticsErrorType>;
   dimensionMismatch?: Maybe<Scalars['Boolean']['output']>;
   effectiveSourceFingerprint?: Maybe<Scalars['String']['output']>;
+  effectiveSourceFingerprintInputs?: Maybe<Array<Scalars['String']['output']>>;
+  effectiveSourceFingerprintVersion?: Maybe<Scalars['String']['output']>;
   embeddingIndexContractDimensions?: Maybe<Scalars['SafeInt']['output']>;
   embeddingIndexContractFingerprint?: Maybe<Scalars['String']['output']>;
   embeddingIndexContractStatus?: Maybe<Scalars['String']['output']>;
@@ -7184,6 +7190,8 @@ export type GetPromptModelsQuery = {
           }>;
           dimensionMismatch: boolean | null;
           effectiveSourceFingerprint: string | null;
+          effectiveSourceFingerprintInputs: Array<string> | null;
+          effectiveSourceFingerprintVersion: string | null;
           embeddingIndexContractDimensions: number | null;
           embeddingIndexContractFingerprint: string | null;
           embeddingIndexContractStatus: string | null;
@@ -7417,6 +7425,8 @@ export type GetPromptModelsQuery = {
           registryKind: string | null;
           registrySelected: boolean | null;
           effectiveSourceFingerprint: string | null;
+          effectiveSourceFingerprintInputs: Array<string> | null;
+          effectiveSourceFingerprintVersion: string | null;
           routeBackendKind: string | null;
           routeBehaviorFlags: Array<string> | null;
           routeCanonicalModelKey: string | null;
@@ -7487,6 +7497,8 @@ export type GetPromptModelsQuery = {
           registryKind: string | null;
           registrySelected: boolean | null;
           effectiveSourceFingerprint: string | null;
+          effectiveSourceFingerprintInputs: Array<string> | null;
+          effectiveSourceFingerprintVersion: string | null;
           routeBackendKind: string | null;
           routeBehaviorFlags: Array<string> | null;
           routeCanonicalModelKey: string | null;
@@ -7530,6 +7542,8 @@ export type GetPromptModelsQuery = {
           }>;
           dimensionMismatch: boolean | null;
           effectiveSourceFingerprint: string | null;
+          effectiveSourceFingerprintInputs: Array<string> | null;
+          effectiveSourceFingerprintVersion: string | null;
           embeddingIndexContractDimensions: number | null;
           embeddingIndexContractFingerprint: string | null;
           embeddingIndexContractStatus: string | null;
@@ -7992,6 +8006,8 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
           diagnosticsErrorMessage: string | null;
           diagnosticsErrorStage: string | null;
           effectiveSourceFingerprint: string | null;
+          effectiveSourceFingerprintInputs: Array<string> | null;
+          effectiveSourceFingerprintVersion: string | null;
           fallbackProviderIds: Array<string>;
           featureKind: string;
           matchedCandidateCount: number;
@@ -8120,6 +8136,8 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
           diagnosticsErrorMessage: string | null;
           diagnosticsErrorStage: string | null;
           effectiveSourceFingerprint: string | null;
+          effectiveSourceFingerprintInputs: Array<string> | null;
+          effectiveSourceFingerprintVersion: string | null;
           fallbackProviderIds: Array<string>;
           featureKind: string;
           matchedCandidateCount: number;
