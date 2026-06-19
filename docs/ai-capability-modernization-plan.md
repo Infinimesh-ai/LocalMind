@@ -14817,3 +14817,42 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - GraphQL schema 与前端 UI 仍没有单独标识 candidate 来自 BYOK registry 还是 quota-backed registry；来源差异继续通过 provider profile source/config path、route candidates 与 policy candidates 诊断间接体现。
 - `getConfiguredModelIds()` 仍保留给尚未 async 化或不需要 workspace/user context 的调用点；后续正式 Model Registry effective source table 落地后，需要统一收敛同步/异步 model candidate API 的职责边界。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 443. P1 落地记录：Model List Registry Branch Diagnostics
+
+本轮继续收敛第 442 节剩余风险中 “GraphQL schema 与前端 UI 仍没有单独标识 candidate 来自 BYOK registry 还是 quota-backed registry” 的只读观测缺口。实际代码与目标 AI 中间层架构的冲突点是：模型列表和 publish gate model route candidates 已经使用 effective configured model projection，但 `CopilotModelType` 仍只能通过 `providerSource`、`providerProfileSource` 或 config path 间接推断 BYOK/quota branch；而 task route diagnostics、publish gate route candidates 和 policy candidates 已经有 `registryKind` / `registryAvailable` / `registrySelected`。这会让同一条模型候选在 Admin/前端模型列表中缺少与 route diagnostics 一致的 registry branch 证据。
+
+- `packages/backend/server/src/plugins/copilot/providers/factory.ts`：
+  - `ResolvedCopilotProvider` 新增 `registryKind`、`registryAvailable`、`registrySelected` 只读字段。
+  - `resolveRoutes()` 在 BYOK branch 与 quota-backed branch 上标注 registry metadata，并把最终 selected branch 写入 resolved route。
+  - 不改变 route selection、fallback order、quota exceeded 判定或 BYOK/quota fallback 行为；字段仅随已选 route 输出。
+- `packages/backend/server/src/plugins/copilot/resolver.ts` 与 `packages/backend/server/src/schema.gql`：
+  - `CopilotModelType` 暴露 `registryKind`、`registryAvailable`、`registrySelected`。
+  - `models()` 的 model projection 从 resolved provider route 透传 registry branch metadata。
+- `packages/common/graphql/src/graphql/index.ts` 与 `packages/common/graphql/src/schema.ts`：
+  - `getPromptModelsQuery` 的 optional/pro model selection 增加 registry branch 字段，并同步手工生成的 TypeScript 类型。
+- `packages/frontend/core/src/modules/ai-button/services/models.ts`：
+  - `AIModel` 增加 registry branch 字段，`buildAIModels()` 透传 GraphQL 返回值。
+  - 菜单 label 与 diagnostics label 新增 registry branch 文本，复用 task route diagnostics 中已经建立的 `registry byok` / `registry quota_backed` / selected/unavailable 语义。
+- 测试覆盖：
+  - `resolver-model-source-chain.smoke.ts` 断言 BYOK effective model list candidate 暴露 `registryKind: byok` 且 `registrySelected: true`。
+  - 同一 smoke 断言 quota-backed registry candidate 暴露 `registryKind: quota_backed` 且 `registrySelected: false`。
+
+该实现只扩展 selected provider route 的只读 registry branch metadata、GraphQL/common/frontend 透传与 diagnostics label，不新增 DB migration、不改变 provider route selection、fallback order、BYOK lease 获取、quota 判定、provider health check、Prompt Registry publish gate allowed/blocking 判定、`copilot.tasks.models` 配置格式、embedding/rerank native request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、MCP registry、Codex adapter、support bundle lifecycle 或 Action Runtime 状态机。它让前端模型列表、task route diagnostics 与 publish gate route diagnostics 使用同一套 registry branch 语义，为后续 DB-backed Model Registry effective source table 提供更一致的观测字段。
+
+验证策略：
+
+- 本轮为 TypeScript provider/resolver/common/frontend/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有测试镜像 `localmind-affine:test`，镜像 ID 为 `c3389960f5ed`；通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行验证。
+- 容器内已通过：
+  - `yarn r packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts`
+  - `yarn oxlint packages/backend/server/src/plugins/copilot/providers/factory.ts packages/backend/server/src/plugins/copilot/resolver.ts packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts packages/common/graphql/src/graphql/index.ts packages/common/graphql/src/schema.ts packages/frontend/core/src/modules/ai-button/services/models.ts`
+- 初次 Prettier check 提示前端模型服务格式需要调整；已用同一 Docker test 镜像执行 `yarn prettier --write packages/frontend/core/src/modules/ai-button/services/models.ts` 修复，提交前已重新通过包含规划文档与 `schema.gql` 的 `yarn prettier --check ...`、focused smoke、oxlint 与 `git diff --check`。
+- 镜像 ID 复核仍为 `c3389960f5ed`，未重建 test-runner。
+
+剩余风险：
+
+- registry branch 字段仍来自 runtime resolved route，不是 DB-backed Model Registry effective source table，也不记录 registry revision、workspace policy revision 或 provider snapshot。
+- `registrySelected` 表示该 resolved route 所属 effective registry branch 被本轮 route resolution 选中，不代表 prepare success、request dispatch 成功或最终 provider health 持续可用。
+- 前端模型列表现在能展示 registry branch，但尚未提供独立筛选/分组或 Admin repair action；后续如果要做 Model Registry UI，需要继续定义 provider/model effective source table、revision、health probe 与 workspace-level model registration。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

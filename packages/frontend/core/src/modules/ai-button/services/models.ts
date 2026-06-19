@@ -76,6 +76,9 @@ export interface AIModel {
   providerHealthCheckedAt?: string | null;
   providerHealthLastError?: string | null;
   providerPriority?: number | null;
+  registryAvailable?: boolean | null;
+  registryKind?: string | null;
+  registrySelected?: boolean | null;
   routeBackendKind?: string | null;
   routeCanonicalModelKey?: string | null;
   routeRawModelId?: string | null;
@@ -2054,6 +2057,9 @@ export function buildAIModels(models: CopilotModels): AIModel[] {
         providerHealthCheckedAt: model.providerHealthCheckedAt,
         providerHealthLastError: model.providerHealthLastError,
         providerPriority: model.providerPriority,
+        registryAvailable: model.registryAvailable,
+        registryKind: model.registryKind,
+        registrySelected: model.registrySelected,
         routeBackendKind: model.routeBackendKind,
         routeCanonicalModelKey: model.routeCanonicalModelKey,
         ...(model.routeRawModelId !== undefined
@@ -2222,6 +2228,21 @@ export function formatAIModelFallbackLabel(
   return model.routeFallbackProviderIds?.length
     ? model.routeFallbackProviderIds.join(' -> ')
     : '';
+}
+
+export function formatAIModelRegistryBranchLabel(
+  model: Pick<
+    AIModel,
+    'registryAvailable' | 'registryKind' | 'registrySelected'
+  >
+) {
+  return [
+    model.registryKind ? `registry ${model.registryKind}` : null,
+    model.registrySelected ? 'selected registry' : null,
+    model.registryAvailable === false ? 'registry unavailable' : null,
+  ]
+    .filter(Boolean)
+    .join(' / ');
 }
 
 export function formatAIModelDefinitionLabel(
@@ -2944,6 +2965,9 @@ export function formatAIModelMenuLabels(
     | 'providerName'
     | 'providerPrivacy'
     | 'providerType'
+    | 'registryAvailable'
+    | 'registryKind'
+    | 'registrySelected'
     | 'routeFallbackProviderIds'
     | 'routeAttachmentAllowRemoteUrls'
     | 'routeAttachmentKinds'
@@ -2965,11 +2989,13 @@ export function formatAIModelMenuLabels(
   >
 ) {
   const fallbackLabel = formatAIModelFallbackLabel(model);
+  const registryBranchLabel = formatAIModelRegistryBranchLabel(model);
 
   return [
     formatAIModelProviderLabel(model),
     formatAIModelRouteLabel(model),
     fallbackLabel ? `Fallback ${fallbackLabel}` : null,
+    registryBranchLabel || null,
     formatAIModelCapabilityLabel(model),
     formatAIModelRoutePolicyLabel(model),
     formatAIModelSourcesLabel(model),
@@ -3016,6 +3042,9 @@ export function formatAIModelDiagnosticsLabel(
     | 'providerSource'
     | 'providerPriority'
     | 'providerType'
+    | 'registryAvailable'
+    | 'registryKind'
+    | 'registrySelected'
     | 'routeBackendKind'
     | 'routeBehaviorFlags'
     | 'routeCanonicalModelKey'
@@ -3052,6 +3081,7 @@ export function formatAIModelDiagnosticsLabel(
   const healthDetailLabel = formatAIModelHealthDetailLabel(model);
   const routeLabel = formatAIModelRouteLabel(model);
   const fallbackLabel = formatAIModelFallbackLabel(model);
+  const registryBranchLabel = formatAIModelRegistryBranchLabel(model);
   const definitionLabel = formatAIModelDefinitionLabel(model);
   const capabilityLabel = formatAIModelCapabilityLabel(model);
   const routePolicyLabel = formatAIModelRoutePolicyLabel(model);
@@ -3072,6 +3102,7 @@ export function formatAIModelDiagnosticsLabel(
       : null,
     routeLabel || null,
     fallbackLabel ? `Fallback providers ${fallbackLabel}` : null,
+    registryBranchLabel ? `Registry branch ${registryBranchLabel}` : null,
     definitionLabel ? `Model definition ${definitionLabel}` : null,
     capabilityLabel ? `Capabilities ${capabilityLabel}` : null,
     routePolicyLabel || null,

@@ -55,6 +55,9 @@ import {
 } from './types';
 
 export type ResolvedCopilotProvider = {
+  registryKind?: 'byok' | 'quota_backed';
+  registryAvailable?: boolean;
+  registrySelected?: boolean;
   providerId: string;
   provider: CopilotProvider;
   execution: CopilotProviderExecution;
@@ -1281,8 +1284,13 @@ export class CopilotProviderFactory {
       byokRegistry,
       cond,
       filter,
-      context
+      context,
+      {
+        registryKind: 'byok',
+        registryAvailable: byokRegistry.order.length > 0,
+      }
     );
+    const byokSelected = byokRoutes.length > 0;
     const resolved = byokRoutes.length
       ? byokRoutes
       : quotaBackedRoutesAvailable
@@ -1290,7 +1298,11 @@ export class CopilotProviderFactory {
             quotaBackedRegistry,
             cond,
             filter,
-            context
+            context,
+            {
+              registryKind: 'quota_backed',
+              registryAvailable: quotaBackedRoutesAvailable,
+            }
           )
         : [];
     for (const route of resolved) {
@@ -1308,7 +1320,11 @@ export class CopilotProviderFactory {
         quotaBackedRegistry,
         cond,
         filter,
-        context
+        context,
+        {
+          registryKind: 'quota_backed',
+          registryAvailable: quotaBackedRoutesAvailable,
+        }
       );
       if (quotaBackedRoutes.length) {
         throw new CopilotQuotaExceeded();
@@ -1316,7 +1332,16 @@ export class CopilotProviderFactory {
     }
 
     const fallbackProviderIds = resolved.map(route => route.providerId);
-    return resolved.map(route => ({ ...route, fallbackProviderIds }));
+    return resolved.map(route => ({
+      ...route,
+      fallbackProviderIds,
+      registrySelected:
+        route.registryKind === 'byok'
+          ? byokSelected
+          : route.registryKind === 'quota_backed'
+            ? !byokSelected && quotaBackedRoutesAvailable
+            : undefined,
+    }));
   }
 
   private async resolveRoutesFromRegistry(
@@ -1325,7 +1350,11 @@ export class CopilotProviderFactory {
     filter: {
       prefer?: CopilotProviderType;
     } = {},
-    context: CopilotAccessContext = {}
+    context: CopilotAccessContext = {},
+    registryDiagnostics: Pick<
+      ResolvedCopilotProvider,
+      'registryAvailable' | 'registryKind'
+    > = {}
   ): Promise<ResolvedCopilotProvider[]> {
     const routePolicyContext = {
       workspaceId: context.workspaceId,
@@ -1375,6 +1404,7 @@ export class CopilotProviderFactory {
         if (!matchedModelId) continue;
 
         resolved.push({
+          ...registryDiagnostics,
           providerId,
           provider,
           execution,
@@ -1390,6 +1420,7 @@ export class CopilotProviderFactory {
       if (!matched) continue;
 
       resolved.push({
+        ...registryDiagnostics,
         providerId,
         provider,
         execution,

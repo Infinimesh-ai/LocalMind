@@ -1690,6 +1690,9 @@ async function main() {
       const modelId = id.split('/').slice(1).join('/') || id;
 
       return {
+        registryKind: providerId === 'byok' ? 'byok' : 'quota_backed',
+        registryAvailable: true,
+        registrySelected: providerId === 'byok',
         providerId,
         modelId,
         fallbackProviderIds: ['local', 'cloud'],
@@ -2164,10 +2167,16 @@ async function main() {
     { candidateSource: 'registry' },
   ]);
   assert.equal(byId.get('byok/effective-chat')?.providerProfileId, 'byok');
+  assert.equal(byId.get('byok/effective-chat')?.registryKind, 'byok');
+  assert.equal(byId.get('byok/effective-chat')?.registryAvailable, true);
+  assert.equal(byId.get('byok/effective-chat')?.registrySelected, true);
   assert.equal(
     byId.get('byok/effective-chat')?.routeModelDefinitionId,
     'effective-chat'
   );
+  assert.equal(byId.get('registry/only-chat')?.registryKind, 'quota_backed');
+  assert.equal(byId.get('registry/only-chat')?.registryAvailable, true);
+  assert.equal(byId.get('registry/only-chat')?.registrySelected, false);
   assert.equal(
     byId.get('registry/only-chat')?.routeModelDefinitionSource,
     'provider_runtime'

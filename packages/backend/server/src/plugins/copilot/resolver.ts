@@ -14834,6 +14834,15 @@ class CopilotModelType {
   providerConfiguredModelCount?: number;
 
   @Field(() => String, { nullable: true })
+  registryKind?: string;
+
+  @Field(() => Boolean, { nullable: true })
+  registryAvailable?: boolean;
+
+  @Field(() => Boolean, { nullable: true })
+  registrySelected?: boolean;
+
+  @Field(() => String, { nullable: true })
   routeModelId?: string;
 
   @Field(() => [String], { nullable: true })
@@ -17583,6 +17592,15 @@ export class CopilotResolver {
             routeModelId,
             ...(resolved.fallbackProviderIds?.length
               ? { routeFallbackProviderIds: resolved.fallbackProviderIds }
+              : {}),
+            ...(resolved.registryKind
+              ? { registryKind: resolved.registryKind }
+              : {}),
+            ...(resolved.registryAvailable !== undefined
+              ? { registryAvailable: resolved.registryAvailable }
+              : {}),
+            ...(resolved.registrySelected !== undefined
+              ? { registrySelected: resolved.registrySelected }
               : {}),
             ...modelDefinitionMetadata,
             providerType: resolved.profile.type,

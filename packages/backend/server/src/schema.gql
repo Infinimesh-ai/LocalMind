@@ -899,6 +899,9 @@ type CopilotModelType {
   providerPrivacy: String
   providerPriority: SafeInt
   providerType: String
+  registryAvailable: Boolean
+  registryKind: String
+  registrySelected: Boolean
   routeBackendKind: String
   routeBehaviorFlags: [String!]
   routeCanonicalModelKey: String

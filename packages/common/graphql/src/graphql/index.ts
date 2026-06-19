@@ -1589,6 +1589,9 @@ export const getPromptModelsQuery = {
           providerHealthCheckedAt
           providerHealthLastError
           providerPriority
+          registryAvailable
+          registryKind
+          registrySelected
           routeBackendKind
           routeBehaviorFlags
           routeCanonicalModelKey
@@ -1647,6 +1650,9 @@ export const getPromptModelsQuery = {
           providerHealthCheckedAt
           providerHealthLastError
           providerPriority
+          registryAvailable
+          registryKind
+          registrySelected
           routeBackendKind
           routeBehaviorFlags
           routeCanonicalModelKey

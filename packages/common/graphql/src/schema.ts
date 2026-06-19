@@ -1041,6 +1041,9 @@ export interface CopilotModelType {
   providerPrivacy?: Maybe<Scalars['String']['output']>;
   providerPriority?: Maybe<Scalars['SafeInt']['output']>;
   providerType?: Maybe<Scalars['String']['output']>;
+  registryAvailable?: Maybe<Scalars['Boolean']['output']>;
+  registryKind?: Maybe<Scalars['String']['output']>;
+  registrySelected?: Maybe<Scalars['Boolean']['output']>;
   routeBackendKind?: Maybe<Scalars['String']['output']>;
   routeBehaviorFlags?: Maybe<Array<Scalars['String']['output']>>;
   routeCanonicalModelKey?: Maybe<Scalars['String']['output']>;
@@ -7396,6 +7399,9 @@ export type GetPromptModelsQuery = {
           providerHealthCheckedAt: string | null;
           providerHealthLastError: string | null;
           providerPriority: number | null;
+          registryAvailable: boolean | null;
+          registryKind: string | null;
+          registrySelected: boolean | null;
           routeBackendKind: string | null;
           routeBehaviorFlags: Array<string> | null;
           routeCanonicalModelKey: string | null;
@@ -7462,6 +7468,9 @@ export type GetPromptModelsQuery = {
           providerHealthCheckedAt: string | null;
           providerHealthLastError: string | null;
           providerPriority: number | null;
+          registryAvailable: boolean | null;
+          registryKind: string | null;
+          registrySelected: boolean | null;
           routeBackendKind: string | null;
           routeBehaviorFlags: Array<string> | null;
           routeCanonicalModelKey: string | null;
