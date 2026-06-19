@@ -4053,6 +4053,8 @@ function formatPromptRegistryRepairExecutionRequest(
                   : 'referenceSchemaArtifactRecordPersistenceFingerprintInputs:none'
               }:referenceSchemaArtifactRecordPersistenceStatus:${
                 entry.candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus
+              }:referenceSchemaArtifactRecordStorageStatus:${
+                entry.candidateEvidenceReferenceSchemaArtifactRecordStorageStatus
               }:referenceSchemaArtifactRecordStatus:${
                 entry.candidateEvidenceReferenceSchemaArtifactRecordStatus
               }:referenceSchemaArtifactStatus:${

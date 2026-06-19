@@ -243,6 +243,8 @@ const candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs
     'recordStatus',
     'schemaFingerprint',
   ];
+const candidateEvidenceReferenceSchemaArtifactRecordStorageStatusFixture =
+  'not_allocated_read_only';
 
 function candidateEvidenceCategoryFromKeyFixture(key?: string) {
   if (!key) {
@@ -7256,6 +7258,8 @@ describe('AiPage', () => {
                     ],
                   candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus:
                     candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatusFixture,
+                  candidateEvidenceReferenceSchemaArtifactRecordStorageStatus:
+                    candidateEvidenceReferenceSchemaArtifactRecordStorageStatusFixture,
                   candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint:
                     candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintFixture,
                   candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs:
@@ -8233,6 +8237,12 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       `referenceSchemaArtifactRecordPersistenceStatus:${candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatusFixture}`
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `referenceSchemaArtifactRecordStorageStatus:${candidateEvidenceReferenceSchemaArtifactRecordStorageStatusFixture}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
