@@ -1238,6 +1238,7 @@ export interface CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryT
   candidateEvidenceCategories: Array<Scalars['String']['output']>;
   candidateEvidenceCount: Scalars['SafeInt']['output'];
   candidateEvidenceEntries: Array<CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType>;
+  candidateEvidenceReferenceSchemaArtifactStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaFields: Array<Scalars['String']['output']>;
   candidateEvidenceReferenceSchemaFingerprint: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaFingerprintInputs: Array<
@@ -9257,6 +9258,7 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
       candidateEvidenceCategoryCount: number;
       candidateEvidenceCategories: Array<string>;
       candidateEvidenceCount: number;
+      candidateEvidenceReferenceSchemaArtifactStatus: string;
       candidateEvidenceReferenceSchemaFields: Array<string>;
       candidateEvidenceReferenceSchemaFingerprint: string;
       candidateEvidenceReferenceSchemaFingerprintInputs: Array<string>;

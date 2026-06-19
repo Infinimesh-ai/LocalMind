@@ -136,6 +136,8 @@ const candidateEvidenceReferenceSchemaFingerprintInputsFixture = [
 ] as const;
 const candidateEvidenceReferenceSchemaRegistryStatusFixture =
   'not_persisted_read_only';
+const candidateEvidenceReferenceSchemaArtifactStatusFixture =
+  'not_created_read_only';
 const candidateEvidenceReferenceSchemaFingerprintFixture = createHash('sha256')
   .update(
     stableFingerprintFixtureStringify({
@@ -4807,6 +4809,8 @@ async function main() {
           candidateEvidenceReferenceSchemaFields: [
             ...candidateEvidenceReferenceSchemaFieldsFixture,
           ],
+          candidateEvidenceReferenceSchemaArtifactStatus:
+            candidateEvidenceReferenceSchemaArtifactStatusFixture,
           candidateEvidenceReferenceSchemaFingerprint:
             candidateEvidenceReferenceSchemaFingerprintFixture,
           candidateEvidenceReferenceSchemaFingerprintInputs: [
@@ -4855,6 +4859,10 @@ async function main() {
   assert.deepEqual(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaFields,
     [...candidateEvidenceReferenceSchemaFieldsFixture]
+  );
+  assert.equal(
+    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactStatus,
+    candidateEvidenceReferenceSchemaArtifactStatusFixture
   );
   assert.equal(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaFingerprint,

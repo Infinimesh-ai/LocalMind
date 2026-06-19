@@ -164,6 +164,8 @@ const candidateEvidenceReferenceSchemaFingerprintInputsFixture = [
 ];
 const candidateEvidenceReferenceSchemaRegistryStatusFixture =
   'not_persisted_read_only';
+const candidateEvidenceReferenceSchemaArtifactStatusFixture =
+  'not_created_read_only';
 const candidateEvidenceReferenceSchemaFingerprintFixture = createHash('sha256')
   .update(
     stableFixtureStringify({
@@ -7176,6 +7178,8 @@ describe('AiPage', () => {
                     candidateEvidenceKeys
                   ),
                   candidateEvidenceCount: operation.candidateEvidenceCount,
+                  candidateEvidenceReferenceSchemaArtifactStatus:
+                    candidateEvidenceReferenceSchemaArtifactStatusFixture,
                   candidateEvidenceReferenceSchemaFields: [
                     ...candidateEvidenceReferenceSchemaFieldsFixture,
                   ],
@@ -8101,6 +8105,12 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       `referenceSchema:${candidateEvidenceReferenceSchemaVersionFixture}:${candidateEvidenceReferenceSchemaFieldsFixture.join('|')}`
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `referenceSchemaArtifactStatus:${candidateEvidenceReferenceSchemaArtifactStatusFixture}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

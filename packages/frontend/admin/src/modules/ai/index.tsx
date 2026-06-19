@@ -4022,6 +4022,8 @@ function formatPromptRegistryRepairExecutionRequest(
                 entry.candidateEvidenceReferenceSchemaFields.length
                   ? entry.candidateEvidenceReferenceSchemaFields.join('|')
                   : 'referenceSchemaFields:none'
+              }:referenceSchemaArtifactStatus:${
+                entry.candidateEvidenceReferenceSchemaArtifactStatus
               }:referenceSchemaFingerprint:${
                 entry.candidateEvidenceReferenceSchemaFingerprint
               }:referenceSchemaFingerprintInputs:${

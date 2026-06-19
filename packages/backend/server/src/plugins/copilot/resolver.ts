@@ -984,6 +984,8 @@ const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_FINGERP
   ] as const;
 const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_REGISTRY_STATUS =
   'not_persisted_read_only';
+const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_STATUS =
+  'not_created_read_only';
 const COPILOT_PROMPT_REGISTRY_REPAIR_ACTION_CATALOG_VERSION =
   'repair-actions/v1';
 
@@ -1389,6 +1391,7 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
   candidateEvidenceCategories: string[];
   candidateEvidenceCount: number;
   candidateEvidenceEntries: CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry[];
+  candidateEvidenceReferenceSchemaArtifactStatus: string;
   candidateEvidenceReferenceSchemaFields: string[];
   candidateEvidenceReferenceSchemaFingerprint: string;
   candidateEvidenceReferenceSchemaFingerprintInputs: string[];
@@ -3584,6 +3587,9 @@ class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType impleme
 
   @Field(() => [CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType])
   candidateEvidenceEntries!: CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry[];
+
+  @Field(() => String)
+  candidateEvidenceReferenceSchemaArtifactStatus!: string;
 
   @Field(() => [String])
   candidateEvidenceReferenceSchemaFields!: string[];
@@ -11135,6 +11141,8 @@ function buildPromptRegistryRepairExecutionRequest(
           ...candidateEvidenceClassificationSummary(candidateEvidenceKeys),
           candidateEvidenceCount: operation.candidateEvidenceCount,
           candidateEvidenceEntries: operation.candidateEvidenceEntries,
+          candidateEvidenceReferenceSchemaArtifactStatus:
+            COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_STATUS,
           candidateEvidenceReferenceSchemaFields: [
             ...COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_FIELDS,
           ],
