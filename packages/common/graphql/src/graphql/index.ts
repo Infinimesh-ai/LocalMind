@@ -3408,6 +3408,27 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
         candidateEvidenceScope
         candidateIndex
         preparedRouteOrderFingerprint
+        policyCandidateEntries {
+          allowed
+          available
+          health
+          healthCheckedAt
+          privacy
+          providerConfiguredModelCount
+          providerConfiguredModelIds
+          providerId
+          providerName
+          providerPriority
+          providerProfileConfigPath
+          providerProfileId
+          providerProfileSource
+          providerSource
+          providerType
+          registryAvailable
+          registryKind
+          registrySelected
+          reasons
+        }
         taskRouteEffectiveSourceFingerprint
         taskRouteModelSourceSnapshotEntries {
           featureKind

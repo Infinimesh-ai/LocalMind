@@ -230,6 +230,27 @@ function candidateEvidenceReferenceEntriesFixture(
     candidateIndex: number;
     candidateKey?: string;
     preparedRouteOrderFingerprint?: string | null;
+    policyCandidates?: Array<{
+      allowed: boolean;
+      available: boolean;
+      health: string;
+      healthCheckedAt?: string | null;
+      privacy: string;
+      providerConfiguredModelCount?: number | null;
+      providerConfiguredModelIds?: string[] | null;
+      providerId: string;
+      providerName?: string | null;
+      providerPriority?: number | null;
+      providerProfileConfigPath?: string | null;
+      providerProfileId?: string | null;
+      providerProfileSource?: string | null;
+      providerSource?: string | null;
+      providerType?: string | null;
+      registryAvailable?: boolean | null;
+      registryKind?: string | null;
+      registrySelected?: boolean | null;
+      reasons: string[];
+    }> | null;
     providerId: string;
     scope: string;
     taskRouteEffectiveSourceFingerprint?: string | null;
@@ -255,6 +276,7 @@ function candidateEvidenceReferenceEntriesFixture(
       candidateIndex: candidate.candidateIndex,
       preparedRouteOrderFingerprint:
         candidate.preparedRouteOrderFingerprint ?? null,
+      policyCandidateEntries: candidate.policyCandidates ?? null,
       taskRouteEffectiveSourceFingerprint:
         candidate.taskRouteEffectiveSourceFingerprint ?? null,
       taskRouteModelSourceSnapshotEntries:
@@ -7913,11 +7935,20 @@ describe('AiPage', () => {
             `${entry.featureKind}:${entry.requestedModelConfigKey ?? 'configKey:none'}:${entry.requestedModelConfigPath ?? 'configPath:none'}:${entry.requestedModelId ?? 'requestedModel:none'}:${entry.requestedModelSource ?? 'requestedSource:none'}`
         )
         .join('^') ?? 'modelSourceEntries:none';
+    const taskRouteSourceCandidatePolicyEntries =
+      taskRouteSourceCandidateEntry?.policyCandidateEntries
+        ?.map(
+          entry =>
+            `${entry.providerId}:allowed:${entry.allowed}:available:${entry.available}:health:${entry.health}:privacy:${entry.privacy}:registry:${entry.registryKind ?? 'registry:none'}:profile:${entry.providerProfileId ?? 'profile:none'}:reasons:${
+              entry.reasons.length ? entry.reasons.join('^') : 'reasons:none'
+            }`
+        )
+        .join('~') ?? 'policyCandidateEntries:none';
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      `candidateEvidenceEntries:${taskRouteSourceCandidateEntry?.candidateEvidenceScope}#${taskRouteSourceCandidateEntry?.candidateIndex}:${taskRouteSourceCandidateEntry?.candidateEvidenceCategory}:${taskRouteSourceCandidateEntry?.candidateEvidenceProviderId}:${taskRouteSourceCandidateEntry?.candidateEvidenceKey}:${taskRouteSourceCandidateEntry?.candidateEvidenceFingerprint}:${taskRouteSourceCandidateEntry?.preparedRouteOrderFingerprint ?? 'prepared:none'}:${taskRouteSourceCandidateEntry?.taskRouteEffectiveSourceFingerprint ?? 'source:none'}:${taskRouteSourceCandidateEntry?.taskRouteModelSourceSnapshotFingerprint ?? 'modelSource:none'}:modelSourceEntries:${taskRouteSourceCandidateModelSourceEntries}`
+      `candidateEvidenceEntries:${taskRouteSourceCandidateEntry?.candidateEvidenceScope}#${taskRouteSourceCandidateEntry?.candidateIndex}:${taskRouteSourceCandidateEntry?.candidateEvidenceCategory}:${taskRouteSourceCandidateEntry?.candidateEvidenceProviderId}:${taskRouteSourceCandidateEntry?.candidateEvidenceKey}:${taskRouteSourceCandidateEntry?.candidateEvidenceFingerprint}:${taskRouteSourceCandidateEntry?.preparedRouteOrderFingerprint ?? 'prepared:none'}:policyCandidateEntries:${taskRouteSourceCandidatePolicyEntries}:${taskRouteSourceCandidateEntry?.taskRouteEffectiveSourceFingerprint ?? 'source:none'}:${taskRouteSourceCandidateEntry?.taskRouteModelSourceSnapshotFingerprint ?? 'modelSource:none'}:modelSourceEntries:${taskRouteSourceCandidateModelSourceEntries}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

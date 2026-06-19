@@ -1124,6 +1124,7 @@ type CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry = {
   candidateEvidenceScope: string;
   candidateIndex: number;
   preparedRouteOrderFingerprint?: string;
+  policyCandidateEntries?: CopilotPromptRegistryPublishGatePolicyCandidate[];
   taskRouteEffectiveSourceFingerprint?: string;
   taskRouteModelSourceSnapshotEntries?: CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntry[];
   taskRouteModelSourceSnapshotFingerprint?: string;
@@ -3493,6 +3494,11 @@ class CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType implements 
 
   @Field(() => String, { nullable: true })
   preparedRouteOrderFingerprint?: string;
+
+  @Field(() => [CopilotPromptRegistryPublishGatePolicyCandidateType], {
+    nullable: true,
+  })
+  policyCandidateEntries?: CopilotPromptRegistryPublishGatePolicyCandidate[];
 
   @Field(() => String, { nullable: true })
   taskRouteEffectiveSourceFingerprint?: string;
@@ -9375,6 +9381,9 @@ function promptRegistryRepairCandidateEvidenceSnapshot(
               preparedRouteOrderFingerprint:
                 candidate.preparedRouteOrderFingerprint,
             }
+          : {}),
+        ...(candidate.policyCandidates?.length
+          ? { policyCandidateEntries: candidate.policyCandidates }
           : {}),
         ...(candidate.taskRouteEffectiveSourceFingerprint
           ? {

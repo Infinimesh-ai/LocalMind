@@ -4830,6 +4830,12 @@ async function main() {
     ),
     'task route source evidence candidate references should expose model source snapshot entries'
   );
+  assert.ok(
+    taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.some(entry =>
+      entry.policyCandidateEntries?.some(candidate => candidate.providerId)
+    ),
+    'task route source evidence candidate references should expose policy candidate entries'
+  );
   assert.deepEqual(
     executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints,
     Array.from(

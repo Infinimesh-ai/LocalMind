@@ -1206,6 +1206,9 @@ export interface CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType 
   candidateEvidenceScope: Scalars['String']['output'];
   candidateIndex: Scalars['SafeInt']['output'];
   preparedRouteOrderFingerprint?: Maybe<Scalars['String']['output']>;
+  policyCandidateEntries?: Maybe<
+    Array<CopilotPromptRegistryPublishGatePolicyCandidateType>
+  >;
   taskRouteEffectiveSourceFingerprint?: Maybe<Scalars['String']['output']>;
   taskRouteModelSourceSnapshotEntries?: Maybe<
     Array<CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType>
@@ -9246,6 +9249,28 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
         candidateEvidenceScope: string;
         candidateIndex: number;
         preparedRouteOrderFingerprint: string | null;
+        policyCandidateEntries: Array<{
+          __typename?: 'CopilotPromptRegistryPublishGatePolicyCandidateType';
+          allowed: boolean;
+          available: boolean;
+          health: string;
+          healthCheckedAt: string | null;
+          privacy: string;
+          providerConfiguredModelCount: number | null;
+          providerConfiguredModelIds: Array<string> | null;
+          providerId: string;
+          providerName: string | null;
+          providerPriority: number | null;
+          providerProfileConfigPath: string | null;
+          providerProfileId: string | null;
+          providerProfileSource: string | null;
+          providerSource: string | null;
+          providerType: string | null;
+          registryAvailable: boolean | null;
+          registryKind: string | null;
+          registrySelected: boolean | null;
+          reasons: Array<string>;
+        }> | null;
         taskRouteEffectiveSourceFingerprint: string | null;
         taskRouteModelSourceSnapshotEntries: Array<{
           __typename?: 'CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType';

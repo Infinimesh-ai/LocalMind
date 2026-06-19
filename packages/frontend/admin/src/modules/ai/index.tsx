@@ -4030,6 +4030,33 @@ function formatPromptRegistryRepairExecutionRequest(
                           }:${candidate.candidateEvidenceFingerprint}:${
                             candidate.preparedRouteOrderFingerprint ??
                             'prepared:none'
+                          }:policyCandidateEntries:${
+                            candidate.policyCandidateEntries?.length
+                              ? candidate.policyCandidateEntries
+                                  .map(
+                                    policyCandidate =>
+                                      `${policyCandidate.providerId}:allowed:${
+                                        policyCandidate.allowed
+                                      }:available:${
+                                        policyCandidate.available
+                                      }:health:${
+                                        policyCandidate.health
+                                      }:privacy:${
+                                        policyCandidate.privacy
+                                      }:registry:${
+                                        policyCandidate.registryKind ??
+                                        'registry:none'
+                                      }:profile:${
+                                        policyCandidate.providerProfileId ??
+                                        'profile:none'
+                                      }:reasons:${
+                                        policyCandidate.reasons.length
+                                          ? policyCandidate.reasons.join('^')
+                                          : 'reasons:none'
+                                      }`
+                                  )
+                                  .join('~')
+                              : 'policyCandidateEntries:none'
                           }:${
                             candidate.taskRouteEffectiveSourceFingerprint ??
                             'source:none'
