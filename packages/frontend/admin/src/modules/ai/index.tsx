@@ -3942,6 +3942,19 @@ function formatPromptRegistryRepairExecutionRequest(
           ', '
         )}`
       : 'support bundle artifact inputs none',
+    `support bundle artifact record request ${request.supportBundleArtifactRecordRequestVersion}`,
+    `support bundle artifact record request status ${formatFeatureKind(
+      request.supportBundleArtifactRecordRequestStatus
+    )}`,
+    request.supportBundleArtifactRecordRequestCreated
+      ? 'support bundle artifact record request created yes'
+      : 'support bundle artifact record request created no',
+    `support bundle artifact record request fingerprint ${request.supportBundleArtifactRecordRequestFingerprint}`,
+    request.supportBundleArtifactRecordRequestInputs.length
+      ? `support bundle artifact record request inputs ${request.supportBundleArtifactRecordRequestInputs.join(
+          ', '
+        )}`
+      : 'support bundle artifact record request inputs none',
     `support bundle manifest ${request.supportBundleManifestFilename}`,
     `support bundle manifest fingerprint ${request.supportBundleManifestFingerprint}`,
     `support bundle manifest metadata ${request.supportBundleManifestMetadataFilename}`,

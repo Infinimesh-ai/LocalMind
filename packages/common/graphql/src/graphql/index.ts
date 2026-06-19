@@ -3261,6 +3261,11 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
     supportBundleArtifactCreated
     supportBundleArtifactFingerprint
     supportBundleArtifactInputs
+    supportBundleArtifactRecordRequestCreated
+    supportBundleArtifactRecordRequestFingerprint
+    supportBundleArtifactRecordRequestInputs
+    supportBundleArtifactRecordRequestStatus
+    supportBundleArtifactRecordRequestVersion
     supportBundleArtifactStatus
     supportBundleArtifactVersion
     supportBundleAuditPersistenceRequestCreated

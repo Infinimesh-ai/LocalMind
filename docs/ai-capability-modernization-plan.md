@@ -14402,3 +14402,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - request fingerprint 只绑定 actor fingerprint、audit persistence request fingerprint、manifest/export metadata retention policy 与 support bundle package fingerprint，不绑定真实用户会话、tenant retention policy registry、download token、workspace secret、网络来源、过期时间、真实下载行为、正式 repair execution output 或实际 artifact storage key。
 - package lifecycle 仍未覆盖 DB-backed artifact table、正式 support bundle package 内容、可下载归档、签名快照或真实 lifecycle worker。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 430. P3 落地记录：Prompt Registry Repair Support Bundle Artifact Record Request Projection
+
+本轮继续收敛第 429 节剩余风险中 “package lifecycle 仍未覆盖 DB-backed artifact table” 的问题。实际代码与目标 AI 中间层架构的冲突点是：repair execution request 已经有 support bundle package、download authorization、audit persistence 与 retention cleanup 的只读 request projection，但 DB artifact row 仍没有 request-level anchor；后续若要引入正式 support bundle artifact table，仍缺少一个把 artifact fingerprint、package fingerprint、manifest metadata、download authorization、audit persistence 与 retention cleanup 绑定起来的只读 record request。本轮新增 `prompt-registry-repair-gate-support-bundle-artifact-record-request/v1`，不做 DB migration、不写 artifact row、不创建文件、不创建下载地址。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryRepairExecutionRequest` / GraphQL type 新增 `supportBundleArtifactRecordRequest*` 字段。
+  - `buildPromptRegistryRepairExecutionRequest()` 新增只读 artifact record request projection：状态为 `not_created_read_only`，输入绑定 support bundle artifact fingerprint/status、package fingerprint、manifest fingerprint、manifest metadata fingerprint、download authorization request fingerprint、audit persistence request fingerprint、retention cleanup request fingerprint 与 request status。
+  - request fingerprint 同步纳入 `supportBundleArtifactRecordRequestFingerprint`，使 artifact record request projection 漂移会影响 request-level anchor。
+- GraphQL 与 common client：
+  - `schema.gql`、repair execution request mutation、common query string 与 `schema.ts` 类型同步暴露 artifact record request 字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair execution request diagnostics 展示 artifact record request version/status/created/fingerprint/inputs。
+- 测试覆盖：
+  - backend model/source chain smoke test 断言 artifact record request 字段、输入集合与 fingerprint 重算。
+  - Admin Vitest fixture/断言覆盖 artifact record request diagnostics 展示。
+
+该实现只扩展 repair execution request 的只读 GraphQL projection、common query/type、Admin 展示和测试，不新增 DB migration、不创建 DB-backed support bundle、不新增后端 download resolver、不创建下载 URL、不执行真实权限检查、不创建 audit event、不持久化 audit trail、不调度 retention cleanup job、不删除或归档文件、不写 artifact row、不改变 repair mutation 可执行性、不改变 preflight/execution gate 判定、不改变 provider route selection、fallback order、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、Model Registry revision 或 Provider Registry revision。它把 “DB-backed artifact table 尚未落地” 从文档风险推进到可比较的 request-level projection，为后续正式 artifact row、storage key、download resolver 与 signed archive lifecycle 提供更明确的迁移输入。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 backend model/source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `supportBundleArtifactRecordRequest*` 仍是只读 GraphQL projection，不是 DB-backed artifact row、artifact table migration、storage key、download resolver、signed archive、真实 audit trail 或 retention cleanup job。
+- request fingerprint 只绑定当前 support bundle artifact/package/request projection 与 manifest export metadata，不绑定真实 artifact payload、storage backend、workspace secret、tenant policy registry、真实下载行为、正式 repair execution output 或 signed archive bytes。
+- package lifecycle 仍未覆盖正式 support bundle package 内容、可下载归档、签名快照、storage key 分配、download resolver 路由或真实 lifecycle worker。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

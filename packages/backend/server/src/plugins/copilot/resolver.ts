@@ -1360,6 +1360,11 @@ type CopilotPromptRegistryRepairExecutionRequest = {
   supportBundleArtifactCreated: boolean;
   supportBundleArtifactFingerprint: string;
   supportBundleArtifactInputs: string[];
+  supportBundleArtifactRecordRequestCreated: boolean;
+  supportBundleArtifactRecordRequestFingerprint: string;
+  supportBundleArtifactRecordRequestInputs: string[];
+  supportBundleArtifactRecordRequestStatus: string;
+  supportBundleArtifactRecordRequestVersion: string;
   supportBundleArtifactStatus: string;
   supportBundleArtifactVersion: string;
   supportBundleAuditPersistenceRequestCreated: boolean;
@@ -3844,6 +3849,21 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
 
   @Field(() => [String])
   supportBundleArtifactInputs!: string[];
+
+  @Field(() => Boolean)
+  supportBundleArtifactRecordRequestCreated!: boolean;
+
+  @Field(() => String)
+  supportBundleArtifactRecordRequestFingerprint!: string;
+
+  @Field(() => [String])
+  supportBundleArtifactRecordRequestInputs!: string[];
+
+  @Field(() => String)
+  supportBundleArtifactRecordRequestStatus!: string;
+
+  @Field(() => String)
+  supportBundleArtifactRecordRequestVersion!: string;
 
   @Field(() => String)
   supportBundleArtifactStatus!: string;
@@ -10294,6 +10314,48 @@ function buildPromptRegistryRepairExecutionRequest(
     )
     .digest('hex')
     .slice(0, 16);
+  const supportBundleArtifactRecordRequestVersion =
+    'prompt-registry-repair-gate-support-bundle-artifact-record-request/v1';
+  const supportBundleArtifactRecordRequestStatus = 'not_created_read_only';
+  const supportBundleArtifactRecordRequestInputs = [
+    'artifactFingerprint',
+    'artifactStatus',
+    'auditPersistenceRequestFingerprint',
+    'downloadAuthorizationRequestFingerprint',
+    'manifestFingerprint',
+    'manifestMetadataFingerprint',
+    'packageFingerprint',
+    'requestStatus',
+    'retentionCleanupRequestFingerprint',
+  ].sort();
+  const supportBundleArtifactRecordRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        artifactFingerprint: supportBundleArtifactFingerprint,
+        artifactStatus: supportBundleArtifactStatus,
+        auditPersistenceRequestFingerprint:
+          supportBundleAuditPersistenceRequestFingerprint,
+        created: false,
+        downloadAuthorizationRequestFingerprint:
+          supportBundleDownloadAuthorizationRequestFingerprint,
+        inputs: supportBundleArtifactRecordRequestInputs,
+        manifestFilename: repairGateManifestExportMetadata.filename,
+        manifestFingerprint: repairGateManifest.fingerprint,
+        manifestMetadataFilename:
+          repairGateManifestExportMetadata.metadataFilename,
+        manifestMetadataFingerprint:
+          repairGateManifestExportMetadata.exportPolicyFingerprint,
+        packageFingerprint: supportBundlePackageFingerprint,
+        requestStatus,
+        retentionCleanupRequestFingerprint:
+          supportBundleRetentionCleanupRequestFingerprint,
+        status: supportBundleArtifactRecordRequestStatus,
+        version: supportBundleArtifactRecordRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
   const idempotencyLockVersion = 'repair-execution-idempotency-lock/v1';
   const idempotencyLockStatus = 'not_acquired_read_only';
   const idempotencyLockScope = preflight.idempotencyScope;
@@ -13155,6 +13217,7 @@ function buildPromptRegistryRepairExecutionRequest(
         requestStatus,
         rollbackPlanFingerprint: preflight.rollbackPlanFingerprint,
         rollbackPlanRequestFingerprint,
+        supportBundleArtifactRecordRequestFingerprint,
         supportBundleArtifactFingerprint,
         supportBundleAuditPersistenceRequestFingerprint,
         supportBundleDownloadAuthorizationRequestFingerprint,
@@ -13440,6 +13503,11 @@ function buildPromptRegistryRepairExecutionRequest(
     supportBundleArtifactCreated: false,
     supportBundleArtifactFingerprint,
     supportBundleArtifactInputs,
+    supportBundleArtifactRecordRequestCreated: false,
+    supportBundleArtifactRecordRequestFingerprint,
+    supportBundleArtifactRecordRequestInputs,
+    supportBundleArtifactRecordRequestStatus,
+    supportBundleArtifactRecordRequestVersion,
     supportBundleArtifactStatus,
     supportBundleArtifactVersion,
     supportBundleAuditPersistenceRequestCreated: false,
