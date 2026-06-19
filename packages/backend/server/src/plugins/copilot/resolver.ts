@@ -1004,6 +1004,13 @@ const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFAC
   ] as const;
 const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_PERSISTENCE_STATUS =
   'not_persisted_read_only';
+const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_PERSISTENCE_FINGERPRINT_INPUTS =
+  [
+    'persistenceStatus',
+    'recordFingerprint',
+    'recordStatus',
+    'schemaFingerprint',
+  ] as const;
 const COPILOT_PROMPT_REGISTRY_REPAIR_ACTION_CATALOG_VERSION =
   'repair-actions/v1';
 
@@ -1414,6 +1421,7 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
   candidateEvidenceReferenceSchemaArtifactRecordFingerprint: string;
   candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs: string[];
   candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint: string;
+  candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs: string[];
   candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus: string;
   candidateEvidenceReferenceSchemaArtifactRecordStatus: string;
   candidateEvidenceReferenceSchemaArtifactStatus: string;
@@ -3627,6 +3635,9 @@ class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType impleme
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint!: string;
+
+  @Field(() => [String])
+  candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs!: string[];
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus!: string;
@@ -11276,6 +11287,10 @@ function buildPromptRegistryRepairExecutionRequest(
           ],
           candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint:
             candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint,
+          candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs:
+            [
+              ...COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_PERSISTENCE_FINGERPRINT_INPUTS,
+            ],
           candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus:
             COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_PERSISTENCE_STATUS,
           candidateEvidenceReferenceSchemaArtifactRecordStatus:

@@ -236,6 +236,13 @@ const candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintFixtur
     )
     .digest('hex')
     .slice(0, 16);
+const candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputsFixture =
+  [
+    'persistenceStatus',
+    'recordFingerprint',
+    'recordStatus',
+    'schemaFingerprint',
+  ];
 
 function candidateEvidenceCategoryFromKeyFixture(key?: string) {
   if (!key) {
@@ -7251,6 +7258,10 @@ describe('AiPage', () => {
                     candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatusFixture,
                   candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint:
                     candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintFixture,
+                  candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs:
+                    [
+                      ...candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputsFixture,
+                    ],
                   candidateEvidenceReferenceSchemaArtifactRecordStatus:
                     candidateEvidenceReferenceSchemaArtifactRecordStatusFixture,
                   candidateEvidenceReferenceSchemaArtifactStatus:
@@ -8210,6 +8221,12 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       `referenceSchemaArtifactRecordPersistenceFingerprint:${candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintFixture}`
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `referenceSchemaArtifactRecordPersistenceFingerprintInputs:${candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputsFixture.join('|')}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

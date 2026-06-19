@@ -208,6 +208,13 @@ const candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintFixtur
     )
     .digest('hex')
     .slice(0, 16);
+const candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputsFixture =
+  [
+    'persistenceStatus',
+    'recordFingerprint',
+    'recordStatus',
+    'schemaFingerprint',
+  ] as const;
 
 function candidateEvidenceClassificationSummaryFixture(
   candidateEvidenceKeys: string[]
@@ -4876,6 +4883,10 @@ async function main() {
           ],
           candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint:
             candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintFixture,
+          candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs:
+            [
+              ...candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputsFixture,
+            ],
           candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus:
             candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatusFixture,
           candidateEvidenceReferenceSchemaArtifactRecordStatus:
@@ -4953,6 +4964,12 @@ async function main() {
   assert.equal(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint,
     candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintFixture
+  );
+  assert.deepEqual(
+    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs,
+    [
+      ...candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputsFixture,
+    ]
   );
   assert.equal(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus,

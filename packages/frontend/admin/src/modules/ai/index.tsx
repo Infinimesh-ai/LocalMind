@@ -4043,6 +4043,14 @@ function formatPromptRegistryRepairExecutionRequest(
                   : 'referenceSchemaArtifactRecordFingerprintInputs:none'
               }:referenceSchemaArtifactRecordPersistenceFingerprint:${
                 entry.candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint
+              }:referenceSchemaArtifactRecordPersistenceFingerprintInputs:${
+                entry
+                  .candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs
+                  .length
+                  ? entry.candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs.join(
+                      '|'
+                    )
+                  : 'referenceSchemaArtifactRecordPersistenceFingerprintInputs:none'
               }:referenceSchemaArtifactRecordPersistenceStatus:${
                 entry.candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus
               }:referenceSchemaArtifactRecordStatus:${
