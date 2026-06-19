@@ -1660,6 +1660,7 @@ type CopilotPromptRegistryRepairExecutionRequest = {
   supportBundleStorageKeyRequestStatus: string;
   supportBundleStorageKeyRequestVersion: string;
   supportBundleStorageKeyScope: string;
+  supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint: string;
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: string[];
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: string;
 };
@@ -4402,6 +4403,9 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
 
   @Field(() => String)
   supportBundleStorageKeyScope!: string;
+
+  @Field(() => String)
+  supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint!: string;
 
   @Field(() => [String])
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs!: string[];
@@ -14577,6 +14581,8 @@ function buildPromptRegistryRepairExecutionRequest(
     supportBundleStorageKeyRequestStatus,
     supportBundleStorageKeyRequestVersion,
     supportBundleStorageKeyScope,
+    supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint:
+      preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
     supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: [
       ...COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_EVIDENCE_SET_FINGERPRINT_INPUTS,
     ],

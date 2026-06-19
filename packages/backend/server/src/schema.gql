@@ -1361,6 +1361,7 @@ type CopilotPromptRegistryRepairExecutionRequestType {
   supportBundleStorageKeyRequestStatus: String!
   supportBundleStorageKeyRequestVersion: String!
   supportBundleStorageKeyScope: String!
+  supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint: String!
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: [String!]!
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: String!
 }

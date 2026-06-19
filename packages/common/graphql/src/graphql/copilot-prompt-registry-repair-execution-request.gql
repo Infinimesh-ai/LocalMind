@@ -333,6 +333,7 @@ mutation requestCopilotPromptRegistryRepairExecution(
     supportBundleStorageKeyRequestStatus
     supportBundleStorageKeyRequestVersion
     supportBundleStorageKeyScope
+    supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint
     supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs
     supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion
     preflight {

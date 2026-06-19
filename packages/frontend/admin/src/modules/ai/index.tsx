@@ -3982,6 +3982,7 @@ function formatPromptRegistryRepairExecutionRequest(
     `expected repair gate manifest fingerprint ${request.expectedRepairGateManifestFingerprint}`,
     `expected repair gate manifest export policy fingerprint ${request.expectedRepairGateManifestExportPolicyFingerprint}`,
     `expected repair gate manifest retention policy fingerprint ${request.expectedRepairGateManifestRetentionPolicyFingerprint}`,
+    `support bundle task route source evidence set fingerprint ${request.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint}`,
     `support bundle task route source evidence set version ${request.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion}`,
     request.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs
       .length

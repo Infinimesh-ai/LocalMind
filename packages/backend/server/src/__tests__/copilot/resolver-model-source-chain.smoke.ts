@@ -4682,6 +4682,10 @@ async function main() {
     executionRequest.supportBundleArtifactVersion,
     'prompt-registry-repair-gate-support-bundle-artifact/v1'
   );
+  assert.equal(
+    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint,
+    matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint
+  );
   assert.deepEqual(
     executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs,
     [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]

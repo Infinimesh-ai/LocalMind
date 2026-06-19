@@ -6823,6 +6823,8 @@ describe('AiPage', () => {
           supportBundleStorageKeyRequestVersion:
             'prompt-registry-repair-gate-support-bundle-storage-key-request/v1',
           supportBundleStorageKeyScope: 'support_bundle_artifact_record',
+          supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint:
+            input.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
           supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: [
             ...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture,
           ],
@@ -7663,7 +7665,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      'support bundle task route source evidence set version copilot-task-route-effective-source-evidence-set/v1 / support bundle task route source evidence set inputs diagnosticsFingerprint, operationFingerprint, taskRouteEffectiveSourceFingerprints'
+      'support bundle task route source evidence set fingerprint aaaa5656bbbb6767 / support bundle task route source evidence set version copilot-task-route-effective-source-evidence-set/v1 / support bundle task route source evidence set inputs diagnosticsFingerprint, operationFingerprint, taskRouteEffectiveSourceFingerprints'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
