@@ -1537,6 +1537,7 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus: string;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint: string;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs: string[];
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint: string;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus: string;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus: string;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus: string;
@@ -3830,6 +3831,9 @@ class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType impleme
 
   @Field(() => [String])
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs!: string[];
+
+  @Field(() => String)
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint!: string;
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus!: string;
@@ -8526,6 +8530,25 @@ function promptRegistryRepairCandidateEvidenceReferenceSchemaArtifactRecordStora
     .slice(0, 16);
 }
 
+function promptRegistryRepairCandidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint(input: {
+  objectFingerprint: string;
+  schemaFingerprint: string;
+}) {
+  return createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        archiveInclusionStatus:
+          COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_OBJECT_ARCHIVE_MANIFEST_ENTRY_PERSISTENCE_RECORD_STORAGE_OBJECT_ARCHIVE_INCLUSION_STATUS,
+        objectFingerprint: input.objectFingerprint,
+        objectStatus:
+          COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_OBJECT_ARCHIVE_MANIFEST_ENTRY_PERSISTENCE_RECORD_STORAGE_OBJECT_STATUS,
+        schemaFingerprint: input.schemaFingerprint,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
 function taskRouteRepairCandidateEvidenceFingerprint(
   evidence: Omit<
     CopilotPromptRegistryPublishGateRepairCandidateEvidence,
@@ -11757,6 +11780,14 @@ function buildPromptRegistryRepairExecutionRequest(
           candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint,
       }
     );
+  const candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint =
+    promptRegistryRepairCandidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint(
+      {
+        objectFingerprint:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint,
+        schemaFingerprint: candidateEvidenceReferenceSchemaFingerprint,
+      }
+    );
   const supportBundleTaskRouteEffectiveSourceEvidenceSetEntries =
     repairActionPreview.operations
       .map(operation => {
@@ -11848,6 +11879,8 @@ function buildPromptRegistryRepairExecutionRequest(
             [
               ...COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_OBJECT_ARCHIVE_MANIFEST_ENTRY_PERSISTENCE_RECORD_STORAGE_OBJECT_FINGERPRINT_INPUTS,
             ],
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint:
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint,
           candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus:
             COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_OBJECT_ARCHIVE_MANIFEST_ENTRY_PERSISTENCE_RECORD_STORAGE_OBJECT_ARCHIVE_INCLUSION_STATUS,
           candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus:
