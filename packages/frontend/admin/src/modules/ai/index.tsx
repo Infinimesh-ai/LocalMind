@@ -4028,6 +4028,9 @@ function formatPromptRegistryRepairExecutionRequest(
                             candidate.candidateEvidenceKey ??
                             'candidateEvidenceKey:none'
                           }:${candidate.candidateEvidenceFingerprint}:${
+                            candidate.preparedRouteOrderFingerprint ??
+                            'prepared:none'
+                          }:${
                             candidate.taskRouteEffectiveSourceFingerprint ??
                             'source:none'
                           }`

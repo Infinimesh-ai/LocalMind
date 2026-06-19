@@ -1050,6 +1050,7 @@ type CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType {
   candidateEvidenceProviderId: String!
   candidateEvidenceScope: String!
   candidateIndex: SafeInt!
+  preparedRouteOrderFingerprint: String
   taskRouteEffectiveSourceFingerprint: String
 }
 

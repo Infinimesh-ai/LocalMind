@@ -229,6 +229,7 @@ function candidateEvidenceReferenceEntriesFixture(
     candidateFingerprint: string;
     candidateIndex: number;
     candidateKey?: string;
+    preparedRouteOrderFingerprint?: string | null;
     providerId: string;
     scope: string;
     taskRouteEffectiveSourceFingerprint?: string | null;
@@ -244,6 +245,8 @@ function candidateEvidenceReferenceEntriesFixture(
       candidateEvidenceProviderId: candidate.providerId,
       candidateEvidenceScope: candidate.scope,
       candidateIndex: candidate.candidateIndex,
+      preparedRouteOrderFingerprint:
+        candidate.preparedRouteOrderFingerprint ?? null,
       taskRouteEffectiveSourceFingerprint:
         candidate.taskRouteEffectiveSourceFingerprint ?? null,
     }))
@@ -7887,7 +7890,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      `candidateEvidenceEntries:${taskRouteSourceCandidateEntry?.candidateEvidenceScope}#${taskRouteSourceCandidateEntry?.candidateIndex}:${taskRouteSourceCandidateEntry?.candidateEvidenceCategory}:${taskRouteSourceCandidateEntry?.candidateEvidenceProviderId}:${taskRouteSourceCandidateEntry?.candidateEvidenceKey}:${taskRouteSourceCandidateEntry?.candidateEvidenceFingerprint}:${taskRouteSourceCandidateEntry?.taskRouteEffectiveSourceFingerprint ?? 'source:none'}`
+      `candidateEvidenceEntries:${taskRouteSourceCandidateEntry?.candidateEvidenceScope}#${taskRouteSourceCandidateEntry?.candidateIndex}:${taskRouteSourceCandidateEntry?.candidateEvidenceCategory}:${taskRouteSourceCandidateEntry?.candidateEvidenceProviderId}:${taskRouteSourceCandidateEntry?.candidateEvidenceKey}:${taskRouteSourceCandidateEntry?.candidateEvidenceFingerprint}:${taskRouteSourceCandidateEntry?.preparedRouteOrderFingerprint ?? 'prepared:none'}:${taskRouteSourceCandidateEntry?.taskRouteEffectiveSourceFingerprint ?? 'source:none'}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

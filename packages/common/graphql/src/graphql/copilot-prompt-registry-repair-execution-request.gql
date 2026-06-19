@@ -346,6 +346,7 @@ mutation requestCopilotPromptRegistryRepairExecution(
         candidateEvidenceProviderId
         candidateEvidenceScope
         candidateIndex
+        preparedRouteOrderFingerprint
         taskRouteEffectiveSourceFingerprint
       }
       candidateEvidenceFingerprint

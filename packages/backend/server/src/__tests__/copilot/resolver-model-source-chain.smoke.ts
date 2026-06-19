@@ -4810,6 +4810,12 @@ async function main() {
     ),
     'task route source evidence candidate references should expose source fingerprints'
   );
+  assert.ok(
+    taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.some(
+      entry => entry.preparedRouteOrderFingerprint
+    ),
+    'task route source evidence candidate references should expose prepared route order fingerprints'
+  );
   assert.deepEqual(
     executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints,
     Array.from(
