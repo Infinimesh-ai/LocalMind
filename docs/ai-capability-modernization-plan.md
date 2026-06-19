@@ -1,4 +1,4 @@
-# AFFiNE AI 能力梳理与改造计划
+﻿# AFFiNE AI 能力梳理与改造计划
 
 ## 1. 背景与目标
 
@@ -13942,37 +13942,6 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - Admin 展示仍是英文静态 UI 文案，尚未接入 AFFiNE i18n、正式 export 控制、批量导出、签名、脱敏审计元数据或 Agent Runtime 原生 lifecycle artifact。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
 
-## 466. P1 landing record: Support Bundle Source Evidence Candidate Prepare Candidate Payload Entries Projection
-
-This round continues the section 465 residual risk where reference entries can bind task route source, prepared route order, model/source snapshot fingerprint, model/source payload entries, policy candidate payload entries, and route candidate payload entries, but still do not expose prepare candidate payload entries. The conflict with the target AI middle-layer architecture is that an auditor can inspect route matching evidence directly, but still has to jump back to raw candidate evidence or source code to understand the prepare phase outcome: provider/model selected for preparation, prepared model id, registry/model-definition anchors, prepare errors, and reasons.
-
-- `packages/backend/server/src/plugins/copilot/resolver.ts`:
-  - `CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry` / GraphQL object type adds read-only `prepareCandidateEntries`, reusing existing `CopilotTaskRoutePrepareCandidateDiagnosticsType`.
-  - Task route candidate evidence attaches normalized `prepareCandidates` only after `candidateFingerprint` is computed, so existing candidate evidence fingerprint, candidate evidence set fingerprint, operation fingerprint, task-route source evidence-set fingerprint, repair gate manifest fingerprint, execution request fingerprint, and support bundle lifecycle request fingerprint payloads stay unchanged.
-  - `promptRegistryRepairCandidateEvidenceSnapshot()` copies post-hash `prepareCandidates` into per-candidate reference entries as `prepareCandidateEntries`.
-- `packages/backend/server/src/schema.gql`, `packages/common/graphql/src/graphql/index.ts`, `packages/common/graphql/src/graphql/copilot-prompt-registry-repair-execution-request.gql`, and `packages/common/graphql/src/schema.ts`:
-  - Synchronize execution request mutation response selection/type for per-candidate prepare candidate entries so Admin can read provider, prepared state/model, registry/model-definition anchors, error code, and reasons from support bundle source evidence reference entries.
-- `packages/frontend/admin/src/modules/ai/index.tsx`:
-  - Execution request copyable diagnostics add a compact `prepareCandidateEntries` payload summary between `policyCandidateEntries` and `routeCandidateEntries`; missing payloads render as `prepareCandidateEntries:none`.
-- Test coverage:
-  - `resolver-model-source-chain.smoke.ts` asserts task-route source evidence candidate references expose at least one prepare candidate entry with provider and prepared model identity.
-  - `admin/src/modules/ai/index.spec.tsx` covers per-candidate reference prepare payload output and keeps fixture candidate fingerprints stable by adding prepare payloads only after fixture fingerprint calculation.
-
-This implementation only extends read-only support bundle source evidence per-candidate prepare candidate payload projection, GraphQL/common query/type coverage, Admin diagnostics labels, and focused tests. It does not add a DB migration, create a DB-backed evidence object/schema registry/artifact record/audit event/persistent repair job snapshot, persist registry revision/workspace policy revision/provider snapshot/task route snapshot/model availability snapshot/archive bytes/signed URL material/storage backend, change any existing fingerprint payload, alter repair action executability, provider route selection, fallback order, BYOK lease, quota, health checks, `copilot.tasks.models` config format, embedding/rerank native request parameters, `EMBEDDING_DIMENSIONS`, pgvector dimensions, MCP registry, Codex adapter, or Action Runtime state machine.
-
-Validation strategy:
-
-- This round changes TypeScript resolver/common/admin/test files plus this plan document only; it does not touch dependencies, Dockerfile, native build, DB migration, or runtime packaging, and does not rebuild `localmind-affine:test`.
-- Continue using the fixed test image `localmind-affine:test` with image ID prefix `c3389960f5ed`. Because `.docker/selfhost/compose.localmind.yml` `affine_test` does not mount the current source tree, validation uses `docker run --rm -v "${PWD}:/host:ro" -w /workspace localmind-affine:test ...` and copies current source dirs into the image workspace before running the focused backend smoke, Admin Vitest, oxlint, Prettier check, and host `git diff --check`.
-
-Remaining risk:
-
-- Source evidence candidate prepare candidate payload entries remain a runtime read-only projection, not a DB-backed evidence object, schema registry, artifact record, audit event, or persistent repair job snapshot.
-- Reference entries now expose task route source, prepared route order, model/source payload entries, policy candidate payload entries, route candidate payload entries, and prepare candidate payload entries, but still do not expose prepared-route payload entries or a fully structured candidate evidence object.
-- The source guard fingerprint still derives from operation/candidate evidence perspective and does not bind real request payloads, provider credentials, BYOK lease, tenant policy registry, storage backend, archive bytes, signed URL secret/material, health probe timestamp, request dispatch outcome, or billing/quota execution result.
-- Repair action remains read-only/blocked; true repair execution, support bundle persistence, download authorization, audit persistence, and retention cleanup worker remain future work.
-- The current runtime image does not include this local source change; before broader stage acceptance a full `localmind-affine:local` build and container verification is still required.
-
 ## 415. P3 落地记录：Action Run Diagnostics Manifest Export Policy Snapshots
 
 本轮继续收敛第 414 节剩余风险中 “metadata sidecar 仍不是服务端签名的 support bundle manifest、下载审计记录、retention policy 或 DB-backed export artifact” 的问题。实际代码与目标 AI 中间层架构的冲突点是：`agentRuntimeDiagnosticsManifestExportMetadata` 已经由后端 GraphQL 返回，但该 metadata 只声明 artifact scope 与脱敏边界，仍没有把当前导出行为的策略状态、审计事件状态和保留策略状态作为机器可读字段暴露出来；后续正式 support bundle/export API 若直接复用该 metadata，仍需要额外约定这些只读阶段尚未创建持久化记录。本轮在 metadata projection 中补充只读 policy/audit/retention snapshot 与稳定 fingerprint，不创建真实导出记录、不写 DB、不改变 manifest payload。
@@ -15628,3 +15597,65 @@ Remaining risk:
 - source guard fingerprint 仍来自 operation/candidate evidence 视角，不绑定真实请求 payload、provider credentials、BYOK lease、tenant policy registry、storage backend、archive bytes、signed URL secret/material、health probe timestamp、request dispatch outcome 或 billing/quota execution result。
 - repair action 仍是 read-only/blocked contract；尚未实现真实修复执行、support bundle 持久化、download authorization、audit persistence 或 retention cleanup worker。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 466. P1 landing record: Support Bundle Source Evidence Candidate Prepare Candidate Payload Entries Projection
+
+This round continues the section 465 residual risk where reference entries can bind task route source, prepared route order, model/source snapshot fingerprint, model/source payload entries, policy candidate payload entries, and route candidate payload entries, but still do not expose prepare candidate payload entries. The conflict with the target AI middle-layer architecture is that an auditor can inspect route matching evidence directly, but still has to jump back to raw candidate evidence or source code to understand the prepare phase outcome: provider/model selected for preparation, prepared model id, registry/model-definition anchors, prepare errors, and reasons.
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`:
+  - `CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry` / GraphQL object type adds read-only `prepareCandidateEntries`, reusing existing `CopilotTaskRoutePrepareCandidateDiagnosticsType`.
+  - Task route candidate evidence attaches normalized `prepareCandidates` only after `candidateFingerprint` is computed, so existing candidate evidence fingerprint, candidate evidence set fingerprint, operation fingerprint, task-route source evidence-set fingerprint, repair gate manifest fingerprint, execution request fingerprint, and support bundle lifecycle request fingerprint payloads stay unchanged.
+  - `promptRegistryRepairCandidateEvidenceSnapshot()` copies post-hash `prepareCandidates` into per-candidate reference entries as `prepareCandidateEntries`.
+- `packages/backend/server/src/schema.gql`, `packages/common/graphql/src/graphql/index.ts`, `packages/common/graphql/src/graphql/copilot-prompt-registry-repair-execution-request.gql`, and `packages/common/graphql/src/schema.ts`:
+  - Synchronize execution request mutation response selection/type for per-candidate prepare candidate entries so Admin can read provider, prepared state/model, registry/model-definition anchors, error code, and reasons from support bundle source evidence reference entries.
+- `packages/frontend/admin/src/modules/ai/index.tsx`:
+  - Execution request copyable diagnostics add a compact `prepareCandidateEntries` payload summary between `policyCandidateEntries` and `routeCandidateEntries`; missing payloads render as `prepareCandidateEntries:none`.
+- Test coverage:
+  - `resolver-model-source-chain.smoke.ts` asserts task-route source evidence candidate references expose at least one prepare candidate entry with provider and prepared model identity.
+  - `admin/src/modules/ai/index.spec.tsx` covers per-candidate reference prepare payload output and keeps fixture candidate fingerprints stable by adding prepare payloads only after fixture fingerprint calculation.
+
+This implementation only extends read-only support bundle source evidence per-candidate prepare candidate payload projection, GraphQL/common query/type coverage, Admin diagnostics labels, and focused tests. It does not add a DB migration, create a DB-backed evidence object/schema registry/artifact record/audit event/persistent repair job snapshot, persist registry revision/workspace policy revision/provider snapshot/task route snapshot/model availability snapshot/archive bytes/signed URL material/storage backend, change any existing fingerprint payload, alter repair action executability, provider route selection, fallback order, BYOK lease, quota, health checks, `copilot.tasks.models` config format, embedding/rerank native request parameters, `EMBEDDING_DIMENSIONS`, pgvector dimensions, MCP registry, Codex adapter, or Action Runtime state machine.
+
+Validation strategy:
+
+- This round changes TypeScript resolver/common/admin/test files plus this plan document only; it does not touch dependencies, Dockerfile, native build, DB migration, or runtime packaging, and does not rebuild `localmind-affine:test`.
+- Continue using the fixed test image `localmind-affine:test` with image ID prefix `c3389960f5ed`. Because `.docker/selfhost/compose.localmind.yml` `affine_test` does not mount the current source tree, validation uses `docker run --rm -v "${PWD}:/host:ro" -w /workspace localmind-affine:test ...` and copies current source dirs into the image workspace before running the focused backend smoke, Admin Vitest, oxlint, Prettier check, and host `git diff --check`.
+
+Remaining risk:
+
+- Source evidence candidate prepare candidate payload entries remain a runtime read-only projection, not a DB-backed evidence object, schema registry, artifact record, audit event, or persistent repair job snapshot.
+- Reference entries now expose task route source, prepared route order, model/source payload entries, policy candidate payload entries, route candidate payload entries, and prepare candidate payload entries, but still do not expose prepared-route payload entries or a fully structured candidate evidence object.
+- The source guard fingerprint still derives from operation/candidate evidence perspective and does not bind real request payloads, provider credentials, BYOK lease, tenant policy registry, storage backend, archive bytes, signed URL secret/material, health probe timestamp, request dispatch outcome, or billing/quota execution result.
+- Repair action remains read-only/blocked; true repair execution, support bundle persistence, download authorization, audit persistence, and retention cleanup worker remain future work.
+- The current runtime image does not include this local source change; before broader stage acceptance a full `localmind-affine:local` build and container verification is still required.
+
+## 467. P1 landing record: Support Bundle Source Evidence Candidate Prepared Route Payload Entries Projection
+
+This round continues the section 466 residual risk where reference entries expose task route source, prepared route order, model/source payload entries, policy candidate payload entries, route candidate payload entries, and prepare candidate payload entries, but still do not expose prepared-route payload entries. The conflict with the target AI middle-layer architecture is that auditors can see the prepared route order fingerprint and prepare outcome, but still need raw candidate evidence to inspect the final prepared route provider/model/profile, route index, fallback index, backend kind, request layer, configured models, and dimension metadata.
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`:
+  - `CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry` / GraphQL object type adds read-only `preparedRouteEntries`, reusing existing `CopilotPreparedTaskRouteDiagnosticsType`.
+  - `promptRegistryRepairCandidateEvidenceSnapshot()` copies existing candidate evidence `preparedRoutes` snapshots into per-candidate reference entries as `preparedRouteEntries`.
+  - The existing `preparedRoutes` snapshot remains part of the original candidate evidence payload; this increment does not change candidate evidence fingerprint, candidate evidence set fingerprint, operation fingerprint, task-route source evidence-set fingerprint, repair gate manifest fingerprint, execution request fingerprint, or support bundle lifecycle request fingerprint payloads.
+- `packages/backend/server/src/schema.gql`, `packages/common/graphql/src/graphql/index.ts`, `packages/common/graphql/src/graphql/copilot-prompt-registry-repair-execution-request.gql`, and `packages/common/graphql/src/schema.ts`:
+  - Synchronize execution request mutation response selection/type for per-candidate prepared route entries so Admin can read provider/model/profile/route/fallback/backend/request-layer fields from support bundle source evidence reference entries.
+- `packages/frontend/admin/src/modules/ai/index.tsx`:
+  - Execution request copyable diagnostics add a compact `preparedRouteEntries` payload summary next to `preparedRouteOrderFingerprint`; missing payloads render as `preparedRouteEntries:none`.
+- Test coverage:
+  - `resolver-model-source-chain.smoke.ts` asserts support bundle task-route source evidence references expose at least one prepared route entry with provider and model identity.
+  - `admin/src/modules/ai/index.spec.tsx` covers per-candidate reference prepared-route payload output.
+
+This implementation only extends read-only support bundle source evidence per-candidate prepared route payload projection, GraphQL/common query/type coverage, Admin diagnostics labels, and focused tests. It does not add a DB migration, create a DB-backed evidence object/schema registry/artifact record/audit event/persistent repair job snapshot, persist registry revision/workspace policy revision/provider snapshot/task route snapshot/model availability snapshot/archive bytes/signed URL material/storage backend, change any existing fingerprint payload, alter repair action executability, provider route selection, fallback order, BYOK lease, quota, health checks, `copilot.tasks.models` config format, embedding/rerank native request parameters, `EMBEDDING_DIMENSIONS`, pgvector dimensions, MCP registry, Codex adapter, or Action Runtime state machine.
+
+Validation strategy:
+
+- This round changes TypeScript resolver/common/admin/test files plus this plan document only; it does not touch dependencies, Dockerfile, native build, DB migration, or runtime packaging, and does not rebuild `localmind-affine:test`.
+- Continue using the fixed test image `localmind-affine:test` with image ID prefix `c3389960f5ed`. Validation uses `docker run --rm -v "${PWD}:/host:ro" -w /workspace localmind-affine:test ...`, copies current source dirs into the image workspace, and runs focused backend smoke, Admin Vitest, oxlint, Prettier check, and host `git diff --check`.
+
+Remaining risk:
+
+- Source evidence candidate prepared route payload entries remain a runtime read-only projection, not a DB-backed evidence object, schema registry, artifact record, audit event, or persistent repair job snapshot.
+- Reference entries now expose the current task route source/candidate payload family, but still do not provide a single formal DB-backed candidate evidence schema or persisted support bundle artifact.
+- The source guard fingerprint still derives from operation/candidate evidence perspective and does not bind real request payloads, provider credentials, BYOK lease, tenant policy registry, storage backend, archive bytes, signed URL secret/material, health probe timestamp, request dispatch outcome, or billing/quota execution result.
+- Repair action remains read-only/blocked; true repair execution, support bundle persistence, download authorization, audit persistence, and retention cleanup worker remain future work.
+- The current runtime image does not include this local source change; before broader stage acceptance a full `localmind-affine:local` build and container verification is still required.

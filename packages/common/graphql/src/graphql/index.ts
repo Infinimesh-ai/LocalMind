@@ -3408,6 +3408,29 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
         candidateEvidenceScope
         candidateIndex
         preparedRouteOrderFingerprint
+        preparedRouteEntries {
+          behaviorFlags
+          canonicalModelKey
+          dimensionMismatch
+          fallbackOrderIndex
+          modelBackendKind
+          modelEmbeddingDimensions
+          modelId
+          protocol
+          providerConfiguredModelCount
+          providerConfiguredModelIds
+          providerId
+          providerName
+          providerPriority
+          providerProfileConfigPath
+          providerProfileId
+          providerProfileSource
+          providerSource
+          providerType
+          requestedDimensions
+          requestLayer
+          routeIndex
+        }
         policyCandidateEntries {
           allowed
           available

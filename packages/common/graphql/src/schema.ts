@@ -1206,6 +1206,7 @@ export interface CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType 
   candidateEvidenceScope: Scalars['String']['output'];
   candidateIndex: Scalars['SafeInt']['output'];
   preparedRouteOrderFingerprint?: Maybe<Scalars['String']['output']>;
+  preparedRouteEntries?: Maybe<Array<CopilotPreparedTaskRouteDiagnosticsType>>;
   policyCandidateEntries?: Maybe<
     Array<CopilotPromptRegistryPublishGatePolicyCandidateType>
   >;
@@ -9258,6 +9259,30 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
         candidateEvidenceScope: string;
         candidateIndex: number;
         preparedRouteOrderFingerprint: string | null;
+        preparedRouteEntries: Array<{
+          __typename?: 'CopilotPreparedTaskRouteDiagnosticsType';
+          behaviorFlags: Array<string> | null;
+          canonicalModelKey: string | null;
+          dimensionMismatch: boolean | null;
+          fallbackOrderIndex: number | null;
+          modelBackendKind: string | null;
+          modelEmbeddingDimensions: number | null;
+          modelId: string;
+          protocol: string | null;
+          providerConfiguredModelCount: number | null;
+          providerConfiguredModelIds: Array<string> | null;
+          providerId: string;
+          providerName: string | null;
+          providerPriority: number | null;
+          providerProfileConfigPath: string | null;
+          providerProfileId: string | null;
+          providerProfileSource: string | null;
+          providerSource: string | null;
+          providerType: string | null;
+          requestedDimensions: number | null;
+          requestLayer: string | null;
+          routeIndex: number;
+        }> | null;
         policyCandidateEntries: Array<{
           __typename?: 'CopilotPromptRegistryPublishGatePolicyCandidateType';
           allowed: boolean;

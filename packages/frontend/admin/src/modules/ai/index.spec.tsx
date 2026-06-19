@@ -230,6 +230,29 @@ function candidateEvidenceReferenceEntriesFixture(
     candidateIndex: number;
     candidateKey?: string;
     preparedRouteOrderFingerprint?: string | null;
+    preparedRoutes?: Array<{
+      behaviorFlags?: string[] | null;
+      canonicalModelKey?: string | null;
+      dimensionMismatch?: boolean | null;
+      fallbackOrderIndex?: number | null;
+      modelBackendKind?: string | null;
+      modelEmbeddingDimensions?: number | null;
+      modelId: string;
+      protocol?: string | null;
+      providerConfiguredModelCount?: number | null;
+      providerConfiguredModelIds?: string[] | null;
+      providerId: string;
+      providerName?: string | null;
+      providerPriority?: number | null;
+      providerProfileConfigPath?: string | null;
+      providerProfileId?: string | null;
+      providerProfileSource?: string | null;
+      providerSource?: string | null;
+      providerType?: string | null;
+      requestedDimensions?: number | null;
+      requestLayer?: string | null;
+      routeIndex: number;
+    }> | null;
     policyCandidates?: Array<{
       allowed: boolean;
       available: boolean;
@@ -356,6 +379,7 @@ function candidateEvidenceReferenceEntriesFixture(
       candidateIndex: candidate.candidateIndex,
       preparedRouteOrderFingerprint:
         candidate.preparedRouteOrderFingerprint ?? null,
+      preparedRouteEntries: candidate.preparedRoutes ?? null,
       policyCandidateEntries: candidate.policyCandidates ?? null,
       prepareCandidateEntries: candidate.prepareCandidates ?? null,
       routeCandidateEntries: candidate.routeCandidates ?? null,
@@ -8043,6 +8067,17 @@ describe('AiPage', () => {
             }`
         )
         .join('~') ?? 'policyCandidateEntries:none';
+    const taskRouteSourceCandidatePreparedRouteEntries =
+      taskRouteSourceCandidateEntry?.preparedRouteEntries
+        ?.map(
+          entry =>
+            `${entry.providerId}:model:${entry.modelId}:route:${entry.routeIndex}:fallback:${entry.fallbackOrderIndex ?? 'fallback:none'}:profile:${entry.providerProfileId ?? 'profile:none'}:configuredModels:${
+              entry.providerConfiguredModelIds?.length
+                ? entry.providerConfiguredModelIds.join('^')
+                : 'configuredModels:none'
+            }:backend:${entry.modelBackendKind ?? 'backend:none'}:requestLayer:${entry.requestLayer ?? 'requestLayer:none'}`
+        )
+        .join('~') || 'preparedRouteEntries:none';
     const taskRouteSourceCandidatePrepareEntries =
       taskRouteSourceCandidateEntry?.prepareCandidateEntries
         ?.map(
@@ -8065,7 +8100,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      `candidateEvidenceEntries:${taskRouteSourceCandidateEntry?.candidateEvidenceScope}#${taskRouteSourceCandidateEntry?.candidateIndex}:${taskRouteSourceCandidateEntry?.candidateEvidenceCategory}:${taskRouteSourceCandidateEntry?.candidateEvidenceProviderId}:${taskRouteSourceCandidateEntry?.candidateEvidenceKey}:${taskRouteSourceCandidateEntry?.candidateEvidenceFingerprint}:${taskRouteSourceCandidateEntry?.preparedRouteOrderFingerprint ?? 'prepared:none'}:policyCandidateEntries:${taskRouteSourceCandidatePolicyEntries}:prepareCandidateEntries:${taskRouteSourceCandidatePrepareEntries}:routeCandidateEntries:${taskRouteSourceCandidateRouteEntries}:${taskRouteSourceCandidateEntry?.taskRouteEffectiveSourceFingerprint ?? 'source:none'}:${taskRouteSourceCandidateEntry?.taskRouteModelSourceSnapshotFingerprint ?? 'modelSource:none'}:modelSourceEntries:${taskRouteSourceCandidateModelSourceEntries}`
+      `candidateEvidenceEntries:${taskRouteSourceCandidateEntry?.candidateEvidenceScope}#${taskRouteSourceCandidateEntry?.candidateIndex}:${taskRouteSourceCandidateEntry?.candidateEvidenceCategory}:${taskRouteSourceCandidateEntry?.candidateEvidenceProviderId}:${taskRouteSourceCandidateEntry?.candidateEvidenceKey}:${taskRouteSourceCandidateEntry?.candidateEvidenceFingerprint}:${taskRouteSourceCandidateEntry?.preparedRouteOrderFingerprint ?? 'prepared:none'}:preparedRouteEntries:${taskRouteSourceCandidatePreparedRouteEntries}:policyCandidateEntries:${taskRouteSourceCandidatePolicyEntries}:prepareCandidateEntries:${taskRouteSourceCandidatePrepareEntries}:routeCandidateEntries:${taskRouteSourceCandidateRouteEntries}:${taskRouteSourceCandidateEntry?.taskRouteEffectiveSourceFingerprint ?? 'source:none'}:${taskRouteSourceCandidateEntry?.taskRouteModelSourceSnapshotFingerprint ?? 'modelSource:none'}:modelSourceEntries:${taskRouteSourceCandidateModelSourceEntries}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
@@ -9479,6 +9514,9 @@ describe('AiPage', () => {
     );
     expect(diagnostics).toMatch(
       /candidate evidence Policy Candidate #0 \/ fingerprint [0-9a-f]{16} \/ key policy:rerank:global:ollama-main \/ provider ollama-main/
+    );
+    expect(diagnostics).toContain(
+      'prepared route ollama-main/bge-reranker-v2 / route #1 / fallback #1 / protocol openai-compatible / layer chat / backend rerank'
     );
   });
 

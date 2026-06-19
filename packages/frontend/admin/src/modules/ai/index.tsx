@@ -4030,6 +4030,38 @@ function formatPromptRegistryRepairExecutionRequest(
                           }:${candidate.candidateEvidenceFingerprint}:${
                             candidate.preparedRouteOrderFingerprint ??
                             'prepared:none'
+                          }:preparedRouteEntries:${
+                            candidate.preparedRouteEntries?.length
+                              ? candidate.preparedRouteEntries
+                                  .map(
+                                    preparedRoute =>
+                                      `${preparedRoute.providerId}:model:${
+                                        preparedRoute.modelId
+                                      }:route:${
+                                        preparedRoute.routeIndex
+                                      }:fallback:${
+                                        preparedRoute.fallbackOrderIndex ??
+                                        'fallback:none'
+                                      }:profile:${
+                                        preparedRoute.providerProfileId ??
+                                        'profile:none'
+                                      }:configuredModels:${
+                                        preparedRoute.providerConfiguredModelIds
+                                          ?.length
+                                          ? preparedRoute.providerConfiguredModelIds.join(
+                                              '^'
+                                            )
+                                          : 'configuredModels:none'
+                                      }:backend:${
+                                        preparedRoute.modelBackendKind ??
+                                        'backend:none'
+                                      }:requestLayer:${
+                                        preparedRoute.requestLayer ??
+                                        'requestLayer:none'
+                                      }`
+                                  )
+                                  .join('~')
+                              : 'preparedRouteEntries:none'
                           }:policyCandidateEntries:${
                             candidate.policyCandidateEntries?.length
                               ? candidate.policyCandidateEntries

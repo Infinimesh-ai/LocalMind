@@ -1051,6 +1051,7 @@ type CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType {
   candidateEvidenceScope: String!
   candidateIndex: SafeInt!
   preparedRouteOrderFingerprint: String
+  preparedRouteEntries: [CopilotPreparedTaskRouteDiagnosticsType!]
   policyCandidateEntries: [CopilotPromptRegistryPublishGatePolicyCandidateType!]
   prepareCandidateEntries: [CopilotTaskRoutePrepareCandidateDiagnosticsType!]
   routeCandidateEntries: [CopilotPromptRegistryPublishGateRouteCandidateType!]
