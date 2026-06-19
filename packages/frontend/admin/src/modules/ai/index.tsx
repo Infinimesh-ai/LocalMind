@@ -2918,6 +2918,9 @@ function buildPromptRegistryPublishGateDiagnosticsText(
     `Repair action preview ${formatPromptRegistryPublishGateRepairActionPreview(
       verdict.repairActionPreview
     )}`,
+    `Repair gate manifest ${formatPromptRegistryPublishGateRepairGateManifest(
+      verdict.repairGateManifest
+    )}`,
     repairPreflight
       ? `Repair action preflight ${formatPromptRegistryRepairPreflight(repairPreflight)}`
       : 'Repair action preflight not checked',
@@ -3459,6 +3462,58 @@ function formatPromptRegistryPublishGateRepairActionPreview(
       : 'submission required inputs none',
     `candidates ${preview.candidateCount}`,
     `operations ${preview.operations.length}`,
+  ]);
+}
+
+function formatPromptRegistryPublishGateRepairGateManifest(
+  manifest: PromptRegistryPublishGateVerdict['repairGateManifest']
+) {
+  return compactList([
+    `${manifest.version}`,
+    `fingerprint ${manifest.fingerprint}`,
+    `boundary ${manifest.boundary}`,
+    `registry ${manifest.registryId}`,
+    `registry fingerprint ${manifest.registryFingerprint}`,
+    `registry updated ${manifest.registryUpdatedAt}`,
+    `gate ${formatFeatureKind(manifest.gateStatus)}`,
+    `publish ${formatFeatureKind(manifest.publishStatus)}`,
+    `reason ${formatFeatureKind(manifest.reason)}`,
+    `issues ${manifest.issueCount}`,
+    `blocking ${manifest.blockingCount}`,
+    `recommendations ${manifest.recommendationCount}`,
+    `operations ${manifest.operationCount}`,
+    `guard ${manifest.guardFingerprint}`,
+    `preview ${manifest.previewFingerprint}`,
+    `submission ${manifest.submissionFingerprint}`,
+    `candidate evidence set ${manifest.candidateEvidenceSetFingerprint}`,
+    `embedding index contract evidence set ${manifest.embeddingIndexContractEvidenceSetFingerprint}`,
+    `rerank runtime contract evidence set ${manifest.rerankRuntimeContractEvidenceSetFingerprint}`,
+    `prepared route order evidence set ${manifest.preparedRouteOrderEvidenceSetFingerprint}`,
+    `operation set ${manifest.operationSetFingerprint}`,
+    `target locator ${manifest.targetLocatorFingerprint}`,
+    `approval policy ${manifest.approvalPolicyFingerprint}`,
+    `authorization ${manifest.authorizationFingerprint}`,
+    `catalog ${manifest.catalogVersion}`,
+    `catalog fingerprint ${manifest.catalogFingerprint}`,
+    manifest.readOnly ? 'read-only yes' : 'read-only no',
+    manifest.mutationAvailable
+      ? 'mutation available yes'
+      : 'mutation available no',
+    manifest.requiredCapabilities.length
+      ? `required capabilities ${manifest.requiredCapabilities.join(', ')}`
+      : 'required capabilities none',
+    manifest.requiredReviewModes.length
+      ? `review modes ${manifest.requiredReviewModes.join(', ')}`
+      : 'review modes none',
+    manifest.safetyLevels.length
+      ? `safety ${manifest.safetyLevels.join(', ')}`
+      : 'safety none',
+    manifest.operationFingerprints.length
+      ? `operation fingerprints ${manifest.operationFingerprints.join(', ')}`
+      : 'operation fingerprints none',
+    manifest.recommendationFingerprints.length
+      ? `recommendation fingerprints ${manifest.recommendationFingerprints.join(', ')}`
+      : 'recommendation fingerprints none',
   ]);
 }
 

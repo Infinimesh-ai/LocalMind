@@ -2241,8 +2241,15 @@ const repairActionPreviewApprovalCheckpoints = (input: {
     ...input.approvalModes.map(mode => `review_mode:${mode}`),
   ].sort();
 
-const withRepairActionPreview = <
+function withRepairActionPreview<
   T extends {
+    blockingCount: number;
+    issueCount: number;
+    publishStatus: string;
+    reason: string;
+    registryFingerprint: string;
+    registryId: number;
+    registryUpdatedAt: string;
     repairActionCatalogFingerprint: string;
     repairActionMutationGuard: ReturnType<typeof repairActionMutationGuard>;
     repairRecommendations: Array<{
@@ -2264,6 +2271,7 @@ const withRepairActionPreview = <
       target: string;
       targetLocator?: Record<string, unknown> | null;
     }>;
+    status: string;
   },
 >(
   verdict: T,
@@ -2280,9 +2288,8 @@ const withRepairActionPreview = <
     submissionFingerprint: string;
     targetLocatorFingerprints: string[];
   }
-) => ({
-  ...verdict,
-  repairActionPreview: (() => {
+) {
+  const repairActionPreview = (() => {
     const operations = verdict.repairRecommendations.map(
       (recommendation, index) => {
         const candidateEvidence = recommendation.candidateEvidence ?? [];
@@ -2459,8 +2466,67 @@ const withRepairActionPreview = <
           verdict.repairActionMutationGuard.targetLocatorFingerprint,
       },
     };
-  })(),
-});
+  })();
+  const manifestWithoutFingerprint = {
+    version: 'prompt-registry-repair-gate-manifest/v1',
+    boundary: 'repair_gate_manifest_only_no_prompt_or_provider_payload',
+    registryFingerprint: verdict.registryFingerprint,
+    registryId: verdict.registryId,
+    registryUpdatedAt: verdict.registryUpdatedAt,
+    gateStatus: verdict.status,
+    publishStatus: verdict.publishStatus,
+    reason: verdict.reason,
+    issueCount: verdict.issueCount,
+    blockingCount: verdict.blockingCount,
+    recommendationCount: verdict.repairRecommendations.length,
+    operationCount: repairActionPreview.operations.length,
+    guardFingerprint: verdict.repairActionMutationGuard.guardFingerprint,
+    previewFingerprint: repairActionPreview.previewFingerprint,
+    submissionFingerprint:
+      repairActionPreview.submissionContract.submissionFingerprint,
+    candidateEvidenceSetFingerprint:
+      repairActionPreview.candidateEvidenceSetFingerprint,
+    embeddingIndexContractEvidenceSetFingerprint:
+      repairActionPreview.embeddingIndexContractEvidenceSetFingerprint,
+    rerankRuntimeContractEvidenceSetFingerprint:
+      repairActionPreview.rerankRuntimeContractEvidenceSetFingerprint,
+    preparedRouteOrderEvidenceSetFingerprint:
+      repairActionPreview.preparedRouteOrderEvidenceSetFingerprint,
+    operationSetFingerprint: repairActionPreview.operationSetFingerprint,
+    targetLocatorFingerprint:
+      repairActionPreview.submissionContract.targetLocatorFingerprint,
+    approvalPolicyFingerprint: repairActionPreview.approvalPolicyFingerprint,
+    authorizationFingerprint: repairActionPreview.authorizationFingerprint,
+    catalogFingerprint: repairActionPreview.catalogFingerprint,
+    catalogVersion: repairActionPreview.catalogVersion,
+    readOnly: repairActionPreview.readOnly,
+    mutationAvailable: repairActionPreview.submissionContract.mutationAvailable,
+    requiredCapabilities: [...repairActionPreview.requiredCapabilities].sort(),
+    requiredReviewModes: [
+      ...verdict.repairActionMutationGuard.requiredReviewModes,
+    ].sort(),
+    safetyLevels: [...verdict.repairActionMutationGuard.safetyLevels].sort(),
+    operationFingerprints: [
+      ...repairActionPreview.operationFingerprints,
+    ].sort(),
+    recommendationFingerprints: [
+      ...verdict.repairActionMutationGuard.recommendationFingerprints,
+    ].sort(),
+  };
+  const repairGateManifest = {
+    ...manifestWithoutFingerprint,
+    fingerprint: createHash('sha256')
+      .update(stableFixtureStringify(manifestWithoutFingerprint))
+      .digest('hex')
+      .slice(0, 16),
+  };
+
+  return {
+    ...verdict,
+    repairActionPreview,
+    repairGateManifest,
+  };
+}
 
 /*
  * The helper above keeps the fixtures close to the backend read-only preview
@@ -7562,6 +7628,12 @@ describe('AiPage', () => {
       'Repair action preview status Preview Required / read-only yes / fingerprint 9999aaaabbbbcccc'
     );
     expect(readyGateDiagnostics).toContain(
+      `Repair gate manifest prompt-registry-repair-gate-manifest/v1 / fingerprint ${readyPublishGateVerdict.repairGateManifest.fingerprint} / boundary repair_gate_manifest_only_no_prompt_or_provider_payload / registry 42 / registry fingerprint b1c2d3e4f5061728 / registry updated 2026-06-17T04:05:06.000Z / gate Ready / publish Allowed / reason Ready / issues 0 / blocking 0 / recommendations 4 / operations 4`
+    );
+    expect(readyGateDiagnostics).toContain(
+      'candidate evidence set aaaa5555bbbb6666 / embedding index contract evidence set aaaa6666bbbb7777 / rerank runtime contract evidence set aaaa8888bbbb9999 / prepared route order evidence set aaaa7777bbbb8888'
+    );
+    expect(readyGateDiagnostics).toContain(
       'candidate evidence set fingerprint aaaa5555bbbb6666 / embedding index contract evidence set fingerprint aaaa6666bbbb7777 / rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / prepared route order evidence set fingerprint aaaa7777bbbb8888'
     );
     expect(readyGateDiagnostics).toContain(
@@ -8392,6 +8464,9 @@ describe('AiPage', () => {
     );
     expect(blockedGateDiagnostics).toContain(
       'Repair action preview status Preview Required / read-only yes / fingerprint 8888aaaabbbbcccc'
+    );
+    expect(blockedGateDiagnostics).toContain(
+      `Repair gate manifest prompt-registry-repair-gate-manifest/v1 / fingerprint ${blockedPublishGateVerdict.repairGateManifest.fingerprint} / boundary repair_gate_manifest_only_no_prompt_or_provider_payload / registry 84 / registry fingerprint feedfacecafebeef / registry updated 2026-06-17T05:06:07.000Z / gate Ignored / publish Blocked / reason Missing Messages / issues 3 / blocking 3 / recommendations 2 / operations 2`
     );
     expect(blockedGateDiagnostics).toContain(
       'candidate evidence set fingerprint bbbb6666cccc7777 / embedding index contract evidence set fingerprint bbbb7777cccc8888 / rerank runtime contract evidence set fingerprint bbbb9999cccc0000 / prepared route order evidence set fingerprint bbbb8888cccc9999'

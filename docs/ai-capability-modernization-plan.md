@@ -14160,3 +14160,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 该 anchor 会进入 preflight/review/audit/read-only artifact inputs 并影响 stale guard，但不会创建真实 audit event、execution state、repair job、rollback plan 或 idempotency lock。
 - 现阶段 contract 仍只覆盖只读 repair gate；support bundle manifest、正式 repair execution、DB-backed rerank runtime/cache registry 与跨 provider rerank policy negotiation 仍需后续阶段定义。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 422. P3 落地记录：Prompt Registry Repair Gate Manifest Projection
+
+本轮继续收敛第 421 节剩余风险中 “support bundle manifest 仍未定义” 的问题。实际代码与目标 AI 中间层架构的冲突点是：repair preview、submission、preflight 与 execution request 已经有 embedding/rerank/prepared route gate-level anchor，但 Admin 或后续 support bundle 若要证明某个 Prompt Registry repair gate 使用了哪组只读 anchor，仍需要从 preview、mutation guard、recommendations 与 submission contract 多处拼接字段。本轮新增只读 `prompt-registry-repair-gate-manifest/v1`，把 repair gate 的核心脱敏 fingerprints 和计数聚合成一个可比较 manifest projection，不改变真实 repair execution、导出流程或持久化路径。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - 新增 `CopilotPromptRegistryPublishGateRepairGateManifest` / GraphQL type，并在 publish gate verdict 上暴露 `repairGateManifest`。
+  - 新增 `buildPromptRegistryPublishGateRepairGateManifest()`，绑定 registry version、gate/publish 状态、issue/blocking/recommendation/operation count、guard/preview/submission fingerprint，以及 candidate evidence、embedding index contract、rerank runtime contract、prepared route order、operation set、target locator、approval、authorization 和 catalog anchors。
+  - manifest fingerprint 使用 `prompt-registry-repair-gate-manifest/v1` 与 `repair_gate_manifest_only_no_prompt_or_provider_payload` boundary，不读取 prompt body、provider payload、secret、raw trace 或执行结果。
+- GraphQL 与 common client：
+  - `schema.gql`、`getCopilotPromptRegistryPublishGate` query、common query string 与 `schema.ts` 类型同步暴露 `repairGateManifest` 全量只读字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - Prompt Registry publish gate diagnostics 新增 `Repair gate manifest ...` 文本，展示 manifest fingerprint、boundary、registry/gate 状态、核心 anchors、capabilities、review modes、safety、operation fingerprints 与 recommendation fingerprints。
+- 测试覆盖：
+  - backend model/source chain smoke test 断言 manifest 字段与 repair mutation guard / preview / submission contract 一致，并重算 manifest fingerprint。
+  - Admin Vitest fixture 按同一稳定 fingerprint 规则生成 manifest，并断言 ready/blocked gate diagnostics 中可见 manifest boundary、fingerprint 与 embedding/rerank/prepared anchors。
+
+该实现只扩展 Prompt Registry publish gate 的只读 GraphQL projection、common query/type、Admin 展示和测试，不新增 DB migration、不创建 support bundle 文件、不新增下载按钮、不改变 repair mutation 可执行性、不改变 preflight/execution request gate 判定、不改变 provider route selection、fallback order、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、Model Registry revision 或 Provider Registry revision。它把 “repair gate 当前脱敏 anchor 集合” 从多处字段推进到单一可比较 manifest projection，为后续 support bundle artifact、route explain、repair review 和正式导出元数据提供稳定输入。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 backend model/source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `repairGateManifest` 仍是只读 GraphQL projection，不是正式 support bundle schema、DB-backed artifact、导出审计事件、retention policy、下载文件或签名快照。
+- manifest 只绑定当前 publish gate repair guard/preview/submission 中已经暴露的脱敏 anchors，不绑定 prompt body、provider response、provider revision、Model Registry revision、Provider Registry revision、workspace secret、真实 repair job、rollback result 或执行输出。
+- 该 manifest 尚未覆盖 preflight/execution request 的 full lifecycle artifact、approval record、audit event、idempotency lock、retry/rollback executor 或 support bundle metadata；后续若要做正式 support bundle，需要继续定义 export metadata、redaction policy、retention policy 和文件下载路径。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

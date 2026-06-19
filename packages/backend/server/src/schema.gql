@@ -1828,6 +1828,42 @@ type CopilotPromptRegistryPublishGateRepairActionPreviewType {
   submissionContract: CopilotPromptRegistryPublishGateRepairActionSubmissionContractType!
 }
 
+type CopilotPromptRegistryPublishGateRepairGateManifestType {
+  version: String!
+  boundary: String!
+  fingerprint: String!
+  registryFingerprint: String!
+  registryId: SafeInt!
+  registryUpdatedAt: String!
+  gateStatus: String!
+  publishStatus: String!
+  reason: String!
+  issueCount: SafeInt!
+  blockingCount: SafeInt!
+  recommendationCount: SafeInt!
+  operationCount: SafeInt!
+  guardFingerprint: String!
+  previewFingerprint: String!
+  submissionFingerprint: String!
+  candidateEvidenceSetFingerprint: String!
+  embeddingIndexContractEvidenceSetFingerprint: String!
+  rerankRuntimeContractEvidenceSetFingerprint: String!
+  preparedRouteOrderEvidenceSetFingerprint: String!
+  operationSetFingerprint: String!
+  targetLocatorFingerprint: String!
+  approvalPolicyFingerprint: String!
+  authorizationFingerprint: String!
+  catalogFingerprint: String!
+  catalogVersion: String!
+  readOnly: Boolean!
+  mutationAvailable: Boolean!
+  requiredCapabilities: [String!]!
+  requiredReviewModes: [String!]!
+  safetyLevels: [String!]!
+  operationFingerprints: [String!]!
+  recommendationFingerprints: [String!]!
+}
+
 type CopilotPromptRegistryPublishGateRepairTargetLocatorType {
   actionId: String
   candidateIndex: SafeInt
@@ -1873,6 +1909,7 @@ type CopilotPromptRegistryPublishGateVerdictType {
   repairActionCatalogFingerprint: String!
   repairActionMutationGuard: CopilotPromptRegistryPublishGateRepairActionMutationGuardType!
   repairActionPreview: CopilotPromptRegistryPublishGateRepairActionPreviewType!
+  repairGateManifest: CopilotPromptRegistryPublishGateRepairGateManifestType!
   remediations: [CopilotPromptRegistryValidationRemediationType!]!
   repairRecommendations: [CopilotPromptRegistryPublishGateRepairRecommendationType!]!
   stale: Boolean!

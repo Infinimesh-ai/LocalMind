@@ -2620,6 +2620,41 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             targetLocatorFingerprint
           }
         }
+        repairGateManifest {
+          version
+          boundary
+          fingerprint
+          registryFingerprint
+          registryId
+          registryUpdatedAt
+          gateStatus
+          publishStatus
+          reason
+          issueCount
+          blockingCount
+          recommendationCount
+          operationCount
+          guardFingerprint
+          previewFingerprint
+          submissionFingerprint
+          candidateEvidenceSetFingerprint
+          embeddingIndexContractEvidenceSetFingerprint
+          rerankRuntimeContractEvidenceSetFingerprint
+          preparedRouteOrderEvidenceSetFingerprint
+          operationSetFingerprint
+          targetLocatorFingerprint
+          approvalPolicyFingerprint
+          authorizationFingerprint
+          catalogFingerprint
+          catalogVersion
+          readOnly
+          mutationAvailable
+          requiredCapabilities
+          requiredReviewModes
+          safetyLevels
+          operationFingerprints
+          recommendationFingerprints
+        }
         remediations {
           detail
           kind

@@ -926,6 +926,42 @@ type CopilotPromptRegistryPublishGateRepairActionSubmissionContract = {
   targetLocatorFingerprint: string;
 };
 
+type CopilotPromptRegistryPublishGateRepairGateManifest = {
+  version: string;
+  boundary: string;
+  fingerprint: string;
+  registryFingerprint: string;
+  registryId: number;
+  registryUpdatedAt: string;
+  gateStatus: string;
+  publishStatus: string;
+  reason: string;
+  issueCount: number;
+  blockingCount: number;
+  recommendationCount: number;
+  operationCount: number;
+  guardFingerprint: string;
+  previewFingerprint: string;
+  submissionFingerprint: string;
+  candidateEvidenceSetFingerprint: string;
+  embeddingIndexContractEvidenceSetFingerprint: string;
+  rerankRuntimeContractEvidenceSetFingerprint: string;
+  preparedRouteOrderEvidenceSetFingerprint: string;
+  operationSetFingerprint: string;
+  targetLocatorFingerprint: string;
+  approvalPolicyFingerprint: string;
+  authorizationFingerprint: string;
+  catalogFingerprint: string;
+  catalogVersion: string;
+  readOnly: boolean;
+  mutationAvailable: boolean;
+  requiredCapabilities: string[];
+  requiredReviewModes: string[];
+  safetyLevels: string[];
+  operationFingerprints: string[];
+  recommendationFingerprints: string[];
+};
+
 type CopilotPromptRegistryRepairPreflight = {
   accepted: boolean;
   actorFingerprint: string;
@@ -2481,6 +2517,108 @@ class CopilotPromptRegistryPublishGateRepairActionPreviewType implements Copilot
 }
 
 @ObjectType()
+class CopilotPromptRegistryPublishGateRepairGateManifestType implements CopilotPromptRegistryPublishGateRepairGateManifest {
+  @Field(() => String)
+  version!: string;
+
+  @Field(() => String)
+  boundary!: string;
+
+  @Field(() => String)
+  fingerprint!: string;
+
+  @Field(() => String)
+  registryFingerprint!: string;
+
+  @Field(() => SafeIntResolver)
+  registryId!: number;
+
+  @Field(() => String)
+  registryUpdatedAt!: string;
+
+  @Field(() => String)
+  gateStatus!: string;
+
+  @Field(() => String)
+  publishStatus!: string;
+
+  @Field(() => String)
+  reason!: string;
+
+  @Field(() => SafeIntResolver)
+  issueCount!: number;
+
+  @Field(() => SafeIntResolver)
+  blockingCount!: number;
+
+  @Field(() => SafeIntResolver)
+  recommendationCount!: number;
+
+  @Field(() => SafeIntResolver)
+  operationCount!: number;
+
+  @Field(() => String)
+  guardFingerprint!: string;
+
+  @Field(() => String)
+  previewFingerprint!: string;
+
+  @Field(() => String)
+  submissionFingerprint!: string;
+
+  @Field(() => String)
+  candidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  embeddingIndexContractEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  rerankRuntimeContractEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  preparedRouteOrderEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  operationSetFingerprint!: string;
+
+  @Field(() => String)
+  targetLocatorFingerprint!: string;
+
+  @Field(() => String)
+  approvalPolicyFingerprint!: string;
+
+  @Field(() => String)
+  authorizationFingerprint!: string;
+
+  @Field(() => String)
+  catalogFingerprint!: string;
+
+  @Field(() => String)
+  catalogVersion!: string;
+
+  @Field(() => Boolean)
+  readOnly!: boolean;
+
+  @Field(() => Boolean)
+  mutationAvailable!: boolean;
+
+  @Field(() => [String])
+  requiredCapabilities!: string[];
+
+  @Field(() => [String])
+  requiredReviewModes!: string[];
+
+  @Field(() => [String])
+  safetyLevels!: string[];
+
+  @Field(() => [String])
+  operationFingerprints!: string[];
+
+  @Field(() => [String])
+  recommendationFingerprints!: string[];
+}
+
+@ObjectType()
 class CopilotPromptRegistryRepairPreflightType implements CopilotPromptRegistryRepairPreflight {
   @Field(() => Boolean)
   accepted!: boolean;
@@ -3604,6 +3742,9 @@ class CopilotPromptRegistryPublishGateVerdictType implements PromptRegistryPubli
 
   @Field(() => CopilotPromptRegistryPublishGateRepairActionPreviewType)
   repairActionPreview!: CopilotPromptRegistryPublishGateRepairActionPreview;
+
+  @Field(() => CopilotPromptRegistryPublishGateRepairGateManifestType)
+  repairGateManifest!: CopilotPromptRegistryPublishGateRepairGateManifest;
 
   @Field(() => Boolean)
   stale!: PromptRegistryPublishGateVerdict['stale'];
@@ -8616,6 +8757,69 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
     requiredCapabilities,
     status: promptRegistryRepairPreviewSummaryStatus(operations),
     submissionContract,
+  };
+}
+
+function buildPromptRegistryPublishGateRepairGateManifest(input: {
+  guard: CopilotPromptRegistryPublishGateRepairActionMutationGuard;
+  preview: CopilotPromptRegistryPublishGateRepairActionPreview;
+  recommendations: CopilotPromptRegistryPublishGateRepairRecommendation[];
+  verdict: PromptRegistryPublishGateVerdict;
+}): CopilotPromptRegistryPublishGateRepairGateManifest {
+  const version = 'prompt-registry-repair-gate-manifest/v1';
+  const boundary = 'repair_gate_manifest_only_no_prompt_or_provider_payload';
+  const registryUpdatedAt = input.verdict.registryUpdatedAt.toISOString();
+  const submission = input.preview.submissionContract;
+  const operationFingerprints = [...input.preview.operationFingerprints].sort();
+  const recommendationFingerprints = [
+    ...input.guard.recommendationFingerprints,
+  ].sort();
+  const manifestWithoutFingerprint = {
+    version,
+    boundary,
+    registryFingerprint: input.verdict.registryFingerprint,
+    registryId: input.verdict.registryId,
+    registryUpdatedAt,
+    gateStatus: input.verdict.status,
+    publishStatus: input.verdict.publishStatus,
+    reason: input.verdict.reason,
+    issueCount: input.verdict.issueCount,
+    blockingCount: input.verdict.blockingCount,
+    recommendationCount: input.recommendations.length,
+    operationCount: input.preview.operations.length,
+    guardFingerprint: input.guard.guardFingerprint,
+    previewFingerprint: input.preview.previewFingerprint,
+    submissionFingerprint: submission.submissionFingerprint,
+    candidateEvidenceSetFingerprint:
+      input.preview.candidateEvidenceSetFingerprint,
+    embeddingIndexContractEvidenceSetFingerprint:
+      input.preview.embeddingIndexContractEvidenceSetFingerprint,
+    rerankRuntimeContractEvidenceSetFingerprint:
+      input.preview.rerankRuntimeContractEvidenceSetFingerprint,
+    preparedRouteOrderEvidenceSetFingerprint:
+      input.preview.preparedRouteOrderEvidenceSetFingerprint,
+    operationSetFingerprint: input.preview.operationSetFingerprint,
+    targetLocatorFingerprint: submission.targetLocatorFingerprint,
+    approvalPolicyFingerprint: input.preview.approvalPolicyFingerprint,
+    authorizationFingerprint: input.preview.authorizationFingerprint,
+    catalogFingerprint: input.preview.catalogFingerprint,
+    catalogVersion: input.preview.catalogVersion,
+    readOnly: input.preview.readOnly,
+    mutationAvailable: submission.mutationAvailable,
+    requiredCapabilities: [...input.preview.requiredCapabilities].sort(),
+    requiredReviewModes: [...input.guard.requiredReviewModes].sort(),
+    safetyLevels: [...input.guard.safetyLevels].sort(),
+    operationFingerprints,
+    recommendationFingerprints,
+  };
+  const fingerprint = createHash('sha256')
+    .update(stableRepairRecommendationStringify(manifestWithoutFingerprint))
+    .digest('hex')
+    .slice(0, 16);
+
+  return {
+    ...manifestWithoutFingerprint,
+    fingerprint,
   };
 }
 
@@ -15454,17 +15658,28 @@ export class CopilotResolver {
         recommendations: repairRecommendations,
         verdict,
       });
+    const repairActionPreview =
+      buildPromptRegistryPublishGateRepairActionPreview({
+        catalogFingerprint: repairActionCatalogFingerprint,
+        guard: repairActionMutationGuard,
+        recommendations: repairRecommendations,
+      });
+    const repairGateManifest = buildPromptRegistryPublishGateRepairGateManifest(
+      {
+        guard: repairActionMutationGuard,
+        preview: repairActionPreview,
+        recommendations: repairRecommendations,
+        verdict,
+      }
+    );
 
     return {
       ...verdict,
       repairActionCatalog,
       repairActionCatalogFingerprint,
       repairActionMutationGuard,
-      repairActionPreview: buildPromptRegistryPublishGateRepairActionPreview({
-        catalogFingerprint: repairActionCatalogFingerprint,
-        guard: repairActionMutationGuard,
-        recommendations: repairRecommendations,
-      }),
+      repairActionPreview,
+      repairGateManifest,
       repairRecommendations,
     };
   }

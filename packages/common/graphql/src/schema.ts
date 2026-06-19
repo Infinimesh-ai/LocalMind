@@ -2034,6 +2034,43 @@ export interface CopilotPromptRegistryPublishGateRepairActionPreviewType {
   submissionContract: CopilotPromptRegistryPublishGateRepairActionSubmissionContractType;
 }
 
+export interface CopilotPromptRegistryPublishGateRepairGateManifestType {
+  __typename?: 'CopilotPromptRegistryPublishGateRepairGateManifestType';
+  version: Scalars['String']['output'];
+  boundary: Scalars['String']['output'];
+  fingerprint: Scalars['String']['output'];
+  registryFingerprint: Scalars['String']['output'];
+  registryId: Scalars['SafeInt']['output'];
+  registryUpdatedAt: Scalars['String']['output'];
+  gateStatus: Scalars['String']['output'];
+  publishStatus: Scalars['String']['output'];
+  reason: Scalars['String']['output'];
+  issueCount: Scalars['SafeInt']['output'];
+  blockingCount: Scalars['SafeInt']['output'];
+  recommendationCount: Scalars['SafeInt']['output'];
+  operationCount: Scalars['SafeInt']['output'];
+  guardFingerprint: Scalars['String']['output'];
+  previewFingerprint: Scalars['String']['output'];
+  submissionFingerprint: Scalars['String']['output'];
+  candidateEvidenceSetFingerprint: Scalars['String']['output'];
+  embeddingIndexContractEvidenceSetFingerprint: Scalars['String']['output'];
+  rerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['output'];
+  preparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
+  operationSetFingerprint: Scalars['String']['output'];
+  targetLocatorFingerprint: Scalars['String']['output'];
+  approvalPolicyFingerprint: Scalars['String']['output'];
+  authorizationFingerprint: Scalars['String']['output'];
+  catalogFingerprint: Scalars['String']['output'];
+  catalogVersion: Scalars['String']['output'];
+  readOnly: Scalars['Boolean']['output'];
+  mutationAvailable: Scalars['Boolean']['output'];
+  requiredCapabilities: Array<Scalars['String']['output']>;
+  requiredReviewModes: Array<Scalars['String']['output']>;
+  safetyLevels: Array<Scalars['String']['output']>;
+  operationFingerprints: Array<Scalars['String']['output']>;
+  recommendationFingerprints: Array<Scalars['String']['output']>;
+}
+
 export interface CopilotPromptRegistryPublishGateRepairActionSubmissionContractType {
   __typename?: 'CopilotPromptRegistryPublishGateRepairActionSubmissionContractType';
   approvalPolicyFingerprint: Scalars['String']['output'];
@@ -2106,6 +2143,7 @@ export interface CopilotPromptRegistryPublishGateVerdictType {
   repairActionCatalogFingerprint: Scalars['String']['output'];
   repairActionMutationGuard: CopilotPromptRegistryPublishGateRepairActionMutationGuardType;
   repairActionPreview: CopilotPromptRegistryPublishGateRepairActionPreviewType;
+  repairGateManifest: CopilotPromptRegistryPublishGateRepairGateManifestType;
   remediations: Array<CopilotPromptRegistryValidationRemediationType>;
   repairRecommendations: Array<CopilotPromptRegistryPublishGateRepairRecommendationType>;
   stale: Scalars['Boolean']['output'];
@@ -8171,6 +8209,42 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             submissionFingerprint: string;
             targetLocatorFingerprint: string;
           };
+        };
+        repairGateManifest: {
+          __typename?: 'CopilotPromptRegistryPublishGateRepairGateManifestType';
+          version: string;
+          boundary: string;
+          fingerprint: string;
+          registryFingerprint: string;
+          registryId: number;
+          registryUpdatedAt: string;
+          gateStatus: string;
+          publishStatus: string;
+          reason: string;
+          issueCount: number;
+          blockingCount: number;
+          recommendationCount: number;
+          operationCount: number;
+          guardFingerprint: string;
+          previewFingerprint: string;
+          submissionFingerprint: string;
+          candidateEvidenceSetFingerprint: string;
+          embeddingIndexContractEvidenceSetFingerprint: string;
+          rerankRuntimeContractEvidenceSetFingerprint: string;
+          preparedRouteOrderEvidenceSetFingerprint: string;
+          operationSetFingerprint: string;
+          targetLocatorFingerprint: string;
+          approvalPolicyFingerprint: string;
+          authorizationFingerprint: string;
+          catalogFingerprint: string;
+          catalogVersion: string;
+          readOnly: boolean;
+          mutationAvailable: boolean;
+          requiredCapabilities: Array<string>;
+          requiredReviewModes: Array<string>;
+          safetyLevels: Array<string>;
+          operationFingerprints: Array<string>;
+          recommendationFingerprints: Array<string>;
         };
         remediations: Array<{
           __typename?: 'CopilotPromptRegistryValidationRemediationType';

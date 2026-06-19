@@ -2813,6 +2813,159 @@ async function main() {
     'task_route.read',
   ]);
   assert.equal(
+    routeReadyGate?.repairGateManifest.version,
+    'prompt-registry-repair-gate-manifest/v1'
+  );
+  assert.equal(
+    routeReadyGate?.repairGateManifest.boundary,
+    'repair_gate_manifest_only_no_prompt_or_provider_payload'
+  );
+  assert.equal(
+    routeReadyGate?.repairGateManifest.registryFingerprint,
+    gateVerdict.registryFingerprint
+  );
+  assert.equal(
+    routeReadyGate?.repairGateManifest.registryId,
+    gateVerdict.registryId
+  );
+  assert.equal(
+    routeReadyGate?.repairGateManifest.registryUpdatedAt,
+    gateVerdict.registryUpdatedAt.toISOString()
+  );
+  assert.equal(routeReadyGate?.repairGateManifest.gateStatus, 'ready');
+  assert.equal(routeReadyGate?.repairGateManifest.publishStatus, 'allowed');
+  assert.equal(routeReadyGate?.repairGateManifest.reason, 'ready');
+  assert.equal(routeReadyGate?.repairGateManifest.issueCount, 0);
+  assert.equal(routeReadyGate?.repairGateManifest.blockingCount, 0);
+  assert.equal(
+    routeReadyGate?.repairGateManifest.recommendationCount,
+    routeReadyGate?.repairRecommendations.length
+  );
+  assert.equal(
+    routeReadyGate?.repairGateManifest.operationCount,
+    routeReadyGate?.repairActionPreview.operations.length
+  );
+  assert.equal(
+    routeReadyGate?.repairGateManifest.guardFingerprint,
+    routeReadyGate?.repairActionMutationGuard.guardFingerprint
+  );
+  assert.equal(
+    routeReadyGate?.repairGateManifest.previewFingerprint,
+    routeReadyGate?.repairActionPreview.previewFingerprint
+  );
+  assert.equal(
+    routeReadyGate?.repairGateManifest.submissionFingerprint,
+    routeReadyGate?.repairActionPreview.submissionContract.submissionFingerprint
+  );
+  assert.equal(
+    routeReadyGate?.repairGateManifest.candidateEvidenceSetFingerprint,
+    routeReadyGate?.repairActionPreview.candidateEvidenceSetFingerprint
+  );
+  assert.equal(
+    routeReadyGate?.repairGateManifest
+      .embeddingIndexContractEvidenceSetFingerprint,
+    routeReadyGate?.repairActionPreview
+      .embeddingIndexContractEvidenceSetFingerprint
+  );
+  assert.equal(
+    routeReadyGate?.repairGateManifest
+      .rerankRuntimeContractEvidenceSetFingerprint,
+    routeReadyGate?.repairActionPreview
+      .rerankRuntimeContractEvidenceSetFingerprint
+  );
+  assert.equal(
+    routeReadyGate?.repairGateManifest.preparedRouteOrderEvidenceSetFingerprint,
+    routeReadyGate?.repairActionPreview.preparedRouteOrderEvidenceSetFingerprint
+  );
+  assert.deepEqual(
+    routeReadyGate?.repairGateManifest.requiredCapabilities,
+    routeReadyGate?.repairActionPreview.requiredCapabilities
+  );
+  assert.deepEqual(
+    routeReadyGate?.repairGateManifest.requiredReviewModes,
+    routeReadyGate?.repairActionMutationGuard.requiredReviewModes
+  );
+  assert.deepEqual(
+    routeReadyGate?.repairGateManifest.safetyLevels,
+    routeReadyGate?.repairActionMutationGuard.safetyLevels
+  );
+  assert.deepEqual(
+    routeReadyGate?.repairGateManifest.operationFingerprints,
+    routeReadyGate?.repairActionPreview.operationFingerprints
+  );
+  assert.deepEqual(
+    routeReadyGate?.repairGateManifest.recommendationFingerprints,
+    routeReadyGate?.repairActionMutationGuard.recommendationFingerprints
+  );
+  assert.equal(
+    routeReadyGate?.repairGateManifest.fingerprint,
+    routeReadyGate
+      ? createHash('sha256')
+          .update(
+            stableFingerprintFixtureStringify({
+              version: routeReadyGate.repairGateManifest.version,
+              boundary: routeReadyGate.repairGateManifest.boundary,
+              registryFingerprint:
+                routeReadyGate.repairGateManifest.registryFingerprint,
+              registryId: routeReadyGate.repairGateManifest.registryId,
+              registryUpdatedAt:
+                routeReadyGate.repairGateManifest.registryUpdatedAt,
+              gateStatus: routeReadyGate.repairGateManifest.gateStatus,
+              publishStatus: routeReadyGate.repairGateManifest.publishStatus,
+              reason: routeReadyGate.repairGateManifest.reason,
+              issueCount: routeReadyGate.repairGateManifest.issueCount,
+              blockingCount: routeReadyGate.repairGateManifest.blockingCount,
+              recommendationCount:
+                routeReadyGate.repairGateManifest.recommendationCount,
+              operationCount: routeReadyGate.repairGateManifest.operationCount,
+              guardFingerprint:
+                routeReadyGate.repairGateManifest.guardFingerprint,
+              previewFingerprint:
+                routeReadyGate.repairGateManifest.previewFingerprint,
+              submissionFingerprint:
+                routeReadyGate.repairGateManifest.submissionFingerprint,
+              candidateEvidenceSetFingerprint:
+                routeReadyGate.repairGateManifest
+                  .candidateEvidenceSetFingerprint,
+              embeddingIndexContractEvidenceSetFingerprint:
+                routeReadyGate.repairGateManifest
+                  .embeddingIndexContractEvidenceSetFingerprint,
+              rerankRuntimeContractEvidenceSetFingerprint:
+                routeReadyGate.repairGateManifest
+                  .rerankRuntimeContractEvidenceSetFingerprint,
+              preparedRouteOrderEvidenceSetFingerprint:
+                routeReadyGate.repairGateManifest
+                  .preparedRouteOrderEvidenceSetFingerprint,
+              operationSetFingerprint:
+                routeReadyGate.repairGateManifest.operationSetFingerprint,
+              targetLocatorFingerprint:
+                routeReadyGate.repairGateManifest.targetLocatorFingerprint,
+              approvalPolicyFingerprint:
+                routeReadyGate.repairGateManifest.approvalPolicyFingerprint,
+              authorizationFingerprint:
+                routeReadyGate.repairGateManifest.authorizationFingerprint,
+              catalogFingerprint:
+                routeReadyGate.repairGateManifest.catalogFingerprint,
+              catalogVersion: routeReadyGate.repairGateManifest.catalogVersion,
+              readOnly: routeReadyGate.repairGateManifest.readOnly,
+              mutationAvailable:
+                routeReadyGate.repairGateManifest.mutationAvailable,
+              requiredCapabilities:
+                routeReadyGate.repairGateManifest.requiredCapabilities,
+              requiredReviewModes:
+                routeReadyGate.repairGateManifest.requiredReviewModes,
+              safetyLevels: routeReadyGate.repairGateManifest.safetyLevels,
+              operationFingerprints:
+                routeReadyGate.repairGateManifest.operationFingerprints,
+              recommendationFingerprints:
+                routeReadyGate.repairGateManifest.recommendationFingerprints,
+            })
+          )
+          .digest('hex')
+          .slice(0, 16)
+      : undefined
+  );
+  assert.equal(
     routeReadyGate?.repairActionPreview.submissionContract.contractVersion,
     'repair-preview-submission/v1'
   );
