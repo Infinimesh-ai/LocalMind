@@ -1253,6 +1253,20 @@ function formatPromptRegistryPublishGateTaskRoute(route: {
       ? `source ${formatAIModelTaskModelSourceLabel(requestedModelSource)}`
       : null,
     requestedModelConfigPath ? `config ${requestedModelConfigPath}` : null,
+    route.raw.rerankRuntimeContractVersion
+      ? `rerank runtime contract ${route.raw.rerankRuntimeContractVersion}`
+      : null,
+    route.raw.rerankRuntimeContractTopK != null
+      ? `rerank runtime topK ${route.raw.rerankRuntimeContractTopK}`
+      : null,
+    route.raw.rerankRuntimeContractStatus
+      ? `rerank runtime status ${formatFeatureKind(
+          route.raw.rerankRuntimeContractStatus
+        )}`
+      : null,
+    route.raw.rerankRuntimeContractFingerprint
+      ? `rerank runtime fingerprint ${route.raw.rerankRuntimeContractFingerprint}`
+      : null,
     `prepared providers ${readiness.preparedProviderCount}`,
     preparedRouteTargets.length
       ? `targets ${preparedRouteTargets.join(' -> ')}`
@@ -1377,6 +1391,20 @@ function buildTaskRouteDiagnosticsText({
       : null,
     rawRoute?.embeddingIndexContractFingerprint
       ? `Embedding index fingerprint ${rawRoute.embeddingIndexContractFingerprint}`
+      : null,
+    rawRoute?.rerankRuntimeContractVersion
+      ? `Rerank runtime contract ${rawRoute.rerankRuntimeContractVersion}`
+      : null,
+    rawRoute?.rerankRuntimeContractTopK != null
+      ? `Rerank runtime topK ${rawRoute.rerankRuntimeContractTopK}`
+      : null,
+    rawRoute?.rerankRuntimeContractStatus
+      ? `Rerank runtime status ${formatFeatureKind(
+          rawRoute.rerankRuntimeContractStatus
+        )}`
+      : null,
+    rawRoute?.rerankRuntimeContractFingerprint
+      ? `Rerank runtime fingerprint ${rawRoute.rerankRuntimeContractFingerprint}`
       : null,
     `Prepared providers ${readiness.preparedProviderCount}`,
     preparedRouteTargets.length

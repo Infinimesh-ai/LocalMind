@@ -2328,6 +2328,10 @@ export interface CopilotTaskRouteDiagnosticsType {
   providerSource?: Maybe<Scalars['String']['output']>;
   providerType?: Maybe<Scalars['String']['output']>;
   protocol?: Maybe<Scalars['String']['output']>;
+  rerankRuntimeContractFingerprint?: Maybe<Scalars['String']['output']>;
+  rerankRuntimeContractStatus?: Maybe<Scalars['String']['output']>;
+  rerankRuntimeContractTopK?: Maybe<Scalars['SafeInt']['output']>;
+  rerankRuntimeContractVersion?: Maybe<Scalars['String']['output']>;
   requestedModelConfigKey?: Maybe<Scalars['String']['output']>;
   requestedModelConfigPath?: Maybe<Scalars['String']['output']>;
   requestedModelId?: Maybe<Scalars['String']['output']>;
@@ -7165,6 +7169,10 @@ export type GetPromptModelsQuery = {
           providerSource: string | null;
           providerType: string | null;
           protocol: string | null;
+          rerankRuntimeContractFingerprint: string | null;
+          rerankRuntimeContractStatus: string | null;
+          rerankRuntimeContractTopK: number | null;
+          rerankRuntimeContractVersion: string | null;
           requestedModelConfigKey: string | null;
           requestedModelConfigPath: string | null;
           requestedModelId: string | null;
@@ -7495,6 +7503,10 @@ export type GetPromptModelsQuery = {
           providerSource: string | null;
           providerType: string | null;
           protocol: string | null;
+          rerankRuntimeContractFingerprint: string | null;
+          rerankRuntimeContractStatus: string | null;
+          rerankRuntimeContractTopK: number | null;
+          rerankRuntimeContractVersion: string | null;
           requestedModelConfigKey: string | null;
           requestedModelConfigPath: string | null;
           requestedModelId: string | null;

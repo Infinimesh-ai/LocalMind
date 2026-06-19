@@ -12608,6 +12608,47 @@ function buildEmbeddingIndexContractSnapshot(input: {
   };
 }
 
+function buildRerankRuntimeContractSnapshot(input: {
+  candidateCount?: number;
+  featureKind: string;
+  modelId?: string;
+  preparedProviderCount?: number;
+  requestedModelId?: string;
+  topK?: number;
+}) {
+  if (input.featureKind !== 'rerank') {
+    return {};
+  }
+
+  const rerankRuntimeContractVersion = 'workspace-rerank-runtime/v1';
+  const rerankRuntimeContractStatus =
+    (input.preparedProviderCount ?? 0) > 0
+      ? 'prepared_route_available'
+      : 'no_prepared_route_read_only';
+  const rerankRuntimeContractFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        candidateCount: input.candidateCount ?? null,
+        featureKind: input.featureKind,
+        modelId: input.modelId ?? null,
+        preparedProviderCount: input.preparedProviderCount ?? 0,
+        requestedModelId: input.requestedModelId ?? null,
+        rerankRuntimeContractStatus,
+        rerankRuntimeContractTopK: input.topK ?? null,
+        rerankRuntimeContractVersion,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+
+  return {
+    rerankRuntimeContractFingerprint,
+    rerankRuntimeContractStatus,
+    rerankRuntimeContractTopK: input.topK,
+    rerankRuntimeContractVersion,
+  };
+}
+
 function buildTaskRouteCandidateKey(
   candidate: Pick<
     CopilotTaskRouteCandidateDiagnosticsType,
@@ -14083,6 +14124,18 @@ class CopilotTaskRouteDiagnosticsType {
   @Field(() => String, { nullable: true })
   embeddingIndexContractFingerprint?: string;
 
+  @Field(() => String, { nullable: true })
+  rerankRuntimeContractVersion?: string;
+
+  @Field(() => String, { nullable: true })
+  rerankRuntimeContractStatus?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  rerankRuntimeContractTopK?: number;
+
+  @Field(() => String, { nullable: true })
+  rerankRuntimeContractFingerprint?: string;
+
   @Field(() => SafeIntResolver, { nullable: true })
   candidateCount?: number;
 
@@ -14497,6 +14550,11 @@ export class CopilotResolver {
             preparedRoutes: [],
             preparedProviderCount: 0,
             ...emptyPreparedTargetSummary,
+            ...buildRerankRuntimeContractSnapshot({
+              featureKind: 'rerank',
+              preparedProviderCount: 0,
+              requestedModelId: rerankModelId,
+            }),
           };
         }
         const prepareCandidates = buildTaskRoutePrepareCandidates(
@@ -14551,6 +14609,14 @@ export class CopilotResolver {
           behaviorFlags: route.behaviorFlags,
           candidateCount: route.candidateCount,
           topK: route.topK,
+          ...buildRerankRuntimeContractSnapshot({
+            candidateCount: route.candidateCount,
+            featureKind: 'rerank',
+            modelId: route.modelId,
+            preparedProviderCount: route.preparedProviderCount,
+            requestedModelId: route.requestedModelId,
+            topK: route.topK,
+          }),
         };
       };
 

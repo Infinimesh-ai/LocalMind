@@ -482,6 +482,10 @@ query getCopilotPromptRegistryPublishGate(
           providerSource
           providerType
           protocol
+          rerankRuntimeContractFingerprint
+          rerankRuntimeContractStatus
+          rerankRuntimeContractTopK
+          rerankRuntimeContractVersion
           requestedModelConfigKey
           requestedModelConfigPath
           requestedModelId

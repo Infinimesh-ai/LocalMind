@@ -1954,6 +1954,24 @@ async function main() {
     undefined
   );
   assert.equal(
+    result.rerankRoute?.rerankRuntimeContractVersion,
+    'workspace-rerank-runtime/v1'
+  );
+  assert.equal(
+    result.rerankRoute?.rerankRuntimeContractStatus,
+    'no_prepared_route_read_only'
+  );
+  assert.equal(result.rerankRoute?.rerankRuntimeContractTopK, undefined);
+  assert.match(
+    result.rerankRoute?.rerankRuntimeContractFingerprint ?? '',
+    /^[0-9a-f]{16}$/
+  );
+  assert.equal(result.embeddingRoute?.rerankRuntimeContractVersion, undefined);
+  assert.equal(
+    result.embeddingRoute?.rerankRuntimeContractFingerprint,
+    undefined
+  );
+  assert.equal(
     result.embeddingRoute?.preparedRoutes[0]?.requestedDimensions,
     1024
   );

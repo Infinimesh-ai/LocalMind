@@ -1538,6 +1538,10 @@ export const getPromptModelsQuery = {
           providerSource
           providerType
           protocol
+          rerankRuntimeContractFingerprint
+          rerankRuntimeContractStatus
+          rerankRuntimeContractTopK
+          rerankRuntimeContractVersion
           requestedModelConfigKey
           requestedModelConfigPath
           requestedModelId
@@ -1845,6 +1849,10 @@ export const getPromptModelsQuery = {
           providerSource
           providerType
           protocol
+          rerankRuntimeContractFingerprint
+          rerankRuntimeContractStatus
+          rerankRuntimeContractTopK
+          rerankRuntimeContractVersion
           requestedModelConfigKey
           requestedModelConfigPath
           requestedModelId
@@ -2468,6 +2476,10 @@ export const getCopilotPromptRegistryPublishGateQuery = {
           providerSource
           providerType
           protocol
+          rerankRuntimeContractFingerprint
+          rerankRuntimeContractStatus
+          rerankRuntimeContractTopK
+          rerankRuntimeContractVersion
           requestedModelConfigKey
           requestedModelConfigPath
           requestedModelId

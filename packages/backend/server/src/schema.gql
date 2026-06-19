@@ -2103,6 +2103,10 @@ type CopilotTaskRouteDiagnosticsType {
   providerSource: String
   providerType: String
   protocol: String
+  rerankRuntimeContractFingerprint: String
+  rerankRuntimeContractStatus: String
+  rerankRuntimeContractTopK: SafeInt
+  rerankRuntimeContractVersion: String
   requestedModelConfigKey: String
   requestedModelConfigPath: String
   requestedModelId: String

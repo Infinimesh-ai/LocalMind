@@ -189,6 +189,10 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
           providerSource
           providerType
           protocol
+          rerankRuntimeContractFingerprint
+          rerankRuntimeContractStatus
+          rerankRuntimeContractTopK
+          rerankRuntimeContractVersion
           requestedModelConfigKey
           requestedModelConfigPath
           requestedModelId
@@ -508,6 +512,10 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
           providerSource
           providerType
           protocol
+          rerankRuntimeContractFingerprint
+          rerankRuntimeContractStatus
+          rerankRuntimeContractTopK
+          rerankRuntimeContractVersion
           requestedModelConfigKey
           requestedModelConfigPath
           requestedModelId

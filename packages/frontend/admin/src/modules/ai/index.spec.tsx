@@ -1014,6 +1014,10 @@ const readyRoute = {
   embeddingIndexContractStatus: null,
   embeddingIndexContractVersion: null,
   modelId: 'bge-reranker-v2',
+  rerankRuntimeContractFingerprint: 'eeee2222ffff3333',
+  rerankRuntimeContractStatus: 'prepared_route_available',
+  rerankRuntimeContractTopK: 5,
+  rerankRuntimeContractVersion: 'workspace-rerank-runtime/v1',
   policyCandidates: [
     {
       allowed: true,
@@ -1148,6 +1152,7 @@ const readyRoute = {
   requestedModelConfigPath: 'copilot.tasks.models.rerank',
   requestedModelId: 'workspace-rerank',
   requestedModelSource: 'rerank',
+  topK: 5,
 };
 
 const modelsPayload = {
@@ -7262,7 +7267,7 @@ describe('AiPage', () => {
       'Local Ollama / ollama-main / requested workspace-embedding'
     );
     expect(readyGateDiagnostics).toContain(
-      `Task route Rerank / status Ready / configured yes / provider ollama-main / model bge-reranker-v2 / profile Profile ollama-main / Configured / config copilot.providers.profiles[id=ollama-main] / 2 configured models / models workspace-rerank, bge-reranker-v2 / requested workspace-rerank / source Rerank task model / config copilot.tasks.models.rerank / prepared providers 1 / targets ollama-main/bge-reranker-v2 / target fingerprint ${readyRoute.preparedRouteTargetFingerprint}`
+      `Task route Rerank / status Ready / configured yes / provider ollama-main / model bge-reranker-v2 / profile Profile ollama-main / Configured / config copilot.providers.profiles[id=ollama-main] / 2 configured models / models workspace-rerank, bge-reranker-v2 / requested workspace-rerank / source Rerank task model / config copilot.tasks.models.rerank / rerank runtime contract workspace-rerank-runtime/v1 / rerank runtime topK 5 / rerank runtime status Prepared Route Available / rerank runtime fingerprint eeee2222ffff3333 / prepared providers 1 / targets ollama-main/bge-reranker-v2 / target fingerprint ${readyRoute.preparedRouteTargetFingerprint}`
     );
     expect(readyGateDiagnostics).toContain(
       'Task route prepare candidates Rerank 1'
@@ -9092,6 +9097,16 @@ describe('AiPage', () => {
       `Prepared target fingerprint ${readyRoute.preparedRouteTargetFingerprint}`
     );
     expect(rerankDiagnostics).not.toContain('Embedding index contract');
+    expect(rerankDiagnostics).toContain(
+      'Rerank runtime contract workspace-rerank-runtime/v1'
+    );
+    expect(rerankDiagnostics).toContain('Rerank runtime topK 5');
+    expect(rerankDiagnostics).toContain(
+      'Rerank runtime status Prepared Route Available'
+    );
+    expect(rerankDiagnostics).toContain(
+      'Rerank runtime fingerprint eeee2222ffff3333'
+    );
     expect(rerankDiagnostics).toContain(
       'Prepared route ollama-main/bge-reranker-v2'
     );
