@@ -4838,6 +4838,14 @@ async function main() {
   );
   assert.ok(
     taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.some(entry =>
+      entry.prepareCandidateEntries?.some(
+        candidate => candidate.providerId && candidate.preparedModelId
+      )
+    ),
+    'task route source evidence candidate references should expose prepare candidate entries'
+  );
+  assert.ok(
+    taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.some(entry =>
       entry.routeCandidateEntries?.some(candidate => candidate.providerId)
     ),
     'task route source evidence candidate references should expose route candidate entries'

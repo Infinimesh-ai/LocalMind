@@ -251,6 +251,45 @@ function candidateEvidenceReferenceEntriesFixture(
       registrySelected?: boolean | null;
       reasons: string[];
     }> | null;
+    prepareCandidates?: Array<{
+      candidateModelIds?: string[] | null;
+      costInputPer1M?: number | null;
+      costOutputPer1M?: number | null;
+      errorCategory?: string | null;
+      errorCode?: string | null;
+      health?: string | null;
+      healthCheckedAt?: string | null;
+      modelId?: string | null;
+      prepared: boolean;
+      preparedModelId?: string | null;
+      privacy?: string | null;
+      providerConfiguredModelCount?: number | null;
+      providerConfiguredModelIds?: string[] | null;
+      providerId: string;
+      providerName?: string | null;
+      providerPriority?: number | null;
+      providerProfileConfigPath?: string | null;
+      providerProfileId?: string | null;
+      providerProfileSource?: string | null;
+      providerSource?: string | null;
+      providerType?: string | null;
+      reasons: string[];
+      registryAvailable?: boolean | null;
+      registryKind?: string | null;
+      registrySelected?: boolean | null;
+      requestedModelId?: string | null;
+      routeAttachmentAllowRemoteUrls?: boolean | null;
+      routeAttachmentKinds?: string[] | null;
+      routeAttachmentSourceKinds?: string[] | null;
+      routeModelAliasMatched?: boolean | null;
+      routeModelDefinitionAliases?: string[] | null;
+      routeModelDefinitionId?: string | null;
+      routeModelDefinitionSource?: string | null;
+      routeRawModelId?: string | null;
+      routeStructuredAttachmentAllowRemoteUrls?: boolean | null;
+      routeStructuredAttachmentKinds?: string[] | null;
+      routeStructuredAttachmentSourceKinds?: string[] | null;
+    }> | null;
     providerId: string;
     routeCandidates?: Array<{
       candidateModelIds?: string[] | null;
@@ -318,6 +357,7 @@ function candidateEvidenceReferenceEntriesFixture(
       preparedRouteOrderFingerprint:
         candidate.preparedRouteOrderFingerprint ?? null,
       policyCandidateEntries: candidate.policyCandidates ?? null,
+      prepareCandidateEntries: candidate.prepareCandidates ?? null,
       routeCandidateEntries: candidate.routeCandidates ?? null,
       taskRouteEffectiveSourceFingerprint:
         candidate.taskRouteEffectiveSourceFingerprint ?? null,
@@ -348,14 +388,18 @@ function candidateEvidenceReferenceEntriesFixture(
 function candidateEvidenceFixture<T extends Record<string, unknown>>(
   evidence: T
 ) {
+  const { prepareCandidates, ...fingerprintedEvidence } = evidence;
   const candidateFingerprint = createHash('sha256')
-    .update(stableFixtureStringify(stripNullishFixtureFields(evidence)))
+    .update(
+      stableFixtureStringify(stripNullishFixtureFields(fingerprintedEvidence))
+    )
     .digest('hex')
     .slice(0, 16);
 
   return {
     candidateFingerprint,
-    ...evidence,
+    ...fingerprintedEvidence,
+    ...(prepareCandidates !== undefined ? { prepareCandidates } : {}),
     ...(evidence.taskRouteEffectiveSourceFingerprint
       ? {
           taskRouteEffectiveSourceFingerprintInputs: [
@@ -3423,6 +3467,9 @@ const readyPublishGateVerdict = withRepairActionPreview(
                   blockedRoute.prepareCandidates
                 )
               ),
+            prepareCandidates: taskRoutePrepareCandidateSnapshotFixture(
+              blockedRoute.prepareCandidates
+            ),
             preparedRouteSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRoutePreparedRouteSnapshotFixture(
@@ -3536,6 +3583,9 @@ const readyPublishGateVerdict = withRepairActionPreview(
                   blockedRoute.prepareCandidates
                 )
               ),
+            prepareCandidates: taskRoutePrepareCandidateSnapshotFixture(
+              blockedRoute.prepareCandidates
+            ),
             preparedRouteSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRoutePreparedRouteSnapshotFixture(
@@ -3672,6 +3722,9 @@ const readyPublishGateVerdict = withRepairActionPreview(
                   blockedRoute.prepareCandidates
                 )
               ),
+            prepareCandidates: taskRoutePrepareCandidateSnapshotFixture(
+              blockedRoute.prepareCandidates
+            ),
             preparedRouteSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRoutePreparedRouteSnapshotFixture(
@@ -7990,6 +8043,15 @@ describe('AiPage', () => {
             }`
         )
         .join('~') ?? 'policyCandidateEntries:none';
+    const taskRouteSourceCandidatePrepareEntries =
+      taskRouteSourceCandidateEntry?.prepareCandidateEntries
+        ?.map(
+          entry =>
+            `${entry.providerId}:prepared:${entry.prepared}:model:${entry.modelId ?? 'model:none'}:preparedModel:${entry.preparedModelId ?? 'preparedModel:none'}:requested:${entry.requestedModelId ?? 'requested:none'}:registry:${entry.registryKind ?? 'registry:none'}:definition:${entry.routeModelDefinitionId ?? 'definition:none'}:raw:${entry.routeRawModelId ?? 'raw:none'}:error:${entry.errorCode ?? 'error:none'}:reasons:${
+              entry.reasons.length ? entry.reasons.join('^') : 'reasons:none'
+            }`
+        )
+        .join('~') ?? 'prepareCandidateEntries:none';
     const taskRouteSourceCandidateRouteEntries =
       taskRouteSourceCandidateEntry?.routeCandidateEntries
         ?.map(
@@ -8003,7 +8065,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      `candidateEvidenceEntries:${taskRouteSourceCandidateEntry?.candidateEvidenceScope}#${taskRouteSourceCandidateEntry?.candidateIndex}:${taskRouteSourceCandidateEntry?.candidateEvidenceCategory}:${taskRouteSourceCandidateEntry?.candidateEvidenceProviderId}:${taskRouteSourceCandidateEntry?.candidateEvidenceKey}:${taskRouteSourceCandidateEntry?.candidateEvidenceFingerprint}:${taskRouteSourceCandidateEntry?.preparedRouteOrderFingerprint ?? 'prepared:none'}:policyCandidateEntries:${taskRouteSourceCandidatePolicyEntries}:routeCandidateEntries:${taskRouteSourceCandidateRouteEntries}:${taskRouteSourceCandidateEntry?.taskRouteEffectiveSourceFingerprint ?? 'source:none'}:${taskRouteSourceCandidateEntry?.taskRouteModelSourceSnapshotFingerprint ?? 'modelSource:none'}:modelSourceEntries:${taskRouteSourceCandidateModelSourceEntries}`
+      `candidateEvidenceEntries:${taskRouteSourceCandidateEntry?.candidateEvidenceScope}#${taskRouteSourceCandidateEntry?.candidateIndex}:${taskRouteSourceCandidateEntry?.candidateEvidenceCategory}:${taskRouteSourceCandidateEntry?.candidateEvidenceProviderId}:${taskRouteSourceCandidateEntry?.candidateEvidenceKey}:${taskRouteSourceCandidateEntry?.candidateEvidenceFingerprint}:${taskRouteSourceCandidateEntry?.preparedRouteOrderFingerprint ?? 'prepared:none'}:policyCandidateEntries:${taskRouteSourceCandidatePolicyEntries}:prepareCandidateEntries:${taskRouteSourceCandidatePrepareEntries}:routeCandidateEntries:${taskRouteSourceCandidateRouteEntries}:${taskRouteSourceCandidateEntry?.taskRouteEffectiveSourceFingerprint ?? 'source:none'}:${taskRouteSourceCandidateEntry?.taskRouteModelSourceSnapshotFingerprint ?? 'modelSource:none'}:modelSourceEntries:${taskRouteSourceCandidateModelSourceEntries}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

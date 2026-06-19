@@ -3429,6 +3429,51 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
           registrySelected
           reasons
         }
+        prepareCandidateEntries {
+          candidateKey
+          candidateModelIds
+          costInputPer1M
+          costOutputPer1M
+          routeContextWindow
+          routeEmbeddingDimensions
+          routeMaxOutputTokens
+          routeAttachmentAllowRemoteUrls
+          routeAttachmentKinds
+          routeAttachmentSourceKinds
+          routeInputTypes
+          routeOutputTypes
+          routeStructuredAttachmentAllowRemoteUrls
+          routeStructuredAttachmentKinds
+          routeStructuredAttachmentSourceKinds
+          errorCategory
+          errorCode
+          health
+          healthCheckedAt
+          modelId
+          prepared
+          preparedModelId
+          providerConfiguredModelCount
+          providerConfiguredModelIds
+          providerId
+          providerName
+          providerPriority
+          providerProfileConfigPath
+          providerProfileId
+          providerProfileSource
+          providerSource
+          providerType
+          privacy
+          reasons
+          routeModelAliasMatched
+          routeModelDefinitionAliases
+          routeModelDefinitionId
+          routeModelDefinitionSource
+          routeRawModelId
+          registryAvailable
+          registryKind
+          registrySelected
+          requestedModelId
+        }
         routeCandidateEntries {
           candidateModelIds
           costInputPer1M

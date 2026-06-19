@@ -1052,6 +1052,7 @@ type CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType {
   candidateIndex: SafeInt!
   preparedRouteOrderFingerprint: String
   policyCandidateEntries: [CopilotPromptRegistryPublishGatePolicyCandidateType!]
+  prepareCandidateEntries: [CopilotTaskRoutePrepareCandidateDiagnosticsType!]
   routeCandidateEntries: [CopilotPromptRegistryPublishGateRouteCandidateType!]
   taskRouteEffectiveSourceFingerprint: String
   taskRouteModelSourceSnapshotEntries: [CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType!]
@@ -1773,6 +1774,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   prepared: Boolean
   preparedModelId: String
   prepareCandidateSnapshotFingerprint: String
+  prepareCandidates: [CopilotTaskRoutePrepareCandidateDiagnosticsType!]
   preparedRouteOrderFingerprint: String
   preparedRouteSnapshotFingerprint: String
   preparedRoutes: [CopilotPreparedTaskRouteDiagnosticsType!]

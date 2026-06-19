@@ -1209,6 +1209,9 @@ export interface CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType 
   policyCandidateEntries?: Maybe<
     Array<CopilotPromptRegistryPublishGatePolicyCandidateType>
   >;
+  prepareCandidateEntries?: Maybe<
+    Array<CopilotTaskRoutePrepareCandidateDiagnosticsType>
+  >;
   routeCandidateEntries?: Maybe<
     Array<CopilotPromptRegistryPublishGateRouteCandidateType>
   >;
@@ -2038,6 +2041,9 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   prepared?: Maybe<Scalars['Boolean']['output']>;
   preparedModelId?: Maybe<Scalars['String']['output']>;
   prepareCandidateSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
+  prepareCandidates?: Maybe<
+    Array<CopilotTaskRoutePrepareCandidateDiagnosticsType>
+  >;
   preparedRouteOrderFingerprint?: Maybe<Scalars['String']['output']>;
   preparedRouteSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   preparedRoutes?: Maybe<Array<CopilotPreparedTaskRouteDiagnosticsType>>;
@@ -9273,6 +9279,52 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
           registryKind: string | null;
           registrySelected: boolean | null;
           reasons: Array<string>;
+        }> | null;
+        prepareCandidateEntries: Array<{
+          __typename?: 'CopilotTaskRoutePrepareCandidateDiagnosticsType';
+          candidateKey: string | null;
+          candidateModelIds: Array<string> | null;
+          costInputPer1M: number | null;
+          costOutputPer1M: number | null;
+          routeContextWindow: number | null;
+          routeEmbeddingDimensions: number | null;
+          routeMaxOutputTokens: number | null;
+          routeAttachmentAllowRemoteUrls: boolean | null;
+          routeAttachmentKinds: Array<string> | null;
+          routeAttachmentSourceKinds: Array<string> | null;
+          routeInputTypes: Array<string> | null;
+          routeOutputTypes: Array<string> | null;
+          routeStructuredAttachmentAllowRemoteUrls: boolean | null;
+          routeStructuredAttachmentKinds: Array<string> | null;
+          routeStructuredAttachmentSourceKinds: Array<string> | null;
+          errorCategory: string | null;
+          errorCode: string | null;
+          health: string | null;
+          healthCheckedAt: string | null;
+          modelId: string | null;
+          prepared: boolean;
+          preparedModelId: string | null;
+          providerConfiguredModelCount: number | null;
+          providerConfiguredModelIds: Array<string> | null;
+          providerId: string;
+          providerName: string | null;
+          providerPriority: number | null;
+          providerProfileConfigPath: string | null;
+          providerProfileId: string | null;
+          providerProfileSource: string | null;
+          providerSource: string | null;
+          providerType: string | null;
+          privacy: string | null;
+          reasons: Array<string>;
+          routeModelAliasMatched: boolean | null;
+          routeModelDefinitionAliases: Array<string> | null;
+          routeModelDefinitionId: string | null;
+          routeModelDefinitionSource: string | null;
+          routeRawModelId: string | null;
+          registryAvailable: boolean | null;
+          registryKind: string | null;
+          registrySelected: boolean | null;
+          requestedModelId: string | null;
         }> | null;
         routeCandidateEntries: Array<{
           __typename?: 'CopilotPromptRegistryPublishGateRouteCandidateType';

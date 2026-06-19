@@ -4057,6 +4057,41 @@ function formatPromptRegistryRepairExecutionRequest(
                                   )
                                   .join('~')
                               : 'policyCandidateEntries:none'
+                          }:prepareCandidateEntries:${
+                            candidate.prepareCandidateEntries?.length
+                              ? candidate.prepareCandidateEntries
+                                  .map(
+                                    prepareCandidate =>
+                                      `${prepareCandidate.providerId}:prepared:${
+                                        prepareCandidate.prepared
+                                      }:model:${
+                                        prepareCandidate.modelId ?? 'model:none'
+                                      }:preparedModel:${
+                                        prepareCandidate.preparedModelId ??
+                                        'preparedModel:none'
+                                      }:requested:${
+                                        prepareCandidate.requestedModelId ??
+                                        'requested:none'
+                                      }:registry:${
+                                        prepareCandidate.registryKind ??
+                                        'registry:none'
+                                      }:definition:${
+                                        prepareCandidate.routeModelDefinitionId ??
+                                        'definition:none'
+                                      }:raw:${
+                                        prepareCandidate.routeRawModelId ??
+                                        'raw:none'
+                                      }:error:${
+                                        prepareCandidate.errorCode ??
+                                        'error:none'
+                                      }:reasons:${
+                                        prepareCandidate.reasons.length
+                                          ? prepareCandidate.reasons.join('^')
+                                          : 'reasons:none'
+                                      }`
+                                  )
+                                  .join('~')
+                              : 'prepareCandidateEntries:none'
                           }:routeCandidateEntries:${
                             candidate.routeCandidateEntries?.length
                               ? candidate.routeCandidateEntries

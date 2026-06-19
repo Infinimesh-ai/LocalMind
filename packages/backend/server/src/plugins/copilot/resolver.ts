@@ -988,6 +988,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   prepared?: boolean;
   preparedModelId?: string;
   prepareCandidateSnapshotFingerprint?: string;
+  prepareCandidates?: CopilotTaskRoutePrepareCandidateDiagnosticsType[];
   preparedRouteOrderFingerprint?: string;
   preparedRouteSnapshotFingerprint?: string;
   preparedRoutes?: CopilotPreparedTaskRouteDiagnosticsType[];
@@ -1126,6 +1127,7 @@ type CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry = {
   candidateIndex: number;
   preparedRouteOrderFingerprint?: string;
   policyCandidateEntries?: CopilotPromptRegistryPublishGatePolicyCandidate[];
+  prepareCandidateEntries?: CopilotTaskRoutePrepareCandidateDiagnosticsType[];
   routeCandidateEntries?: CopilotPromptRegistryPublishGateRouteCandidate[];
   taskRouteEffectiveSourceFingerprint?: string;
   taskRouteModelSourceSnapshotEntries?: CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntry[];
@@ -2385,6 +2387,11 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
   @Field(() => String, { nullable: true })
   prepareCandidateSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['prepareCandidateSnapshotFingerprint'];
 
+  @Field(() => [CopilotTaskRoutePrepareCandidateDiagnosticsType], {
+    nullable: true,
+  })
+  prepareCandidates?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['prepareCandidates'];
+
   @Field(() => String, { nullable: true })
   preparedRouteOrderFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['preparedRouteOrderFingerprint'];
 
@@ -3501,6 +3508,11 @@ class CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType implements 
     nullable: true,
   })
   policyCandidateEntries?: CopilotPromptRegistryPublishGatePolicyCandidate[];
+
+  @Field(() => [CopilotTaskRoutePrepareCandidateDiagnosticsType], {
+    nullable: true,
+  })
+  prepareCandidateEntries?: CopilotTaskRoutePrepareCandidateDiagnosticsType[];
 
   @Field(() => [CopilotPromptRegistryPublishGateRouteCandidateType], {
     nullable: true,
@@ -6624,6 +6636,7 @@ function taskRouteCandidateProfileStructuredEvidence(
               COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_VERSION,
           }
         : {}),
+      prepareCandidates: prepareCandidateSnapshot,
       routeCandidates: routeCandidateSnapshot,
       taskRouteModelSourceSnapshotEntries: taskRouteModelSourceSnapshotValue,
     };
@@ -9392,6 +9405,9 @@ function promptRegistryRepairCandidateEvidenceSnapshot(
           : {}),
         ...(candidate.policyCandidates?.length
           ? { policyCandidateEntries: candidate.policyCandidates }
+          : {}),
+        ...(candidate.prepareCandidates?.length
+          ? { prepareCandidateEntries: candidate.prepareCandidates }
           : {}),
         ...(candidate.routeCandidates?.length
           ? { routeCandidateEntries: candidate.routeCandidates }
