@@ -14198,6 +14198,105 @@ function getProfileConfiguredModelIds(
   ]);
 }
 
+function buildModelListEffectiveSourceFingerprint(
+  model: Pick<
+    CopilotModelType,
+    | 'id'
+    | 'promptAction'
+    | 'promptCategory'
+    | 'promptDefaultPolicy'
+    | 'promptModelConfigPath'
+    | 'promptModelSource'
+    | 'promptModelSources'
+    | 'promptName'
+    | 'promptOverrideApplied'
+    | 'promptSource'
+    | 'providerConfiguredModelCount'
+    | 'providerConfiguredModelIds'
+    | 'providerId'
+    | 'providerPrivacy'
+    | 'providerPriority'
+    | 'providerProfileConfigPath'
+    | 'providerProfileId'
+    | 'providerProfileSource'
+    | 'providerSource'
+    | 'providerType'
+    | 'registryAvailable'
+    | 'registryKind'
+    | 'registrySelected'
+    | 'routeBackendKind'
+    | 'routeCanonicalModelKey'
+    | 'routeFallbackProviderIds'
+    | 'routeModelAliasMatched'
+    | 'routeModelDefinitionAliases'
+    | 'routeModelDefinitionId'
+    | 'routeModelDefinitionSource'
+    | 'routeModelId'
+    | 'routePolicyAllowedPrivacy'
+    | 'routePolicyAllowedProviderIds'
+    | 'routePolicyBlockedProviderIds'
+    | 'routePolicyEnabled'
+    | 'routePolicyFeatureKind'
+    | 'routePolicyPreferredPrivacy'
+    | 'routePolicyWorkspaceId'
+    | 'routeRawModelId'
+    | 'sources'
+  >
+) {
+  return createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        effectiveSourceFingerprintVersion:
+          'copilot-model-list-effective-source/v1',
+        id: model.id,
+        promptAction: model.promptAction ?? null,
+        promptCategory: model.promptCategory,
+        promptDefaultPolicy: model.promptDefaultPolicy ?? null,
+        promptModelConfigPath: model.promptModelConfigPath ?? null,
+        promptModelSource: model.promptModelSource ?? null,
+        promptModelSources: model.promptModelSources,
+        promptName: model.promptName,
+        promptOverrideApplied: model.promptOverrideApplied,
+        promptSource: model.promptSource,
+        providerConfiguredModelCount:
+          model.providerConfiguredModelCount ?? null,
+        providerConfiguredModelIds: model.providerConfiguredModelIds ?? null,
+        providerId: model.providerId ?? null,
+        providerPrivacy: model.providerPrivacy ?? null,
+        providerPriority: model.providerPriority ?? null,
+        providerProfileConfigPath: model.providerProfileConfigPath ?? null,
+        providerProfileId: model.providerProfileId ?? null,
+        providerProfileSource: model.providerProfileSource ?? null,
+        providerSource: model.providerSource ?? null,
+        providerType: model.providerType ?? null,
+        registryAvailable: model.registryAvailable ?? null,
+        registryKind: model.registryKind ?? null,
+        registrySelected: model.registrySelected ?? null,
+        routeBackendKind: model.routeBackendKind ?? null,
+        routeCanonicalModelKey: model.routeCanonicalModelKey ?? null,
+        routeFallbackProviderIds: model.routeFallbackProviderIds ?? null,
+        routeModelAliasMatched: model.routeModelAliasMatched ?? null,
+        routeModelDefinitionAliases: model.routeModelDefinitionAliases ?? null,
+        routeModelDefinitionId: model.routeModelDefinitionId ?? null,
+        routeModelDefinitionSource: model.routeModelDefinitionSource ?? null,
+        routeModelId: model.routeModelId ?? null,
+        routePolicyAllowedPrivacy: model.routePolicyAllowedPrivacy ?? null,
+        routePolicyAllowedProviderIds:
+          model.routePolicyAllowedProviderIds ?? null,
+        routePolicyBlockedProviderIds:
+          model.routePolicyBlockedProviderIds ?? null,
+        routePolicyEnabled: model.routePolicyEnabled,
+        routePolicyFeatureKind: model.routePolicyFeatureKind ?? null,
+        routePolicyPreferredPrivacy: model.routePolicyPreferredPrivacy ?? null,
+        routePolicyWorkspaceId: model.routePolicyWorkspaceId ?? null,
+        routeRawModelId: model.routeRawModelId ?? null,
+        sources: model.sources,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
 function uniqueStrings(values: string[]) {
   return Array.from(new Set(values));
 }
@@ -14841,6 +14940,9 @@ class CopilotModelType {
 
   @Field(() => Boolean, { nullable: true })
   registrySelected?: boolean;
+
+  @Field(() => String, { nullable: true })
+  effectiveSourceFingerprint?: string;
 
   @Field(() => String, { nullable: true })
   routeModelId?: string;
@@ -17648,14 +17750,22 @@ export class CopilotResolver {
             ...(costInputPer1M !== undefined ? { costInputPer1M } : {}),
             ...(costOutputPer1M !== undefined ? { costOutputPer1M } : {}),
           };
+          const effectiveSourceFingerprint =
+            buildModelListEffectiveSourceFingerprint(modelMetadata);
 
           const cachedName = this.modelNames.get(id);
-          if (cachedName) return { ...modelMetadata, name: cachedName };
+          if (cachedName) {
+            return {
+              ...modelMetadata,
+              effectiveSourceFingerprint,
+              name: cachedName,
+            };
+          }
 
           const name = providerModel?.name;
           if (name) {
             this.modelNames.set(id, name);
-            return { ...modelMetadata, name };
+            return { ...modelMetadata, effectiveSourceFingerprint, name };
           }
           return null;
         })

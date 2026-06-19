@@ -79,6 +79,7 @@ export interface AIModel {
   registryAvailable?: boolean | null;
   registryKind?: string | null;
   registrySelected?: boolean | null;
+  effectiveSourceFingerprint?: string | null;
   routeBackendKind?: string | null;
   routeCanonicalModelKey?: string | null;
   routeRawModelId?: string | null;
@@ -2058,6 +2059,7 @@ export function buildAIModels(models: CopilotModels): AIModel[] {
         providerHealthLastError: model.providerHealthLastError,
         providerPriority: model.providerPriority,
         registryAvailable: model.registryAvailable,
+        effectiveSourceFingerprint: model.effectiveSourceFingerprint,
         registryKind: model.registryKind,
         registrySelected: model.registrySelected,
         routeBackendKind: model.routeBackendKind,
@@ -2243,6 +2245,14 @@ export function formatAIModelRegistryBranchLabel(
   ]
     .filter(Boolean)
     .join(' / ');
+}
+
+export function formatAIModelEffectiveSourceLabel(
+  model: Pick<AIModel, 'effectiveSourceFingerprint'>
+) {
+  return model.effectiveSourceFingerprint
+    ? `Source fingerprint ${model.effectiveSourceFingerprint}`
+    : '';
 }
 
 export function formatAIModelDefinitionLabel(
@@ -2956,6 +2966,7 @@ export function formatAIModelMenuLabels(
     | 'contextWindow'
     | 'costInputPer1M'
     | 'costOutputPer1M'
+    | 'effectiveSourceFingerprint'
     | 'embeddingDimensions'
     | 'isDefault'
     | 'isPro'
@@ -2990,12 +3001,14 @@ export function formatAIModelMenuLabels(
 ) {
   const fallbackLabel = formatAIModelFallbackLabel(model);
   const registryBranchLabel = formatAIModelRegistryBranchLabel(model);
+  const effectiveSourceLabel = formatAIModelEffectiveSourceLabel(model);
 
   return [
     formatAIModelProviderLabel(model),
     formatAIModelRouteLabel(model),
     fallbackLabel ? `Fallback ${fallbackLabel}` : null,
     registryBranchLabel || null,
+    effectiveSourceLabel || null,
     formatAIModelCapabilityLabel(model),
     formatAIModelRoutePolicyLabel(model),
     formatAIModelSourcesLabel(model),
@@ -3028,6 +3041,7 @@ export function formatAIModelDiagnosticsLabel(
     | 'promptSource'
     | 'defaultModelFallbackReason'
     | 'defaultModelSource'
+    | 'effectiveSourceFingerprint'
     | 'providerHealth'
     | 'providerHealthCheckedAt'
     | 'providerHealthLastError'
@@ -3082,6 +3096,7 @@ export function formatAIModelDiagnosticsLabel(
   const routeLabel = formatAIModelRouteLabel(model);
   const fallbackLabel = formatAIModelFallbackLabel(model);
   const registryBranchLabel = formatAIModelRegistryBranchLabel(model);
+  const effectiveSourceLabel = formatAIModelEffectiveSourceLabel(model);
   const definitionLabel = formatAIModelDefinitionLabel(model);
   const capabilityLabel = formatAIModelCapabilityLabel(model);
   const routePolicyLabel = formatAIModelRoutePolicyLabel(model);
@@ -3103,6 +3118,7 @@ export function formatAIModelDiagnosticsLabel(
     routeLabel || null,
     fallbackLabel ? `Fallback providers ${fallbackLabel}` : null,
     registryBranchLabel ? `Registry branch ${registryBranchLabel}` : null,
+    effectiveSourceLabel || null,
     definitionLabel ? `Model definition ${definitionLabel}` : null,
     capabilityLabel ? `Capabilities ${capabilityLabel}` : null,
     routePolicyLabel || null,

@@ -1044,6 +1044,7 @@ export interface CopilotModelType {
   registryAvailable?: Maybe<Scalars['Boolean']['output']>;
   registryKind?: Maybe<Scalars['String']['output']>;
   registrySelected?: Maybe<Scalars['Boolean']['output']>;
+  effectiveSourceFingerprint?: Maybe<Scalars['String']['output']>;
   routeBackendKind?: Maybe<Scalars['String']['output']>;
   routeBehaviorFlags?: Maybe<Array<Scalars['String']['output']>>;
   routeCanonicalModelKey?: Maybe<Scalars['String']['output']>;
@@ -7402,6 +7403,7 @@ export type GetPromptModelsQuery = {
           registryAvailable: boolean | null;
           registryKind: string | null;
           registrySelected: boolean | null;
+          effectiveSourceFingerprint: string | null;
           routeBackendKind: string | null;
           routeBehaviorFlags: Array<string> | null;
           routeCanonicalModelKey: string | null;
@@ -7471,6 +7473,7 @@ export type GetPromptModelsQuery = {
           registryAvailable: boolean | null;
           registryKind: string | null;
           registrySelected: boolean | null;
+          effectiveSourceFingerprint: string | null;
           routeBackendKind: string | null;
           routeBehaviorFlags: Array<string> | null;
           routeCanonicalModelKey: string | null;

@@ -902,6 +902,7 @@ type CopilotModelType {
   registryAvailable: Boolean
   registryKind: String
   registrySelected: Boolean
+  effectiveSourceFingerprint: String
   routeBackendKind: String
   routeBehaviorFlags: [String!]
   routeCanonicalModelKey: String

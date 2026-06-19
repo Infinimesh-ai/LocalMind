@@ -1592,6 +1592,7 @@ export const getPromptModelsQuery = {
           registryAvailable
           registryKind
           registrySelected
+          effectiveSourceFingerprint
           routeBackendKind
           routeBehaviorFlags
           routeCanonicalModelKey
@@ -1653,6 +1654,7 @@ export const getPromptModelsQuery = {
           registryAvailable
           registryKind
           registrySelected
+          effectiveSourceFingerprint
           routeBackendKind
           routeBehaviorFlags
           routeCanonicalModelKey

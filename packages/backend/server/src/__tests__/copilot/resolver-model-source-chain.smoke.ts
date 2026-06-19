@@ -2170,6 +2170,10 @@ async function main() {
   assert.equal(byId.get('byok/effective-chat')?.registryKind, 'byok');
   assert.equal(byId.get('byok/effective-chat')?.registryAvailable, true);
   assert.equal(byId.get('byok/effective-chat')?.registrySelected, true);
+  assert.match(
+    byId.get('byok/effective-chat')?.effectiveSourceFingerprint ?? '',
+    /^[a-f0-9]{16}$/
+  );
   assert.equal(
     byId.get('byok/effective-chat')?.routeModelDefinitionId,
     'effective-chat'
@@ -2177,6 +2181,14 @@ async function main() {
   assert.equal(byId.get('registry/only-chat')?.registryKind, 'quota_backed');
   assert.equal(byId.get('registry/only-chat')?.registryAvailable, true);
   assert.equal(byId.get('registry/only-chat')?.registrySelected, false);
+  assert.match(
+    byId.get('registry/only-chat')?.effectiveSourceFingerprint ?? '',
+    /^[a-f0-9]{16}$/
+  );
+  assert.notEqual(
+    byId.get('byok/effective-chat')?.effectiveSourceFingerprint,
+    byId.get('registry/only-chat')?.effectiveSourceFingerprint
+  );
   assert.equal(
     byId.get('registry/only-chat')?.routeModelDefinitionSource,
     'provider_runtime'
