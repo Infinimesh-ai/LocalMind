@@ -178,6 +178,19 @@ const candidateEvidenceReferenceSchemaFingerprintFixture = createHash('sha256')
   )
   .digest('hex')
   .slice(0, 16);
+const candidateEvidenceReferenceSchemaArtifactFingerprintFixture = createHash(
+  'sha256'
+)
+  .update(
+    stableFixtureStringify({
+      artifactStatus: candidateEvidenceReferenceSchemaArtifactStatusFixture,
+      registryStatus: candidateEvidenceReferenceSchemaRegistryStatusFixture,
+      schemaFingerprint: candidateEvidenceReferenceSchemaFingerprintFixture,
+      schemaVersion: candidateEvidenceReferenceSchemaVersionFixture,
+    })
+  )
+  .digest('hex')
+  .slice(0, 16);
 
 function candidateEvidenceCategoryFromKeyFixture(key?: string) {
   if (!key) {
@@ -7178,6 +7191,8 @@ describe('AiPage', () => {
                     candidateEvidenceKeys
                   ),
                   candidateEvidenceCount: operation.candidateEvidenceCount,
+                  candidateEvidenceReferenceSchemaArtifactFingerprint:
+                    candidateEvidenceReferenceSchemaArtifactFingerprintFixture,
                   candidateEvidenceReferenceSchemaArtifactStatus:
                     candidateEvidenceReferenceSchemaArtifactStatusFixture,
                   candidateEvidenceReferenceSchemaFields: [
@@ -8105,6 +8120,12 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       `referenceSchema:${candidateEvidenceReferenceSchemaVersionFixture}:${candidateEvidenceReferenceSchemaFieldsFixture.join('|')}`
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `referenceSchemaArtifactFingerprint:${candidateEvidenceReferenceSchemaArtifactFingerprintFixture}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
