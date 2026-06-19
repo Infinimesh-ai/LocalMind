@@ -540,6 +540,7 @@ query getCopilotPromptRegistryPublishGate(
           authorizationStatus
           candidateCount
           candidateEvidenceSetFingerprint
+          embeddingIndexContractEvidenceSetFingerprint
           preparedRouteOrderEvidenceSetFingerprint
           catalogFingerprint
           catalogVersion
@@ -555,6 +556,7 @@ query getCopilotPromptRegistryPublishGate(
             category
             code
             diagnosticsFingerprint
+            embeddingIndexContractEvidenceFingerprints
             inputSchema
             instanceKey
             operationFingerprint
@@ -598,6 +600,7 @@ query getCopilotPromptRegistryPublishGate(
             approvalPolicyFingerprint
             authorizationFingerprint
             candidateEvidenceSetFingerprint
+            embeddingIndexContractEvidenceSetFingerprint
             preparedRouteOrderEvidenceSetFingerprint
             catalogFingerprint
             contractVersion

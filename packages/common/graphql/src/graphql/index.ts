@@ -2526,6 +2526,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
           authorizationStatus
           candidateCount
           candidateEvidenceSetFingerprint
+          embeddingIndexContractEvidenceSetFingerprint
           preparedRouteOrderEvidenceSetFingerprint
           catalogFingerprint
           catalogVersion
@@ -2541,6 +2542,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             category
             code
             diagnosticsFingerprint
+            embeddingIndexContractEvidenceFingerprints
             inputSchema
             instanceKey
             operationFingerprint
@@ -2584,6 +2586,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             approvalPolicyFingerprint
             authorizationFingerprint
             candidateEvidenceSetFingerprint
+            embeddingIndexContractEvidenceSetFingerprint
             preparedRouteOrderEvidenceSetFingerprint
             catalogFingerprint
             contractVersion
@@ -2838,6 +2841,7 @@ export const getCopilotPromptRegistryRepairPreflightQuery = {
         auditEventVersion
         authorizationStatus
         candidateEvidenceSetFingerprint
+        embeddingIndexContractEvidenceSetFingerprint
         preparedRouteOrderEvidenceSetFingerprint
         capabilityCheckMode
         capabilityFingerprint
@@ -2856,6 +2860,7 @@ export const getCopilotPromptRegistryRepairPreflightQuery = {
         executionStateStatus
         executionStateVersion
         expectedCandidateEvidenceSetFingerprint
+        expectedEmbeddingIndexContractEvidenceSetFingerprint
         expectedPreparedRouteOrderEvidenceSetFingerprint
         expectedTargetLocatorFingerprint
         idempotencyFingerprint
@@ -2921,6 +2926,7 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
     auditEventRequestStatus
     auditEventRequestVersion
     expectedCandidateEvidenceSetFingerprint
+    expectedEmbeddingIndexContractEvidenceSetFingerprint
     expectedPreparedRouteOrderEvidenceSetFingerprint
     expectedTargetLocatorFingerprint
     executionCompletionEventRequestCreated
@@ -3168,6 +3174,7 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
       approvalRequestFingerprint
       auditEventFingerprint
       candidateEvidenceSetFingerprint
+      embeddingIndexContractEvidenceSetFingerprint
       preparedRouteOrderEvidenceSetFingerprint
       executionGateFingerprint
       executionGateStatus
@@ -3178,6 +3185,7 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
       reviewBindingFingerprint
       rollbackPlanFingerprint
       status
+      expectedEmbeddingIndexContractEvidenceSetFingerprint
       expectedPreparedRouteOrderEvidenceSetFingerprint
       expectedTargetLocatorFingerprint
       targetLocatorFingerprint
