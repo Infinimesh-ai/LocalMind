@@ -2285,6 +2285,7 @@ function withRepairActionPreview<
     authorizationFingerprint: string;
     approvalPolicyFingerprint: string;
     candidateEvidenceSetFingerprint: string;
+    taskRouteEffectiveSourceEvidenceSetFingerprint: string;
     embeddingIndexContractEvidenceSetFingerprint: string;
     rerankRuntimeContractEvidenceSetFingerprint: string;
     preparedRouteOrderEvidenceSetFingerprint: string;
@@ -2414,6 +2415,8 @@ function withRepairActionPreview<
       authorizationStatus,
       candidateCount: verdict.repairRecommendations.length,
       candidateEvidenceSetFingerprint: input.candidateEvidenceSetFingerprint,
+      taskRouteEffectiveSourceEvidenceSetFingerprint:
+        input.taskRouteEffectiveSourceEvidenceSetFingerprint,
       embeddingIndexContractEvidenceSetFingerprint:
         input.embeddingIndexContractEvidenceSetFingerprint,
       rerankRuntimeContractEvidenceSetFingerprint:
@@ -2434,6 +2437,8 @@ function withRepairActionPreview<
         approvalPolicyFingerprint: input.approvalPolicyFingerprint,
         authorizationFingerprint: input.authorizationFingerprint,
         candidateEvidenceSetFingerprint: input.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          input.taskRouteEffectiveSourceEvidenceSetFingerprint,
         embeddingIndexContractEvidenceSetFingerprint:
           input.embeddingIndexContractEvidenceSetFingerprint,
         rerankRuntimeContractEvidenceSetFingerprint:
@@ -2463,6 +2468,7 @@ function withRepairActionPreview<
           'approvalPolicyFingerprint',
           'authorizationFingerprint',
           'candidateEvidenceSetFingerprint',
+          'taskRouteEffectiveSourceEvidenceSetFingerprint',
           'embeddingIndexContractEvidenceSetFingerprint',
           'preparedRouteOrderEvidenceSetFingerprint',
           'rerankRuntimeContractEvidenceSetFingerprint',
@@ -2500,6 +2506,8 @@ function withRepairActionPreview<
       repairActionPreview.submissionContract.submissionFingerprint,
     candidateEvidenceSetFingerprint:
       repairActionPreview.candidateEvidenceSetFingerprint,
+    taskRouteEffectiveSourceEvidenceSetFingerprint:
+      repairActionPreview.taskRouteEffectiveSourceEvidenceSetFingerprint,
     embeddingIndexContractEvidenceSetFingerprint:
       repairActionPreview.embeddingIndexContractEvidenceSetFingerprint,
     rerankRuntimeContractEvidenceSetFingerprint:
@@ -3545,6 +3553,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
     authorizationFingerprint: 'aaaa2222bbbb3333',
     approvalPolicyFingerprint: 'aaaa3333bbbb4444',
     candidateEvidenceSetFingerprint: 'aaaa5555bbbb6666',
+    taskRouteEffectiveSourceEvidenceSetFingerprint: 'aaaa5656bbbb6767',
     embeddingIndexContractEvidenceSetFingerprint: 'aaaa6666bbbb7777',
     rerankRuntimeContractEvidenceSetFingerprint: 'aaaa8888bbbb9999',
     preparedRouteOrderEvidenceSetFingerprint: 'aaaa7777bbbb8888',
@@ -3654,6 +3663,7 @@ const rerankRepairPublishGateVerdict = withRepairActionPreview(
     authorizationFingerprint: 'dddd2222bbbb3333',
     approvalPolicyFingerprint: 'dddd3333bbbb4444',
     candidateEvidenceSetFingerprint: 'dddd5555bbbb6666',
+    taskRouteEffectiveSourceEvidenceSetFingerprint: 'dddd5656bbbb6767',
     embeddingIndexContractEvidenceSetFingerprint: 'dddd6666bbbb7777',
     rerankRuntimeContractEvidenceSetFingerprint: 'dddd8888bbbb9999',
     preparedRouteOrderEvidenceSetFingerprint: 'dddd7777bbbb8888',
@@ -3901,6 +3911,7 @@ const blockedPublishGateVerdict = withRepairActionPreview(
     authorizationFingerprint: 'bbbb3333cccc4444',
     approvalPolicyFingerprint: 'bbbb4444cccc5555',
     candidateEvidenceSetFingerprint: 'bbbb6666cccc7777',
+    taskRouteEffectiveSourceEvidenceSetFingerprint: 'bbbb6767cccc7878',
     embeddingIndexContractEvidenceSetFingerprint: 'bbbb7777cccc8888',
     rerankRuntimeContractEvidenceSetFingerprint: 'bbbb9999cccc0000',
     preparedRouteOrderEvidenceSetFingerprint: 'bbbb8888cccc9999',
@@ -4031,6 +4042,7 @@ const actionDryRunFailedPublishGateVerdict = withRepairActionPreview(
     authorizationFingerprint: 'cccc4444dddd5555',
     approvalPolicyFingerprint: 'cccc5555dddd6666',
     candidateEvidenceSetFingerprint: 'cccc7777dddd8888',
+    taskRouteEffectiveSourceEvidenceSetFingerprint: 'cccc7878dddd8989',
     embeddingIndexContractEvidenceSetFingerprint: 'cccc8888dddd9999',
     rerankRuntimeContractEvidenceSetFingerprint: 'cccc0000dddd1111',
     preparedRouteOrderEvidenceSetFingerprint: 'cccc9999dddd0000',
@@ -5001,6 +5013,7 @@ describe('AiPage', () => {
           expectedApprovalRequestFingerprint: string;
           expectedAuditEventFingerprint: string;
           expectedCandidateEvidenceSetFingerprint: string;
+          expectedTaskRouteEffectiveSourceEvidenceSetFingerprint: string;
           expectedEmbeddingIndexContractEvidenceSetFingerprint: string;
           expectedRerankRuntimeContractEvidenceSetFingerprint: string;
           expectedPreparedRouteOrderEvidenceSetFingerprint: string;
@@ -5032,6 +5045,7 @@ describe('AiPage', () => {
             'approvalRequestFingerprint',
             'auditBindingFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'idempotencyLockFingerprint',
             'policyBindingFingerprint',
             'preparedRouteOrderEvidenceSetFingerprint',
@@ -5053,6 +5067,7 @@ describe('AiPage', () => {
             'auditBindingFingerprint',
             'auditEventFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'idempotencyLockFingerprint',
             'operationSetFingerprint',
             'policyBindingFingerprint',
@@ -5072,6 +5087,7 @@ describe('AiPage', () => {
           executionCompletionEventRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionCompletionRequestFingerprint',
             'executionFailureEventRequestFingerprint',
             'executionProviderResponseRequestFingerprint',
@@ -5098,6 +5114,7 @@ describe('AiPage', () => {
           executionCompletionRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionFailureEventRequestFingerprint',
             'executionProviderResponseRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -5123,6 +5140,7 @@ describe('AiPage', () => {
           executionFinalizationEventRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionCompletionEventRequestFingerprint',
             'executionCompletionRequestFingerprint',
             'executionFailureEventRequestFingerprint',
@@ -5151,6 +5169,7 @@ describe('AiPage', () => {
           executionFinalizationRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionCompletionEventRequestFingerprint',
             'executionCompletionRequestFingerprint',
             'executionFailureEventRequestFingerprint',
@@ -5178,6 +5197,7 @@ describe('AiPage', () => {
           executionStatusPollRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionCompletionEventRequestFingerprint',
             'executionCompletionRequestFingerprint',
             'executionFailureEventRequestFingerprint',
@@ -5208,6 +5228,7 @@ describe('AiPage', () => {
             'approvalRecordRequestFingerprint',
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionCompletionEventRequestFingerprint',
             'executionCompletionRequestFingerprint',
             'executionFailureEventRequestFingerprint',
@@ -5239,6 +5260,7 @@ describe('AiPage', () => {
             'approvalRecordRequestFingerprint',
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionOperationEntryRequestFingerprint',
             'executionStatusPollRequestFingerprint',
             'idempotencyLockFingerprint',
@@ -5260,6 +5282,7 @@ describe('AiPage', () => {
             'approvalRecordRequestFingerprint',
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionApprovalUiRequestFingerprint',
             'executionOperationEntryRequestFingerprint',
             'guardFingerprint',
@@ -5284,6 +5307,7 @@ describe('AiPage', () => {
             'approvalRecordRequestFingerprint',
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionApprovalUiRequestFingerprint',
             'executionDiffPreviewRequestFingerprint',
             'idempotencyLockFingerprint',
@@ -5304,6 +5328,7 @@ describe('AiPage', () => {
           executionStartRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionApprovalDecisionRequestFingerprint',
             'executionOperationEntryRequestFingerprint',
             'executionStateRequestFingerprint',
@@ -5326,6 +5351,7 @@ describe('AiPage', () => {
           executionQueueRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionStartRequestFingerprint',
             'executionStateRequestFingerprint',
             'executionStatusPollRequestFingerprint',
@@ -5347,6 +5373,7 @@ describe('AiPage', () => {
           executionWorkerLeaseRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionQueueRequestFingerprint',
             'executionStartRequestFingerprint',
             'executionStateRequestFingerprint',
@@ -5370,6 +5397,7 @@ describe('AiPage', () => {
           executionJobRunRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionQueueRequestFingerprint',
             'executionStartRequestFingerprint',
             'executionStateRequestFingerprint',
@@ -5393,6 +5421,7 @@ describe('AiPage', () => {
           executionRunStepRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionStartRequestFingerprint',
@@ -5418,6 +5447,7 @@ describe('AiPage', () => {
           executionRunStepTraceRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionRunStepRequestFingerprint',
@@ -5445,6 +5475,7 @@ describe('AiPage', () => {
           executionRunStepResultRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -5474,6 +5505,7 @@ describe('AiPage', () => {
           executionRunStepCompletionRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -5504,6 +5536,7 @@ describe('AiPage', () => {
           executionRunStepStatusEventRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -5535,6 +5568,7 @@ describe('AiPage', () => {
           executionRunStepRetryRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -5568,6 +5602,7 @@ describe('AiPage', () => {
           executionRunStepRetryAttemptRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -5601,6 +5636,7 @@ describe('AiPage', () => {
           executionRunStepRetryAttemptStatusEventRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -5637,6 +5673,7 @@ describe('AiPage', () => {
           executionRunStepRetryAttemptTraceRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -5673,6 +5710,7 @@ describe('AiPage', () => {
           executionRunStepRetryAttemptResultRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -5710,6 +5748,7 @@ describe('AiPage', () => {
           executionRunStepRetryAttemptCompletionRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -5748,6 +5787,7 @@ describe('AiPage', () => {
           executionRunStepRetryAttemptCompletionStatusEventRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -5787,6 +5827,7 @@ describe('AiPage', () => {
           executionRunStepRetryAttemptFinalizationRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -5827,6 +5868,7 @@ describe('AiPage', () => {
           executionRunStepRetryAttemptFinalizationStatusEventRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -5869,6 +5911,7 @@ describe('AiPage', () => {
           executionRunStepRetryAttemptCloseRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -5911,6 +5954,7 @@ describe('AiPage', () => {
           executionRunStepRetryAttemptCloseStatusEventRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -5954,6 +5998,7 @@ describe('AiPage', () => {
           executionRunStepRetryAttemptRetentionPolicyRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -5998,6 +6043,7 @@ describe('AiPage', () => {
           executionRunStepRetryAttemptRetentionPolicyRuleRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -6043,6 +6089,7 @@ describe('AiPage', () => {
           executionRunStepRetryAttemptRetentionLeaseRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -6089,6 +6136,7 @@ describe('AiPage', () => {
           executionRunStepRetryAttemptArchiveRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionJobRunRequestFingerprint',
             'executionQueueRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -6137,6 +6185,7 @@ describe('AiPage', () => {
           executionFailureEventRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionProviderResponseRequestFingerprint',
             'executionResultRequestFingerprint',
             'executionRetryPolicyRequestFingerprint',
@@ -6160,6 +6209,7 @@ describe('AiPage', () => {
           executionProviderResponseRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionResultRequestFingerprint',
             'executionRetryPolicyRequestFingerprint',
             'executionStateRequestFingerprint',
@@ -6182,6 +6232,7 @@ describe('AiPage', () => {
           executionResultRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionStateRequestFingerprint',
             'executionTraceRequestFingerprint',
             'preparedRouteOrderEvidenceSetFingerprint',
@@ -6200,6 +6251,7 @@ describe('AiPage', () => {
             : 'ddddbbbbddddcccc',
           executionRetryPolicyRequestInputs: [
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionResultRequestFingerprint',
             'executionStateRequestFingerprint',
             'executionTraceRequestFingerprint',
@@ -6220,6 +6272,7 @@ describe('AiPage', () => {
             : 'ddddccccffffeeee',
           executionRollbackExecutorRequestInputs: [
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionFailureEventRequestFingerprint',
             'executionProviderResponseRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -6243,6 +6296,7 @@ describe('AiPage', () => {
             : 'ddddddddffffeeee',
           executionRollbackOperationRequestInputs: [
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionFailureEventRequestFingerprint',
             'executionProviderResponseRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -6267,6 +6321,7 @@ describe('AiPage', () => {
             : 'ddddeeeeffffdddd',
           executionRollbackOutcomeRequestInputs: [
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionFailureEventRequestFingerprint',
             'executionProviderResponseRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -6292,6 +6347,7 @@ describe('AiPage', () => {
             : 'ddddbbbbffffeeee',
           executionRollbackTriggerRequestInputs: [
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionFailureEventRequestFingerprint',
             'executionProviderResponseRequestFingerprint',
             'executionResultRequestFingerprint',
@@ -6318,6 +6374,7 @@ describe('AiPage', () => {
             'approvalRecordRequestFingerprint',
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionStateRequestFingerprint',
             'idempotencyLockFingerprint',
             'preparedRouteOrderEvidenceSetFingerprint',
@@ -6333,6 +6390,8 @@ describe('AiPage', () => {
           executionRequested: false,
           expectedCandidateEvidenceSetFingerprint:
             input.expectedCandidateEvidenceSetFingerprint,
+          expectedTaskRouteEffectiveSourceEvidenceSetFingerprint:
+            input.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
           expectedEmbeddingIndexContractEvidenceSetFingerprint:
             input.expectedEmbeddingIndexContractEvidenceSetFingerprint,
           expectedRerankRuntimeContractEvidenceSetFingerprint:
@@ -6353,6 +6412,7 @@ describe('AiPage', () => {
             : 'efef3333abab4444',
           idempotencyLockInputs: [
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'idempotencyFingerprint',
             'idempotencyKey',
             'policyBindingFingerprint',
@@ -6374,6 +6434,7 @@ describe('AiPage', () => {
           executionStateRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionStateFingerprint',
             'idempotencyLockFingerprint',
             'operationSetFingerprint',
@@ -6394,6 +6455,7 @@ describe('AiPage', () => {
           rollbackPlanRequestInputs: [
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'executionStateRequestFingerprint',
             'operationSetFingerprint',
             'preparedRouteOrderEvidenceSetFingerprint',
@@ -6417,6 +6479,7 @@ describe('AiPage', () => {
             'approvalRecordRequestFingerprint',
             'auditEventRequestFingerprint',
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'idempotencyLockFingerprint',
             'operationSetFingerprint',
             'policyBindingFingerprint',
@@ -6435,6 +6498,7 @@ describe('AiPage', () => {
             'expectedApprovalRequestFingerprint',
             'expectedAuditEventFingerprint',
             'expectedCandidateEvidenceSetFingerprint',
+            'expectedTaskRouteEffectiveSourceEvidenceSetFingerprint',
             'expectedEmbeddingIndexContractEvidenceSetFingerprint',
             'expectedExecutionGateFingerprint',
             'expectedExecutionGateStatus',
@@ -6461,12 +6525,16 @@ describe('AiPage', () => {
             auditEventFingerprint: input.expectedAuditEventFingerprint,
             candidateEvidenceSetFingerprint:
               input.expectedCandidateEvidenceSetFingerprint,
+            taskRouteEffectiveSourceEvidenceSetFingerprint:
+              input.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
             embeddingIndexContractEvidenceSetFingerprint:
               input.expectedEmbeddingIndexContractEvidenceSetFingerprint,
             rerankRuntimeContractEvidenceSetFingerprint:
               input.expectedRerankRuntimeContractEvidenceSetFingerprint,
             preparedRouteOrderEvidenceSetFingerprint:
               input.expectedPreparedRouteOrderEvidenceSetFingerprint,
+            expectedTaskRouteEffectiveSourceEvidenceSetFingerprint:
+              input.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
             expectedEmbeddingIndexContractEvidenceSetFingerprint:
               input.expectedEmbeddingIndexContractEvidenceSetFingerprint,
             expectedRerankRuntimeContractEvidenceSetFingerprint:
@@ -6496,6 +6564,7 @@ describe('AiPage', () => {
             'expectedApprovalRequestFingerprint',
             'expectedAuditEventFingerprint',
             'expectedCandidateEvidenceSetFingerprint',
+            'expectedTaskRouteEffectiveSourceEvidenceSetFingerprint',
             'expectedEmbeddingIndexContractEvidenceSetFingerprint',
             'expectedExecutionGateFingerprint',
             'expectedExecutionGateStatus',
@@ -6521,6 +6590,7 @@ describe('AiPage', () => {
             : 'efef5555abab6666',
           supportBundleArtifactInputs: [
             'candidateEvidenceSetFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
             'embeddingIndexContractEvidenceSetFingerprint',
             'manifestExportPolicyFingerprint',
             'manifestFingerprint',
@@ -6899,6 +6969,7 @@ describe('AiPage', () => {
                     'approvalRecordFingerprint',
                     'auditBindingFingerprint',
                     'candidateEvidenceSetFingerprint',
+                    'taskRouteEffectiveSourceEvidenceSetFingerprint',
                     'embeddingIndexContractEvidenceSetFingerprint',
                     'operationSetFingerprint',
                     'policyBindingFingerprint',
@@ -6912,6 +6983,9 @@ describe('AiPage', () => {
                   authorizationStatus: 'approval_required',
                   candidateEvidenceSetFingerprint:
                     submission?.candidateEvidenceSetFingerprint ?? '',
+                  taskRouteEffectiveSourceEvidenceSetFingerprint:
+                    submission?.taskRouteEffectiveSourceEvidenceSetFingerprint ??
+                    '',
                   embeddingIndexContractEvidenceSetFingerprint:
                     submission?.embeddingIndexContractEvidenceSetFingerprint ??
                     '',
@@ -6957,6 +7031,7 @@ describe('AiPage', () => {
                   executionStateInputs: [
                     'auditEventFingerprint',
                     'candidateEvidenceSetFingerprint',
+                    'taskRouteEffectiveSourceEvidenceSetFingerprint',
                     'embeddingIndexContractEvidenceSetFingerprint',
                     'idempotencyFingerprint',
                     'operationSetFingerprint',
@@ -6970,6 +7045,9 @@ describe('AiPage', () => {
                   executionStateVersion: 'repair-preflight-execution-state/v1',
                   expectedCandidateEvidenceSetFingerprint:
                     submission?.candidateEvidenceSetFingerprint ?? '',
+                  expectedTaskRouteEffectiveSourceEvidenceSetFingerprint:
+                    submission?.taskRouteEffectiveSourceEvidenceSetFingerprint ??
+                    '',
                   expectedEmbeddingIndexContractEvidenceSetFingerprint:
                     submission?.embeddingIndexContractEvidenceSetFingerprint ??
                     '',
@@ -6987,6 +7065,7 @@ describe('AiPage', () => {
                   rollbackPlanInputs: [
                     'auditEventFingerprint',
                     'candidateEvidenceSetFingerprint',
+                    'taskRouteEffectiveSourceEvidenceSetFingerprint',
                     'embeddingIndexContractEvidenceSetFingerprint',
                     'executionStateFingerprint',
                     'operationSetFingerprint',
@@ -7013,6 +7092,7 @@ describe('AiPage', () => {
                     'approvalPolicyFingerprint',
                     'authorizationFingerprint',
                     'candidateEvidenceSetFingerprint',
+                    'taskRouteEffectiveSourceEvidenceSetFingerprint',
                     'catalogFingerprint',
                     'contractVersion',
                     'embeddingIndexContractEvidenceSetFingerprint',
@@ -7086,6 +7166,7 @@ describe('AiPage', () => {
                     'actorFingerprint',
                     'auditBindingFingerprint',
                     'candidateEvidenceSetFingerprint',
+                    'taskRouteEffectiveSourceEvidenceSetFingerprint',
                     'embeddingIndexContractEvidenceSetFingerprint',
                     'idempotencyFingerprint',
                     'operationSetFingerprint',
@@ -7102,6 +7183,7 @@ describe('AiPage', () => {
                     : 'cccc1111dddd2222',
                   reviewBindingInputs: [
                     'candidateEvidenceSetFingerprint',
+                    'taskRouteEffectiveSourceEvidenceSetFingerprint',
                     'capabilityFingerprint',
                     'embeddingIndexContractEvidenceSetFingerprint',
                     'permissionFingerprint',
@@ -7324,6 +7406,8 @@ describe('AiPage', () => {
           expectedApprovalRequestFingerprint: '7474aaaabbbb9999',
           expectedAuditEventFingerprint: '9696aaaabbbb1111',
           expectedCandidateEvidenceSetFingerprint: 'aaaa5555bbbb6666',
+          expectedTaskRouteEffectiveSourceEvidenceSetFingerprint:
+            'aaaa5656bbbb6767',
           expectedEmbeddingIndexContractEvidenceSetFingerprint:
             'aaaa6666bbbb7777',
           expectedRerankRuntimeContractEvidenceSetFingerprint:
@@ -7357,6 +7441,7 @@ describe('AiPage', () => {
             approvalPolicyFingerprint: 'aaaa3333bbbb4444',
             authorizationFingerprint: 'aaaa2222bbbb3333',
             candidateEvidenceSetFingerprint: 'aaaa5555bbbb6666',
+            taskRouteEffectiveSourceEvidenceSetFingerprint: 'aaaa5656bbbb6767',
             embeddingIndexContractEvidenceSetFingerprint: 'aaaa6666bbbb7777',
             rerankRuntimeContractEvidenceSetFingerprint: 'aaaa8888bbbb9999',
             preparedRouteOrderEvidenceSetFingerprint: 'aaaa7777bbbb8888',
@@ -7384,6 +7469,7 @@ describe('AiPage', () => {
               'previewFingerprint',
               'rerankRuntimeContractEvidenceSetFingerprint',
               'targetLocatorFingerprint',
+              'taskRouteEffectiveSourceEvidenceSetFingerprint',
             ],
             submissionFingerprint: 'aaaa4444bbbb5555',
             targetLocatorFingerprint: 'ddd111eee222ffff',
@@ -7398,7 +7484,7 @@ describe('AiPage', () => {
         screen.getByTestId('prompt-registry-publish-gate-Make it real')
           .textContent
       ).toContain(
-        'Repair execution request version repair-execution-request/v1 / status Blocked Read Only / read-only yes / mutation available no / accepted no / execution requested no / expected candidate evidence set fingerprint aaaa5555bbbb6666 / expected embedding index contract evidence set fingerprint aaaa6666bbbb7777 / expected rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / expected prepared route order evidence set fingerprint aaaa7777bbbb8888 / expected target locator fingerprint ddd111eee222ffff'
+        'Repair execution request version repair-execution-request/v1 / status Blocked Read Only / read-only yes / mutation available no / accepted no / execution requested no / expected candidate evidence set fingerprint aaaa5555bbbb6666 / expected task route source evidence set fingerprint aaaa5656bbbb6767 / expected embedding index contract evidence set fingerprint aaaa6666bbbb7777 / expected rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / expected prepared route order evidence set fingerprint aaaa7777bbbb8888 / expected target locator fingerprint ddd111eee222ffff'
       );
     });
     expect(
@@ -7423,7 +7509,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      'support bundle artifact inputs candidateEvidenceSetFingerprint, embeddingIndexContractEvidenceSetFingerprint, manifestExportPolicyFingerprint, manifestFingerprint, manifestMetadataRetentionPolicyFingerprint'
+      'support bundle artifact inputs candidateEvidenceSetFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint, embeddingIndexContractEvidenceSetFingerprint, manifestExportPolicyFingerprint, manifestFingerprint, manifestMetadataRetentionPolicyFingerprint'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
@@ -8357,40 +8443,43 @@ describe('AiPage', () => {
     revokeObjectURLMock.mockClear();
     anchorClickMock.mockClear();
     expect(readyGateDiagnostics).toContain(
-      'candidate evidence set aaaa5555bbbb6666 / embedding index contract evidence set aaaa6666bbbb7777 / rerank runtime contract evidence set aaaa8888bbbb9999 / prepared route order evidence set aaaa7777bbbb8888'
+      'candidate evidence set aaaa5555bbbb6666 / task route source evidence set aaaa5656bbbb6767 / embedding index contract evidence set aaaa6666bbbb7777 / rerank runtime contract evidence set aaaa8888bbbb9999 / prepared route order evidence set aaaa7777bbbb8888'
     );
     expect(readyGateDiagnostics).toContain(
-      'candidate evidence set fingerprint aaaa5555bbbb6666 / embedding index contract evidence set fingerprint aaaa6666bbbb7777 / rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / prepared route order evidence set fingerprint aaaa7777bbbb8888'
+      'candidate evidence set fingerprint aaaa5555bbbb6666 / task route source evidence set fingerprint aaaa5656bbbb6767 / embedding index contract evidence set fingerprint aaaa6666bbbb7777 / rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / prepared route order evidence set fingerprint aaaa7777bbbb8888'
     );
     expect(readyGateDiagnostics).toContain(
-      'submission candidate evidence set fingerprint aaaa5555bbbb6666 / submission embedding index contract evidence set fingerprint aaaa6666bbbb7777 / submission rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / submission prepared route order evidence set fingerprint aaaa7777bbbb8888'
+      'submission candidate evidence set fingerprint aaaa5555bbbb6666 / submission task route source evidence set fingerprint aaaa5656bbbb6767 / submission embedding index contract evidence set fingerprint aaaa6666bbbb7777 / submission rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / submission prepared route order evidence set fingerprint aaaa7777bbbb8888'
     );
     expect(readyGateDiagnostics).toContain(
-      'submission required inputs approvalPolicyFingerprint, authorizationFingerprint, candidateEvidenceSetFingerprint, embeddingIndexContractEvidenceSetFingerprint'
+      'submission required inputs approvalPolicyFingerprint, authorizationFingerprint, candidateEvidenceSetFingerprint'
+    );
+    expect(readyGateDiagnostics).toContain(
+      'taskRouteEffectiveSourceEvidenceSetFingerprint'
     );
     expect(readyGateDiagnostics).toContain(
       'Repair action preflight status Ready For Review / read-only yes / mutation available no / accepted no'
     );
     expect(readyGateDiagnostics).toContain(
-      'candidate evidence set fingerprint aaaa5555bbbb6666 / embedding index contract evidence set fingerprint aaaa6666bbbb7777 / rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / prepared route order evidence set fingerprint aaaa7777bbbb8888 / expected candidate evidence set fingerprint aaaa5555bbbb6666 / expected embedding index contract evidence set fingerprint aaaa6666bbbb7777 / expected rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / expected prepared route order evidence set fingerprint aaaa7777bbbb8888'
+      'candidate evidence set fingerprint aaaa5555bbbb6666 / task route source evidence set fingerprint aaaa5656bbbb6767 / embedding index contract evidence set fingerprint aaaa6666bbbb7777 / rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / prepared route order evidence set fingerprint aaaa7777bbbb8888 / expected candidate evidence set fingerprint aaaa5555bbbb6666 / expected task route source evidence set fingerprint aaaa5656bbbb6767 / expected embedding index contract evidence set fingerprint aaaa6666bbbb7777 / expected rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / expected prepared route order evidence set fingerprint aaaa7777bbbb8888'
     );
     expect(readyGateDiagnostics).toContain(
-      'audit event inputs actorFingerprint, approvalRecordFingerprint, auditBindingFingerprint, candidateEvidenceSetFingerprint, embeddingIndexContractEvidenceSetFingerprint'
+      'audit event inputs actorFingerprint, approvalRecordFingerprint, auditBindingFingerprint, candidateEvidenceSetFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint, embeddingIndexContractEvidenceSetFingerprint'
     );
     expect(readyGateDiagnostics).toContain(
-      'execution state inputs auditEventFingerprint, candidateEvidenceSetFingerprint, embeddingIndexContractEvidenceSetFingerprint'
+      'execution state inputs auditEventFingerprint, candidateEvidenceSetFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint, embeddingIndexContractEvidenceSetFingerprint'
     );
     expect(readyGateDiagnostics).toContain(
-      'rollback plan inputs auditEventFingerprint, candidateEvidenceSetFingerprint, embeddingIndexContractEvidenceSetFingerprint'
+      'rollback plan inputs auditEventFingerprint, candidateEvidenceSetFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint, embeddingIndexContractEvidenceSetFingerprint'
     );
     expect(readyGateDiagnostics).toContain(
-      'review binding inputs candidateEvidenceSetFingerprint, capabilityFingerprint, embeddingIndexContractEvidenceSetFingerprint'
+      'review binding inputs candidateEvidenceSetFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
     );
     expect(readyGateDiagnostics).toContain(
-      'repair job inputs actorFingerprint, auditBindingFingerprint, candidateEvidenceSetFingerprint, embeddingIndexContractEvidenceSetFingerprint'
+      'repair job inputs actorFingerprint, auditBindingFingerprint, candidateEvidenceSetFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint, embeddingIndexContractEvidenceSetFingerprint'
     );
     expect(readyGateDiagnostics).toContain(
-      'matched fields approvalPolicyFingerprint, authorizationFingerprint, candidateEvidenceSetFingerprint, catalogFingerprint, contractVersion, embeddingIndexContractEvidenceSetFingerprint'
+      'matched fields approvalPolicyFingerprint, authorizationFingerprint, candidateEvidenceSetFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
     );
     expect(readyGateDiagnostics).toMatch(
       /Repair action preview operation Preview Required \/ action kind Review Non Default Model Route .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ rerank runtime contract evidence fingerprints none \/ task route source fingerprints none \/ fingerprint 1111222233334444 \/ operation fingerprint 1111aaaa2222bbbb \/ target locator fingerprint aaaa1111bbbb2222 \/ required capabilities model_registry\.read, provider_route\.preview \/ input schema required diagnosticsFingerprint, targetLocator/
@@ -8678,10 +8767,10 @@ describe('AiPage', () => {
       'Repair action preview status Dry Run Required / read-only yes / fingerprint 7777aaaabbbbcccc'
     );
     expect(failedDryRunDiagnostics).toContain(
-      'candidate evidence set fingerprint cccc7777dddd8888 / embedding index contract evidence set fingerprint cccc8888dddd9999 / rerank runtime contract evidence set fingerprint cccc0000dddd1111 / prepared route order evidence set fingerprint cccc9999dddd0000'
+      'candidate evidence set fingerprint cccc7777dddd8888 / task route source evidence set fingerprint cccc7878dddd8989 / embedding index contract evidence set fingerprint cccc8888dddd9999 / rerank runtime contract evidence set fingerprint cccc0000dddd1111 / prepared route order evidence set fingerprint cccc9999dddd0000'
     );
     expect(failedDryRunDiagnostics).toContain(
-      'expected candidate evidence set fingerprint cccc7777dddd8888 / expected embedding index contract evidence set fingerprint cccc8888dddd9999 / expected rerank runtime contract evidence set fingerprint cccc0000dddd1111 / expected prepared route order evidence set fingerprint cccc9999dddd0000'
+      'expected candidate evidence set fingerprint cccc7777dddd8888 / expected task route source evidence set fingerprint cccc7878dddd8989 / expected embedding index contract evidence set fingerprint cccc8888dddd9999 / expected rerank runtime contract evidence set fingerprint cccc0000dddd1111 / expected prepared route order evidence set fingerprint cccc9999dddd0000'
     );
     expect(failedDryRunDiagnostics).toMatch(
       /Repair action preview operation Dry Run Required \/ action kind Review Action Route Dry Run .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ rerank runtime contract evidence fingerprints none \/ task route source fingerprints none \/ fingerprint 777788889999aaaa \/ operation fingerprint 7777aaaa8888bbbb \/ target locator fingerprint aaaa7777bbbb8888 \/ required capabilities action_route\.read, action_route\.dry_run \/ input schema required diagnosticsFingerprint, targetLocator/
@@ -9213,10 +9302,10 @@ describe('AiPage', () => {
       'retention policy prompt-registry-repair-gate-manifest-retention-policy/v1 / retention status Not Persisted Read Only'
     );
     expect(blockedGateDiagnostics).toContain(
-      'candidate evidence set fingerprint bbbb6666cccc7777 / embedding index contract evidence set fingerprint bbbb7777cccc8888 / rerank runtime contract evidence set fingerprint bbbb9999cccc0000 / prepared route order evidence set fingerprint bbbb8888cccc9999'
+      'candidate evidence set fingerprint bbbb6666cccc7777 / task route source evidence set fingerprint bbbb6767cccc7878 / embedding index contract evidence set fingerprint bbbb7777cccc8888 / rerank runtime contract evidence set fingerprint bbbb9999cccc0000 / prepared route order evidence set fingerprint bbbb8888cccc9999'
     );
     expect(blockedGateDiagnostics).toContain(
-      'expected candidate evidence set fingerprint bbbb6666cccc7777 / expected embedding index contract evidence set fingerprint bbbb7777cccc8888 / expected rerank runtime contract evidence set fingerprint bbbb9999cccc0000 / expected prepared route order evidence set fingerprint bbbb8888cccc9999'
+      'expected candidate evidence set fingerprint bbbb6666cccc7777 / expected task route source evidence set fingerprint bbbb6767cccc7878 / expected embedding index contract evidence set fingerprint bbbb7777cccc8888 / expected rerank runtime contract evidence set fingerprint bbbb9999cccc0000 / expected prepared route order evidence set fingerprint bbbb8888cccc9999'
     );
     expect(blockedGateDiagnostics).toMatch(
       /Repair action preview operation Preview Required \/ action kind Registry Add Messages .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ rerank runtime contract evidence fingerprints none \/ task route source fingerprints none \/ fingerprint 5555666677778888 \/ operation fingerprint 5555eeee6666ffff \/ target locator fingerprint eeee5555ffff6666 \/ required capabilities prompt_registry\.read, prompt_registry\.preview_write \/ input schema required diagnosticsFingerprint, targetLocator/

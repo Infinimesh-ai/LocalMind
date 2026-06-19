@@ -98,6 +98,7 @@ function taskRoutePolicyCandidateEvidenceFixture<
   T extends {
     allowed: boolean;
     available: boolean;
+    effectiveSourceFingerprint?: string;
     health: string;
     healthCheckedAt?: string;
     privacy: string;
@@ -120,6 +121,12 @@ function taskRoutePolicyCandidateEvidenceFixture<
   return candidates?.map(candidate => ({
     allowed: candidate.allowed,
     available: candidate.available,
+    ...(candidate.effectiveSourceFingerprint !== undefined
+      ? {
+          taskRouteEffectiveSourceFingerprint:
+            candidate.effectiveSourceFingerprint,
+        }
+      : {}),
     health: candidate.health,
     ...(candidate.healthCheckedAt
       ? { healthCheckedAt: candidate.healthCheckedAt }
@@ -172,6 +179,7 @@ function taskRouteCandidateEvidenceFixture<
     candidateModelIds?: string[];
     costInputPer1M?: number;
     costOutputPer1M?: number;
+    effectiveSourceFingerprint?: string;
     health?: string;
     healthCheckedAt?: string;
     matched: boolean;
@@ -219,6 +227,12 @@ function taskRouteCandidateEvidenceFixture<
       : {}),
     ...(candidate.costOutputPer1M !== undefined
       ? { costOutputPer1M: candidate.costOutputPer1M }
+      : {}),
+    ...(candidate.effectiveSourceFingerprint !== undefined
+      ? {
+          taskRouteEffectiveSourceFingerprint:
+            candidate.effectiveSourceFingerprint,
+        }
       : {}),
     ...(candidate.health ? { health: candidate.health } : {}),
     ...(candidate.healthCheckedAt
@@ -330,6 +344,7 @@ function taskRoutePrepareCandidateEvidenceFixture<
     candidateModelIds?: string[];
     costInputPer1M?: number;
     costOutputPer1M?: number;
+    effectiveSourceFingerprint?: string;
     errorCategory?: string;
     errorCode?: string;
     health?: string;
@@ -380,6 +395,12 @@ function taskRoutePrepareCandidateEvidenceFixture<
       : {}),
     ...(candidate.costOutputPer1M !== undefined
       ? { costOutputPer1M: candidate.costOutputPer1M }
+      : {}),
+    ...(candidate.effectiveSourceFingerprint !== undefined
+      ? {
+          taskRouteEffectiveSourceFingerprint:
+            candidate.effectiveSourceFingerprint,
+        }
       : {}),
     ...(candidate.errorCategory
       ? { errorCategory: candidate.errorCategory }
@@ -3375,6 +3396,12 @@ async function main() {
   );
   assert.equal(
     routeReadyGate?.repairGateManifest
+      .taskRouteEffectiveSourceEvidenceSetFingerprint,
+    routeReadyGate?.repairActionPreview
+      .taskRouteEffectiveSourceEvidenceSetFingerprint
+  );
+  assert.equal(
+    routeReadyGate?.repairGateManifest
       .embeddingIndexContractEvidenceSetFingerprint,
     routeReadyGate?.repairActionPreview
       .embeddingIndexContractEvidenceSetFingerprint
@@ -3439,6 +3466,9 @@ async function main() {
               candidateEvidenceSetFingerprint:
                 routeReadyGate.repairGateManifest
                   .candidateEvidenceSetFingerprint,
+              taskRouteEffectiveSourceEvidenceSetFingerprint:
+                routeReadyGate.repairGateManifest
+                  .taskRouteEffectiveSourceEvidenceSetFingerprint,
               embeddingIndexContractEvidenceSetFingerprint:
                 routeReadyGate.repairGateManifest
                   .embeddingIndexContractEvidenceSetFingerprint,
@@ -3919,6 +3949,7 @@ async function main() {
       'previewFingerprint',
       'rerankRuntimeContractEvidenceSetFingerprint',
       'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
     ]
   );
   const matchingPreflight =
@@ -3936,6 +3967,9 @@ async function main() {
         candidateEvidenceSetFingerprint:
           routeReadyGate.repairActionPreview.submissionContract
             .candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          routeReadyGate.repairActionPreview.submissionContract
+            .taskRouteEffectiveSourceEvidenceSetFingerprint,
         embeddingIndexContractEvidenceSetFingerprint:
           routeReadyGate.repairActionPreview.submissionContract
             .embeddingIndexContractEvidenceSetFingerprint,
@@ -4010,6 +4044,11 @@ async function main() {
     routeReadyGate.repairActionPreview.candidateEvidenceSetFingerprint
   );
   assert.equal(
+    matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
+    routeReadyGate.repairActionPreview
+      .taskRouteEffectiveSourceEvidenceSetFingerprint
+  );
+  assert.equal(
     matchingPreflight?.embeddingIndexContractEvidenceSetFingerprint,
     routeReadyGate.repairActionPreview
       .embeddingIndexContractEvidenceSetFingerprint
@@ -4026,6 +4065,11 @@ async function main() {
   assert.equal(
     matchingPreflight?.expectedCandidateEvidenceSetFingerprint,
     routeReadyGate.repairActionPreview.candidateEvidenceSetFingerprint
+  );
+  assert.equal(
+    matchingPreflight?.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
+    routeReadyGate.repairActionPreview
+      .taskRouteEffectiveSourceEvidenceSetFingerprint
   );
   assert.equal(
     matchingPreflight?.expectedEmbeddingIndexContractEvidenceSetFingerprint,
@@ -4079,6 +4123,7 @@ async function main() {
     'rerankRuntimeContractEvidenceSetFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ]);
   assert.equal(
     matchingPreflight?.idempotencyVersion,
@@ -4145,6 +4190,7 @@ async function main() {
     'rerankRuntimeContractEvidenceSetFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ]);
   assert.equal(
     matchingPreflight?.executionStateVersion,
@@ -4170,6 +4216,7 @@ async function main() {
     'reviewBindingFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ]);
   assert.equal(
     matchingPreflight?.rollbackPlanVersion,
@@ -4192,6 +4239,7 @@ async function main() {
     'reviewBindingFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ]);
   assert.equal(
     matchingPreflight?.policyBindingVersion,
@@ -4283,6 +4331,7 @@ async function main() {
     'reviewBindingFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ]);
   assert.equal(
     matchingPreflight?.executionGateVersion,
@@ -4335,6 +4384,9 @@ async function main() {
           candidateEvidenceSetFingerprint:
             routeReadyGate.repairActionPreview.submissionContract
               .candidateEvidenceSetFingerprint,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            routeReadyGate.repairActionPreview.submissionContract
+              .taskRouteEffectiveSourceEvidenceSetFingerprint,
           embeddingIndexContractEvidenceSetFingerprint:
             routeReadyGate.repairActionPreview.submissionContract
               .embeddingIndexContractEvidenceSetFingerprint,
@@ -4389,6 +4441,9 @@ async function main() {
           matchingPreflight?.auditEventFingerprint ?? '',
         expectedCandidateEvidenceSetFingerprint:
           matchingPreflight?.candidateEvidenceSetFingerprint ?? '',
+        expectedTaskRouteEffectiveSourceEvidenceSetFingerprint:
+          matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint ??
+          '',
         expectedEmbeddingIndexContractEvidenceSetFingerprint:
           matchingPreflight?.embeddingIndexContractEvidenceSetFingerprint ?? '',
         expectedRerankRuntimeContractEvidenceSetFingerprint:
@@ -4482,6 +4537,7 @@ async function main() {
     'rerankRuntimeContractEvidenceSetFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ]);
   assert.equal(
     executionRequest.supportBundleArtifactFingerprint,
@@ -4490,6 +4546,8 @@ async function main() {
         stableFingerprintFixtureStringify({
           candidateEvidenceSetFingerprint:
             matchingPreflight?.candidateEvidenceSetFingerprint,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
           created: false,
           embeddingIndexContractEvidenceSetFingerprint:
             matchingPreflight?.embeddingIndexContractEvidenceSetFingerprint,
@@ -5216,6 +5274,7 @@ async function main() {
     'requestStatus',
     'reviewBindingFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5242,6 +5301,7 @@ async function main() {
     'requestStatus',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5274,6 +5334,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5305,6 +5366,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5342,6 +5404,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5375,6 +5438,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5410,6 +5474,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5447,6 +5512,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5474,6 +5540,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5504,6 +5571,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5531,6 +5599,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5560,6 +5629,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5588,6 +5658,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5617,6 +5688,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5647,6 +5719,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5678,6 +5751,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5711,6 +5785,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5746,6 +5821,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5785,6 +5861,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5825,6 +5902,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5864,6 +5942,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5907,6 +5986,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -5953,6 +6033,7 @@ async function main() {
       'rollbackPlanRequestFingerprint',
       'submissionFingerprint',
       'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
     ]
   );
@@ -6001,6 +6082,7 @@ async function main() {
       'rollbackPlanRequestFingerprint',
       'submissionFingerprint',
       'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
     ]
   );
@@ -6050,6 +6132,7 @@ async function main() {
       'rollbackPlanRequestFingerprint',
       'submissionFingerprint',
       'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
     ]
   );
@@ -6100,6 +6183,7 @@ async function main() {
       'rollbackPlanRequestFingerprint',
       'submissionFingerprint',
       'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
     ]
   );
@@ -6151,6 +6235,7 @@ async function main() {
       'rollbackPlanRequestFingerprint',
       'submissionFingerprint',
       'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
     ]
   );
@@ -6203,6 +6288,7 @@ async function main() {
       'rollbackPlanRequestFingerprint',
       'submissionFingerprint',
       'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
     ]
   );
@@ -6256,6 +6342,7 @@ async function main() {
       'rollbackPlanRequestFingerprint',
       'submissionFingerprint',
       'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
     ]
   );
@@ -6310,6 +6397,7 @@ async function main() {
       'rollbackPlanRequestFingerprint',
       'submissionFingerprint',
       'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
     ]
   );
@@ -6365,6 +6453,7 @@ async function main() {
       'rollbackPlanRequestFingerprint',
       'submissionFingerprint',
       'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
     ]
   );
@@ -6421,6 +6510,7 @@ async function main() {
       'rollbackPlanRequestFingerprint',
       'submissionFingerprint',
       'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
     ]
   );
@@ -6478,6 +6568,7 @@ async function main() {
       'rollbackPlanRequestFingerprint',
       'submissionFingerprint',
       'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
     ]
   );
@@ -6536,6 +6627,7 @@ async function main() {
       'rollbackPlanRequestFingerprint',
       'submissionFingerprint',
       'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
     ]
   );
@@ -6595,6 +6687,7 @@ async function main() {
       'rollbackPlanRequestFingerprint',
       'submissionFingerprint',
       'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
     ]
   );
@@ -6625,6 +6718,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -6653,6 +6747,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -6679,6 +6774,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -6705,6 +6801,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -6734,6 +6831,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -6767,6 +6865,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -6798,6 +6897,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -6827,6 +6927,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -6855,6 +6956,7 @@ async function main() {
     'rollbackPlanRequestFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -6882,6 +6984,7 @@ async function main() {
     'reviewBindingFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -6909,6 +7012,7 @@ async function main() {
     'rollbackPlanFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -6935,6 +7039,7 @@ async function main() {
     'reviewBindingFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'workspaceId',
   ]);
   assert.equal(
@@ -6958,6 +7063,7 @@ async function main() {
     'reviewBindingFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ]);
   assert.match(executionRequest.requestFingerprint, /^[0-9a-f]{16}$/);
   assert.deepEqual(executionRequest.mismatchedFields, []);
@@ -6982,6 +7088,7 @@ async function main() {
     'expectedReviewBindingFingerprint',
     'expectedRollbackPlanFingerprint',
     'expectedTargetLocatorFingerprint',
+    'expectedTaskRouteEffectiveSourceEvidenceSetFingerprint',
   ]);
   assert.deepEqual(executionRequest.requestInputs, [
     'expectedApprovalRecordFingerprint',
@@ -7004,6 +7111,7 @@ async function main() {
     'expectedReviewBindingFingerprint',
     'expectedRollbackPlanFingerprint',
     'expectedTargetLocatorFingerprint',
+    'expectedTaskRouteEffectiveSourceEvidenceSetFingerprint',
   ]);
   assert.equal(
     executionRequest.preflight.executionGateFingerprint,
@@ -7072,6 +7180,9 @@ async function main() {
           candidateEvidenceSetFingerprint:
             routeReadyGate.repairActionPreview.submissionContract
               .candidateEvidenceSetFingerprint,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            routeReadyGate.repairActionPreview.submissionContract
+              .taskRouteEffectiveSourceEvidenceSetFingerprint,
           embeddingIndexContractEvidenceSetFingerprint:
             routeReadyGate.repairActionPreview.submissionContract
               .embeddingIndexContractEvidenceSetFingerprint,
@@ -7126,6 +7237,9 @@ async function main() {
           matchingPreflight?.auditEventFingerprint ?? '',
         expectedCandidateEvidenceSetFingerprint:
           matchingPreflight?.candidateEvidenceSetFingerprint ?? '',
+        expectedTaskRouteEffectiveSourceEvidenceSetFingerprint:
+          matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint ??
+          '',
         expectedEmbeddingIndexContractEvidenceSetFingerprint:
           matchingPreflight?.embeddingIndexContractEvidenceSetFingerprint ?? '',
         expectedRerankRuntimeContractEvidenceSetFingerprint:
@@ -7580,6 +7694,7 @@ async function main() {
     'rerankRuntimeContractEvidenceSetFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ]);
   const stalePreflight = await routeAwareResolver.promptRegistryRepairPreflight(
     currentUser as any,
@@ -7595,6 +7710,9 @@ async function main() {
       candidateEvidenceSetFingerprint:
         routeReadyGate.repairActionPreview.submissionContract
           .candidateEvidenceSetFingerprint,
+      taskRouteEffectiveSourceEvidenceSetFingerprint:
+        routeReadyGate.repairActionPreview.submissionContract
+          .taskRouteEffectiveSourceEvidenceSetFingerprint,
       embeddingIndexContractEvidenceSetFingerprint:
         routeReadyGate.repairActionPreview.submissionContract
           .embeddingIndexContractEvidenceSetFingerprint,

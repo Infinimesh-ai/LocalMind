@@ -15059,3 +15059,44 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - repair execution request、preflight submission、support bundle manifest、support bundle artifact、audit persistence 与 lifecycle worker 仍未正式校验 task route source anchor。
 - operation-level source anchor 数组来自 candidate evidence projection；若未来 candidate evidence schema 调整，需要同步确认 operation preview payload、candidate evidence set fingerprint 与 Admin diagnostics 的兼容策略。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 449. P1 落地记录：Prompt Registry Repair Submission/Preflight Task Route Source Evidence Guard
+
+本轮继续收敛第 448 节剩余风险中 “repair execution request、preflight submission、support bundle manifest、support bundle artifact、audit persistence 与 lifecycle worker 仍未正式校验 task route source anchor” 的契约缺口。实际代码与目标 AI 中间层架构的冲突点是：repair action preview operation 已经汇总 `taskRouteEffectiveSourceFingerprints`，但 repair submission/preflight/execution contract 仍只把 candidate evidence set、embedding index contract、rerank runtime contract、prepared route order 与 target locator 作为 stale guard 输入。这样 task route source chain 发生漂移时，Admin 只能在 preview 摘要里观察差异，提交、预检和执行请求阶段不会把该漂移识别为正式契约不匹配。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - repair submission input、repair execution request input、repair action preview、submission contract、repair gate manifest、preflight 与 execution request 增加 `taskRouteEffectiveSourceEvidenceSetFingerprint` / `expectedTaskRouteEffectiveSourceEvidenceSetFingerprint`。
+  - `buildPromptRegistryPublishGateRepairActionPreview()` 从 operation 的 `taskRouteEffectiveSourceFingerprints` 计算 task route source evidence set fingerprint，并纳入 preview payload、submission required inputs、submission fingerprint payload 与 submission contract。
+  - `buildPromptRegistryPublishGateRepairGateManifest()` 将同一 evidence set fingerprint 写入 manifest payload，使 manifest 与 preview/submission 使用同一 source guard anchor。
+  - `buildPromptRegistryRepairPreflight()` 将 task route source evidence set 纳入 stale check、current/expected return fields、review binding、audit event、execution state、rollback plan 与 repair job 相关只读 fingerprints。
+  - `buildPromptRegistryRepairExecutionRequest()` 校验 `expectedTaskRouteEffectiveSourceEvidenceSetFingerprint`，并把它纳入 execution request 的 expected fields、request inputs 与 support bundle artifact fingerprint。
+- `packages/backend/server/src/schema.gql`、`packages/common/graphql/src/graphql/index.ts`、`packages/common/graphql/src/graphql/copilot-prompt-registry-publish-gate-get.gql` 与 `packages/common/graphql/src/schema.ts`：
+  - Prompt Registry publish gate、repair preflight mutation 与 repair execution request mutation 的 selection/type/input 增加 task route source evidence set 字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - Admin repair submission input 与 execution request input 传递 task route source evidence set fingerprint。
+  - repair action preview、submission contract、manifest、preflight、execution request 与 nested preflight diagnostics 输出 task route source evidence set fingerprint。
+- 测试覆盖：
+  - `resolver-model-source-chain.smoke.ts` 覆盖 preview/manifest/submission/preflight/execution request 对 task route source evidence set 的一致性、required inputs 顺序、stale guard expected/current 绑定与 support bundle artifact fingerprint。
+  - `admin/src/modules/ai/index.spec.tsx` 覆盖 Admin mutation input、copyable diagnostics、blocked/ready/dry-run fixtures 与 nested preflight diagnostics 中的 task route source evidence set 输出。
+
+该实现只扩展 Prompt Registry repair submission/preflight/execution 的只读 GraphQL projection、mutation input contract、stale guard fingerprint payload、Admin diagnostics label 与 focused tests，不新增 DB migration、不创建 DB-backed Model Registry effective source table、不记录 registry revision、workspace policy revision 或 provider snapshot、不改变 provider route selection、fallback order、BYOK lease 获取、quota 判定、provider health check、Prompt Registry publish gate allowed/blocking 判定、repair action 真正执行、support bundle 持久化、audit persistence、lifecycle worker、`copilot.tasks.models` 配置格式、embedding/rerank native request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、MCP registry、Codex adapter 或 Action Runtime 状态机。它把 task route source anchor 从 preview 摘要推进到 repair submission/preflight/execution stale guard 契约，降低自部署 task route source chain 漂移被预检和执行请求遗漏的风险。
+
+验证策略：
+
+- 本轮为 TypeScript resolver/common/admin/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有测试镜像 `localmind-affine:test`，镜像 ID 为 `c3389960f5ed`；通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行验证。当前本机 Docker Compose `run` 帮助未暴露 `--no-build` flag，因此继续以镜像已存在、不传 `--build`、`--pull never`、`--no-deps` 与镜像 ID 不变作为不重建 test-runner 的证据。
+- 容器内已通过：
+  - `yarn r packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts`
+  - `yarn test packages/frontend/admin/src/modules/ai/index.spec.tsx`
+  - `yarn oxlint packages/backend/server/src/plugins/copilot/resolver.ts packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts packages/common/graphql/src/graphql/index.ts packages/common/graphql/src/schema.ts packages/frontend/admin/src/modules/ai/index.tsx packages/frontend/admin/src/modules/ai/index.spec.tsx`
+  - `yarn prettier --check docs/ai-capability-modernization-plan.md packages/backend/server/src/schema.gql packages/backend/server/src/plugins/copilot/resolver.ts packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts packages/common/graphql/src/graphql/index.ts packages/common/graphql/src/graphql/copilot-prompt-registry-publish-gate-get.gql packages/common/graphql/src/schema.ts packages/frontend/admin/src/modules/ai/index.tsx packages/frontend/admin/src/modules/ai/index.spec.tsx`
+  - `git diff --check`
+- Admin Vitest 继续同步 bind mount `packages/common/graphql/src`，避免组件/test 与容器内旧 GraphQL query 常量组合导致断言漂移。
+
+剩余风险：
+
+- `taskRouteEffectiveSourceEvidenceSetFingerprint` 仍来自 runtime 只读 projection 汇总，不是 DB-backed Model Registry effective source row，也不持久化 registry revision、workspace policy revision、provider snapshot、task route snapshot 或 model availability snapshot。
+- preflight/execution request 现在能把 task route source evidence set 作为 stale guard 输入，但 repair action 仍是 read-only/blocked contract；尚未实现真实修复执行、audit persistence、support bundle 持久化或 lifecycle worker。
+- source evidence set 绑定的是 operation/candidate evidence 视角，不绑定真实请求 payload、provider credentials、BYOK lease、tenant policy registry、storage backend、health probe timestamp、request dispatch outcome 或 billing/quota execution result。
+- 模型列表、publish gate model routes、task routes、repair candidate evidence、preview operation 与 repair stale guard 的 effective source payload schema 仍不完全一致；后续若要统一审计，需要抽取正式跨 projection effective source evidence schema，并决定哪些字段进入 DB-backed snapshot/revision。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

@@ -2566,6 +2566,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
           authorizationStatus
           candidateCount
           candidateEvidenceSetFingerprint
+          taskRouteEffectiveSourceEvidenceSetFingerprint
           embeddingIndexContractEvidenceSetFingerprint
           rerankRuntimeContractEvidenceSetFingerprint
           preparedRouteOrderEvidenceSetFingerprint
@@ -2629,6 +2630,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             approvalPolicyFingerprint
             authorizationFingerprint
             candidateEvidenceSetFingerprint
+            taskRouteEffectiveSourceEvidenceSetFingerprint
             embeddingIndexContractEvidenceSetFingerprint
             rerankRuntimeContractEvidenceSetFingerprint
             preparedRouteOrderEvidenceSetFingerprint
@@ -2667,6 +2669,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
           previewFingerprint
           submissionFingerprint
           candidateEvidenceSetFingerprint
+          taskRouteEffectiveSourceEvidenceSetFingerprint
           embeddingIndexContractEvidenceSetFingerprint
           rerankRuntimeContractEvidenceSetFingerprint
           preparedRouteOrderEvidenceSetFingerprint
@@ -2957,6 +2960,7 @@ export const getCopilotPromptRegistryRepairPreflightQuery = {
         auditEventVersion
         authorizationStatus
         candidateEvidenceSetFingerprint
+        taskRouteEffectiveSourceEvidenceSetFingerprint
         embeddingIndexContractEvidenceSetFingerprint
         rerankRuntimeContractEvidenceSetFingerprint
         preparedRouteOrderEvidenceSetFingerprint
@@ -2977,6 +2981,7 @@ export const getCopilotPromptRegistryRepairPreflightQuery = {
         executionStateStatus
         executionStateVersion
         expectedCandidateEvidenceSetFingerprint
+        expectedTaskRouteEffectiveSourceEvidenceSetFingerprint
         expectedEmbeddingIndexContractEvidenceSetFingerprint
         expectedRerankRuntimeContractEvidenceSetFingerprint
         expectedPreparedRouteOrderEvidenceSetFingerprint
@@ -3044,6 +3049,7 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
     auditEventRequestStatus
     auditEventRequestVersion
     expectedCandidateEvidenceSetFingerprint
+    expectedTaskRouteEffectiveSourceEvidenceSetFingerprint
     expectedEmbeddingIndexContractEvidenceSetFingerprint
     expectedRerankRuntimeContractEvidenceSetFingerprint
     expectedPreparedRouteOrderEvidenceSetFingerprint
@@ -3365,6 +3371,7 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
       approvalRequestFingerprint
       auditEventFingerprint
       candidateEvidenceSetFingerprint
+      taskRouteEffectiveSourceEvidenceSetFingerprint
       embeddingIndexContractEvidenceSetFingerprint
       rerankRuntimeContractEvidenceSetFingerprint
       preparedRouteOrderEvidenceSetFingerprint
@@ -3377,6 +3384,7 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
       reviewBindingFingerprint
       rollbackPlanFingerprint
       status
+      expectedTaskRouteEffectiveSourceEvidenceSetFingerprint
       expectedEmbeddingIndexContractEvidenceSetFingerprint
       expectedRerankRuntimeContractEvidenceSetFingerprint
       expectedPreparedRouteOrderEvidenceSetFingerprint

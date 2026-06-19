@@ -203,6 +203,9 @@ class CopilotPromptRegistryRepairSubmissionInput {
   candidateEvidenceSetFingerprint!: string;
 
   @Field(() => String)
+  taskRouteEffectiveSourceEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
   embeddingIndexContractEvidenceSetFingerprint!: string;
 
   @Field(() => String)
@@ -275,6 +278,9 @@ class CopilotPromptRegistryRepairExecutionRequestInput {
 
   @Field(() => String)
   expectedCandidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprint!: string;
 
   @Field(() => String)
   expectedEmbeddingIndexContractEvidenceSetFingerprint!: string;
@@ -979,6 +985,7 @@ type CopilotPromptRegistryPublishGateRepairActionSubmissionContract = {
   approvalPolicyFingerprint: string;
   authorizationFingerprint: string;
   candidateEvidenceSetFingerprint: string;
+  taskRouteEffectiveSourceEvidenceSetFingerprint: string;
   embeddingIndexContractEvidenceSetFingerprint: string;
   rerankRuntimeContractEvidenceSetFingerprint: string;
   preparedRouteOrderEvidenceSetFingerprint: string;
@@ -1017,6 +1024,7 @@ type CopilotPromptRegistryPublishGateRepairGateManifest = {
   previewFingerprint: string;
   submissionFingerprint: string;
   candidateEvidenceSetFingerprint: string;
+  taskRouteEffectiveSourceEvidenceSetFingerprint: string;
   embeddingIndexContractEvidenceSetFingerprint: string;
   rerankRuntimeContractEvidenceSetFingerprint: string;
   preparedRouteOrderEvidenceSetFingerprint: string;
@@ -1094,6 +1102,7 @@ type CopilotPromptRegistryRepairPreflight = {
   auditEventVersion: string;
   authorizationStatus: string;
   candidateEvidenceSetFingerprint: string;
+  taskRouteEffectiveSourceEvidenceSetFingerprint: string;
   embeddingIndexContractEvidenceSetFingerprint: string;
   rerankRuntimeContractEvidenceSetFingerprint: string;
   preparedRouteOrderEvidenceSetFingerprint: string;
@@ -1114,6 +1123,7 @@ type CopilotPromptRegistryRepairPreflight = {
   executionStateStatus: string;
   executionStateVersion: string;
   expectedCandidateEvidenceSetFingerprint: string;
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprint: string;
   expectedEmbeddingIndexContractEvidenceSetFingerprint: string;
   expectedRerankRuntimeContractEvidenceSetFingerprint: string;
   expectedPreparedRouteOrderEvidenceSetFingerprint: string;
@@ -1164,6 +1174,7 @@ type CopilotPromptRegistryRepairExecutionRequest = {
   accepted: boolean;
   executionRequested: boolean;
   expectedCandidateEvidenceSetFingerprint: string;
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprint: string;
   expectedEmbeddingIndexContractEvidenceSetFingerprint: string;
   expectedRerankRuntimeContractEvidenceSetFingerprint: string;
   expectedPreparedRouteOrderEvidenceSetFingerprint: string;
@@ -1503,6 +1514,7 @@ type CopilotPromptRegistryPublishGateRepairActionPreview = {
   authorizationStatus: string;
   candidateCount: number;
   candidateEvidenceSetFingerprint: string;
+  taskRouteEffectiveSourceEvidenceSetFingerprint: string;
   embeddingIndexContractEvidenceSetFingerprint: string;
   rerankRuntimeContractEvidenceSetFingerprint: string;
   preparedRouteOrderEvidenceSetFingerprint: string;
@@ -2575,6 +2587,9 @@ class CopilotPromptRegistryPublishGateRepairActionSubmissionContractType impleme
   candidateEvidenceSetFingerprint!: string;
 
   @Field(() => String)
+  taskRouteEffectiveSourceEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
   embeddingIndexContractEvidenceSetFingerprint!: string;
 
   @Field(() => String)
@@ -2660,6 +2675,9 @@ class CopilotPromptRegistryPublishGateRepairActionPreviewType implements Copilot
 
   @Field(() => String)
   candidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  taskRouteEffectiveSourceEvidenceSetFingerprint!: string;
 
   @Field(() => String)
   embeddingIndexContractEvidenceSetFingerprint!: string;
@@ -2760,6 +2778,9 @@ class CopilotPromptRegistryPublishGateRepairGateManifestType implements CopilotP
 
   @Field(() => String)
   candidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  taskRouteEffectiveSourceEvidenceSetFingerprint!: string;
 
   @Field(() => String)
   embeddingIndexContractEvidenceSetFingerprint!: string;
@@ -2981,6 +3002,9 @@ class CopilotPromptRegistryRepairPreflightType implements CopilotPromptRegistryR
   candidateEvidenceSetFingerprint!: string;
 
   @Field(() => String)
+  taskRouteEffectiveSourceEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
   embeddingIndexContractEvidenceSetFingerprint!: string;
 
   @Field(() => String)
@@ -3039,6 +3063,9 @@ class CopilotPromptRegistryRepairPreflightType implements CopilotPromptRegistryR
 
   @Field(() => String)
   expectedCandidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprint!: string;
 
   @Field(() => String)
   expectedEmbeddingIndexContractEvidenceSetFingerprint!: string;
@@ -3183,6 +3210,9 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
 
   @Field(() => String)
   expectedCandidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprint!: string;
 
   @Field(() => String)
   expectedEmbeddingIndexContractEvidenceSetFingerprint!: string;
@@ -9080,6 +9110,23 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
     )
     .digest('hex')
     .slice(0, 16);
+  const taskRouteEffectiveSourceEvidenceSetFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify(
+        operations
+          .map(operation => ({
+            diagnosticsFingerprint: operation.diagnosticsFingerprint,
+            operationFingerprint: operation.operationFingerprint,
+            taskRouteEffectiveSourceFingerprints:
+              operation.taskRouteEffectiveSourceFingerprints,
+          }))
+          .sort((left, right) =>
+            left.operationFingerprint.localeCompare(right.operationFingerprint)
+          )
+      )
+    )
+    .digest('hex')
+    .slice(0, 16);
   const embeddingIndexContractEvidenceSetFingerprint = createHash('sha256')
     .update(
       stableRepairRecommendationStringify(
@@ -9186,6 +9233,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
     auditSummaryFingerprint: input.guard.auditSummaryFingerprint,
     authorizationFingerprint,
     candidateEvidenceSetFingerprint,
+    taskRouteEffectiveSourceEvidenceSetFingerprint,
     catalogFingerprint: input.catalogFingerprint,
     catalogVersion: input.guard.catalogVersion,
     embeddingIndexContractEvidenceSetFingerprint,
@@ -9221,6 +9269,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
     'approvalPolicyFingerprint',
     'authorizationFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'embeddingIndexContractEvidenceSetFingerprint',
     'preparedRouteOrderEvidenceSetFingerprint',
     'rerankRuntimeContractEvidenceSetFingerprint',
@@ -9238,6 +9287,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
         approvalPolicyFingerprint,
         authorizationFingerprint,
         candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint,
         catalogFingerprint: input.catalogFingerprint,
         contractVersion: submissionContractVersion,
         embeddingIndexContractEvidenceSetFingerprint,
@@ -9260,6 +9310,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
       approvalPolicyFingerprint,
       authorizationFingerprint,
       candidateEvidenceSetFingerprint,
+      taskRouteEffectiveSourceEvidenceSetFingerprint,
       catalogFingerprint: input.catalogFingerprint,
       contractVersion: submissionContractVersion,
       embeddingIndexContractEvidenceSetFingerprint,
@@ -9296,6 +9347,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
     authorizationStatus,
     candidateCount: operations.length,
     candidateEvidenceSetFingerprint,
+    taskRouteEffectiveSourceEvidenceSetFingerprint,
     embeddingIndexContractEvidenceSetFingerprint,
     preparedRouteOrderEvidenceSetFingerprint,
     rerankRuntimeContractEvidenceSetFingerprint,
@@ -9345,6 +9397,8 @@ function buildPromptRegistryPublishGateRepairGateManifest(input: {
     submissionFingerprint: submission.submissionFingerprint,
     candidateEvidenceSetFingerprint:
       input.preview.candidateEvidenceSetFingerprint,
+    taskRouteEffectiveSourceEvidenceSetFingerprint:
+      input.preview.taskRouteEffectiveSourceEvidenceSetFingerprint,
     embeddingIndexContractEvidenceSetFingerprint:
       input.preview.embeddingIndexContractEvidenceSetFingerprint,
     rerankRuntimeContractEvidenceSetFingerprint:
@@ -9630,6 +9684,11 @@ function buildPromptRegistryRepairPreflight(
         current.candidateEvidenceSetFingerprint,
     ],
     [
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      expected.taskRouteEffectiveSourceEvidenceSetFingerprint ===
+        current.taskRouteEffectiveSourceEvidenceSetFingerprint,
+    ],
+    [
       'embeddingIndexContractEvidenceSetFingerprint',
       expected.embeddingIndexContractEvidenceSetFingerprint ===
         current.embeddingIndexContractEvidenceSetFingerprint,
@@ -9760,6 +9819,7 @@ function buildPromptRegistryRepairPreflight(
     'permissionFingerprint',
     'rerankRuntimeContractEvidenceSetFingerprint',
     'submissionFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'targetLocatorFingerprint',
   ].sort();
   const reviewBindingStatus = mismatchedFields.length
@@ -9773,6 +9833,8 @@ function buildPromptRegistryRepairPreflight(
         currentSubmissionFingerprint: current.submissionFingerprint,
         candidateEvidenceSetFingerprint:
           current.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          current.taskRouteEffectiveSourceEvidenceSetFingerprint,
         embeddingIndexContractEvidenceSetFingerprint:
           current.embeddingIndexContractEvidenceSetFingerprint,
         preparedRouteOrderEvidenceSetFingerprint:
@@ -9782,6 +9844,8 @@ function buildPromptRegistryRepairPreflight(
         expectedSubmissionFingerprint: expected.submissionFingerprint,
         expectedCandidateEvidenceSetFingerprint:
           expected.candidateEvidenceSetFingerprint,
+        expectedTaskRouteEffectiveSourceEvidenceSetFingerprint:
+          expected.taskRouteEffectiveSourceEvidenceSetFingerprint,
         expectedEmbeddingIndexContractEvidenceSetFingerprint:
           expected.embeddingIndexContractEvidenceSetFingerprint,
         expectedPreparedRouteOrderEvidenceSetFingerprint:
@@ -9915,6 +9979,7 @@ function buildPromptRegistryRepairPreflight(
     'approvalRecordFingerprint',
     'auditBindingFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'embeddingIndexContractEvidenceSetFingerprint',
     'operationSetFingerprint',
     'policyBindingFingerprint',
@@ -9934,6 +9999,8 @@ function buildPromptRegistryRepairPreflight(
       stableRepairRecommendationStringify({
         candidateEvidenceSetFingerprint:
           current.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          current.taskRouteEffectiveSourceEvidenceSetFingerprint,
         embeddingIndexContractEvidenceSetFingerprint:
           current.embeddingIndexContractEvidenceSetFingerprint,
         idempotencyKey: current.idempotencyKey,
@@ -9954,6 +10021,7 @@ function buildPromptRegistryRepairPreflight(
     'actorFingerprint',
     'auditBindingFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'embeddingIndexContractEvidenceSetFingerprint',
     'idempotencyFingerprint',
     'operationSetFingerprint',
@@ -9971,6 +10039,8 @@ function buildPromptRegistryRepairPreflight(
         auditBindingFingerprint,
         candidateEvidenceSetFingerprint:
           current.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          current.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         embeddingIndexContractEvidenceSetFingerprint:
           current.embeddingIndexContractEvidenceSetFingerprint,
@@ -9998,6 +10068,8 @@ function buildPromptRegistryRepairPreflight(
         auditBindingFingerprint,
         candidateEvidenceSetFingerprint:
           current.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          current.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         embeddingIndexContractEvidenceSetFingerprint:
           current.embeddingIndexContractEvidenceSetFingerprint,
@@ -10020,6 +10092,7 @@ function buildPromptRegistryRepairPreflight(
   const executionStateInputs = [
     'auditEventFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'embeddingIndexContractEvidenceSetFingerprint',
     'idempotencyFingerprint',
     'operationSetFingerprint',
@@ -10036,6 +10109,8 @@ function buildPromptRegistryRepairPreflight(
         auditEventFingerprint,
         candidateEvidenceSetFingerprint:
           current.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          current.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         embeddingIndexContractEvidenceSetFingerprint:
           current.embeddingIndexContractEvidenceSetFingerprint,
@@ -10059,6 +10134,7 @@ function buildPromptRegistryRepairPreflight(
   const rollbackPlanInputs = [
     'auditEventFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'embeddingIndexContractEvidenceSetFingerprint',
     'executionStateFingerprint',
     'operationSetFingerprint',
@@ -10075,6 +10151,8 @@ function buildPromptRegistryRepairPreflight(
         auditEventFingerprint,
         candidateEvidenceSetFingerprint:
           current.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          current.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         embeddingIndexContractEvidenceSetFingerprint:
           current.embeddingIndexContractEvidenceSetFingerprint,
@@ -10168,6 +10246,8 @@ function buildPromptRegistryRepairPreflight(
     auditEventVersion,
     authorizationStatus: approval.authorizationStatus,
     candidateEvidenceSetFingerprint: current.candidateEvidenceSetFingerprint,
+    taskRouteEffectiveSourceEvidenceSetFingerprint:
+      current.taskRouteEffectiveSourceEvidenceSetFingerprint,
     embeddingIndexContractEvidenceSetFingerprint:
       current.embeddingIndexContractEvidenceSetFingerprint,
     preparedRouteOrderEvidenceSetFingerprint:
@@ -10192,6 +10272,8 @@ function buildPromptRegistryRepairPreflight(
     executionStateVersion,
     expectedCandidateEvidenceSetFingerprint:
       expected.candidateEvidenceSetFingerprint,
+    expectedTaskRouteEffectiveSourceEvidenceSetFingerprint:
+      expected.taskRouteEffectiveSourceEvidenceSetFingerprint,
     expectedEmbeddingIndexContractEvidenceSetFingerprint:
       expected.embeddingIndexContractEvidenceSetFingerprint,
     expectedPreparedRouteOrderEvidenceSetFingerprint:
@@ -10273,6 +10355,11 @@ function buildPromptRegistryRepairExecutionRequest(
       'expectedCandidateEvidenceSetFingerprint',
       input.expectedCandidateEvidenceSetFingerprint ===
         preflight.candidateEvidenceSetFingerprint,
+    ],
+    [
+      'expectedTaskRouteEffectiveSourceEvidenceSetFingerprint',
+      input.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint ===
+        preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
     ],
     [
       'expectedEmbeddingIndexContractEvidenceSetFingerprint',
@@ -10371,6 +10458,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const supportBundleArtifactStatus = 'not_created_read_only';
   const supportBundleArtifactInputs = [
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'embeddingIndexContractEvidenceSetFingerprint',
     'manifestExportPolicyFingerprint',
     'manifestFingerprint',
@@ -10386,6 +10474,8 @@ function buildPromptRegistryRepairExecutionRequest(
       stableRepairRecommendationStringify({
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         embeddingIndexContractEvidenceSetFingerprint:
           preflight.embeddingIndexContractEvidenceSetFingerprint,
@@ -10833,6 +10923,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const idempotencyLockScope = preflight.idempotencyScope;
   const idempotencyLockInputs = [
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'idempotencyFingerprint',
     'idempotencyKey',
     'preparedRouteOrderEvidenceSetFingerprint',
@@ -10848,6 +10939,8 @@ function buildPromptRegistryRepairExecutionRequest(
         acquired: false,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         idempotencyFingerprint: preflight.idempotencyFingerprint,
         idempotencyKey: preflight.idempotencyKey,
         inputs: idempotencyLockInputs,
@@ -10875,6 +10968,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'approvalRequestFingerprint',
     'auditBindingFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'idempotencyLockFingerprint',
     'preparedRouteOrderEvidenceSetFingerprint',
     'policyBindingFingerprint',
@@ -10892,6 +10986,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditBindingFingerprint: preflight.auditBindingFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         idempotencyLockFingerprint,
         inputs: approvalRecordRequestInputs,
@@ -10916,6 +11012,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'auditBindingFingerprint',
     'auditEventFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'idempotencyLockFingerprint',
     'operationSetFingerprint',
     'preparedRouteOrderEvidenceSetFingerprint',
@@ -10935,6 +11032,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventFingerprint: preflight.auditEventFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         idempotencyLockFingerprint,
         inputs: auditEventRequestInputs,
@@ -10960,6 +11059,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'approvalRecordRequestFingerprint',
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'idempotencyLockFingerprint',
     'operationSetFingerprint',
     'preparedRouteOrderEvidenceSetFingerprint',
@@ -10979,6 +11079,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         idempotencyLockFingerprint,
         inputs: repairJobRequestInputs,
@@ -11003,6 +11105,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionStateRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionStateFingerprint',
     'idempotencyLockFingerprint',
     'operationSetFingerprint',
@@ -11020,6 +11123,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionStateFingerprint: preflight.executionStateFingerprint,
         idempotencyLockFingerprint,
@@ -11045,6 +11150,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const rollbackPlanRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionStateRequestFingerprint',
     'operationSetFingerprint',
     'preparedRouteOrderEvidenceSetFingerprint',
@@ -11062,6 +11168,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionStateRequestFingerprint,
         inputs: rollbackPlanRequestInputs,
@@ -11088,6 +11196,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'approvalRecordRequestFingerprint',
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionStateRequestFingerprint',
     'idempotencyLockFingerprint',
     'preparedRouteOrderEvidenceSetFingerprint',
@@ -11106,6 +11215,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionStateRequestFingerprint,
         idempotencyLockFingerprint,
@@ -11129,6 +11240,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionResultRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionStateRequestFingerprint',
     'executionTraceRequestFingerprint',
     'preparedRouteOrderEvidenceSetFingerprint',
@@ -11145,6 +11257,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionStateRequestFingerprint,
         executionTraceRequestFingerprint,
@@ -11168,6 +11282,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRetryPolicyRequestStatus = 'not_created_read_only';
   const executionRetryPolicyRequestInputs = [
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionResultRequestFingerprint',
     'executionStateRequestFingerprint',
     'executionTraceRequestFingerprint',
@@ -11185,6 +11300,8 @@ function buildPromptRegistryRepairExecutionRequest(
         created: false,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         executionResultRequestFingerprint,
         executionStateRequestFingerprint,
         executionTraceRequestFingerprint,
@@ -11208,6 +11325,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionProviderResponseRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionResultRequestFingerprint',
     'executionRetryPolicyRequestFingerprint',
     'executionStateRequestFingerprint',
@@ -11226,6 +11344,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionResultRequestFingerprint,
         executionRetryPolicyRequestFingerprint,
@@ -11251,6 +11371,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionFailureEventRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionProviderResponseRequestFingerprint',
     'executionResultRequestFingerprint',
     'executionRetryPolicyRequestFingerprint',
@@ -11270,6 +11391,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionProviderResponseRequestFingerprint,
         executionResultRequestFingerprint,
@@ -11295,6 +11418,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRollbackTriggerRequestStatus = 'not_created_read_only';
   const executionRollbackTriggerRequestInputs = [
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionFailureEventRequestFingerprint',
     'executionProviderResponseRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -11314,6 +11438,8 @@ function buildPromptRegistryRepairExecutionRequest(
       stableRepairRecommendationStringify({
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionFailureEventRequestFingerprint,
         executionProviderResponseRequestFingerprint,
@@ -11340,6 +11466,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRollbackExecutorRequestStatus = 'not_started_read_only';
   const executionRollbackExecutorRequestInputs = [
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionFailureEventRequestFingerprint',
     'executionProviderResponseRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -11359,6 +11486,8 @@ function buildPromptRegistryRepairExecutionRequest(
       stableRepairRecommendationStringify({
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionFailureEventRequestFingerprint,
         executionProviderResponseRequestFingerprint,
@@ -11385,6 +11514,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRollbackOperationRequestStatus = 'not_created_read_only';
   const executionRollbackOperationRequestInputs = [
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionFailureEventRequestFingerprint',
     'executionProviderResponseRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -11405,6 +11535,8 @@ function buildPromptRegistryRepairExecutionRequest(
       stableRepairRecommendationStringify({
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionFailureEventRequestFingerprint,
         executionProviderResponseRequestFingerprint,
@@ -11432,6 +11564,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRollbackOutcomeRequestStatus = 'not_recorded_read_only';
   const executionRollbackOutcomeRequestInputs = [
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionFailureEventRequestFingerprint',
     'executionProviderResponseRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -11453,6 +11586,8 @@ function buildPromptRegistryRepairExecutionRequest(
       stableRepairRecommendationStringify({
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionFailureEventRequestFingerprint,
         executionProviderResponseRequestFingerprint,
@@ -11482,6 +11617,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionCompletionRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionFailureEventRequestFingerprint',
     'executionProviderResponseRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -11503,6 +11639,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         completed: false,
         executionFailureEventRequestFingerprint,
         executionProviderResponseRequestFingerprint,
@@ -11531,6 +11669,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionCompletionEventRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionCompletionRequestFingerprint',
     'executionFailureEventRequestFingerprint',
     'executionProviderResponseRequestFingerprint',
@@ -11553,6 +11692,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionCompletionRequestFingerprint,
         executionFailureEventRequestFingerprint,
@@ -11582,6 +11723,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionFinalizationRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionCompletionEventRequestFingerprint',
     'executionCompletionRequestFingerprint',
     'executionFailureEventRequestFingerprint',
@@ -11605,6 +11747,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         executionCompletionEventRequestFingerprint,
         executionCompletionRequestFingerprint,
         executionFailureEventRequestFingerprint,
@@ -11635,6 +11779,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionFinalizationEventRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionCompletionEventRequestFingerprint',
     'executionCompletionRequestFingerprint',
     'executionFailureEventRequestFingerprint',
@@ -11659,6 +11804,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionCompletionEventRequestFingerprint,
         executionCompletionRequestFingerprint,
@@ -11690,6 +11837,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionStatusPollRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionCompletionEventRequestFingerprint',
     'executionCompletionRequestFingerprint',
     'executionFailureEventRequestFingerprint',
@@ -11715,6 +11863,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionCompletionEventRequestFingerprint,
         executionCompletionRequestFingerprint,
@@ -11748,6 +11898,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'approvalRecordRequestFingerprint',
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionCompletionEventRequestFingerprint',
     'executionCompletionRequestFingerprint',
     'executionFailureEventRequestFingerprint',
@@ -11775,6 +11926,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionCompletionEventRequestFingerprint,
         executionCompletionRequestFingerprint,
@@ -11809,6 +11962,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'approvalRecordRequestFingerprint',
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionOperationEntryRequestFingerprint',
     'executionStatusPollRequestFingerprint',
     'idempotencyLockFingerprint',
@@ -11826,6 +11980,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionOperationEntryRequestFingerprint,
         executionStatusPollRequestFingerprint,
@@ -11850,6 +12006,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'approvalRecordRequestFingerprint',
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionApprovalUiRequestFingerprint',
     'executionOperationEntryRequestFingerprint',
     'guardFingerprint',
@@ -11870,6 +12027,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionApprovalUiRequestFingerprint,
         executionOperationEntryRequestFingerprint,
@@ -11897,6 +12056,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'approvalRecordRequestFingerprint',
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionApprovalUiRequestFingerprint',
     'executionDiffPreviewRequestFingerprint',
     'idempotencyLockFingerprint',
@@ -11914,6 +12074,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionApprovalUiRequestFingerprint,
         executionDiffPreviewRequestFingerprint,
@@ -11936,6 +12098,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionStartRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionApprovalDecisionRequestFingerprint',
     'executionOperationEntryRequestFingerprint',
     'executionStateRequestFingerprint',
@@ -11955,6 +12118,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionApprovalDecisionRequestFingerprint,
         executionOperationEntryRequestFingerprint,
@@ -11980,6 +12145,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionQueueRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionStartRequestFingerprint',
     'executionStateRequestFingerprint',
     'executionStatusPollRequestFingerprint',
@@ -11998,6 +12164,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionStartRequestFingerprint,
         executionStateRequestFingerprint,
@@ -12023,6 +12191,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionWorkerLeaseRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionQueueRequestFingerprint',
     'executionStartRequestFingerprint',
     'executionStateRequestFingerprint',
@@ -12042,6 +12211,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionQueueRequestFingerprint,
         executionStartRequestFingerprint,
@@ -12067,6 +12238,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionJobRunRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionQueueRequestFingerprint',
     'executionStartRequestFingerprint',
     'executionStateRequestFingerprint',
@@ -12087,6 +12259,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionQueueRequestFingerprint,
         executionStartRequestFingerprint,
@@ -12113,6 +12287,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionStartRequestFingerprint',
@@ -12134,6 +12309,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionJobRunRequestFingerprint,
         executionQueueRequestFingerprint,
@@ -12162,6 +12339,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepTraceRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionRunStepRequestFingerprint',
@@ -12185,6 +12363,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionJobRunRequestFingerprint,
         executionQueueRequestFingerprint,
@@ -12215,6 +12395,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepResultRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -12240,6 +12421,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionJobRunRequestFingerprint,
         executionQueueRequestFingerprint,
@@ -12272,6 +12455,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepCompletionRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -12298,6 +12482,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         completed: false,
         executionJobRunRequestFingerprint,
         executionQueueRequestFingerprint,
@@ -12331,6 +12517,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepStatusEventRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -12358,6 +12545,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionJobRunRequestFingerprint,
         executionQueueRequestFingerprint,
@@ -12392,6 +12581,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepRetryRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -12421,6 +12611,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionJobRunRequestFingerprint,
         executionQueueRequestFingerprint,
@@ -12457,6 +12649,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepRetryAttemptRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -12487,6 +12680,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionJobRunRequestFingerprint,
         executionQueueRequestFingerprint,
@@ -12525,6 +12720,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepRetryAttemptStatusEventRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -12558,6 +12754,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionJobRunRequestFingerprint,
         executionQueueRequestFingerprint,
@@ -12597,6 +12795,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepRetryAttemptTraceRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -12631,6 +12830,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionJobRunRequestFingerprint,
         executionQueueRequestFingerprint,
@@ -12671,6 +12872,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepRetryAttemptResultRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -12706,6 +12908,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         created: false,
         executionJobRunRequestFingerprint,
         executionQueueRequestFingerprint,
@@ -12747,6 +12951,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepRetryAttemptCompletionRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -12783,6 +12988,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         completed: false,
         executionJobRunRequestFingerprint,
         executionQueueRequestFingerprint,
@@ -12825,6 +13032,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepRetryAttemptCompletionStatusEventRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -12861,6 +13069,8 @@ function buildPromptRegistryRepairExecutionRequest(
           auditEventRequestFingerprint,
           candidateEvidenceSetFingerprint:
             preflight.candidateEvidenceSetFingerprint,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
           created: false,
           executionJobRunRequestFingerprint,
           executionQueueRequestFingerprint,
@@ -12907,6 +13117,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepRetryAttemptFinalizationRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -12945,6 +13156,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         executionJobRunRequestFingerprint,
         executionQueueRequestFingerprint,
         executionResultRequestFingerprint,
@@ -12989,6 +13202,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepRetryAttemptFinalizationStatusEventRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -13027,6 +13241,8 @@ function buildPromptRegistryRepairExecutionRequest(
           auditEventRequestFingerprint,
           candidateEvidenceSetFingerprint:
             preflight.candidateEvidenceSetFingerprint,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
           created: false,
           executionJobRunRequestFingerprint,
           executionQueueRequestFingerprint,
@@ -13074,6 +13290,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepRetryAttemptCloseRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -13114,6 +13331,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         closed: false,
         executionJobRunRequestFingerprint,
         executionQueueRequestFingerprint,
@@ -13160,6 +13379,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepRetryAttemptCloseStatusEventRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -13200,6 +13420,8 @@ function buildPromptRegistryRepairExecutionRequest(
           auditEventRequestFingerprint,
           candidateEvidenceSetFingerprint:
             preflight.candidateEvidenceSetFingerprint,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
           created: false,
           executionJobRunRequestFingerprint,
           executionQueueRequestFingerprint,
@@ -13247,6 +13469,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepRetryAttemptRetentionPolicyRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -13288,6 +13511,8 @@ function buildPromptRegistryRepairExecutionRequest(
           auditEventRequestFingerprint,
           candidateEvidenceSetFingerprint:
             preflight.candidateEvidenceSetFingerprint,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
           created: false,
           executionJobRunRequestFingerprint,
           executionQueueRequestFingerprint,
@@ -13336,6 +13561,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepRetryAttemptRetentionPolicyRuleRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -13378,6 +13604,8 @@ function buildPromptRegistryRepairExecutionRequest(
           auditEventRequestFingerprint,
           candidateEvidenceSetFingerprint:
             preflight.candidateEvidenceSetFingerprint,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
           created: false,
           executionJobRunRequestFingerprint,
           executionQueueRequestFingerprint,
@@ -13428,6 +13656,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepRetryAttemptRetentionLeaseRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -13472,6 +13701,8 @@ function buildPromptRegistryRepairExecutionRequest(
           auditEventRequestFingerprint,
           candidateEvidenceSetFingerprint:
             preflight.candidateEvidenceSetFingerprint,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
           executionJobRunRequestFingerprint,
           executionQueueRequestFingerprint,
           executionResultRequestFingerprint,
@@ -13521,6 +13752,7 @@ function buildPromptRegistryRepairExecutionRequest(
   const executionRunStepRetryAttemptArchiveRequestInputs = [
     'auditEventRequestFingerprint',
     'candidateEvidenceSetFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
     'executionJobRunRequestFingerprint',
     'executionQueueRequestFingerprint',
     'executionResultRequestFingerprint',
@@ -13567,6 +13799,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditEventRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         executionJobRunRequestFingerprint,
         executionQueueRequestFingerprint,
         executionResultRequestFingerprint,
@@ -13658,6 +13892,8 @@ function buildPromptRegistryRepairExecutionRequest(
         executionWorkerLeaseRequestFingerprint,
         candidateEvidenceSetFingerprint:
           preflight.candidateEvidenceSetFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         embeddingIndexContractEvidenceSetFingerprint:
           preflight.embeddingIndexContractEvidenceSetFingerprint,
         preparedRouteOrderEvidenceSetFingerprint:
@@ -13666,6 +13902,8 @@ function buildPromptRegistryRepairExecutionRequest(
           preflight.rerankRuntimeContractEvidenceSetFingerprint,
         executionGateFingerprint: preflight.executionGateFingerprint,
         executionStateRequestFingerprint,
+        expectedTaskRouteEffectiveSourceEvidenceSetFingerprint:
+          input.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
         expectedEmbeddingIndexContractEvidenceSetFingerprint:
           input.expectedEmbeddingIndexContractEvidenceSetFingerprint,
         expectedRerankRuntimeContractEvidenceSetFingerprint:
@@ -13714,6 +13952,8 @@ function buildPromptRegistryRepairExecutionRequest(
     executionRequested: false,
     expectedCandidateEvidenceSetFingerprint:
       input.expectedCandidateEvidenceSetFingerprint,
+    expectedTaskRouteEffectiveSourceEvidenceSetFingerprint:
+      input.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
     expectedEmbeddingIndexContractEvidenceSetFingerprint:
       input.expectedEmbeddingIndexContractEvidenceSetFingerprint,
     expectedRerankRuntimeContractEvidenceSetFingerprint:
