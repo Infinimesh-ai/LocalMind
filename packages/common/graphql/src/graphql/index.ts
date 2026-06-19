@@ -2119,6 +2119,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
           diagnosticsErrorCode
           diagnosticsErrorMessage
           diagnosticsErrorStage
+          effectiveSourceFingerprint
           fallbackProviderIds
           featureKind
           matchedCandidateCount
@@ -2231,6 +2232,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
           diagnosticsErrorCode
           diagnosticsErrorMessage
           diagnosticsErrorStage
+          effectiveSourceFingerprint
           fallbackProviderIds
           featureKind
           matchedCandidateCount

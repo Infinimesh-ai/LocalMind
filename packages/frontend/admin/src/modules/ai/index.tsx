@@ -4885,6 +4885,9 @@ function formatPromptRegistryPublishGateModelRoute(
     route.diagnosticsErrorMessage
       ? `diagnostics message ${route.diagnosticsErrorMessage}`
       : null,
+    route.effectiveSourceFingerprint
+      ? `source fingerprint ${route.effectiveSourceFingerprint}`
+      : null,
     `feature ${formatFeatureKind(route.featureKind)}`,
     `output ${formatFeatureKind(route.outputType)}`,
     route.requestedModelId ? `requested ${route.requestedModelId}` : null,

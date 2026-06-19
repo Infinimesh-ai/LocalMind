@@ -1641,6 +1641,7 @@ type CopilotPromptRegistryPublishGateModelRouteType {
   diagnosticsErrorCode: String
   diagnosticsErrorMessage: String
   diagnosticsErrorStage: String
+  effectiveSourceFingerprint: String
   fallbackProviderIds: [String!]!
   featureKind: String!
   matchedCandidateCount: SafeInt!

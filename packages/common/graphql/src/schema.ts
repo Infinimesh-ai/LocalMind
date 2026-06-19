@@ -1859,6 +1859,7 @@ export interface CopilotPromptRegistryPublishGateModelRouteType {
   diagnosticsErrorCode?: Maybe<Scalars['String']['output']>;
   diagnosticsErrorMessage?: Maybe<Scalars['String']['output']>;
   diagnosticsErrorStage?: Maybe<Scalars['String']['output']>;
+  effectiveSourceFingerprint?: Maybe<Scalars['String']['output']>;
   fallbackProviderIds: Array<Scalars['String']['output']>;
   featureKind: Scalars['String']['output'];
   matchedCandidateCount: Scalars['SafeInt']['output'];
@@ -7977,6 +7978,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
           diagnosticsErrorCode: string | null;
           diagnosticsErrorMessage: string | null;
           diagnosticsErrorStage: string | null;
+          effectiveSourceFingerprint: string | null;
           fallbackProviderIds: Array<string>;
           featureKind: string;
           matchedCandidateCount: number;
@@ -8104,6 +8106,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
           diagnosticsErrorCode: string | null;
           diagnosticsErrorMessage: string | null;
           diagnosticsErrorStage: string | null;
+          effectiveSourceFingerprint: string | null;
           fallbackProviderIds: Array<string>;
           featureKind: string;
           matchedCandidateCount: number;

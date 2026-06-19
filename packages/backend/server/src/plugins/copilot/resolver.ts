@@ -614,6 +614,7 @@ type CopilotPromptRegistryPublishGateModelRoute = {
   diagnosticsErrorCode?: string;
   diagnosticsErrorMessage?: string;
   diagnosticsErrorStage?: string;
+  effectiveSourceFingerprint?: string;
   fallbackProviderIds: string[];
   featureKind: string;
   matchedCandidateCount: number;
@@ -1584,6 +1585,9 @@ class CopilotPromptRegistryPublishGateModelRouteType implements CopilotPromptReg
 
   @Field(() => String, { nullable: true })
   diagnosticsErrorStage?: CopilotPromptRegistryPublishGateModelRoute['diagnosticsErrorStage'];
+
+  @Field(() => String, { nullable: true })
+  effectiveSourceFingerprint?: CopilotPromptRegistryPublishGateModelRoute['effectiveSourceFingerprint'];
 
   @Field(() => [String])
   fallbackProviderIds!: CopilotPromptRegistryPublishGateModelRoute['fallbackProviderIds'];
@@ -5304,6 +5308,16 @@ function promptRegistryPublishGateDiagnosticsErrorMetadata(
     diagnosticsErrorMessage:
       error instanceof Error ? error.message : 'Unknown diagnostics error',
     diagnosticsErrorStage: stage,
+  };
+}
+
+function withPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint(
+  route: CopilotPromptRegistryPublishGateModelRoute
+): CopilotPromptRegistryPublishGateModelRoute {
+  return {
+    ...route,
+    effectiveSourceFingerprint:
+      buildPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint(route),
   };
 }
 
@@ -14297,6 +14311,137 @@ function buildModelListEffectiveSourceFingerprint(
     .slice(0, 16);
 }
 
+function buildPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint(
+  route: Pick<
+    CopilotPromptRegistryPublishGateModelRoute,
+    | 'candidateConfigPath'
+    | 'candidateIndex'
+    | 'candidateKind'
+    | 'configured'
+    | 'fallbackProviderIds'
+    | 'featureKind'
+    | 'modelId'
+    | 'outputType'
+    | 'policyAllowedPrivacy'
+    | 'policyAllowedProviderIds'
+    | 'policyBlockedProviderIds'
+    | 'policyCandidates'
+    | 'policyEnabled'
+    | 'policyFeatureKind'
+    | 'policyPreferredPrivacy'
+    | 'policyWorkspaceId'
+    | 'providerConfiguredModelCount'
+    | 'providerConfiguredModelIds'
+    | 'providerId'
+    | 'providerPrivacy'
+    | 'providerPriority'
+    | 'providerProfileConfigPath'
+    | 'providerProfileId'
+    | 'providerProfileSource'
+    | 'providerSource'
+    | 'providerType'
+    | 'requestedModelId'
+    | 'requestedModelSource'
+    | 'routeCandidates'
+    | 'routeModelAliasMatched'
+    | 'routeModelDefinitionAliases'
+    | 'routeModelDefinitionId'
+    | 'routeModelDefinitionSource'
+    | 'routeRawModelId'
+  >
+) {
+  return createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        effectiveSourceFingerprintVersion:
+          'prompt-registry-publish-gate-model-route-effective-source/v1',
+        candidateConfigPath: route.candidateConfigPath ?? null,
+        candidateIndex: route.candidateIndex,
+        candidateKind: route.candidateKind,
+        configured: route.configured,
+        fallbackProviderIds: route.fallbackProviderIds,
+        featureKind: route.featureKind,
+        modelId: route.modelId ?? null,
+        outputType: route.outputType,
+        policyAllowedPrivacy: route.policyAllowedPrivacy ?? null,
+        policyAllowedProviderIds: route.policyAllowedProviderIds ?? null,
+        policyBlockedProviderIds: route.policyBlockedProviderIds ?? null,
+        policyCandidates: route.policyCandidates.map(candidate => ({
+          allowed: candidate.allowed,
+          available: candidate.available,
+          privacy: candidate.privacy,
+          providerConfiguredModelCount:
+            candidate.providerConfiguredModelCount ?? null,
+          providerConfiguredModelIds:
+            candidate.providerConfiguredModelIds ?? null,
+          providerId: candidate.providerId,
+          providerPriority: candidate.providerPriority ?? null,
+          providerProfileConfigPath:
+            candidate.providerProfileConfigPath ?? null,
+          providerProfileId: candidate.providerProfileId ?? null,
+          providerProfileSource: candidate.providerProfileSource ?? null,
+          providerSource: candidate.providerSource ?? null,
+          providerType: candidate.providerType ?? null,
+          registryAvailable: candidate.registryAvailable ?? null,
+          registryKind: candidate.registryKind ?? null,
+          registrySelected: candidate.registrySelected ?? null,
+        })),
+        policyEnabled: route.policyEnabled,
+        policyFeatureKind: route.policyFeatureKind ?? null,
+        policyPreferredPrivacy: route.policyPreferredPrivacy ?? null,
+        policyWorkspaceId: route.policyWorkspaceId ?? null,
+        providerConfiguredModelCount:
+          route.providerConfiguredModelCount ?? null,
+        providerConfiguredModelIds: route.providerConfiguredModelIds ?? null,
+        providerId: route.providerId ?? null,
+        providerPrivacy: route.providerPrivacy ?? null,
+        providerPriority: route.providerPriority ?? null,
+        providerProfileConfigPath: route.providerProfileConfigPath ?? null,
+        providerProfileId: route.providerProfileId ?? null,
+        providerProfileSource: route.providerProfileSource ?? null,
+        providerSource: route.providerSource ?? null,
+        providerType: route.providerType ?? null,
+        requestedModelId: route.requestedModelId ?? null,
+        requestedModelSource: route.requestedModelSource ?? null,
+        routeCandidates: route.routeCandidates.map(candidate => ({
+          candidateModelIds: candidate.candidateModelIds ?? null,
+          matched: candidate.matched,
+          modelId: candidate.modelId ?? null,
+          providerConfiguredModelCount:
+            candidate.providerConfiguredModelCount ?? null,
+          providerConfiguredModelIds:
+            candidate.providerConfiguredModelIds ?? null,
+          providerId: candidate.providerId,
+          providerPriority: candidate.providerPriority ?? null,
+          providerProfileConfigPath:
+            candidate.providerProfileConfigPath ?? null,
+          providerProfileId: candidate.providerProfileId ?? null,
+          providerProfileSource: candidate.providerProfileSource ?? null,
+          providerSource: candidate.providerSource ?? null,
+          providerType: candidate.providerType ?? null,
+          registryAvailable: candidate.registryAvailable ?? null,
+          registryKind: candidate.registryKind ?? null,
+          registrySelected: candidate.registrySelected ?? null,
+          requestedModelId: candidate.requestedModelId ?? null,
+          routeModelAliasMatched: candidate.routeModelAliasMatched ?? null,
+          routeModelDefinitionAliases:
+            candidate.routeModelDefinitionAliases ?? null,
+          routeModelDefinitionId: candidate.routeModelDefinitionId ?? null,
+          routeModelDefinitionSource:
+            candidate.routeModelDefinitionSource ?? null,
+          routeRawModelId: candidate.routeRawModelId ?? null,
+        })),
+        routeModelAliasMatched: route.routeModelAliasMatched ?? null,
+        routeModelDefinitionAliases: route.routeModelDefinitionAliases ?? null,
+        routeModelDefinitionId: route.routeModelDefinitionId ?? null,
+        routeModelDefinitionSource: route.routeModelDefinitionSource ?? null,
+        routeRawModelId: route.routeRawModelId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
 function uniqueStrings(values: string[]) {
   return Array.from(new Set(values));
 }
@@ -16499,7 +16644,7 @@ export class CopilotResolver {
         routePolicyContext
       );
     } catch (error) {
-      return {
+      return withPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint({
         ...baseRoute,
         ...promptRegistryPublishGateDiagnosticsErrorMetadata(
           'describe_route_candidates',
@@ -16520,7 +16665,7 @@ export class CopilotResolver {
           policyCandidates,
           []
         ),
-      };
+      });
     }
     const matchedCandidates = candidates.filter(candidate => candidate.matched);
     const routeCandidates = candidates.map(
@@ -16540,24 +16685,28 @@ export class CopilotResolver {
       if (!resolved) {
         const selectedCandidate =
           selectPromptRegistryPublishGateRouteCandidate(candidates);
-        return {
-          ...baseRoute,
-          ...promptRegistryPublishGateRouteCandidateMetadata(selectedCandidate),
-          available: false,
-          candidateCount: candidates.length,
-          configured: true,
-          matchedCandidateCount: matchedCandidates.length,
-          reasons: uniqueStrings([
-            'model_route_unavailable',
-            candidates.length
-              ? 'no_matching_provider_route'
-              : 'no_provider_route_candidates',
-            ...candidates.flatMap(candidate => candidate.reasons),
-          ]),
-          requestedModelId: candidate.modelId,
-          routeCandidates,
-          routeTrace,
-        };
+        return withPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint(
+          {
+            ...baseRoute,
+            ...promptRegistryPublishGateRouteCandidateMetadata(
+              selectedCandidate
+            ),
+            available: false,
+            candidateCount: candidates.length,
+            configured: true,
+            matchedCandidateCount: matchedCandidates.length,
+            reasons: uniqueStrings([
+              'model_route_unavailable',
+              candidates.length
+                ? 'no_matching_provider_route'
+                : 'no_provider_route_candidates',
+              ...candidates.flatMap(candidate => candidate.reasons),
+            ]),
+            requestedModelId: candidate.modelId,
+            routeCandidates,
+            routeTrace,
+          }
+        );
       }
 
       const providerModel = resolved.provider.resolveModel(
@@ -16591,7 +16740,7 @@ export class CopilotResolver {
       const profileConfigPath = providerProfileConfigPath(resolved.profile);
       const profileModelIds = getProfileConfiguredModelIds(resolved.profile);
 
-      return {
+      return withPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint({
         ...baseRoute,
         available: true,
         candidateCount: candidates.length,
@@ -16665,11 +16814,11 @@ export class CopilotResolver {
         ...(routeModelDefinitionId ? { routeModelDefinitionId } : {}),
         ...(routeModelDefinitionSource ? { routeModelDefinitionSource } : {}),
         ...(routeRawModelId ? { routeRawModelId } : {}),
-      };
+      });
     } catch (error) {
       const selectedCandidate =
         selectPromptRegistryPublishGateRouteCandidate(candidates);
-      return {
+      return withPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint({
         ...baseRoute,
         ...promptRegistryPublishGateRouteCandidateMetadata(selectedCandidate),
         ...promptRegistryPublishGateDiagnosticsErrorMetadata(
@@ -16689,7 +16838,7 @@ export class CopilotResolver {
         requestedModelId: candidate.modelId,
         routeCandidates,
         routeTrace,
-      };
+      });
     }
   }
 
@@ -16706,7 +16855,7 @@ export class CopilotResolver {
         routePolicyContext
       );
 
-    return {
+    return withPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint({
       checked: true,
       fallbackProviderIds: [],
       featureKind: routePolicyContext.featureKind,
@@ -16726,7 +16875,7 @@ export class CopilotResolver {
         policyCandidates,
         []
       ),
-    };
+    });
   }
 
   private async resolvePromptRegistryPublishGateModelRoutes(

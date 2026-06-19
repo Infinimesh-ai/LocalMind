@@ -14897,3 +14897,43 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - 指纹输入覆盖 prompt/provider/registry/route/policy source chain，但不绑定真实请求 payload、provider credentials、BYOK lease、storage backend、tenant policy registry、health probe result、request dispatch outcome 或 billing/quota execution result。
 - 字段当前只在前端模型列表 optional/pro models 暴露；task route diagnostics 与 Prompt Registry publish gate repair evidence 已有各自 candidate fingerprints，后续若要统一审计，需要定义跨 projection 的 effective source evidence schema。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 445. P1 落地记录：Prompt Registry Publish Gate Model Route Effective Source Fingerprint
+
+本轮继续收敛第 444 节剩余风险中 “字段当前只在前端模型列表 optional/pro models 暴露；task route diagnostics 与 Prompt Registry publish gate repair evidence 已有各自 candidate fingerprints，后续若要统一审计，需要定义跨 projection 的 effective source evidence schema” 的第一段只读差异。实际代码与目标 AI 中间层架构的冲突点是：前端模型列表已经有 `effectiveSourceFingerprint`，但 Prompt Registry publish gate 的 `modelRoute` / `modelRoutes` 仍只能通过 candidate fields、policy candidates、route candidates 与 repair evidence fingerprints 分散判断来源链；当默认模型、optional/pro 模型或 registry configured candidate 进入 publish gate 时，Admin 侧缺少一个和模型列表同语义、可复制比对的 model route source anchor。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateModelRoute` / GraphQL type 新增只读 `effectiveSourceFingerprint` 字段。
+  - 新增 `prompt-registry-publish-gate-model-route-effective-source/v1` 指纹，绑定 candidate kind/index/config path、requested model/source、provider/profile metadata、configured model ids、policy scope、policy candidate source snapshot、route candidate source snapshot、registry branch 与 route model definition。
+  - 成功 route、无 matching route、`describe_route_candidates` diagnostics error、`resolve_provider` diagnostics error、registry prompt 缺失路径均通过同一个 wrapper 附加 fingerprint。
+  - 指纹不纳入 provider route selection、fallback order、BYOK lease、quota、prepare、dispatch、publish gate allowed/blocking 判定或 repair recommendation 选择；它只作为 publish gate model route projection 的 evidence anchor。
+- `packages/backend/server/src/schema.gql`、`packages/common/graphql/src/graphql/index.ts` 与 `packages/common/graphql/src/schema.ts`：
+  - `getCopilotPromptRegistryPublishGateQuery` 的 `modelRoute` 与 `modelRoutes` selection 增加 `effectiveSourceFingerprint`，并同步手工维护的 GraphQL TypeScript 类型。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - Admin publish gate model route 文本新增 `source fingerprint ...`，使 default/optional/pro/registry model route 的 source anchor 可直接复制比对。
+- 测试覆盖：
+  - `resolver-model-source-chain.smoke.ts` 断言 ready gate 的主 `modelRoute` 暴露 16 位 hex `effectiveSourceFingerprint`。
+  - 同一 smoke 断言 ready/blocked gate 的 6 条 `modelRoutes` 均暴露 16 位 hex fingerprint，并断言 quota-backed registry candidate 与 BYOK registry candidate 的 fingerprint 不同。
+
+该实现只扩展 Prompt Registry publish gate model route 的只读 GraphQL projection、common query/type、Admin diagnostics label 与 focused smoke，不新增 DB migration、不创建 DB-backed Model Registry effective source table、不记录 registry revision、workspace policy revision 或 provider snapshot、不改变 provider route selection、fallback order、BYOK lease 获取、quota 判定、provider health check、publish gate allowed/blocking 判定、repair recommendation 分类、`copilot.tasks.models` 配置格式、embedding/rerank native request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、MCP registry、Codex adapter、support bundle lifecycle 或 Action Runtime 状态机。它让前端模型列表与 Prompt Registry publish gate model routes 都具备同语义的 runtime source anchor，为后续正式跨 projection effective source evidence schema 和 DB-backed Model Registry snapshot/revision 预留对齐点。
+
+验证策略：
+
+- 本轮为 TypeScript resolver/common/admin/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有测试镜像 `localmind-affine:test`，镜像 ID 为 `c3389960f5ed`；通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行验证。
+- 容器内已通过：
+  - `yarn r packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts`
+  - `yarn oxlint packages/backend/server/src/plugins/copilot/resolver.ts packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts packages/common/graphql/src/graphql/index.ts packages/common/graphql/src/schema.ts packages/frontend/admin/src/modules/ai/index.tsx`
+  - `yarn prettier --check docs/ai-capability-modernization-plan.md packages/backend/server/src/schema.gql packages/backend/server/src/plugins/copilot/resolver.ts packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts packages/common/graphql/src/graphql/index.ts packages/common/graphql/src/schema.ts packages/frontend/admin/src/modules/ai/index.tsx`
+  - `git diff --check`
+- 初次 Prettier check 提示 `resolver.ts` 需要格式化；已用同一 Docker test 镜像执行 `yarn prettier --write packages/backend/server/src/plugins/copilot/resolver.ts` 修复，随后 smoke、oxlint、Prettier check 与 `git diff --check` 均重新通过。
+- 镜像 ID 复核仍为 `c3389960f5ed`，未重建 test-runner。
+- 当前本机 Docker Compose `run` 帮助未暴露 `--no-build` flag，因此继续以镜像已存在、不传 `--build`、`--pull never`、`--no-deps` 与镜像 ID 不变作为不重建 test-runner 的证据。
+
+剩余风险：
+
+- publish gate `effectiveSourceFingerprint` 仍是 runtime 只读 projection，不是 DB-backed Model Registry effective source row，也不持久化 registry revision、workspace policy revision、provider snapshot 或 model availability snapshot。
+- 指纹输入覆盖 publish gate model route 的 prompt/provider/registry/route/policy source chain，但不绑定真实请求 payload、provider credentials、BYOK lease、storage backend、tenant policy registry、health probe result、request dispatch outcome、repair execution output 或 billing/quota execution result。
+- 它与前端模型列表 `effectiveSourceFingerprint` 语义对齐，但 payload 不是同一个 schema；后续若要统一审计，需要抽取正式跨 projection effective source evidence schema，并决定哪些字段进入 DB-backed snapshot/revision。
+- task route diagnostics 与 repair candidate evidence 仍保留各自 candidate fingerprints；本轮没有把 `effectiveSourceFingerprint` 下沉到 task route diagnostics、repair execution request、support bundle manifest 或 audit persistence。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

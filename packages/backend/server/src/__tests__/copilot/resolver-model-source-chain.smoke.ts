@@ -2738,6 +2738,10 @@ async function main() {
   assert.equal(routeReadyGate?.modelRoute?.featureKind, 'chat');
   assert.equal(routeReadyGate?.modelRoute?.candidateKind, 'default');
   assert.equal(routeReadyGate?.modelRoute?.candidateIndex, 0);
+  assert.match(
+    routeReadyGate?.modelRoute?.effectiveSourceFingerprint ?? '',
+    /^[0-9a-f]{16}$/
+  );
   assert.deepEqual(
     routeReadyGate?.modelRoute?.policyCandidates.map(candidate => [
       candidate.providerId,
@@ -2825,6 +2829,16 @@ async function main() {
     'copilot.prompts.defaults.text.model'
   );
   assert.equal(routeReadyGate?.modelRoutes?.length, 6);
+  assert.deepEqual(
+    routeReadyGate?.modelRoutes?.map(route =>
+      /^[0-9a-f]{16}$/.test(route.effectiveSourceFingerprint ?? '')
+    ),
+    [true, true, true, true, true, true]
+  );
+  assert.notEqual(
+    routeReadyGate?.modelRoutes?.[4]?.effectiveSourceFingerprint,
+    routeReadyGate?.modelRoutes?.[5]?.effectiveSourceFingerprint
+  );
   assert.deepEqual(
     routeReadyGate?.modelRoutes?.map(route => [
       route.candidateKind,
@@ -8794,6 +8808,12 @@ async function main() {
     true
   );
   assert.equal(routeBlockedGate?.modelRoutes?.length, 6);
+  assert.deepEqual(
+    routeBlockedGate?.modelRoutes?.map(route =>
+      /^[0-9a-f]{16}$/.test(route.effectiveSourceFingerprint ?? '')
+    ),
+    [true, true, true, true, true, true]
+  );
   assert.deepEqual(
     routeBlockedGate?.modelRoutes?.map(route => [
       route.candidateKind,
