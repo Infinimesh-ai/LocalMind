@@ -6515,6 +6515,23 @@ describe('AiPage', () => {
           supportBundleArtifactVersion:
             'prompt-registry-repair-gate-support-bundle-artifact/v1',
           supportBundleAuditPersistenceStatus: 'not_persisted_read_only',
+          supportBundleDownloadAuthorizationRequestCreated: false,
+          supportBundleDownloadAuthorizationRequestFingerprint:
+            input.workspaceId ? 'eeee7777ffff8888' : 'cccc7777dddd8888',
+          supportBundleDownloadAuthorizationRequestInputs: [
+            'actorFingerprint',
+            'authorizationStatus',
+            'downloadAuthorizationStatus',
+            'exportPolicyFingerprint',
+            'manifestFingerprint',
+            'manifestMetadataFingerprint',
+            'requestStatus',
+            'supportBundleArtifactFingerprint',
+          ],
+          supportBundleDownloadAuthorizationRequestStatus:
+            'not_created_read_only',
+          supportBundleDownloadAuthorizationRequestVersion:
+            'prompt-registry-repair-gate-support-bundle-download-authorization-request/v1',
           supportBundleDownloadAuthorizationStatus: 'not_checked_read_only',
           supportBundleManifestFilename: `prompt-registry-repair-gate-manifest-42-${input.expectedRepairGateManifestFingerprint}.json`,
           supportBundleManifestFingerprint:
@@ -6530,6 +6547,7 @@ describe('AiPage', () => {
             'auditEventFingerprint',
             'auditEventStatus',
             'auditPersistenceStatus',
+            'downloadAuthorizationRequestFingerprint',
             'downloadAuthorizationStatus',
             'exportPolicyFingerprint',
             'manifestFingerprint',
@@ -7257,7 +7275,19 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      'support bundle package inputs auditEventFingerprint, auditEventStatus, auditPersistenceStatus, downloadAuthorizationStatus, exportPolicyFingerprint'
+      'support bundle package inputs auditEventFingerprint, auditEventStatus, auditPersistenceStatus, downloadAuthorizationRequestFingerprint, downloadAuthorizationStatus'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle download authorization request prompt-registry-repair-gate-support-bundle-download-authorization-request/v1 / support bundle download authorization request status Not Created Read Only / support bundle download authorization request created no / support bundle download authorization request fingerprint cccc7777dddd8888'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle download authorization request inputs actorFingerprint, authorizationStatus, downloadAuthorizationStatus, exportPolicyFingerprint, manifestFingerprint'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

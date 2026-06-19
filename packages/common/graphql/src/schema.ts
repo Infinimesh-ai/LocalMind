@@ -1485,6 +1485,13 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   supportBundleArtifactStatus: Scalars['String']['output'];
   supportBundleArtifactVersion: Scalars['String']['output'];
   supportBundleAuditPersistenceStatus: Scalars['String']['output'];
+  supportBundleDownloadAuthorizationRequestCreated: Scalars['Boolean']['output'];
+  supportBundleDownloadAuthorizationRequestFingerprint: Scalars['String']['output'];
+  supportBundleDownloadAuthorizationRequestInputs: Array<
+    Scalars['String']['output']
+  >;
+  supportBundleDownloadAuthorizationRequestStatus: Scalars['String']['output'];
+  supportBundleDownloadAuthorizationRequestVersion: Scalars['String']['output'];
   supportBundleDownloadAuthorizationStatus: Scalars['String']['output'];
   supportBundleManifestFilename: Scalars['String']['output'];
   supportBundleManifestFingerprint: Scalars['String']['output'];
@@ -8929,6 +8936,11 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
     supportBundleArtifactStatus: string;
     supportBundleArtifactVersion: string;
     supportBundleAuditPersistenceStatus: string;
+    supportBundleDownloadAuthorizationRequestCreated: boolean;
+    supportBundleDownloadAuthorizationRequestFingerprint: string;
+    supportBundleDownloadAuthorizationRequestInputs: Array<string>;
+    supportBundleDownloadAuthorizationRequestStatus: string;
+    supportBundleDownloadAuthorizationRequestVersion: string;
     supportBundleDownloadAuthorizationStatus: string;
     supportBundleManifestFilename: string;
     supportBundleManifestFingerprint: string;

@@ -14312,3 +14312,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - package fingerprint 只绑定当前 `supportBundleArtifact*`、`repairGateManifestExportMetadata` 与只读 lifecycle statuses，不绑定 prompt body、provider response、Provider Registry revision、Model Registry revision、workspace secret、真实 repair job、rollback result、执行输出或实际下载请求。
 - download authorization、audit persistence 与 retention cleanup 仍是 code-level read-only statuses，不是 workspace-level compliance policy、tenant-level retention policy registry、可配置授权策略或后台任务。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 427. P3 落地记录：Prompt Registry Repair Support Bundle Download Authorization Request Projection
+
+本轮继续收敛第 426 节剩余风险中 “download authorization 仍是 code-level read-only status，不是可比较的 request-level artifact” 的问题。实际代码与目标 AI 中间层架构的冲突点是：repair execution request 已经暴露 support bundle package lifecycle，但 download authorization 仍只有 `not_checked_read_only` 状态，后续若要接入正式后端 download resolver 或 workspace-level compliance policy，仍缺少一个把 actor、当前 authorization status、manifest/export policy 与 package artifact 绑定起来的只读 request projection。本轮新增 `prompt-registry-repair-gate-support-bundle-download-authorization-request/v1`，不创建真实授权记录、不创建下载 URL、不检查后端权限、不写 audit event。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryRepairExecutionRequest` / GraphQL type 新增 `supportBundleDownloadAuthorizationRequest*` 字段。
+  - `buildPromptRegistryRepairExecutionRequest()` 新增只读 download authorization request projection：状态为 `not_created_read_only`，输入绑定 actor fingerprint、preflight authorization status、download authorization status、manifest fingerprint、manifest metadata fingerprint、export policy fingerprint、request status 与 support bundle artifact fingerprint。
+  - support bundle package fingerprint 新增绑定 `supportBundleDownloadAuthorizationRequestFingerprint`，request fingerprint 也同步纳入该 fingerprint，使下载授权请求 projection 漂移会影响 request-level anchor。
+- GraphQL 与 common client：
+  - `schema.gql`、repair execution request mutation、common query string 与 `schema.ts` 类型同步暴露 download authorization request 字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair execution request diagnostics 展示 download authorization request version/status/created/fingerprint/inputs。
+- 测试覆盖：
+  - backend model/source chain smoke test 断言 download authorization request 字段、输入集合与 fingerprint 重算，并验证 package fingerprint 纳入该 request fingerprint。
+  - Admin Vitest fixture/断言覆盖 download authorization request diagnostics 与 package inputs 展示。
+
+该实现只扩展 repair execution request 的只读 GraphQL projection、common query/type、Admin 展示和测试，不新增 DB migration、不创建 DB-backed support bundle、不新增后端 download resolver、不创建下载 URL、不执行真实权限检查、不创建 audit event、不改变 retention 存储、不改变 repair mutation 可执行性、不改变 preflight/execution gate 判定、不改变 provider route selection、fallback order、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、Model Registry revision 或 Provider Registry revision。它把 “下载授权尚未检查” 从单个状态值推进到可比较的 request-level projection，为后续正式 download resolver、workspace policy binding 与 support bundle audit trail 提供更明确的迁移输入。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 backend model/source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `supportBundleDownloadAuthorizationRequest*` 仍是只读 GraphQL projection，不是 DB-backed authorization record、后端 download resolver、签名 URL、真实权限检查、audit event 或 workspace-level compliance decision。
+- request fingerprint 只绑定 actor fingerprint、preflight authorization status、manifest/export policy 与 support bundle artifact fingerprint，不绑定真实用户会话、download token、workspace secret、tenant policy registry、网络来源、过期时间或实际下载行为。
+- package lifecycle 仍未覆盖 audit persistence request、retention cleanup request、DB-backed artifact table、正式 support bundle package 内容或可下载归档。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

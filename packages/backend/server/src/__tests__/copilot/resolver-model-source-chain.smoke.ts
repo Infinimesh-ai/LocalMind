@@ -4039,6 +4039,71 @@ async function main() {
     'not_checked_read_only'
   );
   assert.equal(
+    executionRequest.supportBundleDownloadAuthorizationRequestVersion,
+    'prompt-registry-repair-gate-support-bundle-download-authorization-request/v1'
+  );
+  assert.equal(
+    executionRequest.supportBundleDownloadAuthorizationRequestStatus,
+    'not_created_read_only'
+  );
+  assert.equal(
+    executionRequest.supportBundleDownloadAuthorizationRequestCreated,
+    false
+  );
+  assert.match(
+    executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
+    /^[0-9a-f]{16}$/
+  );
+  assert.deepEqual(
+    executionRequest.supportBundleDownloadAuthorizationRequestInputs,
+    [
+      'actorFingerprint',
+      'authorizationStatus',
+      'downloadAuthorizationStatus',
+      'exportPolicyFingerprint',
+      'manifestFingerprint',
+      'manifestMetadataFingerprint',
+      'requestStatus',
+      'supportBundleArtifactFingerprint',
+    ]
+  );
+  assert.equal(
+    executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
+    createHash('sha256')
+      .update(
+        stableFingerprintFixtureStringify({
+          actorFingerprint: matchingPreflight?.actorFingerprint,
+          authorizationStatus: matchingPreflight?.authorizationStatus,
+          created: false,
+          downloadAuthorizationStatus:
+            executionRequest.supportBundleDownloadAuthorizationStatus,
+          exportPolicyFingerprint:
+            routeReadyGate.repairGateManifestExportMetadata
+              .exportPolicyFingerprint,
+          inputs:
+            executionRequest.supportBundleDownloadAuthorizationRequestInputs,
+          manifestFilename:
+            routeReadyGate.repairGateManifestExportMetadata.filename,
+          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+          manifestMetadataFilename:
+            routeReadyGate.repairGateManifestExportMetadata.metadataFilename,
+          manifestMetadataFingerprint:
+            routeReadyGate.repairGateManifestExportMetadata
+              .exportPolicyFingerprint,
+          requestStatus: executionRequest.requestStatus,
+          status:
+            executionRequest.supportBundleDownloadAuthorizationRequestStatus,
+          supportBundleArtifactFingerprint:
+            executionRequest.supportBundleArtifactFingerprint,
+          version:
+            executionRequest.supportBundleDownloadAuthorizationRequestVersion,
+          workspaceId: matchingPreflight?.workspaceId ?? null,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16)
+  );
+  assert.equal(
     executionRequest.supportBundleAuditPersistenceStatus,
     'not_persisted_read_only'
   );
@@ -4054,6 +4119,7 @@ async function main() {
     'auditEventFingerprint',
     'auditEventStatus',
     'auditPersistenceStatus',
+    'downloadAuthorizationRequestFingerprint',
     'downloadAuthorizationStatus',
     'exportPolicyFingerprint',
     'manifestFingerprint',
@@ -4078,6 +4144,8 @@ async function main() {
           created: false,
           downloadAuthorizationStatus:
             executionRequest.supportBundleDownloadAuthorizationStatus,
+          downloadAuthorizationRequestFingerprint:
+            executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
           exportPolicyFingerprint:
             routeReadyGate.repairGateManifestExportMetadata
               .exportPolicyFingerprint,

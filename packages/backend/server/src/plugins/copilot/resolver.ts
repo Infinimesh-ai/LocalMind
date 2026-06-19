@@ -1363,6 +1363,11 @@ type CopilotPromptRegistryRepairExecutionRequest = {
   supportBundleArtifactStatus: string;
   supportBundleArtifactVersion: string;
   supportBundleAuditPersistenceStatus: string;
+  supportBundleDownloadAuthorizationRequestCreated: boolean;
+  supportBundleDownloadAuthorizationRequestFingerprint: string;
+  supportBundleDownloadAuthorizationRequestInputs: string[];
+  supportBundleDownloadAuthorizationRequestStatus: string;
+  supportBundleDownloadAuthorizationRequestVersion: string;
   supportBundleDownloadAuthorizationStatus: string;
   supportBundleManifestFilename: string;
   supportBundleManifestFingerprint: string;
@@ -3838,6 +3843,21 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
 
   @Field(() => String)
   supportBundleAuditPersistenceStatus!: string;
+
+  @Field(() => Boolean)
+  supportBundleDownloadAuthorizationRequestCreated!: boolean;
+
+  @Field(() => String)
+  supportBundleDownloadAuthorizationRequestFingerprint!: string;
+
+  @Field(() => [String])
+  supportBundleDownloadAuthorizationRequestInputs!: string[];
+
+  @Field(() => String)
+  supportBundleDownloadAuthorizationRequestStatus!: string;
+
+  @Field(() => String)
+  supportBundleDownloadAuthorizationRequestVersion!: string;
 
   @Field(() => String)
   supportBundleDownloadAuthorizationStatus!: string;
@@ -10069,10 +10089,52 @@ function buildPromptRegistryRepairExecutionRequest(
   const supportBundleDownloadAuthorizationStatus = 'not_checked_read_only';
   const supportBundleAuditPersistenceStatus = 'not_persisted_read_only';
   const supportBundleRetentionCleanupStatus = 'not_scheduled_read_only';
+  const supportBundleDownloadAuthorizationRequestVersion =
+    'prompt-registry-repair-gate-support-bundle-download-authorization-request/v1';
+  const supportBundleDownloadAuthorizationRequestStatus =
+    'not_created_read_only';
+  const supportBundleDownloadAuthorizationRequestInputs = [
+    'actorFingerprint',
+    'authorizationStatus',
+    'downloadAuthorizationStatus',
+    'exportPolicyFingerprint',
+    'manifestFingerprint',
+    'manifestMetadataFingerprint',
+    'requestStatus',
+    'supportBundleArtifactFingerprint',
+  ].sort();
+  const supportBundleDownloadAuthorizationRequestFingerprint = createHash(
+    'sha256'
+  )
+    .update(
+      stableRepairRecommendationStringify({
+        actorFingerprint: preflight.actorFingerprint,
+        authorizationStatus: preflight.authorizationStatus,
+        created: false,
+        downloadAuthorizationStatus: supportBundleDownloadAuthorizationStatus,
+        exportPolicyFingerprint:
+          repairGateManifestExportMetadata.exportPolicyFingerprint,
+        inputs: supportBundleDownloadAuthorizationRequestInputs,
+        manifestFilename: repairGateManifestExportMetadata.filename,
+        manifestFingerprint: repairGateManifest.fingerprint,
+        manifestMetadataFilename:
+          repairGateManifestExportMetadata.metadataFilename,
+        manifestMetadataFingerprint:
+          repairGateManifestExportMetadata.exportPolicyFingerprint,
+        requestStatus,
+        status: supportBundleDownloadAuthorizationRequestStatus,
+        supportBundleArtifactFingerprint,
+        version: supportBundleDownloadAuthorizationRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
   const supportBundlePackageInputs = [
     'auditEventFingerprint',
     'auditEventStatus',
     'auditPersistenceStatus',
+    'downloadAuthorizationRequestFingerprint',
     'downloadAuthorizationStatus',
     'exportPolicyFingerprint',
     'manifestFingerprint',
@@ -10091,6 +10153,8 @@ function buildPromptRegistryRepairExecutionRequest(
         auditPersistenceStatus: supportBundleAuditPersistenceStatus,
         created: false,
         downloadAuthorizationStatus: supportBundleDownloadAuthorizationStatus,
+        downloadAuthorizationRequestFingerprint:
+          supportBundleDownloadAuthorizationRequestFingerprint,
         exportPolicyFingerprint:
           repairGateManifestExportMetadata.exportPolicyFingerprint,
         inputs: supportBundlePackageInputs,
@@ -12976,6 +13040,7 @@ function buildPromptRegistryRepairExecutionRequest(
         rollbackPlanFingerprint: preflight.rollbackPlanFingerprint,
         rollbackPlanRequestFingerprint,
         supportBundleArtifactFingerprint,
+        supportBundleDownloadAuthorizationRequestFingerprint,
         supportBundlePackageFingerprint,
         targetLocatorFingerprint: preflight.targetLocatorFingerprint,
         executionTraceRequestFingerprint,
@@ -13260,6 +13325,11 @@ function buildPromptRegistryRepairExecutionRequest(
     supportBundleArtifactStatus,
     supportBundleArtifactVersion,
     supportBundleAuditPersistenceStatus,
+    supportBundleDownloadAuthorizationRequestCreated: false,
+    supportBundleDownloadAuthorizationRequestFingerprint,
+    supportBundleDownloadAuthorizationRequestInputs,
+    supportBundleDownloadAuthorizationRequestStatus,
+    supportBundleDownloadAuthorizationRequestVersion,
     supportBundleDownloadAuthorizationStatus,
     supportBundleManifestFilename: repairGateManifestExportMetadata.filename,
     supportBundleManifestFingerprint: repairGateManifest.fingerprint,
