@@ -1845,6 +1845,7 @@ type CopilotPromptRegistryPublishGateRepairActionPreviewOperationType {
   diagnosticsFingerprint: String!
   embeddingIndexContractEvidenceFingerprints: [String!]!
   rerankRuntimeContractEvidenceFingerprints: [String!]!
+  taskRouteEffectiveSourceFingerprints: [String!]!
   inputSchema: JSONObject!
   instanceKey: String
   operationFingerprint: String!

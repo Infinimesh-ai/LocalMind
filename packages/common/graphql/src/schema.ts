@@ -2087,6 +2087,7 @@ export interface CopilotPromptRegistryPublishGateRepairActionPreviewOperationTyp
     Scalars['String']['output']
   >;
   rerankRuntimeContractEvidenceFingerprints: Array<Scalars['String']['output']>;
+  taskRouteEffectiveSourceFingerprints: Array<Scalars['String']['output']>;
   inputSchema: Scalars['JSONObject']['output'];
   instanceKey?: Maybe<Scalars['String']['output']>;
   operationFingerprint: Scalars['String']['output'];
@@ -8298,6 +8299,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             diagnosticsFingerprint: string;
             embeddingIndexContractEvidenceFingerprints: Array<string>;
             rerankRuntimeContractEvidenceFingerprints: Array<string>;
+            taskRouteEffectiveSourceFingerprints: Array<string>;
             inputSchema: any;
             instanceKey: string | null;
             operationFingerprint: string;

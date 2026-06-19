@@ -566,6 +566,7 @@ query getCopilotPromptRegistryPublishGate(
             diagnosticsFingerprint
             embeddingIndexContractEvidenceFingerprints
             rerankRuntimeContractEvidenceFingerprints
+            taskRouteEffectiveSourceFingerprints
             inputSchema
             instanceKey
             operationFingerprint

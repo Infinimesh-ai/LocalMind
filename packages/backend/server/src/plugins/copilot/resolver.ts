@@ -961,6 +961,7 @@ type CopilotPromptRegistryPublishGateRepairActionPreviewOperation = {
   diagnosticsFingerprint: string;
   embeddingIndexContractEvidenceFingerprints: string[];
   rerankRuntimeContractEvidenceFingerprints: string[];
+  taskRouteEffectiveSourceFingerprints: string[];
   inputSchema: Record<string, unknown>;
   instanceKey?: string;
   operationFingerprint: string;
@@ -2522,6 +2523,9 @@ class CopilotPromptRegistryPublishGateRepairActionPreviewOperationType implement
 
   @Field(() => [String])
   rerankRuntimeContractEvidenceFingerprints!: string[];
+
+  @Field(() => [String])
+  taskRouteEffectiveSourceFingerprints!: string[];
 
   @Field(() => GraphQLJSON)
   inputSchema!: Record<string, unknown>;
@@ -8937,6 +8941,13 @@ function promptRegistryRepairCandidateEvidenceSnapshot(
         : []
     )
   ).sort();
+  const taskRouteEffectiveSourceFingerprints = uniqueStrings(
+    evidence.flatMap(candidate =>
+      candidate.taskRouteEffectiveSourceFingerprint
+        ? [candidate.taskRouteEffectiveSourceFingerprint]
+        : []
+    )
+  ).sort();
 
   return {
     candidateEvidenceCount: evidence.length,
@@ -8953,6 +8964,7 @@ function promptRegistryRepairCandidateEvidenceSnapshot(
     candidateEvidenceKeys,
     embeddingIndexContractEvidenceFingerprints,
     rerankRuntimeContractEvidenceFingerprints,
+    taskRouteEffectiveSourceFingerprints,
     preparedRouteOrderFingerprints,
   };
 }
@@ -9012,6 +9024,8 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
             operation.embeddingIndexContractEvidenceFingerprints,
           rerankRuntimeContractEvidenceFingerprints:
             operation.rerankRuntimeContractEvidenceFingerprints,
+          taskRouteEffectiveSourceFingerprints:
+            operation.taskRouteEffectiveSourceFingerprints,
           inputSchema: operation.inputSchema,
           preparedRouteOrderFingerprints:
             operation.preparedRouteOrderFingerprints,
@@ -9053,6 +9067,8 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
               operation.embeddingIndexContractEvidenceFingerprints,
             rerankRuntimeContractEvidenceFingerprints:
               operation.rerankRuntimeContractEvidenceFingerprints,
+            taskRouteEffectiveSourceFingerprints:
+              operation.taskRouteEffectiveSourceFingerprints,
             operationFingerprint: operation.operationFingerprint,
             preparedRouteOrderFingerprints:
               operation.preparedRouteOrderFingerprints,
@@ -9187,6 +9203,8 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
       preparedRouteOrderFingerprints: operation.preparedRouteOrderFingerprints,
       rerankRuntimeContractEvidenceFingerprints:
         operation.rerankRuntimeContractEvidenceFingerprints,
+      taskRouteEffectiveSourceFingerprints:
+        operation.taskRouteEffectiveSourceFingerprints,
       previewStatus: operation.previewStatus,
       reviewMode: operation.reviewMode,
       safety: operation.safety,

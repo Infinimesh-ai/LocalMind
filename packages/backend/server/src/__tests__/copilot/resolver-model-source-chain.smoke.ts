@@ -59,6 +59,7 @@ function repairPreviewOperationFingerprintFixture(input: {
   preparedRouteOrderFingerprints: string[];
   previewStatus: string;
   rerankRuntimeContractEvidenceFingerprints: string[];
+  taskRouteEffectiveSourceFingerprints: string[];
   requiredCapabilities: string[];
   reviewMode: string;
   safety: string;
@@ -10357,6 +10358,24 @@ async function main() {
       )
     ).sort()
   );
+  assert.deepEqual(
+    taskDiagnosticsErrorPreviewOperation?.taskRouteEffectiveSourceFingerprints,
+    Array.from(
+      new Set(
+        taskDiagnosticsCandidateEvidence.flatMap(evidence =>
+          evidence.taskRouteEffectiveSourceFingerprint
+            ? [evidence.taskRouteEffectiveSourceFingerprint]
+            : []
+        )
+      )
+    ).sort()
+  );
+  assert.notEqual(
+    taskDiagnosticsErrorPreviewOperation?.taskRouteEffectiveSourceFingerprints
+      .length,
+    0,
+    'task route repair preview operation should expose task route source anchors'
+  );
   assert.equal(
     taskDiagnosticsErrorPreviewOperation?.operationFingerprint,
     taskDiagnosticsErrorPreviewOperation
@@ -10377,6 +10396,8 @@ async function main() {
           previewStatus: taskDiagnosticsErrorPreviewOperation.previewStatus,
           rerankRuntimeContractEvidenceFingerprints:
             taskDiagnosticsErrorPreviewOperation.rerankRuntimeContractEvidenceFingerprints,
+          taskRouteEffectiveSourceFingerprints:
+            taskDiagnosticsErrorPreviewOperation.taskRouteEffectiveSourceFingerprints,
           requiredCapabilities:
             taskDiagnosticsErrorPreviewOperation.requiredCapabilities,
           reviewMode: taskDiagnosticsErrorPreviewOperation.reviewMode,

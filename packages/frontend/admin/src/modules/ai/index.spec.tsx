@@ -2336,6 +2336,15 @@ function withRepairActionPreview<
             )
           )
         ).sort();
+        const taskRouteEffectiveSourceFingerprints = Array.from(
+          new Set(
+            candidateEvidence.flatMap(evidence =>
+              evidence.taskRouteEffectiveSourceFingerprint
+                ? [evidence.taskRouteEffectiveSourceFingerprint]
+                : []
+            )
+          )
+        ).sort();
 
         return {
           actionKind: recommendation.suggestedActionKind,
@@ -2359,6 +2368,7 @@ function withRepairActionPreview<
           operationFingerprint: input.operationFingerprints[index],
           embeddingIndexContractEvidenceFingerprints,
           rerankRuntimeContractEvidenceFingerprints,
+          taskRouteEffectiveSourceFingerprints,
           preparedRouteOrderFingerprints,
           previewStatus: repairActionPreviewStatus(
             recommendation.suggestedActionSafety
@@ -8383,10 +8393,10 @@ describe('AiPage', () => {
       'matched fields approvalPolicyFingerprint, authorizationFingerprint, candidateEvidenceSetFingerprint, catalogFingerprint, contractVersion, embeddingIndexContractEvidenceSetFingerprint'
     );
     expect(readyGateDiagnostics).toMatch(
-      /Repair action preview operation Preview Required \/ action kind Review Non Default Model Route .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ rerank runtime contract evidence fingerprints none \/ fingerprint 1111222233334444 \/ operation fingerprint 1111aaaa2222bbbb \/ target locator fingerprint aaaa1111bbbb2222 \/ required capabilities model_registry\.read, provider_route\.preview \/ input schema required diagnosticsFingerprint, targetLocator/
+      /Repair action preview operation Preview Required \/ action kind Review Non Default Model Route .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ rerank runtime contract evidence fingerprints none \/ task route source fingerprints none \/ fingerprint 1111222233334444 \/ operation fingerprint 1111aaaa2222bbbb \/ target locator fingerprint aaaa1111bbbb2222 \/ required capabilities model_registry\.read, provider_route\.preview \/ input schema required diagnosticsFingerprint, targetLocator/
     );
     expect(readyGateDiagnostics).toMatch(
-      /Repair action preview operation Read Only Probe \/ action kind Check Action Provider Health .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ rerank runtime contract evidence fingerprints none \/ fingerprint 4444555566667777 \/ operation fingerprint 4444dddd5555eeee \/ target locator fingerprint dddd4444eeee5555 \/ required capabilities provider_profile\.read, provider_health\.probe \/ input schema required diagnosticsFingerprint, targetLocator/
+      /Repair action preview operation Read Only Probe \/ action kind Check Action Provider Health .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ rerank runtime contract evidence fingerprints none \/ task route source fingerprints none \/ fingerprint 4444555566667777 \/ operation fingerprint 4444dddd5555eeee \/ target locator fingerprint dddd4444eeee5555 \/ required capabilities provider_profile\.read, provider_health\.probe \/ input schema required diagnosticsFingerprint, targetLocator/
     );
     expect(readyGateDiagnostics).toContain(
       'Repair action catalog entry action catalog repair-actions/v1 / action kind Check Provider Health / safety Read Only Probe / recommendations 1 / required capabilities provider_profile.read, provider_health.probe / input schema required diagnosticsFingerprint, targetLocator'
@@ -8412,7 +8422,7 @@ describe('AiPage', () => {
     );
     expect(
       screen.getByText(
-        /Repair action preview operation Preview Required \/ action kind Repair Task Model Route .* candidate evidence 3 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints [0-9a-f]{16}, [0-9a-f]{16}, [0-9a-f]{16} \/ candidate evidence keys policy:workspace_indexing:global:ollama-main, prepare:ollama-main, route:ollama-main \/ prepared route order fingerprints [0-9a-f]{16} \/ embedding index contract evidence fingerprints [0-9a-f]{16}/
+        /Repair action preview operation Preview Required \/ action kind Repair Task Model Route .* candidate evidence 3 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints [0-9a-f]{16}, [0-9a-f]{16}, [0-9a-f]{16} \/ candidate evidence keys policy:workspace_indexing:global:ollama-main, prepare:ollama-main, route:ollama-main \/ prepared route order fingerprints [0-9a-f]{16} \/ embedding index contract evidence fingerprints [0-9a-f]{16} \/ rerank runtime contract evidence fingerprints none \/ task route source fingerprints blocked1111222233/
       )
     ).not.toBeNull();
     expect(readyGateDiagnostics).toContain(
@@ -8674,7 +8684,7 @@ describe('AiPage', () => {
       'expected candidate evidence set fingerprint cccc7777dddd8888 / expected embedding index contract evidence set fingerprint cccc8888dddd9999 / expected rerank runtime contract evidence set fingerprint cccc0000dddd1111 / expected prepared route order evidence set fingerprint cccc9999dddd0000'
     );
     expect(failedDryRunDiagnostics).toMatch(
-      /Repair action preview operation Dry Run Required \/ action kind Review Action Route Dry Run .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ rerank runtime contract evidence fingerprints none \/ fingerprint 777788889999aaaa \/ operation fingerprint 7777aaaa8888bbbb \/ target locator fingerprint aaaa7777bbbb8888 \/ required capabilities action_route\.read, action_route\.dry_run \/ input schema required diagnosticsFingerprint, targetLocator/
+      /Repair action preview operation Dry Run Required \/ action kind Review Action Route Dry Run .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ rerank runtime contract evidence fingerprints none \/ task route source fingerprints none \/ fingerprint 777788889999aaaa \/ operation fingerprint 7777aaaa8888bbbb \/ target locator fingerprint aaaa7777bbbb8888 \/ required capabilities action_route\.read, action_route\.dry_run \/ input schema required diagnosticsFingerprint, targetLocator/
     );
     expect(failedDryRunDiagnostics).toContain(
       'Repair recommendation Warning / Action Route / action_route_dry_run_failed / Review action route dry-run / ai_prompts_metadata.action.make-it-real / instance make-it-real:dry-run:failed'
@@ -8754,6 +8764,9 @@ describe('AiPage', () => {
     );
     expect(diagnostics).toContain(
       `task route source fingerprint ${readyRoute.effectiveSourceFingerprint}`
+    );
+    expect(diagnostics).toContain(
+      `task route source fingerprints ${readyRoute.effectiveSourceFingerprint}`
     );
     expect(diagnostics).toContain(
       'policyCandidate#0:rerankRuntimeContractVersion:workspace-rerank-runtime/v1'
@@ -9206,7 +9219,7 @@ describe('AiPage', () => {
       'expected candidate evidence set fingerprint bbbb6666cccc7777 / expected embedding index contract evidence set fingerprint bbbb7777cccc8888 / expected rerank runtime contract evidence set fingerprint bbbb9999cccc0000 / expected prepared route order evidence set fingerprint bbbb8888cccc9999'
     );
     expect(blockedGateDiagnostics).toMatch(
-      /Repair action preview operation Preview Required \/ action kind Registry Add Messages .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ rerank runtime contract evidence fingerprints none \/ fingerprint 5555666677778888 \/ operation fingerprint 5555eeee6666ffff \/ target locator fingerprint eeee5555ffff6666 \/ required capabilities prompt_registry\.read, prompt_registry\.preview_write \/ input schema required diagnosticsFingerprint, targetLocator/
+      /Repair action preview operation Preview Required \/ action kind Registry Add Messages .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ rerank runtime contract evidence fingerprints none \/ task route source fingerprints none \/ fingerprint 5555666677778888 \/ operation fingerprint 5555eeee6666ffff \/ target locator fingerprint eeee5555ffff6666 \/ required capabilities prompt_registry\.read, prompt_registry\.preview_write \/ input schema required diagnosticsFingerprint, targetLocator/
     );
     expect(blockedGateDiagnostics).toContain('Repair recommendations 2');
     expect(blockedGateDiagnostics).toContain(

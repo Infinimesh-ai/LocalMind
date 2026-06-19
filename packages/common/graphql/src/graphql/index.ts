@@ -2585,6 +2585,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             diagnosticsFingerprint
             embeddingIndexContractEvidenceFingerprints
             rerankRuntimeContractEvidenceFingerprints
+            taskRouteEffectiveSourceFingerprints
             inputSchema
             instanceKey
             operationFingerprint

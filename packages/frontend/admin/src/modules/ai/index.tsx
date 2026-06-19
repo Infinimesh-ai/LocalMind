@@ -4801,6 +4801,9 @@ function formatPromptRegistryPublishGateRepairActionPreviewOperation(
     operation.rerankRuntimeContractEvidenceFingerprints.length
       ? `rerank runtime contract evidence fingerprints ${operation.rerankRuntimeContractEvidenceFingerprints.join(', ')}`
       : 'rerank runtime contract evidence fingerprints none',
+    operation.taskRouteEffectiveSourceFingerprints.length
+      ? `task route source fingerprints ${operation.taskRouteEffectiveSourceFingerprints.join(', ')}`
+      : 'task route source fingerprints none',
     `fingerprint ${operation.diagnosticsFingerprint}`,
     `operation fingerprint ${operation.operationFingerprint}`,
     `target locator fingerprint ${operation.targetLocatorFingerprint}`,

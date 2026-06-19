@@ -15021,3 +15021,41 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - repair candidate evidence 现在绑定 task route source anchor，但 repair execution request、preflight submission、support bundle manifest、support bundle artifact、audit persistence 与 lifecycle worker 仍未把该 anchor 作为正式 stale guard 输入。
 - 模型列表、publish gate model routes、task routes 与 repair candidate evidence 都有 effective source 相关锚点，但 payload schema 仍不相同；后续若要统一审计，需要抽取正式跨 projection effective source evidence schema，并决定哪些字段进入 DB-backed snapshot/revision。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 448. P1 落地记录：Repair Action Preview Task Route Source Evidence Summary
+
+本轮继续收敛第 447 节剩余风险中 “repair execution request、preflight submission、support bundle manifest、support bundle artifact、audit persistence 与 lifecycle worker 仍未把该 anchor 作为正式 stale guard 输入” 的前置只读缺口。实际代码与目标 AI 中间层架构的冲突点是：repair candidate evidence 已经携带 `taskRouteEffectiveSourceFingerprint`，但 repair action preview operation 只汇总 candidate evidence fingerprint、prepared route order fingerprint、embedding index contract fingerprint 与 rerank runtime contract fingerprint。这样 Admin 和后续 preflight/preview contract 仍不能在 operation 粒度直接比较 task route source anchor，只能下钻每条 candidate evidence。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairActionPreviewOperation` / GraphQL object 新增只读 `taskRouteEffectiveSourceFingerprints` 数组。
+  - `promptRegistryRepairCandidateEvidenceSnapshot()` 从 candidate evidence 收敛唯一 task route source anchors。
+  - repair operation fingerprint、candidate evidence set fingerprint 与 preview payload 纳入 `taskRouteEffectiveSourceFingerprints`，让 preview-level 只读摘要可以感知 task route source anchor 漂移。
+- `packages/backend/server/src/schema.gql`、`packages/common/graphql/src/graphql/index.ts`、`packages/common/graphql/src/graphql/copilot-prompt-registry-publish-gate-get.gql` 与 `packages/common/graphql/src/schema.ts`：
+  - Prompt Registry publish gate `repairActionPreview.operations` selection/type 增加 `taskRouteEffectiveSourceFingerprints`。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair action preview operation formatter 输出 `task route source fingerprints ...` 或 `task route source fingerprints none`。
+- 测试覆盖：
+  - `resolver-model-source-chain.smoke.ts` 断言 task route repair preview operation 汇总 candidate evidence 中的 task route source anchors，并将该数组纳入 operation fingerprint fixture。
+  - `admin/src/modules/ai/index.spec.tsx` fixture builder 汇总 `taskRouteEffectiveSourceFingerprints`，并断言无 candidate evidence 的 operation 显示 `none`、workspace indexing 与 rerank repair operation 显示对应 source fingerprint。
+
+该实现只扩展 repair action preview operation 的只读 GraphQL projection、preview fingerprint payload、Admin diagnostics label 与 focused tests，不新增 DB migration、不创建 DB-backed Model Registry effective source table、不记录 registry revision、workspace policy revision 或 provider snapshot、不改变 provider route selection、fallback order、BYOK lease 获取、quota 判定、provider health check、Prompt Registry publish gate allowed/blocking 判定、repair recommendation 分类、repair execution request、preflight submission required inputs、support bundle manifest、audit persistence、`copilot.tasks.models` 配置格式、embedding/rerank native request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、MCP registry、Codex adapter 或 Action Runtime 状态机。它把 task route source anchor 从 candidate evidence 推进到 operation-level preview 摘要，为后续正式 stale guard 契约预留字段来源。
+
+验证策略：
+
+- 本轮为 TypeScript resolver/common/admin/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有测试镜像 `localmind-affine:test`，镜像 ID 为 `c3389960f5ed`；通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行验证。当前本机 Docker Compose `run` 帮助未暴露 `--no-build` flag，因此继续以镜像已存在、不传 `--build`、`--pull never`、`--no-deps` 与镜像 ID 不变作为不重建 test-runner 的证据。
+- 容器内已通过：
+  - `yarn r packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts`
+  - `yarn test packages/frontend/admin/src/modules/ai/index.spec.tsx`
+  - `yarn oxlint packages/backend/server/src/plugins/copilot/resolver.ts packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts packages/common/graphql/src/graphql/index.ts packages/common/graphql/src/schema.ts packages/frontend/admin/src/modules/ai/index.tsx packages/frontend/admin/src/modules/ai/index.spec.tsx`
+  - `yarn prettier --check docs/ai-capability-modernization-plan.md packages/backend/server/src/schema.gql packages/backend/server/src/plugins/copilot/resolver.ts packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts packages/common/graphql/src/graphql/index.ts packages/common/graphql/src/graphql/copilot-prompt-registry-publish-gate-get.gql packages/common/graphql/src/schema.ts packages/frontend/admin/src/modules/ai/index.tsx packages/frontend/admin/src/modules/ai/index.spec.tsx`
+  - `git diff --check`
+- Admin Vitest 继续同步 bind mount `packages/common/graphql/src`，避免组件/test 与容器内旧 GraphQL query 常量组合导致断言漂移。
+- 镜像 ID 复核仍为 `c3389960f5ed`，未重建 test-runner。
+
+剩余风险：
+
+- `taskRouteEffectiveSourceFingerprints` 仍是 preview operation 只读摘要，不是 DB-backed stale guard，也不是 repair execution/preflight mutation 的 required input。
+- repair execution request、preflight submission、support bundle manifest、support bundle artifact、audit persistence 与 lifecycle worker 仍未正式校验 task route source anchor。
+- operation-level source anchor 数组来自 candidate evidence projection；若未来 candidate evidence schema 调整，需要同步确认 operation preview payload、candidate evidence set fingerprint 与 Admin diagnostics 的兼容策略。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
