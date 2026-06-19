@@ -91,7 +91,9 @@ export class CapabilityPolicyHost {
         )) ?? input.defaultModel
       );
     };
-    const extraModels = this.providerFactory.getConfiguredModelIds();
+    const extraModels = this.providerFactory.getConfiguredModelIds(
+      input.routeContext
+    );
     const resolved = this.modelSelection.resolveRequestedModel({
       ...input,
       extraModels,

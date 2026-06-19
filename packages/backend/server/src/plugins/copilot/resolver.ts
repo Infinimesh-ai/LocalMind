@@ -16567,7 +16567,7 @@ export class CopilotResolver {
     const modelRouteCandidates =
       resolvePromptRegistryPublishGateModelRouteCandidates(
         prompt,
-        this.providerFactory.getConfiguredModelIds()
+        this.providerFactory.getConfiguredModelIds(routePolicyContext)
       );
 
     return await Promise.all(
@@ -17589,10 +17589,12 @@ export class CopilotResolver {
             id,
             source: 'prompt' as const,
           })),
-          ...this.providerFactory.getConfiguredModelIds().map(id => ({
-            id,
-            source: 'registry' as const,
-          })),
+          ...this.providerFactory
+            .getConfiguredModelIds(routePolicyContext)
+            .map(id => ({
+              id,
+              source: 'registry' as const,
+            })),
         ])
       ),
       proModels: await convertModels(

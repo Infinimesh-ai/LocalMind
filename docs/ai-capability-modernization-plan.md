@@ -14582,3 +14582,34 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - request fingerprint 只绑定当前 resolver/authorization/archive signature/storage/artifact request、manifest fingerprint、package fingerprint 与 signed URL policy/scope，不绑定真实 artifact payload、storage backend、workspace secret、tenant signed URL policy registry、真实下载行为、正式 repair execution output、archive bytes、signature bytes、URL expiry 或 client network identity。
 - package lifecycle 仍未覆盖真实 signed URL issuer、route registry、download resolver、archive retention worker 或 lifecycle worker。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 436. P1 落地记录：Model Registry Configured Model Candidate Route Policy Scope
+
+本轮回到自部署模型配置、Prompt 默认模型与前端模型列表的主线问题，收敛第 3.6、16、18 节中 “配置模型候选列表需要和 workspace/feature route policy 对齐” 的风险。实际代码与目标 AI 中间层架构的冲突点是：模型执行路由已经在 `resolveProvider()` / `resolveModelId()` 中使用 workspace 与 feature route policy，但 `getConfiguredModelIds()` 仍按全局可用 provider 枚举配置模型；前端模型列表和 `CapabilityPolicyHost` 会先把这些全局配置模型并入候选来源链，再由后续 resolve 过滤。最终执行不会越权，但 diagnostics/source chain 可能把当前 workspace 或功能策略已阻断的 provider 模型显示成 registry candidate，降低自部署排障可信度。
+
+- `packages/backend/server/src/plugins/copilot/providers/factory.ts`：
+  - `getConfiguredModelIds()` 新增可选 route context 入参，复用 `applyProviderRoutePolicy()` 按 `workspaceId` 与 `featureKind` 过滤 provider 后再枚举 `models + modelDefinitions.id + aliases`。
+  - 未传 context 时仍与 `resolveModel()` 保持一致，按全局 route policy 与健康 provider 顺序枚举配置模型。
+- `packages/backend/server/src/plugins/copilot/runtime/hosts/capability-policy-host.ts`：
+  - `resolveModel()` 在合并 `extraModels` 时传入当前 `routeContext`，使用户请求的额外配置模型集合与 chat/image/action 等实际路由策略一致。
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - Prompt Registry publish gate 的 registry model route candidates 使用当前 prompt route policy context。
+  - `models(promptName)` 的前端模型列表 registry candidates 使用 `modelListRoutePolicyContext(workspaceId)`，使 workspace-scoped 前端候选来源与后续 `resolveProvider()` 的 chat route policy 对齐。
+- 测试覆盖：
+  - provider-native AVA 断言覆盖 `getConfiguredModelIds({ featureKind: 'workspace_indexing' })` 会按 route policy 从 cloud+local 收敛为 local。
+  - copilot resolver/host AVA 断言覆盖 `CapabilityPolicyHost` 与 `models(promptName)` 会把 workspace/feature route context 传给配置模型候选枚举。
+  - `resolver-model-source-chain.smoke.ts` 覆盖当前容器可执行验证路径，断言 `models(promptName)` 与 Prompt Registry publish gate 都传入 workspace chat route context，且无 context 时返回的全局 blocked registry candidate 不会进入 workspace-scoped 前端模型列表。
+
+该实现只调整配置模型候选枚举、模型选择 extraModels、Prompt Registry publish gate route candidates、前端模型列表 registry source chain 与 focused tests，不新增 DB migration、不改变 provider route selection 的 capability 语义、不改变 prompt override schema、不改变 `copilot.tasks.models` 配置格式、不改变 embedding/rerank request 参数、不改变 `EMBEDDING_DIMENSIONS`、不改变 pgvector 索引维度、不改变 native dispatch、BYOK lease 获取、quota 判定、MCP registry、Codex adapter、Prompt Registry repair lifecycle 或 support bundle projection。它把 “配置模型候选是否属于当前 workspace/feature 可用策略” 从后续 resolve 的隐式过滤提前到候选来源枚举阶段，让自部署前端模型列表和 publish gate diagnostics 更接近实际运行路线。
+
+验证策略：
+
+- 本轮为 TypeScript test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 backend model/source chain smoke、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `getConfiguredModelIds(context)` 仍只枚举 quota-backed provider registry 中的配置模型，不枚举 workspace BYOK 动态 profiles；BYOK routes 仍通过 `resolveProvider()`、route candidates 与 task route diagnostics 暴露。
+- route policy scoped 枚举只能过滤 provider 级别的 allow/block/privacy/preference，不能替代模型 capability、prepare probe、provider health check、成本策略或 Prompt Registry eval。
+- 前端模型列表仍是 GraphQL 只读候选视图，不是完整 DB-backed Model Registry UI；Admin 还缺少模型测试、health probe 触发、自动 capability 探测和 workspace 级模型注册入口。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

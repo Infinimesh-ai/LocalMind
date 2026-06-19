@@ -2043,6 +2043,17 @@ test('CopilotProviderFactory should apply provider route policy from request con
     indexingRoutes.map(route => route.providerId),
     ['local-main']
   );
+  t.deepEqual(factory.getConfiguredModelIds(), [
+    'cloud-main/gpt-5-mini',
+    'local-main/gpt-5-mini',
+  ]);
+  t.deepEqual(
+    factory.getConfiguredModelIds({
+      workspaceId: 'workspace-1',
+      featureKind: 'workspace_indexing',
+    }),
+    ['local-main/gpt-5-mini']
+  );
 });
 
 const BYOK_OPENAI_PROFILE: CopilotProviderProfile = {

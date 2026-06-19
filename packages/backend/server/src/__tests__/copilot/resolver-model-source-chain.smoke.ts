@@ -1209,6 +1209,10 @@ async function main() {
     featureKind?: string;
     workspaceId?: string;
   }> = [];
+  const configuredModelContextCalls: Array<{
+    featureKind?: string;
+    workspaceId?: string;
+  }> = [];
   const promptName = 'Smoke prompt';
   const prompt = {
     name: promptName,
@@ -1277,8 +1281,17 @@ async function main() {
         },
       ];
     },
-    getConfiguredModelIds() {
-      return ['registry/only-chat'];
+    getConfiguredModelIds(context?: {
+      featureKind?: string;
+      workspaceId?: string;
+    }) {
+      configuredModelContextCalls.push({
+        featureKind: context?.featureKind,
+        workspaceId: context?.workspaceId,
+      });
+      return context?.featureKind && context.workspaceId
+        ? ['registry/only-chat']
+        : ['blocked-cloud/global-only-chat'];
     },
     async resolveModelId(condition: { modelId?: string }) {
       return condition.modelId || prompt.model;
@@ -1658,6 +1671,13 @@ async function main() {
     workspaceId: 'workspace-smoke',
   } as any);
   const byId = new Map(result.optionalModels.map(model => [model.id, model]));
+  assert.deepEqual(configuredModelContextCalls.slice(-1), [
+    {
+      featureKind: 'chat',
+      workspaceId: 'workspace-smoke',
+    },
+  ]);
+  assert.equal(byId.has('blocked-cloud/global-only-chat'), false);
 
   assert.deepEqual(byId.get('local/default-chat')?.promptModelSources, [
     {
@@ -1681,7 +1701,14 @@ async function main() {
   };
   const fallbackProviderFactory = {
     ...providerFactory,
-    getConfiguredModelIds() {
+    getConfiguredModelIds(context?: {
+      featureKind?: string;
+      workspaceId?: string;
+    }) {
+      configuredModelContextCalls.push({
+        featureKind: context?.featureKind,
+        workspaceId: context?.workspaceId,
+      });
       return ['registry/only-chat'];
     },
     async resolveModelId(condition: { modelId?: string }) {
@@ -2154,6 +2181,12 @@ async function main() {
     }
   );
   assert.equal(routeReadyGate?.allowed, true);
+  assert.deepEqual(configuredModelContextCalls.slice(-1), [
+    {
+      featureKind: 'chat',
+      workspaceId: 'workspace-smoke',
+    },
+  ]);
   assert.equal(routeReadyGate?.publishStatus, 'allowed');
   assert.equal(routeReadyGate?.modelRoute?.available, true);
   assert.deepEqual(

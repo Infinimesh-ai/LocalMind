@@ -643,12 +643,21 @@ export class CopilotProviderFactory {
     );
   }
 
-  getConfiguredModelIds() {
+  getConfiguredModelIds(context: RouteContext = {}) {
     const registry = this.getRegistry();
-    return unique(
-      registry.order.flatMap(providerId => {
+    const providerIds = applyProviderRoutePolicy(
+      registry,
+      registry.order.filter(providerId => {
         const profile = registry.profiles.get(providerId);
-        if (!profile || !this.providerAvailable(providerId, profile)) {
+        return profile ? this.providerAvailable(providerId, profile) : false;
+      }),
+      context
+    );
+
+    return unique(
+      providerIds.flatMap(providerId => {
+        const profile = registry.profiles.get(providerId);
+        if (!profile) {
           return [];
         }
         return this.getProfileModelIds(profile).map(

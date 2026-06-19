@@ -2483,7 +2483,10 @@ test('capability policy host should select image routes with image output type',
     quotaBackedRoutesAllowed: false,
   };
 
-  Sinon.stub(factory, 'getConfiguredModelIds').returns(['local-image-model']);
+  const getConfiguredModelIds = Sinon.stub(
+    factory,
+    'getConfiguredModelIds'
+  ).returns(['local-image-model']);
   const resolveModelId = Sinon.stub(factory, 'resolveModelId').callsFake(
     async cond =>
       cond.outputType === ModelOutputType.Image &&
@@ -2524,6 +2527,7 @@ test('capability policy host should select image routes with image output type',
     featureKind: 'image',
     quotaBackedRoutesAllowed: false,
   });
+  Sinon.assert.calledOnceWithExactly(getConfiguredModelIds, routeContext);
   t.true(
     resolveModelId.getCalls().some(call => {
       const [cond, filter, context] = call.args;
@@ -4622,6 +4626,10 @@ test('resolver models should inherit workspace route policy context from copilot
       workspaceId: 'workspace-local-only',
     })
   );
+  Sinon.assert.calledOnceWithExactly(getConfiguredModelIds, {
+    featureKind: 'chat',
+    workspaceId: 'workspace-local-only',
+  });
   t.true(
     resolveProvider.alwaysCalledWithMatch(Sinon.match.any, Sinon.match.any, {
       featureKind: 'chat',
