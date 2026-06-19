@@ -2568,6 +2568,9 @@ async function main() {
       candidate.providerProfileId,
       candidate.providerProfileConfigPath,
       candidate.providerConfiguredModelIds,
+      candidate.registryKind,
+      candidate.registryAvailable,
+      candidate.registrySelected,
       candidate.reasons,
     ]),
     [
@@ -2578,7 +2581,10 @@ async function main() {
         'local',
         'copilot.providers.profiles[id=local]',
         ['workspace-embedding', 'embed-alias'],
-        ['candidate_allowed'],
+        'byok',
+        true,
+        true,
+        ['candidate_allowed', 'registry_selected'],
       ],
       [
         'cloud',
@@ -2587,7 +2593,10 @@ async function main() {
         'cloud',
         'copilot.providers.profiles[id=cloud]',
         undefined,
-        ['provider_not_allowed'],
+        'quota_backed',
+        true,
+        false,
+        ['provider_not_allowed', 'registry_shadowed_by_byok'],
       ],
     ]
   );
@@ -2617,7 +2626,12 @@ async function main() {
       availableCount: 2,
       selectedCount: 1,
       blockedCount: 1,
-      reasons: ['candidate_allowed', 'provider_not_allowed'],
+      reasons: [
+        'candidate_allowed',
+        'registry_selected',
+        'provider_not_allowed',
+        'registry_shadowed_by_byok',
+      ],
     },
     {
       phase: 'resolution',
@@ -8524,7 +8538,12 @@ async function main() {
       availableCount: 2,
       selectedCount: 1,
       blockedCount: 1,
-      reasons: ['candidate_allowed', 'provider_not_allowed'],
+      reasons: [
+        'candidate_allowed',
+        'registry_selected',
+        'provider_not_allowed',
+        'registry_shadowed_by_byok',
+      ],
     },
     {
       phase: 'resolution',
@@ -8659,7 +8678,12 @@ async function main() {
       availableCount: 2,
       selectedCount: 1,
       blockedCount: 1,
-      reasons: ['candidate_allowed', 'provider_not_allowed'],
+      reasons: [
+        'candidate_allowed',
+        'registry_selected',
+        'provider_not_allowed',
+        'registry_shadowed_by_byok',
+      ],
     },
     {
       phase: 'resolution',

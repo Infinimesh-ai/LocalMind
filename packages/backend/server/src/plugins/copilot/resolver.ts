@@ -16581,16 +16581,18 @@ export class CopilotResolver {
     }
   }
 
-  private resolvePromptRegistryPublishGateUnavailableRegistryPromptRoute(
+  private async resolvePromptRegistryPublishGateUnavailableRegistryPromptRoute(
     copilot?: CopilotType
-  ): CopilotPromptRegistryPublishGateModelRoute {
+  ): Promise<CopilotPromptRegistryPublishGateModelRoute> {
     const routePolicyContext = modelListRoutePolicyContext(
       copilot?.workspaceId
     );
     const routePolicy =
       this.providerFactory.describeRoutePolicy(routePolicyContext);
     const policyCandidates =
-      this.providerFactory.describeRoutePolicyCandidates(routePolicyContext);
+      await this.providerFactory.describeEffectiveRoutePolicyCandidates(
+        routePolicyContext
+      );
 
     return {
       checked: true,
@@ -16623,7 +16625,7 @@ export class CopilotResolver {
       await this.modelsStore.copilotPrompt.getRegistryPrompt(verdict.name);
     if (!registryPrompt?.model) {
       return [
-        this.resolvePromptRegistryPublishGateUnavailableRegistryPromptRoute(
+        await this.resolvePromptRegistryPublishGateUnavailableRegistryPromptRoute(
           copilot
         ),
       ];
@@ -16642,7 +16644,9 @@ export class CopilotResolver {
       this.providerFactory.describeRoutePolicy(routePolicyContext);
     const routePolicyMetadata = taskRoutePolicyMetadata(routePolicy);
     const policyCandidates =
-      this.providerFactory.describeRoutePolicyCandidates(routePolicyContext);
+      await this.providerFactory.describeEffectiveRoutePolicyCandidates(
+        routePolicyContext
+      );
 
     const modelRouteCandidates =
       resolvePromptRegistryPublishGateModelRouteCandidates(

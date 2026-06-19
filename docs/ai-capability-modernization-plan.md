@@ -14709,3 +14709,36 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - Prompt Registry model route publish gate 仍使用同步 quota-backed policy candidate 枚举；本轮仅让 task route diagnostics 与 execution effective registry 对齐。后续若要让 model route publish gate 展示 BYOK branch，需要拆出 async gate path 或新增单独的 effective diagnostics projection。
 - repair evidence snapshot 现在绑定 registry branch 字段，会改变相关只读 fingerprint；既有未更新的外部快照如果依赖旧 fingerprint，需要按新 evidence schema 重新生成。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 440. P1 落地记录：Prompt Registry Model Route Effective Policy Diagnostics
+
+本轮继续收敛第 439 节剩余风险中 “Prompt Registry model route publish gate 仍使用同步 quota-backed policy candidate 枚举” 的观测差异。实际代码与目标 AI 中间层架构的冲突点是：Prompt Registry model route 的 `routeCandidates` 和 `resolveProvider()` 已经通过 workspace/feature route context 进入 effective registry，可展示 BYOK route 与 quota-backed fallback；但 `modelRoute.policyCandidates` 仍来自同步 `describeRoutePolicyCandidates()`，只反映 quota-backed Provider Registry。这样同一个 publish gate 中 model route 的 policy phase 与 resolution phase 会对 registry source chain 给出不同证据，降低 BYOK 自部署模型排障、repair recommendation evidence 与 Admin route trace 的一致性。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `resolvePromptRegistryPublishGateModelRoutes()` 的 model route policy candidates 改为调用 async `describeEffectiveRoutePolicyCandidates(routePolicyContext)`。
+  - registry prompt 不可用的 model route fallback 也改为 async effective policy diagnostics，保持 unavailable route 与正常 model routes 使用同一 policy candidate projection。
+  - 保留 `describeRoutePolicy()` / `taskRoutePolicyMetadata()` 的 route policy summary 与原 publish gate 判定，不改变 model route `available`、`configured`、candidate order、fallback order 或 actual provider resolution。
+- 测试覆盖：
+  - `resolver-model-source-chain.smoke.ts` 更新 Prompt Registry model route policy candidate 断言，覆盖 BYOK selected、quota-backed shadowed、policy route trace reason 与 diagnostics error route trace。
+  - 同一 smoke 继续覆盖 task route policy candidate registry fields、repair evidence policy candidate snapshot fingerprint 与 model/source chain route context。
+
+该实现只调整 Prompt Registry model route 的只读 policy candidate diagnostics 与 focused smoke expected，不新增 DB migration、不改变 provider route selection、fallback order、Prompt Registry publish gate allowed/blocking 判定、repair mutation 可执行性、BYOK lease 获取、quota 判定、provider health check、`copilot.tasks.models` 配置格式、embedding/rerank native request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、MCP registry、Codex adapter、support bundle lifecycle 或 Action Runtime 状态机。它把 “Prompt Registry model route policy phase 看到的是 BYOK registry 还是 quota-backed registry” 与 route resolution 的 effective registry source chain 对齐，为后续 Model Registry effective source table、BYOK repair explain 和 Admin support diagnostics 提供更稳定的只读证据。
+
+验证策略：
+
+- 本轮为 TypeScript resolver/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 已确认继续使用现有测试镜像 `localmind-affine:test`，镜像 ID 为 `c3389960f5ed`；通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行验证。
+- 容器内通过：
+  - `yarn r packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts`
+  - `yarn oxlint packages/backend/server/src/plugins/copilot/resolver.ts packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts`
+  - `yarn prettier --check packages/backend/server/src/plugins/copilot/resolver.ts packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts`
+- 直接 AVA 目标用例仍受当前测试镜像既有 `ERR_MODULE_NOT_FOUND: Cannot find module '/workspace/packages/backend/server/src/env' imported from /workspace/packages/backend/server/src/prelude.ts` 限制；本轮继续以 `yarn r ...resolver-model-source-chain.smoke.ts` 作为可靠 backend focused 验证入口。
+- 当前本机 Docker Compose `run` 帮助未暴露 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never`、`--no-deps` 与镜像 ID 不变作为不重建 test-runner 的证据。
+
+剩余风险：
+
+- model route effective policy candidates 仍是只读 diagnostics，不是 DB-backed Model Registry effective source table，也不把 BYOK 动态 profiles 写入同步 `getConfiguredModelIds()` 或 native requested model matcher provider ids。
+- publish gate model route policy summary 仍来自 `describeRoutePolicy()`，只描述 route policy rule 本身；registry branch 可用性、BYOK shadow 与 quota fallback 继续通过 policy candidates / route candidates 表达。
+- registry prompt unavailable path 现在需要 async policy diagnostics；如果未来该路径被同步调用，需要保持 resolver 调用链 async 化或提供 fallback projection。
+- 该改动会改变 Prompt Registry model route `routeTrace` 的 policy reasons 与相关 repair evidence 文本；外部 snapshot 若依赖旧 reasons，需要按新的 effective registry diagnostics 更新。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
