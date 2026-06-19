@@ -4024,6 +4024,12 @@ function formatPromptRegistryRepairExecutionRequest(
                   : 'referenceSchemaFields:none'
               }:referenceSchemaFingerprint:${
                 entry.candidateEvidenceReferenceSchemaFingerprint
+              }:referenceSchemaFingerprintInputs:${
+                entry.candidateEvidenceReferenceSchemaFingerprintInputs.length
+                  ? entry.candidateEvidenceReferenceSchemaFingerprintInputs.join(
+                      '|'
+                    )
+                  : 'referenceSchemaFingerprintInputs:none'
               }:candidateEvidenceEntries:${
                 entry.candidateEvidenceEntries.length
                   ? entry.candidateEvidenceEntries

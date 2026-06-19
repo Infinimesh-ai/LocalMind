@@ -158,6 +158,10 @@ const candidateEvidenceReferenceSchemaFieldsFixture = [
   'taskRouteModelSourceSnapshotEntries',
   'taskRouteModelSourceSnapshotFingerprint',
 ];
+const candidateEvidenceReferenceSchemaFingerprintInputsFixture = [
+  'candidateEvidenceReferenceSchemaFields',
+  'candidateEvidenceReferenceSchemaVersion',
+];
 const candidateEvidenceReferenceSchemaFingerprintFixture = createHash('sha256')
   .update(
     stableFixtureStringify({
@@ -7175,6 +7179,9 @@ describe('AiPage', () => {
                   ],
                   candidateEvidenceReferenceSchemaFingerprint:
                     candidateEvidenceReferenceSchemaFingerprintFixture,
+                  candidateEvidenceReferenceSchemaFingerprintInputs: [
+                    ...candidateEvidenceReferenceSchemaFingerprintInputsFixture,
+                  ],
                   candidateEvidenceReferenceSchemaVersion:
                     candidateEvidenceReferenceSchemaVersionFixture,
                   candidateEvidenceEntries: [
@@ -8096,6 +8103,12 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       `referenceSchemaFingerprint:${candidateEvidenceReferenceSchemaFingerprintFixture}`
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `referenceSchemaFingerprintInputs:${candidateEvidenceReferenceSchemaFingerprintInputsFixture.join('|')}`
     );
     const taskRouteSourceCandidateEntry =
       taskRouteSourceEntry?.candidateEvidenceEntries[0];
