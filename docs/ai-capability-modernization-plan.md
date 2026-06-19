@@ -14250,3 +14250,35 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - metadata 中的 redaction/export/retention policy 仍是 code-level projection，不是 tenant-level policy registry、workspace-level compliance setting 或可配置的数据保留规则。
 - 下载动作不会写入 audit event，也不会创建 idempotency lock、approval record、support bundle package、retry/rollback executor 或 retention cleanup job；后续若要做正式 support bundle，需要继续定义 DB-backed artifact、download resolver、audit event persistence 与 retention cleanup。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 425. P3 落地记录：Prompt Registry Repair Execution Support Bundle Artifact Anchor
+
+本轮继续收敛第 424 节剩余风险中 “客户端可下载 artifact 尚未进入 repair execution request / support bundle lifecycle anchor” 的问题。实际代码与目标 AI 中间层架构的冲突点是：Admin 已经能复制/下载 `repairGateManifest` 与 `repairGateManifestExportMetadata` JSON，但 repair execution request stale guard 仍只校验 preflight/repair/job/rollback 等只读 anchors，没有把同一组 manifest artifact 纳入 request 级一致性检查；后续正式 support bundle 若从 execution request 入口接管，仍缺少与当前 manifest export metadata 绑定的 request anchor。本轮新增只读 support bundle artifact anchor，不创建真实 support bundle 包、不写 DB、不创建 audit event。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryRepairExecutionRequestInput` 新增 `expectedRepairGateManifestFingerprint`、`expectedRepairGateManifestExportPolicyFingerprint` 与 `expectedRepairGateManifestRetentionPolicyFingerprint`。
+  - mutation 端重新构建当前 publish gate verdict 的 `repairGateManifest` / `repairGateManifestExportMetadata`，用当前服务端 projection 校验 expected fingerprints，不信任客户端传入 manifest JSON。
+  - `CopilotPromptRegistryRepairExecutionRequest` 新增 `supportBundleArtifact*` 与 `supportBundleManifest*` 字段，声明 `prompt-registry-repair-gate-support-bundle-artifact/v1`、`not_created_read_only`、manifest filename/fingerprint、metadata filename/export-policy fingerprint。
+  - request fingerprint 纳入 support bundle artifact fingerprint 与 expected manifest/export/retention fingerprints，使 manifest artifact 漂移会影响 request-level stale-check anchor。
+- GraphQL 与 common client：
+  - `schema.gql`、repair execution request mutation、common query string 与 `schema.ts` 类型同步暴露新增 input/output 字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - request gate input 从当前 `verdict.repairGateManifest` / `repairGateManifestExportMetadata` 透传 expected fingerprints。
+  - repair execution request diagnostics 展示 expected manifest/export/retention fingerprints、support bundle artifact version/status/fingerprint/inputs 以及 manifest/metadata 文件名。
+- 测试覆盖：
+  - backend model/source chain smoke test 断言 execution request 返回 manifest expected anchors、support bundle artifact fields，并重算 support bundle artifact fingerprint。
+  - Admin Vitest 断言 request mutation input 携带 manifest expected fingerprints，并在 diagnostics 中显示 support bundle artifact anchor 与 manifest filenames。
+
+该实现只扩展 repair execution request 的只读 GraphQL projection、common query/type、Admin 展示和测试，不新增 DB migration、不创建 DB-backed support bundle、不新增后端 download resolver、不创建 audit event、不改变 retention 存储、不改变 repair mutation 可执行性、不改变 preflight/execution gate 判定、不改变 provider route selection、fallback order、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、Model Registry revision 或 Provider Registry revision。它把 “Prompt Registry repair gate manifest artifact” 从 Admin 客户端下载入口推进到 execution request 的可 stale-check 只读 anchor，为后续正式 support bundle artifact lifecycle、download resolver、audit persistence 与 retention cleanup 提供更稳定的 request-level 契约。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 backend model/source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `supportBundleArtifact*` 仍是只读 GraphQL projection，不是正式 support bundle schema、DB-backed artifact、签名快照、后端 download resolver、下载授权检查、真实 audit event 或真实 retention record。
+- artifact anchor 只绑定当前 `repairGateManifest` / `repairGateManifestExportMetadata` 与 repair request anchors，不绑定 prompt body、provider response、Provider Registry revision、Model Registry revision、workspace secret、真实 repair job、rollback result 或执行输出。
+- 下载动作仍是 Admin 浏览器 Blob；execution request 只声明 artifact anchor，不创建文件、不写 audit event、不创建 approval record、idempotency lock、support bundle package、retry/rollback executor 或 retention cleanup job。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

@@ -18,6 +18,9 @@ mutation requestCopilotPromptRegistryRepairExecution(
     expectedRerankRuntimeContractEvidenceSetFingerprint
     expectedPreparedRouteOrderEvidenceSetFingerprint
     expectedTargetLocatorFingerprint
+    expectedRepairGateManifestFingerprint
+    expectedRepairGateManifestExportPolicyFingerprint
+    expectedRepairGateManifestRetentionPolicyFingerprint
     executionCompletionEventRequestCreated
     executionCompletionEventRequestFingerprint
     executionCompletionEventRequestInputs
@@ -258,6 +261,15 @@ mutation requestCopilotPromptRegistryRepairExecution(
     requestInputs
     requestStatus
     requestVersion
+    supportBundleArtifactCreated
+    supportBundleArtifactFingerprint
+    supportBundleArtifactInputs
+    supportBundleArtifactStatus
+    supportBundleArtifactVersion
+    supportBundleManifestFilename
+    supportBundleManifestFingerprint
+    supportBundleManifestMetadataFilename
+    supportBundleManifestMetadataFingerprint
     preflight {
       approvalRecordFingerprint
       approvalRequestFingerprint

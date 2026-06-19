@@ -3015,6 +3015,9 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
     expectedRerankRuntimeContractEvidenceSetFingerprint
     expectedPreparedRouteOrderEvidenceSetFingerprint
     expectedTargetLocatorFingerprint
+    expectedRepairGateManifestFingerprint
+    expectedRepairGateManifestExportPolicyFingerprint
+    expectedRepairGateManifestRetentionPolicyFingerprint
     executionCompletionEventRequestCreated
     executionCompletionEventRequestFingerprint
     executionCompletionEventRequestInputs
@@ -3255,6 +3258,15 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
     requestInputs
     requestStatus
     requestVersion
+    supportBundleArtifactCreated
+    supportBundleArtifactFingerprint
+    supportBundleArtifactInputs
+    supportBundleArtifactStatus
+    supportBundleArtifactVersion
+    supportBundleManifestFilename
+    supportBundleManifestFingerprint
+    supportBundleManifestMetadataFilename
+    supportBundleManifestMetadataFingerprint
     preflight {
       approvalRecordFingerprint
       approvalRequestFingerprint

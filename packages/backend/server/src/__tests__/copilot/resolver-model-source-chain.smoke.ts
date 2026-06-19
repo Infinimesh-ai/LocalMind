@@ -3885,6 +3885,14 @@ async function main() {
           matchingPreflight?.preparedRouteOrderEvidenceSetFingerprint ?? '',
         expectedTargetLocatorFingerprint:
           matchingPreflight?.targetLocatorFingerprint ?? '',
+        expectedRepairGateManifestFingerprint:
+          routeReadyGate.repairGateManifest.fingerprint,
+        expectedRepairGateManifestExportPolicyFingerprint:
+          routeReadyGate.repairGateManifestExportMetadata
+            .exportPolicyFingerprint,
+        expectedRepairGateManifestRetentionPolicyFingerprint:
+          routeReadyGate.repairGateManifestExportMetadata
+            .retentionPolicyFingerprint,
         expectedExecutionGateFingerprint:
           matchingPreflight?.executionGateFingerprint ?? '',
         expectedExecutionGateStatus:
@@ -3925,6 +3933,97 @@ async function main() {
   assert.equal(
     executionRequest.expectedTargetLocatorFingerprint,
     matchingPreflight?.targetLocatorFingerprint
+  );
+  assert.equal(
+    executionRequest.expectedRepairGateManifestFingerprint,
+    routeReadyGate.repairGateManifest.fingerprint
+  );
+  assert.equal(
+    executionRequest.expectedRepairGateManifestExportPolicyFingerprint,
+    routeReadyGate.repairGateManifestExportMetadata.exportPolicyFingerprint
+  );
+  assert.equal(
+    executionRequest.expectedRepairGateManifestRetentionPolicyFingerprint,
+    routeReadyGate.repairGateManifestExportMetadata.retentionPolicyFingerprint
+  );
+  assert.equal(
+    executionRequest.supportBundleArtifactVersion,
+    'prompt-registry-repair-gate-support-bundle-artifact/v1'
+  );
+  assert.equal(
+    executionRequest.supportBundleArtifactStatus,
+    'not_created_read_only'
+  );
+  assert.equal(executionRequest.supportBundleArtifactCreated, false);
+  assert.match(
+    executionRequest.supportBundleArtifactFingerprint,
+    /^[0-9a-f]{16}$/
+  );
+  assert.deepEqual(executionRequest.supportBundleArtifactInputs, [
+    'candidateEvidenceSetFingerprint',
+    'embeddingIndexContractEvidenceSetFingerprint',
+    'manifestExportPolicyFingerprint',
+    'manifestFingerprint',
+    'manifestMetadataRetentionPolicyFingerprint',
+    'preparedRouteOrderEvidenceSetFingerprint',
+    'requestStatus',
+    'rerankRuntimeContractEvidenceSetFingerprint',
+    'submissionFingerprint',
+    'targetLocatorFingerprint',
+  ]);
+  assert.equal(
+    executionRequest.supportBundleArtifactFingerprint,
+    createHash('sha256')
+      .update(
+        stableFingerprintFixtureStringify({
+          candidateEvidenceSetFingerprint:
+            matchingPreflight?.candidateEvidenceSetFingerprint,
+          created: false,
+          embeddingIndexContractEvidenceSetFingerprint:
+            matchingPreflight?.embeddingIndexContractEvidenceSetFingerprint,
+          inputs: executionRequest.supportBundleArtifactInputs,
+          manifestExportPolicyFingerprint:
+            routeReadyGate.repairGateManifestExportMetadata
+              .exportPolicyFingerprint,
+          manifestFilename:
+            routeReadyGate.repairGateManifestExportMetadata.filename,
+          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+          manifestMetadataFilename:
+            routeReadyGate.repairGateManifestExportMetadata.metadataFilename,
+          manifestMetadataRetentionPolicyFingerprint:
+            routeReadyGate.repairGateManifestExportMetadata
+              .retentionPolicyFingerprint,
+          preparedRouteOrderEvidenceSetFingerprint:
+            matchingPreflight?.preparedRouteOrderEvidenceSetFingerprint,
+          requestStatus: executionRequest.requestStatus,
+          rerankRuntimeContractEvidenceSetFingerprint:
+            matchingPreflight?.rerankRuntimeContractEvidenceSetFingerprint,
+          status: executionRequest.supportBundleArtifactStatus,
+          submissionFingerprint:
+            matchingPreflight?.currentSubmissionFingerprint,
+          targetLocatorFingerprint: matchingPreflight?.targetLocatorFingerprint,
+          version: executionRequest.supportBundleArtifactVersion,
+          workspaceId: matchingPreflight?.workspaceId ?? null,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16)
+  );
+  assert.equal(
+    executionRequest.supportBundleManifestFilename,
+    routeReadyGate.repairGateManifestExportMetadata.filename
+  );
+  assert.equal(
+    executionRequest.supportBundleManifestFingerprint,
+    routeReadyGate.repairGateManifest.fingerprint
+  );
+  assert.equal(
+    executionRequest.supportBundleManifestMetadataFilename,
+    routeReadyGate.repairGateManifestExportMetadata.metadataFilename
+  );
+  assert.equal(
+    executionRequest.supportBundleManifestMetadataFingerprint,
+    routeReadyGate.repairGateManifestExportMetadata.exportPolicyFingerprint
   );
   assert.equal(
     executionRequest.approvalRecordRequestVersion,
@@ -5709,6 +5808,9 @@ async function main() {
     'expectedPolicyBindingFingerprint',
     'expectedPreflightStatus',
     'expectedPreparedRouteOrderEvidenceSetFingerprint',
+    'expectedRepairGateManifestExportPolicyFingerprint',
+    'expectedRepairGateManifestFingerprint',
+    'expectedRepairGateManifestRetentionPolicyFingerprint',
     'expectedRepairJobFingerprint',
     'expectedRerankRuntimeContractEvidenceSetFingerprint',
     'expectedReviewBindingFingerprint',
@@ -5728,6 +5830,9 @@ async function main() {
     'expectedPolicyBindingFingerprint',
     'expectedPreflightStatus',
     'expectedPreparedRouteOrderEvidenceSetFingerprint',
+    'expectedRepairGateManifestExportPolicyFingerprint',
+    'expectedRepairGateManifestFingerprint',
+    'expectedRepairGateManifestRetentionPolicyFingerprint',
     'expectedRepairJobFingerprint',
     'expectedRerankRuntimeContractEvidenceSetFingerprint',
     'expectedReviewBindingFingerprint',
@@ -5863,6 +5968,14 @@ async function main() {
           matchingPreflight?.preparedRouteOrderEvidenceSetFingerprint ?? '',
         expectedTargetLocatorFingerprint:
           matchingPreflight?.targetLocatorFingerprint ?? '',
+        expectedRepairGateManifestFingerprint:
+          routeReadyGate.repairGateManifest.fingerprint,
+        expectedRepairGateManifestExportPolicyFingerprint:
+          routeReadyGate.repairGateManifestExportMetadata
+            .exportPolicyFingerprint,
+        expectedRepairGateManifestRetentionPolicyFingerprint:
+          routeReadyGate.repairGateManifestExportMetadata
+            .retentionPolicyFingerprint,
         expectedExecutionGateFingerprint: '0000aaaabbbbcccc',
         expectedExecutionGateStatus:
           matchingPreflight?.executionGateStatus ?? '',

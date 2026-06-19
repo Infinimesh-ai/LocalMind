@@ -1209,6 +1209,9 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   expectedRerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['output'];
   expectedPreparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
   expectedTargetLocatorFingerprint: Scalars['String']['output'];
+  expectedRepairGateManifestFingerprint: Scalars['String']['output'];
+  expectedRepairGateManifestExportPolicyFingerprint: Scalars['String']['output'];
+  expectedRepairGateManifestRetentionPolicyFingerprint: Scalars['String']['output'];
   executionCompletionEventRequestCreated: Scalars['Boolean']['output'];
   executionCompletionEventRequestFingerprint: Scalars['String']['output'];
   executionCompletionEventRequestInputs: Array<Scalars['String']['output']>;
@@ -1476,6 +1479,15 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   requestInputs: Array<Scalars['String']['output']>;
   requestStatus: Scalars['String']['output'];
   requestVersion: Scalars['String']['output'];
+  supportBundleArtifactCreated: Scalars['Boolean']['output'];
+  supportBundleArtifactFingerprint: Scalars['String']['output'];
+  supportBundleArtifactInputs: Array<Scalars['String']['output']>;
+  supportBundleArtifactStatus: Scalars['String']['output'];
+  supportBundleArtifactVersion: Scalars['String']['output'];
+  supportBundleManifestFilename: Scalars['String']['output'];
+  supportBundleManifestFingerprint: Scalars['String']['output'];
+  supportBundleManifestMetadataFilename: Scalars['String']['output'];
+  supportBundleManifestMetadataFingerprint: Scalars['String']['output'];
 }
 
 export interface CopilotPromptRegistryRepairExecutionRequestInput {
@@ -1487,6 +1499,9 @@ export interface CopilotPromptRegistryRepairExecutionRequestInput {
   expectedRerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['input'];
   expectedPreparedRouteOrderEvidenceSetFingerprint: Scalars['String']['input'];
   expectedTargetLocatorFingerprint: Scalars['String']['input'];
+  expectedRepairGateManifestFingerprint: Scalars['String']['input'];
+  expectedRepairGateManifestExportPolicyFingerprint: Scalars['String']['input'];
+  expectedRepairGateManifestRetentionPolicyFingerprint: Scalars['String']['input'];
   expectedExecutionGateFingerprint: Scalars['String']['input'];
   expectedExecutionGateStatus: Scalars['String']['input'];
   expectedExecutionStateFingerprint: Scalars['String']['input'];
@@ -8657,6 +8672,9 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
     expectedRerankRuntimeContractEvidenceSetFingerprint: string;
     expectedPreparedRouteOrderEvidenceSetFingerprint: string;
     expectedTargetLocatorFingerprint: string;
+    expectedRepairGateManifestFingerprint: string;
+    expectedRepairGateManifestExportPolicyFingerprint: string;
+    expectedRepairGateManifestRetentionPolicyFingerprint: string;
     executionCompletionEventRequestCreated: boolean;
     executionCompletionEventRequestFingerprint: string;
     executionCompletionEventRequestInputs: Array<string>;
@@ -8897,6 +8915,15 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
     requestInputs: Array<string>;
     requestStatus: string;
     requestVersion: string;
+    supportBundleArtifactCreated: boolean;
+    supportBundleArtifactFingerprint: string;
+    supportBundleArtifactInputs: Array<string>;
+    supportBundleArtifactStatus: string;
+    supportBundleArtifactVersion: string;
+    supportBundleManifestFilename: string;
+    supportBundleManifestFingerprint: string;
+    supportBundleManifestMetadataFilename: string;
+    supportBundleManifestMetadataFingerprint: string;
     preflight: {
       __typename?: 'CopilotPromptRegistryRepairPreflightType';
       approvalRecordFingerprint: string;

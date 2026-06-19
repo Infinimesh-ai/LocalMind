@@ -1036,6 +1036,9 @@ type CopilotPromptRegistryRepairExecutionRequestType {
   auditEventRequestVersion: String!
   expectedCandidateEvidenceSetFingerprint: String!
   expectedPreparedRouteOrderEvidenceSetFingerprint: String!
+  expectedRepairGateManifestExportPolicyFingerprint: String!
+  expectedRepairGateManifestFingerprint: String!
+  expectedRepairGateManifestRetentionPolicyFingerprint: String!
   expectedTargetLocatorFingerprint: String!
   executionCompletionEventRequestCreated: Boolean!
   executionCompletionEventRequestFingerprint: String!
@@ -1278,6 +1281,15 @@ type CopilotPromptRegistryRepairExecutionRequestType {
   requestInputs: [String!]!
   requestStatus: String!
   requestVersion: String!
+  supportBundleArtifactCreated: Boolean!
+  supportBundleArtifactFingerprint: String!
+  supportBundleArtifactInputs: [String!]!
+  supportBundleArtifactStatus: String!
+  supportBundleArtifactVersion: String!
+  supportBundleManifestFilename: String!
+  supportBundleManifestFingerprint: String!
+  supportBundleManifestMetadataFilename: String!
+  supportBundleManifestMetadataFingerprint: String!
 }
 
 input CopilotPromptRegistryRepairExecutionRequestInput {
@@ -1289,6 +1301,9 @@ input CopilotPromptRegistryRepairExecutionRequestInput {
   expectedRerankRuntimeContractEvidenceSetFingerprint: String!
   expectedPreparedRouteOrderEvidenceSetFingerprint: String!
   expectedTargetLocatorFingerprint: String!
+  expectedRepairGateManifestFingerprint: String!
+  expectedRepairGateManifestExportPolicyFingerprint: String!
+  expectedRepairGateManifestRetentionPolicyFingerprint: String!
   expectedExecutionGateFingerprint: String!
   expectedExecutionGateStatus: String!
   expectedExecutionStateFingerprint: String!

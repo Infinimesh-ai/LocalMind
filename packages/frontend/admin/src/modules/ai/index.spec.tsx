@@ -4985,6 +4985,9 @@ describe('AiPage', () => {
           expectedRerankRuntimeContractEvidenceSetFingerprint: string;
           expectedPreparedRouteOrderEvidenceSetFingerprint: string;
           expectedTargetLocatorFingerprint: string;
+          expectedRepairGateManifestFingerprint: string;
+          expectedRepairGateManifestExportPolicyFingerprint: string;
+          expectedRepairGateManifestRetentionPolicyFingerprint: string;
           expectedExecutionGateFingerprint: string;
           expectedExecutionGateStatus: string;
           expectedExecutionStateFingerprint: string;
@@ -6318,6 +6321,12 @@ describe('AiPage', () => {
             input.expectedPreparedRouteOrderEvidenceSetFingerprint,
           expectedTargetLocatorFingerprint:
             input.expectedTargetLocatorFingerprint,
+          expectedRepairGateManifestFingerprint:
+            input.expectedRepairGateManifestFingerprint,
+          expectedRepairGateManifestExportPolicyFingerprint:
+            input.expectedRepairGateManifestExportPolicyFingerprint,
+          expectedRepairGateManifestRetentionPolicyFingerprint:
+            input.expectedRepairGateManifestRetentionPolicyFingerprint,
           idempotencyLockAcquired: false,
           idempotencyLockFingerprint: input.workspaceId
             ? 'abab3333cdcd4444'
@@ -6414,6 +6423,9 @@ describe('AiPage', () => {
             'expectedPolicyBindingFingerprint',
             'expectedPreflightStatus',
             'expectedPreparedRouteOrderEvidenceSetFingerprint',
+            'expectedRepairGateManifestExportPolicyFingerprint',
+            'expectedRepairGateManifestFingerprint',
+            'expectedRepairGateManifestRetentionPolicyFingerprint',
             'expectedRepairJobFingerprint',
             'expectedRerankRuntimeContractEvidenceSetFingerprint',
             'expectedReviewBindingFingerprint',
@@ -6472,6 +6484,9 @@ describe('AiPage', () => {
             'expectedPolicyBindingFingerprint',
             'expectedPreflightStatus',
             'expectedPreparedRouteOrderEvidenceSetFingerprint',
+            'expectedRepairGateManifestExportPolicyFingerprint',
+            'expectedRepairGateManifestFingerprint',
+            'expectedRepairGateManifestRetentionPolicyFingerprint',
             'expectedRepairJobFingerprint',
             'expectedRerankRuntimeContractEvidenceSetFingerprint',
             'expectedReviewBindingFingerprint',
@@ -6480,6 +6495,31 @@ describe('AiPage', () => {
           ],
           requestStatus: 'blocked_read_only',
           requestVersion: 'repair-execution-request/v1',
+          supportBundleArtifactCreated: false,
+          supportBundleArtifactFingerprint: input.workspaceId
+            ? 'abab5555cdcd6666'
+            : 'efef5555abab6666',
+          supportBundleArtifactInputs: [
+            'candidateEvidenceSetFingerprint',
+            'embeddingIndexContractEvidenceSetFingerprint',
+            'manifestExportPolicyFingerprint',
+            'manifestFingerprint',
+            'manifestMetadataRetentionPolicyFingerprint',
+            'preparedRouteOrderEvidenceSetFingerprint',
+            'requestStatus',
+            'rerankRuntimeContractEvidenceSetFingerprint',
+            'submissionFingerprint',
+            'targetLocatorFingerprint',
+          ],
+          supportBundleArtifactStatus: 'not_created_read_only',
+          supportBundleArtifactVersion:
+            'prompt-registry-repair-gate-support-bundle-artifact/v1',
+          supportBundleManifestFilename: `prompt-registry-repair-gate-manifest-42-${input.expectedRepairGateManifestFingerprint}.json`,
+          supportBundleManifestFingerprint:
+            input.expectedRepairGateManifestFingerprint,
+          supportBundleManifestMetadataFilename: `prompt-registry-repair-gate-manifest-metadata-42-${input.expectedRepairGateManifestFingerprint}.json`,
+          supportBundleManifestMetadataFingerprint:
+            input.expectedRepairGateManifestExportPolicyFingerprint,
         },
       })
     );
@@ -7077,6 +7117,14 @@ describe('AiPage', () => {
             'aaaa8888bbbb9999',
           expectedPreparedRouteOrderEvidenceSetFingerprint: 'aaaa7777bbbb8888',
           expectedTargetLocatorFingerprint: 'ddd111eee222ffff',
+          expectedRepairGateManifestFingerprint:
+            readyPublishGateVerdict.repairGateManifest.fingerprint,
+          expectedRepairGateManifestExportPolicyFingerprint:
+            readyPublishGateVerdict.repairGateManifestExportMetadata
+              .exportPolicyFingerprint,
+          expectedRepairGateManifestRetentionPolicyFingerprint:
+            readyPublishGateVerdict.repairGateManifestExportMetadata
+              .retentionPolicyFingerprint,
           expectedExecutionGateFingerprint: '5858aaaabbbb9999',
           expectedExecutionGateStatus: 'blocked_read_only',
           expectedExecutionStateFingerprint: 'b7b7aaaabbbb2222',
@@ -7137,9 +7185,45 @@ describe('AiPage', () => {
         screen.getByTestId('prompt-registry-publish-gate-Make it real')
           .textContent
       ).toContain(
-        'Repair execution request version repair-execution-request/v1 / status Blocked Read Only / read-only yes / mutation available no / accepted no / execution requested no / expected candidate evidence set fingerprint aaaa5555bbbb6666 / expected embedding index contract evidence set fingerprint aaaa6666bbbb7777 / expected rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / expected prepared route order evidence set fingerprint aaaa7777bbbb8888 / expected target locator fingerprint ddd111eee222ffff / approval record request repair-execution-approval-record-request/v1 / approval record request status Not Created Read Only / approval record request created no / approval record request fingerprint dddd3333eeee4444'
+        'Repair execution request version repair-execution-request/v1 / status Blocked Read Only / read-only yes / mutation available no / accepted no / execution requested no / expected candidate evidence set fingerprint aaaa5555bbbb6666 / expected embedding index contract evidence set fingerprint aaaa6666bbbb7777 / expected rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / expected prepared route order evidence set fingerprint aaaa7777bbbb8888 / expected target locator fingerprint ddd111eee222ffff'
       );
     });
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `expected repair gate manifest fingerprint ${readyPublishGateVerdict.repairGateManifest.fingerprint} / expected repair gate manifest export policy fingerprint ${readyPublishGateVerdict.repairGateManifestExportMetadata.exportPolicyFingerprint} / expected repair gate manifest retention policy fingerprint ${readyPublishGateVerdict.repairGateManifestExportMetadata.retentionPolicyFingerprint}`
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'approval record request repair-execution-approval-record-request/v1 / approval record request status Not Created Read Only / approval record request created no / approval record request fingerprint dddd3333eeee4444'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle artifact prompt-registry-repair-gate-support-bundle-artifact/v1 / support bundle artifact status Not Created Read Only / support bundle artifact created no / support bundle artifact fingerprint efef5555abab6666'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle artifact inputs candidateEvidenceSetFingerprint, embeddingIndexContractEvidenceSetFingerprint, manifestExportPolicyFingerprint, manifestFingerprint, manifestMetadataRetentionPolicyFingerprint'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `support bundle manifest prompt-registry-repair-gate-manifest-42-${readyPublishGateVerdict.repairGateManifest.fingerprint}.json / support bundle manifest fingerprint ${readyPublishGateVerdict.repairGateManifest.fingerprint}`
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `support bundle manifest metadata prompt-registry-repair-gate-manifest-metadata-42-${readyPublishGateVerdict.repairGateManifest.fingerprint}.json / support bundle manifest metadata fingerprint ${readyPublishGateVerdict.repairGateManifestExportMetadata.exportPolicyFingerprint}`
+    );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent

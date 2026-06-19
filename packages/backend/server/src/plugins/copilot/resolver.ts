@@ -287,6 +287,15 @@ class CopilotPromptRegistryRepairExecutionRequestInput {
   expectedTargetLocatorFingerprint!: string;
 
   @Field(() => String)
+  expectedRepairGateManifestFingerprint!: string;
+
+  @Field(() => String)
+  expectedRepairGateManifestExportPolicyFingerprint!: string;
+
+  @Field(() => String)
+  expectedRepairGateManifestRetentionPolicyFingerprint!: string;
+
+  @Field(() => String)
   expectedExecutionGateFingerprint!: string;
 
   @Field(() => String)
@@ -1095,6 +1104,9 @@ type CopilotPromptRegistryRepairExecutionRequest = {
   expectedRerankRuntimeContractEvidenceSetFingerprint: string;
   expectedPreparedRouteOrderEvidenceSetFingerprint: string;
   expectedTargetLocatorFingerprint: string;
+  expectedRepairGateManifestFingerprint: string;
+  expectedRepairGateManifestExportPolicyFingerprint: string;
+  expectedRepairGateManifestRetentionPolicyFingerprint: string;
   approvalRecordRequestCreated: boolean;
   approvalRecordRequestFingerprint: string;
   approvalRecordRequestInputs: string[];
@@ -1345,6 +1357,15 @@ type CopilotPromptRegistryRepairExecutionRequest = {
   requestInputs: string[];
   requestStatus: string;
   requestVersion: string;
+  supportBundleArtifactCreated: boolean;
+  supportBundleArtifactFingerprint: string;
+  supportBundleArtifactInputs: string[];
+  supportBundleArtifactStatus: string;
+  supportBundleArtifactVersion: string;
+  supportBundleManifestFilename: string;
+  supportBundleManifestFingerprint: string;
+  supportBundleManifestMetadataFilename: string;
+  supportBundleManifestMetadataFingerprint: string;
 };
 
 type CopilotPromptRegistryPublishGateRepairActionPreview = {
@@ -3033,6 +3054,15 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
   @Field(() => String)
   expectedTargetLocatorFingerprint!: string;
 
+  @Field(() => String)
+  expectedRepairGateManifestFingerprint!: string;
+
+  @Field(() => String)
+  expectedRepairGateManifestExportPolicyFingerprint!: string;
+
+  @Field(() => String)
+  expectedRepairGateManifestRetentionPolicyFingerprint!: string;
+
   @Field(() => Boolean)
   approvalRecordRequestCreated!: boolean;
 
@@ -3782,6 +3812,33 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
 
   @Field(() => String)
   requestVersion!: string;
+
+  @Field(() => Boolean)
+  supportBundleArtifactCreated!: boolean;
+
+  @Field(() => String)
+  supportBundleArtifactFingerprint!: string;
+
+  @Field(() => [String])
+  supportBundleArtifactInputs!: string[];
+
+  @Field(() => String)
+  supportBundleArtifactStatus!: string;
+
+  @Field(() => String)
+  supportBundleArtifactVersion!: string;
+
+  @Field(() => String)
+  supportBundleManifestFilename!: string;
+
+  @Field(() => String)
+  supportBundleManifestFingerprint!: string;
+
+  @Field(() => String)
+  supportBundleManifestMetadataFilename!: string;
+
+  @Field(() => String)
+  supportBundleManifestMetadataFingerprint!: string;
 }
 
 @ObjectType()
@@ -9810,7 +9867,9 @@ function buildPromptRegistryRepairPreflight(
 
 function buildPromptRegistryRepairExecutionRequest(
   input: CopilotPromptRegistryRepairExecutionRequestInput,
-  preflight: CopilotPromptRegistryRepairPreflight
+  preflight: CopilotPromptRegistryRepairPreflight,
+  repairGateManifest: CopilotPromptRegistryPublishGateRepairGateManifest,
+  repairGateManifestExportMetadata: CopilotPromptRegistryPublishGateRepairGateManifestExportMetadata
 ): CopilotPromptRegistryRepairExecutionRequest {
   const checks: Array<
     [keyof CopilotPromptRegistryRepairExecutionRequestInput, boolean]
@@ -9853,6 +9912,21 @@ function buildPromptRegistryRepairExecutionRequest(
       'expectedTargetLocatorFingerprint',
       input.expectedTargetLocatorFingerprint ===
         preflight.targetLocatorFingerprint,
+    ],
+    [
+      'expectedRepairGateManifestFingerprint',
+      input.expectedRepairGateManifestFingerprint ===
+        repairGateManifest.fingerprint,
+    ],
+    [
+      'expectedRepairGateManifestExportPolicyFingerprint',
+      input.expectedRepairGateManifestExportPolicyFingerprint ===
+        repairGateManifestExportMetadata.exportPolicyFingerprint,
+    ],
+    [
+      'expectedRepairGateManifestRetentionPolicyFingerprint',
+      input.expectedRepairGateManifestRetentionPolicyFingerprint ===
+        repairGateManifestExportMetadata.retentionPolicyFingerprint,
     ],
     [
       'expectedExecutionGateFingerprint',
@@ -9911,6 +9985,52 @@ function buildPromptRegistryRepairExecutionRequest(
     : mismatchedFields.length
       ? 'blocked_stale_preflight'
       : 'blocked_read_only';
+  const supportBundleArtifactVersion =
+    'prompt-registry-repair-gate-support-bundle-artifact/v1';
+  const supportBundleArtifactStatus = 'not_created_read_only';
+  const supportBundleArtifactInputs = [
+    'candidateEvidenceSetFingerprint',
+    'embeddingIndexContractEvidenceSetFingerprint',
+    'manifestExportPolicyFingerprint',
+    'manifestFingerprint',
+    'manifestMetadataRetentionPolicyFingerprint',
+    'preparedRouteOrderEvidenceSetFingerprint',
+    'requestStatus',
+    'rerankRuntimeContractEvidenceSetFingerprint',
+    'submissionFingerprint',
+    'targetLocatorFingerprint',
+  ].sort();
+  const supportBundleArtifactFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        candidateEvidenceSetFingerprint:
+          preflight.candidateEvidenceSetFingerprint,
+        created: false,
+        embeddingIndexContractEvidenceSetFingerprint:
+          preflight.embeddingIndexContractEvidenceSetFingerprint,
+        inputs: supportBundleArtifactInputs,
+        manifestExportPolicyFingerprint:
+          repairGateManifestExportMetadata.exportPolicyFingerprint,
+        manifestFilename: repairGateManifestExportMetadata.filename,
+        manifestFingerprint: repairGateManifest.fingerprint,
+        manifestMetadataFilename:
+          repairGateManifestExportMetadata.metadataFilename,
+        manifestMetadataRetentionPolicyFingerprint:
+          repairGateManifestExportMetadata.retentionPolicyFingerprint,
+        preparedRouteOrderEvidenceSetFingerprint:
+          preflight.preparedRouteOrderEvidenceSetFingerprint,
+        requestStatus,
+        rerankRuntimeContractEvidenceSetFingerprint:
+          preflight.rerankRuntimeContractEvidenceSetFingerprint,
+        status: supportBundleArtifactStatus,
+        submissionFingerprint: preflight.currentSubmissionFingerprint,
+        targetLocatorFingerprint: preflight.targetLocatorFingerprint,
+        version: supportBundleArtifactVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
   const idempotencyLockVersion = 'repair-execution-idempotency-lock/v1';
   const idempotencyLockStatus = 'not_acquired_read_only';
   const idempotencyLockScope = preflight.idempotencyScope;
@@ -12753,6 +12873,12 @@ function buildPromptRegistryRepairExecutionRequest(
           input.expectedEmbeddingIndexContractEvidenceSetFingerprint,
         expectedRerankRuntimeContractEvidenceSetFingerprint:
           input.expectedRerankRuntimeContractEvidenceSetFingerprint,
+        expectedRepairGateManifestExportPolicyFingerprint:
+          input.expectedRepairGateManifestExportPolicyFingerprint,
+        expectedRepairGateManifestFingerprint:
+          input.expectedRepairGateManifestFingerprint,
+        expectedRepairGateManifestRetentionPolicyFingerprint:
+          input.expectedRepairGateManifestRetentionPolicyFingerprint,
         expectedTargetLocatorFingerprint:
           input.expectedTargetLocatorFingerprint,
         idempotencyLockFingerprint,
@@ -12766,6 +12892,7 @@ function buildPromptRegistryRepairExecutionRequest(
         requestStatus,
         rollbackPlanFingerprint: preflight.rollbackPlanFingerprint,
         rollbackPlanRequestFingerprint,
+        supportBundleArtifactFingerprint,
         targetLocatorFingerprint: preflight.targetLocatorFingerprint,
         executionTraceRequestFingerprint,
         version: requestVersion,
@@ -12787,6 +12914,12 @@ function buildPromptRegistryRepairExecutionRequest(
     expectedPreparedRouteOrderEvidenceSetFingerprint:
       input.expectedPreparedRouteOrderEvidenceSetFingerprint,
     expectedTargetLocatorFingerprint: input.expectedTargetLocatorFingerprint,
+    expectedRepairGateManifestFingerprint:
+      input.expectedRepairGateManifestFingerprint,
+    expectedRepairGateManifestExportPolicyFingerprint:
+      input.expectedRepairGateManifestExportPolicyFingerprint,
+    expectedRepairGateManifestRetentionPolicyFingerprint:
+      input.expectedRepairGateManifestRetentionPolicyFingerprint,
     approvalRecordRequestCreated: false,
     approvalRecordRequestFingerprint,
     approvalRecordRequestInputs,
@@ -13037,6 +13170,17 @@ function buildPromptRegistryRepairExecutionRequest(
     requestInputs,
     requestStatus,
     requestVersion,
+    supportBundleArtifactCreated: false,
+    supportBundleArtifactFingerprint,
+    supportBundleArtifactInputs,
+    supportBundleArtifactStatus,
+    supportBundleArtifactVersion,
+    supportBundleManifestFilename: repairGateManifestExportMetadata.filename,
+    supportBundleManifestFingerprint: repairGateManifest.fingerprint,
+    supportBundleManifestMetadataFilename:
+      repairGateManifestExportMetadata.metadataFilename,
+    supportBundleManifestMetadataFingerprint:
+      repairGateManifestExportMetadata.exportPolicyFingerprint,
   };
 }
 
@@ -16125,13 +16269,16 @@ export class CopilotResolver {
     );
   }
 
-  private async buildPromptRegistryRepairPreflightForCurrentUser(
+  private async buildPromptRegistryRepairPreflightContextForCurrentUser(
     user: CurrentUser,
     copilot: CopilotType,
     name: string,
     submission: CopilotPromptRegistryRepairSubmissionInput,
     expectedVersion?: CopilotPromptRegistryPublishGateExpectedVersionInput
-  ): Promise<CopilotPromptRegistryRepairPreflightType | null> {
+  ): Promise<{
+    current: CopilotPromptRegistryPublishGateVerdictType;
+    preflight: CopilotPromptRegistryRepairPreflightType;
+  } | null> {
     const requiredPermission: WorkspaceAction = 'Workspace.Copilot';
     const permission = copilot.workspaceId
       ? {
@@ -16171,7 +16318,7 @@ export class CopilotResolver {
       copilot
     );
 
-    return buildPromptRegistryRepairPreflight(
+    const preflight = buildPromptRegistryRepairPreflight(
       current.repairActionPreview.submissionContract,
       submission,
       {
@@ -16200,6 +16347,27 @@ export class CopilotResolver {
         authorizationStatus: current.repairActionPreview.authorizationStatus,
       }
     );
+
+    return { current, preflight };
+  }
+
+  private async buildPromptRegistryRepairPreflightForCurrentUser(
+    user: CurrentUser,
+    copilot: CopilotType,
+    name: string,
+    submission: CopilotPromptRegistryRepairSubmissionInput,
+    expectedVersion?: CopilotPromptRegistryPublishGateExpectedVersionInput
+  ): Promise<CopilotPromptRegistryRepairPreflightType | null> {
+    const context =
+      await this.buildPromptRegistryRepairPreflightContextForCurrentUser(
+        user,
+        copilot,
+        name,
+        submission,
+        expectedVersion
+      );
+
+    return context?.preflight ?? null;
   }
 
   @ResolveField(() => CopilotPromptRegistryRepairPreflightType, {
@@ -16243,8 +16411,8 @@ export class CopilotResolver {
     })
     input: CopilotPromptRegistryRepairExecutionRequestInput
   ): Promise<CopilotPromptRegistryRepairExecutionRequestType> {
-    const preflight =
-      await this.buildPromptRegistryRepairPreflightForCurrentUser(
+    const context =
+      await this.buildPromptRegistryRepairPreflightContextForCurrentUser(
         user,
         { workspaceId: input.workspaceId },
         input.name,
@@ -16252,11 +16420,16 @@ export class CopilotResolver {
         input.expectedVersion
       );
 
-    if (!preflight) {
+    if (!context) {
       throw new NotFoundException('Prompt registry repair preflight not found');
     }
 
-    return buildPromptRegistryRepairExecutionRequest(input, preflight);
+    return buildPromptRegistryRepairExecutionRequest(
+      input,
+      context.preflight,
+      context.current.repairGateManifest,
+      context.current.repairGateManifestExportMetadata
+    );
   }
 
   @ResolveField(() => CopilotActionRunPreparedRouteDiagnosticsType, {

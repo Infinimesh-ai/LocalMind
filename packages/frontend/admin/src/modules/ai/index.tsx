@@ -406,12 +406,14 @@ function buildPromptRegistryRepairExecutionRequestInput({
   expectedVersion,
   promptName,
   repairPreflight,
+  verdict,
   submissionContract,
   workspaceId,
 }: {
   expectedVersion: PromptRegistryPublishGateExpectedVersion | undefined;
   promptName: string;
   repairPreflight: PromptRegistryRepairPreflight;
+  verdict: PromptRegistryPublishGateVerdict;
   submissionContract: PromptRegistryRepairSubmissionContract;
   workspaceId: string | undefined;
 }) {
@@ -430,6 +432,12 @@ function buildPromptRegistryRepairExecutionRequestInput({
     expectedPreparedRouteOrderEvidenceSetFingerprint:
       repairPreflight.preparedRouteOrderEvidenceSetFingerprint,
     expectedTargetLocatorFingerprint: repairPreflight.targetLocatorFingerprint,
+    expectedRepairGateManifestFingerprint:
+      verdict.repairGateManifest.fingerprint,
+    expectedRepairGateManifestExportPolicyFingerprint:
+      verdict.repairGateManifestExportMetadata.exportPolicyFingerprint,
+    expectedRepairGateManifestRetentionPolicyFingerprint:
+      verdict.repairGateManifestExportMetadata.retentionPolicyFingerprint,
     expectedExecutionGateFingerprint: repairPreflight.executionGateFingerprint,
     expectedExecutionGateStatus: repairPreflight.executionGateStatus,
     expectedExecutionStateFingerprint:
@@ -2359,6 +2367,7 @@ function PromptRegistryPublishGateQueryResult({
         expectedVersion,
         promptName,
         repairPreflight,
+        verdict,
         submissionContract,
         workspaceId,
       }),
@@ -3917,6 +3926,26 @@ function formatPromptRegistryRepairExecutionRequest(
     `expected rerank runtime contract evidence set fingerprint ${request.expectedRerankRuntimeContractEvidenceSetFingerprint}`,
     `expected prepared route order evidence set fingerprint ${request.expectedPreparedRouteOrderEvidenceSetFingerprint}`,
     `expected target locator fingerprint ${request.expectedTargetLocatorFingerprint}`,
+    `expected repair gate manifest fingerprint ${request.expectedRepairGateManifestFingerprint}`,
+    `expected repair gate manifest export policy fingerprint ${request.expectedRepairGateManifestExportPolicyFingerprint}`,
+    `expected repair gate manifest retention policy fingerprint ${request.expectedRepairGateManifestRetentionPolicyFingerprint}`,
+    `support bundle artifact ${request.supportBundleArtifactVersion}`,
+    `support bundle artifact status ${formatFeatureKind(
+      request.supportBundleArtifactStatus
+    )}`,
+    request.supportBundleArtifactCreated
+      ? 'support bundle artifact created yes'
+      : 'support bundle artifact created no',
+    `support bundle artifact fingerprint ${request.supportBundleArtifactFingerprint}`,
+    request.supportBundleArtifactInputs.length
+      ? `support bundle artifact inputs ${request.supportBundleArtifactInputs.join(
+          ', '
+        )}`
+      : 'support bundle artifact inputs none',
+    `support bundle manifest ${request.supportBundleManifestFilename}`,
+    `support bundle manifest fingerprint ${request.supportBundleManifestFingerprint}`,
+    `support bundle manifest metadata ${request.supportBundleManifestMetadataFilename}`,
+    `support bundle manifest metadata fingerprint ${request.supportBundleManifestMetadataFingerprint}`,
     `approval record request ${request.approvalRecordRequestVersion}`,
     `approval record request status ${formatFeatureKind(
       request.approvalRecordRequestStatus
