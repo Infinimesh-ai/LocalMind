@@ -130,6 +130,7 @@ export interface AIModelTaskRoute {
   configured: boolean;
   diagnosticsErrors?: AIModelTaskRouteDiagnosticsError[] | null;
   dimensionMismatch?: boolean | null;
+  effectiveSourceFingerprint?: string | null;
   errorCode?: string | null;
   errorMessage?: string | null;
   fallbackProviderIds?: string[] | null;
@@ -2915,6 +2916,9 @@ function formatAIModelTaskRoute(route: AIModelTaskRoute | null | undefined) {
       : null,
     route.requestedModelConfigPath
       ? `config ${route.requestedModelConfigPath}`
+      : null,
+    route.effectiveSourceFingerprint
+      ? `source fingerprint ${route.effectiveSourceFingerprint}`
       : null,
     formatTaskRouteIdentity(route),
     route.fallbackProviderIds?.length

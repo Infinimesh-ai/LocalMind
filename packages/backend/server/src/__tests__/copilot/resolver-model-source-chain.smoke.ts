@@ -2422,6 +2422,10 @@ async function main() {
     result.embeddingRoute?.embeddingIndexContractFingerprint ?? '',
     /^[0-9a-f]{16}$/
   );
+  assert.match(
+    result.embeddingRoute?.effectiveSourceFingerprint ?? '',
+    /^[0-9a-f]{16}$/
+  );
   assert.equal(result.rerankRoute?.embeddingIndexContractVersion, undefined);
   assert.equal(result.rerankRoute?.embeddingIndexContractDimensions, undefined);
   assert.equal(result.rerankRoute?.embeddingIndexContractStatus, undefined);
@@ -2441,6 +2445,14 @@ async function main() {
   assert.match(
     result.rerankRoute?.rerankRuntimeContractFingerprint ?? '',
     /^[0-9a-f]{16}$/
+  );
+  assert.match(
+    result.rerankRoute?.effectiveSourceFingerprint ?? '',
+    /^[0-9a-f]{16}$/
+  );
+  assert.notEqual(
+    result.embeddingRoute?.effectiveSourceFingerprint,
+    result.rerankRoute?.effectiveSourceFingerprint
   );
   assert.equal(result.embeddingRoute?.rerankRuntimeContractVersion, undefined);
   assert.equal(
@@ -2711,6 +2723,16 @@ async function main() {
   assert.match(
     routeReadyGate?.taskRoutes[1]?.rerankRuntimeContractFingerprint ?? '',
     /^[0-9a-f]{16}$/
+  );
+  assert.deepEqual(
+    routeReadyGate?.taskRoutes.map(route =>
+      /^[0-9a-f]{16}$/.test(route.effectiveSourceFingerprint ?? '')
+    ),
+    [true, true]
+  );
+  assert.notEqual(
+    routeReadyGate?.taskRoutes[0]?.effectiveSourceFingerprint,
+    routeReadyGate?.taskRoutes[1]?.effectiveSourceFingerprint
   );
   assert.equal(routeReadyGate?.modelRoute?.providerId, 'local');
   assert.equal(routeReadyGate?.modelRoute?.providerName, 'local');

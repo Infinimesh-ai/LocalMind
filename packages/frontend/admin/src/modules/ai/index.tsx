@@ -1265,6 +1265,9 @@ function formatPromptRegistryPublishGateTaskRoute(route: {
       ? `source ${formatAIModelTaskModelSourceLabel(requestedModelSource)}`
       : null,
     requestedModelConfigPath ? `config ${requestedModelConfigPath}` : null,
+    route.raw.effectiveSourceFingerprint
+      ? `source fingerprint ${route.raw.effectiveSourceFingerprint}`
+      : null,
     route.raw.rerankRuntimeContractVersion
       ? `rerank runtime contract ${route.raw.rerankRuntimeContractVersion}`
       : null,

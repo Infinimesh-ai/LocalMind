@@ -747,6 +747,62 @@ type CopilotTaskRouteDiagnosticsError = {
   stage: string;
 };
 
+type CopilotTaskRouteEffectiveSourceFingerprintInput = Pick<
+  CopilotTaskRouteDiagnosticsType,
+  | 'behaviorFlags'
+  | 'candidateCount'
+  | 'canonicalModelKey'
+  | 'configured'
+  | 'diagnosticsErrors'
+  | 'dimensionMismatch'
+  | 'embeddingIndexContractDimensions'
+  | 'embeddingIndexContractFingerprint'
+  | 'embeddingIndexContractStatus'
+  | 'embeddingIndexContractVersion'
+  | 'errorCode'
+  | 'fallbackProviderIds'
+  | 'featureKind'
+  | 'modelBackendKind'
+  | 'modelEmbeddingDimensions'
+  | 'modelId'
+  | 'policyAllowedPrivacy'
+  | 'policyAllowedProviderIds'
+  | 'policyBlockedProviderIds'
+  | 'policyEnabled'
+  | 'policyFeatureKind'
+  | 'policyPreferredPrivacy'
+  | 'policyWorkspaceId'
+  | 'policyCandidates'
+  | 'prepareCandidates'
+  | 'preparedProviderCount'
+  | 'preparedRouteTargetFingerprint'
+  | 'preparedRouteTargets'
+  | 'preparedRoutes'
+  | 'protocol'
+  | 'providerConfiguredModelCount'
+  | 'providerConfiguredModelIds'
+  | 'providerId'
+  | 'providerPriority'
+  | 'providerProfileConfigPath'
+  | 'providerProfileId'
+  | 'providerProfileSource'
+  | 'providerSource'
+  | 'providerType'
+  | 'rerankRuntimeContractFingerprint'
+  | 'rerankRuntimeContractStatus'
+  | 'rerankRuntimeContractTopK'
+  | 'rerankRuntimeContractVersion'
+  | 'requestLayer'
+  | 'requestedDimensions'
+  | 'requestedModelConfigKey'
+  | 'requestedModelConfigPath'
+  | 'requestedModelId'
+  | 'requestedModelSource'
+  | 'routeCandidates'
+  | 'routeTrace'
+  | 'topK'
+>;
+
 const COPILOT_PROMPT_REGISTRY_REPAIR_ACTION_CATALOG_VERSION =
   'repair-actions/v1';
 
@@ -14442,6 +14498,214 @@ function buildPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint(
     .slice(0, 16);
 }
 
+function compactTaskRouteDiagnosticsErrors(
+  errors: CopilotTaskRouteDiagnosticsError[] | undefined
+) {
+  return (errors ?? []).map(error => ({
+    code: error.code,
+    message: error.message,
+    stage: error.stage,
+  }));
+}
+
+function taskRoutePolicyCandidateEffectiveSourceSnapshot(
+  candidates: CopilotTaskRouteEffectiveSourceFingerprintInput['policyCandidates']
+) {
+  return candidates.map(candidate => ({
+    allowed: candidate.allowed,
+    available: candidate.available,
+    candidateFingerprint: candidate.candidateFingerprint,
+    candidateKey: candidate.candidateKey,
+    health: candidate.health,
+    privacy: candidate.privacy,
+    providerConfiguredModelCount:
+      candidate.providerConfiguredModelCount ?? null,
+    providerConfiguredModelIds: candidate.providerConfiguredModelIds ?? null,
+    providerId: candidate.providerId,
+    providerPriority: candidate.providerPriority ?? null,
+    providerProfileConfigPath: candidate.providerProfileConfigPath ?? null,
+    providerProfileId: candidate.providerProfileId ?? null,
+    providerProfileSource: candidate.providerProfileSource ?? null,
+    providerSource: candidate.providerSource ?? null,
+    providerType: candidate.providerType ?? null,
+    registryAvailable: candidate.registryAvailable ?? null,
+    registryKind: candidate.registryKind ?? null,
+    registrySelected: candidate.registrySelected ?? null,
+    reasons: candidate.reasons,
+  }));
+}
+
+function taskRouteRouteCandidateEffectiveSourceSnapshot(
+  candidates: CopilotTaskRouteEffectiveSourceFingerprintInput['routeCandidates']
+) {
+  return candidates.map(candidate => ({
+    candidateKey: candidate.candidateKey ?? null,
+    candidateModelIds: candidate.candidateModelIds ?? null,
+    matched: candidate.matched,
+    modelId: candidate.modelId ?? null,
+    providerConfiguredModelCount:
+      candidate.providerConfiguredModelCount ?? null,
+    providerConfiguredModelIds: candidate.providerConfiguredModelIds ?? null,
+    providerId: candidate.providerId,
+    providerPriority: candidate.providerPriority ?? null,
+    providerProfileConfigPath: candidate.providerProfileConfigPath ?? null,
+    providerProfileId: candidate.providerProfileId ?? null,
+    providerProfileSource: candidate.providerProfileSource ?? null,
+    providerSource: candidate.providerSource ?? null,
+    providerType: candidate.providerType ?? null,
+    registryAvailable: candidate.registryAvailable ?? null,
+    registryKind: candidate.registryKind ?? null,
+    registrySelected: candidate.registrySelected ?? null,
+    requestedModelId: candidate.requestedModelId ?? null,
+    routeModelAliasMatched: candidate.routeModelAliasMatched ?? null,
+    routeModelDefinitionAliases: candidate.routeModelDefinitionAliases ?? null,
+    routeModelDefinitionId: candidate.routeModelDefinitionId ?? null,
+    routeModelDefinitionSource: candidate.routeModelDefinitionSource ?? null,
+    routeRawModelId: candidate.routeRawModelId ?? null,
+  }));
+}
+
+function taskRoutePrepareCandidateEffectiveSourceSnapshot(
+  candidates: CopilotTaskRouteEffectiveSourceFingerprintInput['prepareCandidates']
+) {
+  return candidates.map(candidate => ({
+    candidateKey: candidate.candidateKey ?? null,
+    candidateModelIds: candidate.candidateModelIds ?? null,
+    errorCategory: candidate.errorCategory ?? null,
+    errorCode: candidate.errorCode ?? null,
+    modelId: candidate.modelId ?? null,
+    prepared: candidate.prepared,
+    preparedModelId: candidate.preparedModelId ?? null,
+    providerConfiguredModelCount:
+      candidate.providerConfiguredModelCount ?? null,
+    providerConfiguredModelIds: candidate.providerConfiguredModelIds ?? null,
+    providerId: candidate.providerId,
+    providerPriority: candidate.providerPriority ?? null,
+    providerProfileConfigPath: candidate.providerProfileConfigPath ?? null,
+    providerProfileId: candidate.providerProfileId ?? null,
+    providerProfileSource: candidate.providerProfileSource ?? null,
+    providerSource: candidate.providerSource ?? null,
+    providerType: candidate.providerType ?? null,
+    registryAvailable: candidate.registryAvailable ?? null,
+    registryKind: candidate.registryKind ?? null,
+    registrySelected: candidate.registrySelected ?? null,
+    requestedModelId: candidate.requestedModelId ?? null,
+    routeModelAliasMatched: candidate.routeModelAliasMatched ?? null,
+    routeModelDefinitionAliases: candidate.routeModelDefinitionAliases ?? null,
+    routeModelDefinitionId: candidate.routeModelDefinitionId ?? null,
+    routeModelDefinitionSource: candidate.routeModelDefinitionSource ?? null,
+    routeRawModelId: candidate.routeRawModelId ?? null,
+  }));
+}
+
+function taskRouteTraceEffectiveSourceSnapshot(
+  phases: CopilotTaskRouteEffectiveSourceFingerprintInput['routeTrace']
+) {
+  return phases.map(phase => ({
+    availableCount: phase.availableCount ?? null,
+    blockedCount: phase.blockedCount ?? null,
+    candidateCount: phase.candidateCount,
+    matchedCount: phase.matchedCount ?? null,
+    phase: phase.phase,
+    preparedCount: phase.preparedCount ?? null,
+    reasons: phase.reasons,
+    selectedCount: phase.selectedCount ?? null,
+  }));
+}
+
+function buildTaskRouteEffectiveSourceFingerprint(
+  route: CopilotTaskRouteEffectiveSourceFingerprintInput
+) {
+  return createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        effectiveSourceFingerprintVersion:
+          'copilot-task-route-effective-source/v1',
+        behaviorFlags: route.behaviorFlags ?? null,
+        candidateCount: route.candidateCount ?? null,
+        canonicalModelKey: route.canonicalModelKey ?? null,
+        configured: route.configured,
+        diagnosticsErrors: compactTaskRouteDiagnosticsErrors(
+          route.diagnosticsErrors
+        ),
+        dimensionMismatch: route.dimensionMismatch ?? null,
+        embeddingIndexContractDimensions:
+          route.embeddingIndexContractDimensions ?? null,
+        embeddingIndexContractFingerprint:
+          route.embeddingIndexContractFingerprint ?? null,
+        embeddingIndexContractStatus:
+          route.embeddingIndexContractStatus ?? null,
+        embeddingIndexContractVersion:
+          route.embeddingIndexContractVersion ?? null,
+        errorCode: route.errorCode ?? null,
+        fallbackProviderIds: route.fallbackProviderIds,
+        featureKind: route.featureKind,
+        modelBackendKind: route.modelBackendKind ?? null,
+        modelEmbeddingDimensions: route.modelEmbeddingDimensions ?? null,
+        modelId: route.modelId ?? null,
+        policyAllowedPrivacy: route.policyAllowedPrivacy ?? null,
+        policyAllowedProviderIds: route.policyAllowedProviderIds ?? null,
+        policyBlockedProviderIds: route.policyBlockedProviderIds ?? null,
+        policyCandidates: taskRoutePolicyCandidateEffectiveSourceSnapshot(
+          route.policyCandidates
+        ),
+        policyEnabled: route.policyEnabled,
+        policyFeatureKind: route.policyFeatureKind ?? null,
+        policyPreferredPrivacy: route.policyPreferredPrivacy ?? null,
+        policyWorkspaceId: route.policyWorkspaceId ?? null,
+        prepareCandidates: taskRoutePrepareCandidateEffectiveSourceSnapshot(
+          route.prepareCandidates
+        ),
+        preparedProviderCount: route.preparedProviderCount,
+        preparedRouteOrder: taskRoutePreparedRouteOrderSnapshot(
+          route.preparedRoutes
+        ),
+        preparedRouteTargetFingerprint: route.preparedRouteTargetFingerprint,
+        preparedRouteTargets: route.preparedRouteTargets,
+        preparedRoutes: taskRoutePreparedRouteSnapshot(route.preparedRoutes),
+        protocol: route.protocol ?? null,
+        providerConfiguredModelCount:
+          route.providerConfiguredModelCount ?? null,
+        providerConfiguredModelIds: route.providerConfiguredModelIds ?? null,
+        providerId: route.providerId ?? null,
+        providerPriority: route.providerPriority ?? null,
+        providerProfileConfigPath: route.providerProfileConfigPath ?? null,
+        providerProfileId: route.providerProfileId ?? null,
+        providerProfileSource: route.providerProfileSource ?? null,
+        providerSource: route.providerSource ?? null,
+        providerType: route.providerType ?? null,
+        rerankRuntimeContractFingerprint:
+          route.rerankRuntimeContractFingerprint ?? null,
+        rerankRuntimeContractStatus: route.rerankRuntimeContractStatus ?? null,
+        rerankRuntimeContractTopK: route.rerankRuntimeContractTopK ?? null,
+        rerankRuntimeContractVersion:
+          route.rerankRuntimeContractVersion ?? null,
+        requestedDimensions: route.requestedDimensions ?? null,
+        requestedModelConfigKey: route.requestedModelConfigKey ?? null,
+        requestedModelConfigPath: route.requestedModelConfigPath ?? null,
+        requestedModelId: route.requestedModelId ?? null,
+        requestedModelSource: route.requestedModelSource ?? null,
+        requestLayer: route.requestLayer ?? null,
+        routeCandidates: taskRouteRouteCandidateEffectiveSourceSnapshot(
+          route.routeCandidates
+        ),
+        routeTrace: taskRouteTraceEffectiveSourceSnapshot(route.routeTrace),
+        topK: route.topK ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function withTaskRouteEffectiveSourceFingerprint<
+  T extends CopilotTaskRouteEffectiveSourceFingerprintInput,
+>(route: T): T & { effectiveSourceFingerprint: string } {
+  return {
+    ...route,
+    effectiveSourceFingerprint: buildTaskRouteEffectiveSourceFingerprint(route),
+  };
+}
+
 function uniqueStrings(values: string[]) {
   return Array.from(new Set(values));
 }
@@ -15920,6 +16184,9 @@ class CopilotTaskRouteDiagnosticsType {
   @Field(() => Boolean)
   configured!: boolean;
 
+  @Field(() => String, { nullable: true })
+  effectiveSourceFingerprint?: string;
+
   @Field(() => [CopilotTaskRouteDiagnosticsErrorType])
   diagnosticsErrors!: CopilotTaskRouteDiagnosticsError[];
 
@@ -16600,7 +16867,10 @@ export class CopilotResolver {
       describeRerankRoute(),
     ]);
 
-    return { embeddingRoute, rerankRoute };
+    return {
+      embeddingRoute: withTaskRouteEffectiveSourceFingerprint(embeddingRoute),
+      rerankRoute: withTaskRouteEffectiveSourceFingerprint(rerankRoute),
+    };
   }
 
   private async resolvePromptRegistryPublishGateModelRouteCandidate(

@@ -3394,6 +3394,7 @@ describe('AIModelService model registry helpers', () => {
         requestedDimensions: 1024,
         modelEmbeddingDimensions: 768,
         dimensionMismatch: true,
+        effectiveSourceFingerprint: 'taskfeed12345678',
       },
       rerankRoute: {
         configured: true,
@@ -3495,6 +3496,7 @@ describe('AIModelService model registry helpers', () => {
     expect(taskRouteLabel).toContain(
       'Workspace indexing / requested ollama-main/workspace-embedding / source Workspace indexing task model / config copilot.tasks.models.workspaceIndexing'
     );
+    expect(taskRouteLabel).toContain('source fingerprint taskfeed12345678');
     expect(taskRouteLabel).toContain(
       'profile Profile ollama-main / BYOK local / config workspace.byok.local / 2 configured models / models workspace-embedding, nomic-embed-text'
     );

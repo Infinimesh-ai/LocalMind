@@ -17,6 +17,7 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
             stage
           }
           dimensionMismatch
+          effectiveSourceFingerprint
           embeddingIndexContractDimensions
           embeddingIndexContractFingerprint
           embeddingIndexContractStatus
@@ -340,6 +341,7 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
             stage
           }
           dimensionMismatch
+          effectiveSourceFingerprint
           embeddingIndexContractDimensions
           embeddingIndexContractFingerprint
           embeddingIndexContractStatus

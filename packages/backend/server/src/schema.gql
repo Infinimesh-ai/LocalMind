@@ -2225,6 +2225,7 @@ type CopilotTaskRouteDiagnosticsType {
   configured: Boolean!
   diagnosticsErrors: [CopilotTaskRouteDiagnosticsErrorType!]!
   dimensionMismatch: Boolean
+  effectiveSourceFingerprint: String
   embeddingIndexContractDimensions: SafeInt
   embeddingIndexContractFingerprint: String
   embeddingIndexContractStatus: String

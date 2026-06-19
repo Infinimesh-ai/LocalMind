@@ -1366,6 +1366,7 @@ export const getPromptModelsQuery = {
             stage
           }
           dimensionMismatch
+          effectiveSourceFingerprint
           embeddingIndexContractDimensions
           embeddingIndexContractFingerprint
           embeddingIndexContractStatus
@@ -1688,6 +1689,7 @@ export const getPromptModelsQuery = {
             stage
           }
           dimensionMismatch
+          effectiveSourceFingerprint
           embeddingIndexContractDimensions
           embeddingIndexContractFingerprint
           embeddingIndexContractStatus
@@ -2341,6 +2343,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             stage
           }
           dimensionMismatch
+          effectiveSourceFingerprint
           embeddingIndexContractDimensions
           embeddingIndexContractFingerprint
           embeddingIndexContractStatus

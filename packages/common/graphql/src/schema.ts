@@ -2471,6 +2471,7 @@ export interface CopilotTaskRouteDiagnosticsType {
   configured: Scalars['Boolean']['output'];
   diagnosticsErrors: Array<CopilotTaskRouteDiagnosticsErrorType>;
   dimensionMismatch?: Maybe<Scalars['Boolean']['output']>;
+  effectiveSourceFingerprint?: Maybe<Scalars['String']['output']>;
   embeddingIndexContractDimensions?: Maybe<Scalars['SafeInt']['output']>;
   embeddingIndexContractFingerprint?: Maybe<Scalars['String']['output']>;
   embeddingIndexContractStatus?: Maybe<Scalars['String']['output']>;
@@ -7172,6 +7173,7 @@ export type GetPromptModelsQuery = {
             stage: string;
           }>;
           dimensionMismatch: boolean | null;
+          effectiveSourceFingerprint: string | null;
           embeddingIndexContractDimensions: number | null;
           embeddingIndexContractFingerprint: string | null;
           embeddingIndexContractStatus: string | null;
@@ -7517,6 +7519,7 @@ export type GetPromptModelsQuery = {
             stage: string;
           }>;
           dimensionMismatch: boolean | null;
+          effectiveSourceFingerprint: string | null;
           embeddingIndexContractDimensions: number | null;
           embeddingIndexContractFingerprint: string | null;
           embeddingIndexContractStatus: string | null;

@@ -859,6 +859,7 @@ const blockedRoute = {
     },
   ],
   dimensionMismatch: false,
+  effectiveSourceFingerprint: 'blocked1111222233',
   embeddingIndexContractDimensions: 1024,
   embeddingIndexContractFingerprint: 'eeee1111dddd2222',
   embeddingIndexContractStatus: 'compatible_with_current_pgvector_index',
@@ -1038,6 +1039,7 @@ const readyRoute = {
   ...blockedRoute,
   configured: true,
   diagnosticsErrors: [],
+  effectiveSourceFingerprint: 'ready444455556666',
   errorCode: null,
   errorMessage: null,
   fallbackProviderIds: ['ollama-main'],
@@ -8143,13 +8145,16 @@ describe('AiPage', () => {
       'requested workspace-embedding / source Workspace indexing task model / config copilot.tasks.models.workspaceIndexing'
     );
     expect(readyGateDiagnostics).toContain(
+      'source fingerprint blocked1111222233'
+    );
+    expect(readyGateDiagnostics).toContain(
       'Task route phase trace Workspace indexing 2'
     );
     expect(readyGateDiagnostics).toContain(
       'Local Ollama / ollama-main / requested workspace-embedding'
     );
     expect(readyGateDiagnostics).toContain(
-      `Task route Rerank / status Ready / configured yes / provider ollama-main / model bge-reranker-v2 / profile Profile ollama-main / Configured / config copilot.providers.profiles[id=ollama-main] / 2 configured models / models workspace-rerank, bge-reranker-v2 / requested workspace-rerank / source Rerank task model / config copilot.tasks.models.rerank / rerank runtime contract workspace-rerank-runtime/v1 / rerank runtime topK 5 / rerank runtime status Prepared Route Available / rerank runtime fingerprint eeee2222ffff3333 / prepared providers 1 / targets ollama-main/bge-reranker-v2 / target fingerprint ${readyRoute.preparedRouteTargetFingerprint}`
+      `Task route Rerank / status Ready / configured yes / provider ollama-main / model bge-reranker-v2 / profile Profile ollama-main / Configured / config copilot.providers.profiles[id=ollama-main] / 2 configured models / models workspace-rerank, bge-reranker-v2 / requested workspace-rerank / source Rerank task model / config copilot.tasks.models.rerank / source fingerprint ready444455556666 / rerank runtime contract workspace-rerank-runtime/v1 / rerank runtime topK 5 / rerank runtime status Prepared Route Available / rerank runtime fingerprint eeee2222ffff3333 / prepared providers 1 / targets ollama-main/bge-reranker-v2 / target fingerprint ${readyRoute.preparedRouteTargetFingerprint}`
     );
     expect(readyGateDiagnostics).toContain(
       'Task route prepare candidates Rerank 1'
