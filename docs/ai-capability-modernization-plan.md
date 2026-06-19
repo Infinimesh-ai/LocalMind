@@ -15254,3 +15254,34 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - source evidence-set inputs 仍只列出顶层 payload 字段；policy candidates、route candidates、prepared routes、operation candidate evidence 等嵌套字段仍需要后续结构化 evidence schema 文档化。
 - repair action 仍是 read-only/blocked contract；尚未实现真实修复执行、support bundle 持久化、download authorization、audit persistence 或 retention cleanup worker。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 455. P1 落地记录：Support Bundle Source Evidence Detail Projection
+
+本轮继续收敛第 454 节剩余风险中 “source evidence-set inputs 仍只列出顶层 payload 字段；policy candidates、route candidates、prepared routes、operation candidate evidence 等嵌套字段仍需要后续结构化 evidence schema 文档化” 的前置可观测缺口。实际代码与目标 AI 中间层架构的冲突点是：support bundle lifecycle 现在具备 actual fingerprint/version/inputs 三件套，但 Admin diagnostics 仍不能直接看到该 evidence set 由哪些 repair operation、diagnostics fingerprint 与 task route effective source fingerprint 组成；后续做真实 support bundle artifact 或 audit persistence 时，仍需要回读 repair action preview 才能解释 support bundle source guard 的内部证据来源。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryRepairExecutionRequest` 与 GraphQL type 新增只读 `supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints`、`supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints` 与 `supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints` 字段。
+  - `buildPromptRegistryRepairExecutionRequest()` 从当前 repair action preview operations 派生排序后的 operation fingerprints、去重排序后的 diagnostics fingerprints 与 task route effective source fingerprints。
+  - 保持 task route source evidence-set fingerprint、repair gate manifest fingerprint、execution request fingerprint、support bundle lifecycle request fingerprint payload 与 hash 值不变；新增字段只作为 hash 计算后的只读 diagnostic projection。
+- `packages/backend/server/src/schema.gql`、`packages/common/graphql/src/graphql/index.ts`、`packages/common/graphql/src/graphql/copilot-prompt-registry-repair-execution-request.gql` 与 `packages/common/graphql/src/schema.ts`：
+  - 同步 execution request selection/type，让 Admin mutation response 能直接读取 support bundle source evidence-set 的 operation/diagnostics/source detail。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - execution request copyable diagnostics 输出 support bundle task route source evidence set operations、diagnostics 与 sources，和 existing fingerprint/version/inputs 同段展示。
+- 测试覆盖：
+  - `resolver-model-source-chain.smoke.ts` 断言 execution request 的三组 detail 与当前 repair action preview operations 派生结果一致。
+  - `admin/src/modules/ai/index.spec.tsx` 覆盖 Admin repair execution diagnostics 中 support bundle source evidence detail 的可见输出。
+
+该实现只扩展 Prompt Registry repair execution request 的只读 support bundle source evidence detail projection、GraphQL/common query/type、Admin diagnostics label 与 focused tests，不新增 DB migration、不创建 DB-backed schema registry、artifact record、audit event 或持久化 repair job snapshot、不持久化 registry revision、workspace policy revision、provider snapshot、task route snapshot、model availability snapshot、archive bytes、signed URL secret/material 或 storage backend、不改变 support bundle lifecycle fingerprint payload、不改变 repair action 可执行性、不改变 provider route selection、fallback order、BYOK lease、quota、health check、`copilot.tasks.models` 配置格式、embedding/rerank native request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、MCP registry、Codex adapter 或 Action Runtime 状态机。它让 support bundle lifecycle source guard 在 Admin diagnostics 中可以直接解释到 operation、diagnostics 与 effective source 三层证据，为后续结构化 evidence object 和真实 artifact/audit 持久化预留更清楚的只读观测面。
+
+验证策略：
+
+- 本轮为 TypeScript resolver/common/admin/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有测试镜像 `localmind-affine:test`，镜像 ID 预期保持 `c3389960f5ed`；沿用第 453/454 节确认的 `docker run --rm -v "${PWD}:/host:ro" -w /workspace localmind-affine:test ...` 方式，在容器内复制当前相关源码到镜像自带 `/workspace`，保留镜像内依赖后运行 focused smoke、Admin Vitest、oxlint、Prettier check 与宿主 `git diff --check`。该流程不重建 `localmind-affine:test`。
+
+剩余风险：
+
+- support bundle source evidence detail 仍是 runtime 只读 projection，不是 DB-backed evidence object、schema registry、artifact record、audit event 或持久化 repair job snapshot。
+- detail 字段暴露 operation/diagnostics/source fingerprint 列表，但仍不展开 policy candidates、route candidates、prepared routes、operation candidate evidence 等嵌套 payload。
+- source guard fingerprint 仍来自 operation/candidate evidence 视角，不绑定真实请求 payload、provider credentials、BYOK lease、tenant policy registry、storage backend、archive bytes、signed URL secret/material、health probe timestamp、request dispatch outcome 或 billing/quota execution result。
+- repair action 仍是 read-only/blocked contract；尚未实现真实修复执行、support bundle 持久化、download authorization、audit persistence 或 retention cleanup worker。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

@@ -6825,9 +6825,29 @@ describe('AiPage', () => {
           supportBundleStorageKeyScope: 'support_bundle_artifact_record',
           supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint:
             input.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
+          supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints:
+            Array.from(
+              new Set(
+                readyPublishGateVerdict.repairActionPreview.operations.map(
+                  operation => operation.diagnosticsFingerprint
+                )
+              )
+            ).sort(),
           supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: [
             ...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture,
           ],
+          supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints:
+            readyPublishGateVerdict.repairActionPreview.operations
+              .map(operation => operation.operationFingerprint)
+              .sort(),
+          supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints:
+            Array.from(
+              new Set(
+                readyPublishGateVerdict.repairActionPreview.operations.flatMap(
+                  operation => operation.taskRouteEffectiveSourceFingerprints
+                )
+              )
+            ).sort(),
           supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion:
             taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture,
           supportBundleAuditPersistenceRequestCreated: false,
@@ -7665,7 +7685,23 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      'support bundle task route source evidence set fingerprint aaaa5656bbbb6767 / support bundle task route source evidence set version copilot-task-route-effective-source-evidence-set/v1 / support bundle task route source evidence set inputs diagnosticsFingerprint, operationFingerprint, taskRouteEffectiveSourceFingerprints'
+      'support bundle task route source evidence set fingerprint aaaa5656bbbb6767 / support bundle task route source evidence set version copilot-task-route-effective-source-evidence-set/v1'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle task route source evidence set operations 1111aaaa2222bbbb, 2222bbbb3333cccc, 3333cccc4444dddd, 4444dddd5555eeee / support bundle task route source evidence set diagnostics 1111222233334444, 2222333344445555, 3333444455556666, 4444555566667777'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain('support bundle task route source evidence set sources ');
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle task route source evidence set inputs diagnosticsFingerprint, operationFingerprint, taskRouteEffectiveSourceFingerprints'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

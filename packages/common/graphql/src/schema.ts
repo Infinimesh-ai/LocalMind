@@ -1570,7 +1570,16 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   supportBundleStorageKeyRequestVersion: Scalars['String']['output'];
   supportBundleStorageKeyScope: Scalars['String']['output'];
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint: Scalars['String']['output'];
+  supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints: Array<
+    Scalars['String']['output']
+  >;
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<
+    Scalars['String']['output']
+  >;
+  supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints: Array<
+    Scalars['String']['output']
+  >;
+  supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints: Array<
     Scalars['String']['output']
   >;
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: Scalars['String']['output'];
@@ -9179,7 +9188,10 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
     supportBundleStorageKeyRequestVersion: string;
     supportBundleStorageKeyScope: string;
     supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint: string;
+    supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints: Array<string>;
     supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<string>;
+    supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints: Array<string>;
+    supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints: Array<string>;
     supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: string;
     preflight: {
       __typename?: 'CopilotPromptRegistryRepairPreflightType';

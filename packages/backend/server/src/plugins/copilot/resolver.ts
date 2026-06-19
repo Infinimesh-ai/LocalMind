@@ -1661,7 +1661,10 @@ type CopilotPromptRegistryRepairExecutionRequest = {
   supportBundleStorageKeyRequestVersion: string;
   supportBundleStorageKeyScope: string;
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint: string;
+  supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints: string[];
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: string[];
+  supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints: string[];
+  supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints: string[];
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: string;
 };
 
@@ -4408,7 +4411,16 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint!: string;
 
   @Field(() => [String])
+  supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints!: string[];
+
+  @Field(() => [String])
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs!: string[];
+
+  @Field(() => [String])
+  supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints!: string[];
+
+  @Field(() => [String])
+  supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints!: string[];
 
   @Field(() => String)
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion!: string;
@@ -10589,6 +10601,7 @@ function buildPromptRegistryRepairPreflight(
 function buildPromptRegistryRepairExecutionRequest(
   input: CopilotPromptRegistryRepairExecutionRequestInput,
   preflight: CopilotPromptRegistryRepairPreflight,
+  repairActionPreview: CopilotPromptRegistryPublishGateRepairActionPreview,
   repairGateManifest: CopilotPromptRegistryPublishGateRepairGateManifest,
   repairGateManifestExportMetadata: CopilotPromptRegistryPublishGateRepairGateManifestExportMetadata
 ): CopilotPromptRegistryRepairExecutionRequest {
@@ -10711,6 +10724,22 @@ function buildPromptRegistryRepairExecutionRequest(
     : mismatchedFields.length
       ? 'blocked_stale_preflight'
       : 'blocked_read_only';
+  const supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints =
+    repairActionPreview.operations
+      .map(operation => operation.operationFingerprint)
+      .sort();
+  const supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints =
+    uniqueStrings(
+      repairActionPreview.operations.map(
+        operation => operation.diagnosticsFingerprint
+      )
+    ).sort();
+  const supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints =
+    uniqueStrings(
+      repairActionPreview.operations.flatMap(
+        operation => operation.taskRouteEffectiveSourceFingerprints
+      )
+    ).sort();
   const supportBundleArtifactVersion =
     'prompt-registry-repair-gate-support-bundle-artifact/v1';
   const supportBundleArtifactStatus = 'not_created_read_only';
@@ -14583,9 +14612,12 @@ function buildPromptRegistryRepairExecutionRequest(
     supportBundleStorageKeyScope,
     supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint:
       preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
+    supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints,
     supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: [
       ...COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_EVIDENCE_SET_FINGERPRINT_INPUTS,
     ],
+    supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints,
+    supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints,
     supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion:
       COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_EVIDENCE_SET_FINGERPRINT_VERSION,
   };
@@ -18389,6 +18421,7 @@ export class CopilotResolver {
     return buildPromptRegistryRepairExecutionRequest(
       input,
       context.preflight,
+      context.current.repairActionPreview,
       context.current.repairGateManifest,
       context.current.repairGateManifestExportMetadata
     );

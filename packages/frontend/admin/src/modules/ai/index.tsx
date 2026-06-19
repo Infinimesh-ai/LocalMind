@@ -3984,6 +3984,26 @@ function formatPromptRegistryRepairExecutionRequest(
     `expected repair gate manifest retention policy fingerprint ${request.expectedRepairGateManifestRetentionPolicyFingerprint}`,
     `support bundle task route source evidence set fingerprint ${request.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint}`,
     `support bundle task route source evidence set version ${request.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion}`,
+    request
+      .supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints
+      .length
+      ? `support bundle task route source evidence set operations ${request.supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints.join(
+          ', '
+        )}`
+      : 'support bundle task route source evidence set operations none',
+    request
+      .supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints
+      .length
+      ? `support bundle task route source evidence set diagnostics ${request.supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints.join(
+          ', '
+        )}`
+      : 'support bundle task route source evidence set diagnostics none',
+    request.supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints
+      .length
+      ? `support bundle task route source evidence set sources ${request.supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints.join(
+          ', '
+        )}`
+      : 'support bundle task route source evidence set sources none',
     request.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs
       .length
       ? `support bundle task route source evidence set inputs ${request.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs.join(

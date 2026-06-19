@@ -4687,6 +4687,32 @@ async function main() {
     matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint
   );
   assert.deepEqual(
+    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints,
+    routeReadyGate.repairActionPreview.operations
+      .map(operation => operation.operationFingerprint)
+      .sort()
+  );
+  assert.deepEqual(
+    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints,
+    Array.from(
+      new Set(
+        routeReadyGate.repairActionPreview.operations.map(
+          operation => operation.diagnosticsFingerprint
+        )
+      )
+    ).sort()
+  );
+  assert.deepEqual(
+    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints,
+    Array.from(
+      new Set(
+        routeReadyGate.repairActionPreview.operations.flatMap(
+          operation => operation.taskRouteEffectiveSourceFingerprints
+        )
+      )
+    ).sort()
+  );
+  assert.deepEqual(
     executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs,
     [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
   );
