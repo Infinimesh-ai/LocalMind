@@ -4415,6 +4415,71 @@ async function main() {
       .slice(0, 16)
   );
   assert.equal(
+    executionRequest.supportBundleArchiveRequestVersion,
+    'prompt-registry-repair-gate-support-bundle-archive-request/v1'
+  );
+  assert.equal(
+    executionRequest.supportBundleArchiveRequestStatus,
+    'not_created_read_only'
+  );
+  assert.equal(executionRequest.supportBundleArchiveRequestCreated, false);
+  assert.equal(
+    executionRequest.supportBundleArchiveFormat,
+    'json_manifest_bundle'
+  );
+  assert.equal(
+    executionRequest.supportBundleArchiveScope,
+    'support_bundle_download_archive'
+  );
+  assert.match(
+    executionRequest.supportBundleArchiveRequestFingerprint,
+    /^[0-9a-f]{16}$/
+  );
+  assert.deepEqual(executionRequest.supportBundleArchiveRequestInputs, [
+    'archiveFormat',
+    'archiveScope',
+    'artifactFingerprint',
+    'artifactRecordRequestFingerprint',
+    'manifestFingerprint',
+    'manifestMetadataFingerprint',
+    'packageFingerprint',
+    'requestStatus',
+    'storageKeyRequestFingerprint',
+  ]);
+  assert.equal(
+    executionRequest.supportBundleArchiveRequestFingerprint,
+    createHash('sha256')
+      .update(
+        stableFingerprintFixtureStringify({
+          archiveFormat: executionRequest.supportBundleArchiveFormat,
+          archiveScope: executionRequest.supportBundleArchiveScope,
+          artifactFingerprint:
+            executionRequest.supportBundleArtifactFingerprint,
+          artifactRecordRequestFingerprint:
+            executionRequest.supportBundleArtifactRecordRequestFingerprint,
+          created: false,
+          inputs: executionRequest.supportBundleArchiveRequestInputs,
+          manifestFilename:
+            routeReadyGate.repairGateManifestExportMetadata.filename,
+          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+          manifestMetadataFilename:
+            routeReadyGate.repairGateManifestExportMetadata.metadataFilename,
+          manifestMetadataFingerprint:
+            routeReadyGate.repairGateManifestExportMetadata
+              .exportPolicyFingerprint,
+          packageFingerprint: executionRequest.supportBundlePackageFingerprint,
+          requestStatus: executionRequest.requestStatus,
+          status: executionRequest.supportBundleArchiveRequestStatus,
+          storageKeyRequestFingerprint:
+            executionRequest.supportBundleStorageKeyRequestFingerprint,
+          version: executionRequest.supportBundleArchiveRequestVersion,
+          workspaceId: matchingPreflight?.workspaceId ?? null,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16)
+  );
+  assert.equal(
     executionRequest.approvalRecordRequestVersion,
     'repair-execution-approval-record-request/v1'
   );

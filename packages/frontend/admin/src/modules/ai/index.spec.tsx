@@ -6532,6 +6532,26 @@ describe('AiPage', () => {
           supportBundleArtifactStatus: 'not_created_read_only',
           supportBundleArtifactVersion:
             'prompt-registry-repair-gate-support-bundle-artifact/v1',
+          supportBundleArchiveFormat: 'json_manifest_bundle',
+          supportBundleArchiveRequestCreated: false,
+          supportBundleArchiveRequestFingerprint: input.workspaceId
+            ? 'dddd9999eeee0000'
+            : 'bbbb9999eeee0000',
+          supportBundleArchiveRequestInputs: [
+            'archiveFormat',
+            'archiveScope',
+            'artifactFingerprint',
+            'artifactRecordRequestFingerprint',
+            'manifestFingerprint',
+            'manifestMetadataFingerprint',
+            'packageFingerprint',
+            'requestStatus',
+            'storageKeyRequestFingerprint',
+          ],
+          supportBundleArchiveRequestStatus: 'not_created_read_only',
+          supportBundleArchiveRequestVersion:
+            'prompt-registry-repair-gate-support-bundle-archive-request/v1',
+          supportBundleArchiveScope: 'support_bundle_download_archive',
           supportBundleStorageKeyRequestCreated: false,
           supportBundleStorageKeyRequestFingerprint: input.workspaceId
             ? 'cccc9999dddd0000'
@@ -7351,6 +7371,24 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       'support bundle storage key scope Support Bundle Artifact Record'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle archive request prompt-registry-repair-gate-support-bundle-archive-request/v1 / support bundle archive request status Not Created Read Only / support bundle archive request created no / support bundle archive request fingerprint bbbb9999eeee0000'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle archive request inputs archiveFormat, archiveScope, artifactFingerprint, artifactRecordRequestFingerprint, manifestFingerprint'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle archive format Json Manifest Bundle / support bundle archive scope Support Bundle Download Archive'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

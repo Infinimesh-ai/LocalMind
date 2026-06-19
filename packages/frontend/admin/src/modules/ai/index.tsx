@@ -3971,6 +3971,25 @@ function formatPromptRegistryRepairExecutionRequest(
     `support bundle storage key scope ${formatFeatureKind(
       request.supportBundleStorageKeyScope
     )}`,
+    `support bundle archive request ${request.supportBundleArchiveRequestVersion}`,
+    `support bundle archive request status ${formatFeatureKind(
+      request.supportBundleArchiveRequestStatus
+    )}`,
+    request.supportBundleArchiveRequestCreated
+      ? 'support bundle archive request created yes'
+      : 'support bundle archive request created no',
+    `support bundle archive request fingerprint ${request.supportBundleArchiveRequestFingerprint}`,
+    request.supportBundleArchiveRequestInputs.length
+      ? `support bundle archive request inputs ${request.supportBundleArchiveRequestInputs.join(
+          ', '
+        )}`
+      : 'support bundle archive request inputs none',
+    `support bundle archive format ${formatFeatureKind(
+      request.supportBundleArchiveFormat
+    )}`,
+    `support bundle archive scope ${formatFeatureKind(
+      request.supportBundleArchiveScope
+    )}`,
     `support bundle manifest ${request.supportBundleManifestFilename}`,
     `support bundle manifest fingerprint ${request.supportBundleManifestFingerprint}`,
     `support bundle manifest metadata ${request.supportBundleManifestMetadataFilename}`,

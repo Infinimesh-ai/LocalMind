@@ -14462,3 +14462,33 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - request fingerprint 只绑定当前 artifact record request、artifact/package fingerprints、manifest fingerprint 与 storage key scope，不绑定真实 artifact payload、storage backend、workspace secret、tenant policy registry、真实下载行为、正式 repair execution output 或 signed archive bytes。
 - package lifecycle 仍未覆盖正式 support bundle package 内容、可下载归档、签名快照、真实 storage key 分配、download resolver 路由或 lifecycle worker。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 432. P3 落地记录：Prompt Registry Repair Support Bundle Archive Request Projection
+
+本轮继续收敛第 431 节剩余风险中 “package lifecycle 仍未覆盖正式 support bundle package 内容、可下载归档、签名快照” 的问题。实际代码与目标 AI 中间层架构的冲突点是：repair execution request 已经有 storage key request projection，但后续正式 support bundle 若要生成可下载 archive 或 signed archive lifecycle，仍缺少一个把 artifact record request、storage key request、artifact/package fingerprints、manifest metadata 与 archive scope/format 绑定起来的只读 request anchor。本轮新增 `prompt-registry-repair-gate-support-bundle-archive-request/v1`，不生成真实归档、不写 DB、不签名、不创建下载地址。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryRepairExecutionRequest` / GraphQL type 新增 `supportBundleArchiveRequest*` 字段，以及 `supportBundleArchiveFormat` 与 `supportBundleArchiveScope`。
+  - `buildPromptRegistryRepairExecutionRequest()` 新增只读 archive request projection：状态为 `not_created_read_only`，format 为 `json_manifest_bundle`，scope 为 `support_bundle_download_archive`，输入绑定 artifact fingerprint、artifact record request fingerprint、storage key request fingerprint、manifest fingerprint、manifest metadata fingerprint、package fingerprint、request status 与 archive format/scope。
+  - request fingerprint 同步纳入 `supportBundleArchiveRequestFingerprint`，使 archive request projection 漂移会影响 request-level anchor。
+- GraphQL 与 common client：
+  - `schema.gql`、repair execution request mutation、common query string 与 `schema.ts` 类型同步暴露 archive request 字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair execution request diagnostics 展示 archive request version/status/created/fingerprint/inputs、archive format 与 archive scope。
+- 测试覆盖：
+  - backend model/source chain smoke test 断言 archive request 字段、输入集合、format/scope 与 fingerprint 重算。
+  - Admin Vitest fixture/断言覆盖 archive request diagnostics 展示。
+
+该实现只扩展 repair execution request 的只读 GraphQL projection、common query/type、Admin 展示和测试，不新增 DB migration、不创建 DB-backed support bundle、不新增后端 download resolver、不创建下载 URL、不执行真实权限检查、不创建 audit event、不持久化 audit trail、不调度 retention cleanup job、不删除或归档文件、不写 artifact row、不分配 storage key、不生成真实 archive、不创建 signed archive、不改变 repair mutation 可执行性、不改变 preflight/execution gate 判定、不改变 provider route selection、fallback order、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、Model Registry revision 或 Provider Registry revision。它把 “可下载归档/签名快照尚未落地” 从文档风险推进到可比较的 request-level projection，为后续正式 support bundle archive builder、download resolver 路由、signed archive 与真实 lifecycle worker 提供更明确的迁移输入。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 backend model/source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `supportBundleArchiveRequest*` 仍是只读 GraphQL projection，不是 DB-backed archive row、对象存储 archive、签名快照、download resolver、真实 audit trail 或 lifecycle worker。
+- request fingerprint 只绑定当前 artifact record request、storage key request、artifact/package fingerprints、manifest metadata 与 archive format/scope，不绑定真实 artifact payload、storage backend、workspace secret、tenant policy registry、真实下载行为、正式 repair execution output、archive bytes 或 signature bytes。
+- package lifecycle 仍未覆盖真实 archive builder、signed archive policy、download resolver 路由、archive retention worker 或 lifecycle worker。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

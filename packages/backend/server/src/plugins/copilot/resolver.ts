@@ -1367,6 +1367,13 @@ type CopilotPromptRegistryRepairExecutionRequest = {
   supportBundleArtifactRecordRequestVersion: string;
   supportBundleArtifactStatus: string;
   supportBundleArtifactVersion: string;
+  supportBundleArchiveFormat: string;
+  supportBundleArchiveRequestCreated: boolean;
+  supportBundleArchiveRequestFingerprint: string;
+  supportBundleArchiveRequestInputs: string[];
+  supportBundleArchiveRequestStatus: string;
+  supportBundleArchiveRequestVersion: string;
+  supportBundleArchiveScope: string;
   supportBundleAuditPersistenceRequestCreated: boolean;
   supportBundleAuditPersistenceRequestFingerprint: string;
   supportBundleAuditPersistenceRequestInputs: string[];
@@ -3876,6 +3883,27 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
 
   @Field(() => String)
   supportBundleArtifactVersion!: string;
+
+  @Field(() => String)
+  supportBundleArchiveFormat!: string;
+
+  @Field(() => Boolean)
+  supportBundleArchiveRequestCreated!: boolean;
+
+  @Field(() => String)
+  supportBundleArchiveRequestFingerprint!: string;
+
+  @Field(() => [String])
+  supportBundleArchiveRequestInputs!: string[];
+
+  @Field(() => String)
+  supportBundleArchiveRequestStatus!: string;
+
+  @Field(() => String)
+  supportBundleArchiveRequestVersion!: string;
+
+  @Field(() => String)
+  supportBundleArchiveScope!: string;
 
   @Field(() => Boolean)
   supportBundleAuditPersistenceRequestCreated!: boolean;
@@ -10412,6 +10440,48 @@ function buildPromptRegistryRepairExecutionRequest(
     )
     .digest('hex')
     .slice(0, 16);
+  const supportBundleArchiveRequestVersion =
+    'prompt-registry-repair-gate-support-bundle-archive-request/v1';
+  const supportBundleArchiveRequestStatus = 'not_created_read_only';
+  const supportBundleArchiveFormat = 'json_manifest_bundle';
+  const supportBundleArchiveScope = 'support_bundle_download_archive';
+  const supportBundleArchiveRequestInputs = [
+    'archiveFormat',
+    'archiveScope',
+    'artifactFingerprint',
+    'artifactRecordRequestFingerprint',
+    'manifestFingerprint',
+    'manifestMetadataFingerprint',
+    'packageFingerprint',
+    'requestStatus',
+    'storageKeyRequestFingerprint',
+  ].sort();
+  const supportBundleArchiveRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        archiveFormat: supportBundleArchiveFormat,
+        archiveScope: supportBundleArchiveScope,
+        artifactFingerprint: supportBundleArtifactFingerprint,
+        artifactRecordRequestFingerprint:
+          supportBundleArtifactRecordRequestFingerprint,
+        created: false,
+        inputs: supportBundleArchiveRequestInputs,
+        manifestFilename: repairGateManifestExportMetadata.filename,
+        manifestFingerprint: repairGateManifest.fingerprint,
+        manifestMetadataFilename:
+          repairGateManifestExportMetadata.metadataFilename,
+        manifestMetadataFingerprint:
+          repairGateManifestExportMetadata.exportPolicyFingerprint,
+        packageFingerprint: supportBundlePackageFingerprint,
+        requestStatus,
+        status: supportBundleArchiveRequestStatus,
+        storageKeyRequestFingerprint: supportBundleStorageKeyRequestFingerprint,
+        version: supportBundleArchiveRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
   const idempotencyLockVersion = 'repair-execution-idempotency-lock/v1';
   const idempotencyLockStatus = 'not_acquired_read_only';
   const idempotencyLockScope = preflight.idempotencyScope;
@@ -13275,6 +13345,7 @@ function buildPromptRegistryRepairExecutionRequest(
         rollbackPlanRequestFingerprint,
         supportBundleArtifactRecordRequestFingerprint,
         supportBundleArtifactFingerprint,
+        supportBundleArchiveRequestFingerprint,
         supportBundleAuditPersistenceRequestFingerprint,
         supportBundleDownloadAuthorizationRequestFingerprint,
         supportBundlePackageFingerprint,
@@ -13567,6 +13638,13 @@ function buildPromptRegistryRepairExecutionRequest(
     supportBundleArtifactRecordRequestVersion,
     supportBundleArtifactStatus,
     supportBundleArtifactVersion,
+    supportBundleArchiveFormat,
+    supportBundleArchiveRequestCreated: false,
+    supportBundleArchiveRequestFingerprint,
+    supportBundleArchiveRequestInputs,
+    supportBundleArchiveRequestStatus,
+    supportBundleArchiveRequestVersion,
+    supportBundleArchiveScope,
     supportBundleAuditPersistenceRequestCreated: false,
     supportBundleAuditPersistenceRequestFingerprint,
     supportBundleAuditPersistenceRequestInputs,
