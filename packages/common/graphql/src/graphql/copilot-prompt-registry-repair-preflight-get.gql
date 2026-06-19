@@ -41,6 +41,7 @@ query getCopilotPromptRegistryRepairPreflight(
         authorizationStatus
         candidateEvidenceSetFingerprint
         embeddingIndexContractEvidenceSetFingerprint
+        rerankRuntimeContractEvidenceSetFingerprint
         preparedRouteOrderEvidenceSetFingerprint
         capabilityCheckMode
         capabilityFingerprint
@@ -60,6 +61,7 @@ query getCopilotPromptRegistryRepairPreflight(
         executionStateVersion
         expectedCandidateEvidenceSetFingerprint
         expectedEmbeddingIndexContractEvidenceSetFingerprint
+        expectedRerankRuntimeContractEvidenceSetFingerprint
         expectedPreparedRouteOrderEvidenceSetFingerprint
         expectedTargetLocatorFingerprint
         idempotencyFingerprint

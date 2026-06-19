@@ -2250,6 +2250,7 @@ const withRepairActionPreview = <
         candidateFingerprint: string;
         candidateKey?: string | null;
         taskRouteEmbeddingIndexContractSnapshotFingerprint?: string | null;
+        taskRouteRerankRuntimeContractSnapshotFingerprint?: string | null;
         preparedRouteOrderFingerprint?: string | null;
       }> | null;
       category: string;
@@ -2273,6 +2274,7 @@ const withRepairActionPreview = <
     approvalPolicyFingerprint: string;
     candidateEvidenceSetFingerprint: string;
     embeddingIndexContractEvidenceSetFingerprint: string;
+    rerankRuntimeContractEvidenceSetFingerprint: string;
     preparedRouteOrderEvidenceSetFingerprint: string;
     previewFingerprint: string;
     submissionFingerprint: string;
@@ -2314,6 +2316,15 @@ const withRepairActionPreview = <
             )
           )
         ).sort();
+        const rerankRuntimeContractEvidenceFingerprints = Array.from(
+          new Set(
+            candidateEvidence.flatMap(evidence =>
+              evidence.taskRouteRerankRuntimeContractSnapshotFingerprint
+                ? [evidence.taskRouteRerankRuntimeContractSnapshotFingerprint]
+                : []
+            )
+          )
+        ).sort();
 
         return {
           actionKind: recommendation.suggestedActionKind,
@@ -2336,6 +2347,7 @@ const withRepairActionPreview = <
           instanceKey: recommendation.instanceKey ?? null,
           operationFingerprint: input.operationFingerprints[index],
           embeddingIndexContractEvidenceFingerprints,
+          rerankRuntimeContractEvidenceFingerprints,
           preparedRouteOrderFingerprints,
           previewStatus: repairActionPreviewStatus(
             recommendation.suggestedActionSafety
@@ -2383,6 +2395,8 @@ const withRepairActionPreview = <
       candidateEvidenceSetFingerprint: input.candidateEvidenceSetFingerprint,
       embeddingIndexContractEvidenceSetFingerprint:
         input.embeddingIndexContractEvidenceSetFingerprint,
+      rerankRuntimeContractEvidenceSetFingerprint:
+        input.rerankRuntimeContractEvidenceSetFingerprint,
       preparedRouteOrderEvidenceSetFingerprint:
         input.preparedRouteOrderEvidenceSetFingerprint,
       catalogFingerprint: verdict.repairActionCatalogFingerprint,
@@ -2401,6 +2415,8 @@ const withRepairActionPreview = <
         candidateEvidenceSetFingerprint: input.candidateEvidenceSetFingerprint,
         embeddingIndexContractEvidenceSetFingerprint:
           input.embeddingIndexContractEvidenceSetFingerprint,
+        rerankRuntimeContractEvidenceSetFingerprint:
+          input.rerankRuntimeContractEvidenceSetFingerprint,
         preparedRouteOrderEvidenceSetFingerprint:
           input.preparedRouteOrderEvidenceSetFingerprint,
         catalogFingerprint: verdict.repairActionCatalogFingerprint,
@@ -2428,6 +2444,7 @@ const withRepairActionPreview = <
           'candidateEvidenceSetFingerprint',
           'embeddingIndexContractEvidenceSetFingerprint',
           'preparedRouteOrderEvidenceSetFingerprint',
+          'rerankRuntimeContractEvidenceSetFingerprint',
           'expectedRegistryFingerprint',
           'expectedRegistryId',
           'expectedRegistryUpdatedAt',
@@ -3321,6 +3338,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
     approvalPolicyFingerprint: 'aaaa3333bbbb4444',
     candidateEvidenceSetFingerprint: 'aaaa5555bbbb6666',
     embeddingIndexContractEvidenceSetFingerprint: 'aaaa6666bbbb7777',
+    rerankRuntimeContractEvidenceSetFingerprint: 'aaaa8888bbbb9999',
     preparedRouteOrderEvidenceSetFingerprint: 'aaaa7777bbbb8888',
     previewFingerprint: '9999aaaabbbbcccc',
     submissionFingerprint: 'aaaa4444bbbb5555',
@@ -3429,6 +3447,7 @@ const rerankRepairPublishGateVerdict = withRepairActionPreview(
     approvalPolicyFingerprint: 'dddd3333bbbb4444',
     candidateEvidenceSetFingerprint: 'dddd5555bbbb6666',
     embeddingIndexContractEvidenceSetFingerprint: 'dddd6666bbbb7777',
+    rerankRuntimeContractEvidenceSetFingerprint: 'dddd8888bbbb9999',
     preparedRouteOrderEvidenceSetFingerprint: 'dddd7777bbbb8888',
     previewFingerprint: 'dddd9999bbbbcccc',
     submissionFingerprint: 'dddd4444bbbb5555',
@@ -3675,6 +3694,7 @@ const blockedPublishGateVerdict = withRepairActionPreview(
     approvalPolicyFingerprint: 'bbbb4444cccc5555',
     candidateEvidenceSetFingerprint: 'bbbb6666cccc7777',
     embeddingIndexContractEvidenceSetFingerprint: 'bbbb7777cccc8888',
+    rerankRuntimeContractEvidenceSetFingerprint: 'bbbb9999cccc0000',
     preparedRouteOrderEvidenceSetFingerprint: 'bbbb8888cccc9999',
     previewFingerprint: '8888aaaabbbbcccc',
     submissionFingerprint: 'bbbb5555cccc6666',
@@ -3804,6 +3824,7 @@ const actionDryRunFailedPublishGateVerdict = withRepairActionPreview(
     approvalPolicyFingerprint: 'cccc5555dddd6666',
     candidateEvidenceSetFingerprint: 'cccc7777dddd8888',
     embeddingIndexContractEvidenceSetFingerprint: 'cccc8888dddd9999',
+    rerankRuntimeContractEvidenceSetFingerprint: 'cccc0000dddd1111',
     preparedRouteOrderEvidenceSetFingerprint: 'cccc9999dddd0000',
     previewFingerprint: '7777aaaabbbbcccc',
     submissionFingerprint: 'cccc6666dddd7777',
@@ -4773,6 +4794,7 @@ describe('AiPage', () => {
           expectedAuditEventFingerprint: string;
           expectedCandidateEvidenceSetFingerprint: string;
           expectedEmbeddingIndexContractEvidenceSetFingerprint: string;
+          expectedRerankRuntimeContractEvidenceSetFingerprint: string;
           expectedPreparedRouteOrderEvidenceSetFingerprint: string;
           expectedTargetLocatorFingerprint: string;
           expectedExecutionGateFingerprint: string;
@@ -6102,6 +6124,8 @@ describe('AiPage', () => {
             input.expectedCandidateEvidenceSetFingerprint,
           expectedEmbeddingIndexContractEvidenceSetFingerprint:
             input.expectedEmbeddingIndexContractEvidenceSetFingerprint,
+          expectedRerankRuntimeContractEvidenceSetFingerprint:
+            input.expectedRerankRuntimeContractEvidenceSetFingerprint,
           expectedPreparedRouteOrderEvidenceSetFingerprint:
             input.expectedPreparedRouteOrderEvidenceSetFingerprint,
           expectedTargetLocatorFingerprint:
@@ -6203,6 +6227,7 @@ describe('AiPage', () => {
             'expectedPreflightStatus',
             'expectedPreparedRouteOrderEvidenceSetFingerprint',
             'expectedRepairJobFingerprint',
+            'expectedRerankRuntimeContractEvidenceSetFingerprint',
             'expectedReviewBindingFingerprint',
             'expectedRollbackPlanFingerprint',
             'expectedTargetLocatorFingerprint',
@@ -6218,10 +6243,14 @@ describe('AiPage', () => {
               input.expectedCandidateEvidenceSetFingerprint,
             embeddingIndexContractEvidenceSetFingerprint:
               input.expectedEmbeddingIndexContractEvidenceSetFingerprint,
+            rerankRuntimeContractEvidenceSetFingerprint:
+              input.expectedRerankRuntimeContractEvidenceSetFingerprint,
             preparedRouteOrderEvidenceSetFingerprint:
               input.expectedPreparedRouteOrderEvidenceSetFingerprint,
             expectedEmbeddingIndexContractEvidenceSetFingerprint:
               input.expectedEmbeddingIndexContractEvidenceSetFingerprint,
+            expectedRerankRuntimeContractEvidenceSetFingerprint:
+              input.expectedRerankRuntimeContractEvidenceSetFingerprint,
             expectedPreparedRouteOrderEvidenceSetFingerprint:
               input.expectedPreparedRouteOrderEvidenceSetFingerprint,
             expectedTargetLocatorFingerprint:
@@ -6256,6 +6285,7 @@ describe('AiPage', () => {
             'expectedPreflightStatus',
             'expectedPreparedRouteOrderEvidenceSetFingerprint',
             'expectedRepairJobFingerprint',
+            'expectedRerankRuntimeContractEvidenceSetFingerprint',
             'expectedReviewBindingFingerprint',
             'expectedRollbackPlanFingerprint',
             'expectedTargetLocatorFingerprint',
@@ -6432,6 +6462,7 @@ describe('AiPage', () => {
                     'operationSetFingerprint',
                     'policyBindingFingerprint',
                     'repairJobFingerprint',
+                    'rerankRuntimeContractEvidenceSetFingerprint',
                     'submissionFingerprint',
                     'targetLocatorFingerprint',
                   ],
@@ -6442,6 +6473,9 @@ describe('AiPage', () => {
                     submission?.candidateEvidenceSetFingerprint ?? '',
                   embeddingIndexContractEvidenceSetFingerprint:
                     submission?.embeddingIndexContractEvidenceSetFingerprint ??
+                    '',
+                  rerankRuntimeContractEvidenceSetFingerprint:
+                    submission?.rerankRuntimeContractEvidenceSetFingerprint ??
                     '',
                   preparedRouteOrderEvidenceSetFingerprint:
                     submission?.preparedRouteOrderEvidenceSetFingerprint ?? '',
@@ -6486,6 +6520,7 @@ describe('AiPage', () => {
                     'idempotencyFingerprint',
                     'operationSetFingerprint',
                     'repairJobFingerprint',
+                    'rerankRuntimeContractEvidenceSetFingerprint',
                     'reviewBindingFingerprint',
                     'submissionFingerprint',
                     'targetLocatorFingerprint',
@@ -6496,6 +6531,9 @@ describe('AiPage', () => {
                     submission?.candidateEvidenceSetFingerprint ?? '',
                   expectedEmbeddingIndexContractEvidenceSetFingerprint:
                     submission?.embeddingIndexContractEvidenceSetFingerprint ??
+                    '',
+                  expectedRerankRuntimeContractEvidenceSetFingerprint:
+                    submission?.rerankRuntimeContractEvidenceSetFingerprint ??
                     '',
                   expectedPreparedRouteOrderEvidenceSetFingerprint:
                     submission?.preparedRouteOrderEvidenceSetFingerprint ?? '',
@@ -6512,6 +6550,7 @@ describe('AiPage', () => {
                     'executionStateFingerprint',
                     'operationSetFingerprint',
                     'repairJobFingerprint',
+                    'rerankRuntimeContractEvidenceSetFingerprint',
                     'reviewBindingFingerprint',
                     'submissionFingerprint',
                     'targetLocatorFingerprint',
@@ -6545,6 +6584,7 @@ describe('AiPage', () => {
                     'preparedRouteOrderEvidenceSetFingerprint',
                     'previewFingerprint',
                     'requiredInputs',
+                    'rerankRuntimeContractEvidenceSetFingerprint',
                     'submissionFingerprint',
                     'targetLocatorFingerprint',
                   ],
@@ -6609,6 +6649,7 @@ describe('AiPage', () => {
                     'idempotencyFingerprint',
                     'operationSetFingerprint',
                     'policyBindingFingerprint',
+                    'rerankRuntimeContractEvidenceSetFingerprint',
                     'reviewBindingFingerprint',
                     'submissionFingerprint',
                     'targetLocatorFingerprint',
@@ -6624,6 +6665,7 @@ describe('AiPage', () => {
                     'embeddingIndexContractEvidenceSetFingerprint',
                     'permissionFingerprint',
                     'preparedRouteOrderEvidenceSetFingerprint',
+                    'rerankRuntimeContractEvidenceSetFingerprint',
                     'submissionFingerprint',
                     'targetLocatorFingerprint',
                   ],
@@ -6843,6 +6885,8 @@ describe('AiPage', () => {
           expectedCandidateEvidenceSetFingerprint: 'aaaa5555bbbb6666',
           expectedEmbeddingIndexContractEvidenceSetFingerprint:
             'aaaa6666bbbb7777',
+          expectedRerankRuntimeContractEvidenceSetFingerprint:
+            'aaaa8888bbbb9999',
           expectedPreparedRouteOrderEvidenceSetFingerprint: 'aaaa7777bbbb8888',
           expectedTargetLocatorFingerprint: 'ddd111eee222ffff',
           expectedExecutionGateFingerprint: '5858aaaabbbb9999',
@@ -6865,6 +6909,7 @@ describe('AiPage', () => {
             authorizationFingerprint: 'aaaa2222bbbb3333',
             candidateEvidenceSetFingerprint: 'aaaa5555bbbb6666',
             embeddingIndexContractEvidenceSetFingerprint: 'aaaa6666bbbb7777',
+            rerankRuntimeContractEvidenceSetFingerprint: 'aaaa8888bbbb9999',
             preparedRouteOrderEvidenceSetFingerprint: 'aaaa7777bbbb8888',
             catalogFingerprint: 'aaaabbbbccccdddd',
             contractVersion: 'repair-preview-submission/v1',
@@ -6888,6 +6933,7 @@ describe('AiPage', () => {
               'operationSetFingerprint',
               'preparedRouteOrderEvidenceSetFingerprint',
               'previewFingerprint',
+              'rerankRuntimeContractEvidenceSetFingerprint',
               'targetLocatorFingerprint',
             ],
             submissionFingerprint: 'aaaa4444bbbb5555',
@@ -6903,7 +6949,7 @@ describe('AiPage', () => {
         screen.getByTestId('prompt-registry-publish-gate-Make it real')
           .textContent
       ).toContain(
-        'Repair execution request version repair-execution-request/v1 / status Blocked Read Only / read-only yes / mutation available no / accepted no / execution requested no / expected candidate evidence set fingerprint aaaa5555bbbb6666 / expected embedding index contract evidence set fingerprint aaaa6666bbbb7777 / expected prepared route order evidence set fingerprint aaaa7777bbbb8888 / expected target locator fingerprint ddd111eee222ffff / approval record request repair-execution-approval-record-request/v1 / approval record request status Not Created Read Only / approval record request created no / approval record request fingerprint dddd3333eeee4444'
+        'Repair execution request version repair-execution-request/v1 / status Blocked Read Only / read-only yes / mutation available no / accepted no / execution requested no / expected candidate evidence set fingerprint aaaa5555bbbb6666 / expected embedding index contract evidence set fingerprint aaaa6666bbbb7777 / expected rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / expected prepared route order evidence set fingerprint aaaa7777bbbb8888 / expected target locator fingerprint ddd111eee222ffff / approval record request repair-execution-approval-record-request/v1 / approval record request status Not Created Read Only / approval record request created no / approval record request fingerprint dddd3333eeee4444'
       );
     });
     expect(
@@ -7516,10 +7562,10 @@ describe('AiPage', () => {
       'Repair action preview status Preview Required / read-only yes / fingerprint 9999aaaabbbbcccc'
     );
     expect(readyGateDiagnostics).toContain(
-      'candidate evidence set fingerprint aaaa5555bbbb6666 / embedding index contract evidence set fingerprint aaaa6666bbbb7777 / prepared route order evidence set fingerprint aaaa7777bbbb8888'
+      'candidate evidence set fingerprint aaaa5555bbbb6666 / embedding index contract evidence set fingerprint aaaa6666bbbb7777 / rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / prepared route order evidence set fingerprint aaaa7777bbbb8888'
     );
     expect(readyGateDiagnostics).toContain(
-      'submission candidate evidence set fingerprint aaaa5555bbbb6666 / submission embedding index contract evidence set fingerprint aaaa6666bbbb7777 / submission prepared route order evidence set fingerprint aaaa7777bbbb8888'
+      'submission candidate evidence set fingerprint aaaa5555bbbb6666 / submission embedding index contract evidence set fingerprint aaaa6666bbbb7777 / submission rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / submission prepared route order evidence set fingerprint aaaa7777bbbb8888'
     );
     expect(readyGateDiagnostics).toContain(
       'submission required inputs approvalPolicyFingerprint, authorizationFingerprint, candidateEvidenceSetFingerprint, embeddingIndexContractEvidenceSetFingerprint'
@@ -7528,7 +7574,7 @@ describe('AiPage', () => {
       'Repair action preflight status Ready For Review / read-only yes / mutation available no / accepted no'
     );
     expect(readyGateDiagnostics).toContain(
-      'candidate evidence set fingerprint aaaa5555bbbb6666 / embedding index contract evidence set fingerprint aaaa6666bbbb7777 / prepared route order evidence set fingerprint aaaa7777bbbb8888 / expected candidate evidence set fingerprint aaaa5555bbbb6666 / expected embedding index contract evidence set fingerprint aaaa6666bbbb7777 / expected prepared route order evidence set fingerprint aaaa7777bbbb8888'
+      'candidate evidence set fingerprint aaaa5555bbbb6666 / embedding index contract evidence set fingerprint aaaa6666bbbb7777 / rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / prepared route order evidence set fingerprint aaaa7777bbbb8888 / expected candidate evidence set fingerprint aaaa5555bbbb6666 / expected embedding index contract evidence set fingerprint aaaa6666bbbb7777 / expected rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / expected prepared route order evidence set fingerprint aaaa7777bbbb8888'
     );
     expect(readyGateDiagnostics).toContain(
       'audit event inputs actorFingerprint, approvalRecordFingerprint, auditBindingFingerprint, candidateEvidenceSetFingerprint, embeddingIndexContractEvidenceSetFingerprint'
@@ -7549,10 +7595,10 @@ describe('AiPage', () => {
       'matched fields approvalPolicyFingerprint, authorizationFingerprint, candidateEvidenceSetFingerprint, catalogFingerprint, contractVersion, embeddingIndexContractEvidenceSetFingerprint'
     );
     expect(readyGateDiagnostics).toMatch(
-      /Repair action preview operation Preview Required \/ action kind Review Non Default Model Route .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ fingerprint 1111222233334444 \/ operation fingerprint 1111aaaa2222bbbb \/ target locator fingerprint aaaa1111bbbb2222 \/ required capabilities model_registry\.read, provider_route\.preview \/ input schema required diagnosticsFingerprint, targetLocator/
+      /Repair action preview operation Preview Required \/ action kind Review Non Default Model Route .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ rerank runtime contract evidence fingerprints none \/ fingerprint 1111222233334444 \/ operation fingerprint 1111aaaa2222bbbb \/ target locator fingerprint aaaa1111bbbb2222 \/ required capabilities model_registry\.read, provider_route\.preview \/ input schema required diagnosticsFingerprint, targetLocator/
     );
     expect(readyGateDiagnostics).toMatch(
-      /Repair action preview operation Read Only Probe \/ action kind Check Action Provider Health .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ fingerprint 4444555566667777 \/ operation fingerprint 4444dddd5555eeee \/ target locator fingerprint dddd4444eeee5555 \/ required capabilities provider_profile\.read, provider_health\.probe \/ input schema required diagnosticsFingerprint, targetLocator/
+      /Repair action preview operation Read Only Probe \/ action kind Check Action Provider Health .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ rerank runtime contract evidence fingerprints none \/ fingerprint 4444555566667777 \/ operation fingerprint 4444dddd5555eeee \/ target locator fingerprint dddd4444eeee5555 \/ required capabilities provider_profile\.read, provider_health\.probe \/ input schema required diagnosticsFingerprint, targetLocator/
     );
     expect(readyGateDiagnostics).toContain(
       'Repair action catalog entry action catalog repair-actions/v1 / action kind Check Provider Health / safety Read Only Probe / recommendations 1 / required capabilities provider_profile.read, provider_health.probe / input schema required diagnosticsFingerprint, targetLocator'
@@ -7831,13 +7877,13 @@ describe('AiPage', () => {
       'Repair action preview status Dry Run Required / read-only yes / fingerprint 7777aaaabbbbcccc'
     );
     expect(failedDryRunDiagnostics).toContain(
-      'candidate evidence set fingerprint cccc7777dddd8888 / embedding index contract evidence set fingerprint cccc8888dddd9999 / prepared route order evidence set fingerprint cccc9999dddd0000'
+      'candidate evidence set fingerprint cccc7777dddd8888 / embedding index contract evidence set fingerprint cccc8888dddd9999 / rerank runtime contract evidence set fingerprint cccc0000dddd1111 / prepared route order evidence set fingerprint cccc9999dddd0000'
     );
     expect(failedDryRunDiagnostics).toContain(
-      'expected candidate evidence set fingerprint cccc7777dddd8888 / expected embedding index contract evidence set fingerprint cccc8888dddd9999 / expected prepared route order evidence set fingerprint cccc9999dddd0000'
+      'expected candidate evidence set fingerprint cccc7777dddd8888 / expected embedding index contract evidence set fingerprint cccc8888dddd9999 / expected rerank runtime contract evidence set fingerprint cccc0000dddd1111 / expected prepared route order evidence set fingerprint cccc9999dddd0000'
     );
     expect(failedDryRunDiagnostics).toMatch(
-      /Repair action preview operation Dry Run Required \/ action kind Review Action Route Dry Run .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ fingerprint 777788889999aaaa \/ operation fingerprint 7777aaaa8888bbbb \/ target locator fingerprint aaaa7777bbbb8888 \/ required capabilities action_route\.read, action_route\.dry_run \/ input schema required diagnosticsFingerprint, targetLocator/
+      /Repair action preview operation Dry Run Required \/ action kind Review Action Route Dry Run .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ rerank runtime contract evidence fingerprints none \/ fingerprint 777788889999aaaa \/ operation fingerprint 7777aaaa8888bbbb \/ target locator fingerprint aaaa7777bbbb8888 \/ required capabilities action_route\.read, action_route\.dry_run \/ input schema required diagnosticsFingerprint, targetLocator/
     );
     expect(failedDryRunDiagnostics).toContain(
       'Repair recommendation Warning / Action Route / action_route_dry_run_failed / Review action route dry-run / ai_prompts_metadata.action.make-it-real / instance make-it-real:dry-run:failed'
@@ -8348,13 +8394,13 @@ describe('AiPage', () => {
       'Repair action preview status Preview Required / read-only yes / fingerprint 8888aaaabbbbcccc'
     );
     expect(blockedGateDiagnostics).toContain(
-      'candidate evidence set fingerprint bbbb6666cccc7777 / embedding index contract evidence set fingerprint bbbb7777cccc8888 / prepared route order evidence set fingerprint bbbb8888cccc9999'
+      'candidate evidence set fingerprint bbbb6666cccc7777 / embedding index contract evidence set fingerprint bbbb7777cccc8888 / rerank runtime contract evidence set fingerprint bbbb9999cccc0000 / prepared route order evidence set fingerprint bbbb8888cccc9999'
     );
     expect(blockedGateDiagnostics).toContain(
-      'expected candidate evidence set fingerprint bbbb6666cccc7777 / expected embedding index contract evidence set fingerprint bbbb7777cccc8888 / expected prepared route order evidence set fingerprint bbbb8888cccc9999'
+      'expected candidate evidence set fingerprint bbbb6666cccc7777 / expected embedding index contract evidence set fingerprint bbbb7777cccc8888 / expected rerank runtime contract evidence set fingerprint bbbb9999cccc0000 / expected prepared route order evidence set fingerprint bbbb8888cccc9999'
     );
     expect(blockedGateDiagnostics).toMatch(
-      /Repair action preview operation Preview Required \/ action kind Registry Add Messages .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ fingerprint 5555666677778888 \/ operation fingerprint 5555eeee6666ffff \/ target locator fingerprint eeee5555ffff6666 \/ required capabilities prompt_registry\.read, prompt_registry\.preview_write \/ input schema required diagnosticsFingerprint, targetLocator/
+      /Repair action preview operation Preview Required \/ action kind Registry Add Messages .* candidate evidence 0 \/ candidate evidence fingerprint [0-9a-f]{16} \/ candidate evidence fingerprints none \/ candidate evidence keys none \/ prepared route order fingerprints none \/ embedding index contract evidence fingerprints none \/ rerank runtime contract evidence fingerprints none \/ fingerprint 5555666677778888 \/ operation fingerprint 5555eeee6666ffff \/ target locator fingerprint eeee5555ffff6666 \/ required capabilities prompt_registry\.read, prompt_registry\.preview_write \/ input schema required diagnosticsFingerprint, targetLocator/
     );
     expect(blockedGateDiagnostics).toContain('Repair recommendations 2');
     expect(blockedGateDiagnostics).toContain(

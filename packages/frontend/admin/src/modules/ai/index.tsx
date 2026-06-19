@@ -383,6 +383,8 @@ function buildPromptRegistryRepairSubmissionInput(
       submissionContract.candidateEvidenceSetFingerprint,
     embeddingIndexContractEvidenceSetFingerprint:
       submissionContract.embeddingIndexContractEvidenceSetFingerprint,
+    rerankRuntimeContractEvidenceSetFingerprint:
+      submissionContract.rerankRuntimeContractEvidenceSetFingerprint,
     preparedRouteOrderEvidenceSetFingerprint:
       submissionContract.preparedRouteOrderEvidenceSetFingerprint,
     catalogFingerprint: submissionContract.catalogFingerprint,
@@ -423,6 +425,8 @@ function buildPromptRegistryRepairExecutionRequestInput({
       repairPreflight.candidateEvidenceSetFingerprint,
     expectedEmbeddingIndexContractEvidenceSetFingerprint:
       repairPreflight.embeddingIndexContractEvidenceSetFingerprint,
+    expectedRerankRuntimeContractEvidenceSetFingerprint:
+      repairPreflight.rerankRuntimeContractEvidenceSetFingerprint,
     expectedPreparedRouteOrderEvidenceSetFingerprint:
       repairPreflight.preparedRouteOrderEvidenceSetFingerprint,
     expectedTargetLocatorFingerprint: repairPreflight.targetLocatorFingerprint,
@@ -2310,6 +2314,7 @@ function PromptRegistryPublishGateQueryResult({
             authorizationFingerprint: '',
             candidateEvidenceSetFingerprint: '',
             embeddingIndexContractEvidenceSetFingerprint: '',
+            rerankRuntimeContractEvidenceSetFingerprint: '',
             preparedRouteOrderEvidenceSetFingerprint: '',
             catalogFingerprint: '',
             contractVersion: '',
@@ -3411,6 +3416,7 @@ function formatPromptRegistryPublishGateRepairActionPreview(
     `authorization fingerprint ${preview.authorizationFingerprint}`,
     `candidate evidence set fingerprint ${preview.candidateEvidenceSetFingerprint}`,
     `embedding index contract evidence set fingerprint ${preview.embeddingIndexContractEvidenceSetFingerprint}`,
+    `rerank runtime contract evidence set fingerprint ${preview.rerankRuntimeContractEvidenceSetFingerprint}`,
     `prepared route order evidence set fingerprint ${preview.preparedRouteOrderEvidenceSetFingerprint}`,
     `approval policy ${preview.approvalPolicyVersion}`,
     `approval policy fingerprint ${preview.approvalPolicyFingerprint}`,
@@ -3435,6 +3441,7 @@ function formatPromptRegistryPublishGateRepairActionPreview(
     `submission fingerprint ${submission.submissionFingerprint}`,
     `submission candidate evidence set fingerprint ${submission.candidateEvidenceSetFingerprint}`,
     `submission embedding index contract evidence set fingerprint ${submission.embeddingIndexContractEvidenceSetFingerprint}`,
+    `submission rerank runtime contract evidence set fingerprint ${submission.rerankRuntimeContractEvidenceSetFingerprint}`,
     `submission prepared route order evidence set fingerprint ${submission.preparedRouteOrderEvidenceSetFingerprint}`,
     `submission status ${formatFeatureKind(submission.status)}`,
     submission.readOnly
@@ -3479,9 +3486,11 @@ function formatPromptRegistryRepairPreflight(
     `authorization status ${formatFeatureKind(preflight.authorizationStatus)}`,
     `candidate evidence set fingerprint ${preflight.candidateEvidenceSetFingerprint}`,
     `embedding index contract evidence set fingerprint ${preflight.embeddingIndexContractEvidenceSetFingerprint}`,
+    `rerank runtime contract evidence set fingerprint ${preflight.rerankRuntimeContractEvidenceSetFingerprint}`,
     `prepared route order evidence set fingerprint ${preflight.preparedRouteOrderEvidenceSetFingerprint}`,
     `expected candidate evidence set fingerprint ${preflight.expectedCandidateEvidenceSetFingerprint}`,
     `expected embedding index contract evidence set fingerprint ${preflight.expectedEmbeddingIndexContractEvidenceSetFingerprint}`,
+    `expected rerank runtime contract evidence set fingerprint ${preflight.expectedRerankRuntimeContractEvidenceSetFingerprint}`,
     `expected prepared route order evidence set fingerprint ${preflight.expectedPreparedRouteOrderEvidenceSetFingerprint}`,
     `target locator fingerprint ${preflight.targetLocatorFingerprint}`,
     `expected target locator fingerprint ${preflight.expectedTargetLocatorFingerprint}`,
@@ -3621,6 +3630,7 @@ function formatPromptRegistryRepairExecutionRequest(
       : 'execution requested no',
     `expected candidate evidence set fingerprint ${request.expectedCandidateEvidenceSetFingerprint}`,
     `expected embedding index contract evidence set fingerprint ${request.expectedEmbeddingIndexContractEvidenceSetFingerprint}`,
+    `expected rerank runtime contract evidence set fingerprint ${request.expectedRerankRuntimeContractEvidenceSetFingerprint}`,
     `expected prepared route order evidence set fingerprint ${request.expectedPreparedRouteOrderEvidenceSetFingerprint}`,
     `expected target locator fingerprint ${request.expectedTargetLocatorFingerprint}`,
     `approval record request ${request.approvalRecordRequestVersion}`,
@@ -4266,8 +4276,10 @@ function formatPromptRegistryRepairExecutionRequest(
     `preflight audit event fingerprint ${request.preflight.auditEventFingerprint}`,
     `preflight candidate evidence set fingerprint ${request.preflight.candidateEvidenceSetFingerprint}`,
     `preflight embedding index contract evidence set fingerprint ${request.preflight.embeddingIndexContractEvidenceSetFingerprint}`,
+    `preflight rerank runtime contract evidence set fingerprint ${request.preflight.rerankRuntimeContractEvidenceSetFingerprint}`,
     `preflight prepared route order evidence set fingerprint ${request.preflight.preparedRouteOrderEvidenceSetFingerprint}`,
     `preflight expected embedding index contract evidence set fingerprint ${request.preflight.expectedEmbeddingIndexContractEvidenceSetFingerprint}`,
+    `preflight expected rerank runtime contract evidence set fingerprint ${request.preflight.expectedRerankRuntimeContractEvidenceSetFingerprint}`,
     `preflight expected prepared route order evidence set fingerprint ${request.preflight.expectedPreparedRouteOrderEvidenceSetFingerprint}`,
     `preflight execution state fingerprint ${request.preflight.executionStateFingerprint}`,
     `preflight idempotency fingerprint ${request.preflight.idempotencyFingerprint}`,
@@ -4307,6 +4319,9 @@ function formatPromptRegistryPublishGateRepairActionPreviewOperation(
     operation.embeddingIndexContractEvidenceFingerprints.length
       ? `embedding index contract evidence fingerprints ${operation.embeddingIndexContractEvidenceFingerprints.join(', ')}`
       : 'embedding index contract evidence fingerprints none',
+    operation.rerankRuntimeContractEvidenceFingerprints.length
+      ? `rerank runtime contract evidence fingerprints ${operation.rerankRuntimeContractEvidenceFingerprints.join(', ')}`
+      : 'rerank runtime contract evidence fingerprints none',
     `fingerprint ${operation.diagnosticsFingerprint}`,
     `operation fingerprint ${operation.operationFingerprint}`,
     `target locator fingerprint ${operation.targetLocatorFingerprint}`,

@@ -1286,6 +1286,7 @@ input CopilotPromptRegistryRepairExecutionRequestInput {
   expectedAuditEventFingerprint: String!
   expectedCandidateEvidenceSetFingerprint: String!
   expectedEmbeddingIndexContractEvidenceSetFingerprint: String!
+  expectedRerankRuntimeContractEvidenceSetFingerprint: String!
   expectedPreparedRouteOrderEvidenceSetFingerprint: String!
   expectedTargetLocatorFingerprint: String!
   expectedExecutionGateFingerprint: String!
@@ -1334,6 +1335,7 @@ type CopilotPromptRegistryRepairPreflightType {
   authorizationStatus: String!
   candidateEvidenceSetFingerprint: String!
   embeddingIndexContractEvidenceSetFingerprint: String!
+  rerankRuntimeContractEvidenceSetFingerprint: String!
   preparedRouteOrderEvidenceSetFingerprint: String!
   capabilityCheckMode: String!
   capabilityFingerprint: String!
@@ -1353,6 +1355,7 @@ type CopilotPromptRegistryRepairPreflightType {
   executionStateVersion: String!
   expectedCandidateEvidenceSetFingerprint: String!
   expectedEmbeddingIndexContractEvidenceSetFingerprint: String!
+  expectedRerankRuntimeContractEvidenceSetFingerprint: String!
   expectedPreparedRouteOrderEvidenceSetFingerprint: String!
   expectedTargetLocatorFingerprint: String!
   idempotencyFingerprint: String!
@@ -1402,6 +1405,7 @@ input CopilotPromptRegistryRepairSubmissionInput {
   authorizationFingerprint: String!
   candidateEvidenceSetFingerprint: String!
   embeddingIndexContractEvidenceSetFingerprint: String!
+  rerankRuntimeContractEvidenceSetFingerprint: String!
   preparedRouteOrderEvidenceSetFingerprint: String!
   catalogFingerprint: String!
   contractVersion: String!
@@ -1759,6 +1763,7 @@ type CopilotPromptRegistryPublishGateRepairActionPreviewOperationType {
   code: String!
   diagnosticsFingerprint: String!
   embeddingIndexContractEvidenceFingerprints: [String!]!
+  rerankRuntimeContractEvidenceFingerprints: [String!]!
   inputSchema: JSONObject!
   instanceKey: String
   operationFingerprint: String!
@@ -1777,6 +1782,7 @@ type CopilotPromptRegistryPublishGateRepairActionSubmissionContractType {
   authorizationFingerprint: String!
   candidateEvidenceSetFingerprint: String!
   embeddingIndexContractEvidenceSetFingerprint: String!
+  rerankRuntimeContractEvidenceSetFingerprint: String!
   preparedRouteOrderEvidenceSetFingerprint: String!
   catalogFingerprint: String!
   contractVersion: String!
@@ -1807,6 +1813,7 @@ type CopilotPromptRegistryPublishGateRepairActionPreviewType {
   candidateCount: SafeInt!
   candidateEvidenceSetFingerprint: String!
   embeddingIndexContractEvidenceSetFingerprint: String!
+  rerankRuntimeContractEvidenceSetFingerprint: String!
   preparedRouteOrderEvidenceSetFingerprint: String!
   catalogFingerprint: String!
   catalogVersion: String!

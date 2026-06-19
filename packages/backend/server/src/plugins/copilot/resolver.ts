@@ -204,6 +204,9 @@ class CopilotPromptRegistryRepairSubmissionInput {
   embeddingIndexContractEvidenceSetFingerprint!: string;
 
   @Field(() => String)
+  rerankRuntimeContractEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
   preparedRouteOrderEvidenceSetFingerprint!: string;
 
   @Field(() => String)
@@ -273,6 +276,9 @@ class CopilotPromptRegistryRepairExecutionRequestInput {
 
   @Field(() => String)
   expectedEmbeddingIndexContractEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  expectedRerankRuntimeContractEvidenceSetFingerprint!: string;
 
   @Field(() => String)
   expectedPreparedRouteOrderEvidenceSetFingerprint!: string;
@@ -882,6 +888,7 @@ type CopilotPromptRegistryPublishGateRepairActionPreviewOperation = {
   code: string;
   diagnosticsFingerprint: string;
   embeddingIndexContractEvidenceFingerprints: string[];
+  rerankRuntimeContractEvidenceFingerprints: string[];
   inputSchema: Record<string, unknown>;
   instanceKey?: string;
   operationFingerprint: string;
@@ -900,6 +907,7 @@ type CopilotPromptRegistryPublishGateRepairActionSubmissionContract = {
   authorizationFingerprint: string;
   candidateEvidenceSetFingerprint: string;
   embeddingIndexContractEvidenceSetFingerprint: string;
+  rerankRuntimeContractEvidenceSetFingerprint: string;
   preparedRouteOrderEvidenceSetFingerprint: string;
   catalogFingerprint: string;
   contractVersion: string;
@@ -949,6 +957,7 @@ type CopilotPromptRegistryRepairPreflight = {
   authorizationStatus: string;
   candidateEvidenceSetFingerprint: string;
   embeddingIndexContractEvidenceSetFingerprint: string;
+  rerankRuntimeContractEvidenceSetFingerprint: string;
   preparedRouteOrderEvidenceSetFingerprint: string;
   capabilityCheckMode: string;
   capabilityFingerprint: string;
@@ -968,6 +977,7 @@ type CopilotPromptRegistryRepairPreflight = {
   executionStateVersion: string;
   expectedCandidateEvidenceSetFingerprint: string;
   expectedEmbeddingIndexContractEvidenceSetFingerprint: string;
+  expectedRerankRuntimeContractEvidenceSetFingerprint: string;
   expectedPreparedRouteOrderEvidenceSetFingerprint: string;
   expectedTargetLocatorFingerprint: string;
   targetLocatorFingerprint: string;
@@ -1017,6 +1027,7 @@ type CopilotPromptRegistryRepairExecutionRequest = {
   executionRequested: boolean;
   expectedCandidateEvidenceSetFingerprint: string;
   expectedEmbeddingIndexContractEvidenceSetFingerprint: string;
+  expectedRerankRuntimeContractEvidenceSetFingerprint: string;
   expectedPreparedRouteOrderEvidenceSetFingerprint: string;
   expectedTargetLocatorFingerprint: string;
   approvalRecordRequestCreated: boolean;
@@ -1283,6 +1294,7 @@ type CopilotPromptRegistryPublishGateRepairActionPreview = {
   candidateCount: number;
   candidateEvidenceSetFingerprint: string;
   embeddingIndexContractEvidenceSetFingerprint: string;
+  rerankRuntimeContractEvidenceSetFingerprint: string;
   preparedRouteOrderEvidenceSetFingerprint: string;
   catalogFingerprint: string;
   catalogVersion: string;
@@ -2284,6 +2296,9 @@ class CopilotPromptRegistryPublishGateRepairActionPreviewOperationType implement
   @Field(() => [String])
   embeddingIndexContractEvidenceFingerprints!: string[];
 
+  @Field(() => [String])
+  rerankRuntimeContractEvidenceFingerprints!: string[];
+
   @Field(() => GraphQLJSON)
   inputSchema!: Record<string, unknown>;
 
@@ -2333,6 +2348,9 @@ class CopilotPromptRegistryPublishGateRepairActionSubmissionContractType impleme
 
   @Field(() => String)
   embeddingIndexContractEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  rerankRuntimeContractEvidenceSetFingerprint!: string;
 
   @Field(() => String)
   preparedRouteOrderEvidenceSetFingerprint!: string;
@@ -2417,6 +2435,9 @@ class CopilotPromptRegistryPublishGateRepairActionPreviewType implements Copilot
 
   @Field(() => String)
   embeddingIndexContractEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  rerankRuntimeContractEvidenceSetFingerprint!: string;
 
   @Field(() => String)
   preparedRouteOrderEvidenceSetFingerprint!: string;
@@ -2552,6 +2573,9 @@ class CopilotPromptRegistryRepairPreflightType implements CopilotPromptRegistryR
   embeddingIndexContractEvidenceSetFingerprint!: string;
 
   @Field(() => String)
+  rerankRuntimeContractEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
   preparedRouteOrderEvidenceSetFingerprint!: string;
 
   @Field(() => String)
@@ -2607,6 +2631,9 @@ class CopilotPromptRegistryRepairPreflightType implements CopilotPromptRegistryR
 
   @Field(() => String)
   expectedEmbeddingIndexContractEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  expectedRerankRuntimeContractEvidenceSetFingerprint!: string;
 
   @Field(() => String)
   expectedPreparedRouteOrderEvidenceSetFingerprint!: string;
@@ -2748,6 +2775,9 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
 
   @Field(() => String)
   expectedEmbeddingIndexContractEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  expectedRerankRuntimeContractEvidenceSetFingerprint!: string;
 
   @Field(() => String)
   expectedPreparedRouteOrderEvidenceSetFingerprint!: string;
@@ -8224,6 +8254,13 @@ function promptRegistryRepairCandidateEvidenceSnapshot(
         : []
     )
   ).sort();
+  const rerankRuntimeContractEvidenceFingerprints = uniqueStrings(
+    evidence.flatMap(candidate =>
+      candidate.taskRouteRerankRuntimeContractSnapshotFingerprint
+        ? [candidate.taskRouteRerankRuntimeContractSnapshotFingerprint]
+        : []
+    )
+  ).sort();
 
   return {
     candidateEvidenceCount: evidence.length,
@@ -8239,6 +8276,7 @@ function promptRegistryRepairCandidateEvidenceSnapshot(
     candidateEvidenceFingerprints,
     candidateEvidenceKeys,
     embeddingIndexContractEvidenceFingerprints,
+    rerankRuntimeContractEvidenceFingerprints,
     preparedRouteOrderFingerprints,
   };
 }
@@ -8296,6 +8334,8 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
           diagnosticsFingerprint: operation.diagnosticsFingerprint,
           embeddingIndexContractEvidenceFingerprints:
             operation.embeddingIndexContractEvidenceFingerprints,
+          rerankRuntimeContractEvidenceFingerprints:
+            operation.rerankRuntimeContractEvidenceFingerprints,
           inputSchema: operation.inputSchema,
           preparedRouteOrderFingerprints:
             operation.preparedRouteOrderFingerprints,
@@ -8335,6 +8375,8 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
             diagnosticsFingerprint: operation.diagnosticsFingerprint,
             embeddingIndexContractEvidenceFingerprints:
               operation.embeddingIndexContractEvidenceFingerprints,
+            rerankRuntimeContractEvidenceFingerprints:
+              operation.rerankRuntimeContractEvidenceFingerprints,
             operationFingerprint: operation.operationFingerprint,
             preparedRouteOrderFingerprints:
               operation.preparedRouteOrderFingerprints,
@@ -8355,6 +8397,23 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
             embeddingIndexContractEvidenceFingerprints:
               operation.embeddingIndexContractEvidenceFingerprints,
             operationFingerprint: operation.operationFingerprint,
+          }))
+          .sort((left, right) =>
+            left.operationFingerprint.localeCompare(right.operationFingerprint)
+          )
+      )
+    )
+    .digest('hex')
+    .slice(0, 16);
+  const rerankRuntimeContractEvidenceSetFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify(
+        operations
+          .map(operation => ({
+            diagnosticsFingerprint: operation.diagnosticsFingerprint,
+            operationFingerprint: operation.operationFingerprint,
+            rerankRuntimeContractEvidenceFingerprints:
+              operation.rerankRuntimeContractEvidenceFingerprints,
           }))
           .sort((left, right) =>
             left.operationFingerprint.localeCompare(right.operationFingerprint)
@@ -8441,6 +8500,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
     guardFingerprint: input.guard.guardFingerprint,
     operationSetFingerprint,
     preparedRouteOrderEvidenceSetFingerprint,
+    rerankRuntimeContractEvidenceSetFingerprint,
     operations: operations.map(operation => ({
       actionKind: operation.actionKind,
       candidateEvidenceFingerprint: operation.candidateEvidenceFingerprint,
@@ -8449,6 +8509,8 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
         operation.embeddingIndexContractEvidenceFingerprints,
       operationFingerprint: operation.operationFingerprint,
       preparedRouteOrderFingerprints: operation.preparedRouteOrderFingerprints,
+      rerankRuntimeContractEvidenceFingerprints:
+        operation.rerankRuntimeContractEvidenceFingerprints,
       previewStatus: operation.previewStatus,
       reviewMode: operation.reviewMode,
       safety: operation.safety,
@@ -8467,6 +8529,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
     'candidateEvidenceSetFingerprint',
     'embeddingIndexContractEvidenceSetFingerprint',
     'preparedRouteOrderEvidenceSetFingerprint',
+    'rerankRuntimeContractEvidenceSetFingerprint',
     'expectedRegistryFingerprint',
     'expectedRegistryId',
     'expectedRegistryUpdatedAt',
@@ -8491,6 +8554,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
         operationSetFingerprint,
         preparedRouteOrderEvidenceSetFingerprint,
         previewFingerprint,
+        rerankRuntimeContractEvidenceSetFingerprint,
         requiredInputs: submissionRequiredInputs,
         targetLocatorFingerprint: input.guard.targetLocatorFingerprint,
       })
@@ -8520,6 +8584,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
       preparedRouteOrderEvidenceSetFingerprint,
       previewFingerprint,
       readOnly: true,
+      rerankRuntimeContractEvidenceSetFingerprint,
       requiredInputs: submissionRequiredInputs,
       status: 'read_only_contract',
       submissionFingerprint,
@@ -8539,6 +8604,7 @@ function buildPromptRegistryPublishGateRepairActionPreview(input: {
     candidateEvidenceSetFingerprint,
     embeddingIndexContractEvidenceSetFingerprint,
     preparedRouteOrderEvidenceSetFingerprint,
+    rerankRuntimeContractEvidenceSetFingerprint,
     catalogFingerprint: input.catalogFingerprint,
     catalogVersion: input.guard.catalogVersion,
     guardFingerprint: input.guard.guardFingerprint,
@@ -8605,6 +8671,11 @@ function buildPromptRegistryRepairPreflight(
       'embeddingIndexContractEvidenceSetFingerprint',
       expected.embeddingIndexContractEvidenceSetFingerprint ===
         current.embeddingIndexContractEvidenceSetFingerprint,
+    ],
+    [
+      'rerankRuntimeContractEvidenceSetFingerprint',
+      expected.rerankRuntimeContractEvidenceSetFingerprint ===
+        current.rerankRuntimeContractEvidenceSetFingerprint,
     ],
     [
       'preparedRouteOrderEvidenceSetFingerprint',
@@ -8725,6 +8796,7 @@ function buildPromptRegistryRepairPreflight(
     'embeddingIndexContractEvidenceSetFingerprint',
     'preparedRouteOrderEvidenceSetFingerprint',
     'permissionFingerprint',
+    'rerankRuntimeContractEvidenceSetFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
   ].sort();
@@ -8743,6 +8815,8 @@ function buildPromptRegistryRepairPreflight(
           current.embeddingIndexContractEvidenceSetFingerprint,
         preparedRouteOrderEvidenceSetFingerprint:
           current.preparedRouteOrderEvidenceSetFingerprint,
+        rerankRuntimeContractEvidenceSetFingerprint:
+          current.rerankRuntimeContractEvidenceSetFingerprint,
         expectedSubmissionFingerprint: expected.submissionFingerprint,
         expectedCandidateEvidenceSetFingerprint:
           expected.candidateEvidenceSetFingerprint,
@@ -8750,6 +8824,8 @@ function buildPromptRegistryRepairPreflight(
           expected.embeddingIndexContractEvidenceSetFingerprint,
         expectedPreparedRouteOrderEvidenceSetFingerprint:
           expected.preparedRouteOrderEvidenceSetFingerprint,
+        expectedRerankRuntimeContractEvidenceSetFingerprint:
+          expected.rerankRuntimeContractEvidenceSetFingerprint,
         expectedTargetLocatorFingerprint: expected.targetLocatorFingerprint,
         inputs: reviewBindingInputs,
         permissionFingerprint,
@@ -8881,6 +8957,7 @@ function buildPromptRegistryRepairPreflight(
     'operationSetFingerprint',
     'policyBindingFingerprint',
     'repairJobFingerprint',
+    'rerankRuntimeContractEvidenceSetFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
   ].sort();
@@ -8899,6 +8976,8 @@ function buildPromptRegistryRepairPreflight(
           current.embeddingIndexContractEvidenceSetFingerprint,
         idempotencyKey: current.idempotencyKey,
         lockAcquired: false,
+        rerankRuntimeContractEvidenceSetFingerprint:
+          current.rerankRuntimeContractEvidenceSetFingerprint,
         reviewBindingFingerprint,
         scope: idempotencyScope,
         status: idempotencyStatus,
@@ -8917,6 +8996,7 @@ function buildPromptRegistryRepairPreflight(
     'idempotencyFingerprint',
     'operationSetFingerprint',
     'policyBindingFingerprint',
+    'rerankRuntimeContractEvidenceSetFingerprint',
     'reviewBindingFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
@@ -8936,6 +9016,8 @@ function buildPromptRegistryRepairPreflight(
         inputs: repairJobInputs,
         operationSetFingerprint: current.operationSetFingerprint,
         policyBindingFingerprint,
+        rerankRuntimeContractEvidenceSetFingerprint:
+          current.rerankRuntimeContractEvidenceSetFingerprint,
         reviewBindingFingerprint,
         status: repairJobStatus,
         submissionFingerprint: current.submissionFingerprint,
@@ -8961,6 +9043,8 @@ function buildPromptRegistryRepairPreflight(
         operationSetFingerprint: current.operationSetFingerprint,
         policyBindingFingerprint,
         repairJobFingerprint,
+        rerankRuntimeContractEvidenceSetFingerprint:
+          current.rerankRuntimeContractEvidenceSetFingerprint,
         status: auditEventStatus,
         submissionFingerprint: current.submissionFingerprint,
         targetLocatorFingerprint: current.targetLocatorFingerprint,
@@ -8978,6 +9062,7 @@ function buildPromptRegistryRepairPreflight(
     'idempotencyFingerprint',
     'operationSetFingerprint',
     'repairJobFingerprint',
+    'rerankRuntimeContractEvidenceSetFingerprint',
     'reviewBindingFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
@@ -8996,6 +9081,8 @@ function buildPromptRegistryRepairPreflight(
         inputs: executionStateInputs,
         operationSetFingerprint: current.operationSetFingerprint,
         repairJobFingerprint,
+        rerankRuntimeContractEvidenceSetFingerprint:
+          current.rerankRuntimeContractEvidenceSetFingerprint,
         reviewBindingFingerprint,
         status: executionStateStatus,
         submissionFingerprint: current.submissionFingerprint,
@@ -9014,6 +9101,7 @@ function buildPromptRegistryRepairPreflight(
     'executionStateFingerprint',
     'operationSetFingerprint',
     'repairJobFingerprint',
+    'rerankRuntimeContractEvidenceSetFingerprint',
     'reviewBindingFingerprint',
     'submissionFingerprint',
     'targetLocatorFingerprint',
@@ -9032,6 +9120,8 @@ function buildPromptRegistryRepairPreflight(
         inputs: rollbackPlanInputs,
         operationSetFingerprint: current.operationSetFingerprint,
         repairJobFingerprint,
+        rerankRuntimeContractEvidenceSetFingerprint:
+          current.rerankRuntimeContractEvidenceSetFingerprint,
         reviewBindingFingerprint,
         status: rollbackPlanStatus,
         submissionFingerprint: current.submissionFingerprint,
@@ -9120,6 +9210,8 @@ function buildPromptRegistryRepairPreflight(
       current.embeddingIndexContractEvidenceSetFingerprint,
     preparedRouteOrderEvidenceSetFingerprint:
       current.preparedRouteOrderEvidenceSetFingerprint,
+    rerankRuntimeContractEvidenceSetFingerprint:
+      current.rerankRuntimeContractEvidenceSetFingerprint,
     capabilityCheckMode: capability.checkMode,
     capabilityFingerprint,
     capabilitySource: capability.source,
@@ -9142,6 +9234,8 @@ function buildPromptRegistryRepairPreflight(
       expected.embeddingIndexContractEvidenceSetFingerprint,
     expectedPreparedRouteOrderEvidenceSetFingerprint:
       expected.preparedRouteOrderEvidenceSetFingerprint,
+    expectedRerankRuntimeContractEvidenceSetFingerprint:
+      expected.rerankRuntimeContractEvidenceSetFingerprint,
     expectedTargetLocatorFingerprint: expected.targetLocatorFingerprint,
     idempotencyFingerprint,
     idempotencyKey: current.idempotencyKey,
@@ -9220,6 +9314,11 @@ function buildPromptRegistryRepairExecutionRequest(
       'expectedEmbeddingIndexContractEvidenceSetFingerprint',
       input.expectedEmbeddingIndexContractEvidenceSetFingerprint ===
         preflight.embeddingIndexContractEvidenceSetFingerprint,
+    ],
+    [
+      'expectedRerankRuntimeContractEvidenceSetFingerprint',
+      input.expectedRerankRuntimeContractEvidenceSetFingerprint ===
+        preflight.rerankRuntimeContractEvidenceSetFingerprint,
     ],
     [
       'expectedPreparedRouteOrderEvidenceSetFingerprint',
@@ -12122,10 +12221,14 @@ function buildPromptRegistryRepairExecutionRequest(
           preflight.embeddingIndexContractEvidenceSetFingerprint,
         preparedRouteOrderEvidenceSetFingerprint:
           preflight.preparedRouteOrderEvidenceSetFingerprint,
+        rerankRuntimeContractEvidenceSetFingerprint:
+          preflight.rerankRuntimeContractEvidenceSetFingerprint,
         executionGateFingerprint: preflight.executionGateFingerprint,
         executionStateRequestFingerprint,
         expectedEmbeddingIndexContractEvidenceSetFingerprint:
           input.expectedEmbeddingIndexContractEvidenceSetFingerprint,
+        expectedRerankRuntimeContractEvidenceSetFingerprint:
+          input.expectedRerankRuntimeContractEvidenceSetFingerprint,
         expectedTargetLocatorFingerprint:
           input.expectedTargetLocatorFingerprint,
         idempotencyLockFingerprint,
@@ -12155,6 +12258,8 @@ function buildPromptRegistryRepairExecutionRequest(
       input.expectedCandidateEvidenceSetFingerprint,
     expectedEmbeddingIndexContractEvidenceSetFingerprint:
       input.expectedEmbeddingIndexContractEvidenceSetFingerprint,
+    expectedRerankRuntimeContractEvidenceSetFingerprint:
+      input.expectedRerankRuntimeContractEvidenceSetFingerprint,
     expectedPreparedRouteOrderEvidenceSetFingerprint:
       input.expectedPreparedRouteOrderEvidenceSetFingerprint,
     expectedTargetLocatorFingerprint: input.expectedTargetLocatorFingerprint,

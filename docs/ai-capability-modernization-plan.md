@@ -14127,3 +14127,36 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - contract snapshot fingerprint 只绑定 route diagnostics 中的 rerank runtime contract 字段、当前 route requested/model/provider scope、candidate count、prepared provider count 与 topK，不绑定 provider revision、Model Registry revision、Provider Registry revision、runtime binary revision、workspace id、cache id 或实际 rerank response distribution。
 - 本轮尚未把 rerank runtime contract 推进到 repair preview/submission/preflight/execution request stale guard、support bundle manifest、audit event、execution state、repair job 或 rollback plan；后续若要校验 rerank repair evidence set，需要像 embedding index contract 一样继续推进到 gate-level anchor。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 421. P3 落地记录：Prompt Registry Repair Preview Rerank Runtime Contract Evidence Set Binding
+
+本轮继续收敛第 420 节剩余风险中 “rerank runtime contract 尚未推进到 repair preview/submission/preflight/execution request stale guard” 的问题。实际代码与目标 AI 中间层架构的冲突点是：rerank repair candidate evidence 已经能证明 task route 绑定了 `workspace-rerank-runtime/v1` runtime contract，但 repair action preview、submission contract、preflight 与 execution request gate 仍主要校验 `candidateEvidenceSetFingerprint`、`preparedRouteOrderEvidenceSetFingerprint` 和 embedding index contract anchor；后续 repair review、route explain 或 support bundle 若只读取 gate-level contract，仍无法直接判断 rerank runtime contract evidence set 是否发生漂移。本轮新增只读 `rerankRuntimeContractEvidenceSetFingerprint`，把 rerank runtime contract evidence 从 candidate evidence 推进到 repair gate stale-check anchor。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryPublishGateRepairActionPreviewOperation` 新增 `rerankRuntimeContractEvidenceFingerprints`，从 candidate evidence 的 `taskRouteRerankRuntimeContractSnapshotFingerprint` 聚合。
+  - `repairActionPreview` 与 `submissionContract` 新增 `rerankRuntimeContractEvidenceSetFingerprint`，fingerprint 绑定 diagnostics fingerprint、operation fingerprint 与各 operation 的 rerank runtime contract evidence fingerprints。
+  - repair submission input、preflight current/expected、review binding、audit event、execution state、repair job、rollback plan、execution request input/return 与 request fingerprint payload 同步纳入该只读 anchor，用于 stale guard 与 read-only artifact consistency。
+  - preflight idempotency fingerprint 也绑定当前 rerank runtime contract evidence set，避免 idempotency artifact 只跟随 embedding/candidate/review anchor。
+- GraphQL 与 common client：
+  - `schema.gql`、publish gate query、repair preflight query、repair execution request mutation、common query string 与 `schema.ts` 类型同步暴露 operation-level evidence fingerprints、preview/submission/preflight current/expected 与 execution request expected 字段。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - repair submission input 与 execution request input 透传新 fingerprint。
+  - repair preview、submission contract、preflight、execution request 和 operation diagnostics 展示 rerank runtime contract evidence set/current/expected/operation evidence fingerprints。
+- 测试覆盖：
+  - backend model/source chain smoke test 断言 preview set fingerprint 可由 operation evidence fingerprints 重算，submission/preflight/execution request stale guard 与 read-only artifact inputs 均绑定新 anchor。
+  - Admin Vitest fixture/断言覆盖 submission input、execution request input、preview/preflight/execution diagnostics 与 operation evidence fingerprints 展示。
+
+该实现只扩展 Prompt Registry repair preview/submission/preflight/execution request gate 的只读 GraphQL projection、common query/type、Admin 展示和测试，不新增 DB migration、不改变 rerank cache/index、不改变 rerank request payload、provider route selection、fallback order、Prompt Registry publish gate 判定、embedding request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、native dispatch、Action Runtime 状态机、MCP registry、Codex adapter、repair mutation 可执行性、Model Registry revision 或 Provider Registry revision。它把 “rerank 当前 runtime contract evidence set” 从 candidate evidence 推进到可复用的 repair gate stale-check anchor，为后续正式 repair execution、route explain 或 support bundle 校验同一 rerank runtime contract 提供稳定输入。
+
+验证策略：
+
+- 本轮为 TypeScript/GraphQL/Admin test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 backend model/source chain smoke、Admin AI Vitest、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `rerankRuntimeContractEvidenceSetFingerprint` 仍是只读 repair gate anchor，不是 DB-backed rerank runtime registry、rerank cache/index contract、tenant-level rerank compatibility record、真实 rerank policy negotiation 或 repair mutation 可执行输入。
+- fingerprint 只绑定 repair operation/candidate evidence 中已经暴露的 rerank runtime contract snapshot，不绑定 provider revision、Model Registry revision、Provider Registry revision、runtime binary revision、workspace id、cache id、rerank response distribution 或真实 rerank index/cache 状态。
+- 该 anchor 会进入 preflight/review/audit/read-only artifact inputs 并影响 stale guard，但不会创建真实 audit event、execution state、repair job、rollback plan 或 idempotency lock。
+- 现阶段 contract 仍只覆盖只读 repair gate；support bundle manifest、正式 repair execution、DB-backed rerank runtime/cache registry 与跨 provider rerank policy negotiation 仍需后续阶段定义。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
