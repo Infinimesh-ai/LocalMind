@@ -265,6 +265,21 @@ const candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInp
   ] as const;
 const candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatusFixture =
   'not_materialized_read_only';
+const candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintFixture =
+  createHash('sha256')
+    .update(
+      stableFingerprintFixtureStringify({
+        backendFingerprint:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintFixture,
+        objectStatus:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatusFixture,
+        schemaFingerprint: candidateEvidenceReferenceSchemaFingerprintFixture,
+        storageFingerprint:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintFixture,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
 
 function candidateEvidenceClassificationSummaryFixture(
   candidateEvidenceKeys: string[]
@@ -4953,6 +4968,8 @@ async function main() {
             ],
           candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus:
             candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatusFixture,
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint:
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintFixture,
           candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatus:
             candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatusFixture,
           candidateEvidenceReferenceSchemaArtifactRecordStorageStatus:
@@ -5066,6 +5083,10 @@ async function main() {
   assert.equal(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus,
     candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatusFixture
+  );
+  assert.equal(
+    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint,
+    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintFixture
   );
   assert.equal(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatus,
