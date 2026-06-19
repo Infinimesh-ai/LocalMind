@@ -4099,6 +4099,8 @@ function formatPromptRegistryRepairExecutionRequest(
                   : 'referenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintInputs:none'
               }:referenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatus:${
                 entry.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatus
+              }:referenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprint:${
+                entry.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprint
               }:referenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceStatus:${
                 entry.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceStatus
               }:referenceSchemaArtifactRecordStorageObjectFingerprint:${

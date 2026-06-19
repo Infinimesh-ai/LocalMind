@@ -1270,6 +1270,7 @@ export interface CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryT
     Scalars['String']['output']
   >;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatus: Scalars['String']['output'];
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprint: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputs: Array<
@@ -9316,6 +9317,7 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
       candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprint: string;
       candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintInputs: Array<string>;
       candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatus: string;
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprint: string;
       candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceStatus: string;
       candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint: string;
       candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputs: Array<string>;
