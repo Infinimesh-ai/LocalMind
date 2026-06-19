@@ -4480,6 +4480,75 @@ async function main() {
       .slice(0, 16)
   );
   assert.equal(
+    executionRequest.supportBundleArchiveSignatureRequestVersion,
+    'prompt-registry-repair-gate-support-bundle-archive-signature-request/v1'
+  );
+  assert.equal(
+    executionRequest.supportBundleArchiveSignatureRequestStatus,
+    'not_signed_read_only'
+  );
+  assert.equal(
+    executionRequest.supportBundleArchiveSignatureRequestCreated,
+    false
+  );
+  assert.equal(
+    executionRequest.supportBundleArchiveSignaturePolicy,
+    'support_bundle_archive_signature_read_only'
+  );
+  assert.match(
+    executionRequest.supportBundleArchiveSignatureRequestFingerprint,
+    /^[0-9a-f]{16}$/
+  );
+  assert.deepEqual(
+    executionRequest.supportBundleArchiveSignatureRequestInputs,
+    [
+      'archiveFormat',
+      'archiveRequestFingerprint',
+      'archiveScope',
+      'artifactRecordRequestFingerprint',
+      'manifestFingerprint',
+      'manifestMetadataFingerprint',
+      'packageFingerprint',
+      'requestStatus',
+      'signaturePolicy',
+      'storageKeyRequestFingerprint',
+    ]
+  );
+  assert.equal(
+    executionRequest.supportBundleArchiveSignatureRequestFingerprint,
+    createHash('sha256')
+      .update(
+        stableFingerprintFixtureStringify({
+          archiveFormat: executionRequest.supportBundleArchiveFormat,
+          archiveRequestFingerprint:
+            executionRequest.supportBundleArchiveRequestFingerprint,
+          archiveScope: executionRequest.supportBundleArchiveScope,
+          artifactRecordRequestFingerprint:
+            executionRequest.supportBundleArtifactRecordRequestFingerprint,
+          created: false,
+          inputs: executionRequest.supportBundleArchiveSignatureRequestInputs,
+          manifestFilename:
+            routeReadyGate.repairGateManifestExportMetadata.filename,
+          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+          manifestMetadataFilename:
+            routeReadyGate.repairGateManifestExportMetadata.metadataFilename,
+          manifestMetadataFingerprint:
+            routeReadyGate.repairGateManifestExportMetadata
+              .exportPolicyFingerprint,
+          packageFingerprint: executionRequest.supportBundlePackageFingerprint,
+          requestStatus: executionRequest.requestStatus,
+          signaturePolicy: executionRequest.supportBundleArchiveSignaturePolicy,
+          status: executionRequest.supportBundleArchiveSignatureRequestStatus,
+          storageKeyRequestFingerprint:
+            executionRequest.supportBundleStorageKeyRequestFingerprint,
+          version: executionRequest.supportBundleArchiveSignatureRequestVersion,
+          workspaceId: matchingPreflight?.workspaceId ?? null,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16)
+  );
+  assert.equal(
     executionRequest.approvalRecordRequestVersion,
     'repair-execution-approval-record-request/v1'
   );

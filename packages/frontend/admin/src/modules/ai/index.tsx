@@ -3990,6 +3990,22 @@ function formatPromptRegistryRepairExecutionRequest(
     `support bundle archive scope ${formatFeatureKind(
       request.supportBundleArchiveScope
     )}`,
+    `support bundle archive signature request ${request.supportBundleArchiveSignatureRequestVersion}`,
+    `support bundle archive signature request status ${formatFeatureKind(
+      request.supportBundleArchiveSignatureRequestStatus
+    )}`,
+    request.supportBundleArchiveSignatureRequestCreated
+      ? 'support bundle archive signature request created yes'
+      : 'support bundle archive signature request created no',
+    `support bundle archive signature request fingerprint ${request.supportBundleArchiveSignatureRequestFingerprint}`,
+    request.supportBundleArchiveSignatureRequestInputs.length
+      ? `support bundle archive signature request inputs ${request.supportBundleArchiveSignatureRequestInputs.join(
+          ', '
+        )}`
+      : 'support bundle archive signature request inputs none',
+    `support bundle archive signature policy ${formatFeatureKind(
+      request.supportBundleArchiveSignaturePolicy
+    )}`,
     `support bundle manifest ${request.supportBundleManifestFilename}`,
     `support bundle manifest fingerprint ${request.supportBundleManifestFingerprint}`,
     `support bundle manifest metadata ${request.supportBundleManifestMetadataFilename}`,

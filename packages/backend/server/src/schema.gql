@@ -1298,6 +1298,12 @@ type CopilotPromptRegistryRepairExecutionRequestType {
   supportBundleArchiveRequestStatus: String!
   supportBundleArchiveRequestVersion: String!
   supportBundleArchiveScope: String!
+  supportBundleArchiveSignaturePolicy: String!
+  supportBundleArchiveSignatureRequestCreated: Boolean!
+  supportBundleArchiveSignatureRequestFingerprint: String!
+  supportBundleArchiveSignatureRequestInputs: [String!]!
+  supportBundleArchiveSignatureRequestStatus: String!
+  supportBundleArchiveSignatureRequestVersion: String!
   supportBundleAuditPersistenceRequestCreated: Boolean!
   supportBundleAuditPersistenceRequestFingerprint: String!
   supportBundleAuditPersistenceRequestInputs: [String!]!

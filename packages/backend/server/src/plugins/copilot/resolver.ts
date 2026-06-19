@@ -1374,6 +1374,12 @@ type CopilotPromptRegistryRepairExecutionRequest = {
   supportBundleArchiveRequestStatus: string;
   supportBundleArchiveRequestVersion: string;
   supportBundleArchiveScope: string;
+  supportBundleArchiveSignaturePolicy: string;
+  supportBundleArchiveSignatureRequestCreated: boolean;
+  supportBundleArchiveSignatureRequestFingerprint: string;
+  supportBundleArchiveSignatureRequestInputs: string[];
+  supportBundleArchiveSignatureRequestStatus: string;
+  supportBundleArchiveSignatureRequestVersion: string;
   supportBundleAuditPersistenceRequestCreated: boolean;
   supportBundleAuditPersistenceRequestFingerprint: string;
   supportBundleAuditPersistenceRequestInputs: string[];
@@ -3904,6 +3910,24 @@ class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRe
 
   @Field(() => String)
   supportBundleArchiveScope!: string;
+
+  @Field(() => String)
+  supportBundleArchiveSignaturePolicy!: string;
+
+  @Field(() => Boolean)
+  supportBundleArchiveSignatureRequestCreated!: boolean;
+
+  @Field(() => String)
+  supportBundleArchiveSignatureRequestFingerprint!: string;
+
+  @Field(() => [String])
+  supportBundleArchiveSignatureRequestInputs!: string[];
+
+  @Field(() => String)
+  supportBundleArchiveSignatureRequestStatus!: string;
+
+  @Field(() => String)
+  supportBundleArchiveSignatureRequestVersion!: string;
 
   @Field(() => Boolean)
   supportBundleAuditPersistenceRequestCreated!: boolean;
@@ -10482,6 +10506,50 @@ function buildPromptRegistryRepairExecutionRequest(
     )
     .digest('hex')
     .slice(0, 16);
+  const supportBundleArchiveSignatureRequestVersion =
+    'prompt-registry-repair-gate-support-bundle-archive-signature-request/v1';
+  const supportBundleArchiveSignatureRequestStatus = 'not_signed_read_only';
+  const supportBundleArchiveSignaturePolicy =
+    'support_bundle_archive_signature_read_only';
+  const supportBundleArchiveSignatureRequestInputs = [
+    'archiveFormat',
+    'archiveRequestFingerprint',
+    'archiveScope',
+    'artifactRecordRequestFingerprint',
+    'manifestFingerprint',
+    'manifestMetadataFingerprint',
+    'packageFingerprint',
+    'requestStatus',
+    'signaturePolicy',
+    'storageKeyRequestFingerprint',
+  ].sort();
+  const supportBundleArchiveSignatureRequestFingerprint = createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        archiveFormat: supportBundleArchiveFormat,
+        archiveRequestFingerprint: supportBundleArchiveRequestFingerprint,
+        archiveScope: supportBundleArchiveScope,
+        artifactRecordRequestFingerprint:
+          supportBundleArtifactRecordRequestFingerprint,
+        created: false,
+        inputs: supportBundleArchiveSignatureRequestInputs,
+        manifestFilename: repairGateManifestExportMetadata.filename,
+        manifestFingerprint: repairGateManifest.fingerprint,
+        manifestMetadataFilename:
+          repairGateManifestExportMetadata.metadataFilename,
+        manifestMetadataFingerprint:
+          repairGateManifestExportMetadata.exportPolicyFingerprint,
+        packageFingerprint: supportBundlePackageFingerprint,
+        requestStatus,
+        signaturePolicy: supportBundleArchiveSignaturePolicy,
+        status: supportBundleArchiveSignatureRequestStatus,
+        storageKeyRequestFingerprint: supportBundleStorageKeyRequestFingerprint,
+        version: supportBundleArchiveSignatureRequestVersion,
+        workspaceId: preflight.workspaceId ?? null,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
   const idempotencyLockVersion = 'repair-execution-idempotency-lock/v1';
   const idempotencyLockStatus = 'not_acquired_read_only';
   const idempotencyLockScope = preflight.idempotencyScope;
@@ -13346,6 +13414,7 @@ function buildPromptRegistryRepairExecutionRequest(
         supportBundleArtifactRecordRequestFingerprint,
         supportBundleArtifactFingerprint,
         supportBundleArchiveRequestFingerprint,
+        supportBundleArchiveSignatureRequestFingerprint,
         supportBundleAuditPersistenceRequestFingerprint,
         supportBundleDownloadAuthorizationRequestFingerprint,
         supportBundlePackageFingerprint,
@@ -13645,6 +13714,12 @@ function buildPromptRegistryRepairExecutionRequest(
     supportBundleArchiveRequestStatus,
     supportBundleArchiveRequestVersion,
     supportBundleArchiveScope,
+    supportBundleArchiveSignaturePolicy,
+    supportBundleArchiveSignatureRequestCreated: false,
+    supportBundleArchiveSignatureRequestFingerprint,
+    supportBundleArchiveSignatureRequestInputs,
+    supportBundleArchiveSignatureRequestStatus,
+    supportBundleArchiveSignatureRequestVersion,
     supportBundleAuditPersistenceRequestCreated: false,
     supportBundleAuditPersistenceRequestFingerprint,
     supportBundleAuditPersistenceRequestInputs,

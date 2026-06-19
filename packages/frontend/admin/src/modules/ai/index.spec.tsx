@@ -6552,6 +6552,27 @@ describe('AiPage', () => {
           supportBundleArchiveRequestVersion:
             'prompt-registry-repair-gate-support-bundle-archive-request/v1',
           supportBundleArchiveScope: 'support_bundle_download_archive',
+          supportBundleArchiveSignaturePolicy:
+            'support_bundle_archive_signature_read_only',
+          supportBundleArchiveSignatureRequestCreated: false,
+          supportBundleArchiveSignatureRequestFingerprint: input.workspaceId
+            ? 'eeee9999ffff0000'
+            : 'cccc9999ffff0000',
+          supportBundleArchiveSignatureRequestInputs: [
+            'archiveFormat',
+            'archiveRequestFingerprint',
+            'archiveScope',
+            'artifactRecordRequestFingerprint',
+            'manifestFingerprint',
+            'manifestMetadataFingerprint',
+            'packageFingerprint',
+            'requestStatus',
+            'signaturePolicy',
+            'storageKeyRequestFingerprint',
+          ],
+          supportBundleArchiveSignatureRequestStatus: 'not_signed_read_only',
+          supportBundleArchiveSignatureRequestVersion:
+            'prompt-registry-repair-gate-support-bundle-archive-signature-request/v1',
           supportBundleStorageKeyRequestCreated: false,
           supportBundleStorageKeyRequestFingerprint: input.workspaceId
             ? 'cccc9999dddd0000'
@@ -7389,6 +7410,24 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       'support bundle archive format Json Manifest Bundle / support bundle archive scope Support Bundle Download Archive'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle archive signature request prompt-registry-repair-gate-support-bundle-archive-signature-request/v1 / support bundle archive signature request status Not Signed Read Only / support bundle archive signature request created no / support bundle archive signature request fingerprint cccc9999ffff0000'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle archive signature request inputs archiveFormat, archiveRequestFingerprint, archiveScope, artifactRecordRequestFingerprint, manifestFingerprint'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle archive signature policy Support Bundle Archive Signature Read Only'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
