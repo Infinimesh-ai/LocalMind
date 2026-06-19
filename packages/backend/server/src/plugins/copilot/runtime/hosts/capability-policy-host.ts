@@ -91,12 +91,13 @@ export class CapabilityPolicyHost {
         )) ?? input.defaultModel
       );
     };
-    const extraModels = this.providerFactory.getConfiguredModelIds(
+    const modelSelectionScope = await this.resolveModelSelectionScope(
       input.routeContext
     );
     const resolved = this.modelSelection.resolveRequestedModel({
       ...input,
-      extraModels,
+      extraModels: modelSelectionScope.configuredModelIds,
+      providerIds: modelSelectionScope.providerIds,
       routeContext: input.routeContext,
     });
 
@@ -106,7 +107,8 @@ export class CapabilityPolicyHost {
       this.modelSelection.matchesModelList(
         input.proModels ?? [],
         input.requestedModelId,
-        input.routeContext
+        input.routeContext,
+        modelSelectionScope.providerIds
       ) &&
       !(await this.hasAiProAccess(input.userId, input.paymentEnabled))
     ) {
@@ -129,6 +131,22 @@ export class CapabilityPolicyHost {
     }
 
     return resolved.selectedModel;
+  }
+
+  private async resolveModelSelectionScope(
+    routeContext?: CopilotAccessContext
+  ) {
+    if (this.providerFactory.getEffectiveModelSelectionScope) {
+      return await this.providerFactory.getEffectiveModelSelectionScope(
+        routeContext
+      );
+    }
+
+    return {
+      providerIds: undefined,
+      configuredModelIds:
+        this.providerFactory.getConfiguredModelIds(routeContext),
+    };
   }
 
   private outputTypeForResponseMode(

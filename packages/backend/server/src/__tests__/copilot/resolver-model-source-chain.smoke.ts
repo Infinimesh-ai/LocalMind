@@ -1222,6 +1222,12 @@ async function main() {
     await import('../../plugins/copilot/providers/provider-registry');
   const { CopilotProviderType, ModelOutputType } =
     await import('../../plugins/copilot/providers');
+  const { CopilotProviderFactory } =
+    await import('../../plugins/copilot/providers/factory');
+  const { CopilotProvider } =
+    await import('../../plugins/copilot/providers/provider');
+  const { ModelInputType } =
+    await import('../../plugins/copilot/providers/types');
   const { ModelSelectionPolicy } =
     await import('../../plugins/copilot/runtime/model-selection-policy');
   const { CapabilityPolicyHost } =
@@ -1295,6 +1301,104 @@ async function main() {
     false,
     'pro model matching should use the same route policy scoped provider ids'
   );
+
+  class SmokeProvider extends CopilotProvider {
+    override readonly type = CopilotProviderType.OpenAI;
+
+    override configured() {
+      return true;
+    }
+
+    protected override resolveModelBackendKind() {
+      return 'openai_chat' as const;
+    }
+  }
+
+  const effectiveSelectionProvider = new SmokeProvider();
+  const effectiveSelectionFactory = new CopilotProviderFactory(
+    { enableFeature() {}, disableFeature() {} } as any,
+    {
+      getRegistry: () =>
+        buildProviderRegistry({
+          profiles: [
+            {
+              id: 'quota-cloud',
+              type: CopilotProviderType.OpenAI,
+              privacy: 'cloud',
+              priority: 1,
+              models: ['quota-chat'],
+            },
+          ],
+          routePolicy: {
+            byFeature: {
+              chat: {
+                preferredPrivacy: ['private_cloud', 'cloud'],
+              },
+            },
+          },
+        }),
+    } as any,
+    {
+      resolveRouteAccess: async () => ({
+        byokProfiles: [
+          {
+            id: 'byok-workspace-openai',
+            type: CopilotProviderType.OpenAI,
+            privacy: 'private_cloud',
+            source: 'byok_server',
+            priority: 10,
+            models: ['byok-chat'],
+            modelDefinitions: [
+              {
+                id: 'byok-structured',
+                aliases: ['byok-structured-alias'],
+                capabilities: [
+                  {
+                    input: [ModelInputType.Text],
+                    output: [ModelOutputType.Text],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        quotaBackedRoutesAvailable: true,
+      }),
+    } as any
+  );
+  effectiveSelectionFactory.register('quota-cloud', effectiveSelectionProvider);
+  const effectiveSelectionScope =
+    await effectiveSelectionFactory.getEffectiveModelSelectionScope({
+      workspaceId: 'workspace-smoke',
+      featureKind: 'chat',
+    });
+  assert.deepEqual(effectiveSelectionScope.providerIds, [
+    'byok-workspace-openai',
+    'quota-cloud',
+  ]);
+  assert.deepEqual(effectiveSelectionScope.configuredModelIds, [
+    'byok-workspace-openai/byok-chat',
+    'byok-workspace-openai/byok-structured',
+    'byok-workspace-openai/byok-structured-alias',
+    'quota-cloud/quota-chat',
+  ]);
+  assert.deepEqual(
+    routeScopedModelSelection.resolveRequestedModel({
+      defaultModel: 'quota-cloud/quota-chat',
+      optionalModels: ['byok-chat'],
+      providerIds: effectiveSelectionScope.providerIds,
+      requestedModelId: 'byok-workspace-openai/byok-chat',
+      routeContext: {
+        workspaceId: 'workspace-smoke',
+        featureKind: 'chat',
+      },
+    }),
+    {
+      selectedModel: 'byok-workspace-openai/byok-chat',
+      matchedOptionalModel: true,
+    },
+    'model selection should match provider-prefixed BYOK requests from effective provider scope'
+  );
   const hostRouteContext = {
     userId: 'user-smoke',
     workspaceId: 'workspace-local-only',
@@ -1303,9 +1407,10 @@ async function main() {
   };
   const hostSelectionCalls: Array<{
     method: 'matchesModelList' | 'resolveRequestedModel';
+    providerIds?: unknown;
     routeContext?: unknown;
   }> = [];
-  const hostConfiguredContextCalls: unknown[] = [];
+  const hostModelSelectionScopeContextCalls: unknown[] = [];
   const hostResolveCalls: Array<{
     modelId?: string;
     outputType?: unknown;
@@ -1322,9 +1427,13 @@ async function main() {
       }),
     } as any,
     {
-      resolveRequestedModel: (input: { routeContext?: unknown }) => {
+      resolveRequestedModel: (input: {
+        providerIds?: unknown;
+        routeContext?: unknown;
+      }) => {
         hostSelectionCalls.push({
           method: 'resolveRequestedModel',
+          providerIds: input.providerIds,
           routeContext: input.routeContext,
         });
         return {
@@ -1335,19 +1444,24 @@ async function main() {
       matchesModelList: (
         _models: string[],
         _modelId?: string,
-        routeContext?: unknown
+        routeContext?: unknown,
+        providerIds?: unknown
       ) => {
         hostSelectionCalls.push({
           method: 'matchesModelList',
+          providerIds,
           routeContext,
         });
         return true;
       },
     } as any,
     {
-      getConfiguredModelIds: (routeContext?: unknown) => {
-        hostConfiguredContextCalls.push(routeContext);
-        return ['local/pro-chat'];
+      getEffectiveModelSelectionScope: async (routeContext?: unknown) => {
+        hostModelSelectionScopeContextCalls.push(routeContext);
+        return {
+          configuredModelIds: ['local/pro-chat', 'byok/pro-chat'],
+          providerIds: ['local', 'byok'],
+        };
       },
       resolveModelId: async (
         cond: { modelId?: string; outputType?: unknown },
@@ -1378,14 +1492,16 @@ async function main() {
     'local/default-chat',
     'capability host should fallback from pro model when gated by subscription'
   );
-  assert.deepEqual(hostConfiguredContextCalls, [hostRouteContext]);
+  assert.deepEqual(hostModelSelectionScopeContextCalls, [hostRouteContext]);
   assert.deepEqual(hostSelectionCalls, [
     {
       method: 'resolveRequestedModel',
+      providerIds: ['local', 'byok'],
       routeContext: hostRouteContext,
     },
     {
       method: 'matchesModelList',
+      providerIds: ['local', 'byok'],
       routeContext: hostRouteContext,
     },
   ]);

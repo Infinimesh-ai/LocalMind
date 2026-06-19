@@ -14742,3 +14742,44 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - registry prompt unavailable path 现在需要 async policy diagnostics；如果未来该路径被同步调用，需要保持 resolver 调用链 async 化或提供 fallback projection。
 - 该改动会改变 Prompt Registry model route `routeTrace` 的 policy reasons 与相关 repair evidence 文本；外部 snapshot 若依赖旧 reasons，需要按新的 effective registry diagnostics 更新。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 441. P1 落地记录：Capability Policy Effective Model Selection Scope
+
+本轮继续收敛第 440 节剩余风险中 “BYOK 动态 profiles 未进入同步 `getConfiguredModelIds()` 或 native requested model matcher provider ids” 的执行侧差异。实际代码与目标 AI 中间层架构的冲突点是：`CapabilityPolicyHost` 的最终 `resolveModelId()` 已经通过 `CopilotAccessContext` 使用 effective registry，可优先走 workspace BYOK route 并按 quota-backed fallback 执行；但 requested model matching 仍只从同步 quota-backed registry 取 configured candidates 与 provider ids。这样当用户显式请求 `byok-provider/model`，或 BYOK profile 明确声明 `models` / `modelDefinitions` 时，执行路由可用而 selection policy 仍可能在 matcher 阶段把它视为未命中，造成 Prompt 默认模型、可选模型、pro gate 与实际 route resolution 的 source chain 不一致。
+
+- `packages/backend/server/src/plugins/copilot/providers/factory.ts`：
+  - 新增 `getEffectiveModelSelectionScope(context)`，复用 effective registry，同时返回当前 route scope 下的 `providerIds` 与 `configuredModelIds`。
+  - `providerIds` 先枚举 BYOK registry，再在 `quotaBackedRoutesAvailable` 为 true 时追加 quota-backed registry；两侧都复用 route policy、provider health 与 provider type registration 可用性过滤。
+  - `configuredModelIds` 从 BYOK 与 quota-backed profile 的显式 `models` / `modelDefinitions` 派生；无显式模型清单的 BYOK profile 仍只通过 provider id scope 参与 provider-prefixed requested model matching。
+  - 保留同步 `getConfiguredModelIds(context)` 作为 quota-backed registry 兼容 API，继续服务尚未 async 化的 resolver/UI 调用点。
+- `packages/backend/server/src/plugins/copilot/runtime/model-selection-policy.ts`：
+  - `ResolveModelInput` 新增可选 `providerIds`。
+  - native requested model matcher 的 provider id 输入优先使用调用方传入的 effective provider scope；未传入时回退原同步 Provider Registry route policy scope。
+  - `matchesModelList()` 同步支持同一 provider scope，使 pro gate 与普通 requested model matching 使用同一份 effective provider id 输入。
+- `packages/backend/server/src/plugins/copilot/runtime/hosts/capability-policy-host.ts`：
+  - `resolveModel()` 改为先解析 `getEffectiveModelSelectionScope(routeContext)`，再把 `configuredModelIds` 作为 extra models、`providerIds` 作为 native matcher scope 传给 `ModelSelectionPolicy`。
+  - 保留测试 double/旧调用形态的 fallback：如果 provider factory 没有 async scope API，则回退 `getConfiguredModelIds(routeContext)`。
+- 测试覆盖：
+  - `resolver-model-source-chain.smoke.ts` 新增容器 smoke：effective selection scope 同时包含 BYOK provider ids、BYOK 显式 configured models 与 quota-backed configured models。
+  - 同一 smoke 断言 provider-prefixed BYOK requested model 能通过 effective provider scope 在 matcher 阶段命中。
+  - 同一 smoke 断言 `CapabilityPolicyHost` 把 effective provider ids 同时传给 `resolveRequestedModel()` 与 `matchesModelList()`。
+
+该实现只调整 CapabilityPolicyHost 的 model selection 输入、ProviderFactory 的只读 effective selection scope、ModelSelectionPolicy 的 native matcher provider id 入参与 focused smoke，不新增 DB migration、不改变 provider route selection、fallback order、BYOK lease 获取、quota 判定、provider health check、Prompt Registry publish gate allowed/blocking 判定、GraphQL schema、前端模型列表查询、`copilot.tasks.models` 配置格式、embedding/rerank native request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、MCP registry、Codex adapter、support bundle lifecycle 或 Action Runtime 状态机。它把 “CapabilityPolicyHost 在 matcher 阶段看到哪些 provider id 与显式 configured models” 与后续 `resolveModelId()` 使用的 effective registry 对齐，降低 BYOK 自部署模型在 Prompt 默认模型、optional model 和 pro gate 之间的漂移。
+
+验证策略：
+
+- 本轮为 TypeScript provider/runtime/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有测试镜像 `localmind-affine:test`，镜像 ID 为 `c3389960f5ed`；通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行验证。
+- 容器内已通过：
+  - `yarn r packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts`
+  - `yarn oxlint packages/backend/server/src/plugins/copilot/providers/factory.ts packages/backend/server/src/plugins/copilot/runtime/model-selection-policy.ts packages/backend/server/src/plugins/copilot/runtime/hosts/capability-policy-host.ts packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts`
+- 初次 Prettier check 提示 3 个源码文件格式需要调整；已用同一 Docker test 镜像执行 `yarn prettier --write ...` 修复，提交前已重新通过包含规划文档的 `yarn prettier --check ...`、focused smoke、oxlint 与 `git diff --check`。
+- 当前本机 Docker Compose `run` 帮助未暴露 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never`、`--no-deps` 与镜像 ID 不变作为不重建 test-runner 的证据。
+
+剩余风险：
+
+- `getEffectiveModelSelectionScope()` 仍是只读 runtime projection，不是 DB-backed Model Registry effective source table，也不持久化 provider/model candidate snapshot。
+- BYOK service 生成的 server/local profiles 当前默认不携带在线模型列表；只有 BYOK profile 显式提供 `models` / `modelDefinitions` 时才会进入 `configuredModelIds`，否则只通过 `providerIds` 支持 provider-prefixed requested model matching。
+- `CapabilityPolicyHost` 的 pro model gate 仍按 prompt `proModels` 名单与 native matcher 结果判定，不区分 BYOK 与 quota-backed registry；如果后续要求 BYOK 自带密钥绕过 subscription pro gate，需要新增明确的 policy 决策而不是隐式依赖 provider id scope。
+- `CopilotResolver.models()`、Prompt Registry publish gate model route 的 `configured` 标记和前端模型列表仍有同步 `getConfiguredModelIds()` 调用点；本轮只收敛执行侧 CapabilityPolicyHost，下一轮应继续把只读 UI/model diagnostics 拆到 async effective model list projection。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

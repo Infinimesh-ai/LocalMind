@@ -124,6 +124,11 @@ export type CopilotProviderEffectiveRoutePolicyCandidateDiagnostics =
     registrySelected?: boolean;
   };
 
+export type CopilotProviderEffectiveModelSelectionScope = {
+  providerIds: string[];
+  configuredModelIds: string[];
+};
+
 export type CopilotProviderPrepareCandidateDiagnostics = {
   providerId: string;
   providerName?: string;
@@ -528,6 +533,47 @@ export class CopilotProviderFactory {
     return getProfileModelIds(profile);
   }
 
+  private getConfiguredModelIdsFromRegistry(
+    registry: CopilotProviderRegistry,
+    context: RouteContext = {}
+  ) {
+    const providerIds = this.getModelSelectionProviderIdsFromRegistry(
+      registry,
+      context
+    );
+
+    return this.getConfiguredModelIdsForProviderIds(registry, providerIds);
+  }
+
+  private getConfiguredModelIdsForProviderIds(
+    registry: CopilotProviderRegistry,
+    providerIds: string[]
+  ) {
+    return providerIds.flatMap(providerId => {
+      const profile = registry.profiles.get(providerId);
+      if (!profile) {
+        return [];
+      }
+      return this.getProfileModelIds(profile).map(
+        modelId => `${providerId}/${modelId}`
+      );
+    });
+  }
+
+  private getModelSelectionProviderIdsFromRegistry(
+    registry: CopilotProviderRegistry,
+    context: RouteContext = {}
+  ) {
+    return applyProviderRoutePolicy(
+      registry,
+      registry.order.filter(providerId => {
+        const profile = registry.profiles.get(providerId);
+        return profile ? this.providerAvailable(providerId, profile) : false;
+      }),
+      context
+    );
+  }
+
   private profileAllowsModel(
     profile: NormalizedCopilotProviderProfile,
     modelId: string
@@ -652,27 +698,44 @@ export class CopilotProviderFactory {
   }
 
   getConfiguredModelIds(context: RouteContext = {}) {
-    const registry = this.getRegistry();
-    const providerIds = applyProviderRoutePolicy(
-      registry,
-      registry.order.filter(providerId => {
-        const profile = registry.profiles.get(providerId);
-        return profile ? this.providerAvailable(providerId, profile) : false;
-      }),
-      context
-    );
-
     return unique(
-      providerIds.flatMap(providerId => {
-        const profile = registry.profiles.get(providerId);
-        if (!profile) {
-          return [];
-        }
-        return this.getProfileModelIds(profile).map(
-          modelId => `${providerId}/${modelId}`
-        );
-      })
+      this.getConfiguredModelIdsFromRegistry(this.getRegistry(), context)
     );
+  }
+
+  async getEffectiveModelSelectionScope(
+    context: CopilotAccessContext = {}
+  ): Promise<CopilotProviderEffectiveModelSelectionScope> {
+    const { byokRegistry, quotaBackedRegistry, quotaBackedRoutesAvailable } =
+      await this.getEffectiveRegistry(context);
+    const routePolicyContext = {
+      workspaceId: context.workspaceId,
+      featureKind: context.featureKind,
+    };
+    const byokProviderIds = this.getModelSelectionProviderIdsFromRegistry(
+      byokRegistry,
+      routePolicyContext
+    );
+    const quotaBackedProviderIds = quotaBackedRoutesAvailable
+      ? this.getModelSelectionProviderIdsFromRegistry(
+          quotaBackedRegistry,
+          routePolicyContext
+        )
+      : [];
+
+    return {
+      providerIds: unique([...byokProviderIds, ...quotaBackedProviderIds]),
+      configuredModelIds: unique([
+        ...this.getConfiguredModelIdsForProviderIds(
+          byokRegistry,
+          byokProviderIds
+        ),
+        ...this.getConfiguredModelIdsForProviderIds(
+          quotaBackedRegistry,
+          quotaBackedProviderIds
+        ),
+      ]),
+    };
   }
 
   describeRoutePolicy(context: RouteContext = {}) {

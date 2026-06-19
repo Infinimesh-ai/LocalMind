@@ -17,6 +17,7 @@ export type ResolveModelInput = {
   requestedModelId?: string;
   extraModels?: string[] | null;
   routeContext?: RouteContext | null;
+  providerIds?: string[] | null;
 };
 
 @Injectable()
@@ -27,19 +28,31 @@ export class ModelSelectionPolicy {
     return this.registries.getRegistry();
   }
 
+  private getScopedProviderIds(
+    routeContext: RouteContext = {},
+    providerIds?: string[] | null
+  ) {
+    if (providerIds) {
+      return Array.from(new Set(providerIds.filter(Boolean)));
+    }
+
+    const registry = this.getRegistry();
+    return applyProviderRoutePolicy(
+      registry,
+      registry.profiles.keys(),
+      routeContext
+    );
+  }
+
   private matchRequestedModel(
     optionalModels: string[],
     requestedModelId?: string,
     defaultModel?: string,
-    routeContext: RouteContext = {}
+    routeContext: RouteContext = {},
+    providerIds?: string[] | null
   ) {
-    const registry = this.getRegistry();
     return llmResolveRequestedModelMatch({
-      providerIds: applyProviderRoutePolicy(
-        registry,
-        registry.profiles.keys(),
-        routeContext
-      ),
+      providerIds: this.getScopedProviderIds(routeContext, providerIds),
       optionalModels,
       requestedModelId,
       defaultModel,
@@ -67,7 +80,8 @@ export class ModelSelectionPolicy {
       optionalModels,
       input.requestedModelId,
       input.defaultModel,
-      input.routeContext ?? {}
+      input.routeContext ?? {},
+      input.providerIds
     );
     return {
       selectedModel: matched.selectedModel ?? input.defaultModel,
@@ -78,9 +92,15 @@ export class ModelSelectionPolicy {
   matchesModelList(
     models: string[],
     modelId?: string,
-    routeContext: RouteContext = {}
+    routeContext: RouteContext = {},
+    providerIds?: string[] | null
   ) {
-    return this.matchRequestedModel(models, modelId, undefined, routeContext)
-      .matchedOptionalModel;
+    return this.matchRequestedModel(
+      models,
+      modelId,
+      undefined,
+      routeContext,
+      providerIds
+    ).matchedOptionalModel;
   }
 }
