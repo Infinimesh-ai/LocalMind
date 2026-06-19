@@ -4016,6 +4016,12 @@ function formatPromptRegistryRepairExecutionRequest(
                 entry.candidateEvidenceKeys.length
                   ? entry.candidateEvidenceKeys.join('|')
                   : 'candidateEvidenceKeys:none'
+              }:referenceSchema:${
+                entry.candidateEvidenceReferenceSchemaVersion
+              }:${
+                entry.candidateEvidenceReferenceSchemaFields.length
+                  ? entry.candidateEvidenceReferenceSchemaFields.join('|')
+                  : 'referenceSchemaFields:none'
               }:candidateEvidenceEntries:${
                 entry.candidateEvidenceEntries.length
                   ? entry.candidateEvidenceEntries

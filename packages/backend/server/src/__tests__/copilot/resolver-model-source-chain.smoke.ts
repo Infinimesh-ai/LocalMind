@@ -112,6 +112,24 @@ const taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture = [
 ] as const;
 const taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture =
   'copilot-task-route-effective-source-evidence-set/v1';
+const candidateEvidenceReferenceSchemaVersionFixture =
+  'prompt-registry-repair-candidate-evidence-reference/v1';
+const candidateEvidenceReferenceSchemaFieldsFixture = [
+  'candidateEvidenceCategory',
+  'candidateEvidenceFingerprint',
+  'candidateEvidenceKey',
+  'candidateEvidenceProviderId',
+  'candidateEvidenceScope',
+  'candidateIndex',
+  'preparedRouteOrderFingerprint',
+  'preparedRouteEntries',
+  'policyCandidateEntries',
+  'prepareCandidateEntries',
+  'routeCandidateEntries',
+  'taskRouteEffectiveSourceFingerprint',
+  'taskRouteModelSourceSnapshotEntries',
+  'taskRouteModelSourceSnapshotFingerprint',
+] as const;
 
 function candidateEvidenceClassificationSummaryFixture(
   candidateEvidenceKeys: string[]
@@ -4768,6 +4786,11 @@ async function main() {
             candidateEvidenceKeys
           ),
           candidateEvidenceCount: operation.candidateEvidenceCount,
+          candidateEvidenceReferenceSchemaFields: [
+            ...candidateEvidenceReferenceSchemaFieldsFixture,
+          ],
+          candidateEvidenceReferenceSchemaVersion:
+            candidateEvidenceReferenceSchemaVersionFixture,
           candidateEvidenceEntries: operation.candidateEvidenceEntries,
           candidateEvidenceFingerprint: operation.candidateEvidenceFingerprint,
           candidateEvidenceFingerprints: [
@@ -4803,6 +4826,14 @@ async function main() {
   assert.deepEqual(
     taskRouteSourceEvidenceEntry?.candidateEvidenceEntries,
     taskRouteSourcePreviewOperation?.candidateEvidenceEntries
+  );
+  assert.deepEqual(
+    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaFields,
+    [...candidateEvidenceReferenceSchemaFieldsFixture]
+  );
+  assert.equal(
+    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaVersion,
+    candidateEvidenceReferenceSchemaVersionFixture
   );
   assert.ok(
     taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.some(

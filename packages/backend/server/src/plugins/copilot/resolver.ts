@@ -958,6 +958,25 @@ const COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_EVIDENCE_SET_FINGERPRINT_INPUTS = [
   'operationFingerprint',
   'taskRouteEffectiveSourceFingerprints',
 ] as const;
+const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_VERSION =
+  'prompt-registry-repair-candidate-evidence-reference/v1';
+const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_FIELDS =
+  [
+    'candidateEvidenceCategory',
+    'candidateEvidenceFingerprint',
+    'candidateEvidenceKey',
+    'candidateEvidenceProviderId',
+    'candidateEvidenceScope',
+    'candidateIndex',
+    'preparedRouteOrderFingerprint',
+    'preparedRouteEntries',
+    'policyCandidateEntries',
+    'prepareCandidateEntries',
+    'routeCandidateEntries',
+    'taskRouteEffectiveSourceFingerprint',
+    'taskRouteModelSourceSnapshotEntries',
+    'taskRouteModelSourceSnapshotFingerprint',
+  ] as const;
 const COPILOT_PROMPT_REGISTRY_REPAIR_ACTION_CATALOG_VERSION =
   'repair-actions/v1';
 
@@ -1363,6 +1382,8 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
   candidateEvidenceCategories: string[];
   candidateEvidenceCount: number;
   candidateEvidenceEntries: CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry[];
+  candidateEvidenceReferenceSchemaFields: string[];
+  candidateEvidenceReferenceSchemaVersion: string;
   candidateEvidenceFingerprint: string;
   candidateEvidenceFingerprints: string[];
   candidateEvidenceKeys: string[];
@@ -3553,6 +3574,12 @@ class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType impleme
 
   @Field(() => [CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType])
   candidateEvidenceEntries!: CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry[];
+
+  @Field(() => [String])
+  candidateEvidenceReferenceSchemaFields!: string[];
+
+  @Field(() => String)
+  candidateEvidenceReferenceSchemaVersion!: string;
 
   @Field(() => String)
   candidateEvidenceFingerprint!: string;
@@ -11072,6 +11099,11 @@ function buildPromptRegistryRepairExecutionRequest(
           ...candidateEvidenceClassificationSummary(candidateEvidenceKeys),
           candidateEvidenceCount: operation.candidateEvidenceCount,
           candidateEvidenceEntries: operation.candidateEvidenceEntries,
+          candidateEvidenceReferenceSchemaFields: [
+            ...COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_FIELDS,
+          ],
+          candidateEvidenceReferenceSchemaVersion:
+            COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_VERSION,
           candidateEvidenceFingerprint: operation.candidateEvidenceFingerprint,
           candidateEvidenceFingerprints: [
             ...operation.candidateEvidenceFingerprints,

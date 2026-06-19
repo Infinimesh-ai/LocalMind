@@ -15659,3 +15659,35 @@ Remaining risk:
 - The source guard fingerprint still derives from operation/candidate evidence perspective and does not bind real request payloads, provider credentials, BYOK lease, tenant policy registry, storage backend, archive bytes, signed URL secret/material, health probe timestamp, request dispatch outcome, or billing/quota execution result.
 - Repair action remains read-only/blocked; true repair execution, support bundle persistence, download authorization, audit persistence, and retention cleanup worker remain future work.
 - The current runtime image does not include this local source change; before broader stage acceptance a full `localmind-affine:local` build and container verification is still required.
+
+## 468. P1 landing record: Support Bundle Source Evidence Candidate Reference Schema Metadata Projection
+
+This round continues the section 467 residual risk where reference entries expose the current task route source/candidate payload family, but still do not provide a single formal DB-backed candidate evidence schema or persisted support bundle artifact. The conflict with the target AI middle-layer architecture is that auditors can inspect the candidate payload entries, but still need a stable runtime schema marker to identify which reference fields are expected in the support bundle source evidence projection.
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`:
+  - Adds `COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_VERSION` with value `prompt-registry-repair-candidate-evidence-reference/v1`.
+  - Adds `COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_FIELDS` listing the expected candidate evidence reference fields: category, fingerprint, key, provider, scope/index, prepared route order fingerprint, prepared route payloads, policy/prepare/route candidate payloads, task route effective source fingerprint, model source snapshot entries, and model source snapshot fingerprint.
+  - `CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry` and its GraphQL object type expose `candidateEvidenceReferenceSchemaVersion` and `candidateEvidenceReferenceSchemaFields` once per source evidence entry, so the schema metadata describes the entry's candidate reference list without repeating on every candidate.
+  - `buildPromptRegistryRepairExecutionRequest()` projects the schema metadata into support bundle task-route source evidence entries only. Preview operations remain unchanged, and this increment does not change candidate evidence fingerprint, candidate evidence set fingerprint, operation fingerprint, task-route source evidence-set fingerprint, repair gate manifest fingerprint, execution request fingerprint, or support bundle lifecycle request fingerprint payloads.
+- `packages/backend/server/src/schema.gql`, `packages/common/graphql/src/graphql/index.ts`, `packages/common/graphql/src/graphql/copilot-prompt-registry-repair-execution-request.gql`, and `packages/common/graphql/src/schema.ts`:
+  - Synchronize execution request mutation response selection/type for the source evidence entry schema metadata so Admin can read the runtime schema marker alongside source evidence candidate reference entries.
+- `packages/frontend/admin/src/modules/ai/index.tsx`:
+  - Execution request copyable diagnostics add `referenceSchema:<version>:<fields>` before `candidateEvidenceEntries`; missing fields render as `referenceSchemaFields:none`.
+- Test coverage:
+  - `resolver-model-source-chain.smoke.ts` asserts source evidence entries carry the expected schema version and ordered field list.
+  - `admin/src/modules/ai/index.spec.tsx` covers the `referenceSchema` support bundle output and fixture GraphQL payload shape.
+
+This implementation only extends read-only support bundle source evidence entry-level schema metadata projection, GraphQL/common query/type coverage, Admin diagnostics labels, and focused tests. It does not add a DB migration, create a DB-backed evidence object/schema registry/artifact record/audit event/persistent repair job snapshot, persist registry revision/workspace policy revision/provider snapshot/task route snapshot/model availability snapshot/archive bytes/signed URL material/storage backend, change any existing fingerprint payload, alter repair action executability, provider route selection, fallback order, BYOK lease, quota, health checks, `copilot.tasks.models` config format, embedding/rerank native request parameters, `EMBEDDING_DIMENSIONS`, pgvector dimensions, MCP registry, Codex adapter, or Action Runtime state machine.
+
+Validation strategy:
+
+- This round changes TypeScript resolver/common/admin/test files plus this plan document only; it does not touch dependencies, Dockerfile, native build, DB migration, or runtime packaging, and does not rebuild `localmind-affine:test`.
+- Continue using the fixed test image `localmind-affine:test` with image ID prefix `c3389960f5ed`. Validation uses `docker run --rm -v "${PWD}:/host:ro" -w /workspace localmind-affine:test ...`, copies current source dirs into the image workspace, and runs focused backend smoke, Admin Vitest, oxlint, Prettier check, and host `git diff --check`.
+
+Remaining risk:
+
+- Candidate evidence reference schema metadata remains a runtime read-only projection, not a DB-backed schema registry, persisted evidence artifact, audit event, or persistent repair job snapshot.
+- Reference entries now expose the current task route source/candidate payload family and an entry-level schema marker, but still do not provide a formal DB-backed candidate evidence schema or persisted support bundle artifact.
+- The source guard fingerprint still derives from operation/candidate evidence perspective and does not bind real request payloads, provider credentials, BYOK lease, tenant policy registry, storage backend, archive bytes, signed URL secret/material, health probe timestamp, request dispatch outcome, or billing/quota execution result.
+- Repair action remains read-only/blocked; true repair execution, support bundle persistence, download authorization, audit persistence, and retention cleanup worker remain future work.
+- The current runtime image does not include this local source change; before broader stage acceptance a full `localmind-affine:local` build and container verification is still required.

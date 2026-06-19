@@ -140,6 +140,24 @@ const taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture = [
 ];
 const taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture =
   'copilot-task-route-effective-source-evidence-set/v1';
+const candidateEvidenceReferenceSchemaVersionFixture =
+  'prompt-registry-repair-candidate-evidence-reference/v1';
+const candidateEvidenceReferenceSchemaFieldsFixture = [
+  'candidateEvidenceCategory',
+  'candidateEvidenceFingerprint',
+  'candidateEvidenceKey',
+  'candidateEvidenceProviderId',
+  'candidateEvidenceScope',
+  'candidateIndex',
+  'preparedRouteOrderFingerprint',
+  'preparedRouteEntries',
+  'policyCandidateEntries',
+  'prepareCandidateEntries',
+  'routeCandidateEntries',
+  'taskRouteEffectiveSourceFingerprint',
+  'taskRouteModelSourceSnapshotEntries',
+  'taskRouteModelSourceSnapshotFingerprint',
+];
 
 function candidateEvidenceCategoryFromKeyFixture(key?: string) {
   if (!key) {
@@ -7140,6 +7158,11 @@ describe('AiPage', () => {
                     candidateEvidenceKeys
                   ),
                   candidateEvidenceCount: operation.candidateEvidenceCount,
+                  candidateEvidenceReferenceSchemaFields: [
+                    ...candidateEvidenceReferenceSchemaFieldsFixture,
+                  ],
+                  candidateEvidenceReferenceSchemaVersion:
+                    candidateEvidenceReferenceSchemaVersionFixture,
                   candidateEvidenceEntries: [
                     ...operation.candidateEvidenceEntries,
                   ],
@@ -8047,6 +8070,12 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       `${taskRouteSourceEntry?.operationFingerprint}:${taskRouteSourceEntry?.diagnosticsFingerprint}:${taskRouteSourceEntry?.taskRouteEffectiveSourceFingerprints.join('|')}:candidateEvidence:${taskRouteSourceEntry?.candidateEvidenceCount}:${taskRouteSourceEntry?.candidateEvidenceFingerprint}`
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `referenceSchema:${candidateEvidenceReferenceSchemaVersionFixture}:${candidateEvidenceReferenceSchemaFieldsFixture.join('|')}`
     );
     const taskRouteSourceCandidateEntry =
       taskRouteSourceEntry?.candidateEvidenceEntries[0];

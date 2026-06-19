@@ -1033,6 +1033,8 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType {
   candidateEvidenceCategories: [String!]!
   candidateEvidenceCount: SafeInt!
   candidateEvidenceEntries: [CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType!]!
+  candidateEvidenceReferenceSchemaFields: [String!]!
+  candidateEvidenceReferenceSchemaVersion: String!
   candidateEvidenceFingerprint: String!
   candidateEvidenceFingerprints: [String!]!
   candidateEvidenceKeys: [String!]!
