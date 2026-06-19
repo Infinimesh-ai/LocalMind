@@ -4057,6 +4057,35 @@ function formatPromptRegistryRepairExecutionRequest(
                                   )
                                   .join('~')
                               : 'policyCandidateEntries:none'
+                          }:routeCandidateEntries:${
+                            candidate.routeCandidateEntries?.length
+                              ? candidate.routeCandidateEntries
+                                  .map(
+                                    routeCandidate =>
+                                      `${routeCandidate.providerId}:matched:${
+                                        routeCandidate.matched
+                                      }:model:${
+                                        routeCandidate.modelId ?? 'model:none'
+                                      }:requested:${
+                                        routeCandidate.requestedModelId ??
+                                        'requested:none'
+                                      }:registry:${
+                                        routeCandidate.registryKind ??
+                                        'registry:none'
+                                      }:definition:${
+                                        routeCandidate.routeModelDefinitionId ??
+                                        'definition:none'
+                                      }:raw:${
+                                        routeCandidate.routeRawModelId ??
+                                        'raw:none'
+                                      }:reasons:${
+                                        routeCandidate.reasons.length
+                                          ? routeCandidate.reasons.join('^')
+                                          : 'reasons:none'
+                                      }`
+                                  )
+                                  .join('~')
+                              : 'routeCandidateEntries:none'
                           }:${
                             candidate.taskRouteEffectiveSourceFingerprint ??
                             'source:none'

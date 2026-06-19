@@ -1034,6 +1034,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   routeAttachmentAllowRemoteUrls?: boolean;
   routeAttachmentKinds?: string[];
   routeAttachmentSourceKinds?: string[];
+  routeCandidates?: CopilotPromptRegistryPublishGateRouteCandidate[];
   routeCandidateSnapshotFingerprint?: string;
   routeContextWindow?: number;
   routeEmbeddingDimensions?: number;
@@ -1125,6 +1126,7 @@ type CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry = {
   candidateIndex: number;
   preparedRouteOrderFingerprint?: string;
   policyCandidateEntries?: CopilotPromptRegistryPublishGatePolicyCandidate[];
+  routeCandidateEntries?: CopilotPromptRegistryPublishGateRouteCandidate[];
   taskRouteEffectiveSourceFingerprint?: string;
   taskRouteModelSourceSnapshotEntries?: CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntry[];
   taskRouteModelSourceSnapshotFingerprint?: string;
@@ -3499,6 +3501,11 @@ class CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType implements 
     nullable: true,
   })
   policyCandidateEntries?: CopilotPromptRegistryPublishGatePolicyCandidate[];
+
+  @Field(() => [CopilotPromptRegistryPublishGateRouteCandidateType], {
+    nullable: true,
+  })
+  routeCandidateEntries?: CopilotPromptRegistryPublishGateRouteCandidate[];
 
   @Field(() => String, { nullable: true })
   taskRouteEffectiveSourceFingerprint?: string;
@@ -6617,6 +6624,7 @@ function taskRouteCandidateProfileStructuredEvidence(
               COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_VERSION,
           }
         : {}),
+      routeCandidates: routeCandidateSnapshot,
       taskRouteModelSourceSnapshotEntries: taskRouteModelSourceSnapshotValue,
     };
   };
@@ -9384,6 +9392,9 @@ function promptRegistryRepairCandidateEvidenceSnapshot(
           : {}),
         ...(candidate.policyCandidates?.length
           ? { policyCandidateEntries: candidate.policyCandidates }
+          : {}),
+        ...(candidate.routeCandidates?.length
+          ? { routeCandidateEntries: candidate.routeCandidates }
           : {}),
         ...(candidate.taskRouteEffectiveSourceFingerprint
           ? {

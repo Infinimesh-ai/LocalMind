@@ -1209,6 +1209,9 @@ export interface CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType 
   policyCandidateEntries?: Maybe<
     Array<CopilotPromptRegistryPublishGatePolicyCandidateType>
   >;
+  routeCandidateEntries?: Maybe<
+    Array<CopilotPromptRegistryPublishGateRouteCandidateType>
+  >;
   taskRouteEffectiveSourceFingerprint?: Maybe<Scalars['String']['output']>;
   taskRouteModelSourceSnapshotEntries?: Maybe<
     Array<CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType>
@@ -9270,6 +9273,48 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
           registryKind: string | null;
           registrySelected: boolean | null;
           reasons: Array<string>;
+        }> | null;
+        routeCandidateEntries: Array<{
+          __typename?: 'CopilotPromptRegistryPublishGateRouteCandidateType';
+          candidateModelIds: Array<string> | null;
+          costInputPer1M: number | null;
+          costOutputPer1M: number | null;
+          health: string | null;
+          healthCheckedAt: string | null;
+          matched: boolean;
+          modelId: string | null;
+          privacy: string | null;
+          providerConfiguredModelCount: number | null;
+          providerConfiguredModelIds: Array<string> | null;
+          providerId: string;
+          providerName: string | null;
+          providerPriority: number | null;
+          providerProfileConfigPath: string | null;
+          providerProfileId: string | null;
+          providerProfileSource: string | null;
+          providerSource: string | null;
+          providerType: string | null;
+          reasons: Array<string>;
+          registryAvailable: boolean | null;
+          registryKind: string | null;
+          registrySelected: boolean | null;
+          requestedModelId: string | null;
+          routeAttachmentAllowRemoteUrls: boolean | null;
+          routeAttachmentKinds: Array<string> | null;
+          routeAttachmentSourceKinds: Array<string> | null;
+          routeContextWindow: number | null;
+          routeEmbeddingDimensions: number | null;
+          routeInputTypes: Array<string> | null;
+          routeMaxOutputTokens: number | null;
+          routeModelAliasMatched: boolean | null;
+          routeModelDefinitionAliases: Array<string> | null;
+          routeModelDefinitionId: string | null;
+          routeModelDefinitionSource: string | null;
+          routeOutputTypes: Array<string> | null;
+          routeRawModelId: string | null;
+          routeStructuredAttachmentAllowRemoteUrls: boolean | null;
+          routeStructuredAttachmentKinds: Array<string> | null;
+          routeStructuredAttachmentSourceKinds: Array<string> | null;
         }> | null;
         taskRouteEffectiveSourceFingerprint: string | null;
         taskRouteModelSourceSnapshotEntries: Array<{

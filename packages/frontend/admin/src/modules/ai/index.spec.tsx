@@ -252,6 +252,47 @@ function candidateEvidenceReferenceEntriesFixture(
       reasons: string[];
     }> | null;
     providerId: string;
+    routeCandidates?: Array<{
+      candidateModelIds?: string[] | null;
+      costInputPer1M?: number | null;
+      costOutputPer1M?: number | null;
+      health?: string | null;
+      healthCheckedAt?: string | null;
+      matched: boolean;
+      modelId?: string | null;
+      privacy?: string | null;
+      providerConfiguredModelCount?: number | null;
+      providerConfiguredModelIds?: string[] | null;
+      providerId: string;
+      providerName?: string | null;
+      providerPriority?: number | null;
+      providerProfileConfigPath?: string | null;
+      providerProfileId?: string | null;
+      providerProfileSource?: string | null;
+      providerSource?: string | null;
+      providerType?: string | null;
+      reasons: string[];
+      registryAvailable?: boolean | null;
+      registryKind?: string | null;
+      registrySelected?: boolean | null;
+      requestedModelId?: string | null;
+      routeAttachmentAllowRemoteUrls?: boolean | null;
+      routeAttachmentKinds?: string[] | null;
+      routeAttachmentSourceKinds?: string[] | null;
+      routeContextWindow?: number | null;
+      routeEmbeddingDimensions?: number | null;
+      routeInputTypes?: string[] | null;
+      routeMaxOutputTokens?: number | null;
+      routeModelAliasMatched?: boolean | null;
+      routeModelDefinitionAliases?: string[] | null;
+      routeModelDefinitionId?: string | null;
+      routeModelDefinitionSource?: string | null;
+      routeOutputTypes?: string[] | null;
+      routeRawModelId?: string | null;
+      routeStructuredAttachmentAllowRemoteUrls?: boolean | null;
+      routeStructuredAttachmentKinds?: string[] | null;
+      routeStructuredAttachmentSourceKinds?: string[] | null;
+    }> | null;
     scope: string;
     taskRouteEffectiveSourceFingerprint?: string | null;
     taskRouteModelSourceSnapshotEntries?: Array<{
@@ -277,6 +318,7 @@ function candidateEvidenceReferenceEntriesFixture(
       preparedRouteOrderFingerprint:
         candidate.preparedRouteOrderFingerprint ?? null,
       policyCandidateEntries: candidate.policyCandidates ?? null,
+      routeCandidateEntries: candidate.routeCandidates ?? null,
       taskRouteEffectiveSourceFingerprint:
         candidate.taskRouteEffectiveSourceFingerprint ?? null,
       taskRouteModelSourceSnapshotEntries:
@@ -1512,6 +1554,7 @@ const rerankRepairCandidateEvidence = candidateEvidenceFixture({
   routeCandidateSnapshotFingerprint: taskRouteSnapshotFingerprintFixture(
     readyRoute.routeCandidates
   ),
+  routeCandidates: readyRoute.routeCandidates,
   routeTrace: readyRoute.routeTrace,
   routeTracePhases: readyRoute.routeTrace.map(phase => phase.phase),
   routeTraceSnapshotFingerprint: taskRouteSnapshotFingerprintFixture(
@@ -3453,6 +3496,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             requestedModelSource: 'workspace_indexing',
             routeCandidateSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(blockedRoute.routeCandidates),
+            routeCandidates: blockedRoute.routeCandidates,
             routeModelDefinitionId: null,
             routeTrace: blockedRoute.routeTrace,
             routeTracePhases: blockedRoute.routeTrace.map(phase => phase.phase),
@@ -3574,6 +3618,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             routeAttachmentSourceKinds: ['url', 'data'],
             routeCandidateSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(blockedRoute.routeCandidates),
+            routeCandidates: blockedRoute.routeCandidates,
             routeContextWindow: 8192,
             routeEmbeddingDimensions: 768,
             routeInputTypes: ['text'],
@@ -3709,6 +3754,7 @@ const readyPublishGateVerdict = withRepairActionPreview(
             routeAttachmentSourceKinds: ['url'],
             routeCandidateSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(blockedRoute.routeCandidates),
+            routeCandidates: blockedRoute.routeCandidates,
             routeContextWindow: 8192,
             routeEmbeddingDimensions: 768,
             routeInputTypes: ['text'],
@@ -7944,11 +7990,20 @@ describe('AiPage', () => {
             }`
         )
         .join('~') ?? 'policyCandidateEntries:none';
+    const taskRouteSourceCandidateRouteEntries =
+      taskRouteSourceCandidateEntry?.routeCandidateEntries
+        ?.map(
+          entry =>
+            `${entry.providerId}:matched:${entry.matched}:model:${entry.modelId ?? 'model:none'}:requested:${entry.requestedModelId ?? 'requested:none'}:registry:${entry.registryKind ?? 'registry:none'}:definition:${entry.routeModelDefinitionId ?? 'definition:none'}:raw:${entry.routeRawModelId ?? 'raw:none'}:reasons:${
+              entry.reasons.length ? entry.reasons.join('^') : 'reasons:none'
+            }`
+        )
+        .join('~') ?? 'routeCandidateEntries:none';
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      `candidateEvidenceEntries:${taskRouteSourceCandidateEntry?.candidateEvidenceScope}#${taskRouteSourceCandidateEntry?.candidateIndex}:${taskRouteSourceCandidateEntry?.candidateEvidenceCategory}:${taskRouteSourceCandidateEntry?.candidateEvidenceProviderId}:${taskRouteSourceCandidateEntry?.candidateEvidenceKey}:${taskRouteSourceCandidateEntry?.candidateEvidenceFingerprint}:${taskRouteSourceCandidateEntry?.preparedRouteOrderFingerprint ?? 'prepared:none'}:policyCandidateEntries:${taskRouteSourceCandidatePolicyEntries}:${taskRouteSourceCandidateEntry?.taskRouteEffectiveSourceFingerprint ?? 'source:none'}:${taskRouteSourceCandidateEntry?.taskRouteModelSourceSnapshotFingerprint ?? 'modelSource:none'}:modelSourceEntries:${taskRouteSourceCandidateModelSourceEntries}`
+      `candidateEvidenceEntries:${taskRouteSourceCandidateEntry?.candidateEvidenceScope}#${taskRouteSourceCandidateEntry?.candidateIndex}:${taskRouteSourceCandidateEntry?.candidateEvidenceCategory}:${taskRouteSourceCandidateEntry?.candidateEvidenceProviderId}:${taskRouteSourceCandidateEntry?.candidateEvidenceKey}:${taskRouteSourceCandidateEntry?.candidateEvidenceFingerprint}:${taskRouteSourceCandidateEntry?.preparedRouteOrderFingerprint ?? 'prepared:none'}:policyCandidateEntries:${taskRouteSourceCandidatePolicyEntries}:routeCandidateEntries:${taskRouteSourceCandidateRouteEntries}:${taskRouteSourceCandidateEntry?.taskRouteEffectiveSourceFingerprint ?? 'source:none'}:${taskRouteSourceCandidateEntry?.taskRouteModelSourceSnapshotFingerprint ?? 'modelSource:none'}:modelSourceEntries:${taskRouteSourceCandidateModelSourceEntries}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

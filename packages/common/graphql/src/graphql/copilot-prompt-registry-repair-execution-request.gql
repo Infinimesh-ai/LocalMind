@@ -368,6 +368,47 @@ mutation requestCopilotPromptRegistryRepairExecution(
           registrySelected
           reasons
         }
+        routeCandidateEntries {
+          candidateModelIds
+          costInputPer1M
+          costOutputPer1M
+          health
+          healthCheckedAt
+          matched
+          modelId
+          privacy
+          providerConfiguredModelCount
+          providerConfiguredModelIds
+          providerId
+          providerName
+          providerPriority
+          providerProfileConfigPath
+          providerProfileId
+          providerProfileSource
+          providerSource
+          providerType
+          reasons
+          registryAvailable
+          registryKind
+          registrySelected
+          requestedModelId
+          routeAttachmentAllowRemoteUrls
+          routeAttachmentKinds
+          routeAttachmentSourceKinds
+          routeContextWindow
+          routeEmbeddingDimensions
+          routeInputTypes
+          routeMaxOutputTokens
+          routeModelAliasMatched
+          routeModelDefinitionAliases
+          routeModelDefinitionId
+          routeModelDefinitionSource
+          routeOutputTypes
+          routeRawModelId
+          routeStructuredAttachmentAllowRemoteUrls
+          routeStructuredAttachmentKinds
+          routeStructuredAttachmentSourceKinds
+        }
         taskRouteEffectiveSourceFingerprint
         taskRouteModelSourceSnapshotEntries {
           featureKind
