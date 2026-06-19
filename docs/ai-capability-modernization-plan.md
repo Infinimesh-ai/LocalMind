@@ -14613,3 +14613,32 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - route policy scoped 枚举只能过滤 provider 级别的 allow/block/privacy/preference，不能替代模型 capability、prepare probe、provider health check、成本策略或 Prompt Registry eval。
 - 前端模型列表仍是 GraphQL 只读候选视图，不是完整 DB-backed Model Registry UI；Admin 还缺少模型测试、health probe 触发、自动 capability 探测和 workspace 级模型注册入口。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 437. P1 落地记录：Requested Model Match Route Policy Scope
+
+本轮继续收敛第 436 节剩余风险中 “配置模型候选与实际 workspace/feature route policy 对齐后，请求模型匹配仍可能先使用全局 provider id” 的问题。实际代码与目标 AI 中间层架构的冲突点是：`CapabilityPolicyHost` 已经把配置模型候选和最终 `resolveModelId()` 放到同一份 route context 下，但 `ModelSelectionPolicy` 调用 native requested model matcher 时仍传入全局 Provider Registry 的 provider ids。最终执行仍会通过 `resolveModelId()` 回退，不会越过 route policy；但 `matchedOptionalModel` 与 pro model gate 会在回退前把 policy 已阻断的 provider 前缀视为可能命中，影响自部署模型偏好、Prompt 默认模型回退和 subscription gate 诊断的一致性。
+
+- `packages/backend/server/src/plugins/copilot/runtime/model-selection-policy.ts`：
+  - `ResolveModelInput` 新增可选 `routeContext`。
+  - requested model matcher 的 `providerIds` 改为通过 `applyProviderRoutePolicy()` 从当前 Provider Registry 中按 `workspaceId` / `featureKind` 过滤。
+  - `matchesModelList()` 新增 route context 入参，使 pro model gate 与普通 optional/extra model matching 使用同一份 provider policy scope。
+- `packages/backend/server/src/plugins/copilot/runtime/hosts/capability-policy-host.ts`：
+  - `resolveModel()` 调用 `resolveRequestedModel()` 与 `matchesModelList()` 时传入当前 `routeContext`。
+  - configured model candidates、requested model match、pro gate match、最终 `resolveModelId()` 和 fallback default/auto route 现在共享同一条 workspace/feature route policy 线。
+- `packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts`：
+  - 新增容器可执行 smoke 覆盖：policy 阻断的 `cloud/*` provider 前缀不再命中 workspace local-only optional model；policy 允许的 `local/*` provider 前缀仍可命中。
+  - 新增 `CapabilityPolicyHost` smoke 覆盖：configured candidates、requested model matching、pro gate matching 与 default fallback route 都收到同一个 route context。
+
+该实现只调整 requested model matching 的 provider id scope、host route context 透传与 focused smoke 覆盖，不新增 DB migration、不改变 provider registry 配置格式、不改变 `copilot.tasks.models`、Prompt Registry schema、前端 GraphQL schema、BYOK lease 获取、quota 判定、native matcher 实现、provider health check、embedding/rerank request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、MCP registry、Codex adapter、support bundle projection 或 Action Runtime 状态机。它把 “用户请求模型是否属于当前 workspace/feature 可用 provider scope” 从最终 route fallback 前移到 requested model matching 阶段，降低前端模型偏好、自部署默认模型和 pro gate 诊断之间的漂移。
+
+验证策略：
+
+- 本轮为 TypeScript runtime/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 backend model/source chain smoke、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- route policy scoped requested model matching 仍只处理 quota-backed Provider Registry 中的 provider ids；workspace BYOK 动态 profiles 仍通过 `resolveProvider()` / `resolveModelId()` 与 route diagnostics 接入，尚未进入 native requested model matcher 的 provider id 输入。
+- requested model matching 仍不执行模型 capability、prepare probe、provider health、成本策略或 Prompt Registry eval；这些继续由后续 route resolution、prepare diagnostics 与 publish gate 承担。
+- `matchesModelList()` 现在支持 route context，但现阶段只有 `CapabilityPolicyHost` pro gate 传入 context；未来如果新增直接调用点，需要继续按调用 route scope 显式传递。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

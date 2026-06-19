@@ -1200,7 +1200,184 @@ async function main() {
   process.env.DEPLOYMENT_TYPE = 'affine';
   createGlobalEnv();
 
+  const { buildProviderRegistry } =
+    await import('../../plugins/copilot/providers/provider-registry');
+  const { CopilotProviderType, ModelOutputType } =
+    await import('../../plugins/copilot/providers');
+  const { ModelSelectionPolicy } =
+    await import('../../plugins/copilot/runtime/model-selection-policy');
+  const { CapabilityPolicyHost } =
+    await import('../../plugins/copilot/runtime/hosts/capability-policy-host');
   const { CopilotResolver } = await import('../../plugins/copilot/resolver');
+
+  const routeScopedRegistry = buildProviderRegistry({
+    profiles: [
+      {
+        id: 'local',
+        type: CopilotProviderType.OpenAICompatible,
+        privacy: 'local',
+        models: ['office-chat', 'pro-chat'],
+      },
+      {
+        id: 'cloud',
+        type: CopilotProviderType.OpenAI,
+        privacy: 'cloud',
+        models: ['office-chat', 'pro-chat'],
+      },
+    ],
+    routePolicy: {
+      byWorkspace: {
+        'workspace-local-only': {
+          allowedProviderIds: ['local'],
+          allowedPrivacy: ['local'],
+        },
+      },
+    },
+  });
+  const routeScopedModelSelection = new ModelSelectionPolicy({
+    getRegistry: () => routeScopedRegistry,
+  } as any);
+  assert.deepEqual(
+    routeScopedModelSelection.resolveRequestedModel({
+      defaultModel: 'local/office-chat',
+      optionalModels: ['office-chat'],
+      requestedModelId: 'cloud/office-chat',
+      routeContext: {
+        workspaceId: 'workspace-local-only',
+        featureKind: 'chat',
+      },
+    }),
+    {
+      selectedModel: 'local/office-chat',
+      matchedOptionalModel: false,
+    },
+    'model selection should not match route-policy-blocked provider prefixes'
+  );
+  assert.deepEqual(
+    routeScopedModelSelection.resolveRequestedModel({
+      defaultModel: 'local/office-chat',
+      optionalModels: ['office-chat'],
+      requestedModelId: 'local/office-chat',
+      routeContext: {
+        workspaceId: 'workspace-local-only',
+        featureKind: 'chat',
+      },
+    }),
+    {
+      selectedModel: 'local/office-chat',
+      matchedOptionalModel: true,
+    },
+    'model selection should still match route-policy-allowed provider prefixes'
+  );
+  assert.equal(
+    routeScopedModelSelection.matchesModelList(['pro-chat'], 'cloud/pro-chat', {
+      workspaceId: 'workspace-local-only',
+      featureKind: 'chat',
+    }),
+    false,
+    'pro model matching should use the same route policy scoped provider ids'
+  );
+  const hostRouteContext = {
+    userId: 'user-smoke',
+    workspaceId: 'workspace-local-only',
+    featureKind: 'chat' as const,
+    quotaBackedRoutesAllowed: false,
+  };
+  const hostSelectionCalls: Array<{
+    method: 'matchesModelList' | 'resolveRequestedModel';
+    routeContext?: unknown;
+  }> = [];
+  const hostConfiguredContextCalls: unknown[] = [];
+  const hostResolveCalls: Array<{
+    modelId?: string;
+    outputType?: unknown;
+    routeContext?: unknown;
+  }> = [];
+  const routeScopedHost = new CapabilityPolicyHost(
+    { features: [] } as any,
+    {
+      get: () => ({
+        reconcileUserQuotaState: async () => ({
+          flags: {},
+          plan: 'free',
+        }),
+      }),
+    } as any,
+    {
+      resolveRequestedModel: (input: { routeContext?: unknown }) => {
+        hostSelectionCalls.push({
+          method: 'resolveRequestedModel',
+          routeContext: input.routeContext,
+        });
+        return {
+          selectedModel: 'local/pro-chat',
+          matchedOptionalModel: true,
+        };
+      },
+      matchesModelList: (
+        _models: string[],
+        _modelId?: string,
+        routeContext?: unknown
+      ) => {
+        hostSelectionCalls.push({
+          method: 'matchesModelList',
+          routeContext,
+        });
+        return true;
+      },
+    } as any,
+    {
+      getConfiguredModelIds: (routeContext?: unknown) => {
+        hostConfiguredContextCalls.push(routeContext);
+        return ['local/pro-chat'];
+      },
+      resolveModelId: async (
+        cond: { modelId?: string; outputType?: unknown },
+        _filter: unknown,
+        routeContext?: unknown
+      ) => {
+        hostResolveCalls.push({
+          modelId: cond.modelId,
+          outputType: cond.outputType,
+          routeContext,
+        });
+        return cond.modelId === 'local/default-chat'
+          ? 'local/default-chat'
+          : undefined;
+      },
+    } as any
+  );
+  assert.equal(
+    await routeScopedHost.resolveChatModel({
+      userId: 'user-smoke',
+      defaultModel: 'local/default-chat',
+      optionalModels: ['local/pro-chat'],
+      proModels: ['pro-chat'],
+      requestedModelId: 'local/pro-chat',
+      paymentEnabled: true,
+      routeContext: hostRouteContext,
+    }),
+    'local/default-chat',
+    'capability host should fallback from pro model when gated by subscription'
+  );
+  assert.deepEqual(hostConfiguredContextCalls, [hostRouteContext]);
+  assert.deepEqual(hostSelectionCalls, [
+    {
+      method: 'resolveRequestedModel',
+      routeContext: hostRouteContext,
+    },
+    {
+      method: 'matchesModelList',
+      routeContext: hostRouteContext,
+    },
+  ]);
+  assert.deepEqual(hostResolveCalls, [
+    {
+      modelId: 'local/default-chat',
+      outputType: ModelOutputType.Text,
+      routeContext: hostRouteContext,
+    },
+  ]);
 
   const routeCalls: Array<{
     method: 'describeRouteCandidates' | 'resolveProvider';

@@ -2,13 +2,21 @@ import { Injectable } from '@nestjs/common';
 
 import { CopilotSessionInvalidInput } from '../../../base';
 import { llmResolveRequestedModelMatch } from '../../../native';
+import type { CopilotProviderRoutePolicyFeatureKind } from '../config';
+import { applyProviderRoutePolicy } from '../providers/provider-registry';
 import { CopilotProviderRegistryService } from '../providers/registry-service';
+
+type RouteContext = {
+  workspaceId?: string;
+  featureKind?: CopilotProviderRoutePolicyFeatureKind;
+};
 
 export type ResolveModelInput = {
   defaultModel: string;
   optionalModels?: string[] | null;
   requestedModelId?: string;
   extraModels?: string[] | null;
+  routeContext?: RouteContext | null;
 };
 
 @Injectable()
@@ -22,10 +30,16 @@ export class ModelSelectionPolicy {
   private matchRequestedModel(
     optionalModels: string[],
     requestedModelId?: string,
-    defaultModel?: string
+    defaultModel?: string,
+    routeContext: RouteContext = {}
   ) {
+    const registry = this.getRegistry();
     return llmResolveRequestedModelMatch({
-      providerIds: [...this.getRegistry().profiles.keys()],
+      providerIds: applyProviderRoutePolicy(
+        registry,
+        registry.profiles.keys(),
+        routeContext
+      ),
       optionalModels,
       requestedModelId,
       defaultModel,
@@ -52,7 +66,8 @@ export class ModelSelectionPolicy {
     const matched = this.matchRequestedModel(
       optionalModels,
       input.requestedModelId,
-      input.defaultModel
+      input.defaultModel,
+      input.routeContext ?? {}
     );
     return {
       selectedModel: matched.selectedModel ?? input.defaultModel,
@@ -60,7 +75,12 @@ export class ModelSelectionPolicy {
     };
   }
 
-  matchesModelList(models: string[], modelId?: string) {
-    return this.matchRequestedModel(models, modelId).matchedOptionalModel;
+  matchesModelList(
+    models: string[],
+    modelId?: string,
+    routeContext: RouteContext = {}
+  ) {
+    return this.matchRequestedModel(models, modelId, undefined, routeContext)
+      .matchedOptionalModel;
   }
 }

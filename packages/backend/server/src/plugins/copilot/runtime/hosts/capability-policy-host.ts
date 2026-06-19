@@ -97,6 +97,7 @@ export class CapabilityPolicyHost {
     const resolved = this.modelSelection.resolveRequestedModel({
       ...input,
       extraModels,
+      routeContext: input.routeContext,
     });
 
     if (
@@ -104,7 +105,8 @@ export class CapabilityPolicyHost {
       input.paymentEnabled &&
       this.modelSelection.matchesModelList(
         input.proModels ?? [],
-        input.requestedModelId
+        input.requestedModelId,
+        input.routeContext
       ) &&
       !(await this.hasAiProAccess(input.userId, input.paymentEnabled))
     ) {
