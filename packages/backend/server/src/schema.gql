@@ -1634,7 +1634,12 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   providerCostSnapshotFingerprint: String
   providerHealthSnapshotFingerprint: String
   providerLimitSnapshotFingerprint: String
+  rerankRuntimeContractFingerprint: String
+  rerankRuntimeContractStatus: String
+  rerankRuntimeContractTopK: SafeInt
+  rerankRuntimeContractVersion: String
   taskRouteEmbeddingIndexContractSnapshotFingerprint: String
+  taskRouteRerankRuntimeContractSnapshotFingerprint: String
   taskRouteDimensionSnapshotFingerprint: String
   taskRouteModelSourceSnapshotFingerprint: String
   preparedRouteTargets: [String!]

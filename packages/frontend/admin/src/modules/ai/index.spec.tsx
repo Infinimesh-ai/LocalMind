@@ -378,6 +378,39 @@ function taskRouteEmbeddingIndexContractSnapshotFixture(route: {
   ];
 }
 
+function taskRouteRerankRuntimeContractSnapshotFixture(route: {
+  candidateCount?: number | null;
+  featureKind: string;
+  modelId?: string | null;
+  preparedProviderCount?: number | null;
+  providerId?: string | null;
+  requestedModelId?: string | null;
+  rerankRuntimeContractFingerprint?: string | null;
+  rerankRuntimeContractStatus?: string | null;
+  rerankRuntimeContractTopK?: number | null;
+  rerankRuntimeContractVersion?: string | null;
+}) {
+  if (!route.rerankRuntimeContractVersion) {
+    return [];
+  }
+
+  return [
+    {
+      candidateCount: route.candidateCount ?? null,
+      featureKind: route.featureKind,
+      modelId: route.modelId ?? null,
+      preparedProviderCount: route.preparedProviderCount ?? null,
+      providerId: route.providerId ?? null,
+      requestedModelId: route.requestedModelId ?? null,
+      rerankRuntimeContractFingerprint:
+        route.rerankRuntimeContractFingerprint ?? null,
+      rerankRuntimeContractStatus: route.rerankRuntimeContractStatus ?? null,
+      rerankRuntimeContractTopK: route.rerankRuntimeContractTopK ?? null,
+      rerankRuntimeContractVersion: route.rerankRuntimeContractVersion,
+    },
+  ];
+}
+
 function taskRouteModelSourceSnapshotFixture(route: {
   featureKind: string;
   requestedModelConfigKey?: string | null;
@@ -1154,6 +1187,82 @@ const readyRoute = {
   requestedModelSource: 'rerank',
   topK: 5,
 };
+
+const readyRouteRerankRuntimeContractSnapshotFingerprint =
+  taskRouteSnapshotFingerprintFixture(
+    taskRouteRerankRuntimeContractSnapshotFixture(readyRoute)
+  );
+
+const rerankRepairCandidateEvidence = candidateEvidenceFixture({
+  allowed: true,
+  available: true,
+  candidateIndex: 0,
+  candidateKey: 'policy:rerank:global:ollama-main',
+  fallbackProviderIds: readyRoute.fallbackProviderIds,
+  modelId: readyRoute.modelId,
+  prepared: true,
+  preparedModelId: readyRoute.modelId,
+  preparedRouteSnapshotFingerprint: taskRouteSnapshotFingerprintFixture(
+    taskRoutePreparedRouteSnapshotFixture(readyRoute.preparedRoutes)
+  ),
+  preparedRouteOrderFingerprint: taskRouteSnapshotFingerprintFixture(
+    taskRoutePreparedRouteOrderSnapshotFixture(readyRoute.preparedRoutes)
+  ),
+  preparedRoutes: taskRoutePreparedRouteSnapshotFixture(
+    readyRoute.preparedRoutes
+  ),
+  providerCapabilitySnapshotFingerprint: taskRouteSnapshotFingerprintFixture(
+    taskRouteProviderCapabilitySnapshotFixture(readyRoute)
+  ),
+  providerHealthSnapshotFingerprint: taskRouteSnapshotFingerprintFixture(
+    taskRouteProviderHealthSnapshotFixture(readyRoute)
+  ),
+  providerCostSnapshotFingerprint: taskRouteSnapshotFingerprintFixture(
+    taskRouteProviderCostSnapshotFixture(readyRoute)
+  ),
+  providerLimitSnapshotFingerprint: taskRouteSnapshotFingerprintFixture(
+    taskRouteProviderLimitSnapshotFixture(readyRoute)
+  ),
+  rerankRuntimeContractFingerprint: readyRoute.rerankRuntimeContractFingerprint,
+  rerankRuntimeContractStatus: readyRoute.rerankRuntimeContractStatus,
+  rerankRuntimeContractTopK: readyRoute.rerankRuntimeContractTopK,
+  rerankRuntimeContractVersion: readyRoute.rerankRuntimeContractVersion,
+  taskRouteRerankRuntimeContractSnapshotFingerprint:
+    readyRouteRerankRuntimeContractSnapshotFingerprint,
+  taskRouteModelSourceSnapshotFingerprint: taskRouteSnapshotFingerprintFixture(
+    taskRouteModelSourceSnapshotFixture(readyRoute)
+  ),
+  preparedRouteTargets: readyRoute.preparedRouteTargets,
+  preparedRouteTargetFingerprint: readyRoute.preparedRouteTargetFingerprint,
+  policyCandidates: readyRoute.policyCandidates,
+  policyCandidateSnapshotFingerprint: taskRouteSnapshotFingerprintFixture(
+    readyRoute.policyCandidates
+  ),
+  providerConfiguredModelCount: readyRoute.providerConfiguredModelCount,
+  providerConfiguredModelIds: readyRoute.providerConfiguredModelIds,
+  providerId: readyRoute.providerId,
+  providerName: readyRoute.providerName,
+  providerPriority: readyRoute.providerPriority,
+  providerProfileConfigPath: readyRoute.providerProfileConfigPath,
+  providerProfileId: readyRoute.providerProfileId,
+  providerProfileSource: readyRoute.providerProfileSource,
+  providerSource: readyRoute.providerSource,
+  providerType: readyRoute.providerType,
+  reasons: ['candidate_allowed'],
+  requestedModelId: readyRoute.requestedModelId,
+  requestedModelConfigKey: readyRoute.requestedModelConfigKey,
+  requestedModelConfigPath: readyRoute.requestedModelConfigPath,
+  requestedModelSource: readyRoute.requestedModelSource,
+  routeCandidateSnapshotFingerprint: taskRouteSnapshotFingerprintFixture(
+    readyRoute.routeCandidates
+  ),
+  routeTrace: readyRoute.routeTrace,
+  routeTracePhases: readyRoute.routeTrace.map(phase => phase.phase),
+  routeTraceSnapshotFingerprint: taskRouteSnapshotFingerprintFixture(
+    readyRoute.routeTrace
+  ),
+  scope: 'policyCandidate',
+});
 
 const modelsPayload = {
   defaultModel: 'gpt-4o-mini',
@@ -3221,6 +3330,109 @@ const readyPublishGateVerdict = withRepairActionPreview(
       'cccc3333dddd4444',
       'dddd4444eeee5555',
     ],
+  }
+);
+
+const rerankRepairPublishGateVerdict = withRepairActionPreview(
+  {
+    ...readyPublishGateVerdict,
+    name: 'Make it real',
+    repairActionCatalogFingerprint: 'ddddaaaabbbbcccc',
+    repairActionMutationGuard: repairActionMutationGuard({
+      auditSummary:
+        'registry:42 | registryFingerprint:b1c2d3e4f5061728 | catalog:repair-actions/v1 | catalogFingerprint:ddddaaaabbbbcccc | recommendations:1 | intent:abc999def8887777 | targetLocators:1 | targetKinds:task_route | reviewModes:preview | safety:preview_required',
+      auditSummaryFingerprint: 'ddddbbbb11112222',
+      catalogFingerprint: 'ddddaaaabbbbcccc',
+      expectedRegistryFingerprint: 'b1c2d3e4f5061728',
+      expectedRegistryId: 42,
+      expectedRegistryUpdatedAt: '2026-06-17T04:05:06.000Z',
+      guardFingerprint: 'dddd1111bbbb2222',
+      intentFingerprint: 'abc999def8887777',
+      inputSchemaFingerprint: 'ddd111bbb222cccc',
+      recommendationCategories: ['task_route'],
+      recommendationCodes: ['rerank_task_route_unavailable'],
+      recommendationFingerprints: ['9999aaaabbbbcccc'],
+      requiredCapabilities: [
+        'model_registry.read',
+        'provider_route.preview',
+        'task_route.read',
+      ],
+      requiredReviewModes: ['preview'],
+      safetyLevels: ['preview_required'],
+      suggestedActionKinds: ['repair_task_model_route'],
+      targetLocatorCount: 1,
+      targetLocatorFingerprint: 'ddd999eee888ffff',
+      targetLocatorKinds: ['task_route'],
+    }),
+    repairActionCatalog: [
+      repairActionCatalogEntry(
+        'repair_task_model_route',
+        ['task_route.read', 'model_registry.read', 'provider_route.preview'],
+        'preview_required'
+      ),
+    ],
+    repairRecommendations: [
+      {
+        candidateEvidence: [rerankRepairCandidateEvidence],
+        category: 'task_route',
+        code: 'rerank_task_route_unavailable',
+        detail: 'Task route "rerank" has no prepared provider route.',
+        diagnosticsFingerprint: '9999aaaabbbbcccc',
+        evidence: [
+          'featureKind:rerank',
+          'configured:true',
+          'preparedProviderCount:1',
+          'policyCandidate#0:rerankRuntimeContractVersion:workspace-rerank-runtime/v1',
+          'policyCandidate#0:rerankRuntimeContractTopK:5',
+          'policyCandidate#0:rerankRuntimeContractStatus:prepared_route_available',
+          `policyCandidate#0:taskRouteRerankRuntimeContractSnapshotFingerprint:${readyRouteRerankRuntimeContractSnapshotFingerprint}`,
+        ],
+        instanceKey: 'rerank:rerank:workspace-rerank:unavailable',
+        severity: 'warning',
+        suggestedAction:
+          'Configure copilot.tasks.models and provider model definitions so this task has a matching prepared route.',
+        suggestedActionCatalogVersion: 'repair-actions/v1',
+        suggestedActionInputSchema: repairActionInputSchemaFixture,
+        suggestedActionKind: 'repair_task_model_route',
+        suggestedActionRequiredCapabilities: [
+          'task_route.read',
+          'model_registry.read',
+          'provider_route.preview',
+        ],
+        suggestedActionSafety: 'preview_required',
+        target: 'copilot.tasks.models.rerank',
+        targetLocator: {
+          featureKind: 'rerank',
+          kind: 'task_route',
+          path: 'copilot.tasks.models.rerank',
+          providerId: 'ollama-main',
+          providerProfileConfigPath:
+            'copilot.providers.profiles[id=ollama-main]',
+          providerProfileId: 'ollama-main',
+          providerProfileSource: 'configured',
+          registryFingerprint: 'b1c2d3e4f5061728',
+          registryId: 42,
+          registryUpdatedAt: '2026-06-17T04:05:06.000Z',
+          requestedModelConfigKey: 'rerank',
+          requestedModelConfigPath: 'copilot.tasks.models.rerank',
+          requestedModelId: 'workspace-rerank',
+          requestedModelSource: 'rerank',
+        },
+        title: 'Repair rerank task route',
+      },
+    ],
+  },
+  {
+    operationFingerprints: ['9999ddddaaaabbbb'],
+    operationSetFingerprint: 'dcba1111efef2222',
+    authorizationFingerprint: 'dddd2222bbbb3333',
+    approvalPolicyFingerprint: 'dddd3333bbbb4444',
+    candidateEvidenceSetFingerprint: 'dddd5555bbbb6666',
+    embeddingIndexContractEvidenceSetFingerprint: 'dddd6666bbbb7777',
+    preparedRouteOrderEvidenceSetFingerprint: 'dddd7777bbbb8888',
+    previewFingerprint: 'dddd9999bbbbcccc',
+    submissionFingerprint: 'dddd4444bbbb5555',
+    targetLocatorFingerprints: ['dddd1111eeee2222'],
   }
 );
 
@@ -6098,9 +6310,12 @@ describe('AiPage', () => {
                 promptRegistryPublishGate:
                   name === 'Legacy empty registry prompt'
                     ? blockedPublishGateVerdict
-                    : name === 'Make it real' && workspaceId === 'workspace-1'
-                      ? actionDryRunFailedPublishGateVerdict
-                      : readyPublishGateVerdict,
+                    : name === 'Make it real' &&
+                        workspaceId === 'rerank-workspace'
+                      ? rerankRepairPublishGateVerdict
+                      : name === 'Make it real' && workspaceId === 'workspace-1'
+                        ? actionDryRunFailedPublishGateVerdict
+                        : readyPublishGateVerdict,
               },
             },
           },
@@ -7659,6 +7874,53 @@ describe('AiPage', () => {
         'Prompt metadata is not available for the submitted prompt name.'
       )
     ).not.toBeNull();
+  });
+
+  test('shows rerank runtime contract in repair candidate evidence', async () => {
+    render(<AiPage />);
+
+    fireEvent.change(screen.getByLabelText('Prompt name'), {
+      target: {
+        value: 'Make it real',
+      },
+    });
+    fireEvent.change(screen.getByLabelText('Workspace ID'), {
+      target: {
+        value: 'rerank-workspace',
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Test route' }));
+
+    await waitFor(() => {
+      expectQueryCall(getCopilotPromptRegistryPublishGateQuery, {
+        expectedVersion: {
+          registryFingerprint: 'b1c2d3e4f5061728',
+          registryId: 42,
+          registryUpdatedAt: '2026-06-17T04:05:06.000Z',
+        },
+        name: 'Make it real',
+        workspaceId: 'rerank-workspace',
+      });
+    });
+
+    const diagnostics = screen.getByTestId(
+      'prompt-registry-publish-gate-Make it real'
+    ).textContent;
+    expect(diagnostics).toContain(
+      'Repair recommendation Warning / Task Route / rerank_task_route_unavailable / Repair rerank task route / copilot.tasks.models.rerank'
+    );
+    expect(diagnostics).toContain(
+      'rerank runtime contract workspace-rerank-runtime/v1 / rerank runtime topK 5 / rerank runtime status Prepared Route Available / rerank runtime fingerprint eeee2222ffff3333'
+    );
+    expect(diagnostics).toContain(
+      `task route rerank runtime contract snapshot fingerprint ${readyRouteRerankRuntimeContractSnapshotFingerprint}`
+    );
+    expect(diagnostics).toContain(
+      'policyCandidate#0:rerankRuntimeContractVersion:workspace-rerank-runtime/v1'
+    );
+    expect(diagnostics).toMatch(
+      /candidate evidence Policy Candidate #0 \/ fingerprint [0-9a-f]{16} \/ key policy:rerank:global:ollama-main \/ provider ollama-main/
+    );
   });
 
   test('filters prompt catalog options by search', () => {

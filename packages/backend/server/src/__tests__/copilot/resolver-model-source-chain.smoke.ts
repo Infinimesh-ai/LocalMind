@@ -978,6 +978,39 @@ function taskRouteEmbeddingIndexContractSnapshotFixture(route: {
   ];
 }
 
+function taskRouteRerankRuntimeContractSnapshotFixture(route: {
+  candidateCount?: number;
+  featureKind: string;
+  modelId?: string;
+  preparedProviderCount?: number;
+  providerId?: string;
+  requestedModelId?: string;
+  rerankRuntimeContractFingerprint?: string;
+  rerankRuntimeContractStatus?: string;
+  rerankRuntimeContractTopK?: number;
+  rerankRuntimeContractVersion?: string;
+}) {
+  if (!route.rerankRuntimeContractVersion) {
+    return [];
+  }
+
+  return [
+    {
+      candidateCount: route.candidateCount ?? null,
+      featureKind: route.featureKind,
+      modelId: route.modelId ?? null,
+      preparedProviderCount: route.preparedProviderCount ?? null,
+      providerId: route.providerId ?? null,
+      requestedModelId: route.requestedModelId ?? null,
+      rerankRuntimeContractFingerprint:
+        route.rerankRuntimeContractFingerprint ?? null,
+      rerankRuntimeContractStatus: route.rerankRuntimeContractStatus ?? null,
+      rerankRuntimeContractTopK: route.rerankRuntimeContractTopK ?? null,
+      rerankRuntimeContractVersion: route.rerankRuntimeContractVersion,
+    },
+  ];
+}
+
 function taskRouteModelSourceSnapshotFixture(route: {
   featureKind: string;
   requestedModelConfigKey?: string;
@@ -2201,6 +2234,22 @@ async function main() {
   );
   assert.equal(routeReadyGate?.taskRoutes[1]?.featureKind, 'rerank');
   assert.equal(routeReadyGate?.taskRoutes[1]?.configured, false);
+  assert.equal(
+    routeReadyGate?.taskRoutes[1]?.rerankRuntimeContractVersion,
+    'workspace-rerank-runtime/v1'
+  );
+  assert.equal(
+    routeReadyGate?.taskRoutes[1]?.rerankRuntimeContractStatus,
+    'no_prepared_route_read_only'
+  );
+  assert.equal(
+    routeReadyGate?.taskRoutes[1]?.rerankRuntimeContractTopK,
+    undefined
+  );
+  assert.match(
+    routeReadyGate?.taskRoutes[1]?.rerankRuntimeContractFingerprint ?? '',
+    /^[0-9a-f]{16}$/
+  );
   assert.equal(routeReadyGate?.modelRoute?.providerId, 'local');
   assert.equal(routeReadyGate?.modelRoute?.providerName, 'local');
   assert.equal(routeReadyGate?.modelRoute?.providerSource, 'configured');
@@ -2437,6 +2486,97 @@ async function main() {
       ['diagnosticsFingerprint', 'targetLocator'],
       ['diagnosticsFingerprint', 'targetLocator'],
     ]
+  );
+  const rerankTaskRoute = routeReadyGate?.taskRoutes.find(
+    route => route.featureKind === 'rerank'
+  );
+  const rerankTaskRouteRepair = routeReadyGate?.repairRecommendations.find(
+    recommendation => recommendation.code === 'rerank_task_route_unavailable'
+  );
+  const rerankRuntimeContractSnapshot =
+    taskRouteRerankRuntimeContractSnapshotFixture(rerankTaskRoute!);
+  const rerankRuntimeContractSnapshotFingerprint =
+    taskRouteSnapshotFingerprintFixture(rerankRuntimeContractSnapshot);
+  assert.match(rerankRuntimeContractSnapshotFingerprint, /^[0-9a-f]{16}$/);
+  assert.equal(
+    rerankTaskRouteRepair?.evidence.includes(
+      'policyCandidate#0:rerankRuntimeContractVersion:workspace-rerank-runtime/v1'
+    ),
+    true,
+    'rerank repair evidence should include runtime contract version'
+  );
+  assert.equal(
+    rerankTaskRouteRepair?.evidence.includes(
+      'policyCandidate#0:rerankRuntimeContractStatus:no_prepared_route_read_only'
+    ),
+    true,
+    'rerank repair evidence should include runtime contract status'
+  );
+  assert.equal(
+    rerankTaskRouteRepair?.evidence.includes(
+      `policyCandidate#0:rerankRuntimeContractFingerprint:${rerankTaskRoute?.rerankRuntimeContractFingerprint}`
+    ),
+    true,
+    'rerank repair evidence should include runtime contract fingerprint'
+  );
+  assert.equal(
+    rerankTaskRouteRepair?.evidence.includes(
+      `policyCandidate#0:taskRouteRerankRuntimeContractSnapshotFingerprint:${rerankRuntimeContractSnapshotFingerprint}`
+    ),
+    true,
+    'rerank repair evidence should include runtime contract snapshot fingerprint'
+  );
+  const assertRerankRuntimeContractEvidence = (
+    evidence:
+      | NonNullable<
+          NonNullable<typeof rerankTaskRouteRepair>['candidateEvidence']
+        >[number]
+      | undefined,
+    label: string
+  ) => {
+    assert.equal(
+      evidence?.rerankRuntimeContractVersion,
+      rerankTaskRoute?.rerankRuntimeContractVersion,
+      `${label} should bind rerank runtime contract version`
+    );
+    assert.equal(
+      evidence?.rerankRuntimeContractStatus,
+      rerankTaskRoute?.rerankRuntimeContractStatus,
+      `${label} should bind rerank runtime contract status`
+    );
+    assert.equal(
+      evidence?.rerankRuntimeContractTopK,
+      rerankTaskRoute?.rerankRuntimeContractTopK,
+      `${label} should bind rerank runtime contract topK`
+    );
+    assert.equal(
+      evidence?.rerankRuntimeContractFingerprint,
+      rerankTaskRoute?.rerankRuntimeContractFingerprint,
+      `${label} should bind rerank runtime contract fingerprint`
+    );
+    assert.equal(
+      evidence?.taskRouteRerankRuntimeContractSnapshotFingerprint,
+      rerankRuntimeContractSnapshotFingerprint,
+      `${label} should bind rerank runtime contract snapshot fingerprint`
+    );
+  };
+  assertRerankRuntimeContractEvidence(
+    rerankTaskRouteRepair?.candidateEvidence?.find(
+      evidence => evidence.scope === 'policyCandidate'
+    ),
+    'rerank policy candidate evidence'
+  );
+  assert.equal(
+    rerankTaskRouteRepair?.candidateEvidence?.some(
+      evidence => evidence.scope === 'policyCandidate'
+    ),
+    true
+  );
+  rerankTaskRouteRepair?.candidateEvidence?.forEach(evidence =>
+    assertRerankRuntimeContractEvidence(
+      evidence,
+      `rerank ${evidence.scope} evidence`
+    )
   );
   assert.deepEqual(
     routeReadyGate?.repairActionCatalog.map(entry => [

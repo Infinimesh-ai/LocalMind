@@ -1864,7 +1864,14 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   providerCostSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   providerHealthSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   providerLimitSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
+  rerankRuntimeContractFingerprint?: Maybe<Scalars['String']['output']>;
+  rerankRuntimeContractStatus?: Maybe<Scalars['String']['output']>;
+  rerankRuntimeContractTopK?: Maybe<Scalars['SafeInt']['output']>;
+  rerankRuntimeContractVersion?: Maybe<Scalars['String']['output']>;
   taskRouteEmbeddingIndexContractSnapshotFingerprint?: Maybe<
+    Scalars['String']['output']
+  >;
+  taskRouteRerankRuntimeContractSnapshotFingerprint?: Maybe<
     Scalars['String']['output']
   >;
   taskRouteDimensionSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
@@ -8236,7 +8243,12 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             providerCostSnapshotFingerprint: string | null;
             providerHealthSnapshotFingerprint: string | null;
             providerLimitSnapshotFingerprint: string | null;
+            rerankRuntimeContractFingerprint: string | null;
+            rerankRuntimeContractStatus: string | null;
+            rerankRuntimeContractTopK: number | null;
+            rerankRuntimeContractVersion: string | null;
             taskRouteEmbeddingIndexContractSnapshotFingerprint: string | null;
+            taskRouteRerankRuntimeContractSnapshotFingerprint: string | null;
             taskRouteDimensionSnapshotFingerprint: string | null;
             taskRouteModelSourceSnapshotFingerprint: string | null;
             preparedRouteTargets: Array<string> | null;

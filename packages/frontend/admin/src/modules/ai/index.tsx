@@ -3146,6 +3146,20 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
     evidence.embeddingIndexContractFingerprint
       ? `embedding index fingerprint ${evidence.embeddingIndexContractFingerprint}`
       : null,
+    evidence.rerankRuntimeContractVersion
+      ? `rerank runtime contract ${evidence.rerankRuntimeContractVersion}`
+      : null,
+    evidence.rerankRuntimeContractTopK != null
+      ? `rerank runtime topK ${evidence.rerankRuntimeContractTopK}`
+      : null,
+    evidence.rerankRuntimeContractStatus
+      ? `rerank runtime status ${formatFeatureKind(
+          evidence.rerankRuntimeContractStatus
+        )}`
+      : null,
+    evidence.rerankRuntimeContractFingerprint
+      ? `rerank runtime fingerprint ${evidence.rerankRuntimeContractFingerprint}`
+      : null,
     evidence.routeInputTypes?.length
       ? `input ${evidence.routeInputTypes.join(', ')}`
       : null,
@@ -3244,6 +3258,9 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
       : null,
     evidence.taskRouteEmbeddingIndexContractSnapshotFingerprint
       ? `task route embedding index contract snapshot fingerprint ${evidence.taskRouteEmbeddingIndexContractSnapshotFingerprint}`
+      : null,
+    evidence.taskRouteRerankRuntimeContractSnapshotFingerprint
+      ? `task route rerank runtime contract snapshot fingerprint ${evidence.taskRouteRerankRuntimeContractSnapshotFingerprint}`
       : null,
     evidence.taskRouteModelSourceSnapshotFingerprint
       ? `task route model source snapshot fingerprint ${evidence.taskRouteModelSourceSnapshotFingerprint}`

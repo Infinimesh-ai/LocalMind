@@ -763,7 +763,12 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   providerCostSnapshotFingerprint?: string;
   providerHealthSnapshotFingerprint?: string;
   providerLimitSnapshotFingerprint?: string;
+  rerankRuntimeContractFingerprint?: string;
+  rerankRuntimeContractStatus?: string;
+  rerankRuntimeContractTopK?: number;
+  rerankRuntimeContractVersion?: string;
   taskRouteEmbeddingIndexContractSnapshotFingerprint?: string;
+  taskRouteRerankRuntimeContractSnapshotFingerprint?: string;
   taskRouteDimensionSnapshotFingerprint?: string;
   taskRouteModelSourceSnapshotFingerprint?: string;
   preparedRouteTargets?: string[];
@@ -1939,7 +1944,22 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
   providerLimitSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['providerLimitSnapshotFingerprint'];
 
   @Field(() => String, { nullable: true })
+  rerankRuntimeContractFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['rerankRuntimeContractFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  rerankRuntimeContractStatus?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['rerankRuntimeContractStatus'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  rerankRuntimeContractTopK?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['rerankRuntimeContractTopK'];
+
+  @Field(() => String, { nullable: true })
+  rerankRuntimeContractVersion?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['rerankRuntimeContractVersion'];
+
+  @Field(() => String, { nullable: true })
   taskRouteEmbeddingIndexContractSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['taskRouteEmbeddingIndexContractSnapshotFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  taskRouteRerankRuntimeContractSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['taskRouteRerankRuntimeContractSnapshotFingerprint'];
 
   @Field(() => String, { nullable: true })
   taskRouteDimensionSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['taskRouteDimensionSnapshotFingerprint'];
@@ -4768,7 +4788,12 @@ function taskRouteRepairCandidateEvidenceBase(
     providerCostSnapshotFingerprint?: string;
     providerHealthSnapshotFingerprint?: string;
     providerLimitSnapshotFingerprint?: string;
+    rerankRuntimeContractFingerprint?: string;
+    rerankRuntimeContractStatus?: string;
+    rerankRuntimeContractTopK?: number;
+    rerankRuntimeContractVersion?: string;
     taskRouteEmbeddingIndexContractSnapshotFingerprint?: string;
+    taskRouteRerankRuntimeContractSnapshotFingerprint?: string;
     taskRouteDimensionSnapshotFingerprint?: string;
     taskRouteModelSourceSnapshotFingerprint?: string;
     preparedRouteTargets?: string[];
@@ -4941,11 +4966,39 @@ function taskRouteRepairCandidateEvidenceBase(
             candidate.providerLimitSnapshotFingerprint,
         }
       : {}),
+    ...(candidate.rerankRuntimeContractFingerprint !== undefined
+      ? {
+          rerankRuntimeContractFingerprint:
+            candidate.rerankRuntimeContractFingerprint,
+        }
+      : {}),
+    ...(candidate.rerankRuntimeContractStatus !== undefined
+      ? {
+          rerankRuntimeContractStatus: candidate.rerankRuntimeContractStatus,
+        }
+      : {}),
+    ...(candidate.rerankRuntimeContractTopK !== undefined
+      ? {
+          rerankRuntimeContractTopK: candidate.rerankRuntimeContractTopK,
+        }
+      : {}),
+    ...(candidate.rerankRuntimeContractVersion !== undefined
+      ? {
+          rerankRuntimeContractVersion: candidate.rerankRuntimeContractVersion,
+        }
+      : {}),
     ...(candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint !==
     undefined
       ? {
           taskRouteEmbeddingIndexContractSnapshotFingerprint:
             candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint,
+        }
+      : {}),
+    ...(candidate.taskRouteRerankRuntimeContractSnapshotFingerprint !==
+    undefined
+      ? {
+          taskRouteRerankRuntimeContractSnapshotFingerprint:
+            candidate.taskRouteRerankRuntimeContractSnapshotFingerprint,
         }
       : {}),
     ...(candidate.taskRouteDimensionSnapshotFingerprint !== undefined
@@ -5281,6 +5334,8 @@ function taskRouteCandidateProfileStructuredEvidence(
     const taskRouteDimensionSnapshotValue = taskRouteDimensionSnapshot(route);
     const taskRouteEmbeddingIndexContractSnapshotValue =
       taskRouteEmbeddingIndexContractSnapshot(route);
+    const taskRouteRerankRuntimeContractSnapshotValue =
+      taskRouteRerankRuntimeContractSnapshot(route);
     const taskRouteModelSourceSnapshotValue =
       taskRouteModelSourceSnapshot(route);
     const diagnosticsErrorSnapshot = route.diagnosticsErrors.map(error => ({
@@ -5353,6 +5408,14 @@ function taskRouteCandidateProfileStructuredEvidence(
                 ),
             }
           : {}),
+        ...(taskRouteRerankRuntimeContractSnapshotValue.length
+          ? {
+              taskRouteRerankRuntimeContractSnapshotFingerprint:
+                taskRouteSnapshotFingerprint(
+                  taskRouteRerankRuntimeContractSnapshotValue
+                ),
+            }
+          : {}),
         taskRouteModelSourceSnapshotFingerprint: taskRouteSnapshotFingerprint(
           taskRouteModelSourceSnapshotValue
         ),
@@ -5384,6 +5447,25 @@ function taskRouteCandidateProfileStructuredEvidence(
           ? {
               embeddingIndexContractVersion:
                 route.embeddingIndexContractVersion,
+            }
+          : {}),
+        ...(route.rerankRuntimeContractFingerprint
+          ? {
+              rerankRuntimeContractFingerprint:
+                route.rerankRuntimeContractFingerprint,
+            }
+          : {}),
+        ...(route.rerankRuntimeContractStatus
+          ? { rerankRuntimeContractStatus: route.rerankRuntimeContractStatus }
+          : {}),
+        ...(route.rerankRuntimeContractTopK !== undefined
+          ? {
+              rerankRuntimeContractTopK: route.rerankRuntimeContractTopK,
+            }
+          : {}),
+        ...(route.rerankRuntimeContractVersion
+          ? {
+              rerankRuntimeContractVersion: route.rerankRuntimeContractVersion,
             }
           : {}),
         ...(route.modelEmbeddingDimensions !== undefined
@@ -5494,6 +5576,22 @@ function taskRouteCandidateProfileEvidence(
       ? `${candidate.scope}#${candidate.candidateIndex}:embeddingIndexContractFingerprint:${candidate.embeddingIndexContractFingerprint}`
       : null,
   ];
+  const candidateRerankRuntimeContractEvidence = (
+    candidate: CopilotPromptRegistryPublishGateRepairCandidateEvidence
+  ) => [
+    candidate.rerankRuntimeContractVersion
+      ? `${candidate.scope}#${candidate.candidateIndex}:rerankRuntimeContractVersion:${candidate.rerankRuntimeContractVersion}`
+      : null,
+    candidate.rerankRuntimeContractTopK !== undefined
+      ? `${candidate.scope}#${candidate.candidateIndex}:rerankRuntimeContractTopK:${candidate.rerankRuntimeContractTopK}`
+      : null,
+    candidate.rerankRuntimeContractStatus
+      ? `${candidate.scope}#${candidate.candidateIndex}:rerankRuntimeContractStatus:${candidate.rerankRuntimeContractStatus}`
+      : null,
+    candidate.rerankRuntimeContractFingerprint
+      ? `${candidate.scope}#${candidate.candidateIndex}:rerankRuntimeContractFingerprint:${candidate.rerankRuntimeContractFingerprint}`
+      : null,
+  ];
 
   const primaryRouteEvidence = candidateEvidence
     .filter(candidate => candidate.candidateIndex === 0)
@@ -5573,6 +5671,7 @@ function taskRouteCandidateProfileEvidence(
             ? `${candidate.scope}#${candidate.candidateIndex}:routeRawModelId:${candidate.routeRawModelId}`
             : null,
           ...candidateCapabilityLimitCostEvidence(candidate),
+          ...candidateRerankRuntimeContractEvidence(candidate),
         ],
         44
       )
@@ -5623,6 +5722,7 @@ function taskRouteCandidateProfileEvidence(
             ? `${candidate.scope}#${candidate.candidateIndex}:dimensionMismatch:${candidate.dimensionMismatch}`
             : null,
           ...candidateEmbeddingIndexContractEvidence(candidate),
+          ...candidateRerankRuntimeContractEvidence(candidate),
           ...candidateCapabilityLimitCostEvidence(candidate),
           candidate.modelId
             ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
@@ -5656,6 +5756,9 @@ function taskRouteCandidateProfileEvidence(
             : null,
           candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint
             ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteEmbeddingIndexContractSnapshotFingerprint:${candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint}`
+            : null,
+          candidate.taskRouteRerankRuntimeContractSnapshotFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteRerankRuntimeContractSnapshotFingerprint:${candidate.taskRouteRerankRuntimeContractSnapshotFingerprint}`
             : null,
           candidate.taskRouteModelSourceSnapshotFingerprint
             ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteModelSourceSnapshotFingerprint:${candidate.taskRouteModelSourceSnapshotFingerprint}`
@@ -5764,6 +5867,9 @@ function taskRouteCandidateProfileEvidence(
         candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteEmbeddingIndexContractSnapshotFingerprint:${candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint}`
           : null,
+        candidate.taskRouteRerankRuntimeContractSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteRerankRuntimeContractSnapshotFingerprint:${candidate.taskRouteRerankRuntimeContractSnapshotFingerprint}`
+          : null,
         candidate.taskRouteModelSourceSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteModelSourceSnapshotFingerprint:${candidate.taskRouteModelSourceSnapshotFingerprint}`
           : null,
@@ -5848,6 +5954,7 @@ function taskRouteCandidateProfileEvidence(
           ? `${candidate.scope}#${candidate.candidateIndex}:dimensionMismatch:${candidate.dimensionMismatch}`
           : null,
         ...candidateEmbeddingIndexContractEvidence(candidate),
+        ...candidateRerankRuntimeContractEvidence(candidate),
         candidate.modelId
           ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
           : null,
@@ -5944,6 +6051,7 @@ function taskRouteCandidateProfileEvidence(
           ? `${candidate.scope}#${candidate.candidateIndex}:dimensionMismatch:${candidate.dimensionMismatch}`
           : null,
         ...candidateEmbeddingIndexContractEvidence(candidate),
+        ...candidateRerankRuntimeContractEvidence(candidate),
         candidate.preparedModelId
           ? `${candidate.scope}#${candidate.candidateIndex}:preparedModelId:${candidate.preparedModelId}`
           : null,
@@ -5988,6 +6096,9 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteEmbeddingIndexContractSnapshotFingerprint:${candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint}`
+          : null,
+        candidate.taskRouteRerankRuntimeContractSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteRerankRuntimeContractSnapshotFingerprint:${candidate.taskRouteRerankRuntimeContractSnapshotFingerprint}`
           : null,
         candidate.taskRouteModelSourceSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteModelSourceSnapshotFingerprint:${candidate.taskRouteModelSourceSnapshotFingerprint}`
@@ -6091,6 +6202,7 @@ function taskRouteCandidateProfileEvidence(
           ? `${candidate.scope}#${candidate.candidateIndex}:dimensionMismatch:${candidate.dimensionMismatch}`
           : null,
         ...candidateEmbeddingIndexContractEvidence(candidate),
+        ...candidateRerankRuntimeContractEvidence(candidate),
         candidate.modelId
           ? `${candidate.scope}#${candidate.candidateIndex}:modelId:${candidate.modelId}`
           : null,
@@ -6132,6 +6244,9 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteEmbeddingIndexContractSnapshotFingerprint:${candidate.taskRouteEmbeddingIndexContractSnapshotFingerprint}`
+          : null,
+        candidate.taskRouteRerankRuntimeContractSnapshotFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteRerankRuntimeContractSnapshotFingerprint:${candidate.taskRouteRerankRuntimeContractSnapshotFingerprint}`
           : null,
         candidate.taskRouteModelSourceSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteModelSourceSnapshotFingerprint:${candidate.taskRouteModelSourceSnapshotFingerprint}`
@@ -7206,6 +7321,30 @@ function taskRouteEmbeddingIndexContractSnapshot(
       providerId: route.providerId ?? null,
       requestedDimensions: route.requestedDimensions ?? null,
       requestedModelId: route.requestedModelId ?? null,
+    },
+  ];
+}
+
+function taskRouteRerankRuntimeContractSnapshot(
+  route: CopilotPromptRegistryPublishGateTaskRoute
+) {
+  if (!route.rerankRuntimeContractVersion) {
+    return [];
+  }
+
+  return [
+    {
+      candidateCount: route.candidateCount ?? null,
+      featureKind: route.featureKind,
+      modelId: route.modelId ?? null,
+      preparedProviderCount: route.preparedProviderCount ?? null,
+      providerId: route.providerId ?? null,
+      requestedModelId: route.requestedModelId ?? null,
+      rerankRuntimeContractFingerprint:
+        route.rerankRuntimeContractFingerprint ?? null,
+      rerankRuntimeContractStatus: route.rerankRuntimeContractStatus ?? null,
+      rerankRuntimeContractTopK: route.rerankRuntimeContractTopK ?? null,
+      rerankRuntimeContractVersion: route.rerankRuntimeContractVersion,
     },
   ];
 }
