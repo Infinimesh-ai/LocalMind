@@ -4033,6 +4033,9 @@ function formatPromptRegistryRepairExecutionRequest(
                           }:${
                             candidate.taskRouteEffectiveSourceFingerprint ??
                             'source:none'
+                          }:${
+                            candidate.taskRouteModelSourceSnapshotFingerprint ??
+                            'modelSource:none'
                           }`
                       )
                       .join('|')

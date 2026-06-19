@@ -348,6 +348,7 @@ mutation requestCopilotPromptRegistryRepairExecution(
         candidateIndex
         preparedRouteOrderFingerprint
         taskRouteEffectiveSourceFingerprint
+        taskRouteModelSourceSnapshotFingerprint
       }
       candidateEvidenceFingerprint
       candidateEvidenceFingerprints
