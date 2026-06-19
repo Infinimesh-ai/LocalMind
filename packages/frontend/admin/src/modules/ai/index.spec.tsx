@@ -322,6 +322,13 @@ const candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusio
     )
     .digest('hex')
     .slice(0, 16);
+const candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputsFixture =
+  [
+    'archiveInclusionStatus',
+    'objectFingerprint',
+    'objectStatus',
+    'schemaFingerprint',
+  ];
 
 function candidateEvidenceCategoryFromKeyFixture(key?: string) {
   if (!key) {
@@ -7351,6 +7358,10 @@ describe('AiPage', () => {
                     candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatusFixture,
                   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprint:
                     candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintFixture,
+                  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputs:
+                    [
+                      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputsFixture,
+                    ],
                   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatus:
                     candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatusFixture,
                   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint:
@@ -8376,6 +8387,12 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       `referenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprint:${candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintFixture}`
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `referenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputs:${candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputsFixture.join('|')}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

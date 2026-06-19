@@ -3413,6 +3413,7 @@ export const requestCopilotPromptRegistryRepairExecutionMutation = {
       candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputs
       candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus
       candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprint
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputs
       candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatus
       candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint
       candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputs

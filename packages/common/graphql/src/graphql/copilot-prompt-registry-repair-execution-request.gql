@@ -352,6 +352,7 @@ mutation requestCopilotPromptRegistryRepairExecution(
       candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputs
       candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus
       candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprint
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputs
       candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatus
       candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint
       candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputs
