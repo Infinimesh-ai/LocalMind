@@ -15100,3 +15100,30 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - source evidence set 绑定的是 operation/candidate evidence 视角，不绑定真实请求 payload、provider credentials、BYOK lease、tenant policy registry、storage backend、health probe timestamp、request dispatch outcome 或 billing/quota execution result。
 - 模型列表、publish gate model routes、task routes、repair candidate evidence、preview operation 与 repair stale guard 的 effective source payload schema 仍不完全一致；后续若要统一审计，需要抽取正式跨 projection effective source evidence schema，并决定哪些字段进入 DB-backed snapshot/revision。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 450. P1 落地记录：Prompt Registry Repair Support Bundle Lifecycle Task Route Source Evidence Guard
+
+本轮继续收敛第 449 节剩余风险中 “support bundle 持久化或 lifecycle worker 尚未实现” 的前置契约缺口。实际代码与目标 AI 中间层架构的冲突点是：repair execution request 的 support bundle artifact 已经直接绑定 `taskRouteEffectiveSourceEvidenceSetFingerprint`，但后续 support bundle package、download authorization、audit persistence、retention cleanup、artifact record、storage key、archive、archive signature、download resolver 与 signed URL request 主要通过 artifact/package/request fingerprints 间接继承该 source anchor。这样 Admin diagnostics 能看到最终 request 链条，但无法在每个 lifecycle request 的 `inputs` 和 fingerprint payload 中直接确认 task route source evidence set 是否参与了 stale guard。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `buildPromptRegistryRepairExecutionRequest()` 将 `taskRouteEffectiveSourceEvidenceSetFingerprint` 直接纳入 support bundle package、download authorization、audit persistence、retention cleanup、artifact record、storage key、archive、archive signature、download resolver 与 signed URL request 的 `inputs`。
+  - 同步把 `preflight.taskRouteEffectiveSourceEvidenceSetFingerprint` 写入上述 request 的 fingerprint payload，使每个 support bundle lifecycle request 都能直接随 task route source chain 漂移而变更，而不是只依赖上游 artifact/package fingerprint 间接传播。
+- `packages/backend/server/src/__tests__/copilot/resolver-model-source-chain.smoke.ts`：
+  - 扩展 support bundle lifecycle request input 断言与 fingerprint fixture payload，覆盖 package/download/audit/retention/record/storage/archive/signature/resolver/signed-url request 的 direct source anchor 绑定。
+- `packages/frontend/admin/src/modules/ai/index.spec.tsx`：
+  - 更新 repair execution request fixture 与 Admin diagnostics 断言，确保复制诊断中每个 support bundle lifecycle request input 列表都展示 `taskRouteEffectiveSourceEvidenceSetFingerprint`。
+
+该实现只扩展 Prompt Registry repair execution request 中 support bundle lifecycle request 的只读 fingerprint inputs、payload 与 focused tests，不新增 GraphQL 字段、不新增 DB migration、不创建 DB-backed Model Registry effective source table、不实现 support bundle 持久化、不创建 artifact record、不分配 storage key、不生成 archive、不签名 archive、不发 signed URL、不实现 audit persistence 或 retention cleanup worker、不改变 repair action read-only/blocked 状态、不改变 provider route selection、BYOK、quota、health check、`copilot.tasks.models` 配置格式、embedding/rerank native request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、MCP registry、Codex adapter 或 Action Runtime 状态机。它把 task route source evidence set 从 artifact-level stale guard 推进到 support bundle lifecycle request 级别，为后续真实持久化/下载链路提供可审计 contract。
+
+验证策略：
+
+- 本轮为 TypeScript resolver/frontend/admin/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有测试镜像 `localmind-affine:test`，镜像 ID 预期保持 `c3389960f5ed`；通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused smoke、Admin Vitest、oxlint、Prettier check 与 `git diff --check`。当前本机 Docker Compose `run` 帮助未暴露 `--no-build` flag，因此继续以镜像已存在、不传 `--build`、`--pull never`、`--no-deps` 与镜像 ID 不变作为不重建 test-runner 的证据。
+
+剩余风险：
+
+- support bundle lifecycle request 现在直接绑定 task route source evidence set，但仍是 runtime 只读 projection；没有 DB-backed artifact/package/audit/retention 状态，也没有 worker 执行、持久化或下载授权。
+- `taskRouteEffectiveSourceEvidenceSetFingerprint` 仍来自 operation/candidate evidence 视角，不持久化 registry revision、workspace policy revision、provider snapshot、task route snapshot 或 model availability snapshot。
+- support bundle lifecycle contract 仍不绑定真实 storage backend、archive bytes、signed URL secret/material、provider credentials、BYOK lease、tenant policy registry、health probe timestamp、request dispatch outcome 或 billing/quota execution result。
+- 模型列表、publish gate model routes、task routes、repair candidate evidence、preview operation、repair stale guard 与 support bundle lifecycle 的 effective source payload schema 仍不完全一致；后续若要统一审计，需要抽取正式跨 projection effective source evidence schema，并决定哪些字段进入 DB-backed snapshot/revision。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

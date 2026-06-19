@@ -10521,6 +10521,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'manifestMetadataFingerprint',
     'requestStatus',
     'supportBundleArtifactFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ].sort();
   const supportBundleDownloadAuthorizationRequestFingerprint = createHash(
     'sha256'
@@ -10543,6 +10544,8 @@ function buildPromptRegistryRepairExecutionRequest(
         requestStatus,
         status: supportBundleDownloadAuthorizationRequestStatus,
         supportBundleArtifactFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         version: supportBundleDownloadAuthorizationRequestVersion,
         workspaceId: preflight.workspaceId ?? null,
       })
@@ -10562,6 +10565,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'retentionCleanupStatus',
     'retentionPolicyFingerprint',
     'supportBundleArtifactFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ].sort();
   const supportBundlePackageFingerprint = createHash('sha256')
     .update(
@@ -10591,6 +10595,8 @@ function buildPromptRegistryRepairExecutionRequest(
         status: supportBundlePackageStatus,
         supportBundleArtifactFingerprint,
         supportBundleArtifactStatus,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         version: supportBundlePackageVersion,
         workspaceId: preflight.workspaceId ?? null,
       })
@@ -10610,6 +10616,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'manifestFingerprint',
     'requestStatus',
     'supportBundlePackageFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ].sort();
   const supportBundleAuditPersistenceRequestFingerprint = createHash('sha256')
     .update(
@@ -10630,6 +10637,8 @@ function buildPromptRegistryRepairExecutionRequest(
         requestStatus,
         status: supportBundleAuditPersistenceRequestStatus,
         supportBundlePackageFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         version: supportBundleAuditPersistenceRequestVersion,
         workspaceId: preflight.workspaceId ?? null,
       })
@@ -10648,6 +10657,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'retentionPolicyFingerprint',
     'retentionPolicyStatus',
     'supportBundlePackageFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ].sort();
   const supportBundleRetentionCleanupRequestFingerprint = createHash('sha256')
     .update(
@@ -10667,6 +10677,8 @@ function buildPromptRegistryRepairExecutionRequest(
           repairGateManifestExportMetadata.retentionPolicyStatus,
         status: supportBundleRetentionCleanupRequestStatus,
         supportBundlePackageFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         version: supportBundleRetentionCleanupRequestVersion,
         workspaceId: preflight.workspaceId ?? null,
       })
@@ -10686,6 +10698,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'packageFingerprint',
     'requestStatus',
     'retentionCleanupRequestFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ].sort();
   const supportBundleArtifactRecordRequestFingerprint = createHash('sha256')
     .update(
@@ -10709,6 +10722,8 @@ function buildPromptRegistryRepairExecutionRequest(
         retentionCleanupRequestFingerprint:
           supportBundleRetentionCleanupRequestFingerprint,
         status: supportBundleArtifactRecordRequestStatus,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         version: supportBundleArtifactRecordRequestVersion,
         workspaceId: preflight.workspaceId ?? null,
       })
@@ -10726,6 +10741,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'packageFingerprint',
     'requestStatus',
     'storageKeyScope',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ].sort();
   const supportBundleStorageKeyRequestFingerprint = createHash('sha256')
     .update(
@@ -10741,6 +10757,8 @@ function buildPromptRegistryRepairExecutionRequest(
         requestStatus,
         scope: supportBundleStorageKeyScope,
         status: supportBundleStorageKeyRequestStatus,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         version: supportBundleStorageKeyRequestVersion,
         workspaceId: preflight.workspaceId ?? null,
       })
@@ -10762,6 +10780,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'packageFingerprint',
     'requestStatus',
     'storageKeyRequestFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ].sort();
   const supportBundleArchiveRequestFingerprint = createHash('sha256')
     .update(
@@ -10783,6 +10802,8 @@ function buildPromptRegistryRepairExecutionRequest(
         requestStatus,
         status: supportBundleArchiveRequestStatus,
         storageKeyRequestFingerprint: supportBundleStorageKeyRequestFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         version: supportBundleArchiveRequestVersion,
         workspaceId: preflight.workspaceId ?? null,
       })
@@ -10805,6 +10826,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'requestStatus',
     'signaturePolicy',
     'storageKeyRequestFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ].sort();
   const supportBundleArchiveSignatureRequestFingerprint = createHash('sha256')
     .update(
@@ -10827,6 +10849,8 @@ function buildPromptRegistryRepairExecutionRequest(
         signaturePolicy: supportBundleArchiveSignaturePolicy,
         status: supportBundleArchiveSignatureRequestStatus,
         storageKeyRequestFingerprint: supportBundleStorageKeyRequestFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         version: supportBundleArchiveSignatureRequestVersion,
         workspaceId: preflight.workspaceId ?? null,
       })
@@ -10848,6 +10872,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'packageFingerprint',
     'requestStatus',
     'storageKeyRequestFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ].sort();
   const supportBundleDownloadResolverRequestFingerprint = createHash('sha256')
     .update(
@@ -10868,6 +10893,8 @@ function buildPromptRegistryRepairExecutionRequest(
         requestStatus,
         status: supportBundleDownloadResolverRequestStatus,
         storageKeyRequestFingerprint: supportBundleStorageKeyRequestFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         version: supportBundleDownloadResolverRequestVersion,
         workspaceId: preflight.workspaceId ?? null,
       })
@@ -10890,6 +10917,7 @@ function buildPromptRegistryRepairExecutionRequest(
     'signedUrlPolicy',
     'signedUrlScope',
     'storageKeyRequestFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ].sort();
   const supportBundleSignedUrlRequestFingerprint = createHash('sha256')
     .update(
@@ -10912,6 +10940,8 @@ function buildPromptRegistryRepairExecutionRequest(
         signedUrlScope: supportBundleSignedUrlScope,
         status: supportBundleSignedUrlRequestStatus,
         storageKeyRequestFingerprint: supportBundleStorageKeyRequestFingerprint,
+        taskRouteEffectiveSourceEvidenceSetFingerprint:
+          preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
         version: supportBundleSignedUrlRequestVersion,
         workspaceId: preflight.workspaceId ?? null,
       })

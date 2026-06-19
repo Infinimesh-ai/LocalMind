@@ -6615,6 +6615,7 @@ describe('AiPage', () => {
             'packageFingerprint',
             'requestStatus',
             'retentionCleanupRequestFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
           ],
           supportBundleArtifactRecordRequestStatus: 'not_created_read_only',
           supportBundleArtifactRecordRequestVersion:
@@ -6637,6 +6638,7 @@ describe('AiPage', () => {
             'packageFingerprint',
             'requestStatus',
             'storageKeyRequestFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
           ],
           supportBundleArchiveRequestStatus: 'not_created_read_only',
           supportBundleArchiveRequestVersion:
@@ -6659,6 +6661,7 @@ describe('AiPage', () => {
             'requestStatus',
             'signaturePolicy',
             'storageKeyRequestFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
           ],
           supportBundleArchiveSignatureRequestStatus: 'not_signed_read_only',
           supportBundleArchiveSignatureRequestVersion:
@@ -6674,6 +6677,7 @@ describe('AiPage', () => {
             'packageFingerprint',
             'requestStatus',
             'storageKeyScope',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
           ],
           supportBundleStorageKeyRequestStatus: 'not_allocated_read_only',
           supportBundleStorageKeyRequestVersion:
@@ -6693,6 +6697,7 @@ describe('AiPage', () => {
             'manifestFingerprint',
             'requestStatus',
             'supportBundlePackageFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
           ],
           supportBundleAuditPersistenceRequestStatus: 'not_created_read_only',
           supportBundleAuditPersistenceRequestVersion:
@@ -6710,6 +6715,7 @@ describe('AiPage', () => {
             'manifestMetadataFingerprint',
             'requestStatus',
             'supportBundleArtifactFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
           ],
           supportBundleDownloadAuthorizationRequestStatus:
             'not_created_read_only',
@@ -6730,6 +6736,7 @@ describe('AiPage', () => {
             'packageFingerprint',
             'requestStatus',
             'storageKeyRequestFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
           ],
           supportBundleDownloadResolverRequestStatus:
             'not_registered_read_only',
@@ -6753,6 +6760,7 @@ describe('AiPage', () => {
             'signedUrlPolicy',
             'signedUrlScope',
             'storageKeyRequestFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
           ],
           supportBundleSignedUrlRequestStatus: 'not_issued_read_only',
           supportBundleSignedUrlRequestVersion:
@@ -6781,6 +6789,7 @@ describe('AiPage', () => {
             'retentionCleanupStatus',
             'retentionPolicyFingerprint',
             'supportBundleArtifactFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
           ],
           supportBundlePackageStatus: 'not_created_read_only',
           supportBundlePackageVersion:
@@ -6798,6 +6807,7 @@ describe('AiPage', () => {
             'retentionPolicyFingerprint',
             'retentionPolicyStatus',
             'supportBundlePackageFingerprint',
+            'taskRouteEffectiveSourceEvidenceSetFingerprint',
           ],
           supportBundleRetentionCleanupRequestStatus: 'not_scheduled_read_only',
           supportBundleRetentionCleanupRequestVersion:
@@ -7521,7 +7531,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      'support bundle artifact record request inputs artifactFingerprint, artifactStatus, auditPersistenceRequestFingerprint, downloadAuthorizationRequestFingerprint, manifestFingerprint'
+      'support bundle artifact record request inputs artifactFingerprint, artifactStatus, auditPersistenceRequestFingerprint, downloadAuthorizationRequestFingerprint, manifestFingerprint, manifestMetadataFingerprint, packageFingerprint, requestStatus, retentionCleanupRequestFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
@@ -7533,7 +7543,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      'support bundle storage key request inputs artifactFingerprint, artifactRecordRequestFingerprint, manifestFingerprint, packageFingerprint, requestStatus'
+      'support bundle storage key request inputs artifactFingerprint, artifactRecordRequestFingerprint, manifestFingerprint, packageFingerprint, requestStatus, storageKeyScope, taskRouteEffectiveSourceEvidenceSetFingerprint'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
@@ -7551,7 +7561,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      'support bundle archive request inputs archiveFormat, archiveScope, artifactFingerprint, artifactRecordRequestFingerprint, manifestFingerprint'
+      'support bundle archive request inputs archiveFormat, archiveScope, artifactFingerprint, artifactRecordRequestFingerprint, manifestFingerprint, manifestMetadataFingerprint, packageFingerprint, requestStatus, storageKeyRequestFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
@@ -7569,7 +7579,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      'support bundle archive signature request inputs archiveFormat, archiveRequestFingerprint, archiveScope, artifactRecordRequestFingerprint, manifestFingerprint'
+      'support bundle archive signature request inputs archiveFormat, archiveRequestFingerprint, archiveScope, artifactRecordRequestFingerprint, manifestFingerprint, manifestMetadataFingerprint, packageFingerprint, requestStatus, signaturePolicy, storageKeyRequestFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
@@ -7599,7 +7609,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      'support bundle package inputs auditEventFingerprint, auditEventStatus, auditPersistenceStatus, downloadAuthorizationRequestFingerprint, downloadAuthorizationStatus'
+      'support bundle package inputs auditEventFingerprint, auditEventStatus, auditPersistenceStatus, downloadAuthorizationRequestFingerprint, downloadAuthorizationStatus, exportPolicyFingerprint, manifestFingerprint, manifestMetadataFingerprint, redactionPolicyFingerprint, retentionCleanupStatus, retentionPolicyFingerprint, supportBundleArtifactFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
@@ -7611,7 +7621,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      'support bundle download authorization request inputs actorFingerprint, authorizationStatus, downloadAuthorizationStatus, exportPolicyFingerprint, manifestFingerprint'
+      'support bundle download authorization request inputs actorFingerprint, authorizationStatus, downloadAuthorizationStatus, exportPolicyFingerprint, manifestFingerprint, manifestMetadataFingerprint, requestStatus, supportBundleArtifactFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
@@ -7623,7 +7633,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      'support bundle download resolver request inputs archiveRequestFingerprint, archiveSignatureRequestFingerprint, artifactRecordRequestFingerprint, downloadAuthorizationRequestFingerprint, downloadResolverRoute'
+      'support bundle download resolver request inputs archiveRequestFingerprint, archiveSignatureRequestFingerprint, artifactRecordRequestFingerprint, downloadAuthorizationRequestFingerprint, downloadResolverRoute, manifestFingerprint, packageFingerprint, requestStatus, storageKeyRequestFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
@@ -7641,7 +7651,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      'support bundle signed url request inputs archiveSignatureRequestFingerprint, artifactRecordRequestFingerprint, downloadAuthorizationRequestFingerprint, downloadResolverRequestFingerprint, manifestFingerprint'
+      'support bundle signed url request inputs archiveSignatureRequestFingerprint, artifactRecordRequestFingerprint, downloadAuthorizationRequestFingerprint, downloadResolverRequestFingerprint, manifestFingerprint, packageFingerprint, requestStatus, signedUrlPolicy, signedUrlScope, storageKeyRequestFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
@@ -7659,7 +7669,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      'support bundle audit persistence request inputs actorFingerprint, auditEventFingerprint, auditEventStatus, auditPersistenceStatus, downloadAuthorizationRequestFingerprint'
+      'support bundle audit persistence request inputs actorFingerprint, auditEventFingerprint, auditEventStatus, auditPersistenceStatus, downloadAuthorizationRequestFingerprint, exportPolicyFingerprint, manifestFingerprint, requestStatus, supportBundlePackageFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
@@ -7671,7 +7681,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      'support bundle retention cleanup request inputs actorFingerprint, auditPersistenceRequestFingerprint, manifestFingerprint, requestStatus, retentionCleanupStatus'
+      'support bundle retention cleanup request inputs actorFingerprint, auditPersistenceRequestFingerprint, manifestFingerprint, requestStatus, retentionCleanupStatus, retentionPolicyFingerprint, retentionPolicyStatus, supportBundlePackageFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

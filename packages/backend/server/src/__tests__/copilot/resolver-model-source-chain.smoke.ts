@@ -4635,6 +4635,7 @@ async function main() {
       'manifestMetadataFingerprint',
       'requestStatus',
       'supportBundleArtifactFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
     ]
   );
   assert.equal(
@@ -4665,6 +4666,8 @@ async function main() {
             executionRequest.supportBundleDownloadAuthorizationRequestStatus,
           supportBundleArtifactFingerprint:
             executionRequest.supportBundleArtifactFingerprint,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
           version:
             executionRequest.supportBundleDownloadAuthorizationRequestVersion,
           workspaceId: matchingPreflight?.workspaceId ?? null,
@@ -4705,6 +4708,7 @@ async function main() {
       'manifestFingerprint',
       'requestStatus',
       'supportBundlePackageFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
     ]
   );
   assert.equal(
@@ -4734,6 +4738,8 @@ async function main() {
           status: executionRequest.supportBundleAuditPersistenceRequestStatus,
           supportBundlePackageFingerprint:
             executionRequest.supportBundlePackageFingerprint,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
           version: executionRequest.supportBundleAuditPersistenceRequestVersion,
           workspaceId: matchingPreflight?.workspaceId ?? null,
         })
@@ -4762,6 +4768,7 @@ async function main() {
     'retentionCleanupStatus',
     'retentionPolicyFingerprint',
     'supportBundleArtifactFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ]);
   assert.equal(
     executionRequest.supportBundlePackageFingerprint,
@@ -4805,6 +4812,8 @@ async function main() {
             executionRequest.supportBundleArtifactFingerprint,
           supportBundleArtifactStatus:
             executionRequest.supportBundleArtifactStatus,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
           version: executionRequest.supportBundlePackageVersion,
           workspaceId: matchingPreflight?.workspaceId ?? null,
         })
@@ -4839,6 +4848,7 @@ async function main() {
       'retentionPolicyFingerprint',
       'retentionPolicyStatus',
       'supportBundlePackageFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
     ]
   );
   assert.equal(
@@ -4866,6 +4876,8 @@ async function main() {
           status: executionRequest.supportBundleRetentionCleanupRequestStatus,
           supportBundlePackageFingerprint:
             executionRequest.supportBundlePackageFingerprint,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
           version: executionRequest.supportBundleRetentionCleanupRequestVersion,
           workspaceId: matchingPreflight?.workspaceId ?? null,
         })
@@ -4899,6 +4911,7 @@ async function main() {
     'packageFingerprint',
     'requestStatus',
     'retentionCleanupRequestFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ]);
   assert.equal(
     executionRequest.supportBundleArtifactRecordRequestFingerprint,
@@ -4927,6 +4940,8 @@ async function main() {
           retentionCleanupRequestFingerprint:
             executionRequest.supportBundleRetentionCleanupRequestFingerprint,
           status: executionRequest.supportBundleArtifactRecordRequestStatus,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
           version: executionRequest.supportBundleArtifactRecordRequestVersion,
           workspaceId: matchingPreflight?.workspaceId ?? null,
         })
@@ -4958,6 +4973,7 @@ async function main() {
     'packageFingerprint',
     'requestStatus',
     'storageKeyScope',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ]);
   assert.equal(
     executionRequest.supportBundleStorageKeyRequestFingerprint,
@@ -4977,6 +4993,8 @@ async function main() {
           requestStatus: executionRequest.requestStatus,
           scope: executionRequest.supportBundleStorageKeyScope,
           status: executionRequest.supportBundleStorageKeyRequestStatus,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
           version: executionRequest.supportBundleStorageKeyRequestVersion,
           workspaceId: matchingPreflight?.workspaceId ?? null,
         })
@@ -5015,6 +5033,7 @@ async function main() {
     'packageFingerprint',
     'requestStatus',
     'storageKeyRequestFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ]);
   assert.equal(
     executionRequest.supportBundleArchiveRequestFingerprint,
@@ -5042,6 +5061,8 @@ async function main() {
           status: executionRequest.supportBundleArchiveRequestStatus,
           storageKeyRequestFingerprint:
             executionRequest.supportBundleStorageKeyRequestFingerprint,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
           version: executionRequest.supportBundleArchiveRequestVersion,
           workspaceId: matchingPreflight?.workspaceId ?? null,
         })
@@ -5082,6 +5103,7 @@ async function main() {
       'requestStatus',
       'signaturePolicy',
       'storageKeyRequestFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
     ]
   );
   assert.equal(
@@ -5111,6 +5133,8 @@ async function main() {
           status: executionRequest.supportBundleArchiveSignatureRequestStatus,
           storageKeyRequestFingerprint:
             executionRequest.supportBundleStorageKeyRequestFingerprint,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
           version: executionRequest.supportBundleArchiveSignatureRequestVersion,
           workspaceId: matchingPreflight?.workspaceId ?? null,
         })
@@ -5150,6 +5174,7 @@ async function main() {
       'packageFingerprint',
       'requestStatus',
       'storageKeyRequestFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
     ]
   );
   assert.equal(
@@ -5177,6 +5202,8 @@ async function main() {
           status: executionRequest.supportBundleDownloadResolverRequestStatus,
           storageKeyRequestFingerprint:
             executionRequest.supportBundleStorageKeyRequestFingerprint,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
           version: executionRequest.supportBundleDownloadResolverRequestVersion,
           workspaceId: matchingPreflight?.workspaceId ?? null,
         })
@@ -5216,6 +5243,7 @@ async function main() {
     'signedUrlPolicy',
     'signedUrlScope',
     'storageKeyRequestFingerprint',
+    'taskRouteEffectiveSourceEvidenceSetFingerprint',
   ]);
   assert.equal(
     executionRequest.supportBundleSignedUrlRequestFingerprint,
@@ -5242,6 +5270,8 @@ async function main() {
           status: executionRequest.supportBundleSignedUrlRequestStatus,
           storageKeyRequestFingerprint:
             executionRequest.supportBundleStorageKeyRequestFingerprint,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
           version: executionRequest.supportBundleSignedUrlRequestVersion,
           workspaceId: matchingPreflight?.workspaceId ?? null,
         })
