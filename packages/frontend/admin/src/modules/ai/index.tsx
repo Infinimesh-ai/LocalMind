@@ -4006,6 +4006,16 @@ function formatPromptRegistryRepairExecutionRequest(
                 entry.taskRouteEffectiveSourceFingerprints.length
                   ? entry.taskRouteEffectiveSourceFingerprints.join('|')
                   : 'sources:none'
+              }:candidateEvidence:${entry.candidateEvidenceCount}:${
+                entry.candidateEvidenceFingerprint
+              }:${
+                entry.candidateEvidenceFingerprints.length
+                  ? entry.candidateEvidenceFingerprints.join('|')
+                  : 'candidateEvidenceFingerprints:none'
+              }:${
+                entry.candidateEvidenceKeys.length
+                  ? entry.candidateEvidenceKeys.join('|')
+                  : 'candidateEvidenceKeys:none'
               }`
           )
           .join(', ')}`

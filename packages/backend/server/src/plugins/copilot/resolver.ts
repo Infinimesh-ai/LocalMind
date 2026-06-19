@@ -1328,6 +1328,10 @@ type CopilotPromptRegistryRepairPreflight = {
 };
 
 type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
+  candidateEvidenceCount: number;
+  candidateEvidenceFingerprint: string;
+  candidateEvidenceFingerprints: string[];
+  candidateEvidenceKeys: string[];
   diagnosticsFingerprint: string;
   operationFingerprint: string;
   taskRouteEffectiveSourceFingerprints: string[];
@@ -3418,6 +3422,18 @@ class CopilotPromptRegistryRepairPreflightType implements CopilotPromptRegistryR
 
 @ObjectType()
 class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType implements CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry {
+  @Field(() => SafeIntResolver)
+  candidateEvidenceCount!: number;
+
+  @Field(() => String)
+  candidateEvidenceFingerprint!: string;
+
+  @Field(() => [String])
+  candidateEvidenceFingerprints!: string[];
+
+  @Field(() => [String])
+  candidateEvidenceKeys!: string[];
+
   @Field(() => String)
   diagnosticsFingerprint!: string;
 
@@ -10755,6 +10771,12 @@ function buildPromptRegistryRepairExecutionRequest(
   const supportBundleTaskRouteEffectiveSourceEvidenceSetEntries =
     repairActionPreview.operations
       .map(operation => ({
+        candidateEvidenceCount: operation.candidateEvidenceCount,
+        candidateEvidenceFingerprint: operation.candidateEvidenceFingerprint,
+        candidateEvidenceFingerprints: [
+          ...operation.candidateEvidenceFingerprints,
+        ].sort(),
+        candidateEvidenceKeys: [...operation.candidateEvidenceKeys].sort(),
         diagnosticsFingerprint: operation.diagnosticsFingerprint,
         operationFingerprint: operation.operationFingerprint,
         taskRouteEffectiveSourceFingerprints: [

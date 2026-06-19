@@ -6836,6 +6836,15 @@ describe('AiPage', () => {
           supportBundleTaskRouteEffectiveSourceEvidenceSetEntries:
             readyPublishGateVerdict.repairActionPreview.operations
               .map(operation => ({
+                candidateEvidenceCount: operation.candidateEvidenceCount,
+                candidateEvidenceFingerprint:
+                  operation.candidateEvidenceFingerprint,
+                candidateEvidenceFingerprints: [
+                  ...operation.candidateEvidenceFingerprints,
+                ].sort(),
+                candidateEvidenceKeys: [
+                  ...operation.candidateEvidenceKeys,
+                ].sort(),
                 diagnosticsFingerprint: operation.diagnosticsFingerprint,
                 operationFingerprint: operation.operationFingerprint,
                 taskRouteEffectiveSourceFingerprints: [
@@ -7711,7 +7720,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      'support bundle task route source evidence set entries 1111aaaa2222bbbb:1111222233334444:sources:none, 2222bbbb3333cccc:2222333344445555:sources:none'
+      'support bundle task route source evidence set entries 1111aaaa2222bbbb:1111222233334444:sources:none:candidateEvidence:0'
     );
     const taskRouteSourceEntry =
       readyPublishGateVerdict.repairActionPreview.operations.find(
@@ -7722,7 +7731,7 @@ describe('AiPage', () => {
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
     ).toContain(
-      `${taskRouteSourceEntry?.operationFingerprint}:${taskRouteSourceEntry?.diagnosticsFingerprint}:${taskRouteSourceEntry?.taskRouteEffectiveSourceFingerprints.join('|')}`
+      `${taskRouteSourceEntry?.operationFingerprint}:${taskRouteSourceEntry?.diagnosticsFingerprint}:${taskRouteSourceEntry?.taskRouteEffectiveSourceFingerprints.join('|')}:candidateEvidence:${taskRouteSourceEntry?.candidateEvidenceCount}:${taskRouteSourceEntry?.candidateEvidenceFingerprint}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

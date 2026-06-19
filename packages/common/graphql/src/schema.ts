@@ -1199,6 +1199,10 @@ export interface CopilotPromptRegistryPublishGateExpectedVersionInput {
 
 export interface CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType {
   __typename?: 'CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType';
+  candidateEvidenceCount: Scalars['SafeInt']['output'];
+  candidateEvidenceFingerprint: Scalars['String']['output'];
+  candidateEvidenceFingerprints: Array<Scalars['String']['output']>;
+  candidateEvidenceKeys: Array<Scalars['String']['output']>;
   diagnosticsFingerprint: Scalars['String']['output'];
   operationFingerprint: Scalars['String']['output'];
   taskRouteEffectiveSourceFingerprints: Array<Scalars['String']['output']>;
@@ -9199,6 +9203,10 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
     supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints: Array<string>;
     supportBundleTaskRouteEffectiveSourceEvidenceSetEntries: Array<{
       __typename?: 'CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType';
+      candidateEvidenceCount: number;
+      candidateEvidenceFingerprint: string;
+      candidateEvidenceFingerprints: Array<string>;
+      candidateEvidenceKeys: Array<string>;
       diagnosticsFingerprint: string;
       operationFingerprint: string;
       taskRouteEffectiveSourceFingerprints: Array<string>;

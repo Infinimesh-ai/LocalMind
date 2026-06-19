@@ -4696,6 +4696,12 @@ async function main() {
     executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetEntries,
     routeReadyGate.repairActionPreview.operations
       .map(operation => ({
+        candidateEvidenceCount: operation.candidateEvidenceCount,
+        candidateEvidenceFingerprint: operation.candidateEvidenceFingerprint,
+        candidateEvidenceFingerprints: [
+          ...operation.candidateEvidenceFingerprints,
+        ].sort(),
+        candidateEvidenceKeys: [...operation.candidateEvidenceKeys].sort(),
         diagnosticsFingerprint: operation.diagnosticsFingerprint,
         operationFingerprint: operation.operationFingerprint,
         taskRouteEffectiveSourceFingerprints: [
