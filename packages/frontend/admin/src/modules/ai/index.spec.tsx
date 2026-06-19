@@ -6823,6 +6823,11 @@ describe('AiPage', () => {
           supportBundleStorageKeyRequestVersion:
             'prompt-registry-repair-gate-support-bundle-storage-key-request/v1',
           supportBundleStorageKeyScope: 'support_bundle_artifact_record',
+          supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: [
+            ...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture,
+          ],
+          supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion:
+            taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture,
           supportBundleAuditPersistenceRequestCreated: false,
           supportBundleAuditPersistenceRequestFingerprint: input.workspaceId
             ? 'ffff9999eeeeaaaa'
@@ -7653,6 +7658,12 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       `expected repair gate manifest fingerprint ${readyPublishGateVerdict.repairGateManifest.fingerprint} / expected repair gate manifest export policy fingerprint ${readyPublishGateVerdict.repairGateManifestExportMetadata.exportPolicyFingerprint} / expected repair gate manifest retention policy fingerprint ${readyPublishGateVerdict.repairGateManifestExportMetadata.retentionPolicyFingerprint}`
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      'support bundle task route source evidence set version copilot-task-route-effective-source-evidence-set/v1 / support bundle task route source evidence set inputs diagnosticsFingerprint, operationFingerprint, taskRouteEffectiveSourceFingerprints'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

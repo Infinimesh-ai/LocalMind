@@ -15118,7 +15118,7 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 验证策略：
 
 - 本轮为 TypeScript resolver/frontend/admin/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
-- 继续使用现有测试镜像 `localmind-affine:test`，镜像 ID 预期保持 `c3389960f5ed`；通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused smoke、Admin Vitest、oxlint、Prettier check 与 `git diff --check`。当前本机 Docker Compose `run` 帮助未暴露 `--no-build` flag，因此继续以镜像已存在、不传 `--build`、`--pull never`、`--no-deps` 与镜像 ID 不变作为不重建 test-runner 的证据。
+- 继续使用现有测试镜像 `localmind-affine:test`，镜像 ID 预期保持 `c3389960f5ed`。由于 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务未挂载当前工作区源码，直接 `compose run` 会验证镜像内旧源码；本轮改用 `docker run --rm -v "${PWD}:/host:ro" -w /workspace localmind-affine:test ...`，在容器内复制当前 `packages/backend/server/src`、`packages/common/graphql/src`、`packages/frontend/admin/src`、必要的 `packages/frontend/core/src` 与本文档到镜像自带 `/workspace`，保留镜像内依赖后运行 focused smoke、Admin Vitest、oxlint、Prettier check 与宿主 `git diff --check`。该流程不重建 `localmind-affine:test`。
 
 剩余风险：
 
@@ -15191,4 +15191,35 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - inputs 只列出顶层 payload 字段；policy candidates、route candidates、prepared routes、operation candidate evidence 等嵌套字段仍需要后续结构化 evidence schema 文档化。
 - repair/support projection 现在能暴露 version/inputs，但仍不持久化 registry revision、workspace policy revision、provider snapshot、task route snapshot、model availability snapshot 或 support bundle artifact。
 - metadata 不绑定真实请求 payload、provider credentials、BYOK lease、tenant policy registry、storage backend、archive bytes、signed URL secret/material、health probe timestamp、request dispatch outcome 或 billing/quota execution result。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 453. P1 落地记录：Support Bundle Lifecycle Source Schema Metadata Projection
+
+本轮继续收敛第 452 节剩余风险中 “repair/support projection 现在能暴露 version/inputs，但仍不持久化 registry revision、workspace policy revision、provider snapshot、task route snapshot、model availability snapshot 或 support bundle artifact” 的前置观测缺口。实际代码与目标 AI 中间层架构的冲突点是：support bundle lifecycle request 已经直接绑定 `taskRouteEffectiveSourceEvidenceSetFingerprint`，但 Admin diagnostics 只能从每个 lifecycle request 的 inputs 中看到该 hash 名称，不能在 support bundle 级别直接确认这条 lifecycle 链统一采用哪个 task route source evidence-set schema。这样后续要实现真实 support bundle artifact、download resolver 或审计持久化时，仍需要回读 resolver 常量才能判断 lifecycle request 绑定的 stale guard schema 语义。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `CopilotPromptRegistryRepairExecutionRequest` 与 GraphQL type 新增只读 `supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion` / `supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs` 字段。
+  - `buildPromptRegistryRepairExecutionRequest()` 从 `COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_EVIDENCE_SET_FINGERPRINT_VERSION` 与 `COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_EVIDENCE_SET_FINGERPRINT_INPUTS` 返回统一 support bundle lifecycle source schema metadata。
+  - 保持 support bundle artifact/package/download/audit/retention/record/storage/archive/signature/resolver/signed-url request 的 fingerprint payload 与 hash 值不变；新增字段只作为 hash 计算后的只读 projection。
+- `packages/backend/server/src/schema.gql`、`packages/common/graphql/src/graphql/index.ts`、`packages/common/graphql/src/graphql/copilot-prompt-registry-repair-execution-request.gql` 与 `packages/common/graphql/src/schema.ts`：
+  - 同步 execution request selection/type，让 Admin mutation response 能直接读取 support bundle lifecycle 绑定的 task route source evidence-set schema metadata。
+- `packages/frontend/admin/src/modules/ai/index.tsx`：
+  - execution request copyable diagnostics 输出 support bundle task route source evidence set version 与 inputs。
+- 测试覆盖：
+  - `resolver-model-source-chain.smoke.ts` 断言 execution request 返回 support bundle lifecycle source schema metadata。
+  - `admin/src/modules/ai/index.spec.tsx` 覆盖 Admin repair execution diagnostics 中的 support bundle source schema metadata 输出。
+
+该实现只扩展 Prompt Registry repair execution request 的只读 support bundle lifecycle source schema metadata projection、GraphQL/common query/type、Admin diagnostics label 与 focused tests，不新增 DB migration、不创建 DB-backed effective source schema registry、不持久化 registry revision、workspace policy revision、provider snapshot、task route snapshot、model availability snapshot 或 support bundle artifact、不改变 support bundle lifecycle fingerprint payload、不改变 repair action 可执行性、不改变 provider route selection、fallback order、BYOK lease、quota、health check、`copilot.tasks.models` 配置格式、embedding/rerank native request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、MCP registry、Codex adapter 或 Action Runtime 状态机。它让 support bundle lifecycle 的 source guard 具备可复制的 schema contract，为后续真实 artifact/package/download/audit 持久化链路提供更直接的审计证据。
+
+验证策略：
+
+- 本轮为 TypeScript resolver/common/admin/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有测试镜像 `localmind-affine:test`，镜像 ID 预期保持 `c3389960f5ed`；通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 focused smoke、Admin Vitest、oxlint、Prettier check 与 `git diff --check`。当前本机 Docker Compose `run` 帮助未暴露 `--no-build` flag，因此继续以镜像已存在、不传 `--build`、`--pull never`、`--no-deps` 与镜像 ID 不变作为不重建 test-runner 的证据。
+
+剩余风险：
+
+- support bundle lifecycle 现在能直接暴露 task route source evidence-set schema metadata，但仍是 runtime 只读 projection，不是 DB-backed schema registry 或 artifact record。
+- metadata 仍不持久化 registry revision、workspace policy revision、provider snapshot、task route snapshot、model availability snapshot、archive bytes、signed URL secret/material、storage backend 或 audit event。
+- source evidence-set inputs 仍只列出顶层 payload 字段；policy candidates、route candidates、prepared routes、operation candidate evidence 等嵌套字段仍需要后续结构化 evidence schema 文档化。
+- repair action 仍是 read-only/blocked contract；尚未实现真实修复执行、support bundle 持久化、download authorization、audit persistence 或 retention cleanup worker。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

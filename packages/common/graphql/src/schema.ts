@@ -1569,6 +1569,10 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   supportBundleStorageKeyRequestStatus: Scalars['String']['output'];
   supportBundleStorageKeyRequestVersion: Scalars['String']['output'];
   supportBundleStorageKeyScope: Scalars['String']['output'];
+  supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<
+    Scalars['String']['output']
+  >;
+  supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: Scalars['String']['output'];
 }
 
 export interface CopilotPromptRegistryRepairExecutionRequestInput {
@@ -9173,6 +9177,8 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
     supportBundleStorageKeyRequestStatus: string;
     supportBundleStorageKeyRequestVersion: string;
     supportBundleStorageKeyScope: string;
+    supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<string>;
+    supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: string;
     preflight: {
       __typename?: 'CopilotPromptRegistryRepairPreflightType';
       approvalRecordFingerprint: string;

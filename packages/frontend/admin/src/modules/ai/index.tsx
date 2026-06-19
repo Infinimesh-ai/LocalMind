@@ -3982,6 +3982,13 @@ function formatPromptRegistryRepairExecutionRequest(
     `expected repair gate manifest fingerprint ${request.expectedRepairGateManifestFingerprint}`,
     `expected repair gate manifest export policy fingerprint ${request.expectedRepairGateManifestExportPolicyFingerprint}`,
     `expected repair gate manifest retention policy fingerprint ${request.expectedRepairGateManifestRetentionPolicyFingerprint}`,
+    `support bundle task route source evidence set version ${request.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion}`,
+    request.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs
+      .length
+      ? `support bundle task route source evidence set inputs ${request.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs.join(
+          ', '
+        )}`
+      : 'support bundle task route source evidence set inputs none',
     `support bundle artifact ${request.supportBundleArtifactVersion}`,
     `support bundle artifact status ${formatFeatureKind(
       request.supportBundleArtifactStatus
