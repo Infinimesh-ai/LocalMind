@@ -1469,6 +1469,7 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprint: string;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputs: string[];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatus: string;
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprint: string;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatus: string;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint: string;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputs: string[];
@@ -3716,6 +3717,9 @@ class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType impleme
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatus!: string;
+
+  @Field(() => String)
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprint!: string;
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatus!: string;
@@ -8285,6 +8289,25 @@ function promptRegistryRepairCandidateEvidenceReferenceSchemaArtifactRecordStora
     .slice(0, 16);
 }
 
+function promptRegistryRepairCandidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprint(input: {
+  archiveInclusionFingerprint: string;
+  objectFingerprint: string;
+  schemaFingerprint: string;
+}) {
+  return createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        archiveInclusionFingerprint: input.archiveInclusionFingerprint,
+        manifestEntryStatus:
+          COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_OBJECT_ARCHIVE_MANIFEST_ENTRY_STATUS,
+        objectFingerprint: input.objectFingerprint,
+        schemaFingerprint: input.schemaFingerprint,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
 function taskRouteRepairCandidateEvidenceFingerprint(
   evidence: Omit<
     CopilotPromptRegistryPublishGateRepairCandidateEvidence,
@@ -11464,6 +11487,16 @@ function buildPromptRegistryRepairExecutionRequest(
         schemaFingerprint: candidateEvidenceReferenceSchemaFingerprint,
       }
     );
+  const candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprint =
+    promptRegistryRepairCandidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprint(
+      {
+        archiveInclusionFingerprint:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprint,
+        objectFingerprint:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint,
+        schemaFingerprint: candidateEvidenceReferenceSchemaFingerprint,
+      }
+    );
   const supportBundleTaskRouteEffectiveSourceEvidenceSetEntries =
     repairActionPreview.operations
       .map(operation => {
@@ -11515,6 +11548,8 @@ function buildPromptRegistryRepairExecutionRequest(
             ],
           candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatus:
             COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_OBJECT_ARCHIVE_INCLUSION_STATUS,
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprint:
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprint,
           candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatus:
             COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_OBJECT_ARCHIVE_MANIFEST_ENTRY_STATUS,
           candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint:

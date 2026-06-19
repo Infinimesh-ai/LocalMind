@@ -313,6 +313,21 @@ const candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusio
   ] as const;
 const candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatusFixture =
   'not_created_read_only';
+const candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintFixture =
+  createHash('sha256')
+    .update(
+      stableFingerprintFixtureStringify({
+        archiveInclusionFingerprint:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintFixture,
+        manifestEntryStatus:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatusFixture,
+        objectFingerprint:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintFixture,
+        schemaFingerprint: candidateEvidenceReferenceSchemaFingerprintFixture,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
 
 function candidateEvidenceClassificationSummaryFixture(
   candidateEvidenceKeys: string[]
@@ -5009,6 +5024,8 @@ async function main() {
             ],
           candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatus:
             candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatusFixture,
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprint:
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintFixture,
           candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatus:
             candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatusFixture,
           candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint:
@@ -5144,6 +5161,10 @@ async function main() {
   assert.equal(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatus,
     candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatusFixture
+  );
+  assert.equal(
+    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprint,
+    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintFixture
   );
   assert.equal(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatus,

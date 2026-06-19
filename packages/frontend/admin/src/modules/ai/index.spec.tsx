@@ -331,6 +331,21 @@ const candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusio
   ];
 const candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatusFixture =
   'not_created_read_only';
+const candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintFixture =
+  createHash('sha256')
+    .update(
+      stableFixtureStringify({
+        archiveInclusionFingerprint:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintFixture,
+        manifestEntryStatus:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatusFixture,
+        objectFingerprint:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintFixture,
+        schemaFingerprint: candidateEvidenceReferenceSchemaFingerprintFixture,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
 
 function candidateEvidenceCategoryFromKeyFixture(key?: string) {
   if (!key) {
@@ -7366,6 +7381,8 @@ describe('AiPage', () => {
                     ],
                   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatus:
                     candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatusFixture,
+                  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprint:
+                    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintFixture,
                   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatus:
                     candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatusFixture,
                   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint:
@@ -8403,6 +8420,12 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       `referenceSchemaArtifactRecordStorageObjectArchiveInclusionStatus:${candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatusFixture}`
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `referenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprint:${candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintFixture}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
