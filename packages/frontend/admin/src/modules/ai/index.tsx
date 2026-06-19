@@ -4055,6 +4055,14 @@ function formatPromptRegistryRepairExecutionRequest(
                 entry.candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus
               }:referenceSchemaArtifactRecordStorageFingerprint:${
                 entry.candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprint
+              }:referenceSchemaArtifactRecordStorageFingerprintInputs:${
+                entry
+                  .candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputs
+                  .length
+                  ? entry.candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputs.join(
+                      '|'
+                    )
+                  : 'referenceSchemaArtifactRecordStorageFingerprintInputs:none'
               }:referenceSchemaArtifactRecordStorageStatus:${
                 entry.candidateEvidenceReferenceSchemaArtifactRecordStorageStatus
               }:referenceSchemaArtifactRecordStatus:${

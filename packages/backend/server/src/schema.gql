@@ -1041,6 +1041,7 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType {
   candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs: [String!]!
   candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus: String!
   candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputs: [String!]!
   candidateEvidenceReferenceSchemaArtifactRecordStorageStatus: String!
   candidateEvidenceReferenceSchemaArtifactRecordStatus: String!
   candidateEvidenceReferenceSchemaArtifactStatus: String!
