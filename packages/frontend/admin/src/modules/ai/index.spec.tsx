@@ -264,6 +264,21 @@ const candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputsFixt
   ['recordFingerprint', 'recordStatus', 'schemaFingerprint', 'storageStatus'];
 const candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatusFixture =
   'not_selected_read_only';
+const candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintFixture =
+  createHash('sha256')
+    .update(
+      stableFixtureStringify({
+        backendStatus:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatusFixture,
+        schemaFingerprint: candidateEvidenceReferenceSchemaFingerprintFixture,
+        storageFingerprint:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintFixture,
+        storageStatus:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageStatusFixture,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
 
 function candidateEvidenceCategoryFromKeyFixture(key?: string) {
   if (!key) {
@@ -7283,6 +7298,8 @@ describe('AiPage', () => {
                     [
                       ...candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputsFixture,
                     ],
+                  candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprint:
+                    candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintFixture,
                   candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus:
                     candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatusFixture,
                   candidateEvidenceReferenceSchemaArtifactRecordStorageStatus:
@@ -8276,6 +8293,12 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       `referenceSchemaArtifactRecordStorageFingerprintInputs:${candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputsFixture.join('|')}`
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `referenceSchemaArtifactRecordStorageBackendFingerprint:${candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintFixture}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
