@@ -9358,6 +9358,13 @@ async function main() {
   );
   assert.equal(
     taskDiagnosticsErrorRepair?.evidence.includes(
+      `policyCandidate#0:taskRouteEffectiveSourceFingerprint:${taskDiagnosticsErrorRoute?.effectiveSourceFingerprint}`
+    ),
+    true,
+    'task diagnostics repair evidence should include task route effective source fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsErrorRepair?.evidence.includes(
       `policyCandidate#0:diagnosticsErrorSnapshotFingerprint:${taskDiagnosticsErrorSnapshotFingerprint}`
     ),
     true,
@@ -9720,6 +9727,11 @@ async function main() {
     taskDiagnosticsModelSourceSnapshotFingerprint,
     'policy candidate evidence should bind the task route model source snapshot fingerprint'
   );
+  assert.equal(
+    taskDiagnosticsPolicyCandidateEvidence?.taskRouteEffectiveSourceFingerprint,
+    taskDiagnosticsErrorRoute?.effectiveSourceFingerprint,
+    'policy candidate evidence should bind the task route effective source fingerprint'
+  );
   assert.deepEqual(
     taskDiagnosticsPolicyCandidateEvidence?.diagnosticsErrors,
     taskDiagnosticsErrorRoute?.diagnosticsErrors,
@@ -9978,6 +9990,11 @@ async function main() {
     taskDiagnosticsRouteCandidateEvidence?.taskRouteModelSourceSnapshotFingerprint,
     taskDiagnosticsModelSourceSnapshotFingerprint,
     'route candidate evidence should bind the task route model source snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsRouteCandidateEvidence?.taskRouteEffectiveSourceFingerprint,
+    taskDiagnosticsErrorRoute?.effectiveSourceFingerprint,
+    'route candidate evidence should bind the task route effective source fingerprint'
   );
   assert.deepEqual(
     taskDiagnosticsRouteCandidateEvidence?.diagnosticsErrors,
@@ -10245,6 +10262,11 @@ async function main() {
     taskDiagnosticsPrepareCandidateEvidence?.taskRouteModelSourceSnapshotFingerprint,
     taskDiagnosticsModelSourceSnapshotFingerprint,
     'prepare candidate evidence should bind the task route model source snapshot fingerprint'
+  );
+  assert.equal(
+    taskDiagnosticsPrepareCandidateEvidence?.taskRouteEffectiveSourceFingerprint,
+    taskDiagnosticsErrorRoute?.effectiveSourceFingerprint,
+    'prepare candidate evidence should bind the task route effective source fingerprint'
   );
   assert.deepEqual(
     taskDiagnosticsPrepareCandidateEvidence?.diagnosticsErrors,

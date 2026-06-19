@@ -775,6 +775,7 @@ query getCopilotPromptRegistryPublishGate(
             taskRouteEmbeddingIndexContractSnapshotFingerprint
             taskRouteRerankRuntimeContractSnapshotFingerprint
             taskRouteDimensionSnapshotFingerprint
+            taskRouteEffectiveSourceFingerprint
             taskRouteModelSourceSnapshotFingerprint
             preparedRouteTargets
             preparedRouteTargetFingerprint

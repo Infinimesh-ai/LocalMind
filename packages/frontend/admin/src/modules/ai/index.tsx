@@ -3298,6 +3298,9 @@ function formatPromptRegistryPublishGateRepairCandidateEvidence(
     evidence.taskRouteRerankRuntimeContractSnapshotFingerprint
       ? `task route rerank runtime contract snapshot fingerprint ${evidence.taskRouteRerankRuntimeContractSnapshotFingerprint}`
       : null,
+    evidence.taskRouteEffectiveSourceFingerprint
+      ? `task route source fingerprint ${evidence.taskRouteEffectiveSourceFingerprint}`
+      : null,
     evidence.taskRouteModelSourceSnapshotFingerprint
       ? `task route model source snapshot fingerprint ${evidence.taskRouteModelSourceSnapshotFingerprint}`
       : null,

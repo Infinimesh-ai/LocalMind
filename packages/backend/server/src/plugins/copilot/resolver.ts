@@ -847,6 +847,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   taskRouteEmbeddingIndexContractSnapshotFingerprint?: string;
   taskRouteRerankRuntimeContractSnapshotFingerprint?: string;
   taskRouteDimensionSnapshotFingerprint?: string;
+  taskRouteEffectiveSourceFingerprint?: string;
   taskRouteModelSourceSnapshotFingerprint?: string;
   preparedRouteTargets?: string[];
   preparedRouteTargetFingerprint?: string;
@@ -2195,6 +2196,9 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   taskRouteDimensionSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['taskRouteDimensionSnapshotFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  taskRouteEffectiveSourceFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['taskRouteEffectiveSourceFingerprint'];
 
   @Field(() => String, { nullable: true })
   taskRouteModelSourceSnapshotFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['taskRouteModelSourceSnapshotFingerprint'];
@@ -5462,6 +5466,7 @@ function taskRouteRepairCandidateEvidenceBase(
     taskRouteEmbeddingIndexContractSnapshotFingerprint?: string;
     taskRouteRerankRuntimeContractSnapshotFingerprint?: string;
     taskRouteDimensionSnapshotFingerprint?: string;
+    taskRouteEffectiveSourceFingerprint?: string;
     taskRouteModelSourceSnapshotFingerprint?: string;
     preparedRouteTargets?: string[];
     preparedRouteTargetFingerprint?: string;
@@ -5672,6 +5677,12 @@ function taskRouteRepairCandidateEvidenceBase(
       ? {
           taskRouteDimensionSnapshotFingerprint:
             candidate.taskRouteDimensionSnapshotFingerprint,
+        }
+      : {}),
+    ...(candidate.taskRouteEffectiveSourceFingerprint !== undefined
+      ? {
+          taskRouteEffectiveSourceFingerprint:
+            candidate.taskRouteEffectiveSourceFingerprint,
         }
       : {}),
     ...(candidate.taskRouteModelSourceSnapshotFingerprint !== undefined
@@ -5890,6 +5901,7 @@ function taskRouteCandidateProfileStructuredEvidence(
       providerLimitSnapshotFingerprint?: string;
       taskRouteEmbeddingIndexContractSnapshotFingerprint?: string;
       taskRouteDimensionSnapshotFingerprint?: string;
+      taskRouteEffectiveSourceFingerprint?: string;
       taskRouteModelSourceSnapshotFingerprint?: string;
       preparedRouteTargets?: string[];
       preparedRouteTargetFingerprint?: string;
@@ -6076,6 +6088,12 @@ function taskRouteCandidateProfileStructuredEvidence(
         taskRouteDimensionSnapshotFingerprint: taskRouteSnapshotFingerprint(
           taskRouteDimensionSnapshotValue
         ),
+        ...(route.effectiveSourceFingerprint
+          ? {
+              taskRouteEffectiveSourceFingerprint:
+                route.effectiveSourceFingerprint,
+            }
+          : {}),
         ...(taskRouteEmbeddingIndexContractSnapshotValue.length
           ? {
               taskRouteEmbeddingIndexContractSnapshotFingerprint:
@@ -6436,6 +6454,9 @@ function taskRouteCandidateProfileEvidence(
           candidate.taskRouteRerankRuntimeContractSnapshotFingerprint
             ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteRerankRuntimeContractSnapshotFingerprint:${candidate.taskRouteRerankRuntimeContractSnapshotFingerprint}`
             : null,
+          candidate.taskRouteEffectiveSourceFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteEffectiveSourceFingerprint:${candidate.taskRouteEffectiveSourceFingerprint}`
+            : null,
           candidate.taskRouteModelSourceSnapshotFingerprint
             ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteModelSourceSnapshotFingerprint:${candidate.taskRouteModelSourceSnapshotFingerprint}`
             : null,
@@ -6545,6 +6566,9 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.taskRouteRerankRuntimeContractSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteRerankRuntimeContractSnapshotFingerprint:${candidate.taskRouteRerankRuntimeContractSnapshotFingerprint}`
+          : null,
+        candidate.taskRouteEffectiveSourceFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteEffectiveSourceFingerprint:${candidate.taskRouteEffectiveSourceFingerprint}`
           : null,
         candidate.taskRouteModelSourceSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteModelSourceSnapshotFingerprint:${candidate.taskRouteModelSourceSnapshotFingerprint}`
@@ -6776,6 +6800,9 @@ function taskRouteCandidateProfileEvidence(
         candidate.taskRouteRerankRuntimeContractSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteRerankRuntimeContractSnapshotFingerprint:${candidate.taskRouteRerankRuntimeContractSnapshotFingerprint}`
           : null,
+        candidate.taskRouteEffectiveSourceFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteEffectiveSourceFingerprint:${candidate.taskRouteEffectiveSourceFingerprint}`
+          : null,
         candidate.taskRouteModelSourceSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteModelSourceSnapshotFingerprint:${candidate.taskRouteModelSourceSnapshotFingerprint}`
           : null,
@@ -6923,6 +6950,9 @@ function taskRouteCandidateProfileEvidence(
           : null,
         candidate.taskRouteRerankRuntimeContractSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteRerankRuntimeContractSnapshotFingerprint:${candidate.taskRouteRerankRuntimeContractSnapshotFingerprint}`
+          : null,
+        candidate.taskRouteEffectiveSourceFingerprint
+          ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteEffectiveSourceFingerprint:${candidate.taskRouteEffectiveSourceFingerprint}`
           : null,
         candidate.taskRouteModelSourceSnapshotFingerprint
           ? `${candidate.scope}#${candidate.candidateIndex}:taskRouteModelSourceSnapshotFingerprint:${candidate.taskRouteModelSourceSnapshotFingerprint}`

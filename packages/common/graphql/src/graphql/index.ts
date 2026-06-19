@@ -2794,6 +2794,7 @@ export const getCopilotPromptRegistryPublishGateQuery = {
             taskRouteEmbeddingIndexContractSnapshotFingerprint
             taskRouteRerankRuntimeContractSnapshotFingerprint
             taskRouteDimensionSnapshotFingerprint
+            taskRouteEffectiveSourceFingerprint
             taskRouteModelSourceSnapshotFingerprint
             preparedRouteTargets
             preparedRouteTargetFingerprint

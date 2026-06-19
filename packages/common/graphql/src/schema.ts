@@ -1973,6 +1973,7 @@ export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
     Scalars['String']['output']
   >;
   taskRouteDimensionSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
+  taskRouteEffectiveSourceFingerprint?: Maybe<Scalars['String']['output']>;
   taskRouteModelSourceSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
   preparedRouteTargets?: Maybe<Array<Scalars['String']['output']>>;
   preparedRouteTargetFingerprint?: Maybe<Scalars['String']['output']>;
@@ -8516,6 +8517,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             taskRouteEmbeddingIndexContractSnapshotFingerprint: string | null;
             taskRouteRerankRuntimeContractSnapshotFingerprint: string | null;
             taskRouteDimensionSnapshotFingerprint: string | null;
+            taskRouteEffectiveSourceFingerprint: string | null;
             taskRouteModelSourceSnapshotFingerprint: string | null;
             preparedRouteTargets: Array<string> | null;
             preparedRouteTargetFingerprint: string | null;

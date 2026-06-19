@@ -1231,6 +1231,7 @@ const rerankRepairCandidateEvidence = candidateEvidenceFixture({
   rerankRuntimeContractVersion: readyRoute.rerankRuntimeContractVersion,
   taskRouteRerankRuntimeContractSnapshotFingerprint:
     readyRouteRerankRuntimeContractSnapshotFingerprint,
+  taskRouteEffectiveSourceFingerprint: readyRoute.effectiveSourceFingerprint,
   taskRouteModelSourceSnapshotFingerprint: taskRouteSnapshotFingerprintFixture(
     taskRouteModelSourceSnapshotFixture(readyRoute)
   ),
@@ -2260,6 +2261,7 @@ function withRepairActionPreview<
         candidateKey?: string | null;
         taskRouteEmbeddingIndexContractSnapshotFingerprint?: string | null;
         taskRouteRerankRuntimeContractSnapshotFingerprint?: string | null;
+        taskRouteEffectiveSourceFingerprint?: string | null;
         preparedRouteOrderFingerprint?: string | null;
       }> | null;
       category: string;
@@ -3107,6 +3109,8 @@ const readyPublishGateVerdict = withRepairActionPreview(
               taskRouteSnapshotFingerprintFixture(
                 taskRouteEmbeddingIndexContractSnapshotFixture(blockedRoute)
               ),
+            taskRouteEffectiveSourceFingerprint:
+              blockedRoute.effectiveSourceFingerprint,
             taskRouteModelSourceSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRouteModelSourceSnapshotFixture(blockedRoute)
@@ -3215,6 +3219,8 @@ const readyPublishGateVerdict = withRepairActionPreview(
               taskRouteSnapshotFingerprintFixture(
                 taskRouteEmbeddingIndexContractSnapshotFixture(blockedRoute)
               ),
+            taskRouteEffectiveSourceFingerprint:
+              blockedRoute.effectiveSourceFingerprint,
             taskRouteModelSourceSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRouteModelSourceSnapshotFixture(blockedRoute)
@@ -3346,6 +3352,8 @@ const readyPublishGateVerdict = withRepairActionPreview(
               taskRouteSnapshotFingerprintFixture(
                 taskRouteEmbeddingIndexContractSnapshotFixture(blockedRoute)
               ),
+            taskRouteEffectiveSourceFingerprint:
+              blockedRoute.effectiveSourceFingerprint,
             taskRouteModelSourceSnapshotFingerprint:
               taskRouteSnapshotFingerprintFixture(
                 taskRouteModelSourceSnapshotFixture(blockedRoute)
@@ -8480,6 +8488,9 @@ describe('AiPage', () => {
       `task route embedding index contract snapshot fingerprint ${taskRouteSnapshotFingerprintFixture(taskRouteEmbeddingIndexContractSnapshotFixture(blockedRoute))}`
     );
     expect(readyGateDiagnostics).toContain(
+      `task route source fingerprint ${blockedRoute.effectiveSourceFingerprint}`
+    );
+    expect(readyGateDiagnostics).toContain(
       `embedding index contract ${blockedRoute.embeddingIndexContractVersion} / embedding index dimensions ${blockedRoute.embeddingIndexContractDimensions}d / embedding index status Compatible With Current Pgvector Index / embedding index fingerprint ${blockedRoute.embeddingIndexContractFingerprint}`
     );
     expect(readyGateDiagnostics).toContain(
@@ -8740,6 +8751,9 @@ describe('AiPage', () => {
     );
     expect(diagnostics).toContain(
       `task route rerank runtime contract snapshot fingerprint ${readyRouteRerankRuntimeContractSnapshotFingerprint}`
+    );
+    expect(diagnostics).toContain(
+      `task route source fingerprint ${readyRoute.effectiveSourceFingerprint}`
     );
     expect(diagnostics).toContain(
       'policyCandidate#0:rerankRuntimeContractVersion:workspace-rerank-runtime/v1'

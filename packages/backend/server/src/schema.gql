@@ -1725,6 +1725,7 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   taskRouteEmbeddingIndexContractSnapshotFingerprint: String
   taskRouteRerankRuntimeContractSnapshotFingerprint: String
   taskRouteDimensionSnapshotFingerprint: String
+  taskRouteEffectiveSourceFingerprint: String
   taskRouteModelSourceSnapshotFingerprint: String
   preparedRouteTargets: [String!]
   preparedRouteTargetFingerprint: String
