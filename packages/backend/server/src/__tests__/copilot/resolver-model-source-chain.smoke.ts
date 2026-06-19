@@ -171,6 +171,20 @@ const candidateEvidenceReferenceSchemaArtifactFingerprintInputsFixture = [
 ] as const;
 const candidateEvidenceReferenceSchemaArtifactRecordStatusFixture =
   'not_created_read_only';
+const candidateEvidenceReferenceSchemaArtifactRecordFingerprintFixture =
+  createHash('sha256')
+    .update(
+      stableFingerprintFixtureStringify({
+        artifactFingerprint:
+          candidateEvidenceReferenceSchemaArtifactFingerprintFixture,
+        artifactStatus: candidateEvidenceReferenceSchemaArtifactStatusFixture,
+        recordStatus:
+          candidateEvidenceReferenceSchemaArtifactRecordStatusFixture,
+        schemaFingerprint: candidateEvidenceReferenceSchemaFingerprintFixture,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
 
 function candidateEvidenceClassificationSummaryFixture(
   candidateEvidenceKeys: string[]
@@ -4832,6 +4846,8 @@ async function main() {
           candidateEvidenceReferenceSchemaArtifactFingerprintInputs: [
             ...candidateEvidenceReferenceSchemaArtifactFingerprintInputsFixture,
           ],
+          candidateEvidenceReferenceSchemaArtifactRecordFingerprint:
+            candidateEvidenceReferenceSchemaArtifactRecordFingerprintFixture,
           candidateEvidenceReferenceSchemaArtifactRecordStatus:
             candidateEvidenceReferenceSchemaArtifactRecordStatusFixture,
           candidateEvidenceReferenceSchemaFields: [
@@ -4895,6 +4911,10 @@ async function main() {
   assert.deepEqual(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactFingerprintInputs,
     [...candidateEvidenceReferenceSchemaArtifactFingerprintInputsFixture]
+  );
+  assert.equal(
+    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordFingerprint,
+    candidateEvidenceReferenceSchemaArtifactRecordFingerprintFixture
   );
   assert.equal(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStatus,

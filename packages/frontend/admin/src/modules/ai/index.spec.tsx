@@ -199,6 +199,20 @@ const candidateEvidenceReferenceSchemaArtifactFingerprintInputsFixture = [
 ];
 const candidateEvidenceReferenceSchemaArtifactRecordStatusFixture =
   'not_created_read_only';
+const candidateEvidenceReferenceSchemaArtifactRecordFingerprintFixture =
+  createHash('sha256')
+    .update(
+      stableFixtureStringify({
+        artifactFingerprint:
+          candidateEvidenceReferenceSchemaArtifactFingerprintFixture,
+        artifactStatus: candidateEvidenceReferenceSchemaArtifactStatusFixture,
+        recordStatus:
+          candidateEvidenceReferenceSchemaArtifactRecordStatusFixture,
+        schemaFingerprint: candidateEvidenceReferenceSchemaFingerprintFixture,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
 
 function candidateEvidenceCategoryFromKeyFixture(key?: string) {
   if (!key) {
@@ -7204,6 +7218,8 @@ describe('AiPage', () => {
                   candidateEvidenceReferenceSchemaArtifactFingerprintInputs: [
                     ...candidateEvidenceReferenceSchemaArtifactFingerprintInputsFixture,
                   ],
+                  candidateEvidenceReferenceSchemaArtifactRecordFingerprint:
+                    candidateEvidenceReferenceSchemaArtifactRecordFingerprintFixture,
                   candidateEvidenceReferenceSchemaArtifactRecordStatus:
                     candidateEvidenceReferenceSchemaArtifactRecordStatusFixture,
                   candidateEvidenceReferenceSchemaArtifactStatus:
@@ -8145,6 +8161,12 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       `referenceSchemaArtifactFingerprintInputs:${candidateEvidenceReferenceSchemaArtifactFingerprintInputsFixture.join('|')}`
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain(
+      `referenceSchemaArtifactRecordFingerprint:${candidateEvidenceReferenceSchemaArtifactRecordFingerprintFixture}`
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')

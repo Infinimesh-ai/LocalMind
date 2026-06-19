@@ -1402,6 +1402,7 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
   candidateEvidenceEntries: CopilotPromptRegistryRepairCandidateEvidenceReferenceEntry[];
   candidateEvidenceReferenceSchemaArtifactFingerprint: string;
   candidateEvidenceReferenceSchemaArtifactFingerprintInputs: string[];
+  candidateEvidenceReferenceSchemaArtifactRecordFingerprint: string;
   candidateEvidenceReferenceSchemaArtifactRecordStatus: string;
   candidateEvidenceReferenceSchemaArtifactStatus: string;
   candidateEvidenceReferenceSchemaFields: string[];
@@ -3605,6 +3606,9 @@ class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType impleme
 
   @Field(() => [String])
   candidateEvidenceReferenceSchemaArtifactFingerprintInputs!: string[];
+
+  @Field(() => String)
+  candidateEvidenceReferenceSchemaArtifactRecordFingerprint!: string;
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaArtifactRecordStatus!: string;
@@ -8045,6 +8049,25 @@ function promptRegistryRepairCandidateEvidenceReferenceSchemaArtifactFingerprint
     .slice(0, 16);
 }
 
+function promptRegistryRepairCandidateEvidenceReferenceSchemaArtifactRecordFingerprint(input: {
+  artifactFingerprint: string;
+  schemaFingerprint: string;
+}) {
+  return createHash('sha256')
+    .update(
+      stableRepairRecommendationStringify({
+        artifactFingerprint: input.artifactFingerprint,
+        artifactStatus:
+          COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_STATUS,
+        recordStatus:
+          COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STATUS,
+        schemaFingerprint: input.schemaFingerprint,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
 function taskRouteRepairCandidateEvidenceFingerprint(
   evidence: Omit<
     CopilotPromptRegistryPublishGateRepairCandidateEvidence,
@@ -11174,6 +11197,14 @@ function buildPromptRegistryRepairExecutionRequest(
     promptRegistryRepairCandidateEvidenceReferenceSchemaArtifactFingerprint(
       candidateEvidenceReferenceSchemaFingerprint
     );
+  const candidateEvidenceReferenceSchemaArtifactRecordFingerprint =
+    promptRegistryRepairCandidateEvidenceReferenceSchemaArtifactRecordFingerprint(
+      {
+        artifactFingerprint:
+          candidateEvidenceReferenceSchemaArtifactFingerprint,
+        schemaFingerprint: candidateEvidenceReferenceSchemaFingerprint,
+      }
+    );
   const supportBundleTaskRouteEffectiveSourceEvidenceSetEntries =
     repairActionPreview.operations
       .map(operation => {
@@ -11190,6 +11221,8 @@ function buildPromptRegistryRepairExecutionRequest(
           candidateEvidenceReferenceSchemaArtifactFingerprintInputs: [
             ...COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_FINGERPRINT_INPUTS,
           ],
+          candidateEvidenceReferenceSchemaArtifactRecordFingerprint:
+            candidateEvidenceReferenceSchemaArtifactRecordFingerprint,
           candidateEvidenceReferenceSchemaArtifactRecordStatus:
             COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STATUS,
           candidateEvidenceReferenceSchemaArtifactStatus:
