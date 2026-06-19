@@ -1031,6 +1031,13 @@ const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFAC
   ] as const;
 const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_OBJECT_STATUS =
   'not_materialized_read_only';
+const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_OBJECT_FINGERPRINT_INPUTS =
+  [
+    'backendFingerprint',
+    'objectStatus',
+    'schemaFingerprint',
+    'storageFingerprint',
+  ] as const;
 const COPILOT_PROMPT_REGISTRY_REPAIR_ACTION_CATALOG_VERSION =
   'repair-actions/v1';
 
@@ -1449,6 +1456,7 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
   candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputs: string[];
   candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus: string;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint: string;
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputs: string[];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatus: string;
   candidateEvidenceReferenceSchemaArtifactRecordStorageStatus: string;
   candidateEvidenceReferenceSchemaArtifactRecordStatus: string;
@@ -3687,6 +3695,9 @@ class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType impleme
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint!: string;
+
+  @Field(() => [String])
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputs!: string[];
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatus!: string;
@@ -11444,6 +11455,10 @@ function buildPromptRegistryRepairExecutionRequest(
             COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_BACKEND_STATUS,
           candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint:
             candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint,
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputs:
+            [
+              ...COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_OBJECT_FINGERPRINT_INPUTS,
+            ],
           candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatus:
             COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_OBJECT_STATUS,
           candidateEvidenceReferenceSchemaArtifactRecordStorageStatus:

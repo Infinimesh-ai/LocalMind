@@ -4077,6 +4077,14 @@ function formatPromptRegistryRepairExecutionRequest(
                 entry.candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus
               }:referenceSchemaArtifactRecordStorageObjectFingerprint:${
                 entry.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint
+              }:referenceSchemaArtifactRecordStorageObjectFingerprintInputs:${
+                entry
+                  .candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputs
+                  .length
+                  ? entry.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputs.join(
+                      '|'
+                    )
+                  : 'referenceSchemaArtifactRecordStorageObjectFingerprintInputs:none'
               }:referenceSchemaArtifactRecordStorageObjectStatus:${
                 entry.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatus
               }:referenceSchemaArtifactRecordStorageStatus:${
