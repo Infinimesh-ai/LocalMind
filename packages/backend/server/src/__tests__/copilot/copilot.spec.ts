@@ -129,12 +129,20 @@ const cleanFinalMessages = (messages: unknown) =>
 
 function taskRouteTargetFingerprintFixture(input: {
   featureKind: string;
+  requestedModelConfigKey?: string;
+  requestedModelConfigPath?: string;
+  requestedModelId?: string;
+  requestedModelSource?: string;
   targets: string[];
 }) {
   return createHash('sha256')
     .update(
-      JSON.stringify({
+      stableActionRunDiagnosticsStringifyFixture({
         featureKind: input.featureKind,
+        requestedModelConfigKey: input.requestedModelConfigKey ?? null,
+        requestedModelConfigPath: input.requestedModelConfigPath ?? null,
+        requestedModelId: input.requestedModelId ?? null,
+        requestedModelSource: input.requestedModelSource ?? null,
         targets: input.targets,
       })
     )
@@ -5247,6 +5255,10 @@ test('resolver models should expose workspace task route diagnostics', async t =
     ],
     preparedRouteTargetFingerprint: taskRouteTargetFingerprintFixture({
       featureKind: 'workspace_indexing',
+      requestedModelConfigKey: 'workspaceIndexing',
+      requestedModelConfigPath: 'copilot.tasks.models.workspaceIndexing',
+      requestedModelId: 'ollama-main/workspace-embedding',
+      requestedModelSource: 'workspace_indexing',
       targets: [
         'ollama-main/nomic-embed-text',
         'openai-default/text-embedding-3-small',
@@ -5400,6 +5412,10 @@ test('resolver models should expose workspace task route diagnostics', async t =
     preparedRouteTargets: ['ollama-main/bge-reranker-v2'],
     preparedRouteTargetFingerprint: taskRouteTargetFingerprintFixture({
       featureKind: 'rerank',
+      requestedModelConfigKey: 'rerank',
+      requestedModelConfigPath: 'copilot.tasks.models.rerank',
+      requestedModelId: 'ollama-main/office-rerank',
+      requestedModelSource: 'rerank',
       targets: ['ollama-main/bge-reranker-v2'],
     }),
     preparedRoutes: [

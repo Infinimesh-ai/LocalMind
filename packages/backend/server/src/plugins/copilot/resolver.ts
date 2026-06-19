@@ -14185,6 +14185,10 @@ function buildTaskRoutePreparedTargetSummary(input: {
     CopilotPreparedTaskRouteDiagnosticsType,
     'modelId' | 'providerId'
   >[];
+  requestedModelConfigKey?: string;
+  requestedModelConfigPath?: string;
+  requestedModelId?: string;
+  requestedModelSource?: string;
 }) {
   const targets = uniqueStrings(
     input.preparedRoutes.map(
@@ -14193,6 +14197,10 @@ function buildTaskRoutePreparedTargetSummary(input: {
   );
   const payload = stableRepairRecommendationStringify({
     featureKind: input.featureKind,
+    requestedModelConfigKey: input.requestedModelConfigKey ?? null,
+    requestedModelConfigPath: input.requestedModelConfigPath ?? null,
+    requestedModelId: input.requestedModelId ?? null,
+    requestedModelSource: input.requestedModelSource ?? null,
     targets,
   });
 
@@ -16022,6 +16030,10 @@ export class CopilotResolver {
         const emptyPreparedTargetSummary = buildTaskRoutePreparedTargetSummary({
           featureKind: 'workspace_indexing',
           preparedRoutes: [],
+          requestedModelConfigKey: workspaceIndexingModel.configKey,
+          requestedModelConfigPath: workspaceIndexingModel.configPath,
+          requestedModelId: workspaceIndexingModelId,
+          requestedModelSource: workspaceIndexingModel.source,
         });
         if (!route) {
           return {
@@ -16069,6 +16081,10 @@ export class CopilotResolver {
         const preparedTargetSummary = buildTaskRoutePreparedTargetSummary({
           featureKind: 'workspace_indexing',
           preparedRoutes: route.preparedRoutes,
+          requestedModelConfigKey: workspaceIndexingModel.configKey,
+          requestedModelConfigPath: workspaceIndexingModel.configPath,
+          requestedModelId: route.requestedModelId,
+          requestedModelSource: workspaceIndexingModel.source,
         });
         return {
           configured: route.configured,
@@ -16157,6 +16173,10 @@ export class CopilotResolver {
         const emptyPreparedTargetSummary = buildTaskRoutePreparedTargetSummary({
           featureKind: 'rerank',
           preparedRoutes: [],
+          requestedModelConfigKey: rerankModel.configKey,
+          requestedModelConfigPath: rerankModel.configPath,
+          requestedModelId: rerankModelId,
+          requestedModelSource: rerankModel.source,
         });
         if (!route) {
           return {
@@ -16204,6 +16224,10 @@ export class CopilotResolver {
         const preparedTargetSummary = buildTaskRoutePreparedTargetSummary({
           featureKind: 'rerank',
           preparedRoutes: route.preparedRoutes,
+          requestedModelConfigKey: rerankModel.configKey,
+          requestedModelConfigPath: rerankModel.configPath,
+          requestedModelId: route.requestedModelId,
+          requestedModelSource: rerankModel.source,
         });
         return {
           configured: route.configured,

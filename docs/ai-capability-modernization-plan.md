@@ -14642,3 +14642,29 @@ retry attempt completion/finalization request 已经显式绑定 `targetLocatorF
 - requested model matching 仍不执行模型 capability、prepare probe、provider health、成本策略或 Prompt Registry eval；这些继续由后续 route resolution、prepare diagnostics 与 publish gate 承担。
 - `matchesModelList()` 现在支持 route context，但现阶段只有 `CapabilityPolicyHost` pro gate 传入 context；未来如果新增直接调用点，需要继续按调用 route scope 显式传递。
 - 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。
+
+## 438. P1 落地记录：Embedding/Rerank Task Route Target Evidence Source Binding
+
+本轮继续收敛自部署 embedding/rerank 配置排障链路中的 evidence anchor 漂移问题。实际代码与目标 AI 中间层架构的冲突点是：`resolveTaskRouteDiagnostics()` 已经在 GraphQL task route 上暴露 `requestedModelId`、`requestedModelConfigKey`、`requestedModelConfigPath` 与 `requestedModelSource`，但 `preparedRouteTargetFingerprint` 只绑定 `featureKind` 和最终 `provider/model` targets。这样当显式 `copilot.tasks.models.workspaceIndexing`、从 `copilot.tasks.models.embedding` fallback、或 provider default route 最终解析到同一个 prepared provider/model 时，repair evidence 与 support diagnostics 的 prepared target anchor 无法区分任务模型来源，降低自部署 Prompt Registry repair 和 embedding/rerank 排障的可比性。
+
+- `packages/backend/server/src/plugins/copilot/resolver.ts`：
+  - `buildTaskRoutePreparedTargetSummary()` 的 fingerprint payload 新增 `requestedModelConfigKey`、`requestedModelConfigPath`、`requestedModelId` 与 `requestedModelSource`。
+  - workspace indexing 与 rerank 两条 task route 的空 prepared target summary 和已 prepared target summary 都传入同一份任务模型来源信息。
+- 测试覆盖：
+  - `resolver-model-source-chain.smoke.ts` 更新容器可执行 fingerprint fixture，断言 workspace indexing diagnostics error repair route 的 prepared target fingerprint 绑定 `workspaceIndexing` config key/path/source 与 requested model id。
+  - `copilot.spec.ts` 同步 AVA fixture，保持 workspace indexing 与 rerank task route expected fingerprint 与新 anchor 语义一致。
+
+该实现只改变 task route prepared target fingerprint 的证据输入、resolver 内部 summary 构造和 focused tests，不新增 GraphQL 字段、不改变前端查询、不改变 provider route selection、fallback order、prepared route targets 展示值、任务模型配置格式、embedding/rerank native request 参数、`EMBEDDING_DIMENSIONS`、pgvector 维度、BYOK lease 获取、quota 判定、Prompt Registry schema、support bundle projection、MCP registry、Codex adapter 或 Action Runtime 状态机。它让 “同一 prepared provider/model 是否来自显式 workspaceIndexing、embedding fallback、rerank 配置或 provider default” 进入 repair evidence anchor，避免不同配置来源在 prepared target fingerprint 上合并。
+
+验证策略：
+
+- 本轮为 TypeScript resolver/test 与规划文档改动，不涉及依赖、Dockerfile、native build、DB migration 或 runtime packaging，不重建 `localmind-affine:test`。
+- 继续使用现有固定测试镜像 `localmind-affine:test`，通过 `.docker/selfhost/compose.localmind.yml` 的 `affine_test` 服务、`--pull never`、`--no-deps` 与源码 bind mount 运行 backend model/source chain smoke、Prettier/oxlint、`git diff --check` 与镜像 ID 检查。当前本机 Docker Compose `run` 不支持 `--no-build` flag，因此以镜像已存在、不传 `--build`、`--pull never` 与镜像 ID 前后不变作为不重建证据。
+
+剩余风险：
+
+- `preparedRouteTargetFingerprint` 仍不是 DB-backed task route record，也不持久化到单独的 Model Registry revision；它只是当前 GraphQL diagnostics / Prompt Registry repair evidence 的只读 anchor。
+- 该 fingerprint 仍不绑定真实 native request payload、embedding 返回向量 bytes、rerank score 输出、provider secret、BYOK lease id、quota decision、prepare probe 原始错误或 runtime 日志。
+- workspace embedding 仍受 `EMBEDDING_DIMENSIONS = 1024` 与当前 pgvector 表结构约束；本轮不实现多维度索引、模型变更检测、历史索引重建任务或多维索引共存。
+- BYOK 动态 profiles 仍未进入同步 `getConfiguredModelIds()` / requested model matcher 的 configured candidate 输入；执行路由继续通过 `resolveProvider()` / `resolveModelId()` 与 route diagnostics 接入。
+- 当前 runtime 镜像未包含本轮源码改动；阶段验收前仍需要完整构建 `localmind-affine:local` 并在容器内验证。

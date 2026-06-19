@@ -27,12 +27,20 @@ function sortRouteCalls<
 
 function taskRouteTargetFingerprintFixture(input: {
   featureKind: string;
+  requestedModelConfigKey?: string;
+  requestedModelConfigPath?: string;
+  requestedModelId?: string;
+  requestedModelSource?: string;
   targets: string[];
 }) {
   return createHash('sha256')
     .update(
-      JSON.stringify({
+      stableFingerprintFixtureStringify({
         featureKind: input.featureKind,
+        requestedModelConfigKey: input.requestedModelConfigKey ?? null,
+        requestedModelConfigPath: input.requestedModelConfigPath ?? null,
+        requestedModelId: input.requestedModelId ?? null,
+        requestedModelSource: input.requestedModelSource ?? null,
         targets: input.targets,
       })
     )
@@ -8676,6 +8684,10 @@ async function main() {
     taskDiagnosticsErrorRoute?.preparedRouteTargetFingerprint,
     taskRouteTargetFingerprintFixture({
       featureKind: 'workspace_indexing',
+      requestedModelConfigKey: 'workspaceIndexing',
+      requestedModelConfigPath: 'copilot.tasks.models.workspaceIndexing',
+      requestedModelId: 'embed-alias',
+      requestedModelSource: 'workspace_indexing',
       targets: ['local/nomic-embed-text'],
     })
   );
