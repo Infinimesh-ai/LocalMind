@@ -529,6 +529,21 @@ const candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifest
   ] as const;
 const candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatusFixture =
   'not_created_read_only';
+const candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintFixture =
+  createHash('sha256')
+    .update(
+      stableFingerprintFixtureStringify({
+        manifestEntryPersistenceFingerprint:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintFixture,
+        manifestEntryPersistenceRecordStatus:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatusFixture,
+        manifestEntryPersistenceStatus:
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatusFixture,
+        schemaFingerprint: candidateEvidenceReferenceSchemaFingerprintFixture,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
 
 function candidateEvidenceClassificationSummaryFixture(
   candidateEvidenceKeys: string[]
@@ -5285,6 +5300,8 @@ async function main() {
             [
               ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputsFixture,
             ],
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint:
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintFixture,
           candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus:
             candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatusFixture,
           candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatus:
@@ -5534,6 +5551,10 @@ async function main() {
     [
       ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputsFixture,
     ]
+  );
+  assert.equal(
+    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint,
+    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintFixture
   );
   assert.equal(
     taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus,
