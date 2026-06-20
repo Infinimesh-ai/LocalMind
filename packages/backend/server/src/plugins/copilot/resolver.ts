@@ -1110,6 +1110,8 @@ const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFAC
     'objectStatus',
     'schemaFingerprint',
   ] as const;
+const COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_OBJECT_ARCHIVE_MANIFEST_ENTRY_PERSISTENCE_RECORD_STORAGE_OBJECT_ARCHIVE_MANIFEST_ENTRY_STATUS =
+  'not_created_read_only';
 const COPILOT_PROMPT_REGISTRY_REPAIR_ACTION_CATALOG_VERSION =
   'repair-actions/v1';
 
@@ -1547,6 +1549,7 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint: string;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputs: string[];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus: string;
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatus: string;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus: string;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus: string;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus: string;
@@ -3848,6 +3851,9 @@ class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType impleme
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus!: string;
+
+  @Field(() => String)
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatus!: string;
 
   @Field(() => String)
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus!: string;
@@ -11898,6 +11904,8 @@ function buildPromptRegistryRepairExecutionRequest(
             ],
           candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus:
             COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_OBJECT_ARCHIVE_MANIFEST_ENTRY_PERSISTENCE_RECORD_STORAGE_OBJECT_ARCHIVE_INCLUSION_STATUS,
+          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatus:
+            COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_OBJECT_ARCHIVE_MANIFEST_ENTRY_PERSISTENCE_RECORD_STORAGE_OBJECT_ARCHIVE_MANIFEST_ENTRY_STATUS,
           candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus:
             COPILOT_PROMPT_REGISTRY_REPAIR_CANDIDATE_EVIDENCE_REFERENCE_SCHEMA_ARTIFACT_RECORD_STORAGE_OBJECT_ARCHIVE_MANIFEST_ENTRY_PERSISTENCE_RECORD_STORAGE_OBJECT_STATUS,
           candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus:
