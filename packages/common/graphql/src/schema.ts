@@ -564,9 +564,15 @@ export interface ContextWorkspaceEmbeddingStatus {
 export interface Copilot {
   __typename?: 'Copilot';
   /** Get sanitized prepared route diagnostics for an action run in the current workspace */
-  actionRunPreparedRouteTrace?: Maybe<CopilotActionRunPreparedRouteDiagnosticsType>;
+  actionRunPreparedRouteTrace: Maybe<CopilotActionRunPreparedRouteDiagnosticsType>;
   /** List recent sanitized action runs for diagnostics in the current workspace */
   actionRuns: Array<CopilotActionRunDiagnosticsItemType>;
+  /** Get a persisted Agent Runtime run with steps and timeline for the current workspace */
+  agentRun: Maybe<CopilotAgentRunType>;
+  /** List recent persisted Agent Runtime runs for the current workspace */
+  agentRuns: Array<CopilotAgentRunType>;
+  /** List registered Agent Runtime workflow adapter capabilities for standalone run diagnostics */
+  agentRuntimeWorkflowAdapters: Array<CopilotAgentRuntimeWorkflowAdapterType>;
   chats: PaginatedCopilotHistoriesType;
   /** Get the context list of a session */
   contexts: Array<CopilotContext>;
@@ -574,10 +580,14 @@ export interface Copilot {
   histories: Array<CopilotHistories>;
   /** List available models for a prompt, with human-readable names */
   models: CopilotModelsType;
+  /** List recent DB-backed provider health probe attempts for the current workspace */
+  providerHealthProbeAttempts: Array<CopilotProviderHealthProbeAttemptType>;
+  /** List recent persisted repair execution requests for the current workspace */
+  repairExecutions: Array<CopilotRepairExecutionRecordType>;
   /** Evaluate whether the current prompt registry row can pass the publish gate */
-  promptRegistryPublishGate?: Maybe<CopilotPromptRegistryPublishGateVerdictType>;
+  promptRegistryPublishGate: Maybe<CopilotPromptRegistryPublishGateVerdictType>;
   /** Read-only preflight for a prompt registry repair submission contract */
-  promptRegistryRepairPreflight?: Maybe<CopilotPromptRegistryRepairPreflightType>;
+  promptRegistryRepairPreflight: Maybe<CopilotPromptRegistryRepairPreflightType>;
   /** List prompt catalog metadata for diagnostics */
   prompts: Array<CopilotPromptCatalogItemType>;
   /** Get the quota of the user in the workspace */
@@ -589,6 +599,10 @@ export interface Copilot {
    * @deprecated use `chats` instead
    */
   sessions: Array<CopilotSessionType>;
+  /** Get a DB-backed support bundle request and record a read audit event */
+  supportBundle: Maybe<CopilotSupportBundleType>;
+  /** List recent DB-backed support bundle requests for the current workspace */
+  supportBundles: Array<CopilotSupportBundleType>;
   /** @deprecated Use realtime subscription "copilot.transcript.task.changed" instead. */
   transcriptTask: Maybe<TranscriptionResultType>;
   workspaceId: Maybe<Scalars['ID']['output']>;
@@ -602,166 +616,31 @@ export interface CopilotActionRunsArgs {
   limit?: InputMaybe<Scalars['SafeInt']['input']>;
 }
 
-export interface CopilotActionRunDiagnosticsItemType {
-  __typename?: 'CopilotActionRunDiagnosticsItemType';
-  actionId: Scalars['String']['output'];
-  actionVersion: Scalars['String']['output'];
-  agentRuntimeDiagnosticsFingerprint: Scalars['String']['output'];
-  agentRuntimeDiagnosticsManifest: CopilotActionRunAgentRuntimeDiagnosticsManifestType;
-  agentRuntimeDiagnosticsManifestExportMetadata: CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType;
-  agentRuntimeNativeTraceEventTypes: Array<Scalars['String']['output']>;
-  agentRuntimeProjectedSchemaComponents: Array<Scalars['String']['output']>;
-  agentRuntimeProjectedRunStatuses: Array<Scalars['String']['output']>;
-  agentRuntimeProjectedStepStatuses: Array<Scalars['String']['output']>;
-  agentRuntimeProjectedStepTypes: Array<Scalars['String']['output']>;
-  agentRuntimeProjectedTimelineEventTypes: Array<Scalars['String']['output']>;
-  agentRuntimeProjectionContractFingerprint: Scalars['String']['output'];
-  agentRuntimeProjectionSource: Scalars['String']['output'];
-  agentRuntimeProjectionGaps: Array<Scalars['String']['output']>;
-  agentRuntimeRunStatusGaps: Array<Scalars['String']['output']>;
-  agentRuntimeRunId: Scalars['String']['output'];
-  agentRuntimeRunStatus: Scalars['String']['output'];
-  agentRuntimeSchemaReadiness: Scalars['String']['output'];
-  agentRuntimeSchemaReadinessGaps: Array<Scalars['String']['output']>;
-  agentRuntimeStepCount: Scalars['SafeInt']['output'];
-  agentRuntimeStepStatusGaps: Array<Scalars['String']['output']>;
-  agentRuntimeStepIds: Array<Scalars['String']['output']>;
-  agentRuntimeStepKinds: Array<Scalars['String']['output']>;
-  agentRuntimeStepStatuses: Array<Scalars['String']['output']>;
-  agentRuntimeStepTypes: Array<Scalars['String']['output']>;
-  agentRuntimeTimelineEntries: Array<Scalars['String']['output']>;
-  agentRuntimeTimelineEventTypes: Array<Scalars['String']['output']>;
-  agentRuntimeTimelineGaps: Array<Scalars['String']['output']>;
-  agentRuntimeTimelineItems: Array<CopilotActionRunAgentRuntimeTimelineItemType>;
-  agentRuntimeTimelineRouteEvidenceSetFingerprint: Scalars['String']['output'];
-  agentRuntimeTargetRunStatuses: Array<Scalars['String']['output']>;
-  agentRuntimeTargetSchemaComponents: Array<Scalars['String']['output']>;
-  agentRuntimeTargetStepStatuses: Array<Scalars['String']['output']>;
-  agentRuntimeTargetStepTypes: Array<Scalars['String']['output']>;
-  agentRuntimeTargetTimelineEventTypes: Array<Scalars['String']['output']>;
-  agentRuntimeUnsupportedRunStatuses: Array<Scalars['String']['output']>;
-  agentRuntimeUnsupportedStepStatuses: Array<Scalars['String']['output']>;
-  agentRuntimeUnsupportedStepTypes: Array<Scalars['String']['output']>;
-  agentRuntimeUnsupportedTimelineEventTypes: Array<Scalars['String']['output']>;
-  attempt: Scalars['SafeInt']['output'];
-  createdAt: Scalars['DateTime']['output'];
-  docId?: Maybe<Scalars['String']['output']>;
-  errorCode?: Maybe<Scalars['String']['output']>;
-  hasPreparedRouteTrace: Scalars['Boolean']['output'];
-  id: Scalars['String']['output'];
-  preparedRouteActualCount: Scalars['SafeInt']['output'];
-  preparedRouteBehaviorFlags: Array<Scalars['String']['output']>;
-  preparedRouteCanonicalModelKeys: Array<Scalars['String']['output']>;
-  preparedRouteCount: Scalars['SafeInt']['output'];
-  preparedRouteDimensionEvidence: Array<Scalars['String']['output']>;
-  preparedRouteFallbackProviderIds: Array<Scalars['String']['output']>;
-  preparedRouteFallbackOrder: Array<Scalars['String']['output']>;
-  preparedRouteModelBackendKinds: Array<Scalars['String']['output']>;
-  preparedRouteStepFallbackProviderIds: Array<Scalars['String']['output']>;
-  preparedRouteStepIds: Array<Scalars['String']['output']>;
-  preparedRouteKinds: Array<Scalars['String']['output']>;
-  preparedRouteModelIds: Array<Scalars['String']['output']>;
-  preparedRouteOrder: Array<Scalars['String']['output']>;
-  preparedRouteProtocols: Array<Scalars['String']['output']>;
-  preparedRouteProviderIds: Array<Scalars['String']['output']>;
-  preparedRouteRequestedModelIds: Array<Scalars['String']['output']>;
-  preparedRouteRequestedModelSources: Array<Scalars['String']['output']>;
-  preparedRouteStepRequestedModelSources: Array<Scalars['String']['output']>;
-  preparedRouteRequestLayers: Array<Scalars['String']['output']>;
-  preparedRouteStepFallbackOrder: Array<Scalars['String']['output']>;
-  preparedRouteStepBehaviorFlags: Array<Scalars['String']['output']>;
-  preparedRouteStepCanonicalModelKeys: Array<Scalars['String']['output']>;
-  preparedRouteStepDimensionEvidence: Array<Scalars['String']['output']>;
-  preparedRouteStepModelBackendKinds: Array<Scalars['String']['output']>;
-  preparedRouteStepOrder: Array<Scalars['String']['output']>;
-  preparedRouteStepRouteCountMismatches: Array<Scalars['String']['output']>;
-  preparedRouteStepRouteCounts: Array<Scalars['String']['output']>;
-  preparedRouteStepProtocols: Array<Scalars['String']['output']>;
-  preparedRouteStepRequestLayers: Array<Scalars['String']['output']>;
-  preparedRouteStepCount: Scalars['SafeInt']['output'];
-  preparedRouteTargets: Array<Scalars['String']['output']>;
-  preparedRouteStepTargets: Array<Scalars['String']['output']>;
-  preparedRouteRequestedTargets: Array<Scalars['String']['output']>;
-  preparedRouteStepRequestedTargets: Array<Scalars['String']['output']>;
-  retryOf?: Maybe<Scalars['String']['output']>;
-  sessionId?: Maybe<Scalars['String']['output']>;
-  status: Scalars['String']['output'];
-  updatedAt: Scalars['DateTime']['output'];
+export interface CopilotAgentRunArgs {
+  id: Scalars['String']['input'];
 }
 
-export interface CopilotActionRunAgentRuntimeDiagnosticsManifestType {
-  __typename?: 'CopilotActionRunAgentRuntimeDiagnosticsManifestType';
-  actionId: Scalars['String']['output'];
-  actionVersion: Scalars['String']['output'];
-  fingerprint: Scalars['String']['output'];
-  hasPreparedRouteTrace: Scalars['Boolean']['output'];
-  nativeTraceEventTypes: Array<Scalars['String']['output']>;
-  preparedRouteActualCount: Scalars['SafeInt']['output'];
-  preparedRouteCount: Scalars['SafeInt']['output'];
-  preparedRouteStepCount: Scalars['SafeInt']['output'];
-  projectionContractFingerprint: Scalars['String']['output'];
-  projectionGapCount: Scalars['SafeInt']['output'];
-  projectionSource: Scalars['String']['output'];
-  runStatus: Scalars['String']['output'];
-  schemaReadiness: Scalars['String']['output'];
-  schemaReadinessGapCount: Scalars['SafeInt']['output'];
-  timelineEventTypes: Array<Scalars['String']['output']>;
-  timelineGapCount: Scalars['SafeInt']['output'];
-  timelineItemCount: Scalars['SafeInt']['output'];
-  timelineRouteEvidenceSetFingerprint: Scalars['String']['output'];
-  version: Scalars['String']['output'];
+export interface CopilotAgentRunsArgs {
+  filter?: InputMaybe<CopilotAgentRunListFilterInput>;
+  limit?: InputMaybe<Scalars['SafeInt']['input']>;
 }
 
-export interface CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType {
-  __typename?: 'CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType';
-  actionId: Scalars['String']['output'];
-  actionVersion: Scalars['String']['output'];
-  artifact: Scalars['String']['output'];
-  auditEventCreated: Scalars['Boolean']['output'];
-  auditEventFingerprint: Scalars['String']['output'];
-  auditEventStatus: Scalars['String']['output'];
-  auditEventVersion: Scalars['String']['output'];
-  boundary: Scalars['String']['output'];
-  exportPolicyFingerprint: Scalars['String']['output'];
-  exportPolicyStatus: Scalars['String']['output'];
-  exportPolicyVersion: Scalars['String']['output'];
-  filename: Scalars['String']['output'];
-  manifestFingerprint: Scalars['String']['output'];
-  manifestVersion: Scalars['String']['output'];
-  metadataFilename: Scalars['String']['output'];
-  mime: Scalars['String']['output'];
-  projectionSource: Scalars['String']['output'];
-  retentionPolicyFingerprint: Scalars['String']['output'];
-  retentionPolicyStatus: Scalars['String']['output'];
-  retentionPolicyVersion: Scalars['String']['output'];
-  runId: Scalars['String']['output'];
-  runStatus: Scalars['String']['output'];
-  schemaReadiness: Scalars['String']['output'];
-  version: Scalars['String']['output'];
+export interface CopilotAgentRunListFilterInput {
+  query?: InputMaybe<Scalars['String']['input']>;
+  sourceId?: InputMaybe<Scalars['String']['input']>;
+  sourceType?: InputMaybe<Scalars['String']['input']>;
+  status?: InputMaybe<Scalars['String']['input']>;
+  workflow?: InputMaybe<Scalars['String']['input']>;
 }
 
-export interface CopilotActionRunAgentRuntimeTimelineItemType {
-  __typename?: 'CopilotActionRunAgentRuntimeTimelineItemType';
-  actualRouteCount: Scalars['SafeInt']['output'];
-  eventKey: Scalars['String']['output'];
-  eventType: Scalars['String']['output'];
-  fallbackProviderIds: Array<Scalars['String']['output']>;
-  id: Scalars['String']['output'];
-  kind?: Maybe<Scalars['String']['output']>;
-  label: Scalars['String']['output'];
-  routeBehaviorFlags: Array<Scalars['String']['output']>;
-  routeCanonicalModelKeys: Array<Scalars['String']['output']>;
-  routeCount: Scalars['SafeInt']['output'];
-  routeCountMismatch: Scalars['Boolean']['output'];
-  routeDimensionEvidence: Array<Scalars['String']['output']>;
-  routeEvidenceFingerprint: Scalars['String']['output'];
-  routeModelBackendKinds: Array<Scalars['String']['output']>;
-  routeTargets: Array<Scalars['String']['output']>;
-  runId: Scalars['String']['output'];
-  sequence: Scalars['SafeInt']['output'];
-  status: Scalars['String']['output'];
-  stepId?: Maybe<Scalars['String']['output']>;
-  stepType?: Maybe<Scalars['String']['output']>;
+export interface CopilotProviderHealthProbeAttemptsArgs {
+  filter?: InputMaybe<CopilotProviderHealthProbeAttemptFilterInput>;
+  limit?: InputMaybe<Scalars['SafeInt']['input']>;
+}
+
+export interface CopilotRepairExecutionsArgs {
+  filter?: InputMaybe<CopilotRepairExecutionListFilterInput>;
+  limit?: InputMaybe<Scalars['SafeInt']['input']>;
 }
 
 export interface CopilotChatsArgs {
@@ -795,38 +674,223 @@ export interface CopilotPromptRegistryRepairPreflightArgs {
   submission: CopilotPromptRegistryRepairSubmissionInput;
 }
 
+export interface CopilotSessionArgs {
+  sessionId: Scalars['String']['input'];
+}
+
+export interface CopilotSessionsArgs {
+  docId?: InputMaybe<Scalars['String']['input']>;
+  options?: InputMaybe<QueryChatSessionsInput>;
+}
+
+export interface CopilotSupportBundleArgs {
+  id: Scalars['String']['input'];
+}
+
+export interface CopilotSupportBundlesArgs {
+  filter?: InputMaybe<CopilotSupportBundleListFilterInput>;
+  limit?: InputMaybe<Scalars['SafeInt']['input']>;
+}
+
+export interface CopilotTranscriptTaskArgs {
+  blobId?: InputMaybe<Scalars['String']['input']>;
+  taskId?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType {
+  __typename?: 'CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType';
+  actionId: Scalars['String']['output'];
+  actionVersion: Scalars['String']['output'];
+  artifact: Scalars['String']['output'];
+  auditEventCreated: Scalars['Boolean']['output'];
+  auditEventFingerprint: Scalars['String']['output'];
+  auditEventStatus: Scalars['String']['output'];
+  auditEventVersion: Scalars['String']['output'];
+  boundary: Scalars['String']['output'];
+  exportPolicyFingerprint: Scalars['String']['output'];
+  exportPolicyStatus: Scalars['String']['output'];
+  exportPolicyVersion: Scalars['String']['output'];
+  filename: Scalars['String']['output'];
+  manifestFingerprint: Scalars['String']['output'];
+  manifestVersion: Scalars['String']['output'];
+  metadataFilename: Scalars['String']['output'];
+  mime: Scalars['String']['output'];
+  projectionSource: Scalars['String']['output'];
+  retentionPolicyFingerprint: Scalars['String']['output'];
+  retentionPolicyStatus: Scalars['String']['output'];
+  retentionPolicyVersion: Scalars['String']['output'];
+  runId: Scalars['String']['output'];
+  runStatus: Scalars['String']['output'];
+  schemaReadiness: Scalars['String']['output'];
+  version: Scalars['String']['output'];
+}
+
+export interface CopilotActionRunAgentRuntimeDiagnosticsManifestType {
+  __typename?: 'CopilotActionRunAgentRuntimeDiagnosticsManifestType';
+  actionId: Scalars['String']['output'];
+  actionVersion: Scalars['String']['output'];
+  fingerprint: Scalars['String']['output'];
+  hasPreparedRouteTrace: Scalars['Boolean']['output'];
+  nativeTraceEventTypes: Array<Scalars['String']['output']>;
+  preparedRouteActualCount: Scalars['SafeInt']['output'];
+  preparedRouteCount: Scalars['SafeInt']['output'];
+  preparedRouteStepCount: Scalars['SafeInt']['output'];
+  projectionContractFingerprint: Scalars['String']['output'];
+  projectionGapCount: Scalars['SafeInt']['output'];
+  projectionSource: Scalars['String']['output'];
+  runStatus: Scalars['String']['output'];
+  schemaReadiness: Scalars['String']['output'];
+  schemaReadinessGapCount: Scalars['SafeInt']['output'];
+  timelineEventTypes: Array<Scalars['String']['output']>;
+  timelineGapCount: Scalars['SafeInt']['output'];
+  timelineItemCount: Scalars['SafeInt']['output'];
+  timelineRouteEvidenceSetFingerprint: Scalars['String']['output'];
+  version: Scalars['String']['output'];
+}
+
+export interface CopilotActionRunAgentRuntimeTimelineItemType {
+  __typename?: 'CopilotActionRunAgentRuntimeTimelineItemType';
+  actualRouteCount: Scalars['SafeInt']['output'];
+  eventKey: Scalars['String']['output'];
+  eventType: Scalars['String']['output'];
+  fallbackProviderIds: Array<Scalars['String']['output']>;
+  id: Scalars['String']['output'];
+  kind: Maybe<Scalars['String']['output']>;
+  label: Scalars['String']['output'];
+  routeBehaviorFlags: Array<Scalars['String']['output']>;
+  routeCanonicalModelKeys: Array<Scalars['String']['output']>;
+  routeCount: Scalars['SafeInt']['output'];
+  routeCountMismatch: Scalars['Boolean']['output'];
+  routeDimensionEvidence: Array<Scalars['String']['output']>;
+  routeEvidenceFingerprint: Scalars['String']['output'];
+  routeModelBackendKinds: Array<Scalars['String']['output']>;
+  routeTargets: Array<Scalars['String']['output']>;
+  runId: Scalars['String']['output'];
+  sequence: Scalars['SafeInt']['output'];
+  status: Scalars['String']['output'];
+  stepId: Maybe<Scalars['String']['output']>;
+  stepType: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotActionRunDiagnosticsItemType {
+  __typename?: 'CopilotActionRunDiagnosticsItemType';
+  actionId: Scalars['String']['output'];
+  actionVersion: Scalars['String']['output'];
+  agentRuntimeDiagnosticsFingerprint: Scalars['String']['output'];
+  agentRuntimeDiagnosticsManifest: CopilotActionRunAgentRuntimeDiagnosticsManifestType;
+  agentRuntimeDiagnosticsManifestExportMetadata: CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType;
+  agentRuntimeNativeTraceEventTypes: Array<Scalars['String']['output']>;
+  agentRuntimeProjectedRunStatuses: Array<Scalars['String']['output']>;
+  agentRuntimeProjectedSchemaComponents: Array<Scalars['String']['output']>;
+  agentRuntimeProjectedStepStatuses: Array<Scalars['String']['output']>;
+  agentRuntimeProjectedStepTypes: Array<Scalars['String']['output']>;
+  agentRuntimeProjectedTimelineEventTypes: Array<Scalars['String']['output']>;
+  agentRuntimeProjectionContractFingerprint: Scalars['String']['output'];
+  agentRuntimeProjectionGaps: Array<Scalars['String']['output']>;
+  agentRuntimeProjectionSource: Scalars['String']['output'];
+  agentRuntimeRunId: Scalars['String']['output'];
+  agentRuntimeRunStatus: Scalars['String']['output'];
+  agentRuntimeRunStatusGaps: Array<Scalars['String']['output']>;
+  agentRuntimeSchemaReadiness: Scalars['String']['output'];
+  agentRuntimeSchemaReadinessGaps: Array<Scalars['String']['output']>;
+  agentRuntimeStepCount: Scalars['SafeInt']['output'];
+  agentRuntimeStepIds: Array<Scalars['String']['output']>;
+  agentRuntimeStepKinds: Array<Scalars['String']['output']>;
+  agentRuntimeStepStatusGaps: Array<Scalars['String']['output']>;
+  agentRuntimeStepStatuses: Array<Scalars['String']['output']>;
+  agentRuntimeStepTypes: Array<Scalars['String']['output']>;
+  agentRuntimeTargetRunStatuses: Array<Scalars['String']['output']>;
+  agentRuntimeTargetSchemaComponents: Array<Scalars['String']['output']>;
+  agentRuntimeTargetStepStatuses: Array<Scalars['String']['output']>;
+  agentRuntimeTargetStepTypes: Array<Scalars['String']['output']>;
+  agentRuntimeTargetTimelineEventTypes: Array<Scalars['String']['output']>;
+  agentRuntimeTimelineEntries: Array<Scalars['String']['output']>;
+  agentRuntimeTimelineEventTypes: Array<Scalars['String']['output']>;
+  agentRuntimeTimelineGaps: Array<Scalars['String']['output']>;
+  agentRuntimeTimelineItems: Array<CopilotActionRunAgentRuntimeTimelineItemType>;
+  agentRuntimeTimelineRouteEvidenceSetFingerprint: Scalars['String']['output'];
+  agentRuntimeUnsupportedRunStatuses: Array<Scalars['String']['output']>;
+  agentRuntimeUnsupportedStepStatuses: Array<Scalars['String']['output']>;
+  agentRuntimeUnsupportedStepTypes: Array<Scalars['String']['output']>;
+  agentRuntimeUnsupportedTimelineEventTypes: Array<Scalars['String']['output']>;
+  attempt: Scalars['SafeInt']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  docId: Maybe<Scalars['String']['output']>;
+  errorCode: Maybe<Scalars['String']['output']>;
+  hasPreparedRouteTrace: Scalars['Boolean']['output'];
+  id: Scalars['String']['output'];
+  preparedRouteActualCount: Scalars['SafeInt']['output'];
+  preparedRouteBehaviorFlags: Array<Scalars['String']['output']>;
+  preparedRouteCanonicalModelKeys: Array<Scalars['String']['output']>;
+  preparedRouteCount: Scalars['SafeInt']['output'];
+  preparedRouteDimensionEvidence: Array<Scalars['String']['output']>;
+  preparedRouteFallbackOrder: Array<Scalars['String']['output']>;
+  preparedRouteFallbackProviderIds: Array<Scalars['String']['output']>;
+  preparedRouteKinds: Array<Scalars['String']['output']>;
+  preparedRouteModelBackendKinds: Array<Scalars['String']['output']>;
+  preparedRouteModelIds: Array<Scalars['String']['output']>;
+  preparedRouteOrder: Array<Scalars['String']['output']>;
+  preparedRouteProtocols: Array<Scalars['String']['output']>;
+  preparedRouteProviderIds: Array<Scalars['String']['output']>;
+  preparedRouteRequestLayers: Array<Scalars['String']['output']>;
+  preparedRouteRequestedModelIds: Array<Scalars['String']['output']>;
+  preparedRouteRequestedModelSources: Array<Scalars['String']['output']>;
+  preparedRouteRequestedTargets: Array<Scalars['String']['output']>;
+  preparedRouteStepBehaviorFlags: Array<Scalars['String']['output']>;
+  preparedRouteStepCanonicalModelKeys: Array<Scalars['String']['output']>;
+  preparedRouteStepCount: Scalars['SafeInt']['output'];
+  preparedRouteStepDimensionEvidence: Array<Scalars['String']['output']>;
+  preparedRouteStepFallbackOrder: Array<Scalars['String']['output']>;
+  preparedRouteStepFallbackProviderIds: Array<Scalars['String']['output']>;
+  preparedRouteStepIds: Array<Scalars['String']['output']>;
+  preparedRouteStepModelBackendKinds: Array<Scalars['String']['output']>;
+  preparedRouteStepOrder: Array<Scalars['String']['output']>;
+  preparedRouteStepProtocols: Array<Scalars['String']['output']>;
+  preparedRouteStepRequestLayers: Array<Scalars['String']['output']>;
+  preparedRouteStepRequestedModelSources: Array<Scalars['String']['output']>;
+  preparedRouteStepRequestedTargets: Array<Scalars['String']['output']>;
+  preparedRouteStepRouteCountMismatches: Array<Scalars['String']['output']>;
+  preparedRouteStepRouteCounts: Array<Scalars['String']['output']>;
+  preparedRouteStepTargets: Array<Scalars['String']['output']>;
+  preparedRouteTargets: Array<Scalars['String']['output']>;
+  retryOf: Maybe<Scalars['String']['output']>;
+  sessionId: Maybe<Scalars['String']['output']>;
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+}
+
 export interface CopilotActionRunPreparedRouteDiagnosticsRouteType {
   __typename?: 'CopilotActionRunPreparedRouteDiagnosticsRouteType';
-  behaviorFlags?: Maybe<Array<Scalars['String']['output']>>;
-  canonicalModelKey?: Maybe<Scalars['String']['output']>;
-  dimensionMismatch?: Maybe<Scalars['Boolean']['output']>;
-  fallbackOrderIndex?: Maybe<Scalars['SafeInt']['output']>;
+  behaviorFlags: Maybe<Array<Scalars['String']['output']>>;
+  canonicalModelKey: Maybe<Scalars['String']['output']>;
+  dimensionMismatch: Maybe<Scalars['Boolean']['output']>;
+  fallbackOrderIndex: Maybe<Scalars['SafeInt']['output']>;
+  modelBackendKind: Maybe<Scalars['String']['output']>;
+  modelEmbeddingDimensions: Maybe<Scalars['SafeInt']['output']>;
   modelId: Scalars['String']['output'];
-  modelBackendKind?: Maybe<Scalars['String']['output']>;
-  modelEmbeddingDimensions?: Maybe<Scalars['SafeInt']['output']>;
-  protocol?: Maybe<Scalars['String']['output']>;
-  providerConfiguredModelCount?: Maybe<Scalars['SafeInt']['output']>;
-  providerConfiguredModelIds?: Maybe<Array<Scalars['String']['output']>>;
-  providerHealth?: Maybe<Scalars['String']['output']>;
-  providerHealthCheckedAt?: Maybe<Scalars['String']['output']>;
-  providerHealthLastError?: Maybe<Scalars['String']['output']>;
+  protocol: Maybe<Scalars['String']['output']>;
+  providerConfiguredModelCount: Maybe<Scalars['SafeInt']['output']>;
+  providerConfiguredModelIds: Maybe<Array<Scalars['String']['output']>>;
+  providerHealth: Maybe<Scalars['String']['output']>;
+  providerHealthCheckedAt: Maybe<Scalars['String']['output']>;
+  providerHealthLastError: Maybe<Scalars['String']['output']>;
   providerId: Scalars['String']['output'];
-  providerName?: Maybe<Scalars['String']['output']>;
-  providerPrivacy?: Maybe<Scalars['String']['output']>;
-  providerPriority?: Maybe<Scalars['SafeInt']['output']>;
-  providerProfileConfigPath?: Maybe<Scalars['String']['output']>;
-  providerProfileId?: Maybe<Scalars['String']['output']>;
-  providerProfileSource?: Maybe<Scalars['String']['output']>;
-  providerSource?: Maybe<Scalars['String']['output']>;
-  providerType?: Maybe<Scalars['String']['output']>;
-  requestLayer?: Maybe<Scalars['String']['output']>;
-  requestedDimensions?: Maybe<Scalars['SafeInt']['output']>;
-  routeModelAliasMatched?: Maybe<Scalars['Boolean']['output']>;
-  routeModelDefinitionAliases?: Maybe<Array<Scalars['String']['output']>>;
-  routeModelDefinitionId?: Maybe<Scalars['String']['output']>;
-  routeModelDefinitionSource?: Maybe<Scalars['String']['output']>;
-  routeRawModelId?: Maybe<Scalars['String']['output']>;
+  providerName: Maybe<Scalars['String']['output']>;
+  providerPriority: Maybe<Scalars['SafeInt']['output']>;
+  providerPrivacy: Maybe<Scalars['String']['output']>;
+  providerProfileConfigPath: Maybe<Scalars['String']['output']>;
+  providerProfileId: Maybe<Scalars['String']['output']>;
+  providerProfileSource: Maybe<Scalars['String']['output']>;
+  providerSource: Maybe<Scalars['String']['output']>;
+  providerType: Maybe<Scalars['String']['output']>;
+  requestLayer: Maybe<Scalars['String']['output']>;
+  requestedDimensions: Maybe<Scalars['SafeInt']['output']>;
   routeIndex: Scalars['SafeInt']['output'];
+  routeModelAliasMatched: Maybe<Scalars['Boolean']['output']>;
+  routeModelDefinitionAliases: Maybe<Array<Scalars['String']['output']>>;
+  routeModelDefinitionId: Maybe<Scalars['String']['output']>;
+  routeModelDefinitionSource: Maybe<Scalars['String']['output']>;
+  routeRawModelId: Maybe<Scalars['String']['output']>;
 }
 
 export interface CopilotActionRunPreparedRouteDiagnosticsStepType {
@@ -834,8 +898,8 @@ export interface CopilotActionRunPreparedRouteDiagnosticsStepType {
   actualRouteCount: Scalars['SafeInt']['output'];
   fallbackProviderIds: Array<Scalars['String']['output']>;
   kind: Scalars['String']['output'];
-  requestedModelId?: Maybe<Scalars['String']['output']>;
-  requestedModelSource?: Maybe<Scalars['String']['output']>;
+  requestedModelId: Maybe<Scalars['String']['output']>;
+  requestedModelSource: Maybe<Scalars['String']['output']>;
   routeCount: Scalars['SafeInt']['output'];
   routeCountMismatch: Scalars['Boolean']['output'];
   routes: Array<CopilotActionRunPreparedRouteDiagnosticsRouteType>;
@@ -849,18 +913,116 @@ export interface CopilotActionRunPreparedRouteDiagnosticsType {
   type: Scalars['String']['output'];
 }
 
-export interface CopilotSessionArgs {
-  sessionId: Scalars['String']['input'];
+export interface CopilotAgentRunType {
+  __typename?: 'CopilotAgentRunType';
+  actorId: Scalars['String']['output'];
+  completedAt: Maybe<Scalars['DateTime']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  evidenceFingerprint: Scalars['String']['output'];
+  executionResultCount: Scalars['SafeInt']['output'];
+  executionResults: Array<CopilotAgentRuntimeExecutionResultType>;
+  failureCode: Maybe<Scalars['String']['output']>;
+  failureMessage: Maybe<Scalars['String']['output']>;
+  id: Scalars['String']['output'];
+  lastAttemptAt: Maybe<Scalars['DateTime']['output']>;
+  queuedAt: Maybe<Scalars['DateTime']['output']>;
+  sourceId: Scalars['String']['output'];
+  sourceType: Scalars['String']['output'];
+  startedAt: Maybe<Scalars['DateTime']['output']>;
+  status: Scalars['String']['output'];
+  steps: Array<CopilotAgentStepType>;
+  targetFingerprint: Scalars['String']['output'];
+  timelineEvents: Array<CopilotAgentTimelineEventType>;
+  timelineFingerprint: Scalars['String']['output'];
+  title: Maybe<Scalars['String']['output']>;
+  updatedAt: Scalars['DateTime']['output'];
+  workerAttempt: Scalars['SafeInt']['output'];
+  workerLeaseExpiresAt: Maybe<Scalars['DateTime']['output']>;
+  workerLeaseId: Maybe<Scalars['String']['output']>;
+  workerMaxAttempts: Scalars['SafeInt']['output'];
+  workflow: Scalars['String']['output'];
+  workspaceId: Scalars['String']['output'];
 }
 
-export interface CopilotSessionsArgs {
-  docId?: InputMaybe<Scalars['String']['input']>;
-  options?: InputMaybe<QueryChatSessionsInput>;
+export interface CopilotAgentRuntimeControlInput {
+  action: Scalars['String']['input'];
+  reason?: InputMaybe<Scalars['String']['input']>;
+  runId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
 }
 
-export interface CopilotTranscriptTaskArgs {
-  blobId?: InputMaybe<Scalars['String']['input']>;
-  taskId?: InputMaybe<Scalars['String']['input']>;
+export interface CopilotAgentRuntimeExecutionResultType {
+  __typename?: 'CopilotAgentRuntimeExecutionResultType';
+  actorId: Scalars['String']['output'];
+  adapterWorkflow: Scalars['String']['output'];
+  completedAt: Scalars['DateTime']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  executor: Scalars['String']['output'];
+  failureCode: Maybe<Scalars['String']['output']>;
+  failureMessage: Maybe<Scalars['String']['output']>;
+  id: Scalars['String']['output'];
+  resultFingerprint: Scalars['String']['output'];
+  resultPayload: Scalars['JSON']['output'];
+  resultStatus: Scalars['String']['output'];
+  runId: Scalars['String']['output'];
+  sideEffectMode: Scalars['String']['output'];
+  sideEffectsApplied: Scalars['Boolean']['output'];
+  sourceId: Scalars['String']['output'];
+  sourceType: Scalars['String']['output'];
+  summary: Scalars['String']['output'];
+  workerAttempt: Scalars['SafeInt']['output'];
+  workerLeaseId: Scalars['String']['output'];
+  workflow: Scalars['String']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface CopilotAgentRuntimeWorkflowAdapterCapabilitiesType {
+  __typename?: 'CopilotAgentRuntimeWorkflowAdapterCapabilitiesType';
+  sideEffectMode: Scalars['String']['output'];
+  summary: Scalars['String']['output'];
+  supportedStepTypes: Array<Scalars['String']['output']>;
+  version: Scalars['String']['output'];
+}
+
+export interface CopilotAgentRuntimeWorkflowAdapterType {
+  __typename?: 'CopilotAgentRuntimeWorkflowAdapterType';
+  capabilities: CopilotAgentRuntimeWorkflowAdapterCapabilitiesType;
+  workflow: Scalars['String']['output'];
+}
+
+export interface CopilotAgentStepType {
+  __typename?: 'CopilotAgentStepType';
+  actorId: Scalars['String']['output'];
+  completedAt: Maybe<Scalars['DateTime']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  evidenceFingerprint: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  order: Scalars['SafeInt']['output'];
+  outputSummary: Scalars['JSON']['output'];
+  runId: Scalars['String']['output'];
+  startedAt: Maybe<Scalars['DateTime']['output']>;
+  status: Scalars['String']['output'];
+  stepKey: Scalars['String']['output'];
+  stepType: Scalars['String']['output'];
+  title: Maybe<Scalars['String']['output']>;
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface CopilotAgentTimelineEventType {
+  __typename?: 'CopilotAgentTimelineEventType';
+  actorId: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  eventFingerprint: Scalars['String']['output'];
+  eventType: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  ordinal: Scalars['SafeInt']['output'];
+  payload: Scalars['JSON']['output'];
+  runId: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  stepId: Maybe<Scalars['String']['output']>;
+  summary: Scalars['String']['output'];
+  workspaceId: Scalars['String']['output'];
 }
 
 export interface CopilotContext {
@@ -1009,136 +1171,204 @@ export interface CopilotMessageNotFoundDataType {
   messageId: Scalars['String']['output'];
 }
 
+export interface CopilotModelPromptSourceType {
+  __typename?: 'CopilotModelPromptSourceType';
+  candidateSource: Scalars['String']['output'];
+  modelConfigPath: Maybe<Scalars['String']['output']>;
+  modelSource: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotModelRegistrySourceChainEntryType {
+  __typename?: 'CopilotModelRegistrySourceChainEntryType';
+  actorId: Maybe<Scalars['String']['output']>;
+  fingerprint: Maybe<Scalars['String']['output']>;
+  modelId: Maybe<Scalars['String']['output']>;
+  providerId: Maybe<Scalars['String']['output']>;
+  revision: Maybe<Scalars['String']['output']>;
+  scope: Scalars['String']['output'];
+  source: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  updatedAt: Maybe<Scalars['String']['output']>;
+  workspaceId: Maybe<Scalars['String']['output']>;
+}
+
 export interface CopilotModelType {
   __typename?: 'CopilotModelType';
-  contextWindow?: Maybe<Scalars['SafeInt']['output']>;
-  costInputPer1M?: Maybe<Scalars['Float']['output']>;
-  costOutputPer1M?: Maybe<Scalars['Float']['output']>;
-  embeddingDimensions?: Maybe<Scalars['SafeInt']['output']>;
+  contextWindow: Maybe<Scalars['SafeInt']['output']>;
+  costInputPer1M: Maybe<Scalars['Int']['output']>;
+  costOutputPer1M: Maybe<Scalars['Int']['output']>;
+  effectiveSourceFingerprint: Maybe<Scalars['String']['output']>;
+  effectiveSourceFingerprintInputs: Maybe<Array<Scalars['String']['output']>>;
+  effectiveSourceFingerprintVersion: Maybe<Scalars['String']['output']>;
+  embeddingDimensions: Maybe<Scalars['SafeInt']['output']>;
   id: Scalars['String']['output'];
-  maxOutputTokens?: Maybe<Scalars['SafeInt']['output']>;
+  maxOutputTokens: Maybe<Scalars['SafeInt']['output']>;
+  modelRegistryRevision: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionActorId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionFingerprint: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionScope: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionSourceChain: Maybe<
+    Array<CopilotModelRegistrySourceChainEntryType>
+  >;
+  modelRegistryRevisionSourceChainFingerprint: Maybe<
+    Scalars['String']['output']
+  >;
+  modelRegistryRevisionStatus: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionWorkspaceId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionPublishEventCount: Maybe<Scalars['SafeInt']['output']>;
+  modelRegistryRevisionPublishEvents: Maybe<
+    Array<CopilotRegistryRevisionPublishEventType>
+  >;
   name: Scalars['String']['output'];
-  promptAction?: Maybe<Scalars['String']['output']>;
+  promptAction: Maybe<Scalars['String']['output']>;
   promptCategory: Scalars['String']['output'];
-  promptDefaultPolicy?: Maybe<Scalars['String']['output']>;
-  promptModelConfigPath?: Maybe<Scalars['String']['output']>;
-  promptModelSource?: Maybe<Scalars['String']['output']>;
+  promptDefaultPolicy: Maybe<Scalars['String']['output']>;
+  promptModelConfigPath: Maybe<Scalars['String']['output']>;
+  promptModelSource: Maybe<Scalars['String']['output']>;
   promptModelSources: Array<CopilotModelPromptSourceType>;
   promptName: Scalars['String']['output'];
   promptOverrideApplied: Scalars['Boolean']['output'];
   promptSource: Scalars['String']['output'];
-  providerHealth?: Maybe<Scalars['String']['output']>;
-  providerHealthCheckedAt?: Maybe<Scalars['String']['output']>;
-  providerHealthLastError?: Maybe<Scalars['String']['output']>;
-  providerId?: Maybe<Scalars['String']['output']>;
-  providerName?: Maybe<Scalars['String']['output']>;
-  providerConfiguredModelCount?: Maybe<Scalars['SafeInt']['output']>;
-  providerConfiguredModelIds?: Maybe<Array<Scalars['String']['output']>>;
-  providerProfileConfigPath?: Maybe<Scalars['String']['output']>;
-  providerProfileId?: Maybe<Scalars['String']['output']>;
-  providerProfileSource?: Maybe<Scalars['String']['output']>;
-  providerSource?: Maybe<Scalars['String']['output']>;
-  providerPrivacy?: Maybe<Scalars['String']['output']>;
-  providerPriority?: Maybe<Scalars['SafeInt']['output']>;
-  providerType?: Maybe<Scalars['String']['output']>;
-  registryAvailable?: Maybe<Scalars['Boolean']['output']>;
-  registryKind?: Maybe<Scalars['String']['output']>;
-  registrySelected?: Maybe<Scalars['Boolean']['output']>;
-  effectiveSourceFingerprint?: Maybe<Scalars['String']['output']>;
-  effectiveSourceFingerprintInputs?: Maybe<Array<Scalars['String']['output']>>;
-  effectiveSourceFingerprintVersion?: Maybe<Scalars['String']['output']>;
-  routeBackendKind?: Maybe<Scalars['String']['output']>;
-  routeBehaviorFlags?: Maybe<Array<Scalars['String']['output']>>;
-  routeCanonicalModelKey?: Maybe<Scalars['String']['output']>;
-  routeFallbackProviderIds?: Maybe<Array<Scalars['String']['output']>>;
-  routeAttachmentAllowRemoteUrls?: Maybe<Scalars['Boolean']['output']>;
-  routeAttachmentKinds?: Maybe<Array<Scalars['String']['output']>>;
-  routeAttachmentSourceKinds?: Maybe<Array<Scalars['String']['output']>>;
-  routeInputTypes?: Maybe<Array<Scalars['String']['output']>>;
-  routeModelAliasMatched?: Maybe<Scalars['Boolean']['output']>;
-  routeModelDefinitionAliases?: Maybe<Array<Scalars['String']['output']>>;
-  routeModelDefinitionId?: Maybe<Scalars['String']['output']>;
-  routeModelDefinitionSource?: Maybe<Scalars['String']['output']>;
-  routeModelId?: Maybe<Scalars['String']['output']>;
-  routeOutputTypes?: Maybe<Array<Scalars['String']['output']>>;
-  routeStructuredAttachmentAllowRemoteUrls?: Maybe<
-    Scalars['Boolean']['output']
-  >;
-  routeStructuredAttachmentKinds?: Maybe<Array<Scalars['String']['output']>>;
-  routeStructuredAttachmentSourceKinds?: Maybe<
+  providerConfiguredModelCount: Maybe<Scalars['SafeInt']['output']>;
+  providerConfiguredModelIds: Maybe<Array<Scalars['String']['output']>>;
+  providerHealth: Maybe<Scalars['String']['output']>;
+  providerHealthCheckedAt: Maybe<Scalars['String']['output']>;
+  providerHealthLastError: Maybe<Scalars['String']['output']>;
+  providerId: Maybe<Scalars['String']['output']>;
+  providerName: Maybe<Scalars['String']['output']>;
+  providerPriority: Maybe<Scalars['SafeInt']['output']>;
+  providerPrivacy: Maybe<Scalars['String']['output']>;
+  providerProfileConfigPath: Maybe<Scalars['String']['output']>;
+  providerProfileId: Maybe<Scalars['String']['output']>;
+  providerProfileSource: Maybe<Scalars['String']['output']>;
+  providerSource: Maybe<Scalars['String']['output']>;
+  providerType: Maybe<Scalars['String']['output']>;
+  registryAvailable: Maybe<Scalars['Boolean']['output']>;
+  registryKind: Maybe<Scalars['String']['output']>;
+  registrySelected: Maybe<Scalars['Boolean']['output']>;
+  routeAttachmentAllowRemoteUrls: Maybe<Scalars['Boolean']['output']>;
+  routeAttachmentKinds: Maybe<Array<Scalars['String']['output']>>;
+  routeAttachmentSourceKinds: Maybe<Array<Scalars['String']['output']>>;
+  routeBackendKind: Maybe<Scalars['String']['output']>;
+  routeBehaviorFlags: Maybe<Array<Scalars['String']['output']>>;
+  routeCanonicalModelKey: Maybe<Scalars['String']['output']>;
+  routeFallbackProviderIds: Maybe<Array<Scalars['String']['output']>>;
+  routeInputTypes: Maybe<Array<Scalars['String']['output']>>;
+  routeModelAliasMatched: Maybe<Scalars['Boolean']['output']>;
+  routeModelDefinitionAliases: Maybe<Array<Scalars['String']['output']>>;
+  routeModelDefinitionId: Maybe<Scalars['String']['output']>;
+  routeModelDefinitionSource: Maybe<Scalars['String']['output']>;
+  routeModelId: Maybe<Scalars['String']['output']>;
+  routeOutputTypes: Maybe<Array<Scalars['String']['output']>>;
+  routePolicyAllowedPrivacy: Maybe<Array<Scalars['String']['output']>>;
+  routePolicyAllowedProviderIds: Maybe<Array<Scalars['String']['output']>>;
+  routePolicyBlockedProviderIds: Maybe<Array<Scalars['String']['output']>>;
+  routePolicyEnabled: Scalars['Boolean']['output'];
+  routePolicyFeatureKind: Maybe<Scalars['String']['output']>;
+  routePolicyPreferredPrivacy: Maybe<Array<Scalars['String']['output']>>;
+  routePolicyWorkspaceId: Maybe<Scalars['String']['output']>;
+  routeProtocol: Maybe<Scalars['String']['output']>;
+  routeRawModelId: Maybe<Scalars['String']['output']>;
+  routeRequestLayer: Maybe<Scalars['String']['output']>;
+  routeStructuredAttachmentAllowRemoteUrls: Maybe<Scalars['Boolean']['output']>;
+  routeStructuredAttachmentKinds: Maybe<Array<Scalars['String']['output']>>;
+  routeStructuredAttachmentSourceKinds: Maybe<
     Array<Scalars['String']['output']>
   >;
-  routeProtocol?: Maybe<Scalars['String']['output']>;
-  routeRawModelId?: Maybe<Scalars['String']['output']>;
-  routeRequestLayer?: Maybe<Scalars['String']['output']>;
-  routePolicyAllowedPrivacy?: Maybe<Array<Scalars['String']['output']>>;
-  routePolicyAllowedProviderIds?: Maybe<Array<Scalars['String']['output']>>;
-  routePolicyBlockedProviderIds?: Maybe<Array<Scalars['String']['output']>>;
-  routePolicyEnabled: Scalars['Boolean']['output'];
-  routePolicyFeatureKind?: Maybe<Scalars['String']['output']>;
-  routePolicyPreferredPrivacy?: Maybe<Array<Scalars['String']['output']>>;
-  routePolicyWorkspaceId?: Maybe<Scalars['String']['output']>;
   sources: Array<Scalars['String']['output']>;
-}
-
-export interface CopilotModelPromptSourceType {
-  __typename?: 'CopilotModelPromptSourceType';
-  candidateSource: Scalars['String']['output'];
-  modelConfigPath?: Maybe<Scalars['String']['output']>;
-  modelSource?: Maybe<Scalars['String']['output']>;
 }
 
 export interface CopilotModelsType {
   __typename?: 'CopilotModelsType';
-  defaultModelFallbackReason?: Maybe<Scalars['String']['output']>;
   defaultModel: Scalars['String']['output'];
+  defaultModelFallbackReason: Maybe<Scalars['String']['output']>;
   defaultModelSource: Scalars['String']['output'];
-  embeddingRoute?: Maybe<CopilotTaskRouteDiagnosticsType>;
+  embeddingRoute: Maybe<CopilotTaskRouteDiagnosticsType>;
   optionalModels: Array<CopilotModelType>;
-  promptDefaultModel: Scalars['String']['output'];
   proModels: Array<CopilotModelType>;
-  rerankRoute?: Maybe<CopilotTaskRouteDiagnosticsType>;
+  promptDefaultModel: Scalars['String']['output'];
+  rerankRoute: Maybe<CopilotTaskRouteDiagnosticsType>;
+}
+
+export interface CopilotPreparedTaskRouteDiagnosticsType {
+  __typename?: 'CopilotPreparedTaskRouteDiagnosticsType';
+  behaviorFlags: Maybe<Array<Scalars['String']['output']>>;
+  canonicalModelKey: Maybe<Scalars['String']['output']>;
+  dimensionMismatch: Maybe<Scalars['Boolean']['output']>;
+  fallbackOrderIndex: Maybe<Scalars['SafeInt']['output']>;
+  modelBackendKind: Maybe<Scalars['String']['output']>;
+  modelEmbeddingDimensions: Maybe<Scalars['SafeInt']['output']>;
+  modelId: Scalars['String']['output'];
+  protocol: Maybe<Scalars['String']['output']>;
+  providerConfiguredModelCount: Maybe<Scalars['SafeInt']['output']>;
+  providerConfiguredModelIds: Maybe<Array<Scalars['String']['output']>>;
+  providerId: Scalars['String']['output'];
+  providerName: Maybe<Scalars['String']['output']>;
+  providerPriority: Maybe<Scalars['SafeInt']['output']>;
+  providerProfileConfigPath: Maybe<Scalars['String']['output']>;
+  providerProfileId: Maybe<Scalars['String']['output']>;
+  providerProfileSource: Maybe<Scalars['String']['output']>;
+  providerSource: Maybe<Scalars['String']['output']>;
+  providerType: Maybe<Scalars['String']['output']>;
+  requestLayer: Maybe<Scalars['String']['output']>;
+  requestedDimensions: Maybe<Scalars['SafeInt']['output']>;
+  routeIndex: Scalars['SafeInt']['output'];
 }
 
 export interface CopilotPromptCatalogItemType {
   __typename?: 'CopilotPromptCatalogItemType';
-  action?: Maybe<Scalars['String']['output']>;
+  action: Maybe<Scalars['String']['output']>;
   category: Scalars['String']['output'];
-  defaultPolicy?: Maybe<Scalars['String']['output']>;
+  defaultPolicy: Maybe<Scalars['String']['output']>;
   fingerprint: Scalars['String']['output'];
-  modelStrategyFingerprint: Scalars['String']['output'];
-  modelConfigPath?: Maybe<Scalars['String']['output']>;
   model: Scalars['String']['output'];
+  modelConfigPath: Maybe<Scalars['String']['output']>;
   modelSource: Scalars['String']['output'];
+  modelStrategyFingerprint: Scalars['String']['output'];
   name: Scalars['String']['output'];
-  optionalModelsConfigPath?: Maybe<Scalars['String']['output']>;
   optionalModelCount: Scalars['SafeInt']['output'];
   optionalModels: Array<Scalars['String']['output']>;
+  optionalModelsConfigPath: Maybe<Scalars['String']['output']>;
   optionalModelsSource: Scalars['String']['output'];
   overrideApplied: Scalars['Boolean']['output'];
   paramCount: Scalars['SafeInt']['output'];
   paramKeys: Array<Scalars['String']['output']>;
-  proModelsConfigPath?: Maybe<Scalars['String']['output']>;
   proModelCount: Scalars['SafeInt']['output'];
+  proModelsConfigPath: Maybe<Scalars['String']['output']>;
   proModelsSource: Scalars['String']['output'];
-  registryFingerprint?: Maybe<Scalars['String']['output']>;
-  registryId?: Maybe<Scalars['SafeInt']['output']>;
-  registryMessageCount?: Maybe<Scalars['SafeInt']['output']>;
-  registryModified?: Maybe<Scalars['Boolean']['output']>;
-  registryUpdatedAt?: Maybe<Scalars['DateTime']['output']>;
-  registryValidationBlockingCount?: Maybe<Scalars['SafeInt']['output']>;
-  registryValidationDetail?: Maybe<Scalars['String']['output']>;
-  registryValidationErrorCount?: Maybe<Scalars['SafeInt']['output']>;
-  registryValidationIssueCount?: Maybe<Scalars['SafeInt']['output']>;
-  registryValidationIssues?: Maybe<
+  registryFingerprint: Maybe<Scalars['String']['output']>;
+  registryId: Maybe<Scalars['SafeInt']['output']>;
+  registryMessageCount: Maybe<Scalars['SafeInt']['output']>;
+  registryModified: Maybe<Scalars['Boolean']['output']>;
+  registryRecordSource: Maybe<Scalars['String']['output']>;
+  registryRevision: Maybe<Scalars['String']['output']>;
+  registryRevisionActorId: Maybe<Scalars['String']['output']>;
+  registryRevisionFingerprint: Maybe<Scalars['String']['output']>;
+  registryRevisionId: Maybe<Scalars['String']['output']>;
+  registryRevisionPublishEventCount: Maybe<Scalars['SafeInt']['output']>;
+  registryRevisionPublishEvents: Maybe<
+    Array<CopilotRegistryRevisionPublishEventType>
+  >;
+  registryRevisionScope: Maybe<Scalars['String']['output']>;
+  registryRevisionStatus: Maybe<Scalars['String']['output']>;
+  registryRevisionWorkspaceId: Maybe<Scalars['String']['output']>;
+  registrySourceChain: Maybe<Array<CopilotPromptRegistrySourceChainEntryType>>;
+  registrySourceChainFingerprint: Maybe<Scalars['String']['output']>;
+  registryUpdatedAt: Maybe<Scalars['DateTime']['output']>;
+  registryValidationBlockingCount: Maybe<Scalars['SafeInt']['output']>;
+  registryValidationDetail: Maybe<Scalars['String']['output']>;
+  registryValidationErrorCount: Maybe<Scalars['SafeInt']['output']>;
+  registryValidationIssueCount: Maybe<Scalars['SafeInt']['output']>;
+  registryValidationIssues: Maybe<
     Array<CopilotPromptRegistryValidationIssueType>
   >;
-  registryValidationPublishStatus?: Maybe<Scalars['String']['output']>;
-  registryValidationRemediations?: Maybe<
+  registryValidationPublishStatus: Maybe<Scalars['String']['output']>;
+  registryValidationReason: Maybe<Scalars['String']['output']>;
+  registryValidationRemediations: Maybe<
     Array<CopilotPromptRegistryValidationRemediationType>
   >;
-  registryValidationReason?: Maybe<Scalars['String']['output']>;
-  registryValidationStatus?: Maybe<Scalars['String']['output']>;
+  registryValidationStatus: Maybe<Scalars['String']['output']>;
   revision: Scalars['String']['output'];
   source: Scalars['String']['output'];
   templateFingerprint: Scalars['String']['output'];
@@ -1147,48 +1377,111 @@ export interface CopilotPromptCatalogItemType {
 
 export interface CopilotPromptCatalogVersionEvidenceType {
   __typename?: 'CopilotPromptCatalogVersionEvidenceType';
-  defaultPolicy?: Maybe<Scalars['String']['output']>;
+  defaultPolicy: Maybe<Scalars['String']['output']>;
   fingerprint: Scalars['String']['output'];
-  modelConfigPath?: Maybe<Scalars['String']['output']>;
+  modelConfigPath: Maybe<Scalars['String']['output']>;
   modelStrategyFingerprint: Scalars['String']['output'];
-  optionalModelsConfigPath?: Maybe<Scalars['String']['output']>;
+  optionalModelsConfigPath: Maybe<Scalars['String']['output']>;
   overrideApplied: Scalars['Boolean']['output'];
-  proModelsConfigPath?: Maybe<Scalars['String']['output']>;
-  registryFingerprint?: Maybe<Scalars['String']['output']>;
-  registryId?: Maybe<Scalars['SafeInt']['output']>;
-  registryMessageCount?: Maybe<Scalars['SafeInt']['output']>;
-  registryModified?: Maybe<Scalars['Boolean']['output']>;
-  registryUpdatedAt?: Maybe<Scalars['DateTime']['output']>;
-  registryValidationBlockingCount?: Maybe<Scalars['SafeInt']['output']>;
-  registryValidationDetail?: Maybe<Scalars['String']['output']>;
-  registryValidationErrorCount?: Maybe<Scalars['SafeInt']['output']>;
-  registryValidationIssueCount?: Maybe<Scalars['SafeInt']['output']>;
-  registryValidationIssues?: Maybe<
+  proModelsConfigPath: Maybe<Scalars['String']['output']>;
+  registryFingerprint: Maybe<Scalars['String']['output']>;
+  registryId: Maybe<Scalars['SafeInt']['output']>;
+  registryMessageCount: Maybe<Scalars['SafeInt']['output']>;
+  registryModified: Maybe<Scalars['Boolean']['output']>;
+  registryRecordSource: Maybe<Scalars['String']['output']>;
+  registryRevision: Maybe<Scalars['String']['output']>;
+  registryRevisionActorId: Maybe<Scalars['String']['output']>;
+  registryRevisionFingerprint: Maybe<Scalars['String']['output']>;
+  registryRevisionId: Maybe<Scalars['String']['output']>;
+  registryRevisionPublishEventCount: Maybe<Scalars['SafeInt']['output']>;
+  registryRevisionPublishEvents: Maybe<
+    Array<CopilotRegistryRevisionPublishEventType>
+  >;
+  registryRevisionScope: Maybe<Scalars['String']['output']>;
+  registryRevisionStatus: Maybe<Scalars['String']['output']>;
+  registryRevisionWorkspaceId: Maybe<Scalars['String']['output']>;
+  registrySourceChain: Maybe<Array<CopilotPromptRegistrySourceChainEntryType>>;
+  registrySourceChainFingerprint: Maybe<Scalars['String']['output']>;
+  registryUpdatedAt: Maybe<Scalars['DateTime']['output']>;
+  registryValidationBlockingCount: Maybe<Scalars['SafeInt']['output']>;
+  registryValidationDetail: Maybe<Scalars['String']['output']>;
+  registryValidationErrorCount: Maybe<Scalars['SafeInt']['output']>;
+  registryValidationIssueCount: Maybe<Scalars['SafeInt']['output']>;
+  registryValidationIssues: Maybe<
     Array<CopilotPromptRegistryValidationIssueType>
   >;
-  registryValidationPublishStatus?: Maybe<Scalars['String']['output']>;
-  registryValidationRemediations?: Maybe<
+  registryValidationPublishStatus: Maybe<Scalars['String']['output']>;
+  registryValidationReason: Maybe<Scalars['String']['output']>;
+  registryValidationRemediations: Maybe<
     Array<CopilotPromptRegistryValidationRemediationType>
   >;
-  registryValidationReason?: Maybe<Scalars['String']['output']>;
-  registryValidationStatus?: Maybe<Scalars['String']['output']>;
+  registryValidationStatus: Maybe<Scalars['String']['output']>;
   revision: Scalars['String']['output'];
   templateFingerprint: Scalars['String']['output'];
 }
 
-export interface CopilotPromptRegistryValidationIssueType {
-  __typename?: 'CopilotPromptRegistryValidationIssueType';
-  code: Scalars['String']['output'];
-  detail: Scalars['String']['output'];
-  fieldLabel: Scalars['String']['output'];
-  message?: Maybe<Scalars['String']['output']>;
-  messageIndex?: Maybe<Scalars['SafeInt']['output']>;
-  path: Scalars['String']['output'];
-  publishBlocking: Scalars['Boolean']['output'];
-  reason: Scalars['String']['output'];
-  severity: Scalars['String']['output'];
-  source: Scalars['String']['output'];
-  sourceLocator: CopilotPromptRegistryValidationSourceLocatorType;
+export interface CopilotPromptNotFoundDataType {
+  __typename?: 'CopilotPromptNotFoundDataType';
+  name: Scalars['String']['output'];
+}
+
+export interface CopilotPromptRegistryPublishGateActionRouteDryRunRouteType {
+  __typename?: 'CopilotPromptRegistryPublishGateActionRouteDryRunRouteType';
+  fallbackOrderIndex: Maybe<Scalars['SafeInt']['output']>;
+  modelId: Scalars['String']['output'];
+  protocol: Maybe<Scalars['String']['output']>;
+  providerConfiguredModelCount: Maybe<Scalars['SafeInt']['output']>;
+  providerConfiguredModelIds: Maybe<Array<Scalars['String']['output']>>;
+  providerHealth: Maybe<Scalars['String']['output']>;
+  providerHealthCheckedAt: Maybe<Scalars['String']['output']>;
+  providerHealthLastError: Maybe<Scalars['String']['output']>;
+  providerId: Scalars['String']['output'];
+  providerName: Maybe<Scalars['String']['output']>;
+  providerPriority: Maybe<Scalars['SafeInt']['output']>;
+  providerPrivacy: Maybe<Scalars['String']['output']>;
+  providerProfileConfigPath: Maybe<Scalars['String']['output']>;
+  providerProfileId: Maybe<Scalars['String']['output']>;
+  providerProfileSource: Maybe<Scalars['String']['output']>;
+  providerSource: Maybe<Scalars['String']['output']>;
+  providerType: Maybe<Scalars['String']['output']>;
+  requestLayer: Maybe<Scalars['String']['output']>;
+  routeIndex: Scalars['SafeInt']['output'];
+  routeModelAliasMatched: Maybe<Scalars['Boolean']['output']>;
+  routeModelDefinitionAliases: Maybe<Array<Scalars['String']['output']>>;
+  routeModelDefinitionId: Maybe<Scalars['String']['output']>;
+  routeModelDefinitionSource: Maybe<Scalars['String']['output']>;
+  routeRawModelId: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotPromptRegistryPublishGateActionRouteDryRunStepType {
+  __typename?: 'CopilotPromptRegistryPublishGateActionRouteDryRunStepType';
+  actualRouteCount: Scalars['SafeInt']['output'];
+  fallbackProviderIds: Array<Scalars['String']['output']>;
+  kind: Scalars['String']['output'];
+  requestedModelId: Maybe<Scalars['String']['output']>;
+  requestedModelSource: Maybe<Scalars['String']['output']>;
+  routeCount: Scalars['SafeInt']['output'];
+  routeCountMismatch: Scalars['Boolean']['output'];
+  routes: Array<CopilotPromptRegistryPublishGateActionRouteDryRunRouteType>;
+  stepId: Scalars['String']['output'];
+}
+
+export interface CopilotPromptRegistryPublishGateActionRouteDryRunType {
+  __typename?: 'CopilotPromptRegistryPublishGateActionRouteDryRunType';
+  actionId: Maybe<Scalars['String']['output']>;
+  actualRouteCount: Scalars['SafeInt']['output'];
+  diagnosticsErrorCode: Maybe<Scalars['String']['output']>;
+  diagnosticsErrorMessage: Maybe<Scalars['String']['output']>;
+  diagnosticsErrorStage: Maybe<Scalars['String']['output']>;
+  errorCode: Maybe<Scalars['String']['output']>;
+  errorMessage: Maybe<Scalars['String']['output']>;
+  expectedRouteCount: Scalars['SafeInt']['output'];
+  featureKind: Scalars['String']['output'];
+  missingRouteCount: Scalars['SafeInt']['output'];
+  routeCountMismatch: Scalars['Boolean']['output'];
+  routeCountMismatchStepIds: Array<Scalars['String']['output']>;
+  status: Scalars['String']['output'];
+  steps: Array<CopilotPromptRegistryPublishGateActionRouteDryRunStepType>;
 }
 
 export interface CopilotPromptRegistryPublishGateExpectedVersionInput {
@@ -1197,47 +1490,654 @@ export interface CopilotPromptRegistryPublishGateExpectedVersionInput {
   registryUpdatedAt?: InputMaybe<Scalars['String']['input']>;
 }
 
+export interface CopilotPromptRegistryPublishGateModelRouteType {
+  __typename?: 'CopilotPromptRegistryPublishGateModelRouteType';
+  available: Scalars['Boolean']['output'];
+  behaviorFlags: Maybe<Array<Scalars['String']['output']>>;
+  candidateConfigPath: Maybe<Scalars['String']['output']>;
+  candidateCount: Scalars['SafeInt']['output'];
+  candidateIndex: Scalars['SafeInt']['output'];
+  candidateKind: Scalars['String']['output'];
+  canonicalModelKey: Maybe<Scalars['String']['output']>;
+  checked: Scalars['Boolean']['output'];
+  configured: Scalars['Boolean']['output'];
+  diagnosticsErrorCode: Maybe<Scalars['String']['output']>;
+  diagnosticsErrorMessage: Maybe<Scalars['String']['output']>;
+  diagnosticsErrorStage: Maybe<Scalars['String']['output']>;
+  effectiveSourceFingerprint: Maybe<Scalars['String']['output']>;
+  effectiveSourceFingerprintInputs: Maybe<Array<Scalars['String']['output']>>;
+  effectiveSourceFingerprintVersion: Maybe<Scalars['String']['output']>;
+  fallbackProviderIds: Array<Scalars['String']['output']>;
+  featureKind: Scalars['String']['output'];
+  matchedCandidateCount: Scalars['SafeInt']['output'];
+  modelBackendKind: Maybe<Scalars['String']['output']>;
+  modelId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevision: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionActorId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionFingerprint: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionScope: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionSourceChain: Maybe<
+    Array<CopilotModelRegistrySourceChainEntryType>
+  >;
+  modelRegistryRevisionSourceChainFingerprint: Maybe<
+    Scalars['String']['output']
+  >;
+  modelRegistryRevisionStatus: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionWorkspaceId: Maybe<Scalars['String']['output']>;
+  outputType: Scalars['String']['output'];
+  policyAllowedPrivacy: Maybe<Array<Scalars['String']['output']>>;
+  policyAllowedProviderIds: Maybe<Array<Scalars['String']['output']>>;
+  policyBlockedProviderIds: Maybe<Array<Scalars['String']['output']>>;
+  policyCandidates: Array<CopilotPromptRegistryPublishGatePolicyCandidateType>;
+  policyEnabled: Scalars['Boolean']['output'];
+  policyFeatureKind: Maybe<Scalars['String']['output']>;
+  policyPreferredPrivacy: Maybe<Array<Scalars['String']['output']>>;
+  policyWorkspaceId: Maybe<Scalars['String']['output']>;
+  protocol: Maybe<Scalars['String']['output']>;
+  providerConfiguredModelCount: Maybe<Scalars['SafeInt']['output']>;
+  providerConfiguredModelIds: Maybe<Array<Scalars['String']['output']>>;
+  providerHealth: Maybe<Scalars['String']['output']>;
+  providerHealthCheckedAt: Maybe<Scalars['String']['output']>;
+  providerHealthLastError: Maybe<Scalars['String']['output']>;
+  providerId: Maybe<Scalars['String']['output']>;
+  providerName: Maybe<Scalars['String']['output']>;
+  providerPriority: Maybe<Scalars['SafeInt']['output']>;
+  providerPrivacy: Maybe<Scalars['String']['output']>;
+  providerProfileConfigPath: Maybe<Scalars['String']['output']>;
+  providerProfileId: Maybe<Scalars['String']['output']>;
+  providerProfileSource: Maybe<Scalars['String']['output']>;
+  providerSource: Maybe<Scalars['String']['output']>;
+  providerType: Maybe<Scalars['String']['output']>;
+  reasons: Array<Scalars['String']['output']>;
+  requestLayer: Maybe<Scalars['String']['output']>;
+  requestedModelId: Maybe<Scalars['String']['output']>;
+  requestedModelSource: Maybe<Scalars['String']['output']>;
+  routeCandidates: Array<CopilotPromptRegistryPublishGateRouteCandidateType>;
+  routeModelAliasMatched: Maybe<Scalars['Boolean']['output']>;
+  routeModelDefinitionAliases: Maybe<Array<Scalars['String']['output']>>;
+  routeModelDefinitionId: Maybe<Scalars['String']['output']>;
+  routeModelDefinitionSource: Maybe<Scalars['String']['output']>;
+  routeRawModelId: Maybe<Scalars['String']['output']>;
+  routeTrace: Array<CopilotPromptRegistryPublishGateRouteTracePhaseType>;
+}
+
+export interface CopilotPromptRegistryPublishGatePolicyCandidateType {
+  __typename?: 'CopilotPromptRegistryPublishGatePolicyCandidateType';
+  allowed: Scalars['Boolean']['output'];
+  available: Scalars['Boolean']['output'];
+  candidateFingerprint: Scalars['String']['output'];
+  candidateKey: Scalars['String']['output'];
+  health: Scalars['String']['output'];
+  healthCheckedAt: Maybe<Scalars['String']['output']>;
+  privacy: Scalars['String']['output'];
+  providerConfiguredModelCount: Maybe<Scalars['SafeInt']['output']>;
+  providerConfiguredModelIds: Maybe<Array<Scalars['String']['output']>>;
+  providerId: Scalars['String']['output'];
+  providerName: Maybe<Scalars['String']['output']>;
+  providerPriority: Maybe<Scalars['SafeInt']['output']>;
+  providerProfileConfigPath: Maybe<Scalars['String']['output']>;
+  providerProfileId: Maybe<Scalars['String']['output']>;
+  providerProfileSource: Maybe<Scalars['String']['output']>;
+  providerSource: Maybe<Scalars['String']['output']>;
+  providerType: Maybe<Scalars['String']['output']>;
+  reasons: Array<Scalars['String']['output']>;
+  registryAvailable: Maybe<Scalars['Boolean']['output']>;
+  registryKind: Maybe<Scalars['String']['output']>;
+  registrySelected: Maybe<Scalars['Boolean']['output']>;
+}
+
+export interface CopilotPromptRegistryPublishGateRepairActionCatalogEntryType {
+  __typename?: 'CopilotPromptRegistryPublishGateRepairActionCatalogEntryType';
+  actionKind: Scalars['String']['output'];
+  catalogVersion: Scalars['String']['output'];
+  inputSchema: Scalars['JSON']['output'];
+  recommendationCount: Scalars['SafeInt']['output'];
+  requiredCapabilities: Array<Scalars['String']['output']>;
+  safety: Scalars['String']['output'];
+}
+
+export interface CopilotPromptRegistryPublishGateRepairActionMutationGuardType {
+  __typename?: 'CopilotPromptRegistryPublishGateRepairActionMutationGuardType';
+  auditSummary: Scalars['String']['output'];
+  auditSummaryFingerprint: Scalars['String']['output'];
+  catalogFingerprint: Scalars['String']['output'];
+  catalogVersion: Scalars['String']['output'];
+  expectedRegistryFingerprint: Scalars['String']['output'];
+  expectedRegistryId: Scalars['SafeInt']['output'];
+  expectedRegistryUpdatedAt: Scalars['String']['output'];
+  guardFingerprint: Scalars['String']['output'];
+  inputSchemaFingerprint: Scalars['String']['output'];
+  intentFingerprint: Scalars['String']['output'];
+  recommendationCategories: Array<Scalars['String']['output']>;
+  recommendationCodes: Array<Scalars['String']['output']>;
+  recommendationCount: Scalars['SafeInt']['output'];
+  recommendationFingerprints: Array<Scalars['String']['output']>;
+  required: Scalars['Boolean']['output'];
+  requiredCapabilities: Array<Scalars['String']['output']>;
+  requiredReviewModes: Array<Scalars['String']['output']>;
+  safetyLevels: Array<Scalars['String']['output']>;
+  suggestedActionKinds: Array<Scalars['String']['output']>;
+  targetLocatorCount: Scalars['SafeInt']['output'];
+  targetLocatorFingerprint: Scalars['String']['output'];
+  targetLocatorKinds: Array<Scalars['String']['output']>;
+}
+
+export interface CopilotPromptRegistryPublishGateRepairActionPreviewOperationType {
+  __typename?: 'CopilotPromptRegistryPublishGateRepairActionPreviewOperationType';
+  actionKind: Scalars['String']['output'];
+  candidateEvidenceCount: Scalars['SafeInt']['output'];
+  candidateEvidenceEntries: Array<CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType>;
+  candidateEvidenceFingerprint: Scalars['String']['output'];
+  candidateEvidenceFingerprints: Array<Scalars['String']['output']>;
+  candidateEvidenceKeys: Array<Scalars['String']['output']>;
+  category: Scalars['String']['output'];
+  code: Scalars['String']['output'];
+  diagnosticsFingerprint: Scalars['String']['output'];
+  embeddingIndexContractEvidenceFingerprints: Array<
+    Scalars['String']['output']
+  >;
+  inputSchema: Scalars['JSON']['output'];
+  instanceKey: Maybe<Scalars['String']['output']>;
+  operationFingerprint: Scalars['String']['output'];
+  preparedRouteOrderFingerprints: Array<Scalars['String']['output']>;
+  previewStatus: Scalars['String']['output'];
+  requiredCapabilities: Array<Scalars['String']['output']>;
+  rerankRuntimeContractEvidenceFingerprints: Array<Scalars['String']['output']>;
+  reviewMode: Scalars['String']['output'];
+  safety: Scalars['String']['output'];
+  target: Scalars['String']['output'];
+  targetLocator: Maybe<CopilotPromptRegistryPublishGateRepairTargetLocatorType>;
+  targetLocatorFingerprint: Scalars['String']['output'];
+  taskRouteEffectiveSourceFingerprints: Array<Scalars['String']['output']>;
+}
+
+export interface CopilotPromptRegistryPublishGateRepairActionPreviewType {
+  __typename?: 'CopilotPromptRegistryPublishGateRepairActionPreviewType';
+  approvalCheckpoints: Array<Scalars['String']['output']>;
+  approvalModes: Array<Scalars['String']['output']>;
+  approvalPolicyFingerprint: Scalars['String']['output'];
+  approvalPolicyVersion: Scalars['String']['output'];
+  approvalRequired: Scalars['Boolean']['output'];
+  auditSummaryFingerprint: Scalars['String']['output'];
+  authorizationFingerprint: Scalars['String']['output'];
+  authorizationStatus: Scalars['String']['output'];
+  candidateCount: Scalars['SafeInt']['output'];
+  candidateEvidenceSetFingerprint: Scalars['String']['output'];
+  catalogFingerprint: Scalars['String']['output'];
+  catalogVersion: Scalars['String']['output'];
+  embeddingIndexContractEvidenceSetFingerprint: Scalars['String']['output'];
+  guardFingerprint: Scalars['String']['output'];
+  operationFingerprints: Array<Scalars['String']['output']>;
+  operationSetFingerprint: Scalars['String']['output'];
+  operations: Array<CopilotPromptRegistryPublishGateRepairActionPreviewOperationType>;
+  preparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
+  previewFingerprint: Scalars['String']['output'];
+  readOnly: Scalars['Boolean']['output'];
+  requiredCapabilities: Array<Scalars['String']['output']>;
+  rerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  submissionContract: CopilotPromptRegistryPublishGateRepairActionSubmissionContractType;
+  taskRouteEffectiveSourceEvidenceSetFingerprint: Scalars['String']['output'];
+  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<
+    Scalars['String']['output']
+  >;
+  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: Scalars['String']['output'];
+}
+
+export interface CopilotPromptRegistryPublishGateRepairActionSubmissionContractType {
+  __typename?: 'CopilotPromptRegistryPublishGateRepairActionSubmissionContractType';
+  approvalPolicyFingerprint: Scalars['String']['output'];
+  authorizationFingerprint: Scalars['String']['output'];
+  candidateEvidenceSetFingerprint: Scalars['String']['output'];
+  catalogFingerprint: Scalars['String']['output'];
+  contractVersion: Scalars['String']['output'];
+  embeddingIndexContractEvidenceSetFingerprint: Scalars['String']['output'];
+  expectedRegistryFingerprint: Scalars['String']['output'];
+  expectedRegistryId: Scalars['SafeInt']['output'];
+  expectedRegistryUpdatedAt: Scalars['String']['output'];
+  guardFingerprint: Scalars['String']['output'];
+  idempotencyKey: Scalars['String']['output'];
+  mutationAvailable: Scalars['Boolean']['output'];
+  operationSetFingerprint: Scalars['String']['output'];
+  preparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
+  previewFingerprint: Scalars['String']['output'];
+  readOnly: Scalars['Boolean']['output'];
+  requiredInputs: Array<Scalars['String']['output']>;
+  rerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  submissionFingerprint: Scalars['String']['output'];
+  targetLocatorFingerprint: Scalars['String']['output'];
+  taskRouteEffectiveSourceEvidenceSetFingerprint: Scalars['String']['output'];
+  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<
+    Scalars['String']['output']
+  >;
+  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: Scalars['String']['output'];
+}
+
+export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
+  __typename?: 'CopilotPromptRegistryPublishGateRepairCandidateEvidenceType';
+  allowed: Maybe<Scalars['Boolean']['output']>;
+  available: Maybe<Scalars['Boolean']['output']>;
+  candidateFingerprint: Scalars['String']['output'];
+  candidateIndex: Scalars['SafeInt']['output'];
+  candidateKey: Maybe<Scalars['String']['output']>;
+  candidateModelIds: Maybe<Array<Scalars['String']['output']>>;
+  costInputPer1M: Maybe<Scalars['Int']['output']>;
+  costOutputPer1M: Maybe<Scalars['Int']['output']>;
+  diagnosticsErrorSnapshotFingerprint: Maybe<Scalars['String']['output']>;
+  diagnosticsErrors: Maybe<
+    Array<CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType>
+  >;
+  dimensionMismatch: Maybe<Scalars['Boolean']['output']>;
+  embeddingIndexContractDimensions: Maybe<Scalars['SafeInt']['output']>;
+  embeddingIndexContractFingerprint: Maybe<Scalars['String']['output']>;
+  embeddingIndexContractStatus: Maybe<Scalars['String']['output']>;
+  embeddingIndexContractVersion: Maybe<Scalars['String']['output']>;
+  errorCategory: Maybe<Scalars['String']['output']>;
+  errorCode: Maybe<Scalars['String']['output']>;
+  fallbackProviderIds: Maybe<Array<Scalars['String']['output']>>;
+  health: Maybe<Scalars['String']['output']>;
+  healthCheckedAt: Maybe<Scalars['String']['output']>;
+  matched: Maybe<Scalars['Boolean']['output']>;
+  modelEmbeddingDimensions: Maybe<Scalars['SafeInt']['output']>;
+  modelId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevision: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionActorId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionFingerprint: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionScope: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionSourceChain: Maybe<
+    Array<CopilotModelRegistrySourceChainEntryType>
+  >;
+  modelRegistryRevisionSourceChainFingerprint: Maybe<
+    Scalars['String']['output']
+  >;
+  modelRegistryRevisionStatus: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionWorkspaceId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionPublishEventCount: Maybe<Scalars['SafeInt']['output']>;
+  modelRegistryRevisionPublishEvents: Maybe<
+    Array<CopilotRegistryRevisionPublishEventType>
+  >;
+  policyCandidateSnapshotFingerprint: Maybe<Scalars['String']['output']>;
+  policyCandidates: Maybe<
+    Array<CopilotPromptRegistryPublishGatePolicyCandidateType>
+  >;
+  prepareCandidateSnapshotFingerprint: Maybe<Scalars['String']['output']>;
+  prepareCandidates: Maybe<
+    Array<CopilotTaskRoutePrepareCandidateDiagnosticsType>
+  >;
+  prepared: Maybe<Scalars['Boolean']['output']>;
+  preparedModelId: Maybe<Scalars['String']['output']>;
+  preparedRouteOrderFingerprint: Maybe<Scalars['String']['output']>;
+  preparedRouteSnapshotFingerprint: Maybe<Scalars['String']['output']>;
+  preparedRouteTargetFingerprint: Maybe<Scalars['String']['output']>;
+  preparedRouteTargets: Maybe<Array<Scalars['String']['output']>>;
+  preparedRoutes: Maybe<Array<CopilotPreparedTaskRouteDiagnosticsType>>;
+  privacy: Maybe<Scalars['String']['output']>;
+  providerCapabilitySnapshotFingerprint: Maybe<Scalars['String']['output']>;
+  providerConfiguredModelCount: Maybe<Scalars['SafeInt']['output']>;
+  providerConfiguredModelIds: Maybe<Array<Scalars['String']['output']>>;
+  providerCostSnapshotFingerprint: Maybe<Scalars['String']['output']>;
+  providerHealthSnapshotFingerprint: Maybe<Scalars['String']['output']>;
+  providerId: Scalars['String']['output'];
+  providerLimitSnapshotFingerprint: Maybe<Scalars['String']['output']>;
+  providerName: Maybe<Scalars['String']['output']>;
+  providerPriority: Maybe<Scalars['SafeInt']['output']>;
+  providerProfileConfigPath: Maybe<Scalars['String']['output']>;
+  providerProfileId: Maybe<Scalars['String']['output']>;
+  providerProfileSource: Maybe<Scalars['String']['output']>;
+  providerSource: Maybe<Scalars['String']['output']>;
+  providerType: Maybe<Scalars['String']['output']>;
+  reasons: Array<Scalars['String']['output']>;
+  registryAvailable: Maybe<Scalars['Boolean']['output']>;
+  registryKind: Maybe<Scalars['String']['output']>;
+  registrySelected: Maybe<Scalars['Boolean']['output']>;
+  requestedDimensions: Maybe<Scalars['SafeInt']['output']>;
+  requestedModelConfigKey: Maybe<Scalars['String']['output']>;
+  requestedModelConfigPath: Maybe<Scalars['String']['output']>;
+  requestedModelId: Maybe<Scalars['String']['output']>;
+  requestedModelSource: Maybe<Scalars['String']['output']>;
+  rerankRuntimeContractFingerprint: Maybe<Scalars['String']['output']>;
+  rerankRuntimeContractStatus: Maybe<Scalars['String']['output']>;
+  rerankRuntimeContractTopK: Maybe<Scalars['SafeInt']['output']>;
+  rerankRuntimeContractVersion: Maybe<Scalars['String']['output']>;
+  routeAttachmentAllowRemoteUrls: Maybe<Scalars['Boolean']['output']>;
+  routeAttachmentKinds: Maybe<Array<Scalars['String']['output']>>;
+  routeAttachmentSourceKinds: Maybe<Array<Scalars['String']['output']>>;
+  routeCandidateSnapshotFingerprint: Maybe<Scalars['String']['output']>;
+  routeContextWindow: Maybe<Scalars['SafeInt']['output']>;
+  routeEmbeddingDimensions: Maybe<Scalars['SafeInt']['output']>;
+  routeInputTypes: Maybe<Array<Scalars['String']['output']>>;
+  routeMaxOutputTokens: Maybe<Scalars['SafeInt']['output']>;
+  routeModelAliasMatched: Maybe<Scalars['Boolean']['output']>;
+  routeModelDefinitionAliases: Maybe<Array<Scalars['String']['output']>>;
+  routeModelDefinitionId: Maybe<Scalars['String']['output']>;
+  routeModelDefinitionSource: Maybe<Scalars['String']['output']>;
+  routeOutputTypes: Maybe<Array<Scalars['String']['output']>>;
+  routeRawModelId: Maybe<Scalars['String']['output']>;
+  routeStructuredAttachmentAllowRemoteUrls: Maybe<Scalars['Boolean']['output']>;
+  routeStructuredAttachmentKinds: Maybe<Array<Scalars['String']['output']>>;
+  routeStructuredAttachmentSourceKinds: Maybe<
+    Array<Scalars['String']['output']>
+  >;
+  routeTrace: Maybe<Array<CopilotPromptRegistryPublishGateRouteTracePhaseType>>;
+  routeTracePhases: Maybe<Array<Scalars['String']['output']>>;
+  routeTraceSnapshotFingerprint: Maybe<Scalars['String']['output']>;
+  scope: Scalars['String']['output'];
+  taskRouteDimensionSnapshotFingerprint: Maybe<Scalars['String']['output']>;
+  taskRouteEffectiveSourceFingerprint: Maybe<Scalars['String']['output']>;
+  taskRouteEffectiveSourceFingerprintInputs: Maybe<
+    Array<Scalars['String']['output']>
+  >;
+  taskRouteEffectiveSourceFingerprintVersion: Maybe<
+    Scalars['String']['output']
+  >;
+  taskRouteEmbeddingIndexContractSnapshotFingerprint: Maybe<
+    Scalars['String']['output']
+  >;
+  taskRouteModelSourceSnapshotFingerprint: Maybe<Scalars['String']['output']>;
+  taskRouteRerankRuntimeContractSnapshotFingerprint: Maybe<
+    Scalars['String']['output']
+  >;
+}
+
+export interface CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType {
+  __typename?: 'CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType';
+  code: Scalars['String']['output'];
+  message: Scalars['String']['output'];
+  stage: Scalars['String']['output'];
+}
+
+export interface CopilotPromptRegistryPublishGateRepairGateManifestExportMetadataType {
+  __typename?: 'CopilotPromptRegistryPublishGateRepairGateManifestExportMetadataType';
+  artifact: Scalars['String']['output'];
+  auditEventCreated: Scalars['Boolean']['output'];
+  auditEventFingerprint: Scalars['String']['output'];
+  auditEventStatus: Scalars['String']['output'];
+  auditEventVersion: Scalars['String']['output'];
+  boundary: Scalars['String']['output'];
+  exportPolicyFingerprint: Scalars['String']['output'];
+  exportPolicyStatus: Scalars['String']['output'];
+  exportPolicyVersion: Scalars['String']['output'];
+  filename: Scalars['String']['output'];
+  gateStatus: Scalars['String']['output'];
+  manifestFingerprint: Scalars['String']['output'];
+  manifestVersion: Scalars['String']['output'];
+  metadataFilename: Scalars['String']['output'];
+  mime: Scalars['String']['output'];
+  publishStatus: Scalars['String']['output'];
+  redactionPolicyFingerprint: Scalars['String']['output'];
+  redactionPolicyStatus: Scalars['String']['output'];
+  redactionPolicyVersion: Scalars['String']['output'];
+  registryFingerprint: Scalars['String']['output'];
+  registryId: Scalars['SafeInt']['output'];
+  registryUpdatedAt: Scalars['String']['output'];
+  retentionPolicyFingerprint: Scalars['String']['output'];
+  retentionPolicyStatus: Scalars['String']['output'];
+  retentionPolicyVersion: Scalars['String']['output'];
+  version: Scalars['String']['output'];
+}
+
+export interface CopilotPromptRegistryPublishGateRepairGateManifestType {
+  __typename?: 'CopilotPromptRegistryPublishGateRepairGateManifestType';
+  approvalPolicyFingerprint: Scalars['String']['output'];
+  authorizationFingerprint: Scalars['String']['output'];
+  blockingCount: Scalars['SafeInt']['output'];
+  boundary: Scalars['String']['output'];
+  candidateEvidenceSetFingerprint: Scalars['String']['output'];
+  catalogFingerprint: Scalars['String']['output'];
+  catalogVersion: Scalars['String']['output'];
+  embeddingIndexContractEvidenceSetFingerprint: Scalars['String']['output'];
+  fingerprint: Scalars['String']['output'];
+  gateStatus: Scalars['String']['output'];
+  guardFingerprint: Scalars['String']['output'];
+  issueCount: Scalars['SafeInt']['output'];
+  mutationAvailable: Scalars['Boolean']['output'];
+  operationCount: Scalars['SafeInt']['output'];
+  operationFingerprints: Array<Scalars['String']['output']>;
+  operationSetFingerprint: Scalars['String']['output'];
+  preparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
+  previewFingerprint: Scalars['String']['output'];
+  publishStatus: Scalars['String']['output'];
+  readOnly: Scalars['Boolean']['output'];
+  reason: Scalars['String']['output'];
+  recommendationCount: Scalars['SafeInt']['output'];
+  recommendationFingerprints: Array<Scalars['String']['output']>;
+  registryFingerprint: Scalars['String']['output'];
+  registryId: Scalars['SafeInt']['output'];
+  registryUpdatedAt: Scalars['String']['output'];
+  requiredCapabilities: Array<Scalars['String']['output']>;
+  requiredReviewModes: Array<Scalars['String']['output']>;
+  rerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['output'];
+  safetyLevels: Array<Scalars['String']['output']>;
+  submissionFingerprint: Scalars['String']['output'];
+  targetLocatorFingerprint: Scalars['String']['output'];
+  taskRouteEffectiveSourceEvidenceSetFingerprint: Scalars['String']['output'];
+  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<
+    Scalars['String']['output']
+  >;
+  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: Scalars['String']['output'];
+  version: Scalars['String']['output'];
+}
+
+export interface CopilotPromptRegistryPublishGateRepairRecommendationType {
+  __typename?: 'CopilotPromptRegistryPublishGateRepairRecommendationType';
+  candidateEvidence: Maybe<
+    Array<CopilotPromptRegistryPublishGateRepairCandidateEvidenceType>
+  >;
+  category: Scalars['String']['output'];
+  code: Scalars['String']['output'];
+  detail: Scalars['String']['output'];
+  diagnosticsFingerprint: Scalars['String']['output'];
+  evidence: Array<Scalars['String']['output']>;
+  instanceKey: Maybe<Scalars['String']['output']>;
+  severity: Scalars['String']['output'];
+  suggestedAction: Scalars['String']['output'];
+  suggestedActionCatalogVersion: Scalars['String']['output'];
+  suggestedActionInputSchema: Scalars['JSON']['output'];
+  suggestedActionKind: Scalars['String']['output'];
+  suggestedActionRequiredCapabilities: Array<Scalars['String']['output']>;
+  suggestedActionSafety: Scalars['String']['output'];
+  target: Scalars['String']['output'];
+  targetLocator: Maybe<CopilotPromptRegistryPublishGateRepairTargetLocatorType>;
+  title: Scalars['String']['output'];
+}
+
+export interface CopilotPromptRegistryPublishGateRepairTargetLocatorType {
+  __typename?: 'CopilotPromptRegistryPublishGateRepairTargetLocatorType';
+  actionId: Maybe<Scalars['String']['output']>;
+  candidateIndex: Maybe<Scalars['SafeInt']['output']>;
+  candidateKind: Maybe<Scalars['String']['output']>;
+  fallbackOrderIndex: Maybe<Scalars['SafeInt']['output']>;
+  featureKind: Maybe<Scalars['String']['output']>;
+  kind: Scalars['String']['output'];
+  outputType: Maybe<Scalars['String']['output']>;
+  path: Scalars['String']['output'];
+  providerId: Maybe<Scalars['String']['output']>;
+  providerProfileConfigPath: Maybe<Scalars['String']['output']>;
+  providerProfileId: Maybe<Scalars['String']['output']>;
+  providerProfileSource: Maybe<Scalars['String']['output']>;
+  registryFingerprint: Scalars['String']['output'];
+  registryId: Scalars['SafeInt']['output'];
+  registryUpdatedAt: Scalars['String']['output'];
+  requestedModelConfigKey: Maybe<Scalars['String']['output']>;
+  requestedModelConfigPath: Maybe<Scalars['String']['output']>;
+  requestedModelId: Maybe<Scalars['String']['output']>;
+  requestedModelSource: Maybe<Scalars['String']['output']>;
+  routeIndex: Maybe<Scalars['SafeInt']['output']>;
+  status: Maybe<Scalars['String']['output']>;
+  stepId: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotPromptRegistryPublishGateRouteCandidateType {
+  __typename?: 'CopilotPromptRegistryPublishGateRouteCandidateType';
+  candidateModelIds: Maybe<Array<Scalars['String']['output']>>;
+  costInputPer1M: Maybe<Scalars['Int']['output']>;
+  costOutputPer1M: Maybe<Scalars['Int']['output']>;
+  health: Maybe<Scalars['String']['output']>;
+  healthCheckedAt: Maybe<Scalars['String']['output']>;
+  matched: Scalars['Boolean']['output'];
+  modelId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevision: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionActorId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionFingerprint: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionScope: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionSourceChain: Maybe<
+    Array<CopilotModelRegistrySourceChainEntryType>
+  >;
+  modelRegistryRevisionSourceChainFingerprint: Maybe<
+    Scalars['String']['output']
+  >;
+  modelRegistryRevisionStatus: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionWorkspaceId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionPublishEventCount: Maybe<Scalars['SafeInt']['output']>;
+  modelRegistryRevisionPublishEvents: Maybe<
+    Array<CopilotRegistryRevisionPublishEventType>
+  >;
+  privacy: Maybe<Scalars['String']['output']>;
+  providerConfiguredModelCount: Maybe<Scalars['SafeInt']['output']>;
+  providerConfiguredModelIds: Maybe<Array<Scalars['String']['output']>>;
+  providerId: Scalars['String']['output'];
+  providerName: Maybe<Scalars['String']['output']>;
+  providerPriority: Maybe<Scalars['SafeInt']['output']>;
+  providerProfileConfigPath: Maybe<Scalars['String']['output']>;
+  providerProfileId: Maybe<Scalars['String']['output']>;
+  providerProfileSource: Maybe<Scalars['String']['output']>;
+  providerSource: Maybe<Scalars['String']['output']>;
+  providerType: Maybe<Scalars['String']['output']>;
+  reasons: Array<Scalars['String']['output']>;
+  registryAvailable: Maybe<Scalars['Boolean']['output']>;
+  registryKind: Maybe<Scalars['String']['output']>;
+  registrySelected: Maybe<Scalars['Boolean']['output']>;
+  requestedModelId: Maybe<Scalars['String']['output']>;
+  routeAttachmentAllowRemoteUrls: Maybe<Scalars['Boolean']['output']>;
+  routeAttachmentKinds: Maybe<Array<Scalars['String']['output']>>;
+  routeAttachmentSourceKinds: Maybe<Array<Scalars['String']['output']>>;
+  routeContextWindow: Maybe<Scalars['SafeInt']['output']>;
+  routeEmbeddingDimensions: Maybe<Scalars['SafeInt']['output']>;
+  routeInputTypes: Maybe<Array<Scalars['String']['output']>>;
+  routeMaxOutputTokens: Maybe<Scalars['SafeInt']['output']>;
+  routeModelAliasMatched: Maybe<Scalars['Boolean']['output']>;
+  routeModelDefinitionAliases: Maybe<Array<Scalars['String']['output']>>;
+  routeModelDefinitionId: Maybe<Scalars['String']['output']>;
+  routeModelDefinitionSource: Maybe<Scalars['String']['output']>;
+  routeOutputTypes: Maybe<Array<Scalars['String']['output']>>;
+  routeRawModelId: Maybe<Scalars['String']['output']>;
+  routeStructuredAttachmentAllowRemoteUrls: Maybe<Scalars['Boolean']['output']>;
+  routeStructuredAttachmentKinds: Maybe<Array<Scalars['String']['output']>>;
+  routeStructuredAttachmentSourceKinds: Maybe<
+    Array<Scalars['String']['output']>
+  >;
+}
+
+export interface CopilotPromptRegistryPublishGateRouteTracePhaseType {
+  __typename?: 'CopilotPromptRegistryPublishGateRouteTracePhaseType';
+  availableCount: Maybe<Scalars['SafeInt']['output']>;
+  blockedCount: Maybe<Scalars['SafeInt']['output']>;
+  candidateCount: Scalars['SafeInt']['output'];
+  matchedCount: Maybe<Scalars['SafeInt']['output']>;
+  phase: Scalars['String']['output'];
+  preparedCount: Maybe<Scalars['SafeInt']['output']>;
+  reasons: Array<Scalars['String']['output']>;
+  selectedCount: Maybe<Scalars['SafeInt']['output']>;
+}
+
+export interface CopilotPromptRegistryPublishGateVerdictType {
+  __typename?: 'CopilotPromptRegistryPublishGateVerdictType';
+  actionRouteDryRun: Maybe<CopilotPromptRegistryPublishGateActionRouteDryRunType>;
+  allowed: Scalars['Boolean']['output'];
+  blockingCount: Scalars['SafeInt']['output'];
+  errorCount: Scalars['SafeInt']['output'];
+  issueCount: Scalars['SafeInt']['output'];
+  issues: Array<CopilotPromptRegistryValidationIssueType>;
+  modelRoute: Maybe<CopilotPromptRegistryPublishGateModelRouteType>;
+  modelRoutes: Array<CopilotPromptRegistryPublishGateModelRouteType>;
+  name: Scalars['String']['output'];
+  publishStatus: Scalars['String']['output'];
+  reason: Scalars['String']['output'];
+  registryFingerprint: Scalars['String']['output'];
+  registryId: Scalars['SafeInt']['output'];
+  registryUpdatedAt: Scalars['DateTime']['output'];
+  remediations: Array<CopilotPromptRegistryValidationRemediationType>;
+  repairActionCatalog: Array<CopilotPromptRegistryPublishGateRepairActionCatalogEntryType>;
+  repairActionCatalogFingerprint: Scalars['String']['output'];
+  repairActionMutationGuard: CopilotPromptRegistryPublishGateRepairActionMutationGuardType;
+  repairActionPreview: CopilotPromptRegistryPublishGateRepairActionPreviewType;
+  repairGateManifest: CopilotPromptRegistryPublishGateRepairGateManifestType;
+  repairGateManifestExportMetadata: CopilotPromptRegistryPublishGateRepairGateManifestExportMetadataType;
+  repairRecommendations: Array<CopilotPromptRegistryPublishGateRepairRecommendationType>;
+  stale: Scalars['Boolean']['output'];
+  staleReasons: Array<Scalars['String']['output']>;
+  status: Scalars['String']['output'];
+  taskRoutes: Array<CopilotTaskRouteDiagnosticsType>;
+}
+
 export interface CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType {
   __typename?: 'CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType';
-  candidateEvidenceCategory?: Maybe<Scalars['String']['output']>;
+  candidateEvidenceCategory: Maybe<Scalars['String']['output']>;
   candidateEvidenceFingerprint: Scalars['String']['output'];
-  candidateEvidenceKey?: Maybe<Scalars['String']['output']>;
+  candidateEvidenceKey: Maybe<Scalars['String']['output']>;
   candidateEvidenceProviderId: Scalars['String']['output'];
   candidateEvidenceScope: Scalars['String']['output'];
   candidateIndex: Scalars['SafeInt']['output'];
-  preparedRouteOrderFingerprint?: Maybe<Scalars['String']['output']>;
-  preparedRouteEntries?: Maybe<Array<CopilotPreparedTaskRouteDiagnosticsType>>;
-  policyCandidateEntries?: Maybe<
+  policyCandidateEntries: Maybe<
     Array<CopilotPromptRegistryPublishGatePolicyCandidateType>
   >;
-  prepareCandidateEntries?: Maybe<
+  prepareCandidateEntries: Maybe<
     Array<CopilotTaskRoutePrepareCandidateDiagnosticsType>
   >;
-  routeCandidateEntries?: Maybe<
+  preparedRouteEntries: Maybe<Array<CopilotPreparedTaskRouteDiagnosticsType>>;
+  preparedRouteOrderFingerprint: Maybe<Scalars['String']['output']>;
+  routeCandidateEntries: Maybe<
     Array<CopilotPromptRegistryPublishGateRouteCandidateType>
   >;
-  taskRouteEffectiveSourceFingerprint?: Maybe<Scalars['String']['output']>;
-  taskRouteModelSourceSnapshotEntries?: Maybe<
+  taskRouteEffectiveSourceFingerprint: Maybe<Scalars['String']['output']>;
+  taskRouteModelSourceSnapshotEntries: Maybe<
     Array<CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType>
   >;
-  taskRouteModelSourceSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
+  taskRouteModelSourceSnapshotFingerprint: Maybe<Scalars['String']['output']>;
 }
 
-export interface CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType {
-  __typename?: 'CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType';
-  featureKind: Scalars['String']['output'];
-  requestedModelConfigKey?: Maybe<Scalars['String']['output']>;
-  requestedModelConfigPath?: Maybe<Scalars['String']['output']>;
-  requestedModelId?: Maybe<Scalars['String']['output']>;
-  requestedModelSource?: Maybe<Scalars['String']['output']>;
+export interface CopilotPromptRegistryRepairExecutionRequestInput {
+  expectedApprovalRecordFingerprint: Scalars['String']['input'];
+  expectedApprovalRequestFingerprint: Scalars['String']['input'];
+  expectedAuditEventFingerprint: Scalars['String']['input'];
+  expectedCandidateEvidenceSetFingerprint: Scalars['String']['input'];
+  expectedEmbeddingIndexContractEvidenceSetFingerprint: Scalars['String']['input'];
+  expectedExecutionGateFingerprint: Scalars['String']['input'];
+  expectedExecutionGateStatus: Scalars['String']['input'];
+  expectedExecutionStateFingerprint: Scalars['String']['input'];
+  expectedIdempotencyFingerprint: Scalars['String']['input'];
+  expectedPolicyBindingFingerprint: Scalars['String']['input'];
+  expectedPreflightStatus: Scalars['String']['input'];
+  expectedPreparedRouteOrderEvidenceSetFingerprint: Scalars['String']['input'];
+  expectedRepairGateManifestExportPolicyFingerprint: Scalars['String']['input'];
+  expectedRepairGateManifestFingerprint: Scalars['String']['input'];
+  expectedRepairGateManifestRetentionPolicyFingerprint: Scalars['String']['input'];
+  expectedRepairJobFingerprint: Scalars['String']['input'];
+  expectedRerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['input'];
+  expectedReviewBindingFingerprint: Scalars['String']['input'];
+  expectedRollbackPlanFingerprint: Scalars['String']['input'];
+  expectedTargetLocatorFingerprint: Scalars['String']['input'];
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprint: Scalars['String']['input'];
+  expectedVersion?: InputMaybe<CopilotPromptRegistryPublishGateExpectedVersionInput>;
+  name: Scalars['String']['input'];
+  submission: CopilotPromptRegistryRepairSubmissionInput;
+  workspaceId: Scalars['String']['input'];
 }
 
 export interface CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType {
   __typename?: 'CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType';
-  candidateEvidenceCategoryCount: Scalars['SafeInt']['output'];
   candidateEvidenceCategories: Array<Scalars['String']['output']>;
+  candidateEvidenceCategoryCount: Scalars['SafeInt']['output'];
   candidateEvidenceCount: Scalars['SafeInt']['output'];
   candidateEvidenceEntries: Array<CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType>;
+  candidateEvidenceFingerprint: Scalars['String']['output'];
+  candidateEvidenceFingerprints: Array<Scalars['String']['output']>;
+  candidateEvidenceKeys: Array<Scalars['String']['output']>;
+  candidateEvidenceProviderIds: Array<Scalars['String']['output']>;
   candidateEvidenceReferenceSchemaArtifactFingerprint: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactFingerprintInputs: Array<
     Scalars['String']['output']
@@ -1251,15 +2151,16 @@ export interface CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryT
     Scalars['String']['output']
   >;
   candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus: Scalars['String']['output'];
-  candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprint: Scalars['String']['output'];
-  candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputs: Array<
-    Scalars['String']['output']
-  >;
+  candidateEvidenceReferenceSchemaArtifactRecordStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprint: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputs: Array<
     Scalars['String']['output']
   >;
   candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus: Scalars['String']['output'];
+  candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprint: Scalars['String']['output'];
+  candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputs: Array<
+    Scalars['String']['output']
+  >;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprint: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputs: Array<
     Scalars['String']['output']
@@ -1269,7 +2170,6 @@ export interface CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryT
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintInputs: Array<
     Scalars['String']['output']
   >;
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprint: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs: Array<
     Scalars['String']['output']
@@ -1278,17 +2178,14 @@ export interface CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryT
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs: Array<
     Scalars['String']['output']
   >;
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint: Scalars['String']['output'];
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs: Array<
-    Scalars['String']['output']
-  >;
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs: Array<
     Scalars['String']['output']
   >;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus: Scalars['String']['output'];
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint: Scalars['String']['output'];
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs: Array<
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint: Scalars['String']['output'];
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs: Array<
     Scalars['String']['output']
   >;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint: Scalars['String']['output'];
@@ -1308,17 +2205,14 @@ export interface CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryT
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs: Array<
     Scalars['String']['output']
   >;
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint: Scalars['String']['output'];
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs: Array<
-    Scalars['String']['output']
-  >;
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs: Array<
     Scalars['String']['output']
   >;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus: Scalars['String']['output'];
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint: Scalars['String']['output'];
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs: Array<
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint: Scalars['String']['output'];
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs: Array<
     Scalars['String']['output']
   >;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint: Scalars['String']['output'];
@@ -1338,42 +2232,48 @@ export interface CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryT
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs: Array<
     Scalars['String']['output']
   >;
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint: Scalars['String']['output'];
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs: Array<
-    Scalars['String']['output']
-  >;
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs: Array<
     Scalars['String']['output']
   >;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus: Scalars['String']['output'];
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint: Scalars['String']['output'];
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs: Array<
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint: Scalars['String']['output'];
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs: Array<
     Scalars['String']['output']
   >;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus: Scalars['String']['output'];
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint: Scalars['String']['output'];
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs: Array<
+    Scalars['String']['output']
+  >;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus: Scalars['String']['output'];
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatus: Scalars['String']['output'];
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint: Scalars['String']['output'];
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs: Array<
+    Scalars['String']['output']
+  >;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus: Scalars['String']['output'];
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatus: Scalars['String']['output'];
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint: Scalars['String']['output'];
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs: Array<
+    Scalars['String']['output']
+  >;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus: Scalars['String']['output'];
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceStatus: Scalars['String']['output'];
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputs: Array<
     Scalars['String']['output']
   >;
   candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactRecordStorageStatus: Scalars['String']['output'];
-  candidateEvidenceReferenceSchemaArtifactRecordStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaArtifactStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaFields: Array<Scalars['String']['output']>;
   candidateEvidenceReferenceSchemaFingerprint: Scalars['String']['output'];
@@ -1382,10 +2282,6 @@ export interface CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryT
   >;
   candidateEvidenceReferenceSchemaRegistryStatus: Scalars['String']['output'];
   candidateEvidenceReferenceSchemaVersion: Scalars['String']['output'];
-  candidateEvidenceFingerprint: Scalars['String']['output'];
-  candidateEvidenceFingerprints: Array<Scalars['String']['output']>;
-  candidateEvidenceKeys: Array<Scalars['String']['output']>;
-  candidateEvidenceProviderIds: Array<Scalars['String']['output']>;
   candidateEvidenceScopes: Array<Scalars['String']['output']>;
   diagnosticsFingerprint: Scalars['String']['output'];
   operationFingerprint: Scalars['String']['output'];
@@ -1405,19 +2301,16 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   auditEventRequestInputs: Array<Scalars['String']['output']>;
   auditEventRequestStatus: Scalars['String']['output'];
   auditEventRequestVersion: Scalars['String']['output'];
-  expectedCandidateEvidenceSetFingerprint: Scalars['String']['output'];
-  expectedTaskRouteEffectiveSourceEvidenceSetFingerprint: Scalars['String']['output'];
-  expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<
-    Scalars['String']['output']
-  >;
-  expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: Scalars['String']['output'];
-  expectedEmbeddingIndexContractEvidenceSetFingerprint: Scalars['String']['output'];
-  expectedRerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['output'];
-  expectedPreparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
-  expectedTargetLocatorFingerprint: Scalars['String']['output'];
-  expectedRepairGateManifestFingerprint: Scalars['String']['output'];
-  expectedRepairGateManifestExportPolicyFingerprint: Scalars['String']['output'];
-  expectedRepairGateManifestRetentionPolicyFingerprint: Scalars['String']['output'];
+  executionApprovalDecisionRequestCreated: Scalars['Boolean']['output'];
+  executionApprovalDecisionRequestFingerprint: Scalars['String']['output'];
+  executionApprovalDecisionRequestInputs: Array<Scalars['String']['output']>;
+  executionApprovalDecisionRequestStatus: Scalars['String']['output'];
+  executionApprovalDecisionRequestVersion: Scalars['String']['output'];
+  executionApprovalUiRequestCreated: Scalars['Boolean']['output'];
+  executionApprovalUiRequestFingerprint: Scalars['String']['output'];
+  executionApprovalUiRequestInputs: Array<Scalars['String']['output']>;
+  executionApprovalUiRequestStatus: Scalars['String']['output'];
+  executionApprovalUiRequestVersion: Scalars['String']['output'];
   executionCompletionEventRequestCreated: Scalars['Boolean']['output'];
   executionCompletionEventRequestFingerprint: Scalars['String']['output'];
   executionCompletionEventRequestInputs: Array<Scalars['String']['output']>;
@@ -1428,6 +2321,16 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   executionCompletionRequestInputs: Array<Scalars['String']['output']>;
   executionCompletionRequestStatus: Scalars['String']['output'];
   executionCompletionRequestVersion: Scalars['String']['output'];
+  executionDiffPreviewRequestCreated: Scalars['Boolean']['output'];
+  executionDiffPreviewRequestFingerprint: Scalars['String']['output'];
+  executionDiffPreviewRequestInputs: Array<Scalars['String']['output']>;
+  executionDiffPreviewRequestStatus: Scalars['String']['output'];
+  executionDiffPreviewRequestVersion: Scalars['String']['output'];
+  executionFailureEventRequestCreated: Scalars['Boolean']['output'];
+  executionFailureEventRequestFingerprint: Scalars['String']['output'];
+  executionFailureEventRequestInputs: Array<Scalars['String']['output']>;
+  executionFailureEventRequestStatus: Scalars['String']['output'];
+  executionFailureEventRequestVersion: Scalars['String']['output'];
   executionFinalizationEventRequestCreated: Scalars['Boolean']['output'];
   executionFinalizationEventRequestFingerprint: Scalars['String']['output'];
   executionFinalizationEventRequestInputs: Array<Scalars['String']['output']>;
@@ -1438,187 +2341,28 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   executionFinalizationRequestInputs: Array<Scalars['String']['output']>;
   executionFinalizationRequestStatus: Scalars['String']['output'];
   executionFinalizationRequestVersion: Scalars['String']['output'];
-  executionStatusPollRequestCreated: Scalars['Boolean']['output'];
-  executionStatusPollRequestFingerprint: Scalars['String']['output'];
-  executionStatusPollRequestInputs: Array<Scalars['String']['output']>;
-  executionStatusPollRequestStatus: Scalars['String']['output'];
-  executionStatusPollRequestVersion: Scalars['String']['output'];
-  executionOperationEntryRequestCreated: Scalars['Boolean']['output'];
-  executionOperationEntryRequestFingerprint: Scalars['String']['output'];
-  executionOperationEntryRequestInputs: Array<Scalars['String']['output']>;
-  executionOperationEntryRequestStatus: Scalars['String']['output'];
-  executionOperationEntryRequestVersion: Scalars['String']['output'];
-  executionApprovalUiRequestCreated: Scalars['Boolean']['output'];
-  executionApprovalUiRequestFingerprint: Scalars['String']['output'];
-  executionApprovalUiRequestInputs: Array<Scalars['String']['output']>;
-  executionApprovalUiRequestStatus: Scalars['String']['output'];
-  executionApprovalUiRequestVersion: Scalars['String']['output'];
-  executionDiffPreviewRequestCreated: Scalars['Boolean']['output'];
-  executionDiffPreviewRequestFingerprint: Scalars['String']['output'];
-  executionDiffPreviewRequestInputs: Array<Scalars['String']['output']>;
-  executionDiffPreviewRequestStatus: Scalars['String']['output'];
-  executionDiffPreviewRequestVersion: Scalars['String']['output'];
-  executionApprovalDecisionRequestCreated: Scalars['Boolean']['output'];
-  executionApprovalDecisionRequestFingerprint: Scalars['String']['output'];
-  executionApprovalDecisionRequestInputs: Array<Scalars['String']['output']>;
-  executionApprovalDecisionRequestStatus: Scalars['String']['output'];
-  executionApprovalDecisionRequestVersion: Scalars['String']['output'];
-  executionStartRequestCreated: Scalars['Boolean']['output'];
-  executionStartRequestFingerprint: Scalars['String']['output'];
-  executionStartRequestInputs: Array<Scalars['String']['output']>;
-  executionStartRequestStatus: Scalars['String']['output'];
-  executionStartRequestVersion: Scalars['String']['output'];
-  executionQueueRequestCreated: Scalars['Boolean']['output'];
-  executionQueueRequestFingerprint: Scalars['String']['output'];
-  executionQueueRequestInputs: Array<Scalars['String']['output']>;
-  executionQueueRequestStatus: Scalars['String']['output'];
-  executionQueueRequestVersion: Scalars['String']['output'];
-  executionWorkerLeaseRequestCreated: Scalars['Boolean']['output'];
-  executionWorkerLeaseRequestFingerprint: Scalars['String']['output'];
-  executionWorkerLeaseRequestInputs: Array<Scalars['String']['output']>;
-  executionWorkerLeaseRequestStatus: Scalars['String']['output'];
-  executionWorkerLeaseRequestVersion: Scalars['String']['output'];
   executionJobRunRequestCreated: Scalars['Boolean']['output'];
   executionJobRunRequestFingerprint: Scalars['String']['output'];
   executionJobRunRequestInputs: Array<Scalars['String']['output']>;
   executionJobRunRequestStatus: Scalars['String']['output'];
   executionJobRunRequestVersion: Scalars['String']['output'];
-  executionRunStepRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepRequestFingerprint: Scalars['String']['output'];
-  executionRunStepRequestInputs: Array<Scalars['String']['output']>;
-  executionRunStepRequestStatus: Scalars['String']['output'];
-  executionRunStepRequestVersion: Scalars['String']['output'];
-  executionRunStepTraceRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepTraceRequestFingerprint: Scalars['String']['output'];
-  executionRunStepTraceRequestInputs: Array<Scalars['String']['output']>;
-  executionRunStepTraceRequestStatus: Scalars['String']['output'];
-  executionRunStepTraceRequestVersion: Scalars['String']['output'];
-  executionRunStepResultRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepResultRequestFingerprint: Scalars['String']['output'];
-  executionRunStepResultRequestInputs: Array<Scalars['String']['output']>;
-  executionRunStepResultRequestStatus: Scalars['String']['output'];
-  executionRunStepResultRequestVersion: Scalars['String']['output'];
-  executionRunStepCompletionRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepCompletionRequestFingerprint: Scalars['String']['output'];
-  executionRunStepCompletionRequestInputs: Array<Scalars['String']['output']>;
-  executionRunStepCompletionRequestStatus: Scalars['String']['output'];
-  executionRunStepCompletionRequestVersion: Scalars['String']['output'];
-  executionRunStepStatusEventRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepStatusEventRequestFingerprint: Scalars['String']['output'];
-  executionRunStepStatusEventRequestInputs: Array<Scalars['String']['output']>;
-  executionRunStepStatusEventRequestStatus: Scalars['String']['output'];
-  executionRunStepStatusEventRequestVersion: Scalars['String']['output'];
-  executionRunStepRetryRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepRetryRequestFingerprint: Scalars['String']['output'];
-  executionRunStepRetryRequestInputs: Array<Scalars['String']['output']>;
-  executionRunStepRetryRequestStatus: Scalars['String']['output'];
-  executionRunStepRetryRequestVersion: Scalars['String']['output'];
-  executionRunStepRetryAttemptRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepRetryAttemptRequestFingerprint: Scalars['String']['output'];
-  executionRunStepRetryAttemptRequestInputs: Array<Scalars['String']['output']>;
-  executionRunStepRetryAttemptRequestStatus: Scalars['String']['output'];
-  executionRunStepRetryAttemptRequestVersion: Scalars['String']['output'];
-  executionRunStepRetryAttemptStatusEventRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepRetryAttemptStatusEventRequestFingerprint: Scalars['String']['output'];
-  executionRunStepRetryAttemptStatusEventRequestInputs: Array<
-    Scalars['String']['output']
-  >;
-  executionRunStepRetryAttemptStatusEventRequestStatus: Scalars['String']['output'];
-  executionRunStepRetryAttemptStatusEventRequestVersion: Scalars['String']['output'];
-  executionRunStepRetryAttemptTraceRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepRetryAttemptTraceRequestFingerprint: Scalars['String']['output'];
-  executionRunStepRetryAttemptTraceRequestInputs: Array<
-    Scalars['String']['output']
-  >;
-  executionRunStepRetryAttemptTraceRequestStatus: Scalars['String']['output'];
-  executionRunStepRetryAttemptTraceRequestVersion: Scalars['String']['output'];
-  executionRunStepRetryAttemptResultRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepRetryAttemptResultRequestFingerprint: Scalars['String']['output'];
-  executionRunStepRetryAttemptResultRequestInputs: Array<
-    Scalars['String']['output']
-  >;
-  executionRunStepRetryAttemptResultRequestStatus: Scalars['String']['output'];
-  executionRunStepRetryAttemptResultRequestVersion: Scalars['String']['output'];
-  executionRunStepRetryAttemptCompletionRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepRetryAttemptCompletionRequestFingerprint: Scalars['String']['output'];
-  executionRunStepRetryAttemptCompletionRequestInputs: Array<
-    Scalars['String']['output']
-  >;
-  executionRunStepRetryAttemptCompletionRequestStatus: Scalars['String']['output'];
-  executionRunStepRetryAttemptCompletionRequestVersion: Scalars['String']['output'];
-  executionRunStepRetryAttemptCompletionStatusEventRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint: Scalars['String']['output'];
-  executionRunStepRetryAttemptCompletionStatusEventRequestInputs: Array<
-    Scalars['String']['output']
-  >;
-  executionRunStepRetryAttemptCompletionStatusEventRequestStatus: Scalars['String']['output'];
-  executionRunStepRetryAttemptCompletionStatusEventRequestVersion: Scalars['String']['output'];
-  executionRunStepRetryAttemptFinalizationRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepRetryAttemptFinalizationRequestFingerprint: Scalars['String']['output'];
-  executionRunStepRetryAttemptFinalizationRequestInputs: Array<
-    Scalars['String']['output']
-  >;
-  executionRunStepRetryAttemptFinalizationRequestStatus: Scalars['String']['output'];
-  executionRunStepRetryAttemptFinalizationRequestVersion: Scalars['String']['output'];
-  executionRunStepRetryAttemptFinalizationStatusEventRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint: Scalars['String']['output'];
-  executionRunStepRetryAttemptFinalizationStatusEventRequestInputs: Array<
-    Scalars['String']['output']
-  >;
-  executionRunStepRetryAttemptFinalizationStatusEventRequestStatus: Scalars['String']['output'];
-  executionRunStepRetryAttemptFinalizationStatusEventRequestVersion: Scalars['String']['output'];
-  executionRunStepRetryAttemptCloseRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepRetryAttemptCloseRequestFingerprint: Scalars['String']['output'];
-  executionRunStepRetryAttemptCloseRequestInputs: Array<
-    Scalars['String']['output']
-  >;
-  executionRunStepRetryAttemptCloseRequestStatus: Scalars['String']['output'];
-  executionRunStepRetryAttemptCloseRequestVersion: Scalars['String']['output'];
-  executionRunStepRetryAttemptCloseStatusEventRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepRetryAttemptCloseStatusEventRequestFingerprint: Scalars['String']['output'];
-  executionRunStepRetryAttemptCloseStatusEventRequestInputs: Array<
-    Scalars['String']['output']
-  >;
-  executionRunStepRetryAttemptCloseStatusEventRequestStatus: Scalars['String']['output'];
-  executionRunStepRetryAttemptCloseStatusEventRequestVersion: Scalars['String']['output'];
-  executionRunStepRetryAttemptRetentionPolicyRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepRetryAttemptRetentionPolicyRequestFingerprint: Scalars['String']['output'];
-  executionRunStepRetryAttemptRetentionPolicyRequestInputs: Array<
-    Scalars['String']['output']
-  >;
-  executionRunStepRetryAttemptRetentionPolicyRequestStatus: Scalars['String']['output'];
-  executionRunStepRetryAttemptRetentionPolicyRequestVersion: Scalars['String']['output'];
-  executionRunStepRetryAttemptRetentionPolicyRuleRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint: Scalars['String']['output'];
-  executionRunStepRetryAttemptRetentionPolicyRuleRequestInputs: Array<
-    Scalars['String']['output']
-  >;
-  executionRunStepRetryAttemptRetentionPolicyRuleRequestStatus: Scalars['String']['output'];
-  executionRunStepRetryAttemptRetentionPolicyRuleRequestVersion: Scalars['String']['output'];
-  executionRunStepRetryAttemptRetentionLeaseRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepRetryAttemptRetentionLeaseRequestFingerprint: Scalars['String']['output'];
-  executionRunStepRetryAttemptRetentionLeaseRequestInputs: Array<
-    Scalars['String']['output']
-  >;
-  executionRunStepRetryAttemptRetentionLeaseRequestStatus: Scalars['String']['output'];
-  executionRunStepRetryAttemptRetentionLeaseRequestVersion: Scalars['String']['output'];
-  executionRunStepRetryAttemptArchiveRequestCreated: Scalars['Boolean']['output'];
-  executionRunStepRetryAttemptArchiveRequestFingerprint: Scalars['String']['output'];
-  executionRunStepRetryAttemptArchiveRequestInputs: Array<
-    Scalars['String']['output']
-  >;
-  executionRunStepRetryAttemptArchiveRequestStatus: Scalars['String']['output'];
-  executionRunStepRetryAttemptArchiveRequestVersion: Scalars['String']['output'];
-  executionFailureEventRequestCreated: Scalars['Boolean']['output'];
-  executionFailureEventRequestFingerprint: Scalars['String']['output'];
-  executionFailureEventRequestInputs: Array<Scalars['String']['output']>;
-  executionFailureEventRequestStatus: Scalars['String']['output'];
-  executionFailureEventRequestVersion: Scalars['String']['output'];
+  executionOperationEntryRequestCreated: Scalars['Boolean']['output'];
+  executionOperationEntryRequestFingerprint: Scalars['String']['output'];
+  executionOperationEntryRequestInputs: Array<Scalars['String']['output']>;
+  executionOperationEntryRequestStatus: Scalars['String']['output'];
+  executionOperationEntryRequestVersion: Scalars['String']['output'];
   executionProviderResponseRequestCreated: Scalars['Boolean']['output'];
   executionProviderResponseRequestFingerprint: Scalars['String']['output'];
   executionProviderResponseRequestInputs: Array<Scalars['String']['output']>;
   executionProviderResponseRequestStatus: Scalars['String']['output'];
   executionProviderResponseRequestVersion: Scalars['String']['output'];
+  executionQueueRequestCreated: Scalars['Boolean']['output'];
+  executionQueueRequestFingerprint: Scalars['String']['output'];
+  executionQueueRequestInputs: Array<Scalars['String']['output']>;
+  executionQueueRequestStatus: Scalars['String']['output'];
+  executionQueueRequestVersion: Scalars['String']['output'];
+  executionRecord: Maybe<CopilotRepairExecutionRecordType>;
+  executionRequested: Scalars['Boolean']['output'];
   executionResultRequestCreated: Scalars['Boolean']['output'];
   executionResultRequestFingerprint: Scalars['String']['output'];
   executionResultRequestInputs: Array<Scalars['String']['output']>;
@@ -1649,17 +2393,170 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   executionRollbackTriggerRequestInputs: Array<Scalars['String']['output']>;
   executionRollbackTriggerRequestStatus: Scalars['String']['output'];
   executionRollbackTriggerRequestVersion: Scalars['String']['output'];
-  executionTraceRequestCreated: Scalars['Boolean']['output'];
-  executionTraceRequestFingerprint: Scalars['String']['output'];
-  executionTraceRequestInputs: Array<Scalars['String']['output']>;
-  executionTraceRequestStatus: Scalars['String']['output'];
-  executionTraceRequestVersion: Scalars['String']['output'];
+  executionRunStepCompletionRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepCompletionRequestFingerprint: Scalars['String']['output'];
+  executionRunStepCompletionRequestInputs: Array<Scalars['String']['output']>;
+  executionRunStepCompletionRequestStatus: Scalars['String']['output'];
+  executionRunStepCompletionRequestVersion: Scalars['String']['output'];
+  executionRunStepRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepRequestFingerprint: Scalars['String']['output'];
+  executionRunStepRequestInputs: Array<Scalars['String']['output']>;
+  executionRunStepRequestStatus: Scalars['String']['output'];
+  executionRunStepRequestVersion: Scalars['String']['output'];
+  executionRunStepResultRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepResultRequestFingerprint: Scalars['String']['output'];
+  executionRunStepResultRequestInputs: Array<Scalars['String']['output']>;
+  executionRunStepResultRequestStatus: Scalars['String']['output'];
+  executionRunStepResultRequestVersion: Scalars['String']['output'];
+  executionRunStepRetryAttemptArchiveRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepRetryAttemptArchiveRequestFingerprint: Scalars['String']['output'];
+  executionRunStepRetryAttemptArchiveRequestInputs: Array<
+    Scalars['String']['output']
+  >;
+  executionRunStepRetryAttemptArchiveRequestStatus: Scalars['String']['output'];
+  executionRunStepRetryAttemptArchiveRequestVersion: Scalars['String']['output'];
+  executionRunStepRetryAttemptCloseRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepRetryAttemptCloseRequestFingerprint: Scalars['String']['output'];
+  executionRunStepRetryAttemptCloseRequestInputs: Array<
+    Scalars['String']['output']
+  >;
+  executionRunStepRetryAttemptCloseRequestStatus: Scalars['String']['output'];
+  executionRunStepRetryAttemptCloseRequestVersion: Scalars['String']['output'];
+  executionRunStepRetryAttemptCloseStatusEventRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepRetryAttemptCloseStatusEventRequestFingerprint: Scalars['String']['output'];
+  executionRunStepRetryAttemptCloseStatusEventRequestInputs: Array<
+    Scalars['String']['output']
+  >;
+  executionRunStepRetryAttemptCloseStatusEventRequestStatus: Scalars['String']['output'];
+  executionRunStepRetryAttemptCloseStatusEventRequestVersion: Scalars['String']['output'];
+  executionRunStepRetryAttemptCompletionRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepRetryAttemptCompletionRequestFingerprint: Scalars['String']['output'];
+  executionRunStepRetryAttemptCompletionRequestInputs: Array<
+    Scalars['String']['output']
+  >;
+  executionRunStepRetryAttemptCompletionRequestStatus: Scalars['String']['output'];
+  executionRunStepRetryAttemptCompletionRequestVersion: Scalars['String']['output'];
+  executionRunStepRetryAttemptCompletionStatusEventRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint: Scalars['String']['output'];
+  executionRunStepRetryAttemptCompletionStatusEventRequestInputs: Array<
+    Scalars['String']['output']
+  >;
+  executionRunStepRetryAttemptCompletionStatusEventRequestStatus: Scalars['String']['output'];
+  executionRunStepRetryAttemptCompletionStatusEventRequestVersion: Scalars['String']['output'];
+  executionRunStepRetryAttemptFinalizationRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepRetryAttemptFinalizationRequestFingerprint: Scalars['String']['output'];
+  executionRunStepRetryAttemptFinalizationRequestInputs: Array<
+    Scalars['String']['output']
+  >;
+  executionRunStepRetryAttemptFinalizationRequestStatus: Scalars['String']['output'];
+  executionRunStepRetryAttemptFinalizationRequestVersion: Scalars['String']['output'];
+  executionRunStepRetryAttemptFinalizationStatusEventRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint: Scalars['String']['output'];
+  executionRunStepRetryAttemptFinalizationStatusEventRequestInputs: Array<
+    Scalars['String']['output']
+  >;
+  executionRunStepRetryAttemptFinalizationStatusEventRequestStatus: Scalars['String']['output'];
+  executionRunStepRetryAttemptFinalizationStatusEventRequestVersion: Scalars['String']['output'];
+  executionRunStepRetryAttemptRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepRetryAttemptRequestFingerprint: Scalars['String']['output'];
+  executionRunStepRetryAttemptRequestInputs: Array<Scalars['String']['output']>;
+  executionRunStepRetryAttemptRequestStatus: Scalars['String']['output'];
+  executionRunStepRetryAttemptRequestVersion: Scalars['String']['output'];
+  executionRunStepRetryAttemptResultRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepRetryAttemptResultRequestFingerprint: Scalars['String']['output'];
+  executionRunStepRetryAttemptResultRequestInputs: Array<
+    Scalars['String']['output']
+  >;
+  executionRunStepRetryAttemptResultRequestStatus: Scalars['String']['output'];
+  executionRunStepRetryAttemptResultRequestVersion: Scalars['String']['output'];
+  executionRunStepRetryAttemptRetentionLeaseRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepRetryAttemptRetentionLeaseRequestFingerprint: Scalars['String']['output'];
+  executionRunStepRetryAttemptRetentionLeaseRequestInputs: Array<
+    Scalars['String']['output']
+  >;
+  executionRunStepRetryAttemptRetentionLeaseRequestStatus: Scalars['String']['output'];
+  executionRunStepRetryAttemptRetentionLeaseRequestVersion: Scalars['String']['output'];
+  executionRunStepRetryAttemptRetentionPolicyRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepRetryAttemptRetentionPolicyRequestFingerprint: Scalars['String']['output'];
+  executionRunStepRetryAttemptRetentionPolicyRequestInputs: Array<
+    Scalars['String']['output']
+  >;
+  executionRunStepRetryAttemptRetentionPolicyRequestStatus: Scalars['String']['output'];
+  executionRunStepRetryAttemptRetentionPolicyRequestVersion: Scalars['String']['output'];
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint: Scalars['String']['output'];
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestInputs: Array<
+    Scalars['String']['output']
+  >;
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestStatus: Scalars['String']['output'];
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestVersion: Scalars['String']['output'];
+  executionRunStepRetryAttemptStatusEventRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepRetryAttemptStatusEventRequestFingerprint: Scalars['String']['output'];
+  executionRunStepRetryAttemptStatusEventRequestInputs: Array<
+    Scalars['String']['output']
+  >;
+  executionRunStepRetryAttemptStatusEventRequestStatus: Scalars['String']['output'];
+  executionRunStepRetryAttemptStatusEventRequestVersion: Scalars['String']['output'];
+  executionRunStepRetryAttemptTraceRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepRetryAttemptTraceRequestFingerprint: Scalars['String']['output'];
+  executionRunStepRetryAttemptTraceRequestInputs: Array<
+    Scalars['String']['output']
+  >;
+  executionRunStepRetryAttemptTraceRequestStatus: Scalars['String']['output'];
+  executionRunStepRetryAttemptTraceRequestVersion: Scalars['String']['output'];
+  executionRunStepRetryRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepRetryRequestFingerprint: Scalars['String']['output'];
+  executionRunStepRetryRequestInputs: Array<Scalars['String']['output']>;
+  executionRunStepRetryRequestStatus: Scalars['String']['output'];
+  executionRunStepRetryRequestVersion: Scalars['String']['output'];
+  executionRunStepStatusEventRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepStatusEventRequestFingerprint: Scalars['String']['output'];
+  executionRunStepStatusEventRequestInputs: Array<Scalars['String']['output']>;
+  executionRunStepStatusEventRequestStatus: Scalars['String']['output'];
+  executionRunStepStatusEventRequestVersion: Scalars['String']['output'];
+  executionRunStepTraceRequestCreated: Scalars['Boolean']['output'];
+  executionRunStepTraceRequestFingerprint: Scalars['String']['output'];
+  executionRunStepTraceRequestInputs: Array<Scalars['String']['output']>;
+  executionRunStepTraceRequestStatus: Scalars['String']['output'];
+  executionRunStepTraceRequestVersion: Scalars['String']['output'];
+  executionStartRequestCreated: Scalars['Boolean']['output'];
+  executionStartRequestFingerprint: Scalars['String']['output'];
+  executionStartRequestInputs: Array<Scalars['String']['output']>;
+  executionStartRequestStatus: Scalars['String']['output'];
+  executionStartRequestVersion: Scalars['String']['output'];
   executionStateRequestCreated: Scalars['Boolean']['output'];
   executionStateRequestFingerprint: Scalars['String']['output'];
   executionStateRequestInputs: Array<Scalars['String']['output']>;
   executionStateRequestStatus: Scalars['String']['output'];
   executionStateRequestVersion: Scalars['String']['output'];
-  executionRequested: Scalars['Boolean']['output'];
+  executionStatusPollRequestCreated: Scalars['Boolean']['output'];
+  executionStatusPollRequestFingerprint: Scalars['String']['output'];
+  executionStatusPollRequestInputs: Array<Scalars['String']['output']>;
+  executionStatusPollRequestStatus: Scalars['String']['output'];
+  executionStatusPollRequestVersion: Scalars['String']['output'];
+  executionTraceRequestCreated: Scalars['Boolean']['output'];
+  executionTraceRequestFingerprint: Scalars['String']['output'];
+  executionTraceRequestInputs: Array<Scalars['String']['output']>;
+  executionTraceRequestStatus: Scalars['String']['output'];
+  executionTraceRequestVersion: Scalars['String']['output'];
+  executionWorkerLeaseRequestCreated: Scalars['Boolean']['output'];
+  executionWorkerLeaseRequestFingerprint: Scalars['String']['output'];
+  executionWorkerLeaseRequestInputs: Array<Scalars['String']['output']>;
+  executionWorkerLeaseRequestStatus: Scalars['String']['output'];
+  executionWorkerLeaseRequestVersion: Scalars['String']['output'];
+  expectedCandidateEvidenceSetFingerprint: Scalars['String']['output'];
+  expectedEmbeddingIndexContractEvidenceSetFingerprint: Scalars['String']['output'];
+  expectedPreparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
+  expectedRepairGateManifestExportPolicyFingerprint: Scalars['String']['output'];
+  expectedRepairGateManifestFingerprint: Scalars['String']['output'];
+  expectedRepairGateManifestRetentionPolicyFingerprint: Scalars['String']['output'];
+  expectedRerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['output'];
+  expectedTargetLocatorFingerprint: Scalars['String']['output'];
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprint: Scalars['String']['output'];
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<
+    Scalars['String']['output']
+  >;
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: Scalars['String']['output'];
   idempotencyLockAcquired: Scalars['Boolean']['output'];
   idempotencyLockFingerprint: Scalars['String']['output'];
   idempotencyLockInputs: Array<Scalars['String']['output']>;
@@ -1676,25 +2573,15 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   repairJobRequestInputs: Array<Scalars['String']['output']>;
   repairJobRequestStatus: Scalars['String']['output'];
   repairJobRequestVersion: Scalars['String']['output'];
+  requestFingerprint: Scalars['String']['output'];
+  requestInputs: Array<Scalars['String']['output']>;
+  requestStatus: Scalars['String']['output'];
+  requestVersion: Scalars['String']['output'];
   rollbackPlanRequestCreated: Scalars['Boolean']['output'];
   rollbackPlanRequestFingerprint: Scalars['String']['output'];
   rollbackPlanRequestInputs: Array<Scalars['String']['output']>;
   rollbackPlanRequestStatus: Scalars['String']['output'];
   rollbackPlanRequestVersion: Scalars['String']['output'];
-  requestFingerprint: Scalars['String']['output'];
-  requestInputs: Array<Scalars['String']['output']>;
-  requestStatus: Scalars['String']['output'];
-  requestVersion: Scalars['String']['output'];
-  supportBundleArtifactCreated: Scalars['Boolean']['output'];
-  supportBundleArtifactFingerprint: Scalars['String']['output'];
-  supportBundleArtifactInputs: Array<Scalars['String']['output']>;
-  supportBundleArtifactRecordRequestCreated: Scalars['Boolean']['output'];
-  supportBundleArtifactRecordRequestFingerprint: Scalars['String']['output'];
-  supportBundleArtifactRecordRequestInputs: Array<Scalars['String']['output']>;
-  supportBundleArtifactRecordRequestStatus: Scalars['String']['output'];
-  supportBundleArtifactRecordRequestVersion: Scalars['String']['output'];
-  supportBundleArtifactStatus: Scalars['String']['output'];
-  supportBundleArtifactVersion: Scalars['String']['output'];
   supportBundleArchiveFormat: Scalars['String']['output'];
   supportBundleArchiveRequestCreated: Scalars['Boolean']['output'];
   supportBundleArchiveRequestFingerprint: Scalars['String']['output'];
@@ -1710,6 +2597,16 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   >;
   supportBundleArchiveSignatureRequestStatus: Scalars['String']['output'];
   supportBundleArchiveSignatureRequestVersion: Scalars['String']['output'];
+  supportBundleArtifactCreated: Scalars['Boolean']['output'];
+  supportBundleArtifactFingerprint: Scalars['String']['output'];
+  supportBundleArtifactInputs: Array<Scalars['String']['output']>;
+  supportBundleArtifactRecordRequestCreated: Scalars['Boolean']['output'];
+  supportBundleArtifactRecordRequestFingerprint: Scalars['String']['output'];
+  supportBundleArtifactRecordRequestInputs: Array<Scalars['String']['output']>;
+  supportBundleArtifactRecordRequestStatus: Scalars['String']['output'];
+  supportBundleArtifactRecordRequestVersion: Scalars['String']['output'];
+  supportBundleArtifactStatus: Scalars['String']['output'];
+  supportBundleArtifactVersion: Scalars['String']['output'];
   supportBundleAuditPersistenceRequestCreated: Scalars['Boolean']['output'];
   supportBundleAuditPersistenceRequestFingerprint: Scalars['String']['output'];
   supportBundleAuditPersistenceRequestInputs: Array<
@@ -1764,49 +2661,21 @@ export interface CopilotPromptRegistryRepairExecutionRequestType {
   supportBundleStorageKeyRequestStatus: Scalars['String']['output'];
   supportBundleStorageKeyRequestVersion: Scalars['String']['output'];
   supportBundleStorageKeyScope: Scalars['String']['output'];
-  supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint: Scalars['String']['output'];
   supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints: Array<
     Scalars['String']['output']
   >;
   supportBundleTaskRouteEffectiveSourceEvidenceSetEntries: Array<CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType>;
+  supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint: Scalars['String']['output'];
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<
     Scalars['String']['output']
   >;
+  supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: Scalars['String']['output'];
   supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints: Array<
     Scalars['String']['output']
   >;
   supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints: Array<
     Scalars['String']['output']
   >;
-  supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: Scalars['String']['output'];
-}
-
-export interface CopilotPromptRegistryRepairExecutionRequestInput {
-  expectedApprovalRecordFingerprint: Scalars['String']['input'];
-  expectedApprovalRequestFingerprint: Scalars['String']['input'];
-  expectedAuditEventFingerprint: Scalars['String']['input'];
-  expectedCandidateEvidenceSetFingerprint: Scalars['String']['input'];
-  expectedTaskRouteEffectiveSourceEvidenceSetFingerprint: Scalars['String']['input'];
-  expectedEmbeddingIndexContractEvidenceSetFingerprint: Scalars['String']['input'];
-  expectedRerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['input'];
-  expectedPreparedRouteOrderEvidenceSetFingerprint: Scalars['String']['input'];
-  expectedTargetLocatorFingerprint: Scalars['String']['input'];
-  expectedRepairGateManifestFingerprint: Scalars['String']['input'];
-  expectedRepairGateManifestExportPolicyFingerprint: Scalars['String']['input'];
-  expectedRepairGateManifestRetentionPolicyFingerprint: Scalars['String']['input'];
-  expectedExecutionGateFingerprint: Scalars['String']['input'];
-  expectedExecutionGateStatus: Scalars['String']['input'];
-  expectedExecutionStateFingerprint: Scalars['String']['input'];
-  expectedIdempotencyFingerprint: Scalars['String']['input'];
-  expectedPolicyBindingFingerprint: Scalars['String']['input'];
-  expectedPreflightStatus: Scalars['String']['input'];
-  expectedRepairJobFingerprint: Scalars['String']['input'];
-  expectedReviewBindingFingerprint: Scalars['String']['input'];
-  expectedRollbackPlanFingerprint: Scalars['String']['input'];
-  expectedVersion?: InputMaybe<CopilotPromptRegistryPublishGateExpectedVersionInput>;
-  name: Scalars['String']['input'];
-  submission: CopilotPromptRegistryRepairSubmissionInput;
-  workspaceId: Scalars['String']['input'];
 }
 
 export interface CopilotPromptRegistryRepairPreflightType {
@@ -1840,21 +2709,13 @@ export interface CopilotPromptRegistryRepairPreflightType {
   auditEventVersion: Scalars['String']['output'];
   authorizationStatus: Scalars['String']['output'];
   candidateEvidenceSetFingerprint: Scalars['String']['output'];
-  taskRouteEffectiveSourceEvidenceSetFingerprint: Scalars['String']['output'];
-  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<
-    Scalars['String']['output']
-  >;
-  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: Scalars['String']['output'];
-  embeddingIndexContractEvidenceSetFingerprint: Scalars['String']['output'];
-  rerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['output'];
-  preparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
   capabilityCheckMode: Scalars['String']['output'];
   capabilityFingerprint: Scalars['String']['output'];
   capabilitySource: Scalars['String']['output'];
   capabilityStatus: Scalars['String']['output'];
   contractVersion: Scalars['String']['output'];
   currentSubmissionFingerprint: Scalars['String']['output'];
-  expectedSubmissionFingerprint: Scalars['String']['output'];
+  embeddingIndexContractEvidenceSetFingerprint: Scalars['String']['output'];
   executionGateFingerprint: Scalars['String']['output'];
   executionGateInputs: Array<Scalars['String']['output']>;
   executionGateStatus: Scalars['String']['output'];
@@ -1865,15 +2726,16 @@ export interface CopilotPromptRegistryRepairPreflightType {
   executionStateStatus: Scalars['String']['output'];
   executionStateVersion: Scalars['String']['output'];
   expectedCandidateEvidenceSetFingerprint: Scalars['String']['output'];
+  expectedEmbeddingIndexContractEvidenceSetFingerprint: Scalars['String']['output'];
+  expectedPreparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
+  expectedRerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['output'];
+  expectedSubmissionFingerprint: Scalars['String']['output'];
+  expectedTargetLocatorFingerprint: Scalars['String']['output'];
   expectedTaskRouteEffectiveSourceEvidenceSetFingerprint: Scalars['String']['output'];
   expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<
     Scalars['String']['output']
   >;
   expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: Scalars['String']['output'];
-  expectedEmbeddingIndexContractEvidenceSetFingerprint: Scalars['String']['output'];
-  expectedRerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['output'];
-  expectedPreparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
-  expectedTargetLocatorFingerprint: Scalars['String']['output'];
   idempotencyFingerprint: Scalars['String']['output'];
   idempotencyKey: Scalars['String']['output'];
   idempotencyLockAcquired: Scalars['Boolean']['output'];
@@ -1893,14 +2755,17 @@ export interface CopilotPromptRegistryRepairPreflightType {
   policyBindingStatus: Scalars['String']['output'];
   policyBindingVersion: Scalars['String']['output'];
   policySource: Scalars['String']['output'];
-  requiredCapabilities: Array<Scalars['String']['output']>;
-  requiredCapabilityCount: Scalars['SafeInt']['output'];
-  requiredPermission: Scalars['String']['output'];
+  preparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
+  readOnly: Scalars['Boolean']['output'];
   repairJobCreated: Scalars['Boolean']['output'];
   repairJobFingerprint: Scalars['String']['output'];
   repairJobInputs: Array<Scalars['String']['output']>;
   repairJobStatus: Scalars['String']['output'];
   repairJobVersion: Scalars['String']['output'];
+  requiredCapabilities: Array<Scalars['String']['output']>;
+  requiredCapabilityCount: Scalars['SafeInt']['output'];
+  requiredPermission: Scalars['String']['output'];
+  rerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['output'];
   reviewBindingFingerprint: Scalars['String']['output'];
   reviewBindingInputs: Array<Scalars['String']['output']>;
   reviewBindingStatus: Scalars['String']['output'];
@@ -1910,638 +2775,74 @@ export interface CopilotPromptRegistryRepairPreflightType {
   rollbackPlanInputs: Array<Scalars['String']['output']>;
   rollbackPlanStatus: Scalars['String']['output'];
   rollbackPlanVersion: Scalars['String']['output'];
-  readOnly: Scalars['Boolean']['output'];
   status: Scalars['String']['output'];
   targetLocatorFingerprint: Scalars['String']['output'];
-  workspaceId?: Maybe<Scalars['String']['output']>;
+  taskRouteEffectiveSourceEvidenceSetFingerprint: Scalars['String']['output'];
+  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<
+    Scalars['String']['output']
+  >;
+  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: Scalars['String']['output'];
+  workspaceId: Maybe<Scalars['String']['output']>;
 }
 
 export interface CopilotPromptRegistryRepairSubmissionInput {
   approvalPolicyFingerprint: Scalars['String']['input'];
   authorizationFingerprint: Scalars['String']['input'];
   candidateEvidenceSetFingerprint: Scalars['String']['input'];
-  taskRouteEffectiveSourceEvidenceSetFingerprint: Scalars['String']['input'];
-  embeddingIndexContractEvidenceSetFingerprint: Scalars['String']['input'];
-  rerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['input'];
-  preparedRouteOrderEvidenceSetFingerprint: Scalars['String']['input'];
   catalogFingerprint: Scalars['String']['input'];
   contractVersion: Scalars['String']['input'];
+  embeddingIndexContractEvidenceSetFingerprint: Scalars['String']['input'];
   expectedRegistryFingerprint: Scalars['String']['input'];
   expectedRegistryId: Scalars['SafeInt']['input'];
   expectedRegistryUpdatedAt: Scalars['String']['input'];
   guardFingerprint: Scalars['String']['input'];
   idempotencyKey: Scalars['String']['input'];
   operationSetFingerprint: Scalars['String']['input'];
+  preparedRouteOrderEvidenceSetFingerprint: Scalars['String']['input'];
   previewFingerprint: Scalars['String']['input'];
   requiredInputs: Array<Scalars['String']['input']>;
+  rerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['input'];
   submissionFingerprint: Scalars['String']['input'];
   targetLocatorFingerprint: Scalars['String']['input'];
+  taskRouteEffectiveSourceEvidenceSetFingerprint: Scalars['String']['input'];
 }
 
-export interface CopilotPromptRegistryPublishGateActionRouteDryRunRouteType {
-  __typename?: 'CopilotPromptRegistryPublishGateActionRouteDryRunRouteType';
-  fallbackOrderIndex?: Maybe<Scalars['SafeInt']['output']>;
-  modelId: Scalars['String']['output'];
-  protocol?: Maybe<Scalars['String']['output']>;
-  providerConfiguredModelCount?: Maybe<Scalars['SafeInt']['output']>;
-  providerConfiguredModelIds?: Maybe<Array<Scalars['String']['output']>>;
-  providerHealth?: Maybe<Scalars['String']['output']>;
-  providerHealthCheckedAt?: Maybe<Scalars['String']['output']>;
-  providerHealthLastError?: Maybe<Scalars['String']['output']>;
-  providerId: Scalars['String']['output'];
-  providerName?: Maybe<Scalars['String']['output']>;
-  providerPrivacy?: Maybe<Scalars['String']['output']>;
-  providerPriority?: Maybe<Scalars['SafeInt']['output']>;
-  providerProfileConfigPath?: Maybe<Scalars['String']['output']>;
-  providerProfileId?: Maybe<Scalars['String']['output']>;
-  providerProfileSource?: Maybe<Scalars['String']['output']>;
-  providerSource?: Maybe<Scalars['String']['output']>;
-  providerType?: Maybe<Scalars['String']['output']>;
-  requestLayer?: Maybe<Scalars['String']['output']>;
-  routeIndex: Scalars['SafeInt']['output'];
-  routeModelAliasMatched?: Maybe<Scalars['Boolean']['output']>;
-  routeModelDefinitionAliases?: Maybe<Array<Scalars['String']['output']>>;
-  routeModelDefinitionId?: Maybe<Scalars['String']['output']>;
-  routeModelDefinitionSource?: Maybe<Scalars['String']['output']>;
-  routeRawModelId?: Maybe<Scalars['String']['output']>;
-}
-
-export interface CopilotPromptRegistryPublishGateActionRouteDryRunStepType {
-  __typename?: 'CopilotPromptRegistryPublishGateActionRouteDryRunStepType';
-  actualRouteCount: Scalars['SafeInt']['output'];
-  fallbackProviderIds: Array<Scalars['String']['output']>;
-  kind: Scalars['String']['output'];
-  requestedModelId?: Maybe<Scalars['String']['output']>;
-  requestedModelSource?: Maybe<Scalars['String']['output']>;
-  routeCount: Scalars['SafeInt']['output'];
-  routeCountMismatch: Scalars['Boolean']['output'];
-  routes: Array<CopilotPromptRegistryPublishGateActionRouteDryRunRouteType>;
-  stepId: Scalars['String']['output'];
-}
-
-export interface CopilotPromptRegistryPublishGateActionRouteDryRunType {
-  __typename?: 'CopilotPromptRegistryPublishGateActionRouteDryRunType';
-  actionId?: Maybe<Scalars['String']['output']>;
-  actualRouteCount: Scalars['SafeInt']['output'];
-  diagnosticsErrorCode?: Maybe<Scalars['String']['output']>;
-  diagnosticsErrorMessage?: Maybe<Scalars['String']['output']>;
-  diagnosticsErrorStage?: Maybe<Scalars['String']['output']>;
-  errorCode?: Maybe<Scalars['String']['output']>;
-  errorMessage?: Maybe<Scalars['String']['output']>;
-  expectedRouteCount: Scalars['SafeInt']['output'];
+export interface CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType {
+  __typename?: 'CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType';
   featureKind: Scalars['String']['output'];
-  missingRouteCount: Scalars['SafeInt']['output'];
-  routeCountMismatch: Scalars['Boolean']['output'];
-  routeCountMismatchStepIds: Array<Scalars['String']['output']>;
+  requestedModelConfigKey: Maybe<Scalars['String']['output']>;
+  requestedModelConfigPath: Maybe<Scalars['String']['output']>;
+  requestedModelId: Maybe<Scalars['String']['output']>;
+  requestedModelSource: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotPromptRegistrySourceChainEntryType {
+  __typename?: 'CopilotPromptRegistrySourceChainEntryType';
+  actorId: Maybe<Scalars['String']['output']>;
+  configPath: Maybe<Scalars['String']['output']>;
+  fingerprint: Maybe<Scalars['String']['output']>;
+  registryId: Maybe<Scalars['SafeInt']['output']>;
+  revision: Maybe<Scalars['String']['output']>;
+  scope: Scalars['String']['output'];
+  source: Scalars['String']['output'];
   status: Scalars['String']['output'];
-  steps: Array<CopilotPromptRegistryPublishGateActionRouteDryRunStepType>;
+  updatedAt: Maybe<Scalars['String']['output']>;
+  workspaceId: Maybe<Scalars['String']['output']>;
 }
 
-export interface CopilotPromptRegistryPublishGateRouteCandidateType {
-  __typename?: 'CopilotPromptRegistryPublishGateRouteCandidateType';
-  candidateModelIds?: Maybe<Array<Scalars['String']['output']>>;
-  costInputPer1M?: Maybe<Scalars['Float']['output']>;
-  costOutputPer1M?: Maybe<Scalars['Float']['output']>;
-  routeContextWindow?: Maybe<Scalars['SafeInt']['output']>;
-  routeEmbeddingDimensions?: Maybe<Scalars['SafeInt']['output']>;
-  routeMaxOutputTokens?: Maybe<Scalars['SafeInt']['output']>;
-  health?: Maybe<Scalars['String']['output']>;
-  healthCheckedAt?: Maybe<Scalars['String']['output']>;
-  matched: Scalars['Boolean']['output'];
-  modelId?: Maybe<Scalars['String']['output']>;
-  privacy?: Maybe<Scalars['String']['output']>;
-  providerConfiguredModelCount?: Maybe<Scalars['SafeInt']['output']>;
-  providerConfiguredModelIds?: Maybe<Array<Scalars['String']['output']>>;
-  providerId: Scalars['String']['output'];
-  providerName?: Maybe<Scalars['String']['output']>;
-  providerPriority?: Maybe<Scalars['SafeInt']['output']>;
-  providerProfileConfigPath?: Maybe<Scalars['String']['output']>;
-  providerProfileId?: Maybe<Scalars['String']['output']>;
-  providerProfileSource?: Maybe<Scalars['String']['output']>;
-  providerSource?: Maybe<Scalars['String']['output']>;
-  providerType?: Maybe<Scalars['String']['output']>;
-  reasons: Array<Scalars['String']['output']>;
-  registryAvailable?: Maybe<Scalars['Boolean']['output']>;
-  registryKind?: Maybe<Scalars['String']['output']>;
-  registrySelected?: Maybe<Scalars['Boolean']['output']>;
-  requestedModelId?: Maybe<Scalars['String']['output']>;
-  routeAttachmentAllowRemoteUrls?: Maybe<Scalars['Boolean']['output']>;
-  routeAttachmentKinds?: Maybe<Array<Scalars['String']['output']>>;
-  routeAttachmentSourceKinds?: Maybe<Array<Scalars['String']['output']>>;
-  routeInputTypes?: Maybe<Array<Scalars['String']['output']>>;
-  routeModelAliasMatched?: Maybe<Scalars['Boolean']['output']>;
-  routeModelDefinitionAliases?: Maybe<Array<Scalars['String']['output']>>;
-  routeModelDefinitionId?: Maybe<Scalars['String']['output']>;
-  routeModelDefinitionSource?: Maybe<Scalars['String']['output']>;
-  routeOutputTypes?: Maybe<Array<Scalars['String']['output']>>;
-  routeStructuredAttachmentAllowRemoteUrls?: Maybe<
-    Scalars['Boolean']['output']
-  >;
-  routeStructuredAttachmentKinds?: Maybe<Array<Scalars['String']['output']>>;
-  routeStructuredAttachmentSourceKinds?: Maybe<
-    Array<Scalars['String']['output']>
-  >;
-  routeRawModelId?: Maybe<Scalars['String']['output']>;
-}
-
-export interface CopilotPromptRegistryPublishGatePolicyCandidateType {
-  __typename?: 'CopilotPromptRegistryPublishGatePolicyCandidateType';
-  allowed: Scalars['Boolean']['output'];
-  available: Scalars['Boolean']['output'];
-  health: Scalars['String']['output'];
-  healthCheckedAt?: Maybe<Scalars['String']['output']>;
-  privacy: Scalars['String']['output'];
-  providerId: Scalars['String']['output'];
-  providerName?: Maybe<Scalars['String']['output']>;
-  providerPriority?: Maybe<Scalars['SafeInt']['output']>;
-  providerSource?: Maybe<Scalars['String']['output']>;
-  providerType?: Maybe<Scalars['String']['output']>;
-  registryAvailable?: Maybe<Scalars['Boolean']['output']>;
-  registryKind?: Maybe<Scalars['String']['output']>;
-  registrySelected?: Maybe<Scalars['Boolean']['output']>;
-  reasons: Array<Scalars['String']['output']>;
-}
-
-export interface CopilotPromptRegistryPublishGateRouteTracePhaseType {
-  __typename?: 'CopilotPromptRegistryPublishGateRouteTracePhaseType';
-  availableCount?: Maybe<Scalars['SafeInt']['output']>;
-  blockedCount?: Maybe<Scalars['SafeInt']['output']>;
-  candidateCount: Scalars['SafeInt']['output'];
-  matchedCount?: Maybe<Scalars['SafeInt']['output']>;
-  phase: Scalars['String']['output'];
-  preparedCount?: Maybe<Scalars['SafeInt']['output']>;
-  reasons: Array<Scalars['String']['output']>;
-  selectedCount?: Maybe<Scalars['SafeInt']['output']>;
-}
-
-export interface CopilotPromptRegistryPublishGateModelRouteType {
-  __typename?: 'CopilotPromptRegistryPublishGateModelRouteType';
-  available: Scalars['Boolean']['output'];
-  behaviorFlags?: Maybe<Array<Scalars['String']['output']>>;
-  candidateCount: Scalars['SafeInt']['output'];
-  candidateConfigPath?: Maybe<Scalars['String']['output']>;
-  candidateIndex: Scalars['SafeInt']['output'];
-  candidateKind: Scalars['String']['output'];
-  canonicalModelKey?: Maybe<Scalars['String']['output']>;
-  checked: Scalars['Boolean']['output'];
-  configured: Scalars['Boolean']['output'];
-  diagnosticsErrorCode?: Maybe<Scalars['String']['output']>;
-  diagnosticsErrorMessage?: Maybe<Scalars['String']['output']>;
-  diagnosticsErrorStage?: Maybe<Scalars['String']['output']>;
-  effectiveSourceFingerprint?: Maybe<Scalars['String']['output']>;
-  effectiveSourceFingerprintInputs?: Maybe<Array<Scalars['String']['output']>>;
-  effectiveSourceFingerprintVersion?: Maybe<Scalars['String']['output']>;
-  fallbackProviderIds: Array<Scalars['String']['output']>;
-  featureKind: Scalars['String']['output'];
-  matchedCandidateCount: Scalars['SafeInt']['output'];
-  modelBackendKind?: Maybe<Scalars['String']['output']>;
-  modelId?: Maybe<Scalars['String']['output']>;
-  outputType: Scalars['String']['output'];
-  policyAllowedPrivacy?: Maybe<Array<Scalars['String']['output']>>;
-  policyAllowedProviderIds?: Maybe<Array<Scalars['String']['output']>>;
-  policyBlockedProviderIds?: Maybe<Array<Scalars['String']['output']>>;
-  policyEnabled: Scalars['Boolean']['output'];
-  policyFeatureKind?: Maybe<Scalars['String']['output']>;
-  policyPreferredPrivacy?: Maybe<Array<Scalars['String']['output']>>;
-  policyWorkspaceId?: Maybe<Scalars['String']['output']>;
-  policyCandidates: Array<CopilotPromptRegistryPublishGatePolicyCandidateType>;
-  protocol?: Maybe<Scalars['String']['output']>;
-  providerId?: Maybe<Scalars['String']['output']>;
-  providerConfiguredModelCount?: Maybe<Scalars['SafeInt']['output']>;
-  providerConfiguredModelIds?: Maybe<Array<Scalars['String']['output']>>;
-  providerHealth?: Maybe<Scalars['String']['output']>;
-  providerHealthCheckedAt?: Maybe<Scalars['String']['output']>;
-  providerHealthLastError?: Maybe<Scalars['String']['output']>;
-  providerName?: Maybe<Scalars['String']['output']>;
-  providerPrivacy?: Maybe<Scalars['String']['output']>;
-  providerPriority?: Maybe<Scalars['SafeInt']['output']>;
-  providerProfileConfigPath?: Maybe<Scalars['String']['output']>;
-  providerProfileId?: Maybe<Scalars['String']['output']>;
-  providerProfileSource?: Maybe<Scalars['String']['output']>;
-  providerSource?: Maybe<Scalars['String']['output']>;
-  providerType?: Maybe<Scalars['String']['output']>;
-  reasons: Array<Scalars['String']['output']>;
-  requestedModelId?: Maybe<Scalars['String']['output']>;
-  requestedModelSource?: Maybe<Scalars['String']['output']>;
-  requestLayer?: Maybe<Scalars['String']['output']>;
-  routeModelAliasMatched?: Maybe<Scalars['Boolean']['output']>;
-  routeModelDefinitionAliases?: Maybe<Array<Scalars['String']['output']>>;
-  routeModelDefinitionId?: Maybe<Scalars['String']['output']>;
-  routeModelDefinitionSource?: Maybe<Scalars['String']['output']>;
-  routeRawModelId?: Maybe<Scalars['String']['output']>;
-  routeCandidates: Array<CopilotPromptRegistryPublishGateRouteCandidateType>;
-  routeTrace: Array<CopilotPromptRegistryPublishGateRouteTracePhaseType>;
-}
-
-export interface CopilotPromptRegistryPublishGateRepairRecommendationType {
-  __typename?: 'CopilotPromptRegistryPublishGateRepairRecommendationType';
-  candidateEvidence?: Maybe<
-    Array<CopilotPromptRegistryPublishGateRepairCandidateEvidenceType>
-  >;
-  category: Scalars['String']['output'];
+export interface CopilotPromptRegistryValidationIssueType {
+  __typename?: 'CopilotPromptRegistryValidationIssueType';
   code: Scalars['String']['output'];
   detail: Scalars['String']['output'];
-  diagnosticsFingerprint: Scalars['String']['output'];
-  evidence: Array<Scalars['String']['output']>;
-  instanceKey?: Maybe<Scalars['String']['output']>;
+  fieldLabel: Scalars['String']['output'];
+  message: Maybe<Scalars['String']['output']>;
+  messageIndex: Maybe<Scalars['SafeInt']['output']>;
+  path: Scalars['String']['output'];
+  publishBlocking: Scalars['Boolean']['output'];
+  reason: Scalars['String']['output'];
   severity: Scalars['String']['output'];
-  suggestedAction: Scalars['String']['output'];
-  suggestedActionCatalogVersion: Scalars['String']['output'];
-  suggestedActionInputSchema: Scalars['JSONObject']['output'];
-  suggestedActionKind: Scalars['String']['output'];
-  suggestedActionRequiredCapabilities: Array<Scalars['String']['output']>;
-  suggestedActionSafety: Scalars['String']['output'];
-  target: Scalars['String']['output'];
-  targetLocator?: Maybe<CopilotPromptRegistryPublishGateRepairTargetLocatorType>;
-  title: Scalars['String']['output'];
-}
-
-export interface CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
-  __typename?: 'CopilotPromptRegistryPublishGateRepairCandidateEvidenceType';
-  allowed?: Maybe<Scalars['Boolean']['output']>;
-  available?: Maybe<Scalars['Boolean']['output']>;
-  candidateFingerprint: Scalars['String']['output'];
-  candidateIndex: Scalars['SafeInt']['output'];
-  candidateKey?: Maybe<Scalars['String']['output']>;
-  candidateModelIds?: Maybe<Array<Scalars['String']['output']>>;
-  costInputPer1M?: Maybe<Scalars['Float']['output']>;
-  costOutputPer1M?: Maybe<Scalars['Float']['output']>;
-  dimensionMismatch?: Maybe<Scalars['Boolean']['output']>;
-  embeddingIndexContractDimensions?: Maybe<Scalars['SafeInt']['output']>;
-  embeddingIndexContractFingerprint?: Maybe<Scalars['String']['output']>;
-  embeddingIndexContractStatus?: Maybe<Scalars['String']['output']>;
-  embeddingIndexContractVersion?: Maybe<Scalars['String']['output']>;
-  diagnosticsErrors?: Maybe<
-    Array<CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType>
-  >;
-  diagnosticsErrorSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
-  errorCategory?: Maybe<Scalars['String']['output']>;
-  errorCode?: Maybe<Scalars['String']['output']>;
-  fallbackProviderIds?: Maybe<Array<Scalars['String']['output']>>;
-  health?: Maybe<Scalars['String']['output']>;
-  healthCheckedAt?: Maybe<Scalars['String']['output']>;
-  matched?: Maybe<Scalars['Boolean']['output']>;
-  modelEmbeddingDimensions?: Maybe<Scalars['SafeInt']['output']>;
-  modelId?: Maybe<Scalars['String']['output']>;
-  prepared?: Maybe<Scalars['Boolean']['output']>;
-  preparedModelId?: Maybe<Scalars['String']['output']>;
-  prepareCandidateSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
-  prepareCandidates?: Maybe<
-    Array<CopilotTaskRoutePrepareCandidateDiagnosticsType>
-  >;
-  preparedRouteOrderFingerprint?: Maybe<Scalars['String']['output']>;
-  preparedRouteSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
-  preparedRoutes?: Maybe<Array<CopilotPreparedTaskRouteDiagnosticsType>>;
-  providerCapabilitySnapshotFingerprint?: Maybe<Scalars['String']['output']>;
-  providerCostSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
-  providerHealthSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
-  providerLimitSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
-  rerankRuntimeContractFingerprint?: Maybe<Scalars['String']['output']>;
-  rerankRuntimeContractStatus?: Maybe<Scalars['String']['output']>;
-  rerankRuntimeContractTopK?: Maybe<Scalars['SafeInt']['output']>;
-  rerankRuntimeContractVersion?: Maybe<Scalars['String']['output']>;
-  taskRouteEmbeddingIndexContractSnapshotFingerprint?: Maybe<
-    Scalars['String']['output']
-  >;
-  taskRouteRerankRuntimeContractSnapshotFingerprint?: Maybe<
-    Scalars['String']['output']
-  >;
-  taskRouteDimensionSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
-  taskRouteEffectiveSourceFingerprint?: Maybe<Scalars['String']['output']>;
-  taskRouteEffectiveSourceFingerprintInputs?: Maybe<
-    Array<Scalars['String']['output']>
-  >;
-  taskRouteEffectiveSourceFingerprintVersion?: Maybe<
-    Scalars['String']['output']
-  >;
-  taskRouteModelSourceSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
-  preparedRouteTargets?: Maybe<Array<Scalars['String']['output']>>;
-  preparedRouteTargetFingerprint?: Maybe<Scalars['String']['output']>;
-  policyCandidates?: Maybe<
-    Array<CopilotPromptRegistryPublishGatePolicyCandidateType>
-  >;
-  policyCandidateSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
-  privacy?: Maybe<Scalars['String']['output']>;
-  providerConfiguredModelCount?: Maybe<Scalars['SafeInt']['output']>;
-  providerConfiguredModelIds?: Maybe<Array<Scalars['String']['output']>>;
-  providerId: Scalars['String']['output'];
-  providerName?: Maybe<Scalars['String']['output']>;
-  providerPriority?: Maybe<Scalars['SafeInt']['output']>;
-  providerProfileConfigPath?: Maybe<Scalars['String']['output']>;
-  providerProfileId?: Maybe<Scalars['String']['output']>;
-  providerProfileSource?: Maybe<Scalars['String']['output']>;
-  providerSource?: Maybe<Scalars['String']['output']>;
-  providerType?: Maybe<Scalars['String']['output']>;
-  reasons: Array<Scalars['String']['output']>;
-  registryAvailable?: Maybe<Scalars['Boolean']['output']>;
-  registryKind?: Maybe<Scalars['String']['output']>;
-  registrySelected?: Maybe<Scalars['Boolean']['output']>;
-  requestedModelConfigKey?: Maybe<Scalars['String']['output']>;
-  requestedModelConfigPath?: Maybe<Scalars['String']['output']>;
-  requestedDimensions?: Maybe<Scalars['SafeInt']['output']>;
-  requestedModelId?: Maybe<Scalars['String']['output']>;
-  requestedModelSource?: Maybe<Scalars['String']['output']>;
-  routeAttachmentAllowRemoteUrls?: Maybe<Scalars['Boolean']['output']>;
-  routeAttachmentKinds?: Maybe<Array<Scalars['String']['output']>>;
-  routeAttachmentSourceKinds?: Maybe<Array<Scalars['String']['output']>>;
-  routeCandidateSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
-  routeContextWindow?: Maybe<Scalars['SafeInt']['output']>;
-  routeEmbeddingDimensions?: Maybe<Scalars['SafeInt']['output']>;
-  routeInputTypes?: Maybe<Array<Scalars['String']['output']>>;
-  routeMaxOutputTokens?: Maybe<Scalars['SafeInt']['output']>;
-  routeModelAliasMatched?: Maybe<Scalars['Boolean']['output']>;
-  routeModelDefinitionAliases?: Maybe<Array<Scalars['String']['output']>>;
-  routeModelDefinitionId?: Maybe<Scalars['String']['output']>;
-  routeModelDefinitionSource?: Maybe<Scalars['String']['output']>;
-  routeOutputTypes?: Maybe<Array<Scalars['String']['output']>>;
-  routeRawModelId?: Maybe<Scalars['String']['output']>;
-  routeStructuredAttachmentAllowRemoteUrls?: Maybe<
-    Scalars['Boolean']['output']
-  >;
-  routeStructuredAttachmentKinds?: Maybe<Array<Scalars['String']['output']>>;
-  routeStructuredAttachmentSourceKinds?: Maybe<
-    Array<Scalars['String']['output']>
-  >;
-  routeTrace?: Maybe<
-    Array<CopilotPromptRegistryPublishGateRouteTracePhaseType>
-  >;
-  routeTracePhases?: Maybe<Array<Scalars['String']['output']>>;
-  routeTraceSnapshotFingerprint?: Maybe<Scalars['String']['output']>;
-  scope: Scalars['String']['output'];
-}
-
-export interface CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType {
-  __typename?: 'CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType';
-  code: Scalars['String']['output'];
-  message: Scalars['String']['output'];
-  stage: Scalars['String']['output'];
-}
-
-export interface CopilotPromptRegistryPublishGateRepairActionCatalogEntryType {
-  __typename?: 'CopilotPromptRegistryPublishGateRepairActionCatalogEntryType';
-  actionKind: Scalars['String']['output'];
-  catalogVersion: Scalars['String']['output'];
-  inputSchema: Scalars['JSONObject']['output'];
-  recommendationCount: Scalars['SafeInt']['output'];
-  requiredCapabilities: Array<Scalars['String']['output']>;
-  safety: Scalars['String']['output'];
-}
-
-export interface CopilotPromptRegistryPublishGateRepairActionMutationGuardType {
-  __typename?: 'CopilotPromptRegistryPublishGateRepairActionMutationGuardType';
-  auditSummary: Scalars['String']['output'];
-  auditSummaryFingerprint: Scalars['String']['output'];
-  catalogFingerprint: Scalars['String']['output'];
-  catalogVersion: Scalars['String']['output'];
-  expectedRegistryFingerprint: Scalars['String']['output'];
-  expectedRegistryId: Scalars['SafeInt']['output'];
-  expectedRegistryUpdatedAt: Scalars['String']['output'];
-  guardFingerprint: Scalars['String']['output'];
-  intentFingerprint: Scalars['String']['output'];
-  inputSchemaFingerprint: Scalars['String']['output'];
-  recommendationCategories: Array<Scalars['String']['output']>;
-  recommendationCount: Scalars['SafeInt']['output'];
-  recommendationCodes: Array<Scalars['String']['output']>;
-  recommendationFingerprints: Array<Scalars['String']['output']>;
-  requiredCapabilities: Array<Scalars['String']['output']>;
-  requiredReviewModes: Array<Scalars['String']['output']>;
-  required: Scalars['Boolean']['output'];
-  safetyLevels: Array<Scalars['String']['output']>;
-  suggestedActionKinds: Array<Scalars['String']['output']>;
-  targetLocatorCount: Scalars['SafeInt']['output'];
-  targetLocatorFingerprint: Scalars['String']['output'];
-  targetLocatorKinds: Array<Scalars['String']['output']>;
-}
-
-export interface CopilotPromptRegistryPublishGateRepairActionPreviewOperationType {
-  __typename?: 'CopilotPromptRegistryPublishGateRepairActionPreviewOperationType';
-  actionKind: Scalars['String']['output'];
-  candidateEvidenceCount: Scalars['SafeInt']['output'];
-  candidateEvidenceEntries: Array<CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType>;
-  candidateEvidenceFingerprint: Scalars['String']['output'];
-  candidateEvidenceFingerprints: Array<Scalars['String']['output']>;
-  candidateEvidenceKeys: Array<Scalars['String']['output']>;
-  category: Scalars['String']['output'];
-  code: Scalars['String']['output'];
-  diagnosticsFingerprint: Scalars['String']['output'];
-  embeddingIndexContractEvidenceFingerprints: Array<
-    Scalars['String']['output']
-  >;
-  rerankRuntimeContractEvidenceFingerprints: Array<Scalars['String']['output']>;
-  taskRouteEffectiveSourceFingerprints: Array<Scalars['String']['output']>;
-  inputSchema: Scalars['JSONObject']['output'];
-  instanceKey?: Maybe<Scalars['String']['output']>;
-  operationFingerprint: Scalars['String']['output'];
-  preparedRouteOrderFingerprints: Array<Scalars['String']['output']>;
-  previewStatus: Scalars['String']['output'];
-  requiredCapabilities: Array<Scalars['String']['output']>;
-  reviewMode: Scalars['String']['output'];
-  safety: Scalars['String']['output'];
-  target: Scalars['String']['output'];
-  targetLocator?: Maybe<CopilotPromptRegistryPublishGateRepairTargetLocatorType>;
-  targetLocatorFingerprint: Scalars['String']['output'];
-}
-
-export interface CopilotPromptRegistryPublishGateRepairActionPreviewType {
-  __typename?: 'CopilotPromptRegistryPublishGateRepairActionPreviewType';
-  approvalCheckpoints: Array<Scalars['String']['output']>;
-  approvalModes: Array<Scalars['String']['output']>;
-  approvalPolicyFingerprint: Scalars['String']['output'];
-  approvalPolicyVersion: Scalars['String']['output'];
-  approvalRequired: Scalars['Boolean']['output'];
-  auditSummaryFingerprint: Scalars['String']['output'];
-  authorizationFingerprint: Scalars['String']['output'];
-  authorizationStatus: Scalars['String']['output'];
-  candidateCount: Scalars['SafeInt']['output'];
-  candidateEvidenceSetFingerprint: Scalars['String']['output'];
-  taskRouteEffectiveSourceEvidenceSetFingerprint: Scalars['String']['output'];
-  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<
-    Scalars['String']['output']
-  >;
-  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: Scalars['String']['output'];
-  embeddingIndexContractEvidenceSetFingerprint: Scalars['String']['output'];
-  rerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['output'];
-  preparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
-  catalogFingerprint: Scalars['String']['output'];
-  catalogVersion: Scalars['String']['output'];
-  guardFingerprint: Scalars['String']['output'];
-  operationFingerprints: Array<Scalars['String']['output']>;
-  operationSetFingerprint: Scalars['String']['output'];
-  operations: Array<CopilotPromptRegistryPublishGateRepairActionPreviewOperationType>;
-  previewFingerprint: Scalars['String']['output'];
-  readOnly: Scalars['Boolean']['output'];
-  requiredCapabilities: Array<Scalars['String']['output']>;
-  status: Scalars['String']['output'];
-  submissionContract: CopilotPromptRegistryPublishGateRepairActionSubmissionContractType;
-}
-
-export interface CopilotPromptRegistryPublishGateRepairGateManifestType {
-  __typename?: 'CopilotPromptRegistryPublishGateRepairGateManifestType';
-  version: Scalars['String']['output'];
-  boundary: Scalars['String']['output'];
-  fingerprint: Scalars['String']['output'];
-  registryFingerprint: Scalars['String']['output'];
-  registryId: Scalars['SafeInt']['output'];
-  registryUpdatedAt: Scalars['String']['output'];
-  gateStatus: Scalars['String']['output'];
-  publishStatus: Scalars['String']['output'];
-  reason: Scalars['String']['output'];
-  issueCount: Scalars['SafeInt']['output'];
-  blockingCount: Scalars['SafeInt']['output'];
-  recommendationCount: Scalars['SafeInt']['output'];
-  operationCount: Scalars['SafeInt']['output'];
-  guardFingerprint: Scalars['String']['output'];
-  previewFingerprint: Scalars['String']['output'];
-  submissionFingerprint: Scalars['String']['output'];
-  candidateEvidenceSetFingerprint: Scalars['String']['output'];
-  taskRouteEffectiveSourceEvidenceSetFingerprint: Scalars['String']['output'];
-  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<
-    Scalars['String']['output']
-  >;
-  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: Scalars['String']['output'];
-  embeddingIndexContractEvidenceSetFingerprint: Scalars['String']['output'];
-  rerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['output'];
-  preparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
-  operationSetFingerprint: Scalars['String']['output'];
-  targetLocatorFingerprint: Scalars['String']['output'];
-  approvalPolicyFingerprint: Scalars['String']['output'];
-  authorizationFingerprint: Scalars['String']['output'];
-  catalogFingerprint: Scalars['String']['output'];
-  catalogVersion: Scalars['String']['output'];
-  readOnly: Scalars['Boolean']['output'];
-  mutationAvailable: Scalars['Boolean']['output'];
-  requiredCapabilities: Array<Scalars['String']['output']>;
-  requiredReviewModes: Array<Scalars['String']['output']>;
-  safetyLevels: Array<Scalars['String']['output']>;
-  operationFingerprints: Array<Scalars['String']['output']>;
-  recommendationFingerprints: Array<Scalars['String']['output']>;
-}
-
-export interface CopilotPromptRegistryPublishGateRepairGateManifestExportMetadataType {
-  __typename?: 'CopilotPromptRegistryPublishGateRepairGateManifestExportMetadataType';
-  version: Scalars['String']['output'];
-  artifact: Scalars['String']['output'];
-  filename: Scalars['String']['output'];
-  mime: Scalars['String']['output'];
-  metadataFilename: Scalars['String']['output'];
-  manifestVersion: Scalars['String']['output'];
-  manifestFingerprint: Scalars['String']['output'];
-  registryFingerprint: Scalars['String']['output'];
-  registryId: Scalars['SafeInt']['output'];
-  registryUpdatedAt: Scalars['String']['output'];
-  gateStatus: Scalars['String']['output'];
-  publishStatus: Scalars['String']['output'];
-  boundary: Scalars['String']['output'];
-  redactionPolicyVersion: Scalars['String']['output'];
-  redactionPolicyStatus: Scalars['String']['output'];
-  redactionPolicyFingerprint: Scalars['String']['output'];
-  exportPolicyVersion: Scalars['String']['output'];
-  exportPolicyStatus: Scalars['String']['output'];
-  exportPolicyFingerprint: Scalars['String']['output'];
-  auditEventVersion: Scalars['String']['output'];
-  auditEventStatus: Scalars['String']['output'];
-  auditEventCreated: Scalars['Boolean']['output'];
-  auditEventFingerprint: Scalars['String']['output'];
-  retentionPolicyVersion: Scalars['String']['output'];
-  retentionPolicyStatus: Scalars['String']['output'];
-  retentionPolicyFingerprint: Scalars['String']['output'];
-}
-
-export interface CopilotPromptRegistryPublishGateRepairActionSubmissionContractType {
-  __typename?: 'CopilotPromptRegistryPublishGateRepairActionSubmissionContractType';
-  approvalPolicyFingerprint: Scalars['String']['output'];
-  authorizationFingerprint: Scalars['String']['output'];
-  candidateEvidenceSetFingerprint: Scalars['String']['output'];
-  taskRouteEffectiveSourceEvidenceSetFingerprint: Scalars['String']['output'];
-  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<
-    Scalars['String']['output']
-  >;
-  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: Scalars['String']['output'];
-  embeddingIndexContractEvidenceSetFingerprint: Scalars['String']['output'];
-  rerankRuntimeContractEvidenceSetFingerprint: Scalars['String']['output'];
-  preparedRouteOrderEvidenceSetFingerprint: Scalars['String']['output'];
-  catalogFingerprint: Scalars['String']['output'];
-  contractVersion: Scalars['String']['output'];
-  expectedRegistryFingerprint: Scalars['String']['output'];
-  expectedRegistryId: Scalars['SafeInt']['output'];
-  expectedRegistryUpdatedAt: Scalars['String']['output'];
-  guardFingerprint: Scalars['String']['output'];
-  idempotencyKey: Scalars['String']['output'];
-  mutationAvailable: Scalars['Boolean']['output'];
-  operationSetFingerprint: Scalars['String']['output'];
-  previewFingerprint: Scalars['String']['output'];
-  readOnly: Scalars['Boolean']['output'];
-  requiredInputs: Array<Scalars['String']['output']>;
-  status: Scalars['String']['output'];
-  submissionFingerprint: Scalars['String']['output'];
-  targetLocatorFingerprint: Scalars['String']['output'];
-}
-
-export interface CopilotPromptRegistryPublishGateRepairTargetLocatorType {
-  __typename?: 'CopilotPromptRegistryPublishGateRepairTargetLocatorType';
-  actionId?: Maybe<Scalars['String']['output']>;
-  candidateIndex?: Maybe<Scalars['SafeInt']['output']>;
-  candidateKind?: Maybe<Scalars['String']['output']>;
-  fallbackOrderIndex?: Maybe<Scalars['SafeInt']['output']>;
-  featureKind?: Maybe<Scalars['String']['output']>;
-  kind: Scalars['String']['output'];
-  outputType?: Maybe<Scalars['String']['output']>;
-  path: Scalars['String']['output'];
-  providerId?: Maybe<Scalars['String']['output']>;
-  providerProfileConfigPath?: Maybe<Scalars['String']['output']>;
-  providerProfileId?: Maybe<Scalars['String']['output']>;
-  providerProfileSource?: Maybe<Scalars['String']['output']>;
-  registryFingerprint: Scalars['String']['output'];
-  registryId: Scalars['SafeInt']['output'];
-  registryUpdatedAt: Scalars['String']['output'];
-  requestedModelConfigKey?: Maybe<Scalars['String']['output']>;
-  requestedModelConfigPath?: Maybe<Scalars['String']['output']>;
-  requestedModelId?: Maybe<Scalars['String']['output']>;
-  requestedModelSource?: Maybe<Scalars['String']['output']>;
-  routeIndex?: Maybe<Scalars['SafeInt']['output']>;
-  status?: Maybe<Scalars['String']['output']>;
-  stepId?: Maybe<Scalars['String']['output']>;
-}
-
-export interface CopilotPromptRegistryPublishGateVerdictType {
-  __typename?: 'CopilotPromptRegistryPublishGateVerdictType';
-  actionRouteDryRun?: Maybe<CopilotPromptRegistryPublishGateActionRouteDryRunType>;
-  allowed: Scalars['Boolean']['output'];
-  blockingCount: Scalars['SafeInt']['output'];
-  errorCount: Scalars['SafeInt']['output'];
-  issueCount: Scalars['SafeInt']['output'];
-  issues: Array<CopilotPromptRegistryValidationIssueType>;
-  modelRoute?: Maybe<CopilotPromptRegistryPublishGateModelRouteType>;
-  modelRoutes: Array<CopilotPromptRegistryPublishGateModelRouteType>;
-  taskRoutes: Array<CopilotTaskRouteDiagnosticsType>;
-  name: Scalars['String']['output'];
-  publishStatus: Scalars['String']['output'];
-  reason: Scalars['String']['output'];
-  registryFingerprint: Scalars['String']['output'];
-  registryId: Scalars['SafeInt']['output'];
-  registryUpdatedAt: Scalars['DateTime']['output'];
-  repairActionCatalog: Array<CopilotPromptRegistryPublishGateRepairActionCatalogEntryType>;
-  repairActionCatalogFingerprint: Scalars['String']['output'];
-  repairActionMutationGuard: CopilotPromptRegistryPublishGateRepairActionMutationGuardType;
-  repairActionPreview: CopilotPromptRegistryPublishGateRepairActionPreviewType;
-  repairGateManifest: CopilotPromptRegistryPublishGateRepairGateManifestType;
-  repairGateManifestExportMetadata: CopilotPromptRegistryPublishGateRepairGateManifestExportMetadataType;
-  remediations: Array<CopilotPromptRegistryValidationRemediationType>;
-  repairRecommendations: Array<CopilotPromptRegistryPublishGateRepairRecommendationType>;
-  stale: Scalars['Boolean']['output'];
-  staleReasons: Array<Scalars['String']['output']>;
-  status: Scalars['String']['output'];
-}
-
-export interface CopilotPromptRegistryValidationSourceLocatorType {
-  __typename?: 'CopilotPromptRegistryValidationSourceLocatorType';
-  field: Scalars['String']['output'];
-  messageIndex?: Maybe<Scalars['SafeInt']['output']>;
-  path: Scalars['String']['output'];
-  registryFingerprint: Scalars['String']['output'];
-  registryId: Scalars['SafeInt']['output'];
-  registryUpdatedAt: Scalars['String']['output'];
-  table: Scalars['String']['output'];
+  source: Scalars['String']['output'];
+  sourceLocator: CopilotPromptRegistryValidationSourceLocatorType;
 }
 
 export interface CopilotPromptRegistryValidationRemediationType {
@@ -2553,238 +2854,15 @@ export interface CopilotPromptRegistryValidationRemediationType {
   targetLocator: CopilotPromptRegistryValidationSourceLocatorType;
 }
 
-export interface CopilotPreparedTaskRouteDiagnosticsType {
-  __typename?: 'CopilotPreparedTaskRouteDiagnosticsType';
-  behaviorFlags?: Maybe<Array<Scalars['String']['output']>>;
-  canonicalModelKey?: Maybe<Scalars['String']['output']>;
-  dimensionMismatch?: Maybe<Scalars['Boolean']['output']>;
-  fallbackOrderIndex?: Maybe<Scalars['SafeInt']['output']>;
-  modelBackendKind?: Maybe<Scalars['String']['output']>;
-  modelEmbeddingDimensions?: Maybe<Scalars['SafeInt']['output']>;
-  modelId: Scalars['String']['output'];
-  protocol?: Maybe<Scalars['String']['output']>;
-  providerConfiguredModelCount?: Maybe<Scalars['SafeInt']['output']>;
-  providerConfiguredModelIds?: Maybe<Array<Scalars['String']['output']>>;
-  providerId: Scalars['String']['output'];
-  providerName?: Maybe<Scalars['String']['output']>;
-  providerPriority?: Maybe<Scalars['SafeInt']['output']>;
-  providerProfileConfigPath?: Maybe<Scalars['String']['output']>;
-  providerProfileId?: Maybe<Scalars['String']['output']>;
-  providerProfileSource?: Maybe<Scalars['String']['output']>;
-  providerSource?: Maybe<Scalars['String']['output']>;
-  providerType?: Maybe<Scalars['String']['output']>;
-  requestedDimensions?: Maybe<Scalars['SafeInt']['output']>;
-  requestLayer?: Maybe<Scalars['String']['output']>;
-  routeIndex: Scalars['SafeInt']['output'];
-}
-
-export interface CopilotTaskRoutePolicyCandidateDiagnosticsType {
-  __typename?: 'CopilotTaskRoutePolicyCandidateDiagnosticsType';
-  allowed: Scalars['Boolean']['output'];
-  available: Scalars['Boolean']['output'];
-  candidateFingerprint: Scalars['String']['output'];
-  candidateKey: Scalars['String']['output'];
-  health: Scalars['String']['output'];
-  healthCheckedAt?: Maybe<Scalars['String']['output']>;
-  privacy: Scalars['String']['output'];
-  providerId: Scalars['String']['output'];
-  providerConfiguredModelCount?: Maybe<Scalars['SafeInt']['output']>;
-  providerConfiguredModelIds?: Maybe<Array<Scalars['String']['output']>>;
-  providerName?: Maybe<Scalars['String']['output']>;
-  providerProfileConfigPath?: Maybe<Scalars['String']['output']>;
-  providerProfileId?: Maybe<Scalars['String']['output']>;
-  providerProfileSource?: Maybe<Scalars['String']['output']>;
-  providerSource?: Maybe<Scalars['String']['output']>;
-  providerPriority?: Maybe<Scalars['SafeInt']['output']>;
-  providerType?: Maybe<Scalars['String']['output']>;
-  registryAvailable?: Maybe<Scalars['Boolean']['output']>;
-  registryKind?: Maybe<Scalars['String']['output']>;
-  registrySelected?: Maybe<Scalars['Boolean']['output']>;
-  reasons: Array<Scalars['String']['output']>;
-}
-
-export interface CopilotTaskRouteCandidateDiagnosticsType {
-  __typename?: 'CopilotTaskRouteCandidateDiagnosticsType';
-  candidateKey?: Maybe<Scalars['String']['output']>;
-  candidateModelIds?: Maybe<Array<Scalars['String']['output']>>;
-  costInputPer1M?: Maybe<Scalars['Float']['output']>;
-  costOutputPer1M?: Maybe<Scalars['Float']['output']>;
-  routeContextWindow?: Maybe<Scalars['SafeInt']['output']>;
-  routeEmbeddingDimensions?: Maybe<Scalars['SafeInt']['output']>;
-  routeMaxOutputTokens?: Maybe<Scalars['SafeInt']['output']>;
-  routeAttachmentAllowRemoteUrls?: Maybe<Scalars['Boolean']['output']>;
-  routeAttachmentKinds?: Maybe<Array<Scalars['String']['output']>>;
-  routeAttachmentSourceKinds?: Maybe<Array<Scalars['String']['output']>>;
-  routeInputTypes?: Maybe<Array<Scalars['String']['output']>>;
-  routeOutputTypes?: Maybe<Array<Scalars['String']['output']>>;
-  routeStructuredAttachmentAllowRemoteUrls?: Maybe<
-    Scalars['Boolean']['output']
-  >;
-  routeStructuredAttachmentKinds?: Maybe<Array<Scalars['String']['output']>>;
-  routeStructuredAttachmentSourceKinds?: Maybe<
-    Array<Scalars['String']['output']>
-  >;
-  matched: Scalars['Boolean']['output'];
-  modelId?: Maybe<Scalars['String']['output']>;
-  providerConfiguredModelCount?: Maybe<Scalars['SafeInt']['output']>;
-  providerConfiguredModelIds?: Maybe<Array<Scalars['String']['output']>>;
-  providerId: Scalars['String']['output'];
-  providerName?: Maybe<Scalars['String']['output']>;
-  providerProfileConfigPath?: Maybe<Scalars['String']['output']>;
-  providerProfileId?: Maybe<Scalars['String']['output']>;
-  providerProfileSource?: Maybe<Scalars['String']['output']>;
-  providerSource?: Maybe<Scalars['String']['output']>;
-  providerType?: Maybe<Scalars['String']['output']>;
-  providerPriority?: Maybe<Scalars['SafeInt']['output']>;
-  privacy?: Maybe<Scalars['String']['output']>;
-  health?: Maybe<Scalars['String']['output']>;
-  healthCheckedAt?: Maybe<Scalars['String']['output']>;
-  routeModelAliasMatched?: Maybe<Scalars['Boolean']['output']>;
-  routeModelDefinitionAliases?: Maybe<Array<Scalars['String']['output']>>;
-  routeModelDefinitionId?: Maybe<Scalars['String']['output']>;
-  routeModelDefinitionSource?: Maybe<Scalars['String']['output']>;
-  routeRawModelId?: Maybe<Scalars['String']['output']>;
-  reasons: Array<Scalars['String']['output']>;
-  registryAvailable?: Maybe<Scalars['Boolean']['output']>;
-  registryKind?: Maybe<Scalars['String']['output']>;
-  registrySelected?: Maybe<Scalars['Boolean']['output']>;
-  requestedModelId?: Maybe<Scalars['String']['output']>;
-}
-
-export interface CopilotTaskRoutePrepareCandidateDiagnosticsType {
-  __typename?: 'CopilotTaskRoutePrepareCandidateDiagnosticsType';
-  candidateKey?: Maybe<Scalars['String']['output']>;
-  candidateModelIds?: Maybe<Array<Scalars['String']['output']>>;
-  costInputPer1M?: Maybe<Scalars['Float']['output']>;
-  costOutputPer1M?: Maybe<Scalars['Float']['output']>;
-  routeContextWindow?: Maybe<Scalars['SafeInt']['output']>;
-  routeEmbeddingDimensions?: Maybe<Scalars['SafeInt']['output']>;
-  routeMaxOutputTokens?: Maybe<Scalars['SafeInt']['output']>;
-  routeAttachmentAllowRemoteUrls?: Maybe<Scalars['Boolean']['output']>;
-  routeAttachmentKinds?: Maybe<Array<Scalars['String']['output']>>;
-  routeAttachmentSourceKinds?: Maybe<Array<Scalars['String']['output']>>;
-  routeInputTypes?: Maybe<Array<Scalars['String']['output']>>;
-  routeOutputTypes?: Maybe<Array<Scalars['String']['output']>>;
-  routeStructuredAttachmentAllowRemoteUrls?: Maybe<
-    Scalars['Boolean']['output']
-  >;
-  routeStructuredAttachmentKinds?: Maybe<Array<Scalars['String']['output']>>;
-  routeStructuredAttachmentSourceKinds?: Maybe<
-    Array<Scalars['String']['output']>
-  >;
-  errorCategory?: Maybe<Scalars['String']['output']>;
-  errorCode?: Maybe<Scalars['String']['output']>;
-  health?: Maybe<Scalars['String']['output']>;
-  healthCheckedAt?: Maybe<Scalars['String']['output']>;
-  modelId?: Maybe<Scalars['String']['output']>;
-  prepared: Scalars['Boolean']['output'];
-  preparedModelId?: Maybe<Scalars['String']['output']>;
-  providerConfiguredModelCount?: Maybe<Scalars['SafeInt']['output']>;
-  providerConfiguredModelIds?: Maybe<Array<Scalars['String']['output']>>;
-  providerId: Scalars['String']['output'];
-  providerName?: Maybe<Scalars['String']['output']>;
-  providerPriority?: Maybe<Scalars['SafeInt']['output']>;
-  providerProfileConfigPath?: Maybe<Scalars['String']['output']>;
-  providerProfileId?: Maybe<Scalars['String']['output']>;
-  providerProfileSource?: Maybe<Scalars['String']['output']>;
-  providerSource?: Maybe<Scalars['String']['output']>;
-  providerType?: Maybe<Scalars['String']['output']>;
-  privacy?: Maybe<Scalars['String']['output']>;
-  routeModelAliasMatched?: Maybe<Scalars['Boolean']['output']>;
-  routeModelDefinitionAliases?: Maybe<Array<Scalars['String']['output']>>;
-  routeModelDefinitionId?: Maybe<Scalars['String']['output']>;
-  routeModelDefinitionSource?: Maybe<Scalars['String']['output']>;
-  routeRawModelId?: Maybe<Scalars['String']['output']>;
-  reasons: Array<Scalars['String']['output']>;
-  registryAvailable?: Maybe<Scalars['Boolean']['output']>;
-  registryKind?: Maybe<Scalars['String']['output']>;
-  registrySelected?: Maybe<Scalars['Boolean']['output']>;
-  requestedModelId?: Maybe<Scalars['String']['output']>;
-}
-
-export interface CopilotTaskRouteTracePhaseDiagnosticsType {
-  __typename?: 'CopilotTaskRouteTracePhaseDiagnosticsType';
-  availableCount?: Maybe<Scalars['SafeInt']['output']>;
-  blockedCount?: Maybe<Scalars['SafeInt']['output']>;
-  candidateCount: Scalars['SafeInt']['output'];
-  matchedCount?: Maybe<Scalars['SafeInt']['output']>;
-  phase: Scalars['String']['output'];
-  preparedCount?: Maybe<Scalars['SafeInt']['output']>;
-  reasons: Array<Scalars['String']['output']>;
-  selectedCount?: Maybe<Scalars['SafeInt']['output']>;
-}
-
-export interface CopilotTaskRouteDiagnosticsErrorType {
-  __typename?: 'CopilotTaskRouteDiagnosticsErrorType';
-  code: Scalars['String']['output'];
-  message: Scalars['String']['output'];
-  stage: Scalars['String']['output'];
-}
-
-export interface CopilotTaskRouteDiagnosticsType {
-  __typename?: 'CopilotTaskRouteDiagnosticsType';
-  behaviorFlags?: Maybe<Array<Scalars['String']['output']>>;
-  candidateCount?: Maybe<Scalars['SafeInt']['output']>;
-  canonicalModelKey?: Maybe<Scalars['String']['output']>;
-  configured: Scalars['Boolean']['output'];
-  diagnosticsErrors: Array<CopilotTaskRouteDiagnosticsErrorType>;
-  dimensionMismatch?: Maybe<Scalars['Boolean']['output']>;
-  effectiveSourceFingerprint?: Maybe<Scalars['String']['output']>;
-  effectiveSourceFingerprintInputs?: Maybe<Array<Scalars['String']['output']>>;
-  effectiveSourceFingerprintVersion?: Maybe<Scalars['String']['output']>;
-  embeddingIndexContractDimensions?: Maybe<Scalars['SafeInt']['output']>;
-  embeddingIndexContractFingerprint?: Maybe<Scalars['String']['output']>;
-  embeddingIndexContractStatus?: Maybe<Scalars['String']['output']>;
-  embeddingIndexContractVersion?: Maybe<Scalars['String']['output']>;
-  errorCode?: Maybe<Scalars['String']['output']>;
-  errorMessage?: Maybe<Scalars['String']['output']>;
-  fallbackProviderIds: Array<Scalars['String']['output']>;
-  featureKind: Scalars['String']['output'];
-  modelBackendKind?: Maybe<Scalars['String']['output']>;
-  modelEmbeddingDimensions?: Maybe<Scalars['SafeInt']['output']>;
-  modelId?: Maybe<Scalars['String']['output']>;
-  policyAllowedPrivacy?: Maybe<Array<Scalars['String']['output']>>;
-  policyAllowedProviderIds?: Maybe<Array<Scalars['String']['output']>>;
-  policyBlockedProviderIds?: Maybe<Array<Scalars['String']['output']>>;
-  policyEnabled: Scalars['Boolean']['output'];
-  policyFeatureKind?: Maybe<Scalars['String']['output']>;
-  policyPreferredPrivacy?: Maybe<Array<Scalars['String']['output']>>;
-  policyWorkspaceId?: Maybe<Scalars['String']['output']>;
-  policyCandidates: Array<CopilotTaskRoutePolicyCandidateDiagnosticsType>;
-  routeCandidates: Array<CopilotTaskRouteCandidateDiagnosticsType>;
-  routeTrace: Array<CopilotTaskRouteTracePhaseDiagnosticsType>;
-  prepareCandidates: Array<CopilotTaskRoutePrepareCandidateDiagnosticsType>;
-  preparedProviderCount: Scalars['SafeInt']['output'];
-  preparedRouteTargets: Array<Scalars['String']['output']>;
-  preparedRouteTargetFingerprint: Scalars['String']['output'];
-  preparedRoutes: Array<CopilotPreparedTaskRouteDiagnosticsType>;
-  providerConfiguredModelCount?: Maybe<Scalars['SafeInt']['output']>;
-  providerConfiguredModelIds?: Maybe<Array<Scalars['String']['output']>>;
-  providerId?: Maybe<Scalars['String']['output']>;
-  providerName?: Maybe<Scalars['String']['output']>;
-  providerPriority?: Maybe<Scalars['SafeInt']['output']>;
-  providerProfileConfigPath?: Maybe<Scalars['String']['output']>;
-  providerProfileId?: Maybe<Scalars['String']['output']>;
-  providerProfileSource?: Maybe<Scalars['String']['output']>;
-  providerSource?: Maybe<Scalars['String']['output']>;
-  providerType?: Maybe<Scalars['String']['output']>;
-  protocol?: Maybe<Scalars['String']['output']>;
-  rerankRuntimeContractFingerprint?: Maybe<Scalars['String']['output']>;
-  rerankRuntimeContractStatus?: Maybe<Scalars['String']['output']>;
-  rerankRuntimeContractTopK?: Maybe<Scalars['SafeInt']['output']>;
-  rerankRuntimeContractVersion?: Maybe<Scalars['String']['output']>;
-  requestedModelConfigKey?: Maybe<Scalars['String']['output']>;
-  requestedModelConfigPath?: Maybe<Scalars['String']['output']>;
-  requestedModelId?: Maybe<Scalars['String']['output']>;
-  requestedModelSource?: Maybe<Scalars['String']['output']>;
-  requestedDimensions?: Maybe<Scalars['SafeInt']['output']>;
-  requestLayer?: Maybe<Scalars['String']['output']>;
-  topK?: Maybe<Scalars['SafeInt']['output']>;
-}
-
-export interface CopilotPromptNotFoundDataType {
-  __typename?: 'CopilotPromptNotFoundDataType';
-  name: Scalars['String']['output'];
+export interface CopilotPromptRegistryValidationSourceLocatorType {
+  __typename?: 'CopilotPromptRegistryValidationSourceLocatorType';
+  field: Scalars['String']['output'];
+  messageIndex: Maybe<Scalars['SafeInt']['output']>;
+  path: Scalars['String']['output'];
+  registryFingerprint: Scalars['String']['output'];
+  registryId: Scalars['SafeInt']['output'];
+  registryUpdatedAt: Scalars['String']['output'];
+  table: Scalars['String']['output'];
 }
 
 export interface CopilotProviderNotSupportedDataType {
@@ -2800,10 +2878,345 @@ export interface CopilotProviderSideErrorDataType {
   provider: Scalars['String']['output'];
 }
 
+export interface CopilotProviderRegistryPublishInput {
+  displayName?: InputMaybe<Scalars['String']['input']>;
+  enabled?: InputMaybe<Scalars['Boolean']['input']>;
+  idempotencyKey?: InputMaybe<Scalars['String']['input']>;
+  modelDefinitions?: InputMaybe<Scalars['JSON']['input']>;
+  models?: InputMaybe<Array<Scalars['String']['input']>>;
+  privacy?: InputMaybe<Scalars['String']['input']>;
+  priority?: InputMaybe<Scalars['Float']['input']>;
+  providerId: Scalars['String']['input'];
+  revision?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotPromptRegistryPublishInput {
+  expectedVersion?: InputMaybe<CopilotPromptRegistryPublishGateExpectedVersionInput>;
+  idempotencyKey?: InputMaybe<Scalars['String']['input']>;
+  name: Scalars['String']['input'];
+  reviewNote?: InputMaybe<Scalars['String']['input']>;
+  revision?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotPromptRegistryRevisionType {
+  __typename?: 'CopilotPromptRegistryRevisionType';
+  actorId: Maybe<Scalars['String']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  fallbackSourceChain: Scalars['JSON']['output'];
+  fingerprint: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  promptName: Scalars['String']['output'];
+  publishEventCount: Scalars['SafeInt']['output'];
+  publishEvents: Array<CopilotRegistryRevisionPublishEventType>;
+  revision: Scalars['String']['output'];
+  scopeType: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotRegistryRevisionPublishEventType {
+  __typename?: 'CopilotRegistryRevisionPublishEventType';
+  actorId: Maybe<Scalars['String']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  eventFingerprint: Scalars['String']['output'];
+  eventType: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  metadata: Scalars['JSON']['output'];
+  publishSource: Scalars['String']['output'];
+  registryFamily: Scalars['String']['output'];
+  registryKey: Scalars['String']['output'];
+  registryModelId: Maybe<Scalars['String']['output']>;
+  registryProviderId: Maybe<Scalars['String']['output']>;
+  revision: Scalars['String']['output'];
+  revisionFingerprint: Scalars['String']['output'];
+  revisionId: Scalars['String']['output'];
+  revisionStatus: Scalars['String']['output'];
+  scopeType: Scalars['String']['output'];
+  workspaceId: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotModelRegistryPublishInput {
+  idempotencyKey?: InputMaybe<Scalars['String']['input']>;
+  modelDefinition: Scalars['JSON']['input'];
+  modelId: Scalars['String']['input'];
+  providerId: Scalars['String']['input'];
+  revision?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotTaskRoutePolicyPublishInput {
+  featureKind: Scalars['String']['input'];
+  idempotencyKey?: InputMaybe<Scalars['String']['input']>;
+  modelId: Scalars['String']['input'];
+  revision?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotProviderHealthStateRecordInput {
+  lastError?: InputMaybe<Scalars['String']['input']>;
+  providerId: Scalars['String']['input'];
+  status: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotProviderHealthProbeAttemptRetryInput {
+  attemptId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotProviderHealthProbeAttemptFilterInput {
+  providerId?: InputMaybe<Scalars['String']['input']>;
+  providerProfileFingerprint?: InputMaybe<Scalars['String']['input']>;
+  providerRegistryRevisionFingerprint?: InputMaybe<Scalars['String']['input']>;
+  providerRegistryRevisionId?: InputMaybe<Scalars['String']['input']>;
+  query?: InputMaybe<Scalars['String']['input']>;
+  requestFingerprint?: InputMaybe<Scalars['String']['input']>;
+  resultFingerprint?: InputMaybe<Scalars['String']['input']>;
+  status?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface CopilotProviderHealthEventType {
+  __typename?: 'CopilotProviderHealthEventType';
+  actorId: Maybe<Scalars['String']['output']>;
+  checkedAt: Scalars['DateTime']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  eventType: Scalars['String']['output'];
+  fingerprint: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  lastError: Maybe<Scalars['String']['output']>;
+  metadata: Scalars['JSON']['output'];
+  providerId: Scalars['String']['output'];
+  providerType: Maybe<Scalars['String']['output']>;
+  scopeType: Scalars['String']['output'];
+  source: Scalars['String']['output'];
+  stateFingerprint: Scalars['String']['output'];
+  stateId: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  workspaceId: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotProviderHealthStateType {
+  __typename?: 'CopilotProviderHealthStateType';
+  actorId: Maybe<Scalars['String']['output']>;
+  checkedAt: Scalars['DateTime']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  eventCount: Scalars['SafeInt']['output'];
+  events: Array<CopilotProviderHealthEventType>;
+  fingerprint: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  lastError: Maybe<Scalars['String']['output']>;
+  providerId: Scalars['String']['output'];
+  providerType: Maybe<Scalars['String']['output']>;
+  scopeType: Scalars['String']['output'];
+  source: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotProviderHealthProbeAttemptType {
+  __typename?: 'CopilotProviderHealthProbeAttemptType';
+  actorId: Scalars['String']['output'];
+  attemptCount: Scalars['SafeInt']['output'];
+  checkedAt: Maybe<Scalars['DateTime']['output']>;
+  completedAt: Maybe<Scalars['DateTime']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  deadLetteredAt: Maybe<Scalars['DateTime']['output']>;
+  failureCode: Maybe<Scalars['String']['output']>;
+  failureMessage: Maybe<Scalars['String']['output']>;
+  id: Scalars['String']['output'];
+  maxAttempts: Scalars['SafeInt']['output'];
+  providerHealthStateFingerprint: Maybe<Scalars['String']['output']>;
+  providerHealthStateId: Maybe<Scalars['String']['output']>;
+  providerId: Scalars['String']['output'];
+  providerProfileFingerprint: Scalars['String']['output'];
+  providerProfileSnapshot: Scalars['JSON']['output'];
+  providerProfileSource: Maybe<Scalars['String']['output']>;
+  providerRegistryRevisionFingerprint: Scalars['String']['output'];
+  providerRegistryRevisionId: Scalars['String']['output'];
+  providerType: Maybe<Scalars['String']['output']>;
+  requestFingerprint: Scalars['String']['output'];
+  resultFingerprint: Maybe<Scalars['String']['output']>;
+  resultLastError: Maybe<Scalars['String']['output']>;
+  resultMetadata: Scalars['JSON']['output'];
+  resultStatus: Maybe<Scalars['String']['output']>;
+  scheduledAt: Scalars['DateTime']['output'];
+  scopeType: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workerLeaseExpiresAt: Maybe<Scalars['DateTime']['output']>;
+  workerLeaseId: Maybe<Scalars['String']['output']>;
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface CopilotProviderRegistryRevisionType {
+  __typename?: 'CopilotProviderRegistryRevisionType';
+  actorId: Maybe<Scalars['String']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  fallbackSourceChain: Scalars['JSON']['output'];
+  fingerprint: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  providerId: Scalars['String']['output'];
+  providerHealthProbeAttempt: Maybe<CopilotProviderHealthProbeAttemptType>;
+  providerProfile: Scalars['JSON']['output'];
+  providerType: Maybe<Scalars['String']['output']>;
+  publishEventCount: Scalars['SafeInt']['output'];
+  publishEvents: Array<CopilotRegistryRevisionPublishEventType>;
+  revision: Scalars['String']['output'];
+  scopeType: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotModelRegistryRevisionType {
+  __typename?: 'CopilotModelRegistryRevisionType';
+  actorId: Maybe<Scalars['String']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  fallbackSourceChain: Scalars['JSON']['output'];
+  fingerprint: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  modelDefinition: Scalars['JSON']['output'];
+  modelId: Scalars['String']['output'];
+  providerId: Scalars['String']['output'];
+  publishEventCount: Scalars['SafeInt']['output'];
+  publishEvents: Array<CopilotRegistryRevisionPublishEventType>;
+  revision: Scalars['String']['output'];
+  scopeType: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotTaskRoutePolicyRevisionType {
+  __typename?: 'CopilotTaskRoutePolicyRevisionType';
+  actorId: Maybe<Scalars['String']['output']>;
+  configKey: Maybe<Scalars['String']['output']>;
+  configPath: Maybe<Scalars['String']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  fallbackSourceChain: Scalars['JSON']['output'];
+  featureKind: Scalars['String']['output'];
+  fingerprint: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  modelId: Maybe<Scalars['String']['output']>;
+  publishEventCount: Scalars['SafeInt']['output'];
+  publishEvents: Array<CopilotRegistryRevisionPublishEventType>;
+  revision: Scalars['String']['output'];
+  scopeType: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Maybe<Scalars['String']['output']>;
+}
+
 export interface CopilotQuota {
   __typename?: 'CopilotQuota';
   limit: Maybe<Scalars['SafeInt']['output']>;
   used: Scalars['SafeInt']['output'];
+}
+
+export interface CopilotRepairExecutionApprovalDecisionInput {
+  decision: Scalars['String']['input'];
+  executionRequestId: Scalars['String']['input'];
+  reason?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotRepairExecutionControlInput {
+  action: Scalars['String']['input'];
+  executionRequestId: Scalars['String']['input'];
+  executorPayload?: InputMaybe<Scalars['JSON']['input']>;
+  reason?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotRepairExecutionListFilterInput {
+  approvalState?: InputMaybe<Scalars['String']['input']>;
+  promptName?: InputMaybe<Scalars['String']['input']>;
+  query?: InputMaybe<Scalars['String']['input']>;
+  requestedAction?: InputMaybe<Scalars['String']['input']>;
+  status?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface CopilotRepairExecutionRecordType {
+  __typename?: 'CopilotRepairExecutionRecordType';
+  actorId: Scalars['String']['output'];
+  agentRun: Maybe<CopilotAgentRunType>;
+  approvalRecordFingerprint: Scalars['String']['output'];
+  approvalState: Scalars['String']['output'];
+  auditEventCount: Scalars['SafeInt']['output'];
+  auditEventFingerprint: Scalars['String']['output'];
+  auditEvents: Array<CopilotRepairExecutionAuditEventType>;
+  candidateEvidenceSetFingerprint: Scalars['String']['output'];
+  completedAt: Maybe<Scalars['DateTime']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  failureCode: Maybe<Scalars['String']['output']>;
+  failureMessage: Maybe<Scalars['String']['output']>;
+  id: Scalars['String']['output'];
+  idempotencyFingerprint: Scalars['String']['output'];
+  idempotencyKey: Scalars['String']['output'];
+  lastAttemptAt: Maybe<Scalars['DateTime']['output']>;
+  permissionStatus: Scalars['String']['output'];
+  promptName: Scalars['String']['output'];
+  queuedAt: Maybe<Scalars['DateTime']['output']>;
+  repairJobFingerprint: Scalars['String']['output'];
+  requestFingerprint: Scalars['String']['output'];
+  requestedAction: Scalars['String']['output'];
+  runtimeResult: CopilotRepairExecutionRuntimeResultType;
+  sideEffectCount: Scalars['SafeInt']['output'];
+  sideEffects: Array<CopilotRepairExecutionSideEffectType>;
+  status: Scalars['String']['output'];
+  targetLocatorFingerprint: Scalars['String']['output'];
+  taskRouteEvidenceSetFingerprint: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workerAttempt: Scalars['SafeInt']['output'];
+  workerLeaseExpiresAt: Maybe<Scalars['DateTime']['output']>;
+  workerLeaseId: Maybe<Scalars['String']['output']>;
+  workerMaxAttempts: Scalars['SafeInt']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface CopilotRepairExecutionAuditEventType {
+  __typename?: 'CopilotRepairExecutionAuditEventType';
+  actorId: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  eventFingerprint: Scalars['String']['output'];
+  eventType: Scalars['String']['output'];
+  executionRequestId: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  metadata: Scalars['JSON']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface CopilotRepairExecutionRuntimeResultType {
+  __typename?: 'CopilotRepairExecutionRuntimeResultType';
+  executor: Scalars['String']['output'];
+  message: Scalars['String']['output'];
+  sideEffectFingerprint: Maybe<Scalars['String']['output']>;
+  sideEffectKind: Maybe<Scalars['String']['output']>;
+  sideEffectRecordId: Maybe<Scalars['String']['output']>;
+  sideEffectSummary: Maybe<Scalars['JSON']['output']>;
+  sideEffectsApplied: Scalars['Boolean']['output'];
+  version: Scalars['String']['output'];
+}
+
+export interface CopilotRepairExecutionSideEffectType {
+  __typename?: 'CopilotRepairExecutionSideEffectType';
+  actorId: Scalars['String']['output'];
+  appliedAt: Scalars['DateTime']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  executionRequestId: Scalars['String']['output'];
+  executorPayloadFingerprint: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  sideEffectFingerprint: Scalars['String']['output'];
+  sideEffectKind: Scalars['String']['output'];
+  sideEffectRecordId: Scalars['String']['output'];
+  sideEffectSummary: Scalars['JSON']['output'];
+  workerAttempt: Scalars['SafeInt']['output'];
+  workerLeaseId: Scalars['String']['output'];
+  workspaceId: Scalars['String']['output'];
 }
 
 export interface CopilotSessionType {
@@ -2816,6 +3229,462 @@ export interface CopilotSessionType {
   pinned: Scalars['Boolean']['output'];
   promptName: Scalars['String']['output'];
   title: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotSupportBundleCreateInput {
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotSupportBundleDownloadAuthorizationType {
+  __typename?: 'CopilotSupportBundleDownloadAuthorizationType';
+  actorId: Scalars['String']['output'];
+  artifactFilename: Scalars['String']['output'];
+  artifactFingerprint: Scalars['String']['output'];
+  artifactKind: Scalars['String']['output'];
+  artifactMime: Scalars['String']['output'];
+  authorizationFingerprint: Scalars['String']['output'];
+  bundleId: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  deliveryMethod: Scalars['String']['output'];
+  directDownloadExpiresAt: Maybe<Scalars['DateTime']['output']>;
+  directDownloadUrl: Maybe<Scalars['String']['output']>;
+  downloadUrl: Scalars['String']['output'];
+  downloadedAt: Maybe<Scalars['DateTime']['output']>;
+  expiresAt: Scalars['DateTime']['output'];
+  id: Scalars['String']['output'];
+  manifestFingerprint: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface CopilotSupportBundleDownloadAuthorizeInput {
+  artifactKind?: InputMaybe<Scalars['String']['input']>;
+  bundleId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotSupportBundleDirectDownloadAcknowledgeInput {
+  authorizationId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotSupportBundleManifestType {
+  __typename?: 'CopilotSupportBundleManifestType';
+  actorId: Scalars['String']['output'];
+  archive: Scalars['JSON']['output'];
+  bundleId: Scalars['String']['output'];
+  createdAt: Scalars['String']['output'];
+  expiresAt: Scalars['String']['output'];
+  retention: CopilotSupportBundleRetentionType;
+  sourceEvidenceSetFingerprint: Scalars['String']['output'];
+  sourceEvidenceSummary: CopilotSupportBundleSourceEvidenceSummaryType;
+  version: Scalars['String']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface CopilotSupportBundleRetentionCleanupInput {
+  limit?: InputMaybe<Scalars['SafeInt']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotSupportBundleTransferForwardingReplayInput {
+  forwardingEventId: Scalars['String']['input'];
+  maxAttempts?: InputMaybe<Scalars['SafeInt']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotSupportBundleListFilterInput {
+  query?: InputMaybe<Scalars['String']['input']>;
+  retentionStatus?: InputMaybe<Scalars['String']['input']>;
+  status?: InputMaybe<Scalars['String']['input']>;
+  transferForwardingStatus?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface CopilotSupportBundleRetentionCleanupType {
+  __typename?: 'CopilotSupportBundleRetentionCleanupType';
+  archiveObjectCleanupFailedCount: Scalars['SafeInt']['output'];
+  archiveObjectCleanupRecoveredCount: Scalars['SafeInt']['output'];
+  archiveObjectCleanupRetryCount: Scalars['SafeInt']['output'];
+  actorId: Scalars['String']['output'];
+  cleanedAt: Scalars['DateTime']['output'];
+  cleanupFingerprint: Scalars['String']['output'];
+  expiredAuthorizationCount: Scalars['SafeInt']['output'];
+  expiredBundleCount: Scalars['SafeInt']['output'];
+  expiredBundles: Array<CopilotSupportBundleType>;
+  manifestObjectRewriteFailedCount: Scalars['SafeInt']['output'];
+  manifestObjectRewriteRecoveredCount: Scalars['SafeInt']['output'];
+  manifestObjectRewriteRetryCount: Scalars['SafeInt']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface CopilotSupportBundleRetentionType {
+  __typename?: 'CopilotSupportBundleRetentionType';
+  expiresAt: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+}
+
+export interface CopilotSupportBundleSourceEvidenceSummaryType {
+  __typename?: 'CopilotSupportBundleSourceEvidenceSummaryType';
+  actionRunCount: Scalars['SafeInt']['output'];
+  includedSections: Array<Scalars['String']['output']>;
+  promptCatalogItemCount: Scalars['SafeInt']['output'];
+  source: Scalars['String']['output'];
+  taskRouteCount: Scalars['SafeInt']['output'];
+}
+
+export interface CopilotSupportBundleAuditEventType {
+  __typename?: 'CopilotSupportBundleAuditEventType';
+  actorId: Scalars['String']['output'];
+  bundleId: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  eventFingerprint: Scalars['String']['output'];
+  eventType: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  metadata: Scalars['JSON']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface CopilotSupportBundleTransferEventType {
+  __typename?: 'CopilotSupportBundleTransferEventType';
+  artifactFingerprint: Scalars['String']['output'];
+  artifactKind: Scalars['String']['output'];
+  authorizationFingerprint: Scalars['String']['output'];
+  authorizationId: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  deliveryMethod: Scalars['String']['output'];
+  eventFingerprint: Scalars['String']['output'];
+  eventId: Maybe<Scalars['String']['output']>;
+  eventSource: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  manifestFingerprint: Scalars['String']['output'];
+  notificationAuthEvidenceFingerprint: Scalars['String']['output'];
+  storageByteSize: Scalars['SafeInt']['output'];
+  storageContentType: Scalars['String']['output'];
+  storageKey: Scalars['String']['output'];
+  transferredAt: Scalars['DateTime']['output'];
+}
+
+export interface CopilotSupportBundleTransferForwardingEventType {
+  __typename?: 'CopilotSupportBundleTransferForwardingEventType';
+  attemptCount: Scalars['SafeInt']['output'];
+  authorizationId: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  deadLetteredAt: Maybe<Scalars['DateTime']['output']>;
+  eventId: Maybe<Scalars['String']['output']>;
+  eventSource: Scalars['String']['output'];
+  failureCode: Maybe<Scalars['String']['output']>;
+  failureMessage: Maybe<Scalars['String']['output']>;
+  forwardedAt: Maybe<Scalars['DateTime']['output']>;
+  forwardedTransferEventFingerprint: Maybe<Scalars['String']['output']>;
+  forwardingEventFingerprint: Scalars['String']['output'];
+  forwardingPayload: Scalars['JSON']['output'];
+  forwardingPayloadFingerprint: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  lastAttemptAt: Maybe<Scalars['DateTime']['output']>;
+  maxAttempts: Scalars['SafeInt']['output'];
+  nextAttemptAt: Maybe<Scalars['DateTime']['output']>;
+  providerSignatureEvidenceFingerprint: Maybe<Scalars['String']['output']>;
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workerLeaseExpiresAt: Maybe<Scalars['DateTime']['output']>;
+  workerLeaseId: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotSupportBundleType {
+  __typename?: 'CopilotSupportBundleType';
+  actorId: Scalars['String']['output'];
+  archiveByteSize: Maybe<Scalars['SafeInt']['output']>;
+  archiveFilename: Maybe<Scalars['String']['output']>;
+  archiveFingerprint: Maybe<Scalars['String']['output']>;
+  archiveMime: Maybe<Scalars['String']['output']>;
+  archiveStorageKey: Maybe<Scalars['String']['output']>;
+  auditEventCount: Scalars['SafeInt']['output'];
+  auditEvents: Array<CopilotSupportBundleAuditEventType>;
+  createdAt: Scalars['DateTime']['output'];
+  expiresAt: Scalars['DateTime']['output'];
+  failureCode: Maybe<Scalars['String']['output']>;
+  failureMessage: Maybe<Scalars['String']['output']>;
+  id: Scalars['String']['output'];
+  manifestByteSize: Maybe<Scalars['SafeInt']['output']>;
+  manifestFilename: Maybe<Scalars['String']['output']>;
+  manifestFingerprint: Scalars['String']['output'];
+  manifestMime: Maybe<Scalars['String']['output']>;
+  manifestStorageKey: Maybe<Scalars['String']['output']>;
+  manifestJson: CopilotSupportBundleManifestType;
+  retentionStatus: Scalars['String']['output'];
+  sourceEvidenceSetFingerprint: Scalars['String']['output'];
+  sourceEvidenceSummary: CopilotSupportBundleSourceEvidenceSummaryType;
+  status: Scalars['String']['output'];
+  transferEventCount: Scalars['SafeInt']['output'];
+  transferEvents: Array<CopilotSupportBundleTransferEventType>;
+  transferForwardingEventCount: Scalars['SafeInt']['output'];
+  transferForwardingEvents: Array<CopilotSupportBundleTransferForwardingEventType>;
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface CopilotTaskRouteCandidateDiagnosticsType {
+  __typename?: 'CopilotTaskRouteCandidateDiagnosticsType';
+  candidateKey: Maybe<Scalars['String']['output']>;
+  candidateModelIds: Maybe<Array<Scalars['String']['output']>>;
+  costInputPer1M: Maybe<Scalars['Int']['output']>;
+  costOutputPer1M: Maybe<Scalars['Int']['output']>;
+  health: Maybe<Scalars['String']['output']>;
+  healthCheckedAt: Maybe<Scalars['String']['output']>;
+  matched: Scalars['Boolean']['output'];
+  modelId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevision: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionActorId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionFingerprint: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionScope: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionSourceChain: Maybe<
+    Array<CopilotModelRegistrySourceChainEntryType>
+  >;
+  modelRegistryRevisionSourceChainFingerprint: Maybe<
+    Scalars['String']['output']
+  >;
+  modelRegistryRevisionStatus: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionWorkspaceId: Maybe<Scalars['String']['output']>;
+  privacy: Maybe<Scalars['String']['output']>;
+  providerConfiguredModelCount: Maybe<Scalars['SafeInt']['output']>;
+  providerConfiguredModelIds: Maybe<Array<Scalars['String']['output']>>;
+  providerId: Scalars['String']['output'];
+  providerName: Maybe<Scalars['String']['output']>;
+  providerPriority: Maybe<Scalars['SafeInt']['output']>;
+  providerProfileConfigPath: Maybe<Scalars['String']['output']>;
+  providerProfileId: Maybe<Scalars['String']['output']>;
+  providerProfileSource: Maybe<Scalars['String']['output']>;
+  providerSource: Maybe<Scalars['String']['output']>;
+  providerType: Maybe<Scalars['String']['output']>;
+  reasons: Array<Scalars['String']['output']>;
+  registryAvailable: Maybe<Scalars['Boolean']['output']>;
+  registryKind: Maybe<Scalars['String']['output']>;
+  registrySelected: Maybe<Scalars['Boolean']['output']>;
+  requestedModelId: Maybe<Scalars['String']['output']>;
+  routeAttachmentAllowRemoteUrls: Maybe<Scalars['Boolean']['output']>;
+  routeAttachmentKinds: Maybe<Array<Scalars['String']['output']>>;
+  routeAttachmentSourceKinds: Maybe<Array<Scalars['String']['output']>>;
+  routeContextWindow: Maybe<Scalars['SafeInt']['output']>;
+  routeEmbeddingDimensions: Maybe<Scalars['SafeInt']['output']>;
+  routeInputTypes: Maybe<Array<Scalars['String']['output']>>;
+  routeMaxOutputTokens: Maybe<Scalars['SafeInt']['output']>;
+  routeModelAliasMatched: Maybe<Scalars['Boolean']['output']>;
+  routeModelDefinitionAliases: Maybe<Array<Scalars['String']['output']>>;
+  routeModelDefinitionId: Maybe<Scalars['String']['output']>;
+  routeModelDefinitionSource: Maybe<Scalars['String']['output']>;
+  routeOutputTypes: Maybe<Array<Scalars['String']['output']>>;
+  routeRawModelId: Maybe<Scalars['String']['output']>;
+  routeStructuredAttachmentAllowRemoteUrls: Maybe<Scalars['Boolean']['output']>;
+  routeStructuredAttachmentKinds: Maybe<Array<Scalars['String']['output']>>;
+  routeStructuredAttachmentSourceKinds: Maybe<
+    Array<Scalars['String']['output']>
+  >;
+}
+
+export interface CopilotTaskRouteDiagnosticsErrorType {
+  __typename?: 'CopilotTaskRouteDiagnosticsErrorType';
+  code: Scalars['String']['output'];
+  message: Scalars['String']['output'];
+  stage: Scalars['String']['output'];
+}
+
+export interface CopilotTaskRouteDiagnosticsType {
+  __typename?: 'CopilotTaskRouteDiagnosticsType';
+  behaviorFlags: Maybe<Array<Scalars['String']['output']>>;
+  candidateCount: Maybe<Scalars['SafeInt']['output']>;
+  canonicalModelKey: Maybe<Scalars['String']['output']>;
+  configured: Scalars['Boolean']['output'];
+  diagnosticsErrors: Array<CopilotTaskRouteDiagnosticsErrorType>;
+  dimensionMismatch: Maybe<Scalars['Boolean']['output']>;
+  effectiveSourceFingerprint: Maybe<Scalars['String']['output']>;
+  effectiveSourceFingerprintInputs: Maybe<Array<Scalars['String']['output']>>;
+  effectiveSourceFingerprintVersion: Maybe<Scalars['String']['output']>;
+  embeddingIndexContractDimensions: Maybe<Scalars['SafeInt']['output']>;
+  embeddingIndexContractFingerprint: Maybe<Scalars['String']['output']>;
+  embeddingIndexContractStatus: Maybe<Scalars['String']['output']>;
+  embeddingIndexContractVersion: Maybe<Scalars['String']['output']>;
+  errorCode: Maybe<Scalars['String']['output']>;
+  errorMessage: Maybe<Scalars['String']['output']>;
+  fallbackProviderIds: Array<Scalars['String']['output']>;
+  featureKind: Scalars['String']['output'];
+  modelBackendKind: Maybe<Scalars['String']['output']>;
+  modelEmbeddingDimensions: Maybe<Scalars['SafeInt']['output']>;
+  modelId: Maybe<Scalars['String']['output']>;
+  policyAllowedPrivacy: Maybe<Array<Scalars['String']['output']>>;
+  policyAllowedProviderIds: Maybe<Array<Scalars['String']['output']>>;
+  policyBlockedProviderIds: Maybe<Array<Scalars['String']['output']>>;
+  policyCandidates: Array<CopilotTaskRoutePolicyCandidateDiagnosticsType>;
+  policyEnabled: Scalars['Boolean']['output'];
+  policyFeatureKind: Maybe<Scalars['String']['output']>;
+  policyPreferredPrivacy: Maybe<Array<Scalars['String']['output']>>;
+  policyWorkspaceId: Maybe<Scalars['String']['output']>;
+  prepareCandidates: Array<CopilotTaskRoutePrepareCandidateDiagnosticsType>;
+  preparedProviderCount: Scalars['SafeInt']['output'];
+  preparedRouteTargetFingerprint: Scalars['String']['output'];
+  preparedRouteTargets: Array<Scalars['String']['output']>;
+  preparedRoutes: Array<CopilotPreparedTaskRouteDiagnosticsType>;
+  protocol: Maybe<Scalars['String']['output']>;
+  providerConfiguredModelCount: Maybe<Scalars['SafeInt']['output']>;
+  providerConfiguredModelIds: Maybe<Array<Scalars['String']['output']>>;
+  providerId: Maybe<Scalars['String']['output']>;
+  providerName: Maybe<Scalars['String']['output']>;
+  providerPriority: Maybe<Scalars['SafeInt']['output']>;
+  providerProfileConfigPath: Maybe<Scalars['String']['output']>;
+  providerProfileId: Maybe<Scalars['String']['output']>;
+  providerProfileSource: Maybe<Scalars['String']['output']>;
+  providerSource: Maybe<Scalars['String']['output']>;
+  providerType: Maybe<Scalars['String']['output']>;
+  requestLayer: Maybe<Scalars['String']['output']>;
+  requestedDimensions: Maybe<Scalars['SafeInt']['output']>;
+  requestedModelConfigKey: Maybe<Scalars['String']['output']>;
+  requestedModelConfigPath: Maybe<Scalars['String']['output']>;
+  requestedModelId: Maybe<Scalars['String']['output']>;
+  requestedModelSource: Maybe<Scalars['String']['output']>;
+  rerankRuntimeContractFingerprint: Maybe<Scalars['String']['output']>;
+  rerankRuntimeContractStatus: Maybe<Scalars['String']['output']>;
+  rerankRuntimeContractTopK: Maybe<Scalars['SafeInt']['output']>;
+  rerankRuntimeContractVersion: Maybe<Scalars['String']['output']>;
+  routeCandidates: Array<CopilotTaskRouteCandidateDiagnosticsType>;
+  routeTrace: Array<CopilotTaskRouteTracePhaseDiagnosticsType>;
+  taskRoutePolicyRevision: Maybe<Scalars['String']['output']>;
+  taskRoutePolicyRevisionActorId: Maybe<Scalars['String']['output']>;
+  taskRoutePolicyRevisionFingerprint: Maybe<Scalars['String']['output']>;
+  taskRoutePolicyRevisionId: Maybe<Scalars['String']['output']>;
+  taskRoutePolicyRevisionScope: Maybe<Scalars['String']['output']>;
+  taskRoutePolicyRevisionSourceChain: Maybe<
+    Array<CopilotTaskRoutePolicySourceChainEntryType>
+  >;
+  taskRoutePolicyRevisionSourceChainFingerprint: Maybe<
+    Scalars['String']['output']
+  >;
+  taskRoutePolicyRevisionStatus: Maybe<Scalars['String']['output']>;
+  taskRoutePolicyRevisionWorkspaceId: Maybe<Scalars['String']['output']>;
+  taskRoutePolicyRevisionPublishEventCount: Maybe<Scalars['SafeInt']['output']>;
+  taskRoutePolicyRevisionPublishEvents: Maybe<
+    Array<CopilotRegistryRevisionPublishEventType>
+  >;
+  topK: Maybe<Scalars['SafeInt']['output']>;
+}
+
+export interface CopilotTaskRoutePolicyCandidateDiagnosticsType {
+  __typename?: 'CopilotTaskRoutePolicyCandidateDiagnosticsType';
+  allowed: Scalars['Boolean']['output'];
+  available: Scalars['Boolean']['output'];
+  candidateFingerprint: Scalars['String']['output'];
+  candidateKey: Scalars['String']['output'];
+  health: Scalars['String']['output'];
+  healthCheckedAt: Maybe<Scalars['String']['output']>;
+  privacy: Scalars['String']['output'];
+  providerConfiguredModelCount: Maybe<Scalars['SafeInt']['output']>;
+  providerConfiguredModelIds: Maybe<Array<Scalars['String']['output']>>;
+  providerId: Scalars['String']['output'];
+  providerName: Maybe<Scalars['String']['output']>;
+  providerPriority: Maybe<Scalars['SafeInt']['output']>;
+  providerProfileConfigPath: Maybe<Scalars['String']['output']>;
+  providerProfileId: Maybe<Scalars['String']['output']>;
+  providerProfileSource: Maybe<Scalars['String']['output']>;
+  providerSource: Maybe<Scalars['String']['output']>;
+  providerType: Maybe<Scalars['String']['output']>;
+  reasons: Array<Scalars['String']['output']>;
+  registryAvailable: Maybe<Scalars['Boolean']['output']>;
+  registryKind: Maybe<Scalars['String']['output']>;
+  registrySelected: Maybe<Scalars['Boolean']['output']>;
+}
+
+export interface CopilotTaskRoutePolicySourceChainEntryType {
+  __typename?: 'CopilotTaskRoutePolicySourceChainEntryType';
+  actorId: Maybe<Scalars['String']['output']>;
+  configKey: Maybe<Scalars['String']['output']>;
+  configPath: Maybe<Scalars['String']['output']>;
+  featureKind: Maybe<Scalars['String']['output']>;
+  fingerprint: Maybe<Scalars['String']['output']>;
+  modelId: Maybe<Scalars['String']['output']>;
+  revision: Maybe<Scalars['String']['output']>;
+  scope: Scalars['String']['output'];
+  source: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  updatedAt: Maybe<Scalars['String']['output']>;
+  workspaceId: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotTaskRoutePrepareCandidateDiagnosticsType {
+  __typename?: 'CopilotTaskRoutePrepareCandidateDiagnosticsType';
+  candidateKey: Maybe<Scalars['String']['output']>;
+  candidateModelIds: Maybe<Array<Scalars['String']['output']>>;
+  costInputPer1M: Maybe<Scalars['Int']['output']>;
+  costOutputPer1M: Maybe<Scalars['Int']['output']>;
+  errorCategory: Maybe<Scalars['String']['output']>;
+  errorCode: Maybe<Scalars['String']['output']>;
+  health: Maybe<Scalars['String']['output']>;
+  healthCheckedAt: Maybe<Scalars['String']['output']>;
+  modelId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevision: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionActorId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionFingerprint: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionScope: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionSourceChain: Maybe<
+    Array<CopilotModelRegistrySourceChainEntryType>
+  >;
+  modelRegistryRevisionSourceChainFingerprint: Maybe<
+    Scalars['String']['output']
+  >;
+  modelRegistryRevisionStatus: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionWorkspaceId: Maybe<Scalars['String']['output']>;
+  modelRegistryRevisionPublishEventCount: Maybe<Scalars['SafeInt']['output']>;
+  modelRegistryRevisionPublishEvents: Maybe<
+    Array<CopilotRegistryRevisionPublishEventType>
+  >;
+  prepared: Scalars['Boolean']['output'];
+  preparedModelId: Maybe<Scalars['String']['output']>;
+  privacy: Maybe<Scalars['String']['output']>;
+  providerConfiguredModelCount: Maybe<Scalars['SafeInt']['output']>;
+  providerConfiguredModelIds: Maybe<Array<Scalars['String']['output']>>;
+  providerId: Scalars['String']['output'];
+  providerName: Maybe<Scalars['String']['output']>;
+  providerPriority: Maybe<Scalars['SafeInt']['output']>;
+  providerProfileConfigPath: Maybe<Scalars['String']['output']>;
+  providerProfileId: Maybe<Scalars['String']['output']>;
+  providerProfileSource: Maybe<Scalars['String']['output']>;
+  providerSource: Maybe<Scalars['String']['output']>;
+  providerType: Maybe<Scalars['String']['output']>;
+  reasons: Array<Scalars['String']['output']>;
+  registryAvailable: Maybe<Scalars['Boolean']['output']>;
+  registryKind: Maybe<Scalars['String']['output']>;
+  registrySelected: Maybe<Scalars['Boolean']['output']>;
+  requestedModelId: Maybe<Scalars['String']['output']>;
+  routeAttachmentAllowRemoteUrls: Maybe<Scalars['Boolean']['output']>;
+  routeAttachmentKinds: Maybe<Array<Scalars['String']['output']>>;
+  routeAttachmentSourceKinds: Maybe<Array<Scalars['String']['output']>>;
+  routeContextWindow: Maybe<Scalars['SafeInt']['output']>;
+  routeEmbeddingDimensions: Maybe<Scalars['SafeInt']['output']>;
+  routeInputTypes: Maybe<Array<Scalars['String']['output']>>;
+  routeMaxOutputTokens: Maybe<Scalars['SafeInt']['output']>;
+  routeModelAliasMatched: Maybe<Scalars['Boolean']['output']>;
+  routeModelDefinitionAliases: Maybe<Array<Scalars['String']['output']>>;
+  routeModelDefinitionId: Maybe<Scalars['String']['output']>;
+  routeModelDefinitionSource: Maybe<Scalars['String']['output']>;
+  routeOutputTypes: Maybe<Array<Scalars['String']['output']>>;
+  routeRawModelId: Maybe<Scalars['String']['output']>;
+  routeStructuredAttachmentAllowRemoteUrls: Maybe<Scalars['Boolean']['output']>;
+  routeStructuredAttachmentKinds: Maybe<Array<Scalars['String']['output']>>;
+  routeStructuredAttachmentSourceKinds: Maybe<
+    Array<Scalars['String']['output']>
+  >;
+}
+
+export interface CopilotTaskRouteTracePhaseDiagnosticsType {
+  __typename?: 'CopilotTaskRouteTracePhaseDiagnosticsType';
+  availableCount: Maybe<Scalars['SafeInt']['output']>;
+  blockedCount: Maybe<Scalars['SafeInt']['output']>;
+  candidateCount: Scalars['SafeInt']['output'];
+  matchedCount: Maybe<Scalars['SafeInt']['output']>;
+  phase: Scalars['String']['output'];
+  preparedCount: Maybe<Scalars['SafeInt']['output']>;
+  reasons: Array<Scalars['String']['output']>;
+  selectedCount: Maybe<Scalars['SafeInt']['output']>;
 }
 
 export interface CopilotWorkspaceConfig {
@@ -3777,7 +4646,11 @@ export interface Mutation {
   addWorkspaceEmbeddingFiles: CopilotWorkspaceFile;
   /** Update workspace flags for admin */
   adminUpdateWorkspace: Maybe<AdminWorkspace>;
+  /** Acknowledge client completion telemetry for a direct object-storage support bundle download. */
+  acknowledgeCopilotSupportBundleDirectDownload: CopilotSupportBundleDownloadAuthorizationType;
   approveMember: Scalars['Boolean']['output'];
+  /** Authorize a short-lived manifest or archive artifact download for a DB-backed support bundle. */
+  authorizeCopilotSupportBundleDownload: CopilotSupportBundleDownloadAuthorizationType;
   /** Ban an user */
   banUser: UserType;
   cancelSubscription: SubscriptionType;
@@ -3785,8 +4658,14 @@ export interface Mutation {
   changePassword: Scalars['Boolean']['output'];
   /** Cleanup sessions */
   cleanupCopilotSession: Array<Scalars['String']['output']>;
+  /** Expire DB-backed support bundles whose retention window has elapsed and retry failed archive object cleanup. */
+  cleanupCopilotSupportBundleRetention: CopilotSupportBundleRetentionCleanupType;
   clearWorkspaceByokConfigs: Scalars['Boolean']['output'];
   completeBlobUpload: Scalars['String']['output'];
+  /** Cancel, retry, or recover a stale persisted repair execution request after workspace permission checks. */
+  controlCopilotRepairExecution: CopilotRepairExecutionRecordType;
+  /** Control a standalone persisted Agent Runtime run outside repair execution. */
+  controlCopilotAgentRuntimeRun: CopilotAgentRunType;
   createBlobUpload: BlobUploadInit;
   /** Create change password url */
   createChangePasswordUrl: Scalars['String']['output'];
@@ -3804,6 +4683,8 @@ export interface Mutation {
   createCopilotSession: Scalars['String']['output'];
   /** Create a chat session and return full session payload */
   createCopilotSessionWithHistory: CopilotHistories;
+  /** Create a DB-backed support bundle request with a minimal persisted manifest. */
+  createCopilotSupportBundle: CopilotSupportBundleType;
   /** Create a stripe customer portal to manage payment methods */
   createCustomerPortal: Scalars['String']['output'];
   createInviteLink: InviteLink;
@@ -3815,6 +4696,8 @@ export interface Mutation {
   createWorkspace: WorkspaceType;
   createWorkspaceByokLocalLease: CreateWorkspaceByokLocalLeaseResultType;
   deactivateLicense: Scalars['Boolean']['output'];
+  /** Approve or reject a persisted repair execution request that is waiting for approval. */
+  decideCopilotRepairExecutionApproval: CopilotRepairExecutionRecordType;
   deleteAccount: DeleteAccount;
   deleteBlob: Scalars['Boolean']['output'];
   /** Delete a comment */
@@ -3844,6 +4727,20 @@ export interface Mutation {
   /** mention user in a doc */
   mentionUser: Scalars['ID']['output'];
   previewLicense: AdminLicensePreview;
+  /** Persist a workspace-scoped provider health state for an existing configured provider. */
+  recordCopilotProviderHealthState: CopilotProviderHealthStateType;
+  /** Queue a fresh replay for a dead-lettered support bundle transfer forwarding event without mutating terminal evidence. */
+  replayCopilotSupportBundleTransferForwardingEvent: CopilotSupportBundleTransferForwardingEventType;
+  /** Queue a fresh Provider Health probe attempt for a dead-lettered workspace attempt without mutating terminal evidence. */
+  retryCopilotProviderHealthProbeAttempt: CopilotProviderHealthProbeAttemptType;
+  /** Publish a workspace-scoped DB-backed prompt registry revision after publish-gate and route-readiness checks. */
+  publishCopilotPromptRegistryRevision: CopilotPromptRegistryRevisionType;
+  /** Publish a workspace-scoped DB-backed provider profile metadata revision for an existing configured provider. */
+  publishCopilotProviderRegistryRevision: CopilotProviderRegistryRevisionType;
+  /** Publish a workspace-scoped DB-backed model definition revision for an existing configured provider. */
+  publishCopilotModelRegistryRevision: CopilotModelRegistryRevisionType;
+  /** Publish a workspace-scoped DB-backed task route policy revision for embedding, workspace indexing, or rerank model selection. */
+  publishCopilotTaskRoutePolicyRevision: CopilotTaskRoutePolicyRevisionType;
   publishDoc: DocType;
   /** queue workspace doc embedding */
   queueWorkspaceEmbedding: Scalars['Boolean']['output'];
@@ -3870,7 +4767,7 @@ export interface Mutation {
   reorderWorkspaceByokConfigs: Array<WorkspaceByokKeyConfigType>;
   /** Request to apply the subscription in advance */
   requestApplySubscription: Array<SubscriptionType>;
-  /** Request prompt registry repair execution. Current implementation is read-only and always blocks execution. */
+  /** Request prompt registry repair execution. Approval-gated requests can publish a DB-backed workspace prompt registry revision after approval. */
   requestCopilotPromptRegistryRepairExecution: CopilotPromptRegistryRepairExecutionRequestType;
   /** Resolve a comment or not */
   resolveComment: Scalars['Boolean']['output'];
@@ -3973,6 +4870,14 @@ export interface MutationApproveMemberArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationAcknowledgeCopilotSupportBundleDirectDownloadArgs {
+  input: CopilotSupportBundleDirectDownloadAcknowledgeInput;
+}
+
+export interface MutationAuthorizeCopilotSupportBundleDownloadArgs {
+  input: CopilotSupportBundleDownloadAuthorizeInput;
+}
+
 export interface MutationBanUserArgs {
   id: Scalars['String']['input'];
 }
@@ -3998,6 +4903,10 @@ export interface MutationCleanupCopilotSessionArgs {
   options: DeleteSessionInput;
 }
 
+export interface MutationCleanupCopilotSupportBundleRetentionArgs {
+  input: CopilotSupportBundleRetentionCleanupInput;
+}
+
 export interface MutationClearWorkspaceByokConfigsArgs {
   provider?: InputMaybe<ByokProvider>;
   workspaceId: Scalars['String']['input'];
@@ -4008,6 +4917,14 @@ export interface MutationCompleteBlobUploadArgs {
   parts?: InputMaybe<Array<BlobUploadPartInput>>;
   uploadId?: InputMaybe<Scalars['String']['input']>;
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationControlCopilotRepairExecutionArgs {
+  input: CopilotRepairExecutionControlInput;
+}
+
+export interface MutationControlCopilotAgentRuntimeRunArgs {
+  input: CopilotAgentRuntimeControlInput;
 }
 
 export interface MutationCreateBlobUploadArgs {
@@ -4047,6 +4964,10 @@ export interface MutationCreateCopilotSessionWithHistoryArgs {
   options: CreateChatSessionInput;
 }
 
+export interface MutationCreateCopilotSupportBundleArgs {
+  input: CopilotSupportBundleCreateInput;
+}
+
 export interface MutationCreateInviteLinkArgs {
   expireTime: WorkspaceInviteLinkExpireTime;
   workspaceId: Scalars['String']['input'];
@@ -4064,6 +4985,34 @@ export interface MutationCreateUserArgs {
   input: CreateUserInput;
 }
 
+export interface MutationPublishCopilotProviderRegistryRevisionArgs {
+  input: CopilotProviderRegistryPublishInput;
+}
+
+export interface MutationPublishCopilotPromptRegistryRevisionArgs {
+  input: CopilotPromptRegistryPublishInput;
+}
+
+export interface MutationPublishCopilotModelRegistryRevisionArgs {
+  input: CopilotModelRegistryPublishInput;
+}
+
+export interface MutationPublishCopilotTaskRoutePolicyRevisionArgs {
+  input: CopilotTaskRoutePolicyPublishInput;
+}
+
+export interface MutationRecordCopilotProviderHealthStateArgs {
+  input: CopilotProviderHealthStateRecordInput;
+}
+
+export interface MutationReplayCopilotSupportBundleTransferForwardingEventArgs {
+  input: CopilotSupportBundleTransferForwardingReplayInput;
+}
+
+export interface MutationRetryCopilotProviderHealthProbeAttemptArgs {
+  input: CopilotProviderHealthProbeAttemptRetryInput;
+}
+
 export interface MutationCreateWorkspaceArgs {
   init?: InputMaybe<Scalars['Upload']['input']>;
 }
@@ -4074,6 +5023,10 @@ export interface MutationCreateWorkspaceByokLocalLeaseArgs {
 
 export interface MutationDeactivateLicenseArgs {
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationDecideCopilotRepairExecutionApprovalArgs {
+  input: CopilotRepairExecutionApprovalDecisionInput;
 }
 
 export interface MutationDeleteBlobArgs {
@@ -4636,6 +5589,7 @@ export interface Query {
   error: ErrorDataUnion;
   /** get workspace invitation info */
   getInviteInfo: InvitationType;
+  hello: Scalars['String']['output'];
   prices: Array<SubscriptionPrice>;
   /** Get public user by id */
   publicUserById: Maybe<PublicUserType>;
@@ -6789,6 +7743,474 @@ export type UploadCommentAttachmentMutation = {
   uploadCommentAttachment: string;
 };
 
+export type GetCopilotActionRunPreparedRouteTraceQueryVariables = Exact<{
+  runId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}>;
+
+export type GetCopilotActionRunPreparedRouteTraceQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      actionRunPreparedRouteTrace: {
+        __typename?: 'CopilotActionRunPreparedRouteDiagnosticsType';
+        status: string;
+        type: string;
+        steps: Array<{
+          __typename?: 'CopilotActionRunPreparedRouteDiagnosticsStepType';
+          actualRouteCount: number;
+          fallbackProviderIds: Array<string>;
+          kind: string;
+          requestedModelId: string | null;
+          requestedModelSource: string | null;
+          routeCount: number;
+          routeCountMismatch: boolean;
+          stepId: string;
+          routes: Array<{
+            __typename?: 'CopilotActionRunPreparedRouteDiagnosticsRouteType';
+            behaviorFlags: Array<string> | null;
+            canonicalModelKey: string | null;
+            dimensionMismatch: boolean | null;
+            fallbackOrderIndex: number | null;
+            modelId: string;
+            modelBackendKind: string | null;
+            modelEmbeddingDimensions: number | null;
+            protocol: string | null;
+            providerConfiguredModelCount: number | null;
+            providerConfiguredModelIds: Array<string> | null;
+            providerHealth: string | null;
+            providerHealthCheckedAt: string | null;
+            providerHealthLastError: string | null;
+            providerId: string;
+            providerName: string | null;
+            providerPrivacy: string | null;
+            providerPriority: number | null;
+            providerProfileConfigPath: string | null;
+            providerProfileId: string | null;
+            providerProfileSource: string | null;
+            providerSource: string | null;
+            providerType: string | null;
+            requestLayer: string | null;
+            requestedDimensions: number | null;
+            routeModelAliasMatched: boolean | null;
+            routeModelDefinitionAliases: Array<string> | null;
+            routeModelDefinitionId: string | null;
+            routeModelDefinitionSource: string | null;
+            routeRawModelId: string | null;
+            routeIndex: number;
+          }>;
+        }>;
+      } | null;
+    };
+  } | null;
+};
+
+export type GetCopilotActionRunsQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  limit?: InputMaybe<Scalars['SafeInt']['input']>;
+}>;
+
+export type GetCopilotActionRunsQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      actionRuns: Array<{
+        __typename?: 'CopilotActionRunDiagnosticsItemType';
+        actionId: string;
+        actionVersion: string;
+        agentRuntimeDiagnosticsFingerprint: string;
+        agentRuntimeNativeTraceEventTypes: Array<string>;
+        agentRuntimeProjectedSchemaComponents: Array<string>;
+        agentRuntimeProjectedRunStatuses: Array<string>;
+        agentRuntimeProjectedStepStatuses: Array<string>;
+        agentRuntimeProjectedStepTypes: Array<string>;
+        agentRuntimeProjectedTimelineEventTypes: Array<string>;
+        agentRuntimeProjectionContractFingerprint: string;
+        agentRuntimeProjectionSource: string;
+        agentRuntimeProjectionGaps: Array<string>;
+        agentRuntimeRunStatusGaps: Array<string>;
+        agentRuntimeRunId: string;
+        agentRuntimeRunStatus: string;
+        agentRuntimeSchemaReadiness: string;
+        agentRuntimeSchemaReadinessGaps: Array<string>;
+        agentRuntimeStepCount: number;
+        agentRuntimeStepStatusGaps: Array<string>;
+        agentRuntimeStepIds: Array<string>;
+        agentRuntimeStepKinds: Array<string>;
+        agentRuntimeStepStatuses: Array<string>;
+        agentRuntimeStepTypes: Array<string>;
+        agentRuntimeTimelineEntries: Array<string>;
+        agentRuntimeTimelineEventTypes: Array<string>;
+        agentRuntimeTimelineGaps: Array<string>;
+        agentRuntimeTimelineRouteEvidenceSetFingerprint: string;
+        agentRuntimeTargetRunStatuses: Array<string>;
+        agentRuntimeTargetSchemaComponents: Array<string>;
+        agentRuntimeTargetStepStatuses: Array<string>;
+        agentRuntimeTargetStepTypes: Array<string>;
+        agentRuntimeTargetTimelineEventTypes: Array<string>;
+        agentRuntimeUnsupportedRunStatuses: Array<string>;
+        agentRuntimeUnsupportedStepStatuses: Array<string>;
+        agentRuntimeUnsupportedStepTypes: Array<string>;
+        agentRuntimeUnsupportedTimelineEventTypes: Array<string>;
+        attempt: number;
+        createdAt: string;
+        docId: string | null;
+        errorCode: string | null;
+        hasPreparedRouteTrace: boolean;
+        id: string;
+        preparedRouteActualCount: number;
+        preparedRouteCount: number;
+        preparedRouteBehaviorFlags: Array<string>;
+        preparedRouteCanonicalModelKeys: Array<string>;
+        preparedRouteDimensionEvidence: Array<string>;
+        preparedRouteFallbackProviderIds: Array<string>;
+        preparedRouteFallbackOrder: Array<string>;
+        preparedRouteModelBackendKinds: Array<string>;
+        preparedRouteStepFallbackProviderIds: Array<string>;
+        preparedRouteStepIds: Array<string>;
+        preparedRouteKinds: Array<string>;
+        preparedRouteModelIds: Array<string>;
+        preparedRouteOrder: Array<string>;
+        preparedRouteProtocols: Array<string>;
+        preparedRouteProviderIds: Array<string>;
+        preparedRouteRequestedModelIds: Array<string>;
+        preparedRouteRequestedModelSources: Array<string>;
+        preparedRouteStepRequestedModelSources: Array<string>;
+        preparedRouteRequestLayers: Array<string>;
+        preparedRouteStepFallbackOrder: Array<string>;
+        preparedRouteStepBehaviorFlags: Array<string>;
+        preparedRouteStepCanonicalModelKeys: Array<string>;
+        preparedRouteStepDimensionEvidence: Array<string>;
+        preparedRouteStepModelBackendKinds: Array<string>;
+        preparedRouteStepOrder: Array<string>;
+        preparedRouteStepRouteCountMismatches: Array<string>;
+        preparedRouteStepRouteCounts: Array<string>;
+        preparedRouteStepProtocols: Array<string>;
+        preparedRouteStepRequestLayers: Array<string>;
+        preparedRouteStepCount: number;
+        preparedRouteTargets: Array<string>;
+        preparedRouteStepTargets: Array<string>;
+        preparedRouteRequestedTargets: Array<string>;
+        preparedRouteStepRequestedTargets: Array<string>;
+        retryOf: string | null;
+        sessionId: string | null;
+        status: string;
+        updatedAt: string;
+        agentRuntimeDiagnosticsManifest: {
+          __typename?: 'CopilotActionRunAgentRuntimeDiagnosticsManifestType';
+          actionId: string;
+          actionVersion: string;
+          fingerprint: string;
+          hasPreparedRouteTrace: boolean;
+          nativeTraceEventTypes: Array<string>;
+          preparedRouteActualCount: number;
+          preparedRouteCount: number;
+          preparedRouteStepCount: number;
+          projectionContractFingerprint: string;
+          projectionGapCount: number;
+          projectionSource: string;
+          runStatus: string;
+          schemaReadiness: string;
+          schemaReadinessGapCount: number;
+          timelineEventTypes: Array<string>;
+          timelineGapCount: number;
+          timelineItemCount: number;
+          timelineRouteEvidenceSetFingerprint: string;
+          version: string;
+        };
+        agentRuntimeDiagnosticsManifestExportMetadata: {
+          __typename?: 'CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType';
+          actionId: string;
+          actionVersion: string;
+          artifact: string;
+          auditEventCreated: boolean;
+          auditEventFingerprint: string;
+          auditEventStatus: string;
+          auditEventVersion: string;
+          boundary: string;
+          exportPolicyFingerprint: string;
+          exportPolicyStatus: string;
+          exportPolicyVersion: string;
+          filename: string;
+          manifestFingerprint: string;
+          manifestVersion: string;
+          metadataFilename: string;
+          mime: string;
+          projectionSource: string;
+          retentionPolicyFingerprint: string;
+          retentionPolicyStatus: string;
+          retentionPolicyVersion: string;
+          runId: string;
+          runStatus: string;
+          schemaReadiness: string;
+          version: string;
+        };
+        agentRuntimeTimelineItems: Array<{
+          __typename?: 'CopilotActionRunAgentRuntimeTimelineItemType';
+          actualRouteCount: number;
+          eventKey: string;
+          eventType: string;
+          fallbackProviderIds: Array<string>;
+          id: string;
+          kind: string | null;
+          label: string;
+          routeBehaviorFlags: Array<string>;
+          routeCanonicalModelKeys: Array<string>;
+          routeCount: number;
+          routeCountMismatch: boolean;
+          routeDimensionEvidence: Array<string>;
+          routeEvidenceFingerprint: string;
+          routeModelBackendKinds: Array<string>;
+          routeTargets: Array<string>;
+          runId: string;
+          sequence: number;
+          status: string;
+          stepId: string | null;
+          stepType: string | null;
+        }>;
+      }>;
+    };
+  } | null;
+};
+
+export type GetCopilotAgentRunQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  id: Scalars['String']['input'];
+}>;
+
+export type GetCopilotAgentRunQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      agentRuntimeWorkflowAdapters: Array<{
+        __typename?: 'CopilotAgentRuntimeWorkflowAdapterType';
+        workflow: string;
+        capabilities: {
+          __typename?: 'CopilotAgentRuntimeWorkflowAdapterCapabilitiesType';
+          version: string;
+          supportedStepTypes: Array<string>;
+          sideEffectMode: string;
+          summary: string;
+        };
+      }>;
+      agentRun: {
+        __typename?: 'CopilotAgentRunType';
+        actorId: string;
+        completedAt: string | null;
+        createdAt: string;
+        evidenceFingerprint: string;
+        executionResultCount: number;
+        failureCode: string | null;
+        failureMessage: string | null;
+        id: string;
+        lastAttemptAt: string | null;
+        queuedAt: string | null;
+        sourceId: string;
+        sourceType: string;
+        startedAt: string | null;
+        status: string;
+        targetFingerprint: string;
+        timelineFingerprint: string;
+        title: string | null;
+        updatedAt: string;
+        workerAttempt: number;
+        workerLeaseExpiresAt: string | null;
+        workerLeaseId: string | null;
+        workerMaxAttempts: number;
+        workflow: string;
+        workspaceId: string;
+        executionResults: Array<{
+          __typename?: 'CopilotAgentRuntimeExecutionResultType';
+          actorId: string;
+          adapterWorkflow: string;
+          completedAt: string;
+          createdAt: string;
+          executor: string;
+          failureCode: string | null;
+          failureMessage: string | null;
+          id: string;
+          resultFingerprint: string;
+          resultPayload: Record<string, string>;
+          resultStatus: string;
+          runId: string;
+          sideEffectMode: string;
+          sideEffectsApplied: boolean;
+          sourceId: string;
+          sourceType: string;
+          summary: string;
+          workerAttempt: number;
+          workerLeaseId: string;
+          workflow: string;
+          workspaceId: string;
+        }>;
+        steps: Array<{
+          __typename?: 'CopilotAgentStepType';
+          actorId: string;
+          completedAt: string | null;
+          createdAt: string;
+          evidenceFingerprint: string;
+          id: string;
+          order: number;
+          outputSummary: Record<string, string>;
+          runId: string;
+          startedAt: string | null;
+          status: string;
+          stepKey: string;
+          stepType: string;
+          title: string | null;
+          updatedAt: string;
+          workspaceId: string;
+        }>;
+        timelineEvents: Array<{
+          __typename?: 'CopilotAgentTimelineEventType';
+          actorId: string;
+          createdAt: string;
+          eventFingerprint: string;
+          eventType: string;
+          id: string;
+          ordinal: number;
+          payload: Record<string, string>;
+          runId: string;
+          status: string;
+          stepId: string | null;
+          summary: string;
+          workspaceId: string;
+        }>;
+      } | null;
+    };
+  } | null;
+};
+
+export type GetCopilotAgentRunsQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  limit?: InputMaybe<Scalars['SafeInt']['input']>;
+  filter?: InputMaybe<CopilotAgentRunListFilterInput>;
+}>;
+
+export type GetCopilotAgentRunsQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      agentRuntimeWorkflowAdapters: Array<{
+        __typename?: 'CopilotAgentRuntimeWorkflowAdapterType';
+        workflow: string;
+        capabilities: {
+          __typename?: 'CopilotAgentRuntimeWorkflowAdapterCapabilitiesType';
+          version: string;
+          supportedStepTypes: Array<string>;
+          sideEffectMode: string;
+          summary: string;
+        };
+      }>;
+      agentRuns: Array<{
+        __typename?: 'CopilotAgentRunType';
+        actorId: string;
+        completedAt: string | null;
+        createdAt: string;
+        evidenceFingerprint: string;
+        executionResultCount: number;
+        failureCode: string | null;
+        failureMessage: string | null;
+        id: string;
+        lastAttemptAt: string | null;
+        queuedAt: string | null;
+        sourceId: string;
+        sourceType: string;
+        startedAt: string | null;
+        status: string;
+        targetFingerprint: string;
+        timelineFingerprint: string;
+        title: string | null;
+        updatedAt: string;
+        workerAttempt: number;
+        workerLeaseExpiresAt: string | null;
+        workerLeaseId: string | null;
+        workerMaxAttempts: number;
+        workflow: string;
+        workspaceId: string;
+        executionResults: Array<{
+          __typename?: 'CopilotAgentRuntimeExecutionResultType';
+          actorId: string;
+          adapterWorkflow: string;
+          completedAt: string;
+          createdAt: string;
+          executor: string;
+          failureCode: string | null;
+          failureMessage: string | null;
+          id: string;
+          resultFingerprint: string;
+          resultPayload: Record<string, string>;
+          resultStatus: string;
+          runId: string;
+          sideEffectMode: string;
+          sideEffectsApplied: boolean;
+          sourceId: string;
+          sourceType: string;
+          summary: string;
+          workerAttempt: number;
+          workerLeaseId: string;
+          workflow: string;
+          workspaceId: string;
+        }>;
+        steps: Array<{
+          __typename?: 'CopilotAgentStepType';
+          actorId: string;
+          completedAt: string | null;
+          createdAt: string;
+          evidenceFingerprint: string;
+          id: string;
+          order: number;
+          outputSummary: Record<string, string>;
+          runId: string;
+          startedAt: string | null;
+          status: string;
+          stepKey: string;
+          stepType: string;
+          title: string | null;
+          updatedAt: string;
+          workspaceId: string;
+        }>;
+        timelineEvents: Array<{
+          __typename?: 'CopilotAgentTimelineEventType';
+          actorId: string;
+          createdAt: string;
+          eventFingerprint: string;
+          eventType: string;
+          id: string;
+          ordinal: number;
+          payload: Record<string, string>;
+          runId: string;
+          status: string;
+          stepId: string | null;
+          summary: string;
+          workspaceId: string;
+        }>;
+      }>;
+    };
+  } | null;
+};
+
+export type CopilotAgentRunSelection = NonNullable<
+  NonNullable<GetCopilotAgentRunQuery['currentUser']>['copilot']['agentRun']
+>;
+
+export type ControlCopilotAgentRuntimeRunMutationVariables = Exact<{
+  input: CopilotAgentRuntimeControlInput;
+}>;
+
+export type ControlCopilotAgentRuntimeRunMutation = {
+  __typename?: 'Mutation';
+  controlCopilotAgentRuntimeRun: CopilotAgentRunSelection;
+};
+
 export type AddContextBlobMutationVariables = Exact<{
   options: AddContextBlobInput;
 }>;
@@ -7416,8 +8838,8 @@ export type GetPromptModelsQuery = {
       __typename?: 'Copilot';
       models: {
         __typename?: 'CopilotModelsType';
-        defaultModelFallbackReason: string | null;
         defaultModel: string;
+        defaultModelFallbackReason: string | null;
         defaultModelSource: string;
         promptDefaultModel: string;
         embeddingRoute: {
@@ -7426,12 +8848,6 @@ export type GetPromptModelsQuery = {
           candidateCount: number | null;
           canonicalModelKey: string | null;
           configured: boolean;
-          diagnosticsErrors: Array<{
-            __typename?: 'CopilotTaskRouteDiagnosticsErrorType';
-            code: string;
-            message: string;
-            stage: string;
-          }>;
           dimensionMismatch: boolean | null;
           effectiveSourceFingerprint: string | null;
           effectiveSourceFingerprintInputs: Array<string> | null;
@@ -7454,6 +8870,66 @@ export type GetPromptModelsQuery = {
           policyFeatureKind: string | null;
           policyPreferredPrivacy: Array<string> | null;
           policyWorkspaceId: string | null;
+          preparedProviderCount: number;
+          preparedRouteTargets: Array<string>;
+          preparedRouteTargetFingerprint: string;
+          providerId: string | null;
+          providerConfiguredModelCount: number | null;
+          providerConfiguredModelIds: Array<string> | null;
+          providerName: string | null;
+          providerPriority: number | null;
+          providerProfileConfigPath: string | null;
+          providerProfileId: string | null;
+          providerProfileSource: string | null;
+          providerSource: string | null;
+          providerType: string | null;
+          protocol: string | null;
+          rerankRuntimeContractFingerprint: string | null;
+          rerankRuntimeContractStatus: string | null;
+          rerankRuntimeContractTopK: number | null;
+          rerankRuntimeContractVersion: string | null;
+          requestedModelConfigKey: string | null;
+          requestedModelConfigPath: string | null;
+          requestedModelId: string | null;
+          requestedModelSource: string | null;
+          taskRoutePolicyRevision: string | null;
+          taskRoutePolicyRevisionActorId: string | null;
+          taskRoutePolicyRevisionFingerprint: string | null;
+          taskRoutePolicyRevisionId: string | null;
+          taskRoutePolicyRevisionScope: string | null;
+          taskRoutePolicyRevisionSourceChainFingerprint: string | null;
+          taskRoutePolicyRevisionStatus: string | null;
+          taskRoutePolicyRevisionWorkspaceId: string | null;
+          taskRoutePolicyRevisionPublishEventCount: number | null;
+          taskRoutePolicyRevisionPublishEvents: Array<{
+            __typename?: 'CopilotRegistryRevisionPublishEventType';
+            actorId: string | null;
+            createdAt: string;
+            eventFingerprint: string;
+            eventType: string;
+            id: string;
+            metadata: any;
+            publishSource: string;
+            registryFamily: string;
+            registryKey: string;
+            registryModelId: string | null;
+            registryProviderId: string | null;
+            revision: string;
+            revisionFingerprint: string;
+            revisionId: string;
+            revisionStatus: string;
+            scopeType: string;
+            workspaceId: string | null;
+          }>;
+          requestedDimensions: number | null;
+          requestLayer: string | null;
+          topK: number | null;
+          diagnosticsErrors: Array<{
+            __typename?: 'CopilotTaskRouteDiagnosticsErrorType';
+            code: string;
+            message: string;
+            stage: string;
+          }>;
           policyCandidates: Array<{
             __typename?: 'CopilotTaskRoutePolicyCandidateDiagnosticsType';
             allowed: boolean;
@@ -7473,9 +8949,6 @@ export type GetPromptModelsQuery = {
             providerSource: string | null;
             providerPriority: number | null;
             providerType: string | null;
-            registryAvailable: boolean | null;
-            registryKind: string | null;
-            registrySelected: boolean | null;
             reasons: Array<string>;
           }>;
           routeCandidates: Array<{
@@ -7497,9 +8970,9 @@ export type GetPromptModelsQuery = {
             routeStructuredAttachmentSourceKinds: Array<string> | null;
             matched: boolean;
             modelId: string | null;
+            providerId: string;
             providerConfiguredModelCount: number | null;
             providerConfiguredModelIds: Array<string> | null;
-            providerId: string;
             providerName: string | null;
             providerProfileConfigPath: string | null;
             providerProfileId: string | null;
@@ -7514,12 +8987,54 @@ export type GetPromptModelsQuery = {
             routeModelDefinitionAliases: Array<string> | null;
             routeModelDefinitionId: string | null;
             routeModelDefinitionSource: string | null;
+            modelRegistryRevision: string | null;
+            modelRegistryRevisionActorId: string | null;
+            modelRegistryRevisionFingerprint: string | null;
+            modelRegistryRevisionId: string | null;
+            modelRegistryRevisionScope: string | null;
+            modelRegistryRevisionSourceChainFingerprint: string | null;
+            modelRegistryRevisionStatus: string | null;
+            modelRegistryRevisionWorkspaceId: string | null;
+            modelRegistryRevisionPublishEventCount: number | null;
+            modelRegistryRevisionPublishEvents: Array<{
+              __typename?: 'CopilotRegistryRevisionPublishEventType';
+              actorId: string | null;
+              createdAt: string;
+              eventFingerprint: string;
+              eventType: string;
+              id: string;
+              metadata: any;
+              publishSource: string;
+              registryFamily: string;
+              registryKey: string;
+              registryModelId: string | null;
+              registryProviderId: string | null;
+              revision: string;
+              revisionFingerprint: string;
+              revisionId: string;
+              revisionStatus: string;
+              scopeType: string;
+              workspaceId: string | null;
+            }>;
             routeRawModelId: string | null;
             reasons: Array<string>;
             registryAvailable: boolean | null;
             registryKind: string | null;
             registrySelected: boolean | null;
             requestedModelId: string | null;
+            modelRegistryRevisionSourceChain: Array<{
+              __typename?: 'CopilotModelRegistrySourceChainEntryType';
+              actorId: string | null;
+              fingerprint: string | null;
+              modelId: string | null;
+              providerId: string | null;
+              revision: string | null;
+              scope: string;
+              source: string;
+              status: string;
+              updatedAt: string | null;
+              workspaceId: string | null;
+            }> | null;
           }>;
           routeTrace: Array<{
             __typename?: 'CopilotTaskRouteTracePhaseDiagnosticsType';
@@ -7556,9 +9071,9 @@ export type GetPromptModelsQuery = {
             modelId: string | null;
             prepared: boolean;
             preparedModelId: string | null;
+            providerId: string;
             providerConfiguredModelCount: number | null;
             providerConfiguredModelIds: Array<string> | null;
-            providerId: string;
             providerName: string | null;
             providerPriority: number | null;
             providerProfileConfigPath: string | null;
@@ -7571,16 +9086,55 @@ export type GetPromptModelsQuery = {
             routeModelDefinitionAliases: Array<string> | null;
             routeModelDefinitionId: string | null;
             routeModelDefinitionSource: string | null;
+            modelRegistryRevision: string | null;
+            modelRegistryRevisionActorId: string | null;
+            modelRegistryRevisionFingerprint: string | null;
+            modelRegistryRevisionId: string | null;
+            modelRegistryRevisionScope: string | null;
+            modelRegistryRevisionSourceChainFingerprint: string | null;
+            modelRegistryRevisionStatus: string | null;
+            modelRegistryRevisionWorkspaceId: string | null;
+            modelRegistryRevisionPublishEventCount: number | null;
+            modelRegistryRevisionPublishEvents: Array<{
+              __typename?: 'CopilotRegistryRevisionPublishEventType';
+              actorId: string | null;
+              createdAt: string;
+              eventFingerprint: string;
+              eventType: string;
+              id: string;
+              metadata: any;
+              publishSource: string;
+              registryFamily: string;
+              registryKey: string;
+              registryModelId: string | null;
+              registryProviderId: string | null;
+              revision: string;
+              revisionFingerprint: string;
+              revisionId: string;
+              revisionStatus: string;
+              scopeType: string;
+              workspaceId: string | null;
+            }>;
             routeRawModelId: string | null;
             reasons: Array<string>;
             registryAvailable: boolean | null;
             registryKind: string | null;
             registrySelected: boolean | null;
             requestedModelId: string | null;
+            modelRegistryRevisionSourceChain: Array<{
+              __typename?: 'CopilotModelRegistrySourceChainEntryType';
+              actorId: string | null;
+              fingerprint: string | null;
+              modelId: string | null;
+              providerId: string | null;
+              revision: string | null;
+              scope: string;
+              source: string;
+              status: string;
+              updatedAt: string | null;
+              workspaceId: string | null;
+            }> | null;
           }>;
-          preparedProviderCount: number;
-          preparedRouteTargets: Array<string>;
-          preparedRouteTargetFingerprint: string;
           preparedRoutes: Array<{
             __typename?: 'CopilotPreparedTaskRouteDiagnosticsType';
             behaviorFlags: Array<string> | null;
@@ -7605,28 +9159,21 @@ export type GetPromptModelsQuery = {
             requestLayer: string | null;
             routeIndex: number;
           }>;
-          providerConfiguredModelCount: number | null;
-          providerConfiguredModelIds: Array<string> | null;
-          providerId: string | null;
-          providerName: string | null;
-          providerPriority: number | null;
-          providerProfileConfigPath: string | null;
-          providerProfileId: string | null;
-          providerProfileSource: string | null;
-          providerSource: string | null;
-          providerType: string | null;
-          protocol: string | null;
-          rerankRuntimeContractFingerprint: string | null;
-          rerankRuntimeContractStatus: string | null;
-          rerankRuntimeContractTopK: number | null;
-          rerankRuntimeContractVersion: string | null;
-          requestedModelConfigKey: string | null;
-          requestedModelConfigPath: string | null;
-          requestedModelId: string | null;
-          requestedModelSource: string | null;
-          requestedDimensions: number | null;
-          requestLayer: string | null;
-          topK: number | null;
+          taskRoutePolicyRevisionSourceChain: Array<{
+            __typename?: 'CopilotTaskRoutePolicySourceChainEntryType';
+            actorId: string | null;
+            configKey: string | null;
+            configPath: string | null;
+            featureKind: string | null;
+            fingerprint: string | null;
+            modelId: string | null;
+            revision: string | null;
+            scope: string;
+            source: string;
+            status: string;
+            updatedAt: string | null;
+            workspaceId: string | null;
+          }> | null;
         } | null;
         optionalModels: Array<{
           __typename?: 'CopilotModelType';
@@ -7642,12 +9189,6 @@ export type GetPromptModelsQuery = {
           promptDefaultPolicy: string | null;
           promptModelConfigPath: string | null;
           promptModelSource: string | null;
-          promptModelSources: Array<{
-            __typename?: 'CopilotModelPromptSourceType';
-            candidateSource: string;
-            modelConfigPath: string | null;
-            modelSource: string | null;
-          }>;
           promptName: string;
           promptOverrideApplied: boolean;
           promptSource: string;
@@ -7659,6 +9200,7 @@ export type GetPromptModelsQuery = {
           providerProfileId: string | null;
           providerProfileSource: string | null;
           providerSource: string | null;
+          routeModelId: string | null;
           providerType: string | null;
           providerPrivacy: string | null;
           providerHealth: string | null;
@@ -7675,15 +9217,43 @@ export type GetPromptModelsQuery = {
           routeBehaviorFlags: Array<string> | null;
           routeCanonicalModelKey: string | null;
           routeFallbackProviderIds: Array<string> | null;
+          routeInputTypes: Array<string> | null;
           routeAttachmentAllowRemoteUrls: boolean | null;
           routeAttachmentKinds: Array<string> | null;
           routeAttachmentSourceKinds: Array<string> | null;
-          routeInputTypes: Array<string> | null;
           routeModelAliasMatched: boolean | null;
           routeModelDefinitionAliases: Array<string> | null;
           routeModelDefinitionId: string | null;
           routeModelDefinitionSource: string | null;
-          routeModelId: string | null;
+          modelRegistryRevision: string | null;
+          modelRegistryRevisionActorId: string | null;
+          modelRegistryRevisionFingerprint: string | null;
+          modelRegistryRevisionId: string | null;
+          modelRegistryRevisionScope: string | null;
+          modelRegistryRevisionSourceChainFingerprint: string | null;
+          modelRegistryRevisionStatus: string | null;
+          modelRegistryRevisionWorkspaceId: string | null;
+          modelRegistryRevisionPublishEventCount: number | null;
+          modelRegistryRevisionPublishEvents: Array<{
+            __typename?: 'CopilotRegistryRevisionPublishEventType';
+            actorId: string | null;
+            createdAt: string;
+            eventFingerprint: string;
+            eventType: string;
+            id: string;
+            metadata: any;
+            publishSource: string;
+            registryFamily: string;
+            registryKey: string;
+            registryModelId: string | null;
+            registryProviderId: string | null;
+            revision: string;
+            revisionFingerprint: string;
+            revisionId: string;
+            revisionStatus: string;
+            scopeType: string;
+            workspaceId: string | null;
+          }>;
           routeOutputTypes: Array<string> | null;
           routeStructuredAttachmentAllowRemoteUrls: boolean | null;
           routeStructuredAttachmentKinds: Array<string> | null;
@@ -7699,6 +9269,25 @@ export type GetPromptModelsQuery = {
           routePolicyPreferredPrivacy: Array<string> | null;
           routePolicyWorkspaceId: string | null;
           sources: Array<string>;
+          promptModelSources: Array<{
+            __typename?: 'CopilotModelPromptSourceType';
+            candidateSource: string;
+            modelConfigPath: string | null;
+            modelSource: string | null;
+          }>;
+          modelRegistryRevisionSourceChain: Array<{
+            __typename?: 'CopilotModelRegistrySourceChainEntryType';
+            actorId: string | null;
+            fingerprint: string | null;
+            modelId: string | null;
+            providerId: string | null;
+            revision: string | null;
+            scope: string;
+            source: string;
+            status: string;
+            updatedAt: string | null;
+            workspaceId: string | null;
+          }> | null;
         }>;
         proModels: Array<{
           __typename?: 'CopilotModelType';
@@ -7714,12 +9303,6 @@ export type GetPromptModelsQuery = {
           promptDefaultPolicy: string | null;
           promptModelConfigPath: string | null;
           promptModelSource: string | null;
-          promptModelSources: Array<{
-            __typename?: 'CopilotModelPromptSourceType';
-            candidateSource: string;
-            modelConfigPath: string | null;
-            modelSource: string | null;
-          }>;
           promptName: string;
           promptOverrideApplied: boolean;
           promptSource: string;
@@ -7731,6 +9314,7 @@ export type GetPromptModelsQuery = {
           providerProfileId: string | null;
           providerProfileSource: string | null;
           providerSource: string | null;
+          routeModelId: string | null;
           providerType: string | null;
           providerPrivacy: string | null;
           providerHealth: string | null;
@@ -7747,15 +9331,43 @@ export type GetPromptModelsQuery = {
           routeBehaviorFlags: Array<string> | null;
           routeCanonicalModelKey: string | null;
           routeFallbackProviderIds: Array<string> | null;
+          routeInputTypes: Array<string> | null;
           routeAttachmentAllowRemoteUrls: boolean | null;
           routeAttachmentKinds: Array<string> | null;
           routeAttachmentSourceKinds: Array<string> | null;
-          routeInputTypes: Array<string> | null;
           routeModelAliasMatched: boolean | null;
           routeModelDefinitionAliases: Array<string> | null;
           routeModelDefinitionId: string | null;
           routeModelDefinitionSource: string | null;
-          routeModelId: string | null;
+          modelRegistryRevision: string | null;
+          modelRegistryRevisionActorId: string | null;
+          modelRegistryRevisionFingerprint: string | null;
+          modelRegistryRevisionId: string | null;
+          modelRegistryRevisionScope: string | null;
+          modelRegistryRevisionSourceChainFingerprint: string | null;
+          modelRegistryRevisionStatus: string | null;
+          modelRegistryRevisionWorkspaceId: string | null;
+          modelRegistryRevisionPublishEventCount: number | null;
+          modelRegistryRevisionPublishEvents: Array<{
+            __typename?: 'CopilotRegistryRevisionPublishEventType';
+            actorId: string | null;
+            createdAt: string;
+            eventFingerprint: string;
+            eventType: string;
+            id: string;
+            metadata: any;
+            publishSource: string;
+            registryFamily: string;
+            registryKey: string;
+            registryModelId: string | null;
+            registryProviderId: string | null;
+            revision: string;
+            revisionFingerprint: string;
+            revisionId: string;
+            revisionStatus: string;
+            scopeType: string;
+            workspaceId: string | null;
+          }>;
           routeOutputTypes: Array<string> | null;
           routeStructuredAttachmentAllowRemoteUrls: boolean | null;
           routeStructuredAttachmentKinds: Array<string> | null;
@@ -7771,6 +9383,25 @@ export type GetPromptModelsQuery = {
           routePolicyPreferredPrivacy: Array<string> | null;
           routePolicyWorkspaceId: string | null;
           sources: Array<string>;
+          promptModelSources: Array<{
+            __typename?: 'CopilotModelPromptSourceType';
+            candidateSource: string;
+            modelConfigPath: string | null;
+            modelSource: string | null;
+          }>;
+          modelRegistryRevisionSourceChain: Array<{
+            __typename?: 'CopilotModelRegistrySourceChainEntryType';
+            actorId: string | null;
+            fingerprint: string | null;
+            modelId: string | null;
+            providerId: string | null;
+            revision: string | null;
+            scope: string;
+            source: string;
+            status: string;
+            updatedAt: string | null;
+            workspaceId: string | null;
+          }> | null;
         }>;
         rerankRoute: {
           __typename?: 'CopilotTaskRouteDiagnosticsType';
@@ -7778,12 +9409,6 @@ export type GetPromptModelsQuery = {
           candidateCount: number | null;
           canonicalModelKey: string | null;
           configured: boolean;
-          diagnosticsErrors: Array<{
-            __typename?: 'CopilotTaskRouteDiagnosticsErrorType';
-            code: string;
-            message: string;
-            stage: string;
-          }>;
           dimensionMismatch: boolean | null;
           effectiveSourceFingerprint: string | null;
           effectiveSourceFingerprintInputs: Array<string> | null;
@@ -7806,6 +9431,66 @@ export type GetPromptModelsQuery = {
           policyFeatureKind: string | null;
           policyPreferredPrivacy: Array<string> | null;
           policyWorkspaceId: string | null;
+          preparedProviderCount: number;
+          preparedRouteTargets: Array<string>;
+          preparedRouteTargetFingerprint: string;
+          providerId: string | null;
+          providerConfiguredModelCount: number | null;
+          providerConfiguredModelIds: Array<string> | null;
+          providerName: string | null;
+          providerPriority: number | null;
+          providerProfileConfigPath: string | null;
+          providerProfileId: string | null;
+          providerProfileSource: string | null;
+          providerSource: string | null;
+          providerType: string | null;
+          protocol: string | null;
+          rerankRuntimeContractFingerprint: string | null;
+          rerankRuntimeContractStatus: string | null;
+          rerankRuntimeContractTopK: number | null;
+          rerankRuntimeContractVersion: string | null;
+          requestedModelConfigKey: string | null;
+          requestedModelConfigPath: string | null;
+          requestedModelId: string | null;
+          requestedModelSource: string | null;
+          taskRoutePolicyRevision: string | null;
+          taskRoutePolicyRevisionActorId: string | null;
+          taskRoutePolicyRevisionFingerprint: string | null;
+          taskRoutePolicyRevisionId: string | null;
+          taskRoutePolicyRevisionScope: string | null;
+          taskRoutePolicyRevisionSourceChainFingerprint: string | null;
+          taskRoutePolicyRevisionStatus: string | null;
+          taskRoutePolicyRevisionWorkspaceId: string | null;
+          taskRoutePolicyRevisionPublishEventCount: number | null;
+          taskRoutePolicyRevisionPublishEvents: Array<{
+            __typename?: 'CopilotRegistryRevisionPublishEventType';
+            actorId: string | null;
+            createdAt: string;
+            eventFingerprint: string;
+            eventType: string;
+            id: string;
+            metadata: any;
+            publishSource: string;
+            registryFamily: string;
+            registryKey: string;
+            registryModelId: string | null;
+            registryProviderId: string | null;
+            revision: string;
+            revisionFingerprint: string;
+            revisionId: string;
+            revisionStatus: string;
+            scopeType: string;
+            workspaceId: string | null;
+          }>;
+          requestedDimensions: number | null;
+          requestLayer: string | null;
+          topK: number | null;
+          diagnosticsErrors: Array<{
+            __typename?: 'CopilotTaskRouteDiagnosticsErrorType';
+            code: string;
+            message: string;
+            stage: string;
+          }>;
           policyCandidates: Array<{
             __typename?: 'CopilotTaskRoutePolicyCandidateDiagnosticsType';
             allowed: boolean;
@@ -7825,9 +9510,6 @@ export type GetPromptModelsQuery = {
             providerSource: string | null;
             providerPriority: number | null;
             providerType: string | null;
-            registryAvailable: boolean | null;
-            registryKind: string | null;
-            registrySelected: boolean | null;
             reasons: Array<string>;
           }>;
           routeCandidates: Array<{
@@ -7849,9 +9531,9 @@ export type GetPromptModelsQuery = {
             routeStructuredAttachmentSourceKinds: Array<string> | null;
             matched: boolean;
             modelId: string | null;
+            providerId: string;
             providerConfiguredModelCount: number | null;
             providerConfiguredModelIds: Array<string> | null;
-            providerId: string;
             providerName: string | null;
             providerProfileConfigPath: string | null;
             providerProfileId: string | null;
@@ -7866,12 +9548,54 @@ export type GetPromptModelsQuery = {
             routeModelDefinitionAliases: Array<string> | null;
             routeModelDefinitionId: string | null;
             routeModelDefinitionSource: string | null;
+            modelRegistryRevision: string | null;
+            modelRegistryRevisionActorId: string | null;
+            modelRegistryRevisionFingerprint: string | null;
+            modelRegistryRevisionId: string | null;
+            modelRegistryRevisionScope: string | null;
+            modelRegistryRevisionSourceChainFingerprint: string | null;
+            modelRegistryRevisionStatus: string | null;
+            modelRegistryRevisionWorkspaceId: string | null;
+            modelRegistryRevisionPublishEventCount: number | null;
+            modelRegistryRevisionPublishEvents: Array<{
+              __typename?: 'CopilotRegistryRevisionPublishEventType';
+              actorId: string | null;
+              createdAt: string;
+              eventFingerprint: string;
+              eventType: string;
+              id: string;
+              metadata: any;
+              publishSource: string;
+              registryFamily: string;
+              registryKey: string;
+              registryModelId: string | null;
+              registryProviderId: string | null;
+              revision: string;
+              revisionFingerprint: string;
+              revisionId: string;
+              revisionStatus: string;
+              scopeType: string;
+              workspaceId: string | null;
+            }>;
             routeRawModelId: string | null;
             reasons: Array<string>;
             registryAvailable: boolean | null;
             registryKind: string | null;
             registrySelected: boolean | null;
             requestedModelId: string | null;
+            modelRegistryRevisionSourceChain: Array<{
+              __typename?: 'CopilotModelRegistrySourceChainEntryType';
+              actorId: string | null;
+              fingerprint: string | null;
+              modelId: string | null;
+              providerId: string | null;
+              revision: string | null;
+              scope: string;
+              source: string;
+              status: string;
+              updatedAt: string | null;
+              workspaceId: string | null;
+            }> | null;
           }>;
           routeTrace: Array<{
             __typename?: 'CopilotTaskRouteTracePhaseDiagnosticsType';
@@ -7908,9 +9632,9 @@ export type GetPromptModelsQuery = {
             modelId: string | null;
             prepared: boolean;
             preparedModelId: string | null;
+            providerId: string;
             providerConfiguredModelCount: number | null;
             providerConfiguredModelIds: Array<string> | null;
-            providerId: string;
             providerName: string | null;
             providerPriority: number | null;
             providerProfileConfigPath: string | null;
@@ -7923,16 +9647,55 @@ export type GetPromptModelsQuery = {
             routeModelDefinitionAliases: Array<string> | null;
             routeModelDefinitionId: string | null;
             routeModelDefinitionSource: string | null;
+            modelRegistryRevision: string | null;
+            modelRegistryRevisionActorId: string | null;
+            modelRegistryRevisionFingerprint: string | null;
+            modelRegistryRevisionId: string | null;
+            modelRegistryRevisionScope: string | null;
+            modelRegistryRevisionSourceChainFingerprint: string | null;
+            modelRegistryRevisionStatus: string | null;
+            modelRegistryRevisionWorkspaceId: string | null;
+            modelRegistryRevisionPublishEventCount: number | null;
+            modelRegistryRevisionPublishEvents: Array<{
+              __typename?: 'CopilotRegistryRevisionPublishEventType';
+              actorId: string | null;
+              createdAt: string;
+              eventFingerprint: string;
+              eventType: string;
+              id: string;
+              metadata: any;
+              publishSource: string;
+              registryFamily: string;
+              registryKey: string;
+              registryModelId: string | null;
+              registryProviderId: string | null;
+              revision: string;
+              revisionFingerprint: string;
+              revisionId: string;
+              revisionStatus: string;
+              scopeType: string;
+              workspaceId: string | null;
+            }>;
             routeRawModelId: string | null;
             reasons: Array<string>;
             registryAvailable: boolean | null;
             registryKind: string | null;
             registrySelected: boolean | null;
             requestedModelId: string | null;
+            modelRegistryRevisionSourceChain: Array<{
+              __typename?: 'CopilotModelRegistrySourceChainEntryType';
+              actorId: string | null;
+              fingerprint: string | null;
+              modelId: string | null;
+              providerId: string | null;
+              revision: string | null;
+              scope: string;
+              source: string;
+              status: string;
+              updatedAt: string | null;
+              workspaceId: string | null;
+            }> | null;
           }>;
-          preparedProviderCount: number;
-          preparedRouteTargets: Array<string>;
-          preparedRouteTargetFingerprint: string;
           preparedRoutes: Array<{
             __typename?: 'CopilotPreparedTaskRouteDiagnosticsType';
             behaviorFlags: Array<string> | null;
@@ -7957,193 +9720,123 @@ export type GetPromptModelsQuery = {
             requestLayer: string | null;
             routeIndex: number;
           }>;
-          providerConfiguredModelCount: number | null;
-          providerConfiguredModelIds: Array<string> | null;
-          providerId: string | null;
-          providerName: string | null;
-          providerPriority: number | null;
-          providerProfileConfigPath: string | null;
-          providerProfileId: string | null;
-          providerProfileSource: string | null;
-          providerSource: string | null;
-          providerType: string | null;
-          protocol: string | null;
-          rerankRuntimeContractFingerprint: string | null;
-          rerankRuntimeContractStatus: string | null;
-          rerankRuntimeContractTopK: number | null;
-          rerankRuntimeContractVersion: string | null;
-          requestedModelConfigKey: string | null;
-          requestedModelConfigPath: string | null;
-          requestedModelId: string | null;
-          requestedModelSource: string | null;
-          requestedDimensions: number | null;
-          requestLayer: string | null;
-          topK: number | null;
+          taskRoutePolicyRevisionSourceChain: Array<{
+            __typename?: 'CopilotTaskRoutePolicySourceChainEntryType';
+            actorId: string | null;
+            configKey: string | null;
+            configPath: string | null;
+            featureKind: string | null;
+            fingerprint: string | null;
+            modelId: string | null;
+            revision: string | null;
+            scope: string;
+            source: string;
+            status: string;
+            updatedAt: string | null;
+            workspaceId: string | null;
+          }> | null;
         } | null;
       };
     };
   } | null;
 };
 
-export type GetCopilotPromptsQueryVariables = Exact<{
-  workspaceId?: InputMaybe<Scalars['String']['input']>;
+export type GetCopilotProviderHealthProbeAttemptsQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  limit?: InputMaybe<Scalars['SafeInt']['input']>;
+  filter?: InputMaybe<CopilotProviderHealthProbeAttemptFilterInput>;
 }>;
 
-export type GetCopilotPromptsQuery = {
+export type GetCopilotProviderHealthProbeAttemptsQuery = {
   __typename?: 'Query';
   currentUser: {
     __typename?: 'UserType';
     copilot: {
       __typename?: 'Copilot';
-      prompts: Array<{
-        __typename?: 'CopilotPromptCatalogItemType';
-        action: string | null;
-        category: string;
-        defaultPolicy: string | null;
-        fingerprint: string;
-        modelStrategyFingerprint: string;
-        modelConfigPath: string | null;
-        model: string;
-        modelSource: string;
-        name: string;
-        optionalModelsConfigPath: string | null;
-        optionalModelCount: number;
-        optionalModels: Array<string>;
-        optionalModelsSource: string;
-        overrideApplied: boolean;
-        paramCount: number;
-        paramKeys: Array<string>;
-        proModelsConfigPath: string | null;
-        proModelCount: number;
-        proModelsSource: string;
-        registryFingerprint: string | null;
-        registryId: number | null;
-        registryMessageCount: number | null;
-        registryModified: boolean | null;
-        registryUpdatedAt: string | null;
-        registryValidationBlockingCount: number | null;
-        registryValidationDetail: string | null;
-        registryValidationErrorCount: number | null;
-        registryValidationIssueCount: number | null;
-        registryValidationIssues: Array<{
-          __typename?: 'CopilotPromptRegistryValidationIssueType';
-          code: string;
-          detail: string;
-          fieldLabel: string;
-          message: string | null;
-          messageIndex: number | null;
-          path: string;
-          publishBlocking: boolean;
-          reason: string;
-          severity: string;
-          source: string;
-          sourceLocator: {
-            __typename?: 'CopilotPromptRegistryValidationSourceLocatorType';
-            field: string;
-            messageIndex: number | null;
-            path: string;
-            registryFingerprint: string;
-            registryId: number;
-            registryUpdatedAt: string;
-            table: string;
-          };
-        }> | null;
-        registryValidationPublishStatus: string | null;
-        registryValidationRemediations: Array<{
-          __typename?: 'CopilotPromptRegistryValidationRemediationType';
-          detail: string;
-          kind: string;
-          label: string;
-          target: string;
-          targetLocator: {
-            __typename?: 'CopilotPromptRegistryValidationSourceLocatorType';
-            field: string;
-            messageIndex: number | null;
-            path: string;
-            registryFingerprint: string;
-            registryId: number;
-            registryUpdatedAt: string;
-            table: string;
-          };
-        }> | null;
-        registryValidationReason: string | null;
-        registryValidationStatus: string | null;
-        revision: string;
-        source: string;
-        templateFingerprint: string;
-        versionEvidence: {
-          __typename?: 'CopilotPromptCatalogVersionEvidenceType';
-          defaultPolicy: string | null;
-          fingerprint: string;
-          modelConfigPath: string | null;
-          modelStrategyFingerprint: string;
-          optionalModelsConfigPath: string | null;
-          overrideApplied: boolean;
-          proModelsConfigPath: string | null;
-          registryFingerprint: string | null;
-          registryId: number | null;
-          registryMessageCount: number | null;
-          registryModified: boolean | null;
-          registryUpdatedAt: string | null;
-          registryValidationBlockingCount: number | null;
-          registryValidationDetail: string | null;
-          registryValidationErrorCount: number | null;
-          registryValidationIssueCount: number | null;
-          registryValidationIssues: Array<{
-            __typename?: 'CopilotPromptRegistryValidationIssueType';
-            code: string;
-            detail: string;
-            fieldLabel: string;
-            message: string | null;
-            messageIndex: number | null;
-            path: string;
-            publishBlocking: boolean;
-            reason: string;
-            severity: string;
-            source: string;
-            sourceLocator: {
-              __typename?: 'CopilotPromptRegistryValidationSourceLocatorType';
-              field: string;
-              messageIndex: number | null;
-              path: string;
-              registryFingerprint: string;
-              registryId: number;
-              registryUpdatedAt: string;
-              table: string;
-            };
-          }> | null;
-          registryValidationPublishStatus: string | null;
-          registryValidationRemediations: Array<{
-            __typename?: 'CopilotPromptRegistryValidationRemediationType';
-            detail: string;
-            kind: string;
-            label: string;
-            target: string;
-            targetLocator: {
-              __typename?: 'CopilotPromptRegistryValidationSourceLocatorType';
-              field: string;
-              messageIndex: number | null;
-              path: string;
-              registryFingerprint: string;
-              registryId: number;
-              registryUpdatedAt: string;
-              table: string;
-            };
-          }> | null;
-          registryValidationReason: string | null;
-          registryValidationStatus: string | null;
-          revision: string;
-          templateFingerprint: string;
-        };
+      providerHealthProbeAttempts: Array<{
+        __typename?: 'CopilotProviderHealthProbeAttemptType';
+        id: string;
+        providerId: string;
+        providerType: string | null;
+        scopeType: string;
+        workspaceId: string;
+        actorId: string;
+        providerRegistryRevisionId: string;
+        providerRegistryRevisionFingerprint: string;
+        providerProfileSource: string | null;
+        providerProfileFingerprint: string;
+        providerProfileSnapshot: any;
+        requestFingerprint: string;
+        status: string;
+        attemptCount: number;
+        maxAttempts: number;
+        scheduledAt: string;
+        workerLeaseId: string | null;
+        workerLeaseExpiresAt: string | null;
+        checkedAt: string | null;
+        completedAt: string | null;
+        deadLetteredAt: string | null;
+        failureCode: string | null;
+        failureMessage: string | null;
+        resultStatus: string | null;
+        resultLastError: string | null;
+        resultMetadata: any;
+        resultFingerprint: string | null;
+        providerHealthStateId: string | null;
+        providerHealthStateFingerprint: string | null;
+        createdAt: string;
+        updatedAt: string;
       }>;
     };
   } | null;
 };
 
+export type RetryCopilotProviderHealthProbeAttemptMutationVariables = Exact<{
+  input: CopilotProviderHealthProbeAttemptRetryInput;
+}>;
+
+export type RetryCopilotProviderHealthProbeAttemptMutation = {
+  __typename?: 'Mutation';
+  retryCopilotProviderHealthProbeAttempt: {
+    __typename?: 'CopilotProviderHealthProbeAttemptType';
+    id: string;
+    providerId: string;
+    providerType: string | null;
+    scopeType: string;
+    workspaceId: string;
+    actorId: string;
+    providerRegistryRevisionId: string;
+    providerRegistryRevisionFingerprint: string;
+    providerProfileSource: string | null;
+    providerProfileFingerprint: string;
+    providerProfileSnapshot: any;
+    requestFingerprint: string;
+    status: string;
+    attemptCount: number;
+    maxAttempts: number;
+    scheduledAt: string;
+    workerLeaseId: string | null;
+    workerLeaseExpiresAt: string | null;
+    checkedAt: string | null;
+    completedAt: string | null;
+    deadLetteredAt: string | null;
+    failureCode: string | null;
+    failureMessage: string | null;
+    resultStatus: string | null;
+    resultLastError: string | null;
+    resultMetadata: any;
+    resultFingerprint: string | null;
+    providerHealthStateId: string | null;
+    providerHealthStateFingerprint: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
 export type GetCopilotPromptRegistryPublishGateQueryVariables = Exact<{
-  expectedVersion?: InputMaybe<CopilotPromptRegistryPublishGateExpectedVersionInput>;
-  name: Scalars['String']['input'];
   workspaceId?: InputMaybe<Scalars['String']['input']>;
+  name: Scalars['String']['input'];
+  expectedVersion?: InputMaybe<CopilotPromptRegistryPublishGateExpectedVersionInput>;
 }>;
 
 export type GetCopilotPromptRegistryPublishGateQuery = {
@@ -8154,6 +9847,20 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
       __typename?: 'Copilot';
       promptRegistryPublishGate: {
         __typename?: 'CopilotPromptRegistryPublishGateVerdictType';
+        allowed: boolean;
+        blockingCount: number;
+        errorCount: number;
+        issueCount: number;
+        name: string;
+        publishStatus: string;
+        reason: string;
+        registryFingerprint: string;
+        registryId: number;
+        registryUpdatedAt: string;
+        repairActionCatalogFingerprint: string;
+        stale: boolean;
+        staleReasons: Array<string>;
+        status: string;
         actionRouteDryRun: {
           __typename?: 'CopilotPromptRegistryPublishGateActionRouteDryRunType';
           actionId: string | null;
@@ -8208,10 +9915,6 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             }>;
           }>;
         } | null;
-        allowed: boolean;
-        blockingCount: number;
-        errorCount: number;
-        issueCount: number;
         issues: Array<{
           __typename?: 'CopilotPromptRegistryValidationIssueType';
           code: string;
@@ -8265,28 +9968,6 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
           policyFeatureKind: string | null;
           policyPreferredPrivacy: Array<string> | null;
           policyWorkspaceId: string | null;
-          policyCandidates: Array<{
-            __typename?: 'CopilotPromptRegistryPublishGatePolicyCandidateType';
-            allowed: boolean;
-            available: boolean;
-            health: string;
-            healthCheckedAt: string | null;
-            privacy: string;
-            providerId: string;
-            providerConfiguredModelCount: number | null;
-            providerConfiguredModelIds: Array<string> | null;
-            providerName: string | null;
-            providerPriority: number | null;
-            providerProfileConfigPath: string | null;
-            providerProfileId: string | null;
-            providerProfileSource: string | null;
-            providerSource: string | null;
-            providerType: string | null;
-            registryAvailable: boolean | null;
-            registryKind: string | null;
-            registrySelected: boolean | null;
-            reasons: Array<string>;
-          }>;
           protocol: string | null;
           providerId: string | null;
           providerConfiguredModelCount: number | null;
@@ -8310,15 +9991,50 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
           routeModelDefinitionAliases: Array<string> | null;
           routeModelDefinitionId: string | null;
           routeModelDefinitionSource: string | null;
+          modelRegistryRevision: string | null;
+          modelRegistryRevisionActorId: string | null;
+          modelRegistryRevisionFingerprint: string | null;
+          modelRegistryRevisionId: string | null;
+          modelRegistryRevisionScope: string | null;
+          modelRegistryRevisionSourceChainFingerprint: string | null;
+          modelRegistryRevisionStatus: string | null;
+          modelRegistryRevisionWorkspaceId: string | null;
           routeRawModelId: string | null;
+          policyCandidates: Array<{
+            __typename?: 'CopilotPromptRegistryPublishGatePolicyCandidateType';
+            allowed: boolean;
+            available: boolean;
+            health: string;
+            healthCheckedAt: string | null;
+            privacy: string;
+            providerId: string;
+            providerConfiguredModelCount: number | null;
+            providerConfiguredModelIds: Array<string> | null;
+            providerName: string | null;
+            providerPriority: number | null;
+            providerProfileConfigPath: string | null;
+            providerProfileId: string | null;
+            providerProfileSource: string | null;
+            providerSource: string | null;
+            providerType: string | null;
+            reasons: Array<string>;
+          }>;
+          modelRegistryRevisionSourceChain: Array<{
+            __typename?: 'CopilotModelRegistrySourceChainEntryType';
+            actorId: string | null;
+            fingerprint: string | null;
+            modelId: string | null;
+            providerId: string | null;
+            revision: string | null;
+            scope: string;
+            source: string;
+            status: string;
+            updatedAt: string | null;
+            workspaceId: string | null;
+          }> | null;
           routeCandidates: Array<{
             __typename?: 'CopilotPromptRegistryPublishGateRouteCandidateType';
             candidateModelIds: Array<string> | null;
-            costInputPer1M: number | null;
-            costOutputPer1M: number | null;
-            routeContextWindow: number | null;
-            routeEmbeddingDimensions: number | null;
-            routeMaxOutputTokens: number | null;
             health: string | null;
             healthCheckedAt: string | null;
             matched: boolean;
@@ -8339,19 +10055,32 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             registryKind: string | null;
             registrySelected: boolean | null;
             requestedModelId: string | null;
-            routeAttachmentAllowRemoteUrls: boolean | null;
-            routeAttachmentKinds: Array<string> | null;
-            routeAttachmentSourceKinds: Array<string> | null;
-            routeInputTypes: Array<string> | null;
             routeModelAliasMatched: boolean | null;
             routeModelDefinitionAliases: Array<string> | null;
             routeModelDefinitionId: string | null;
             routeModelDefinitionSource: string | null;
-            routeOutputTypes: Array<string> | null;
-            routeStructuredAttachmentAllowRemoteUrls: boolean | null;
-            routeStructuredAttachmentKinds: Array<string> | null;
-            routeStructuredAttachmentSourceKinds: Array<string> | null;
+            modelRegistryRevision: string | null;
+            modelRegistryRevisionActorId: string | null;
+            modelRegistryRevisionFingerprint: string | null;
+            modelRegistryRevisionId: string | null;
+            modelRegistryRevisionScope: string | null;
+            modelRegistryRevisionSourceChainFingerprint: string | null;
+            modelRegistryRevisionStatus: string | null;
+            modelRegistryRevisionWorkspaceId: string | null;
             routeRawModelId: string | null;
+            modelRegistryRevisionSourceChain: Array<{
+              __typename?: 'CopilotModelRegistrySourceChainEntryType';
+              actorId: string | null;
+              fingerprint: string | null;
+              modelId: string | null;
+              providerId: string | null;
+              revision: string | null;
+              scope: string;
+              source: string;
+              status: string;
+              updatedAt: string | null;
+              workspaceId: string | null;
+            }> | null;
           }>;
           routeTrace: Array<{
             __typename?: 'CopilotPromptRegistryPublishGateRouteTracePhaseType';
@@ -8395,28 +10124,6 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
           policyFeatureKind: string | null;
           policyPreferredPrivacy: Array<string> | null;
           policyWorkspaceId: string | null;
-          policyCandidates: Array<{
-            __typename?: 'CopilotPromptRegistryPublishGatePolicyCandidateType';
-            allowed: boolean;
-            available: boolean;
-            health: string;
-            healthCheckedAt: string | null;
-            privacy: string;
-            providerId: string;
-            providerConfiguredModelCount: number | null;
-            providerConfiguredModelIds: Array<string> | null;
-            providerName: string | null;
-            providerPriority: number | null;
-            providerProfileConfigPath: string | null;
-            providerProfileId: string | null;
-            providerProfileSource: string | null;
-            providerSource: string | null;
-            providerType: string | null;
-            registryAvailable: boolean | null;
-            registryKind: string | null;
-            registrySelected: boolean | null;
-            reasons: Array<string>;
-          }>;
           protocol: string | null;
           providerId: string | null;
           providerConfiguredModelCount: number | null;
@@ -8440,15 +10147,52 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
           routeModelDefinitionAliases: Array<string> | null;
           routeModelDefinitionId: string | null;
           routeModelDefinitionSource: string | null;
+          modelRegistryRevision: string | null;
+          modelRegistryRevisionActorId: string | null;
+          modelRegistryRevisionFingerprint: string | null;
+          modelRegistryRevisionId: string | null;
+          modelRegistryRevisionScope: string | null;
+          modelRegistryRevisionSourceChainFingerprint: string | null;
+          modelRegistryRevisionStatus: string | null;
+          modelRegistryRevisionWorkspaceId: string | null;
           routeRawModelId: string | null;
+          policyCandidates: Array<{
+            __typename?: 'CopilotPromptRegistryPublishGatePolicyCandidateType';
+            allowed: boolean;
+            available: boolean;
+            candidateFingerprint: string;
+            candidateKey: string;
+            health: string;
+            healthCheckedAt: string | null;
+            privacy: string;
+            providerId: string;
+            providerConfiguredModelCount: number | null;
+            providerConfiguredModelIds: Array<string> | null;
+            providerName: string | null;
+            providerPriority: number | null;
+            providerProfileConfigPath: string | null;
+            providerProfileId: string | null;
+            providerProfileSource: string | null;
+            providerSource: string | null;
+            providerType: string | null;
+            reasons: Array<string>;
+          }>;
+          modelRegistryRevisionSourceChain: Array<{
+            __typename?: 'CopilotModelRegistrySourceChainEntryType';
+            actorId: string | null;
+            fingerprint: string | null;
+            modelId: string | null;
+            providerId: string | null;
+            revision: string | null;
+            scope: string;
+            source: string;
+            status: string;
+            updatedAt: string | null;
+            workspaceId: string | null;
+          }> | null;
           routeCandidates: Array<{
             __typename?: 'CopilotPromptRegistryPublishGateRouteCandidateType';
             candidateModelIds: Array<string> | null;
-            costInputPer1M: number | null;
-            costOutputPer1M: number | null;
-            routeContextWindow: number | null;
-            routeEmbeddingDimensions: number | null;
-            routeMaxOutputTokens: number | null;
             health: string | null;
             healthCheckedAt: string | null;
             matched: boolean;
@@ -8469,19 +10213,32 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             registryKind: string | null;
             registrySelected: boolean | null;
             requestedModelId: string | null;
-            routeAttachmentAllowRemoteUrls: boolean | null;
-            routeAttachmentKinds: Array<string> | null;
-            routeAttachmentSourceKinds: Array<string> | null;
-            routeInputTypes: Array<string> | null;
             routeModelAliasMatched: boolean | null;
             routeModelDefinitionAliases: Array<string> | null;
             routeModelDefinitionId: string | null;
             routeModelDefinitionSource: string | null;
-            routeOutputTypes: Array<string> | null;
-            routeStructuredAttachmentAllowRemoteUrls: boolean | null;
-            routeStructuredAttachmentKinds: Array<string> | null;
-            routeStructuredAttachmentSourceKinds: Array<string> | null;
+            modelRegistryRevision: string | null;
+            modelRegistryRevisionActorId: string | null;
+            modelRegistryRevisionFingerprint: string | null;
+            modelRegistryRevisionId: string | null;
+            modelRegistryRevisionScope: string | null;
+            modelRegistryRevisionSourceChainFingerprint: string | null;
+            modelRegistryRevisionStatus: string | null;
+            modelRegistryRevisionWorkspaceId: string | null;
             routeRawModelId: string | null;
+            modelRegistryRevisionSourceChain: Array<{
+              __typename?: 'CopilotModelRegistrySourceChainEntryType';
+              actorId: string | null;
+              fingerprint: string | null;
+              modelId: string | null;
+              providerId: string | null;
+              revision: string | null;
+              scope: string;
+              source: string;
+              status: string;
+              updatedAt: string | null;
+              workspaceId: string | null;
+            }> | null;
           }>;
           routeTrace: Array<{
             __typename?: 'CopilotPromptRegistryPublishGateRouteTracePhaseType';
@@ -8495,23 +10252,260 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             selectedCount: number | null;
           }>;
         }>;
-        taskRoutes: Array<CopilotTaskRouteDiagnosticsType>;
-        name: string;
-        publishStatus: string;
-        reason: string;
-        registryFingerprint: string;
-        registryId: number;
-        registryUpdatedAt: string;
+        taskRoutes: Array<{
+          __typename?: 'CopilotTaskRouteDiagnosticsType';
+          behaviorFlags: Array<string> | null;
+          candidateCount: number | null;
+          canonicalModelKey: string | null;
+          configured: boolean;
+          dimensionMismatch: boolean | null;
+          effectiveSourceFingerprint: string | null;
+          effectiveSourceFingerprintInputs: Array<string> | null;
+          effectiveSourceFingerprintVersion: string | null;
+          embeddingIndexContractDimensions: number | null;
+          embeddingIndexContractFingerprint: string | null;
+          embeddingIndexContractStatus: string | null;
+          embeddingIndexContractVersion: string | null;
+          errorCode: string | null;
+          errorMessage: string | null;
+          fallbackProviderIds: Array<string>;
+          featureKind: string;
+          modelBackendKind: string | null;
+          modelEmbeddingDimensions: number | null;
+          modelId: string | null;
+          policyAllowedPrivacy: Array<string> | null;
+          policyAllowedProviderIds: Array<string> | null;
+          policyBlockedProviderIds: Array<string> | null;
+          policyEnabled: boolean;
+          policyFeatureKind: string | null;
+          policyPreferredPrivacy: Array<string> | null;
+          policyWorkspaceId: string | null;
+          preparedProviderCount: number;
+          preparedRouteTargets: Array<string>;
+          preparedRouteTargetFingerprint: string;
+          providerId: string | null;
+          providerConfiguredModelCount: number | null;
+          providerConfiguredModelIds: Array<string> | null;
+          providerName: string | null;
+          providerPriority: number | null;
+          providerProfileConfigPath: string | null;
+          providerProfileId: string | null;
+          providerProfileSource: string | null;
+          providerSource: string | null;
+          providerType: string | null;
+          protocol: string | null;
+          rerankRuntimeContractFingerprint: string | null;
+          rerankRuntimeContractStatus: string | null;
+          rerankRuntimeContractTopK: number | null;
+          rerankRuntimeContractVersion: string | null;
+          requestedModelConfigKey: string | null;
+          requestedModelConfigPath: string | null;
+          requestedModelId: string | null;
+          requestedModelSource: string | null;
+          requestedDimensions: number | null;
+          requestLayer: string | null;
+          topK: number | null;
+          diagnosticsErrors: Array<{
+            __typename?: 'CopilotTaskRouteDiagnosticsErrorType';
+            code: string;
+            message: string;
+            stage: string;
+          }>;
+          policyCandidates: Array<{
+            __typename?: 'CopilotTaskRoutePolicyCandidateDiagnosticsType';
+            allowed: boolean;
+            available: boolean;
+            health: string;
+            healthCheckedAt: string | null;
+            privacy: string;
+            providerId: string;
+            providerConfiguredModelCount: number | null;
+            providerConfiguredModelIds: Array<string> | null;
+            providerName: string | null;
+            providerSource: string | null;
+            providerPriority: number | null;
+            providerProfileConfigPath: string | null;
+            providerProfileId: string | null;
+            providerProfileSource: string | null;
+            providerType: string | null;
+            reasons: Array<string>;
+          }>;
+          routeCandidates: Array<{
+            __typename?: 'CopilotTaskRouteCandidateDiagnosticsType';
+            candidateKey: string | null;
+            candidateModelIds: Array<string> | null;
+            costInputPer1M: number | null;
+            costOutputPer1M: number | null;
+            routeContextWindow: number | null;
+            routeEmbeddingDimensions: number | null;
+            routeMaxOutputTokens: number | null;
+            routeAttachmentAllowRemoteUrls: boolean | null;
+            routeAttachmentKinds: Array<string> | null;
+            routeAttachmentSourceKinds: Array<string> | null;
+            routeInputTypes: Array<string> | null;
+            routeOutputTypes: Array<string> | null;
+            routeStructuredAttachmentAllowRemoteUrls: boolean | null;
+            routeStructuredAttachmentKinds: Array<string> | null;
+            routeStructuredAttachmentSourceKinds: Array<string> | null;
+            matched: boolean;
+            modelId: string | null;
+            providerId: string;
+            providerConfiguredModelCount: number | null;
+            providerConfiguredModelIds: Array<string> | null;
+            providerName: string | null;
+            providerProfileConfigPath: string | null;
+            providerProfileId: string | null;
+            providerProfileSource: string | null;
+            providerSource: string | null;
+            providerType: string | null;
+            providerPriority: number | null;
+            privacy: string | null;
+            health: string | null;
+            healthCheckedAt: string | null;
+            routeModelAliasMatched: boolean | null;
+            routeModelDefinitionAliases: Array<string> | null;
+            routeModelDefinitionId: string | null;
+            routeModelDefinitionSource: string | null;
+            modelRegistryRevision: string | null;
+            modelRegistryRevisionActorId: string | null;
+            modelRegistryRevisionFingerprint: string | null;
+            modelRegistryRevisionId: string | null;
+            modelRegistryRevisionScope: string | null;
+            modelRegistryRevisionSourceChainFingerprint: string | null;
+            modelRegistryRevisionStatus: string | null;
+            modelRegistryRevisionWorkspaceId: string | null;
+            routeRawModelId: string | null;
+            reasons: Array<string>;
+            registryAvailable: boolean | null;
+            registryKind: string | null;
+            registrySelected: boolean | null;
+            requestedModelId: string | null;
+            modelRegistryRevisionSourceChain: Array<{
+              __typename?: 'CopilotModelRegistrySourceChainEntryType';
+              actorId: string | null;
+              fingerprint: string | null;
+              modelId: string | null;
+              providerId: string | null;
+              revision: string | null;
+              scope: string;
+              source: string;
+              status: string;
+              updatedAt: string | null;
+              workspaceId: string | null;
+            }> | null;
+          }>;
+          routeTrace: Array<{
+            __typename?: 'CopilotTaskRouteTracePhaseDiagnosticsType';
+            availableCount: number | null;
+            blockedCount: number | null;
+            candidateCount: number;
+            matchedCount: number | null;
+            phase: string;
+            preparedCount: number | null;
+            reasons: Array<string>;
+            selectedCount: number | null;
+          }>;
+          prepareCandidates: Array<{
+            __typename?: 'CopilotTaskRoutePrepareCandidateDiagnosticsType';
+            candidateKey: string | null;
+            candidateModelIds: Array<string> | null;
+            costInputPer1M: number | null;
+            costOutputPer1M: number | null;
+            routeContextWindow: number | null;
+            routeEmbeddingDimensions: number | null;
+            routeMaxOutputTokens: number | null;
+            routeAttachmentAllowRemoteUrls: boolean | null;
+            routeAttachmentKinds: Array<string> | null;
+            routeAttachmentSourceKinds: Array<string> | null;
+            routeInputTypes: Array<string> | null;
+            routeOutputTypes: Array<string> | null;
+            routeStructuredAttachmentAllowRemoteUrls: boolean | null;
+            routeStructuredAttachmentKinds: Array<string> | null;
+            routeStructuredAttachmentSourceKinds: Array<string> | null;
+            errorCategory: string | null;
+            errorCode: string | null;
+            health: string | null;
+            healthCheckedAt: string | null;
+            modelId: string | null;
+            prepared: boolean;
+            preparedModelId: string | null;
+            providerId: string;
+            providerConfiguredModelCount: number | null;
+            providerConfiguredModelIds: Array<string> | null;
+            providerName: string | null;
+            providerPriority: number | null;
+            providerProfileConfigPath: string | null;
+            providerProfileId: string | null;
+            providerProfileSource: string | null;
+            providerSource: string | null;
+            providerType: string | null;
+            privacy: string | null;
+            routeModelAliasMatched: boolean | null;
+            routeModelDefinitionAliases: Array<string> | null;
+            routeModelDefinitionId: string | null;
+            routeModelDefinitionSource: string | null;
+            modelRegistryRevision: string | null;
+            modelRegistryRevisionActorId: string | null;
+            modelRegistryRevisionFingerprint: string | null;
+            modelRegistryRevisionId: string | null;
+            modelRegistryRevisionScope: string | null;
+            modelRegistryRevisionSourceChainFingerprint: string | null;
+            modelRegistryRevisionStatus: string | null;
+            modelRegistryRevisionWorkspaceId: string | null;
+            routeRawModelId: string | null;
+            reasons: Array<string>;
+            registryAvailable: boolean | null;
+            registryKind: string | null;
+            registrySelected: boolean | null;
+            requestedModelId: string | null;
+            modelRegistryRevisionSourceChain: Array<{
+              __typename?: 'CopilotModelRegistrySourceChainEntryType';
+              actorId: string | null;
+              fingerprint: string | null;
+              modelId: string | null;
+              providerId: string | null;
+              revision: string | null;
+              scope: string;
+              source: string;
+              status: string;
+              updatedAt: string | null;
+              workspaceId: string | null;
+            }> | null;
+          }>;
+          preparedRoutes: Array<{
+            __typename?: 'CopilotPreparedTaskRouteDiagnosticsType';
+            behaviorFlags: Array<string> | null;
+            canonicalModelKey: string | null;
+            dimensionMismatch: boolean | null;
+            fallbackOrderIndex: number | null;
+            modelBackendKind: string | null;
+            modelEmbeddingDimensions: number | null;
+            modelId: string;
+            protocol: string | null;
+            providerConfiguredModelCount: number | null;
+            providerConfiguredModelIds: Array<string> | null;
+            providerId: string;
+            providerName: string | null;
+            providerPriority: number | null;
+            providerProfileConfigPath: string | null;
+            providerProfileId: string | null;
+            providerProfileSource: string | null;
+            providerSource: string | null;
+            providerType: string | null;
+            requestedDimensions: number | null;
+            requestLayer: string | null;
+            routeIndex: number;
+          }>;
+        }>;
         repairActionCatalog: Array<{
           __typename?: 'CopilotPromptRegistryPublishGateRepairActionCatalogEntryType';
           actionKind: string;
           catalogVersion: string;
-          inputSchema: any;
+          inputSchema: Record<string, string>;
           recommendationCount: number;
           requiredCapabilities: Array<string>;
           safety: string;
         }>;
-        repairActionCatalogFingerprint: string;
         repairActionMutationGuard: {
           __typename?: 'CopilotPromptRegistryPublishGateRepairActionMutationGuardType';
           auditSummary: string;
@@ -8560,6 +10554,10 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
           guardFingerprint: string;
           operationFingerprints: Array<string>;
           operationSetFingerprint: string;
+          previewFingerprint: string;
+          readOnly: boolean;
+          requiredCapabilities: Array<string>;
+          status: string;
           operations: Array<{
             __typename?: 'CopilotPromptRegistryPublishGateRepairActionPreviewOperationType';
             actionKind: string;
@@ -8573,7 +10571,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             embeddingIndexContractEvidenceFingerprints: Array<string>;
             rerankRuntimeContractEvidenceFingerprints: Array<string>;
             taskRouteEffectiveSourceFingerprints: Array<string>;
-            inputSchema: any;
+            inputSchema: Record<string, string>;
             instanceKey: string | null;
             operationFingerprint: string;
             preparedRouteOrderFingerprints: Array<string>;
@@ -8582,6 +10580,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             reviewMode: string;
             safety: string;
             target: string;
+            targetLocatorFingerprint: string;
             targetLocator: {
               __typename?: 'CopilotPromptRegistryPublishGateRepairTargetLocatorType';
               actionId: string | null;
@@ -8607,12 +10606,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
               status: string | null;
               stepId: string | null;
             } | null;
-            targetLocatorFingerprint: string;
           }>;
-          previewFingerprint: string;
-          readOnly: boolean;
-          requiredCapabilities: Array<string>;
-          status: string;
           submissionContract: {
             __typename?: 'CopilotPromptRegistryPublishGateRepairActionSubmissionContractType';
             approvalPolicyFingerprint: string;
@@ -8728,6 +10722,21 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
         }>;
         repairRecommendations: Array<{
           __typename?: 'CopilotPromptRegistryPublishGateRepairRecommendationType';
+          category: string;
+          code: string;
+          detail: string;
+          diagnosticsFingerprint: string;
+          evidence: Array<string>;
+          instanceKey: string | null;
+          severity: string;
+          suggestedAction: string;
+          suggestedActionCatalogVersion: string;
+          suggestedActionInputSchema: Record<string, string>;
+          suggestedActionKind: string;
+          suggestedActionRequiredCapabilities: Array<string>;
+          suggestedActionSafety: string;
+          target: string;
+          title: string;
           candidateEvidence: Array<{
             __typename?: 'CopilotPromptRegistryPublishGateRepairCandidateEvidenceType';
             allowed: boolean | null;
@@ -8743,12 +10752,6 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             embeddingIndexContractFingerprint: string | null;
             embeddingIndexContractStatus: string | null;
             embeddingIndexContractVersion: string | null;
-            diagnosticsErrors: Array<{
-              __typename?: 'CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType';
-              code: string;
-              message: string;
-              stage: string;
-            }> | null;
             diagnosticsErrorSnapshotFingerprint: string | null;
             errorCategory: string | null;
             errorCode: string | null;
@@ -8763,30 +10766,6 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             prepareCandidateSnapshotFingerprint: string | null;
             preparedRouteOrderFingerprint: string | null;
             preparedRouteSnapshotFingerprint: string | null;
-            preparedRoutes: Array<{
-              __typename?: 'CopilotPreparedTaskRouteDiagnosticsType';
-              behaviorFlags: Array<string> | null;
-              canonicalModelKey: string | null;
-              dimensionMismatch: boolean | null;
-              fallbackOrderIndex: number | null;
-              modelBackendKind: string | null;
-              modelEmbeddingDimensions: number | null;
-              modelId: string;
-              protocol: string | null;
-              providerConfiguredModelCount: number | null;
-              providerConfiguredModelIds: Array<string> | null;
-              providerId: string;
-              providerName: string | null;
-              providerPriority: number | null;
-              providerProfileConfigPath: string | null;
-              providerProfileId: string | null;
-              providerProfileSource: string | null;
-              providerSource: string | null;
-              providerType: string | null;
-              requestedDimensions: number | null;
-              requestLayer: string | null;
-              routeIndex: number;
-            }> | null;
             providerCapabilitySnapshotFingerprint: string | null;
             providerCostSnapshotFingerprint: string | null;
             providerHealthSnapshotFingerprint: string | null;
@@ -8804,28 +10783,6 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             taskRouteModelSourceSnapshotFingerprint: string | null;
             preparedRouteTargets: Array<string> | null;
             preparedRouteTargetFingerprint: string | null;
-            policyCandidates: Array<{
-              __typename?: 'CopilotPromptRegistryPublishGatePolicyCandidateType';
-              allowed: boolean;
-              available: boolean;
-              health: string;
-              healthCheckedAt: string | null;
-              privacy: string;
-              providerConfiguredModelCount: number | null;
-              providerConfiguredModelIds: Array<string> | null;
-              providerId: string;
-              providerName: string | null;
-              providerPriority: number | null;
-              providerProfileConfigPath: string | null;
-              providerProfileId: string | null;
-              providerProfileSource: string | null;
-              providerSource: string | null;
-              providerType: string | null;
-              registryAvailable: boolean | null;
-              registryKind: string | null;
-              registrySelected: boolean | null;
-              reasons: Array<string>;
-            }> | null;
             policyCandidateSnapshotFingerprint: string | null;
             privacy: string | null;
             providerConfiguredModelCount: number | null;
@@ -8859,11 +10816,84 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             routeModelDefinitionAliases: Array<string> | null;
             routeModelDefinitionId: string | null;
             routeModelDefinitionSource: string | null;
+            modelRegistryRevision: string | null;
+            modelRegistryRevisionActorId: string | null;
+            modelRegistryRevisionFingerprint: string | null;
+            modelRegistryRevisionId: string | null;
+            modelRegistryRevisionScope: string | null;
+            modelRegistryRevisionSourceChainFingerprint: string | null;
+            modelRegistryRevisionStatus: string | null;
+            modelRegistryRevisionWorkspaceId: string | null;
             routeOutputTypes: Array<string> | null;
             routeRawModelId: string | null;
             routeStructuredAttachmentAllowRemoteUrls: boolean | null;
             routeStructuredAttachmentKinds: Array<string> | null;
             routeStructuredAttachmentSourceKinds: Array<string> | null;
+            routeTracePhases: Array<string> | null;
+            routeTraceSnapshotFingerprint: string | null;
+            scope: string;
+            diagnosticsErrors: Array<{
+              __typename?: 'CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType';
+              code: string;
+              message: string;
+              stage: string;
+            }> | null;
+            preparedRoutes: Array<{
+              __typename?: 'CopilotPreparedTaskRouteDiagnosticsType';
+              behaviorFlags: Array<string> | null;
+              canonicalModelKey: string | null;
+              dimensionMismatch: boolean | null;
+              fallbackOrderIndex: number | null;
+              modelBackendKind: string | null;
+              modelEmbeddingDimensions: number | null;
+              modelId: string;
+              protocol: string | null;
+              providerConfiguredModelCount: number | null;
+              providerConfiguredModelIds: Array<string> | null;
+              providerId: string;
+              providerName: string | null;
+              providerPriority: number | null;
+              providerProfileConfigPath: string | null;
+              providerProfileId: string | null;
+              providerProfileSource: string | null;
+              providerSource: string | null;
+              providerType: string | null;
+              requestedDimensions: number | null;
+              requestLayer: string | null;
+              routeIndex: number;
+            }> | null;
+            policyCandidates: Array<{
+              __typename?: 'CopilotPromptRegistryPublishGatePolicyCandidateType';
+              allowed: boolean;
+              available: boolean;
+              health: string;
+              healthCheckedAt: string | null;
+              privacy: string;
+              providerConfiguredModelCount: number | null;
+              providerConfiguredModelIds: Array<string> | null;
+              providerId: string;
+              providerName: string | null;
+              providerPriority: number | null;
+              providerProfileConfigPath: string | null;
+              providerProfileId: string | null;
+              providerProfileSource: string | null;
+              providerSource: string | null;
+              providerType: string | null;
+              reasons: Array<string>;
+            }> | null;
+            modelRegistryRevisionSourceChain: Array<{
+              __typename?: 'CopilotModelRegistrySourceChainEntryType';
+              actorId: string | null;
+              fingerprint: string | null;
+              modelId: string | null;
+              providerId: string | null;
+              revision: string | null;
+              scope: string;
+              source: string;
+              status: string;
+              updatedAt: string | null;
+              workspaceId: string | null;
+            }> | null;
             routeTrace: Array<{
               __typename?: 'CopilotPromptRegistryPublishGateRouteTracePhaseType';
               availableCount: number | null;
@@ -8875,24 +10905,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
               reasons: Array<string>;
               selectedCount: number | null;
             }> | null;
-            routeTracePhases: Array<string> | null;
-            routeTraceSnapshotFingerprint: string | null;
-            scope: string;
           }> | null;
-          category: string;
-          code: string;
-          detail: string;
-          diagnosticsFingerprint: string;
-          evidence: Array<string>;
-          instanceKey: string | null;
-          severity: string;
-          suggestedAction: string;
-          suggestedActionCatalogVersion: string;
-          suggestedActionInputSchema: any;
-          suggestedActionKind: string;
-          suggestedActionRequiredCapabilities: Array<string>;
-          suggestedActionSafety: string;
-          target: string;
           targetLocator: {
             __typename?: 'CopilotPromptRegistryPublishGateRepairTargetLocatorType';
             actionId: string | null;
@@ -8918,130 +10931,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             status: string | null;
             stepId: string | null;
           } | null;
-          title: string;
         }>;
-        stale: boolean;
-        staleReasons: Array<string>;
-        status: string;
-      } | null;
-    };
-  } | null;
-};
-
-export type GetCopilotPromptRegistryRepairPreflightQueryVariables = Exact<{
-  expectedVersion?: InputMaybe<CopilotPromptRegistryPublishGateExpectedVersionInput>;
-  name: Scalars['String']['input'];
-  submission: CopilotPromptRegistryRepairSubmissionInput;
-  workspaceId?: InputMaybe<Scalars['String']['input']>;
-}>;
-
-export type GetCopilotPromptRegistryRepairPreflightQuery = {
-  __typename?: 'Query';
-  currentUser: {
-    __typename?: 'UserType';
-    copilot: {
-      __typename?: 'Copilot';
-      promptRegistryRepairPreflight: {
-        __typename?: 'CopilotPromptRegistryRepairPreflightType';
-        accepted: boolean;
-        actorFingerprint: string;
-        actorSnapshotInputs: Array<string>;
-        actorSnapshotStatus: string;
-        actorSnapshotVersion: string;
-        actorType: string;
-        approvalCheckpoints: Array<string>;
-        approvalModes: Array<string>;
-        approvalRecordCreated: boolean;
-        approvalRecordFingerprint: string;
-        approvalRecordInputs: Array<string>;
-        approvalRecordStatus: string;
-        approvalRecordVersion: string;
-        approvalRequestFingerprint: string;
-        approvalRequestInputs: Array<string>;
-        approvalRequestStatus: string;
-        approvalRequestVersion: string;
-        approvalRequired: boolean;
-        auditBindingFingerprint: string;
-        auditBindingInputs: Array<string>;
-        auditBindingStatus: string;
-        auditBindingVersion: string;
-        auditEventCreated: boolean;
-        auditEventFingerprint: string;
-        auditEventInputs: Array<string>;
-        auditEventStatus: string;
-        auditEventVersion: string;
-        authorizationStatus: string;
-        candidateEvidenceSetFingerprint: string;
-        taskRouteEffectiveSourceEvidenceSetFingerprint: string;
-        taskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<string>;
-        taskRouteEffectiveSourceEvidenceSetFingerprintVersion: string;
-        embeddingIndexContractEvidenceSetFingerprint: string;
-        rerankRuntimeContractEvidenceSetFingerprint: string;
-        preparedRouteOrderEvidenceSetFingerprint: string;
-        capabilityCheckMode: string;
-        capabilityFingerprint: string;
-        capabilitySource: string;
-        capabilityStatus: string;
-        contractVersion: string;
-        currentSubmissionFingerprint: string;
-        expectedSubmissionFingerprint: string;
-        executionGateFingerprint: string;
-        executionGateInputs: Array<string>;
-        executionGateStatus: string;
-        executionGateVersion: string;
-        executionStateCreated: boolean;
-        executionStateFingerprint: string;
-        executionStateInputs: Array<string>;
-        executionStateStatus: string;
-        executionStateVersion: string;
-        expectedCandidateEvidenceSetFingerprint: string;
-        expectedTaskRouteEffectiveSourceEvidenceSetFingerprint: string;
-        expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<string>;
-        expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: string;
-        expectedEmbeddingIndexContractEvidenceSetFingerprint: string;
-        expectedRerankRuntimeContractEvidenceSetFingerprint: string;
-        expectedPreparedRouteOrderEvidenceSetFingerprint: string;
-        expectedTargetLocatorFingerprint: string;
-        idempotencyFingerprint: string;
-        idempotencyKey: string;
-        idempotencyLockAcquired: boolean;
-        idempotencyScope: string;
-        idempotencyStatus: string;
-        idempotencyVersion: string;
-        matchedFields: Array<string>;
-        mismatchedFields: Array<string>;
-        mutationAvailable: boolean;
-        permissionCheckMode: string;
-        permissionChecked: boolean;
-        permissionFingerprint: string;
-        permissionScope: string;
-        permissionStatus: string;
-        policyBindingFingerprint: string;
-        policyBindingInputs: Array<string>;
-        policyBindingStatus: string;
-        policyBindingVersion: string;
-        policySource: string;
-        requiredCapabilities: Array<string>;
-        requiredCapabilityCount: number;
-        requiredPermission: string;
-        repairJobCreated: boolean;
-        repairJobFingerprint: string;
-        repairJobInputs: Array<string>;
-        repairJobStatus: string;
-        repairJobVersion: string;
-        reviewBindingFingerprint: string;
-        reviewBindingInputs: Array<string>;
-        reviewBindingStatus: string;
-        reviewBindingVersion: string;
-        rollbackPlanCreated: boolean;
-        rollbackPlanFingerprint: string;
-        rollbackPlanInputs: Array<string>;
-        rollbackPlanStatus: string;
-        rollbackPlanVersion: string;
-        readOnly: boolean;
-        status: string;
-        targetLocatorFingerprint: string;
-        workspaceId: string | null;
       } | null;
     };
   } | null;
@@ -9389,6 +11279,165 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
     supportBundleStorageKeyScope: string;
     supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint: string;
     supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints: Array<string>;
+    supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<string>;
+    supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints: Array<string>;
+    supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints: Array<string>;
+    supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: string;
+    executionRecord: {
+      __typename?: 'CopilotRepairExecutionRecordType';
+      actorId: string;
+      approvalRecordFingerprint: string;
+      approvalState: string;
+      auditEventCount: number;
+      auditEvents: Array<{
+        __typename?: 'CopilotRepairExecutionAuditEventType';
+        actorId: string;
+        createdAt: string;
+        eventFingerprint: string;
+        eventType: string;
+        executionRequestId: string;
+        id: string;
+        metadata: Record<string, string>;
+        workspaceId: string;
+      }>;
+      auditEventFingerprint: string;
+      candidateEvidenceSetFingerprint: string;
+      completedAt: string | null;
+      createdAt: string;
+      failureCode: string | null;
+      failureMessage: string | null;
+      id: string;
+      idempotencyFingerprint: string;
+      idempotencyKey: string;
+      lastAttemptAt: string | null;
+      permissionStatus: string;
+      promptName: string;
+      queuedAt: string | null;
+      repairJobFingerprint: string;
+      requestFingerprint: string;
+      requestedAction: string;
+      status: string;
+      targetLocatorFingerprint: string;
+      taskRouteEvidenceSetFingerprint: string;
+      updatedAt: string;
+      workerAttempt: number;
+      workerLeaseExpiresAt: string | null;
+      workerLeaseId: string | null;
+      workerMaxAttempts: number;
+      workspaceId: string;
+      runtimeResult: {
+        __typename?: 'CopilotRepairExecutionRuntimeResultType';
+        executor: string;
+        message: string;
+        sideEffectsApplied: boolean;
+        sideEffectFingerprint: string | null;
+        sideEffectKind: string | null;
+        sideEffectRecordId: string | null;
+        sideEffectSummary: Record<string, string> | null;
+        version: string;
+      };
+      sideEffectCount: number;
+      sideEffects: Array<{
+        __typename?: 'CopilotRepairExecutionSideEffectType';
+        actorId: string;
+        appliedAt: string;
+        createdAt: string;
+        executionRequestId: string;
+        executorPayloadFingerprint: string;
+        id: string;
+        sideEffectFingerprint: string;
+        sideEffectKind: string;
+        sideEffectRecordId: string;
+        sideEffectSummary: Record<string, string>;
+        workerAttempt: number;
+        workerLeaseId: string;
+        workspaceId: string;
+      }>;
+      agentRun: {
+        __typename?: 'CopilotAgentRunType';
+        actorId: string;
+        completedAt: string | null;
+        createdAt: string;
+        evidenceFingerprint: string;
+        executionResultCount: number;
+        executionResults: Array<{
+          __typename?: 'CopilotAgentRuntimeExecutionResultType';
+          actorId: string;
+          adapterWorkflow: string;
+          completedAt: string;
+          createdAt: string;
+          executor: string;
+          failureCode: string | null;
+          failureMessage: string | null;
+          id: string;
+          resultFingerprint: string;
+          resultPayload: Record<string, string>;
+          resultStatus: string;
+          runId: string;
+          sideEffectMode: string;
+          sideEffectsApplied: boolean;
+          sourceId: string;
+          sourceType: string;
+          summary: string;
+          workerAttempt: number;
+          workerLeaseId: string;
+          workflow: string;
+          workspaceId: string;
+        }>;
+        failureCode: string | null;
+        failureMessage: string | null;
+        id: string;
+        lastAttemptAt: string | null;
+        queuedAt: string | null;
+        sourceId: string;
+        sourceType: string;
+        startedAt: string | null;
+        status: string;
+        targetFingerprint: string;
+        timelineFingerprint: string;
+        title: string | null;
+        updatedAt: string;
+        workerAttempt: number;
+        workerLeaseExpiresAt: string | null;
+        workerLeaseId: string | null;
+        workerMaxAttempts: number;
+        workflow: string;
+        workspaceId: string;
+        steps: Array<{
+          __typename?: 'CopilotAgentStepType';
+          actorId: string;
+          completedAt: string | null;
+          createdAt: string;
+          evidenceFingerprint: string;
+          id: string;
+          order: number;
+          outputSummary: Record<string, string>;
+          runId: string;
+          startedAt: string | null;
+          status: string;
+          stepKey: string;
+          stepType: string;
+          title: string | null;
+          updatedAt: string;
+          workspaceId: string;
+        }>;
+        timelineEvents: Array<{
+          __typename?: 'CopilotAgentTimelineEventType';
+          actorId: string;
+          createdAt: string;
+          eventFingerprint: string;
+          eventType: string;
+          id: string;
+          ordinal: number;
+          payload: Record<string, string>;
+          runId: string;
+          status: string;
+          stepId: string | null;
+          summary: string;
+          workspaceId: string;
+        }>;
+      } | null;
+    } | null;
     supportBundleTaskRouteEffectiveSourceEvidenceSetEntries: Array<{
       __typename?: 'CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType';
       candidateEvidenceCategoryCount: number;
@@ -9482,6 +11531,14 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
       candidateEvidenceReferenceSchemaFingerprintInputs: Array<string>;
       candidateEvidenceReferenceSchemaRegistryStatus: string;
       candidateEvidenceReferenceSchemaVersion: string;
+      candidateEvidenceFingerprint: string;
+      candidateEvidenceFingerprints: Array<string>;
+      candidateEvidenceKeys: Array<string>;
+      candidateEvidenceProviderIds: Array<string>;
+      candidateEvidenceScopes: Array<string>;
+      diagnosticsFingerprint: string;
+      operationFingerprint: string;
+      taskRouteEffectiveSourceFingerprints: Array<string>;
       candidateEvidenceEntries: Array<{
         __typename?: 'CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType';
         candidateEvidenceCategory: string | null;
@@ -9491,6 +11548,8 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
         candidateEvidenceScope: string;
         candidateIndex: number;
         preparedRouteOrderFingerprint: string | null;
+        taskRouteEffectiveSourceFingerprint: string | null;
+        taskRouteModelSourceSnapshotFingerprint: string | null;
         preparedRouteEntries: Array<{
           __typename?: 'CopilotPreparedTaskRouteDiagnosticsType';
           behaviorFlags: Array<string> | null;
@@ -9577,11 +11636,32 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
           routeModelDefinitionAliases: Array<string> | null;
           routeModelDefinitionId: string | null;
           routeModelDefinitionSource: string | null;
+          modelRegistryRevision: string | null;
+          modelRegistryRevisionActorId: string | null;
+          modelRegistryRevisionFingerprint: string | null;
+          modelRegistryRevisionId: string | null;
+          modelRegistryRevisionScope: string | null;
+          modelRegistryRevisionSourceChainFingerprint: string | null;
+          modelRegistryRevisionStatus: string | null;
+          modelRegistryRevisionWorkspaceId: string | null;
           routeRawModelId: string | null;
           registryAvailable: boolean | null;
           registryKind: string | null;
           registrySelected: boolean | null;
           requestedModelId: string | null;
+          modelRegistryRevisionSourceChain: Array<{
+            __typename?: 'CopilotModelRegistrySourceChainEntryType';
+            actorId: string | null;
+            fingerprint: string | null;
+            modelId: string | null;
+            providerId: string | null;
+            revision: string | null;
+            scope: string;
+            source: string;
+            status: string;
+            updatedAt: string | null;
+            workspaceId: string | null;
+          }> | null;
         }> | null;
         routeCandidateEntries: Array<{
           __typename?: 'CopilotPromptRegistryPublishGateRouteCandidateType';
@@ -9619,13 +11699,33 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
           routeModelDefinitionAliases: Array<string> | null;
           routeModelDefinitionId: string | null;
           routeModelDefinitionSource: string | null;
+          modelRegistryRevision: string | null;
+          modelRegistryRevisionActorId: string | null;
+          modelRegistryRevisionFingerprint: string | null;
+          modelRegistryRevisionId: string | null;
+          modelRegistryRevisionScope: string | null;
+          modelRegistryRevisionSourceChainFingerprint: string | null;
+          modelRegistryRevisionStatus: string | null;
+          modelRegistryRevisionWorkspaceId: string | null;
           routeOutputTypes: Array<string> | null;
           routeRawModelId: string | null;
           routeStructuredAttachmentAllowRemoteUrls: boolean | null;
           routeStructuredAttachmentKinds: Array<string> | null;
           routeStructuredAttachmentSourceKinds: Array<string> | null;
+          modelRegistryRevisionSourceChain: Array<{
+            __typename?: 'CopilotModelRegistrySourceChainEntryType';
+            actorId: string | null;
+            fingerprint: string | null;
+            modelId: string | null;
+            providerId: string | null;
+            revision: string | null;
+            scope: string;
+            source: string;
+            status: string;
+            updatedAt: string | null;
+            workspaceId: string | null;
+          }> | null;
         }> | null;
-        taskRouteEffectiveSourceFingerprint: string | null;
         taskRouteModelSourceSnapshotEntries: Array<{
           __typename?: 'CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType';
           featureKind: string;
@@ -9634,21 +11734,8 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
           requestedModelId: string | null;
           requestedModelSource: string | null;
         }> | null;
-        taskRouteModelSourceSnapshotFingerprint: string | null;
       }>;
-      candidateEvidenceFingerprint: string;
-      candidateEvidenceFingerprints: Array<string>;
-      candidateEvidenceKeys: Array<string>;
-      candidateEvidenceProviderIds: Array<string>;
-      candidateEvidenceScopes: Array<string>;
-      diagnosticsFingerprint: string;
-      operationFingerprint: string;
-      taskRouteEffectiveSourceFingerprints: Array<string>;
     }>;
-    supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<string>;
-    supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints: Array<string>;
-    supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints: Array<string>;
-    supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: string;
     preflight: {
       __typename?: 'CopilotPromptRegistryRepairPreflightType';
       approvalRecordFingerprint: string;
@@ -9683,235 +11770,361 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
   };
 };
 
-export type GetCopilotActionRunPreparedRouteTraceQueryVariables = Exact<{
-  runId: Scalars['String']['input'];
-  workspaceId: Scalars['String']['input'];
+export type GetCopilotPromptRegistryRepairPreflightQueryVariables = Exact<{
+  workspaceId?: InputMaybe<Scalars['String']['input']>;
+  name: Scalars['String']['input'];
+  expectedVersion?: InputMaybe<CopilotPromptRegistryPublishGateExpectedVersionInput>;
+  submission: CopilotPromptRegistryRepairSubmissionInput;
 }>;
 
-export type GetCopilotActionRunPreparedRouteTraceQuery = {
+export type GetCopilotPromptRegistryRepairPreflightQuery = {
   __typename?: 'Query';
   currentUser: {
     __typename?: 'UserType';
     copilot: {
       __typename?: 'Copilot';
-      actionRunPreparedRouteTrace: {
-        __typename?: 'CopilotActionRunPreparedRouteDiagnosticsType';
+      promptRegistryRepairPreflight: {
+        __typename?: 'CopilotPromptRegistryRepairPreflightType';
+        accepted: boolean;
+        actorFingerprint: string;
+        actorSnapshotInputs: Array<string>;
+        actorSnapshotStatus: string;
+        actorSnapshotVersion: string;
+        actorType: string;
+        approvalCheckpoints: Array<string>;
+        approvalModes: Array<string>;
+        approvalRecordCreated: boolean;
+        approvalRecordFingerprint: string;
+        approvalRecordInputs: Array<string>;
+        approvalRecordStatus: string;
+        approvalRecordVersion: string;
+        approvalRequestFingerprint: string;
+        approvalRequestInputs: Array<string>;
+        approvalRequestStatus: string;
+        approvalRequestVersion: string;
+        approvalRequired: boolean;
+        auditBindingFingerprint: string;
+        auditBindingInputs: Array<string>;
+        auditBindingStatus: string;
+        auditBindingVersion: string;
+        auditEventCreated: boolean;
+        auditEventFingerprint: string;
+        auditEventInputs: Array<string>;
+        auditEventStatus: string;
+        auditEventVersion: string;
+        authorizationStatus: string;
+        candidateEvidenceSetFingerprint: string;
+        taskRouteEffectiveSourceEvidenceSetFingerprint: string;
+        taskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<string>;
+        taskRouteEffectiveSourceEvidenceSetFingerprintVersion: string;
+        embeddingIndexContractEvidenceSetFingerprint: string;
+        rerankRuntimeContractEvidenceSetFingerprint: string;
+        preparedRouteOrderEvidenceSetFingerprint: string;
+        capabilityCheckMode: string;
+        capabilityFingerprint: string;
+        capabilitySource: string;
+        capabilityStatus: string;
+        contractVersion: string;
+        currentSubmissionFingerprint: string;
+        expectedSubmissionFingerprint: string;
+        executionGateFingerprint: string;
+        executionGateInputs: Array<string>;
+        executionGateStatus: string;
+        executionGateVersion: string;
+        executionStateCreated: boolean;
+        executionStateFingerprint: string;
+        executionStateInputs: Array<string>;
+        executionStateStatus: string;
+        executionStateVersion: string;
+        expectedCandidateEvidenceSetFingerprint: string;
+        expectedTaskRouteEffectiveSourceEvidenceSetFingerprint: string;
+        expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: Array<string>;
+        expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: string;
+        expectedEmbeddingIndexContractEvidenceSetFingerprint: string;
+        expectedRerankRuntimeContractEvidenceSetFingerprint: string;
+        expectedPreparedRouteOrderEvidenceSetFingerprint: string;
+        expectedTargetLocatorFingerprint: string;
+        idempotencyFingerprint: string;
+        idempotencyKey: string;
+        idempotencyLockAcquired: boolean;
+        idempotencyScope: string;
+        idempotencyStatus: string;
+        idempotencyVersion: string;
+        matchedFields: Array<string>;
+        mismatchedFields: Array<string>;
+        mutationAvailable: boolean;
+        permissionCheckMode: string;
+        permissionChecked: boolean;
+        permissionFingerprint: string;
+        permissionScope: string;
+        permissionStatus: string;
+        policyBindingFingerprint: string;
+        policyBindingInputs: Array<string>;
+        policyBindingStatus: string;
+        policyBindingVersion: string;
+        policySource: string;
+        requiredCapabilities: Array<string>;
+        requiredCapabilityCount: number;
+        requiredPermission: string;
+        repairJobCreated: boolean;
+        repairJobFingerprint: string;
+        repairJobInputs: Array<string>;
+        repairJobStatus: string;
+        repairJobVersion: string;
+        reviewBindingFingerprint: string;
+        reviewBindingInputs: Array<string>;
+        reviewBindingStatus: string;
+        reviewBindingVersion: string;
+        rollbackPlanCreated: boolean;
+        rollbackPlanFingerprint: string;
+        rollbackPlanInputs: Array<string>;
+        rollbackPlanStatus: string;
+        rollbackPlanVersion: string;
+        readOnly: boolean;
         status: string;
-        type: string;
-        steps: Array<{
-          __typename?: 'CopilotActionRunPreparedRouteDiagnosticsStepType';
-          actualRouteCount: number;
-          fallbackProviderIds: Array<string>;
-          kind: string;
-          requestedModelId: string | null;
-          requestedModelSource: string | null;
-          routeCount: number;
-          routeCountMismatch: boolean;
-          stepId: string;
-          routes: Array<{
-            __typename?: 'CopilotActionRunPreparedRouteDiagnosticsRouteType';
-            behaviorFlags: Array<string> | null;
-            canonicalModelKey: string | null;
-            dimensionMismatch: boolean | null;
-            fallbackOrderIndex: number | null;
-            modelId: string;
-            modelBackendKind: string | null;
-            modelEmbeddingDimensions: number | null;
-            protocol: string | null;
-            providerConfiguredModelCount: number | null;
-            providerConfiguredModelIds: Array<string> | null;
-            providerHealth: string | null;
-            providerHealthCheckedAt: string | null;
-            providerHealthLastError: string | null;
-            providerId: string;
-            providerName: string | null;
-            providerPrivacy: string | null;
-            providerPriority: number | null;
-            providerProfileConfigPath: string | null;
-            providerProfileId: string | null;
-            providerProfileSource: string | null;
-            providerSource: string | null;
-            providerType: string | null;
-            requestLayer: string | null;
-            requestedDimensions: number | null;
-            routeModelAliasMatched: boolean | null;
-            routeModelDefinitionAliases: Array<string> | null;
-            routeModelDefinitionId: string | null;
-            routeModelDefinitionSource: string | null;
-            routeRawModelId: string | null;
-            routeIndex: number;
-          }>;
-        }>;
+        targetLocatorFingerprint: string;
+        workspaceId: string | null;
       } | null;
     };
   } | null;
 };
 
-export type GetCopilotActionRunsQueryVariables = Exact<{
-  workspaceId: Scalars['String']['input'];
-  limit?: InputMaybe<Scalars['SafeInt']['input']>;
+export type GetCopilotPromptsQueryVariables = Exact<{
+  workspaceId?: InputMaybe<Scalars['String']['input']>;
 }>;
 
-export type GetCopilotActionRunsQuery = {
+export type GetCopilotPromptsQuery = {
   __typename?: 'Query';
   currentUser: {
     __typename?: 'UserType';
     copilot: {
       __typename?: 'Copilot';
-      actionRuns: Array<{
-        __typename?: 'CopilotActionRunDiagnosticsItemType';
-        actionId: string;
-        actionVersion: string;
-        agentRuntimeDiagnosticsFingerprint: string;
-        agentRuntimeDiagnosticsManifest: {
-          __typename?: 'CopilotActionRunAgentRuntimeDiagnosticsManifestType';
-          actionId: string;
-          actionVersion: string;
-          fingerprint: string;
-          hasPreparedRouteTrace: boolean;
-          nativeTraceEventTypes: Array<string>;
-          preparedRouteActualCount: number;
-          preparedRouteCount: number;
-          preparedRouteStepCount: number;
-          projectionContractFingerprint: string;
-          projectionGapCount: number;
-          projectionSource: string;
-          runStatus: string;
-          schemaReadiness: string;
-          schemaReadinessGapCount: number;
-          timelineEventTypes: Array<string>;
-          timelineGapCount: number;
-          timelineItemCount: number;
-          timelineRouteEvidenceSetFingerprint: string;
-          version: string;
-        };
-        agentRuntimeDiagnosticsManifestExportMetadata: {
-          __typename?: 'CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType';
-          actionId: string;
-          actionVersion: string;
-          artifact: string;
-          auditEventCreated: boolean;
-          auditEventFingerprint: string;
-          auditEventStatus: string;
-          auditEventVersion: string;
-          boundary: string;
-          exportPolicyFingerprint: string;
-          exportPolicyStatus: string;
-          exportPolicyVersion: string;
-          filename: string;
-          manifestFingerprint: string;
-          manifestVersion: string;
-          metadataFilename: string;
-          mime: string;
-          projectionSource: string;
-          retentionPolicyFingerprint: string;
-          retentionPolicyStatus: string;
-          retentionPolicyVersion: string;
-          runId: string;
-          runStatus: string;
-          schemaReadiness: string;
-          version: string;
-        };
-        agentRuntimeNativeTraceEventTypes: Array<string>;
-        agentRuntimeProjectedSchemaComponents: Array<string>;
-        agentRuntimeProjectedRunStatuses: Array<string>;
-        agentRuntimeProjectedStepStatuses: Array<string>;
-        agentRuntimeProjectedStepTypes: Array<string>;
-        agentRuntimeProjectedTimelineEventTypes: Array<string>;
-        agentRuntimeProjectionContractFingerprint: string;
-        agentRuntimeProjectionSource: string;
-        agentRuntimeProjectionGaps: Array<string>;
-        agentRuntimeRunStatusGaps: Array<string>;
-        agentRuntimeRunId: string;
-        agentRuntimeRunStatus: string;
-        agentRuntimeSchemaReadiness: string;
-        agentRuntimeSchemaReadinessGaps: Array<string>;
-        agentRuntimeStepCount: number;
-        agentRuntimeStepStatusGaps: Array<string>;
-        agentRuntimeStepIds: Array<string>;
-        agentRuntimeStepKinds: Array<string>;
-        agentRuntimeStepStatuses: Array<string>;
-        agentRuntimeStepTypes: Array<string>;
-        agentRuntimeTimelineEntries: Array<string>;
-        agentRuntimeTimelineEventTypes: Array<string>;
-        agentRuntimeTimelineGaps: Array<string>;
-        agentRuntimeTimelineItems: Array<{
-          __typename?: 'CopilotActionRunAgentRuntimeTimelineItemType';
-          actualRouteCount: number;
-          eventKey: string;
-          eventType: string;
-          fallbackProviderIds: Array<string>;
-          id: string;
-          kind: string | null;
+      prompts: Array<{
+        __typename?: 'CopilotPromptCatalogItemType';
+        action: string | null;
+        category: string;
+        defaultPolicy: string | null;
+        fingerprint: string;
+        modelStrategyFingerprint: string;
+        model: string;
+        modelConfigPath: string | null;
+        modelSource: string;
+        name: string;
+        optionalModelsConfigPath: string | null;
+        optionalModelCount: number;
+        optionalModels: Array<string>;
+        optionalModelsSource: string;
+        overrideApplied: boolean;
+        paramCount: number;
+        paramKeys: Array<string>;
+        proModelsConfigPath: string | null;
+        proModelCount: number;
+        proModelsSource: string;
+        registryFingerprint: string | null;
+        registryId: number | null;
+        registryMessageCount: number | null;
+        registryModified: boolean | null;
+        registryUpdatedAt: string | null;
+        registryValidationBlockingCount: number | null;
+        registryValidationDetail: string | null;
+        registryValidationErrorCount: number | null;
+        registryValidationIssueCount: number | null;
+        registryValidationPublishStatus: string | null;
+        registryValidationReason: string | null;
+        registryValidationStatus: string | null;
+        registryRecordSource: string | null;
+        registryRevision: string | null;
+        registryRevisionActorId: string | null;
+        registryRevisionFingerprint: string | null;
+        registryRevisionId: string | null;
+        registryRevisionPublishEventCount: number | null;
+        registryRevisionScope: string | null;
+        registryRevisionStatus: string | null;
+        registryRevisionWorkspaceId: string | null;
+        registrySourceChainFingerprint: string | null;
+        revision: string;
+        source: string;
+        templateFingerprint: string;
+        registryValidationIssues: Array<{
+          __typename?: 'CopilotPromptRegistryValidationIssueType';
+          code: string;
+          detail: string;
+          fieldLabel: string;
+          message: string | null;
+          messageIndex: number | null;
+          path: string;
+          publishBlocking: boolean;
+          reason: string;
+          severity: string;
+          source: string;
+          sourceLocator: {
+            __typename?: 'CopilotPromptRegistryValidationSourceLocatorType';
+            field: string;
+            messageIndex: number | null;
+            path: string;
+            registryFingerprint: string;
+            registryId: number;
+            registryUpdatedAt: string;
+            table: string;
+          };
+        }> | null;
+        registryValidationRemediations: Array<{
+          __typename?: 'CopilotPromptRegistryValidationRemediationType';
+          detail: string;
+          kind: string;
           label: string;
-          routeBehaviorFlags: Array<string>;
-          routeCanonicalModelKeys: Array<string>;
-          routeCount: number;
-          routeCountMismatch: boolean;
-          routeDimensionEvidence: Array<string>;
-          routeEvidenceFingerprint: string;
-          routeModelBackendKinds: Array<string>;
-          routeTargets: Array<string>;
-          runId: string;
-          sequence: number;
+          target: string;
+          targetLocator: {
+            __typename?: 'CopilotPromptRegistryValidationSourceLocatorType';
+            field: string;
+            messageIndex: number | null;
+            path: string;
+            registryFingerprint: string;
+            registryId: number;
+            registryUpdatedAt: string;
+            table: string;
+          };
+        }> | null;
+        registryRevisionPublishEvents: Array<{
+          __typename?: 'CopilotRegistryRevisionPublishEventType';
+          actorId: string | null;
+          createdAt: string;
+          eventFingerprint: string;
+          eventType: string;
+          id: string;
+          metadata: Record<string, string>;
+          publishSource: string;
+          registryFamily: string;
+          registryKey: string;
+          registryModelId: string | null;
+          registryProviderId: string | null;
+          revision: string;
+          revisionFingerprint: string;
+          revisionId: string;
+          revisionStatus: string;
+          scopeType: string;
+          workspaceId: string | null;
+        }> | null;
+        registrySourceChain: Array<{
+          __typename?: 'CopilotPromptRegistrySourceChainEntryType';
+          actorId: string | null;
+          configPath: string | null;
+          fingerprint: string | null;
+          registryId: number | null;
+          revision: string | null;
+          scope: string;
+          source: string;
           status: string;
-          stepId: string | null;
-          stepType: string | null;
-        }>;
-        agentRuntimeTimelineRouteEvidenceSetFingerprint: string;
-        agentRuntimeTargetRunStatuses: Array<string>;
-        agentRuntimeTargetSchemaComponents: Array<string>;
-        agentRuntimeTargetStepStatuses: Array<string>;
-        agentRuntimeTargetStepTypes: Array<string>;
-        agentRuntimeTargetTimelineEventTypes: Array<string>;
-        agentRuntimeUnsupportedRunStatuses: Array<string>;
-        agentRuntimeUnsupportedStepStatuses: Array<string>;
-        agentRuntimeUnsupportedStepTypes: Array<string>;
-        agentRuntimeUnsupportedTimelineEventTypes: Array<string>;
-        attempt: number;
-        createdAt: string;
-        docId: string | null;
-        errorCode: string | null;
-        hasPreparedRouteTrace: boolean;
-        id: string;
-        preparedRouteActualCount: number;
-        preparedRouteBehaviorFlags: Array<string>;
-        preparedRouteCanonicalModelKeys: Array<string>;
-        preparedRouteCount: number;
-        preparedRouteDimensionEvidence: Array<string>;
-        preparedRouteFallbackProviderIds: Array<string>;
-        preparedRouteFallbackOrder: Array<string>;
-        preparedRouteModelBackendKinds: Array<string>;
-        preparedRouteStepFallbackProviderIds: Array<string>;
-        preparedRouteStepIds: Array<string>;
-        preparedRouteKinds: Array<string>;
-        preparedRouteModelIds: Array<string>;
-        preparedRouteOrder: Array<string>;
-        preparedRouteProtocols: Array<string>;
-        preparedRouteProviderIds: Array<string>;
-        preparedRouteRequestedModelIds: Array<string>;
-        preparedRouteRequestedModelSources: Array<string>;
-        preparedRouteStepRequestedModelSources: Array<string>;
-        preparedRouteRequestLayers: Array<string>;
-        preparedRouteStepFallbackOrder: Array<string>;
-        preparedRouteStepBehaviorFlags: Array<string>;
-        preparedRouteStepCanonicalModelKeys: Array<string>;
-        preparedRouteStepDimensionEvidence: Array<string>;
-        preparedRouteStepModelBackendKinds: Array<string>;
-        preparedRouteStepOrder: Array<string>;
-        preparedRouteStepRouteCountMismatches: Array<string>;
-        preparedRouteStepRouteCounts: Array<string>;
-        preparedRouteStepProtocols: Array<string>;
-        preparedRouteStepRequestLayers: Array<string>;
-        preparedRouteStepCount: number;
-        preparedRouteTargets: Array<string>;
-        preparedRouteStepTargets: Array<string>;
-        preparedRouteRequestedTargets: Array<string>;
-        preparedRouteStepRequestedTargets: Array<string>;
-        retryOf: string | null;
-        sessionId: string | null;
-        status: string;
-        updatedAt: string;
+          updatedAt: string | null;
+          workspaceId: string | null;
+        }> | null;
+        versionEvidence: {
+          __typename?: 'CopilotPromptCatalogVersionEvidenceType';
+          defaultPolicy: string | null;
+          fingerprint: string;
+          modelConfigPath: string | null;
+          modelStrategyFingerprint: string;
+          optionalModelsConfigPath: string | null;
+          overrideApplied: boolean;
+          proModelsConfigPath: string | null;
+          registryFingerprint: string | null;
+          registryId: number | null;
+          registryMessageCount: number | null;
+          registryModified: boolean | null;
+          registryUpdatedAt: string | null;
+          registryValidationBlockingCount: number | null;
+          registryValidationDetail: string | null;
+          registryValidationErrorCount: number | null;
+          registryValidationIssueCount: number | null;
+          registryValidationPublishStatus: string | null;
+          registryValidationReason: string | null;
+          registryValidationStatus: string | null;
+          registryRecordSource: string | null;
+          registryRevision: string | null;
+          registryRevisionActorId: string | null;
+          registryRevisionFingerprint: string | null;
+          registryRevisionId: string | null;
+          registryRevisionPublishEventCount: number | null;
+          registryRevisionScope: string | null;
+          registryRevisionStatus: string | null;
+          registryRevisionWorkspaceId: string | null;
+          registrySourceChainFingerprint: string | null;
+          revision: string;
+          templateFingerprint: string;
+          registryValidationIssues: Array<{
+            __typename?: 'CopilotPromptRegistryValidationIssueType';
+            code: string;
+            detail: string;
+            fieldLabel: string;
+            message: string | null;
+            messageIndex: number | null;
+            path: string;
+            publishBlocking: boolean;
+            reason: string;
+            severity: string;
+            source: string;
+            sourceLocator: {
+              __typename?: 'CopilotPromptRegistryValidationSourceLocatorType';
+              field: string;
+              messageIndex: number | null;
+              path: string;
+              registryFingerprint: string;
+              registryId: number;
+              registryUpdatedAt: string;
+              table: string;
+            };
+          }> | null;
+          registryValidationRemediations: Array<{
+            __typename?: 'CopilotPromptRegistryValidationRemediationType';
+            detail: string;
+            kind: string;
+            label: string;
+            target: string;
+            targetLocator: {
+              __typename?: 'CopilotPromptRegistryValidationSourceLocatorType';
+              field: string;
+              messageIndex: number | null;
+              path: string;
+              registryFingerprint: string;
+              registryId: number;
+              registryUpdatedAt: string;
+              table: string;
+            };
+          }> | null;
+          registryRevisionPublishEvents: Array<{
+            __typename?: 'CopilotRegistryRevisionPublishEventType';
+            actorId: string | null;
+            createdAt: string;
+            eventFingerprint: string;
+            eventType: string;
+            id: string;
+            metadata: Record<string, string>;
+            publishSource: string;
+            registryFamily: string;
+            registryKey: string;
+            registryModelId: string | null;
+            registryProviderId: string | null;
+            revision: string;
+            revisionFingerprint: string;
+            revisionId: string;
+            revisionStatus: string;
+            scopeType: string;
+            workspaceId: string | null;
+          }> | null;
+          registrySourceChain: Array<{
+            __typename?: 'CopilotPromptRegistrySourceChainEntryType';
+            actorId: string | null;
+            configPath: string | null;
+            fingerprint: string | null;
+            registryId: number | null;
+            revision: string | null;
+            scope: string;
+            source: string;
+            status: string;
+            updatedAt: string | null;
+            workspaceId: string | null;
+          }> | null;
+        };
       }>;
     };
   } | null;
@@ -9930,6 +12143,352 @@ export type CopilotQuotaQuery = {
         limit: number | null;
         used: number;
       };
+    };
+  } | null;
+};
+
+export type DecideCopilotRepairExecutionApprovalMutationVariables = Exact<{
+  input: CopilotRepairExecutionApprovalDecisionInput;
+}>;
+
+export type DecideCopilotRepairExecutionApprovalMutation = {
+  __typename?: 'Mutation';
+  decideCopilotRepairExecutionApproval: {
+    __typename?: 'CopilotRepairExecutionRecordType';
+    actorId: string;
+    approvalRecordFingerprint: string;
+    approvalState: string;
+    auditEventCount: number;
+    auditEvents: Array<{
+      __typename?: 'CopilotRepairExecutionAuditEventType';
+      actorId: string;
+      createdAt: string;
+      eventFingerprint: string;
+      eventType: string;
+      executionRequestId: string;
+      id: string;
+      metadata: Record<string, string>;
+      workspaceId: string;
+    }>;
+    auditEventFingerprint: string;
+    candidateEvidenceSetFingerprint: string;
+    completedAt: string | null;
+    createdAt: string;
+    failureCode: string | null;
+    failureMessage: string | null;
+    id: string;
+    idempotencyFingerprint: string;
+    idempotencyKey: string;
+    lastAttemptAt: string | null;
+    permissionStatus: string;
+    promptName: string;
+    queuedAt: string | null;
+    repairJobFingerprint: string;
+    requestFingerprint: string;
+    requestedAction: string;
+    status: string;
+    targetLocatorFingerprint: string;
+    taskRouteEvidenceSetFingerprint: string;
+    updatedAt: string;
+    workerAttempt: number;
+    workerLeaseExpiresAt: string | null;
+    workerLeaseId: string | null;
+    workerMaxAttempts: number;
+    workspaceId: string;
+    runtimeResult: {
+      __typename?: 'CopilotRepairExecutionRuntimeResultType';
+      executor: string;
+      message: string;
+      sideEffectsApplied: boolean;
+      sideEffectFingerprint: string | null;
+      sideEffectKind: string | null;
+      sideEffectRecordId: string | null;
+      sideEffectSummary: Record<string, string> | null;
+      version: string;
+    };
+    sideEffectCount: number;
+    sideEffects: Array<{
+      __typename?: 'CopilotRepairExecutionSideEffectType';
+      actorId: string;
+      appliedAt: string;
+      createdAt: string;
+      executionRequestId: string;
+      executorPayloadFingerprint: string;
+      id: string;
+      sideEffectFingerprint: string;
+      sideEffectKind: string;
+      sideEffectRecordId: string;
+      sideEffectSummary: Record<string, string>;
+      workerAttempt: number;
+      workerLeaseId: string;
+      workspaceId: string;
+    }>;
+    agentRun: {
+      __typename?: 'CopilotAgentRunType';
+      actorId: string;
+      completedAt: string | null;
+      createdAt: string;
+      evidenceFingerprint: string;
+      executionResultCount: number;
+      executionResults: Array<{
+        __typename?: 'CopilotAgentRuntimeExecutionResultType';
+        actorId: string;
+        adapterWorkflow: string;
+        completedAt: string;
+        createdAt: string;
+        executor: string;
+        failureCode: string | null;
+        failureMessage: string | null;
+        id: string;
+        resultFingerprint: string;
+        resultPayload: Record<string, string>;
+        resultStatus: string;
+        runId: string;
+        sideEffectMode: string;
+        sideEffectsApplied: boolean;
+        sourceId: string;
+        sourceType: string;
+        summary: string;
+        workerAttempt: number;
+        workerLeaseId: string;
+        workflow: string;
+        workspaceId: string;
+      }>;
+      failureCode: string | null;
+      failureMessage: string | null;
+      id: string;
+      lastAttemptAt: string | null;
+      queuedAt: string | null;
+      sourceId: string;
+      sourceType: string;
+      startedAt: string | null;
+      status: string;
+      targetFingerprint: string;
+      timelineFingerprint: string;
+      title: string | null;
+      updatedAt: string;
+      workerAttempt: number;
+      workerLeaseExpiresAt: string | null;
+      workerLeaseId: string | null;
+      workerMaxAttempts: number;
+      workflow: string;
+      workspaceId: string;
+      steps: Array<{
+        __typename?: 'CopilotAgentStepType';
+        actorId: string;
+        completedAt: string | null;
+        createdAt: string;
+        evidenceFingerprint: string;
+        id: string;
+        order: number;
+        outputSummary: Record<string, string>;
+        runId: string;
+        startedAt: string | null;
+        status: string;
+        stepKey: string;
+        stepType: string;
+        title: string | null;
+        updatedAt: string;
+        workspaceId: string;
+      }>;
+      timelineEvents: Array<{
+        __typename?: 'CopilotAgentTimelineEventType';
+        actorId: string;
+        createdAt: string;
+        eventFingerprint: string;
+        eventType: string;
+        id: string;
+        ordinal: number;
+        payload: Record<string, string>;
+        runId: string;
+        status: string;
+        stepId: string | null;
+        summary: string;
+        workspaceId: string;
+      }>;
+    } | null;
+  };
+};
+
+export type ControlCopilotRepairExecutionMutationVariables = Exact<{
+  input: CopilotRepairExecutionControlInput;
+}>;
+
+export type ControlCopilotRepairExecutionMutation = {
+  __typename?: 'Mutation';
+  controlCopilotRepairExecution: {
+    __typename?: 'CopilotRepairExecutionRecordType';
+    actorId: string;
+    approvalRecordFingerprint: string;
+    approvalState: string;
+    auditEventCount: number;
+    auditEvents: Array<{
+      __typename?: 'CopilotRepairExecutionAuditEventType';
+      actorId: string;
+      createdAt: string;
+      eventFingerprint: string;
+      eventType: string;
+      executionRequestId: string;
+      id: string;
+      metadata: Record<string, string>;
+      workspaceId: string;
+    }>;
+    auditEventFingerprint: string;
+    candidateEvidenceSetFingerprint: string;
+    completedAt: string | null;
+    createdAt: string;
+    failureCode: string | null;
+    failureMessage: string | null;
+    id: string;
+    idempotencyFingerprint: string;
+    idempotencyKey: string;
+    lastAttemptAt: string | null;
+    permissionStatus: string;
+    promptName: string;
+    queuedAt: string | null;
+    repairJobFingerprint: string;
+    requestFingerprint: string;
+    requestedAction: string;
+    status: string;
+    targetLocatorFingerprint: string;
+    taskRouteEvidenceSetFingerprint: string;
+    updatedAt: string;
+    workerAttempt: number;
+    workerLeaseExpiresAt: string | null;
+    workerLeaseId: string | null;
+    workerMaxAttempts: number;
+    workspaceId: string;
+    runtimeResult: {
+      __typename?: 'CopilotRepairExecutionRuntimeResultType';
+      executor: string;
+      message: string;
+      sideEffectsApplied: boolean;
+      sideEffectFingerprint: string | null;
+      sideEffectKind: string | null;
+      sideEffectRecordId: string | null;
+      sideEffectSummary: Record<string, string> | null;
+      version: string;
+    };
+    sideEffectCount: number;
+    sideEffects: Array<{
+      __typename?: 'CopilotRepairExecutionSideEffectType';
+      actorId: string;
+      appliedAt: string;
+      createdAt: string;
+      executionRequestId: string;
+      executorPayloadFingerprint: string;
+      id: string;
+      sideEffectFingerprint: string;
+      sideEffectKind: string;
+      sideEffectRecordId: string;
+      sideEffectSummary: Record<string, string>;
+      workerAttempt: number;
+      workerLeaseId: string;
+      workspaceId: string;
+    }>;
+    agentRun: {
+      __typename?: 'CopilotAgentRunType';
+      actorId: string;
+      completedAt: string | null;
+      createdAt: string;
+      evidenceFingerprint: string;
+      executionResultCount: number;
+      executionResults: Array<{
+        __typename?: 'CopilotAgentRuntimeExecutionResultType';
+        actorId: string;
+        adapterWorkflow: string;
+        completedAt: string;
+        createdAt: string;
+        executor: string;
+        failureCode: string | null;
+        failureMessage: string | null;
+        id: string;
+        resultFingerprint: string;
+        resultPayload: Record<string, string>;
+        resultStatus: string;
+        runId: string;
+        sideEffectMode: string;
+        sideEffectsApplied: boolean;
+        sourceId: string;
+        sourceType: string;
+        summary: string;
+        workerAttempt: number;
+        workerLeaseId: string;
+        workflow: string;
+        workspaceId: string;
+      }>;
+      failureCode: string | null;
+      failureMessage: string | null;
+      id: string;
+      lastAttemptAt: string | null;
+      queuedAt: string | null;
+      sourceId: string;
+      sourceType: string;
+      startedAt: string | null;
+      status: string;
+      targetFingerprint: string;
+      timelineFingerprint: string;
+      title: string | null;
+      updatedAt: string;
+      workerAttempt: number;
+      workerLeaseExpiresAt: string | null;
+      workerLeaseId: string | null;
+      workerMaxAttempts: number;
+      workflow: string;
+      workspaceId: string;
+      steps: Array<{
+        __typename?: 'CopilotAgentStepType';
+        actorId: string;
+        completedAt: string | null;
+        createdAt: string;
+        evidenceFingerprint: string;
+        id: string;
+        order: number;
+        outputSummary: Record<string, string>;
+        runId: string;
+        startedAt: string | null;
+        status: string;
+        stepKey: string;
+        stepType: string;
+        title: string | null;
+        updatedAt: string;
+        workspaceId: string;
+      }>;
+      timelineEvents: Array<{
+        __typename?: 'CopilotAgentTimelineEventType';
+        actorId: string;
+        createdAt: string;
+        eventFingerprint: string;
+        eventType: string;
+        id: string;
+        ordinal: number;
+        payload: Record<string, string>;
+        runId: string;
+        status: string;
+        stepId: string | null;
+        summary: string;
+        workspaceId: string;
+      }>;
+    } | null;
+  };
+};
+
+export type GetCopilotRepairExecutionsQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  limit?: InputMaybe<Scalars['SafeInt']['input']>;
+  filter?: InputMaybe<CopilotRepairExecutionListFilterInput>;
+}>;
+
+type CopilotRepairExecutionRecordSelection =
+  ControlCopilotRepairExecutionMutation['controlCopilotRepairExecution'];
+
+export type GetCopilotRepairExecutionsQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      repairExecutions: Array<CopilotRepairExecutionRecordSelection>;
     };
   } | null;
 };
@@ -10258,6 +12817,573 @@ export type GetCopilotSessionsQuery = {
           };
         }>;
       };
+    };
+  } | null;
+};
+
+export type CreateCopilotSupportBundleMutationVariables = Exact<{
+  input: CopilotSupportBundleCreateInput;
+}>;
+
+export type CreateCopilotSupportBundleMutation = {
+  __typename?: 'Mutation';
+  createCopilotSupportBundle: {
+    __typename?: 'CopilotSupportBundleType';
+    actorId: string;
+    archiveByteSize: number | null;
+    archiveFilename: string | null;
+    archiveFingerprint: string | null;
+    archiveMime: string | null;
+    archiveStorageKey: string | null;
+    auditEventCount: number;
+    auditEvents: Array<{
+      __typename?: 'CopilotSupportBundleAuditEventType';
+      actorId: string;
+      bundleId: string;
+      createdAt: string;
+      eventFingerprint: string;
+      eventType: string;
+      id: string;
+      metadata: Record<string, string>;
+      workspaceId: string;
+    }>;
+    createdAt: string;
+    expiresAt: string;
+    failureCode: string | null;
+    failureMessage: string | null;
+    id: string;
+    manifestByteSize: number | null;
+    manifestFilename: string | null;
+    manifestFingerprint: string;
+    manifestMime: string | null;
+    manifestStorageKey: string | null;
+    retentionStatus: string;
+    sourceEvidenceSetFingerprint: string;
+    status: string;
+    transferEventCount: number;
+    updatedAt: string;
+    workspaceId: string;
+    transferEvents: Array<{
+      __typename?: 'CopilotSupportBundleTransferEventType';
+      artifactFingerprint: string;
+      artifactKind: string;
+      authorizationFingerprint: string;
+      authorizationId: string;
+      createdAt: string;
+      deliveryMethod: string;
+      eventFingerprint: string;
+      eventId: string | null;
+      eventSource: string;
+      id: string;
+      manifestFingerprint: string;
+      notificationAuthEvidenceFingerprint: string;
+      storageByteSize: number;
+      storageContentType: string;
+      storageKey: string;
+      transferredAt: string;
+    }>;
+    transferForwardingEventCount: number;
+    transferForwardingEvents: Array<{
+      __typename?: 'CopilotSupportBundleTransferForwardingEventType';
+      attemptCount: number;
+      authorizationId: string;
+      createdAt: string;
+      deadLetteredAt: string | null;
+      eventId: string | null;
+      eventSource: string;
+      failureCode: string | null;
+      failureMessage: string | null;
+      forwardedAt: string | null;
+      forwardedTransferEventFingerprint: string | null;
+      forwardingEventFingerprint: string;
+      forwardingPayload: Record<string, string>;
+      forwardingPayloadFingerprint: string;
+      id: string;
+      lastAttemptAt: string | null;
+      maxAttempts: number;
+      nextAttemptAt: string | null;
+      providerSignatureEvidenceFingerprint: string | null;
+      status: string;
+      updatedAt: string;
+      workerLeaseExpiresAt: string | null;
+      workerLeaseId: string | null;
+    }>;
+    manifestJson: {
+      __typename?: 'CopilotSupportBundleManifestType';
+      actorId: string;
+      archive: Record<string, string>;
+      bundleId: string;
+      createdAt: string;
+      expiresAt: string;
+      sourceEvidenceSetFingerprint: string;
+      version: string;
+      workspaceId: string;
+      retention: {
+        __typename?: 'CopilotSupportBundleRetentionType';
+        expiresAt: string;
+        status: string;
+      };
+      sourceEvidenceSummary: {
+        __typename?: 'CopilotSupportBundleSourceEvidenceSummaryType';
+        actionRunCount: number;
+        includedSections: Array<string>;
+        promptCatalogItemCount: number;
+        source: string;
+        taskRouteCount: number;
+      };
+    };
+    sourceEvidenceSummary: {
+      __typename?: 'CopilotSupportBundleSourceEvidenceSummaryType';
+      actionRunCount: number;
+      includedSections: Array<string>;
+      promptCatalogItemCount: number;
+      source: string;
+      taskRouteCount: number;
+    };
+  };
+};
+
+export type AuthorizeCopilotSupportBundleDownloadMutationVariables = Exact<{
+  input: CopilotSupportBundleDownloadAuthorizeInput;
+}>;
+
+export type AuthorizeCopilotSupportBundleDownloadMutation = {
+  __typename?: 'Mutation';
+  authorizeCopilotSupportBundleDownload: {
+    __typename?: 'CopilotSupportBundleDownloadAuthorizationType';
+    actorId: string;
+    artifactFingerprint: string;
+    artifactFilename: string;
+    artifactKind: string;
+    artifactMime: string;
+    authorizationFingerprint: string;
+    bundleId: string;
+    createdAt: string;
+    deliveryMethod: string;
+    directDownloadExpiresAt: string | null;
+    directDownloadUrl: string | null;
+    downloadedAt: string | null;
+    downloadUrl: string;
+    expiresAt: string;
+    id: string;
+    manifestFingerprint: string;
+    status: string;
+    updatedAt: string;
+    workspaceId: string;
+  };
+};
+
+export type AcknowledgeCopilotSupportBundleDirectDownloadMutationVariables =
+  Exact<{
+    input: CopilotSupportBundleDirectDownloadAcknowledgeInput;
+  }>;
+
+export type AcknowledgeCopilotSupportBundleDirectDownloadMutation = {
+  __typename?: 'Mutation';
+  acknowledgeCopilotSupportBundleDirectDownload: {
+    __typename?: 'CopilotSupportBundleDownloadAuthorizationType';
+    actorId: string;
+    artifactFingerprint: string;
+    artifactFilename: string;
+    artifactKind: string;
+    artifactMime: string;
+    authorizationFingerprint: string;
+    bundleId: string;
+    createdAt: string;
+    deliveryMethod: string;
+    directDownloadExpiresAt: string | null;
+    directDownloadUrl: string | null;
+    downloadedAt: string | null;
+    downloadUrl: string;
+    expiresAt: string;
+    id: string;
+    manifestFingerprint: string;
+    status: string;
+    updatedAt: string;
+    workspaceId: string;
+  };
+};
+
+export type GetCopilotSupportBundleQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  id: Scalars['String']['input'];
+}>;
+
+export type GetCopilotSupportBundleQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      supportBundle: {
+        __typename?: 'CopilotSupportBundleType';
+        actorId: string;
+        archiveByteSize: number | null;
+        archiveFilename: string | null;
+        archiveFingerprint: string | null;
+        archiveMime: string | null;
+        archiveStorageKey: string | null;
+        auditEventCount: number;
+        auditEvents: Array<{
+          __typename?: 'CopilotSupportBundleAuditEventType';
+          actorId: string;
+          bundleId: string;
+          createdAt: string;
+          eventFingerprint: string;
+          eventType: string;
+          id: string;
+          metadata: Record<string, string>;
+          workspaceId: string;
+        }>;
+        createdAt: string;
+        expiresAt: string;
+        failureCode: string | null;
+        failureMessage: string | null;
+        id: string;
+        manifestByteSize: number | null;
+        manifestFilename: string | null;
+        manifestFingerprint: string;
+        manifestMime: string | null;
+        manifestStorageKey: string | null;
+        retentionStatus: string;
+        sourceEvidenceSetFingerprint: string;
+        status: string;
+        transferEventCount: number;
+        updatedAt: string;
+        workspaceId: string;
+        transferEvents: Array<{
+          __typename?: 'CopilotSupportBundleTransferEventType';
+          artifactFingerprint: string;
+          artifactKind: string;
+          authorizationFingerprint: string;
+          authorizationId: string;
+          createdAt: string;
+          deliveryMethod: string;
+          eventFingerprint: string;
+          eventId: string | null;
+          eventSource: string;
+          id: string;
+          manifestFingerprint: string;
+          notificationAuthEvidenceFingerprint: string;
+          storageByteSize: number;
+          storageContentType: string;
+          storageKey: string;
+          transferredAt: string;
+        }>;
+        transferForwardingEventCount: number;
+        transferForwardingEvents: Array<{
+          __typename?: 'CopilotSupportBundleTransferForwardingEventType';
+          attemptCount: number;
+          authorizationId: string;
+          createdAt: string;
+          deadLetteredAt: string | null;
+          eventId: string | null;
+          eventSource: string;
+          failureCode: string | null;
+          failureMessage: string | null;
+          forwardedAt: string | null;
+          forwardedTransferEventFingerprint: string | null;
+          forwardingEventFingerprint: string;
+          forwardingPayload: Record<string, string>;
+          forwardingPayloadFingerprint: string;
+          id: string;
+          lastAttemptAt: string | null;
+          maxAttempts: number;
+          nextAttemptAt: string | null;
+          providerSignatureEvidenceFingerprint: string | null;
+          status: string;
+          updatedAt: string;
+          workerLeaseExpiresAt: string | null;
+          workerLeaseId: string | null;
+        }>;
+        manifestJson: {
+          __typename?: 'CopilotSupportBundleManifestType';
+          actorId: string;
+          archive: Record<string, string>;
+          bundleId: string;
+          createdAt: string;
+          expiresAt: string;
+          sourceEvidenceSetFingerprint: string;
+          version: string;
+          workspaceId: string;
+          retention: {
+            __typename?: 'CopilotSupportBundleRetentionType';
+            expiresAt: string;
+            status: string;
+          };
+          sourceEvidenceSummary: {
+            __typename?: 'CopilotSupportBundleSourceEvidenceSummaryType';
+            actionRunCount: number;
+            includedSections: Array<string>;
+            promptCatalogItemCount: number;
+            source: string;
+            taskRouteCount: number;
+          };
+        };
+        sourceEvidenceSummary: {
+          __typename?: 'CopilotSupportBundleSourceEvidenceSummaryType';
+          actionRunCount: number;
+          includedSections: Array<string>;
+          promptCatalogItemCount: number;
+          source: string;
+          taskRouteCount: number;
+        };
+      } | null;
+    };
+  } | null;
+};
+
+export type CleanupCopilotSupportBundleRetentionMutationVariables = Exact<{
+  input: CopilotSupportBundleRetentionCleanupInput;
+}>;
+
+export type CleanupCopilotSupportBundleRetentionMutation = {
+  __typename?: 'Mutation';
+  cleanupCopilotSupportBundleRetention: {
+    __typename?: 'CopilotSupportBundleRetentionCleanupType';
+    archiveObjectCleanupFailedCount: number;
+    archiveObjectCleanupRecoveredCount: number;
+    archiveObjectCleanupRetryCount: number;
+    actorId: string;
+    cleanedAt: string;
+    cleanupFingerprint: string;
+    expiredAuthorizationCount: number;
+    expiredBundleCount: number;
+    manifestObjectRewriteFailedCount: number;
+    manifestObjectRewriteRecoveredCount: number;
+    manifestObjectRewriteRetryCount: number;
+    workspaceId: string;
+    expiredBundles: Array<{
+      __typename?: 'CopilotSupportBundleType';
+      actorId: string;
+      archiveByteSize: number | null;
+      archiveFilename: string | null;
+      archiveFingerprint: string | null;
+      archiveMime: string | null;
+      archiveStorageKey: string | null;
+      auditEventCount: number;
+      auditEvents: Array<{
+        __typename?: 'CopilotSupportBundleAuditEventType';
+        actorId: string;
+        bundleId: string;
+        createdAt: string;
+        eventFingerprint: string;
+        eventType: string;
+        id: string;
+        metadata: Record<string, string>;
+        workspaceId: string;
+      }>;
+      createdAt: string;
+      expiresAt: string;
+      failureCode: string | null;
+      failureMessage: string | null;
+      id: string;
+      manifestByteSize: number | null;
+      manifestFilename: string | null;
+      manifestFingerprint: string;
+      manifestMime: string | null;
+      manifestStorageKey: string | null;
+      retentionStatus: string;
+      sourceEvidenceSetFingerprint: string;
+      status: string;
+      updatedAt: string;
+      workspaceId: string;
+      manifestJson: {
+        __typename?: 'CopilotSupportBundleManifestType';
+        actorId: string;
+        archive: Record<string, string>;
+        bundleId: string;
+        createdAt: string;
+        expiresAt: string;
+        sourceEvidenceSetFingerprint: string;
+        version: string;
+        workspaceId: string;
+        retention: {
+          __typename?: 'CopilotSupportBundleRetentionType';
+          expiresAt: string;
+          status: string;
+        };
+        sourceEvidenceSummary: {
+          __typename?: 'CopilotSupportBundleSourceEvidenceSummaryType';
+          actionRunCount: number;
+          includedSections: Array<string>;
+          promptCatalogItemCount: number;
+          source: string;
+          taskRouteCount: number;
+        };
+      };
+      sourceEvidenceSummary: {
+        __typename?: 'CopilotSupportBundleSourceEvidenceSummaryType';
+        actionRunCount: number;
+        includedSections: Array<string>;
+        promptCatalogItemCount: number;
+        source: string;
+        taskRouteCount: number;
+      };
+    }>;
+  };
+};
+
+export type ReplayCopilotSupportBundleTransferForwardingEventMutationVariables =
+  Exact<{
+    input: CopilotSupportBundleTransferForwardingReplayInput;
+  }>;
+
+export type ReplayCopilotSupportBundleTransferForwardingEventMutation = {
+  __typename?: 'Mutation';
+  replayCopilotSupportBundleTransferForwardingEvent: {
+    __typename?: 'CopilotSupportBundleTransferForwardingEventType';
+    attemptCount: number;
+    authorizationId: string;
+    createdAt: string;
+    deadLetteredAt: string | null;
+    eventId: string | null;
+    eventSource: string;
+    failureCode: string | null;
+    failureMessage: string | null;
+    forwardedAt: string | null;
+    forwardedTransferEventFingerprint: string | null;
+    forwardingEventFingerprint: string;
+    forwardingPayload: Record<string, string>;
+    forwardingPayloadFingerprint: string;
+    id: string;
+    lastAttemptAt: string | null;
+    maxAttempts: number;
+    nextAttemptAt: string | null;
+    providerSignatureEvidenceFingerprint: string | null;
+    status: string;
+    updatedAt: string;
+    workerLeaseExpiresAt: string | null;
+    workerLeaseId: string | null;
+  };
+};
+
+export type GetCopilotSupportBundlesQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  limit?: InputMaybe<Scalars['SafeInt']['input']>;
+  filter?: InputMaybe<CopilotSupportBundleListFilterInput>;
+}>;
+
+export type GetCopilotSupportBundlesQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      supportBundles: Array<{
+        __typename?: 'CopilotSupportBundleType';
+        actorId: string;
+        archiveByteSize: number | null;
+        archiveFilename: string | null;
+        archiveFingerprint: string | null;
+        archiveMime: string | null;
+        archiveStorageKey: string | null;
+        auditEventCount: number;
+        auditEvents: Array<{
+          __typename?: 'CopilotSupportBundleAuditEventType';
+          actorId: string;
+          bundleId: string;
+          createdAt: string;
+          eventFingerprint: string;
+          eventType: string;
+          id: string;
+          metadata: Record<string, string>;
+          workspaceId: string;
+        }>;
+        createdAt: string;
+        expiresAt: string;
+        failureCode: string | null;
+        failureMessage: string | null;
+        id: string;
+        manifestByteSize: number | null;
+        manifestFilename: string | null;
+        manifestFingerprint: string;
+        manifestMime: string | null;
+        manifestStorageKey: string | null;
+        retentionStatus: string;
+        sourceEvidenceSetFingerprint: string;
+        status: string;
+        transferEventCount: number;
+        updatedAt: string;
+        workspaceId: string;
+        transferEvents: Array<{
+          __typename?: 'CopilotSupportBundleTransferEventType';
+          artifactFingerprint: string;
+          artifactKind: string;
+          authorizationFingerprint: string;
+          authorizationId: string;
+          createdAt: string;
+          deliveryMethod: string;
+          eventFingerprint: string;
+          eventId: string | null;
+          eventSource: string;
+          id: string;
+          manifestFingerprint: string;
+          notificationAuthEvidenceFingerprint: string;
+          storageByteSize: number;
+          storageContentType: string;
+          storageKey: string;
+          transferredAt: string;
+        }>;
+        transferForwardingEventCount: number;
+        transferForwardingEvents: Array<{
+          __typename?: 'CopilotSupportBundleTransferForwardingEventType';
+          attemptCount: number;
+          authorizationId: string;
+          createdAt: string;
+          deadLetteredAt: string | null;
+          eventId: string | null;
+          eventSource: string;
+          failureCode: string | null;
+          failureMessage: string | null;
+          forwardedAt: string | null;
+          forwardedTransferEventFingerprint: string | null;
+          forwardingEventFingerprint: string;
+          forwardingPayload: Record<string, string>;
+          forwardingPayloadFingerprint: string;
+          id: string;
+          lastAttemptAt: string | null;
+          maxAttempts: number;
+          nextAttemptAt: string | null;
+          providerSignatureEvidenceFingerprint: string | null;
+          status: string;
+          updatedAt: string;
+          workerLeaseExpiresAt: string | null;
+          workerLeaseId: string | null;
+        }>;
+        manifestJson: {
+          __typename?: 'CopilotSupportBundleManifestType';
+          actorId: string;
+          archive: Record<string, string>;
+          bundleId: string;
+          createdAt: string;
+          expiresAt: string;
+          sourceEvidenceSetFingerprint: string;
+          version: string;
+          workspaceId: string;
+          retention: {
+            __typename?: 'CopilotSupportBundleRetentionType';
+            expiresAt: string;
+            status: string;
+          };
+          sourceEvidenceSummary: {
+            __typename?: 'CopilotSupportBundleSourceEvidenceSummaryType';
+            actionRunCount: number;
+            includedSections: Array<string>;
+            promptCatalogItemCount: number;
+            source: string;
+            taskRouteCount: number;
+          };
+        };
+        sourceEvidenceSummary: {
+          __typename?: 'CopilotSupportBundleSourceEvidenceSummaryType';
+          actionRunCount: number;
+          includedSections: Array<string>;
+          promptCatalogItemCount: number;
+          source: string;
+          taskRouteCount: number;
+        };
+      }>;
     };
   } | null;
 };
@@ -12286,6 +15412,26 @@ export type Queries =
       response: ListCommentsQuery;
     }
   | {
+      name: 'getCopilotActionRunPreparedRouteTraceQuery';
+      variables: GetCopilotActionRunPreparedRouteTraceQueryVariables;
+      response: GetCopilotActionRunPreparedRouteTraceQuery;
+    }
+  | {
+      name: 'getCopilotActionRunsQuery';
+      variables: GetCopilotActionRunsQueryVariables;
+      response: GetCopilotActionRunsQuery;
+    }
+  | {
+      name: 'getCopilotAgentRunQuery';
+      variables: GetCopilotAgentRunQueryVariables;
+      response: GetCopilotAgentRunQuery;
+    }
+  | {
+      name: 'getCopilotAgentRunsQuery';
+      variables: GetCopilotAgentRunsQueryVariables;
+      response: GetCopilotAgentRunsQuery;
+    }
+  | {
       name: 'listContextObjectQuery';
       variables: ListContextObjectQueryVariables;
       response: ListContextObjectQuery;
@@ -12341,9 +15487,19 @@ export type Queries =
       response: GetPromptModelsQuery;
     }
   | {
-      name: 'getCopilotPromptsQuery';
-      variables: GetCopilotPromptsQueryVariables;
-      response: GetCopilotPromptsQuery;
+      name: 'getCopilotProviderHealthProbeAttemptsQuery';
+      variables: GetCopilotProviderHealthProbeAttemptsQueryVariables;
+      response: GetCopilotProviderHealthProbeAttemptsQuery;
+    }
+  | {
+      name: 'getCopilotRepairExecutionsQuery';
+      variables: GetCopilotRepairExecutionsQueryVariables;
+      response: GetCopilotRepairExecutionsQuery;
+    }
+  | {
+      name: 'retryCopilotProviderHealthProbeAttemptMutation';
+      variables: RetryCopilotProviderHealthProbeAttemptMutationVariables;
+      response: RetryCopilotProviderHealthProbeAttemptMutation;
     }
   | {
       name: 'getCopilotPromptRegistryPublishGateQuery';
@@ -12351,14 +15507,14 @@ export type Queries =
       response: GetCopilotPromptRegistryPublishGateQuery;
     }
   | {
-      name: 'getCopilotActionRunPreparedRouteTraceQuery';
-      variables: GetCopilotActionRunPreparedRouteTraceQueryVariables;
-      response: GetCopilotActionRunPreparedRouteTraceQuery;
+      name: 'getCopilotPromptRegistryRepairPreflightQuery';
+      variables: GetCopilotPromptRegistryRepairPreflightQueryVariables;
+      response: GetCopilotPromptRegistryRepairPreflightQuery;
     }
   | {
-      name: 'getCopilotActionRunsQuery';
-      variables: GetCopilotActionRunsQueryVariables;
-      response: GetCopilotActionRunsQuery;
+      name: 'getCopilotPromptsQuery';
+      variables: GetCopilotPromptsQueryVariables;
+      response: GetCopilotPromptsQuery;
     }
   | {
       name: 'copilotQuotaQuery';
@@ -12384,6 +15540,16 @@ export type Queries =
       name: 'getCopilotSessionsQuery';
       variables: GetCopilotSessionsQueryVariables;
       response: GetCopilotSessionsQuery;
+    }
+  | {
+      name: 'getCopilotSupportBundleQuery';
+      variables: GetCopilotSupportBundleQueryVariables;
+      response: GetCopilotSupportBundleQuery;
+    }
+  | {
+      name: 'getCopilotSupportBundlesQuery';
+      variables: GetCopilotSupportBundlesQueryVariables;
+      response: GetCopilotSupportBundlesQuery;
     }
   | {
       name: 'getTranscriptTaskQuery';
@@ -12828,6 +15994,26 @@ export type Mutations =
       response: CreateCopilotMessageMutation;
     }
   | {
+      name: 'requestCopilotPromptRegistryRepairExecutionMutation';
+      variables: RequestCopilotPromptRegistryRepairExecutionMutationVariables;
+      response: RequestCopilotPromptRegistryRepairExecutionMutation;
+    }
+  | {
+      name: 'decideCopilotRepairExecutionApprovalMutation';
+      variables: DecideCopilotRepairExecutionApprovalMutationVariables;
+      response: DecideCopilotRepairExecutionApprovalMutation;
+    }
+  | {
+      name: 'controlCopilotRepairExecutionMutation';
+      variables: ControlCopilotRepairExecutionMutationVariables;
+      response: ControlCopilotRepairExecutionMutation;
+    }
+  | {
+      name: 'controlCopilotAgentRuntimeRunMutation';
+      variables: ControlCopilotAgentRuntimeRunMutationVariables;
+      response: ControlCopilotAgentRuntimeRunMutation;
+    }
+  | {
       name: 'cleanupCopilotSessionMutation';
       variables: CleanupCopilotSessionMutationVariables;
       response: CleanupCopilotSessionMutation;
@@ -12843,11 +16029,6 @@ export type Mutations =
       response: CreateCopilotSessionMutation;
     }
   | {
-      name: 'requestCopilotPromptRegistryRepairExecutionMutation';
-      variables: RequestCopilotPromptRegistryRepairExecutionMutationVariables;
-      response: RequestCopilotPromptRegistryRepairExecutionMutation;
-    }
-  | {
       name: 'forkCopilotSessionMutation';
       variables: ForkCopilotSessionMutationVariables;
       response: ForkCopilotSessionMutation;
@@ -12856,6 +16037,31 @@ export type Mutations =
       name: 'updateCopilotSessionMutation';
       variables: UpdateCopilotSessionMutationVariables;
       response: UpdateCopilotSessionMutation;
+    }
+  | {
+      name: 'createCopilotSupportBundleMutation';
+      variables: CreateCopilotSupportBundleMutationVariables;
+      response: CreateCopilotSupportBundleMutation;
+    }
+  | {
+      name: 'authorizeCopilotSupportBundleDownloadMutation';
+      variables: AuthorizeCopilotSupportBundleDownloadMutationVariables;
+      response: AuthorizeCopilotSupportBundleDownloadMutation;
+    }
+  | {
+      name: 'acknowledgeCopilotSupportBundleDirectDownloadMutation';
+      variables: AcknowledgeCopilotSupportBundleDirectDownloadMutationVariables;
+      response: AcknowledgeCopilotSupportBundleDirectDownloadMutation;
+    }
+  | {
+      name: 'cleanupCopilotSupportBundleRetentionMutation';
+      variables: CleanupCopilotSupportBundleRetentionMutationVariables;
+      response: CleanupCopilotSupportBundleRetentionMutation;
+    }
+  | {
+      name: 'replayCopilotSupportBundleTransferForwardingEventMutation';
+      variables: ReplayCopilotSupportBundleTransferForwardingEventMutationVariables;
+      response: ReplayCopilotSupportBundleTransferForwardingEventMutation;
     }
   | {
       name: 'retryTranscriptTaskMutation';

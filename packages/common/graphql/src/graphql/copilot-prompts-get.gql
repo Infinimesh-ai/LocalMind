@@ -69,6 +69,47 @@ query getCopilotPrompts($workspaceId: String) {
         }
         registryValidationReason
         registryValidationStatus
+        registryRecordSource
+        registryRevision
+        registryRevisionActorId
+        registryRevisionFingerprint
+        registryRevisionId
+        registryRevisionPublishEventCount
+        registryRevisionPublishEvents {
+          actorId
+          createdAt
+          eventFingerprint
+          eventType
+          id
+          metadata
+          publishSource
+          registryFamily
+          registryKey
+          registryModelId
+          registryProviderId
+          revision
+          revisionFingerprint
+          revisionId
+          revisionStatus
+          scopeType
+          workspaceId
+        }
+        registryRevisionScope
+        registryRevisionStatus
+        registryRevisionWorkspaceId
+        registrySourceChain {
+          actorId
+          configPath
+          fingerprint
+          registryId
+          revision
+          scope
+          source
+          status
+          updatedAt
+          workspaceId
+        }
+        registrySourceChainFingerprint
         revision
         source
         templateFingerprint
@@ -128,6 +169,47 @@ query getCopilotPrompts($workspaceId: String) {
           }
           registryValidationReason
           registryValidationStatus
+          registryRecordSource
+          registryRevision
+          registryRevisionActorId
+          registryRevisionFingerprint
+          registryRevisionId
+          registryRevisionPublishEventCount
+          registryRevisionPublishEvents {
+            actorId
+            createdAt
+            eventFingerprint
+            eventType
+            id
+            metadata
+            publishSource
+            registryFamily
+            registryKey
+            registryModelId
+            registryProviderId
+            revision
+            revisionFingerprint
+            revisionId
+            revisionStatus
+            scopeType
+            workspaceId
+          }
+          registryRevisionScope
+          registryRevisionStatus
+          registryRevisionWorkspaceId
+          registrySourceChain {
+            actorId
+            configPath
+            fingerprint
+            registryId
+            revision
+            scope
+            source
+            status
+            updatedAt
+            workspaceId
+          }
+          registrySourceChainFingerprint
           revision
           templateFingerprint
         }

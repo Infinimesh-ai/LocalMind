@@ -4,14 +4,28 @@
 import { createHash } from 'node:crypto';
 
 import {
+  appConfigQuery,
+  authorizeCopilotSupportBundleDownloadMutation,
+  cleanupCopilotSupportBundleRetentionMutation,
+  controlCopilotAgentRuntimeRunMutation,
+  controlCopilotRepairExecutionMutation,
+  createCopilotSupportBundleMutation,
+  decideCopilotRepairExecutionApprovalMutation,
   getCopilotActionRunPreparedRouteTraceQuery,
   getCopilotActionRunsQuery,
+  getCopilotAgentRunsQuery,
   getCopilotPromptRegistryPublishGateQuery,
   getCopilotPromptRegistryRepairPreflightQuery,
   getCopilotPromptsQuery,
+  getCopilotProviderHealthProbeAttemptsQuery,
+  getCopilotRepairExecutionsQuery,
+  getCopilotSupportBundlesQuery,
   getPromptModelsQuery,
   getWorkspacesQuery,
   requestCopilotPromptRegistryRepairExecutionMutation,
+  replayCopilotSupportBundleTransferForwardingEventMutation,
+  retryCopilotProviderHealthProbeAttemptMutation,
+  updateAppConfigMutation,
 } from '@affine/graphql';
 import {
   cleanup,
@@ -21,6 +35,7 @@ import {
   waitFor,
 } from '@testing-library/react';
 import type { ReactNode } from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import {
   afterEach,
   beforeAll,
@@ -35,10 +50,20 @@ const useQueryMock = vi.fn();
 const useMutationMock = vi.fn();
 const mutateMock = vi.fn();
 const requestRepairExecutionMock = vi.fn();
+const decideRepairExecutionApprovalMock = vi.fn();
+const controlRepairExecutionMock = vi.fn();
+const controlAgentRuntimeRunMock = vi.fn();
+const createSupportBundleMock = vi.fn();
+const authorizeSupportBundleDownloadMock = vi.fn();
+const cleanupSupportBundleRetentionMock = vi.fn();
+const replaySupportBundleTransferForwardingEventMock = vi.fn();
+const retryProviderHealthProbeAttemptMock = vi.fn();
+const updateAppConfigMock = vi.fn();
 const writeTextMock = vi.fn();
 const createObjectURLMock = vi.fn();
 const revokeObjectURLMock = vi.fn();
 const anchorClickMock = vi.fn();
+const windowOpenMock = vi.fn();
 
 function stableFixtureStringify(value: unknown): string {
   if (value === undefined) {
@@ -74,6 +99,24 @@ function stripNullishFixtureFields(value: unknown): unknown {
     );
   }
   return value;
+}
+
+function repairExecutionAuditEventsFixture(
+  eventTypes: string[],
+  executionRequestId = 'repair-execution-1'
+) {
+  return eventTypes.map((eventType, index) => ({
+    actorId: 'user-1',
+    createdAt: `2026-06-20T09:${String(index).padStart(2, '0')}:00.000Z`,
+    eventFingerprint: `audit-${eventType.replaceAll('_', '-')}-${index}`,
+    eventType,
+    executionRequestId,
+    id: `${executionRequestId}-audit-${index}`,
+    metadata: {
+      version: 'repair-execution-audit-event-fixture/v1',
+    },
+    workspaceId: 'workspace-1',
+  }));
 }
 
 const taskRouteEffectiveSourceFingerprintInputsFixture = [
@@ -1823,6 +1866,12 @@ function expectQueryCall(query: unknown, variables: Record<string, unknown>) {
   );
 }
 
+function hasQueryCall(query: unknown) {
+  return useQueryMock.mock.calls.some(([options]) =>
+    Boolean(options && (options as { query?: unknown }).query === query)
+  );
+}
+
 vi.mock('@affine/admin/use-query', () => ({
   useQuery: (...args: unknown[]) => useQueryMock(...args),
 }));
@@ -1841,6 +1890,14 @@ vi.mock('../header', () => ({
 }));
 
 import { AiPage } from './index';
+
+function renderAiPage(initialPath = '/admin/ai/runtime') {
+  return render(
+    <MemoryRouter initialEntries={[initialPath]}>
+      <AiPage />
+    </MemoryRouter>
+  );
+}
 
 const routeTrace = [
   {
@@ -1864,6 +1921,201 @@ const routeTrace = [
     selectedCount: 0,
   },
 ];
+
+const standaloneAgentRunPayload = {
+  actorId: 'user-1',
+  completedAt: null,
+  createdAt: '2026-06-20T09:10:00.000Z',
+  evidenceFingerprint: 'agent-evidence-standalone',
+  executionResultCount: 0,
+  executionResults: [],
+  failureCode: null,
+  failureMessage: null,
+  id: 'agent-run-standalone',
+  lastAttemptAt: '2026-06-20T09:10:00.000Z',
+  queuedAt: '2026-06-20T09:10:00.000Z',
+  sourceId: 'standalone-run-1',
+  sourceType: 'agent_runtime_manual',
+  startedAt: '2026-06-20T09:10:00.000Z',
+  status: 'running',
+  targetFingerprint: 'agent-target-standalone',
+  timelineFingerprint: 'agent-timeline-standalone',
+  title: 'Standalone runtime run',
+  updatedAt: '2026-06-20T09:11:00.000Z',
+  workerAttempt: 1,
+  workerLeaseExpiresAt: '2026-06-20T09:15:00.000Z',
+  workerLeaseId: 'agent-runtime-worker-fixture',
+  workerMaxAttempts: 1,
+  workflow: 'office_task_runtime',
+  workspaceId: 'workspace-1',
+  steps: [
+    {
+      actorId: 'user-1',
+      completedAt: null,
+      createdAt: '2026-06-20T09:10:00.000Z',
+      evidenceFingerprint: 'agent-step-evidence-standalone',
+      id: 'agent-step-standalone',
+      order: 0,
+      outputSummary: {
+        toolName: 'workspace-search',
+        version: 'agent-runtime-step-output-summary/v1',
+      },
+      runId: 'agent-run-standalone',
+      startedAt: '2026-06-20T09:10:00.000Z',
+      status: 'running',
+      stepKey: 'tool_lookup',
+      stepType: 'tool',
+      title: 'Workspace lookup',
+      updatedAt: '2026-06-20T09:11:00.000Z',
+      workspaceId: 'workspace-1',
+    },
+  ],
+  timelineEvents: [
+    {
+      actorId: 'user-1',
+      createdAt: '2026-06-20T09:10:00.000Z',
+      eventFingerprint: 'agent-event-standalone-1',
+      eventType: 'run_status',
+      id: 'agent-event-standalone-1',
+      ordinal: 0,
+      payload: {
+        sourceId: 'standalone-run-1',
+        sourceType: 'agent_runtime_manual',
+        workflow: 'office_task_runtime',
+      },
+      runId: 'agent-run-standalone',
+      status: 'running',
+      stepId: null,
+      summary: 'Agent runtime run running',
+      workspaceId: 'workspace-1',
+    },
+    {
+      actorId: 'user-1',
+      createdAt: '2026-06-20T09:10:00.000Z',
+      eventFingerprint: 'agent-event-standalone-2',
+      eventType: 'tool_step',
+      id: 'agent-event-standalone-2',
+      ordinal: 1,
+      payload: {
+        sourceId: 'standalone-run-1',
+        sourceType: 'agent_runtime_manual',
+        stepKey: 'tool_lookup',
+        stepType: 'tool',
+        workflow: 'office_task_runtime',
+      },
+      runId: 'agent-run-standalone',
+      status: 'running',
+      stepId: 'agent-step-standalone',
+      summary: 'Agent runtime tool step running',
+      workspaceId: 'workspace-1',
+    },
+  ],
+};
+
+const completedAgentRunPayload = {
+  actorId: 'user-1',
+  completedAt: '2026-06-20T09:30:00.000Z',
+  createdAt: '2026-06-20T09:20:00.000Z',
+  evidenceFingerprint: 'agent-evidence-completed',
+  executionResultCount: 1,
+  executionResults: [
+    {
+      actorId: 'user-1',
+      adapterWorkflow: 'agent_runtime_record_only',
+      completedAt: '2026-06-20T09:30:00.000Z',
+      createdAt: '2026-06-20T09:30:00.000Z',
+      executor: 'agent_runtime_record_only_adapter',
+      failureCode: null,
+      failureMessage: null,
+      id: 'agent-runtime-execution-result-1',
+      resultFingerprint: 'agentresult1111',
+      resultPayload: {
+        resultStatus: 'completed',
+        sideEffectsApplied: false,
+        summary: 'Record-only Agent Runtime adapter completed.',
+        version: 'agent-runtime-worker-execution-result/v1',
+      },
+      resultStatus: 'completed',
+      runId: 'agent-run-completed',
+      sideEffectMode: 'none',
+      sideEffectsApplied: false,
+      sourceId: 'completed-run-1',
+      sourceType: 'agent_runtime_manual',
+      summary: 'Record-only Agent Runtime adapter completed.',
+      workerAttempt: 1,
+      workerLeaseId: 'agent-runtime-completed-worker',
+      workflow: 'agent_runtime_record_only',
+      workspaceId: 'workspace-1',
+    },
+  ],
+  failureCode: null,
+  failureMessage: null,
+  id: 'agent-run-completed',
+  lastAttemptAt: '2026-06-20T09:29:00.000Z',
+  queuedAt: '2026-06-20T09:20:00.000Z',
+  sourceId: 'completed-run-1',
+  sourceType: 'agent_runtime_manual',
+  startedAt: '2026-06-20T09:20:00.000Z',
+  status: 'completed',
+  targetFingerprint: 'agent-target-completed',
+  timelineFingerprint: 'agent-timeline-completed',
+  title: 'Completed runtime run',
+  updatedAt: '2026-06-20T09:30:00.000Z',
+  workerAttempt: 1,
+  workerLeaseExpiresAt: null,
+  workerLeaseId: null,
+  workerMaxAttempts: 1,
+  workflow: 'agent_runtime_record_only',
+  workspaceId: 'workspace-1',
+  steps: [
+    {
+      actorId: 'user-1',
+      completedAt: '2026-06-20T09:30:00.000Z',
+      createdAt: '2026-06-20T09:20:00.000Z',
+      evidenceFingerprint: 'agent-step-evidence-completed',
+      id: 'agent-step-completed',
+      order: 0,
+      outputSummary: {
+        recordOnlyExecution: {
+          executor: 'agent_runtime_record_only_adapter',
+          sideEffectsApplied: false,
+          summary: 'Record-only Agent Runtime adapter completed.',
+          version: 'agent-runtime-record-only-execution/v1',
+          workerAttempt: 1,
+          workerLeaseId: 'agent-runtime-completed-worker',
+        },
+      },
+      runId: 'agent-run-completed',
+      startedAt: '2026-06-20T09:20:00.000Z',
+      status: 'completed',
+      stepKey: 'record_context',
+      stepType: 'model',
+      title: 'Record context',
+      updatedAt: '2026-06-20T09:30:00.000Z',
+      workspaceId: 'workspace-1',
+    },
+  ],
+  timelineEvents: [
+    {
+      actorId: 'user-1',
+      createdAt: '2026-06-20T09:30:00.000Z',
+      eventFingerprint: 'agent-event-completed-1',
+      eventType: 'run_status',
+      id: 'agent-event-completed-1',
+      ordinal: 0,
+      payload: {
+        sourceId: 'completed-run-1',
+        sourceType: 'agent_runtime_manual',
+        workflow: 'agent_runtime_record_only',
+      },
+      runId: 'agent-run-completed',
+      status: 'completed',
+      stepId: null,
+      summary: 'Agent runtime record-only worker completed standalone run',
+      workspaceId: 'workspace-1',
+    },
+  ],
+};
 
 const blockedRoute = {
   behaviorFlags: [],
@@ -2116,6 +2368,53 @@ const readyRoute = {
       providerPriority: 10,
       privacy: 'local',
       health: 'healthy',
+      modelRegistryRevision: 'workspace-rerank-model-r1',
+      modelRegistryRevisionActorId: 'user-1',
+      modelRegistryRevisionFingerprint: 'modelregistry11112222',
+      modelRegistryRevisionId: 'model-registry-rerank-1',
+      modelRegistryRevisionScope: 'workspace',
+      modelRegistryRevisionSourceChain: [
+        {
+          actorId: 'user-1',
+          fingerprint: 'modelregistry11112222',
+          modelId: 'workspace-rerank',
+          providerId: 'ollama-main',
+          revision: 'workspace-rerank-model-r1',
+          scope: 'workspace',
+          source: 'db_revision',
+          status: 'active',
+          updatedAt: '2026-06-21T09:05:00.000Z',
+          workspaceId: 'workspace-1',
+        },
+      ],
+      modelRegistryRevisionSourceChainFingerprint: 'modelchain11112222',
+      modelRegistryRevisionStatus: 'active',
+      modelRegistryRevisionWorkspaceId: 'workspace-1',
+      modelRegistryRevisionPublishEventCount: 1,
+      modelRegistryRevisionPublishEvents: [
+        {
+          actorId: 'user-1',
+          createdAt: '2026-06-21T09:05:10.000Z',
+          eventFingerprint: 'modelpublish1111',
+          eventType: 'revision_published',
+          id: 'model-registry-publish-event-1',
+          metadata: {
+            modelId: 'workspace-rerank',
+            providerId: 'ollama-main',
+          },
+          publishSource: 'repair_execution_worker',
+          registryFamily: 'model_registry',
+          registryKey: 'ollama-main:workspace-rerank',
+          registryModelId: 'workspace-rerank',
+          registryProviderId: 'ollama-main',
+          revision: 'workspace-rerank-model-r1',
+          revisionFingerprint: 'modelregistry11112222',
+          revisionId: 'model-registry-rerank-1',
+          revisionStatus: 'active',
+          scopeType: 'workspace',
+          workspaceId: 'workspace-1',
+        },
+      ],
       routeModelDefinitionSource: 'provider_profile',
       routeModelDefinitionId: 'workspace-rerank',
       routeModelDefinitionAliases: ['bge-reranker-v2'],
@@ -2159,6 +2458,53 @@ const readyRoute = {
       providerPriority: 10,
       privacy: 'local',
       health: 'healthy',
+      modelRegistryRevision: 'workspace-rerank-model-r1',
+      modelRegistryRevisionActorId: 'user-1',
+      modelRegistryRevisionFingerprint: 'modelregistry11112222',
+      modelRegistryRevisionId: 'model-registry-rerank-1',
+      modelRegistryRevisionScope: 'workspace',
+      modelRegistryRevisionSourceChain: [
+        {
+          actorId: 'user-1',
+          fingerprint: 'modelregistry11112222',
+          modelId: 'workspace-rerank',
+          providerId: 'ollama-main',
+          revision: 'workspace-rerank-model-r1',
+          scope: 'workspace',
+          source: 'db_revision',
+          status: 'active',
+          updatedAt: '2026-06-21T09:05:00.000Z',
+          workspaceId: 'workspace-1',
+        },
+      ],
+      modelRegistryRevisionSourceChainFingerprint: 'modelchain11112222',
+      modelRegistryRevisionStatus: 'active',
+      modelRegistryRevisionWorkspaceId: 'workspace-1',
+      modelRegistryRevisionPublishEventCount: 1,
+      modelRegistryRevisionPublishEvents: [
+        {
+          actorId: 'user-1',
+          createdAt: '2026-06-21T09:05:10.000Z',
+          eventFingerprint: 'modelpublish1111',
+          eventType: 'revision_published',
+          id: 'model-registry-publish-event-1',
+          metadata: {
+            modelId: 'workspace-rerank',
+            providerId: 'ollama-main',
+          },
+          publishSource: 'repair_execution_worker',
+          registryFamily: 'model_registry',
+          registryKey: 'ollama-main:workspace-rerank',
+          registryModelId: 'workspace-rerank',
+          registryProviderId: 'ollama-main',
+          revision: 'workspace-rerank-model-r1',
+          revisionFingerprint: 'modelregistry11112222',
+          revisionId: 'model-registry-rerank-1',
+          revisionStatus: 'active',
+          scopeType: 'workspace',
+          workspaceId: 'workspace-1',
+        },
+      ],
       routeModelDefinitionSource: 'provider_profile',
       routeModelDefinitionId: 'workspace-rerank',
       routeModelDefinitionAliases: ['bge-reranker-v2'],
@@ -2211,7 +2557,64 @@ const readyRoute = {
   requestedModelConfigKey: 'rerank',
   requestedModelConfigPath: 'copilot.tasks.models.rerank',
   requestedModelId: 'workspace-rerank',
-  requestedModelSource: 'rerank',
+  requestedModelSource: 'db_revision',
+  taskRoutePolicyRevision: 'workspace-rerank-r1',
+  taskRoutePolicyRevisionActorId: 'user-1',
+  taskRoutePolicyRevisionFingerprint: 'routepolicy11112222',
+  taskRoutePolicyRevisionId: 'task-route-policy-rerank-1',
+  taskRoutePolicyRevisionScope: 'workspace',
+  taskRoutePolicyRevisionSourceChain: [
+    {
+      actorId: 'user-1',
+      configKey: 'rerank',
+      configPath: 'copilot.tasks.models.rerank',
+      featureKind: 'rerank',
+      fingerprint: 'routepolicy11112222',
+      modelId: 'workspace-rerank',
+      revision: 'workspace-rerank-r1',
+      scope: 'workspace',
+      source: 'db_revision',
+      status: 'active',
+      updatedAt: '2026-06-21T09:00:00.000Z',
+      workspaceId: 'workspace-1',
+    },
+    {
+      configKey: 'rerank',
+      configPath: 'copilot.tasks.models.rerank',
+      featureKind: 'rerank',
+      modelId: 'workspace-rerank',
+      scope: 'global',
+      source: 'config_fallback',
+      status: 'available',
+    },
+  ],
+  taskRoutePolicyRevisionSourceChainFingerprint: 'routechain11112222',
+  taskRoutePolicyRevisionStatus: 'active',
+  taskRoutePolicyRevisionWorkspaceId: 'workspace-1',
+  taskRoutePolicyRevisionPublishEventCount: 1,
+  taskRoutePolicyRevisionPublishEvents: [
+    {
+      actorId: 'user-1',
+      createdAt: '2026-06-21T09:00:10.000Z',
+      eventFingerprint: 'taskroutepublish1111',
+      eventType: 'revision_published',
+      id: 'task-route-policy-publish-event-1',
+      metadata: {
+        featureKind: 'rerank',
+      },
+      publishSource: 'repair_execution_worker',
+      registryFamily: 'task_route_policy',
+      registryKey: 'rerank',
+      registryModelId: null,
+      registryProviderId: null,
+      revision: 'workspace-rerank-r1',
+      revisionFingerprint: 'routepolicy11112222',
+      revisionId: 'task-route-policy-rerank-1',
+      revisionStatus: 'active',
+      scopeType: 'workspace',
+      workspaceId: 'workspace-1',
+    },
+  ],
   topK: 5,
 };
 
@@ -2362,6 +2765,53 @@ const modelsPayload = {
       routeModelDefinitionId: 'gpt-4o-mini',
       routeModelDefinitionAliases: ['fast-chat'],
       routeModelAliasMatched: false,
+      modelRegistryRevision: 'workspace-openai-gpt-r1',
+      modelRegistryRevisionActorId: 'user-1',
+      modelRegistryRevisionFingerprint: 'modelregistry33334444',
+      modelRegistryRevisionId: 'model-registry-openai-gpt-1',
+      modelRegistryRevisionScope: 'workspace',
+      modelRegistryRevisionSourceChain: [
+        {
+          actorId: 'user-1',
+          fingerprint: 'modelregistry33334444',
+          modelId: 'gpt-4o-mini',
+          providerId: 'openai-main',
+          revision: 'workspace-openai-gpt-r1',
+          scope: 'workspace',
+          source: 'db_revision',
+          status: 'active',
+          updatedAt: '2026-06-21T10:05:00.000Z',
+          workspaceId: 'workspace-1',
+        },
+      ],
+      modelRegistryRevisionSourceChainFingerprint: 'modelchain33334444',
+      modelRegistryRevisionStatus: 'active',
+      modelRegistryRevisionWorkspaceId: 'workspace-1',
+      modelRegistryRevisionPublishEventCount: 1,
+      modelRegistryRevisionPublishEvents: [
+        {
+          actorId: 'user-1',
+          createdAt: '2026-06-21T10:05:10.000Z',
+          eventFingerprint: 'modelpublish3333',
+          eventType: 'revision_published',
+          id: 'model-registry-publish-event-openai-gpt-1',
+          metadata: {
+            modelId: 'gpt-4o-mini',
+            providerId: 'openai-main',
+          },
+          publishSource: 'graphql_mutation',
+          registryFamily: 'model_registry',
+          registryKey: 'openai-main:gpt-4o-mini',
+          registryModelId: 'gpt-4o-mini',
+          registryProviderId: 'openai-main',
+          revision: 'workspace-openai-gpt-r1',
+          revisionFingerprint: 'modelregistry33334444',
+          revisionId: 'model-registry-openai-gpt-1',
+          revisionStatus: 'active',
+          scopeType: 'workspace',
+          workspaceId: 'workspace-1',
+        },
+      ],
       routeFallbackProviderIds: ['ollama-main', 'openai-default'],
       routeInputTypes: ['text'],
       routeOutputTypes: ['text'],
@@ -2378,6 +2828,99 @@ const modelsPayload = {
     },
   ],
   proModels: [],
+};
+
+const providerHealthProbeAttemptsPayload = [
+  {
+    id: 'provider-health-probe-admin-1',
+    providerId: 'localmind-db-provider',
+    providerType: 'openaiCompatible',
+    scopeType: 'workspace',
+    workspaceId: 'workspace-1',
+    actorId: 'user-1',
+    providerRegistryRevisionId: 'provider-registry-admin-1',
+    providerRegistryRevisionFingerprint: 'providerregistry1111',
+    providerProfileSource: 'db_revision',
+    providerProfileFingerprint: 'providerprofile1111',
+    providerProfileSnapshot: {
+      version: 'provider-health-probe-target/v1',
+      providerId: 'localmind-db-provider',
+      modelCount: 1,
+    },
+    requestFingerprint: 'probeattempt1111',
+    status: 'completed',
+    attemptCount: 1,
+    maxAttempts: 3,
+    scheduledAt: '2026-06-23T09:00:00.000Z',
+    workerLeaseId: null,
+    workerLeaseExpiresAt: null,
+    checkedAt: '2026-06-23T09:00:10.000Z',
+    completedAt: '2026-06-23T09:00:11.000Z',
+    deadLetteredAt: null,
+    failureCode: null,
+    failureMessage: null,
+    resultStatus: 'healthy',
+    resultLastError: null,
+    resultMetadata: {
+      version: 'provider-health-probe-attempt-result/v1',
+    },
+    resultFingerprint: 'proberesult1111',
+    providerHealthStateId: 'provider-health-state-admin-1',
+    providerHealthStateFingerprint: 'providerhealth1111',
+    createdAt: '2026-06-23T09:00:00.000Z',
+    updatedAt: '2026-06-23T09:00:11.000Z',
+  },
+  {
+    id: 'provider-health-probe-dead-admin-1',
+    providerId: 'localmind-db-provider',
+    providerType: 'openaiCompatible',
+    scopeType: 'workspace',
+    workspaceId: 'workspace-1',
+    actorId: 'user-1',
+    providerRegistryRevisionId: 'provider-registry-admin-1',
+    providerRegistryRevisionFingerprint: 'providerregistry1111',
+    providerProfileSource: 'db_revision',
+    providerProfileFingerprint: 'providerprofile1111',
+    providerProfileSnapshot: {
+      version: 'provider-health-probe-target/v1',
+      providerId: 'localmind-db-provider',
+      modelCount: 1,
+    },
+    requestFingerprint: 'probeattemptdead1111',
+    status: 'dead_lettered',
+    attemptCount: 3,
+    maxAttempts: 3,
+    scheduledAt: '2026-06-23T08:00:00.000Z',
+    workerLeaseId: null,
+    workerLeaseExpiresAt: null,
+    checkedAt: null,
+    completedAt: null,
+    deadLetteredAt: '2026-06-23T08:04:00.000Z',
+    failureCode: 'provider_profile_unavailable',
+    failureMessage: 'Provider profile unavailable',
+    resultStatus: null,
+    resultLastError: null,
+    resultMetadata: {},
+    resultFingerprint: null,
+    providerHealthStateId: null,
+    providerHealthStateFingerprint: null,
+    createdAt: '2026-06-23T08:00:00.000Z',
+    updatedAt: '2026-06-23T08:04:00.000Z',
+  },
+];
+
+const providerHealthProbeRetryPayload = {
+  ...providerHealthProbeAttemptsPayload[1],
+  id: 'provider-health-probe-retry-admin-1',
+  requestFingerprint: 'probeattemptretry1111',
+  status: 'queued',
+  attemptCount: 0,
+  scheduledAt: '2026-06-23T08:05:00.000Z',
+  deadLetteredAt: null,
+  failureCode: null,
+  failureMessage: null,
+  createdAt: '2026-06-23T08:05:00.000Z',
+  updatedAt: '2026-06-23T08:05:00.000Z',
 };
 
 const promptCatalogPayload = [
@@ -2478,6 +3021,98 @@ const promptCatalogPayload = [
     registryValidationRemediations: [],
     registryValidationReason: 'ready',
     registryValidationStatus: 'ready',
+    registryRecordSource: 'db_revision',
+    registryRevision: 'workspace-r2',
+    registryRevisionActorId: 'user-1',
+    registryRevisionFingerprint: 'db11112222333344',
+    registryRevisionId: 'prompt-revision-workspace',
+    registryRevisionPublishEventCount: 2,
+    registryRevisionPublishEvents: [
+      {
+        actorId: 'user-1',
+        createdAt: '2026-06-18T04:06:00.000Z',
+        eventFingerprint: 'publishreuse1111',
+        eventType: 'revision_reused',
+        id: 'registry-publish-event-reused',
+        metadata: {
+          revision: 'workspace-r2',
+        },
+        publishSource: 'graphql_mutation',
+        registryFamily: 'prompt_registry',
+        registryKey: 'Make it real',
+        registryModelId: null,
+        registryProviderId: null,
+        revision: 'workspace-r2',
+        revisionFingerprint: 'db11112222333344',
+        revisionId: 'prompt-revision-workspace',
+        revisionStatus: 'active',
+        scopeType: 'workspace',
+        workspaceId: 'workspace-1',
+      },
+      {
+        actorId: 'user-1',
+        createdAt: '2026-06-18T04:05:06.000Z',
+        eventFingerprint: 'publishcreated1111',
+        eventType: 'revision_published',
+        id: 'registry-publish-event-created',
+        metadata: {
+          revision: 'workspace-r2',
+        },
+        publishSource: 'graphql_mutation',
+        registryFamily: 'prompt_registry',
+        registryKey: 'Make it real',
+        registryModelId: null,
+        registryProviderId: null,
+        revision: 'workspace-r2',
+        revisionFingerprint: 'db11112222333344',
+        revisionId: 'prompt-revision-workspace',
+        revisionStatus: 'active',
+        scopeType: 'workspace',
+        workspaceId: 'workspace-1',
+      },
+    ],
+    registryRevisionScope: 'workspace',
+    registryRevisionStatus: 'active',
+    registryRevisionWorkspaceId: 'workspace-1',
+    registrySourceChain: [
+      {
+        actorId: 'user-1',
+        configPath: null,
+        fingerprint: 'db11112222333344',
+        registryId: null,
+        revision: 'workspace-r2',
+        scope: 'workspace',
+        source: 'db_revision',
+        status: 'active',
+        updatedAt: '2026-06-18T04:05:06.000Z',
+        workspaceId: 'workspace-1',
+      },
+      {
+        actorId: null,
+        configPath: 'ai_prompts_metadata',
+        fingerprint: 'b1c2d3e4f5061728',
+        registryId: 42,
+        revision: 'registry:no-policy:base:b1c2d3e4f5061728',
+        scope: 'global',
+        source: 'legacy_registry',
+        status: 'ready',
+        updatedAt: '2026-06-17T04:05:06.000Z',
+        workspaceId: null,
+      },
+      {
+        actorId: null,
+        configPath: 'native_prompt_catalog',
+        fingerprint: 'configaaaabbbbcccc',
+        registryId: null,
+        revision: 'built_in:no-policy:base:configaaaabbbbcccc',
+        scope: 'global',
+        source: 'config_fallback',
+        status: 'available',
+        updatedAt: null,
+        workspaceId: null,
+      },
+    ],
+    registrySourceChainFingerprint: 'chain111122223333',
     revision: 'registry:no-policy:base:b1c2d3e4f5061728',
     source: 'registry',
     templateFingerprint: '2222333344445555',
@@ -2503,6 +3138,98 @@ const promptCatalogPayload = [
       registryValidationRemediations: [],
       registryValidationReason: 'ready',
       registryValidationStatus: 'ready',
+      registryRecordSource: 'db_revision',
+      registryRevision: 'workspace-r2',
+      registryRevisionActorId: 'user-1',
+      registryRevisionFingerprint: 'db11112222333344',
+      registryRevisionId: 'prompt-revision-workspace',
+      registryRevisionPublishEventCount: 2,
+      registryRevisionPublishEvents: [
+        {
+          actorId: 'user-1',
+          createdAt: '2026-06-18T04:06:00.000Z',
+          eventFingerprint: 'publishreuse1111',
+          eventType: 'revision_reused',
+          id: 'registry-publish-event-reused',
+          metadata: {
+            revision: 'workspace-r2',
+          },
+          publishSource: 'graphql_mutation',
+          registryFamily: 'prompt_registry',
+          registryKey: 'Make it real',
+          registryModelId: null,
+          registryProviderId: null,
+          revision: 'workspace-r2',
+          revisionFingerprint: 'db11112222333344',
+          revisionId: 'prompt-revision-workspace',
+          revisionStatus: 'active',
+          scopeType: 'workspace',
+          workspaceId: 'workspace-1',
+        },
+        {
+          actorId: 'user-1',
+          createdAt: '2026-06-18T04:05:06.000Z',
+          eventFingerprint: 'publishcreated1111',
+          eventType: 'revision_published',
+          id: 'registry-publish-event-created',
+          metadata: {
+            revision: 'workspace-r2',
+          },
+          publishSource: 'graphql_mutation',
+          registryFamily: 'prompt_registry',
+          registryKey: 'Make it real',
+          registryModelId: null,
+          registryProviderId: null,
+          revision: 'workspace-r2',
+          revisionFingerprint: 'db11112222333344',
+          revisionId: 'prompt-revision-workspace',
+          revisionStatus: 'active',
+          scopeType: 'workspace',
+          workspaceId: 'workspace-1',
+        },
+      ],
+      registryRevisionScope: 'workspace',
+      registryRevisionStatus: 'active',
+      registryRevisionWorkspaceId: 'workspace-1',
+      registrySourceChain: [
+        {
+          actorId: 'user-1',
+          configPath: null,
+          fingerprint: 'db11112222333344',
+          registryId: null,
+          revision: 'workspace-r2',
+          scope: 'workspace',
+          source: 'db_revision',
+          status: 'active',
+          updatedAt: '2026-06-18T04:05:06.000Z',
+          workspaceId: 'workspace-1',
+        },
+        {
+          actorId: null,
+          configPath: 'ai_prompts_metadata',
+          fingerprint: 'b1c2d3e4f5061728',
+          registryId: 42,
+          revision: 'registry:no-policy:base:b1c2d3e4f5061728',
+          scope: 'global',
+          source: 'legacy_registry',
+          status: 'ready',
+          updatedAt: '2026-06-17T04:05:06.000Z',
+          workspaceId: null,
+        },
+        {
+          actorId: null,
+          configPath: 'native_prompt_catalog',
+          fingerprint: 'configaaaabbbbcccc',
+          registryId: null,
+          revision: 'built_in:no-policy:base:configaaaabbbbcccc',
+          scope: 'global',
+          source: 'config_fallback',
+          status: 'available',
+          updatedAt: null,
+          workspaceId: null,
+        },
+      ],
+      registrySourceChainFingerprint: 'chain111122223333',
       revision: 'registry:no-policy:base:b1c2d3e4f5061728',
       templateFingerprint: '2222333344445555',
     },
@@ -5173,6 +5900,441 @@ const workspaceScopePayload = [
   },
 ];
 
+const supportBundlesPayload = [
+  {
+    actorId: 'user-1',
+    archiveByteSize: 512,
+    archiveFilename: 'localmind-support-bundle-support-bundle-1.archive.json',
+    archiveFingerprint: 'archive111122223333',
+    archiveMime: 'application/json',
+    archiveStorageKey: 'support-bundles/support-bundle-1/archive.json',
+    auditEventCount: 2,
+    auditEvents: [
+      {
+        actorId: 'user-1',
+        bundleId: 'support-bundle-1',
+        createdAt: '2026-06-20T08:01:00.000Z',
+        eventFingerprint: 'auditarchive1111',
+        eventType: 'archive_created',
+        id: 'support-bundle-audit-2',
+        metadata: {
+          archiveFingerprint: 'archive111122223333',
+          manifestFingerprint: 'manifest111122223333',
+        },
+        workspaceId: 'workspace-1',
+      },
+      {
+        actorId: 'user-1',
+        bundleId: 'support-bundle-1',
+        createdAt: '2026-06-20T08:00:00.000Z',
+        eventFingerprint: 'auditcreated1111',
+        eventType: 'created',
+        id: 'support-bundle-audit-1',
+        metadata: {
+          manifestFingerprint: 'manifest111122223333',
+          sourceEvidenceSetFingerprint: 'source111122223333',
+        },
+        workspaceId: 'workspace-1',
+      },
+    ],
+    createdAt: '2026-06-20T08:00:00.000Z',
+    expiresAt: '2026-07-04T08:00:00.000Z',
+    failureCode: null,
+    failureMessage: null,
+    id: 'support-bundle-1',
+    manifestByteSize: 256,
+    manifestFilename: 'localmind-support-bundle-support-bundle-1.manifest.json',
+    manifestFingerprint: 'manifest111122223333',
+    manifestMime: 'application/json',
+    manifestStorageKey: 'support-bundles/support-bundle-1/manifest.json',
+    manifestJson: {
+      actorId: 'user-1',
+      archive: {
+        archiveFingerprint: 'archive111122223333',
+        artifactKind: 'archive_json',
+        byteSize: 512,
+        filename: 'localmind-support-bundle-support-bundle-1.archive.json',
+        mime: 'application/json',
+        storageKey: 'support-bundles/support-bundle-1/archive.json',
+      },
+      bundleId: 'support-bundle-1',
+      createdAt: '2026-06-20T08:00:00.000Z',
+      expiresAt: '2026-07-04T08:00:00.000Z',
+      retention: {
+        expiresAt: '2026-07-04T08:00:00.000Z',
+        status: 'active',
+      },
+      sourceEvidenceSetFingerprint: 'source111122223333',
+      sourceEvidenceSummary: {
+        actionRunCount: 3,
+        includedSections: [
+          'prompt_catalog_count',
+          'actor_action_run_count',
+          'task_route_summary',
+        ],
+        promptCatalogItemCount: 4,
+        source: 'db_backed_minimal_manifest',
+        taskRouteCount: 2,
+      },
+      version: 'copilot-support-bundle-manifest/v1',
+      workspaceId: 'workspace-1',
+    },
+    retentionStatus: 'active',
+    sourceEvidenceSetFingerprint: 'source111122223333',
+    sourceEvidenceSummary: {
+      actionRunCount: 3,
+      includedSections: [
+        'prompt_catalog_count',
+        'actor_action_run_count',
+        'task_route_summary',
+      ],
+      promptCatalogItemCount: 4,
+      source: 'db_backed_minimal_manifest',
+      taskRouteCount: 2,
+    },
+    status: 'ready',
+    transferEventCount: 1,
+    transferEvents: [
+      {
+        artifactFingerprint: 'archive111122223333',
+        artifactKind: 'archive_json',
+        authorizationFingerprint: 'download-auth-11112222',
+        authorizationId: 'download-auth-1',
+        createdAt: '2026-06-20T08:06:00.000Z',
+        deliveryMethod: 'object_storage_signed_url',
+        eventFingerprint: 'transfer111122223333',
+        eventId: 'support-bundle-transfer-ok-admin',
+        eventSource: 'object_storage_event_admin',
+        id: 'transfer-event-1',
+        manifestFingerprint: 'manifest111122223333',
+        notificationAuthEvidenceFingerprint: 'auth-evidence11112222',
+        storageByteSize: 512,
+        storageContentType: 'application/json',
+        storageKey: 'support-bundles/support-bundle-1/archive.json',
+        transferredAt: '2026-06-20T08:05:30.000Z',
+      },
+    ],
+    transferForwardingEventCount: 1,
+    transferForwardingEvents: [
+      {
+        attemptCount: 3,
+        authorizationId: 'download-auth-1',
+        createdAt: '2026-06-20T08:04:00.000Z',
+        deadLetteredAt: '2026-06-20T08:07:00.000Z',
+        eventId: 'support-bundle-forwarding-dead-letter-admin',
+        eventSource: 'object_storage_event_admin',
+        failureCode: 'support_bundle_transfer_event_storage_key_mismatch',
+        failureMessage: 'Support bundle transfer event storage key mismatch',
+        forwardedAt: null,
+        forwardedTransferEventFingerprint: null,
+        forwardingEventFingerprint: 'forwarding111122223333',
+        forwardingPayload: {
+          version: 'copilot-support-bundle-transfer-forwarding-payload/v1',
+        },
+        forwardingPayloadFingerprint: 'payload111122223333',
+        id: 'transfer-forwarding-event-1',
+        lastAttemptAt: '2026-06-20T08:06:30.000Z',
+        maxAttempts: 3,
+        nextAttemptAt: null,
+        providerSignatureEvidenceFingerprint: 'signature11112222',
+        status: 'dead_lettered',
+        updatedAt: '2026-06-20T08:07:00.000Z',
+        workerLeaseExpiresAt: null,
+        workerLeaseId: null,
+      },
+    ],
+    updatedAt: '2026-06-20T08:00:00.000Z',
+    workspaceId: 'workspace-1',
+  },
+];
+
+const supportBundleForwardingReplayPayload = {
+  ...supportBundlesPayload[0].transferForwardingEvents[0],
+  attemptCount: 0,
+  createdAt: '2026-06-20T08:08:00.000Z',
+  deadLetteredAt: null,
+  failureCode: null,
+  failureMessage: null,
+  forwardingEventFingerprint: 'forwardingreplay1111',
+  forwardingPayload: {
+    replay: {
+      sourceForwardingEventId: 'transfer-forwarding-event-1',
+      version: 'copilot-support-bundle-transfer-forwarding-replay/v1',
+    },
+    version: 'copilot-support-bundle-transfer-forwarding-payload/v1',
+  },
+  forwardingPayloadFingerprint: 'payloadreplay1111',
+  id: 'transfer-forwarding-replay-1',
+  lastAttemptAt: null,
+  nextAttemptAt: '2026-06-20T08:08:00.000Z',
+  status: 'queued',
+  updatedAt: '2026-06-20T08:08:00.000Z',
+};
+
+const agentRuntimeWorkflowAdaptersPayload = [
+  {
+    workflow: 'agent_runtime_record_only',
+    capabilities: {
+      version: 'agent-runtime-workflow-adapter-capabilities/v1',
+      supportedStepTypes: [
+        'approval',
+        'codex',
+        'handoff',
+        'mcp',
+        'model',
+        'tool',
+      ],
+      sideEffectMode: 'none',
+      summary:
+        'Completes already-persisted Agent Runtime records without external side effects.',
+    },
+  },
+];
+
+const agentRunsPayload = [
+  {
+    actorId: 'user-1',
+    completedAt: null,
+    createdAt: '2026-06-20T09:00:00.000Z',
+    evidenceFingerprint: 'agent-evidence-1111',
+    executionResultCount: 0,
+    executionResults: [],
+    failureCode: null,
+    failureMessage: null,
+    id: 'agent-run-1',
+    lastAttemptAt: null,
+    queuedAt: '2026-06-20T09:05:00.000Z',
+    sourceId: 'repair-execution-1',
+    sourceType: 'repair_execution_request',
+    startedAt: '2026-06-20T09:00:00.000Z',
+    status: 'queued',
+    targetFingerprint: 'agent-target-1111',
+    timelineFingerprint: 'agent-timeline-2222',
+    title: 'Repair execution: Make it real',
+    updatedAt: '2026-06-20T09:05:00.000Z',
+    workerAttempt: 0,
+    workerLeaseExpiresAt: null,
+    workerLeaseId: null,
+    workerMaxAttempts: 3,
+    workflow: 'prompt_registry_repair_execution',
+    workspaceId: 'workspace-1',
+    steps: [
+      {
+        actorId: 'user-1',
+        completedAt: null,
+        createdAt: '2026-06-20T09:00:00.000Z',
+        evidenceFingerprint: 'agent-step-evidence-1111',
+        id: 'agent-step-1',
+        order: 0,
+        outputSummary: {
+          approvalState: 'approved',
+          repairExecutionRequestId: 'repair-execution-1',
+          runtimeExecutor: 'queued_repair_execution_worker',
+          sideEffectsApplied: false,
+          version: 'agent-runtime-step-output-summary/v1',
+        },
+        runId: 'agent-run-1',
+        startedAt: '2026-06-20T09:00:00.000Z',
+        status: 'pending',
+        stepKey: 'repair_execution',
+        stepType: 'model',
+        title: 'Repair execution request',
+        updatedAt: '2026-06-20T09:05:00.000Z',
+        workspaceId: 'workspace-1',
+      },
+    ],
+    timelineEvents: [
+      {
+        actorId: 'user-1',
+        createdAt: '2026-06-20T09:00:00.000Z',
+        eventFingerprint: 'agent-event-1111',
+        eventType: 'run_status',
+        id: 'agent-event-1',
+        ordinal: 0,
+        payload: {
+          requestFingerprint: 'repair-request-1111',
+          sourceId: 'repair-execution-1',
+          sourceType: 'repair_execution_request',
+          workflow: 'prompt_registry_repair_execution',
+        },
+        runId: 'agent-run-1',
+        status: 'waiting_approval',
+        stepId: null,
+        summary: 'Repair execution run waiting_approval',
+        workspaceId: 'workspace-1',
+      },
+      {
+        actorId: 'user-1',
+        createdAt: '2026-06-20T09:05:00.000Z',
+        eventFingerprint: 'agent-event-3333',
+        eventType: 'run_status',
+        id: 'agent-event-3',
+        ordinal: 2,
+        payload: {
+          requestFingerprint: 'repair-request-1111',
+          sourceId: 'repair-execution-1',
+          sourceType: 'repair_execution_request',
+          workflow: 'prompt_registry_repair_execution',
+        },
+        runId: 'agent-run-1',
+        status: 'queued',
+        stepId: null,
+        summary: 'Repair execution run queued',
+        workspaceId: 'workspace-1',
+      },
+      {
+        actorId: 'user-1',
+        createdAt: '2026-06-20T09:05:00.000Z',
+        eventFingerprint: 'agent-event-4444',
+        eventType: 'model_step',
+        id: 'agent-event-4',
+        ordinal: 3,
+        payload: {
+          approvalState: 'approved',
+          permissionStatus: 'granted',
+          runtimeExecutor: 'queued_repair_execution_worker',
+          sideEffectsApplied: false,
+        },
+        runId: 'agent-run-1',
+        status: 'pending',
+        stepId: 'agent-step-1',
+        summary: 'Repair execution queued for worker',
+        workspaceId: 'workspace-1',
+      },
+    ],
+  },
+  standaloneAgentRunPayload,
+  completedAgentRunPayload,
+];
+
+const repairExecutionsPayload = [
+  {
+    actorId: 'user-1',
+    approvalRecordFingerprint: 'approval-record-1111',
+    approvalState: 'approved',
+    auditEventCount: 4,
+    auditEvents: repairExecutionAuditEventsFixture([
+      'queued',
+      'approval_approved',
+      'waiting_approval',
+      'requested',
+    ]),
+    auditEventFingerprint: 'audit-event-1111',
+    candidateEvidenceSetFingerprint: 'aaaa5555bbbb6666',
+    completedAt: null,
+    createdAt: '2026-06-20T09:00:00.000Z',
+    failureCode: null,
+    failureMessage: null,
+    id: 'repair-execution-1',
+    idempotencyFingerprint: 'efef1111abab2222',
+    idempotencyKey: 'repair-idempotency-key-1',
+    lastAttemptAt: null,
+    permissionStatus: 'granted',
+    promptName: 'Make it real',
+    queuedAt: '2026-06-20T09:05:00.000Z',
+    repairJobFingerprint: 'bcbc1111dede2222',
+    requestFingerprint: 'repair-request-1111',
+    requestedAction: 'prompt_registry_repair',
+    runtimeResult: {
+      executor: 'queued_repair_execution_worker',
+      message: 'Approval accepted; repair execution queued for worker runtime.',
+      sideEffectsApplied: false,
+      version: 'repair-execution-runtime-result/v1',
+    },
+    sideEffectCount: 0,
+    sideEffects: [],
+    status: 'queued',
+    targetLocatorFingerprint: 'ddd111eee222ffff',
+    taskRouteEvidenceSetFingerprint: 'aaaa5656bbbb6767',
+    updatedAt: '2026-06-20T09:05:00.000Z',
+    workerAttempt: 0,
+    workerLeaseExpiresAt: null,
+    workerLeaseId: null,
+    workerMaxAttempts: 3,
+    workspaceId: 'workspace-1',
+    agentRun: agentRunsPayload[0],
+  },
+  {
+    actorId: 'user-1',
+    approvalRecordFingerprint: 'approval-record-2222',
+    approvalState: 'approved',
+    auditEventCount: 6,
+    auditEvents: repairExecutionAuditEventsFixture(
+      ['completed', 'side_effect_applied', 'running', 'queued', 'requested'],
+      'repair-execution-completed'
+    ),
+    auditEventFingerprint: 'audit-event-2222',
+    candidateEvidenceSetFingerprint: 'candidate2222',
+    completedAt: '2026-06-20T09:30:00.000Z',
+    createdAt: '2026-06-20T09:10:00.000Z',
+    failureCode: null,
+    failureMessage: null,
+    id: 'repair-execution-completed',
+    idempotencyFingerprint: 'idempotency2222',
+    idempotencyKey: 'repair-idempotency-key-2',
+    lastAttemptAt: '2026-06-20T09:29:00.000Z',
+    permissionStatus: 'granted',
+    promptName: 'Make it real',
+    queuedAt: '2026-06-20T09:11:00.000Z',
+    repairJobFingerprint: 'repairjob2222',
+    requestFingerprint: 'repair-request-2222',
+    requestedAction: 'prompt_registry_repair',
+    runtimeResult: {
+      executor: 'prompt_registry_revision_publish_worker',
+      message:
+        'Repair execution worker published a DB-backed workspace prompt registry revision.',
+      sideEffectsApplied: true,
+      sideEffectFingerprint: 'sideeffect1111',
+      sideEffectKind: 'prompt_registry_revision',
+      sideEffectRecordId: 'prompt-revision-repair-execution-completed',
+      sideEffectSummary: {
+        revision: 'repair-repair-execution-completed',
+        version: 'prompt-registry-side-effect-summary/v1',
+      },
+      version: 'repair-execution-runtime-result/v1',
+    },
+    sideEffectCount: 1,
+    sideEffects: [
+      {
+        actorId: 'user-1',
+        appliedAt: '2026-06-20T09:30:00.000Z',
+        createdAt: '2026-06-20T09:30:00.000Z',
+        executionRequestId: 'repair-execution-completed',
+        executorPayloadFingerprint: 'executorpayload1111',
+        id: 'repair-execution-side-effect-repair-execution-completed',
+        sideEffectFingerprint: 'sideeffect1111',
+        sideEffectKind: 'prompt_registry_revision',
+        sideEffectRecordId: 'prompt-revision-repair-execution-completed',
+        sideEffectSummary: {
+          revision: 'repair-repair-execution-completed',
+          version: 'prompt-registry-side-effect-summary/v1',
+        },
+        workerAttempt: 1,
+        workerLeaseId: 'repair-worker-lease-1',
+        workspaceId: 'workspace-1',
+      },
+    ],
+    status: 'completed',
+    targetLocatorFingerprint: 'target2222',
+    taskRouteEvidenceSetFingerprint: 'taskroute2222',
+    updatedAt: '2026-06-20T09:30:00.000Z',
+    workerAttempt: 1,
+    workerLeaseExpiresAt: null,
+    workerLeaseId: null,
+    workerMaxAttempts: 3,
+    workspaceId: 'workspace-1',
+    agentRun: {
+      ...agentRunsPayload[0],
+      completedAt: '2026-06-20T09:30:00.000Z',
+      id: 'agent-run-repair-completed',
+      sourceId: 'repair-execution-completed',
+      status: 'completed',
+      title: 'Repair execution: Make it real completed',
+      updatedAt: '2026-06-20T09:30:00.000Z',
+    },
+  },
+];
+
 const actionRunPreparedRouteTracePayload = {
   status: 'succeeded',
   type: 'prepared_routes',
@@ -6094,7 +7256,107 @@ describe('AiPage', () => {
     createObjectURLMock.mockReturnValue('blob:action-run-manifest');
     revokeObjectURLMock.mockReset();
     anchorClickMock.mockReset();
+    windowOpenMock.mockReset();
+    windowOpenMock.mockReturnValue(null);
+    Object.defineProperty(window, 'open', {
+      configurable: true,
+      value: windowOpenMock,
+    });
     requestRepairExecutionMock.mockReset();
+    decideRepairExecutionApprovalMock.mockReset();
+    controlRepairExecutionMock.mockReset();
+    controlAgentRuntimeRunMock.mockReset();
+    createSupportBundleMock.mockReset();
+    authorizeSupportBundleDownloadMock.mockReset();
+    cleanupSupportBundleRetentionMock.mockReset();
+    replaySupportBundleTransferForwardingEventMock.mockReset();
+    retryProviderHealthProbeAttemptMock.mockReset();
+    createSupportBundleMock.mockResolvedValue({
+      createCopilotSupportBundle: {
+        ...supportBundlesPayload[0],
+        auditEventCount: 1,
+        auditEvents: supportBundlesPayload[0].auditEvents.slice(0, 1),
+        id: 'support-bundle-created',
+        transferEventCount: 0,
+        transferEvents: [],
+        transferForwardingEventCount: 0,
+        transferForwardingEvents: [],
+      },
+    });
+    authorizeSupportBundleDownloadMock.mockResolvedValue({
+      authorizeCopilotSupportBundleDownload: {
+        actorId: 'user-1',
+        artifactFingerprint: 'archive111122223333',
+        artifactFilename:
+          'localmind-support-bundle-support-bundle-1.archive.json',
+        artifactKind: 'archive_json',
+        artifactMime: 'application/json',
+        authorizationFingerprint: 'download-auth-11112222',
+        bundleId: 'support-bundle-1',
+        createdAt: '2026-06-20T08:05:00.000Z',
+        deliveryMethod: 'api_proxy',
+        directDownloadExpiresAt: null,
+        directDownloadUrl: null,
+        downloadedAt: null,
+        downloadUrl:
+          'http://localhost/api/copilot/support-bundles/download-auth-1/artifact?token=download-token-1',
+        expiresAt: '2026-06-20T08:20:00.000Z',
+        id: 'download-auth-1',
+        manifestFingerprint: 'manifest111122223333',
+        status: 'authorized',
+        updatedAt: '2026-06-20T08:05:00.000Z',
+        workspaceId: 'workspace-1',
+      },
+    });
+    cleanupSupportBundleRetentionMock.mockResolvedValue({
+      cleanupCopilotSupportBundleRetention: {
+        actorId: 'user-1',
+        archiveObjectCleanupFailedCount: 0,
+        archiveObjectCleanupRecoveredCount: 1,
+        archiveObjectCleanupRetryCount: 1,
+        cleanedAt: '2026-06-20T08:10:00.000Z',
+        cleanupFingerprint: 'cleanup111122223333',
+        expiredAuthorizationCount: 1,
+        expiredBundleCount: 1,
+        manifestObjectRewriteFailedCount: 0,
+        manifestObjectRewriteRecoveredCount: 1,
+        manifestObjectRewriteRetryCount: 1,
+        expiredBundles: [
+          {
+            ...supportBundlesPayload[0],
+            auditEventCount: 3,
+            auditEvents: [
+              {
+                ...supportBundlesPayload[0].auditEvents[0],
+                createdAt: '2026-06-20T08:10:00.000Z',
+                eventFingerprint: 'auditretention1111',
+                eventType: 'retention_expired',
+                id: 'support-bundle-audit-3',
+              },
+              ...supportBundlesPayload[0].auditEvents,
+            ],
+            id: 'support-bundle-expired',
+            manifestJson: {
+              ...supportBundlesPayload[0].manifestJson,
+              retention: {
+                ...supportBundlesPayload[0].manifestJson.retention,
+                status: 'expired',
+              },
+            },
+            retentionStatus: 'expired',
+            status: 'expired',
+          },
+        ],
+        workspaceId: 'workspace-1',
+      },
+    });
+    replaySupportBundleTransferForwardingEventMock.mockResolvedValue({
+      replayCopilotSupportBundleTransferForwardingEvent:
+        supportBundleForwardingReplayPayload,
+    });
+    retryProviderHealthProbeAttemptMock.mockResolvedValue({
+      retryCopilotProviderHealthProbeAttempt: providerHealthProbeRetryPayload,
+    });
     requestRepairExecutionMock.mockImplementation(
       async ({
         input,
@@ -6126,6 +7388,147 @@ describe('AiPage', () => {
       }) => ({
         requestCopilotPromptRegistryRepairExecution: {
           accepted: false,
+          executionRecord: input.workspaceId
+            ? {
+                actorId: 'user-1',
+                approvalRecordFingerprint: 'approval-record-1111',
+                approvalState: 'waiting',
+                auditEventCount: 2,
+                auditEvents: repairExecutionAuditEventsFixture([
+                  'waiting_approval',
+                  'requested',
+                ]),
+                auditEventFingerprint: input.expectedAuditEventFingerprint,
+                candidateEvidenceSetFingerprint:
+                  input.expectedCandidateEvidenceSetFingerprint,
+                completedAt: null,
+                createdAt: '2026-06-20T09:00:00.000Z',
+                failureCode: null,
+                failureMessage: null,
+                id: 'repair-execution-1',
+                idempotencyFingerprint: input.expectedIdempotencyFingerprint,
+                idempotencyKey: 'repair-idempotency-key-1',
+                lastAttemptAt: null,
+                permissionStatus: 'granted',
+                promptName: readyPublishGateVerdict.name,
+                queuedAt: null,
+                repairJobFingerprint: input.expectedRepairJobFingerprint,
+                requestFingerprint: 'repair-request-1111',
+                requestedAction: 'prompt_registry_repair',
+                runtimeResult: {
+                  executor: 'approval_gate',
+                  message:
+                    'Execution request persisted and waiting for approval.',
+                  sideEffectsApplied: false,
+                  version: 'repair-execution-runtime-result/v1',
+                },
+                sideEffectCount: 0,
+                sideEffects: [],
+                status: 'waiting_approval',
+                targetLocatorFingerprint:
+                  input.expectedTargetLocatorFingerprint,
+                taskRouteEvidenceSetFingerprint:
+                  input.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
+                updatedAt: '2026-06-20T09:00:00.000Z',
+                workerAttempt: 0,
+                workerLeaseExpiresAt: null,
+                workerLeaseId: null,
+                workerMaxAttempts: 3,
+                workspaceId: input.workspaceId,
+                agentRun: {
+                  actorId: 'user-1',
+                  completedAt: null,
+                  createdAt: '2026-06-20T09:00:00.000Z',
+                  evidenceFingerprint: 'agent-evidence-1111',
+                  executionResultCount: 0,
+                  executionResults: [],
+                  failureCode: null,
+                  failureMessage: null,
+                  id: 'agent-run-1',
+                  lastAttemptAt: null,
+                  queuedAt: null,
+                  sourceId: 'repair-execution-1',
+                  sourceType: 'repair_execution_request',
+                  startedAt: '2026-06-20T09:00:00.000Z',
+                  status: 'waiting_approval',
+                  targetFingerprint: 'agent-target-1111',
+                  timelineFingerprint: 'agent-timeline-1111',
+                  title: 'Repair execution: Make it real',
+                  updatedAt: '2026-06-20T09:00:00.000Z',
+                  workerAttempt: 0,
+                  workerLeaseExpiresAt: null,
+                  workerLeaseId: null,
+                  workerMaxAttempts: 3,
+                  workflow: 'prompt_registry_repair_execution',
+                  workspaceId: input.workspaceId,
+                  steps: [
+                    {
+                      actorId: 'user-1',
+                      completedAt: null,
+                      createdAt: '2026-06-20T09:00:00.000Z',
+                      evidenceFingerprint: 'agent-step-evidence-1111',
+                      id: 'agent-step-1',
+                      order: 0,
+                      outputSummary: {
+                        approvalState: 'waiting',
+                        repairExecutionRequestId: 'repair-execution-1',
+                        runtimeExecutor: 'approval_gate',
+                        sideEffectsApplied: false,
+                        version: 'agent-runtime-step-output-summary/v1',
+                      },
+                      runId: 'agent-run-1',
+                      startedAt: '2026-06-20T09:00:00.000Z',
+                      status: 'waiting_approval',
+                      stepKey: 'repair_execution',
+                      stepType: 'approval',
+                      title: 'Repair execution request',
+                      updatedAt: '2026-06-20T09:00:00.000Z',
+                      workspaceId: input.workspaceId,
+                    },
+                  ],
+                  timelineEvents: [
+                    {
+                      actorId: 'user-1',
+                      createdAt: '2026-06-20T09:00:00.000Z',
+                      eventFingerprint: 'agent-event-1111',
+                      eventType: 'run_status',
+                      id: 'agent-event-1',
+                      ordinal: 0,
+                      payload: {
+                        requestFingerprint: 'repair-request-1111',
+                        sourceId: 'repair-execution-1',
+                        sourceType: 'repair_execution_request',
+                        workflow: 'prompt_registry_repair_execution',
+                      },
+                      runId: 'agent-run-1',
+                      status: 'waiting_approval',
+                      stepId: null,
+                      summary: 'Repair execution run waiting_approval',
+                      workspaceId: input.workspaceId,
+                    },
+                    {
+                      actorId: 'user-1',
+                      createdAt: '2026-06-20T09:00:00.000Z',
+                      eventFingerprint: 'agent-event-2222',
+                      eventType: 'approval_step',
+                      id: 'agent-event-2',
+                      ordinal: 1,
+                      payload: {
+                        approvalState: 'waiting',
+                        permissionStatus: 'granted',
+                        runtimeExecutor: 'approval_gate',
+                        sideEffectsApplied: false,
+                      },
+                      runId: 'agent-run-1',
+                      status: 'waiting_approval',
+                      stepId: 'agent-step-1',
+                      summary: 'Repair execution waiting for approval',
+                      workspaceId: input.workspaceId,
+                    },
+                  ],
+                },
+              }
+            : null,
           approvalRecordRequestCreated: false,
           approvalRecordRequestFingerprint: input.workspaceId
             ? 'aaaa3333bbbb4444'
@@ -8213,11 +9616,639 @@ describe('AiPage', () => {
         },
       })
     );
-    useMutationMock.mockReturnValue({
-      isMutating: false,
-      trigger: requestRepairExecutionMock,
+    decideRepairExecutionApprovalMock.mockResolvedValue({
+      decideCopilotRepairExecutionApproval: {
+        actorId: 'user-1',
+        approvalRecordFingerprint: 'approval-record-1111',
+        approvalState: 'approved',
+        auditEventCount: 4,
+        auditEvents: repairExecutionAuditEventsFixture([
+          'queued',
+          'approval_approved',
+          'waiting_approval',
+          'requested',
+        ]),
+        auditEventFingerprint: 'audit-event-1111',
+        candidateEvidenceSetFingerprint: 'aaaa5555bbbb6666',
+        completedAt: null,
+        createdAt: '2026-06-20T09:00:00.000Z',
+        failureCode: null,
+        failureMessage: null,
+        id: 'repair-execution-1',
+        idempotencyFingerprint: 'efef1111abab2222',
+        idempotencyKey: 'repair-idempotency-key-1',
+        lastAttemptAt: null,
+        permissionStatus: 'granted',
+        promptName: readyPublishGateVerdict.name,
+        queuedAt: '2026-06-20T09:05:00.000Z',
+        repairJobFingerprint: 'bcbc1111dede2222',
+        requestFingerprint: 'repair-request-1111',
+        requestedAction: 'prompt_registry_repair',
+        runtimeResult: {
+          executor: 'queued_repair_execution_worker',
+          message:
+            'Approval accepted; repair execution queued for worker runtime.',
+          sideEffectsApplied: false,
+          version: 'repair-execution-runtime-result/v1',
+        },
+        sideEffectCount: 0,
+        sideEffects: [],
+        status: 'queued',
+        targetLocatorFingerprint: 'ddd111eee222ffff',
+        taskRouteEvidenceSetFingerprint: 'aaaa5656bbbb6767',
+        updatedAt: '2026-06-20T09:05:00.000Z',
+        workerAttempt: 0,
+        workerLeaseExpiresAt: null,
+        workerLeaseId: null,
+        workerMaxAttempts: 3,
+        workspaceId: 'workspace-1',
+        agentRun: {
+          actorId: 'user-1',
+          completedAt: null,
+          createdAt: '2026-06-20T09:00:00.000Z',
+          evidenceFingerprint: 'agent-evidence-1111',
+          executionResultCount: 0,
+          executionResults: [],
+          failureCode: null,
+          failureMessage: null,
+          id: 'agent-run-1',
+          lastAttemptAt: null,
+          queuedAt: '2026-06-20T09:05:00.000Z',
+          sourceId: 'repair-execution-1',
+          sourceType: 'repair_execution_request',
+          startedAt: '2026-06-20T09:00:00.000Z',
+          status: 'queued',
+          targetFingerprint: 'agent-target-1111',
+          timelineFingerprint: 'agent-timeline-queued',
+          title: 'Repair execution: Make it real',
+          updatedAt: '2026-06-20T09:05:00.000Z',
+          workerAttempt: 0,
+          workerLeaseExpiresAt: null,
+          workerLeaseId: null,
+          workerMaxAttempts: 3,
+          workflow: 'prompt_registry_repair_execution',
+          workspaceId: 'workspace-1',
+          steps: [
+            {
+              actorId: 'user-1',
+              completedAt: null,
+              createdAt: '2026-06-20T09:00:00.000Z',
+              evidenceFingerprint: 'agent-step-evidence-1111',
+              id: 'agent-step-1',
+              order: 0,
+              outputSummary: {
+                approvalState: 'approved',
+                repairExecutionRequestId: 'repair-execution-1',
+                runtimeExecutor: 'queued_repair_execution_worker',
+                sideEffectsApplied: false,
+                version: 'agent-runtime-step-output-summary/v1',
+              },
+              runId: 'agent-run-1',
+              startedAt: '2026-06-20T09:00:00.000Z',
+              status: 'pending',
+              stepKey: 'repair_execution',
+              stepType: 'model',
+              title: 'Repair execution request',
+              updatedAt: '2026-06-20T09:05:00.000Z',
+              workspaceId: 'workspace-1',
+            },
+          ],
+          timelineEvents: [
+            {
+              actorId: 'user-1',
+              createdAt: '2026-06-20T09:00:00.000Z',
+              eventFingerprint: 'agent-event-1111',
+              eventType: 'run_status',
+              id: 'agent-event-1',
+              ordinal: 0,
+              payload: {},
+              runId: 'agent-run-1',
+              status: 'waiting_approval',
+              stepId: null,
+              summary: 'Repair execution run waiting_approval',
+              workspaceId: 'workspace-1',
+            },
+            {
+              actorId: 'user-1',
+              createdAt: '2026-06-20T09:00:00.000Z',
+              eventFingerprint: 'agent-event-2222',
+              eventType: 'approval_step',
+              id: 'agent-event-2',
+              ordinal: 1,
+              payload: {},
+              runId: 'agent-run-1',
+              status: 'waiting_approval',
+              stepId: 'agent-step-1',
+              summary: 'Repair execution waiting for approval',
+              workspaceId: 'workspace-1',
+            },
+            {
+              actorId: 'user-1',
+              createdAt: '2026-06-20T09:05:00.000Z',
+              eventFingerprint: 'agent-event-3333',
+              eventType: 'run_status',
+              id: 'agent-event-3',
+              ordinal: 2,
+              payload: {},
+              runId: 'agent-run-1',
+              status: 'queued',
+              stepId: null,
+              summary: 'Repair execution run queued',
+              workspaceId: 'workspace-1',
+            },
+            {
+              actorId: 'user-1',
+              createdAt: '2026-06-20T09:05:00.000Z',
+              eventFingerprint: 'agent-event-4444',
+              eventType: 'model_step',
+              id: 'agent-event-4',
+              ordinal: 3,
+              payload: {
+                runtimeExecutor: 'queued_repair_execution_worker',
+                sideEffectsApplied: false,
+              },
+              runId: 'agent-run-1',
+              status: 'pending',
+              stepId: 'agent-step-1',
+              summary: 'Repair execution queued for worker',
+              workspaceId: 'workspace-1',
+            },
+          ],
+        },
+      },
     });
-    useQueryMock.mockImplementation(({ query, variables }) => {
+    controlRepairExecutionMock.mockImplementation(
+      ({
+        input,
+      }: {
+        input: {
+          action: 'cancel' | 'retry' | 'resume_with_payload';
+          executorPayload?: Record<string, string>;
+          executionRequestId: string;
+          workspaceId: string;
+        };
+      }) =>
+        Promise.resolve({
+          controlCopilotRepairExecution:
+            input.action === 'retry' || input.action === 'resume_with_payload'
+              ? {
+                  actorId: 'user-1',
+                  approvalRecordFingerprint: 'approval-record-1111',
+                  approvalState: 'approved',
+                  auditEventCount: 11,
+                  auditEvents: repairExecutionAuditEventsFixture([
+                    'queued',
+                    input.action === 'resume_with_payload'
+                      ? 'manual_resume_requested'
+                      : 'manual_retry_requested',
+                    'failed',
+                    'running',
+                    'queued',
+                  ]),
+                  auditEventFingerprint: 'audit-event-1111',
+                  candidateEvidenceSetFingerprint: 'aaaa5555bbbb6666',
+                  completedAt: null,
+                  createdAt: '2026-06-20T09:00:00.000Z',
+                  failureCode: null,
+                  failureMessage: null,
+                  id: input.executionRequestId,
+                  idempotencyFingerprint: 'efef1111abab2222',
+                  idempotencyKey: 'repair-idempotency-key-1',
+                  lastAttemptAt: '2026-06-20T09:09:00.000Z',
+                  permissionStatus: 'granted',
+                  promptName: readyPublishGateVerdict.name,
+                  queuedAt: '2026-06-20T09:11:00.000Z',
+                  repairJobFingerprint: 'bcbc1111dede2222',
+                  requestFingerprint: 'repair-request-1111',
+                  requestedAction: 'prompt_registry_repair',
+                  runtimeResult: {
+                    executor:
+                      input.action === 'resume_with_payload'
+                        ? 'manual_repair_execution_payload_correction'
+                        : 'manual_repair_execution_control',
+                    message:
+                      input.action === 'resume_with_payload'
+                        ? 'Manual resume with corrected executor payload requested; repair execution queued for worker runtime.'
+                        : 'Manual retry requested; repair execution queued for worker runtime.',
+                    sideEffectsApplied: false,
+                    version: 'repair-execution-runtime-result/v1',
+                  },
+                  sideEffectCount: 0,
+                  sideEffects: [],
+                  status: 'queued',
+                  targetLocatorFingerprint: 'ddd111eee222ffff',
+                  taskRouteEvidenceSetFingerprint: 'aaaa5656bbbb6767',
+                  updatedAt: '2026-06-20T09:11:00.000Z',
+                  workerAttempt: 2,
+                  workerLeaseExpiresAt: null,
+                  workerLeaseId: null,
+                  workerMaxAttempts: 3,
+                  workspaceId: input.workspaceId,
+                  agentRun: {
+                    actorId: 'user-1',
+                    completedAt: null,
+                    createdAt: '2026-06-20T09:00:00.000Z',
+                    evidenceFingerprint: 'agent-evidence-1111',
+                    executionResultCount: 0,
+                    executionResults: [],
+                    failureCode: null,
+                    failureMessage: null,
+                    id: 'agent-run-1',
+                    lastAttemptAt: '2026-06-20T09:09:00.000Z',
+                    queuedAt: '2026-06-20T09:11:00.000Z',
+                    sourceId: input.executionRequestId,
+                    sourceType: 'repair_execution_request',
+                    startedAt: '2026-06-20T09:00:00.000Z',
+                    status: 'queued',
+                    targetFingerprint: 'agent-target-1111',
+                    timelineFingerprint:
+                      input.action === 'resume_with_payload'
+                        ? 'agent-timeline-manual-resume-payload'
+                        : 'agent-timeline-manual-retry',
+                    title: 'Repair execution: Make it real',
+                    updatedAt: '2026-06-20T09:11:00.000Z',
+                    workerAttempt: 2,
+                    workerLeaseExpiresAt: null,
+                    workerLeaseId: null,
+                    workerMaxAttempts: 3,
+                    workflow: 'prompt_registry_repair_execution',
+                    workspaceId: input.workspaceId,
+                    steps: [
+                      {
+                        actorId: 'user-1',
+                        completedAt: null,
+                        createdAt: '2026-06-20T09:00:00.000Z',
+                        evidenceFingerprint: 'agent-step-evidence-1111',
+                        id: 'agent-step-1',
+                        order: 0,
+                        outputSummary: {
+                          approvalState: 'approved',
+                          repairExecutionRequestId: input.executionRequestId,
+                          runtimeExecutor:
+                            input.action === 'resume_with_payload'
+                              ? 'manual_repair_execution_payload_correction'
+                              : 'manual_repair_execution_control',
+                          sideEffectsApplied: false,
+                          version: 'agent-runtime-step-output-summary/v1',
+                        },
+                        runId: 'agent-run-1',
+                        startedAt: '2026-06-20T09:00:00.000Z',
+                        status: 'pending',
+                        stepKey: 'repair_execution',
+                        stepType: 'model',
+                        title: 'Repair execution request',
+                        updatedAt: '2026-06-20T09:11:00.000Z',
+                        workspaceId: input.workspaceId,
+                      },
+                    ],
+                    timelineEvents: [
+                      {
+                        actorId: 'user-1',
+                        createdAt: '2026-06-20T09:11:00.000Z',
+                        eventFingerprint: 'agent-event-retry-1',
+                        eventType: 'run_status',
+                        id: 'agent-event-retry-1',
+                        ordinal: 0,
+                        payload: {},
+                        runId: 'agent-run-1',
+                        status: 'queued',
+                        stepId: null,
+                        summary: 'Repair execution run queued',
+                        workspaceId: input.workspaceId,
+                      },
+                      {
+                        actorId: 'user-1',
+                        createdAt: '2026-06-20T09:11:00.000Z',
+                        eventFingerprint: 'agent-event-retry-2',
+                        eventType: 'model_step',
+                        id: 'agent-event-retry-2',
+                        ordinal: 1,
+                        payload: {
+                          runtimeExecutor:
+                            input.action === 'resume_with_payload'
+                              ? 'manual_repair_execution_payload_correction'
+                              : 'manual_repair_execution_control',
+                          sideEffectsApplied: false,
+                        },
+                        runId: 'agent-run-1',
+                        status: 'pending',
+                        stepId: 'agent-step-1',
+                        summary: 'Repair execution queued for worker',
+                        workspaceId: input.workspaceId,
+                      },
+                    ],
+                  },
+                }
+              : {
+                  actorId: 'user-1',
+                  approvalRecordFingerprint: 'approval-record-1111',
+                  approvalState: 'approved',
+                  auditEventCount: 5,
+                  auditEvents: repairExecutionAuditEventsFixture([
+                    'cancelled',
+                    'queued',
+                    'approval_approved',
+                    'waiting_approval',
+                    'requested',
+                  ]),
+                  auditEventFingerprint: 'audit-event-1111',
+                  candidateEvidenceSetFingerprint: 'aaaa5555bbbb6666',
+                  completedAt: '2026-06-20T09:06:00.000Z',
+                  createdAt: '2026-06-20T09:00:00.000Z',
+                  failureCode: null,
+                  failureMessage: null,
+                  id: input.executionRequestId,
+                  idempotencyFingerprint: 'efef1111abab2222',
+                  idempotencyKey: 'repair-idempotency-key-1',
+                  lastAttemptAt: null,
+                  permissionStatus: 'granted',
+                  promptName: readyPublishGateVerdict.name,
+                  queuedAt: '2026-06-20T09:05:00.000Z',
+                  repairJobFingerprint: 'bcbc1111dede2222',
+                  requestFingerprint: 'repair-request-1111',
+                  requestedAction: 'prompt_registry_repair',
+                  runtimeResult: {
+                    executor: 'manual_repair_execution_control',
+                    message:
+                      'Manual cancellation requested; repair execution request cancelled.',
+                    sideEffectsApplied: false,
+                    version: 'repair-execution-runtime-result/v1',
+                  },
+                  sideEffectCount: 0,
+                  sideEffects: [],
+                  status: 'cancelled',
+                  targetLocatorFingerprint: 'ddd111eee222ffff',
+                  taskRouteEvidenceSetFingerprint: 'aaaa5656bbbb6767',
+                  updatedAt: '2026-06-20T09:06:00.000Z',
+                  workerAttempt: 0,
+                  workerLeaseExpiresAt: null,
+                  workerLeaseId: null,
+                  workerMaxAttempts: 3,
+                  workspaceId: input.workspaceId,
+                  agentRun: {
+                    actorId: 'user-1',
+                    completedAt: '2026-06-20T09:06:00.000Z',
+                    createdAt: '2026-06-20T09:00:00.000Z',
+                    evidenceFingerprint: 'agent-evidence-1111',
+                    executionResultCount: 0,
+                    executionResults: [],
+                    failureCode: null,
+                    failureMessage: null,
+                    id: 'agent-run-1',
+                    lastAttemptAt: null,
+                    queuedAt: '2026-06-20T09:05:00.000Z',
+                    sourceId: input.executionRequestId,
+                    sourceType: 'repair_execution_request',
+                    startedAt: '2026-06-20T09:00:00.000Z',
+                    status: 'cancelled',
+                    targetFingerprint: 'agent-target-1111',
+                    timelineFingerprint: 'agent-timeline-manual-cancel',
+                    title: 'Repair execution: Make it real',
+                    updatedAt: '2026-06-20T09:06:00.000Z',
+                    workerAttempt: 0,
+                    workerLeaseExpiresAt: null,
+                    workerLeaseId: null,
+                    workerMaxAttempts: 3,
+                    workflow: 'prompt_registry_repair_execution',
+                    workspaceId: input.workspaceId,
+                    steps: [
+                      {
+                        actorId: 'user-1',
+                        completedAt: '2026-06-20T09:06:00.000Z',
+                        createdAt: '2026-06-20T09:00:00.000Z',
+                        evidenceFingerprint: 'agent-step-evidence-1111',
+                        id: 'agent-step-1',
+                        order: 0,
+                        outputSummary: {
+                          approvalState: 'approved',
+                          repairExecutionRequestId: input.executionRequestId,
+                          runtimeExecutor: 'manual_repair_execution_control',
+                          sideEffectsApplied: false,
+                          version: 'agent-runtime-step-output-summary/v1',
+                        },
+                        runId: 'agent-run-1',
+                        startedAt: '2026-06-20T09:00:00.000Z',
+                        status: 'skipped',
+                        stepKey: 'repair_execution',
+                        stepType: 'approval',
+                        title: 'Repair execution request',
+                        updatedAt: '2026-06-20T09:06:00.000Z',
+                        workspaceId: input.workspaceId,
+                      },
+                    ],
+                    timelineEvents: [
+                      {
+                        actorId: 'user-1',
+                        createdAt: '2026-06-20T09:06:00.000Z',
+                        eventFingerprint: 'agent-event-cancel-1',
+                        eventType: 'run_status',
+                        id: 'agent-event-cancel-1',
+                        ordinal: 0,
+                        payload: {},
+                        runId: 'agent-run-1',
+                        status: 'cancelled',
+                        stepId: null,
+                        summary: 'Repair execution run cancelled',
+                        workspaceId: input.workspaceId,
+                      },
+                      {
+                        actorId: 'user-1',
+                        createdAt: '2026-06-20T09:06:00.000Z',
+                        eventFingerprint: 'agent-event-cancel-2',
+                        eventType: 'approval_step',
+                        id: 'agent-event-cancel-2',
+                        ordinal: 1,
+                        payload: {
+                          runtimeExecutor: 'manual_repair_execution_control',
+                          sideEffectsApplied: false,
+                        },
+                        runId: 'agent-run-1',
+                        status: 'skipped',
+                        stepId: 'agent-step-1',
+                        summary: 'Repair execution approval rejected',
+                        workspaceId: input.workspaceId,
+                      },
+                    ],
+                  },
+                },
+        })
+    );
+    useMutationMock.mockImplementation(({ mutation }) => {
+      if (mutation === requestCopilotPromptRegistryRepairExecutionMutation) {
+        return {
+          isMutating: false,
+          trigger: requestRepairExecutionMock,
+        };
+      }
+      if (mutation === decideCopilotRepairExecutionApprovalMutation) {
+        return {
+          isMutating: false,
+          trigger: decideRepairExecutionApprovalMock,
+        };
+      }
+      if (mutation === controlCopilotRepairExecutionMutation) {
+        return {
+          isMutating: false,
+          trigger: controlRepairExecutionMock,
+        };
+      }
+      if (mutation === controlCopilotAgentRuntimeRunMutation) {
+        return {
+          isMutating: false,
+          trigger: controlAgentRuntimeRunMock,
+        };
+      }
+      if (mutation === createCopilotSupportBundleMutation) {
+        return {
+          isMutating: false,
+          trigger: createSupportBundleMock,
+        };
+      }
+      if (mutation === authorizeCopilotSupportBundleDownloadMutation) {
+        return {
+          isMutating: false,
+          trigger: authorizeSupportBundleDownloadMock,
+        };
+      }
+      if (mutation === cleanupCopilotSupportBundleRetentionMutation) {
+        return {
+          isMutating: false,
+          trigger: cleanupSupportBundleRetentionMock,
+        };
+      }
+      if (
+        mutation === replayCopilotSupportBundleTransferForwardingEventMutation
+      ) {
+        return {
+          isMutating: false,
+          trigger: replaySupportBundleTransferForwardingEventMock,
+        };
+      }
+      if (mutation === retryCopilotProviderHealthProbeAttemptMutation) {
+        return {
+          isMutating: false,
+          trigger: retryProviderHealthProbeAttemptMock,
+        };
+      }
+      if (mutation === updateAppConfigMutation) {
+        return {
+          isMutating: false,
+          trigger: updateAppConfigMock,
+        };
+      }
+      throw new Error('Unexpected mutation');
+    });
+    useQueryMock.mockImplementation(options => {
+      if (!options) {
+        return {
+          data: undefined,
+          isValidating: false,
+          mutate: vi.fn(),
+        };
+      }
+
+      const { query, variables } = options;
+
+      if (query === appConfigQuery) {
+        return {
+          data: {
+            appConfig: {
+              copilot: {
+                enabled: true,
+                byok: {
+                  allowedProviders: ['openai', 'anthropic', 'gemini', 'fal'],
+                  allowCustomEndpoint: true,
+                  enabled: true,
+                },
+                exa: {
+                  key: '',
+                },
+                prompts: {
+                  defaults: {
+                    text: {
+                      model: 'gpt-4o-mini',
+                    },
+                  },
+                  overrides: [
+                    {
+                      name: 'Chat With AFFiNE AI',
+                      model: 'gpt-4o-mini',
+                    },
+                  ],
+                },
+                providers: {
+                  anthropic: {
+                    apiKey: '',
+                    baseURL: 'https://api.anthropic.com/v1',
+                  },
+                  anthropicVertex: {},
+                  cloudflareWorkersAi: {
+                    accountId: '',
+                    apiToken: '',
+                    baseURL: '',
+                  },
+                  defaults: {
+                    text: 'openai-main',
+                    fallback: 'openai-main',
+                  },
+                  fal: {
+                    apiKey: '',
+                  },
+                  gemini: {
+                    apiKey: '',
+                    baseURL: 'https://generativelanguage.googleapis.com/v1beta',
+                  },
+                  geminiVertex: {},
+                  openai: {
+                    apiKey: '',
+                    baseURL: 'https://api.openai.com/v1',
+                  },
+                  openaiCompatible: {
+                    apiKey: '',
+                    apiStyle: 'chat_completions',
+                    baseURL: '',
+                  },
+                  profiles: [
+                    {
+                      id: 'openai-main',
+                      type: 'openai',
+                      config: {
+                        apiKey: '',
+                      },
+                    },
+                  ],
+                  routePolicy: {
+                    enabled: true,
+                  },
+                },
+                storage: {
+                  provider: 'fs',
+                  bucket: 'copilot',
+                  config: {
+                    path: '~/.affine/storage',
+                  },
+                },
+                supportBundles: {
+                  objectStorageWebhooks: [],
+                },
+                tasks: {
+                  models: {
+                    embedding: 'text-embedding-3-small',
+                    rerank: 'bge-reranker-v2',
+                    workspaceIndexing: 'workspace-embedding',
+                  },
+                },
+                unsplash: {
+                  key: '',
+                },
+              },
+            },
+          },
+          isValidating: false,
+          mutate: vi.fn(),
+        };
+      }
+
       if (query === getCopilotPromptsQuery) {
         return {
           data: {
@@ -8243,6 +10274,20 @@ describe('AiPage', () => {
           },
           isValidating: false,
           mutate: mutateMock,
+        };
+      }
+
+      if (query === getCopilotProviderHealthProbeAttemptsQuery) {
+        return {
+          data: {
+            currentUser: {
+              copilot: {
+                providerHealthProbeAttempts: providerHealthProbeAttemptsPayload,
+              },
+            },
+          },
+          isValidating: false,
+          mutate: vi.fn(),
         };
       }
 
@@ -8663,6 +10708,50 @@ describe('AiPage', () => {
         };
       }
 
+      if (query === getCopilotSupportBundlesQuery) {
+        return {
+          data: {
+            currentUser: {
+              copilot: {
+                supportBundles: supportBundlesPayload,
+              },
+            },
+          },
+          isValidating: false,
+          mutate: mutateMock,
+        };
+      }
+
+      if (query === getCopilotAgentRunsQuery) {
+        return {
+          data: {
+            currentUser: {
+              copilot: {
+                agentRuntimeWorkflowAdapters:
+                  agentRuntimeWorkflowAdaptersPayload,
+                agentRuns: agentRunsPayload,
+              },
+            },
+          },
+          isValidating: false,
+          mutate: mutateMock,
+        };
+      }
+
+      if (query === getCopilotRepairExecutionsQuery) {
+        return {
+          data: {
+            currentUser: {
+              copilot: {
+                repairExecutions: repairExecutionsPayload,
+              },
+            },
+          },
+          isValidating: false,
+          mutate: vi.fn(),
+        };
+      }
+
       throw new Error('Unexpected query');
     });
   });
@@ -8671,8 +10760,48 @@ describe('AiPage', () => {
     cleanup();
   });
 
+  test('renders complete AI configuration separately from runtime diagnostics', () => {
+    renderAiPage('/admin/ai');
+
+    expect(screen.getByText('Configuration')).not.toBeNull();
+    expect(screen.getByText('Runtime')).not.toBeNull();
+    expect(screen.getByText('AI capability switches')).not.toBeNull();
+    expect(screen.getByText('Provider credentials')).not.toBeNull();
+    expect(screen.getByText('Provider registry and routing')).not.toBeNull();
+    expect(screen.getByText('Prompt and task models')).not.toBeNull();
+    expect(
+      screen.getByText('Search, assets, storage, and support bundles')
+    ).not.toBeNull();
+    expect(screen.getByText('Workspace BYOK')).not.toBeNull();
+    expect(screen.getByText('BYOK allowed providers')).not.toBeNull();
+    expect(screen.getByText('OpenAI')).not.toBeNull();
+    expect(screen.getByText('OpenAI-compatible')).not.toBeNull();
+    expect(screen.getByText('Gemini')).not.toBeNull();
+    expect(screen.getByText('Anthropic')).not.toBeNull();
+    expect(screen.getByText('Cloudflare Workers AI')).not.toBeNull();
+    expect(screen.getByText('FAL')).not.toBeNull();
+    expect(screen.getByText('Provider profiles JSON')).not.toBeNull();
+    expect(screen.getByText('Provider defaults JSON')).not.toBeNull();
+    expect(screen.getByText('Route policy JSON')).not.toBeNull();
+    expect(screen.getByText('Gemini Vertex JSON')).not.toBeNull();
+    expect(screen.getByText('Anthropic Vertex JSON')).not.toBeNull();
+    expect(screen.getByText('Prompt defaults JSON')).not.toBeNull();
+    expect(screen.getByText('Prompt overrides JSON')).not.toBeNull();
+    expect(screen.getByText('Embedding model alias')).not.toBeNull();
+    expect(screen.getByText('Workspace indexing model alias')).not.toBeNull();
+    expect(screen.getByText('Rerank model alias')).not.toBeNull();
+    expect(screen.getByText('Unsplash key')).not.toBeNull();
+    expect(screen.getByText('Exa web search key')).not.toBeNull();
+    expect(screen.getByText('Copilot storage JSON')).not.toBeNull();
+    expect(
+      screen.getByText('Support bundle object-storage webhooks JSON')
+    ).not.toBeNull();
+    expect(screen.queryByText('Model route diagnostics')).toBeNull();
+    expect(screen.queryByText('Agent runtime runs')).toBeNull();
+  });
+
   test('queries prompt models for the admin diagnostics page', () => {
-    render(<AiPage />);
+    renderAiPage();
 
     expect(useQueryMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -8702,6 +10831,38 @@ describe('AiPage', () => {
     expect(screen.getAllByText('Global').length).toBeGreaterThan(0);
     expect(screen.getByText('Workspace selector')).not.toBeNull();
     expect(screen.getByText('Workspace options: 2')).not.toBeNull();
+    expect(screen.getByText('Support bundles')).not.toBeNull();
+    expect(
+      screen.getByText(
+        'Select a workspace scope before creating or viewing support bundles.'
+      )
+    ).not.toBeNull();
+    expect(screen.getByText('Agent runtime runs')).not.toBeNull();
+    expect(screen.getByText('Repair executions')).not.toBeNull();
+    expect(
+      screen.getByText(
+        'Select a workspace scope before viewing repair executions.'
+      )
+    ).not.toBeNull();
+    expect(
+      screen.getByText(
+        'Select a workspace scope before viewing Agent Runtime runs.'
+      )
+    ).not.toBeNull();
+    expect(
+      (
+        screen.getByRole('button', {
+          name: 'Create bundle',
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true);
+    expect(
+      (
+        screen.getByRole('button', {
+          name: 'Cleanup retention',
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true);
     expect(screen.getByText('Action run route trace')).not.toBeNull();
     expect(
       screen.getByText(
@@ -8715,26 +10876,17 @@ describe('AiPage', () => {
         }) as HTMLButtonElement
       ).disabled
     ).toBe(true);
-    expect(
-      useQueryMock.mock.calls.some(
-        ([options]) =>
-          (options as { query?: unknown }).query ===
-          getCopilotActionRunPreparedRouteTraceQuery
-      )
-    ).toBe(false);
-    expect(
-      useQueryMock.mock.calls.some(
-        ([options]) =>
-          (options as { query?: unknown }).query === getCopilotActionRunsQuery
-      )
-    ).toBe(false);
-    expect(
-      useQueryMock.mock.calls.some(
-        ([options]) =>
-          (options as { query?: unknown }).query ===
-          getCopilotPromptRegistryPublishGateQuery
-      )
-    ).toBe(false);
+    expect(hasQueryCall(getCopilotActionRunPreparedRouteTraceQuery)).toBe(
+      false
+    );
+    expect(hasQueryCall(getCopilotActionRunsQuery)).toBe(false);
+    expect(hasQueryCall(getCopilotSupportBundlesQuery)).toBe(false);
+    expect(hasQueryCall(getCopilotAgentRunsQuery)).toBe(false);
+    expect(hasQueryCall(getCopilotRepairExecutionsQuery)).toBe(false);
+    expect(hasQueryCall(getCopilotProviderHealthProbeAttemptsQuery)).toBe(
+      false
+    );
+    expect(hasQueryCall(getCopilotPromptRegistryPublishGateQuery)).toBe(false);
     expect(
       (screen.getByLabelText('Prompt name') as HTMLInputElement).value
     ).toBe('Chat With AFFiNE AI');
@@ -8764,7 +10916,7 @@ describe('AiPage', () => {
     ).not.toBeNull();
     expect(
       screen.getByText(
-        'Provider profile / Definition gpt-4o-mini / Raw gpt-4o-mini-2026-06-01 / Aliases fast-chat / openai / Canonical gpt-4o-mini / Protocol openai / Layer chat'
+        'Provider profile / Definition gpt-4o-mini / Raw gpt-4o-mini-2026-06-01 / Aliases fast-chat / Registry model-registry-openai-gpt-1 / Revision workspace-openai-gpt-r1 / Scope workspace / Status active / Fingerprint modelregistry33334444 / Source chain modelchain33334444 / Workspace workspace-1 / Publish events 1 / openai / Canonical gpt-4o-mini / Protocol openai / Layer chat'
       )
     ).not.toBeNull();
     expect(screen.getByText('Model source Override')).not.toBeNull();
@@ -8780,7 +10932,7 @@ describe('AiPage', () => {
   });
 
   test('updates diagnostics query when prompt and workspace scope are submitted', () => {
-    render(<AiPage />);
+    renderAiPage();
 
     fireEvent.change(screen.getByLabelText('Prompt name'), {
       target: {
@@ -8800,8 +10952,451 @@ describe('AiPage', () => {
     });
   });
 
+  test('renders and creates DB-backed support bundles for a workspace scope', async () => {
+    renderAiPage();
+
+    fireEvent.change(screen.getByLabelText('Workspace ID'), {
+      target: {
+        value: 'workspace-1',
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Test route' }));
+
+    await waitFor(() => {
+      expectQueryCall(getCopilotSupportBundlesQuery, {
+        limit: 8,
+        workspaceId: 'workspace-1',
+      });
+    });
+    expectQueryCall(getCopilotProviderHealthProbeAttemptsQuery, {
+      limit: 5,
+      workspaceId: 'workspace-1',
+    });
+    const providerHealthProbeAttempts = screen.getByTestId(
+      'provider-health-probe-attempts'
+    );
+    expect(providerHealthProbeAttempts.textContent).toContain(
+      'probe Completed / provider localmind-db-provider / type OpenAI-compatible / revision provider-registry-admin-1 / revision fingerprint providerregistry1111'
+    );
+    expect(providerHealthProbeAttempts.textContent).toContain(
+      'profile source DB revision / profile fingerprint providerprofile1111 / profile models 1 / request probeattempt1111 / actor user-1 / attempts 1/3'
+    );
+    expect(providerHealthProbeAttempts.textContent).toContain(
+      'result Healthy / result fingerprint proberesult1111 / state provider-health-state-admin-1 / state fingerprint providerhealth1111'
+    );
+    expect(providerHealthProbeAttempts.textContent).toContain(
+      'probe Dead Lettered / provider localmind-db-provider / type OpenAI-compatible / revision provider-registry-admin-1'
+    );
+    expect(providerHealthProbeAttempts.textContent).toContain(
+      'failure Provider Profile Unavailable / message Provider profile unavailable'
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(retryProviderHealthProbeAttemptMock).toHaveBeenCalledWith({
+      input: {
+        attemptId: 'provider-health-probe-dead-admin-1',
+        workspaceId: 'workspace-1',
+      },
+    });
+    fireEvent.keyDown(
+      screen.getByRole('combobox', { name: 'Provider health probe status' }),
+      {
+        key: 'ArrowDown',
+      }
+    );
+    fireEvent.click(screen.getByRole('option', { name: 'Dead Lettered' }));
+    fireEvent.change(screen.getByLabelText('Provider health probe filter'), {
+      target: {
+        value: 'probeattemptdead1111',
+      },
+    });
+    expectQueryCall(getCopilotProviderHealthProbeAttemptsQuery, {
+      filter: {
+        query: 'probeattemptdead1111',
+        status: 'dead_lettered',
+      },
+      limit: 5,
+      workspaceId: 'workspace-1',
+    });
+    expect(screen.getByText('Support bundles')).not.toBeNull();
+    expect(screen.getByText('support-bundle-1')).not.toBeNull();
+    const bundleManifest = screen.getByTestId(
+      'support-bundle-manifest-support-bundle-1'
+    );
+    expect(bundleManifest.textContent).toContain(
+      'manifest manifest111122223333 / archive archive111122223333 / source source111122223333 / retention Active / audit events 2 / transfer events 1 / transfer forwarding events 1'
+    );
+    expect(bundleManifest.textContent).toContain(
+      'copilot-support-bundle-manifest/v1 / sections prompt_catalog_count, actor_action_run_count, task_route_summary / prompts 4 / action runs 3 / task routes 2 / archive bytes 512 / storage support-bundles/support-bundle-1/archive.json'
+    );
+    const auditEvents = screen.getByTestId(
+      'support-bundle-audit-events-support-bundle-1'
+    );
+    expect(auditEvents.textContent).toContain(
+      'audit Archive Created / fingerprint auditarchive1111 / actor user-1'
+    );
+    expect(auditEvents.textContent).toContain(
+      'audit Created / fingerprint auditcreated1111 / actor user-1'
+    );
+    const transferEvents = screen.getByTestId(
+      'support-bundle-transfer-events-support-bundle-1'
+    );
+    expect(transferEvents.textContent).toContain(
+      'transfer Object Storage Signed Url / source object_storage_event_admin / event support-bundle-transfer-ok-admin / fingerprint transfer111122223333 / authorization download-auth-1'
+    );
+    expect(transferEvents.textContent).toContain(
+      'artifact Archive Json:archive111122223333 / manifest manifest111122223333 / notification auth auth-evidence11112222 / storage support-bundles/support-bundle-1/archive.json / content application/json / bytes 512'
+    );
+    const transferForwardingEvents = screen.getByTestId(
+      'support-bundle-transfer-forwarding-events-support-bundle-1'
+    );
+    expect(transferForwardingEvents.textContent).toContain(
+      'forwarding Dead Lettered / source object_storage_event_admin / event support-bundle-forwarding-dead-letter-admin / fingerprint forwarding111122223333 / payload payload111122223333 / authorization download-auth-1 / signature signature11112222'
+    );
+    expect(transferForwardingEvents.textContent).toContain('attempts 3/3');
+    expect(transferForwardingEvents.textContent).toContain(
+      'failure Support Bundle Transfer Event Storage Key Mismatch'
+    );
+    fireEvent.keyDown(
+      screen.getByRole('combobox', {
+        name: 'Support bundle forwarding status',
+      }),
+      {
+        key: 'ArrowDown',
+      }
+    );
+    fireEvent.click(screen.getByRole('option', { name: 'Dead Lettered' }));
+    fireEvent.change(
+      screen.getByLabelText('Support bundle forwarding filter'),
+      {
+        target: {
+          value: 'forwarding111122223333',
+        },
+      }
+    );
+    expectQueryCall(getCopilotSupportBundlesQuery, {
+      filter: {
+        query: 'forwarding111122223333',
+        transferForwardingStatus: 'dead_lettered',
+      },
+      limit: 8,
+      workspaceId: 'workspace-1',
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Replay' }));
+    await waitFor(() => {
+      expect(
+        replaySupportBundleTransferForwardingEventMock
+      ).toHaveBeenCalledWith({
+        input: {
+          forwardingEventId: 'transfer-forwarding-event-1',
+          workspaceId: 'workspace-1',
+        },
+      });
+    });
+    expect(
+      screen.getByText('Latest transfer forwarding replay')
+    ).not.toBeNull();
+    expect(screen.getAllByText(/forwarding Queued/)[0].textContent).toContain(
+      'forwarding Queued / source object_storage_event_admin / event support-bundle-forwarding-dead-letter-admin / fingerprint forwardingreplay1111 / payload payloadreplay1111 / replay source transfer-forwarding-event-1'
+    );
+    expect(
+      screen.getByTestId(
+        'support-bundle-transfer-forwarding-events-support-bundle-1'
+      ).textContent
+    ).toContain(
+      'forwarding Queued / source object_storage_event_admin / event support-bundle-forwarding-dead-letter-admin / fingerprint forwardingreplay1111 / payload payloadreplay1111 / replay source transfer-forwarding-event-1'
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Download archive' }));
+
+    await waitFor(() => {
+      expect(authorizeSupportBundleDownloadMock).toHaveBeenCalledWith({
+        input: {
+          bundleId: 'support-bundle-1',
+          artifactKind: 'archive_json',
+          workspaceId: 'workspace-1',
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(windowOpenMock).toHaveBeenCalledWith(
+        'http://localhost/api/copilot/support-bundles/download-auth-1/artifact?token=download-token-1',
+        '_blank',
+        'noopener,noreferrer'
+      );
+    });
+    expect(
+      screen.getByText('Latest artifact download authorization')
+    ).not.toBeNull();
+    expect(
+      screen
+        .getAllByText(/download-auth-1/)
+        .some(element =>
+          element.textContent?.includes(
+            'download-auth-1 / status Authorized / artifact localmind-support-bundle-support-bundle-1.archive.json / artifact fingerprint archive111122223333 / manifest manifest111122223333 / authorization download-auth-11112222 / delivery Api Proxy / direct object-storage URL no'
+          )
+        )
+    ).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cleanup retention' }));
+
+    await waitFor(() => {
+      expect(cleanupSupportBundleRetentionMock).toHaveBeenCalledWith({
+        input: {
+          limit: 50,
+          workspaceId: 'workspace-1',
+        },
+      });
+    });
+    expect(screen.getByText('Latest retention cleanup')).not.toBeNull();
+    expect(screen.getByText(/cleanup111122223333/).textContent).toContain(
+      'cleanup111122223333 / bundles 1 / authorizations 1 / archive retries 1 / archive recovered 1 / archive failed 0'
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create bundle' }));
+
+    await waitFor(() => {
+      expect(createSupportBundleMock).toHaveBeenCalledWith({
+        input: {
+          workspaceId: 'workspace-1',
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(mutateMock).toHaveBeenCalled();
+    });
+    expect(screen.getByText('Latest created bundle')).not.toBeNull();
+    expect(
+      screen.getByTestId('support-bundle-manifest-support-bundle-created')
+    ).not.toBeNull();
+  });
+
+  test('renders persisted Agent Runtime runs for a workspace scope', async () => {
+    renderAiPage();
+
+    fireEvent.change(screen.getByLabelText('Workspace ID'), {
+      target: {
+        value: 'workspace-1',
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Test route' }));
+
+    await waitFor(() => {
+      expectQueryCall(getCopilotAgentRunsQuery, {
+        limit: 8,
+        workspaceId: 'workspace-1',
+      });
+    });
+    expectQueryCall(getCopilotRepairExecutionsQuery, {
+      limit: 8,
+      workspaceId: 'workspace-1',
+    });
+    expect(screen.getByText('Repair executions')).not.toBeNull();
+    expect(screen.getByText('repair-execution-1')).not.toBeNull();
+    expect(screen.getByText('repair-execution-completed')).not.toBeNull();
+    expect(
+      screen.getByTestId('repair-execution-runtime-repair-execution-1')
+        .textContent
+    ).toContain('agent run agent-run-1:Queued');
+    expect(
+      screen.getByTestId('repair-execution-ledger-repair-execution-completed')
+        .textContent
+    ).toContain(
+      'side effect history Prompt Registry Revision:prompt-revision-repair-execution-completed:attempt 1:sideeffect1111'
+    );
+    fireEvent.keyDown(
+      screen.getByRole('combobox', { name: 'Repair execution status' }),
+      {
+        key: 'ArrowDown',
+      }
+    );
+    fireEvent.click(screen.getByRole('option', { name: 'Completed' }));
+    fireEvent.change(screen.getByLabelText('Repair execution filter'), {
+      target: {
+        value: 'sideeffect1111',
+      },
+    });
+    expectQueryCall(getCopilotRepairExecutionsQuery, {
+      filter: {
+        query: 'sideeffect1111',
+        status: 'completed',
+      },
+      limit: 8,
+      workspaceId: 'workspace-1',
+    });
+    expect(screen.getByText('Agent runtime runs')).not.toBeNull();
+    expect(
+      screen.getByTestId('agent-runtime-adapter-agent_runtime_record_only')
+        .textContent
+    ).toContain('agent_runtime_record_only');
+    expect(
+      screen.getByTestId('agent-runtime-adapter-agent_runtime_record_only')
+        .textContent
+    ).toContain('steps Approval, Codex, Handoff, Mcp, Model, Tool');
+    expect(
+      screen.getByTestId('agent-runtime-adapter-agent_runtime_record_only')
+        .textContent
+    ).toContain('side effects None');
+    expect(screen.getByText('Repair execution: Make it real')).not.toBeNull();
+    expect(screen.getByText('agent-run-1')).not.toBeNull();
+    expect(screen.getAllByText('Queued').length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/workflow prompt_registry_repair_execution/)
+    ).not.toBeNull();
+    expect(
+      screen.getByText(/source repair_execution_request:repair-execution-1/)
+    ).not.toBeNull();
+    expect(
+      screen.getByTestId('agent-runtime-steps-agent-run-1').textContent
+    ).toContain('repair_execution:Model:Pending');
+    expect(
+      screen.getByTestId('agent-runtime-timeline-agent-run-1').textContent
+    ).toContain(
+      '#0:Run Status:Waiting Approval:Repair execution run waiting_approval'
+    );
+    expect(
+      screen.getByTestId('agent-runtime-timeline-agent-run-1').textContent
+    ).toContain('#2:Run Status:Queued:Repair execution run queued');
+    expect(
+      screen.getByTestId('agent-runtime-timeline-agent-run-1').textContent
+    ).toContain('#3:Model Step:Pending:Repair execution queued for worker');
+    expect(screen.getByText('Standalone runtime run')).not.toBeNull();
+    expect(screen.getByText('Use repair execution controls')).not.toBeNull();
+    expect(
+      screen.getByTestId('agent-runtime-steps-agent-run-standalone').textContent
+    ).toContain('tool_lookup:Tool:Running');
+    expect(screen.getByText('Completed runtime run')).not.toBeNull();
+    expect(
+      screen.getByTestId('agent-runtime-results-agent-run-completed')
+        .textContent
+    ).toContain('Execution results 1');
+    expect(
+      screen.getByTestId('agent-runtime-results-agent-run-completed')
+        .textContent
+    ).toContain('fingerprint agentresult1111');
+    expect(
+      screen.getByTestId('agent-runtime-results-agent-run-completed')
+        .textContent
+    ).toContain('attempt 1');
+    expect(
+      screen.getByTestId('agent-runtime-results-agent-run-completed')
+        .textContent
+    ).toContain('side effects none');
+    fireEvent.keyDown(
+      screen.getByRole('combobox', { name: 'Agent Runtime run status' }),
+      {
+        key: 'ArrowDown',
+      }
+    );
+    fireEvent.click(screen.getByRole('option', { name: 'Completed' }));
+    fireEvent.change(screen.getByLabelText('Agent Runtime run filter'), {
+      target: {
+        value: 'agentresult1111',
+      },
+    });
+    expectQueryCall(getCopilotAgentRunsQuery, {
+      filter: {
+        query: 'agentresult1111',
+        status: 'completed',
+      },
+      limit: 8,
+      workspaceId: 'workspace-1',
+    });
+  });
+
+  test('controls standalone Agent Runtime runs from the persisted run list', async () => {
+    const standaloneRun = agentRunsPayload[1]!;
+    controlAgentRuntimeRunMock.mockResolvedValue({
+      controlCopilotAgentRuntimeRun: {
+        ...standaloneRun,
+        completedAt: '2026-06-20T09:12:00.000Z',
+        status: 'cancelled',
+        timelineFingerprint: 'agent-timeline-cancelled',
+        updatedAt: '2026-06-20T09:12:00.000Z',
+        steps: standaloneRun.steps.map(step => ({
+          ...step,
+          completedAt: '2026-06-20T09:12:00.000Z',
+          status: 'skipped',
+          outputSummary: {
+            ...step.outputSummary,
+            manualControl: {
+              action: 'cancel',
+              reason: null,
+              version: 'agent-runtime-manual-control/v1',
+            },
+          },
+        })),
+        timelineEvents: [
+          ...standaloneRun.timelineEvents,
+          {
+            actorId: 'user-1',
+            createdAt: '2026-06-20T09:12:00.000Z',
+            eventFingerprint: 'agent-event-standalone-cancelled',
+            eventType: 'run_cancellation',
+            id: 'agent-event-standalone-cancelled',
+            ordinal: 2,
+            payload: {
+              action: 'cancel',
+              previousStatus: 'running',
+              sourceId: 'standalone-run-1',
+              sourceType: 'agent_runtime_manual',
+              version: 'agent-runtime-manual-control/v1',
+              workflow: 'office_task_runtime',
+            },
+            runId: 'agent-run-standalone',
+            status: 'cancelled',
+            stepId: null,
+            summary: 'Agent runtime run manually cancelled',
+            workspaceId: 'workspace-1',
+          },
+        ],
+      },
+    });
+    renderAiPage();
+
+    fireEvent.change(screen.getByLabelText('Workspace ID'), {
+      target: {
+        value: 'workspace-1',
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Test route' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Standalone runtime run')).not.toBeNull();
+    });
+    const cancelButtons = screen.getAllByRole('button', { name: 'Cancel' });
+    const enabledCancelButton = cancelButtons.find(
+      button => !(button as HTMLButtonElement).disabled
+    ) as HTMLButtonElement | undefined;
+    expect(enabledCancelButton).not.toBeUndefined();
+    fireEvent.click(enabledCancelButton!);
+
+    await waitFor(() => {
+      expect(controlAgentRuntimeRunMock).toHaveBeenCalledWith({
+        input: {
+          action: 'cancel',
+          runId: 'agent-run-standalone',
+          workspaceId: 'workspace-1',
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('agent-runtime-steps-agent-run-standalone')
+          .textContent
+      ).toContain('tool_lookup:Tool:Skipped');
+    });
+    expect(
+      screen.getByTestId('agent-runtime-timeline-agent-run-standalone')
+        .textContent
+    ).toContain(
+      '#2:Run Cancellation:Cancelled:Agent runtime run manually cancelled'
+    );
+    expect(screen.getByText('Latest control Cancelled')).not.toBeNull();
+    expect(mutateMock).toHaveBeenCalled();
+  });
+
   test('checks prompt registry repair execution request gate on demand', async () => {
-    render(<AiPage />);
+    renderAiPage();
 
     fireEvent.change(screen.getByLabelText('Prompt name'), {
       target: {
@@ -8899,12 +11494,21 @@ describe('AiPage', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByTestId('prompt-registry-publish-gate-Make it real')
-          .textContent
-      ).toContain(
-        'Repair execution request version repair-execution-request/v1 / status Blocked Read Only / read-only yes / mutation available no / accepted no / execution requested no / expected candidate evidence set fingerprint aaaa5555bbbb6666 / expected task route source evidence set fingerprint aaaa5656bbbb6767 / expected task route source evidence set version copilot-task-route-effective-source-evidence-set/v1 / expected task route source evidence set inputs diagnosticsFingerprint, operationFingerprint, taskRouteEffectiveSourceFingerprints / expected embedding index contract evidence set fingerprint aaaa6666bbbb7777 / expected rerank runtime contract evidence set fingerprint aaaa8888bbbb9999 / expected prepared route order evidence set fingerprint aaaa7777bbbb8888 / expected target locator fingerprint ddd111eee222ffff'
-      );
+        screen.getAllByText(/Repair execution request version/).length
+      ).toBeGreaterThan(0);
     });
+    const globalRepairExecutionRequest = screen
+      .getAllByText(/Repair execution request version/)
+      .at(-1)!;
+    expect(globalRepairExecutionRequest.textContent).toContain(
+      'version repair-execution-request/v1 / status Blocked Read Only'
+    );
+    expect(globalRepairExecutionRequest.textContent).toContain(
+      'accepted no / execution requested no / execution record none'
+    );
+    expect(globalRepairExecutionRequest.textContent).toContain(
+      'expected candidate evidence set fingerprint aaaa5555bbbb6666'
+    );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
         .textContent
@@ -8916,6 +11520,61 @@ describe('AiPage', () => {
         .textContent
     ).toContain(
       'support bundle task route source evidence set fingerprint aaaa5656bbbb6767 / support bundle task route source evidence set version copilot-task-route-effective-source-evidence-set/v1'
+    );
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain('execution record none');
+
+    fireEvent.change(screen.getByLabelText('Workspace ID'), {
+      target: {
+        value: 'workspace-1',
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Test route' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check request gate' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByText(
+          /execution record repair-execution-1 \/ status Waiting Approval .* side effects no/
+        ).length
+      ).toBeGreaterThan(0);
+    });
+    const waitingRepairExecutionRequest = screen
+      .getAllByText(
+        /execution record repair-execution-1 \/ status Waiting Approval .* side effects no/
+      )
+      .at(-1)!;
+    expect(waitingRepairExecutionRequest.textContent).toContain(
+      'execution record repair-execution-1 / status Waiting Approval'
+    );
+    expect(waitingRepairExecutionRequest.textContent).toContain(
+      '/ approval Waiting'
+    );
+    expect(waitingRepairExecutionRequest.textContent).toContain(
+      '/ audit events 2'
+    );
+    expect(waitingRepairExecutionRequest.textContent).toContain(
+      'audit history Waiting Approval:audit-waiting-approval-0 | Requested:audit-requested-1'
+    );
+    expect(waitingRepairExecutionRequest.textContent).toContain(
+      'side effect ledger 0'
+    );
+    expect(waitingRepairExecutionRequest.textContent).toContain(
+      'agent run agent-run-1'
+    );
+    expect(waitingRepairExecutionRequest.textContent).toContain(
+      'agent run status Waiting Approval'
+    );
+    expect(waitingRepairExecutionRequest.textContent).toContain(
+      'agent run workflow prompt_registry_repair_execution'
+    );
+    expect(waitingRepairExecutionRequest.textContent).toContain(
+      'agent run steps repair_execution:Approval:Waiting Approval'
+    );
+    expect(waitingRepairExecutionRequest.textContent).toContain(
+      'agent run timeline events #0:Run Status:Waiting Approval:Repair execution run waiting_approval | #1:Approval Step:Waiting Approval:Repair execution waiting for approval'
     );
     expect(
       screen.getByTestId('prompt-registry-publish-gate-Make it real')
@@ -8935,6 +11594,49 @@ describe('AiPage', () => {
     ).toContain(
       'candidateEvidenceEntries:candidateEvidenceEntries:none:candidateEvidenceCategories:0:candidateEvidenceCategories:none:candidateEvidenceProviderIds:none:candidateEvidenceScopes:none'
     );
+    expect(
+      screen.getByRole('button', { name: 'Approve execution' })
+    ).not.toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Reject execution' })
+    ).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve execution' }));
+
+    await waitFor(() => {
+      expect(decideRepairExecutionApprovalMock).toHaveBeenCalledWith({
+        input: {
+          workspaceId: 'workspace-1',
+          executionRequestId: 'repair-execution-1',
+          decision: 'approve',
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(
+        screen.getAllByText(/Repair execution approval decision/).length
+      ).toBeGreaterThan(0);
+    });
+    expect(
+      screen.getAllByText(/Repair execution approval decision/).at(-1)!
+        .textContent
+    ).toContain(
+      'repair-execution-1 / status Queued / approval Approved / idempotency repair-idempotency-key-1 / audit events 4'
+    );
+    expect(
+      screen.getAllByText(/Repair execution approval decision/).at(-1)!
+        .textContent
+    ).toContain(
+      'executor queued_repair_execution_worker / side effects no / side effect ledger 0'
+    );
+    expect(
+      screen.getAllByText(/Repair execution approval decision/).at(-1)!
+        .textContent
+    ).toContain('queued 2026-06-20T09:05:00.000Z / worker attempt 0/3');
+    expect(
+      screen.getByTestId('prompt-registry-publish-gate-Make it real')
+        .textContent
+    ).toContain('execution record repair-execution-1 / status Queued');
     const taskRouteSourceEntry =
       readyPublishGateVerdict.repairActionPreview.operations.find(
         operation => operation.taskRouteEffectiveSourceFingerprints.length
@@ -9542,492 +12244,469 @@ describe('AiPage', () => {
     ).toContain(
       'support bundle task route source evidence set inputs diagnosticsFingerprint, operationFingerprint, taskRouteEffectiveSourceFingerprints'
     );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'approval record request repair-execution-approval-record-request/v1 / approval record request status Not Created Read Only / approval record request created no / approval record request fingerprint dddd3333eeee4444'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle artifact prompt-registry-repair-gate-support-bundle-artifact/v1 / support bundle artifact status Not Created Read Only / support bundle artifact created no / support bundle artifact fingerprint efef5555abab6666'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle artifact inputs candidateEvidenceSetFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint, embeddingIndexContractEvidenceSetFingerprint, manifestExportPolicyFingerprint, manifestFingerprint, manifestMetadataRetentionPolicyFingerprint'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle artifact record request prompt-registry-repair-gate-support-bundle-artifact-record-request/v1 / support bundle artifact record request status Not Created Read Only / support bundle artifact record request created no / support bundle artifact record request fingerprint ffff9999eeee0000'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle artifact record request inputs artifactFingerprint, artifactStatus, auditPersistenceRequestFingerprint, downloadAuthorizationRequestFingerprint, manifestFingerprint, manifestMetadataFingerprint, packageFingerprint, requestStatus, retentionCleanupRequestFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle storage key request prompt-registry-repair-gate-support-bundle-storage-key-request/v1 / support bundle storage key request status Not Allocated Read Only / support bundle storage key request created no / support bundle storage key request fingerprint aaaa9999dddd0000'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle storage key request inputs artifactFingerprint, artifactRecordRequestFingerprint, manifestFingerprint, packageFingerprint, requestStatus, storageKeyScope, taskRouteEffectiveSourceEvidenceSetFingerprint'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle storage key scope Support Bundle Artifact Record'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle archive request prompt-registry-repair-gate-support-bundle-archive-request/v1 / support bundle archive request status Not Created Read Only / support bundle archive request created no / support bundle archive request fingerprint bbbb9999eeee0000'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle archive request inputs archiveFormat, archiveScope, artifactFingerprint, artifactRecordRequestFingerprint, manifestFingerprint, manifestMetadataFingerprint, packageFingerprint, requestStatus, storageKeyRequestFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle archive format Json Manifest Bundle / support bundle archive scope Support Bundle Download Archive'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle archive signature request prompt-registry-repair-gate-support-bundle-archive-signature-request/v1 / support bundle archive signature request status Not Signed Read Only / support bundle archive signature request created no / support bundle archive signature request fingerprint cccc9999ffff0000'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle archive signature request inputs archiveFormat, archiveRequestFingerprint, archiveScope, artifactRecordRequestFingerprint, manifestFingerprint, manifestMetadataFingerprint, packageFingerprint, requestStatus, signaturePolicy, storageKeyRequestFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle archive signature policy Support Bundle Archive Signature Read Only'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      `support bundle manifest prompt-registry-repair-gate-manifest-42-${readyPublishGateVerdict.repairGateManifest.fingerprint}.json / support bundle manifest fingerprint ${readyPublishGateVerdict.repairGateManifest.fingerprint}`
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      `support bundle manifest metadata prompt-registry-repair-gate-manifest-metadata-42-${readyPublishGateVerdict.repairGateManifest.fingerprint}.json / support bundle manifest metadata fingerprint ${readyPublishGateVerdict.repairGateManifestExportMetadata.exportPolicyFingerprint}`
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle package prompt-registry-repair-gate-support-bundle-package/v1 / support bundle package status Not Created Read Only / support bundle package created no / support bundle package fingerprint abab7777cdcd8888'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle package inputs auditEventFingerprint, auditEventStatus, auditPersistenceStatus, downloadAuthorizationRequestFingerprint, downloadAuthorizationStatus, exportPolicyFingerprint, manifestFingerprint, manifestMetadataFingerprint, redactionPolicyFingerprint, retentionCleanupStatus, retentionPolicyFingerprint, supportBundleArtifactFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle download authorization request prompt-registry-repair-gate-support-bundle-download-authorization-request/v1 / support bundle download authorization request status Not Created Read Only / support bundle download authorization request created no / support bundle download authorization request fingerprint cccc7777dddd8888'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle download authorization request inputs actorFingerprint, authorizationStatus, downloadAuthorizationStatus, exportPolicyFingerprint, manifestFingerprint, manifestMetadataFingerprint, requestStatus, supportBundleArtifactFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle download resolver request prompt-registry-repair-gate-support-bundle-download-resolver-request/v1 / support bundle download resolver request status Not Registered Read Only / support bundle download resolver request created no / support bundle download resolver request fingerprint dddd7777eeee8888'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle download resolver request inputs archiveRequestFingerprint, archiveSignatureRequestFingerprint, artifactRecordRequestFingerprint, downloadAuthorizationRequestFingerprint, downloadResolverRoute, manifestFingerprint, packageFingerprint, requestStatus, storageKeyRequestFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle download resolver route Support Bundle Signed Archive Download'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle signed url request prompt-registry-repair-gate-support-bundle-signed-url-request/v1 / support bundle signed url request status Not Issued Read Only / support bundle signed url request created no / support bundle signed url request fingerprint eeee7777ffff8888'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle signed url request inputs archiveSignatureRequestFingerprint, artifactRecordRequestFingerprint, downloadAuthorizationRequestFingerprint, downloadResolverRequestFingerprint, manifestFingerprint, packageFingerprint, requestStatus, signedUrlPolicy, signedUrlScope, storageKeyRequestFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle signed url policy Support Bundle Signed Url Read Only / support bundle signed url scope Support Bundle Download Resolver'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle audit persistence request prompt-registry-repair-gate-support-bundle-audit-persistence-request/v1 / support bundle audit persistence request status Not Created Read Only / support bundle audit persistence request created no / support bundle audit persistence request fingerprint dddd9999ccccaaaa'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle audit persistence request inputs actorFingerprint, auditEventFingerprint, auditEventStatus, auditPersistenceStatus, downloadAuthorizationRequestFingerprint, exportPolicyFingerprint, manifestFingerprint, requestStatus, supportBundlePackageFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle retention cleanup request prompt-registry-repair-gate-support-bundle-retention-cleanup-request/v1 / support bundle retention cleanup request status Not Scheduled Read Only / support bundle retention cleanup request created no / support bundle retention cleanup request fingerprint eeee9999ffff0000'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle retention cleanup request inputs actorFingerprint, auditPersistenceRequestFingerprint, manifestFingerprint, requestStatus, retentionCleanupStatus, retentionPolicyFingerprint, retentionPolicyStatus, supportBundlePackageFingerprint, taskRouteEffectiveSourceEvidenceSetFingerprint'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'support bundle download authorization status Not Checked Read Only / support bundle audit persistence status Not Persisted Read Only / support bundle retention cleanup status Not Scheduled Read Only'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'audit event request repair-execution-audit-event-request/v1 / audit event request status Not Created Read Only / audit event request created no / audit event request fingerprint dddd5555eeee6666'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution completion event request repair-execution-completion-event-request/v1 / execution completion event request status Not Recorded Read Only / execution completion event request created no / execution completion event request fingerprint dddd7777eeee8888'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution completion request repair-execution-completion-request/v1 / execution completion request status Not Completed Read Only / execution completion request created no / execution completion request fingerprint dddd6666eeee7777'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution finalization event request repair-execution-finalization-event-request/v1 / execution finalization event request status Not Recorded Read Only / execution finalization event request created no / execution finalization event request fingerprint dddd9999eeeeaaaa'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution finalization request repair-execution-finalization-request/v1 / execution finalization request status Not Finalized Read Only / execution finalization request created no / execution finalization request fingerprint dddd8888eeee9999'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution status poll request repair-execution-status-poll-request/v1 / execution status poll request status Not Started Read Only / execution status poll request created no / execution status poll request fingerprint ddddbbbb9999aaaa'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution operation entry request repair-execution-operation-entry-request/v1 / execution operation entry request status Not Opened Read Only / execution operation entry request created no / execution operation entry request fingerprint ddddcccc9999bbbb'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution approval UI request repair-execution-approval-ui-request/v1 / execution approval UI request status Not Rendered Read Only / execution approval UI request created no / execution approval UI request fingerprint dddddddd9999cccc'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution diff preview request repair-execution-diff-preview-request/v1 / execution diff preview request status Not Generated Read Only / execution diff preview request created no / execution diff preview request fingerprint ddddeeee9999dddd'
+    const workspaceRepairExecutionRequest = screen
+      .getAllByText(
+        /execution record repair-execution-1 \/ status Queued .* side effects no/
+      )
+      .at(-1)!;
+    expect(workspaceRepairExecutionRequest.textContent).toContain(
+      'execution record repair-execution-1 / status Queued'
+    );
+    expect(workspaceRepairExecutionRequest.textContent).toContain(
+      '/ approval Approved'
+    );
+    expect(workspaceRepairExecutionRequest.textContent).toContain(
+      '/ audit events 4'
+    );
+    expect(workspaceRepairExecutionRequest.textContent).toContain(
+      'side effect ledger 0'
+    );
+    expect(workspaceRepairExecutionRequest.textContent).toContain(
+      '/ worker attempt 0/3'
+    );
+    expect(workspaceRepairExecutionRequest.textContent).toContain(
+      '/ queued 2026-06-20T09:05:00.000Z'
+    );
+    expect(workspaceRepairExecutionRequest.textContent).toContain(
+      'agent run agent-run-1'
+    );
+    expect(workspaceRepairExecutionRequest.textContent).toContain(
+      'agent run status Queued'
+    );
+    expect(workspaceRepairExecutionRequest.textContent).toContain(
+      'agent run workflow prompt_registry_repair_execution'
+    );
+    expect(workspaceRepairExecutionRequest.textContent).toContain(
+      'agent run steps repair_execution:Model:Pending'
+    );
+    expect(workspaceRepairExecutionRequest.textContent).toContain(
+      'agent run timeline events #0:Run Status:Waiting Approval:Repair execution run waiting_approval | #1:Approval Step:Waiting Approval:Repair execution waiting for approval | #2:Run Status:Queued:Repair execution run queued | #3:Model Step:Pending:Repair execution queued for worker'
+    );
+    expect(
+      screen.getByRole('button', { name: 'Cancel execution' })
+    ).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel execution' }));
+
+    await waitFor(() => {
+      expect(controlRepairExecutionMock).toHaveBeenCalledWith({
+        input: {
+          workspaceId: 'workspace-1',
+          executionRequestId: 'repair-execution-1',
+          action: 'cancel',
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(
+        screen.getAllByText(/Repair execution control/).length
+      ).toBeGreaterThan(0);
+    });
+    const cancelledRepairExecutionRequest = screen
+      .getAllByText(/Repair execution control/)
+      .at(-1)!;
+    expect(cancelledRepairExecutionRequest.textContent).toContain(
+      'repair-execution-1 / status Cancelled'
+    );
+    expect(cancelledRepairExecutionRequest.textContent).toContain(
+      'executor manual_repair_execution_control'
+    );
+    expect(cancelledRepairExecutionRequest.textContent).toContain(
+      'completed 2026-06-20T09:06:00.000Z'
+    );
+  });
+
+  test('retries a failed persisted repair execution from Admin', async () => {
+    const defaultRequestRepairExecution =
+      requestRepairExecutionMock.getMockImplementation();
+    requestRepairExecutionMock.mockImplementationOnce(async input => {
+      const result = await defaultRequestRepairExecution?.(input);
+      const request = result.requestCopilotPromptRegistryRepairExecution;
+      const executionRecord = request.executionRecord;
+      if (!executionRecord) {
+        throw new Error('Expected repair execution record fixture');
+      }
+
+      return {
+        requestCopilotPromptRegistryRepairExecution: {
+          ...request,
+          accepted: true,
+          executionRequested: true,
+          executionRecord: {
+            ...executionRecord,
+            approvalState: 'approved',
+            auditEventCount: 9,
+            auditEvents: repairExecutionAuditEventsFixture([
+              'failed',
+              'running',
+              'queued',
+              'approval_approved',
+              'waiting_approval',
+            ]),
+            completedAt: '2026-06-20T09:10:00.000Z',
+            failureCode: 'unsupported_executor_payload',
+            failureMessage: 'Unsupported repair execution executor payload',
+            lastAttemptAt: '2026-06-20T09:09:00.000Z',
+            queuedAt: '2026-06-20T09:05:00.000Z',
+            runtimeResult: {
+              executor: 'repair_execution_worker',
+              message:
+                'Repair execution worker failed with unsupported_executor_payload: Unsupported repair execution executor payload',
+              sideEffectsApplied: false,
+              version: 'repair-execution-runtime-result/v1',
+            },
+            sideEffectCount: 0,
+            sideEffects: [],
+            status: 'failed',
+            updatedAt: '2026-06-20T09:10:00.000Z',
+            workerAttempt: 2,
+            agentRun: executionRecord.agentRun
+              ? {
+                  ...executionRecord.agentRun,
+                  completedAt: '2026-06-20T09:10:00.000Z',
+                  failureCode: 'unsupported_executor_payload',
+                  failureMessage:
+                    'Unsupported repair execution executor payload',
+                  status: 'failed',
+                  steps: executionRecord.agentRun.steps.map((step, index) =>
+                    index === 0
+                      ? {
+                          ...step,
+                          completedAt: '2026-06-20T09:10:00.000Z',
+                          status: 'failed',
+                        }
+                      : step
+                  ),
+                }
+              : null,
+          },
+          repairJobRequestStatus: 'failed',
+          requestStatus: 'failed',
+        },
+      };
+    });
+
+    renderAiPage();
+
+    fireEvent.change(screen.getByLabelText('Prompt name'), {
+      target: {
+        value: 'Make it real',
+      },
+    });
+    fireEvent.change(screen.getByLabelText('Workspace ID'), {
+      target: {
+        value: 'workspace-1',
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Test route' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check request gate' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Retry execution' })
+      ).not.toBeNull();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Retry execution' }));
+
+    await waitFor(() => {
+      expect(controlRepairExecutionMock).toHaveBeenCalledWith({
+        input: {
+          workspaceId: 'workspace-1',
+          executionRequestId: 'repair-execution-1',
+          action: 'retry',
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(
+        screen.getAllByText(/Repair execution control/).length
+      ).toBeGreaterThan(0);
+    });
+    const retriedRepairExecutionRequest = screen
+      .getAllByText(/Repair execution control/)
+      .at(-1)!;
+    expect(retriedRepairExecutionRequest.textContent).toContain(
+      'repair-execution-1 / status Queued'
+    );
+    expect(retriedRepairExecutionRequest.textContent).toContain(
+      'executor manual_repair_execution_control'
+    );
+    expect(retriedRepairExecutionRequest.textContent).toContain(
+      'worker attempt 2/3'
+    );
+  });
+
+  test('resumes a failed persisted repair execution with corrected payload from Admin', async () => {
+    const defaultRequestRepairExecution =
+      requestRepairExecutionMock.getMockImplementation();
+    requestRepairExecutionMock.mockImplementationOnce(async input => {
+      const result = await defaultRequestRepairExecution?.(input);
+      const request = result.requestCopilotPromptRegistryRepairExecution;
+      const executionRecord = request.executionRecord;
+      if (!executionRecord) {
+        throw new Error('Expected repair execution record fixture');
+      }
+
+      return {
+        requestCopilotPromptRegistryRepairExecution: {
+          ...request,
+          accepted: true,
+          executionRequested: true,
+          executionRecord: {
+            ...executionRecord,
+            approvalState: 'approved',
+            auditEventCount: 9,
+            auditEvents: repairExecutionAuditEventsFixture([
+              'failed',
+              'running',
+              'queued',
+              'approval_approved',
+              'waiting_approval',
+            ]),
+            completedAt: '2026-06-20T09:10:00.000Z',
+            failureCode: 'unsupported_executor_payload',
+            failureMessage: 'Unsupported repair execution executor payload',
+            lastAttemptAt: '2026-06-20T09:09:00.000Z',
+            queuedAt: '2026-06-20T09:05:00.000Z',
+            runtimeResult: {
+              executor: 'repair_execution_worker',
+              message:
+                'Repair execution worker failed with unsupported_executor_payload: Unsupported repair execution executor payload',
+              sideEffectsApplied: false,
+              version: 'repair-execution-runtime-result/v1',
+            },
+            sideEffectCount: 0,
+            sideEffects: [],
+            status: 'failed',
+            updatedAt: '2026-06-20T09:10:00.000Z',
+            workerAttempt: 2,
+            agentRun: executionRecord.agentRun
+              ? {
+                  ...executionRecord.agentRun,
+                  completedAt: '2026-06-20T09:10:00.000Z',
+                  failureCode: 'unsupported_executor_payload',
+                  failureMessage:
+                    'Unsupported repair execution executor payload',
+                  status: 'failed',
+                  steps: executionRecord.agentRun.steps.map((step, index) =>
+                    index === 0
+                      ? {
+                          ...step,
+                          completedAt: '2026-06-20T09:10:00.000Z',
+                          status: 'failed',
+                        }
+                      : step
+                  ),
+                }
+              : null,
+          },
+          repairJobRequestStatus: 'failed',
+          requestStatus: 'failed',
+        },
+      };
+    });
+
+    renderAiPage();
+
+    fireEvent.change(screen.getByLabelText('Prompt name'), {
+      target: {
+        value: 'Make it real',
+      },
+    });
+    fireEvent.change(screen.getByLabelText('Workspace ID'), {
+      target: {
+        value: 'workspace-1',
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Test route' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check request gate' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Resume with payload' })
+      ).not.toBeNull();
+    });
+    fireEvent.change(
+      screen.getByLabelText('Repair execution executor payload JSON'),
+      {
+        target: {
+          value: JSON.stringify(
+            {
+              kind: 'prompt_registry_revision_publish',
+              version: 'prompt-registry-revision-executor-payload/v1',
+            },
+            null,
+            2
+          ),
+        },
+      }
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Resume with payload' })
+    );
+
+    await waitFor(() => {
+      expect(controlRepairExecutionMock).toHaveBeenCalledWith({
+        input: {
+          workspaceId: 'workspace-1',
+          executionRequestId: 'repair-execution-1',
+          action: 'resume_with_payload',
+          executorPayload: {
+            kind: 'prompt_registry_revision_publish',
+            version: 'prompt-registry-revision-executor-payload/v1',
+          },
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(
+        screen.getAllByText(/Repair execution control/).length
+      ).toBeGreaterThan(0);
+    });
+    const resumedRepairExecutionRequest = screen
+      .getAllByText(/Repair execution control/)
+      .at(-1)!;
+    expect(resumedRepairExecutionRequest.textContent).toContain(
+      'repair-execution-1 / status Queued'
+    );
+    expect(resumedRepairExecutionRequest.textContent).toContain(
+      'executor manual_repair_execution_payload_correction'
+    );
+  });
+
+  test('shows repair execution side effect ledger history in Admin', async () => {
+    const defaultRequestRepairExecution =
+      requestRepairExecutionMock.getMockImplementation();
+    requestRepairExecutionMock.mockImplementationOnce(async input => {
+      const result = await defaultRequestRepairExecution?.(input);
+      const request = result.requestCopilotPromptRegistryRepairExecution;
+      const executionRecord = request.executionRecord;
+      if (!executionRecord) {
+        throw new Error('Expected repair execution record fixture');
+      }
+
+      return {
+        requestCopilotPromptRegistryRepairExecution: {
+          ...request,
+          accepted: true,
+          executionRequested: true,
+          executionRecord: {
+            ...executionRecord,
+            approvalState: 'approved',
+            auditEventCount: 6,
+            auditEvents: repairExecutionAuditEventsFixture([
+              'completed',
+              'side_effect_applied',
+              'running',
+              'queued',
+              'approval_approved',
+            ]),
+            completedAt: '2026-06-20T09:30:00.000Z',
+            lastAttemptAt: '2026-06-20T09:29:00.000Z',
+            queuedAt: '2026-06-20T09:05:00.000Z',
+            runtimeResult: {
+              executor: 'prompt_registry_revision_publish_worker',
+              message:
+                'Repair execution worker published a Prompt Registry revision.',
+              sideEffectsApplied: true,
+              sideEffectFingerprint: 'sideeffect1111',
+              sideEffectKind: 'prompt_registry_revision',
+              sideEffectRecordId: 'prompt-revision-repair-execution-1',
+              sideEffectSummary: {
+                revision: 'repair-repair-execution-1',
+                version: 'prompt-registry-side-effect-summary/v1',
+              },
+              version: 'repair-execution-runtime-result/v1',
+            },
+            sideEffectCount: 1,
+            sideEffects: [
+              {
+                actorId: 'user-1',
+                appliedAt: '2026-06-20T09:30:00.000Z',
+                createdAt: '2026-06-20T09:30:00.000Z',
+                executionRequestId: 'repair-execution-1',
+                executorPayloadFingerprint: 'executorpayload1111',
+                id: 'repair-execution-side-effect-repair-execution-1',
+                sideEffectFingerprint: 'sideeffect1111',
+                sideEffectKind: 'prompt_registry_revision',
+                sideEffectRecordId: 'prompt-revision-repair-execution-1',
+                sideEffectSummary: {
+                  revision: 'repair-repair-execution-1',
+                  version: 'prompt-registry-side-effect-summary/v1',
+                },
+                workerAttempt: 1,
+                workerLeaseId: 'repair-worker-lease-1',
+                workspaceId: 'workspace-1',
+              },
+            ],
+            status: 'completed',
+            updatedAt: '2026-06-20T09:30:00.000Z',
+            workerAttempt: 1,
+            agentRun: executionRecord.agentRun
+              ? {
+                  ...executionRecord.agentRun,
+                  completedAt: '2026-06-20T09:30:00.000Z',
+                  status: 'completed',
+                  steps: executionRecord.agentRun.steps.map((step, index) =>
+                    index === 0
+                      ? {
+                          ...step,
+                          completedAt: '2026-06-20T09:30:00.000Z',
+                          status: 'completed',
+                        }
+                      : step
+                  ),
+                }
+              : null,
+          },
+          repairJobRequestStatus: 'completed',
+          requestStatus: 'completed',
+        },
+      };
+    });
+
+    renderAiPage();
+
+    fireEvent.change(screen.getByLabelText('Prompt name'), {
+      target: {
+        value: 'Make it real',
+      },
+    });
+    fireEvent.change(screen.getByLabelText('Workspace ID'), {
+      target: {
+        value: 'workspace-1',
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Test route' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check request gate' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByText(/execution record repair-execution-1/).length
+      ).toBeGreaterThan(0);
+    });
+    const completedRepairExecutionRequest = screen
+      .getAllByText(/execution record repair-execution-1/)
+      .at(-1)!;
+    expect(completedRepairExecutionRequest.textContent).toContain(
+      'status Completed'
+    );
+    expect(completedRepairExecutionRequest.textContent).toContain(
+      'side effects yes'
+    );
+    expect(completedRepairExecutionRequest.textContent).toContain(
+      'side effect ledger 1'
+    );
+    expect(completedRepairExecutionRequest.textContent).toContain(
+      'side effect history Prompt Registry Revision:prompt-revision-repair-execution-1:attempt 1:sideeffect1111'
+    );
+    expect(completedRepairExecutionRequest.textContent).toContain(
+      'side effect fingerprint sideeffect1111'
     );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution approval decision request repair-execution-approval-decision-request/v1 / execution approval decision request status Not Recorded Read Only / execution approval decision request created no / execution approval decision request fingerprint dddd11119999eeee'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution start request repair-execution-start-request/v1 / execution start request status Not Started Read Only / execution start request created no / execution start request fingerprint dddd22229999ffff'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution queue request repair-execution-queue-request/v1 / execution queue request status Not Enqueued Read Only / execution queue request created no / execution queue request fingerprint dddd333399991111'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution worker lease request repair-execution-worker-lease-request/v1 / execution worker lease request status Not Acquired Read Only / execution worker lease request created no / execution worker lease request fingerprint dddd444499992222'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution job run request repair-execution-job-run-request/v1 / execution job run request status Not Started Read Only / execution job run request created no / execution job run request fingerprint dddd555599993333'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step request repair-execution-run-step-request/v1 / execution run step request status Not Created Read Only / execution run step request created no / execution run step request fingerprint dddd666699994444'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step trace request repair-execution-run-step-trace-request/v1 / execution run step trace request status Not Created Read Only / execution run step trace request created no / execution run step trace request fingerprint dddd777799995555'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step result request repair-execution-run-step-result-request/v1 / execution run step result request status Not Recorded Read Only / execution run step result request created no / execution run step result request fingerprint dddd888899996666'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step completion request repair-execution-run-step-completion-request/v1 / execution run step completion request status Not Completed Read Only / execution run step completion request created no / execution run step completion request fingerprint dddd999988887777'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step status event request repair-execution-run-step-status-event-request/v1 / execution run step status event request status Not Recorded Read Only / execution run step status event request created no / execution run step status event request fingerprint ddddbbbb88887777'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step retry request repair-execution-run-step-retry-request/v1 / execution run step retry request status Not Scheduled Read Only / execution run step retry request created no / execution run step retry request fingerprint ddddaaaa88889999'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step retry attempt request repair-execution-run-step-retry-attempt-request/v1 / execution run step retry attempt request status Not Created Read Only / execution run step retry attempt request created no / execution run step retry attempt request fingerprint ddddcccc88889999'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step retry attempt status event request repair-execution-run-step-retry-attempt-status-event-request/v1 / execution run step retry attempt status event request status Not Recorded Read Only / execution run step retry attempt status event request created no / execution run step retry attempt status event request fingerprint ddddbbbb88887777'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step retry attempt trace request repair-execution-run-step-retry-attempt-trace-request/v1 / execution run step retry attempt trace request status Not Created Read Only / execution run step retry attempt trace request created no / execution run step retry attempt trace request fingerprint dddddddd88887777'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step retry attempt result request repair-execution-run-step-retry-attempt-result-request/v1 / execution run step retry attempt result request status Not Recorded Read Only / execution run step retry attempt result request created no / execution run step retry attempt result request fingerprint ddddeeee88887777'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step retry attempt completion request repair-execution-run-step-retry-attempt-completion-request/v1 / execution run step retry attempt completion request status Not Completed Read Only / execution run step retry attempt completion request created no / execution run step retry attempt completion request fingerprint ddddffff88887777'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step retry attempt completion status event request repair-execution-run-step-retry-attempt-completion-status-event-request/v1 / execution run step retry attempt completion status event request status Not Recorded Read Only / execution run step retry attempt completion status event request created no / execution run step retry attempt completion status event request fingerprint ddddffff99997777'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step retry attempt finalization request repair-execution-run-step-retry-attempt-finalization-request/v1 / execution run step retry attempt finalization request status Not Finalized Read Only / execution run step retry attempt finalization request created no / execution run step retry attempt finalization request fingerprint ddddffffaa997777'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step retry attempt finalization status event request repair-execution-run-step-retry-attempt-finalization-status-event-request/v1 / execution run step retry attempt finalization status event request status Not Recorded Read Only / execution run step retry attempt finalization status event request created no / execution run step retry attempt finalization status event request fingerprint ddddffffbb997777'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step retry attempt close request repair-execution-run-step-retry-attempt-close-request/v1 / execution run step retry attempt close request status Not Closed Read Only / execution run step retry attempt close request created no / execution run step retry attempt close request fingerprint ddddffffcc997777'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step retry attempt close status event request repair-execution-run-step-retry-attempt-close-status-event-request/v1 / execution run step retry attempt close status event request status Not Recorded Read Only / execution run step retry attempt close status event request created no / execution run step retry attempt close status event request fingerprint ddddffffdd997777'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step retry attempt retention policy request repair-execution-run-step-retry-attempt-retention-policy-request/v1 / execution run step retry attempt retention policy request status Not Created Read Only / execution run step retry attempt retention policy request created no / execution run step retry attempt retention policy request fingerprint ddddffffaa447777'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step retry attempt retention policy rule request repair-execution-run-step-retry-attempt-retention-policy-rule-request/v1 / execution run step retry attempt retention policy rule request status Not Created Read Only / execution run step retry attempt retention policy rule request created no / execution run step retry attempt retention policy rule request fingerprint ddddffffaa887777'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step retry attempt retention lease request repair-execution-run-step-retry-attempt-retention-lease-request/v1 / execution run step retry attempt retention lease request status Not Acquired Read Only / execution run step retry attempt retention lease request created no / execution run step retry attempt retention lease request fingerprint ddddffffaa667777'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution run step retry attempt archive request repair-execution-run-step-retry-attempt-archive-request/v1 / execution run step retry attempt archive request status Not Archived Read Only / execution run step retry attempt archive request created no / execution run step retry attempt archive request fingerprint ddddffffee997777'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution failure event request repair-execution-failure-event-request/v1 / execution failure event request status Not Recorded Read Only / execution failure event request created no / execution failure event request fingerprint ddddffffddddeeee'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution provider response request repair-execution-provider-response-request/v1 / execution provider response request status Not Recorded Read Only / execution provider response request created no / execution provider response request fingerprint ddddccccddddbbbb'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution result request repair-execution-result-request/v1 / execution result request status Not Recorded Read Only / execution result request created no / execution result request fingerprint ddddddddccccbbbb'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution retry policy request repair-execution-retry-policy-request/v1 / execution retry policy request status Not Created Read Only / execution retry policy request created no / execution retry policy request fingerprint ddddbbbbddddcccc'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution rollback executor request repair-execution-rollback-executor-request/v1 / execution rollback executor request status Not Started Read Only / execution rollback executor request created no / execution rollback executor request fingerprint ddddccccffffeeee'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution rollback operation request repair-execution-rollback-operation-request/v1 / execution rollback operation request status Not Created Read Only / execution rollback operation request created no / execution rollback operation request fingerprint ddddddddffffeeee'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution rollback outcome request repair-execution-rollback-outcome-request/v1 / execution rollback outcome request status Not Recorded Read Only / execution rollback outcome request created no / execution rollback outcome request fingerprint ddddeeeeffffdddd'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution rollback trigger request repair-execution-rollback-trigger-request/v1 / execution rollback trigger request status Not Created Read Only / execution rollback trigger request created no / execution rollback trigger request fingerprint ddddbbbbffffeeee'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution trace request repair-execution-trace-request/v1 / execution trace request status Not Created Read Only / execution trace request created no / execution trace request fingerprint ddddbbbbccccdddd'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'execution state request repair-execution-state-request/v1 / execution state request status Not Started Read Only / execution state request created no / execution state request fingerprint dddd9999eeee0000'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'rollback plan request repair-execution-rollback-plan-request/v1 / rollback plan request status Not Created Read Only / rollback plan request created no / rollback plan request fingerprint ddddcccceeeedddd'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'repair job request repair-execution-repair-job-request/v1 / repair job request status Not Created Read Only / repair job request created no / repair job request fingerprint dddd7777eeee8888'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'idempotency lock repair-execution-idempotency-lock/v1 / idempotency lock status Not Acquired Read Only / idempotency lock scope Global Diagnostics / idempotency lock acquired no / idempotency lock fingerprint efef3333abab4444'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain('preflight execution gate fingerprint 5858aaaabbbb9999');
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain(
-      'preflight candidate evidence set fingerprint aaaa5555bbbb6666'
-    );
-    expect(
-      screen.getByTestId('prompt-registry-publish-gate-Make it real')
-        .textContent
-    ).toContain('preflight workspace none');
   });
 
   test('uses prompt catalog metadata without hiding manual prompt diagnostics', async () => {
-    render(<AiPage />);
+    renderAiPage();
 
     expect(screen.getByText('Prompt catalog')).not.toBeNull();
     expect(screen.getByText('Prompt search')).not.toBeNull();
@@ -10124,9 +12803,61 @@ describe('AiPage', () => {
     expect(registryPromptDiagnostics).toContain('Registry errors 0');
     expect(registryPromptDiagnostics).not.toContain('Registry issue error');
     expect(registryPromptDiagnostics).not.toContain('Registry remediation');
+    expect(registryPromptDiagnostics).toContain('Registry source DB revision');
     expect(registryPromptDiagnostics).toContain(
-      'Version evidence revision registry:no-policy:base:b1c2d3e4f5061728 / fingerprint b1c2d3e4f5061728 / model 8888aaaabbbbcccc / template 2222333344445555 / policy none / override no / registry fingerprint b1c2d3e4f5061728 / registry id 42 / registry messages 2 / registry modified yes / registry updated 2026-06-17T04:05:06.000Z / registry status Ready / registry reason Ready / registry detail ready / registry publish Allowed / registry blocking 0 / registry issues 0 / registry errors 0'
+      'Registry revision workspace-r2'
     );
+    expect(registryPromptDiagnostics).toContain(
+      'Registry revision id prompt-revision-workspace'
+    );
+    expect(registryPromptDiagnostics).toContain(
+      'Registry revision publish events 2'
+    );
+    expect(registryPromptDiagnostics).toContain(
+      'Registry revision publish event Revision Reused / graphql_mutation / fingerprint publishreuse1111 / actor user-1'
+    );
+    expect(registryPromptDiagnostics).toContain(
+      'Registry revision publish event Revision Published / graphql_mutation / fingerprint publishcreated1111 / actor user-1'
+    );
+    expect(registryPromptDiagnostics).toContain(
+      'Registry revision scope Workspace'
+    );
+    expect(registryPromptDiagnostics).toContain(
+      'Registry revision workspace workspace-1'
+    );
+    expect(registryPromptDiagnostics).toContain(
+      'Registry revision actor user-1'
+    );
+    expect(registryPromptDiagnostics).toContain(
+      'Registry revision fingerprint db11112222333344'
+    );
+    expect(registryPromptDiagnostics).toContain(
+      'Registry revision status Active'
+    );
+    expect(registryPromptDiagnostics).toContain(
+      'Registry source chain fingerprint chain111122223333'
+    );
+    expect(registryPromptDiagnostics).toContain(
+      'Registry source chain db_revision / scope workspace / status active / revision workspace-r2 / fingerprint db11112222333344 / workspace workspace-1 / actor user-1 / updated 2026-06-18T04:05:06.000Z'
+    );
+    expect(registryPromptDiagnostics).toContain(
+      'Registry source chain legacy_registry / scope global / status ready / revision registry:no-policy:base:b1c2d3e4f5061728 / fingerprint b1c2d3e4f5061728 / registry 42 / config ai_prompts_metadata / updated 2026-06-17T04:05:06.000Z'
+    );
+    expect(registryPromptDiagnostics).toContain(
+      'Version evidence revision registry:no-policy:base:b1c2d3e4f5061728 / fingerprint b1c2d3e4f5061728 / model 8888aaaabbbbcccc / template 2222333344445555 / policy none / override no / registry fingerprint b1c2d3e4f5061728 / registry id 42 / registry messages 2 / registry modified yes / registry updated 2026-06-17T04:05:06.000Z / registry status Ready / registry reason Ready / registry detail ready / registry publish Allowed / registry blocking 0 / registry issues 0 / registry errors 0 / registry source DB revision / registry revision workspace-r2'
+    );
+    expect(screen.getAllByText('Registry source').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('DB revision').length).toBeGreaterThan(0);
+    expect(screen.getByText('Revision workspace-r2')).not.toBeNull();
+    expect(screen.getByText('Scope Workspace / workspace-1')).not.toBeNull();
+    expect(screen.getByText('Revision status Active')).not.toBeNull();
+    expect(screen.getByText('Actor user-1')).not.toBeNull();
+    expect(
+      screen.getByText('Revision fingerprint db11112222333344')
+    ).not.toBeNull();
+    expect(
+      screen.getByText('Source chain fingerprint chain111122223333')
+    ).not.toBeNull();
     expect(screen.getByText('Registry record')).not.toBeNull();
     expect(screen.getAllByText('42').length).toBeGreaterThan(0);
     expect(screen.getByText('Status Ready')).not.toBeNull();
@@ -10322,7 +13053,19 @@ describe('AiPage', () => {
       'Local Ollama / ollama-main / requested workspace-embedding'
     );
     expect(readyGateDiagnostics).toContain(
-      `Task route Rerank / status Ready / configured yes / provider ollama-main / model bge-reranker-v2 / profile Profile ollama-main / Configured / config copilot.providers.profiles[id=ollama-main] / 2 configured models / models workspace-rerank, bge-reranker-v2 / requested workspace-rerank / source Rerank task model / config copilot.tasks.models.rerank / source fingerprint ready444455556666 / source version copilot-task-route-effective-source/v1 / source inputs featureKind, preparedRoutes, routeCandidates / rerank runtime contract workspace-rerank-runtime/v1 / rerank runtime topK 5 / rerank runtime status Prepared Route Available / rerank runtime fingerprint eeee2222ffff3333 / prepared providers 1 / targets ollama-main/bge-reranker-v2 / target fingerprint ${readyRoute.preparedRouteTargetFingerprint}`
+      'Task route Rerank / status Ready / configured yes'
+    );
+    expect(readyGateDiagnostics).toContain(
+      'provider ollama-main / model bge-reranker-v2'
+    );
+    expect(readyGateDiagnostics).toContain(
+      'requested workspace-rerank / source DB-backed task route policy / config copilot.tasks.models.rerank'
+    );
+    expect(readyGateDiagnostics).toContain(
+      'rerank runtime contract workspace-rerank-runtime/v1 / rerank runtime topK 5'
+    );
+    expect(readyGateDiagnostics).toContain(
+      `prepared providers 1 / targets ollama-main/bge-reranker-v2 / target fingerprint ${readyRoute.preparedRouteTargetFingerprint}`
     );
     expect(readyGateDiagnostics).toContain(
       'Task route prepare candidates Rerank 1'
@@ -10883,7 +13626,7 @@ describe('AiPage', () => {
   });
 
   test('shows rerank runtime contract in repair candidate evidence', async () => {
-    render(<AiPage />);
+    renderAiPage();
 
     fireEvent.change(screen.getByLabelText('Prompt name'), {
       target: {
@@ -10945,7 +13688,7 @@ describe('AiPage', () => {
   });
 
   test('filters prompt catalog options by search', () => {
-    render(<AiPage />);
+    renderAiPage();
 
     fireEvent.change(screen.getByLabelText('Prompt search'), {
       target: {
@@ -10972,7 +13715,7 @@ describe('AiPage', () => {
   });
 
   test('filters prompt catalog options by provenance metadata', () => {
-    render(<AiPage />);
+    renderAiPage();
 
     fireEvent.change(screen.getByLabelText('Prompt search'), {
       target: {
@@ -11001,7 +13744,7 @@ describe('AiPage', () => {
   });
 
   test('filters prompt catalog options by revision metadata', () => {
-    render(<AiPage />);
+    renderAiPage();
 
     fireEvent.change(screen.getByLabelText('Prompt search'), {
       target: {
@@ -11030,7 +13773,7 @@ describe('AiPage', () => {
   });
 
   test('filters prompt catalog options by model strategy fingerprint', () => {
-    render(<AiPage />);
+    renderAiPage();
 
     fireEvent.change(screen.getByLabelText('Prompt search'), {
       target: {
@@ -11059,7 +13802,7 @@ describe('AiPage', () => {
   });
 
   test('filters prompt catalog options by version evidence bundle', () => {
-    render(<AiPage />);
+    renderAiPage();
 
     fireEvent.change(screen.getByLabelText('Prompt search'), {
       target: {
@@ -11089,7 +13832,7 @@ describe('AiPage', () => {
   });
 
   test('filters prompt catalog options by registry evidence', () => {
-    render(<AiPage />);
+    renderAiPage();
 
     fireEvent.change(screen.getByLabelText('Prompt search'), {
       target: {
@@ -11115,8 +13858,35 @@ describe('AiPage', () => {
     ).toBeNull();
   });
 
+  test('filters prompt catalog options by DB-backed registry revision', () => {
+    renderAiPage();
+
+    fireEvent.change(screen.getByLabelText('Prompt search'), {
+      target: {
+        value: 'registry source DB revision / registry revision workspace-r2',
+      },
+    });
+    expect(screen.getByText('Catalog results: 1 / 4')).not.toBeNull();
+
+    fireEvent.keyDown(
+      screen.getByRole('combobox', { name: 'Prompt catalog' }),
+      {
+        key: 'ArrowDown',
+      }
+    );
+
+    expect(screen.getByRole('option', { name: 'Make it real' })).not.toBeNull();
+    expect(
+      screen.queryByRole('option', { name: 'Chat With AFFiNE AI' })
+    ).toBeNull();
+    expect(screen.queryByRole('option', { name: 'Generate image' })).toBeNull();
+    expect(
+      screen.queryByRole('option', { name: 'Legacy empty registry prompt' })
+    ).toBeNull();
+  });
+
   test('filters prompt catalog options by category', () => {
-    render(<AiPage />);
+    renderAiPage();
 
     fireEvent.keyDown(
       screen.getByRole('combobox', { name: 'Prompt category' }),
@@ -11147,7 +13917,7 @@ describe('AiPage', () => {
   });
 
   test('shows ignored registry seed validation diagnostics', () => {
-    render(<AiPage />);
+    renderAiPage();
 
     fireEvent.change(screen.getByLabelText('Prompt search'), {
       target: {
@@ -11405,7 +14175,7 @@ describe('AiPage', () => {
   });
 
   test('manual prompt diagnostics still submit when catalog filters hide it', async () => {
-    render(<AiPage />);
+    renderAiPage();
 
     fireEvent.change(screen.getByLabelText('Prompt search'), {
       target: {
@@ -11434,7 +14204,7 @@ describe('AiPage', () => {
   });
 
   test('trims workspace scope and falls back to global diagnostics', () => {
-    render(<AiPage />);
+    renderAiPage();
 
     fireEvent.change(screen.getByLabelText('Workspace ID'), {
       target: {
@@ -11460,7 +14230,7 @@ describe('AiPage', () => {
   });
 
   test('selects an accessible workspace scope for diagnostics', () => {
-    render(<AiPage />);
+    renderAiPage();
 
     fireEvent.keyDown(
       screen.getByRole('combobox', { name: 'Workspace selector' }),
@@ -11489,7 +14259,7 @@ describe('AiPage', () => {
   });
 
   test('workspace selector can reset diagnostics back to global scope', () => {
-    render(<AiPage />);
+    renderAiPage();
 
     fireEvent.change(screen.getByLabelText('Workspace ID'), {
       target: {
@@ -11518,7 +14288,7 @@ describe('AiPage', () => {
   });
 
   test('manual workspace ID remains available for unknown scopes', () => {
-    render(<AiPage />);
+    renderAiPage();
 
     fireEvent.change(screen.getByLabelText('Workspace ID'), {
       target: {
@@ -11548,7 +14318,7 @@ describe('AiPage', () => {
   });
 
   test('renders action run prepared route trace for a workspace scope', async () => {
-    render(<AiPage />);
+    renderAiPage();
 
     fireEvent.change(screen.getByLabelText('Workspace ID'), {
       target: {
@@ -12228,7 +14998,7 @@ describe('AiPage', () => {
   });
 
   test('renders blocked task route diagnostics and recommended checks', () => {
-    render(<AiPage />);
+    renderAiPage();
 
     expect(screen.getAllByText('Blocked').length).toBeGreaterThan(0);
     expect(screen.getByText('no_provider_available')).not.toBeNull();
@@ -12284,7 +15054,7 @@ describe('AiPage', () => {
         .length
     ).toBeGreaterThan(0);
     expect(
-      screen.getAllByText('Source Rerank task model').length
+      screen.getAllByText('Source DB-backed task route policy').length
     ).toBeGreaterThan(0);
     expect(
       screen.getAllByText('Config copilot.tasks.models.rerank').length
@@ -12384,6 +15154,36 @@ describe('AiPage', () => {
     expect(rerankDiagnostics).toContain('Task route Rerank');
     expect(rerankDiagnostics).toContain('Status Ready');
     expect(rerankDiagnostics).toContain('Route ollama-main / bge-reranker-v2');
+    expect(rerankDiagnostics).toContain(
+      'Requested source DB-backed task route policy'
+    );
+    expect(rerankDiagnostics).toContain(
+      'Task route policy revision workspace-rerank-r1'
+    );
+    expect(rerankDiagnostics).toContain(
+      'Task route policy revision id task-route-policy-rerank-1'
+    );
+    expect(rerankDiagnostics).toContain(
+      'Task route policy revision scope Workspace'
+    );
+    expect(rerankDiagnostics).toContain(
+      'Task route policy revision status Active'
+    );
+    expect(rerankDiagnostics).toContain(
+      'Task route policy revision fingerprint routepolicy11112222'
+    );
+    expect(rerankDiagnostics).toContain(
+      'Task route policy source chain fingerprint routechain11112222'
+    );
+    expect(rerankDiagnostics).toContain(
+      'Task route policy revision publish events 1'
+    );
+    expect(rerankDiagnostics).toContain(
+      'Task route policy revision publish event Revision Published / repair_execution_worker / fingerprint taskroutepublish1111 / actor user-1'
+    );
+    expect(rerankDiagnostics).toContain(
+      'Task route policy source chain DB revision / Workspace / Active / feature Rerank / model workspace-rerank'
+    );
     expect(rerankDiagnostics).toContain('Prepared providers 1');
     expect(rerankDiagnostics).toContain(
       'Prepared targets ollama-main/bge-reranker-v2'
@@ -12414,6 +15214,15 @@ describe('AiPage', () => {
     expect(rerankDiagnostics).toContain(
       'profile Profile ollama-main / Configured / config copilot.providers.profiles[id=ollama-main] / 2 configured models / models workspace-rerank, bge-reranker-v2'
     );
+    expect(rerankDiagnostics).toContain('Registry model-registry-rerank-1');
+    expect(rerankDiagnostics).toContain('Revision workspace-rerank-model-r1');
+    expect(rerankDiagnostics).toContain('Publish events 1');
+    expect(rerankDiagnostics).toContain(
+      'Candidate model registry revision publish events ollama-main / bge-reranker-v2 1'
+    );
+    expect(rerankDiagnostics).toContain(
+      'Candidate model registry revision publish event ollama-main / bge-reranker-v2 Revision Published / repair_execution_worker / fingerprint modelpublish1111 / actor user-1'
+    );
     const modelCandidatesDiagnostics = screen.getByTestId(
       'model-candidates-diagnostics'
     ).textContent;
@@ -12422,6 +15231,12 @@ describe('AiPage', () => {
     expect(modelCandidatesDiagnostics).toContain('Candidate gpt-4o-mini');
     expect(modelCandidatesDiagnostics).toContain(
       'Fallback providers ollama-main -> openai-default'
+    );
+    expect(modelCandidatesDiagnostics).toContain(
+      'Model registry revision publish events 1'
+    );
+    expect(modelCandidatesDiagnostics).toContain(
+      'Model registry revision publish event Revision Published / graphql_mutation / fingerprint modelpublish3333 / actor user-1'
     );
     const modelCandidateDiagnostics = screen.getByTestId(
       'model-candidate-diagnostics-gpt-4o-mini'
@@ -12446,6 +15261,10 @@ describe('AiPage', () => {
       'Model definition Provider profile / Definition gpt-4o-mini'
     );
     expect(modelCandidateDiagnostics).toContain(
+      'Registry model-registry-openai-gpt-1'
+    );
+    expect(modelCandidateDiagnostics).toContain('Publish events 1');
+    expect(modelCandidateDiagnostics).toContain(
       'Capabilities Input text / Output text'
     );
     expect(modelCandidateDiagnostics).toContain('Policy Chat');
@@ -12458,7 +15277,7 @@ describe('AiPage', () => {
     );
     expect(
       screen.getAllByText(
-        'Provider profile / Definition gpt-4o-mini / Raw gpt-4o-mini-2026-06-01 / Aliases fast-chat / openai / Canonical gpt-4o-mini / Protocol openai / Layer chat'
+        'Provider profile / Definition gpt-4o-mini / Raw gpt-4o-mini-2026-06-01 / Aliases fast-chat / Registry model-registry-openai-gpt-1 / Revision workspace-openai-gpt-r1 / Scope workspace / Status active / Fingerprint modelregistry33334444 / Source chain modelchain33334444 / Workspace workspace-1 / Publish events 1 / openai / Canonical gpt-4o-mini / Protocol openai / Layer chat'
       ).length
     ).toBe(1);
     expect(screen.getAllByText('Input text / Output text').length).toBe(1);
@@ -12488,7 +15307,7 @@ describe('AiPage', () => {
   });
 
   test('renders ready rerank route and candidate trace', () => {
-    render(<AiPage />);
+    renderAiPage();
 
     expect(screen.getAllByText('Ready').length).toBeGreaterThan(0);
     expect(screen.getAllByText('workspace-rerank').length).toBeGreaterThan(0);
@@ -12512,7 +15331,7 @@ describe('AiPage', () => {
     ).toBeGreaterThan(0);
     expect(
       screen.getAllByText(
-        'Provider profile / Definition workspace-rerank / Aliases bge-reranker-v2'
+        'Provider profile / Definition workspace-rerank / Aliases bge-reranker-v2 / Registry model-registry-rerank-1 / Revision workspace-rerank-model-r1 / Scope workspace / Status active / Fingerprint modelregistry11112222 / Source chain modelchain11112222 / Workspace workspace-1 / Publish events 1'
       ).length
     ).toBeGreaterThan(0);
     expect(screen.getAllByText('Healthy').length).toBeGreaterThan(0);

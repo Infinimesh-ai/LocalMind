@@ -1,0 +1,76 @@
+mutation cleanupCopilotSupportBundleRetention(
+  $input: CopilotSupportBundleRetentionCleanupInput!
+) {
+  cleanupCopilotSupportBundleRetention(input: $input) {
+    archiveObjectCleanupFailedCount
+    archiveObjectCleanupRecoveredCount
+    archiveObjectCleanupRetryCount
+    actorId
+    cleanedAt
+    cleanupFingerprint
+    expiredAuthorizationCount
+    expiredBundleCount
+    expiredBundles {
+      actorId
+      archiveByteSize
+      archiveFilename
+      archiveFingerprint
+      archiveMime
+      archiveStorageKey
+      auditEventCount
+      auditEvents {
+        actorId
+        bundleId
+        createdAt
+        eventFingerprint
+        eventType
+        id
+        metadata
+        workspaceId
+      }
+      createdAt
+      expiresAt
+      failureCode
+      failureMessage
+      id
+      manifestFingerprint
+      manifestJson {
+        actorId
+        archive
+        bundleId
+        createdAt
+        expiresAt
+        retention {
+          expiresAt
+          status
+        }
+        sourceEvidenceSetFingerprint
+        sourceEvidenceSummary {
+          actionRunCount
+          includedSections
+          promptCatalogItemCount
+          source
+          taskRouteCount
+        }
+        version
+        workspaceId
+      }
+      retentionStatus
+      sourceEvidenceSetFingerprint
+      sourceEvidenceSummary {
+        actionRunCount
+        includedSections
+        promptCatalogItemCount
+        source
+        taskRouteCount
+      }
+      status
+      updatedAt
+      workspaceId
+    }
+    manifestObjectRewriteFailedCount
+    manifestObjectRewriteRecoveredCount
+    manifestObjectRewriteRetryCount
+    workspaceId
+  }
+}

@@ -27,6 +27,7 @@ import {
   PromptConfigStrictSchema,
   VertexSchema,
 } from './providers/types';
+import type { RegistryRevisionPublishEventRecord } from '../../models/copilot-registry-revision-publish-event';
 
 export type CopilotProviderConfigMap = {
   [CopilotProviderType.OpenAI]: OpenAIConfig;
@@ -87,6 +88,7 @@ export type CopilotProviderHealth = {
 export const CopilotProviderProfileSourceValues = [
   'configured',
   'legacy',
+  'db_revision',
   'byok_server',
   'byok_local',
 ] as const;
@@ -214,6 +216,23 @@ export type CopilotModelRouteOverride = {
   requestLayer?: LlmBackendConfig['request_layer'];
 };
 
+export type CopilotModelRegistrySourceChainEntry = {
+  source:
+    | 'db_revision'
+    | 'provider_profile'
+    | 'native_registry'
+    | 'config_fallback';
+  scope: 'global' | 'workspace';
+  status: string;
+  actorId?: string;
+  fingerprint?: string;
+  modelId?: string;
+  providerId?: string;
+  revision?: string;
+  updatedAt?: string;
+  workspaceId?: string;
+};
+
 export type CopilotModelDefinition = {
   id: string;
   rawModelId?: string;
@@ -235,6 +254,18 @@ export type CopilotModelDefinition = {
     outputPer1M?: number;
   };
   capabilities: CopilotModelDefinitionCapability[];
+  registryRecordSource?: 'db_revision';
+  registryRevision?: string;
+  registryRevisionActorId?: string;
+  registryRevisionFingerprint?: string;
+  registryRevisionId?: string;
+  registryRevisionScope?: 'global' | 'workspace';
+  registryRevisionSourceChain?: CopilotModelRegistrySourceChainEntry[];
+  registryRevisionSourceChainFingerprint?: string;
+  registryRevisionStatus?: string;
+  registryRevisionWorkspaceId?: string;
+  registryRevisionPublishEventCount?: number;
+  registryRevisionPublishEvents?: RegistryRevisionPublishEventRecord[];
 };
 
 export type CopilotPromptOverride = {
@@ -267,6 +298,28 @@ export type CopilotTaskModelDefaults = {
   embedding?: string;
   workspaceIndexing?: string;
   rerank?: string;
+};
+
+export const CopilotSupportBundleObjectStorageWebhookProviderValues = [
+  'aws_s3',
+  'cloudflare_r2',
+  's3_compatible',
+] as const;
+export type CopilotSupportBundleObjectStorageWebhookProvider =
+  (typeof CopilotSupportBundleObjectStorageWebhookProviderValues)[number];
+
+export const CopilotSupportBundleObjectStorageWebhookSignatureAlgorithmValues =
+  ['hmac-sha256'] as const;
+export type CopilotSupportBundleObjectStorageWebhookSignatureAlgorithm =
+  (typeof CopilotSupportBundleObjectStorageWebhookSignatureAlgorithmValues)[number];
+
+export type CopilotSupportBundleObjectStorageWebhookConfig = {
+  id: string;
+  provider: CopilotSupportBundleObjectStorageWebhookProvider;
+  secret: string;
+  verifier?: string;
+  policy?: string;
+  signatureAlgorithm?: CopilotSupportBundleObjectStorageWebhookSignatureAlgorithm;
 };
 
 const CopilotModelRouteOverrideShape = z.object({
@@ -360,6 +413,7 @@ const CopilotProviderProfileBaseShape = z.object({
   displayName: z.string().optional(),
   priority: z.number().optional(),
   enabled: z.boolean().optional(),
+  source: z.enum(CopilotProviderProfileSourceValues).optional(),
   models: z.array(z.string()).optional(),
   modelDefinitions: z.array(CopilotModelDefinitionShape).optional(),
   privacy: CopilotProviderPrivacyShape.optional(),
@@ -503,6 +557,19 @@ const CopilotTaskModelDefaultsShape = z.object({
   rerank: z.string().min(1).optional(),
 });
 
+const CopilotSupportBundleObjectStorageWebhookShape = z
+  .object({
+    id: z.string().min(1).max(128),
+    provider: z.enum(CopilotSupportBundleObjectStorageWebhookProviderValues),
+    secret: z.string().min(16).max(4096),
+    verifier: z.string().min(1).max(128).optional(),
+    policy: z.string().min(1).max(128).optional(),
+    signatureAlgorithm: z
+      .enum(CopilotSupportBundleObjectStorageWebhookSignatureAlgorithmValues)
+      .optional(),
+  })
+  .strict();
+
 declare global {
   interface AppConfigSchema {
     copilot: {
@@ -528,6 +595,11 @@ declare global {
       tasks: {
         models: ConfigItem<CopilotTaskModelDefaults>;
       };
+      supportBundles: {
+        objectStorageWebhooks: ConfigItem<
+          CopilotSupportBundleObjectStorageWebhookConfig[]
+        >;
+      };
       providers: {
         profiles: ConfigItem<CopilotProviderProfile[]>;
         defaults: ConfigItem<CopilotProviderDefaults>;
@@ -548,7 +620,7 @@ declare global {
 defineModuleConfig('copilot', {
   enabled: {
     desc: 'Whether to enable the copilot plugin. <br> Document: <a href="https://docs.affine.pro/self-host-affine/administer/ai" target="_blank">https://docs.affine.pro/self-host-affine/administer/ai</a>',
-    default: false,
+    default: true,
   },
   'byok.enabled': {
     desc: 'Whether to enable workspace BYOK.',
@@ -594,6 +666,11 @@ defineModuleConfig('copilot', {
     desc: 'Optional task model aliases for embedding, workspace indexing, and rerank. Leave empty to let provider defaults and modelDefinitions choose task routes.',
     default: {},
     shape: CopilotTaskModelDefaultsShape,
+  },
+  'supportBundles.objectStorageWebhooks': {
+    desc: 'Production object-storage webhooks for support bundle direct-download completion notifications. Each entry verifies raw webhook bodies with HMAC-SHA256 before forwarding provider event evidence into the durable transfer queue.',
+    default: [],
+    shape: z.array(CopilotSupportBundleObjectStorageWebhookShape),
   },
   'providers.openai': {
     desc: 'The config for the openai provider.',

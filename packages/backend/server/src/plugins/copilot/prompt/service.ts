@@ -28,6 +28,9 @@ import type {
   Prompt,
   PromptCatalogItem,
   PromptRegistryDiagnostic,
+  PromptRegistryRevision,
+  PromptRegistryRevisionWithPublishEvents,
+  PromptRegistrySourceChainEntry,
   PromptSpec,
   ResolvedPrompt,
 } from './spec';
@@ -65,7 +68,7 @@ export class PromptService {
     );
   }
 
-  async listCatalog(): Promise<PromptCatalogItem[]> {
+  async listCatalog(workspaceId?: string | null): Promise<PromptCatalogItem[]> {
     const builtInPrompts = this.listBuiltInPromptSpecs().map(spec =>
       this.describeBuiltInPromptSpec(spec)
     );
@@ -99,8 +102,29 @@ export class PromptService {
       }
     }
 
-    return Array.from(promptByName.values()).sort((a, b) =>
+    const catalog = Array.from(promptByName.values()).sort((a, b) =>
       a.name.localeCompare(b.name)
+    );
+    const registryRevisionModel = this.models?.copilotPromptRegistryRevision;
+    if (!registryRevisionModel) {
+      return catalog.map(prompt =>
+        this.applyPromptRegistryFallbackSourceChain(prompt)
+      );
+    }
+
+    const revisions =
+      await registryRevisionModel.listLatestActiveWithPublishEventsByPromptNames(
+        {
+          names: catalog.map(prompt => prompt.name),
+          workspaceId,
+        }
+      );
+
+    return catalog.map(prompt =>
+      this.applyPromptRegistryRevision(
+        this.applyPromptRegistryFallbackSourceChain(prompt),
+        revisions.get(prompt.name)
+      )
     );
   }
 
@@ -398,6 +422,39 @@ export class PromptService {
       ...(prompt.registryValidationStatus
         ? { registryValidationStatus: prompt.registryValidationStatus }
         : {}),
+      ...(prompt.registryRecordSource
+        ? { registryRecordSource: prompt.registryRecordSource }
+        : {}),
+      ...(prompt.registryRevision
+        ? { registryRevision: prompt.registryRevision }
+        : {}),
+      ...(prompt.registryRevisionActorId
+        ? { registryRevisionActorId: prompt.registryRevisionActorId }
+        : {}),
+      ...(prompt.registryRevisionFingerprint
+        ? { registryRevisionFingerprint: prompt.registryRevisionFingerprint }
+        : {}),
+      ...(prompt.registryRevisionId
+        ? { registryRevisionId: prompt.registryRevisionId }
+        : {}),
+      ...(prompt.registryRevisionScope
+        ? { registryRevisionScope: prompt.registryRevisionScope }
+        : {}),
+      ...(prompt.registryRevisionStatus
+        ? { registryRevisionStatus: prompt.registryRevisionStatus }
+        : {}),
+      ...(prompt.registryRevisionWorkspaceId
+        ? { registryRevisionWorkspaceId: prompt.registryRevisionWorkspaceId }
+        : {}),
+      ...(prompt.registrySourceChain
+        ? { registrySourceChain: [...prompt.registrySourceChain] }
+        : {}),
+      ...(prompt.registrySourceChainFingerprint
+        ? {
+            registrySourceChainFingerprint:
+              prompt.registrySourceChainFingerprint,
+          }
+        : {}),
     };
     const modelStrategyFingerprint =
       this.buildCatalogModelStrategyFingerprint(catalogItem);
@@ -446,6 +503,37 @@ export class PromptService {
       ],
       registryValidationReason: diagnostic.registryValidationReason,
       registryValidationStatus: diagnostic.registryValidationStatus,
+      registryRecordSource: prompt.registryRecordSource,
+      ...(prompt.registryRevision
+        ? { registryRevision: prompt.registryRevision }
+        : {}),
+      ...(prompt.registryRevisionActorId
+        ? { registryRevisionActorId: prompt.registryRevisionActorId }
+        : {}),
+      ...(prompt.registryRevisionFingerprint
+        ? { registryRevisionFingerprint: prompt.registryRevisionFingerprint }
+        : {}),
+      ...(prompt.registryRevisionId
+        ? { registryRevisionId: prompt.registryRevisionId }
+        : {}),
+      ...(prompt.registryRevisionScope
+        ? { registryRevisionScope: prompt.registryRevisionScope }
+        : {}),
+      ...(prompt.registryRevisionStatus
+        ? { registryRevisionStatus: prompt.registryRevisionStatus }
+        : {}),
+      ...(prompt.registryRevisionWorkspaceId
+        ? { registryRevisionWorkspaceId: prompt.registryRevisionWorkspaceId }
+        : {}),
+      ...(prompt.registrySourceChain
+        ? { registrySourceChain: [...prompt.registrySourceChain] }
+        : {}),
+      ...(prompt.registrySourceChainFingerprint
+        ? {
+            registrySourceChainFingerprint:
+              prompt.registrySourceChainFingerprint,
+          }
+        : {}),
     };
     const modelStrategyFingerprint =
       this.buildCatalogModelStrategyFingerprint(catalogItem);
@@ -505,6 +593,7 @@ export class PromptService {
       ],
       registryValidationReason: diagnostic.registryValidationReason,
       registryValidationStatus: diagnostic.registryValidationStatus,
+      registryRecordSource: 'legacy_registry' as const,
       source: 'registry',
     };
     const modelStrategyFingerprint =
@@ -634,9 +723,228 @@ export class PromptService {
       ...(catalogItem.registryValidationStatus
         ? { registryValidationStatus: catalogItem.registryValidationStatus }
         : {}),
+      ...(catalogItem.registryRecordSource
+        ? { registryRecordSource: catalogItem.registryRecordSource }
+        : {}),
+      ...(catalogItem.registryRevision
+        ? { registryRevision: catalogItem.registryRevision }
+        : {}),
+      ...(catalogItem.registryRevisionActorId
+        ? { registryRevisionActorId: catalogItem.registryRevisionActorId }
+        : {}),
+      ...(catalogItem.registryRevisionFingerprint
+        ? {
+            registryRevisionFingerprint:
+              catalogItem.registryRevisionFingerprint,
+          }
+        : {}),
+      ...(catalogItem.registryRevisionId
+        ? { registryRevisionId: catalogItem.registryRevisionId }
+        : {}),
+      ...(catalogItem.registryRevisionPublishEventCount !== undefined
+        ? {
+            registryRevisionPublishEventCount:
+              catalogItem.registryRevisionPublishEventCount,
+          }
+        : {}),
+      ...(catalogItem.registryRevisionPublishEvents
+        ? {
+            registryRevisionPublishEvents: [
+              ...catalogItem.registryRevisionPublishEvents,
+            ],
+          }
+        : {}),
+      ...(catalogItem.registryRevisionScope
+        ? { registryRevisionScope: catalogItem.registryRevisionScope }
+        : {}),
+      ...(catalogItem.registryRevisionStatus
+        ? { registryRevisionStatus: catalogItem.registryRevisionStatus }
+        : {}),
+      ...(catalogItem.registryRevisionWorkspaceId
+        ? {
+            registryRevisionWorkspaceId:
+              catalogItem.registryRevisionWorkspaceId,
+          }
+        : {}),
+      ...(catalogItem.registrySourceChain
+        ? { registrySourceChain: [...catalogItem.registrySourceChain] }
+        : {}),
+      ...(catalogItem.registrySourceChainFingerprint
+        ? {
+            registrySourceChainFingerprint:
+              catalogItem.registrySourceChainFingerprint,
+          }
+        : {}),
       revision: this.buildCatalogRevision(catalogItem, fingerprint),
       templateFingerprint: input.templateFingerprint,
     };
+  }
+
+  private applyPromptRegistryFallbackSourceChain(
+    prompt: PromptCatalogItem
+  ): PromptCatalogItem {
+    const chain = this.buildPromptRegistryFallbackSourceChain(prompt);
+    const registryRecordSource =
+      prompt.registryRecordSource ??
+      (prompt.registryId !== undefined ? 'legacy_registry' : 'config_fallback');
+    const registrySourceChainFingerprint =
+      this.buildPromptRegistrySourceChainFingerprint(chain);
+    return {
+      ...prompt,
+      registryRecordSource,
+      registrySourceChain: chain,
+      registrySourceChainFingerprint,
+      versionEvidence: {
+        ...prompt.versionEvidence,
+        registryRecordSource,
+        registrySourceChain: chain,
+        registrySourceChainFingerprint,
+      },
+    };
+  }
+
+  private applyPromptRegistryRevision(
+    prompt: PromptCatalogItem,
+    revision: PromptRegistryRevisionWithPublishEvents | undefined
+  ): PromptCatalogItem {
+    if (!revision) {
+      return prompt;
+    }
+
+    const chain = this.mergePromptRegistrySourceChain(
+      {
+        source: 'db_revision',
+        scope: revision.scopeType,
+        status: revision.status,
+        ...(revision.actorId ? { actorId: revision.actorId } : {}),
+        fingerprint: revision.fingerprint,
+        revision: revision.revision,
+        updatedAt: revision.updatedAt.toISOString(),
+        ...(revision.workspaceId ? { workspaceId: revision.workspaceId } : {}),
+      },
+      revision.fallbackSourceChain.length
+        ? revision.fallbackSourceChain
+        : prompt.registrySourceChain
+    );
+    const registrySourceChainFingerprint =
+      this.buildPromptRegistrySourceChainFingerprint(chain);
+    const catalogItem = {
+      ...prompt,
+      registryRecordSource: 'db_revision' as const,
+      registryRevision: revision.revision,
+      ...(revision.actorId
+        ? { registryRevisionActorId: revision.actorId }
+        : {}),
+      registryRevisionFingerprint: revision.fingerprint,
+      registryRevisionId: revision.id,
+      registryRevisionPublishEventCount: revision.publishEventCount,
+      registryRevisionPublishEvents: revision.publishEvents,
+      registryRevisionScope: revision.scopeType,
+      registryRevisionStatus: revision.status,
+      ...(revision.workspaceId
+        ? { registryRevisionWorkspaceId: revision.workspaceId }
+        : {}),
+      registrySourceChain: chain,
+      registrySourceChainFingerprint,
+    };
+    const modelStrategyFingerprint =
+      this.buildCatalogModelStrategyFingerprint(catalogItem);
+    const fingerprint = this.buildCatalogFingerprint({
+      modelStrategyFingerprint,
+      templateFingerprint: catalogItem.templateFingerprint,
+    });
+
+    return {
+      ...catalogItem,
+      fingerprint,
+      modelStrategyFingerprint,
+      revision: this.buildCatalogRevision(catalogItem, fingerprint),
+      versionEvidence: this.buildCatalogVersionEvidence({
+        catalogItem,
+        fingerprint,
+        modelStrategyFingerprint,
+        templateFingerprint: catalogItem.templateFingerprint,
+      }),
+    };
+  }
+
+  private buildPromptRegistryFallbackSourceChain(
+    prompt: PromptCatalogItem
+  ): PromptRegistrySourceChainEntry[] {
+    const chain: PromptRegistrySourceChainEntry[] = [];
+
+    if (prompt.registryId !== undefined) {
+      chain.push({
+        source: 'legacy_registry',
+        scope: 'global',
+        status: prompt.registryValidationStatus ?? 'unknown',
+        configPath: 'ai_prompts_metadata',
+        ...(prompt.registryFingerprint
+          ? { fingerprint: prompt.registryFingerprint }
+          : {}),
+        registryId: prompt.registryId,
+        revision: prompt.revision,
+        ...(prompt.registryUpdatedAt
+          ? { updatedAt: prompt.registryUpdatedAt.toISOString() }
+          : {}),
+      });
+    }
+
+    chain.push({
+      source: 'config_fallback',
+      scope: 'global',
+      status: 'available',
+      configPath: this.resolvePromptRegistryConfigFallbackPath(prompt),
+      fingerprint: prompt.fingerprint,
+      revision: prompt.revision,
+    });
+
+    return chain;
+  }
+
+  private mergePromptRegistrySourceChain(
+    first: PromptRegistrySourceChainEntry,
+    rest: PromptRegistrySourceChainEntry[] | undefined
+  ): PromptRegistrySourceChainEntry[] {
+    const seen = new Set<string>();
+    const chain: PromptRegistrySourceChainEntry[] = [];
+    for (const entry of [first, ...(rest ?? [])]) {
+      const key = [
+        entry.source,
+        entry.scope,
+        entry.workspaceId ?? 'global',
+        entry.revision ?? '',
+        entry.fingerprint ?? '',
+      ].join(':');
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      chain.push(entry);
+    }
+    return chain;
+  }
+
+  private resolvePromptRegistryConfigFallbackPath(prompt: PromptCatalogItem) {
+    if (prompt.source === 'registry') {
+      return 'ai_prompts_metadata';
+    }
+    if (prompt.overrideApplied) {
+      return 'copilot.prompts.overrides';
+    }
+    if (prompt.defaultPolicy) {
+      return `copilot.prompts.defaults.${prompt.defaultPolicy}`;
+    }
+    return prompt.source === 'built_in' ? 'native_prompt_catalog' : 'compat';
+  }
+
+  private buildPromptRegistrySourceChainFingerprint(
+    chain: PromptRegistrySourceChainEntry[]
+  ) {
+    return this.hashCatalogPayload({
+      version: 'prompt-registry-source-chain/v1',
+      chain,
+    });
   }
 
   private buildCatalogFingerprint(input: {
@@ -689,6 +997,17 @@ export class PromptService {
         prompt.registryValidationRemediations ?? null,
       registryValidationReason: prompt.registryValidationReason ?? null,
       registryValidationStatus: prompt.registryValidationStatus ?? null,
+      registryRecordSource: prompt.registryRecordSource ?? null,
+      registryRevision: prompt.registryRevision ?? null,
+      registryRevisionActorId: prompt.registryRevisionActorId ?? null,
+      registryRevisionFingerprint: prompt.registryRevisionFingerprint ?? null,
+      registryRevisionId: prompt.registryRevisionId ?? null,
+      registryRevisionScope: prompt.registryRevisionScope ?? null,
+      registryRevisionStatus: prompt.registryRevisionStatus ?? null,
+      registryRevisionWorkspaceId: prompt.registryRevisionWorkspaceId ?? null,
+      registrySourceChain: prompt.registrySourceChain ?? null,
+      registrySourceChainFingerprint:
+        prompt.registrySourceChainFingerprint ?? null,
       source: prompt.source,
     });
   }

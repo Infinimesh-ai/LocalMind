@@ -56,6 +56,20 @@ model User {
   workspaceMemberLastAccesses WorkspaceMemberLastAccess[]
   quotaState                  EffectiveUserQuotaState?
   ownedQuotaStates            EffectiveWorkspaceQuotaState[]
+  aiSupportBundleRequests     AiSupportBundleRequest[]    @relation("support_bundle_request_actor")
+  aiSupportBundleAuditEvents  AiSupportBundleAuditEvent[] @relation("support_bundle_audit_event_actor")
+  aiSupportBundleDownloadAuthorizations AiSupportBundleDownloadAuthorization[] @relation("support_bundle_download_authorization_actor")
+  aiRepairExecutionRequests   AiRepairExecutionRequest[]  @relation("repair_execution_request_actor")
+  aiRepairExecutionAuditEvents AiRepairExecutionAuditEvent[] @relation("repair_execution_audit_event_actor")
+  aiAgentRuns                 AiAgentRun[]                 @relation("agent_run_actor")
+  aiAgentSteps                AiAgentStep[]                @relation("agent_step_actor")
+  aiAgentTimelineEvents       AiAgentTimelineEvent[]       @relation("agent_timeline_event_actor")
+  aiPromptRegistryRevisions   AiPromptRegistryRevision[]   @relation("prompt_registry_revision_actor")
+  aiTaskRoutePolicyRevisions  AiTaskRoutePolicyRevision[]  @relation("task_route_policy_revision_actor")
+  aiModelRegistryRevisions    AiModelRegistryRevision[]    @relation("model_registry_revision_actor")
+  aiProviderRegistryRevisions AiProviderRegistryRevision[] @relation("provider_registry_revision_actor")
+  aiProviderHealthStates      AiProviderHealthState[]      @relation("provider_health_state_actor")
+  aiProviderHealthEvents      AiProviderHealthEvent[]      @relation("provider_health_event_actor")
 
   @@index([email])
   @@map("users")
@@ -169,6 +183,20 @@ model Workspace {
   projectedInvitations       WorkspaceInvitation[]
   docAccessPolicies          DocAccessPolicy[]
   docGrants                  DocGrant[]
+  aiSupportBundleRequests     AiSupportBundleRequest[]    @relation("support_bundle_request_workspace")
+  aiSupportBundleAuditEvents  AiSupportBundleAuditEvent[] @relation("support_bundle_audit_event_workspace")
+  aiSupportBundleDownloadAuthorizations AiSupportBundleDownloadAuthorization[] @relation("support_bundle_download_authorization_workspace")
+  aiRepairExecutionRequests   AiRepairExecutionRequest[]  @relation("repair_execution_request_workspace")
+  aiRepairExecutionAuditEvents AiRepairExecutionAuditEvent[] @relation("repair_execution_audit_event_workspace")
+  aiAgentRuns                 AiAgentRun[]                 @relation("agent_run_workspace")
+  aiAgentSteps                AiAgentStep[]                @relation("agent_step_workspace")
+  aiAgentTimelineEvents       AiAgentTimelineEvent[]       @relation("agent_timeline_event_workspace")
+  aiPromptRegistryRevisions   AiPromptRegistryRevision[]   @relation("prompt_registry_revision_workspace")
+  aiTaskRoutePolicyRevisions  AiTaskRoutePolicyRevision[]  @relation("task_route_policy_revision_workspace")
+  aiModelRegistryRevisions    AiModelRegistryRevision[]    @relation("model_registry_revision_workspace")
+  aiProviderRegistryRevisions AiProviderRegistryRevision[] @relation("provider_registry_revision_workspace")
+  aiProviderHealthStates      AiProviderHealthState[]      @relation("provider_health_state_workspace")
+  aiProviderHealthEvents      AiProviderHealthEvent[]      @relation("provider_health_event_workspace")
 
   @@index([lastCheckEmbeddings])
   @@index([createdAt])
@@ -724,6 +752,273 @@ model AiPrompt {
   @@map("ai_prompts_metadata")
 }
 
+model AiPromptRegistryRevision {
+  id                  String    @id @db.VarChar
+  promptName          String    @map("prompt_name") @db.VarChar(32)
+  scopeType           String    @default("global") @map("scope_type") @db.VarChar
+  workspaceId         String?   @map("workspace_id") @db.VarChar
+  actorId             String?   @map("actor_id") @db.VarChar
+  revision            String    @db.VarChar
+  status              String    @default("active") @db.VarChar
+  fingerprint         String    @db.VarChar
+  fallbackSourceChain Json      @default("[]") @map("fallback_source_chain") @db.JsonB
+  metadata            Json      @default("{}") @db.JsonB
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace Workspace? @relation("prompt_registry_revision_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User?      @relation("prompt_registry_revision_actor", fields: [actorId], references: [id], onDelete: SetNull)
+  publishEvents AiRegistryRevisionPublishEvent[] @relation("registry_publish_event_prompt_revision")
+
+  @@index([promptName, scopeType, workspaceId, revision], map: "ai_prompt_registry_revisions_scope_revision_idx")
+  @@index([promptName, scopeType, workspaceId, createdAt], map: "ai_prompt_registry_revisions_scope_created_at_idx")
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([status, createdAt])
+  @@unique([id, scopeType, workspaceId, actorId, promptName, revision, fingerprint, status], map: "ai_prompt_registry_revisions_publish_event_snapshot_key")
+  @@unique([id, scopeType, promptName, revision, fingerprint, status], map: "ai_prompt_registry_revisions_global_event_key")
+  @@unique([id, scopeType, actorId, promptName, revision, fingerprint, status], map: "ai_prompt_registry_revisions_publish_actor_snapshot_key")
+  @@map("ai_prompt_registry_revisions")
+}
+
+model AiTaskRoutePolicyRevision {
+  id                  String    @id @db.VarChar
+  featureKind         String    @map("feature_kind") @db.VarChar
+  scopeType           String    @default("global") @map("scope_type") @db.VarChar
+  workspaceId         String?   @map("workspace_id") @db.VarChar
+  actorId             String?   @map("actor_id") @db.VarChar
+  revision            String    @db.VarChar
+  status              String    @default("active") @db.VarChar
+  modelId             String?   @map("model_id") @db.VarChar
+  configKey           String?   @map("config_key") @db.VarChar
+  configPath          String?   @map("config_path") @db.VarChar
+  fingerprint         String    @db.VarChar
+  fallbackSourceChain Json      @default("[]") @map("fallback_source_chain") @db.JsonB
+  metadata            Json      @default("{}") @db.JsonB
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace Workspace? @relation("task_route_policy_revision_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User?      @relation("task_route_policy_revision_actor", fields: [actorId], references: [id], onDelete: SetNull)
+  publishEvents AiRegistryRevisionPublishEvent[] @relation("registry_publish_event_task_route_revision")
+
+  @@index([featureKind, scopeType, workspaceId, revision], map: "ai_task_route_policy_revisions_scope_revision_idx")
+  @@index([featureKind, scopeType, workspaceId, createdAt], map: "ai_task_route_policy_revisions_scope_created_at_idx")
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([status, createdAt])
+  @@unique([id, scopeType, workspaceId, actorId, featureKind, revision, fingerprint, status], map: "ai_task_route_policy_revisions_publish_event_snapshot_key")
+  @@unique([id, scopeType, featureKind, revision, fingerprint, status], map: "ai_task_route_policy_revisions_global_event_key")
+  @@unique([id, scopeType, actorId, featureKind, revision, fingerprint, status], map: "ai_task_route_policy_revisions_publish_actor_snapshot_key")
+  @@map("ai_task_route_policy_revisions")
+}
+
+model AiModelRegistryRevision {
+  id                  String    @id @db.VarChar
+  providerId          String    @map("provider_id") @db.VarChar
+  modelId             String    @map("model_id") @db.VarChar
+  scopeType           String    @default("global") @map("scope_type") @db.VarChar
+  workspaceId         String?   @map("workspace_id") @db.VarChar
+  actorId             String?   @map("actor_id") @db.VarChar
+  revision            String    @db.VarChar
+  status              String    @default("active") @db.VarChar
+  fingerprint         String    @db.VarChar
+  modelDefinition     Json      @map("model_definition") @db.JsonB
+  fallbackSourceChain Json      @default("[]") @map("fallback_source_chain") @db.JsonB
+  metadata            Json      @default("{}") @db.JsonB
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace Workspace? @relation("model_registry_revision_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User?      @relation("model_registry_revision_actor", fields: [actorId], references: [id], onDelete: SetNull)
+  publishEvents AiRegistryRevisionPublishEvent[] @relation("registry_publish_event_model_revision")
+
+  @@index([providerId, modelId, scopeType, workspaceId, revision], map: "ai_model_registry_revisions_scope_revision_idx")
+  @@index([providerId, modelId, scopeType, workspaceId, createdAt], map: "ai_model_registry_revisions_scope_created_at_idx")
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([status, createdAt])
+  @@unique([id, scopeType, workspaceId, actorId, providerId, modelId, revision, fingerprint, status], map: "ai_model_registry_revisions_publish_event_snapshot_key")
+  @@unique([id, scopeType, providerId, modelId, revision, fingerprint, status], map: "ai_model_registry_revisions_global_event_key")
+  @@unique([id, scopeType, actorId, providerId, modelId, revision, fingerprint, status], map: "ai_model_registry_revisions_publish_actor_snapshot_key")
+  @@map("ai_model_registry_revisions")
+}
+
+model AiProviderRegistryRevision {
+  id                  String    @id @db.VarChar
+  providerId          String    @map("provider_id") @db.VarChar
+  providerType        String?   @map("provider_type") @db.VarChar
+  scopeType           String    @default("global") @map("scope_type") @db.VarChar
+  workspaceId         String?   @map("workspace_id") @db.VarChar
+  actorId             String?   @map("actor_id") @db.VarChar
+  revision            String    @db.VarChar
+  status              String    @default("active") @db.VarChar
+  fingerprint         String    @db.VarChar
+  providerProfile     Json      @map("provider_profile") @db.JsonB
+  fallbackSourceChain Json      @default("[]") @map("fallback_source_chain") @db.JsonB
+  metadata            Json      @default("{}") @db.JsonB
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace Workspace? @relation("provider_registry_revision_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User?      @relation("provider_registry_revision_actor", fields: [actorId], references: [id], onDelete: SetNull)
+  publishEvents AiRegistryRevisionPublishEvent[] @relation("registry_publish_event_provider_revision")
+
+  @@index([providerId, scopeType, workspaceId, revision], map: "ai_provider_registry_revisions_scope_revision_idx")
+  @@index([providerId, scopeType, workspaceId, createdAt], map: "ai_provider_registry_revisions_scope_created_at_idx")
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([status, createdAt])
+  @@unique([id, scopeType, workspaceId, actorId, providerId, revision, fingerprint, status], map: "ai_provider_registry_revisions_publish_event_snapshot_key")
+  @@unique([id, scopeType, providerId, revision, fingerprint, status], map: "ai_provider_registry_revisions_global_event_key")
+  @@unique([id, scopeType, actorId, providerId, revision, fingerprint, status], map: "ai_provider_registry_revisions_publish_actor_snapshot_key")
+  @@map("ai_provider_registry_revisions")
+}
+
+model AiRegistryRevisionPublishEvent {
+  id                             String    @id @db.VarChar
+  registryFamily                 String    @map("registry_family") @db.VarChar
+  revisionId                     String    @map("revision_id") @db.VarChar
+  promptRegistryRevisionId       String?   @map("prompt_registry_revision_id") @db.VarChar
+  taskRoutePolicyRevisionId      String?   @map("task_route_policy_revision_id") @db.VarChar
+  modelRegistryRevisionId        String?   @map("model_registry_revision_id") @db.VarChar
+  providerRegistryRevisionId     String?   @map("provider_registry_revision_id") @db.VarChar
+  registryProviderId             String?   @map("registry_provider_id") @db.VarChar
+  registryModelId                String?   @map("registry_model_id") @db.VarChar
+  workspaceId                    String?   @map("workspace_id") @db.VarChar
+  actorId                        String?   @map("actor_id") @db.VarChar
+  scopeType                      String    @map("scope_type") @db.VarChar
+  registryKey                    String    @map("registry_key") @db.VarChar
+  revision                       String    @db.VarChar
+  revisionFingerprint            String    @map("revision_fingerprint") @db.VarChar
+  revisionStatus                 String    @map("revision_status") @db.VarChar
+  eventType                      String    @map("event_type") @db.VarChar
+  publishSource                  String    @map("publish_source") @db.VarChar
+  eventFingerprint               String    @map("event_fingerprint") @db.VarChar
+  metadata                       Json      @default("{}") @db.JsonB
+  createdAt                      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  promptRegistryRevision   AiPromptRegistryRevision?    @relation("registry_publish_event_prompt_revision", fields: [promptRegistryRevisionId, scopeType, workspaceId, actorId, registryKey, revision, revisionFingerprint, revisionStatus], references: [id, scopeType, workspaceId, actorId, promptName, revision, fingerprint, status], onDelete: Cascade, onUpdate: Restrict)
+  taskRoutePolicyRevision  AiTaskRoutePolicyRevision?   @relation("registry_publish_event_task_route_revision", fields: [taskRoutePolicyRevisionId, scopeType, workspaceId, actorId, registryKey, revision, revisionFingerprint, revisionStatus], references: [id, scopeType, workspaceId, actorId, featureKind, revision, fingerprint, status], onDelete: Cascade, onUpdate: Restrict)
+  modelRegistryRevision    AiModelRegistryRevision?     @relation("registry_publish_event_model_revision", fields: [modelRegistryRevisionId, scopeType, workspaceId, actorId, registryProviderId, registryModelId, revision, revisionFingerprint, revisionStatus], references: [id, scopeType, workspaceId, actorId, providerId, modelId, revision, fingerprint, status], onDelete: Cascade, onUpdate: Restrict)
+  providerRegistryRevision AiProviderRegistryRevision?  @relation("registry_publish_event_provider_revision", fields: [providerRegistryRevisionId, scopeType, workspaceId, actorId, registryProviderId, revision, revisionFingerprint, revisionStatus], references: [id, scopeType, workspaceId, actorId, providerId, revision, fingerprint, status], onDelete: Cascade, onUpdate: Restrict)
+
+  @@unique([eventFingerprint])
+  @@index([registryFamily, createdAt])
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([revisionId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([registryProviderId, registryModelId, createdAt])
+  @@map("ai_registry_revision_publish_events")
+}
+
+model AiProviderHealthState {
+  id           String   @id @db.VarChar
+  providerId   String   @map("provider_id") @db.VarChar
+  providerType String?  @map("provider_type") @db.VarChar
+  scopeType    String   @default("global") @map("scope_type") @db.VarChar
+  workspaceId  String?  @map("workspace_id") @db.VarChar
+  actorId      String?  @map("actor_id") @db.VarChar
+  status       String   @db.VarChar
+  checkedAt    DateTime @map("checked_at") @db.Timestamptz(3)
+  lastError    String?  @map("last_error") @db.Text
+  source       String   @default("manual_override") @db.VarChar
+  fingerprint  String   @db.VarChar
+  metadata     Json     @default("{}") @db.JsonB
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace Workspace? @relation("provider_health_state_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User?      @relation("provider_health_state_actor", fields: [actorId], references: [id], onDelete: SetNull)
+  events    AiProviderHealthEvent[] @relation("provider_health_event_state")
+  eventIdentitySnapshots AiProviderHealthEvent[] @relation("provider_health_event_state_identity_snapshot")
+  eventWorkspaceSnapshots AiProviderHealthEvent[] @relation("provider_health_event_state_workspace_snapshot")
+
+  @@index([providerId, scopeType, workspaceId, checkedAt], map: "ai_provider_health_states_scope_checked_at_idx")
+  @@index([workspaceId, checkedAt])
+  @@index([actorId, checkedAt])
+  @@index([status, checkedAt])
+  @@unique([id, providerId, scopeType], map: "ai_provider_health_states_event_identity_key")
+  @@unique([id, providerId, scopeType, workspaceId], map: "ai_provider_health_states_event_workspace_key")
+  @@map("ai_provider_health_states")
+}
+
+model AiProviderHealthEvent {
+  id               String   @id @db.VarChar
+  stateId          String?  @map("state_id") @db.VarChar
+  providerId       String   @map("provider_id") @db.VarChar
+  providerType     String?  @map("provider_type") @db.VarChar
+  scopeType        String   @map("scope_type") @db.VarChar
+  workspaceId      String?  @map("workspace_id") @db.VarChar
+  actorId          String?  @map("actor_id") @db.VarChar
+  status           String   @db.VarChar
+  checkedAt        DateTime @map("checked_at") @db.Timestamptz(3)
+  lastError        String?  @map("last_error") @db.Text
+  source           String   @db.VarChar
+  eventType        String   @map("event_type") @db.VarChar
+  fingerprint      String   @db.VarChar
+  stateFingerprint String   @map("state_fingerprint") @db.VarChar
+  metadata         Json     @default("{}") @db.JsonB
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  state     AiProviderHealthState? @relation("provider_health_event_state", fields: [stateId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "ai_provider_health_events_state_id_fkey")
+  stateIdentitySnapshot AiProviderHealthState? @relation("provider_health_event_state_identity_snapshot", fields: [stateId, providerId, scopeType], references: [id, providerId, scopeType], onDelete: Cascade, onUpdate: Restrict, map: "ai_provider_health_events_state_identity_fkey")
+  stateWorkspaceSnapshot AiProviderHealthState? @relation("provider_health_event_state_workspace_snapshot", fields: [stateId, providerId, scopeType, workspaceId], references: [id, providerId, scopeType, workspaceId], onDelete: Cascade, onUpdate: Restrict, map: "ai_provider_health_events_state_workspace_fkey")
+  workspace Workspace? @relation("provider_health_event_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User?      @relation("provider_health_event_actor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([providerId, scopeType, workspaceId, checkedAt], map: "ai_provider_health_events_scope_checked_at_idx")
+  @@index([stateId, createdAt])
+  @@index([workspaceId, checkedAt])
+  @@index([actorId, checkedAt])
+  @@index([eventType, checkedAt])
+  @@map("ai_provider_health_events")
+}
+
+model AiProviderHealthProbeAttempt {
+  id                                  String    @id @db.VarChar
+  providerId                          String    @map("provider_id") @db.VarChar
+  providerType                        String?   @map("provider_type") @db.VarChar
+  scopeType                           String    @default("workspace") @map("scope_type") @db.VarChar
+  workspaceId                         String?   @map("workspace_id") @db.VarChar
+  actorId                             String?   @map("actor_id") @db.VarChar
+  providerRegistryRevisionId          String?   @map("provider_registry_revision_id") @db.VarChar
+  providerRegistryRevisionFingerprint String?   @map("provider_registry_revision_fingerprint") @db.VarChar
+  providerProfileSource               String?   @map("provider_profile_source") @db.VarChar
+  providerProfileFingerprint          String    @map("provider_profile_fingerprint") @db.VarChar
+  providerProfileSnapshot             Json      @default("{}") @map("provider_profile_snapshot") @db.JsonB
+  requestFingerprint                  String    @map("request_fingerprint") @db.VarChar
+  status                              String    @default("queued") @db.VarChar
+  attemptCount                        Int       @default(0) @map("attempt_count")
+  maxAttempts                         Int       @default(3) @map("max_attempts")
+  scheduledAt                         DateTime  @default(now()) @map("scheduled_at") @db.Timestamptz(3)
+  workerLeaseId                       String?   @map("worker_lease_id") @db.VarChar
+  workerLeaseExpiresAt                DateTime? @map("worker_lease_expires_at") @db.Timestamptz(3)
+  checkedAt                           DateTime? @map("checked_at") @db.Timestamptz(3)
+  completedAt                         DateTime? @map("completed_at") @db.Timestamptz(3)
+  deadLetteredAt                      DateTime? @map("dead_lettered_at") @db.Timestamptz(3)
+  failureCode                         String?   @map("failure_code") @db.VarChar
+  failureMessage                      String?   @map("failure_message") @db.Text
+  resultStatus                        String?   @map("result_status") @db.VarChar
+  resultLastError                     String?   @map("result_last_error") @db.Text
+  resultMetadata                      Json      @default("{}") @map("result_metadata") @db.JsonB
+  resultFingerprint                   String?   @map("result_fingerprint") @db.VarChar
+  providerHealthStateId               String?   @map("provider_health_state_id") @db.VarChar
+  providerHealthStateFingerprint      String?   @map("provider_health_state_fingerprint") @db.VarChar
+  createdAt                           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([requestFingerprint])
+  @@index([status, scheduledAt])
+  @@index([status, workerLeaseExpiresAt])
+  @@index([providerId, scopeType, workspaceId, scheduledAt], map: "ai_provider_health_probe_attempts_scope_idx")
+  @@index([providerRegistryRevisionId, scheduledAt], map: "ai_provider_health_probe_attempts_revision_idx")
+  @@index([workspaceId, scheduledAt])
+  @@index([actorId, scheduledAt])
+  @@map("ai_provider_health_probe_attempts")
+}
+
 model AiSessionMessage {
   id                 String       @id @default(uuid()) @db.VarChar
   sessionId          String       @map("session_id") @db.VarChar
@@ -809,6 +1104,412 @@ model AiActionRun {
   @@index([status])
   @@index([retryOf])
   @@map("ai_action_runs")
+}
+
+model AiSupportBundleRequest {
+  id                          String                      @id @db.VarChar
+  workspaceId                 String                      @map("workspace_id") @db.VarChar
+  actorId                     String                      @map("actor_id") @db.VarChar
+  status                      String                      @db.VarChar
+  sourceEvidenceSummary       Json                        @default("{}") @map("source_evidence_summary") @db.JsonB
+  sourceEvidenceSetFingerprint String                     @map("source_evidence_set_fingerprint") @db.VarChar
+  manifestFingerprint         String                      @map("manifest_fingerprint") @db.VarChar
+  manifestJson                Json                        @map("manifest_json") @db.JsonB
+  manifestStorageKey          String?                     @map("manifest_storage_key") @db.VarChar
+  manifestByteSize            Int?                        @map("manifest_byte_size")
+  manifestMime                String?                     @map("manifest_mime") @db.VarChar
+  manifestFilename            String?                     @map("manifest_filename") @db.VarChar
+  archiveStorageKey           String?                     @map("archive_storage_key") @db.VarChar
+  archiveByteSize             Int?                        @map("archive_byte_size")
+  archiveFingerprint          String?                     @map("archive_fingerprint") @db.VarChar
+  archiveMime                 String?                     @map("archive_mime") @db.VarChar
+  archiveFilename             String?                     @map("archive_filename") @db.VarChar
+  retentionStatus             String                      @default("active") @map("retention_status") @db.VarChar
+  expiresAt                   DateTime                    @map("expires_at") @db.Timestamptz(3)
+  failureCode                 String?                     @map("failure_code") @db.VarChar
+  failureMessage              String?                     @map("failure_message") @db.Text
+  createdAt                   DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                   DateTime                    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace   Workspace                   @relation("support_bundle_request_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor       User                        @relation("support_bundle_request_actor", fields: [actorId], references: [id], onDelete: Restrict)
+  auditEvents AiSupportBundleAuditEvent[] @relation("support_bundle_audit_event_bundle")
+  auditEventWorkspaceSnapshots AiSupportBundleAuditEvent[] @relation("support_bundle_audit_event_bundle_workspace_snapshot")
+  downloadAuthorizations AiSupportBundleDownloadAuthorization[] @relation("support_bundle_download_authorization_bundle")
+  downloadAuthorizationWorkspaceSnapshots AiSupportBundleDownloadAuthorization[] @relation("support_bundle_download_authorization_bundle_workspace_snapshot")
+
+  @@unique([id, workspaceId], map: "ai_support_bundle_requests_workspace_snapshot_key")
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([status, createdAt])
+  @@index([retentionStatus, expiresAt])
+  @@map("ai_support_bundle_requests")
+}
+
+model AiSupportBundleAuditEvent {
+  id               String                  @id @db.VarChar
+  bundleId         String                  @map("bundle_id") @db.VarChar
+  workspaceId      String                  @map("workspace_id") @db.VarChar
+  actorId          String                  @map("actor_id") @db.VarChar
+  eventType        String                  @map("event_type") @db.VarChar
+  eventFingerprint String                  @map("event_fingerprint") @db.VarChar
+  metadata         Json                    @default("{}") @db.JsonB
+  createdAt        DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  bundle    AiSupportBundleRequest @relation("support_bundle_audit_event_bundle", fields: [bundleId], references: [id], onDelete: Cascade, map: "ai_support_bundle_audit_events_bundle_id_fkey")
+  bundleWorkspaceSnapshot AiSupportBundleRequest @relation("support_bundle_audit_event_bundle_workspace_snapshot", fields: [bundleId, workspaceId], references: [id, workspaceId], onDelete: Cascade, onUpdate: Restrict, map: "ai_support_bundle_audit_events_bundle_workspace_snapshot_fkey")
+  workspace Workspace              @relation("support_bundle_audit_event_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User                   @relation("support_bundle_audit_event_actor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([bundleId, createdAt])
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("ai_support_bundle_audit_events")
+}
+
+model AiSupportBundleDownloadAuthorization {
+  id                    String   @id @db.VarChar
+  bundleId              String   @map("bundle_id") @db.VarChar
+  workspaceId           String   @map("workspace_id") @db.VarChar
+  actorId               String   @map("actor_id") @db.VarChar
+  status                String   @db.VarChar
+  artifactKind          String   @map("artifact_kind") @db.VarChar
+  artifactFilename      String   @map("artifact_filename") @db.VarChar
+  artifactMime          String   @map("artifact_mime") @db.VarChar
+  manifestFingerprint   String   @map("manifest_fingerprint") @db.VarChar
+  artifactFingerprint   String   @map("artifact_fingerprint") @db.VarChar
+  authorizationFingerprint String @map("authorization_fingerprint") @db.VarChar
+  tokenFingerprint      String   @map("token_fingerprint") @db.VarChar
+  deliveryMethod        String   @default("api_proxy") @map("delivery_method") @db.VarChar
+  directDownloadUrl     String?  @map("direct_download_url") @db.Text
+  directDownloadExpiresAt DateTime? @map("direct_download_expires_at") @db.Timestamptz(3)
+  expiresAt             DateTime @map("expires_at") @db.Timestamptz(3)
+  downloadedAt          DateTime? @map("downloaded_at") @db.Timestamptz(3)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  bundle    AiSupportBundleRequest @relation("support_bundle_download_authorization_bundle", fields: [bundleId], references: [id], onDelete: Cascade, map: "ai_support_bundle_download_authorizations_bundle_id_fkey")
+  bundleWorkspaceSnapshot AiSupportBundleRequest @relation("support_bundle_download_authorization_bundle_workspace_snapshot", fields: [bundleId, workspaceId], references: [id, workspaceId], onDelete: Cascade, onUpdate: Restrict, map: "ai_support_bundle_auth_bundle_workspace_snapshot_fkey")
+  workspace Workspace              @relation("support_bundle_download_authorization_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User                   @relation("support_bundle_download_authorization_actor", fields: [actorId], references: [id], onDelete: Restrict)
+  transferEvents AiSupportBundleTransferEvent[] @relation("support_bundle_transfer_event_authorization")
+  transferForwardingEvents AiSupportBundleTransferForwardingEvent[] @relation("support_bundle_transfer_forwarding_event_authorization")
+
+  @@unique([tokenFingerprint])
+  @@unique([id, bundleId, workspaceId, actorId, artifactKind, manifestFingerprint, artifactFingerprint, authorizationFingerprint, deliveryMethod], map: "ai_support_bundle_download_authorizations_transfer_snapshot_key")
+  @@index([bundleId, createdAt])
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([status, expiresAt])
+  @@map("ai_support_bundle_download_authorizations")
+}
+
+model AiSupportBundleTransferEvent {
+  id                                  String   @id @db.VarChar
+  authorizationId                     String   @map("authorization_id") @db.VarChar
+  bundleId                            String   @map("bundle_id") @db.VarChar
+  workspaceId                         String   @map("workspace_id") @db.VarChar
+  actorId                             String   @map("actor_id") @db.VarChar
+  artifactKind                        String   @map("artifact_kind") @db.VarChar
+  manifestFingerprint                 String   @map("manifest_fingerprint") @db.VarChar
+  artifactFingerprint                 String   @map("artifact_fingerprint") @db.VarChar
+  authorizationFingerprint            String   @map("authorization_fingerprint") @db.VarChar
+  deliveryMethod                      String   @map("delivery_method") @db.VarChar
+  eventId                             String?  @map("event_id") @db.VarChar
+  eventSource                         String   @map("event_source") @db.VarChar
+  transferredAt                       DateTime @map("transferred_at") @db.Timestamptz(3)
+  notificationAuthEvidence            Json     @map("notification_auth_evidence") @db.JsonB
+  notificationAuthEvidenceFingerprint String   @map("notification_auth_evidence_fingerprint") @db.VarChar
+  storageKey                          String   @map("storage_key") @db.VarChar
+  storageByteSize                     Int      @map("storage_byte_size")
+  storageContentType                  String   @map("storage_content_type") @db.VarChar
+  eventFingerprint                    String   @map("event_fingerprint") @db.VarChar
+  createdAt                           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  authorization AiSupportBundleDownloadAuthorization @relation("support_bundle_transfer_event_authorization", fields: [authorizationId, bundleId, workspaceId, actorId, artifactKind, manifestFingerprint, artifactFingerprint, authorizationFingerprint, deliveryMethod], references: [id, bundleId, workspaceId, actorId, artifactKind, manifestFingerprint, artifactFingerprint, authorizationFingerprint, deliveryMethod], onDelete: Cascade, onUpdate: Restrict)
+
+  @@unique([authorizationId, eventFingerprint])
+  @@index([authorizationId, createdAt], map: "ai_support_bundle_transfer_events_auth_created_at_idx")
+  @@index([bundleId, createdAt])
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([eventSource, createdAt])
+  @@map("ai_support_bundle_transfer_events")
+}
+
+model AiSupportBundleTransferForwardingEvent {
+  id                                  String   @id @db.VarChar
+  authorizationId                     String   @map("authorization_id") @db.VarChar
+  status                              String   @db.VarChar
+  eventId                             String?  @map("event_id") @db.VarChar
+  eventSource                         String   @map("event_source") @db.VarChar
+  forwardingEventFingerprint          String   @map("forwarding_event_fingerprint") @db.VarChar
+  forwardingPayload                   Json     @map("forwarding_payload") @db.JsonB
+  forwardingPayloadFingerprint        String   @map("forwarding_payload_fingerprint") @db.VarChar
+  providerSignatureEvidenceFingerprint String? @map("provider_signature_evidence_fingerprint") @db.VarChar
+  forwardedTransferEventFingerprint   String?  @map("forwarded_transfer_event_fingerprint") @db.VarChar
+  attemptCount                        Int      @default(0) @map("attempt_count")
+  maxAttempts                         Int      @default(3) @map("max_attempts")
+  nextAttemptAt                       DateTime? @map("next_attempt_at") @db.Timestamptz(3)
+  workerLeaseId                       String?  @map("worker_lease_id") @db.VarChar
+  workerLeaseExpiresAt                DateTime? @map("worker_lease_expires_at") @db.Timestamptz(3)
+  lastAttemptAt                       DateTime? @map("last_attempt_at") @db.Timestamptz(3)
+  forwardedAt                         DateTime? @map("forwarded_at") @db.Timestamptz(3)
+  deadLetteredAt                      DateTime? @map("dead_lettered_at") @db.Timestamptz(3)
+  failureCode                         String?  @map("failure_code") @db.VarChar
+  failureMessage                      String?  @map("failure_message") @db.Text
+  createdAt                           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  authorization AiSupportBundleDownloadAuthorization @relation("support_bundle_transfer_forwarding_event_authorization", fields: [authorizationId], references: [id], onDelete: Cascade)
+
+  @@unique([authorizationId, forwardingEventFingerprint])
+  @@index([status, nextAttemptAt, createdAt], map: "ai_support_bundle_transfer_forwarding_events_due_idx")
+  @@index([authorizationId, createdAt], map: "ai_support_bundle_transfer_forwarding_events_auth_created_idx")
+  @@index([eventSource, createdAt], map: "ai_support_bundle_transfer_forwarding_events_source_created_idx")
+  @@map("ai_support_bundle_transfer_forwarding_events")
+}
+
+model AiRepairExecutionRequest {
+  id                                      String                    @id @db.VarChar
+  workspaceId                             String                    @map("workspace_id") @db.VarChar
+  actorId                                 String                    @map("actor_id") @db.VarChar
+  promptName                              String                    @map("prompt_name") @db.VarChar
+  requestedAction                         String                    @map("requested_action") @db.VarChar
+  status                                  String                    @db.VarChar
+  approvalState                           String                    @map("approval_state") @db.VarChar
+  permissionStatus                        String                    @map("permission_status") @db.VarChar
+  idempotencyKey                          String                    @map("idempotency_key") @db.VarChar
+  idempotencyFingerprint                  String                    @map("idempotency_fingerprint") @db.VarChar
+  requestFingerprint                      String                    @map("request_fingerprint") @db.VarChar
+  candidateEvidenceSetFingerprint         String                    @map("candidate_evidence_set_fingerprint") @db.VarChar
+  taskRouteEvidenceSetFingerprint         String                    @map("task_route_evidence_set_fingerprint") @db.VarChar
+  targetLocatorFingerprint                String                    @map("target_locator_fingerprint") @db.VarChar
+  repairJobFingerprint                    String                    @map("repair_job_fingerprint") @db.VarChar
+  approvalRecordFingerprint               String                    @map("approval_record_fingerprint") @db.VarChar
+  auditEventFingerprint                   String                    @map("audit_event_fingerprint") @db.VarChar
+  runtimeResult                           Json                      @default("{}") @map("runtime_result") @db.JsonB
+  executorPayload                         Json                      @default("{}") @map("executor_payload") @db.JsonB
+  failureCode                             String?                   @map("failure_code") @db.VarChar
+  failureMessage                          String?                   @map("failure_message") @db.Text
+  queuedAt                                DateTime?                 @map("queued_at") @db.Timestamptz(3)
+  workerLeaseId                           String?                   @map("worker_lease_id") @db.VarChar
+  workerLeaseExpiresAt                    DateTime?                 @map("worker_lease_expires_at") @db.Timestamptz(3)
+  workerAttempt                           Int                       @default(0) @map("worker_attempt")
+  workerMaxAttempts                       Int                       @default(3) @map("worker_max_attempts")
+  lastAttemptAt                           DateTime?                 @map("last_attempt_at") @db.Timestamptz(3)
+  completedAt                             DateTime?                 @map("completed_at") @db.Timestamptz(3)
+  createdAt                               DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                               DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace   Workspace                 @relation("repair_execution_request_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor       User                      @relation("repair_execution_request_actor", fields: [actorId], references: [id], onDelete: Restrict)
+  auditEvents AiRepairExecutionAuditEvent[] @relation("repair_execution_audit_event_request")
+  auditEventWorkspaceSnapshots AiRepairExecutionAuditEvent[] @relation("repair_execution_audit_event_request_workspace_snapshot")
+  sideEffects AiRepairExecutionSideEffect[]
+
+  @@unique([workspaceId, idempotencyKey])
+  @@unique([id, workspaceId], map: "ai_repair_execution_requests_audit_workspace_key")
+  @@unique([id, workspaceId, actorId], map: "ai_repair_execution_requests_side_effect_snapshot_key")
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([status, createdAt])
+  @@index([status, workerLeaseExpiresAt])
+  @@index([queuedAt])
+  @@index([approvalState, createdAt])
+  @@map("ai_repair_execution_requests")
+}
+
+model AiRepairExecutionSideEffect {
+  id                         String   @id @db.VarChar
+  executionRequestId         String   @map("execution_request_id") @db.VarChar
+  workspaceId                String   @map("workspace_id") @db.VarChar
+  actorId                    String   @map("actor_id") @db.VarChar
+  sideEffectKind             String   @map("side_effect_kind") @db.VarChar
+  sideEffectRecordId         String   @map("side_effect_record_id") @db.VarChar
+  sideEffectFingerprint      String   @map("side_effect_fingerprint") @db.VarChar
+  sideEffectSummary          Json     @map("side_effect_summary") @db.JsonB
+  executorPayloadFingerprint String   @map("executor_payload_fingerprint") @db.VarChar
+  workerAttempt              Int      @map("worker_attempt")
+  workerLeaseId              String   @map("worker_lease_id") @db.VarChar
+  appliedAt                  DateTime @map("applied_at") @db.Timestamptz(3)
+  createdAt                  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  executionRequest AiRepairExecutionRequest @relation(fields: [executionRequestId, workspaceId, actorId], references: [id, workspaceId, actorId], onDelete: Cascade, onUpdate: Restrict)
+
+  @@unique([executionRequestId])
+  @@unique([workspaceId, sideEffectFingerprint])
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([sideEffectKind, createdAt])
+  @@index([sideEffectRecordId])
+  @@map("ai_repair_execution_side_effects")
+}
+
+model AiRepairExecutionAuditEvent {
+  id                  String                    @id @db.VarChar
+  executionRequestId  String                    @map("execution_request_id") @db.VarChar
+  workspaceId         String                    @map("workspace_id") @db.VarChar
+  actorId             String                    @map("actor_id") @db.VarChar
+  eventType           String                    @map("event_type") @db.VarChar
+  eventFingerprint    String                    @map("event_fingerprint") @db.VarChar
+  metadata            Json                      @default("{}") @db.JsonB
+  createdAt           DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  executionRequest AiRepairExecutionRequest @relation("repair_execution_audit_event_request", fields: [executionRequestId], references: [id], onDelete: Cascade, map: "ai_repair_execution_audit_events_execution_request_id_fkey")
+  requestWorkspaceSnapshot AiRepairExecutionRequest @relation("repair_execution_audit_event_request_workspace_snapshot", fields: [executionRequestId, workspaceId], references: [id, workspaceId], onDelete: Cascade, onUpdate: Restrict, map: "ai_repair_execution_audit_events_request_workspace_fkey")
+  workspace        Workspace                @relation("repair_execution_audit_event_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor            User                     @relation("repair_execution_audit_event_actor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([executionRequestId, createdAt])
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("ai_repair_execution_audit_events")
+}
+
+model AiAgentRun {
+  id                  String                 @id @db.VarChar
+  workspaceId         String                 @map("workspace_id") @db.VarChar
+  actorId             String                 @map("actor_id") @db.VarChar
+  workflow            String                 @db.VarChar
+  sourceType          String                 @map("source_type") @db.VarChar
+  sourceId            String                 @map("source_id") @db.VarChar
+  status              String                 @db.VarChar
+  title               String?                @db.VarChar
+  targetFingerprint   String                 @map("target_fingerprint") @db.VarChar
+  evidenceFingerprint String                 @map("evidence_fingerprint") @db.VarChar
+  timelineFingerprint String                 @map("timeline_fingerprint") @db.VarChar
+  startedAt           DateTime?              @map("started_at") @db.Timestamptz(3)
+  completedAt         DateTime?              @map("completed_at") @db.Timestamptz(3)
+  failureCode         String?                @map("failure_code") @db.VarChar
+  failureMessage      String?                @map("failure_message") @db.Text
+  queuedAt            DateTime?              @map("queued_at") @db.Timestamptz(3)
+  workerLeaseId       String?                @map("worker_lease_id") @db.VarChar
+  workerLeaseExpiresAt DateTime?             @map("worker_lease_expires_at") @db.Timestamptz(3)
+  workerAttempt       Int                    @default(0) @map("worker_attempt")
+  workerMaxAttempts   Int                    @default(1) @map("worker_max_attempts")
+  lastAttemptAt       DateTime?              @map("last_attempt_at") @db.Timestamptz(3)
+  createdAt           DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace      Workspace              @relation("agent_run_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor          User                   @relation("agent_run_actor", fields: [actorId], references: [id], onDelete: Restrict)
+  steps          AiAgentStep[]          @relation("agent_step_run")
+  stepRunSnapshots AiAgentStep[]        @relation("agent_step_run_snapshot")
+  timelineEvents AiAgentTimelineEvent[] @relation("agent_timeline_event_run")
+  timelineRunSnapshots AiAgentTimelineEvent[] @relation("agent_timeline_event_run_snapshot")
+  executionResults AiAgentRuntimeExecutionResult[] @relation("agent_run_execution_result_snapshot")
+  executionResultSourceSnapshots AiAgentRuntimeExecutionResult[] @relation("agent_run_execution_result_source_snapshot")
+
+  @@unique([workspaceId, sourceType, sourceId])
+  @@unique([id, workspaceId, actorId], map: "ai_agent_runs_execution_result_snapshot_key")
+  @@unique([id, workspaceId, actorId, workflow, sourceType, sourceId], map: "ai_agent_runs_execution_result_source_snapshot_key")
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([status, createdAt])
+  @@index([status, workerLeaseExpiresAt])
+  @@index([queuedAt])
+  @@index([workflow, createdAt])
+  @@map("ai_agent_runs")
+}
+
+model AiAgentStep {
+  id                  String                 @id @db.VarChar
+  runId               String                 @map("run_id") @db.VarChar
+  workspaceId         String                 @map("workspace_id") @db.VarChar
+  actorId             String                 @map("actor_id") @db.VarChar
+  stepKey             String                 @map("step_key") @db.VarChar
+  stepType            String                 @map("step_type") @db.VarChar
+  status              String                 @db.VarChar
+  title               String?                @db.VarChar
+  order               Int                    @default(0)
+  evidenceFingerprint String                 @map("evidence_fingerprint") @db.VarChar
+  outputSummary       Json                   @default("{}") @map("output_summary") @db.JsonB
+  startedAt           DateTime?              @map("started_at") @db.Timestamptz(3)
+  completedAt         DateTime?              @map("completed_at") @db.Timestamptz(3)
+  createdAt           DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  run            AiAgentRun             @relation("agent_step_run", fields: [runId], references: [id], onDelete: Cascade, map: "ai_agent_steps_run_id_fkey")
+  runSnapshot    AiAgentRun             @relation("agent_step_run_snapshot", fields: [runId, workspaceId, actorId], references: [id, workspaceId, actorId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_steps_run_snapshot_fkey")
+  workspace      Workspace              @relation("agent_step_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor          User                   @relation("agent_step_actor", fields: [actorId], references: [id], onDelete: Restrict)
+  timelineEvents AiAgentTimelineEvent[] @relation("agent_timeline_event_step")
+
+  @@unique([runId, stepKey])
+  @@unique([id, runId, workspaceId, actorId], map: "ai_agent_steps_timeline_step_snapshot_key")
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([status, createdAt])
+  @@index([stepType, createdAt])
+  @@map("ai_agent_steps")
+}
+
+model AiAgentTimelineEvent {
+  id               String       @id @db.VarChar
+  runId            String       @map("run_id") @db.VarChar
+  stepId           String?      @map("step_id") @db.VarChar
+  workspaceId      String       @map("workspace_id") @db.VarChar
+  actorId          String       @map("actor_id") @db.VarChar
+  eventType        String       @map("event_type") @db.VarChar
+  status           String       @db.VarChar
+  ordinal          Int
+  summary          String       @db.Text
+  payload          Json         @default("{}") @db.JsonB
+  eventFingerprint String       @map("event_fingerprint") @db.VarChar
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  run       AiAgentRun  @relation("agent_timeline_event_run", fields: [runId], references: [id], onDelete: Cascade, map: "ai_agent_timeline_events_run_id_fkey")
+  runSnapshot AiAgentRun @relation("agent_timeline_event_run_snapshot", fields: [runId, workspaceId, actorId], references: [id, workspaceId, actorId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_timeline_events_run_snapshot_fkey")
+  step      AiAgentStep? @relation("agent_timeline_event_step", fields: [stepId], references: [id], onDelete: SetNull, map: "ai_agent_timeline_events_step_id_fkey")
+  workspace Workspace   @relation("agent_timeline_event_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User        @relation("agent_timeline_event_actor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([runId, ordinal])
+  @@index([runId, createdAt])
+  @@index([stepId, createdAt])
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("ai_agent_timeline_events")
+}
+
+model AiAgentRuntimeExecutionResult {
+  id                 String   @id @db.VarChar
+  runId              String   @map("run_id") @db.VarChar
+  workspaceId        String   @map("workspace_id") @db.VarChar
+  actorId            String   @map("actor_id") @db.VarChar
+  workflow           String   @db.VarChar
+  sourceType         String   @map("source_type") @db.VarChar
+  sourceId           String   @map("source_id") @db.VarChar
+  adapterWorkflow    String   @map("adapter_workflow") @db.VarChar
+  executor           String   @db.VarChar
+  resultStatus       String   @map("result_status") @db.VarChar
+  sideEffectMode     String   @map("side_effect_mode") @db.VarChar
+  sideEffectsApplied Boolean  @map("side_effects_applied")
+  summary            String   @db.Text
+  failureCode        String?  @map("failure_code") @db.VarChar
+  failureMessage     String?  @map("failure_message") @db.Text
+  resultPayload      Json     @map("result_payload") @db.JsonB
+  resultFingerprint  String   @map("result_fingerprint") @db.VarChar
+  workerAttempt      Int      @map("worker_attempt")
+  workerLeaseId      String   @map("worker_lease_id") @db.VarChar
+  completedAt        DateTime @map("completed_at") @db.Timestamptz(3)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  run AiAgentRun @relation("agent_run_execution_result_snapshot", fields: [runId, workspaceId, actorId], references: [id, workspaceId, actorId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_runtime_execution_results_run_id_fkey")
+  runSourceSnapshot AiAgentRun @relation("agent_run_execution_result_source_snapshot", fields: [runId, workspaceId, actorId, workflow, sourceType, sourceId], references: [id, workspaceId, actorId, workflow, sourceType, sourceId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_runtime_execution_results_run_source_snapshot_fkey")
+
+  @@unique([runId, workerAttempt])
+  @@unique([workspaceId, resultFingerprint])
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([resultStatus, createdAt])
+  @@index([workflow, createdAt])
+  @@index([adapterWorkflow, createdAt], map: "ai_agent_runtime_execution_results_adapter_created_at_idx")
+  @@map("ai_agent_runtime_execution_results")
 }
 
 model AiTranscriptTask {

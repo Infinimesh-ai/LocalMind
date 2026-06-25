@@ -16,6 +16,7 @@ export const ROUTES = {
     workspaces: '/admin/workspaces',
     queue: '/admin/queue',
     ai: '/admin/ai',
+    aiRuntime: '/admin/ai/runtime',
     settings: { index: '/admin/settings', module: '/admin/settings/:module' },
     about: '/admin/about',
     notFound: '/admin/404',
@@ -35,6 +36,7 @@ export const RELATIVE_ROUTES = {
     workspaces: 'workspaces',
     queue: 'queue',
     ai: 'ai',
+    aiRuntime: 'ai/runtime',
     settings: { index: 'settings', module: ':module' },
     about: 'about',
     notFound: '404',
@@ -52,6 +54,7 @@ admin.accounts = () => '/admin/accounts';
 admin.workspaces = () => '/admin/workspaces';
 admin.queue = () => '/admin/queue';
 admin.ai = () => '/admin/ai';
+admin.aiRuntime = () => '/admin/ai/runtime';
 const admin_settings = () => '/admin/settings';
 admin_settings.module = (params: { module: string }) =>
   `/admin/settings/${params.module}`;

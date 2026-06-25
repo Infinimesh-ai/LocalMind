@@ -1,0 +1,112 @@
+query getCopilotSupportBundle($workspaceId: String!, $id: String!) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      supportBundle(id: $id) {
+        actorId
+        archiveByteSize
+        archiveFilename
+        archiveFingerprint
+        archiveMime
+        archiveStorageKey
+        auditEventCount
+        auditEvents {
+          actorId
+          bundleId
+          createdAt
+          eventFingerprint
+          eventType
+          id
+          metadata
+          workspaceId
+        }
+        createdAt
+        expiresAt
+        failureCode
+        failureMessage
+        id
+        manifestByteSize
+        manifestFilename
+        manifestFingerprint
+        manifestMime
+        manifestStorageKey
+        manifestJson {
+          actorId
+          archive
+          bundleId
+          createdAt
+          expiresAt
+          retention {
+            expiresAt
+            status
+          }
+          sourceEvidenceSetFingerprint
+          sourceEvidenceSummary {
+            actionRunCount
+            includedSections
+            promptCatalogItemCount
+            source
+            taskRouteCount
+          }
+          version
+          workspaceId
+        }
+        retentionStatus
+        sourceEvidenceSetFingerprint
+        sourceEvidenceSummary {
+          actionRunCount
+          includedSections
+          promptCatalogItemCount
+          source
+          taskRouteCount
+        }
+        status
+        transferEventCount
+        transferEvents {
+          artifactFingerprint
+          artifactKind
+          authorizationFingerprint
+          authorizationId
+          createdAt
+          deliveryMethod
+          eventFingerprint
+          eventId
+          eventSource
+          id
+          manifestFingerprint
+          notificationAuthEvidenceFingerprint
+          storageByteSize
+          storageContentType
+          storageKey
+          transferredAt
+        }
+        transferForwardingEventCount
+        transferForwardingEvents {
+          attemptCount
+          authorizationId
+          createdAt
+          deadLetteredAt
+          eventId
+          eventSource
+          failureCode
+          failureMessage
+          forwardedAt
+          forwardedTransferEventFingerprint
+          forwardingEventFingerprint
+          forwardingPayload
+          forwardingPayloadFingerprint
+          id
+          lastAttemptAt
+          maxAttempts
+          nextAttemptAt
+          providerSignatureEvidenceFingerprint
+          status
+          updatedAt
+          workerLeaseExpiresAt
+          workerLeaseId
+        }
+        updatedAt
+        workspaceId
+      }
+    }
+  }
+}

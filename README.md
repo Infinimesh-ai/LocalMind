@@ -46,6 +46,25 @@
 <img src="https://github.com/toeverything/AFFiNE/assets/79301703/49a426bb-8d2b-4216-891a-fa5993642253" style="width: 100%"/>
 </div>
 
+## LocalMind branch
+
+This checkout is the LocalMind branch of AFFiNE. It keeps the upstream
+local-first workspace foundation and adds a LocalMind-specific AI modernization
+direction focused on durable AI runtime state, DB-backed AI registries,
+auditable repair execution, persisted support bundles, and Docker-grounded
+validation.
+
+LocalMind planning starts here:
+
+- [LocalMind documentation index](./docs/README.md)
+- [AI modernization entrypoint](./docs/ai-modernization/README.md)
+- [Branch differences](./docs/ai-modernization/branch-differences.md)
+- [AI document map](./docs/ai-modernization/document-map.md)
+
+These LocalMind planning documents are maintained for this branch. Updating
+them locally does not publish changes to GitHub; commit, push, or pull request
+steps are separate explicit actions.
+
 ## Getting started & staying tuned with us.
 
 Star us, and you will receive all release notifications from GitHub without any delay!

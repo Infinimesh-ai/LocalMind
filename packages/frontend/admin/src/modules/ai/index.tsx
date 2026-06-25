@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@affine/admin/components/ui/select';
 import { Skeleton } from '@affine/admin/components/ui/skeleton';
+import { Switch } from '@affine/admin/components/ui/switch';
 import {
   Table,
   TableBody,
@@ -25,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from '@affine/admin/components/ui/table';
+import { Textarea } from '@affine/admin/components/ui/textarea';
 import { useMutation } from '@affine/admin/use-mutation';
 import { useQuery } from '@affine/admin/use-query';
 import { cn } from '@affine/admin/utils';
@@ -57,24 +59,41 @@ import {
   getAIModelTaskRoutesDiagnostics,
 } from '@affine/core/modules/ai-button/services/models';
 import {
+  appConfigQuery,
+  authorizeCopilotSupportBundleDownloadMutation,
+  cleanupCopilotSupportBundleRetentionMutation,
+  controlCopilotAgentRuntimeRunMutation,
+  controlCopilotRepairExecutionMutation,
+  createCopilotSupportBundleMutation,
+  decideCopilotRepairExecutionApprovalMutation,
   getCopilotActionRunPreparedRouteTraceQuery,
   getCopilotActionRunsQuery,
+  getCopilotAgentRunsQuery,
   getCopilotPromptRegistryPublishGateQuery,
   getCopilotPromptRegistryRepairPreflightQuery,
   getCopilotPromptsQuery,
+  getCopilotProviderHealthProbeAttemptsQuery,
+  getCopilotRepairExecutionsQuery,
+  getCopilotSupportBundlesQuery,
   getPromptModelsQuery,
   getWorkspacesQuery,
   type QueryResponse,
   requestCopilotPromptRegistryRepairExecutionMutation,
+  replayCopilotSupportBundleTransferForwardingEventMutation,
+  retryCopilotProviderHealthProbeAttemptMutation,
+  updateAppConfigMutation,
 } from '@affine/graphql';
 import { AlertCircleIcon, CheckCircle2Icon, RefreshCwIcon } from 'lucide-react';
 import {
   type FormEvent,
   type ReactNode,
   Suspense,
+  useEffect,
   useMemo,
   useState,
 } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { toast } from 'sonner';
 
 import { Header } from '../header';
 
@@ -82,6 +101,293 @@ const ADMIN_AI_DEFAULT_PROMPT_NAME = 'Chat With AFFiNE AI';
 const PROMPT_CATALOG_ALL_CATEGORIES = '__all__';
 const WORKSPACE_SCOPE_GLOBAL = '__global__';
 const WORKSPACE_SCOPE_MANUAL = '__manual__';
+const PROVIDER_HEALTH_PROBE_ATTEMPT_ALL_STATUSES = '__all__';
+const PROVIDER_HEALTH_PROBE_ATTEMPT_STATUSES = [
+  'queued',
+  'processing',
+  'retry_scheduled',
+  'completed',
+  'dead_lettered',
+] as const;
+const SUPPORT_BUNDLE_FORWARDING_ALL_STATUSES = '__all__';
+const SUPPORT_BUNDLE_FORWARDING_STATUSES = [
+  'queued',
+  'processing',
+  'retry_scheduled',
+  'forwarded',
+  'dead_lettered',
+] as const;
+const AGENT_RUN_ALL_STATUSES = '__all__';
+const AGENT_RUN_STATUSES = [
+  'queued',
+  'running',
+  'waiting_approval',
+  'completed',
+  'failed',
+  'cancelled',
+] as const;
+const REPAIR_EXECUTION_ALL_STATUSES = '__all__';
+const REPAIR_EXECUTION_STATUSES = [
+  'queued',
+  'waiting_approval',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
+] as const;
+const EMPTY_REPAIR_EXECUTION_PAYLOAD_JSON = '{\n  "kind": ""\n}';
+const REPAIR_EXECUTION_DETERMINISTIC_PAYLOAD_FAILURE_CODES = new Set([
+  'invalid_executor_payload',
+  'unsupported_executor_payload',
+]);
+const OPENAI_COMPATIBLE_API_STYLES = [
+  'chat_completions',
+  'responses',
+  'auto',
+] as const;
+const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
+const DEFAULT_OPENAI_COMPATIBLE_API_STYLE = 'chat_completions';
+const DEFAULT_GEMINI_BASE_URL =
+  'https://generativelanguage.googleapis.com/v1beta';
+const DEFAULT_ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1';
+const AI_RUNTIME_PATH = '/admin/ai/runtime';
+const AI_CONFIG_PATH = '/admin/ai';
+
+type JsonConfigDraftKey =
+  | 'providerProfilesJson'
+  | 'providerDefaultsJson'
+  | 'routePolicyJson'
+  | 'promptDefaultsJson'
+  | 'promptOverridesJson'
+  | 'supportBundleWebhooksJson'
+  | 'storageJson'
+  | 'openaiCompatibleHeadersJson'
+  | 'geminiVertexJson'
+  | 'anthropicVertexJson';
+
+type AppConfigData = {
+  copilot?: {
+    enabled?: boolean;
+    byok?: {
+      allowedProviders?: string[];
+      allowCustomEndpoint?: boolean;
+      enabled?: boolean;
+    };
+    exa?: {
+      key?: string;
+    };
+    prompts?: {
+      defaults?: unknown;
+      overrides?: unknown;
+    };
+    providers?: {
+      anthropic?: {
+        apiKey?: string;
+        baseURL?: string;
+      };
+      anthropicVertex?: unknown;
+      cloudflareWorkersAi?: {
+        accountId?: string;
+        apiToken?: string;
+        baseURL?: string;
+      };
+      defaults?: unknown;
+      fal?: {
+        apiKey?: string;
+      };
+      gemini?: {
+        apiKey?: string;
+        baseURL?: string;
+      };
+      geminiVertex?: unknown;
+      openai?: {
+        apiKey?: string;
+        baseURL?: string;
+        oldApiStyle?: boolean;
+      };
+      openaiCompatible?: {
+        apiKey?: string;
+        apiStyle?: (typeof OPENAI_COMPATIBLE_API_STYLES)[number];
+        baseURL?: string;
+        headers?: unknown;
+      };
+      profiles?: unknown;
+      routePolicy?: unknown;
+    };
+    storage?: unknown;
+    supportBundles?: {
+      objectStorageWebhooks?: unknown;
+    };
+    tasks?: {
+      models?: {
+        embedding?: string;
+        rerank?: string;
+        workspaceIndexing?: string;
+      };
+    };
+    unsplash?: {
+      key?: string;
+    };
+  };
+};
+
+type AiConfigDraft = {
+  anthropicApiKey: string;
+  anthropicBaseURL: string;
+  anthropicVertexJson: string;
+  byokAllowCustomEndpoint: boolean;
+  byokAllowedProviders: string;
+  byokEnabled: boolean;
+  cloudflareWorkersAiAccountId: string;
+  cloudflareWorkersAiApiToken: string;
+  cloudflareWorkersAiBaseURL: string;
+  enabled: boolean;
+  exaKey: string;
+  falApiKey: string;
+  geminiApiKey: string;
+  geminiBaseURL: string;
+  geminiVertexJson: string;
+  openaiApiKey: string;
+  openaiBaseURL: string;
+  openaiCompatibleHeadersJson: string;
+  openaiCompatibleApiKey: string;
+  openaiCompatibleApiStyle: (typeof OPENAI_COMPATIBLE_API_STYLES)[number];
+  openaiCompatibleBaseURL: string;
+  openaiOldApiStyle: boolean;
+  promptDefaultsJson: string;
+  promptOverridesJson: string;
+  providerDefaultsJson: string;
+  providerProfilesJson: string;
+  routePolicyJson: string;
+  storageJson: string;
+  supportBundleWebhooksJson: string;
+  taskEmbeddingModel: string;
+  taskRerankModel: string;
+  taskWorkspaceIndexingModel: string;
+  unsplashKey: string;
+};
+
+function normalizeOpenAICompatibleApiStyle(
+  value: unknown
+): AiConfigDraft['openaiCompatibleApiStyle'] {
+  return OPENAI_COMPATIBLE_API_STYLES.includes(
+    value as AiConfigDraft['openaiCompatibleApiStyle']
+  )
+    ? (value as AiConfigDraft['openaiCompatibleApiStyle'])
+    : DEFAULT_OPENAI_COMPATIBLE_API_STYLE;
+}
+
+function formatJsonConfig(value: unknown, fallback: unknown) {
+  return JSON.stringify(value ?? fallback, null, 2);
+}
+
+function parseJsonConfig(
+  draft: AiConfigDraft,
+  key: JsonConfigDraftKey,
+  label: string
+): { label: string; value: unknown } | { error: string; label: string } {
+  try {
+    return {
+      label,
+      value: JSON.parse(draft[key]),
+    };
+  } catch {
+    return {
+      error: `${label} JSON is invalid.`,
+      label,
+    };
+  }
+}
+
+function getParsedJsonConfigValue(
+  result: { label: string; value: unknown } | { error: string; label: string }
+) {
+  return 'value' in result ? result.value : undefined;
+}
+
+function parseCsvList(value: string) {
+  return value
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function buildAiConfigDraft(
+  appConfig: AppConfigData | undefined
+): AiConfigDraft {
+  const copilot = appConfig?.copilot;
+  const providers = appConfig?.copilot?.providers;
+  const openai = providers?.openai;
+  const openaiCompatible = providers?.openaiCompatible;
+  const tasks = copilot?.tasks?.models;
+
+  return {
+    anthropicApiKey: providers?.anthropic?.apiKey ?? '',
+    anthropicBaseURL:
+      providers?.anthropic?.baseURL ?? DEFAULT_ANTHROPIC_BASE_URL,
+    anthropicVertexJson: formatJsonConfig(providers?.anthropicVertex, {}),
+    byokAllowCustomEndpoint: copilot?.byok?.allowCustomEndpoint ?? false,
+    byokAllowedProviders: (
+      copilot?.byok?.allowedProviders ?? [
+        'openai',
+        'anthropic',
+        'gemini',
+        'fal',
+      ]
+    ).join(', '),
+    byokEnabled: copilot?.byok?.enabled !== false,
+    cloudflareWorkersAiAccountId:
+      providers?.cloudflareWorkersAi?.accountId ?? '',
+    cloudflareWorkersAiApiToken: providers?.cloudflareWorkersAi?.apiToken ?? '',
+    cloudflareWorkersAiBaseURL: providers?.cloudflareWorkersAi?.baseURL ?? '',
+    enabled: appConfig?.copilot?.enabled !== false,
+    exaKey: copilot?.exa?.key ?? '',
+    falApiKey: providers?.fal?.apiKey ?? '',
+    geminiApiKey: providers?.gemini?.apiKey ?? '',
+    geminiBaseURL: providers?.gemini?.baseURL ?? DEFAULT_GEMINI_BASE_URL,
+    geminiVertexJson: formatJsonConfig(providers?.geminiVertex, {}),
+    openaiApiKey: openai?.apiKey ?? '',
+    openaiBaseURL: openai?.baseURL ?? DEFAULT_OPENAI_BASE_URL,
+    openaiCompatibleApiKey: openaiCompatible?.apiKey ?? '',
+    openaiCompatibleHeadersJson: formatJsonConfig(
+      openaiCompatible?.headers,
+      {}
+    ),
+    openaiCompatibleApiStyle: normalizeOpenAICompatibleApiStyle(
+      openaiCompatible?.apiStyle
+    ),
+    openaiCompatibleBaseURL: openaiCompatible?.baseURL ?? '',
+    openaiOldApiStyle: openai?.oldApiStyle ?? false,
+    promptDefaultsJson: formatJsonConfig(copilot?.prompts?.defaults, {}),
+    promptOverridesJson: formatJsonConfig(copilot?.prompts?.overrides, []),
+    providerDefaultsJson: formatJsonConfig(providers?.defaults, {}),
+    providerProfilesJson: formatJsonConfig(providers?.profiles, []),
+    routePolicyJson: formatJsonConfig(providers?.routePolicy, {}),
+    storageJson: formatJsonConfig(copilot?.storage, {
+      provider: 'fs',
+      bucket: 'copilot',
+      config: {
+        path: '~/.affine/storage',
+      },
+    }),
+    supportBundleWebhooksJson: formatJsonConfig(
+      copilot?.supportBundles?.objectStorageWebhooks,
+      []
+    ),
+    taskEmbeddingModel: tasks?.embedding ?? '',
+    taskRerankModel: tasks?.rerank ?? '',
+    taskWorkspaceIndexingModel: tasks?.workspaceIndexing ?? '',
+    unsplashKey: copilot?.unsplash?.key ?? '',
+  };
+}
+
+function trimOptionalSecret(value: string) {
+  return value.trim();
+}
+
+function isSameAiConfigDraft(left: AiConfigDraft, right: AiConfigDraft) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
 
 type PromptCatalogItem = NonNullable<
   NonNullable<
@@ -121,6 +427,57 @@ type PromptRegistryRepairExecutionRequest = NonNullable<
     typeof requestCopilotPromptRegistryRepairExecutionMutation
   >['requestCopilotPromptRegistryRepairExecution']
 >;
+type SupportBundleRequest = NonNullable<
+  NonNullable<
+    NonNullable<
+      QueryResponse<typeof getCopilotSupportBundlesQuery>['currentUser']
+    >['copilot']
+  >['supportBundles']
+>[number];
+type SupportBundleAuditEvent = SupportBundleRequest['auditEvents'][number];
+type SupportBundleTransferEvent =
+  SupportBundleRequest['transferEvents'][number];
+type SupportBundleTransferForwardingEvent =
+  SupportBundleRequest['transferForwardingEvents'][number];
+type SupportBundleDownloadAuthorization = NonNullable<
+  QueryResponse<
+    typeof authorizeCopilotSupportBundleDownloadMutation
+  >['authorizeCopilotSupportBundleDownload']
+>;
+type SupportBundleRetentionCleanup = NonNullable<
+  QueryResponse<
+    typeof cleanupCopilotSupportBundleRetentionMutation
+  >['cleanupCopilotSupportBundleRetention']
+>;
+type SupportBundleTransferForwardingReplayRecord = NonNullable<
+  QueryResponse<
+    typeof replayCopilotSupportBundleTransferForwardingEventMutation
+  >['replayCopilotSupportBundleTransferForwardingEvent']
+>;
+type SupportBundleForwardingStatusFilter =
+  | typeof SUPPORT_BUNDLE_FORWARDING_ALL_STATUSES
+  | (typeof SUPPORT_BUNDLE_FORWARDING_STATUSES)[number];
+type AgentRunRecord = NonNullable<
+  NonNullable<
+    NonNullable<
+      QueryResponse<typeof getCopilotAgentRunsQuery>['currentUser']
+    >['copilot']
+  >['agentRuns']
+>[number];
+type AgentRuntimeWorkflowAdapter = NonNullable<
+  NonNullable<
+    NonNullable<
+      QueryResponse<typeof getCopilotAgentRunsQuery>['currentUser']
+    >['copilot']
+  >['agentRuntimeWorkflowAdapters']
+>[number];
+type RepairExecutionRecord = NonNullable<
+  NonNullable<
+    NonNullable<
+      QueryResponse<typeof getCopilotRepairExecutionsQuery>['currentUser']
+    >['copilot']
+  >['repairExecutions']
+>[number];
 type PromptRegistryPublishGateActionRouteDryRun = NonNullable<
   PromptRegistryPublishGateVerdict['actionRouteDryRun']
 >;
@@ -180,10 +537,47 @@ type ActionRunDiagnosticsItem = NonNullable<
     QueryResponse<typeof getCopilotActionRunsQuery>['currentUser']
   >['copilot']
 >['actionRuns'][number];
+type ProviderHealthProbeAttempt = NonNullable<
+  NonNullable<
+    QueryResponse<
+      typeof getCopilotProviderHealthProbeAttemptsQuery
+    >['currentUser']
+  >['copilot']
+>['providerHealthProbeAttempts'][number];
+type ProviderHealthProbeAttemptRetryRecord = QueryResponse<
+  typeof retryCopilotProviderHealthProbeAttemptMutation
+>['retryCopilotProviderHealthProbeAttempt'];
+type ProviderHealthProbeAttemptStatusFilter =
+  | typeof PROVIDER_HEALTH_PROBE_ATTEMPT_ALL_STATUSES
+  | (typeof PROVIDER_HEALTH_PROBE_ATTEMPT_STATUSES)[number];
 
 const EMPTY_PROMPT_CATALOG: PromptCatalogItem[] = [];
 const EMPTY_WORKSPACE_SCOPES: WorkspaceScopeItem[] = [];
 const EMPTY_ACTION_RUNS: ActionRunDiagnosticsItem[] = [];
+const EMPTY_SUPPORT_BUNDLES: SupportBundleRequest[] = [];
+const EMPTY_AGENT_RUNS: AgentRunRecord[] = [];
+const EMPTY_AGENT_RUNTIME_WORKFLOW_ADAPTERS: AgentRuntimeWorkflowAdapter[] = [];
+const EMPTY_REPAIR_EXECUTIONS: RepairExecutionRecord[] = [];
+const EMPTY_PROVIDER_HEALTH_PROBE_ATTEMPTS: ProviderHealthProbeAttempt[] = [];
+
+type RepairExecutionApprovalDecisionRecord = QueryResponse<
+  typeof decideCopilotRepairExecutionApprovalMutation
+>['decideCopilotRepairExecutionApproval'];
+type RepairExecutionControlRecord = QueryResponse<
+  typeof controlCopilotRepairExecutionMutation
+>['controlCopilotRepairExecution'];
+type RepairExecutionAuditEvent = NonNullable<
+  PromptRegistryRepairExecutionRequest['executionRecord']
+>['auditEvents'][number];
+type AgentRuntimeControlRecord = QueryResponse<
+  typeof controlCopilotAgentRuntimeRunMutation
+>['controlCopilotAgentRuntimeRun'];
+type AgentRunStatusFilter =
+  | typeof AGENT_RUN_ALL_STATUSES
+  | (typeof AGENT_RUN_STATUSES)[number];
+type RepairExecutionStatusFilter =
+  | typeof REPAIR_EXECUTION_ALL_STATUSES
+  | (typeof REPAIR_EXECUTION_STATUSES)[number];
 
 const STATUS_LABELS: Record<AIModelTaskRouteReadinessStatus, string> = {
   blocked: 'Blocked',
@@ -193,6 +587,9 @@ const STATUS_LABELS: Record<AIModelTaskRouteReadinessStatus, string> = {
 };
 
 const FEATURE_LABELS: Record<string, string> = {
+  config_fallback: 'Config fallback',
+  db_revision: 'DB revision',
+  legacy_registry: 'Legacy registry',
   rerank: 'Rerank',
   unknown: 'Unknown',
   workspace_indexing: 'Workspace indexing',
@@ -287,6 +684,27 @@ function compactList(values: Array<string | null | undefined>) {
   return values.filter((value): value is string => Boolean(value)).join(' / ');
 }
 
+function TableViewport({
+  children,
+  className,
+  minWidth = 'min-w-[760px]',
+}: {
+  children: ReactNode;
+  className?: string;
+  minWidth?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        'overflow-x-auto rounded-md border border-border/70',
+        className
+      )}
+    >
+      <div className={minWidth}>{children}</div>
+    </div>
+  );
+}
+
 function buildPromptCatalogVersionEvidence(prompt: PromptCatalogItem) {
   const evidence = prompt.versionEvidence;
 
@@ -348,6 +766,36 @@ function buildPromptCatalogVersionEvidence(prompt: PromptCatalogItem) {
     ...(evidence.registryValidationRemediations ?? []).map(
       remediation =>
         `registry remediation ${formatPromptRegistryValidationRemediation(remediation)}`
+    ),
+    evidence.registryRecordSource
+      ? `registry source ${formatFeatureKind(evidence.registryRecordSource)}`
+      : null,
+    evidence.registryRevision
+      ? `registry revision ${evidence.registryRevision}`
+      : null,
+    evidence.registryRevisionId
+      ? `registry revision id ${evidence.registryRevisionId}`
+      : null,
+    evidence.registryRevisionScope
+      ? `registry revision scope ${formatFeatureKind(evidence.registryRevisionScope)}`
+      : null,
+    evidence.registryRevisionWorkspaceId
+      ? `registry revision workspace ${evidence.registryRevisionWorkspaceId}`
+      : null,
+    evidence.registryRevisionActorId
+      ? `registry revision actor ${evidence.registryRevisionActorId}`
+      : null,
+    evidence.registryRevisionFingerprint
+      ? `registry revision fingerprint ${evidence.registryRevisionFingerprint}`
+      : null,
+    evidence.registryRevisionStatus
+      ? `registry revision status ${formatFeatureKind(evidence.registryRevisionStatus)}`
+      : null,
+    evidence.registrySourceChainFingerprint
+      ? `registry source chain fingerprint ${evidence.registrySourceChainFingerprint}`
+      : null,
+    ...(evidence.registrySourceChain ?? []).map(
+      entry => `registry source chain ${formatPromptRegistrySourceChain(entry)}`
     ),
   ]);
 }
@@ -501,6 +949,40 @@ function formatPromptRegistryValidationRemediation(
   ]);
 }
 
+function formatPromptRegistrySourceChain(
+  entry: NonNullable<PromptCatalogItem['registrySourceChain']>[number]
+) {
+  return compactList([
+    entry.source,
+    `scope ${entry.scope}`,
+    `status ${entry.status}`,
+    entry.revision ? `revision ${entry.revision}` : null,
+    entry.fingerprint ? `fingerprint ${entry.fingerprint}` : null,
+    entry.registryId != null ? `registry ${entry.registryId}` : null,
+    entry.workspaceId ? `workspace ${entry.workspaceId}` : null,
+    entry.actorId ? `actor ${entry.actorId}` : null,
+    entry.configPath ? `config ${entry.configPath}` : null,
+    entry.updatedAt ? `updated ${entry.updatedAt}` : null,
+  ]);
+}
+
+function formatRegistryRevisionPublishEvent(
+  event:
+    | NonNullable<PromptCatalogItem['registryRevisionPublishEvents']>[number]
+    | NonNullable<AIModel['modelRegistryRevisionPublishEvents']>[number]
+    | NonNullable<
+        AIModelTaskRoute['taskRoutePolicyRevisionPublishEvents']
+      >[number]
+) {
+  return compactList([
+    formatFeatureKind(event.eventType),
+    event.publishSource,
+    `fingerprint ${event.eventFingerprint}`,
+    event.actorId ? `actor ${event.actorId}` : null,
+    `created ${formatActionRunTimestamp(event.createdAt)}`,
+  ]);
+}
+
 function matchesPromptCatalogSearch(prompt: PromptCatalogItem, search: string) {
   if (!search) {
     return true;
@@ -598,6 +1080,49 @@ function matchesPromptCatalogSearch(prompt: PromptCatalogItem, search: string) {
     ]),
     prompt.registryValidationReason,
     prompt.registryValidationStatus,
+    prompt.registryRecordSource,
+    prompt.registryRecordSource
+      ? `registry source ${formatFeatureKind(prompt.registryRecordSource)}`
+      : null,
+    prompt.registryRevision,
+    prompt.registryRevision
+      ? `registry revision ${prompt.registryRevision}`
+      : null,
+    prompt.registryRevisionActorId,
+    prompt.registryRevisionFingerprint,
+    prompt.registryRevisionId,
+    prompt.registryRevisionPublishEventCount?.toString(),
+    prompt.registryRevisionPublishEventCount != null
+      ? `registry publish events ${prompt.registryRevisionPublishEventCount}`
+      : null,
+    ...(prompt.registryRevisionPublishEvents ?? []).flatMap(event => [
+      event.eventType,
+      event.publishSource,
+      event.eventFingerprint,
+      event.actorId ?? null,
+      event.createdAt,
+      formatRegistryRevisionPublishEvent(event),
+    ]),
+    prompt.registryRevisionScope,
+    prompt.registryRevisionStatus,
+    prompt.registryRevisionWorkspaceId,
+    prompt.registrySourceChainFingerprint,
+    prompt.registrySourceChainFingerprint
+      ? `registry source chain fingerprint ${prompt.registrySourceChainFingerprint}`
+      : null,
+    ...(prompt.registrySourceChain ?? []).flatMap(entry => [
+      entry.source,
+      entry.scope,
+      entry.status,
+      entry.revision ?? null,
+      entry.fingerprint ?? null,
+      entry.registryId?.toString(),
+      entry.workspaceId ?? null,
+      entry.actorId ?? null,
+      entry.configPath ?? null,
+      entry.updatedAt ?? null,
+      formatPromptRegistrySourceChain(entry),
+    ]),
     prompt.revision,
     prompt.source,
     prompt.templateFingerprint,
@@ -667,30 +1192,45 @@ function RecommendedChecks({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="grid gap-2">
       {actions.map(action => {
         const target = getAIModelTaskRouteRemediationTarget(action);
 
         return (
           <div
             key={action}
-            className="rounded-md border border-border/70 bg-muted/30 px-3 py-2"
+            className="grid min-w-0 grid-cols-1 gap-3 rounded-md border border-border/70 bg-muted/20 p-3 md:grid-cols-[minmax(180px,240px)_minmax(160px,220px)_minmax(0,1fr)]"
           >
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Badge variant="outline" className="font-normal">
-                {formatActionKind(action)}
-              </Badge>
-              <span className="text-xs text-muted-foreground">Target</span>
+            <div className="min-w-0 space-y-1">
+              <div className="text-[11px] font-medium uppercase text-muted-foreground">
+                Action
+              </div>
               <Badge
                 variant="outline"
-                className="border-border/70 bg-muted/40 font-normal"
+                className="h-auto max-w-full justify-start whitespace-normal break-words text-left font-normal leading-5"
+              >
+                {formatActionKind(action)}
+              </Badge>
+            </div>
+            <div className="min-w-0 space-y-1">
+              <div className="text-[11px] font-medium uppercase text-muted-foreground">
+                Target
+              </div>
+              <Badge
+                variant="outline"
+                className="h-auto max-w-full justify-start whitespace-normal break-words border-border/70 bg-muted/40 text-left font-normal leading-5"
                 title={target.description}
               >
                 {target.label}
               </Badge>
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">
-              {target.description}
+            <div className="min-w-0 space-y-1">
+              <div className="text-[11px] font-medium uppercase text-muted-foreground">
+                Details
+              </div>
+              <div className="break-words text-xs leading-5 text-muted-foreground">
+                {target.description}
+              </div>
             </div>
           </div>
         );
@@ -837,90 +1377,96 @@ function PreparedRoutesSummary({
     <div className="space-y-2">
       <div className="text-sm font-medium">Prepared routes</div>
       {routes.length ? (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Provider</TableHead>
-              <TableHead>Model</TableHead>
-              <TableHead>Runtime metadata</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {routes.map((route, index) => {
-              const providerProfileLabel = formatAIModelProviderProfileLabel({
-                providerConfiguredModelCount:
-                  route.providerConfiguredModelCount,
-                providerConfiguredModelIds: route.providerConfiguredModelIds,
-                providerProfileConfigPath: route.providerProfileConfigPath,
-                providerProfileId: route.providerProfileId,
-                providerProfileSource: route.providerProfileSource,
-              });
+        <TableViewport>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Provider</TableHead>
+                <TableHead>Model</TableHead>
+                <TableHead>Runtime metadata</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {routes.map((route, index) => {
+                const providerProfileLabel = formatAIModelProviderProfileLabel({
+                  providerConfiguredModelCount:
+                    route.providerConfiguredModelCount,
+                  providerConfiguredModelIds: route.providerConfiguredModelIds,
+                  providerProfileConfigPath: route.providerProfileConfigPath,
+                  providerProfileId: route.providerProfileId,
+                  providerProfileSource: route.providerProfileSource,
+                });
 
-              return (
-                <TableRow key={`${route.providerId}:${route.modelId}:${index}`}>
-                  <TableCell className="break-words">
-                    <div className="font-medium">{route.providerId}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {compactList([
-                        route.providerType
-                          ? formatProviderMetadata(
-                              route.providerType,
-                              PROVIDER_TYPE_LABELS
-                            )
-                          : null,
-                        route.providerSource
-                          ? formatProviderMetadata(
-                              route.providerSource,
-                              PROVIDER_SOURCE_LABELS
-                            )
-                          : null,
-                        route.providerPriority != null
-                          ? `Priority ${route.providerPriority}`
-                          : null,
-                      ]) || 'Provider metadata unavailable'}
-                    </div>
-                    {providerProfileLabel ? (
+                return (
+                  <TableRow
+                    key={`${route.providerId}:${route.modelId}:${index}`}
+                  >
+                    <TableCell className="break-words">
+                      <div className="font-medium">{route.providerId}</div>
                       <div className="mt-1 text-xs text-muted-foreground">
-                        {providerProfileLabel}
+                        {compactList([
+                          route.providerType
+                            ? formatProviderMetadata(
+                                route.providerType,
+                                PROVIDER_TYPE_LABELS
+                              )
+                            : null,
+                          route.providerSource
+                            ? formatProviderMetadata(
+                                route.providerSource,
+                                PROVIDER_SOURCE_LABELS
+                              )
+                            : null,
+                          route.providerPriority != null
+                            ? `Priority ${route.providerPriority}`
+                            : null,
+                        ]) || 'Provider metadata unavailable'}
                       </div>
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="break-words font-medium">
-                    {route.modelId}
-                  </TableCell>
-                  <TableCell className="break-words text-muted-foreground">
-                    {compactList([
-                      route.routeIndex != null
-                        ? `Route #${route.routeIndex + 1}`
-                        : null,
-                      route.fallbackOrderIndex != null
-                        ? `Fallback #${route.fallbackOrderIndex + 1}`
-                        : null,
-                      route.protocol ? `Protocol ${route.protocol}` : null,
-                      route.requestLayer ? `Layer ${route.requestLayer}` : null,
-                      route.modelBackendKind
-                        ? `Backend ${route.modelBackendKind}`
-                        : null,
-                      route.canonicalModelKey
-                        ? `Canonical ${route.canonicalModelKey}`
-                        : null,
-                      route.behaviorFlags?.length
-                        ? `Flags ${route.behaviorFlags.join(', ')}`
-                        : null,
-                      route.requestedDimensions != null
-                        ? `Requested ${route.requestedDimensions}d`
-                        : null,
-                      route.modelEmbeddingDimensions != null
-                        ? `Model ${route.modelEmbeddingDimensions}d`
-                        : null,
-                      route.dimensionMismatch ? 'Dimension mismatch' : null,
-                    ]) || 'No runtime metadata'}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+                      {providerProfileLabel ? (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {providerProfileLabel}
+                        </div>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="break-words font-medium">
+                      {route.modelId}
+                    </TableCell>
+                    <TableCell className="break-words text-muted-foreground">
+                      {compactList([
+                        route.routeIndex != null
+                          ? `Route #${route.routeIndex + 1}`
+                          : null,
+                        route.fallbackOrderIndex != null
+                          ? `Fallback #${route.fallbackOrderIndex + 1}`
+                          : null,
+                        route.protocol ? `Protocol ${route.protocol}` : null,
+                        route.requestLayer
+                          ? `Layer ${route.requestLayer}`
+                          : null,
+                        route.modelBackendKind
+                          ? `Backend ${route.modelBackendKind}`
+                          : null,
+                        route.canonicalModelKey
+                          ? `Canonical ${route.canonicalModelKey}`
+                          : null,
+                        route.behaviorFlags?.length
+                          ? `Flags ${route.behaviorFlags.join(', ')}`
+                          : null,
+                        route.requestedDimensions != null
+                          ? `Requested ${route.requestedDimensions}d`
+                          : null,
+                        route.modelEmbeddingDimensions != null
+                          ? `Model ${route.modelEmbeddingDimensions}d`
+                          : null,
+                        route.dimensionMismatch ? 'Dimension mismatch' : null,
+                      ]) || 'No runtime metadata'}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableViewport>
       ) : (
         <EmptyState>No prepared routes returned.</EmptyState>
       )}
@@ -1043,6 +1589,29 @@ function formatTaskRouteDiagnosticsErrorText(
   ]);
 }
 
+function formatTaskRoutePolicySourceChainEntry(
+  entry: NonNullable<
+    AIModelTaskRoute['taskRoutePolicyRevisionSourceChain']
+  >[number]
+) {
+  return compactList([
+    formatFeatureKind(entry.source),
+    formatFeatureKind(entry.scope),
+    formatFeatureKind(entry.status),
+    entry.featureKind
+      ? `feature ${formatFeatureKind(entry.featureKind)}`
+      : null,
+    entry.modelId ? `model ${entry.modelId}` : null,
+    entry.configKey ? `config key ${entry.configKey}` : null,
+    entry.configPath ? `config ${entry.configPath}` : null,
+    entry.revision ? `revision ${entry.revision}` : null,
+    entry.fingerprint ? `fingerprint ${entry.fingerprint}` : null,
+    entry.workspaceId ? `workspace ${entry.workspaceId}` : null,
+    entry.actorId ? `actor ${entry.actorId}` : null,
+    entry.updatedAt ? `updated ${entry.updatedAt}` : null,
+  ]);
+}
+
 function formatTaskRoutePolicyCandidateText(
   row: AIModelTaskRoutePolicyCandidateTraceRow
 ) {
@@ -1153,6 +1722,16 @@ function formatTaskRouteCandidateText(row: AIModelTaskRouteCandidateTraceRow) {
     routeModelDefinitionAliases: row.routeModelDefinitionAliases,
     routeModelDefinitionId: row.routeModelDefinitionId,
     routeModelDefinitionSource: row.routeModelDefinitionSource,
+    modelRegistryRevision: row.modelRegistryRevision,
+    modelRegistryRevisionFingerprint: row.modelRegistryRevisionFingerprint,
+    modelRegistryRevisionId: row.modelRegistryRevisionId,
+    modelRegistryRevisionScope: row.modelRegistryRevisionScope,
+    modelRegistryRevisionSourceChainFingerprint:
+      row.modelRegistryRevisionSourceChainFingerprint,
+    modelRegistryRevisionStatus: row.modelRegistryRevisionStatus,
+    modelRegistryRevisionWorkspaceId: row.modelRegistryRevisionWorkspaceId,
+    modelRegistryRevisionPublishEventCount:
+      row.modelRegistryRevisionPublishEventCount,
     routeProtocol: null,
     routeRawModelId: row.routeRawModelId,
     routeRequestLayer: null,
@@ -1234,6 +1813,23 @@ function formatTaskRouteCandidateText(row: AIModelTaskRouteCandidateTraceRow) {
     `severity ${row.severity}`,
     `reasons ${formatReasonSummaryText(row.reasonSummary)}`,
   ]);
+}
+
+function formatTaskRouteCandidateModelPublishEventLines(
+  row: AIModelTaskRouteCandidateTraceRow
+) {
+  const events = row.modelRegistryRevisionPublishEvents ?? [];
+  const candidateIdentity = compactList([row.providerId, row.modelId]);
+
+  return [
+    row.modelRegistryRevisionPublishEventCount != null
+      ? `Candidate model registry revision publish events ${candidateIdentity || 'unknown'} ${row.modelRegistryRevisionPublishEventCount}`
+      : null,
+    ...events.map(
+      event =>
+        `Candidate model registry revision publish event ${candidateIdentity || 'unknown'} ${formatRegistryRevisionPublishEvent(event)}`
+    ),
+  ];
 }
 
 function formatPromptRegistryPublishGateTaskRoute(route: {
@@ -1318,6 +1914,16 @@ function formatPromptRegistryPublishGateRouteCandidate(
     routeModelDefinitionAliases: row.routeModelDefinitionAliases,
     routeModelDefinitionId: row.routeModelDefinitionId,
     routeModelDefinitionSource: row.routeModelDefinitionSource,
+    modelRegistryRevision: row.modelRegistryRevision,
+    modelRegistryRevisionFingerprint: row.modelRegistryRevisionFingerprint,
+    modelRegistryRevisionId: row.modelRegistryRevisionId,
+    modelRegistryRevisionScope: row.modelRegistryRevisionScope,
+    modelRegistryRevisionSourceChainFingerprint:
+      row.modelRegistryRevisionSourceChainFingerprint,
+    modelRegistryRevisionStatus: row.modelRegistryRevisionStatus,
+    modelRegistryRevisionWorkspaceId: row.modelRegistryRevisionWorkspaceId,
+    modelRegistryRevisionPublishEventCount:
+      row.modelRegistryRevisionPublishEventCount,
     routeProtocol: null,
     routeRawModelId: row.routeRawModelId,
     routeRequestLayer: null,
@@ -1386,6 +1992,10 @@ function buildTaskRouteDiagnosticsText({
   const preparedRouteTargets = rawRoute?.preparedRouteTargets ?? [];
   const preparedRouteTargetFingerprint =
     rawRoute?.preparedRouteTargetFingerprint;
+  const taskRoutePolicySourceChain =
+    rawRoute?.taskRoutePolicyRevisionSourceChain ?? [];
+  const taskRoutePolicyPublishEvents =
+    rawRoute?.taskRoutePolicyRevisionPublishEvents ?? [];
 
   return [
     `Task route ${label}`,
@@ -1402,6 +2012,40 @@ function buildTaskRouteDiagnosticsText({
       : null,
     requestedModelConfigPath
       ? `Requested config ${requestedModelConfigPath}`
+      : null,
+    rawRoute?.taskRoutePolicyRevision
+      ? `Task route policy revision ${rawRoute.taskRoutePolicyRevision}`
+      : null,
+    rawRoute?.taskRoutePolicyRevisionId
+      ? `Task route policy revision id ${rawRoute.taskRoutePolicyRevisionId}`
+      : null,
+    rawRoute?.taskRoutePolicyRevisionScope
+      ? `Task route policy revision scope ${formatFeatureKind(
+          rawRoute.taskRoutePolicyRevisionScope
+        )}`
+      : null,
+    rawRoute?.taskRoutePolicyRevisionStatus
+      ? `Task route policy revision status ${formatFeatureKind(
+          rawRoute.taskRoutePolicyRevisionStatus
+        )}`
+      : null,
+    rawRoute?.taskRoutePolicyRevisionFingerprint
+      ? `Task route policy revision fingerprint ${rawRoute.taskRoutePolicyRevisionFingerprint}`
+      : null,
+    rawRoute?.taskRoutePolicyRevisionSourceChainFingerprint
+      ? `Task route policy source chain fingerprint ${rawRoute.taskRoutePolicyRevisionSourceChainFingerprint}`
+      : null,
+    rawRoute?.taskRoutePolicyRevisionPublishEventCount != null
+      ? `Task route policy revision publish events ${rawRoute.taskRoutePolicyRevisionPublishEventCount}`
+      : null,
+    ...taskRoutePolicyPublishEvents.map(
+      event =>
+        `Task route policy revision publish event ${formatRegistryRevisionPublishEvent(event)}`
+    ),
+    taskRoutePolicySourceChain.length
+      ? `Task route policy source chain ${taskRoutePolicySourceChain
+          .map(formatTaskRoutePolicySourceChainEntry)
+          .join(' -> ')}`
       : null,
     rawRoute?.embeddingIndexContractVersion
       ? `Embedding index contract ${rawRoute.embeddingIndexContractVersion}`
@@ -1468,8 +2112,11 @@ function buildTaskRouteDiagnosticsText({
       row => `Phase ${formatTaskRoutePhaseText(row)}`
     ),
     `Candidate trace ${route.candidateTrace.rows.length}`,
-    ...route.candidateTrace.rows.map(
-      row => `Candidate ${formatTaskRouteCandidateText(row)}`
+    ...route.candidateTrace.rows.flatMap(row =>
+      [
+        `Candidate ${formatTaskRouteCandidateText(row)}`,
+        ...formatTaskRouteCandidateModelPublishEventLines(row),
+      ].filter((line): line is string => line != null)
     ),
   ]
     .filter((line): line is string => Boolean(line))
@@ -1497,6 +2144,8 @@ function RouteSummaryCard({
   const preparedRouteTargets = rawRoute?.preparedRouteTargets ?? [];
   const preparedRouteTargetFingerprint =
     rawRoute?.preparedRouteTargetFingerprint;
+  const taskRoutePolicySourceChain =
+    rawRoute?.taskRoutePolicyRevisionSourceChain ?? [];
   const diagnosticsText = buildTaskRouteDiagnosticsText({
     label,
     rawRoute,
@@ -1504,7 +2153,7 @@ function RouteSummaryCard({
   });
 
   return (
-    <Card className="border-border/60 bg-card shadow-1">
+    <Card className="min-w-0 border-border/60 bg-card shadow-1">
       <CardHeader className="gap-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
@@ -1520,7 +2169,7 @@ function RouteSummaryCard({
         <div className="rounded-md border border-border/70 bg-muted/30 p-3">
           <div className="text-sm font-medium">Task route diagnostics</div>
           <pre
-            className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words text-xs text-muted-foreground"
+            className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-muted-foreground"
             data-testid={`task-route-diagnostics-${readiness.featureKind.replaceAll(
               '_',
               '-'
@@ -1530,7 +2179,7 @@ function RouteSummaryCard({
           </pre>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 text-sm lg:grid-cols-2 xl:grid-cols-4">
           <div>
             <div className="text-xs text-muted-foreground">Route</div>
             <div className="mt-1 break-words font-medium">
@@ -1550,6 +2199,17 @@ function RouteSummaryCard({
             {requestedModelConfigPath ? (
               <div className="mt-1 break-words text-xs text-muted-foreground">
                 Config {requestedModelConfigPath}
+              </div>
+            ) : null}
+            {rawRoute?.taskRoutePolicyRevision ? (
+              <div className="mt-1 break-words text-xs text-muted-foreground">
+                Revision {rawRoute.taskRoutePolicyRevision}
+              </div>
+            ) : null}
+            {rawRoute?.taskRoutePolicyRevisionSourceChainFingerprint ? (
+              <div className="mt-1 break-words text-xs text-muted-foreground">
+                Source chain{' '}
+                {rawRoute.taskRoutePolicyRevisionSourceChainFingerprint}
               </div>
             ) : null}
           </div>
@@ -1603,6 +2263,18 @@ function RouteSummaryCard({
 
         <ReasonSummary route={route} />
         <RoutePolicySummary route={route} />
+        {taskRoutePolicySourceChain.length ? (
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Task route policy source</div>
+            <div className="space-y-1 text-xs text-muted-foreground">
+              {taskRoutePolicySourceChain.map((entry, index) => (
+                <div key={`${entry.source}-${entry.scope}-${index}`}>
+                  {formatTaskRoutePolicySourceChainEntry(entry)}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <PreparedRoutesSummary routes={preparedRoutes} />
         <PolicyCandidateTrace rows={route.policyCandidateTrace.rows} />
         <PhaseTrace phases={route.phaseTrace.phases} />
@@ -1621,166 +2293,20 @@ function PolicyCandidateTrace({
     <div className="space-y-2">
       <div className="text-sm font-medium">Policy candidates</div>
       {rows.length ? (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Provider</TableHead>
-              <TableHead>Privacy</TableHead>
-              <TableHead>Health</TableHead>
-              <TableHead className="w-[120px]">Status</TableHead>
-              <TableHead>Reasons</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map(row => (
-              <TableRow key={row.providerId}>
-                <TableCell className="break-words">
-                  <div className="font-medium">
-                    {formatProviderIdentity(row)}
-                  </div>
-                  {row.providerType ? (
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {formatProviderMetadata(
-                        row.providerType,
-                        PROVIDER_TYPE_LABELS
-                      )}
-                    </div>
-                  ) : null}
-                  {row.providerSource ? (
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {formatProviderMetadata(
-                        row.providerSource,
-                        PROVIDER_SOURCE_LABELS
-                      )}
-                    </div>
-                  ) : null}
-                  {row.providerPriority != null ? (
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      Priority {row.providerPriority}
-                    </div>
-                  ) : null}
-                </TableCell>
-                <TableCell>
-                  {formatProviderMetadata(row.privacy, PROVIDER_PRIVACY_LABELS)}
-                </TableCell>
-                <TableCell>
-                  <div>
-                    {formatProviderMetadata(row.health, PROVIDER_HEALTH_LABELS)}
-                  </div>
-                  {row.healthCheckedAt ? (
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      Checked {row.healthCheckedAt}
-                    </div>
-                  ) : null}
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      'border font-normal',
-                      POLICY_CANDIDATE_STATUS_STYLES[row.status]
-                    )}
-                  >
-                    {formatFeatureKind(row.status)}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <SeverityText severity={row.severity}>
-                    {row.reasonSummary.reasons
-                      .map(reason => reason.label)
-                      .join(', ') || 'No issues'}
-                  </SeverityText>
-                </TableCell>
+        <TableViewport minWidth="min-w-[860px]">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Provider</TableHead>
+                <TableHead>Privacy</TableHead>
+                <TableHead>Health</TableHead>
+                <TableHead className="w-[120px]">Status</TableHead>
+                <TableHead>Reasons</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      ) : (
-        <EmptyState>No policy candidate diagnostics returned.</EmptyState>
-      )}
-    </div>
-  );
-}
-
-function PhaseTrace({ phases }: { phases: AIModelTaskRoutePhaseTraceRow[] }) {
-  return (
-    <div className="space-y-2">
-      <div className="text-sm font-medium">Phase trace</div>
-      {phases.length ? (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Phase</TableHead>
-              <TableHead className="w-[120px]">Candidates</TableHead>
-              <TableHead className="w-[120px]">Selected</TableHead>
-              <TableHead>Reasons</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {phases.map(phase => (
-              <TableRow key={phase.phase}>
-                <TableCell className="font-medium">{phase.phase}</TableCell>
-                <TableCell>{phase.candidateCount}</TableCell>
-                <TableCell>
-                  {phase.selectedCount ?? phase.preparedCount ?? 0}
-                </TableCell>
-                <TableCell>
-                  <SeverityText severity={phase.severity}>
-                    {phase.reasonSummary.reasons
-                      .map(reason => reason.label)
-                      .join(', ') || 'No issues'}
-                  </SeverityText>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      ) : (
-        <EmptyState>No phase diagnostics returned.</EmptyState>
-      )}
-    </div>
-  );
-}
-
-function CandidateTrace({
-  rows,
-}: {
-  rows: AIModelTaskRouteCandidateTraceRow[];
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="text-sm font-medium">Candidate trace</div>
-      {rows.length ? (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Provider</TableHead>
-              <TableHead>Model</TableHead>
-              <TableHead className="w-[120px]">Status</TableHead>
-              <TableHead>Reasons</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row, index) => {
-              const providerProfileLabel =
-                formatAIModelProviderProfileLabel(row);
-              const modelDefinitionLabel = formatAIModelDefinitionLabel({
-                routeBackendKind: null,
-                routeBehaviorFlags: null,
-                routeCanonicalModelKey: null,
-                routeModelAliasMatched: row.routeModelAliasMatched,
-                routeModelDefinitionAliases: row.routeModelDefinitionAliases,
-                routeModelDefinitionId: row.routeModelDefinitionId,
-                routeModelDefinitionSource: row.routeModelDefinitionSource,
-                routeProtocol: null,
-                routeRawModelId: row.routeRawModelId,
-                routeRequestLayer: null,
-              });
-
-              return (
-                <TableRow
-                  key={row.candidateKey || `${row.providerId}-${index}`}
-                >
+            </TableHeader>
+            <TableBody>
+              {rows.map(row => (
+                <TableRow key={row.providerId}>
                   <TableCell className="break-words">
                     <div className="font-medium">
                       {formatProviderIdentity(row)}
@@ -1806,72 +2332,244 @@ function CandidateTrace({
                         Priority {row.providerPriority}
                       </div>
                     ) : null}
-                    {providerProfileLabel ? (
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {providerProfileLabel}
-                      </div>
-                    ) : null}
-                    {row.privacy ? (
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {formatProviderMetadata(
-                          row.privacy,
-                          PROVIDER_PRIVACY_LABELS
-                        )}
-                      </div>
-                    ) : null}
-                    {row.health ? (
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {formatProviderMetadata(
-                          row.health,
-                          PROVIDER_HEALTH_LABELS
-                        )}
-                      </div>
-                    ) : null}
+                  </TableCell>
+                  <TableCell>
+                    {formatProviderMetadata(
+                      row.privacy,
+                      PROVIDER_PRIVACY_LABELS
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div>
+                      {formatProviderMetadata(
+                        row.health,
+                        PROVIDER_HEALTH_LABELS
+                      )}
+                    </div>
                     {row.healthCheckedAt ? (
                       <div className="mt-1 text-xs text-muted-foreground">
                         Checked {row.healthCheckedAt}
                       </div>
                     ) : null}
                   </TableCell>
-                  <TableCell className="break-words">
-                    {compactList([
-                      row.modelId,
-                      row.preparedModelId
-                        ? `prepared ${row.preparedModelId}`
-                        : null,
-                      row.requestedModelId
-                        ? `requested ${row.requestedModelId}`
-                        : null,
-                    ]) || 'Not selected'}
-                    {modelDefinitionLabel ? (
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {modelDefinitionLabel}
-                      </div>
-                    ) : null}
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        'border font-normal',
+                        POLICY_CANDIDATE_STATUS_STYLES[row.status]
+                      )}
+                    >
+                      {formatFeatureKind(row.status)}
+                    </Badge>
                   </TableCell>
-                  <TableCell>{formatFeatureKind(row.status)}</TableCell>
                   <TableCell>
                     <SeverityText severity={row.severity}>
                       {row.reasonSummary.reasons
                         .map(reason => reason.label)
                         .join(', ') || 'No issues'}
                     </SeverityText>
-                    {row.errorCode || row.errorCategory ? (
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {compactList([
-                          row.errorCode ? `Code ${row.errorCode}` : null,
-                          row.errorCategory
-                            ? `Category ${formatFeatureKind(row.errorCategory)}`
-                            : null,
-                        ])}
-                      </div>
-                    ) : null}
                   </TableCell>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+              ))}
+            </TableBody>
+          </Table>
+        </TableViewport>
+      ) : (
+        <EmptyState>No policy candidate diagnostics returned.</EmptyState>
+      )}
+    </div>
+  );
+}
+
+function PhaseTrace({ phases }: { phases: AIModelTaskRoutePhaseTraceRow[] }) {
+  return (
+    <div className="space-y-2">
+      <div className="text-sm font-medium">Phase trace</div>
+      {phases.length ? (
+        <TableViewport minWidth="min-w-[680px]">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Phase</TableHead>
+                <TableHead className="w-[120px]">Candidates</TableHead>
+                <TableHead className="w-[120px]">Selected</TableHead>
+                <TableHead>Reasons</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {phases.map(phase => (
+                <TableRow key={phase.phase}>
+                  <TableCell className="font-medium">{phase.phase}</TableCell>
+                  <TableCell>{phase.candidateCount}</TableCell>
+                  <TableCell>
+                    {phase.selectedCount ?? phase.preparedCount ?? 0}
+                  </TableCell>
+                  <TableCell>
+                    <SeverityText severity={phase.severity}>
+                      {phase.reasonSummary.reasons
+                        .map(reason => reason.label)
+                        .join(', ') || 'No issues'}
+                    </SeverityText>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableViewport>
+      ) : (
+        <EmptyState>No phase diagnostics returned.</EmptyState>
+      )}
+    </div>
+  );
+}
+
+function CandidateTrace({
+  rows,
+}: {
+  rows: AIModelTaskRouteCandidateTraceRow[];
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="text-sm font-medium">Candidate trace</div>
+      {rows.length ? (
+        <TableViewport minWidth="min-w-[860px]">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Provider</TableHead>
+                <TableHead>Model</TableHead>
+                <TableHead className="w-[120px]">Status</TableHead>
+                <TableHead>Reasons</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row, index) => {
+                const providerProfileLabel =
+                  formatAIModelProviderProfileLabel(row);
+                const modelDefinitionLabel = formatAIModelDefinitionLabel({
+                  routeBackendKind: null,
+                  routeBehaviorFlags: null,
+                  routeCanonicalModelKey: null,
+                  routeModelAliasMatched: row.routeModelAliasMatched,
+                  routeModelDefinitionAliases: row.routeModelDefinitionAliases,
+                  routeModelDefinitionId: row.routeModelDefinitionId,
+                  routeModelDefinitionSource: row.routeModelDefinitionSource,
+                  modelRegistryRevision: row.modelRegistryRevision,
+                  modelRegistryRevisionFingerprint:
+                    row.modelRegistryRevisionFingerprint,
+                  modelRegistryRevisionId: row.modelRegistryRevisionId,
+                  modelRegistryRevisionScope: row.modelRegistryRevisionScope,
+                  modelRegistryRevisionSourceChainFingerprint:
+                    row.modelRegistryRevisionSourceChainFingerprint,
+                  modelRegistryRevisionStatus: row.modelRegistryRevisionStatus,
+                  modelRegistryRevisionWorkspaceId:
+                    row.modelRegistryRevisionWorkspaceId,
+                  modelRegistryRevisionPublishEventCount:
+                    row.modelRegistryRevisionPublishEventCount,
+                  routeProtocol: null,
+                  routeRawModelId: row.routeRawModelId,
+                  routeRequestLayer: null,
+                });
+
+                return (
+                  <TableRow
+                    key={row.candidateKey || `${row.providerId}-${index}`}
+                  >
+                    <TableCell className="break-words">
+                      <div className="font-medium">
+                        {formatProviderIdentity(row)}
+                      </div>
+                      {row.providerType ? (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {formatProviderMetadata(
+                            row.providerType,
+                            PROVIDER_TYPE_LABELS
+                          )}
+                        </div>
+                      ) : null}
+                      {row.providerSource ? (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {formatProviderMetadata(
+                            row.providerSource,
+                            PROVIDER_SOURCE_LABELS
+                          )}
+                        </div>
+                      ) : null}
+                      {row.providerPriority != null ? (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Priority {row.providerPriority}
+                        </div>
+                      ) : null}
+                      {providerProfileLabel ? (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {providerProfileLabel}
+                        </div>
+                      ) : null}
+                      {row.privacy ? (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {formatProviderMetadata(
+                            row.privacy,
+                            PROVIDER_PRIVACY_LABELS
+                          )}
+                        </div>
+                      ) : null}
+                      {row.health ? (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {formatProviderMetadata(
+                            row.health,
+                            PROVIDER_HEALTH_LABELS
+                          )}
+                        </div>
+                      ) : null}
+                      {row.healthCheckedAt ? (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Checked {row.healthCheckedAt}
+                        </div>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="break-words">
+                      {compactList([
+                        row.modelId,
+                        row.preparedModelId
+                          ? `prepared ${row.preparedModelId}`
+                          : null,
+                        row.requestedModelId
+                          ? `requested ${row.requestedModelId}`
+                          : null,
+                      ]) || 'Not selected'}
+                      {modelDefinitionLabel ? (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {modelDefinitionLabel}
+                        </div>
+                      ) : null}
+                    </TableCell>
+                    <TableCell>{formatFeatureKind(row.status)}</TableCell>
+                    <TableCell>
+                      <SeverityText severity={row.severity}>
+                        {row.reasonSummary.reasons
+                          .map(reason => reason.label)
+                          .join(', ') || 'No issues'}
+                      </SeverityText>
+                      {row.errorCode || row.errorCategory ? (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {compactList([
+                            row.errorCode ? `Code ${row.errorCode}` : null,
+                            row.errorCategory
+                              ? `Category ${formatFeatureKind(
+                                  row.errorCategory
+                                )}`
+                              : null,
+                          ])}
+                        </div>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableViewport>
       ) : (
         <EmptyState>No candidate diagnostics returned.</EmptyState>
       )}
@@ -1935,7 +2633,7 @@ function ModelTable({
   );
 
   return (
-    <Card className="border-border/60 bg-card shadow-1">
+    <Card className="min-w-0 border-border/60 bg-card shadow-1">
       <CardHeader>
         <CardTitle className="text-base">Prompt model candidates</CardTitle>
         <CardDescription>Models returned for {promptName}</CardDescription>
@@ -1954,103 +2652,105 @@ function ModelTable({
                 {candidateDiagnosticsText}
               </pre>
             </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Model</TableHead>
-                  <TableHead>Provider</TableHead>
-                  <TableHead>Route</TableHead>
-                  <TableHead>Fallback</TableHead>
-                  <TableHead>Definition</TableHead>
-                  <TableHead className="w-[160px]">Source</TableHead>
-                  <TableHead>Capabilities</TableHead>
-                  <TableHead>Limits</TableHead>
-                  <TableHead>Cost</TableHead>
-                  <TableHead className="w-[120px]">Default</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {models.map(model => {
-                  const providerProfileLabel =
-                    formatAIModelProviderProfileLabel(model);
-                  const modelDiagnosticsText =
-                    formatAIModelDiagnosticsLabel(model);
+            <TableViewport minWidth="min-w-[1280px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Model</TableHead>
+                    <TableHead>Provider</TableHead>
+                    <TableHead>Route</TableHead>
+                    <TableHead>Fallback</TableHead>
+                    <TableHead>Definition</TableHead>
+                    <TableHead className="w-[160px]">Source</TableHead>
+                    <TableHead>Capabilities</TableHead>
+                    <TableHead>Limits</TableHead>
+                    <TableHead>Cost</TableHead>
+                    <TableHead className="w-[120px]">Default</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {models.map(model => {
+                    const providerProfileLabel =
+                      formatAIModelProviderProfileLabel(model);
+                    const modelDiagnosticsText =
+                      formatAIModelDiagnosticsLabel(model);
 
-                  return (
-                    <TableRow key={model.id}>
-                      <TableCell>
-                        <div className="break-words font-medium">
-                          {model.name}
-                        </div>
-                        <div className="mt-1 break-words text-xs text-muted-foreground">
-                          {model.id}
-                        </div>
-                      </TableCell>
-                      <TableCell className="break-words">
-                        <div>
-                          {formatAIModelProviderLabel(model) ||
-                            'Unknown provider'}
-                        </div>
-                        {providerProfileLabel ? (
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {providerProfileLabel}
+                    return (
+                      <TableRow key={model.id}>
+                        <TableCell>
+                          <div className="break-words font-medium">
+                            {model.name}
                           </div>
-                        ) : null}
-                      </TableCell>
-                      <TableCell className="break-words">
-                        {formatAIModelRouteLabel(model) || 'Unknown'}
-                      </TableCell>
-                      <TableCell className="break-words">
-                        {formatAIModelFallbackLabel(model) || 'None'}
-                      </TableCell>
-                      <TableCell className="break-words">
-                        {formatAIModelDefinitionLabel(model) || 'Unknown'}
-                      </TableCell>
-                      <TableCell className="break-words">
-                        <div>
-                          {formatAIModelSourcesLabel(model) || 'Prompt'}
-                        </div>
-                        {model.promptModelSource ? (
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            Model source{' '}
-                            {formatFeatureKind(model.promptModelSource)}
+                          <div className="mt-1 break-words text-xs text-muted-foreground">
+                            {model.id}
                           </div>
-                        ) : null}
-                        {model.promptModelConfigPath ? (
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            Config {model.promptModelConfigPath}
+                        </TableCell>
+                        <TableCell className="break-words">
+                          <div>
+                            {formatAIModelProviderLabel(model) ||
+                              'Unknown provider'}
                           </div>
-                        ) : null}
-                        {model.promptModelSources?.length ? (
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            Source chain{' '}
-                            {formatAIModelPromptSourcesLabel(model)}
+                          {providerProfileLabel ? (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {providerProfileLabel}
+                            </div>
+                          ) : null}
+                        </TableCell>
+                        <TableCell className="break-words">
+                          {formatAIModelRouteLabel(model) || 'Unknown'}
+                        </TableCell>
+                        <TableCell className="break-words">
+                          {formatAIModelFallbackLabel(model) || 'None'}
+                        </TableCell>
+                        <TableCell className="break-words">
+                          {formatAIModelDefinitionLabel(model) || 'Unknown'}
+                        </TableCell>
+                        <TableCell className="break-words">
+                          <div>
+                            {formatAIModelSourcesLabel(model) || 'Prompt'}
                           </div>
-                        ) : null}
-                      </TableCell>
-                      <TableCell className="break-words">
-                        {formatAIModelCapabilityLabel(model) || 'Unknown'}
-                      </TableCell>
-                      <TableCell className="break-words">
-                        {formatAIModelLimitsLabel(model) || 'Unknown'}
-                      </TableCell>
-                      <TableCell className="break-words">
-                        {formatAIModelCostLabel(model) || 'Unknown'}
-                      </TableCell>
-                      <TableCell>
-                        <ModelDefaultBadges model={model} />
-                        <pre
-                          className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/60 bg-muted/30 p-2 text-xs text-muted-foreground"
-                          data-testid={`model-candidate-diagnostics-${model.id}`}
-                        >
-                          {modelDiagnosticsText}
-                        </pre>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                          {model.promptModelSource ? (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              Model source{' '}
+                              {formatFeatureKind(model.promptModelSource)}
+                            </div>
+                          ) : null}
+                          {model.promptModelConfigPath ? (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              Config {model.promptModelConfigPath}
+                            </div>
+                          ) : null}
+                          {model.promptModelSources?.length ? (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              Source chain{' '}
+                              {formatAIModelPromptSourcesLabel(model)}
+                            </div>
+                          ) : null}
+                        </TableCell>
+                        <TableCell className="break-words">
+                          {formatAIModelCapabilityLabel(model) || 'Unknown'}
+                        </TableCell>
+                        <TableCell className="break-words">
+                          {formatAIModelLimitsLabel(model) || 'Unknown'}
+                        </TableCell>
+                        <TableCell className="break-words">
+                          {formatAIModelCostLabel(model) || 'Unknown'}
+                        </TableCell>
+                        <TableCell>
+                          <ModelDefaultBadges model={model} />
+                          <pre
+                            className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/60 bg-muted/30 p-2 text-xs text-muted-foreground"
+                            data-testid={`model-candidate-diagnostics-${model.id}`}
+                          >
+                            {modelDiagnosticsText}
+                          </pre>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableViewport>
           </div>
         ) : (
           <EmptyState>No model candidates returned for this prompt.</EmptyState>
@@ -2068,10 +2768,20 @@ function buildModelCandidateDiagnosticsText(
     `Prompt ${promptName}`,
     `Candidate count ${models.length}`,
     '',
-    ...models.flatMap((model, index) => [
-      index ? '---' : null,
-      formatAIModelDiagnosticsLabel(model),
-    ]),
+    ...models.flatMap((model, index) => {
+      const publishEvents = model.modelRegistryRevisionPublishEvents ?? [];
+      return [
+        index ? '---' : null,
+        formatAIModelDiagnosticsLabel(model),
+        model.modelRegistryRevisionPublishEventCount != null
+          ? `Model registry revision publish events ${model.modelRegistryRevisionPublishEventCount}`
+          : null,
+        ...publishEvents.map(
+          event =>
+            `Model registry revision publish event ${formatRegistryRevisionPublishEvent(event)}`
+        ),
+      ];
+    }),
   ]
     .filter((part): part is string => part != null)
     .join('\n');
@@ -2096,11 +2806,11 @@ function PromptCatalogSummary({
   const versionEvidence = buildPromptCatalogVersionEvidence(prompt);
 
   return (
-    <div className="space-y-3 rounded-md border border-border/60 p-3 text-sm">
+    <div className="space-y-3 rounded-md border border-border/60 p-4 text-sm">
       <div>
         <div className="text-sm font-medium">Prompt catalog diagnostics</div>
         <pre
-          className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground"
+          className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground"
           data-testid={`prompt-catalog-diagnostics-${prompt.name}`}
         >
           {diagnosticsText}
@@ -2198,6 +2908,55 @@ function PromptCatalogSummary({
           <div className="mt-1 break-words font-medium">
             {prompt.action || 'None'}
           </div>
+        </div>
+        <div>
+          <div className="text-xs text-muted-foreground">Registry source</div>
+          <div className="mt-1 break-words font-medium">
+            {prompt.registryRecordSource
+              ? formatFeatureKind(prompt.registryRecordSource)
+              : 'Config fallback'}
+          </div>
+          {prompt.registryRevision ? (
+            <div className="mt-1 break-words text-xs text-muted-foreground">
+              Revision {prompt.registryRevision}
+            </div>
+          ) : null}
+          {prompt.registryRevisionScope ? (
+            <div className="mt-1 break-words text-xs text-muted-foreground">
+              Scope {formatFeatureKind(prompt.registryRevisionScope)}
+              {prompt.registryRevisionWorkspaceId
+                ? ` / ${prompt.registryRevisionWorkspaceId}`
+                : ''}
+            </div>
+          ) : null}
+          {prompt.registryRevisionStatus ? (
+            <div className="mt-1 break-words text-xs text-muted-foreground">
+              Revision status {formatFeatureKind(prompt.registryRevisionStatus)}
+            </div>
+          ) : null}
+          {prompt.registryRevisionActorId ? (
+            <div className="mt-1 break-words text-xs text-muted-foreground">
+              Actor {prompt.registryRevisionActorId}
+            </div>
+          ) : null}
+          {prompt.registryRevisionFingerprint ? (
+            <div className="mt-1 break-words text-xs text-muted-foreground">
+              Revision fingerprint {prompt.registryRevisionFingerprint}
+            </div>
+          ) : null}
+          {prompt.registrySourceChainFingerprint ? (
+            <div className="mt-1 break-words text-xs text-muted-foreground">
+              Source chain fingerprint {prompt.registrySourceChainFingerprint}
+            </div>
+          ) : null}
+          {(prompt.registrySourceChain ?? []).map(entry => (
+            <div
+              className="mt-1 break-words text-xs text-muted-foreground"
+              key={`${entry.source}:${entry.scope}:${entry.revision ?? ''}:${entry.fingerprint ?? ''}`}
+            >
+              Source chain {formatPromptRegistrySourceChain(entry)}
+            </div>
+          ))}
         </div>
         {prompt.registryId != null ? (
           <div>
@@ -2358,11 +3117,36 @@ function PromptRegistryPublishGateQueryResult({
     useState<PromptRegistryRepairExecutionRequest | null>(null);
   const [repairExecutionRequestError, setRepairExecutionRequestError] =
     useState<string | null>(null);
+  const [approvalDecisionRecord, setApprovalDecisionRecord] =
+    useState<RepairExecutionApprovalDecisionRecord | null>(null);
+  const [approvalDecisionError, setApprovalDecisionError] = useState<
+    string | null
+  >(null);
+  const [repairExecutionControlRecord, setRepairExecutionControlRecord] =
+    useState<RepairExecutionControlRecord | null>(null);
+  const [repairExecutionControlError, setRepairExecutionControlError] =
+    useState<string | null>(null);
+  const [
+    repairExecutionResumePayloadJson,
+    setRepairExecutionResumePayloadJson,
+  ] = useState(EMPTY_REPAIR_EXECUTION_PAYLOAD_JSON);
   const {
     trigger: requestRepairExecution,
     isMutating: isRequestingRepairExecution,
   } = useMutation({
     mutation: requestCopilotPromptRegistryRepairExecutionMutation,
+  });
+  const {
+    trigger: decideRepairExecutionApproval,
+    isMutating: isDecidingRepairExecutionApproval,
+  } = useMutation({
+    mutation: decideCopilotRepairExecutionApprovalMutation,
+  });
+  const {
+    trigger: controlRepairExecutionRequest,
+    isMutating: isControllingRepairExecution,
+  } = useMutation({
+    mutation: controlCopilotRepairExecutionMutation,
   });
   const canCheckRepairExecutionRequest = Boolean(
     submissionContract && repairPreflight
@@ -2375,6 +3159,10 @@ function PromptRegistryPublishGateQueryResult({
 
     setRepairExecutionRequest(null);
     setRepairExecutionRequestError(null);
+    setApprovalDecisionRecord(null);
+    setApprovalDecisionError(null);
+    setRepairExecutionControlRecord(null);
+    setRepairExecutionControlError(null);
     requestRepairExecution({
       input: buildPromptRegistryRepairExecutionRequestInput({
         expectedVersion,
@@ -2397,44 +3185,171 @@ function PromptRegistryPublishGateQueryResult({
         );
       });
   };
+  const decideRepairExecution = (decision: 'approve' | 'reject') => {
+    const executionRecord = repairExecutionRequest?.executionRecord;
+    if (!workspaceId || !executionRecord) {
+      return;
+    }
+
+    setApprovalDecisionRecord(null);
+    setApprovalDecisionError(null);
+    setRepairExecutionControlRecord(null);
+    setRepairExecutionControlError(null);
+    decideRepairExecutionApproval({
+      input: {
+        workspaceId,
+        executionRequestId: executionRecord.id,
+        decision,
+      },
+    })
+      .then(data => {
+        const record = data.decideCopilotRepairExecutionApproval;
+        setApprovalDecisionRecord(record);
+        setRepairExecutionRequest(previous =>
+          previous
+            ? {
+                ...previous,
+                executionRecord: record,
+                repairJobRequestStatus: record.status,
+                requestStatus: record.status,
+              }
+            : previous
+        );
+      })
+      .catch(error => {
+        console.error(error);
+        setApprovalDecisionError(
+          error instanceof Error ? error.message : String(error)
+        );
+      });
+  };
+  const controlRepairExecution = (
+    action: 'cancel' | 'retry' | 'resume_with_payload'
+  ) => {
+    const executionRecord =
+      repairExecutionControlRecord ??
+      approvalDecisionRecord ??
+      repairExecutionRequest?.executionRecord;
+    if (!workspaceId || !executionRecord) {
+      return;
+    }
+
+    let executorPayload: Record<string, string> | undefined;
+    if (action === 'resume_with_payload') {
+      try {
+        executorPayload = parseRepairExecutionExecutorPayloadJson(
+          repairExecutionResumePayloadJson
+        );
+      } catch (error) {
+        setRepairExecutionControlError(
+          error instanceof Error ? error.message : String(error)
+        );
+        return;
+      }
+    }
+
+    setRepairExecutionControlRecord(null);
+    setRepairExecutionControlError(null);
+    controlRepairExecutionRequest({
+      input: {
+        workspaceId,
+        executionRequestId: executionRecord.id,
+        action,
+        ...(executorPayload ? { executorPayload } : {}),
+      },
+    })
+      .then(data => {
+        const record = data.controlCopilotRepairExecution;
+        setRepairExecutionControlRecord(record);
+        setApprovalDecisionRecord(null);
+        setRepairExecutionRequest(previous =>
+          previous
+            ? {
+                ...previous,
+                executionRecord: record,
+                repairJobRequestStatus: record.status,
+                requestStatus: record.status,
+              }
+            : previous
+        );
+      })
+      .catch(error => {
+        console.error(error);
+        setRepairExecutionControlError(
+          error instanceof Error ? error.message : String(error)
+        );
+      });
+  };
 
   return (
     <PromptRegistryPublishGateResult
+      approvalDecisionError={approvalDecisionError}
+      approvalDecisionRecord={approvalDecisionRecord}
       canCheckRepairExecutionRequest={canCheckRepairExecutionRequest}
       checkRepairExecutionRequest={checkRepairExecutionRequest}
+      controlRepairExecution={controlRepairExecution}
+      decideRepairExecution={decideRepairExecution}
       expectedVersion={expectedVersion}
+      isControllingRepairExecution={isControllingRepairExecution}
+      isDecidingRepairExecutionApproval={isDecidingRepairExecutionApproval}
       isValidating={isValidating}
       isRequestingRepairExecution={isRequestingRepairExecution}
       promptName={promptName}
+      repairExecutionControlError={repairExecutionControlError}
+      repairExecutionControlRecord={repairExecutionControlRecord}
       repairExecutionRequest={repairExecutionRequest}
       repairExecutionRequestError={repairExecutionRequestError}
+      repairExecutionResumePayloadJson={repairExecutionResumePayloadJson}
       repairPreflight={repairPreflight}
+      setRepairExecutionResumePayloadJson={setRepairExecutionResumePayloadJson}
       verdict={verdict}
     />
   );
 }
 
 function PromptRegistryPublishGateResult({
+  approvalDecisionError,
+  approvalDecisionRecord,
   canCheckRepairExecutionRequest,
   checkRepairExecutionRequest,
+  controlRepairExecution,
+  decideRepairExecution,
   expectedVersion,
+  isControllingRepairExecution,
+  isDecidingRepairExecutionApproval,
   isValidating,
   isRequestingRepairExecution,
   promptName,
+  repairExecutionControlError,
+  repairExecutionControlRecord,
   repairExecutionRequest,
   repairExecutionRequestError,
+  repairExecutionResumePayloadJson,
   repairPreflight,
+  setRepairExecutionResumePayloadJson,
   verdict,
 }: {
+  approvalDecisionError: string | null;
+  approvalDecisionRecord: RepairExecutionApprovalDecisionRecord | null;
   canCheckRepairExecutionRequest: boolean;
   checkRepairExecutionRequest: () => void;
+  controlRepairExecution: (
+    action: 'cancel' | 'retry' | 'resume_with_payload'
+  ) => void;
+  decideRepairExecution: (decision: 'approve' | 'reject') => void;
   expectedVersion: PromptRegistryPublishGateExpectedVersion | undefined;
+  isControllingRepairExecution: boolean | undefined;
+  isDecidingRepairExecutionApproval: boolean | undefined;
   isValidating: boolean | undefined;
   isRequestingRepairExecution: boolean | undefined;
   promptName: string;
+  repairExecutionControlError: string | null;
+  repairExecutionControlRecord: RepairExecutionControlRecord | null;
   repairExecutionRequest: PromptRegistryRepairExecutionRequest | null;
   repairExecutionRequestError: string | null;
+  repairExecutionResumePayloadJson: string;
   repairPreflight: PromptRegistryRepairPreflight | null;
+  setRepairExecutionResumePayloadJson: (value: string) => void;
   verdict: PromptRegistryPublishGateVerdict | null;
 }) {
   if (!verdict) {
@@ -2497,6 +3412,23 @@ function PromptRegistryPublishGateResult({
         raw: PromptRegistryPublishGateTaskRoute;
       } => !!route
     );
+  const canDecideRepairExecution =
+    repairExecutionRequest?.executionRecord?.status === 'waiting_approval';
+  const currentRepairExecutionRecord =
+    repairExecutionControlRecord ??
+    approvalDecisionRecord ??
+    repairExecutionRequest?.executionRecord ??
+    null;
+  const canCancelRepairExecution =
+    currentRepairExecutionRecord?.status === 'waiting_approval' ||
+    currentRepairExecutionRecord?.status === 'running' ||
+    currentRepairExecutionRecord?.status === 'queued' ||
+    currentRepairExecutionRecord?.status === 'failed';
+  const canRetryRepairExecution =
+    currentRepairExecutionRecord?.status === 'failed';
+  const canResumeRepairExecutionWithPayload =
+    currentRepairExecutionRecord?.status === 'failed' &&
+    currentRepairExecutionRecord.sideEffectCount === 0;
 
   return (
     <div className="rounded-md border border-border/60 p-3 text-sm">
@@ -2552,9 +3484,109 @@ function PromptRegistryPublishGateResult({
         verdict={verdict}
       />
       {repairExecutionRequest ? (
+        <div className="mt-2 space-y-2 break-words text-xs text-muted-foreground">
+          <div>
+            Repair execution request{' '}
+            {formatPromptRegistryRepairExecutionRequest(repairExecutionRequest)}
+          </div>
+          {canDecideRepairExecution ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                disabled={isDecidingRepairExecutionApproval}
+                onClick={() => decideRepairExecution('approve')}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                Approve execution
+              </Button>
+              <Button
+                disabled={isDecidingRepairExecutionApproval}
+                onClick={() => decideRepairExecution('reject')}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                Reject execution
+              </Button>
+            </div>
+          ) : null}
+          {currentRepairExecutionRecord &&
+          (canCancelRepairExecution ||
+            canRetryRepairExecution ||
+            canResumeRepairExecutionWithPayload) ? (
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                {canCancelRepairExecution ? (
+                  <Button
+                    disabled={isControllingRepairExecution}
+                    onClick={() => controlRepairExecution('cancel')}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Cancel execution
+                  </Button>
+                ) : null}
+                {canRetryRepairExecution ? (
+                  <Button
+                    disabled={isControllingRepairExecution}
+                    onClick={() => controlRepairExecution('retry')}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Retry execution
+                  </Button>
+                ) : null}
+              </div>
+              {canResumeRepairExecutionWithPayload ? (
+                <div className="space-y-2">
+                  <Textarea
+                    aria-label="Repair execution executor payload JSON"
+                    className="min-h-24 font-mono text-xs"
+                    value={repairExecutionResumePayloadJson}
+                    onChange={event => {
+                      setRepairExecutionResumePayloadJson(event.target.value);
+                    }}
+                  />
+                  <Button
+                    disabled={isControllingRepairExecution}
+                    onClick={() =>
+                      controlRepairExecution('resume_with_payload')
+                    }
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Resume with payload
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {approvalDecisionRecord ? (
         <div className="mt-2 break-words text-xs text-muted-foreground">
-          Repair execution request{' '}
-          {formatPromptRegistryRepairExecutionRequest(repairExecutionRequest)}
+          Repair execution approval decision{' '}
+          {formatRepairExecutionRecord(approvalDecisionRecord)}
+        </div>
+      ) : null}
+      {repairExecutionControlRecord ? (
+        <div className="mt-2 break-words text-xs text-muted-foreground">
+          Repair execution control{' '}
+          {formatRepairExecutionRecord(repairExecutionControlRecord)}
+        </div>
+      ) : null}
+      {approvalDecisionError ? (
+        <div className="mt-2 break-words text-xs text-destructive">
+          Repair execution approval decision error {approvalDecisionError}
+        </div>
+      ) : null}
+      {repairExecutionControlError ? (
+        <div className="mt-2 break-words text-xs text-destructive">
+          Repair execution control error {repairExecutionControlError}
         </div>
       ) : null}
       {repairExecutionRequestError ? (
@@ -3661,6 +4693,19 @@ function buildPromptRegistryRepairGateManifestExportMetadataJson(
   return JSON.stringify(verdict.repairGateManifestExportMetadata, null, 2);
 }
 
+function parseRepairExecutionExecutorPayloadJson(value: string) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error('Executor payload JSON is invalid.');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Executor payload JSON must be an object.');
+  }
+  return parsed as Record<string, string>;
+}
+
 function downloadPromptRegistryRepairGateManifestJson(
   verdict: PromptRegistryPublishGateVerdict,
   manifestJson: string
@@ -3969,6 +5014,57 @@ function formatPromptRegistryRepairExecutionRequest(
     request.executionRequested
       ? 'execution requested yes'
       : 'execution requested no',
+    request.executionRecord
+      ? `execution record ${formatRepairExecutionRecord(request.executionRecord)}`
+      : 'execution record none',
+    request.executionRecord?.agentRun
+      ? `agent run ${request.executionRecord.agentRun.id}`
+      : request.executionRecord
+        ? 'agent run none'
+        : null,
+    request.executionRecord?.agentRun
+      ? `agent run status ${formatFeatureKind(request.executionRecord.agentRun.status)}`
+      : null,
+    request.executionRecord?.agentRun
+      ? `agent run workflow ${request.executionRecord.agentRun.workflow}`
+      : null,
+    request.executionRecord?.agentRun
+      ? `agent run source ${request.executionRecord.agentRun.sourceType}:${request.executionRecord.agentRun.sourceId}`
+      : null,
+    request.executionRecord?.agentRun
+      ? `agent run timeline ${request.executionRecord.agentRun.timelineFingerprint}`
+      : null,
+    request.executionRecord?.agentRun
+      ? `agent run execution results ${request.executionRecord.agentRun.executionResultCount}`
+      : null,
+    request.executionRecord?.agentRun?.executionResults.length
+      ? `agent run execution result history ${request.executionRecord.agentRun.executionResults
+          .map(
+            result =>
+              `${formatFeatureKind(result.resultStatus)}:${result.adapterWorkflow}:attempt ${result.workerAttempt}:${result.resultFingerprint}`
+          )
+          .join(' | ')}`
+      : null,
+    request.executionRecord?.agentRun
+      ? request.executionRecord.agentRun.steps.length
+        ? `agent run steps ${request.executionRecord.agentRun.steps
+            .map(
+              step =>
+                `${step.stepKey}:${formatFeatureKind(step.stepType)}:${formatFeatureKind(step.status)}`
+            )
+            .join(' | ')}`
+        : 'agent run steps none'
+      : null,
+    request.executionRecord?.agentRun
+      ? request.executionRecord.agentRun.timelineEvents.length
+        ? `agent run timeline events ${request.executionRecord.agentRun.timelineEvents
+            .map(
+              event =>
+                `#${event.ordinal}:${formatFeatureKind(event.eventType)}:${formatFeatureKind(event.status)}:${event.summary}`
+            )
+            .join(' | ')}`
+        : 'agent run timeline events none'
+      : null,
     `expected candidate evidence set fingerprint ${request.expectedCandidateEvidenceSetFingerprint}`,
     `expected task route source evidence set fingerprint ${request.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint}`,
     `expected task route source evidence set version ${request.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion}`,
@@ -5405,6 +6501,74 @@ function formatPromptRegistryRepairExecutionRequest(
   ]);
 }
 
+function formatRepairExecutionRecord(
+  record:
+    | RepairExecutionRecord
+    | NonNullable<PromptRegistryRepairExecutionRequest['executionRecord']>
+) {
+  const formatAuditEvent = (event: RepairExecutionAuditEvent) =>
+    `${formatFeatureKind(event.eventType)}:${event.eventFingerprint}`;
+
+  return compactList([
+    record.id,
+    `status ${formatFeatureKind(record.status)}`,
+    `approval ${formatFeatureKind(record.approvalState)}`,
+    `idempotency ${record.idempotencyKey}`,
+    `audit events ${record.auditEventCount}`,
+    record.auditEvents.length
+      ? `audit history ${record.auditEvents.map(formatAuditEvent).join(' | ')}`
+      : null,
+    `executor ${record.runtimeResult.executor}`,
+    record.runtimeResult.sideEffectsApplied
+      ? 'side effects yes'
+      : 'side effects no',
+    `side effect ledger ${record.sideEffectCount}`,
+    record.sideEffects.length
+      ? `side effect history ${record.sideEffects
+          .map(
+            sideEffect =>
+              `${formatFeatureKind(sideEffect.sideEffectKind)}:${sideEffect.sideEffectRecordId}:attempt ${sideEffect.workerAttempt}:${sideEffect.sideEffectFingerprint}`
+          )
+          .join(' | ')}`
+      : null,
+    record.runtimeResult.sideEffectKind
+      ? `side effect ${formatFeatureKind(record.runtimeResult.sideEffectKind)}`
+      : null,
+    record.runtimeResult.sideEffectRecordId
+      ? `side effect record ${record.runtimeResult.sideEffectRecordId}`
+      : null,
+    record.runtimeResult.sideEffectFingerprint
+      ? `side effect fingerprint ${record.runtimeResult.sideEffectFingerprint}`
+      : null,
+    record.queuedAt ? `queued ${record.queuedAt}` : null,
+    `worker attempt ${record.workerAttempt}/${record.workerMaxAttempts}`,
+    record.lastAttemptAt ? `last attempt ${record.lastAttemptAt}` : null,
+    record.workerLeaseId ? `worker lease ${record.workerLeaseId}` : null,
+    record.workerLeaseExpiresAt
+      ? `worker lease expires ${record.workerLeaseExpiresAt}`
+      : null,
+    record.completedAt ? `completed ${record.completedAt}` : null,
+  ]);
+}
+
+function buildRepairExecutionListFilter(input: {
+  status: RepairExecutionStatusFilter;
+  query: string;
+}) {
+  const filter: {
+    query?: string;
+    status?: string;
+  } = {};
+  if (input.status !== REPAIR_EXECUTION_ALL_STATUSES) {
+    filter.status = input.status;
+  }
+  const query = input.query.trim();
+  if (query) {
+    filter.query = /^[a-f0-9]{16}$/i.test(query) ? query.toLowerCase() : query;
+  }
+  return Object.keys(filter).length ? filter : undefined;
+}
+
 function formatPromptRegistryPublishGateRepairActionPreviewOperation(
   operation: PromptRegistryPublishGateVerdict['repairActionPreview']['operations'][number]
 ) {
@@ -5703,6 +6867,43 @@ function buildPromptCatalogDiagnosticsText(prompt: PromptCatalogItem) {
     ...(prompt.registryValidationRemediations ?? []).map(
       remediation =>
         `Registry remediation ${formatPromptRegistryValidationRemediation(remediation)}`
+    ),
+    prompt.registryRecordSource
+      ? `Registry source ${formatFeatureKind(prompt.registryRecordSource)}`
+      : null,
+    prompt.registryRevision
+      ? `Registry revision ${prompt.registryRevision}`
+      : null,
+    prompt.registryRevisionId
+      ? `Registry revision id ${prompt.registryRevisionId}`
+      : null,
+    prompt.registryRevisionPublishEventCount != null
+      ? `Registry revision publish events ${prompt.registryRevisionPublishEventCount}`
+      : null,
+    ...(prompt.registryRevisionPublishEvents ?? []).map(
+      event =>
+        `Registry revision publish event ${formatRegistryRevisionPublishEvent(event)}`
+    ),
+    prompt.registryRevisionScope
+      ? `Registry revision scope ${formatFeatureKind(prompt.registryRevisionScope)}`
+      : null,
+    prompt.registryRevisionWorkspaceId
+      ? `Registry revision workspace ${prompt.registryRevisionWorkspaceId}`
+      : null,
+    prompt.registryRevisionActorId
+      ? `Registry revision actor ${prompt.registryRevisionActorId}`
+      : null,
+    prompt.registryRevisionFingerprint
+      ? `Registry revision fingerprint ${prompt.registryRevisionFingerprint}`
+      : null,
+    prompt.registryRevisionStatus
+      ? `Registry revision status ${formatFeatureKind(prompt.registryRevisionStatus)}`
+      : null,
+    prompt.registrySourceChainFingerprint
+      ? `Registry source chain fingerprint ${prompt.registrySourceChainFingerprint}`
+      : null,
+    ...(prompt.registrySourceChain ?? []).map(
+      entry => `Registry source chain ${formatPromptRegistrySourceChain(entry)}`
     ),
     `Params ${prompt.paramCount}${
       prompt.paramKeys.length ? ` / ${prompt.paramKeys.join(', ')}` : ''
@@ -7584,11 +8785,1631 @@ function ActionRunTraceCard({
   );
 }
 
+function formatSupportBundleStatus(status: string) {
+  return formatFeatureKind(status);
+}
+
+function formatSupportBundleSummary(bundle: SupportBundleRequest) {
+  return compactList([
+    `manifest ${bundle.manifestFingerprint}`,
+    bundle.archiveFingerprint ? `archive ${bundle.archiveFingerprint}` : null,
+    `source ${bundle.sourceEvidenceSetFingerprint}`,
+    `retention ${formatFeatureKind(bundle.retentionStatus)}`,
+    `audit events ${bundle.auditEventCount}`,
+    `transfer events ${bundle.transferEventCount}`,
+    `transfer forwarding events ${bundle.transferForwardingEventCount}`,
+    `expires ${formatActionRunTimestamp(bundle.expiresAt)}`,
+  ]);
+}
+
+function formatSupportBundleAuditEvent(event: SupportBundleAuditEvent) {
+  return compactList([
+    `audit ${formatFeatureKind(event.eventType)}`,
+    `fingerprint ${event.eventFingerprint}`,
+    `actor ${event.actorId}`,
+    `created ${formatActionRunTimestamp(event.createdAt)}`,
+  ]);
+}
+
+function formatSupportBundleTransferEvent(event: SupportBundleTransferEvent) {
+  return compactList([
+    `transfer ${formatFeatureKind(event.deliveryMethod)}`,
+    `source ${event.eventSource}`,
+    event.eventId ? `event ${event.eventId}` : 'event none',
+    `fingerprint ${event.eventFingerprint}`,
+    `authorization ${event.authorizationId}`,
+    `artifact ${formatFeatureKind(event.artifactKind)}:${event.artifactFingerprint}`,
+    `manifest ${event.manifestFingerprint}`,
+    `notification auth ${event.notificationAuthEvidenceFingerprint}`,
+    `storage ${event.storageKey}`,
+    `content ${event.storageContentType}`,
+    `bytes ${event.storageByteSize}`,
+    `transferred ${formatActionRunTimestamp(event.transferredAt)}`,
+  ]);
+}
+
+function formatSupportBundleTransferForwardingEvent(
+  event: SupportBundleTransferForwardingEvent
+) {
+  const replaySourceEventId =
+    getSupportBundleForwardingReplaySourceEventId(event);
+
+  return compactList([
+    `forwarding ${formatFeatureKind(event.status)}`,
+    `source ${event.eventSource}`,
+    event.eventId ? `event ${event.eventId}` : 'event none',
+    `fingerprint ${event.forwardingEventFingerprint}`,
+    `payload ${event.forwardingPayloadFingerprint}`,
+    replaySourceEventId ? `replay source ${replaySourceEventId}` : null,
+    `authorization ${event.authorizationId}`,
+    `signature ${event.providerSignatureEvidenceFingerprint}`,
+    event.forwardedTransferEventFingerprint
+      ? `forwarded transfer ${event.forwardedTransferEventFingerprint}`
+      : null,
+    `attempts ${event.attemptCount}/${event.maxAttempts}`,
+    event.nextAttemptAt
+      ? `next ${formatActionRunTimestamp(event.nextAttemptAt)}`
+      : null,
+    event.lastAttemptAt
+      ? `last ${formatActionRunTimestamp(event.lastAttemptAt)}`
+      : null,
+    event.forwardedAt
+      ? `forwarded ${formatActionRunTimestamp(event.forwardedAt)}`
+      : null,
+    event.deadLetteredAt
+      ? `dead-lettered ${formatActionRunTimestamp(event.deadLetteredAt)}`
+      : null,
+    event.failureCode
+      ? `failure ${formatFeatureKind(event.failureCode)}`
+      : null,
+    event.failureMessage ? `message ${event.failureMessage}` : null,
+    event.workerLeaseId ? `lease ${event.workerLeaseId}` : null,
+    event.workerLeaseExpiresAt
+      ? `lease expires ${formatActionRunTimestamp(event.workerLeaseExpiresAt)}`
+      : null,
+    `updated ${formatActionRunTimestamp(event.updatedAt)}`,
+  ]);
+}
+
+function getSupportBundleForwardingReplaySourceEventId(event: {
+  forwardingPayload: unknown;
+}) {
+  const payload = event.forwardingPayload;
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return null;
+  }
+  const replay = (payload as Record<string, unknown>).replay;
+  if (!replay || typeof replay !== 'object' || Array.isArray(replay)) {
+    return null;
+  }
+  const sourceForwardingEventId = (replay as Record<string, unknown>)
+    .sourceForwardingEventId;
+  return typeof sourceForwardingEventId === 'string'
+    ? sourceForwardingEventId
+    : null;
+}
+
+function buildSupportBundleListFilter(input: {
+  forwardingStatus: SupportBundleForwardingStatusFilter;
+  query: string;
+}) {
+  const filter: {
+    query?: string;
+    transferForwardingStatus?: string;
+  } = {};
+  if (input.forwardingStatus !== SUPPORT_BUNDLE_FORWARDING_ALL_STATUSES) {
+    filter.transferForwardingStatus = input.forwardingStatus;
+  }
+  const query = input.query.trim();
+  if (query) {
+    filter.query = /^[a-f0-9]{16}$/i.test(query) ? query.toLowerCase() : query;
+  }
+  return Object.keys(filter).length ? filter : undefined;
+}
+
+function formatProviderHealthProbeAttempt(attempt: ProviderHealthProbeAttempt) {
+  const profileSnapshot = attempt.providerProfileSnapshot as Record<
+    string,
+    unknown
+  > | null;
+  const modelCount =
+    typeof profileSnapshot?.modelCount === 'number'
+      ? profileSnapshot.modelCount
+      : null;
+
+  return compactList([
+    `probe ${formatFeatureKind(attempt.status)}`,
+    `provider ${attempt.providerId}`,
+    attempt.providerType
+      ? `type ${formatProviderMetadata(
+          attempt.providerType,
+          PROVIDER_TYPE_LABELS
+        )}`
+      : null,
+    `revision ${attempt.providerRegistryRevisionId}`,
+    `revision fingerprint ${attempt.providerRegistryRevisionFingerprint}`,
+    attempt.providerProfileSource
+      ? `profile source ${formatFeatureKind(attempt.providerProfileSource)}`
+      : null,
+    `profile fingerprint ${attempt.providerProfileFingerprint}`,
+    modelCount == null ? null : `profile models ${modelCount}`,
+    `request ${attempt.requestFingerprint}`,
+    `actor ${attempt.actorId}`,
+    `attempts ${attempt.attemptCount}/${attempt.maxAttempts}`,
+    `scheduled ${formatActionRunTimestamp(attempt.scheduledAt)}`,
+    attempt.checkedAt
+      ? `checked ${formatActionRunTimestamp(attempt.checkedAt)}`
+      : null,
+    attempt.completedAt
+      ? `completed ${formatActionRunTimestamp(attempt.completedAt)}`
+      : null,
+    attempt.deadLetteredAt
+      ? `dead-lettered ${formatActionRunTimestamp(attempt.deadLetteredAt)}`
+      : null,
+    attempt.resultStatus
+      ? `result ${formatFeatureKind(attempt.resultStatus)}`
+      : null,
+    attempt.resultFingerprint
+      ? `result fingerprint ${attempt.resultFingerprint}`
+      : null,
+    attempt.providerHealthStateId
+      ? `state ${attempt.providerHealthStateId}`
+      : null,
+    attempt.providerHealthStateFingerprint
+      ? `state fingerprint ${attempt.providerHealthStateFingerprint}`
+      : null,
+    attempt.failureCode
+      ? `failure ${formatFeatureKind(attempt.failureCode)}`
+      : null,
+    attempt.failureMessage ? `message ${attempt.failureMessage}` : null,
+    attempt.workerLeaseId ? `lease ${attempt.workerLeaseId}` : null,
+    attempt.workerLeaseExpiresAt
+      ? `lease expires ${formatActionRunTimestamp(
+          attempt.workerLeaseExpiresAt
+        )}`
+      : null,
+    `updated ${formatActionRunTimestamp(attempt.updatedAt)}`,
+  ]);
+}
+
+function buildProviderHealthProbeAttemptFilter(input: {
+  status: ProviderHealthProbeAttemptStatusFilter;
+  query: string;
+}) {
+  const filter: {
+    providerId?: string;
+    providerProfileFingerprint?: string;
+    providerRegistryRevisionFingerprint?: string;
+    providerRegistryRevisionId?: string;
+    query?: string;
+    requestFingerprint?: string;
+    resultFingerprint?: string;
+    status?: string;
+  } = {};
+  if (input.status !== PROVIDER_HEALTH_PROBE_ATTEMPT_ALL_STATUSES) {
+    filter.status = input.status;
+  }
+
+  const query = input.query.trim();
+  if (query) {
+    filter.query = /^[a-f0-9]{16}$/i.test(query) ? query.toLowerCase() : query;
+  }
+
+  return Object.keys(filter).length ? filter : undefined;
+}
+
+function ProviderHealthProbeAttemptsBlock({
+  attempts,
+  isRetrying,
+  onRetry,
+}: {
+  attempts: ProviderHealthProbeAttempt[];
+  isRetrying?: boolean;
+  onRetry?: (attempt: ProviderHealthProbeAttempt) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="text-sm font-medium">Provider health probes</div>
+      {attempts.length ? (
+        <div className="space-y-2" data-testid="provider-health-probe-attempts">
+          {attempts.map(attempt => (
+            <div
+              className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs"
+              key={attempt.id}
+            >
+              <div className="min-w-0 flex-1 break-words">
+                {formatProviderHealthProbeAttempt(attempt)}
+              </div>
+              {attempt.status === 'dead_lettered' && onRetry ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7"
+                  disabled={isRetrying}
+                  onClick={() => onRetry(attempt)}
+                >
+                  Retry
+                </Button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div data-testid="provider-health-probe-attempts">
+          <EmptyState>No provider health probe attempts returned.</EmptyState>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProviderHealthProbeAttemptsQuery({
+  workspaceId,
+}: {
+  workspaceId: string;
+}) {
+  const [retryRecord, setRetryRecord] =
+    useState<ProviderHealthProbeAttemptRetryRecord | null>(null);
+  const [retryError, setRetryError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] =
+    useState<ProviderHealthProbeAttemptStatusFilter>(
+      PROVIDER_HEALTH_PROBE_ATTEMPT_ALL_STATUSES
+    );
+  const [queryFilter, setQueryFilter] = useState('');
+  const providerHealthProbeAttemptFilter = useMemo(
+    () =>
+      buildProviderHealthProbeAttemptFilter({
+        status: statusFilter,
+        query: queryFilter,
+      }),
+    [queryFilter, statusFilter]
+  );
+  const { data, mutate } = useQuery({
+    query: getCopilotProviderHealthProbeAttemptsQuery,
+    variables: {
+      ...(providerHealthProbeAttemptFilter
+        ? { filter: providerHealthProbeAttemptFilter }
+        : {}),
+      limit: 5,
+      workspaceId,
+    },
+  });
+  const { trigger: retryProbeAttempt, isMutating: isRetryingProbeAttempt } =
+    useMutation({
+      mutation: retryCopilotProviderHealthProbeAttemptMutation,
+    });
+  const attempts =
+    data?.currentUser?.copilot?.providerHealthProbeAttempts ??
+    EMPTY_PROVIDER_HEALTH_PROBE_ATTEMPTS;
+  const displayAttempts =
+    retryRecord && attempts.every(attempt => attempt.id !== retryRecord.id)
+      ? [retryRecord, ...attempts]
+      : attempts;
+  const onRetry = (attempt: ProviderHealthProbeAttempt) => {
+    setRetryRecord(null);
+    setRetryError(null);
+    retryProbeAttempt({
+      input: {
+        attemptId: attempt.id,
+        workspaceId,
+      },
+    })
+      .then(data => {
+        setRetryRecord(data.retryCopilotProviderHealthProbeAttempt);
+        mutate?.()?.catch(error => {
+          console.error(error);
+        });
+      })
+      .catch(error => {
+        console.error(error);
+        setRetryError(error instanceof Error ? error.message : String(error));
+      });
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-[180px_1fr]">
+        <Select
+          value={statusFilter}
+          onValueChange={value => {
+            setStatusFilter(value as ProviderHealthProbeAttemptStatusFilter);
+          }}
+        >
+          <SelectTrigger aria-label="Provider health probe status">
+            <SelectValue placeholder="All probe statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={PROVIDER_HEALTH_PROBE_ATTEMPT_ALL_STATUSES}>
+              All statuses
+            </SelectItem>
+            {PROVIDER_HEALTH_PROBE_ATTEMPT_STATUSES.map(status => (
+              <SelectItem key={status} value={status}>
+                {formatFeatureKind(status)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input
+          aria-label="Provider health probe filter"
+          placeholder="Provider, revision, request, profile, or result fingerprint"
+          value={queryFilter}
+          onChange={event => {
+            setQueryFilter(event.target.value);
+          }}
+        />
+      </div>
+      <ProviderHealthProbeAttemptsBlock
+        attempts={displayAttempts}
+        isRetrying={isRetryingProbeAttempt}
+        onRetry={onRetry}
+      />
+      {retryError ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          Provider health probe retry error {retryError}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SupportBundleManifestBlock({
+  bundle,
+  isReplayingForwardingEvent,
+  onReplayForwardingEvent,
+}: {
+  bundle: SupportBundleRequest;
+  isReplayingForwardingEvent?: boolean;
+  onReplayForwardingEvent?: (
+    bundle: SupportBundleRequest,
+    event: SupportBundleTransferForwardingEvent
+  ) => void;
+}) {
+  const auditEvents = bundle.auditEvents.slice(0, 5);
+  const transferEvents = bundle.transferEvents.slice(0, 5);
+  const transferForwardingEvents = bundle.transferForwardingEvents.slice(0, 5);
+
+  return (
+    <div
+      className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs"
+      data-testid={`support-bundle-manifest-${bundle.id}`}
+    >
+      <div className="break-words font-medium">
+        {formatSupportBundleSummary(bundle)}
+      </div>
+      <div className="mt-1 break-words text-muted-foreground">
+        {compactList([
+          bundle.manifestJson.version,
+          `sections ${bundle.manifestJson.sourceEvidenceSummary.includedSections.join(', ')}`,
+          `prompts ${bundle.manifestJson.sourceEvidenceSummary.promptCatalogItemCount}`,
+          `action runs ${bundle.manifestJson.sourceEvidenceSummary.actionRunCount}`,
+          `task routes ${bundle.manifestJson.sourceEvidenceSummary.taskRouteCount}`,
+          bundle.archiveByteSize
+            ? `archive bytes ${bundle.archiveByteSize}`
+            : null,
+          bundle.archiveStorageKey
+            ? `storage ${bundle.archiveStorageKey}`
+            : null,
+        ])}
+      </div>
+      <div
+        className="mt-2 space-y-1 break-words text-muted-foreground"
+        data-testid={`support-bundle-audit-events-${bundle.id}`}
+      >
+        {auditEvents.length
+          ? auditEvents.map(event => (
+              <div key={event.id}>{formatSupportBundleAuditEvent(event)}</div>
+            ))
+          : 'audit events none'}
+      </div>
+      <div
+        className="mt-2 space-y-1 break-words text-muted-foreground"
+        data-testid={`support-bundle-transfer-events-${bundle.id}`}
+      >
+        {transferEvents.length
+          ? transferEvents.map(event => (
+              <div key={event.id}>
+                {formatSupportBundleTransferEvent(event)}
+              </div>
+            ))
+          : 'transfer events none'}
+      </div>
+      <div
+        className="mt-2 space-y-1 break-words text-muted-foreground"
+        data-testid={`support-bundle-transfer-forwarding-events-${bundle.id}`}
+      >
+        {transferForwardingEvents.length
+          ? transferForwardingEvents.map(event => (
+              <div
+                className="flex flex-wrap items-start justify-between gap-2"
+                key={event.id}
+              >
+                <div className="min-w-0 flex-1">
+                  {formatSupportBundleTransferForwardingEvent(event)}
+                </div>
+                {event.status === 'dead_lettered' && onReplayForwardingEvent ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7"
+                    disabled={isReplayingForwardingEvent}
+                    onClick={() => onReplayForwardingEvent(bundle, event)}
+                  >
+                    Replay
+                  </Button>
+                ) : null}
+              </div>
+            ))
+          : 'transfer forwarding events none'}
+      </div>
+    </div>
+  );
+}
+
+function SupportBundleList({
+  authorizeDownload,
+  bundles,
+  isAuthorizingDownload,
+  isReplayingForwardingEvent,
+  isValidating,
+  onReplayForwardingEvent,
+}: {
+  authorizeDownload: (bundle: SupportBundleRequest) => void;
+  bundles: SupportBundleRequest[];
+  isAuthorizingDownload: boolean | undefined;
+  isReplayingForwardingEvent?: boolean;
+  isValidating: boolean;
+  onReplayForwardingEvent?: (
+    bundle: SupportBundleRequest,
+    event: SupportBundleTransferForwardingEvent
+  ) => void;
+}) {
+  if (!bundles.length) {
+    return (
+      <EmptyState>
+        {isValidating
+          ? 'Loading support bundle requests.'
+          : 'No support bundle requests have been created for this workspace.'}
+      </EmptyState>
+    );
+  }
+
+  return (
+    <TableViewport minWidth="min-w-[1080px]">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Status</TableHead>
+            <TableHead>Manifest</TableHead>
+            <TableHead>Retention</TableHead>
+            <TableHead>Artifact</TableHead>
+            <TableHead>Created</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {bundles.map(bundle => (
+            <TableRow key={bundle.id}>
+              <TableCell className="align-top">
+                <div className="flex flex-col gap-2">
+                  <Badge variant="outline" className="w-fit font-normal">
+                    {formatSupportBundleStatus(bundle.status)}
+                  </Badge>
+                  <span className="break-all text-xs text-muted-foreground">
+                    {bundle.id}
+                  </span>
+                </div>
+              </TableCell>
+              <TableCell className="min-w-0 align-top">
+                <SupportBundleManifestBlock
+                  bundle={bundle}
+                  isReplayingForwardingEvent={isReplayingForwardingEvent}
+                  onReplayForwardingEvent={onReplayForwardingEvent}
+                />
+              </TableCell>
+              <TableCell className="align-top text-xs text-muted-foreground">
+                <div>{formatFeatureKind(bundle.retentionStatus)}</div>
+                <div>{formatActionRunTimestamp(bundle.expiresAt)}</div>
+              </TableCell>
+              <TableCell className="align-top">
+                <Button
+                  disabled={
+                    isAuthorizingDownload ||
+                    bundle.status !== 'ready' ||
+                    bundle.retentionStatus !== 'active'
+                  }
+                  onClick={() => authorizeDownload(bundle)}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Download archive
+                </Button>
+              </TableCell>
+              <TableCell className="align-top text-xs text-muted-foreground">
+                {formatActionRunTimestamp(bundle.createdAt)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableViewport>
+  );
+}
+
+function SupportBundleStatusCard({
+  workspaceId,
+}: {
+  workspaceId: string | undefined;
+}) {
+  const [createdBundle, setCreatedBundle] =
+    useState<SupportBundleRequest | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [downloadAuthorization, setDownloadAuthorization] =
+    useState<SupportBundleDownloadAuthorization | null>(null);
+  const [downloadAuthorizationError, setDownloadAuthorizationError] = useState<
+    string | null
+  >(null);
+  const [retentionCleanup, setRetentionCleanup] =
+    useState<SupportBundleRetentionCleanup | null>(null);
+  const [retentionCleanupError, setRetentionCleanupError] = useState<
+    string | null
+  >(null);
+  const [forwardingReplay, setForwardingReplay] =
+    useState<SupportBundleTransferForwardingReplayRecord | null>(null);
+  const [forwardingReplayError, setForwardingReplayError] = useState<
+    string | null
+  >(null);
+  const [forwardingStatusFilter, setForwardingStatusFilter] =
+    useState<SupportBundleForwardingStatusFilter>(
+      SUPPORT_BUNDLE_FORWARDING_ALL_STATUSES
+    );
+  const [forwardingQueryFilter, setForwardingQueryFilter] = useState('');
+  const supportBundleListFilter = useMemo(
+    () =>
+      buildSupportBundleListFilter({
+        forwardingStatus: forwardingStatusFilter,
+        query: forwardingQueryFilter,
+      }),
+    [forwardingQueryFilter, forwardingStatusFilter]
+  );
+  const { data, isValidating, mutate } = useQuery(
+    workspaceId
+      ? {
+          query: getCopilotSupportBundlesQuery,
+          variables: {
+            ...(supportBundleListFilter
+              ? { filter: supportBundleListFilter }
+              : {}),
+            limit: 8,
+            workspaceId,
+          },
+        }
+      : undefined
+  );
+  const { trigger: createSupportBundle, isMutating } = useMutation({
+    mutation: createCopilotSupportBundleMutation,
+  });
+  const {
+    trigger: authorizeSupportBundleDownload,
+    isMutating: isAuthorizingDownload,
+  } = useMutation({
+    mutation: authorizeCopilotSupportBundleDownloadMutation,
+  });
+  const {
+    trigger: cleanupSupportBundleRetention,
+    isMutating: isCleaningRetention,
+  } = useMutation({
+    mutation: cleanupCopilotSupportBundleRetentionMutation,
+  });
+  const {
+    trigger: replaySupportBundleTransferForwardingEvent,
+    isMutating: isReplayingForwardingEvent,
+  } = useMutation({
+    mutation: replayCopilotSupportBundleTransferForwardingEventMutation,
+  });
+  const bundles =
+    data?.currentUser?.copilot?.supportBundles ?? EMPTY_SUPPORT_BUNDLES;
+  const forwardingReplaySourceEventId = forwardingReplay
+    ? getSupportBundleForwardingReplaySourceEventId(forwardingReplay)
+    : null;
+  const displayBundles =
+    forwardingReplay && bundles.length
+      ? bundles.map(bundle =>
+          bundle.transferForwardingEvents.some(
+            event => event.id === forwardingReplay.id
+          )
+            ? bundle
+            : bundle.transferForwardingEvents.some(
+                  event => event.id === forwardingReplaySourceEventId
+                )
+              ? {
+                  ...bundle,
+                  transferForwardingEventCount:
+                    bundle.transferForwardingEventCount + 1,
+                  transferForwardingEvents: [
+                    forwardingReplay,
+                    ...bundle.transferForwardingEvents,
+                  ],
+                }
+              : bundle
+        )
+      : bundles;
+
+  const onCreate = () => {
+    if (!workspaceId) {
+      return;
+    }
+
+    setCreatedBundle(null);
+    setCreateError(null);
+    createSupportBundle({
+      input: {
+        workspaceId,
+      },
+    })
+      .then(result => {
+        setCreatedBundle(result.createCopilotSupportBundle);
+        mutate().catch(error => {
+          console.error(error);
+        });
+      })
+      .catch(error => {
+        console.error(error);
+        setCreateError(error instanceof Error ? error.message : String(error));
+      });
+  };
+  const onAuthorizeDownload = (bundle: SupportBundleRequest) => {
+    if (!workspaceId) {
+      return;
+    }
+
+    setDownloadAuthorization(null);
+    setDownloadAuthorizationError(null);
+    authorizeSupportBundleDownload({
+      input: {
+        bundleId: bundle.id,
+        artifactKind: 'archive_json',
+        workspaceId,
+      },
+    })
+      .then(result => {
+        const authorization = result.authorizeCopilotSupportBundleDownload;
+        setDownloadAuthorization(authorization);
+        window.open(authorization.downloadUrl, '_blank', 'noopener,noreferrer');
+        mutate().catch(error => {
+          console.error(error);
+        });
+      })
+      .catch(error => {
+        console.error(error);
+        setDownloadAuthorizationError(
+          error instanceof Error ? error.message : String(error)
+        );
+      });
+  };
+  const onCleanupRetention = () => {
+    if (!workspaceId) {
+      return;
+    }
+
+    setRetentionCleanup(null);
+    setRetentionCleanupError(null);
+    cleanupSupportBundleRetention({
+      input: {
+        limit: 50,
+        workspaceId,
+      },
+    })
+      .then(result => {
+        setRetentionCleanup(result.cleanupCopilotSupportBundleRetention);
+        mutate().catch(error => {
+          console.error(error);
+        });
+      })
+      .catch(error => {
+        console.error(error);
+        setRetentionCleanupError(
+          error instanceof Error ? error.message : String(error)
+        );
+      });
+  };
+  const onReplayForwardingEvent = (
+    _bundle: SupportBundleRequest,
+    event: SupportBundleTransferForwardingEvent
+  ) => {
+    if (!workspaceId) {
+      return;
+    }
+
+    setForwardingReplay(null);
+    setForwardingReplayError(null);
+    replaySupportBundleTransferForwardingEvent({
+      input: {
+        forwardingEventId: event.id,
+        workspaceId,
+      },
+    })
+      .then(result => {
+        setForwardingReplay(
+          result.replayCopilotSupportBundleTransferForwardingEvent
+        );
+        mutate().catch(error => {
+          console.error(error);
+        });
+      })
+      .catch(error => {
+        console.error(error);
+        setForwardingReplayError(
+          error instanceof Error ? error.message : String(error)
+        );
+      });
+  };
+
+  return (
+    <Card className="border-border/60 bg-card shadow-1">
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle className="text-base">Support bundles</CardTitle>
+            <CardDescription>
+              DB-backed support bundle requests and minimal manifest metadata
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!workspaceId || isCleaningRetention}
+              onClick={onCleanupRetention}
+            >
+              {isCleaningRetention ? 'Cleaning' : 'Cleanup retention'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!workspaceId || isMutating}
+              onClick={onCreate}
+            >
+              {isMutating ? 'Creating' : 'Create bundle'}
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!workspaceId ? (
+          <EmptyState>
+            Select a workspace scope before creating or viewing support bundles.
+          </EmptyState>
+        ) : null}
+        {createError ? (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {createError}
+          </div>
+        ) : null}
+        {downloadAuthorizationError ? (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {downloadAuthorizationError}
+          </div>
+        ) : null}
+        {retentionCleanupError ? (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {retentionCleanupError}
+          </div>
+        ) : null}
+        {forwardingReplayError ? (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {forwardingReplayError}
+          </div>
+        ) : null}
+        {createdBundle ? (
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Latest created bundle</div>
+            <SupportBundleManifestBlock bundle={createdBundle} />
+          </div>
+        ) : null}
+        {downloadAuthorization ? (
+          <div className="space-y-2">
+            <div className="text-sm font-medium">
+              Latest artifact download authorization
+            </div>
+            <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs">
+              {compactList([
+                downloadAuthorization.id,
+                `status ${formatFeatureKind(downloadAuthorization.status)}`,
+                `artifact ${downloadAuthorization.artifactFilename}`,
+                `artifact fingerprint ${downloadAuthorization.artifactFingerprint}`,
+                `manifest ${downloadAuthorization.manifestFingerprint}`,
+                `authorization ${downloadAuthorization.authorizationFingerprint}`,
+                `delivery ${formatFeatureKind(downloadAuthorization.deliveryMethod)}`,
+                downloadAuthorization.directDownloadUrl
+                  ? 'direct object-storage URL yes'
+                  : 'direct object-storage URL no',
+                downloadAuthorization.directDownloadExpiresAt
+                  ? `direct expires ${formatActionRunTimestamp(
+                      downloadAuthorization.directDownloadExpiresAt
+                    )}`
+                  : null,
+                `expires ${formatActionRunTimestamp(downloadAuthorization.expiresAt)}`,
+              ])}
+            </div>
+          </div>
+        ) : null}
+        {retentionCleanup ? (
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Latest retention cleanup</div>
+            <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs">
+              {compactList([
+                retentionCleanup.cleanupFingerprint,
+                `bundles ${retentionCleanup.expiredBundleCount}`,
+                `authorizations ${retentionCleanup.expiredAuthorizationCount}`,
+                `archive retries ${retentionCleanup.archiveObjectCleanupRetryCount}`,
+                `archive recovered ${retentionCleanup.archiveObjectCleanupRecoveredCount}`,
+                `archive failed ${retentionCleanup.archiveObjectCleanupFailedCount}`,
+                `manifest retries ${retentionCleanup.manifestObjectRewriteRetryCount}`,
+                `manifest recovered ${retentionCleanup.manifestObjectRewriteRecoveredCount}`,
+                `manifest failed ${retentionCleanup.manifestObjectRewriteFailedCount}`,
+                `cleaned ${formatActionRunTimestamp(retentionCleanup.cleanedAt)}`,
+              ])}
+            </div>
+          </div>
+        ) : null}
+        {forwardingReplay ? (
+          <div className="space-y-2">
+            <div className="text-sm font-medium">
+              Latest transfer forwarding replay
+            </div>
+            <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs">
+              {formatSupportBundleTransferForwardingEvent(forwardingReplay)}
+            </div>
+          </div>
+        ) : null}
+        {workspaceId ? (
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-[180px_1fr]">
+            <Select
+              value={forwardingStatusFilter}
+              onValueChange={value => {
+                setForwardingStatusFilter(
+                  value as SupportBundleForwardingStatusFilter
+                );
+              }}
+            >
+              <SelectTrigger aria-label="Support bundle forwarding status">
+                <SelectValue placeholder="All forwarding statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SUPPORT_BUNDLE_FORWARDING_ALL_STATUSES}>
+                  All forwarding
+                </SelectItem>
+                {SUPPORT_BUNDLE_FORWARDING_STATUSES.map(status => (
+                  <SelectItem key={status} value={status}>
+                    {formatFeatureKind(status)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              aria-label="Support bundle forwarding filter"
+              placeholder="Bundle, authorization, forwarding event, source, or fingerprint"
+              value={forwardingQueryFilter}
+              onChange={event => {
+                setForwardingQueryFilter(event.target.value);
+              }}
+            />
+          </div>
+        ) : null}
+        {workspaceId ? (
+          <SupportBundleList
+            authorizeDownload={onAuthorizeDownload}
+            bundles={displayBundles}
+            isAuthorizingDownload={isAuthorizingDownload}
+            isReplayingForwardingEvent={isReplayingForwardingEvent}
+            isValidating={isValidating}
+            onReplayForwardingEvent={onReplayForwardingEvent}
+          />
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function formatAgentRunTimestamp(
+  value: AgentRunRecord['createdAt'] | null | undefined
+) {
+  return value ? formatActionRunTimestamp(String(value)) : 'None';
+}
+
+function formatAgentRunSteps(run: AgentRunRecord) {
+  if (!run.steps.length) {
+    return 'No persisted steps';
+  }
+
+  return run.steps
+    .map(
+      step =>
+        `${step.stepKey}:${formatFeatureKind(step.stepType)}:${formatFeatureKind(step.status)}`
+    )
+    .join(' | ');
+}
+
+function formatAgentRunTimeline(run: AgentRunRecord) {
+  if (!run.timelineEvents.length) {
+    return 'No persisted timeline events';
+  }
+
+  return run.timelineEvents
+    .map(
+      event =>
+        `#${event.ordinal}:${formatFeatureKind(event.eventType)}:${formatFeatureKind(event.status)}:${event.summary}`
+    )
+    .join(' | ');
+}
+
+function formatAgentRunExecutionResults(run: AgentRunRecord) {
+  if (!run.executionResults.length) {
+    return `Execution results ${run.executionResultCount}`;
+  }
+
+  return [
+    `Execution results ${run.executionResultCount}`,
+    run.executionResults
+      .map(result =>
+        compactList([
+          formatFeatureKind(result.resultStatus),
+          result.adapterWorkflow,
+          result.executor,
+          `attempt ${result.workerAttempt}`,
+          `fingerprint ${result.resultFingerprint}`,
+          `side effects ${
+            result.sideEffectsApplied
+              ? formatFeatureKind(result.sideEffectMode)
+              : 'none'
+          }`,
+          result.failureCode
+            ? `failure ${formatFeatureKind(result.failureCode)}`
+            : null,
+          result.summary,
+        ])
+      )
+      .join(' | '),
+  ].join(' / ');
+}
+
+function formatAgentRunWorkerState(run: AgentRunRecord) {
+  return compactList([
+    run.queuedAt ? `queued ${formatAgentRunTimestamp(run.queuedAt)}` : null,
+    `worker attempt ${run.workerAttempt}/${run.workerMaxAttempts}`,
+    run.lastAttemptAt
+      ? `last attempt ${formatAgentRunTimestamp(run.lastAttemptAt)}`
+      : null,
+    run.workerLeaseId ? `lease ${run.workerLeaseId}` : null,
+    run.workerLeaseExpiresAt
+      ? `lease expires ${formatAgentRunTimestamp(run.workerLeaseExpiresAt)}`
+      : null,
+  ]);
+}
+
+function buildAgentRunListFilter(input: {
+  status: AgentRunStatusFilter;
+  query: string;
+}) {
+  const filter: {
+    query?: string;
+    status?: string;
+  } = {};
+  if (input.status !== AGENT_RUN_ALL_STATUSES) {
+    filter.status = input.status;
+  }
+  const query = input.query.trim();
+  if (query) {
+    filter.query = /^[a-f0-9]{16}$/i.test(query) ? query.toLowerCase() : query;
+  }
+  return Object.keys(filter).length ? filter : undefined;
+}
+
+function RepairExecutionList({
+  isValidating,
+  repairExecutions,
+}: {
+  isValidating: boolean;
+  repairExecutions: RepairExecutionRecord[];
+}) {
+  if (!repairExecutions.length) {
+    return (
+      <EmptyState>
+        {isValidating
+          ? 'Loading persisted repair execution requests.'
+          : 'No persisted repair execution requests have been created for this workspace.'}
+      </EmptyState>
+    );
+  }
+
+  return (
+    <TableViewport minWidth="min-w-[1200px]">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Request</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Fingerprints</TableHead>
+            <TableHead>Runtime</TableHead>
+            <TableHead>Ledger</TableHead>
+            <TableHead>Updated</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {repairExecutions.map(record => (
+            <TableRow key={record.id}>
+              <TableCell className="min-w-0 align-top">
+                <div className="break-words font-medium">
+                  {record.promptName}
+                </div>
+                <div className="mt-1 break-all text-xs text-muted-foreground">
+                  {record.id}
+                </div>
+                <div className="mt-1 break-words text-xs text-muted-foreground">
+                  {compactList([
+                    `action ${record.requestedAction}`,
+                    `actor ${record.actorId}`,
+                  ])}
+                </div>
+              </TableCell>
+              <TableCell className="align-top">
+                <div className="flex flex-col gap-2">
+                  <Badge variant="outline" className="w-fit font-normal">
+                    {formatFeatureKind(record.status)}
+                  </Badge>
+                  <div className="break-words text-xs text-muted-foreground">
+                    Approval {formatFeatureKind(record.approvalState)}
+                  </div>
+                  {record.failureCode ? (
+                    <div className="break-words text-xs text-destructive">
+                      {compactList([
+                        formatFeatureKind(record.failureCode),
+                        record.failureMessage ?? null,
+                      ])}
+                    </div>
+                  ) : null}
+                  <div className="break-words text-xs text-muted-foreground">
+                    {compactList([
+                      record.queuedAt
+                        ? `queued ${formatActionRunTimestamp(record.queuedAt)}`
+                        : null,
+                      record.completedAt
+                        ? `completed ${formatActionRunTimestamp(record.completedAt)}`
+                        : null,
+                      `attempt ${record.workerAttempt}/${record.workerMaxAttempts}`,
+                      record.workerLeaseId
+                        ? `lease ${record.workerLeaseId}`
+                        : null,
+                    ])}
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell className="min-w-0 align-top">
+                <div className="break-words text-xs text-muted-foreground">
+                  {compactList([
+                    `request ${record.requestFingerprint}`,
+                    `idempotency ${record.idempotencyFingerprint}`,
+                    `candidate ${record.candidateEvidenceSetFingerprint}`,
+                    `task route ${record.taskRouteEvidenceSetFingerprint}`,
+                    `target ${record.targetLocatorFingerprint}`,
+                    `repair ${record.repairJobFingerprint}`,
+                    `approval ${record.approvalRecordFingerprint}`,
+                    `audit ${record.auditEventFingerprint}`,
+                  ])}
+                </div>
+              </TableCell>
+              <TableCell className="min-w-0 align-top">
+                <div
+                  className="break-words text-xs text-muted-foreground"
+                  data-testid={`repair-execution-runtime-${record.id}`}
+                >
+                  {compactList([
+                    `executor ${record.runtimeResult.executor}`,
+                    record.runtimeResult.message,
+                    record.runtimeResult.sideEffectsApplied
+                      ? `side effects ${formatFeatureKind(
+                          record.runtimeResult.sideEffectKind ?? 'applied'
+                        )}`
+                      : 'side effects none',
+                    record.agentRun
+                      ? `agent run ${record.agentRun.id}:${formatFeatureKind(
+                          record.agentRun.status
+                        )}`
+                      : 'agent run none',
+                  ])}
+                </div>
+              </TableCell>
+              <TableCell className="min-w-0 align-top">
+                <div
+                  className="break-words text-xs text-muted-foreground"
+                  data-testid={`repair-execution-ledger-${record.id}`}
+                >
+                  {formatRepairExecutionRecord(record)}
+                </div>
+              </TableCell>
+              <TableCell className="align-top text-xs text-muted-foreground">
+                {formatActionRunTimestamp(record.updatedAt)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableViewport>
+  );
+}
+
+function RepairExecutionStatusCard({
+  workspaceId,
+}: {
+  workspaceId: string | undefined;
+}) {
+  const [executionStatusFilter, setExecutionStatusFilter] =
+    useState<RepairExecutionStatusFilter>(REPAIR_EXECUTION_ALL_STATUSES);
+  const [executionQueryFilter, setExecutionQueryFilter] = useState('');
+  const repairExecutionListFilter = useMemo(
+    () =>
+      buildRepairExecutionListFilter({
+        status: executionStatusFilter,
+        query: executionQueryFilter,
+      }),
+    [executionQueryFilter, executionStatusFilter]
+  );
+  const { data, isValidating } = useQuery(
+    workspaceId
+      ? {
+          query: getCopilotRepairExecutionsQuery,
+          variables: {
+            ...(repairExecutionListFilter
+              ? { filter: repairExecutionListFilter }
+              : {}),
+            limit: 8,
+            workspaceId,
+          },
+        }
+      : undefined
+  );
+  const repairExecutions =
+    data?.currentUser?.copilot?.repairExecutions ?? EMPTY_REPAIR_EXECUTIONS;
+
+  return (
+    <Card className="border-border/60 bg-card shadow-1">
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle className="text-base">Repair executions</CardTitle>
+            <CardDescription>
+              Persisted repair request state, audit history, and side-effect
+              ledger
+            </CardDescription>
+          </div>
+          {workspaceId && isValidating ? (
+            <Badge variant="outline" className="font-normal">
+              Refreshing
+            </Badge>
+          ) : null}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!workspaceId ? (
+          <EmptyState>
+            Select a workspace scope before viewing repair executions.
+          </EmptyState>
+        ) : null}
+        {workspaceId ? (
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-[180px_1fr]">
+            <Select
+              value={executionStatusFilter}
+              onValueChange={value => {
+                setExecutionStatusFilter(value as RepairExecutionStatusFilter);
+              }}
+            >
+              <SelectTrigger aria-label="Repair execution status">
+                <SelectValue placeholder="All execution statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={REPAIR_EXECUTION_ALL_STATUSES}>
+                  All executions
+                </SelectItem>
+                {REPAIR_EXECUTION_STATUSES.map(status => (
+                  <SelectItem key={status} value={status}>
+                    {formatFeatureKind(status)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              aria-label="Repair execution filter"
+              placeholder="Request, prompt, action, approval, audit, side effect, failure, lease, or fingerprint"
+              value={executionQueryFilter}
+              onChange={event => {
+                setExecutionQueryFilter(event.target.value);
+              }}
+            />
+          </div>
+        ) : null}
+        {workspaceId ? (
+          <RepairExecutionList
+            isValidating={isValidating}
+            repairExecutions={repairExecutions}
+          />
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function formatAgentRuntimeWorkflowAdapter(
+  adapter: AgentRuntimeWorkflowAdapter
+) {
+  return compactList([
+    adapter.workflow,
+    `version ${adapter.capabilities.version}`,
+    `steps ${adapter.capabilities.supportedStepTypes
+      .map(formatFeatureKind)
+      .join(', ')}`,
+    `side effects ${formatFeatureKind(adapter.capabilities.sideEffectMode)}`,
+    adapter.capabilities.summary,
+  ]);
+}
+
+function AgentRuntimeWorkflowAdapterList({
+  adapters,
+}: {
+  adapters: AgentRuntimeWorkflowAdapter[];
+}) {
+  if (!adapters.length) {
+    return (
+      <EmptyState>
+        No Agent Runtime workflow adapters are registered for standalone
+        execution.
+      </EmptyState>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="text-sm font-medium">Workflow adapters</div>
+      <div className="grid gap-2 md:grid-cols-2">
+        {adapters.map(adapter => (
+          <div
+            key={adapter.workflow}
+            className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs"
+            data-testid={`agent-runtime-adapter-${adapter.workflow}`}
+          >
+            {formatAgentRuntimeWorkflowAdapter(adapter)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AgentRuntimeRunList({
+  agentRuns,
+  controlAgentRun,
+  controlError,
+  controlRecord,
+  isControlling,
+  isValidating,
+}: {
+  agentRuns: AgentRunRecord[];
+  controlAgentRun: (run: AgentRunRecord, action: 'cancel' | 'resume') => void;
+  controlError: string | null;
+  controlRecord: AgentRuntimeControlRecord | null;
+  isControlling: boolean;
+  isValidating: boolean;
+}) {
+  if (!agentRuns.length) {
+    return (
+      <EmptyState>
+        {isValidating
+          ? 'Loading persisted Agent Runtime runs.'
+          : 'No persisted Agent Runtime runs have been created for this workspace.'}
+      </EmptyState>
+    );
+  }
+
+  return (
+    <TableViewport minWidth="min-w-[1260px]">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Run</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Steps</TableHead>
+            <TableHead>Results</TableHead>
+            <TableHead>Timeline</TableHead>
+            <TableHead>Control</TableHead>
+            <TableHead>Updated</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {agentRuns.map(run => (
+            <TableRow key={run.id}>
+              <TableCell className="min-w-0 align-top">
+                <div className="break-words font-medium">
+                  {run.title || run.workflow}
+                </div>
+                <div className="mt-1 break-all text-xs text-muted-foreground">
+                  {run.id}
+                </div>
+                <div className="mt-1 break-words text-xs text-muted-foreground">
+                  {compactList([
+                    `workflow ${run.workflow}`,
+                    `source ${run.sourceType}:${run.sourceId}`,
+                    `actor ${run.actorId}`,
+                  ])}
+                </div>
+                <div className="mt-1 break-words text-xs text-muted-foreground">
+                  {compactList([
+                    `target ${run.targetFingerprint}`,
+                    `evidence ${run.evidenceFingerprint}`,
+                    `timeline ${run.timelineFingerprint}`,
+                  ])}
+                </div>
+              </TableCell>
+              <TableCell className="align-top">
+                <div className="flex flex-col gap-2">
+                  <Badge variant="outline" className="w-fit font-normal">
+                    {formatFeatureKind(run.status)}
+                  </Badge>
+                  {run.failureCode ? (
+                    <div className="break-words text-xs text-destructive">
+                      {compactList([
+                        run.failureCode,
+                        run.failureMessage ?? null,
+                      ])}
+                    </div>
+                  ) : null}
+                  <div className="break-words text-xs text-muted-foreground">
+                    Started {formatAgentRunTimestamp(run.startedAt)}
+                  </div>
+                  <div className="break-words text-xs text-muted-foreground">
+                    Completed {formatAgentRunTimestamp(run.completedAt)}
+                  </div>
+                  <div className="break-words text-xs text-muted-foreground">
+                    {formatAgentRunWorkerState(run)}
+                  </div>
+                  {controlRecord?.id === run.id ? (
+                    <div className="break-words text-xs text-muted-foreground">
+                      Latest control {formatFeatureKind(controlRecord.status)}
+                    </div>
+                  ) : null}
+                </div>
+              </TableCell>
+              <TableCell className="min-w-0 align-top">
+                <div
+                  className="break-words text-xs text-muted-foreground"
+                  data-testid={`agent-runtime-steps-${run.id}`}
+                >
+                  {formatAgentRunSteps(run)}
+                </div>
+              </TableCell>
+              <TableCell className="min-w-0 align-top">
+                <div
+                  className="break-words text-xs text-muted-foreground"
+                  data-testid={`agent-runtime-results-${run.id}`}
+                >
+                  {formatAgentRunExecutionResults(run)}
+                </div>
+              </TableCell>
+              <TableCell className="min-w-0 align-top">
+                <div
+                  className="break-words text-xs text-muted-foreground"
+                  data-testid={`agent-runtime-timeline-${run.id}`}
+                >
+                  {formatAgentRunTimeline(run)}
+                </div>
+              </TableCell>
+              <TableCell className="align-top">
+                {run.sourceType === 'repair_execution_request' ? (
+                  <div className="max-w-48 break-words text-xs text-muted-foreground">
+                    Use repair execution controls
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={
+                        isControlling ||
+                        run.status === 'completed' ||
+                        run.status === 'failed' ||
+                        run.status === 'cancelled'
+                      }
+                      onClick={() => controlAgentRun(run, 'cancel')}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={
+                        isControlling ||
+                        (run.status !== 'failed' && run.status !== 'cancelled')
+                      }
+                      onClick={() => controlAgentRun(run, 'resume')}
+                    >
+                      Resume
+                    </Button>
+                  </div>
+                )}
+              </TableCell>
+              <TableCell className="align-top text-xs text-muted-foreground">
+                {formatAgentRunTimestamp(run.updatedAt)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {controlError ? (
+        <div className="border-t border-border/70 p-3 text-xs text-destructive">
+          Agent Runtime control error {controlError}
+        </div>
+      ) : null}
+    </TableViewport>
+  );
+}
+
+function AgentRuntimeStatusCard({
+  workspaceId,
+}: {
+  workspaceId: string | undefined;
+}) {
+  const [controlRecord, setControlRecord] =
+    useState<AgentRuntimeControlRecord | null>(null);
+  const [controlError, setControlError] = useState<string | null>(null);
+  const [runStatusFilter, setRunStatusFilter] = useState<AgentRunStatusFilter>(
+    AGENT_RUN_ALL_STATUSES
+  );
+  const [runQueryFilter, setRunQueryFilter] = useState('');
+  const agentRunListFilter = useMemo(
+    () =>
+      buildAgentRunListFilter({
+        status: runStatusFilter,
+        query: runQueryFilter,
+      }),
+    [runQueryFilter, runStatusFilter]
+  );
+  const { data, isValidating, mutate } = useQuery(
+    workspaceId
+      ? {
+          query: getCopilotAgentRunsQuery,
+          variables: {
+            ...(agentRunListFilter ? { filter: agentRunListFilter } : {}),
+            limit: 8,
+            workspaceId,
+          },
+        }
+      : undefined
+  );
+  const {
+    trigger: controlAgentRuntimeRunRequest,
+    isMutating: isControllingAgentRuntimeRun,
+  } = useMutation({
+    mutation: controlCopilotAgentRuntimeRunMutation,
+  });
+  const agentRuns = data?.currentUser?.copilot?.agentRuns ?? EMPTY_AGENT_RUNS;
+  const workflowAdapters =
+    data?.currentUser?.copilot?.agentRuntimeWorkflowAdapters ??
+    EMPTY_AGENT_RUNTIME_WORKFLOW_ADAPTERS;
+  const displayAgentRuns =
+    controlRecord && agentRuns.some(run => run.id === controlRecord.id)
+      ? agentRuns.map(run =>
+          run.id === controlRecord.id ? controlRecord : run
+        )
+      : controlRecord
+        ? [controlRecord, ...agentRuns]
+        : agentRuns;
+  const controlAgentRun = (
+    run: AgentRunRecord,
+    action: 'cancel' | 'resume'
+  ) => {
+    if (!workspaceId) {
+      return;
+    }
+
+    setControlRecord(null);
+    setControlError(null);
+    controlAgentRuntimeRunRequest({
+      input: {
+        action,
+        runId: run.id,
+        workspaceId,
+      },
+    })
+      .then(data => {
+        setControlRecord(data.controlCopilotAgentRuntimeRun);
+        mutate?.()?.catch(error => {
+          console.error(error);
+        });
+      })
+      .catch(error => {
+        console.error(error);
+        setControlError(error instanceof Error ? error.message : String(error));
+      });
+  };
+
+  return (
+    <Card className="border-border/60 bg-card shadow-1">
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle className="text-base">Agent runtime runs</CardTitle>
+            <CardDescription>
+              Persisted AgentRun, AgentStep, and timeline state
+            </CardDescription>
+          </div>
+          {workspaceId && isValidating ? (
+            <Badge variant="outline" className="font-normal">
+              Refreshing
+            </Badge>
+          ) : null}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!workspaceId ? (
+          <EmptyState>
+            Select a workspace scope before viewing Agent Runtime runs.
+          </EmptyState>
+        ) : null}
+        {workspaceId ? (
+          <AgentRuntimeWorkflowAdapterList adapters={workflowAdapters} />
+        ) : null}
+        {workspaceId ? (
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-[180px_1fr]">
+            <Select
+              value={runStatusFilter}
+              onValueChange={value => {
+                setRunStatusFilter(value as AgentRunStatusFilter);
+              }}
+            >
+              <SelectTrigger aria-label="Agent Runtime run status">
+                <SelectValue placeholder="All run statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={AGENT_RUN_ALL_STATUSES}>All runs</SelectItem>
+                {AGENT_RUN_STATUSES.map(status => (
+                  <SelectItem key={status} value={status}>
+                    {formatFeatureKind(status)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              aria-label="Agent Runtime run filter"
+              placeholder="Run, workflow, source, failure, lease, or fingerprint"
+              value={runQueryFilter}
+              onChange={event => {
+                setRunQueryFilter(event.target.value);
+              }}
+            />
+          </div>
+        ) : null}
+        {workspaceId ? (
+          <AgentRuntimeRunList
+            agentRuns={displayAgentRuns}
+            controlAgentRun={controlAgentRun}
+            controlError={controlError}
+            controlRecord={controlRecord}
+            isControlling={isControllingAgentRuntimeRun}
+            isValidating={isValidating}
+          />
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
 function AiPageSkeleton() {
   return (
     <div className="flex h-dvh flex-1 flex-col bg-background">
       <Header title="AI" />
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-6 py-5">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 px-4 py-5 sm:px-6">
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-72 w-full" />
         <Skeleton className="h-72 w-full" />
@@ -7597,7 +10418,848 @@ function AiPageSkeleton() {
   );
 }
 
-function AiPageContent() {
+function AiPageTabs({ active }: { active: 'config' | 'runtime' }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button
+        asChild
+        variant={active === 'config' ? 'default' : 'outline'}
+        size="sm"
+      >
+        <Link to={AI_CONFIG_PATH}>Configuration</Link>
+      </Button>
+      <Button
+        asChild
+        variant={active === 'runtime' ? 'default' : 'outline'}
+        size="sm"
+      >
+        <Link to={AI_RUNTIME_PATH}>Runtime</Link>
+      </Button>
+    </div>
+  );
+}
+
+function AiConfigField({
+  children,
+  description,
+  label,
+}: {
+  children: ReactNode;
+  description?: string;
+  label: string;
+}) {
+  return (
+    <label className="block min-w-0 space-y-1">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      {children}
+      {description ? (
+        <span className="block text-xs leading-5 text-muted-foreground">
+          {description}
+        </span>
+      ) : null}
+    </label>
+  );
+}
+
+function AiJsonConfigField({
+  description,
+  label,
+  onChange,
+  rows = 8,
+  value,
+}: {
+  description: string;
+  label: string;
+  onChange: (value: string) => void;
+  rows?: number;
+  value: string;
+}) {
+  return (
+    <AiConfigField description={description} label={label}>
+      <Textarea
+        className="min-h-32 font-mono text-xs leading-5"
+        rows={rows}
+        spellCheck={false}
+        value={value}
+        onChange={event => onChange(event.target.value)}
+      />
+    </AiConfigField>
+  );
+}
+
+function AiConfigSection({
+  children,
+  description,
+  title,
+}: {
+  children: ReactNode;
+  description: string;
+  title: string;
+}) {
+  return (
+    <Card className="min-w-0 border-border/60 bg-card shadow-1">
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">{children}</CardContent>
+    </Card>
+  );
+}
+
+function AiConfigPage({
+  appConfig,
+  onSaved,
+}: {
+  appConfig: AppConfigData | undefined;
+  onSaved: () => Promise<unknown>;
+}) {
+  const savedDraft = useMemo(() => buildAiConfigDraft(appConfig), [appConfig]);
+  const [draft, setDraft] = useState(savedDraft);
+  const [formError, setFormError] = useState<string | null>(null);
+  const { trigger: updateAppConfig, isMutating } = useMutation({
+    mutation: updateAppConfigMutation,
+  });
+  const providers = appConfig?.copilot?.providers;
+  const openai = providers?.openai ?? {};
+  const openaiCompatible = providers?.openaiCompatible ?? {};
+  const cloudflareWorkersAi = providers?.cloudflareWorkersAi ?? {};
+  const gemini = providers?.gemini ?? {};
+  const anthropic = providers?.anthropic ?? {};
+  const fal = providers?.fal ?? {};
+  const isDirty = !isSameAiConfigDraft(savedDraft, draft);
+  const openaiBaseURL = draft.openaiBaseURL.trim() || DEFAULT_OPENAI_BASE_URL;
+  const openaiCompatibleBaseURL = draft.openaiCompatibleBaseURL.trim();
+  const geminiBaseURL = draft.geminiBaseURL.trim() || DEFAULT_GEMINI_BASE_URL;
+  const anthropicBaseURL =
+    draft.anthropicBaseURL.trim() || DEFAULT_ANTHROPIC_BASE_URL;
+  const canSave =
+    isDirty &&
+    !isMutating &&
+    (!trimOptionalSecret(draft.openaiCompatibleApiKey) ||
+      Boolean(openaiCompatibleBaseURL));
+
+  useEffect(() => {
+    setDraft(savedDraft);
+    setFormError(null);
+  }, [savedDraft]);
+
+  const updateDraft = <Key extends keyof AiConfigDraft>(
+    key: Key,
+    value: AiConfigDraft[Key]
+  ) => {
+    setDraft(prev => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!canSave) {
+      return;
+    }
+
+    const openaiCompatibleHeaders = parseJsonConfig(
+      draft,
+      'openaiCompatibleHeadersJson',
+      'OpenAI-compatible headers'
+    );
+    const providerProfiles = parseJsonConfig(
+      draft,
+      'providerProfilesJson',
+      'Provider profiles'
+    );
+    const providerDefaults = parseJsonConfig(
+      draft,
+      'providerDefaultsJson',
+      'Provider defaults'
+    );
+    const routePolicy = parseJsonConfig(
+      draft,
+      'routePolicyJson',
+      'Route policy'
+    );
+    const promptDefaults = parseJsonConfig(
+      draft,
+      'promptDefaultsJson',
+      'Prompt defaults'
+    );
+    const promptOverrides = parseJsonConfig(
+      draft,
+      'promptOverridesJson',
+      'Prompt overrides'
+    );
+    const supportBundleWebhooks = parseJsonConfig(
+      draft,
+      'supportBundleWebhooksJson',
+      'Support bundle object-storage webhooks'
+    );
+    const storage = parseJsonConfig(draft, 'storageJson', 'Copilot storage');
+    const geminiVertex = parseJsonConfig(
+      draft,
+      'geminiVertexJson',
+      'Gemini Vertex'
+    );
+    const anthropicVertex = parseJsonConfig(
+      draft,
+      'anthropicVertexJson',
+      'Anthropic Vertex'
+    );
+    const parsedConfigs = [
+      openaiCompatibleHeaders,
+      providerProfiles,
+      providerDefaults,
+      routePolicy,
+      promptDefaults,
+      promptOverrides,
+      supportBundleWebhooks,
+      storage,
+      geminiVertex,
+      anthropicVertex,
+    ];
+    const invalidConfig = parsedConfigs.find(
+      (result): result is { error: string; label: string } => 'error' in result
+    );
+
+    if (invalidConfig) {
+      setFormError(invalidConfig.error);
+      return;
+    }
+
+    setFormError(null);
+    updateAppConfig({
+      updates: [
+        {
+          module: 'copilot',
+          key: 'enabled',
+          value: draft.enabled,
+        },
+        {
+          module: 'copilot',
+          key: 'byok.enabled',
+          value: draft.byokEnabled,
+        },
+        {
+          module: 'copilot',
+          key: 'byok.allowedProviders',
+          value: parseCsvList(draft.byokAllowedProviders),
+        },
+        {
+          module: 'copilot',
+          key: 'byok.allowCustomEndpoint',
+          value: draft.byokAllowCustomEndpoint,
+        },
+        {
+          module: 'copilot',
+          key: 'providers.openai',
+          value: {
+            ...openai,
+            apiKey: trimOptionalSecret(draft.openaiApiKey),
+            baseURL: openaiBaseURL,
+            oldApiStyle: draft.openaiOldApiStyle,
+          },
+        },
+        {
+          module: 'copilot',
+          key: 'providers.openaiCompatible',
+          value: {
+            ...openaiCompatible,
+            apiKey: trimOptionalSecret(draft.openaiCompatibleApiKey),
+            apiStyle: draft.openaiCompatibleApiStyle,
+            baseURL: openaiCompatibleBaseURL,
+            headers: getParsedJsonConfigValue(openaiCompatibleHeaders),
+          },
+        },
+        {
+          module: 'copilot',
+          key: 'providers.cloudflareWorkersAi',
+          value: {
+            ...cloudflareWorkersAi,
+            accountId: draft.cloudflareWorkersAiAccountId.trim(),
+            apiToken: trimOptionalSecret(draft.cloudflareWorkersAiApiToken),
+            baseURL: draft.cloudflareWorkersAiBaseURL.trim(),
+          },
+        },
+        {
+          module: 'copilot',
+          key: 'providers.fal',
+          value: {
+            ...fal,
+            apiKey: trimOptionalSecret(draft.falApiKey),
+          },
+        },
+        {
+          module: 'copilot',
+          key: 'providers.gemini',
+          value: {
+            ...gemini,
+            apiKey: trimOptionalSecret(draft.geminiApiKey),
+            baseURL: geminiBaseURL,
+          },
+        },
+        {
+          module: 'copilot',
+          key: 'providers.geminiVertex',
+          value: getParsedJsonConfigValue(geminiVertex),
+        },
+        {
+          module: 'copilot',
+          key: 'providers.anthropic',
+          value: {
+            ...anthropic,
+            apiKey: trimOptionalSecret(draft.anthropicApiKey),
+            baseURL: anthropicBaseURL,
+          },
+        },
+        {
+          module: 'copilot',
+          key: 'providers.anthropicVertex',
+          value: getParsedJsonConfigValue(anthropicVertex),
+        },
+        {
+          module: 'copilot',
+          key: 'providers.profiles',
+          value: getParsedJsonConfigValue(providerProfiles),
+        },
+        {
+          module: 'copilot',
+          key: 'providers.defaults',
+          value: getParsedJsonConfigValue(providerDefaults),
+        },
+        {
+          module: 'copilot',
+          key: 'providers.routePolicy',
+          value: getParsedJsonConfigValue(routePolicy),
+        },
+        {
+          module: 'copilot',
+          key: 'prompts.defaults',
+          value: getParsedJsonConfigValue(promptDefaults),
+        },
+        {
+          module: 'copilot',
+          key: 'prompts.overrides',
+          value: getParsedJsonConfigValue(promptOverrides),
+        },
+        {
+          module: 'copilot',
+          key: 'tasks.models',
+          value: {
+            ...(draft.taskEmbeddingModel.trim()
+              ? { embedding: draft.taskEmbeddingModel.trim() }
+              : {}),
+            ...(draft.taskWorkspaceIndexingModel.trim()
+              ? { workspaceIndexing: draft.taskWorkspaceIndexingModel.trim() }
+              : {}),
+            ...(draft.taskRerankModel.trim()
+              ? { rerank: draft.taskRerankModel.trim() }
+              : {}),
+          },
+        },
+        {
+          module: 'copilot',
+          key: 'supportBundles.objectStorageWebhooks',
+          value: getParsedJsonConfigValue(supportBundleWebhooks),
+        },
+        {
+          module: 'copilot',
+          key: 'unsplash',
+          value: {
+            key: trimOptionalSecret(draft.unsplashKey),
+          },
+        },
+        {
+          module: 'copilot',
+          key: 'exa',
+          value: {
+            key: trimOptionalSecret(draft.exaKey),
+          },
+        },
+        {
+          module: 'copilot',
+          key: 'storage',
+          value: getParsedJsonConfigValue(storage),
+        },
+      ],
+    })
+      .then(() => onSaved())
+      .then(() => {
+        toast.success('AI configuration saved.');
+      })
+      .catch(error => {
+        console.error(error);
+        toast.error('Failed to save AI configuration.');
+      });
+  };
+
+  return (
+    <form className="space-y-6" onSubmit={onSubmit}>
+      <AiConfigSection
+        title="AI capability switches"
+        description="Global AI enablement and workspace BYOK policy."
+      >
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="flex items-center justify-between gap-4 rounded-md border border-border/70 bg-muted/20 p-3">
+            <div className="min-w-0">
+              <div className="text-sm font-medium">Server AI</div>
+              <div className="text-xs text-muted-foreground">
+                Enables chat, actions, search, indexing, rerank, and runtime
+                workers.
+              </div>
+            </div>
+            <Switch
+              checked={draft.enabled}
+              onCheckedChange={checked => updateDraft('enabled', checked)}
+              aria-label="Enable AI"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4 rounded-md border border-border/70 bg-muted/20 p-3">
+            <div className="min-w-0">
+              <div className="text-sm font-medium">Workspace BYOK</div>
+              <div className="text-xs text-muted-foreground">
+                Allows workspace-owned OpenAI, Anthropic, Gemini, and FAL keys.
+              </div>
+            </div>
+            <Switch
+              checked={draft.byokEnabled}
+              onCheckedChange={checked => updateDraft('byokEnabled', checked)}
+              aria-label="Enable workspace BYOK"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4 rounded-md border border-border/70 bg-muted/20 p-3">
+            <div className="min-w-0">
+              <div className="text-sm font-medium">BYOK custom endpoint</div>
+              <div className="text-xs text-muted-foreground">
+                Lets workspace BYOK profiles use custom compatible endpoints.
+              </div>
+            </div>
+            <Switch
+              checked={draft.byokAllowCustomEndpoint}
+              onCheckedChange={checked =>
+                updateDraft('byokAllowCustomEndpoint', checked)
+              }
+              aria-label="Allow BYOK custom endpoint"
+            />
+          </div>
+        </div>
+        <AiConfigField
+          label="BYOK allowed providers"
+          description="Comma-separated provider ids accepted by workspace BYOK."
+        >
+          <Input
+            value={draft.byokAllowedProviders}
+            onChange={event => {
+              updateDraft('byokAllowedProviders', event.target.value);
+            }}
+          />
+        </AiConfigField>
+      </AiConfigSection>
+
+      <AiConfigSection
+        title="Provider credentials"
+        description="Provider-level API credentials and endpoints used by server-side AI routing."
+      >
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="space-y-3 rounded-md border border-border/60 bg-muted/10 p-4">
+            <div className="text-sm font-medium">OpenAI</div>
+            <AiConfigField label="API key">
+              <Input
+                type="password"
+                autoComplete="off"
+                placeholder="sk-..."
+                value={draft.openaiApiKey}
+                onChange={event => {
+                  updateDraft('openaiApiKey', event.target.value);
+                }}
+              />
+            </AiConfigField>
+            <AiConfigField label="Base URL">
+              <Input
+                placeholder={DEFAULT_OPENAI_BASE_URL}
+                value={draft.openaiBaseURL}
+                onChange={event => {
+                  updateDraft('openaiBaseURL', event.target.value);
+                }}
+              />
+            </AiConfigField>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs text-muted-foreground">
+                Legacy chat completions style
+              </span>
+              <Switch
+                checked={draft.openaiOldApiStyle}
+                onCheckedChange={checked =>
+                  updateDraft('openaiOldApiStyle', checked)
+                }
+                aria-label="Use OpenAI legacy API style"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-md border border-border/60 bg-muted/10 p-4">
+            <div className="text-sm font-medium">OpenAI-compatible</div>
+            <AiConfigField label="API key">
+              <Input
+                type="password"
+                autoComplete="off"
+                placeholder="Optional for local endpoints"
+                value={draft.openaiCompatibleApiKey}
+                onChange={event => {
+                  updateDraft('openaiCompatibleApiKey', event.target.value);
+                }}
+              />
+            </AiConfigField>
+            <AiConfigField label="Base URL">
+              <Input
+                placeholder="http://localhost:11434/v1"
+                value={draft.openaiCompatibleBaseURL}
+                onChange={event => {
+                  updateDraft('openaiCompatibleBaseURL', event.target.value);
+                }}
+              />
+            </AiConfigField>
+            <AiConfigField label="Request API style">
+              <Select
+                value={draft.openaiCompatibleApiStyle}
+                onValueChange={value => {
+                  updateDraft(
+                    'openaiCompatibleApiStyle',
+                    normalizeOpenAICompatibleApiStyle(value)
+                  );
+                }}
+              >
+                <SelectTrigger aria-label="OpenAI-compatible request API style">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="chat_completions">
+                    Chat Completions
+                  </SelectItem>
+                  <SelectItem value="responses">Responses</SelectItem>
+                  <SelectItem value="auto">Auto</SelectItem>
+                </SelectContent>
+              </Select>
+            </AiConfigField>
+            <AiJsonConfigField
+              label="Headers JSON"
+              description="Optional static headers sent to compatible endpoints."
+              rows={4}
+              value={draft.openaiCompatibleHeadersJson}
+              onChange={value =>
+                updateDraft('openaiCompatibleHeadersJson', value)
+              }
+            />
+          </div>
+
+          <div className="space-y-3 rounded-md border border-border/60 bg-muted/10 p-4">
+            <div className="text-sm font-medium">Gemini</div>
+            <AiConfigField label="API key">
+              <Input
+                type="password"
+                autoComplete="off"
+                value={draft.geminiApiKey}
+                onChange={event => {
+                  updateDraft('geminiApiKey', event.target.value);
+                }}
+              />
+            </AiConfigField>
+            <AiConfigField label="Base URL">
+              <Input
+                placeholder={DEFAULT_GEMINI_BASE_URL}
+                value={draft.geminiBaseURL}
+                onChange={event => {
+                  updateDraft('geminiBaseURL', event.target.value);
+                }}
+              />
+            </AiConfigField>
+          </div>
+
+          <div className="space-y-3 rounded-md border border-border/60 bg-muted/10 p-4">
+            <div className="text-sm font-medium">Anthropic</div>
+            <AiConfigField label="API key">
+              <Input
+                type="password"
+                autoComplete="off"
+                value={draft.anthropicApiKey}
+                onChange={event => {
+                  updateDraft('anthropicApiKey', event.target.value);
+                }}
+              />
+            </AiConfigField>
+            <AiConfigField label="Base URL">
+              <Input
+                placeholder={DEFAULT_ANTHROPIC_BASE_URL}
+                value={draft.anthropicBaseURL}
+                onChange={event => {
+                  updateDraft('anthropicBaseURL', event.target.value);
+                }}
+              />
+            </AiConfigField>
+          </div>
+
+          <div className="space-y-3 rounded-md border border-border/60 bg-muted/10 p-4">
+            <div className="text-sm font-medium">Cloudflare Workers AI</div>
+            <AiConfigField label="API token">
+              <Input
+                type="password"
+                autoComplete="off"
+                value={draft.cloudflareWorkersAiApiToken}
+                onChange={event => {
+                  updateDraft(
+                    'cloudflareWorkersAiApiToken',
+                    event.target.value
+                  );
+                }}
+              />
+            </AiConfigField>
+            <AiConfigField label="Account ID">
+              <Input
+                value={draft.cloudflareWorkersAiAccountId}
+                onChange={event => {
+                  updateDraft(
+                    'cloudflareWorkersAiAccountId',
+                    event.target.value
+                  );
+                }}
+              />
+            </AiConfigField>
+            <AiConfigField label="Base URL">
+              <Input
+                value={draft.cloudflareWorkersAiBaseURL}
+                onChange={event => {
+                  updateDraft('cloudflareWorkersAiBaseURL', event.target.value);
+                }}
+              />
+            </AiConfigField>
+          </div>
+
+          <div className="space-y-3 rounded-md border border-border/60 bg-muted/10 p-4">
+            <div className="text-sm font-medium">FAL</div>
+            <AiConfigField label="API key">
+              <Input
+                type="password"
+                autoComplete="off"
+                value={draft.falApiKey}
+                onChange={event => {
+                  updateDraft('falApiKey', event.target.value);
+                }}
+              />
+            </AiConfigField>
+          </div>
+        </div>
+
+        {!openaiCompatibleBaseURL &&
+        trimOptionalSecret(draft.openaiCompatibleApiKey) ? (
+          <div className="text-sm text-destructive">
+            OpenAI-compatible base URL is required when an API key is set.
+          </div>
+        ) : null}
+      </AiConfigSection>
+
+      <AiConfigSection
+        title="Provider registry and routing"
+        description="Configure provider profiles, output defaults, route policy, and Vertex provider credentials."
+      >
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <AiJsonConfigField
+            label="Provider profiles JSON"
+            description="copilot.providers.profiles: provider ids, privacy, priority, middleware, models, modelDefinitions, and provider-specific config."
+            rows={12}
+            value={draft.providerProfilesJson}
+            onChange={value => updateDraft('providerProfilesJson', value)}
+          />
+          <AiJsonConfigField
+            label="Provider defaults JSON"
+            description="copilot.providers.defaults: defaults for text, object, embedding, image, rerank, structured, and fallback provider ids."
+            value={draft.providerDefaultsJson}
+            onChange={value => updateDraft('providerDefaultsJson', value)}
+          />
+          <AiJsonConfigField
+            label="Route policy JSON"
+            description="copilot.providers.routePolicy: global, per-feature, and per-workspace allow/block/privacy routing policy."
+            rows={10}
+            value={draft.routePolicyJson}
+            onChange={value => updateDraft('routePolicyJson', value)}
+          />
+          <AiJsonConfigField
+            label="Gemini Vertex JSON"
+            description="copilot.providers.geminiVertex: location, project, baseURL, and googleAuthOptions."
+            value={draft.geminiVertexJson}
+            onChange={value => updateDraft('geminiVertexJson', value)}
+          />
+          <AiJsonConfigField
+            label="Anthropic Vertex JSON"
+            description="copilot.providers.anthropicVertex: location, project, baseURL, and googleAuthOptions."
+            value={draft.anthropicVertexJson}
+            onChange={value => updateDraft('anthropicVertexJson', value)}
+          />
+        </div>
+      </AiConfigSection>
+
+      <AiConfigSection
+        title="Prompt and task models"
+        description="Configure prompt model defaults, prompt-specific overrides, embedding, workspace indexing, and rerank aliases."
+      >
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <AiConfigField
+            label="Embedding model alias"
+            description="copilot.tasks.models.embedding"
+          >
+            <Input
+              value={draft.taskEmbeddingModel}
+              onChange={event => {
+                updateDraft('taskEmbeddingModel', event.target.value);
+              }}
+            />
+          </AiConfigField>
+          <AiConfigField
+            label="Workspace indexing model alias"
+            description="copilot.tasks.models.workspaceIndexing"
+          >
+            <Input
+              value={draft.taskWorkspaceIndexingModel}
+              onChange={event => {
+                updateDraft('taskWorkspaceIndexingModel', event.target.value);
+              }}
+            />
+          </AiConfigField>
+          <AiConfigField
+            label="Rerank model alias"
+            description="copilot.tasks.models.rerank"
+          >
+            <Input
+              value={draft.taskRerankModel}
+              onChange={event => {
+                updateDraft('taskRerankModel', event.target.value);
+              }}
+            />
+          </AiConfigField>
+        </div>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <AiJsonConfigField
+            label="Prompt defaults JSON"
+            description="copilot.prompts.defaults: text, structured, image, and transcript default model policies."
+            rows={10}
+            value={draft.promptDefaultsJson}
+            onChange={value => updateDraft('promptDefaultsJson', value)}
+          />
+          <AiJsonConfigField
+            label="Prompt overrides JSON"
+            description="copilot.prompts.overrides: per-prompt model, optionalModels, enabled state, and prompt config."
+            rows={10}
+            value={draft.promptOverridesJson}
+            onChange={value => updateDraft('promptOverridesJson', value)}
+          />
+        </div>
+      </AiConfigSection>
+
+      <AiConfigSection
+        title="Search, assets, storage, and support bundles"
+        description="Configure web search, image source, copilot storage, and support bundle transfer webhooks."
+      >
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <AiConfigField label="Unsplash key">
+            <Input
+              type="password"
+              autoComplete="off"
+              value={draft.unsplashKey}
+              onChange={event => {
+                updateDraft('unsplashKey', event.target.value);
+              }}
+            />
+          </AiConfigField>
+          <AiConfigField label="Exa web search key">
+            <Input
+              type="password"
+              autoComplete="off"
+              value={draft.exaKey}
+              onChange={event => {
+                updateDraft('exaKey', event.target.value);
+              }}
+            />
+          </AiConfigField>
+        </div>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <AiJsonConfigField
+            label="Copilot storage JSON"
+            description="copilot.storage: provider, bucket, and storage provider config used by copilot artifacts."
+            rows={8}
+            value={draft.storageJson}
+            onChange={value => updateDraft('storageJson', value)}
+          />
+          <AiJsonConfigField
+            label="Support bundle object-storage webhooks JSON"
+            description="copilot.supportBundles.objectStorageWebhooks: HMAC webhook definitions for support bundle direct-download notifications."
+            rows={8}
+            value={draft.supportBundleWebhooksJson}
+            onChange={value => updateDraft('supportBundleWebhooksJson', value)}
+          />
+        </div>
+      </AiConfigSection>
+
+      {formError ? (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          {formError}
+        </div>
+      ) : null}
+
+      <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-border/70 bg-background/95 py-4 backdrop-blur">
+        <div className="text-sm text-muted-foreground">
+          {isDirty
+            ? 'Unsaved AI configuration changes'
+            : 'AI configuration is up to date'}
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          {isDirty ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 min-w-[88px]"
+              disabled={isMutating}
+              onClick={() => setDraft(savedDraft)}
+            >
+              Cancel
+            </Button>
+          ) : null}
+          <Button
+            type="submit"
+            className="h-9 min-w-[88px]"
+            disabled={!canSave}
+          >
+            {isMutating ? 'Saving...' : 'Save'}
+          </Button>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+function AiConfigPageContent() {
+  const { data: appConfigData, mutate: mutateAppConfig } = useQuery({
+    query: appConfigQuery,
+  });
+
+  return (
+    <div className="flex h-dvh flex-1 flex-col bg-background">
+      <Header title="AI" />
+      <ScrollArea className="h-full">
+        <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 px-4 py-5 sm:px-6">
+          <AiPageTabs active="config" />
+          <AiConfigPage
+            appConfig={appConfigData.appConfig as AppConfigData | undefined}
+            onSaved={async () => {
+              await mutateAppConfig();
+            }}
+          />
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
+
+function AiRuntimePageContent() {
   const [promptName, setPromptName] = useState(ADMIN_AI_DEFAULT_PROMPT_NAME);
   const [promptNameInput, setPromptNameInput] = useState(
     ADMIN_AI_DEFAULT_PROMPT_NAME
@@ -7742,9 +11404,11 @@ function AiPageContent() {
         }
       />
       <ScrollArea className="h-full">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-6 py-5">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <Card className="border-border/60 bg-card shadow-1 lg:col-span-2">
+        <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 px-4 py-5 sm:px-6">
+          <AiPageTabs active="runtime" />
+
+          <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_360px] 2xl:items-start">
+            <Card className="order-2 min-w-0 border-border/60 bg-card shadow-1 2xl:order-1">
               <CardHeader>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="space-y-1">
@@ -7921,7 +11585,7 @@ function AiPageContent() {
                   workspaceId={workspaceId}
                 />
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   <div>
                     <div className="text-xs text-muted-foreground">
                       Active prompt
@@ -8010,7 +11674,7 @@ function AiPageContent() {
                       </div>
                     ) : null}
                   </div>
-                  <div>
+                  <div className="lg:col-span-2 xl:col-span-3 2xl:col-span-4">
                     <div className="text-xs text-muted-foreground">
                       Recommended checks
                     </div>
@@ -8019,10 +11683,18 @@ function AiPageContent() {
                     </div>
                   </div>
                 </div>
+
+                {workspaceId ? (
+                  <ProviderHealthProbeAttemptsQuery workspaceId={workspaceId} />
+                ) : (
+                  <ProviderHealthProbeAttemptsBlock
+                    attempts={EMPTY_PROVIDER_HEALTH_PROBE_ATTEMPTS}
+                  />
+                )}
               </CardContent>
             </Card>
 
-            <Card className="border-border/60 bg-card shadow-1">
+            <Card className="order-1 min-w-0 self-start border-border/60 bg-card shadow-1 2xl:order-2">
               <CardHeader>
                 <CardTitle className="text-base">Overall health</CardTitle>
                 <CardDescription>
@@ -8047,7 +11719,7 @@ function AiPageContent() {
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          <div className="grid grid-cols-1 items-start gap-5">
             <RouteSummaryCard
               label="Workspace indexing"
               rawRoute={modelsPayload?.embeddingRoute}
@@ -8059,6 +11731,12 @@ function AiPageContent() {
               route={rerankDiagnostics}
             />
           </div>
+
+          <SupportBundleStatusCard workspaceId={workspaceId} />
+
+          <RepairExecutionStatusCard workspaceId={workspaceId} />
+
+          <AgentRuntimeStatusCard workspaceId={workspaceId} />
 
           <ActionRunTraceCard
             actionRunId={actionRunId}
@@ -8077,9 +11755,13 @@ function AiPageContent() {
 }
 
 export function AiPage() {
+  const location = useLocation();
+  const isRuntimePage =
+    location.pathname.replace(/\/+$/, '') === AI_RUNTIME_PATH;
+
   return (
     <Suspense fallback={<AiPageSkeleton />}>
-      <AiPageContent />
+      {isRuntimePage ? <AiRuntimePageContent /> : <AiConfigPageContent />}
     </Suspense>
   );
 }

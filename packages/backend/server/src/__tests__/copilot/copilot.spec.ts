@@ -2328,16 +2328,107 @@ test('should handle copilot cron jobs correctly', async t => {
   // daily cleanup job scheduling
   {
     await cronJobs.dailyCleanupJob();
-    t.snapshot(
-      jobAddStub.getCalls().map(call => ({
-        args: call.args,
-      })),
-      'daily job scheduling calls'
+    t.deepEqual(
+      jobAddStub.getCalls().map(call => call.args),
+      [
+        [
+          'copilot.session.cleanupEmptySessions',
+          {},
+          {
+            jobId: 'daily-copilot-cleanup-empty-sessions',
+          },
+        ],
+        [
+          'copilot.session.generateMissingTitles',
+          {},
+          {
+            jobId: 'daily-copilot-generate-missing-titles',
+          },
+        ],
+        [
+          'copilot.workspace.cleanupTrashedDocEmbeddings',
+          {},
+          {
+            jobId: 'daily-copilot-cleanup-trashed-doc-embeddings',
+          },
+        ],
+        [
+          'copilot.supportBundle.cleanupRetention',
+          {
+            limit: 50,
+          },
+          {
+            jobId: 'daily-copilot-support-bundle-retention-cleanup',
+          },
+        ],
+        [
+          'copilot.supportBundle.cleanupDownloadAuthorizations',
+          {
+            limit: 50,
+          },
+          {
+            jobId:
+              'daily-copilot-support-bundle-download-authorization-cleanup',
+          },
+        ],
+        [
+          'copilot.providerHealth.persistConfiguredSnapshots',
+          {},
+          {
+            jobId: 'daily-copilot-provider-health-snapshot-persistence',
+          },
+        ],
+      ]
     );
 
     jobAddStub.reset();
     cleanupStub.reset();
     toBeGenerateStub.reset();
+  }
+
+  // minute agent runtime and stale lease recovery scheduling
+  {
+    await cronJobs.scheduleAgentRuntimeRuns();
+    t.deepEqual(jobAddStub.getCalls().map(call => call.args), [
+      [
+        'copilot.agentRuntime.recoverExpiredLeases',
+        {
+          limit: 50,
+        },
+        {
+          jobId: 'minute-copilot-agent-runtime-recover-expired-leases',
+        },
+      ],
+      [
+        'copilot.agentRuntime.enqueueQueued',
+        {
+          limit: 50,
+        },
+        {
+          jobId: 'minute-copilot-agent-runtime-enqueue-queued',
+        },
+      ],
+      ['copilot.agentRuntime.run', {}],
+      [
+        'copilot.repairExecution.recoverExpiredLeases',
+        {
+          limit: 50,
+        },
+        {
+          jobId: 'minute-copilot-repair-execution-recover-expired-leases',
+        },
+      ],
+      [
+        'copilot.repairExecution.enqueueQueued',
+        {
+          limit: 50,
+        },
+        {
+          jobId: 'minute-copilot-repair-execution-enqueue-queued',
+        },
+      ],
+    ]);
+    jobAddStub.reset();
   }
 
   // cleanup empty sessions
@@ -2347,26 +2438,40 @@ test('should handle copilot cron jobs correctly', async t => {
     toBeGenerateStub.resolves(mockSessions);
 
     await cronJobs.cleanupEmptySessions();
-    t.snapshot(
-      cleanupStub.getCalls().map(call => ({
-        args: call.args.map(arg => (arg instanceof Date ? 'Date' : arg)), // Replace Date with string for stable snapshot
-      })),
-      'cleanup empty sessions calls'
+    t.deepEqual(
+      cleanupStub
+        .getCalls()
+        .map(call =>
+          call.args.map(arg => (arg instanceof Date ? 'Date' : arg))
+        ),
+      [['Date']]
     );
   }
 
   // generate missing titles
   await cronJobs.generateMissingTitles();
-  t.snapshot(
+  t.deepEqual(
     {
-      modelCalls: toBeGenerateStub.getCalls().map(call => ({
-        args: call.args,
-      })),
-      jobCalls: jobAddStub.getCalls().map(call => ({
-        args: call.args,
-      })),
+      modelCalls: toBeGenerateStub.getCalls().map(call => call.args),
+      jobCalls: jobAddStub.getCalls().map(call => call.args),
     },
-    'title generation calls'
+    {
+      modelCalls: [[]],
+      jobCalls: [
+        [
+          'copilot.session.generateTitle',
+          {
+            sessionId: 'session1',
+          },
+        ],
+        [
+          'copilot.session.generateTitle',
+          {
+            sessionId: 'session2',
+          },
+        ],
+      ],
+    }
   );
 
   cleanupStub.restore();

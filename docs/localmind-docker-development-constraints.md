@@ -72,7 +72,8 @@ localmind-affine:*-build
 
 If milestone information is needed, record it in:
 
-- `/docs/ai-capability-modernization-plan.md`
+- `/docs/ai-modernization/archive/README.md` or the relevant active track
+  document
 - commit messages
 - build logs
 - image labels
@@ -199,7 +200,14 @@ Do not hard-code milestone image tags into Compose files.
 
 ## Goal Task Instruction
 
-Any goal task working on AI modernization must follow this document in addition to `/docs/ai-capability-modernization-plan.md`.
+Any goal task working on AI modernization must follow this document in addition
+to `/docs/ai-modernization/README.md`.
+
+For continued AI modernization work, read `/docs/ai-modernization/README.md`,
+`/docs/ai-modernization/document-map.md`, and the relevant track document
+first. They are the active task handoff that prevents the historical archive
+from pushing future goals into repetitive read-only diagnostics instead of the
+intended runtime and persistence work.
 
 If the planning document asks for Docker verification, interpret that as container-based validation using the smallest sufficient Docker action, not automatic full image rebuilds.
 

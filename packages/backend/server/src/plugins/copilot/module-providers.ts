@@ -23,14 +23,19 @@ import {
   CopilotEmbeddingClientService,
   CopilotEmbeddingJob,
 } from './embedding';
+import { CopilotAgentRuntimeWorker } from './agent-runtime-worker';
+import { CopilotAgentRuntimeWorkflowRegistry } from './agent-runtime-workflow-registry';
 import { WorkspaceMcpProvider } from './mcp/provider';
 import { PromptService } from './prompt';
 import {
+  CopilotFeatureService,
   CopilotProviderFactory,
   CopilotProviderLifecycleService,
   CopilotProviderRegistryService,
   CopilotProviders,
 } from './providers';
+import { CopilotProviderHealthWorker } from './provider-health-worker';
+import { CopilotRepairExecutionWorker } from './repair-execution-worker';
 import { CopilotResolver, UserCopilotResolver } from './resolver';
 import { ActionRuntimeBridge } from './runtime/action-runtime-bridge';
 import { CapabilityRuntime } from './runtime/capability-runtime';
@@ -66,6 +71,7 @@ import {
 } from './workspace';
 
 export const COPILOT_PROVIDER_PROVIDERS = [
+  CopilotFeatureService,
   ...CopilotProviders,
   CopilotProviderRegistryService,
   CopilotProviderFactory,
@@ -142,7 +148,14 @@ export const COPILOT_RESOLVER_PROVIDERS = [
   WorkspaceByokResolver,
 ];
 
-export const COPILOT_JOB_PROVIDERS = [CopilotEmbeddingJob, CopilotCronJobs];
+export const COPILOT_JOB_PROVIDERS = [
+  CopilotEmbeddingJob,
+  CopilotCronJobs,
+  CopilotAgentRuntimeWorkflowRegistry,
+  CopilotAgentRuntimeWorker,
+  CopilotProviderHealthWorker,
+  CopilotRepairExecutionWorker,
+];
 
 export const COPILOT_MCP_PROVIDERS = [WorkspaceMcpProvider];
 

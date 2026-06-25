@@ -3,6 +3,7 @@ import { ROUTES } from '@affine/routes';
 import { AccountIcon, SelfhostIcon } from '@blocksuite/icons/rc';
 import {
   BarChart3Icon,
+  BotIcon,
   LayoutDashboardIcon,
   ListChecksIcon,
 } from 'lucide-react';
@@ -30,14 +31,12 @@ export function Nav({ isCollapsed = false }: NavProps) {
           isCollapsed && 'items-center px-0 gap-1 overflow-visible'
         )}
       >
-        {environment.isSelfHosted ? null : (
-          <NavItem
-            to={ROUTES.admin.dashboard}
-            icon={<BarChart3Icon size={18} />}
-            label="Dashboard"
-            isCollapsed={isCollapsed}
-          />
-        )}
+        <NavItem
+          to={ROUTES.admin.dashboard}
+          icon={<BarChart3Icon size={18} />}
+          label="Dashboard"
+          isCollapsed={isCollapsed}
+        />
         <NavItem
           to={ROUTES.admin.accounts}
           icon={<AccountIcon fontSize={20} />}
@@ -58,12 +57,12 @@ export function Nav({ isCollapsed = false }: NavProps) {
           label="Queue"
           isCollapsed={isCollapsed}
         />
-        {/* <NavItem
-          to="/admin/ai"
-          icon={<AiOutlineIcon fontSize={20} />}
+        <NavItem
+          to={ROUTES.admin.ai}
+          icon={<BotIcon size={18} />}
           label="AI"
           isCollapsed={isCollapsed}
-        /> */}
+        />
         <SettingsItem isCollapsed={isCollapsed} />
         <NavItem
           to={ROUTES.admin.about}

@@ -1,0 +1,43 @@
+query getCopilotProviderHealthProbeAttempts(
+  $workspaceId: String!
+  $limit: SafeInt
+  $filter: CopilotProviderHealthProbeAttemptFilterInput
+) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      providerHealthProbeAttempts(filter: $filter, limit: $limit) {
+        id
+        providerId
+        providerType
+        scopeType
+        workspaceId
+        actorId
+        providerRegistryRevisionId
+        providerRegistryRevisionFingerprint
+        providerProfileSource
+        providerProfileFingerprint
+        providerProfileSnapshot
+        requestFingerprint
+        status
+        attemptCount
+        maxAttempts
+        scheduledAt
+        workerLeaseId
+        workerLeaseExpiresAt
+        checkedAt
+        completedAt
+        deadLetteredAt
+        failureCode
+        failureMessage
+        resultStatus
+        resultLastError
+        resultMetadata
+        resultFingerprint
+        providerHealthStateId
+        providerHealthStateFingerprint
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}

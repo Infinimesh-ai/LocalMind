@@ -1,0 +1,25 @@
+mutation authorizeCopilotSupportBundleDownload(
+  $input: CopilotSupportBundleDownloadAuthorizeInput!
+) {
+  authorizeCopilotSupportBundleDownload(input: $input) {
+    actorId
+    artifactFingerprint
+    artifactFilename
+    artifactKind
+    artifactMime
+    authorizationFingerprint
+    bundleId
+    createdAt
+    deliveryMethod
+    directDownloadExpiresAt
+    directDownloadUrl
+    downloadedAt
+    downloadUrl
+    expiresAt
+    id
+    manifestFingerprint
+    status
+    updatedAt
+    workspaceId
+  }
+}

@@ -30,7 +30,7 @@ class ProductionEmbeddingClient extends EmbeddingClient {
 
   override async configured(): Promise<boolean> {
     const embeddingDiagnostics = await this.runtime.describeEmbeddingRoute(
-      this.taskPolicy.resolveWorkspaceIndexingModelId(),
+      await this.taskPolicy.resolveEffectiveWorkspaceIndexingModelId(),
       {
         dimensions: EMBEDDING_DIMENSIONS,
         featureKind: 'workspace_indexing',
@@ -53,7 +53,7 @@ class ProductionEmbeddingClient extends EmbeddingClient {
     }
 
     const rerankDiagnostics = await this.runtime.describeRerankRoute(
-      this.taskPolicy.resolveRerankModelId(),
+      await this.taskPolicy.resolveEffectiveRerankModelId(),
       {
         featureKind: 'rerank',
       }
@@ -107,8 +107,12 @@ class ProductionEmbeddingClient extends EmbeddingClient {
     const featureKind = normalizedOptions.featureKind ?? 'embedding';
     const modelId =
       featureKind === 'workspace_indexing'
-        ? this.taskPolicy.resolveWorkspaceIndexingModelId()
-        : this.taskPolicy.resolveEmbeddingModelId();
+        ? await this.taskPolicy.resolveEffectiveWorkspaceIndexingModelId(
+            normalizedOptions.workspaceId
+          )
+        : await this.taskPolicy.resolveEffectiveEmbeddingModelId(
+            normalizedOptions.workspaceId
+          );
     const embeddings = await this.runtime.embed(modelId, input, {
       dimensions: EMBEDDING_DIMENSIONS,
       signal: normalizedOptions.signal,
@@ -159,7 +163,9 @@ class ProductionEmbeddingClient extends EmbeddingClient {
     };
 
     const ranks = await this.runtime.rerank(
-      this.taskPolicy.resolveRerankModelId(),
+      await this.taskPolicy.resolveEffectiveRerankModelId(
+        normalizedOptions.workspaceId
+      ),
       rerankRequest,
       {
         signal: normalizedOptions.signal,

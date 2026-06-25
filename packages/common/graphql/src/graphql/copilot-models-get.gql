@@ -93,6 +93,46 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
             routeModelDefinitionAliases
             routeModelDefinitionId
             routeModelDefinitionSource
+            modelRegistryRevision
+            modelRegistryRevisionActorId
+            modelRegistryRevisionFingerprint
+            modelRegistryRevisionId
+            modelRegistryRevisionScope
+            modelRegistryRevisionSourceChain {
+              actorId
+              fingerprint
+              modelId
+              providerId
+              revision
+              scope
+              source
+              status
+              updatedAt
+              workspaceId
+            }
+            modelRegistryRevisionSourceChainFingerprint
+            modelRegistryRevisionStatus
+            modelRegistryRevisionWorkspaceId
+            modelRegistryRevisionPublishEventCount
+            modelRegistryRevisionPublishEvents {
+              actorId
+              createdAt
+              eventFingerprint
+              eventType
+              id
+              metadata
+              publishSource
+              registryFamily
+              registryKey
+              registryModelId
+              registryProviderId
+              revision
+              revisionFingerprint
+              revisionId
+              revisionStatus
+              scopeType
+              workspaceId
+            }
             routeRawModelId
             reasons
             registryAvailable
@@ -148,6 +188,46 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
             routeModelDefinitionAliases
             routeModelDefinitionId
             routeModelDefinitionSource
+            modelRegistryRevision
+            modelRegistryRevisionActorId
+            modelRegistryRevisionFingerprint
+            modelRegistryRevisionId
+            modelRegistryRevisionScope
+            modelRegistryRevisionSourceChain {
+              actorId
+              fingerprint
+              modelId
+              providerId
+              revision
+              scope
+              source
+              status
+              updatedAt
+              workspaceId
+            }
+            modelRegistryRevisionSourceChainFingerprint
+            modelRegistryRevisionStatus
+            modelRegistryRevisionWorkspaceId
+            modelRegistryRevisionPublishEventCount
+            modelRegistryRevisionPublishEvents {
+              actorId
+              createdAt
+              eventFingerprint
+              eventType
+              id
+              metadata
+              publishSource
+              registryFamily
+              registryKey
+              registryModelId
+              registryProviderId
+              revision
+              revisionFingerprint
+              revisionId
+              revisionStatus
+              scopeType
+              workspaceId
+            }
             routeRawModelId
             reasons
             registryAvailable
@@ -200,6 +280,48 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
           requestedModelConfigPath
           requestedModelId
           requestedModelSource
+          taskRoutePolicyRevision
+          taskRoutePolicyRevisionActorId
+          taskRoutePolicyRevisionFingerprint
+          taskRoutePolicyRevisionId
+          taskRoutePolicyRevisionScope
+          taskRoutePolicyRevisionSourceChain {
+            actorId
+            configKey
+            configPath
+            featureKind
+            fingerprint
+            modelId
+            revision
+            scope
+            source
+            status
+            updatedAt
+            workspaceId
+          }
+          taskRoutePolicyRevisionSourceChainFingerprint
+          taskRoutePolicyRevisionStatus
+          taskRoutePolicyRevisionWorkspaceId
+          taskRoutePolicyRevisionPublishEventCount
+          taskRoutePolicyRevisionPublishEvents {
+            actorId
+            createdAt
+            eventFingerprint
+            eventType
+            id
+            metadata
+            publishSource
+            registryFamily
+            registryKey
+            registryModelId
+            registryProviderId
+            revision
+            revisionFingerprint
+            revisionId
+            revisionStatus
+            scopeType
+            workspaceId
+          }
           requestedDimensions
           requestLayer
           topK
@@ -258,6 +380,46 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
           routeModelDefinitionAliases
           routeModelDefinitionId
           routeModelDefinitionSource
+          modelRegistryRevision
+          modelRegistryRevisionActorId
+          modelRegistryRevisionFingerprint
+          modelRegistryRevisionId
+          modelRegistryRevisionScope
+          modelRegistryRevisionSourceChain {
+            actorId
+            fingerprint
+            modelId
+            providerId
+            revision
+            scope
+            source
+            status
+            updatedAt
+            workspaceId
+          }
+          modelRegistryRevisionSourceChainFingerprint
+          modelRegistryRevisionStatus
+          modelRegistryRevisionWorkspaceId
+          modelRegistryRevisionPublishEventCount
+          modelRegistryRevisionPublishEvents {
+            actorId
+            createdAt
+            eventFingerprint
+            eventType
+            id
+            metadata
+            publishSource
+            registryFamily
+            registryKey
+            registryModelId
+            registryProviderId
+            revision
+            revisionFingerprint
+            revisionId
+            revisionStatus
+            scopeType
+            workspaceId
+          }
           routeOutputTypes
           routeStructuredAttachmentAllowRemoteUrls
           routeStructuredAttachmentKinds
@@ -328,6 +490,46 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
           routeModelDefinitionAliases
           routeModelDefinitionId
           routeModelDefinitionSource
+          modelRegistryRevision
+          modelRegistryRevisionActorId
+          modelRegistryRevisionFingerprint
+          modelRegistryRevisionId
+          modelRegistryRevisionScope
+          modelRegistryRevisionSourceChain {
+            actorId
+            fingerprint
+            modelId
+            providerId
+            revision
+            scope
+            source
+            status
+            updatedAt
+            workspaceId
+          }
+          modelRegistryRevisionSourceChainFingerprint
+          modelRegistryRevisionStatus
+          modelRegistryRevisionWorkspaceId
+          modelRegistryRevisionPublishEventCount
+          modelRegistryRevisionPublishEvents {
+            actorId
+            createdAt
+            eventFingerprint
+            eventType
+            id
+            metadata
+            publishSource
+            registryFamily
+            registryKey
+            registryModelId
+            registryProviderId
+            revision
+            revisionFingerprint
+            revisionId
+            revisionStatus
+            scopeType
+            workspaceId
+          }
           routeOutputTypes
           routeStructuredAttachmentAllowRemoteUrls
           routeStructuredAttachmentKinds
@@ -431,6 +633,46 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
             routeModelDefinitionAliases
             routeModelDefinitionId
             routeModelDefinitionSource
+            modelRegistryRevision
+            modelRegistryRevisionActorId
+            modelRegistryRevisionFingerprint
+            modelRegistryRevisionId
+            modelRegistryRevisionScope
+            modelRegistryRevisionSourceChain {
+              actorId
+              fingerprint
+              modelId
+              providerId
+              revision
+              scope
+              source
+              status
+              updatedAt
+              workspaceId
+            }
+            modelRegistryRevisionSourceChainFingerprint
+            modelRegistryRevisionStatus
+            modelRegistryRevisionWorkspaceId
+            modelRegistryRevisionPublishEventCount
+            modelRegistryRevisionPublishEvents {
+              actorId
+              createdAt
+              eventFingerprint
+              eventType
+              id
+              metadata
+              publishSource
+              registryFamily
+              registryKey
+              registryModelId
+              registryProviderId
+              revision
+              revisionFingerprint
+              revisionId
+              revisionStatus
+              scopeType
+              workspaceId
+            }
             routeRawModelId
             reasons
             registryAvailable
@@ -486,6 +728,46 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
             routeModelDefinitionAliases
             routeModelDefinitionId
             routeModelDefinitionSource
+            modelRegistryRevision
+            modelRegistryRevisionActorId
+            modelRegistryRevisionFingerprint
+            modelRegistryRevisionId
+            modelRegistryRevisionScope
+            modelRegistryRevisionSourceChain {
+              actorId
+              fingerprint
+              modelId
+              providerId
+              revision
+              scope
+              source
+              status
+              updatedAt
+              workspaceId
+            }
+            modelRegistryRevisionSourceChainFingerprint
+            modelRegistryRevisionStatus
+            modelRegistryRevisionWorkspaceId
+            modelRegistryRevisionPublishEventCount
+            modelRegistryRevisionPublishEvents {
+              actorId
+              createdAt
+              eventFingerprint
+              eventType
+              id
+              metadata
+              publishSource
+              registryFamily
+              registryKey
+              registryModelId
+              registryProviderId
+              revision
+              revisionFingerprint
+              revisionId
+              revisionStatus
+              scopeType
+              workspaceId
+            }
             routeRawModelId
             reasons
             registryAvailable
@@ -538,6 +820,48 @@ query getPromptModels($promptName: String!, $workspaceId: String) {
           requestedModelConfigPath
           requestedModelId
           requestedModelSource
+          taskRoutePolicyRevision
+          taskRoutePolicyRevisionActorId
+          taskRoutePolicyRevisionFingerprint
+          taskRoutePolicyRevisionId
+          taskRoutePolicyRevisionScope
+          taskRoutePolicyRevisionSourceChain {
+            actorId
+            configKey
+            configPath
+            featureKind
+            fingerprint
+            modelId
+            revision
+            scope
+            source
+            status
+            updatedAt
+            workspaceId
+          }
+          taskRoutePolicyRevisionSourceChainFingerprint
+          taskRoutePolicyRevisionStatus
+          taskRoutePolicyRevisionWorkspaceId
+          taskRoutePolicyRevisionPublishEventCount
+          taskRoutePolicyRevisionPublishEvents {
+            actorId
+            createdAt
+            eventFingerprint
+            eventType
+            id
+            metadata
+            publishSource
+            registryFamily
+            registryKey
+            registryModelId
+            registryProviderId
+            revision
+            revisionFingerprint
+            revisionId
+            revisionStatus
+            scopeType
+            workspaceId
+          }
           requestedDimensions
           requestLayer
           topK

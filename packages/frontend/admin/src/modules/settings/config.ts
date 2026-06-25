@@ -34,7 +34,7 @@ type ConfigGroup<T extends AppConfigModule> = {
     appConfig: AppConfig;
   }>[];
 };
-const IGNORED_MODULES: (keyof AppConfig)[] = [];
+const IGNORED_MODULES: (keyof AppConfig)[] = ['copilot'];
 
 if (environment.isSelfHosted) {
   IGNORED_MODULES.push('payment', 'captcha', 'telemetry', 'metrics');
@@ -144,38 +144,6 @@ export const KNOWN_CONFIG_GROUPS = [
     module: 'oauth',
     fields: ['providers.google', 'providers.github', 'providers.oidc'],
   } as ConfigGroup<'oauth'>,
-  {
-    name: 'AI',
-    module: 'copilot',
-    fields: [
-      'enabled',
-      'providers.openai',
-      'providers.gemini',
-      'providers.anthropic',
-      'providers.fal',
-      'unsplash',
-      'exa',
-      {
-        key: 'storage',
-        desc: 'The storage provider for copilot blobs',
-        sub: 'provider',
-        type: 'Enum',
-        options: ['fs', 'aws-s3', 'cloudflare-r2'],
-      },
-      {
-        key: 'storage',
-        sub: 'bucket',
-        type: 'String',
-        desc: 'The bucket name for copilot blobs storage',
-      },
-      {
-        key: 'storage',
-        sub: 'config',
-        type: 'JSON',
-        desc: 'The S3 compatible config for the storage provider (endpoint/region/credentials).',
-      },
-    ],
-  } as ConfigGroup<'copilot'>,
 ];
 
 export const UNKNOWN_CONFIG_GROUPS = ALL_CONFIGURABLE_MODULES.filter(

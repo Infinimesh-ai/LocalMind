@@ -22,12 +22,14 @@ import {
   CopilotFailedToCreateMessage,
   CopilotSessionNotFound,
   type FileUpload,
+  JobQueue,
   paginate,
   Paginated,
   PaginationInput,
   RequestMutex,
   Throttle,
   TooManyRequest,
+  URLHelper,
 } from '../../base';
 import { CurrentUser } from '../../core/auth';
 import {
@@ -50,9 +52,55 @@ import type {
   CopilotActionRunDiagnosticsItem,
   CopilotActionRunPreparedRouteTrace,
 } from '../../models/copilot-action-run';
+import type {
+  CopilotAgentRunListFilter,
+  CopilotAgentRunRecord,
+  CopilotAgentRuntimeExecutionResultRecord,
+  CopilotAgentStepRecord,
+  CopilotAgentTimelineEventRecord,
+} from '../../models/copilot-agent-runtime';
+import type {
+  CopilotRepairExecutionAuditEventRecord,
+  CopilotRepairExecutionListFilter,
+  CopilotRepairExecutionRecord,
+  CopilotRepairExecutionRuntimeResult,
+  CopilotRepairExecutionSideEffectRecord,
+} from '../../models/copilot-repair-execution';
+import type {
+  RegistryRevisionPublishEventHistory,
+  RegistryRevisionPublishEventRecord,
+} from '../../models/copilot-registry-revision-publish-event';
+import type {
+  ModelRegistryRevision,
+  ModelRegistrySourceChainEntry,
+} from '../../models/copilot-model-registry-revision';
+import type {
+  ProviderRegistryRevision,
+  ProviderRegistrySourceChainEntry,
+} from '../../models/copilot-provider-registry-revision';
+import type {
+  CopilotProviderHealthEventRecord,
+  CopilotProviderHealthProbeAttemptListFilter,
+  CopilotProviderHealthProbeAttemptRecord,
+  CopilotProviderHealthState,
+} from '../../models/copilot-provider-health-state';
+import type {
+  CopilotSupportBundleAuditEventRecord,
+  CopilotSupportBundleDownloadAuthorization,
+  CopilotSupportBundleDownloadAuthorizationResult,
+  CopilotSupportBundleListFilter,
+  CopilotSupportBundleManifest,
+  CopilotSupportBundleRecord,
+  CopilotSupportBundleRetentionCleanupResult,
+  CopilotSupportBundleSourceEvidenceSummary,
+  CopilotSupportBundleTaskRouteSnapshot,
+  CopilotSupportBundleTransferEventRecord,
+  CopilotSupportBundleTransferForwardingEventRecord,
+} from '../../models/copilot-support-bundle';
 import type { CopilotAccessContext } from './access';
 import { CompatHistoryProjector } from './compat/history-projector';
 import type {
+  CopilotModelDefinition,
   CopilotProviderHealthStatus,
   CopilotProviderPrivacy,
   CopilotProviderRoutePolicyFeatureKind,
@@ -66,6 +114,8 @@ import { PromptService } from './prompt/service';
 import type {
   PromptCatalogItem,
   PromptCatalogVersionEvidence,
+  PromptRegistryRevision,
+  PromptRegistrySourceChainEntry,
   ResolvedPrompt,
 } from './prompt/spec';
 import {
@@ -78,11 +128,17 @@ import {
   type ResolvedProviderModel,
   resolveModelLimits,
 } from './providers/provider-model-runtime';
+import { CopilotProviderRegistryService } from './providers/registry-service';
 import type {
+  NormalizedCopilotProviderProfile,
   CopilotProviderRoutePolicyCandidateDiagnostics,
   CopilotProviderRoutePolicySummary,
 } from './providers/provider-registry';
-import { ModelOutputType, type StreamObject } from './providers/types';
+import {
+  ModelInputType,
+  ModelOutputType,
+  type StreamObject,
+} from './providers/types';
 import { CapabilityRuntime } from './runtime/capability-runtime';
 import {
   buildStructuredResponseFromSchemaJson,
@@ -90,9 +146,18 @@ import {
   type RequiredStructuredOutputContract,
 } from './runtime/contracts';
 import { ExecutionPlanBuilder } from './runtime/execution-plan';
-import { TaskPolicy } from './runtime/task-policy';
+import {
+  TaskPolicy,
+  type TaskRoutePolicyRevision,
+  type TaskRoutePolicyFeatureKind,
+  type TaskRoutePolicySourceChainEntry,
+} from './runtime/task-policy';
 import { ChatSessionService } from './session';
 import { type ChatHistory, type ChatMessage, SubmittedMessage } from './types';
+import {
+  CopilotAgentRuntimeWorkflowRegistry,
+  type CopilotAgentRuntimeWorkflowAdapterCapabilities,
+} from './agent-runtime-workflow-registry';
 
 export const COPILOT_LOCKER = 'copilot';
 
@@ -332,6 +397,299 @@ class CopilotPromptRegistryRepairExecutionRequestInput {
 }
 
 @InputType()
+class CopilotPromptRegistryPublishInput {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  name!: string;
+
+  @Field(() => CopilotPromptRegistryPublishGateExpectedVersionInput, {
+    nullable: true,
+  })
+  expectedVersion?: CopilotPromptRegistryPublishGateExpectedVersionInput;
+
+  @Field(() => String, { nullable: true })
+  revision?: string;
+
+  @Field(() => String, { nullable: true })
+  idempotencyKey?: string;
+
+  @Field(() => String, { nullable: true })
+  reviewNote?: string;
+}
+
+@InputType()
+class CopilotSupportBundleCreateInput {
+  @Field(() => String)
+  workspaceId!: string;
+}
+
+@InputType()
+class CopilotSupportBundleDownloadAuthorizeInput {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  bundleId!: string;
+
+  @Field(() => String, { nullable: true })
+  artifactKind?: 'manifest_json' | 'archive_json';
+}
+
+@InputType()
+class CopilotSupportBundleDirectDownloadAcknowledgeInput {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  authorizationId!: string;
+}
+
+@InputType()
+class CopilotSupportBundleRetentionCleanupInput {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  limit?: number;
+}
+
+@InputType()
+class CopilotSupportBundleTransferForwardingReplayInput {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  forwardingEventId!: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  maxAttempts?: number;
+}
+
+@InputType()
+class CopilotSupportBundleListFilterInput implements CopilotSupportBundleListFilter {
+  @Field(() => String, { nullable: true })
+  query?: string;
+
+  @Field(() => String, { nullable: true })
+  retentionStatus?: CopilotSupportBundleListFilter['retentionStatus'];
+
+  @Field(() => String, { nullable: true })
+  status?: CopilotSupportBundleListFilter['status'];
+
+  @Field(() => String, { nullable: true })
+  transferForwardingStatus?: CopilotSupportBundleListFilter['transferForwardingStatus'];
+}
+
+@InputType()
+class CopilotProviderRegistryPublishInput {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  providerId!: string;
+
+  @Field(() => String, { nullable: true })
+  revision?: string;
+
+  @Field(() => String, { nullable: true })
+  idempotencyKey?: string;
+
+  @Field(() => String, { nullable: true })
+  displayName?: string;
+
+  @Field(() => Boolean, { nullable: true })
+  enabled?: boolean;
+
+  @Field(() => [String], { nullable: true })
+  models?: string[];
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  modelDefinitions?: CopilotModelDefinition[];
+
+  @Field(() => String, { nullable: true })
+  privacy?: CopilotProviderPrivacy;
+
+  @Field(() => Number, { nullable: true })
+  priority?: number;
+}
+
+@InputType()
+class CopilotModelRegistryPublishInput {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  providerId!: string;
+
+  @Field(() => String)
+  modelId!: string;
+
+  @Field(() => String, { nullable: true })
+  revision?: string;
+
+  @Field(() => String, { nullable: true })
+  idempotencyKey?: string;
+
+  @Field(() => GraphQLJSON)
+  modelDefinition!: CopilotModelDefinition;
+}
+
+@InputType()
+class CopilotTaskRoutePolicyPublishInput {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  featureKind!: TaskRoutePolicyFeatureKind;
+
+  @Field(() => String)
+  modelId!: string;
+
+  @Field(() => String, { nullable: true })
+  revision?: string;
+
+  @Field(() => String, { nullable: true })
+  idempotencyKey?: string;
+}
+
+@InputType()
+class CopilotProviderHealthStateRecordInput {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  providerId!: string;
+
+  @Field(() => String)
+  status!: CopilotProviderHealthStatus;
+
+  @Field(() => String, { nullable: true })
+  lastError?: string;
+}
+
+@InputType()
+class CopilotProviderHealthProbeAttemptRetryInput {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  attemptId!: string;
+}
+
+@InputType()
+class CopilotProviderHealthProbeAttemptFilterInput implements CopilotProviderHealthProbeAttemptListFilter {
+  @Field(() => String, { nullable: true })
+  providerId?: string;
+
+  @Field(() => String, { nullable: true })
+  providerRegistryRevisionId?: string;
+
+  @Field(() => String, { nullable: true })
+  providerRegistryRevisionFingerprint?: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileFingerprint?: string;
+
+  @Field(() => String, { nullable: true })
+  query?: string;
+
+  @Field(() => String, { nullable: true })
+  requestFingerprint?: string;
+
+  @Field(() => String, { nullable: true })
+  resultFingerprint?: string;
+
+  @Field(() => String, { nullable: true })
+  status?: CopilotProviderHealthProbeAttemptListFilter['status'];
+}
+
+@InputType()
+class CopilotRepairExecutionApprovalDecisionInput {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  executionRequestId!: string;
+
+  @Field(() => String)
+  decision!: 'approve' | 'reject';
+
+  @Field(() => String, { nullable: true })
+  reason?: string;
+}
+
+@InputType()
+class CopilotRepairExecutionControlInput {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  executionRequestId!: string;
+
+  @Field(() => String)
+  action!: 'cancel' | 'retry' | 'recover_stale' | 'resume_with_payload';
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  executorPayload?: Record<string, unknown>;
+
+  @Field(() => String, { nullable: true })
+  reason?: string;
+}
+
+@InputType()
+class CopilotRepairExecutionListFilterInput implements CopilotRepairExecutionListFilter {
+  @Field(() => String, { nullable: true })
+  approvalState?: CopilotRepairExecutionListFilter['approvalState'];
+
+  @Field(() => String, { nullable: true })
+  promptName?: string;
+
+  @Field(() => String, { nullable: true })
+  query?: string;
+
+  @Field(() => String, { nullable: true })
+  requestedAction?: string;
+
+  @Field(() => String, { nullable: true })
+  status?: CopilotRepairExecutionListFilter['status'];
+}
+
+@InputType()
+class CopilotAgentRuntimeControlInput {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  runId!: string;
+
+  @Field(() => String)
+  action!: 'cancel' | 'resume';
+
+  @Field(() => String, { nullable: true })
+  reason?: string;
+}
+
+@InputType()
+class CopilotAgentRunListFilterInput implements CopilotAgentRunListFilter {
+  @Field(() => String, { nullable: true })
+  query?: string;
+
+  @Field(() => String, { nullable: true })
+  sourceId?: string;
+
+  @Field(() => String, { nullable: true })
+  sourceType?: string;
+
+  @Field(() => String, { nullable: true })
+  status?: CopilotAgentRunListFilter['status'];
+
+  @Field(() => String, { nullable: true })
+  workflow?: string;
+}
+
+@InputType()
 class CreateChatMessageInput implements Omit<SubmittedMessage, 'content'> {
   @Field(() => String)
   sessionId!: string;
@@ -532,9 +890,23 @@ type CopilotModelCandidate = {
 };
 
 type CopilotModelDefinitionSource =
+  | 'db_revision'
   | 'native_registry'
   | 'provider_profile'
   | 'provider_runtime';
+
+type CopilotModelRegistrySourceChainEntry = {
+  source: string;
+  scope: string;
+  status: string;
+  actorId?: string;
+  fingerprint?: string;
+  modelId?: string;
+  providerId?: string;
+  revision?: string;
+  updatedAt?: string;
+  workspaceId?: string;
+};
 
 type CopilotPromptRegistryValidationIssue = NonNullable<
   PromptCatalogItem['registryValidationIssues']
@@ -660,6 +1032,17 @@ type CopilotPromptRegistryPublishGateModelRoute = {
   routeModelDefinitionAliases?: string[];
   routeModelDefinitionId?: string;
   routeModelDefinitionSource?: CopilotModelDefinitionSource;
+  modelRegistryRevision?: string;
+  modelRegistryRevisionActorId?: string;
+  modelRegistryRevisionFingerprint?: string;
+  modelRegistryRevisionId?: string;
+  modelRegistryRevisionScope?: string;
+  modelRegistryRevisionSourceChain?: CopilotModelRegistrySourceChainEntry[];
+  modelRegistryRevisionSourceChainFingerprint?: string;
+  modelRegistryRevisionStatus?: string;
+  modelRegistryRevisionWorkspaceId?: string;
+  modelRegistryRevisionPublishEventCount?: number;
+  modelRegistryRevisionPublishEvents?: RegistryRevisionPublishEventRecord[];
   routeRawModelId?: string;
   routeCandidates: CopilotPromptRegistryPublishGateRouteCandidate[];
   routeTrace: CopilotPromptRegistryPublishGateRouteTracePhase[];
@@ -668,6 +1051,8 @@ type CopilotPromptRegistryPublishGateModelRoute = {
 type CopilotPromptRegistryPublishGatePolicyCandidate = {
   allowed: boolean;
   available: boolean;
+  candidateFingerprint: string;
+  candidateKey: string;
   health: string;
   healthCheckedAt?: string;
   privacy: string;
@@ -718,6 +1103,17 @@ type CopilotPromptRegistryPublishGateRouteCandidate = {
   routeModelDefinitionAliases?: string[];
   routeModelDefinitionId?: string;
   routeModelDefinitionSource?: CopilotModelDefinitionSource;
+  modelRegistryRevision?: string;
+  modelRegistryRevisionActorId?: string;
+  modelRegistryRevisionFingerprint?: string;
+  modelRegistryRevisionId?: string;
+  modelRegistryRevisionScope?: string;
+  modelRegistryRevisionSourceChain?: CopilotModelRegistrySourceChainEntry[];
+  modelRegistryRevisionSourceChainFingerprint?: string;
+  modelRegistryRevisionStatus?: string;
+  modelRegistryRevisionWorkspaceId?: string;
+  modelRegistryRevisionPublishEventCount?: number;
+  modelRegistryRevisionPublishEvents?: RegistryRevisionPublishEventRecord[];
   routeRawModelId?: string;
   routeInputTypes?: string[];
   routeOutputTypes?: string[];
@@ -808,6 +1204,15 @@ type CopilotTaskRouteEffectiveSourceFingerprintInput = Pick<
   | 'requestedModelSource'
   | 'routeCandidates'
   | 'routeTrace'
+  | 'taskRoutePolicyRevision'
+  | 'taskRoutePolicyRevisionActorId'
+  | 'taskRoutePolicyRevisionFingerprint'
+  | 'taskRoutePolicyRevisionId'
+  | 'taskRoutePolicyRevisionScope'
+  | 'taskRoutePolicyRevisionSourceChain'
+  | 'taskRoutePolicyRevisionSourceChainFingerprint'
+  | 'taskRoutePolicyRevisionStatus'
+  | 'taskRoutePolicyRevisionWorkspaceId'
   | 'topK'
 >;
 
@@ -844,6 +1249,15 @@ const COPILOT_MODEL_LIST_EFFECTIVE_SOURCE_FINGERPRINT_INPUTS = [
   'routeModelDefinitionAliases',
   'routeModelDefinitionId',
   'routeModelDefinitionSource',
+  'modelRegistryRevision',
+  'modelRegistryRevisionActorId',
+  'modelRegistryRevisionFingerprint',
+  'modelRegistryRevisionId',
+  'modelRegistryRevisionScope',
+  'modelRegistryRevisionSourceChain',
+  'modelRegistryRevisionSourceChainFingerprint',
+  'modelRegistryRevisionStatus',
+  'modelRegistryRevisionWorkspaceId',
   'routeModelId',
   'routePolicyAllowedPrivacy',
   'routePolicyAllowedProviderIds',
@@ -892,6 +1306,15 @@ const PROMPT_REGISTRY_PUBLISH_GATE_MODEL_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_INPU
     'routeModelDefinitionAliases',
     'routeModelDefinitionId',
     'routeModelDefinitionSource',
+    'modelRegistryRevision',
+    'modelRegistryRevisionActorId',
+    'modelRegistryRevisionFingerprint',
+    'modelRegistryRevisionId',
+    'modelRegistryRevisionScope',
+    'modelRegistryRevisionSourceChain',
+    'modelRegistryRevisionSourceChainFingerprint',
+    'modelRegistryRevisionStatus',
+    'modelRegistryRevisionWorkspaceId',
     'routeRawModelId',
   ] as const;
 const COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_VERSION =
@@ -949,6 +1372,15 @@ const COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_FINGERPRINT_INPUTS = [
   'requestLayer',
   'routeCandidates',
   'routeTrace',
+  'taskRoutePolicyRevision',
+  'taskRoutePolicyRevisionActorId',
+  'taskRoutePolicyRevisionFingerprint',
+  'taskRoutePolicyRevisionId',
+  'taskRoutePolicyRevisionScope',
+  'taskRoutePolicyRevisionSourceChain',
+  'taskRoutePolicyRevisionSourceChainFingerprint',
+  'taskRoutePolicyRevisionStatus',
+  'taskRoutePolicyRevisionWorkspaceId',
   'topK',
 ] as const;
 const COPILOT_TASK_ROUTE_EFFECTIVE_SOURCE_EVIDENCE_SET_FINGERPRINT_VERSION =
@@ -1735,6 +2167,11 @@ type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntry = {
 type CopilotPromptRegistryRepairExecutionRequest = {
   accepted: boolean;
   executionRequested: boolean;
+  executionRecord?:
+    | (CopilotRepairExecutionRecord & {
+        agentRun?: CopilotAgentRunRecord | null;
+      })
+    | null;
   expectedCandidateEvidenceSetFingerprint: string;
   expectedTaskRouteEffectiveSourceEvidenceSetFingerprint: string;
   expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: string[];
@@ -2350,6 +2787,33 @@ class CopilotPromptRegistryPublishGateModelRouteType implements CopilotPromptReg
   routeModelDefinitionSource?: CopilotPromptRegistryPublishGateModelRoute['routeModelDefinitionSource'];
 
   @Field(() => String, { nullable: true })
+  modelRegistryRevision?: CopilotPromptRegistryPublishGateModelRoute['modelRegistryRevision'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionActorId?: CopilotPromptRegistryPublishGateModelRoute['modelRegistryRevisionActorId'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionFingerprint?: CopilotPromptRegistryPublishGateModelRoute['modelRegistryRevisionFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionId?: CopilotPromptRegistryPublishGateModelRoute['modelRegistryRevisionId'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionScope?: CopilotPromptRegistryPublishGateModelRoute['modelRegistryRevisionScope'];
+
+  @Field(() => [CopilotModelRegistrySourceChainEntryType], { nullable: true })
+  modelRegistryRevisionSourceChain?: CopilotPromptRegistryPublishGateModelRoute['modelRegistryRevisionSourceChain'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionSourceChainFingerprint?: CopilotPromptRegistryPublishGateModelRoute['modelRegistryRevisionSourceChainFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionStatus?: CopilotPromptRegistryPublishGateModelRoute['modelRegistryRevisionStatus'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionWorkspaceId?: CopilotPromptRegistryPublishGateModelRoute['modelRegistryRevisionWorkspaceId'];
+
+  @Field(() => String, { nullable: true })
   routeRawModelId?: CopilotPromptRegistryPublishGateModelRoute['routeRawModelId'];
 
   @Field(() => [CopilotPromptRegistryPublishGateRouteCandidateType])
@@ -2366,6 +2830,12 @@ class CopilotPromptRegistryPublishGatePolicyCandidateType implements CopilotProm
 
   @Field(() => Boolean)
   available!: CopilotPromptRegistryPublishGatePolicyCandidate['available'];
+
+  @Field(() => String)
+  candidateFingerprint!: CopilotPromptRegistryPublishGatePolicyCandidate['candidateFingerprint'];
+
+  @Field(() => String)
+  candidateKey!: CopilotPromptRegistryPublishGatePolicyCandidate['candidateKey'];
 
   @Field(() => String)
   health!: CopilotPromptRegistryPublishGatePolicyCandidate['health'];
@@ -2563,6 +3033,33 @@ class CopilotPromptRegistryPublishGateRouteCandidateType implements CopilotPromp
   routeModelDefinitionSource?: CopilotPromptRegistryPublishGateRouteCandidate['routeModelDefinitionSource'];
 
   @Field(() => String, { nullable: true })
+  modelRegistryRevision?: CopilotPromptRegistryPublishGateRouteCandidate['modelRegistryRevision'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionActorId?: CopilotPromptRegistryPublishGateRouteCandidate['modelRegistryRevisionActorId'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionFingerprint?: CopilotPromptRegistryPublishGateRouteCandidate['modelRegistryRevisionFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionId?: CopilotPromptRegistryPublishGateRouteCandidate['modelRegistryRevisionId'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionScope?: CopilotPromptRegistryPublishGateRouteCandidate['modelRegistryRevisionScope'];
+
+  @Field(() => [CopilotModelRegistrySourceChainEntryType], { nullable: true })
+  modelRegistryRevisionSourceChain?: CopilotPromptRegistryPublishGateRouteCandidate['modelRegistryRevisionSourceChain'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionSourceChainFingerprint?: CopilotPromptRegistryPublishGateRouteCandidate['modelRegistryRevisionSourceChainFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionStatus?: CopilotPromptRegistryPublishGateRouteCandidate['modelRegistryRevisionStatus'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionWorkspaceId?: CopilotPromptRegistryPublishGateRouteCandidate['modelRegistryRevisionWorkspaceId'];
+
+  @Field(() => String, { nullable: true })
   routeRawModelId?: CopilotPromptRegistryPublishGateRouteCandidate['routeRawModelId'];
 }
 
@@ -2599,7 +3096,7 @@ class CopilotPromptRegistryPublishGateRepairTargetLocatorType implements Copilot
   fallbackOrderIndex?: number;
 
   @Field(() => String, { nullable: true })
-  featureKind?: string;
+  featureKind?: TaskRoutePolicySourceChainEntry['featureKind'];
 
   @Field(() => String)
   kind!: string;
@@ -2915,6 +3412,33 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   routeModelDefinitionSource?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeModelDefinitionSource'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevision?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelRegistryRevision'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionActorId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelRegistryRevisionActorId'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelRegistryRevisionFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelRegistryRevisionId'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionScope?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelRegistryRevisionScope'];
+
+  @Field(() => [CopilotModelRegistrySourceChainEntryType], { nullable: true })
+  modelRegistryRevisionSourceChain?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelRegistryRevisionSourceChain'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionSourceChainFingerprint?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelRegistryRevisionSourceChainFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionStatus?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelRegistryRevisionStatus'];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionWorkspaceId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelRegistryRevisionWorkspaceId'];
 
   @Field(() => [String], { nullable: true })
   routeOutputTypes?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['routeOutputTypes'];
@@ -4203,12 +4727,479 @@ class CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType impleme
 }
 
 @ObjectType()
+class CopilotRepairExecutionRuntimeResultType implements CopilotRepairExecutionRuntimeResult {
+  @Field(() => String)
+  version!: string;
+
+  @Field(() => String)
+  executor!: string;
+
+  @Field(() => Boolean)
+  sideEffectsApplied!: boolean;
+
+  @Field(() => String)
+  message!: string;
+
+  @Field(() => String, { nullable: true })
+  sideEffectFingerprint?: string;
+
+  @Field(() => String, { nullable: true })
+  sideEffectKind?: string;
+
+  @Field(() => String, { nullable: true })
+  sideEffectRecordId?: string;
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  sideEffectSummary?: Record<string, unknown>;
+}
+
+@ObjectType()
+class CopilotRepairExecutionSideEffectType implements CopilotRepairExecutionSideEffectRecord {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  executionRequestId!: string;
+
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  actorId!: string;
+
+  @Field(() => String)
+  sideEffectKind!: string;
+
+  @Field(() => String)
+  sideEffectRecordId!: string;
+
+  @Field(() => String)
+  sideEffectFingerprint!: string;
+
+  @Field(() => GraphQLJSON)
+  sideEffectSummary!: Record<string, unknown>;
+
+  @Field(() => String)
+  executorPayloadFingerprint!: string;
+
+  @Field(() => SafeIntResolver)
+  workerAttempt!: number;
+
+  @Field(() => String)
+  workerLeaseId!: string;
+
+  @Field(() => Date)
+  appliedAt!: Date;
+
+  @Field(() => Date)
+  createdAt!: Date;
+}
+
+@ObjectType()
+class CopilotAgentTimelineEventType implements CopilotAgentTimelineEventRecord {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  runId!: string;
+
+  @Field(() => String, { nullable: true })
+  stepId!: string | null;
+
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  actorId!: string;
+
+  @Field(() => String)
+  eventType!: CopilotAgentTimelineEventRecord['eventType'];
+
+  @Field(() => String)
+  status!: string;
+
+  @Field(() => SafeIntResolver)
+  ordinal!: number;
+
+  @Field(() => String)
+  summary!: string;
+
+  @Field(() => GraphQLJSON)
+  payload!: Record<string, unknown>;
+
+  @Field(() => String)
+  eventFingerprint!: string;
+
+  @Field(() => Date)
+  createdAt!: Date;
+}
+
+@ObjectType()
+class CopilotAgentStepType implements CopilotAgentStepRecord {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  runId!: string;
+
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  actorId!: string;
+
+  @Field(() => String)
+  stepKey!: string;
+
+  @Field(() => String)
+  stepType!: CopilotAgentStepRecord['stepType'];
+
+  @Field(() => String)
+  status!: CopilotAgentStepRecord['status'];
+
+  @Field(() => String, { nullable: true })
+  title!: string | null;
+
+  @Field(() => SafeIntResolver)
+  order!: number;
+
+  @Field(() => String)
+  evidenceFingerprint!: string;
+
+  @Field(() => GraphQLJSON)
+  outputSummary!: Record<string, unknown>;
+
+  @Field(() => Date, { nullable: true })
+  startedAt!: Date | null;
+
+  @Field(() => Date, { nullable: true })
+  completedAt!: Date | null;
+
+  @Field(() => Date)
+  createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
+}
+
+@ObjectType()
+class CopilotAgentRuntimeExecutionResultType implements CopilotAgentRuntimeExecutionResultRecord {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  runId!: string;
+
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  actorId!: string;
+
+  @Field(() => String)
+  workflow!: string;
+
+  @Field(() => String)
+  sourceType!: string;
+
+  @Field(() => String)
+  sourceId!: string;
+
+  @Field(() => String)
+  adapterWorkflow!: string;
+
+  @Field(() => String)
+  executor!: string;
+
+  @Field(() => String)
+  resultStatus!: CopilotAgentRuntimeExecutionResultRecord['resultStatus'];
+
+  @Field(() => String)
+  sideEffectMode!: string;
+
+  @Field(() => Boolean)
+  sideEffectsApplied!: boolean;
+
+  @Field(() => String)
+  summary!: string;
+
+  @Field(() => String, { nullable: true })
+  failureCode!: string | null;
+
+  @Field(() => String, { nullable: true })
+  failureMessage!: string | null;
+
+  @Field(() => GraphQLJSON)
+  resultPayload!: Record<string, unknown>;
+
+  @Field(() => String)
+  resultFingerprint!: string;
+
+  @Field(() => SafeIntResolver)
+  workerAttempt!: number;
+
+  @Field(() => String)
+  workerLeaseId!: string;
+
+  @Field(() => Date)
+  completedAt!: Date;
+
+  @Field(() => Date)
+  createdAt!: Date;
+}
+
+@ObjectType()
+class CopilotAgentRuntimeWorkflowAdapterCapabilitiesType implements CopilotAgentRuntimeWorkflowAdapterCapabilities {
+  @Field(() => String)
+  version!: string;
+
+  @Field(() => [String])
+  supportedStepTypes!: CopilotAgentRuntimeWorkflowAdapterCapabilities['supportedStepTypes'];
+
+  @Field(() => String)
+  sideEffectMode!: CopilotAgentRuntimeWorkflowAdapterCapabilities['sideEffectMode'];
+
+  @Field(() => String)
+  summary!: string;
+}
+
+@ObjectType()
+class CopilotAgentRuntimeWorkflowAdapterType {
+  @Field(() => String)
+  workflow!: string;
+
+  @Field(() => CopilotAgentRuntimeWorkflowAdapterCapabilitiesType)
+  capabilities!: CopilotAgentRuntimeWorkflowAdapterCapabilities;
+}
+
+@ObjectType()
+class CopilotAgentRunType implements CopilotAgentRunRecord {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  actorId!: string;
+
+  @Field(() => String)
+  workflow!: string;
+
+  @Field(() => String)
+  sourceType!: string;
+
+  @Field(() => String)
+  sourceId!: string;
+
+  @Field(() => String)
+  status!: CopilotAgentRunRecord['status'];
+
+  @Field(() => String, { nullable: true })
+  title!: string | null;
+
+  @Field(() => String)
+  targetFingerprint!: string;
+
+  @Field(() => String)
+  evidenceFingerprint!: string;
+
+  @Field(() => String)
+  timelineFingerprint!: string;
+
+  @Field(() => Date, { nullable: true })
+  startedAt!: Date | null;
+
+  @Field(() => Date, { nullable: true })
+  completedAt!: Date | null;
+
+  @Field(() => String, { nullable: true })
+  failureCode!: string | null;
+
+  @Field(() => String, { nullable: true })
+  failureMessage!: string | null;
+
+  @Field(() => Date, { nullable: true })
+  queuedAt!: Date | null;
+
+  @Field(() => String, { nullable: true })
+  workerLeaseId!: string | null;
+
+  @Field(() => Date, { nullable: true })
+  workerLeaseExpiresAt!: Date | null;
+
+  @Field(() => SafeIntResolver)
+  workerAttempt!: number;
+
+  @Field(() => SafeIntResolver)
+  workerMaxAttempts!: number;
+
+  @Field(() => Date, { nullable: true })
+  lastAttemptAt!: Date | null;
+
+  @Field(() => Date)
+  createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
+
+  @Field(() => [CopilotAgentStepType])
+  steps!: CopilotAgentStepRecord[];
+
+  @Field(() => [CopilotAgentTimelineEventType])
+  timelineEvents!: CopilotAgentTimelineEventRecord[];
+
+  @Field(() => SafeIntResolver)
+  executionResultCount!: number;
+
+  @Field(() => [CopilotAgentRuntimeExecutionResultType])
+  executionResults!: CopilotAgentRuntimeExecutionResultRecord[];
+}
+
+@ObjectType()
+class CopilotRepairExecutionAuditEventType implements CopilotRepairExecutionAuditEventRecord {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  executionRequestId!: string;
+
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  actorId!: string;
+
+  @Field(() => String)
+  eventType!: CopilotRepairExecutionAuditEventRecord['eventType'];
+
+  @Field(() => String)
+  eventFingerprint!: string;
+
+  @Field(() => GraphQLJSON)
+  metadata!: CopilotRepairExecutionAuditEventRecord['metadata'];
+
+  @Field(() => Date)
+  createdAt!: Date;
+}
+
+@ObjectType()
+class CopilotRepairExecutionRecordType implements CopilotRepairExecutionRecord {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  actorId!: string;
+
+  @Field(() => String)
+  promptName!: string;
+
+  @Field(() => String)
+  requestedAction!: string;
+
+  @Field(() => String)
+  status!: CopilotRepairExecutionRecord['status'];
+
+  @Field(() => String)
+  approvalState!: CopilotRepairExecutionRecord['approvalState'];
+
+  @Field(() => String)
+  permissionStatus!: string;
+
+  @Field(() => String)
+  idempotencyKey!: string;
+
+  @Field(() => String)
+  idempotencyFingerprint!: string;
+
+  @Field(() => String)
+  requestFingerprint!: string;
+
+  @Field(() => String)
+  candidateEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  taskRouteEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  targetLocatorFingerprint!: string;
+
+  @Field(() => String)
+  repairJobFingerprint!: string;
+
+  @Field(() => String)
+  approvalRecordFingerprint!: string;
+
+  @Field(() => String)
+  auditEventFingerprint!: string;
+
+  @Field(() => CopilotRepairExecutionRuntimeResultType)
+  runtimeResult!: CopilotRepairExecutionRuntimeResult;
+
+  executorPayload!: CopilotRepairExecutionRecord['executorPayload'];
+
+  @Field(() => String, { nullable: true })
+  failureCode!: string | null;
+
+  @Field(() => String, { nullable: true })
+  failureMessage!: string | null;
+
+  @Field(() => Date, { nullable: true })
+  queuedAt!: Date | null;
+
+  @Field(() => String, { nullable: true })
+  workerLeaseId!: string | null;
+
+  @Field(() => Date, { nullable: true })
+  workerLeaseExpiresAt!: Date | null;
+
+  @Field(() => SafeIntResolver)
+  workerAttempt!: number;
+
+  @Field(() => SafeIntResolver)
+  workerMaxAttempts!: number;
+
+  @Field(() => Date, { nullable: true })
+  lastAttemptAt!: Date | null;
+
+  @Field(() => Date, { nullable: true })
+  completedAt!: Date | null;
+
+  @Field(() => Date)
+  createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
+
+  @Field(() => SafeIntResolver)
+  auditEventCount!: number;
+
+  @Field(() => [CopilotRepairExecutionAuditEventType])
+  auditEvents!: CopilotRepairExecutionAuditEventRecord[];
+
+  @Field(() => SafeIntResolver)
+  sideEffectCount!: number;
+
+  @Field(() => [CopilotRepairExecutionSideEffectType])
+  sideEffects!: CopilotRepairExecutionSideEffectRecord[];
+
+  @Field(() => CopilotAgentRunType, { nullable: true })
+  agentRun?: CopilotAgentRunRecord | null;
+}
+
+@ObjectType()
 class CopilotPromptRegistryRepairExecutionRequestType implements CopilotPromptRegistryRepairExecutionRequest {
   @Field(() => Boolean)
   accepted!: boolean;
 
   @Field(() => Boolean)
   executionRequested!: boolean;
+
+  @Field(() => CopilotRepairExecutionRecordType, { nullable: true })
+  executionRecord?: CopilotRepairExecutionRecord | null;
 
   @Field(() => String)
   expectedCandidateEvidenceSetFingerprint!: string;
@@ -5383,6 +6374,79 @@ class CopilotPromptCatalogVersionEvidenceType implements PromptCatalogVersionEvi
 
   @Field(() => String, { nullable: true })
   registryValidationStatus?: PromptCatalogVersionEvidence['registryValidationStatus'];
+
+  @Field(() => String, { nullable: true })
+  registryRecordSource?: PromptCatalogVersionEvidence['registryRecordSource'];
+
+  @Field(() => String, { nullable: true })
+  registryRevision?: PromptCatalogVersionEvidence['registryRevision'];
+
+  @Field(() => String, { nullable: true })
+  registryRevisionActorId?: PromptCatalogVersionEvidence['registryRevisionActorId'];
+
+  @Field(() => String, { nullable: true })
+  registryRevisionFingerprint?: PromptCatalogVersionEvidence['registryRevisionFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  registryRevisionId?: PromptCatalogVersionEvidence['registryRevisionId'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  registryRevisionPublishEventCount?: PromptCatalogVersionEvidence['registryRevisionPublishEventCount'];
+
+  @Field(() => [CopilotRegistryRevisionPublishEventType], {
+    nullable: true,
+  })
+  registryRevisionPublishEvents?: PromptCatalogVersionEvidence['registryRevisionPublishEvents'];
+
+  @Field(() => String, { nullable: true })
+  registryRevisionScope?: PromptCatalogVersionEvidence['registryRevisionScope'];
+
+  @Field(() => String, { nullable: true })
+  registryRevisionStatus?: PromptCatalogVersionEvidence['registryRevisionStatus'];
+
+  @Field(() => String, { nullable: true })
+  registryRevisionWorkspaceId?: PromptCatalogVersionEvidence['registryRevisionWorkspaceId'];
+
+  @Field(() => [CopilotPromptRegistrySourceChainEntryType], {
+    nullable: true,
+  })
+  registrySourceChain?: PromptCatalogVersionEvidence['registrySourceChain'];
+
+  @Field(() => String, { nullable: true })
+  registrySourceChainFingerprint?: PromptCatalogVersionEvidence['registrySourceChainFingerprint'];
+}
+
+@ObjectType()
+class CopilotPromptRegistrySourceChainEntryType implements PromptRegistrySourceChainEntry {
+  @Field(() => String)
+  source!: string;
+
+  @Field(() => String)
+  scope!: string;
+
+  @Field(() => String)
+  status!: string;
+
+  @Field(() => String, { nullable: true })
+  actorId?: string;
+
+  @Field(() => String, { nullable: true })
+  configPath?: string;
+
+  @Field(() => String, { nullable: true })
+  fingerprint?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  registryId?: number;
+
+  @Field(() => String, { nullable: true })
+  revision?: string;
+
+  @Field(() => String, { nullable: true })
+  updatedAt?: string;
+
+  @Field(() => String, { nullable: true })
+  workspaceId?: string;
 }
 
 @ObjectType()
@@ -5499,6 +6563,46 @@ class CopilotPromptCatalogItemType implements PromptCatalogItem {
 
   @Field(() => String, { nullable: true })
   registryValidationStatus?: PromptCatalogItem['registryValidationStatus'];
+
+  @Field(() => String, { nullable: true })
+  registryRecordSource?: PromptCatalogItem['registryRecordSource'];
+
+  @Field(() => String, { nullable: true })
+  registryRevision?: PromptCatalogItem['registryRevision'];
+
+  @Field(() => String, { nullable: true })
+  registryRevisionActorId?: PromptCatalogItem['registryRevisionActorId'];
+
+  @Field(() => String, { nullable: true })
+  registryRevisionFingerprint?: PromptCatalogItem['registryRevisionFingerprint'];
+
+  @Field(() => String, { nullable: true })
+  registryRevisionId?: PromptCatalogItem['registryRevisionId'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  registryRevisionPublishEventCount?: PromptCatalogItem['registryRevisionPublishEventCount'];
+
+  @Field(() => [CopilotRegistryRevisionPublishEventType], {
+    nullable: true,
+  })
+  registryRevisionPublishEvents?: PromptCatalogItem['registryRevisionPublishEvents'];
+
+  @Field(() => String, { nullable: true })
+  registryRevisionScope?: PromptCatalogItem['registryRevisionScope'];
+
+  @Field(() => String, { nullable: true })
+  registryRevisionStatus?: PromptCatalogItem['registryRevisionStatus'];
+
+  @Field(() => String, { nullable: true })
+  registryRevisionWorkspaceId?: PromptCatalogItem['registryRevisionWorkspaceId'];
+
+  @Field(() => [CopilotPromptRegistrySourceChainEntryType], {
+    nullable: true,
+  })
+  registrySourceChain?: PromptCatalogItem['registrySourceChain'];
+
+  @Field(() => String, { nullable: true })
+  registrySourceChainFingerprint?: PromptCatalogItem['registrySourceChainFingerprint'];
 }
 
 @ObjectType()
@@ -5709,6 +6813,975 @@ class CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType implemen
 
   @Field(() => String)
   retentionPolicyFingerprint!: string;
+}
+
+@ObjectType()
+class CopilotSupportBundleSourceEvidenceSummaryType implements CopilotSupportBundleSourceEvidenceSummary {
+  @Field(() => String)
+  source!: string;
+
+  @Field(() => SafeIntResolver)
+  promptCatalogItemCount!: number;
+
+  @Field(() => SafeIntResolver)
+  actionRunCount!: number;
+
+  @Field(() => SafeIntResolver)
+  taskRouteCount!: number;
+
+  @Field(() => [String])
+  includedSections!: string[];
+}
+
+@ObjectType()
+class CopilotSupportBundleRetentionType {
+  @Field(() => String)
+  status!: string;
+
+  @Field(() => String)
+  expiresAt!: string;
+}
+
+@ObjectType()
+class CopilotSupportBundleManifestType implements CopilotSupportBundleManifest {
+  @Field(() => String)
+  version!: string;
+
+  @Field(() => String)
+  bundleId!: string;
+
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  actorId!: string;
+
+  @Field(() => String)
+  createdAt!: string;
+
+  @Field(() => String)
+  expiresAt!: string;
+
+  @Field(() => CopilotSupportBundleSourceEvidenceSummaryType)
+  sourceEvidenceSummary!: CopilotSupportBundleSourceEvidenceSummary;
+
+  @Field(() => String)
+  sourceEvidenceSetFingerprint!: string;
+
+  @Field(() => GraphQLJSON)
+  archive!: CopilotSupportBundleManifest['archive'];
+
+  @Field(() => CopilotSupportBundleRetentionType)
+  retention!: CopilotSupportBundleManifest['retention'];
+}
+
+@ObjectType()
+class CopilotSupportBundleAuditEventType implements CopilotSupportBundleAuditEventRecord {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  bundleId!: string;
+
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  actorId!: string;
+
+  @Field(() => String)
+  eventType!: CopilotSupportBundleAuditEventRecord['eventType'];
+
+  @Field(() => String)
+  eventFingerprint!: string;
+
+  @Field(() => GraphQLJSON)
+  metadata!: CopilotSupportBundleAuditEventRecord['metadata'];
+
+  @Field(() => Date)
+  createdAt!: Date;
+}
+
+@ObjectType()
+class CopilotSupportBundleTransferEventType implements CopilotSupportBundleTransferEventRecord {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  authorizationId!: string;
+
+  @Field(() => String)
+  artifactKind!: CopilotSupportBundleTransferEventRecord['artifactKind'];
+
+  @Field(() => String)
+  manifestFingerprint!: string;
+
+  @Field(() => String)
+  artifactFingerprint!: string;
+
+  @Field(() => String)
+  authorizationFingerprint!: string;
+
+  @Field(() => String)
+  deliveryMethod!: CopilotSupportBundleTransferEventRecord['deliveryMethod'];
+
+  @Field(() => String, { nullable: true })
+  eventId!: string | null;
+
+  @Field(() => String)
+  eventSource!: string;
+
+  @Field(() => Date)
+  transferredAt!: Date;
+
+  @Field(() => String)
+  notificationAuthEvidenceFingerprint!: string;
+
+  @Field(() => String)
+  storageKey!: string;
+
+  @Field(() => SafeIntResolver)
+  storageByteSize!: number;
+
+  @Field(() => String)
+  storageContentType!: string;
+
+  @Field(() => String)
+  eventFingerprint!: string;
+
+  @Field(() => Date)
+  createdAt!: Date;
+}
+
+@ObjectType()
+class CopilotSupportBundleTransferForwardingEventType implements CopilotSupportBundleTransferForwardingEventRecord {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  authorizationId!: string;
+
+  @Field(() => String)
+  status!: CopilotSupportBundleTransferForwardingEventRecord['status'];
+
+  @Field(() => String, { nullable: true })
+  eventId!: string | null;
+
+  @Field(() => String)
+  eventSource!: string;
+
+  @Field(() => String)
+  forwardingEventFingerprint!: string;
+
+  @Field(() => GraphQLJSON)
+  forwardingPayload!: Record<string, unknown>;
+
+  @Field(() => String)
+  forwardingPayloadFingerprint!: string;
+
+  @Field(() => String, { nullable: true })
+  providerSignatureEvidenceFingerprint!: string | null;
+
+  @Field(() => String, { nullable: true })
+  forwardedTransferEventFingerprint!: string | null;
+
+  @Field(() => SafeIntResolver)
+  attemptCount!: number;
+
+  @Field(() => SafeIntResolver)
+  maxAttempts!: number;
+
+  @Field(() => Date, { nullable: true })
+  nextAttemptAt!: Date | null;
+
+  @Field(() => String, { nullable: true })
+  workerLeaseId!: string | null;
+
+  @Field(() => Date, { nullable: true })
+  workerLeaseExpiresAt!: Date | null;
+
+  @Field(() => Date, { nullable: true })
+  lastAttemptAt!: Date | null;
+
+  @Field(() => Date, { nullable: true })
+  forwardedAt!: Date | null;
+
+  @Field(() => Date, { nullable: true })
+  deadLetteredAt!: Date | null;
+
+  @Field(() => String, { nullable: true })
+  failureCode!: string | null;
+
+  @Field(() => String, { nullable: true })
+  failureMessage!: string | null;
+
+  @Field(() => Date)
+  createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
+}
+
+@ObjectType()
+class CopilotSupportBundleType implements CopilotSupportBundleRecord {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  actorId!: string;
+
+  @Field(() => String)
+  status!: CopilotSupportBundleRecord['status'];
+
+  @Field(() => CopilotSupportBundleSourceEvidenceSummaryType)
+  sourceEvidenceSummary!: CopilotSupportBundleSourceEvidenceSummary;
+
+  @Field(() => String)
+  sourceEvidenceSetFingerprint!: string;
+
+  @Field(() => String)
+  manifestFingerprint!: string;
+
+  @Field(() => CopilotSupportBundleManifestType)
+  manifestJson!: CopilotSupportBundleManifest;
+
+  @Field(() => String, { nullable: true })
+  manifestStorageKey!: string | null;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  manifestByteSize!: number | null;
+
+  @Field(() => String, { nullable: true })
+  manifestMime!: string | null;
+
+  @Field(() => String, { nullable: true })
+  manifestFilename!: string | null;
+
+  @Field(() => String, { nullable: true })
+  archiveStorageKey!: string | null;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  archiveByteSize!: number | null;
+
+  @Field(() => String, { nullable: true })
+  archiveFingerprint!: string | null;
+
+  @Field(() => String, { nullable: true })
+  archiveMime!: string | null;
+
+  @Field(() => String, { nullable: true })
+  archiveFilename!: string | null;
+
+  @Field(() => String)
+  retentionStatus!: CopilotSupportBundleRecord['retentionStatus'];
+
+  @Field(() => Date)
+  expiresAt!: Date;
+
+  @Field(() => String, { nullable: true })
+  failureCode!: string | null;
+
+  @Field(() => String, { nullable: true })
+  failureMessage!: string | null;
+
+  @Field(() => Date)
+  createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
+
+  @Field(() => SafeIntResolver)
+  auditEventCount!: number;
+
+  @Field(() => [CopilotSupportBundleAuditEventType])
+  auditEvents!: CopilotSupportBundleAuditEventRecord[];
+
+  @Field(() => SafeIntResolver)
+  transferEventCount!: number;
+
+  @Field(() => [CopilotSupportBundleTransferEventType])
+  transferEvents!: CopilotSupportBundleTransferEventRecord[];
+
+  @Field(() => SafeIntResolver)
+  transferForwardingEventCount!: number;
+
+  @Field(() => [CopilotSupportBundleTransferForwardingEventType])
+  transferForwardingEvents!: CopilotSupportBundleTransferForwardingEventRecord[];
+}
+
+@ObjectType()
+class CopilotSupportBundleDownloadAuthorizationType {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  bundleId!: string;
+
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  actorId!: string;
+
+  @Field(() => String)
+  status!: CopilotSupportBundleDownloadAuthorizationResult['status'];
+
+  @Field(() => String)
+  artifactKind!: CopilotSupportBundleDownloadAuthorizationResult['artifactKind'];
+
+  @Field(() => String)
+  artifactFilename!: string;
+
+  @Field(() => String)
+  artifactMime!: string;
+
+  @Field(() => String)
+  manifestFingerprint!: string;
+
+  @Field(() => String)
+  artifactFingerprint!: string;
+
+  @Field(() => String)
+  authorizationFingerprint!: string;
+
+  @Field(() => String)
+  deliveryMethod!: CopilotSupportBundleDownloadAuthorizationResult['deliveryMethod'];
+
+  @Field(() => String, { nullable: true })
+  directDownloadUrl!: string | null;
+
+  @Field(() => Date, { nullable: true })
+  directDownloadExpiresAt!: Date | null;
+
+  @Field(() => Date)
+  expiresAt!: Date;
+
+  @Field(() => Date, { nullable: true })
+  downloadedAt!: Date | null;
+
+  @Field(() => Date)
+  createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
+
+  @Field(() => String)
+  downloadUrl!: string;
+}
+
+@ObjectType()
+class CopilotSupportBundleRetentionCleanupType implements CopilotSupportBundleRetentionCleanupResult {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  actorId!: string;
+
+  @Field(() => Date)
+  cleanedAt!: Date;
+
+  @Field(() => String)
+  cleanupFingerprint!: string;
+
+  @Field(() => SafeIntResolver)
+  expiredBundleCount!: number;
+
+  @Field(() => SafeIntResolver)
+  expiredAuthorizationCount!: number;
+
+  @Field(() => SafeIntResolver)
+  archiveObjectCleanupRetryCount!: number;
+
+  @Field(() => SafeIntResolver)
+  archiveObjectCleanupRecoveredCount!: number;
+
+  @Field(() => SafeIntResolver)
+  archiveObjectCleanupFailedCount!: number;
+
+  @Field(() => SafeIntResolver)
+  manifestObjectRewriteRetryCount!: number;
+
+  @Field(() => SafeIntResolver)
+  manifestObjectRewriteRecoveredCount!: number;
+
+  @Field(() => SafeIntResolver)
+  manifestObjectRewriteFailedCount!: number;
+
+  @Field(() => [CopilotSupportBundleType])
+  expiredBundles!: CopilotSupportBundleRecord[];
+}
+
+@ObjectType()
+class CopilotRegistryRevisionPublishEventType implements RegistryRevisionPublishEventRecord {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  registryFamily!: RegistryRevisionPublishEventRecord['registryFamily'];
+
+  @Field(() => String)
+  revisionId!: string;
+
+  @Field(() => String, { nullable: true })
+  registryProviderId?: string | null;
+
+  @Field(() => String, { nullable: true })
+  registryModelId?: string | null;
+
+  @Field(() => String, { nullable: true })
+  workspaceId?: string | null;
+
+  @Field(() => String, { nullable: true })
+  actorId?: string | null;
+
+  @Field(() => String)
+  scopeType!: RegistryRevisionPublishEventRecord['scopeType'];
+
+  @Field(() => String)
+  registryKey!: string;
+
+  @Field(() => String)
+  revision!: string;
+
+  @Field(() => String)
+  revisionFingerprint!: string;
+
+  @Field(() => String)
+  revisionStatus!: string;
+
+  @Field(() => String)
+  eventType!: RegistryRevisionPublishEventRecord['eventType'];
+
+  @Field(() => String)
+  publishSource!: RegistryRevisionPublishEventRecord['publishSource'];
+
+  @Field(() => String)
+  eventFingerprint!: string;
+
+  @Field(() => GraphQLJSON)
+  metadata!: RegistryRevisionPublishEventRecord['metadata'];
+
+  @Field(() => Date)
+  createdAt!: Date;
+}
+
+@ObjectType()
+class CopilotPromptRegistryRevisionType
+  implements
+    Pick<
+      PromptRegistryRevision,
+      | 'actorId'
+      | 'createdAt'
+      | 'fallbackSourceChain'
+      | 'fingerprint'
+      | 'id'
+      | 'promptName'
+      | 'revision'
+      | 'scopeType'
+      | 'status'
+      | 'updatedAt'
+      | 'workspaceId'
+    >,
+    RegistryRevisionPublishEventHistory
+{
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  promptName!: string;
+
+  @Field(() => String)
+  scopeType!: PromptRegistryRevision['scopeType'];
+
+  @Field(() => String, { nullable: true })
+  workspaceId?: string;
+
+  @Field(() => String, { nullable: true })
+  actorId?: string;
+
+  @Field(() => String)
+  revision!: string;
+
+  @Field(() => String)
+  status!: PromptRegistryRevision['status'];
+
+  @Field(() => String)
+  fingerprint!: string;
+
+  @Field(() => GraphQLJSON)
+  fallbackSourceChain!: PromptRegistryRevision['fallbackSourceChain'];
+
+  @Field(() => Date)
+  createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
+
+  @Field(() => SafeIntResolver)
+  publishEventCount!: number;
+
+  @Field(() => [CopilotRegistryRevisionPublishEventType])
+  publishEvents!: RegistryRevisionPublishEventRecord[];
+}
+
+@ObjectType()
+class CopilotProviderHealthProbeAttemptType implements Pick<
+  CopilotProviderHealthProbeAttemptRecord,
+  | 'actorId'
+  | 'attemptCount'
+  | 'checkedAt'
+  | 'completedAt'
+  | 'createdAt'
+  | 'deadLetteredAt'
+  | 'failureCode'
+  | 'failureMessage'
+  | 'id'
+  | 'maxAttempts'
+  | 'providerHealthStateFingerprint'
+  | 'providerHealthStateId'
+  | 'providerId'
+  | 'providerProfileFingerprint'
+  | 'providerProfileSource'
+  | 'providerProfileSnapshot'
+  | 'providerRegistryRevisionFingerprint'
+  | 'providerRegistryRevisionId'
+  | 'providerType'
+  | 'requestFingerprint'
+  | 'resultFingerprint'
+  | 'resultLastError'
+  | 'resultMetadata'
+  | 'resultStatus'
+  | 'scheduledAt'
+  | 'scopeType'
+  | 'status'
+  | 'updatedAt'
+  | 'workerLeaseExpiresAt'
+  | 'workerLeaseId'
+  | 'workspaceId'
+> {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  providerId!: string;
+
+  @Field(() => String, { nullable: true })
+  providerType!: CopilotProviderHealthProbeAttemptRecord['providerType'];
+
+  @Field(() => String)
+  scopeType!: CopilotProviderHealthProbeAttemptRecord['scopeType'];
+
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  actorId!: string;
+
+  @Field(() => String)
+  providerRegistryRevisionId!: string;
+
+  @Field(() => String)
+  providerRegistryRevisionFingerprint!: string;
+
+  @Field(() => String, { nullable: true })
+  providerProfileSource!: CopilotProviderHealthProbeAttemptRecord['providerProfileSource'];
+
+  @Field(() => String)
+  providerProfileFingerprint!: string;
+
+  @Field(() => GraphQLJSON)
+  providerProfileSnapshot!: Record<string, unknown>;
+
+  @Field(() => String)
+  requestFingerprint!: string;
+
+  @Field(() => String)
+  status!: CopilotProviderHealthProbeAttemptRecord['status'];
+
+  @Field(() => SafeIntResolver)
+  attemptCount!: number;
+
+  @Field(() => SafeIntResolver)
+  maxAttempts!: number;
+
+  @Field(() => Date)
+  scheduledAt!: Date;
+
+  @Field(() => String, { nullable: true })
+  workerLeaseId!: string | null;
+
+  @Field(() => Date, { nullable: true })
+  workerLeaseExpiresAt!: Date | null;
+
+  @Field(() => Date, { nullable: true })
+  checkedAt!: Date | null;
+
+  @Field(() => Date, { nullable: true })
+  completedAt!: Date | null;
+
+  @Field(() => Date, { nullable: true })
+  deadLetteredAt!: Date | null;
+
+  @Field(() => String, { nullable: true })
+  failureCode!: string | null;
+
+  @Field(() => String, { nullable: true })
+  failureMessage!: string | null;
+
+  @Field(() => String, { nullable: true })
+  resultStatus!: CopilotProviderHealthProbeAttemptRecord['resultStatus'];
+
+  @Field(() => String, { nullable: true })
+  resultLastError!: string | null;
+
+  @Field(() => GraphQLJSON)
+  resultMetadata!: Record<string, unknown>;
+
+  @Field(() => String, { nullable: true })
+  resultFingerprint!: string | null;
+
+  @Field(() => String, { nullable: true })
+  providerHealthStateId!: string | null;
+
+  @Field(() => String, { nullable: true })
+  providerHealthStateFingerprint!: string | null;
+
+  @Field(() => Date)
+  createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
+}
+
+@ObjectType()
+class CopilotProviderRegistryRevisionType
+  implements
+    Pick<
+      ProviderRegistryRevision,
+      | 'actorId'
+      | 'createdAt'
+      | 'fallbackSourceChain'
+      | 'fingerprint'
+      | 'id'
+      | 'providerId'
+      | 'providerProfile'
+      | 'providerType'
+      | 'revision'
+      | 'scopeType'
+      | 'status'
+      | 'updatedAt'
+      | 'workspaceId'
+    >,
+    RegistryRevisionPublishEventHistory
+{
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  providerId!: string;
+
+  @Field(() => String, { nullable: true })
+  providerType?: ProviderRegistryRevision['providerType'];
+
+  @Field(() => String)
+  scopeType!: ProviderRegistryRevision['scopeType'];
+
+  @Field(() => String, { nullable: true })
+  workspaceId?: string;
+
+  @Field(() => String, { nullable: true })
+  actorId?: string;
+
+  @Field(() => String)
+  revision!: string;
+
+  @Field(() => String)
+  status!: ProviderRegistryRevision['status'];
+
+  @Field(() => String)
+  fingerprint!: string;
+
+  @Field(() => GraphQLJSON)
+  providerProfile!: ProviderRegistryRevision['providerProfile'];
+
+  @Field(() => GraphQLJSON)
+  fallbackSourceChain!: ProviderRegistryRevision['fallbackSourceChain'];
+
+  @Field(() => Date)
+  createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
+
+  @Field(() => SafeIntResolver)
+  publishEventCount!: number;
+
+  @Field(() => [CopilotRegistryRevisionPublishEventType])
+  publishEvents!: RegistryRevisionPublishEventRecord[];
+
+  @Field(() => CopilotProviderHealthProbeAttemptType, {
+    nullable: true,
+    description:
+      'Immediate durable no-network provider health probe attempt created for this workspace provider revision.',
+  })
+  providerHealthProbeAttempt?: CopilotProviderHealthProbeAttemptRecord;
+}
+
+@ObjectType()
+class CopilotModelRegistryRevisionType
+  implements
+    Pick<
+      ModelRegistryRevision,
+      | 'actorId'
+      | 'createdAt'
+      | 'fallbackSourceChain'
+      | 'fingerprint'
+      | 'id'
+      | 'modelDefinition'
+      | 'modelId'
+      | 'providerId'
+      | 'revision'
+      | 'scopeType'
+      | 'status'
+      | 'updatedAt'
+      | 'workspaceId'
+    >,
+    RegistryRevisionPublishEventHistory
+{
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  providerId!: string;
+
+  @Field(() => String)
+  modelId!: string;
+
+  @Field(() => String)
+  scopeType!: ModelRegistryRevision['scopeType'];
+
+  @Field(() => String, { nullable: true })
+  workspaceId?: string;
+
+  @Field(() => String, { nullable: true })
+  actorId?: string;
+
+  @Field(() => String)
+  revision!: string;
+
+  @Field(() => String)
+  status!: ModelRegistryRevision['status'];
+
+  @Field(() => String)
+  fingerprint!: string;
+
+  @Field(() => GraphQLJSON)
+  modelDefinition!: ModelRegistryRevision['modelDefinition'];
+
+  @Field(() => GraphQLJSON)
+  fallbackSourceChain!: ModelRegistryRevision['fallbackSourceChain'];
+
+  @Field(() => Date)
+  createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
+
+  @Field(() => SafeIntResolver)
+  publishEventCount!: number;
+
+  @Field(() => [CopilotRegistryRevisionPublishEventType])
+  publishEvents!: RegistryRevisionPublishEventRecord[];
+}
+
+@ObjectType()
+class CopilotTaskRoutePolicyRevisionType
+  implements
+    Pick<
+      TaskRoutePolicyRevision,
+      | 'actorId'
+      | 'configKey'
+      | 'configPath'
+      | 'createdAt'
+      | 'fallbackSourceChain'
+      | 'featureKind'
+      | 'fingerprint'
+      | 'id'
+      | 'modelId'
+      | 'revision'
+      | 'scopeType'
+      | 'status'
+      | 'updatedAt'
+      | 'workspaceId'
+    >,
+    RegistryRevisionPublishEventHistory
+{
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  featureKind!: TaskRoutePolicyRevision['featureKind'];
+
+  @Field(() => String)
+  scopeType!: TaskRoutePolicyRevision['scopeType'];
+
+  @Field(() => String, { nullable: true })
+  workspaceId?: string;
+
+  @Field(() => String, { nullable: true })
+  actorId?: string;
+
+  @Field(() => String)
+  revision!: string;
+
+  @Field(() => String)
+  status!: TaskRoutePolicyRevision['status'];
+
+  @Field(() => String, { nullable: true })
+  modelId?: string;
+
+  @Field(() => String, { nullable: true })
+  configKey?: string;
+
+  @Field(() => String, { nullable: true })
+  configPath?: string;
+
+  @Field(() => String)
+  fingerprint!: string;
+
+  @Field(() => GraphQLJSON)
+  fallbackSourceChain!: TaskRoutePolicyRevision['fallbackSourceChain'];
+
+  @Field(() => Date)
+  createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
+
+  @Field(() => SafeIntResolver)
+  publishEventCount!: number;
+
+  @Field(() => [CopilotRegistryRevisionPublishEventType])
+  publishEvents!: RegistryRevisionPublishEventRecord[];
+}
+
+@ObjectType()
+class CopilotProviderHealthEventType implements CopilotProviderHealthEventRecord {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  stateId!: string;
+
+  @Field(() => String)
+  providerId!: string;
+
+  @Field(() => String, { nullable: true })
+  providerType?: CopilotProviderHealthEventRecord['providerType'];
+
+  @Field(() => String)
+  scopeType!: CopilotProviderHealthEventRecord['scopeType'];
+
+  @Field(() => String, { nullable: true })
+  workspaceId?: string;
+
+  @Field(() => String, { nullable: true })
+  actorId?: string;
+
+  @Field(() => String)
+  status!: CopilotProviderHealthEventRecord['status'];
+
+  @Field(() => Date)
+  checkedAt!: Date;
+
+  @Field(() => String, { nullable: true })
+  lastError?: string;
+
+  @Field(() => String)
+  source!: CopilotProviderHealthEventRecord['source'];
+
+  @Field(() => String)
+  eventType!: CopilotProviderHealthEventRecord['eventType'];
+
+  @Field(() => String)
+  fingerprint!: string;
+
+  @Field(() => String)
+  stateFingerprint!: string;
+
+  @Field(() => GraphQLJSON)
+  metadata!: CopilotProviderHealthEventRecord['metadata'];
+
+  @Field(() => Date)
+  createdAt!: Date;
+}
+
+@ObjectType()
+class CopilotProviderHealthStateType implements Pick<
+  CopilotProviderHealthState,
+  | 'actorId'
+  | 'checkedAt'
+  | 'createdAt'
+  | 'fingerprint'
+  | 'id'
+  | 'lastError'
+  | 'eventCount'
+  | 'events'
+  | 'providerId'
+  | 'providerType'
+  | 'scopeType'
+  | 'source'
+  | 'status'
+  | 'updatedAt'
+  | 'workspaceId'
+> {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  providerId!: string;
+
+  @Field(() => String, { nullable: true })
+  providerType?: CopilotProviderHealthState['providerType'];
+
+  @Field(() => String)
+  scopeType!: CopilotProviderHealthState['scopeType'];
+
+  @Field(() => String, { nullable: true })
+  workspaceId?: string;
+
+  @Field(() => String, { nullable: true })
+  actorId?: string;
+
+  @Field(() => String)
+  status!: CopilotProviderHealthState['status'];
+
+  @Field(() => Date)
+  checkedAt!: Date;
+
+  @Field(() => String, { nullable: true })
+  lastError?: string;
+
+  @Field(() => String)
+  source!: CopilotProviderHealthState['source'];
+
+  @Field(() => String)
+  fingerprint!: string;
+
+  @Field(() => Date)
+  createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
+
+  @Field(() => SafeIntResolver)
+  eventCount!: number;
+
+  @Field(() => [CopilotProviderHealthEventType])
+  events!: CopilotProviderHealthEventRecord[];
 }
 
 @ObjectType()
@@ -5969,6 +8042,53 @@ function modelListRoutePolicyContext(workspaceId?: string | null) {
   return {
     featureKind: 'chat' as const,
     ...(workspaceId ? { workspaceId } : {}),
+  };
+}
+
+function toSupportBundleTaskRouteSnapshot(
+  route: CopilotTaskRouteDiagnosticsType
+): CopilotSupportBundleTaskRouteSnapshot {
+  return {
+    featureKind: route.featureKind,
+    configured: route.configured,
+    routePolicyEnabled: route.policyEnabled,
+    ...(route.policyWorkspaceId
+      ? { routePolicyWorkspaceId: route.policyWorkspaceId }
+      : {}),
+    ...(route.requestedModelId
+      ? { requestedModelId: route.requestedModelId }
+      : {}),
+    ...(route.requestedModelSource
+      ? { requestedModelSource: route.requestedModelSource }
+      : {}),
+    fallbackProviderIds: [...route.fallbackProviderIds],
+    preparedProviderCount: route.preparedProviderCount,
+    ...(route.providerId ? { providerId: route.providerId } : {}),
+    ...(route.providerProfileId
+      ? { providerProfileId: route.providerProfileId }
+      : {}),
+    ...(route.modelId ? { modelId: route.modelId } : {}),
+    ...(route.protocol ? { protocol: route.protocol } : {}),
+    ...(route.requestLayer ? { requestLayer: route.requestLayer } : {}),
+    ...(route.modelBackendKind
+      ? { modelBackendKind: route.modelBackendKind }
+      : {}),
+    ...(route.canonicalModelKey
+      ? { canonicalModelKey: route.canonicalModelKey }
+      : {}),
+    ...(route.behaviorFlags?.length
+      ? { behaviorFlags: [...route.behaviorFlags] }
+      : {}),
+    ...(route.errorCode ? { errorCode: route.errorCode } : {}),
+    ...(route.errorMessage ? { errorMessage: route.errorMessage } : {}),
+    ...(route.effectiveSourceFingerprint
+      ? { diagnosticsFingerprint: route.effectiveSourceFingerprint }
+      : {}),
+    ...(route.effectiveSourceFingerprint
+      ? {
+          taskRouteEffectiveSourceFingerprint: route.effectiveSourceFingerprint,
+        }
+      : {}),
   };
 }
 
@@ -6259,6 +8379,57 @@ function promptRegistryPublishGateRouteCandidateMetadata(
     ...(candidate.routeModelAliasMatched !== undefined
       ? { routeModelAliasMatched: candidate.routeModelAliasMatched }
       : {}),
+    ...(candidate.modelRegistryRevision
+      ? { modelRegistryRevision: candidate.modelRegistryRevision }
+      : {}),
+    ...(candidate.modelRegistryRevisionActorId
+      ? { modelRegistryRevisionActorId: candidate.modelRegistryRevisionActorId }
+      : {}),
+    ...(candidate.modelRegistryRevisionFingerprint
+      ? {
+          modelRegistryRevisionFingerprint:
+            candidate.modelRegistryRevisionFingerprint,
+        }
+      : {}),
+    ...(candidate.modelRegistryRevisionId
+      ? { modelRegistryRevisionId: candidate.modelRegistryRevisionId }
+      : {}),
+    ...(candidate.modelRegistryRevisionScope
+      ? { modelRegistryRevisionScope: candidate.modelRegistryRevisionScope }
+      : {}),
+    ...(candidate.modelRegistryRevisionSourceChain
+      ? {
+          modelRegistryRevisionSourceChain:
+            candidate.modelRegistryRevisionSourceChain as CopilotModelRegistrySourceChainEntry[],
+        }
+      : {}),
+    ...(candidate.modelRegistryRevisionSourceChainFingerprint
+      ? {
+          modelRegistryRevisionSourceChainFingerprint:
+            candidate.modelRegistryRevisionSourceChainFingerprint,
+        }
+      : {}),
+    ...(candidate.modelRegistryRevisionStatus
+      ? { modelRegistryRevisionStatus: candidate.modelRegistryRevisionStatus }
+      : {}),
+    ...(candidate.modelRegistryRevisionWorkspaceId
+      ? {
+          modelRegistryRevisionWorkspaceId:
+            candidate.modelRegistryRevisionWorkspaceId,
+        }
+      : {}),
+    ...(candidate.modelRegistryRevisionPublishEventCount !== undefined
+      ? {
+          modelRegistryRevisionPublishEventCount:
+            candidate.modelRegistryRevisionPublishEventCount,
+        }
+      : {}),
+    ...(candidate.modelRegistryRevisionPublishEvents !== undefined
+      ? {
+          modelRegistryRevisionPublishEvents:
+            candidate.modelRegistryRevisionPublishEvents,
+        }
+      : {}),
   };
 }
 
@@ -6381,6 +8552,57 @@ function toPromptRegistryPublishGateRouteCandidate(
     ...(candidate.routeModelDefinitionSource
       ? { routeModelDefinitionSource: candidate.routeModelDefinitionSource }
       : {}),
+    ...(candidate.modelRegistryRevision
+      ? { modelRegistryRevision: candidate.modelRegistryRevision }
+      : {}),
+    ...(candidate.modelRegistryRevisionActorId
+      ? { modelRegistryRevisionActorId: candidate.modelRegistryRevisionActorId }
+      : {}),
+    ...(candidate.modelRegistryRevisionFingerprint
+      ? {
+          modelRegistryRevisionFingerprint:
+            candidate.modelRegistryRevisionFingerprint,
+        }
+      : {}),
+    ...(candidate.modelRegistryRevisionId
+      ? { modelRegistryRevisionId: candidate.modelRegistryRevisionId }
+      : {}),
+    ...(candidate.modelRegistryRevisionScope
+      ? { modelRegistryRevisionScope: candidate.modelRegistryRevisionScope }
+      : {}),
+    ...(candidate.modelRegistryRevisionSourceChain
+      ? {
+          modelRegistryRevisionSourceChain:
+            candidate.modelRegistryRevisionSourceChain as CopilotModelRegistrySourceChainEntry[],
+        }
+      : {}),
+    ...(candidate.modelRegistryRevisionSourceChainFingerprint
+      ? {
+          modelRegistryRevisionSourceChainFingerprint:
+            candidate.modelRegistryRevisionSourceChainFingerprint,
+        }
+      : {}),
+    ...(candidate.modelRegistryRevisionStatus
+      ? { modelRegistryRevisionStatus: candidate.modelRegistryRevisionStatus }
+      : {}),
+    ...(candidate.modelRegistryRevisionWorkspaceId
+      ? {
+          modelRegistryRevisionWorkspaceId:
+            candidate.modelRegistryRevisionWorkspaceId,
+        }
+      : {}),
+    ...(candidate.modelRegistryRevisionPublishEventCount !== undefined
+      ? {
+          modelRegistryRevisionPublishEventCount:
+            candidate.modelRegistryRevisionPublishEventCount,
+        }
+      : {}),
+    ...(candidate.modelRegistryRevisionPublishEvents !== undefined
+      ? {
+          modelRegistryRevisionPublishEvents:
+            candidate.modelRegistryRevisionPublishEvents,
+        }
+      : {}),
     ...(candidate.routeRawModelId
       ? { routeRawModelId: candidate.routeRawModelId }
       : {}),
@@ -6495,6 +8717,188 @@ function definedArray<T>(values: T[] | undefined) {
 
 const TASK_ROUTE_RECOMMENDATION_EVIDENCE_LIMIT = 192;
 
+function modelRouteCandidateProfileStructuredEvidence(
+  route: CopilotPromptRegistryPublishGateModelRoute
+) {
+  const policyCandidateSnapshot = route.policyCandidates.map(candidate => ({
+    allowed: candidate.allowed,
+    available: candidate.available,
+    health: candidate.health,
+    ...(candidate.healthCheckedAt
+      ? { healthCheckedAt: candidate.healthCheckedAt }
+      : {}),
+    privacy: candidate.privacy,
+    providerId: candidate.providerId,
+    ...(candidate.providerConfiguredModelCount !== undefined
+      ? {
+          providerConfiguredModelCount: candidate.providerConfiguredModelCount,
+        }
+      : {}),
+    ...(candidate.providerConfiguredModelIds?.length
+      ? {
+          providerConfiguredModelIds: candidate.providerConfiguredModelIds,
+        }
+      : {}),
+    ...(candidate.providerName ? { providerName: candidate.providerName } : {}),
+    ...(candidate.providerPriority !== undefined
+      ? { providerPriority: candidate.providerPriority }
+      : {}),
+    ...(candidate.providerProfileConfigPath
+      ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
+      : {}),
+    ...(candidate.providerProfileId
+      ? { providerProfileId: candidate.providerProfileId }
+      : {}),
+    ...(candidate.providerProfileSource
+      ? { providerProfileSource: candidate.providerProfileSource }
+      : {}),
+    ...(candidate.providerSource
+      ? { providerSource: candidate.providerSource }
+      : {}),
+    ...(candidate.providerType ? { providerType: candidate.providerType } : {}),
+    ...(candidate.registryAvailable !== undefined
+      ? { registryAvailable: candidate.registryAvailable }
+      : {}),
+    ...(candidate.registryKind ? { registryKind: candidate.registryKind } : {}),
+    ...(candidate.registrySelected !== undefined
+      ? { registrySelected: candidate.registrySelected }
+      : {}),
+    reasons: candidate.reasons,
+  }));
+  const routeCandidateSnapshot = route.routeCandidates;
+  const routeTraceSnapshot = route.routeTrace.map(phase => ({
+    ...(phase.availableCount !== undefined
+      ? { availableCount: phase.availableCount }
+      : {}),
+    ...(phase.blockedCount !== undefined
+      ? { blockedCount: phase.blockedCount }
+      : {}),
+    candidateCount: phase.candidateCount,
+    ...(phase.matchedCount !== undefined
+      ? { matchedCount: phase.matchedCount }
+      : {}),
+    phase: phase.phase,
+    ...(phase.selectedCount !== undefined
+      ? { selectedCount: phase.selectedCount }
+      : {}),
+    reasons: phase.reasons,
+  }));
+  const candidates = [
+    ...route.policyCandidates.map((candidate, index) =>
+      taskRouteRepairCandidateEvidenceBase(
+        'policyCandidate',
+        {
+          allowed: candidate.allowed,
+          available: candidate.available,
+          candidateKey: candidate.candidateKey,
+          health: candidate.health,
+          healthCheckedAt: candidate.healthCheckedAt,
+          policyCandidates: policyCandidateSnapshot,
+          policyCandidateSnapshotFingerprint: taskRouteSnapshotFingerprint(
+            policyCandidateSnapshot
+          ),
+          privacy: candidate.privacy,
+          providerConfiguredModelCount: candidate.providerConfiguredModelCount,
+          providerConfiguredModelIds: candidate.providerConfiguredModelIds,
+          providerId: candidate.providerId,
+          providerName: candidate.providerName,
+          providerPriority: candidate.providerPriority,
+          providerProfileConfigPath: candidate.providerProfileConfigPath,
+          providerProfileId: candidate.providerProfileId,
+          providerProfileSource: candidate.providerProfileSource,
+          providerSource: candidate.providerSource,
+          providerType: candidate.providerType,
+          reasons: candidate.reasons,
+          registryAvailable: candidate.registryAvailable,
+          registryKind: candidate.registryKind,
+          registrySelected: candidate.registrySelected,
+          requestedModelId: route.requestedModelId,
+          requestedModelSource: route.requestedModelSource,
+          routeCandidateSnapshotFingerprint: taskRouteSnapshotFingerprint(
+            routeCandidateSnapshot
+          ),
+          routeTrace: routeTraceSnapshot,
+          routeTracePhases: route.routeTrace.map(phase => phase.phase),
+          routeTraceSnapshotFingerprint:
+            taskRouteSnapshotFingerprint(routeTraceSnapshot),
+        },
+        index
+      )
+    ),
+    ...route.routeCandidates.map((candidate, index) =>
+      taskRouteRepairCandidateEvidenceBase(
+        'routeCandidate',
+        {
+          candidateModelIds: candidate.candidateModelIds,
+          costInputPer1M: candidate.costInputPer1M,
+          costOutputPer1M: candidate.costOutputPer1M,
+          fallbackProviderIds: route.fallbackProviderIds,
+          health: candidate.health,
+          healthCheckedAt: candidate.healthCheckedAt,
+          matched: candidate.matched,
+          modelId: candidate.modelId,
+          policyCandidates: policyCandidateSnapshot,
+          policyCandidateSnapshotFingerprint: taskRouteSnapshotFingerprint(
+            policyCandidateSnapshot
+          ),
+          privacy: candidate.privacy,
+          providerConfiguredModelCount: candidate.providerConfiguredModelCount,
+          providerConfiguredModelIds: candidate.providerConfiguredModelIds,
+          providerId: candidate.providerId,
+          providerName: candidate.providerName,
+          providerPriority: candidate.providerPriority,
+          providerProfileConfigPath: candidate.providerProfileConfigPath,
+          providerProfileId: candidate.providerProfileId,
+          providerProfileSource: candidate.providerProfileSource,
+          providerSource: candidate.providerSource,
+          providerType: candidate.providerType,
+          reasons: candidate.reasons,
+          registryAvailable: candidate.registryAvailable,
+          registryKind: candidate.registryKind,
+          registrySelected: candidate.registrySelected,
+          requestedModelId:
+            candidate.requestedModelId ?? route.requestedModelId,
+          requestedModelSource: route.requestedModelSource,
+          routeAttachmentAllowRemoteUrls:
+            candidate.routeAttachmentAllowRemoteUrls,
+          routeAttachmentKinds: candidate.routeAttachmentKinds,
+          routeAttachmentSourceKinds: candidate.routeAttachmentSourceKinds,
+          routeCandidateSnapshotFingerprint: taskRouteSnapshotFingerprint(
+            routeCandidateSnapshot
+          ),
+          routeContextWindow: candidate.routeContextWindow,
+          routeEmbeddingDimensions: candidate.routeEmbeddingDimensions,
+          routeInputTypes: candidate.routeInputTypes,
+          routeMaxOutputTokens: candidate.routeMaxOutputTokens,
+          routeModelAliasMatched: candidate.routeModelAliasMatched,
+          routeModelDefinitionAliases: candidate.routeModelDefinitionAliases,
+          routeModelDefinitionId: candidate.routeModelDefinitionId,
+          routeModelDefinitionSource: candidate.routeModelDefinitionSource,
+          routeOutputTypes: candidate.routeOutputTypes,
+          routeRawModelId: candidate.routeRawModelId,
+          routeStructuredAttachmentAllowRemoteUrls:
+            candidate.routeStructuredAttachmentAllowRemoteUrls,
+          routeStructuredAttachmentKinds:
+            candidate.routeStructuredAttachmentKinds,
+          routeStructuredAttachmentSourceKinds:
+            candidate.routeStructuredAttachmentSourceKinds,
+          routeTrace: routeTraceSnapshot,
+          routeTracePhases: route.routeTrace.map(phase => phase.phase),
+          routeTraceSnapshotFingerprint:
+            taskRouteSnapshotFingerprint(routeTraceSnapshot),
+        },
+        index
+      )
+    ),
+  ];
+
+  return candidates.map(candidate => ({
+    candidateFingerprint:
+      taskRouteRepairCandidateEvidenceFingerprint(candidate),
+    ...candidate,
+  }));
+}
+
 function taskRouteRepairCandidateEvidenceBase(
   scope: string,
   candidate: {
@@ -6574,6 +8978,17 @@ function taskRouteRepairCandidateEvidenceBase(
     routeModelDefinitionAliases?: string[];
     routeModelDefinitionId?: string;
     routeModelDefinitionSource?: CopilotModelDefinitionSource;
+    modelRegistryRevision?: string;
+    modelRegistryRevisionActorId?: string;
+    modelRegistryRevisionFingerprint?: string;
+    modelRegistryRevisionId?: string;
+    modelRegistryRevisionScope?: string;
+    modelRegistryRevisionSourceChain?: CopilotModelRegistrySourceChainEntry[];
+    modelRegistryRevisionSourceChainFingerprint?: string;
+    modelRegistryRevisionStatus?: string;
+    modelRegistryRevisionWorkspaceId?: string;
+    modelRegistryRevisionPublishEventCount?: number;
+    modelRegistryRevisionPublishEvents?: RegistryRevisionPublishEventRecord[];
     routeOutputTypes?: string[];
     routeRawModelId?: string;
     routeStructuredAttachmentAllowRemoteUrls?: boolean;
@@ -6888,6 +9303,59 @@ function taskRouteRepairCandidateEvidenceBase(
       : {}),
     ...(candidate.routeModelDefinitionSource !== undefined
       ? { routeModelDefinitionSource: candidate.routeModelDefinitionSource }
+      : {}),
+    ...(candidate.modelRegistryRevision !== undefined
+      ? { modelRegistryRevision: candidate.modelRegistryRevision }
+      : {}),
+    ...(candidate.modelRegistryRevisionActorId !== undefined
+      ? {
+          modelRegistryRevisionActorId: candidate.modelRegistryRevisionActorId,
+        }
+      : {}),
+    ...(candidate.modelRegistryRevisionFingerprint !== undefined
+      ? {
+          modelRegistryRevisionFingerprint:
+            candidate.modelRegistryRevisionFingerprint,
+        }
+      : {}),
+    ...(candidate.modelRegistryRevisionId !== undefined
+      ? { modelRegistryRevisionId: candidate.modelRegistryRevisionId }
+      : {}),
+    ...(candidate.modelRegistryRevisionScope !== undefined
+      ? { modelRegistryRevisionScope: candidate.modelRegistryRevisionScope }
+      : {}),
+    ...(candidate.modelRegistryRevisionSourceChain !== undefined
+      ? {
+          modelRegistryRevisionSourceChain:
+            candidate.modelRegistryRevisionSourceChain,
+        }
+      : {}),
+    ...(candidate.modelRegistryRevisionSourceChainFingerprint !== undefined
+      ? {
+          modelRegistryRevisionSourceChainFingerprint:
+            candidate.modelRegistryRevisionSourceChainFingerprint,
+        }
+      : {}),
+    ...(candidate.modelRegistryRevisionStatus !== undefined
+      ? { modelRegistryRevisionStatus: candidate.modelRegistryRevisionStatus }
+      : {}),
+    ...(candidate.modelRegistryRevisionWorkspaceId !== undefined
+      ? {
+          modelRegistryRevisionWorkspaceId:
+            candidate.modelRegistryRevisionWorkspaceId,
+        }
+      : {}),
+    ...(candidate.modelRegistryRevisionPublishEventCount !== undefined
+      ? {
+          modelRegistryRevisionPublishEventCount:
+            candidate.modelRegistryRevisionPublishEventCount,
+        }
+      : {}),
+    ...(candidate.modelRegistryRevisionPublishEvents !== undefined
+      ? {
+          modelRegistryRevisionPublishEvents:
+            candidate.modelRegistryRevisionPublishEvents,
+        }
       : {}),
     ...(definedArray(candidate.routeOutputTypes) !== undefined
       ? { routeOutputTypes: definedArray(candidate.routeOutputTypes) }
@@ -7442,6 +9910,21 @@ function taskRouteCandidateProfileEvidence(
           ),
           candidate.routeModelAliasMatched !== undefined
             ? `${candidate.scope}#${candidate.candidateIndex}:routeModelAliasMatched:${candidate.routeModelAliasMatched}`
+            : null,
+          candidate.modelRegistryRevisionId
+            ? `${candidate.scope}#${candidate.candidateIndex}:modelRegistryRevisionId:${candidate.modelRegistryRevisionId}`
+            : null,
+          candidate.modelRegistryRevision
+            ? `${candidate.scope}#${candidate.candidateIndex}:modelRegistryRevision:${candidate.modelRegistryRevision}`
+            : null,
+          candidate.modelRegistryRevisionScope
+            ? `${candidate.scope}#${candidate.candidateIndex}:modelRegistryRevisionScope:${candidate.modelRegistryRevisionScope}`
+            : null,
+          candidate.modelRegistryRevisionFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:modelRegistryRevisionFingerprint:${candidate.modelRegistryRevisionFingerprint}`
+            : null,
+          candidate.modelRegistryRevisionSourceChainFingerprint
+            ? `${candidate.scope}#${candidate.candidateIndex}:modelRegistryRevisionSourceChainFingerprint:${candidate.modelRegistryRevisionSourceChainFingerprint}`
             : null,
           candidate.routeRawModelId
             ? `${candidate.scope}#${candidate.candidateIndex}:routeRawModelId:${candidate.routeRawModelId}`
@@ -9915,6 +12398,9 @@ function buildPromptRegistryPublishGateRepairRecommendations(input: {
     if (!route.available) {
       const isDefaultRoute = route.candidateKind === 'default';
       pushRecommendation({
+        candidateEvidence: isDefaultRoute
+          ? modelRouteCandidateProfileStructuredEvidence(route)
+          : undefined,
         category: 'model_route',
         code: `${route.candidateKind}_model_route_unavailable`,
         detail: `No available ${route.outputType} provider route was found for ${route.candidateKind} model "${requestedModelId ?? 'unknown'}".`,
@@ -16622,6 +19108,411 @@ function buildPromptRegistryRepairExecutionRequest(
   };
 }
 
+function buildPromptRegistryRepairExecutorPayload(input: {
+  current: CopilotPromptRegistryPublishGateVerdictType;
+  request: CopilotPromptRegistryRepairExecutionRequest;
+}) {
+  const preview = input.current.repairActionPreview;
+  const fallbackSourceChain = [
+    {
+      source: 'legacy_registry',
+      scope: 'global',
+      status: input.current.publishStatus,
+      fingerprint: input.current.registryFingerprint,
+      registryId: input.current.registryId,
+      revision: input.current.registryFingerprint,
+      updatedAt: input.current.registryUpdatedAt.toISOString(),
+    },
+    {
+      source: 'repair_execution_request',
+      scope: 'workspace',
+      status: 'prepared_for_approval',
+      fingerprint: input.request.requestFingerprint,
+    },
+  ];
+
+  return {
+    version: 'prompt-registry-revision-executor-payload/v1' as const,
+    kind: 'prompt_registry_revision_publish' as const,
+    expectedRegistryFingerprint: input.current.registryFingerprint,
+    expectedRegistryId: input.current.registryId,
+    expectedRegistryUpdatedAt: input.current.registryUpdatedAt.toISOString(),
+    operationFingerprints: [...preview.operationFingerprints].sort(),
+    operationKinds: uniqueStrings(
+      preview.operations.map(operation => operation.actionKind)
+    ).sort(),
+    operationSetFingerprint: preview.operationSetFingerprint,
+    previewFingerprint: preview.previewFingerprint,
+    catalogFingerprint: preview.catalogFingerprint,
+    fallbackSourceChain,
+  };
+}
+
+function isTaskRoutePolicyFeatureKind(
+  value: string | undefined
+): value is TaskRoutePolicyFeatureKind {
+  return (
+    value === 'embedding' ||
+    value === 'workspace_indexing' ||
+    value === 'rerank'
+  );
+}
+
+function configKeyFromTaskRouteFeatureKind(
+  featureKind: TaskRoutePolicyFeatureKind
+): 'embedding' | 'workspaceIndexing' | 'rerank' {
+  if (featureKind === 'workspace_indexing') {
+    return 'workspaceIndexing';
+  }
+  return featureKind;
+}
+
+function selectTaskRoutePolicyRepairModelId(
+  operation: CopilotPromptRegistryPublishGateRepairActionPreviewOperation
+) {
+  const candidateModelId = (
+    candidate: CopilotPromptRegistryPublishGateRouteCandidate
+  ) => {
+    if (!candidate.matched) {
+      return undefined;
+    }
+    if (candidate.requestedModelId) {
+      return candidate.requestedModelId;
+    }
+    if (candidate.providerId && candidate.routeModelDefinitionId) {
+      return `${candidate.providerId}/${candidate.routeModelDefinitionId}`;
+    }
+    if (candidate.providerId && candidate.modelId) {
+      return `${candidate.providerId}/${candidate.modelId}`;
+    }
+    return candidate.modelId;
+  };
+
+  for (const entry of operation.candidateEvidenceEntries) {
+    const matchedCandidate = entry.routeCandidateEntries?.find(
+      candidate => candidate.matched && candidateModelId(candidate)
+    );
+    const matchedModelId = matchedCandidate
+      ? candidateModelId(matchedCandidate)
+      : undefined;
+    if (matchedModelId) {
+      return matchedModelId;
+    }
+
+    const policyModelId = entry.policyCandidateEntries
+      ?.filter(candidate => candidate.allowed && candidate.available)
+      .flatMap(candidate =>
+        (candidate.providerConfiguredModelIds ?? []).map(
+          modelId => `${candidate.providerId}/${modelId}`
+        )
+      )
+      .find(Boolean);
+    if (policyModelId) {
+      return policyModelId;
+    }
+
+    const routeCandidate = entry.routeCandidateEntries?.find(
+      candidate => candidate.matched && candidateModelId(candidate)
+    );
+    const routeModelId = routeCandidate
+      ? candidateModelId(routeCandidate)
+      : undefined;
+    if (routeModelId) {
+      return routeModelId;
+    }
+
+    const preparedRoute = entry.preparedRouteEntries?.find(
+      route => route.modelId
+    );
+    if (preparedRoute?.providerId && preparedRoute.modelId) {
+      return `${preparedRoute.providerId}/${preparedRoute.modelId}`;
+    }
+    if (preparedRoute?.modelId) {
+      return preparedRoute.modelId;
+    }
+  }
+
+  return operation.targetLocator?.requestedModelId;
+}
+
+function buildTaskRoutePolicyRepairExecutorPayload(input: {
+  current: CopilotPromptRegistryPublishGateVerdictType;
+  request: CopilotPromptRegistryRepairExecutionRequest;
+  workspaceId: string;
+}) {
+  const preview = input.current.repairActionPreview;
+  const candidates: {
+    featureKind: TaskRoutePolicyFeatureKind;
+    modelId: string;
+    operation: CopilotPromptRegistryPublishGateRepairActionPreviewOperation;
+  }[] = [];
+  for (const operation of preview.operations) {
+    if (
+      operation.actionKind !== 'repair_task_model_route' ||
+      operation.targetLocator?.kind !== 'task_route' ||
+      !isTaskRoutePolicyFeatureKind(operation.targetLocator.featureKind)
+    ) {
+      continue;
+    }
+
+    const modelId = selectTaskRoutePolicyRepairModelId(operation);
+    if (modelId) {
+      candidates.push({
+        featureKind: operation.targetLocator.featureKind,
+        modelId,
+        operation,
+      });
+    }
+  }
+  const selected =
+    candidates.find(
+      candidate =>
+        candidate.featureKind === 'rerank' &&
+        candidate.operation.targetLocator?.requestedModelId
+    ) ??
+    candidates.find(
+      candidate => candidate.operation.targetLocator?.requestedModelId
+    ) ??
+    candidates.find(candidate => candidate.featureKind === 'rerank') ??
+    candidates[0];
+  if (!selected) {
+    return null;
+  }
+
+  const { featureKind, modelId, operation } = selected;
+
+  const configKey =
+    operation.targetLocator.requestedModelConfigKey ??
+    configKeyFromTaskRouteFeatureKind(featureKind);
+  const configPath =
+    operation.targetLocator.requestedModelConfigPath ??
+    `copilot.tasks.models.${configKey}`;
+  const fallbackSourceChain: TaskRoutePolicySourceChainEntry[] = [
+    {
+      source: operation.targetLocator.requestedModelId
+        ? 'config_fallback'
+        : 'provider_default',
+      scope: 'global',
+      status: 'available',
+      featureKind,
+      ...(operation.targetLocator.requestedModelId
+        ? { modelId: operation.targetLocator.requestedModelId }
+        : {}),
+      configKey: configKey as 'embedding' | 'workspaceIndexing' | 'rerank',
+      configPath,
+    },
+    {
+      source: 'config_fallback',
+      scope: 'workspace',
+      status: 'prepared_for_approval',
+      featureKind,
+      fingerprint: input.request.requestFingerprint,
+      modelId,
+      configKey: configKey as 'embedding' | 'workspaceIndexing' | 'rerank',
+      configPath,
+      workspaceId: input.workspaceId,
+    },
+  ];
+
+  return {
+    version: 'task-route-policy-revision-executor-payload/v1' as const,
+    kind: 'task_route_policy_revision_publish' as const,
+    featureKind,
+    modelId,
+    configKey: configKey as 'embedding' | 'workspaceIndexing' | 'rerank',
+    configPath,
+    operationFingerprint: operation.operationFingerprint,
+    operationSetFingerprint: preview.operationSetFingerprint,
+    previewFingerprint: preview.previewFingerprint,
+    catalogFingerprint: preview.catalogFingerprint,
+    targetLocatorFingerprint: operation.targetLocatorFingerprint,
+    taskRouteEffectiveSourceFingerprints: [
+      ...operation.taskRouteEffectiveSourceFingerprints,
+    ].sort(),
+    candidateEvidenceFingerprints: [
+      ...operation.candidateEvidenceFingerprints,
+    ].sort(),
+    fallbackSourceChain,
+  };
+}
+
+function outputTypeToModelDefinitionOutput(
+  outputType: string
+): ModelOutputType {
+  if (outputType === ModelOutputType.Object) {
+    return ModelOutputType.Object;
+  }
+  if (outputType === ModelOutputType.Structured) {
+    return ModelOutputType.Structured;
+  }
+  if (outputType === ModelOutputType.Image) {
+    return ModelOutputType.Image;
+  }
+  if (outputType === ModelOutputType.Embedding) {
+    return ModelOutputType.Embedding;
+  }
+  if (outputType === ModelOutputType.Rerank) {
+    return ModelOutputType.Rerank;
+  }
+  return ModelOutputType.Text;
+}
+
+function modelRegistryRepairAliasOutputs(
+  outputType: string
+): ModelOutputType[] {
+  const output = outputTypeToModelDefinitionOutput(outputType);
+
+  return output === ModelOutputType.Object
+    ? [ModelOutputType.Object, ModelOutputType.Text]
+    : [output];
+}
+
+function selectModelRegistryRepairProviderCandidate(
+  operation: CopilotPromptRegistryPublishGateRepairActionPreviewOperation
+) {
+  for (const entry of operation.candidateEvidenceEntries) {
+    const policyCandidate = entry.policyCandidateEntries
+      ?.filter(candidate => candidate.allowed && candidate.available)
+      .find(candidate => candidate.providerConfiguredModelIds?.length);
+    const providerModelId = policyCandidate?.providerConfiguredModelIds?.[0];
+    if (policyCandidate && providerModelId) {
+      return {
+        providerId: policyCandidate.providerId,
+        providerModelId,
+        providerName: policyCandidate.providerName,
+        providerProfileSource: policyCandidate.providerProfileSource,
+      };
+    }
+
+    const routeCandidate = entry.routeCandidateEntries?.find(
+      candidate =>
+        candidate.matched &&
+        candidate.providerId &&
+        (candidate.routeModelDefinitionId ||
+          candidate.modelId ||
+          candidate.requestedModelId)
+    );
+    if (routeCandidate?.providerId) {
+      return {
+        providerId: routeCandidate.providerId,
+        providerModelId:
+          routeCandidate.routeModelDefinitionId ??
+          routeCandidate.modelId ??
+          routeCandidate.requestedModelId!,
+        providerName: routeCandidate.providerName,
+        providerProfileSource: routeCandidate.providerProfileSource,
+      };
+    }
+
+    const preparedRoute = entry.preparedRouteEntries?.find(
+      route => route.providerId && route.modelId
+    );
+    if (preparedRoute) {
+      return {
+        providerId: preparedRoute.providerId,
+        providerModelId: preparedRoute.modelId,
+        providerName: preparedRoute.providerName,
+        providerProfileSource: preparedRoute.providerProfileSource,
+      };
+    }
+  }
+
+  return null;
+}
+
+function buildModelRegistryRepairExecutorPayload(input: {
+  current: CopilotPromptRegistryPublishGateVerdictType;
+  request: CopilotPromptRegistryRepairExecutionRequest;
+  workspaceId: string;
+}) {
+  const preview = input.current.repairActionPreview;
+  const operation = preview.operations.find(
+    operation =>
+      operation.actionKind === 'repair_default_model_route' &&
+      operation.targetLocator?.kind === 'model_route' &&
+      operation.targetLocator.requestedModelId
+  );
+  if (!operation?.targetLocator?.requestedModelId) {
+    return null;
+  }
+
+  const candidate = selectModelRegistryRepairProviderCandidate(operation);
+  if (!candidate) {
+    return null;
+  }
+
+  const modelId = operation.targetLocator.requestedModelId;
+  const outputs = modelRegistryRepairAliasOutputs(
+    operation.targetLocator.outputType ?? ModelOutputType.Text
+  );
+  const displayName = `${modelId} (repair alias)`;
+  const fallbackSourceChain = [
+    {
+      source: 'provider_profile' as const,
+      scope: 'global' as const,
+      status: 'available',
+      providerId: candidate.providerId,
+      modelId: candidate.providerModelId,
+      ...(candidate.providerProfileSource
+        ? { revision: candidate.providerProfileSource }
+        : {}),
+    },
+    {
+      source: 'config_fallback' as const,
+      scope: 'workspace' as const,
+      status: 'prepared_for_approval',
+      fingerprint: input.request.requestFingerprint,
+      providerId: candidate.providerId,
+      modelId,
+      workspaceId: input.workspaceId,
+    },
+  ];
+  const modelDefinition = {
+    id: modelId,
+    rawModelId: candidate.providerModelId,
+    displayName,
+    aliases: [candidate.providerModelId],
+    capabilities: [
+      {
+        input: [ModelInputType.Text],
+        output: outputs,
+      },
+    ],
+  };
+
+  return {
+    version: 'model-registry-revision-executor-payload/v1' as const,
+    kind: 'model_registry_revision_publish' as const,
+    providerId: candidate.providerId,
+    modelId,
+    rawModelId: candidate.providerModelId,
+    displayName,
+    aliases: [candidate.providerModelId],
+    modelDefinition,
+    operationFingerprint: operation.operationFingerprint,
+    operationSetFingerprint: preview.operationSetFingerprint,
+    previewFingerprint: preview.previewFingerprint,
+    catalogFingerprint: preview.catalogFingerprint,
+    targetLocatorFingerprint: operation.targetLocatorFingerprint,
+    candidateEvidenceFingerprints: [
+      ...operation.candidateEvidenceFingerprints,
+    ].sort(),
+    fallbackSourceChain,
+  };
+}
+
+function buildRepairExecutorPayload(input: {
+  current: CopilotPromptRegistryPublishGateVerdictType;
+  request: CopilotPromptRegistryRepairExecutionRequest;
+  workspaceId: string;
+}) {
+  return (
+    buildTaskRoutePolicyRepairExecutorPayload(input) ??
+    buildModelRegistryRepairExecutorPayload(input) ??
+    buildPromptRegistryRepairExecutorPayload(input)
+  );
+}
+
 function promptRegistryPublishGateActionTextResultSchema() {
   return {
     type: 'object',
@@ -16827,13 +19718,22 @@ function promptRegistryPublishGateActionDryRunResult(
 }
 
 function providerProfileConfigPath(
-  profile: Pick<ResolvedCopilotProvider['profile'], 'id' | 'source' | 'type'>
+  profile: Pick<ResolvedCopilotProvider['profile'], 'id' | 'source' | 'type'> &
+    Pick<
+      Partial<ResolvedCopilotProvider['profile']>,
+      'providerRegistryRevisionId'
+    >
 ) {
   if (profile.source === 'configured') {
     return `copilot.providers.profiles[id=${profile.id}]`;
   }
   if (profile.source === 'legacy') {
     return `copilot.providers.${profile.type}`;
+  }
+  if (profile.source === 'db_revision') {
+    return profile.providerRegistryRevisionId
+      ? `ai_provider_registry_revisions[id=${profile.providerRegistryRevisionId}]`
+      : `ai_provider_registry_revisions[provider_id=${profile.id}]`;
   }
   if (profile.source === 'byok_local') {
     return 'workspace.byok.local';
@@ -16866,6 +19766,9 @@ function resolveModelDefinitionSource(
   resolvedProviderModel: Partial<ResolvedProviderModel> | undefined,
   profileDefinition: ReturnType<typeof resolveProfileModelDefinition>
 ): CopilotModelDefinitionSource | undefined {
+  if (profileDefinition?.registryRecordSource === 'db_revision') {
+    return 'db_revision';
+  }
   if (profileDefinition) {
     return 'provider_profile';
   }
@@ -16920,6 +19823,17 @@ function buildModelListEffectiveSourceFingerprint(
     | 'routeModelDefinitionAliases'
     | 'routeModelDefinitionId'
     | 'routeModelDefinitionSource'
+    | 'modelRegistryRevision'
+    | 'modelRegistryRevisionActorId'
+    | 'modelRegistryRevisionFingerprint'
+    | 'modelRegistryRevisionId'
+    | 'modelRegistryRevisionScope'
+    | 'modelRegistryRevisionSourceChain'
+    | 'modelRegistryRevisionSourceChainFingerprint'
+    | 'modelRegistryRevisionStatus'
+    | 'modelRegistryRevisionWorkspaceId'
+    | 'modelRegistryRevisionPublishEventCount'
+    | 'modelRegistryRevisionPublishEvents'
     | 'routeModelId'
     | 'routePolicyAllowedPrivacy'
     | 'routePolicyAllowedProviderIds'
@@ -16968,6 +19882,20 @@ function buildModelListEffectiveSourceFingerprint(
         routeModelDefinitionAliases: model.routeModelDefinitionAliases ?? null,
         routeModelDefinitionId: model.routeModelDefinitionId ?? null,
         routeModelDefinitionSource: model.routeModelDefinitionSource ?? null,
+        modelRegistryRevision: model.modelRegistryRevision ?? null,
+        modelRegistryRevisionActorId:
+          model.modelRegistryRevisionActorId ?? null,
+        modelRegistryRevisionFingerprint:
+          model.modelRegistryRevisionFingerprint ?? null,
+        modelRegistryRevisionId: model.modelRegistryRevisionId ?? null,
+        modelRegistryRevisionScope: model.modelRegistryRevisionScope ?? null,
+        modelRegistryRevisionSourceChain:
+          model.modelRegistryRevisionSourceChain ?? null,
+        modelRegistryRevisionSourceChainFingerprint:
+          model.modelRegistryRevisionSourceChainFingerprint ?? null,
+        modelRegistryRevisionStatus: model.modelRegistryRevisionStatus ?? null,
+        modelRegistryRevisionWorkspaceId:
+          model.modelRegistryRevisionWorkspaceId ?? null,
         routeModelId: model.routeModelId ?? null,
         routePolicyAllowedPrivacy: model.routePolicyAllowedPrivacy ?? null,
         routePolicyAllowedProviderIds:
@@ -17309,6 +20237,35 @@ function buildTaskRouteEffectiveSourceFingerprint(
           route.routeCandidates
         ),
         routeTrace: taskRouteTraceEffectiveSourceSnapshot(route.routeTrace),
+        taskRoutePolicyRevision: route.taskRoutePolicyRevision ?? null,
+        taskRoutePolicyRevisionActorId:
+          route.taskRoutePolicyRevisionActorId ?? null,
+        taskRoutePolicyRevisionFingerprint:
+          route.taskRoutePolicyRevisionFingerprint ?? null,
+        taskRoutePolicyRevisionId: route.taskRoutePolicyRevisionId ?? null,
+        taskRoutePolicyRevisionScope:
+          route.taskRoutePolicyRevisionScope ?? null,
+        taskRoutePolicyRevisionSourceChain:
+          route.taskRoutePolicyRevisionSourceChain?.map(entry => ({
+            actorId: entry.actorId ?? null,
+            configKey: entry.configKey ?? null,
+            configPath: entry.configPath ?? null,
+            featureKind: entry.featureKind ?? null,
+            fingerprint: entry.fingerprint ?? null,
+            modelId: entry.modelId ?? null,
+            revision: entry.revision ?? null,
+            scope: entry.scope,
+            source: entry.source,
+            status: entry.status,
+            updatedAt: entry.updatedAt ?? null,
+            workspaceId: entry.workspaceId ?? null,
+          })) ?? null,
+        taskRoutePolicyRevisionSourceChainFingerprint:
+          route.taskRoutePolicyRevisionSourceChainFingerprint ?? null,
+        taskRoutePolicyRevisionStatus:
+          route.taskRoutePolicyRevisionStatus ?? null,
+        taskRoutePolicyRevisionWorkspaceId:
+          route.taskRoutePolicyRevisionWorkspaceId ?? null,
         topK: route.topK ?? null,
       })
     )
@@ -17365,6 +20322,59 @@ function buildTaskRoutePreparedTargetSummary(input: {
       .digest('hex')
       .slice(0, 16),
     preparedRouteTargets: targets,
+  };
+}
+
+function taskRoutePolicyRevisionMetadata(
+  model: Awaited<ReturnType<TaskPolicy['resolveEffectiveRerankModel']>>
+) {
+  return {
+    ...(model.registryRevision?.revision
+      ? { taskRoutePolicyRevision: model.registryRevision.revision }
+      : {}),
+    ...(model.registryRevisionActorId
+      ? { taskRoutePolicyRevisionActorId: model.registryRevisionActorId }
+      : {}),
+    ...(model.registryRevisionFingerprint
+      ? {
+          taskRoutePolicyRevisionFingerprint: model.registryRevisionFingerprint,
+        }
+      : {}),
+    ...(model.registryRevisionId
+      ? { taskRoutePolicyRevisionId: model.registryRevisionId }
+      : {}),
+    ...(model.registryRevisionScope
+      ? { taskRoutePolicyRevisionScope: model.registryRevisionScope }
+      : {}),
+    ...(model.fallbackSourceChain
+      ? { taskRoutePolicyRevisionSourceChain: model.fallbackSourceChain }
+      : {}),
+    ...(model.registrySourceChainFingerprint
+      ? {
+          taskRoutePolicyRevisionSourceChainFingerprint:
+            model.registrySourceChainFingerprint,
+        }
+      : {}),
+    ...(model.registryRevisionStatus
+      ? { taskRoutePolicyRevisionStatus: model.registryRevisionStatus }
+      : {}),
+    ...(model.registryRevisionWorkspaceId
+      ? {
+          taskRoutePolicyRevisionWorkspaceId: model.registryRevisionWorkspaceId,
+        }
+      : {}),
+    ...(model.registryRevisionPublishEventCount !== undefined
+      ? {
+          taskRoutePolicyRevisionPublishEventCount:
+            model.registryRevisionPublishEventCount,
+        }
+      : {}),
+    ...(model.registryRevisionPublishEvents !== undefined
+      ? {
+          taskRoutePolicyRevisionPublishEvents:
+            model.registryRevisionPublishEvents,
+        }
+      : {}),
   };
 }
 
@@ -17700,6 +20710,39 @@ function buildTaskRoutePrepareCandidates(
     const routeModelAliasMatched =
       candidate.routeModelAliasMatched ??
       providerPrepareCandidate?.routeModelAliasMatched;
+    const modelRegistryRevision =
+      candidate.modelRegistryRevision ??
+      providerPrepareCandidate?.modelRegistryRevision;
+    const modelRegistryRevisionActorId =
+      candidate.modelRegistryRevisionActorId ??
+      providerPrepareCandidate?.modelRegistryRevisionActorId;
+    const modelRegistryRevisionFingerprint =
+      candidate.modelRegistryRevisionFingerprint ??
+      providerPrepareCandidate?.modelRegistryRevisionFingerprint;
+    const modelRegistryRevisionId =
+      candidate.modelRegistryRevisionId ??
+      providerPrepareCandidate?.modelRegistryRevisionId;
+    const modelRegistryRevisionScope =
+      candidate.modelRegistryRevisionScope ??
+      providerPrepareCandidate?.modelRegistryRevisionScope;
+    const modelRegistryRevisionSourceChain =
+      candidate.modelRegistryRevisionSourceChain ??
+      providerPrepareCandidate?.modelRegistryRevisionSourceChain;
+    const modelRegistryRevisionSourceChainFingerprint =
+      candidate.modelRegistryRevisionSourceChainFingerprint ??
+      providerPrepareCandidate?.modelRegistryRevisionSourceChainFingerprint;
+    const modelRegistryRevisionStatus =
+      candidate.modelRegistryRevisionStatus ??
+      providerPrepareCandidate?.modelRegistryRevisionStatus;
+    const modelRegistryRevisionWorkspaceId =
+      candidate.modelRegistryRevisionWorkspaceId ??
+      providerPrepareCandidate?.modelRegistryRevisionWorkspaceId;
+    const modelRegistryRevisionPublishEventCount =
+      candidate.modelRegistryRevisionPublishEventCount ??
+      providerPrepareCandidate?.modelRegistryRevisionPublishEventCount;
+    const modelRegistryRevisionPublishEvents =
+      candidate.modelRegistryRevisionPublishEvents ??
+      providerPrepareCandidate?.modelRegistryRevisionPublishEvents;
     const costInputPer1M =
       candidate.costInputPer1M ?? providerPrepareCandidate?.costInputPer1M;
     const costOutputPer1M =
@@ -17803,6 +20846,29 @@ function buildTaskRoutePrepareCandidates(
       ...(routeModelAliasMatched !== undefined
         ? { routeModelAliasMatched }
         : {}),
+      ...(modelRegistryRevision ? { modelRegistryRevision } : {}),
+      ...(modelRegistryRevisionActorId ? { modelRegistryRevisionActorId } : {}),
+      ...(modelRegistryRevisionFingerprint
+        ? { modelRegistryRevisionFingerprint }
+        : {}),
+      ...(modelRegistryRevisionId ? { modelRegistryRevisionId } : {}),
+      ...(modelRegistryRevisionScope ? { modelRegistryRevisionScope } : {}),
+      ...(modelRegistryRevisionSourceChain
+        ? { modelRegistryRevisionSourceChain }
+        : {}),
+      ...(modelRegistryRevisionSourceChainFingerprint
+        ? { modelRegistryRevisionSourceChainFingerprint }
+        : {}),
+      ...(modelRegistryRevisionStatus ? { modelRegistryRevisionStatus } : {}),
+      ...(modelRegistryRevisionWorkspaceId
+        ? { modelRegistryRevisionWorkspaceId }
+        : {}),
+      ...(modelRegistryRevisionPublishEventCount !== undefined
+        ? { modelRegistryRevisionPublishEventCount }
+        : {}),
+      ...(modelRegistryRevisionPublishEvents !== undefined
+        ? { modelRegistryRevisionPublishEvents }
+        : {}),
       ...(costInputPer1M !== undefined ? { costInputPer1M } : {}),
       ...(costOutputPer1M !== undefined ? { costOutputPer1M } : {}),
       ...(routeContextWindow !== undefined ? { routeContextWindow } : {}),
@@ -17901,6 +20967,39 @@ function buildTaskRouteTrace(
       reasons: preparedPhaseReasons,
     },
   ];
+}
+
+@ObjectType()
+class CopilotModelRegistrySourceChainEntryType implements CopilotModelRegistrySourceChainEntry {
+  @Field(() => String, { nullable: true })
+  actorId?: string;
+
+  @Field(() => String, { nullable: true })
+  fingerprint?: string;
+
+  @Field(() => String, { nullable: true })
+  modelId?: string;
+
+  @Field(() => String, { nullable: true })
+  providerId?: string;
+
+  @Field(() => String, { nullable: true })
+  revision?: string;
+
+  @Field(() => String)
+  scope!: string;
+
+  @Field(() => String)
+  source!: string;
+
+  @Field(() => String)
+  status!: string;
+
+  @Field(() => String, { nullable: true })
+  updatedAt?: string;
+
+  @Field(() => String, { nullable: true })
+  workspaceId?: string;
 }
 
 @ObjectType()
@@ -18009,6 +21108,39 @@ class CopilotModelType {
 
   @Field(() => Boolean, { nullable: true })
   routeModelAliasMatched?: boolean;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevision?: string;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionActorId?: string;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionFingerprint?: string;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionId?: string;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionScope?: string;
+
+  @Field(() => [CopilotModelRegistrySourceChainEntryType], { nullable: true })
+  modelRegistryRevisionSourceChain?: CopilotModelRegistrySourceChainEntry[];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionSourceChainFingerprint?: string;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionStatus?: string;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionWorkspaceId?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  modelRegistryRevisionPublishEventCount?: number;
+
+  @Field(() => [CopilotRegistryRevisionPublishEventType], { nullable: true })
+  modelRegistryRevisionPublishEvents?: RegistryRevisionPublishEventRecord[];
 
   @Field(() => String, { nullable: true })
   routeProtocol?: string;
@@ -18628,6 +21760,39 @@ class CopilotTaskRouteCandidateDiagnosticsType {
   @Field(() => Boolean, { nullable: true })
   routeModelAliasMatched?: boolean;
 
+  @Field(() => String, { nullable: true })
+  modelRegistryRevision?: string;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionActorId?: string;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionFingerprint?: string;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionId?: string;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionScope?: string;
+
+  @Field(() => [CopilotModelRegistrySourceChainEntryType], { nullable: true })
+  modelRegistryRevisionSourceChain?: CopilotModelRegistrySourceChainEntry[];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionSourceChainFingerprint?: string;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionStatus?: string;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionWorkspaceId?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  modelRegistryRevisionPublishEventCount?: number;
+
+  @Field(() => [CopilotRegistryRevisionPublishEventType], { nullable: true })
+  modelRegistryRevisionPublishEvents?: RegistryRevisionPublishEventRecord[];
+
   @Field(() => [String], { nullable: true })
   candidateModelIds?: string[];
 
@@ -18751,6 +21916,39 @@ class CopilotTaskRoutePrepareCandidateDiagnosticsType {
   @Field(() => Boolean, { nullable: true })
   routeModelAliasMatched?: boolean;
 
+  @Field(() => String, { nullable: true })
+  modelRegistryRevision?: string;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionActorId?: string;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionFingerprint?: string;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionId?: string;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionScope?: string;
+
+  @Field(() => [CopilotModelRegistrySourceChainEntryType], { nullable: true })
+  modelRegistryRevisionSourceChain?: CopilotModelRegistrySourceChainEntry[];
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionSourceChainFingerprint?: string;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionStatus?: string;
+
+  @Field(() => String, { nullable: true })
+  modelRegistryRevisionWorkspaceId?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  modelRegistryRevisionPublishEventCount?: number;
+
+  @Field(() => [CopilotRegistryRevisionPublishEventType], { nullable: true })
+  modelRegistryRevisionPublishEvents?: RegistryRevisionPublishEventRecord[];
+
   @Field(() => [String], { nullable: true })
   candidateModelIds?: string[];
 
@@ -18807,6 +22005,45 @@ class CopilotTaskRouteDiagnosticsErrorType implements CopilotTaskRouteDiagnostic
 
   @Field(() => String)
   stage!: string;
+}
+
+@ObjectType()
+class CopilotTaskRoutePolicySourceChainEntryType implements TaskRoutePolicySourceChainEntry {
+  @Field(() => String)
+  source!: TaskRoutePolicySourceChainEntry['source'];
+
+  @Field(() => String)
+  scope!: TaskRoutePolicySourceChainEntry['scope'];
+
+  @Field(() => String)
+  status!: TaskRoutePolicySourceChainEntry['status'];
+
+  @Field(() => String, { nullable: true })
+  actorId?: string;
+
+  @Field(() => String, { nullable: true })
+  configKey?: string;
+
+  @Field(() => String, { nullable: true })
+  configPath?: string;
+
+  @Field(() => String, { nullable: true })
+  featureKind?: string;
+
+  @Field(() => String, { nullable: true })
+  fingerprint?: string;
+
+  @Field(() => String, { nullable: true })
+  modelId?: string;
+
+  @Field(() => String, { nullable: true })
+  revision?: string;
+
+  @Field(() => String, { nullable: true })
+  updatedAt?: string;
+
+  @Field(() => String, { nullable: true })
+  workspaceId?: string;
 }
 
 @ObjectType()
@@ -18879,6 +22116,41 @@ class CopilotTaskRouteDiagnosticsType {
 
   @Field(() => String, { nullable: true })
   requestedModelSource?: string;
+
+  @Field(() => String, { nullable: true })
+  taskRoutePolicyRevision?: string;
+
+  @Field(() => String, { nullable: true })
+  taskRoutePolicyRevisionActorId?: string;
+
+  @Field(() => String, { nullable: true })
+  taskRoutePolicyRevisionFingerprint?: string;
+
+  @Field(() => String, { nullable: true })
+  taskRoutePolicyRevisionId?: string;
+
+  @Field(() => String, { nullable: true })
+  taskRoutePolicyRevisionScope?: string;
+
+  @Field(() => [CopilotTaskRoutePolicySourceChainEntryType], {
+    nullable: true,
+  })
+  taskRoutePolicyRevisionSourceChain?: TaskRoutePolicySourceChainEntry[];
+
+  @Field(() => String, { nullable: true })
+  taskRoutePolicyRevisionSourceChainFingerprint?: string;
+
+  @Field(() => String, { nullable: true })
+  taskRoutePolicyRevisionStatus?: string;
+
+  @Field(() => String, { nullable: true })
+  taskRoutePolicyRevisionWorkspaceId?: string;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  taskRoutePolicyRevisionPublishEventCount?: number;
+
+  @Field(() => [CopilotRegistryRevisionPublishEventType], { nullable: true })
+  taskRoutePolicyRevisionPublishEvents?: RegistryRevisionPublishEventRecord[];
 
   @Field(() => String, { nullable: true })
   providerId?: string;
@@ -19058,10 +22330,15 @@ export class CopilotResolver {
     private readonly historyProjector: CompatHistoryProjector,
     private readonly inbox: ConversationInboxService,
     private readonly providerFactory: CopilotProviderFactory,
+    private readonly providerRegistry: CopilotProviderRegistryService,
     private readonly capabilityRuntime: CapabilityRuntime,
     private readonly taskPolicy: TaskPolicy,
     private readonly modelsStore: Models,
-    @Optional() private readonly plans?: ExecutionPlanBuilder
+    private readonly url: URLHelper,
+    private readonly jobs: JobQueue,
+    @Optional() private readonly plans?: ExecutionPlanBuilder,
+    @Optional()
+    private readonly agentRuntimeWorkflowRegistry?: CopilotAgentRuntimeWorkflowRegistry
   ) {}
 
   @ResolveField(() => CopilotQuotaType, {
@@ -19098,12 +22375,178 @@ export class CopilotResolver {
     return { userId: user.id, workspaceId, docId: docId || undefined };
   }
 
+  private toSupportBundleDownloadAuthorizationType(
+    authorization:
+      | CopilotSupportBundleDownloadAuthorization
+      | CopilotSupportBundleDownloadAuthorizationResult
+  ): CopilotSupportBundleDownloadAuthorizationType {
+    if (authorization.directDownloadUrl) {
+      return {
+        ...authorization,
+        downloadUrl: authorization.directDownloadUrl,
+      };
+    }
+    if (!('downloadToken' in authorization)) {
+      throw new Error(
+        'Support bundle API proxy download token is not available'
+      );
+    }
+    return {
+      ...authorization,
+      downloadUrl: this.url.link(
+        `/api/copilot/support-bundles/${authorization.id}/artifact`,
+        {
+          token: authorization.downloadToken,
+        }
+      ),
+    };
+  }
+
+  private providerRegistryFallbackSourceChain(
+    profile: NormalizedCopilotProviderProfile
+  ): ProviderRegistrySourceChainEntry[] {
+    return [
+      {
+        source:
+          profile.source === 'legacy'
+            ? ('legacy_profile' as const)
+            : ('provider_profile' as const),
+        scope: 'global' as const,
+        status: profile.enabled ? 'available' : 'disabled',
+        providerId: profile.id,
+        providerType: profile.type,
+        revision: profile.source,
+        fingerprint: createHash('sha256')
+          .update(
+            stableRepairRecommendationStringify({
+              version: 'provider-registry-publish-fallback-source/v1',
+              providerId: profile.id,
+              providerProfileConfigPath: providerProfileConfigPath(profile),
+              providerSource: profile.source,
+              providerType: profile.type,
+            })
+          )
+          .digest('hex')
+          .slice(0, 16),
+      },
+    ];
+  }
+
+  private modelRegistryFallbackSourceChain(
+    profile: NormalizedCopilotProviderProfile,
+    modelId: string
+  ): ModelRegistrySourceChainEntry[] {
+    const profileModel = profile.modelDefinitions.find(definition => {
+      return (
+        definition.id === modelId ||
+        definition.rawModelId === modelId ||
+        (definition.aliases ?? []).includes(modelId)
+      );
+    });
+
+    return [
+      {
+        source: 'provider_profile' as const,
+        scope: 'global' as const,
+        status: profileModel ? 'available' : 'provider_available',
+        providerId: profile.id,
+        modelId,
+        revision: profile.source,
+        fingerprint: createHash('sha256')
+          .update(
+            stableRepairRecommendationStringify({
+              version: 'model-registry-publish-fallback-source/v1',
+              providerId: profile.id,
+              providerProfileConfigPath: providerProfileConfigPath(profile),
+              providerSource: profile.source,
+              modelId,
+              profileModelId: profileModel?.id ?? null,
+            })
+          )
+          .digest('hex')
+          .slice(0, 16),
+      },
+    ];
+  }
+
+  private taskRoutePolicyFallbackModel(
+    featureKind: TaskRoutePolicyFeatureKind
+  ) {
+    if (featureKind === 'embedding') {
+      return this.taskPolicy.resolveEmbeddingModel();
+    }
+    if (featureKind === 'workspace_indexing') {
+      return this.taskPolicy.resolveWorkspaceIndexingModel();
+    }
+    if (featureKind === 'rerank') {
+      return this.taskPolicy.resolveRerankModel();
+    }
+    throw new Error('Unsupported task route policy feature kind');
+  }
+
+  private taskRoutePolicyFallbackSourceChain(
+    featureKind: TaskRoutePolicyFeatureKind,
+    model: ReturnType<TaskPolicy['resolveRerankModel']>
+  ): TaskRoutePolicySourceChainEntry[] {
+    if (model.modelId) {
+      return [
+        {
+          source: 'config_fallback',
+          scope: 'global',
+          status: 'available',
+          featureKind,
+          modelId: model.modelId,
+          ...(model.configKey ? { configKey: model.configKey } : {}),
+          ...(model.configPath ? { configPath: model.configPath } : {}),
+        },
+      ];
+    }
+
+    return [
+      {
+        source: 'provider_default',
+        scope: 'global',
+        status: 'available',
+        featureKind,
+      },
+    ];
+  }
+
+  private taskRoutePolicyOutputType(featureKind: TaskRoutePolicyFeatureKind) {
+    return featureKind === 'rerank'
+      ? ModelOutputType.Rerank
+      : ModelOutputType.Embedding;
+  }
+
+  private async assertTaskRoutePolicyPublishRouteable(input: {
+    featureKind: TaskRoutePolicyFeatureKind;
+    modelId: string;
+    workspaceId: string;
+  }) {
+    const candidates = await this.providerFactory.describeRouteCandidates(
+      {
+        modelId: input.modelId,
+        outputType: this.taskRoutePolicyOutputType(input.featureKind),
+      },
+      {},
+      {
+        workspaceId: input.workspaceId,
+        featureKind: input.featureKind,
+      }
+    );
+    if (!candidates.some(candidate => candidate.matched)) {
+      throw new Error('Task route policy model is not routeable');
+    }
+  }
+
   @ResolveField(() => [CopilotPromptCatalogItemType], {
     description: 'List prompt catalog metadata for diagnostics',
     complexity: 2,
   })
-  async prompts(): Promise<CopilotPromptCatalogItemType[]> {
-    return this.prompt.listCatalog();
+  async prompts(
+    @Parent() copilot: CopilotType
+  ): Promise<CopilotPromptCatalogItemType[]> {
+    return this.prompt.listCatalog(copilot?.workspaceId);
   }
 
   private async resolveTaskRouteDiagnostics(copilot?: CopilotType): Promise<{
@@ -19114,8 +22557,12 @@ export class CopilotResolver {
       ? { workspace: copilot.workspaceId }
       : {};
     const workspaceIndexingModel =
-      this.taskPolicy.resolveWorkspaceIndexingModel();
-    const rerankModel = this.taskPolicy.resolveRerankModel();
+      await this.taskPolicy.resolveEffectiveWorkspaceIndexingModel(
+        copilot?.workspaceId
+      );
+    const rerankModel = await this.taskPolicy.resolveEffectiveRerankModel(
+      copilot?.workspaceId
+    );
     const workspaceIndexingModelId = workspaceIndexingModel.modelId;
     const rerankModelId = rerankModel.modelId;
     const embeddingRoutePolicyContext = {
@@ -19264,6 +22711,7 @@ export class CopilotResolver {
             requestedModelConfigKey: workspaceIndexingModel.configKey,
             requestedModelConfigPath: workspaceIndexingModel.configPath,
             requestedModelSource: workspaceIndexingModel.source,
+            ...taskRoutePolicyRevisionMetadata(workspaceIndexingModel),
             fallbackProviderIds: [],
             preparedRoutes: [],
             preparedProviderCount: 0,
@@ -19309,6 +22757,7 @@ export class CopilotResolver {
           requestedModelConfigKey: workspaceIndexingModel.configKey,
           requestedModelConfigPath: workspaceIndexingModel.configPath,
           requestedModelSource: workspaceIndexingModel.source,
+          ...taskRoutePolicyRevisionMetadata(workspaceIndexingModel),
           fallbackProviderIds: route.fallbackOrder,
           preparedRoutes: route.preparedRoutes,
           preparedProviderCount: route.preparedProviderCount,
@@ -19420,6 +22869,7 @@ export class CopilotResolver {
             requestedModelConfigKey: rerankModel.configKey,
             requestedModelConfigPath: rerankModel.configPath,
             requestedModelSource: rerankModel.source,
+            ...taskRoutePolicyRevisionMetadata(rerankModel),
             fallbackProviderIds: [],
             preparedRoutes: [],
             preparedProviderCount: 0,
@@ -19465,6 +22915,7 @@ export class CopilotResolver {
           requestedModelConfigKey: rerankModel.configKey,
           requestedModelConfigPath: rerankModel.configPath,
           requestedModelSource: rerankModel.source,
+          ...taskRoutePolicyRevisionMetadata(rerankModel),
           fallbackProviderIds: route.fallbackOrder,
           preparedRoutes: route.preparedRoutes,
           preparedProviderCount: route.preparedProviderCount,
@@ -19756,10 +23207,12 @@ export class CopilotResolver {
     );
     const routePolicy =
       this.providerFactory.describeRoutePolicy(routePolicyContext);
-    const policyCandidates =
+    const policyCandidates = withTaskRoutePolicyCandidateKeys(
       await this.providerFactory.describeEffectiveRoutePolicyCandidates(
         routePolicyContext
-      );
+      ),
+      routePolicyContext
+    );
 
     return withPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint({
       checked: true,
@@ -19810,10 +23263,12 @@ export class CopilotResolver {
     const routePolicy =
       this.providerFactory.describeRoutePolicy(routePolicyContext);
     const routePolicyMetadata = taskRoutePolicyMetadata(routePolicy);
-    const policyCandidates =
+    const policyCandidates = withTaskRoutePolicyCandidateKeys(
       await this.providerFactory.describeEffectiveRoutePolicyCandidates(
         routePolicyContext
-      );
+      ),
+      routePolicyContext
+    );
     const configuredModelIds =
       await this.resolveEffectiveConfiguredModelIds(routePolicyContext);
 
@@ -20232,6 +23687,101 @@ export class CopilotResolver {
     });
   }
 
+  private promptRegistryPublishFallbackSourceChain(input: {
+    current: CopilotPromptRegistryPublishGateVerdictType;
+    workspaceId: string;
+  }): PromptRegistrySourceChainEntry[] {
+    const routeReviewFingerprint = createHash('sha256')
+      .update(
+        stableRepairRecommendationStringify({
+          version: 'prompt-registry-direct-publish-route-review/v1',
+          promptName: input.current.name,
+          registryFingerprint: input.current.registryFingerprint,
+          modelRouteFingerprints: input.current.modelRoutes
+            .map(route => route.effectiveSourceFingerprint)
+            .filter((fingerprint): fingerprint is string => !!fingerprint)
+            .sort(),
+          taskRouteFingerprints: input.current.taskRoutes
+            .map(route => route.effectiveSourceFingerprint)
+            .filter((fingerprint): fingerprint is string => !!fingerprint)
+            .sort(),
+          actionRouteDryRunStatus:
+            input.current.actionRouteDryRun?.status ?? null,
+        })
+      )
+      .digest('hex')
+      .slice(0, 16);
+
+    return [
+      {
+        source: 'legacy_registry',
+        scope: 'global',
+        status: input.current.status,
+        fingerprint: input.current.registryFingerprint,
+        registryId: input.current.registryId,
+        revision: input.current.registryFingerprint,
+        updatedAt: input.current.registryUpdatedAt.toISOString(),
+      },
+      {
+        source: 'publish_gate_route_review',
+        scope: 'workspace',
+        status: input.current.allowed ? 'route_ready' : 'blocked',
+        fingerprint: routeReviewFingerprint,
+        revision:
+          input.current.repairGateManifest?.fingerprint ??
+          input.current.repairActionCatalogFingerprint,
+        workspaceId: input.workspaceId,
+      },
+      {
+        source: 'direct_publish',
+        scope: 'workspace',
+        status: 'reviewed',
+        fingerprint: createHash('sha256')
+          .update(
+            stableRepairRecommendationStringify({
+              version: 'prompt-registry-direct-publish-source/v1',
+              promptName: input.current.name,
+              registryFingerprint: input.current.registryFingerprint,
+              registryId: input.current.registryId,
+              workspaceId: input.workspaceId,
+            })
+          )
+          .digest('hex')
+          .slice(0, 16),
+        workspaceId: input.workspaceId,
+      },
+    ];
+  }
+
+  private async assertPromptRegistryPublishGateReady(input: {
+    expectedVersion?: CopilotPromptRegistryPublishGateExpectedVersionInput;
+    name: string;
+    workspaceId: string;
+  }): Promise<CopilotPromptRegistryPublishGateVerdictType> {
+    const verdict =
+      await this.modelsStore.copilotPrompt.getRegistryPublishGateVerdict(
+        input.name,
+        input.expectedVersion ?? {}
+      );
+    if (!verdict) {
+      throw new NotFoundException('Prompt registry row not found');
+    }
+
+    const current = await this.withPromptRegistryPublishGateRouteReadiness(
+      verdict,
+      {
+        workspaceId: input.workspaceId,
+      }
+    );
+    if (!current.allowed) {
+      throw new Error(
+        `Prompt registry publish gate is not ready: ${current.reason}`
+      );
+    }
+
+    return current;
+  }
+
   @ResolveField(() => CopilotPromptRegistryPublishGateVerdictType, {
     nullable: true,
     description:
@@ -20394,7 +23944,7 @@ export class CopilotResolver {
 
   @Mutation(() => CopilotPromptRegistryRepairExecutionRequestType, {
     description:
-      'Request prompt registry repair execution. Current implementation is read-only and always blocks execution.',
+      'Request prompt registry repair execution. Approval-gated requests can publish a DB-backed workspace prompt registry revision after approval.',
   })
   @CallMetric('ai', 'prompt_registry_repair_execution_request')
   async requestCopilotPromptRegistryRepairExecution(
@@ -20417,12 +23967,599 @@ export class CopilotResolver {
       throw new NotFoundException('Prompt registry repair preflight not found');
     }
 
-    return buildPromptRegistryRepairExecutionRequest(
+    const request = buildPromptRegistryRepairExecutionRequest(
       input,
       context.preflight,
       context.current.repairActionPreview,
       context.current.repairGateManifest,
       context.current.repairGateManifestExportMetadata
+    );
+    const executorPayload = buildRepairExecutorPayload({
+      current: context.current,
+      request,
+      workspaceId: input.workspaceId,
+    });
+    const repairExecutionModel = this.modelsStore.copilotRepairExecution;
+
+    if (!repairExecutionModel || !input.workspaceId) {
+      return request;
+    }
+
+    const { record } = await repairExecutionModel.createOrReuse({
+      workspaceId: input.workspaceId,
+      actorId: user.id,
+      promptName: input.name,
+      requestedAction:
+        context.current.repairActionPreview.operations
+          .map(operation => operation.actionKind)
+          .sort()
+          .join(',') || 'prompt_registry_repair',
+      approvalRequired: context.preflight.approvalRequired,
+      permissionStatus: context.preflight.permissionStatus,
+      idempotencyKey: context.preflight.idempotencyKey,
+      idempotencyFingerprint: context.preflight.idempotencyFingerprint,
+      requestFingerprint: request.requestFingerprint,
+      candidateEvidenceSetFingerprint:
+        context.preflight.candidateEvidenceSetFingerprint,
+      taskRouteEvidenceSetFingerprint:
+        context.preflight.taskRouteEffectiveSourceEvidenceSetFingerprint,
+      targetLocatorFingerprint: context.preflight.targetLocatorFingerprint,
+      repairJobFingerprint: context.preflight.repairJobFingerprint,
+      approvalRecordFingerprint: context.preflight.approvalRecordFingerprint,
+      auditEventFingerprint: context.preflight.auditEventFingerprint,
+      executorPayload,
+    });
+    const agentRun =
+      await this.modelsStore.copilotAgentRuntime?.createOrReuseForRepairExecution(
+        {
+          record,
+        }
+      );
+    const executionRecord = {
+      ...record,
+      agentRun: agentRun ?? null,
+    };
+
+    return {
+      ...request,
+      accepted: true,
+      executionRequested: true,
+      executionRecord,
+      idempotencyLockAcquired: true,
+      idempotencyLockStatus: 'acquired_persisted',
+      repairJobRequestCreated: true,
+      repairJobRequestStatus: record.status,
+      requestStatus: record.status,
+    };
+  }
+
+  @Mutation(() => CopilotRepairExecutionRecordType, {
+    description:
+      'Approve or reject a persisted repair execution request that is waiting for approval.',
+  })
+  @CallMetric('ai', 'repair_execution_approval_decision')
+  async decideCopilotRepairExecutionApproval(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotRepairExecutionApprovalDecisionInput,
+    })
+    input: CopilotRepairExecutionApprovalDecisionInput
+  ): Promise<CopilotRepairExecutionRecordType> {
+    if (input.decision !== 'approve' && input.decision !== 'reject') {
+      throw new Error('Unsupported repair execution approval decision');
+    }
+
+    const { workspaceId } = await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+    });
+    const record = await this.modelsStore.copilotRepairExecution.decideApproval(
+      {
+        workspaceId,
+        actorId: user.id,
+        id: input.executionRequestId,
+        decision: input.decision,
+        reason: input.reason,
+      }
+    );
+    const agentRun =
+      await this.modelsStore.copilotAgentRuntime?.syncRepairExecution({
+        record,
+      });
+
+    if (input.decision === 'approve') {
+      await this.jobs.add(
+        'copilot.repairExecution.run',
+        {
+          workspaceId,
+          executionRequestId: record.id,
+        },
+        {
+          jobId: `copilot-repair-execution-run-${record.id}`,
+        }
+      );
+    }
+
+    return {
+      ...record,
+      agentRun: agentRun ?? null,
+    };
+  }
+
+  @Mutation(() => CopilotRepairExecutionRecordType, {
+    description:
+      'Cancel, retry, or recover a stale persisted repair execution request after workspace permission checks.',
+  })
+  @CallMetric('ai', 'repair_execution_control')
+  async controlCopilotRepairExecution(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotRepairExecutionControlInput,
+    })
+    input: CopilotRepairExecutionControlInput
+  ): Promise<CopilotRepairExecutionRecordType> {
+    if (
+      input.action !== 'cancel' &&
+      input.action !== 'retry' &&
+      input.action !== 'recover_stale' &&
+      input.action !== 'resume_with_payload'
+    ) {
+      throw new Error('Unsupported repair execution control action');
+    }
+
+    const { workspaceId } = await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+    });
+    const record =
+      await this.modelsStore.copilotRepairExecution.controlExecution({
+        workspaceId,
+        actorId: user.id,
+        id: input.executionRequestId,
+        action: input.action,
+        executorPayload: input.executorPayload,
+        reason: input.reason,
+      });
+    const agentRun =
+      input.action === 'cancel' && record.status === 'running'
+        ? await this.modelsStore.copilotAgentRuntime?.getBySource(
+            record.workspaceId,
+            'repair_execution_request',
+            record.id
+          )
+        : await this.modelsStore.copilotAgentRuntime?.syncRepairExecution({
+            record,
+          });
+
+    if (
+      input.action === 'retry' ||
+      input.action === 'resume_with_payload' ||
+      (input.action === 'recover_stale' && record.status === 'queued')
+    ) {
+      await this.jobs.add(
+        'copilot.repairExecution.run',
+        {
+          workspaceId,
+          executionRequestId: record.id,
+        },
+        {
+          jobId: `copilot-repair-execution-run-${record.id}-${input.action}-${record.workerAttempt}-${record.workerMaxAttempts}`,
+        }
+      );
+    }
+
+    return {
+      ...record,
+      agentRun: agentRun ?? null,
+    };
+  }
+
+  @Mutation(() => CopilotAgentRunType, {
+    description:
+      'Control a standalone persisted Agent Runtime run outside repair execution.',
+  })
+  @CallMetric('ai', 'agent_runtime_control')
+  async controlCopilotAgentRuntimeRun(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotAgentRuntimeControlInput,
+    })
+    input: CopilotAgentRuntimeControlInput
+  ): Promise<CopilotAgentRunType> {
+    if (input.action !== 'cancel' && input.action !== 'resume') {
+      throw new Error('Unsupported Agent Runtime control action');
+    }
+
+    const { workspaceId } = await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+    });
+
+    const record = await this.modelsStore.copilotAgentRuntime.controlRun({
+      workspaceId,
+      actorId: user.id,
+      id: input.runId,
+      action: input.action,
+      reason: input.reason,
+    });
+
+    if (input.action === 'resume') {
+      await this.jobs.add(
+        'copilot.agentRuntime.run',
+        {
+          workspaceId,
+          runId: record.id,
+        },
+        {
+          jobId: `copilot-agent-runtime-run-${record.id}-resume-${record.workerAttempt}-${record.workerMaxAttempts}`,
+        }
+      );
+    }
+
+    return record;
+  }
+
+  @Mutation(() => CopilotSupportBundleType, {
+    description:
+      'Create a DB-backed support bundle request with a minimal persisted manifest.',
+  })
+  @CallMetric('ai', 'support_bundle_create')
+  async createCopilotSupportBundle(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotSupportBundleCreateInput,
+    })
+    input: CopilotSupportBundleCreateInput
+  ): Promise<CopilotSupportBundleType> {
+    const { workspaceId } = await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+    });
+
+    const [promptCatalog, taskRouteDiagnostics] = await Promise.all([
+      this.prompt.listCatalog(workspaceId),
+      this.resolveTaskRouteDiagnostics({ workspaceId }),
+    ]);
+
+    return await this.modelsStore.copilotSupportBundle.create({
+      workspaceId,
+      actorId: user.id,
+      promptCatalog,
+      taskRoutes: [
+        toSupportBundleTaskRouteSnapshot(taskRouteDiagnostics.embeddingRoute),
+        toSupportBundleTaskRouteSnapshot(taskRouteDiagnostics.rerankRoute),
+      ],
+    });
+  }
+
+  @Mutation(() => CopilotSupportBundleDownloadAuthorizationType, {
+    description:
+      'Authorize a short-lived manifest or archive artifact download for a DB-backed support bundle.',
+  })
+  @CallMetric('ai', 'support_bundle_download_authorize')
+  async authorizeCopilotSupportBundleDownload(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotSupportBundleDownloadAuthorizeInput,
+    })
+    input: CopilotSupportBundleDownloadAuthorizeInput
+  ): Promise<CopilotSupportBundleDownloadAuthorizationType> {
+    const { workspaceId } = await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+    });
+
+    const authorization =
+      await this.modelsStore.copilotSupportBundle.authorizeDownload({
+        bundleId: input.bundleId,
+        workspaceId,
+        actorId: user.id,
+        artifactKind: input.artifactKind,
+      });
+
+    return this.toSupportBundleDownloadAuthorizationType(authorization);
+  }
+
+  @Mutation(() => CopilotSupportBundleDownloadAuthorizationType, {
+    description:
+      'Acknowledge client completion telemetry for a direct object-storage support bundle download.',
+  })
+  @CallMetric('ai', 'support_bundle_direct_download_acknowledge')
+  async acknowledgeCopilotSupportBundleDirectDownload(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotSupportBundleDirectDownloadAcknowledgeInput,
+    })
+    input: CopilotSupportBundleDirectDownloadAcknowledgeInput
+  ): Promise<CopilotSupportBundleDownloadAuthorizationType> {
+    const { workspaceId } = await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+    });
+
+    const authorization =
+      await this.modelsStore.copilotSupportBundle.acknowledgeDirectDownload({
+        authorizationId: input.authorizationId,
+        workspaceId,
+        actorId: user.id,
+      });
+
+    return this.toSupportBundleDownloadAuthorizationType(authorization);
+  }
+
+  @Mutation(() => CopilotSupportBundleRetentionCleanupType, {
+    description:
+      'Expire DB-backed support bundles whose retention window has elapsed and retry failed archive object cleanup.',
+  })
+  @CallMetric('ai', 'support_bundle_retention_cleanup')
+  async cleanupCopilotSupportBundleRetention(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotSupportBundleRetentionCleanupInput,
+    })
+    input: CopilotSupportBundleRetentionCleanupInput
+  ): Promise<CopilotSupportBundleRetentionCleanupType> {
+    const { workspaceId } = await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+    });
+
+    return await this.modelsStore.copilotSupportBundle.cleanupRetention({
+      workspaceId,
+      actorId: user.id,
+      limit: input.limit,
+    });
+  }
+
+  @Mutation(() => CopilotSupportBundleTransferForwardingEventType, {
+    description:
+      'Queue a fresh replay for a dead-lettered support bundle transfer forwarding event without mutating terminal evidence.',
+  })
+  @CallMetric('ai', 'support_bundle_transfer_forwarding_replay')
+  async replayCopilotSupportBundleTransferForwardingEvent(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotSupportBundleTransferForwardingReplayInput,
+    })
+    input: CopilotSupportBundleTransferForwardingReplayInput
+  ): Promise<CopilotSupportBundleTransferForwardingEventType> {
+    const { workspaceId } = await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+    });
+
+    return await this.modelsStore.copilotSupportBundle.replayDeadLetteredDirectDownloadTransferForwardingEvent(
+      {
+        workspaceId,
+        actorId: user.id,
+        forwardingEventId: input.forwardingEventId,
+        maxAttempts: input.maxAttempts,
+      }
+    );
+  }
+
+  @Mutation(() => CopilotPromptRegistryRevisionType, {
+    description:
+      'Publish a workspace-scoped DB-backed prompt registry revision after publish-gate and route-readiness checks.',
+  })
+  @CallMetric('ai', 'prompt_registry_revision_publish')
+  async publishCopilotPromptRegistryRevision(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotPromptRegistryPublishInput,
+    })
+    input: CopilotPromptRegistryPublishInput
+  ): Promise<CopilotPromptRegistryRevisionType> {
+    const { workspaceId } = await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+    });
+    const current = await this.assertPromptRegistryPublishGateReady({
+      workspaceId,
+      name: input.name,
+      expectedVersion: input.expectedVersion,
+    });
+
+    return await this.modelsStore.copilotPromptRegistryRevision.publishWorkspaceRevision(
+      {
+        workspaceId,
+        actorId: user.id,
+        promptName: current.name,
+        revision: input.revision,
+        idempotencyKey: input.idempotencyKey,
+        registryFingerprint: current.registryFingerprint,
+        registryId: current.registryId,
+        registryUpdatedAt: current.registryUpdatedAt.toISOString(),
+        gateStatus: current.status,
+        publishStatus: current.publishStatus,
+        validationReason: current.reason,
+        validationIssueCount: current.issueCount,
+        validationBlockingCount: current.blockingCount,
+        validationErrorCount: current.errorCount,
+        modelRouteFingerprints: current.modelRoutes
+          .map(route => route.effectiveSourceFingerprint)
+          .filter((fingerprint): fingerprint is string => !!fingerprint),
+        taskRouteFingerprints: current.taskRoutes
+          .map(route => route.effectiveSourceFingerprint)
+          .filter((fingerprint): fingerprint is string => !!fingerprint),
+        actionRouteDryRunStatus: current.actionRouteDryRun?.status ?? null,
+        repairActionCatalogFingerprint: current.repairActionCatalogFingerprint,
+        repairGateManifestFingerprint: current.repairGateManifest.fingerprint,
+        reviewNote: input.reviewNote,
+        fallbackSourceChain: this.promptRegistryPublishFallbackSourceChain({
+          current,
+          workspaceId,
+        }),
+      }
+    );
+  }
+
+  @Mutation(() => CopilotProviderRegistryRevisionType, {
+    description:
+      'Publish a workspace-scoped DB-backed provider profile metadata revision for an existing configured provider.',
+  })
+  @CallMetric('ai', 'provider_registry_revision_publish')
+  async publishCopilotProviderRegistryRevision(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotProviderRegistryPublishInput,
+    })
+    input: CopilotProviderRegistryPublishInput
+  ): Promise<CopilotProviderRegistryRevisionType> {
+    const { workspaceId } = await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+    });
+    const profile = this.providerRegistry.getProviderProfile(input.providerId);
+    if (!profile) {
+      throw new NotFoundException('Provider profile not found');
+    }
+
+    return await this.modelsStore.copilotProviderRegistryRevision.publishWorkspaceRevision(
+      {
+        workspaceId,
+        actorId: user.id,
+        providerId: profile.id,
+        providerType: profile.type,
+        revision: input.revision,
+        idempotencyKey: input.idempotencyKey,
+        displayName: input.displayName,
+        enabled: input.enabled,
+        models: input.models,
+        modelDefinitions: input.modelDefinitions,
+        privacy: input.privacy,
+        priority: input.priority,
+        fallbackSourceChain: this.providerRegistryFallbackSourceChain(profile),
+      }
+    );
+  }
+
+  @Mutation(() => CopilotModelRegistryRevisionType, {
+    description: [
+      'Publish a workspace-scoped DB-backed model definition revision',
+      'for an existing configured provider.',
+    ].join(' '),
+  })
+  @CallMetric('ai', 'model_registry_revision_publish')
+  async publishCopilotModelRegistryRevision(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotModelRegistryPublishInput,
+    })
+    input: CopilotModelRegistryPublishInput
+  ): Promise<CopilotModelRegistryRevisionType> {
+    const { workspaceId } = await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+    });
+    const profile = this.providerRegistry.getProviderProfile(input.providerId);
+    if (!profile) {
+      throw new NotFoundException('Provider profile not found');
+    }
+
+    return await this.modelsStore.copilotModelRegistryRevision.publishWorkspaceRevision(
+      {
+        workspaceId,
+        actorId: user.id,
+        providerId: profile.id,
+        modelId: input.modelId,
+        revision: input.revision,
+        idempotencyKey: input.idempotencyKey,
+        modelDefinition: input.modelDefinition,
+        fallbackSourceChain: this.modelRegistryFallbackSourceChain(
+          profile,
+          input.modelId
+        ),
+      }
+    );
+  }
+
+  @Mutation(() => CopilotTaskRoutePolicyRevisionType, {
+    description: [
+      'Publish a workspace-scoped DB-backed task route policy revision',
+      'for embedding, workspace indexing, or rerank model selection.',
+    ].join(' '),
+  })
+  @CallMetric('ai', 'task_route_policy_revision_publish')
+  async publishCopilotTaskRoutePolicyRevision(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotTaskRoutePolicyPublishInput,
+    })
+    input: CopilotTaskRoutePolicyPublishInput
+  ): Promise<CopilotTaskRoutePolicyRevisionType> {
+    const { workspaceId } = await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+    });
+    const fallback = this.taskRoutePolicyFallbackModel(input.featureKind);
+    await this.assertTaskRoutePolicyPublishRouteable({
+      workspaceId,
+      featureKind: input.featureKind,
+      modelId: input.modelId,
+    });
+
+    return await this.modelsStore.copilotTaskRoutePolicyRevision.publishWorkspaceRevision(
+      {
+        workspaceId,
+        actorId: user.id,
+        featureKind: input.featureKind,
+        modelId: input.modelId,
+        revision: input.revision,
+        idempotencyKey: input.idempotencyKey,
+        configKey: fallback.configKey,
+        configPath: fallback.configPath,
+        fallbackSourceChain: this.taskRoutePolicyFallbackSourceChain(
+          input.featureKind,
+          fallback
+        ),
+      }
+    );
+  }
+
+  @Mutation(() => CopilotProviderHealthStateType, {
+    description:
+      'Persist a workspace-scoped provider health state for an existing configured provider.',
+  })
+  @CallMetric('ai', 'provider_health_state_record')
+  async recordCopilotProviderHealthState(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotProviderHealthStateRecordInput,
+    })
+    input: CopilotProviderHealthStateRecordInput
+  ): Promise<CopilotProviderHealthStateType> {
+    const { workspaceId } = await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+    });
+    const profile = this.providerRegistry.getProviderProfile(input.providerId);
+    if (!profile) {
+      throw new NotFoundException('Provider profile not found');
+    }
+
+    return await this.modelsStore.copilotProviderHealthState.upsertWorkspaceState(
+      {
+        workspaceId,
+        actorId: user.id,
+        providerId: profile.id,
+        providerType: profile.type,
+        status: input.status,
+        lastError: input.lastError,
+        source: 'manual_override',
+        providerProfileSource: profile.source,
+      }
+    );
+  }
+
+  @Mutation(() => CopilotProviderHealthProbeAttemptType, {
+    description:
+      'Queue a fresh Provider Health probe attempt for a dead-lettered workspace attempt without mutating terminal evidence.',
+  })
+  @CallMetric('ai', 'provider_health_probe_attempt_retry')
+  async retryCopilotProviderHealthProbeAttempt(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotProviderHealthProbeAttemptRetryInput,
+    })
+    input: CopilotProviderHealthProbeAttemptRetryInput
+  ): Promise<CopilotProviderHealthProbeAttemptType> {
+    const { workspaceId } = await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+    });
+
+    return await this.modelsStore.copilotProviderHealthState.retryDeadLetteredProviderHealthProbeAttempt(
+      {
+        workspaceId,
+        attemptId: input.attemptId,
+      }
     );
   }
 
@@ -20468,6 +24605,182 @@ export class CopilotResolver {
       },
       { limit }
     );
+  }
+
+  @ResolveField(() => [CopilotSupportBundleType], {
+    description:
+      'List recent DB-backed support bundle requests for the current workspace',
+    complexity: 2,
+  })
+  async supportBundles(
+    @CurrentUser() user: CurrentUser,
+    @Parent() copilot: CopilotType,
+    @Args('limit', { type: () => SafeIntResolver, nullable: true })
+    limit?: number,
+    @Args('filter', {
+      type: () => CopilotSupportBundleListFilterInput,
+      nullable: true,
+    })
+    filter?: CopilotSupportBundleListFilterInput
+  ): Promise<CopilotSupportBundleType[]> {
+    const { workspaceId } = await this.assertPermission(user, copilot);
+
+    return await this.modelsStore.copilotSupportBundle.list(workspaceId, {
+      filter,
+      limit,
+    });
+  }
+
+  @ResolveField(() => CopilotSupportBundleType, {
+    nullable: true,
+    description:
+      'Get a DB-backed support bundle request and record a read audit event',
+    complexity: 2,
+  })
+  async supportBundle(
+    @CurrentUser() user: CurrentUser,
+    @Parent() copilot: CopilotType,
+    @Args('id') id: string
+  ): Promise<CopilotSupportBundleType | null> {
+    const { workspaceId } = await this.assertPermission(user, copilot);
+    const bundle = await this.modelsStore.copilotSupportBundle.get(
+      workspaceId,
+      id
+    );
+
+    if (!bundle) {
+      return null;
+    }
+
+    await this.modelsStore.copilotSupportBundle.recordRead({
+      bundleId: bundle.id,
+      workspaceId,
+      actorId: user.id,
+      manifestFingerprint: bundle.manifestFingerprint,
+    });
+
+    return await this.modelsStore.copilotSupportBundle.get(workspaceId, id);
+  }
+
+  @ResolveField(() => [CopilotAgentRunType], {
+    description:
+      'List recent persisted Agent Runtime runs for the current workspace',
+    complexity: 2,
+  })
+  async agentRuns(
+    @CurrentUser() user: CurrentUser,
+    @Parent() copilot: CopilotType,
+    @Args('limit', { type: () => SafeIntResolver, nullable: true })
+    limit?: number,
+    @Args('filter', {
+      type: () => CopilotAgentRunListFilterInput,
+      nullable: true,
+    })
+    filter?: CopilotAgentRunListFilterInput
+  ): Promise<CopilotAgentRunType[]> {
+    const { workspaceId } = await this.assertPermission(user, copilot);
+
+    return await this.modelsStore.copilotAgentRuntime.list(workspaceId, {
+      filter,
+      limit,
+    });
+  }
+
+  @ResolveField(() => [CopilotRepairExecutionRecordType], {
+    description:
+      'List recent persisted repair execution requests for the current workspace',
+    complexity: 2,
+  })
+  async repairExecutions(
+    @CurrentUser() user: CurrentUser,
+    @Parent() copilot: CopilotType,
+    @Args('limit', { type: () => SafeIntResolver, nullable: true })
+    limit?: number,
+    @Args('filter', {
+      type: () => CopilotRepairExecutionListFilterInput,
+      nullable: true,
+    })
+    filter?: CopilotRepairExecutionListFilterInput
+  ): Promise<CopilotRepairExecutionRecordType[]> {
+    const { workspaceId } = await this.assertPermission(user, copilot);
+
+    const records = await this.modelsStore.copilotRepairExecution.list(
+      workspaceId,
+      {
+        filter,
+        limit,
+      }
+    );
+    const recordsWithRuns = await Promise.all(
+      records.map(async record => ({
+        ...record,
+        agentRun:
+          (await this.modelsStore.copilotAgentRuntime?.getBySource(
+            workspaceId,
+            'repair_execution_request',
+            record.id
+          )) ?? null,
+      }))
+    );
+
+    return recordsWithRuns;
+  }
+
+  @ResolveField(() => [CopilotAgentRuntimeWorkflowAdapterType], {
+    description:
+      'List registered Agent Runtime workflow adapter capabilities for standalone run diagnostics',
+    complexity: 1,
+  })
+  async agentRuntimeWorkflowAdapters(
+    @CurrentUser() user: CurrentUser,
+    @Parent() copilot: CopilotType
+  ): Promise<CopilotAgentRuntimeWorkflowAdapterType[]> {
+    await this.assertPermission(user, copilot);
+
+    return this.agentRuntimeWorkflowRegistry?.adapterCapabilities() ?? [];
+  }
+
+  @ResolveField(() => [CopilotProviderHealthProbeAttemptType], {
+    description:
+      'List recent DB-backed provider health probe attempts for the current workspace',
+    complexity: 2,
+  })
+  async providerHealthProbeAttempts(
+    @CurrentUser() user: CurrentUser,
+    @Parent() copilot: CopilotType,
+    @Args('limit', { type: () => SafeIntResolver, nullable: true })
+    limit?: number,
+    @Args('filter', {
+      type: () => CopilotProviderHealthProbeAttemptFilterInput,
+      nullable: true,
+    })
+    filter?: CopilotProviderHealthProbeAttemptFilterInput
+  ): Promise<CopilotProviderHealthProbeAttemptType[]> {
+    const { workspaceId } = await this.assertPermission(user, copilot);
+
+    return await this.modelsStore.copilotProviderHealthState.listProviderHealthProbeAttempts(
+      {
+        filter,
+        workspaceId,
+        limit,
+      }
+    );
+  }
+
+  @ResolveField(() => CopilotAgentRunType, {
+    nullable: true,
+    description:
+      'Get a persisted Agent Runtime run with steps and timeline for the current workspace',
+    complexity: 2,
+  })
+  async agentRun(
+    @CurrentUser() user: CurrentUser,
+    @Parent() copilot: CopilotType,
+    @Args('id') id: string
+  ): Promise<CopilotAgentRunType | null> {
+    const { workspaceId } = await this.assertPermission(user, copilot);
+
+    return await this.modelsStore.copilotAgentRuntime.get(workspaceId, id);
   }
 
   @ResolveField(() => CopilotModelsType, {
@@ -20670,6 +24983,31 @@ export class CopilotResolver {
           );
           const routeModelAliasMatched =
             profileDefinition?.aliases?.includes(id);
+          const modelRegistryMetadata =
+            profileDefinition?.registryRecordSource === 'db_revision'
+              ? {
+                  modelRegistryRevision: profileDefinition.registryRevision,
+                  modelRegistryRevisionActorId:
+                    profileDefinition.registryRevisionActorId,
+                  modelRegistryRevisionFingerprint:
+                    profileDefinition.registryRevisionFingerprint,
+                  modelRegistryRevisionId: profileDefinition.registryRevisionId,
+                  modelRegistryRevisionScope:
+                    profileDefinition.registryRevisionScope,
+                  modelRegistryRevisionSourceChain:
+                    profileDefinition.registryRevisionSourceChain,
+                  modelRegistryRevisionSourceChainFingerprint:
+                    profileDefinition.registryRevisionSourceChainFingerprint,
+                  modelRegistryRevisionStatus:
+                    profileDefinition.registryRevisionStatus,
+                  modelRegistryRevisionWorkspaceId:
+                    profileDefinition.registryRevisionWorkspaceId,
+                  modelRegistryRevisionPublishEventCount:
+                    profileDefinition.registryRevisionPublishEventCount,
+                  modelRegistryRevisionPublishEvents:
+                    profileDefinition.registryRevisionPublishEvents,
+                }
+              : {};
           const profileConfigPath = providerProfileConfigPath(resolved.profile);
           const routeModelDefinitionId =
             profileDefinition?.id ??
@@ -20707,6 +25045,7 @@ export class CopilotResolver {
             ...(routeModelAliasMatched !== undefined
               ? { routeModelAliasMatched }
               : {}),
+            ...modelRegistryMetadata,
             ...(resolvedProviderModel?.protocol
               ? { routeProtocol: resolvedProviderModel.protocol }
               : {}),

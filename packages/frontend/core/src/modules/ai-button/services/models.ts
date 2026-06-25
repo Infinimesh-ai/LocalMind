@@ -89,6 +89,19 @@ export interface AIModel {
   routeModelDefinitionId?: string | null;
   routeModelDefinitionAliases?: string[] | null;
   routeModelAliasMatched?: boolean | null;
+  modelRegistryRevision?: string | null;
+  modelRegistryRevisionActorId?: string | null;
+  modelRegistryRevisionFingerprint?: string | null;
+  modelRegistryRevisionId?: string | null;
+  modelRegistryRevisionScope?: string | null;
+  modelRegistryRevisionSourceChain?: AIModelRegistrySourceChainEntry[] | null;
+  modelRegistryRevisionSourceChainFingerprint?: string | null;
+  modelRegistryRevisionStatus?: string | null;
+  modelRegistryRevisionWorkspaceId?: string | null;
+  modelRegistryRevisionPublishEventCount?: number | null;
+  modelRegistryRevisionPublishEvents?:
+    | AIModelRegistryRevisionPublishEvent[]
+    | null;
   routeProtocol?: string | null;
   routeRequestLayer?: string | null;
   routeBehaviorFlags?: string[] | null;
@@ -123,6 +136,39 @@ export interface AIModelPromptSource {
   candidateSource: string;
   modelConfigPath?: string | null;
   modelSource?: string | null;
+}
+
+export interface AIModelRegistrySourceChainEntry {
+  actorId?: string | null;
+  fingerprint?: string | null;
+  modelId?: string | null;
+  providerId?: string | null;
+  revision?: string | null;
+  scope: string;
+  source: string;
+  status: string;
+  updatedAt?: string | null;
+  workspaceId?: string | null;
+}
+
+export interface AIModelRegistryRevisionPublishEvent {
+  actorId?: string | null;
+  createdAt: string;
+  eventFingerprint: string;
+  eventType: string;
+  id: string;
+  metadata?: Record<string, unknown> | null;
+  publishSource: string;
+  registryFamily: string;
+  registryKey: string;
+  registryModelId?: string | null;
+  registryProviderId?: string | null;
+  revision: string;
+  revisionFingerprint: string;
+  revisionId: string;
+  revisionStatus: string;
+  scopeType: string;
+  workspaceId?: string | null;
 }
 
 export interface AIModelTaskRoute {
@@ -171,10 +217,40 @@ export interface AIModelTaskRoute {
   requestedModelConfigPath?: string | null;
   requestedModelId?: string | null;
   requestedModelSource?: string | null;
+  taskRoutePolicyRevision?: string | null;
+  taskRoutePolicyRevisionActorId?: string | null;
+  taskRoutePolicyRevisionFingerprint?: string | null;
+  taskRoutePolicyRevisionId?: string | null;
+  taskRoutePolicyRevisionScope?: string | null;
+  taskRoutePolicyRevisionSourceChain?:
+    | AIModelTaskRoutePolicySourceChainEntry[]
+    | null;
+  taskRoutePolicyRevisionSourceChainFingerprint?: string | null;
+  taskRoutePolicyRevisionStatus?: string | null;
+  taskRoutePolicyRevisionWorkspaceId?: string | null;
+  taskRoutePolicyRevisionPublishEventCount?: number | null;
+  taskRoutePolicyRevisionPublishEvents?:
+    | AIModelRegistryRevisionPublishEvent[]
+    | null;
   requestedDimensions?: number | null;
   requestLayer?: string | null;
   topK?: number | null;
   preparedRoutes?: AIModelPreparedTaskRoute[] | null;
+}
+
+export interface AIModelTaskRoutePolicySourceChainEntry {
+  actorId?: string | null;
+  configKey?: string | null;
+  configPath?: string | null;
+  featureKind?: string | null;
+  fingerprint?: string | null;
+  modelId?: string | null;
+  revision?: string | null;
+  scope: string;
+  source: string;
+  status: string;
+  updatedAt?: string | null;
+  workspaceId?: string | null;
 }
 
 export interface AIModelTaskRouteDiagnosticsError {
@@ -235,6 +311,19 @@ export interface AIModelTaskRouteCandidate {
   candidateKey?: string | null;
   candidateModelIds?: string[] | null;
   matched: boolean;
+  modelRegistryRevision?: string | null;
+  modelRegistryRevisionActorId?: string | null;
+  modelRegistryRevisionFingerprint?: string | null;
+  modelRegistryRevisionId?: string | null;
+  modelRegistryRevisionScope?: string | null;
+  modelRegistryRevisionSourceChain?: AIModelRegistrySourceChainEntry[] | null;
+  modelRegistryRevisionSourceChainFingerprint?: string | null;
+  modelRegistryRevisionStatus?: string | null;
+  modelRegistryRevisionWorkspaceId?: string | null;
+  modelRegistryRevisionPublishEventCount?: number | null;
+  modelRegistryRevisionPublishEvents?:
+    | AIModelRegistryRevisionPublishEvent[]
+    | null;
   modelId?: string | null;
   providerId: string;
   providerConfiguredModelCount?: number | null;
@@ -266,6 +355,19 @@ export interface AIModelTaskRoutePrepareCandidate {
   candidateModelIds?: string[] | null;
   errorCategory?: string | null;
   errorCode?: string | null;
+  modelRegistryRevision?: string | null;
+  modelRegistryRevisionActorId?: string | null;
+  modelRegistryRevisionFingerprint?: string | null;
+  modelRegistryRevisionId?: string | null;
+  modelRegistryRevisionScope?: string | null;
+  modelRegistryRevisionSourceChain?: AIModelRegistrySourceChainEntry[] | null;
+  modelRegistryRevisionSourceChainFingerprint?: string | null;
+  modelRegistryRevisionStatus?: string | null;
+  modelRegistryRevisionWorkspaceId?: string | null;
+  modelRegistryRevisionPublishEventCount?: number | null;
+  modelRegistryRevisionPublishEvents?:
+    | AIModelRegistryRevisionPublishEvent[]
+    | null;
   providerConfiguredModelCount?: number | null;
   providerConfiguredModelIds?: string[] | null;
   providerName?: string | null;
@@ -467,6 +569,19 @@ export interface AIModelTaskRouteCandidateTraceRow {
   routeModelDefinitionAliases?: string[] | null;
   routeModelDefinitionId?: string | null;
   routeModelDefinitionSource?: string | null;
+  modelRegistryRevision?: string | null;
+  modelRegistryRevisionActorId?: string | null;
+  modelRegistryRevisionFingerprint?: string | null;
+  modelRegistryRevisionId?: string | null;
+  modelRegistryRevisionScope?: string | null;
+  modelRegistryRevisionSourceChain?: AIModelRegistrySourceChainEntry[] | null;
+  modelRegistryRevisionSourceChainFingerprint?: string | null;
+  modelRegistryRevisionStatus?: string | null;
+  modelRegistryRevisionWorkspaceId?: string | null;
+  modelRegistryRevisionPublishEventCount?: number | null;
+  modelRegistryRevisionPublishEvents?:
+    | AIModelRegistryRevisionPublishEvent[]
+    | null;
   routeOutputTypes?: string[] | null;
   routeStructuredAttachmentAllowRemoteUrls?: boolean | null;
   routeStructuredAttachmentKinds?: string[] | null;
@@ -666,12 +781,14 @@ const PROMPT_MODEL_SOURCE_LABELS: Record<string, string> = {
 };
 
 const MODEL_DEFINITION_SOURCE_LABELS: Record<string, string> = {
+  db_revision: 'DB-backed model registry',
   native_registry: 'Native registry',
   provider_profile: 'Provider profile',
   provider_runtime: 'Provider runtime',
 };
 
 const TASK_MODEL_SOURCE_LABELS: Record<string, string> = {
+  db_revision: 'DB-backed task route policy',
   embedding: 'Embedding task model',
   provider_default: 'Auto provider default',
   rerank: 'Rerank task model',
@@ -1566,6 +1683,35 @@ function taskRouteCandidateTraceStatus(
   return prepareCandidate.prepared ? 'prepared' : 'filtered';
 }
 
+function taskRouteModelRegistryMetadata(
+  routeCandidate: AIModelTaskRouteCandidate | undefined,
+  prepareCandidate: AIModelTaskRoutePrepareCandidate | undefined
+) {
+  const candidate = routeCandidate ?? prepareCandidate;
+  return {
+    modelRegistryRevision: candidate?.modelRegistryRevision ?? null,
+    modelRegistryRevisionActorId:
+      candidate?.modelRegistryRevisionActorId ?? null,
+    modelRegistryRevisionFingerprint:
+      candidate?.modelRegistryRevisionFingerprint ?? null,
+    modelRegistryRevisionId: candidate?.modelRegistryRevisionId ?? null,
+    modelRegistryRevisionScope:
+      candidate?.modelRegistryRevisionScope ?? null,
+    modelRegistryRevisionSourceChain:
+      candidate?.modelRegistryRevisionSourceChain ?? null,
+    modelRegistryRevisionSourceChainFingerprint:
+      candidate?.modelRegistryRevisionSourceChainFingerprint ?? null,
+    modelRegistryRevisionStatus:
+      candidate?.modelRegistryRevisionStatus ?? null,
+    modelRegistryRevisionWorkspaceId:
+      candidate?.modelRegistryRevisionWorkspaceId ?? null,
+    modelRegistryRevisionPublishEventCount:
+      candidate?.modelRegistryRevisionPublishEventCount ?? null,
+    modelRegistryRevisionPublishEvents:
+      candidate?.modelRegistryRevisionPublishEvents ?? null,
+  };
+}
+
 export function getAIModelTaskRouteCandidateTrace(
   route: AIModelTaskRoute | null | undefined
 ): AIModelTaskRouteCandidateTraceSummary {
@@ -1635,6 +1781,7 @@ export function getAIModelTaskRouteCandidateTrace(
         : {}),
       matched: routeCandidate?.matched ?? null,
       modelId: routeCandidate?.modelId ?? prepareCandidate?.modelId ?? null,
+      ...taskRouteModelRegistryMetadata(routeCandidate, prepareCandidate),
       prepared: prepareCandidate?.prepared ?? null,
       preparedModelId: prepareCandidate?.preparedModelId ?? null,
       providerId:
@@ -2088,6 +2235,57 @@ export function buildAIModels(models: CopilotModels): AIModel[] {
         ...(model.routeModelAliasMatched !== undefined
           ? { routeModelAliasMatched: model.routeModelAliasMatched }
           : {}),
+        ...(model.modelRegistryRevision !== undefined
+          ? { modelRegistryRevision: model.modelRegistryRevision }
+          : {}),
+        ...(model.modelRegistryRevisionActorId !== undefined
+          ? { modelRegistryRevisionActorId: model.modelRegistryRevisionActorId }
+          : {}),
+        ...(model.modelRegistryRevisionFingerprint !== undefined
+          ? {
+              modelRegistryRevisionFingerprint:
+                model.modelRegistryRevisionFingerprint,
+            }
+          : {}),
+        ...(model.modelRegistryRevisionId !== undefined
+          ? { modelRegistryRevisionId: model.modelRegistryRevisionId }
+          : {}),
+        ...(model.modelRegistryRevisionScope !== undefined
+          ? { modelRegistryRevisionScope: model.modelRegistryRevisionScope }
+          : {}),
+        ...(model.modelRegistryRevisionSourceChain !== undefined
+          ? {
+              modelRegistryRevisionSourceChain:
+                model.modelRegistryRevisionSourceChain,
+            }
+          : {}),
+        ...(model.modelRegistryRevisionSourceChainFingerprint !== undefined
+          ? {
+              modelRegistryRevisionSourceChainFingerprint:
+                model.modelRegistryRevisionSourceChainFingerprint,
+            }
+          : {}),
+        ...(model.modelRegistryRevisionStatus !== undefined
+          ? { modelRegistryRevisionStatus: model.modelRegistryRevisionStatus }
+          : {}),
+        ...(model.modelRegistryRevisionWorkspaceId !== undefined
+          ? {
+              modelRegistryRevisionWorkspaceId:
+                model.modelRegistryRevisionWorkspaceId,
+            }
+          : {}),
+        ...(model.modelRegistryRevisionPublishEventCount !== undefined
+          ? {
+              modelRegistryRevisionPublishEventCount:
+                model.modelRegistryRevisionPublishEventCount,
+            }
+          : {}),
+        ...(model.modelRegistryRevisionPublishEvents !== undefined
+          ? {
+              modelRegistryRevisionPublishEvents:
+                model.modelRegistryRevisionPublishEvents,
+            }
+          : {}),
         routeProtocol: model.routeProtocol,
         routeRequestLayer: model.routeRequestLayer,
         routeBehaviorFlags: model.routeBehaviorFlags,
@@ -2280,18 +2478,28 @@ export function formatAIModelEffectiveSourceLabel(
 }
 
 export function formatAIModelDefinitionLabel(
-  model: Pick<
-    AIModel,
-    | 'routeBackendKind'
-    | 'routeBehaviorFlags'
-    | 'routeCanonicalModelKey'
-    | 'routeModelAliasMatched'
-    | 'routeModelDefinitionAliases'
-    | 'routeModelDefinitionId'
-    | 'routeModelDefinitionSource'
-    | 'routeProtocol'
-    | 'routeRawModelId'
-    | 'routeRequestLayer'
+  model: Partial<
+    Pick<
+      AIModel,
+      | 'routeBackendKind'
+      | 'routeBehaviorFlags'
+      | 'routeCanonicalModelKey'
+      | 'routeModelAliasMatched'
+      | 'routeModelDefinitionAliases'
+      | 'routeModelDefinitionId'
+      | 'routeModelDefinitionSource'
+      | 'modelRegistryRevision'
+      | 'modelRegistryRevisionFingerprint'
+      | 'modelRegistryRevisionId'
+      | 'modelRegistryRevisionScope'
+      | 'modelRegistryRevisionSourceChainFingerprint'
+      | 'modelRegistryRevisionStatus'
+      | 'modelRegistryRevisionWorkspaceId'
+      | 'modelRegistryRevisionPublishEventCount'
+      | 'routeProtocol'
+      | 'routeRawModelId'
+      | 'routeRequestLayer'
+    >
   >
 ) {
   return [
@@ -2309,6 +2517,30 @@ export function formatAIModelDefinitionLabel(
       ? `Aliases ${model.routeModelDefinitionAliases.join(', ')}`
       : null,
     model.routeModelAliasMatched ? 'Alias matched' : null,
+    model.modelRegistryRevisionId
+      ? `Registry ${model.modelRegistryRevisionId}`
+      : null,
+    model.modelRegistryRevision
+      ? `Revision ${model.modelRegistryRevision}`
+      : null,
+    model.modelRegistryRevisionScope
+      ? `Scope ${model.modelRegistryRevisionScope}`
+      : null,
+    model.modelRegistryRevisionStatus
+      ? `Status ${model.modelRegistryRevisionStatus}`
+      : null,
+    model.modelRegistryRevisionFingerprint
+      ? `Fingerprint ${model.modelRegistryRevisionFingerprint}`
+      : null,
+    model.modelRegistryRevisionSourceChainFingerprint
+      ? `Source chain ${model.modelRegistryRevisionSourceChainFingerprint}`
+      : null,
+    model.modelRegistryRevisionWorkspaceId
+      ? `Workspace ${model.modelRegistryRevisionWorkspaceId}`
+      : null,
+    model.modelRegistryRevisionPublishEventCount != null
+      ? `Publish events ${model.modelRegistryRevisionPublishEventCount}`
+      : null,
     model.routeBackendKind || null,
     model.routeCanonicalModelKey
       ? `Canonical ${model.routeCanonicalModelKey}`
@@ -2771,6 +3003,14 @@ function formatTaskRouteProviderProfileLabel(
 function formatTaskRouteModelDefinitionLabel(
   candidate: Pick<
     AIModelTaskRouteCandidate | AIModelTaskRoutePrepareCandidate,
+    | 'modelRegistryRevision'
+    | 'modelRegistryRevisionFingerprint'
+    | 'modelRegistryRevisionId'
+    | 'modelRegistryRevisionScope'
+    | 'modelRegistryRevisionSourceChainFingerprint'
+    | 'modelRegistryRevisionStatus'
+    | 'modelRegistryRevisionWorkspaceId'
+    | 'modelRegistryRevisionPublishEventCount'
     | 'routeModelAliasMatched'
     | 'routeModelDefinitionAliases'
     | 'routeModelDefinitionId'
@@ -2786,6 +3026,18 @@ function formatTaskRouteModelDefinitionLabel(
     routeModelDefinitionAliases: candidate.routeModelDefinitionAliases,
     routeModelDefinitionId: candidate.routeModelDefinitionId,
     routeModelDefinitionSource: candidate.routeModelDefinitionSource,
+    modelRegistryRevision: candidate.modelRegistryRevision,
+    modelRegistryRevisionFingerprint:
+      candidate.modelRegistryRevisionFingerprint,
+    modelRegistryRevisionId: candidate.modelRegistryRevisionId,
+    modelRegistryRevisionScope: candidate.modelRegistryRevisionScope,
+    modelRegistryRevisionSourceChainFingerprint:
+      candidate.modelRegistryRevisionSourceChainFingerprint,
+    modelRegistryRevisionStatus: candidate.modelRegistryRevisionStatus,
+    modelRegistryRevisionWorkspaceId:
+      candidate.modelRegistryRevisionWorkspaceId,
+    modelRegistryRevisionPublishEventCount:
+      candidate.modelRegistryRevisionPublishEventCount,
     routeProtocol: null,
     routeRawModelId: candidate.routeRawModelId,
     routeRequestLayer: null,
@@ -2966,6 +3218,9 @@ function formatAIModelTaskRoute(route: AIModelTaskRoute | null | undefined) {
       ? `flags ${route.behaviorFlags.join(', ')}`
       : null,
     providerProfileLabel ? `profile ${providerProfileLabel}` : null,
+    route.taskRoutePolicyRevisionPublishEventCount != null
+      ? `policy publish events ${route.taskRoutePolicyRevisionPublishEventCount}`
+      : null,
     formatTaskRoutePolicyLabel(route),
     formatTaskRoutePolicyCandidates(route.policyCandidates),
     formatTaskRouteCandidates(route.routeCandidates),
@@ -3107,6 +3362,14 @@ export function formatAIModelDiagnosticsLabel(
     | 'routeModelDefinitionAliases'
     | 'routeModelDefinitionId'
     | 'routeModelDefinitionSource'
+    | 'modelRegistryRevision'
+    | 'modelRegistryRevisionFingerprint'
+    | 'modelRegistryRevisionId'
+    | 'modelRegistryRevisionScope'
+    | 'modelRegistryRevisionSourceChainFingerprint'
+    | 'modelRegistryRevisionStatus'
+    | 'modelRegistryRevisionWorkspaceId'
+    | 'modelRegistryRevisionPublishEventCount'
     | 'routeModelId'
     | 'routeFallbackProviderIds'
     | 'routeOutputTypes'

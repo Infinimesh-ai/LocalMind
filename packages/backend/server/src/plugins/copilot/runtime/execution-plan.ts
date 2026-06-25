@@ -404,13 +404,22 @@ function buildFallbackOrder(routes: ResolvedCopilotProvider[]) {
 }
 
 function providerProfileConfigPath(
-  profile: Pick<NormalizedCopilotProviderProfile, 'id' | 'source' | 'type'>
+  profile: Pick<NormalizedCopilotProviderProfile, 'id' | 'source' | 'type'> &
+    Pick<
+      Partial<NormalizedCopilotProviderProfile>,
+      'providerRegistryRevisionId'
+    >
 ) {
   if (profile.source === 'configured') {
     return `copilot.providers.profiles[id=${profile.id}]`;
   }
   if (profile.source === 'legacy') {
     return `copilot.providers.${profile.type}`;
+  }
+  if (profile.source === 'db_revision') {
+    return profile.providerRegistryRevisionId
+      ? `ai_provider_registry_revisions[id=${profile.providerRegistryRevisionId}]`
+      : `ai_provider_registry_revisions[provider_id=${profile.id}]`;
   }
   if (profile.source === 'byok_local') {
     return 'workspace.byok.local';

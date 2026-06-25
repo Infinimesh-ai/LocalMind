@@ -1,7 +1,3 @@
-# ------------------------------------------------------
-# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
-# ------------------------------------------------------
-
 type AccessToken {
   createdAt: DateTime!
   expiresAt: DateTime
@@ -501,11 +497,28 @@ type ContextWorkspaceEmbeddingStatus {
 }
 
 type Copilot {
-  """Get sanitized prepared route diagnostics for an action run in the current workspace"""
+  """
+  Get sanitized prepared route diagnostics for an action run in the current workspace
+  """
   actionRunPreparedRouteTrace(runId: String!): CopilotActionRunPreparedRouteDiagnosticsType
 
-  """List recent sanitized action runs for diagnostics in the current workspace"""
+  """
+  List recent sanitized action runs for diagnostics in the current workspace
+  """
   actionRuns(limit: SafeInt): [CopilotActionRunDiagnosticsItemType!]!
+
+  """
+  Get a persisted Agent Runtime run with steps and timeline for the current workspace
+  """
+  agentRun(id: String!): CopilotAgentRunType
+
+  """List recent persisted Agent Runtime runs for the current workspace"""
+  agentRuns(filter: CopilotAgentRunListFilterInput, limit: SafeInt): [CopilotAgentRunType!]!
+
+  """
+  List registered Agent Runtime workflow adapter capabilities for standalone run diagnostics
+  """
+  agentRuntimeWorkflowAdapters: [CopilotAgentRuntimeWorkflowAdapterType!]!
   chats(docId: String, options: QueryChatHistoriesInput, pagination: PaginationInput!): PaginatedCopilotHistoriesType!
 
   """Get the context list of a session"""
@@ -515,7 +528,19 @@ type Copilot {
   """List available models for a prompt, with human-readable names"""
   models(promptName: String!): CopilotModelsType!
 
-  """Evaluate whether the current prompt registry row can pass the publish gate"""
+  """
+  List recent DB-backed provider health probe attempts for the current workspace
+  """
+  providerHealthProbeAttempts(filter: CopilotProviderHealthProbeAttemptFilterInput, limit: SafeInt): [CopilotProviderHealthProbeAttemptType!]!
+
+  """
+  List recent persisted repair execution requests for the current workspace
+  """
+  repairExecutions(filter: CopilotRepairExecutionListFilterInput, limit: SafeInt): [CopilotRepairExecutionRecordType!]!
+
+  """
+  Evaluate whether the current prompt registry row can pass the publish gate
+  """
   promptRegistryPublishGate(expectedVersion: CopilotPromptRegistryPublishGateExpectedVersionInput, name: String!): CopilotPromptRegistryPublishGateVerdictType
 
   """Read-only preflight for a prompt registry repair submission contract"""
@@ -532,104 +557,16 @@ type Copilot {
 
   """Get the session list in the workspace"""
   sessions(docId: String, options: QueryChatSessionsInput): [CopilotSessionType!]! @deprecated(reason: "use `chats` instead")
+
+  """Get a DB-backed support bundle request and record a read audit event"""
+  supportBundle(id: String!): CopilotSupportBundleType
+
+  """
+  List recent DB-backed support bundle requests for the current workspace
+  """
+  supportBundles(filter: CopilotSupportBundleListFilterInput, limit: SafeInt): [CopilotSupportBundleType!]!
   transcriptTask(blobId: String, taskId: String): TranscriptionResultType @deprecated(reason: "Use realtime subscription \"copilot.transcript.task.changed\" instead.")
   workspaceId: ID
-}
-
-type CopilotActionRunPreparedRouteDiagnosticsRouteType {
-  behaviorFlags: [String!]
-  canonicalModelKey: String
-  dimensionMismatch: Boolean
-  fallbackOrderIndex: SafeInt
-  modelId: String!
-  modelBackendKind: String
-  modelEmbeddingDimensions: SafeInt
-  protocol: String
-  providerConfiguredModelCount: SafeInt
-  providerConfiguredModelIds: [String!]
-  providerHealth: String
-  providerHealthCheckedAt: String
-  providerHealthLastError: String
-  providerId: String!
-  providerName: String
-  providerPrivacy: String
-  providerPriority: SafeInt
-  providerProfileConfigPath: String
-  providerProfileId: String
-  providerProfileSource: String
-  providerSource: String
-  providerType: String
-  requestLayer: String
-  requestedDimensions: SafeInt
-  routeModelAliasMatched: Boolean
-  routeModelDefinitionAliases: [String!]
-  routeModelDefinitionId: String
-  routeModelDefinitionSource: String
-  routeRawModelId: String
-  routeIndex: SafeInt!
-}
-
-type CopilotActionRunPreparedRouteDiagnosticsStepType {
-  actualRouteCount: SafeInt!
-  fallbackProviderIds: [String!]!
-  kind: String!
-  requestedModelId: String
-  requestedModelSource: String
-  routeCount: SafeInt!
-  routeCountMismatch: Boolean!
-  routes: [CopilotActionRunPreparedRouteDiagnosticsRouteType!]!
-  stepId: String!
-}
-
-type CopilotActionRunPreparedRouteDiagnosticsType {
-  status: String!
-  steps: [CopilotActionRunPreparedRouteDiagnosticsStepType!]!
-  type: String!
-}
-
-type CopilotActionRunAgentRuntimeTimelineItemType {
-  actualRouteCount: SafeInt!
-  eventKey: String!
-  eventType: String!
-  fallbackProviderIds: [String!]!
-  id: String!
-  kind: String
-  label: String!
-  routeBehaviorFlags: [String!]!
-  routeCanonicalModelKeys: [String!]!
-  routeCount: SafeInt!
-  routeCountMismatch: Boolean!
-  routeDimensionEvidence: [String!]!
-  routeEvidenceFingerprint: String!
-  routeModelBackendKinds: [String!]!
-  routeTargets: [String!]!
-  runId: String!
-  sequence: SafeInt!
-  status: String!
-  stepId: String
-  stepType: String
-}
-
-type CopilotActionRunAgentRuntimeDiagnosticsManifestType {
-  actionId: String!
-  actionVersion: String!
-  fingerprint: String!
-  hasPreparedRouteTrace: Boolean!
-  nativeTraceEventTypes: [String!]!
-  preparedRouteActualCount: SafeInt!
-  preparedRouteCount: SafeInt!
-  preparedRouteStepCount: SafeInt!
-  projectionContractFingerprint: String!
-  projectionGapCount: SafeInt!
-  projectionSource: String!
-  runStatus: String!
-  schemaReadiness: String!
-  schemaReadinessGapCount: SafeInt!
-  timelineEventTypes: [String!]!
-  timelineGapCount: SafeInt!
-  timelineItemCount: SafeInt!
-  timelineRouteEvidenceSetFingerprint: String!
-  version: String!
 }
 
 type CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType {
@@ -659,6 +596,51 @@ type CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType {
   version: String!
 }
 
+type CopilotActionRunAgentRuntimeDiagnosticsManifestType {
+  actionId: String!
+  actionVersion: String!
+  fingerprint: String!
+  hasPreparedRouteTrace: Boolean!
+  nativeTraceEventTypes: [String!]!
+  preparedRouteActualCount: SafeInt!
+  preparedRouteCount: SafeInt!
+  preparedRouteStepCount: SafeInt!
+  projectionContractFingerprint: String!
+  projectionGapCount: SafeInt!
+  projectionSource: String!
+  runStatus: String!
+  schemaReadiness: String!
+  schemaReadinessGapCount: SafeInt!
+  timelineEventTypes: [String!]!
+  timelineGapCount: SafeInt!
+  timelineItemCount: SafeInt!
+  timelineRouteEvidenceSetFingerprint: String!
+  version: String!
+}
+
+type CopilotActionRunAgentRuntimeTimelineItemType {
+  actualRouteCount: SafeInt!
+  eventKey: String!
+  eventType: String!
+  fallbackProviderIds: [String!]!
+  id: String!
+  kind: String
+  label: String!
+  routeBehaviorFlags: [String!]!
+  routeCanonicalModelKeys: [String!]!
+  routeCount: SafeInt!
+  routeCountMismatch: Boolean!
+  routeDimensionEvidence: [String!]!
+  routeEvidenceFingerprint: String!
+  routeModelBackendKinds: [String!]!
+  routeTargets: [String!]!
+  runId: String!
+  sequence: SafeInt!
+  status: String!
+  stepId: String
+  stepType: String
+}
+
 type CopilotActionRunDiagnosticsItemType {
   actionId: String!
   actionVersion: String!
@@ -666,35 +648,35 @@ type CopilotActionRunDiagnosticsItemType {
   agentRuntimeDiagnosticsManifest: CopilotActionRunAgentRuntimeDiagnosticsManifestType!
   agentRuntimeDiagnosticsManifestExportMetadata: CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType!
   agentRuntimeNativeTraceEventTypes: [String!]!
-  agentRuntimeProjectedSchemaComponents: [String!]!
   agentRuntimeProjectedRunStatuses: [String!]!
+  agentRuntimeProjectedSchemaComponents: [String!]!
   agentRuntimeProjectedStepStatuses: [String!]!
   agentRuntimeProjectedStepTypes: [String!]!
   agentRuntimeProjectedTimelineEventTypes: [String!]!
   agentRuntimeProjectionContractFingerprint: String!
-  agentRuntimeProjectionSource: String!
   agentRuntimeProjectionGaps: [String!]!
-  agentRuntimeRunStatusGaps: [String!]!
+  agentRuntimeProjectionSource: String!
   agentRuntimeRunId: String!
   agentRuntimeRunStatus: String!
+  agentRuntimeRunStatusGaps: [String!]!
   agentRuntimeSchemaReadiness: String!
   agentRuntimeSchemaReadinessGaps: [String!]!
   agentRuntimeStepCount: SafeInt!
-  agentRuntimeStepStatusGaps: [String!]!
   agentRuntimeStepIds: [String!]!
   agentRuntimeStepKinds: [String!]!
+  agentRuntimeStepStatusGaps: [String!]!
   agentRuntimeStepStatuses: [String!]!
   agentRuntimeStepTypes: [String!]!
-  agentRuntimeTimelineEntries: [String!]!
-  agentRuntimeTimelineEventTypes: [String!]!
-  agentRuntimeTimelineGaps: [String!]!
-  agentRuntimeTimelineItems: [CopilotActionRunAgentRuntimeTimelineItemType!]!
-  agentRuntimeTimelineRouteEvidenceSetFingerprint: String!
   agentRuntimeTargetRunStatuses: [String!]!
   agentRuntimeTargetSchemaComponents: [String!]!
   agentRuntimeTargetStepStatuses: [String!]!
   agentRuntimeTargetStepTypes: [String!]!
   agentRuntimeTargetTimelineEventTypes: [String!]!
+  agentRuntimeTimelineEntries: [String!]!
+  agentRuntimeTimelineEventTypes: [String!]!
+  agentRuntimeTimelineGaps: [String!]!
+  agentRuntimeTimelineItems: [CopilotActionRunAgentRuntimeTimelineItemType!]!
+  agentRuntimeTimelineRouteEvidenceSetFingerprint: String!
   agentRuntimeUnsupportedRunStatuses: [String!]!
   agentRuntimeUnsupportedStepStatuses: [String!]!
   agentRuntimeUnsupportedStepTypes: [String!]!
@@ -706,43 +688,208 @@ type CopilotActionRunDiagnosticsItemType {
   hasPreparedRouteTrace: Boolean!
   id: String!
   preparedRouteActualCount: SafeInt!
-  preparedRouteCount: SafeInt!
-  preparedRouteFallbackProviderIds: [String!]!
-  preparedRouteFallbackOrder: [String!]!
   preparedRouteBehaviorFlags: [String!]!
   preparedRouteCanonicalModelKeys: [String!]!
+  preparedRouteCount: SafeInt!
   preparedRouteDimensionEvidence: [String!]!
-  preparedRouteStepFallbackProviderIds: [String!]!
-  preparedRouteStepIds: [String!]!
+  preparedRouteFallbackOrder: [String!]!
+  preparedRouteFallbackProviderIds: [String!]!
   preparedRouteKinds: [String!]!
   preparedRouteModelBackendKinds: [String!]!
   preparedRouteModelIds: [String!]!
   preparedRouteOrder: [String!]!
   preparedRouteProtocols: [String!]!
   preparedRouteProviderIds: [String!]!
+  preparedRouteRequestLayers: [String!]!
   preparedRouteRequestedModelIds: [String!]!
   preparedRouteRequestedModelSources: [String!]!
-  preparedRouteStepRequestedModelSources: [String!]!
-  preparedRouteRequestLayers: [String!]!
-  preparedRouteStepFallbackOrder: [String!]!
+  preparedRouteRequestedTargets: [String!]!
   preparedRouteStepBehaviorFlags: [String!]!
   preparedRouteStepCanonicalModelKeys: [String!]!
+  preparedRouteStepCount: SafeInt!
   preparedRouteStepDimensionEvidence: [String!]!
+  preparedRouteStepFallbackOrder: [String!]!
+  preparedRouteStepFallbackProviderIds: [String!]!
+  preparedRouteStepIds: [String!]!
   preparedRouteStepModelBackendKinds: [String!]!
   preparedRouteStepOrder: [String!]!
-  preparedRouteStepRouteCountMismatches: [String!]!
-  preparedRouteStepRouteCounts: [String!]!
   preparedRouteStepProtocols: [String!]!
   preparedRouteStepRequestLayers: [String!]!
-  preparedRouteStepCount: SafeInt!
-  preparedRouteTargets: [String!]!
-  preparedRouteStepTargets: [String!]!
-  preparedRouteRequestedTargets: [String!]!
+  preparedRouteStepRequestedModelSources: [String!]!
   preparedRouteStepRequestedTargets: [String!]!
+  preparedRouteStepRouteCountMismatches: [String!]!
+  preparedRouteStepRouteCounts: [String!]!
+  preparedRouteStepTargets: [String!]!
+  preparedRouteTargets: [String!]!
   retryOf: String
   sessionId: String
   status: String!
   updatedAt: DateTime!
+}
+
+type CopilotActionRunPreparedRouteDiagnosticsRouteType {
+  behaviorFlags: [String!]
+  canonicalModelKey: String
+  dimensionMismatch: Boolean
+  fallbackOrderIndex: SafeInt
+  modelBackendKind: String
+  modelEmbeddingDimensions: SafeInt
+  modelId: String!
+  protocol: String
+  providerConfiguredModelCount: SafeInt
+  providerConfiguredModelIds: [String!]
+  providerHealth: String
+  providerHealthCheckedAt: String
+  providerHealthLastError: String
+  providerId: String!
+  providerName: String
+  providerPriority: SafeInt
+  providerPrivacy: String
+  providerProfileConfigPath: String
+  providerProfileId: String
+  providerProfileSource: String
+  providerSource: String
+  providerType: String
+  requestLayer: String
+  requestedDimensions: SafeInt
+  routeIndex: SafeInt!
+  routeModelAliasMatched: Boolean
+  routeModelDefinitionAliases: [String!]
+  routeModelDefinitionId: String
+  routeModelDefinitionSource: String
+  routeRawModelId: String
+}
+
+type CopilotActionRunPreparedRouteDiagnosticsStepType {
+  actualRouteCount: SafeInt!
+  fallbackProviderIds: [String!]!
+  kind: String!
+  requestedModelId: String
+  requestedModelSource: String
+  routeCount: SafeInt!
+  routeCountMismatch: Boolean!
+  routes: [CopilotActionRunPreparedRouteDiagnosticsRouteType!]!
+  stepId: String!
+}
+
+type CopilotActionRunPreparedRouteDiagnosticsType {
+  status: String!
+  steps: [CopilotActionRunPreparedRouteDiagnosticsStepType!]!
+  type: String!
+}
+
+type CopilotAgentRunType {
+  actorId: String!
+  completedAt: DateTime
+  createdAt: DateTime!
+  evidenceFingerprint: String!
+  executionResultCount: SafeInt!
+  executionResults: [CopilotAgentRuntimeExecutionResultType!]!
+  failureCode: String
+  failureMessage: String
+  id: String!
+  lastAttemptAt: DateTime
+  queuedAt: DateTime
+  sourceId: String!
+  sourceType: String!
+  startedAt: DateTime
+  status: String!
+  steps: [CopilotAgentStepType!]!
+  targetFingerprint: String!
+  timelineEvents: [CopilotAgentTimelineEventType!]!
+  timelineFingerprint: String!
+  title: String
+  updatedAt: DateTime!
+  workerAttempt: SafeInt!
+  workerLeaseExpiresAt: DateTime
+  workerLeaseId: String
+  workerMaxAttempts: SafeInt!
+  workflow: String!
+  workspaceId: String!
+}
+
+type CopilotAgentRuntimeExecutionResultType {
+  actorId: String!
+  adapterWorkflow: String!
+  completedAt: DateTime!
+  createdAt: DateTime!
+  executor: String!
+  failureCode: String
+  failureMessage: String
+  id: String!
+  resultFingerprint: String!
+  resultPayload: JSON!
+  resultStatus: String!
+  runId: String!
+  sideEffectMode: String!
+  sideEffectsApplied: Boolean!
+  sourceId: String!
+  sourceType: String!
+  summary: String!
+  workerAttempt: SafeInt!
+  workerLeaseId: String!
+  workflow: String!
+  workspaceId: String!
+}
+
+type CopilotAgentRuntimeWorkflowAdapterCapabilitiesType {
+  sideEffectMode: String!
+  summary: String!
+  supportedStepTypes: [String!]!
+  version: String!
+}
+
+type CopilotAgentRuntimeWorkflowAdapterType {
+  capabilities: CopilotAgentRuntimeWorkflowAdapterCapabilitiesType!
+  workflow: String!
+}
+
+type CopilotAgentStepType {
+  actorId: String!
+  completedAt: DateTime
+  createdAt: DateTime!
+  evidenceFingerprint: String!
+  id: String!
+  order: SafeInt!
+  outputSummary: JSON!
+  runId: String!
+  startedAt: DateTime
+  status: String!
+  stepKey: String!
+  stepType: String!
+  title: String
+  updatedAt: DateTime!
+  workspaceId: String!
+}
+
+type CopilotAgentTimelineEventType {
+  actorId: String!
+  createdAt: DateTime!
+  eventFingerprint: String!
+  eventType: String!
+  id: String!
+  ordinal: SafeInt!
+  payload: JSON!
+  runId: String!
+  status: String!
+  stepId: String
+  summary: String!
+  workspaceId: String!
+}
+
+input CopilotAgentRuntimeControlInput {
+  action: String!
+  reason: String
+  runId: String!
+  workspaceId: String!
+}
+
+input CopilotAgentRunListFilterInput {
+  query: String
+  sourceId: String
+  sourceType: String
+  status: String
+  workflow: String
 }
 
 type CopilotContext {
@@ -868,10 +1015,32 @@ type CopilotMessageNotFoundDataType {
   messageId: String!
 }
 
+type CopilotModelPromptSourceType {
+  candidateSource: String!
+  modelConfigPath: String
+  modelSource: String
+}
+
+type CopilotModelRegistrySourceChainEntryType {
+  actorId: String
+  fingerprint: String
+  modelId: String
+  providerId: String
+  revision: String
+  scope: String!
+  source: String!
+  status: String!
+  updatedAt: String
+  workspaceId: String
+}
+
 type CopilotModelType {
   contextWindow: SafeInt
-  costInputPer1M: Float
-  costOutputPer1M: Float
+  costInputPer1M: Int
+  costOutputPer1M: Int
+  effectiveSourceFingerprint: String
+  effectiveSourceFingerprintInputs: [String!]
+  effectiveSourceFingerprintVersion: String
   embeddingDimensions: SafeInt
   id: String!
   maxOutputTokens: SafeInt
@@ -885,26 +1054,26 @@ type CopilotModelType {
   promptName: String!
   promptOverrideApplied: Boolean!
   promptSource: String!
+  providerConfiguredModelCount: SafeInt
+  providerConfiguredModelIds: [String!]
   providerHealth: String
   providerHealthCheckedAt: String
   providerHealthLastError: String
   providerId: String
   providerName: String
-  providerConfiguredModelCount: SafeInt
-  providerConfiguredModelIds: [String!]
+  providerPriority: SafeInt
+  providerPrivacy: String
   providerProfileConfigPath: String
   providerProfileId: String
   providerProfileSource: String
   providerSource: String
-  providerPrivacy: String
-  providerPriority: SafeInt
   providerType: String
   registryAvailable: Boolean
   registryKind: String
   registrySelected: Boolean
-  effectiveSourceFingerprint: String
-  effectiveSourceFingerprintInputs: [String!]
-  effectiveSourceFingerprintVersion: String
+  routeAttachmentAllowRemoteUrls: Boolean
+  routeAttachmentKinds: [String!]
+  routeAttachmentSourceKinds: [String!]
   routeBackendKind: String
   routeBehaviorFlags: [String!]
   routeCanonicalModelKey: String
@@ -914,17 +1083,19 @@ type CopilotModelType {
   routeModelDefinitionAliases: [String!]
   routeModelDefinitionId: String
   routeModelDefinitionSource: String
+  modelRegistryRevision: String
+  modelRegistryRevisionActorId: String
+  modelRegistryRevisionFingerprint: String
+  modelRegistryRevisionId: String
+  modelRegistryRevisionScope: String
+  modelRegistryRevisionSourceChain: [CopilotModelRegistrySourceChainEntryType!]
+  modelRegistryRevisionSourceChainFingerprint: String
+  modelRegistryRevisionStatus: String
+  modelRegistryRevisionWorkspaceId: String
+  modelRegistryRevisionPublishEventCount: SafeInt
+  modelRegistryRevisionPublishEvents: [CopilotRegistryRevisionPublishEventType!]
   routeModelId: String
   routeOutputTypes: [String!]
-  routeAttachmentAllowRemoteUrls: Boolean
-  routeAttachmentKinds: [String!]
-  routeAttachmentSourceKinds: [String!]
-  routeStructuredAttachmentAllowRemoteUrls: Boolean
-  routeStructuredAttachmentKinds: [String!]
-  routeStructuredAttachmentSourceKinds: [String!]
-  routeProtocol: String
-  routeRawModelId: String
-  routeRequestLayer: String
   routePolicyAllowedPrivacy: [String!]
   routePolicyAllowedProviderIds: [String!]
   routePolicyBlockedProviderIds: [String!]
@@ -932,24 +1103,48 @@ type CopilotModelType {
   routePolicyFeatureKind: String
   routePolicyPreferredPrivacy: [String!]
   routePolicyWorkspaceId: String
+  routeProtocol: String
+  routeRawModelId: String
+  routeRequestLayer: String
+  routeStructuredAttachmentAllowRemoteUrls: Boolean
+  routeStructuredAttachmentKinds: [String!]
+  routeStructuredAttachmentSourceKinds: [String!]
   sources: [String!]!
 }
 
-type CopilotModelPromptSourceType {
-  candidateSource: String!
-  modelConfigPath: String
-  modelSource: String
-}
-
 type CopilotModelsType {
-  defaultModelFallbackReason: String
   defaultModel: String!
+  defaultModelFallbackReason: String
   defaultModelSource: String!
   embeddingRoute: CopilotTaskRouteDiagnosticsType
   optionalModels: [CopilotModelType!]!
-  promptDefaultModel: String!
   proModels: [CopilotModelType!]!
+  promptDefaultModel: String!
   rerankRoute: CopilotTaskRouteDiagnosticsType
+}
+
+type CopilotPreparedTaskRouteDiagnosticsType {
+  behaviorFlags: [String!]
+  canonicalModelKey: String
+  dimensionMismatch: Boolean
+  fallbackOrderIndex: SafeInt
+  modelBackendKind: String
+  modelEmbeddingDimensions: SafeInt
+  modelId: String!
+  protocol: String
+  providerConfiguredModelCount: SafeInt
+  providerConfiguredModelIds: [String!]
+  providerId: String!
+  providerName: String
+  providerPriority: SafeInt
+  providerProfileConfigPath: String
+  providerProfileId: String
+  providerProfileSource: String
+  providerSource: String
+  providerType: String
+  requestLayer: String
+  requestedDimensions: SafeInt
+  routeIndex: SafeInt!
 }
 
 type CopilotPromptCatalogItemType {
@@ -957,25 +1152,37 @@ type CopilotPromptCatalogItemType {
   category: String!
   defaultPolicy: String
   fingerprint: String!
-  modelStrategyFingerprint: String!
-  modelConfigPath: String
   model: String!
+  modelConfigPath: String
   modelSource: String!
+  modelStrategyFingerprint: String!
   name: String!
-  optionalModelsConfigPath: String
   optionalModelCount: SafeInt!
   optionalModels: [String!]!
+  optionalModelsConfigPath: String
   optionalModelsSource: String!
   overrideApplied: Boolean!
   paramCount: SafeInt!
   paramKeys: [String!]!
-  proModelsConfigPath: String
   proModelCount: SafeInt!
+  proModelsConfigPath: String
   proModelsSource: String!
   registryFingerprint: String
   registryId: SafeInt
   registryMessageCount: SafeInt
   registryModified: Boolean
+  registryRecordSource: String
+  registryRevision: String
+  registryRevisionActorId: String
+  registryRevisionFingerprint: String
+  registryRevisionId: String
+  registryRevisionPublishEventCount: SafeInt
+  registryRevisionPublishEvents: [CopilotRegistryRevisionPublishEventType!]
+  registryRevisionScope: String
+  registryRevisionStatus: String
+  registryRevisionWorkspaceId: String
+  registrySourceChain: [CopilotPromptRegistrySourceChainEntryType!]
+  registrySourceChainFingerprint: String
   registryUpdatedAt: DateTime
   registryValidationBlockingCount: SafeInt
   registryValidationDetail: String
@@ -983,8 +1190,8 @@ type CopilotPromptCatalogItemType {
   registryValidationIssueCount: SafeInt
   registryValidationIssues: [CopilotPromptRegistryValidationIssueType!]
   registryValidationPublishStatus: String
-  registryValidationRemediations: [CopilotPromptRegistryValidationRemediationType!]
   registryValidationReason: String
+  registryValidationRemediations: [CopilotPromptRegistryValidationRemediationType!]
   registryValidationStatus: String
   revision: String!
   source: String!
@@ -1004,6 +1211,18 @@ type CopilotPromptCatalogVersionEvidenceType {
   registryId: SafeInt
   registryMessageCount: SafeInt
   registryModified: Boolean
+  registryRecordSource: String
+  registryRevision: String
+  registryRevisionActorId: String
+  registryRevisionFingerprint: String
+  registryRevisionId: String
+  registryRevisionPublishEventCount: SafeInt
+  registryRevisionPublishEvents: [CopilotRegistryRevisionPublishEventType!]
+  registryRevisionScope: String
+  registryRevisionStatus: String
+  registryRevisionWorkspaceId: String
+  registrySourceChain: [CopilotPromptRegistrySourceChainEntryType!]
+  registrySourceChainFingerprint: String
   registryUpdatedAt: DateTime
   registryValidationBlockingCount: SafeInt
   registryValidationDetail: String
@@ -1011,8 +1230,8 @@ type CopilotPromptCatalogVersionEvidenceType {
   registryValidationIssueCount: SafeInt
   registryValidationIssues: [CopilotPromptRegistryValidationIssueType!]
   registryValidationPublishStatus: String
-  registryValidationRemediations: [CopilotPromptRegistryValidationRemediationType!]
   registryValidationReason: String
+  registryValidationRemediations: [CopilotPromptRegistryValidationRemediationType!]
   registryValidationStatus: String
   revision: String!
   templateFingerprint: String!
@@ -1022,113 +1241,588 @@ type CopilotPromptNotFoundDataType {
   name: String!
 }
 
+type CopilotPromptRegistryPublishGateActionRouteDryRunRouteType {
+  fallbackOrderIndex: SafeInt
+  modelId: String!
+  protocol: String
+  providerConfiguredModelCount: SafeInt
+  providerConfiguredModelIds: [String!]
+  providerHealth: String
+  providerHealthCheckedAt: String
+  providerHealthLastError: String
+  providerId: String!
+  providerName: String
+  providerPriority: SafeInt
+  providerPrivacy: String
+  providerProfileConfigPath: String
+  providerProfileId: String
+  providerProfileSource: String
+  providerSource: String
+  providerType: String
+  requestLayer: String
+  routeIndex: SafeInt!
+  routeModelAliasMatched: Boolean
+  routeModelDefinitionAliases: [String!]
+  routeModelDefinitionId: String
+  routeModelDefinitionSource: String
+  routeRawModelId: String
+}
+
+type CopilotPromptRegistryPublishGateActionRouteDryRunStepType {
+  actualRouteCount: SafeInt!
+  fallbackProviderIds: [String!]!
+  kind: String!
+  requestedModelId: String
+  requestedModelSource: String
+  routeCount: SafeInt!
+  routeCountMismatch: Boolean!
+  routes: [CopilotPromptRegistryPublishGateActionRouteDryRunRouteType!]!
+  stepId: String!
+}
+
+type CopilotPromptRegistryPublishGateActionRouteDryRunType {
+  actionId: String
+  actualRouteCount: SafeInt!
+  diagnosticsErrorCode: String
+  diagnosticsErrorMessage: String
+  diagnosticsErrorStage: String
+  errorCode: String
+  errorMessage: String
+  expectedRouteCount: SafeInt!
+  featureKind: String!
+  missingRouteCount: SafeInt!
+  routeCountMismatch: Boolean!
+  routeCountMismatchStepIds: [String!]!
+  status: String!
+  steps: [CopilotPromptRegistryPublishGateActionRouteDryRunStepType!]!
+}
+
 input CopilotPromptRegistryPublishGateExpectedVersionInput {
   registryFingerprint: String
   registryId: SafeInt
   registryUpdatedAt: String
 }
 
-type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType {
-  candidateEvidenceCategoryCount: SafeInt!
-  candidateEvidenceCategories: [String!]!
+type CopilotPromptRegistryPublishGateModelRouteType {
+  available: Boolean!
+  behaviorFlags: [String!]
+  candidateConfigPath: String
+  candidateCount: SafeInt!
+  candidateIndex: SafeInt!
+  candidateKind: String!
+  canonicalModelKey: String
+  checked: Boolean!
+  configured: Boolean!
+  diagnosticsErrorCode: String
+  diagnosticsErrorMessage: String
+  diagnosticsErrorStage: String
+  effectiveSourceFingerprint: String
+  effectiveSourceFingerprintInputs: [String!]
+  effectiveSourceFingerprintVersion: String
+  fallbackProviderIds: [String!]!
+  featureKind: String!
+  matchedCandidateCount: SafeInt!
+  modelBackendKind: String
+  modelId: String
+  outputType: String!
+  policyAllowedPrivacy: [String!]
+  policyAllowedProviderIds: [String!]
+  policyBlockedProviderIds: [String!]
+  policyCandidates: [CopilotPromptRegistryPublishGatePolicyCandidateType!]!
+  policyEnabled: Boolean!
+  policyFeatureKind: String
+  policyPreferredPrivacy: [String!]
+  policyWorkspaceId: String
+  protocol: String
+  providerConfiguredModelCount: SafeInt
+  providerConfiguredModelIds: [String!]
+  providerHealth: String
+  providerHealthCheckedAt: String
+  providerHealthLastError: String
+  providerId: String
+  providerName: String
+  providerPriority: SafeInt
+  providerPrivacy: String
+  providerProfileConfigPath: String
+  providerProfileId: String
+  providerProfileSource: String
+  providerSource: String
+  providerType: String
+  reasons: [String!]!
+  requestLayer: String
+  requestedModelId: String
+  requestedModelSource: String
+  routeCandidates: [CopilotPromptRegistryPublishGateRouteCandidateType!]!
+  routeModelAliasMatched: Boolean
+  routeModelDefinitionAliases: [String!]
+  routeModelDefinitionId: String
+  routeModelDefinitionSource: String
+  modelRegistryRevision: String
+  modelRegistryRevisionActorId: String
+  modelRegistryRevisionFingerprint: String
+  modelRegistryRevisionId: String
+  modelRegistryRevisionScope: String
+  modelRegistryRevisionSourceChain: [CopilotModelRegistrySourceChainEntryType!]
+  modelRegistryRevisionSourceChainFingerprint: String
+  modelRegistryRevisionStatus: String
+  modelRegistryRevisionWorkspaceId: String
+  routeRawModelId: String
+  routeTrace: [CopilotPromptRegistryPublishGateRouteTracePhaseType!]!
+}
+
+type CopilotPromptRegistryPublishGatePolicyCandidateType {
+  allowed: Boolean!
+  available: Boolean!
+  candidateFingerprint: String!
+  candidateKey: String!
+  health: String!
+  healthCheckedAt: String
+  privacy: String!
+  providerConfiguredModelCount: SafeInt
+  providerConfiguredModelIds: [String!]
+  providerId: String!
+  providerName: String
+  providerPriority: SafeInt
+  providerProfileConfigPath: String
+  providerProfileId: String
+  providerProfileSource: String
+  providerSource: String
+  providerType: String
+  reasons: [String!]!
+  registryAvailable: Boolean
+  registryKind: String
+  registrySelected: Boolean
+}
+
+type CopilotPromptRegistryPublishGateRepairActionCatalogEntryType {
+  actionKind: String!
+  catalogVersion: String!
+  inputSchema: JSON!
+  recommendationCount: SafeInt!
+  requiredCapabilities: [String!]!
+  safety: String!
+}
+
+type CopilotPromptRegistryPublishGateRepairActionMutationGuardType {
+  auditSummary: String!
+  auditSummaryFingerprint: String!
+  catalogFingerprint: String!
+  catalogVersion: String!
+  expectedRegistryFingerprint: String!
+  expectedRegistryId: SafeInt!
+  expectedRegistryUpdatedAt: String!
+  guardFingerprint: String!
+  inputSchemaFingerprint: String!
+  intentFingerprint: String!
+  recommendationCategories: [String!]!
+  recommendationCodes: [String!]!
+  recommendationCount: SafeInt!
+  recommendationFingerprints: [String!]!
+  required: Boolean!
+  requiredCapabilities: [String!]!
+  requiredReviewModes: [String!]!
+  safetyLevels: [String!]!
+  suggestedActionKinds: [String!]!
+  targetLocatorCount: SafeInt!
+  targetLocatorFingerprint: String!
+  targetLocatorKinds: [String!]!
+}
+
+type CopilotPromptRegistryPublishGateRepairActionPreviewOperationType {
+  actionKind: String!
   candidateEvidenceCount: SafeInt!
   candidateEvidenceEntries: [CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType!]!
-  candidateEvidenceReferenceSchemaArtifactFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStorageStatus: String!
-  candidateEvidenceReferenceSchemaArtifactRecordStatus: String!
-  candidateEvidenceReferenceSchemaArtifactStatus: String!
-  candidateEvidenceReferenceSchemaFields: [String!]!
-  candidateEvidenceReferenceSchemaFingerprint: String!
-  candidateEvidenceReferenceSchemaFingerprintInputs: [String!]!
-  candidateEvidenceReferenceSchemaRegistryStatus: String!
-  candidateEvidenceReferenceSchemaVersion: String!
   candidateEvidenceFingerprint: String!
   candidateEvidenceFingerprints: [String!]!
   candidateEvidenceKeys: [String!]!
-  candidateEvidenceProviderIds: [String!]!
-  candidateEvidenceScopes: [String!]!
+  category: String!
+  code: String!
   diagnosticsFingerprint: String!
+  embeddingIndexContractEvidenceFingerprints: [String!]!
+  inputSchema: JSON!
+  instanceKey: String
   operationFingerprint: String!
+  preparedRouteOrderFingerprints: [String!]!
+  previewStatus: String!
+  requiredCapabilities: [String!]!
+  rerankRuntimeContractEvidenceFingerprints: [String!]!
+  reviewMode: String!
+  safety: String!
+  target: String!
+  targetLocator: CopilotPromptRegistryPublishGateRepairTargetLocatorType
+  targetLocatorFingerprint: String!
   taskRouteEffectiveSourceFingerprints: [String!]!
+}
+
+type CopilotPromptRegistryPublishGateRepairActionPreviewType {
+  approvalCheckpoints: [String!]!
+  approvalModes: [String!]!
+  approvalPolicyFingerprint: String!
+  approvalPolicyVersion: String!
+  approvalRequired: Boolean!
+  auditSummaryFingerprint: String!
+  authorizationFingerprint: String!
+  authorizationStatus: String!
+  candidateCount: SafeInt!
+  candidateEvidenceSetFingerprint: String!
+  catalogFingerprint: String!
+  catalogVersion: String!
+  embeddingIndexContractEvidenceSetFingerprint: String!
+  guardFingerprint: String!
+  operationFingerprints: [String!]!
+  operationSetFingerprint: String!
+  operations: [CopilotPromptRegistryPublishGateRepairActionPreviewOperationType!]!
+  preparedRouteOrderEvidenceSetFingerprint: String!
+  previewFingerprint: String!
+  readOnly: Boolean!
+  requiredCapabilities: [String!]!
+  rerankRuntimeContractEvidenceSetFingerprint: String!
+  status: String!
+  submissionContract: CopilotPromptRegistryPublishGateRepairActionSubmissionContractType!
+  taskRouteEffectiveSourceEvidenceSetFingerprint: String!
+  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: [String!]!
+  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: String!
+}
+
+type CopilotPromptRegistryPublishGateRepairActionSubmissionContractType {
+  approvalPolicyFingerprint: String!
+  authorizationFingerprint: String!
+  candidateEvidenceSetFingerprint: String!
+  catalogFingerprint: String!
+  contractVersion: String!
+  embeddingIndexContractEvidenceSetFingerprint: String!
+  expectedRegistryFingerprint: String!
+  expectedRegistryId: SafeInt!
+  expectedRegistryUpdatedAt: String!
+  guardFingerprint: String!
+  idempotencyKey: String!
+  mutationAvailable: Boolean!
+  operationSetFingerprint: String!
+  preparedRouteOrderEvidenceSetFingerprint: String!
+  previewFingerprint: String!
+  readOnly: Boolean!
+  requiredInputs: [String!]!
+  rerankRuntimeContractEvidenceSetFingerprint: String!
+  status: String!
+  submissionFingerprint: String!
+  targetLocatorFingerprint: String!
+  taskRouteEffectiveSourceEvidenceSetFingerprint: String!
+  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: [String!]!
+  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: String!
+}
+
+type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
+  allowed: Boolean
+  available: Boolean
+  candidateFingerprint: String!
+  candidateIndex: SafeInt!
+  candidateKey: String
+  candidateModelIds: [String!]
+  costInputPer1M: Int
+  costOutputPer1M: Int
+  diagnosticsErrorSnapshotFingerprint: String
+  diagnosticsErrors: [CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType!]
+  dimensionMismatch: Boolean
+  embeddingIndexContractDimensions: SafeInt
+  embeddingIndexContractFingerprint: String
+  embeddingIndexContractStatus: String
+  embeddingIndexContractVersion: String
+  errorCategory: String
+  errorCode: String
+  fallbackProviderIds: [String!]
+  health: String
+  healthCheckedAt: String
+  matched: Boolean
+  modelEmbeddingDimensions: SafeInt
+  modelId: String
+  policyCandidateSnapshotFingerprint: String
+  policyCandidates: [CopilotPromptRegistryPublishGatePolicyCandidateType!]
+  prepareCandidateSnapshotFingerprint: String
+  prepareCandidates: [CopilotTaskRoutePrepareCandidateDiagnosticsType!]
+  prepared: Boolean
+  preparedModelId: String
+  preparedRouteOrderFingerprint: String
+  preparedRouteSnapshotFingerprint: String
+  preparedRouteTargetFingerprint: String
+  preparedRouteTargets: [String!]
+  preparedRoutes: [CopilotPreparedTaskRouteDiagnosticsType!]
+  privacy: String
+  providerCapabilitySnapshotFingerprint: String
+  providerConfiguredModelCount: SafeInt
+  providerConfiguredModelIds: [String!]
+  providerCostSnapshotFingerprint: String
+  providerHealthSnapshotFingerprint: String
+  providerId: String!
+  providerLimitSnapshotFingerprint: String
+  providerName: String
+  providerPriority: SafeInt
+  providerProfileConfigPath: String
+  providerProfileId: String
+  providerProfileSource: String
+  providerSource: String
+  providerType: String
+  reasons: [String!]!
+  registryAvailable: Boolean
+  registryKind: String
+  registrySelected: Boolean
+  requestedDimensions: SafeInt
+  requestedModelConfigKey: String
+  requestedModelConfigPath: String
+  requestedModelId: String
+  requestedModelSource: String
+  rerankRuntimeContractFingerprint: String
+  rerankRuntimeContractStatus: String
+  rerankRuntimeContractTopK: SafeInt
+  rerankRuntimeContractVersion: String
+  routeAttachmentAllowRemoteUrls: Boolean
+  routeAttachmentKinds: [String!]
+  routeAttachmentSourceKinds: [String!]
+  routeCandidateSnapshotFingerprint: String
+  routeContextWindow: SafeInt
+  routeEmbeddingDimensions: SafeInt
+  routeInputTypes: [String!]
+  routeMaxOutputTokens: SafeInt
+  routeModelAliasMatched: Boolean
+  routeModelDefinitionAliases: [String!]
+  routeModelDefinitionId: String
+  routeModelDefinitionSource: String
+  modelRegistryRevision: String
+  modelRegistryRevisionActorId: String
+  modelRegistryRevisionFingerprint: String
+  modelRegistryRevisionId: String
+  modelRegistryRevisionScope: String
+  modelRegistryRevisionSourceChain: [CopilotModelRegistrySourceChainEntryType!]
+  modelRegistryRevisionSourceChainFingerprint: String
+  modelRegistryRevisionStatus: String
+  modelRegistryRevisionWorkspaceId: String
+  modelRegistryRevisionPublishEventCount: SafeInt
+  modelRegistryRevisionPublishEvents: [CopilotRegistryRevisionPublishEventType!]
+  routeOutputTypes: [String!]
+  routeRawModelId: String
+  routeStructuredAttachmentAllowRemoteUrls: Boolean
+  routeStructuredAttachmentKinds: [String!]
+  routeStructuredAttachmentSourceKinds: [String!]
+  routeTrace: [CopilotPromptRegistryPublishGateRouteTracePhaseType!]
+  routeTracePhases: [String!]
+  routeTraceSnapshotFingerprint: String
+  scope: String!
+  taskRouteDimensionSnapshotFingerprint: String
+  taskRouteEffectiveSourceFingerprint: String
+  taskRouteEffectiveSourceFingerprintInputs: [String!]
+  taskRouteEffectiveSourceFingerprintVersion: String
+  taskRouteEmbeddingIndexContractSnapshotFingerprint: String
+  taskRouteModelSourceSnapshotFingerprint: String
+  taskRouteRerankRuntimeContractSnapshotFingerprint: String
+}
+
+type CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType {
+  code: String!
+  message: String!
+  stage: String!
+}
+
+type CopilotPromptRegistryPublishGateRepairGateManifestExportMetadataType {
+  artifact: String!
+  auditEventCreated: Boolean!
+  auditEventFingerprint: String!
+  auditEventStatus: String!
+  auditEventVersion: String!
+  boundary: String!
+  exportPolicyFingerprint: String!
+  exportPolicyStatus: String!
+  exportPolicyVersion: String!
+  filename: String!
+  gateStatus: String!
+  manifestFingerprint: String!
+  manifestVersion: String!
+  metadataFilename: String!
+  mime: String!
+  publishStatus: String!
+  redactionPolicyFingerprint: String!
+  redactionPolicyStatus: String!
+  redactionPolicyVersion: String!
+  registryFingerprint: String!
+  registryId: SafeInt!
+  registryUpdatedAt: String!
+  retentionPolicyFingerprint: String!
+  retentionPolicyStatus: String!
+  retentionPolicyVersion: String!
+  version: String!
+}
+
+type CopilotPromptRegistryPublishGateRepairGateManifestType {
+  approvalPolicyFingerprint: String!
+  authorizationFingerprint: String!
+  blockingCount: SafeInt!
+  boundary: String!
+  candidateEvidenceSetFingerprint: String!
+  catalogFingerprint: String!
+  catalogVersion: String!
+  embeddingIndexContractEvidenceSetFingerprint: String!
+  fingerprint: String!
+  gateStatus: String!
+  guardFingerprint: String!
+  issueCount: SafeInt!
+  mutationAvailable: Boolean!
+  operationCount: SafeInt!
+  operationFingerprints: [String!]!
+  operationSetFingerprint: String!
+  preparedRouteOrderEvidenceSetFingerprint: String!
+  previewFingerprint: String!
+  publishStatus: String!
+  readOnly: Boolean!
+  reason: String!
+  recommendationCount: SafeInt!
+  recommendationFingerprints: [String!]!
+  registryFingerprint: String!
+  registryId: SafeInt!
+  registryUpdatedAt: String!
+  requiredCapabilities: [String!]!
+  requiredReviewModes: [String!]!
+  rerankRuntimeContractEvidenceSetFingerprint: String!
+  safetyLevels: [String!]!
+  submissionFingerprint: String!
+  targetLocatorFingerprint: String!
+  taskRouteEffectiveSourceEvidenceSetFingerprint: String!
+  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: [String!]!
+  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: String!
+  version: String!
+}
+
+type CopilotPromptRegistryPublishGateRepairRecommendationType {
+  candidateEvidence: [CopilotPromptRegistryPublishGateRepairCandidateEvidenceType!]
+  category: String!
+  code: String!
+  detail: String!
+  diagnosticsFingerprint: String!
+  evidence: [String!]!
+  instanceKey: String
+  severity: String!
+  suggestedAction: String!
+  suggestedActionCatalogVersion: String!
+  suggestedActionInputSchema: JSON!
+  suggestedActionKind: String!
+  suggestedActionRequiredCapabilities: [String!]!
+  suggestedActionSafety: String!
+  target: String!
+  targetLocator: CopilotPromptRegistryPublishGateRepairTargetLocatorType
+  title: String!
+}
+
+type CopilotPromptRegistryPublishGateRepairTargetLocatorType {
+  actionId: String
+  candidateIndex: SafeInt
+  candidateKind: String
+  fallbackOrderIndex: SafeInt
+  featureKind: String
+  kind: String!
+  outputType: String
+  path: String!
+  providerId: String
+  providerProfileConfigPath: String
+  providerProfileId: String
+  providerProfileSource: String
+  registryFingerprint: String!
+  registryId: SafeInt!
+  registryUpdatedAt: String!
+  requestedModelConfigKey: String
+  requestedModelConfigPath: String
+  requestedModelId: String
+  requestedModelSource: String
+  routeIndex: SafeInt
+  status: String
+  stepId: String
+}
+
+type CopilotPromptRegistryPublishGateRouteCandidateType {
+  candidateModelIds: [String!]
+  costInputPer1M: Int
+  costOutputPer1M: Int
+  health: String
+  healthCheckedAt: String
+  matched: Boolean!
+  modelId: String
+  privacy: String
+  providerConfiguredModelCount: SafeInt
+  providerConfiguredModelIds: [String!]
+  providerId: String!
+  providerName: String
+  providerPriority: SafeInt
+  providerProfileConfigPath: String
+  providerProfileId: String
+  providerProfileSource: String
+  providerSource: String
+  providerType: String
+  reasons: [String!]!
+  registryAvailable: Boolean
+  registryKind: String
+  registrySelected: Boolean
+  requestedModelId: String
+  routeAttachmentAllowRemoteUrls: Boolean
+  routeAttachmentKinds: [String!]
+  routeAttachmentSourceKinds: [String!]
+  routeContextWindow: SafeInt
+  routeEmbeddingDimensions: SafeInt
+  routeInputTypes: [String!]
+  routeMaxOutputTokens: SafeInt
+  routeModelAliasMatched: Boolean
+  routeModelDefinitionAliases: [String!]
+  routeModelDefinitionId: String
+  routeModelDefinitionSource: String
+  modelRegistryRevision: String
+  modelRegistryRevisionActorId: String
+  modelRegistryRevisionFingerprint: String
+  modelRegistryRevisionId: String
+  modelRegistryRevisionScope: String
+  modelRegistryRevisionSourceChain: [CopilotModelRegistrySourceChainEntryType!]
+  modelRegistryRevisionSourceChainFingerprint: String
+  modelRegistryRevisionStatus: String
+  modelRegistryRevisionWorkspaceId: String
+  routeOutputTypes: [String!]
+  routeRawModelId: String
+  routeStructuredAttachmentAllowRemoteUrls: Boolean
+  routeStructuredAttachmentKinds: [String!]
+  routeStructuredAttachmentSourceKinds: [String!]
+}
+
+type CopilotPromptRegistryPublishGateRouteTracePhaseType {
+  availableCount: SafeInt
+  blockedCount: SafeInt
+  candidateCount: SafeInt!
+  matchedCount: SafeInt
+  phase: String!
+  preparedCount: SafeInt
+  reasons: [String!]!
+  selectedCount: SafeInt
+}
+
+type CopilotPromptRegistryPublishGateVerdictType {
+  actionRouteDryRun: CopilotPromptRegistryPublishGateActionRouteDryRunType
+  allowed: Boolean!
+  blockingCount: SafeInt!
+  errorCount: SafeInt!
+  issueCount: SafeInt!
+  issues: [CopilotPromptRegistryValidationIssueType!]!
+  modelRoute: CopilotPromptRegistryPublishGateModelRouteType
+  modelRoutes: [CopilotPromptRegistryPublishGateModelRouteType!]!
+  name: String!
+  publishStatus: String!
+  reason: String!
+  registryFingerprint: String!
+  registryId: SafeInt!
+  registryUpdatedAt: DateTime!
+  remediations: [CopilotPromptRegistryValidationRemediationType!]!
+  repairActionCatalog: [CopilotPromptRegistryPublishGateRepairActionCatalogEntryType!]!
+  repairActionCatalogFingerprint: String!
+  repairActionMutationGuard: CopilotPromptRegistryPublishGateRepairActionMutationGuardType!
+  repairActionPreview: CopilotPromptRegistryPublishGateRepairActionPreviewType!
+  repairGateManifest: CopilotPromptRegistryPublishGateRepairGateManifestType!
+  repairGateManifestExportMetadata: CopilotPromptRegistryPublishGateRepairGateManifestExportMetadataType!
+  repairRecommendations: [CopilotPromptRegistryPublishGateRepairRecommendationType!]!
+  stale: Boolean!
+  staleReasons: [String!]!
+  status: String!
+  taskRoutes: [CopilotTaskRouteDiagnosticsType!]!
 }
 
 type CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType {
@@ -1138,22 +1832,145 @@ type CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType {
   candidateEvidenceProviderId: String!
   candidateEvidenceScope: String!
   candidateIndex: SafeInt!
-  preparedRouteOrderFingerprint: String
-  preparedRouteEntries: [CopilotPreparedTaskRouteDiagnosticsType!]
   policyCandidateEntries: [CopilotPromptRegistryPublishGatePolicyCandidateType!]
   prepareCandidateEntries: [CopilotTaskRoutePrepareCandidateDiagnosticsType!]
+  preparedRouteEntries: [CopilotPreparedTaskRouteDiagnosticsType!]
+  preparedRouteOrderFingerprint: String
   routeCandidateEntries: [CopilotPromptRegistryPublishGateRouteCandidateType!]
   taskRouteEffectiveSourceFingerprint: String
   taskRouteModelSourceSnapshotEntries: [CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType!]
   taskRouteModelSourceSnapshotFingerprint: String
 }
 
-type CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType {
-  featureKind: String!
-  requestedModelConfigKey: String
-  requestedModelConfigPath: String
-  requestedModelId: String
-  requestedModelSource: String
+input CopilotPromptRegistryRepairExecutionRequestInput {
+  expectedApprovalRecordFingerprint: String!
+  expectedApprovalRequestFingerprint: String!
+  expectedAuditEventFingerprint: String!
+  expectedCandidateEvidenceSetFingerprint: String!
+  expectedEmbeddingIndexContractEvidenceSetFingerprint: String!
+  expectedExecutionGateFingerprint: String!
+  expectedExecutionGateStatus: String!
+  expectedExecutionStateFingerprint: String!
+  expectedIdempotencyFingerprint: String!
+  expectedPolicyBindingFingerprint: String!
+  expectedPreflightStatus: String!
+  expectedPreparedRouteOrderEvidenceSetFingerprint: String!
+  expectedRepairGateManifestExportPolicyFingerprint: String!
+  expectedRepairGateManifestFingerprint: String!
+  expectedRepairGateManifestRetentionPolicyFingerprint: String!
+  expectedRepairJobFingerprint: String!
+  expectedRerankRuntimeContractEvidenceSetFingerprint: String!
+  expectedReviewBindingFingerprint: String!
+  expectedRollbackPlanFingerprint: String!
+  expectedTargetLocatorFingerprint: String!
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprint: String!
+  expectedVersion: CopilotPromptRegistryPublishGateExpectedVersionInput
+  name: String!
+  submission: CopilotPromptRegistryRepairSubmissionInput!
+  workspaceId: String!
+}
+
+type CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType {
+  candidateEvidenceCategories: [String!]!
+  candidateEvidenceCategoryCount: SafeInt!
+  candidateEvidenceCount: SafeInt!
+  candidateEvidenceEntries: [CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType!]!
+  candidateEvidenceFingerprint: String!
+  candidateEvidenceFingerprints: [String!]!
+  candidateEvidenceKeys: [String!]!
+  candidateEvidenceProviderIds: [String!]!
+  candidateEvidenceReferenceSchemaArtifactFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatus: String!
+  candidateEvidenceReferenceSchemaArtifactRecordStorageStatus: String!
+  candidateEvidenceReferenceSchemaArtifactStatus: String!
+  candidateEvidenceReferenceSchemaFields: [String!]!
+  candidateEvidenceReferenceSchemaFingerprint: String!
+  candidateEvidenceReferenceSchemaFingerprintInputs: [String!]!
+  candidateEvidenceReferenceSchemaRegistryStatus: String!
+  candidateEvidenceReferenceSchemaVersion: String!
+  candidateEvidenceScopes: [String!]!
+  diagnosticsFingerprint: String!
+  operationFingerprint: String!
+  taskRouteEffectiveSourceFingerprints: [String!]!
 }
 
 type CopilotPromptRegistryRepairExecutionRequestType {
@@ -1168,17 +1985,16 @@ type CopilotPromptRegistryRepairExecutionRequestType {
   auditEventRequestInputs: [String!]!
   auditEventRequestStatus: String!
   auditEventRequestVersion: String!
-  expectedCandidateEvidenceSetFingerprint: String!
-  expectedTaskRouteEffectiveSourceEvidenceSetFingerprint: String!
-  expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: [String!]!
-  expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: String!
-  expectedEmbeddingIndexContractEvidenceSetFingerprint: String!
-  expectedRerankRuntimeContractEvidenceSetFingerprint: String!
-  expectedPreparedRouteOrderEvidenceSetFingerprint: String!
-  expectedRepairGateManifestExportPolicyFingerprint: String!
-  expectedRepairGateManifestFingerprint: String!
-  expectedRepairGateManifestRetentionPolicyFingerprint: String!
-  expectedTargetLocatorFingerprint: String!
+  executionApprovalDecisionRequestCreated: Boolean!
+  executionApprovalDecisionRequestFingerprint: String!
+  executionApprovalDecisionRequestInputs: [String!]!
+  executionApprovalDecisionRequestStatus: String!
+  executionApprovalDecisionRequestVersion: String!
+  executionApprovalUiRequestCreated: Boolean!
+  executionApprovalUiRequestFingerprint: String!
+  executionApprovalUiRequestInputs: [String!]!
+  executionApprovalUiRequestStatus: String!
+  executionApprovalUiRequestVersion: String!
   executionCompletionEventRequestCreated: Boolean!
   executionCompletionEventRequestFingerprint: String!
   executionCompletionEventRequestInputs: [String!]!
@@ -1189,6 +2005,16 @@ type CopilotPromptRegistryRepairExecutionRequestType {
   executionCompletionRequestInputs: [String!]!
   executionCompletionRequestStatus: String!
   executionCompletionRequestVersion: String!
+  executionDiffPreviewRequestCreated: Boolean!
+  executionDiffPreviewRequestFingerprint: String!
+  executionDiffPreviewRequestInputs: [String!]!
+  executionDiffPreviewRequestStatus: String!
+  executionDiffPreviewRequestVersion: String!
+  executionFailureEventRequestCreated: Boolean!
+  executionFailureEventRequestFingerprint: String!
+  executionFailureEventRequestInputs: [String!]!
+  executionFailureEventRequestStatus: String!
+  executionFailureEventRequestVersion: String!
   executionFinalizationEventRequestCreated: Boolean!
   executionFinalizationEventRequestFingerprint: String!
   executionFinalizationEventRequestInputs: [String!]!
@@ -1199,161 +2025,28 @@ type CopilotPromptRegistryRepairExecutionRequestType {
   executionFinalizationRequestInputs: [String!]!
   executionFinalizationRequestStatus: String!
   executionFinalizationRequestVersion: String!
-  executionStatusPollRequestCreated: Boolean!
-  executionStatusPollRequestFingerprint: String!
-  executionStatusPollRequestInputs: [String!]!
-  executionStatusPollRequestStatus: String!
-  executionStatusPollRequestVersion: String!
-  executionOperationEntryRequestCreated: Boolean!
-  executionOperationEntryRequestFingerprint: String!
-  executionOperationEntryRequestInputs: [String!]!
-  executionOperationEntryRequestStatus: String!
-  executionOperationEntryRequestVersion: String!
-  executionApprovalUiRequestCreated: Boolean!
-  executionApprovalUiRequestFingerprint: String!
-  executionApprovalUiRequestInputs: [String!]!
-  executionApprovalUiRequestStatus: String!
-  executionApprovalUiRequestVersion: String!
-  executionDiffPreviewRequestCreated: Boolean!
-  executionDiffPreviewRequestFingerprint: String!
-  executionDiffPreviewRequestInputs: [String!]!
-  executionDiffPreviewRequestStatus: String!
-  executionDiffPreviewRequestVersion: String!
-  executionApprovalDecisionRequestCreated: Boolean!
-  executionApprovalDecisionRequestFingerprint: String!
-  executionApprovalDecisionRequestInputs: [String!]!
-  executionApprovalDecisionRequestStatus: String!
-  executionApprovalDecisionRequestVersion: String!
-  executionStartRequestCreated: Boolean!
-  executionStartRequestFingerprint: String!
-  executionStartRequestInputs: [String!]!
-  executionStartRequestStatus: String!
-  executionStartRequestVersion: String!
-  executionQueueRequestCreated: Boolean!
-  executionQueueRequestFingerprint: String!
-  executionQueueRequestInputs: [String!]!
-  executionQueueRequestStatus: String!
-  executionQueueRequestVersion: String!
-  executionWorkerLeaseRequestCreated: Boolean!
-  executionWorkerLeaseRequestFingerprint: String!
-  executionWorkerLeaseRequestInputs: [String!]!
-  executionWorkerLeaseRequestStatus: String!
-  executionWorkerLeaseRequestVersion: String!
   executionJobRunRequestCreated: Boolean!
   executionJobRunRequestFingerprint: String!
   executionJobRunRequestInputs: [String!]!
   executionJobRunRequestStatus: String!
   executionJobRunRequestVersion: String!
-  executionRunStepRequestCreated: Boolean!
-  executionRunStepRequestFingerprint: String!
-  executionRunStepRequestInputs: [String!]!
-  executionRunStepRequestStatus: String!
-  executionRunStepRequestVersion: String!
-  executionRunStepTraceRequestCreated: Boolean!
-  executionRunStepTraceRequestFingerprint: String!
-  executionRunStepTraceRequestInputs: [String!]!
-  executionRunStepTraceRequestStatus: String!
-  executionRunStepTraceRequestVersion: String!
-  executionRunStepResultRequestCreated: Boolean!
-  executionRunStepResultRequestFingerprint: String!
-  executionRunStepResultRequestInputs: [String!]!
-  executionRunStepResultRequestStatus: String!
-  executionRunStepResultRequestVersion: String!
-  executionRunStepCompletionRequestCreated: Boolean!
-  executionRunStepCompletionRequestFingerprint: String!
-  executionRunStepCompletionRequestInputs: [String!]!
-  executionRunStepCompletionRequestStatus: String!
-  executionRunStepCompletionRequestVersion: String!
-  executionRunStepStatusEventRequestCreated: Boolean!
-  executionRunStepStatusEventRequestFingerprint: String!
-  executionRunStepStatusEventRequestInputs: [String!]!
-  executionRunStepStatusEventRequestStatus: String!
-  executionRunStepStatusEventRequestVersion: String!
-  executionRunStepRetryRequestCreated: Boolean!
-  executionRunStepRetryRequestFingerprint: String!
-  executionRunStepRetryRequestInputs: [String!]!
-  executionRunStepRetryRequestStatus: String!
-  executionRunStepRetryRequestVersion: String!
-  executionRunStepRetryAttemptRequestCreated: Boolean!
-  executionRunStepRetryAttemptRequestFingerprint: String!
-  executionRunStepRetryAttemptRequestInputs: [String!]!
-  executionRunStepRetryAttemptRequestStatus: String!
-  executionRunStepRetryAttemptRequestVersion: String!
-  executionRunStepRetryAttemptStatusEventRequestCreated: Boolean!
-  executionRunStepRetryAttemptStatusEventRequestFingerprint: String!
-  executionRunStepRetryAttemptStatusEventRequestInputs: [String!]!
-  executionRunStepRetryAttemptStatusEventRequestStatus: String!
-  executionRunStepRetryAttemptStatusEventRequestVersion: String!
-  executionRunStepRetryAttemptTraceRequestCreated: Boolean!
-  executionRunStepRetryAttemptTraceRequestFingerprint: String!
-  executionRunStepRetryAttemptTraceRequestInputs: [String!]!
-  executionRunStepRetryAttemptTraceRequestStatus: String!
-  executionRunStepRetryAttemptTraceRequestVersion: String!
-  executionRunStepRetryAttemptResultRequestCreated: Boolean!
-  executionRunStepRetryAttemptResultRequestFingerprint: String!
-  executionRunStepRetryAttemptResultRequestInputs: [String!]!
-  executionRunStepRetryAttemptResultRequestStatus: String!
-  executionRunStepRetryAttemptResultRequestVersion: String!
-  executionRunStepRetryAttemptCompletionRequestCreated: Boolean!
-  executionRunStepRetryAttemptCompletionRequestFingerprint: String!
-  executionRunStepRetryAttemptCompletionRequestInputs: [String!]!
-  executionRunStepRetryAttemptCompletionRequestStatus: String!
-  executionRunStepRetryAttemptCompletionRequestVersion: String!
-  executionRunStepRetryAttemptCompletionStatusEventRequestCreated: Boolean!
-  executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint: String!
-  executionRunStepRetryAttemptCompletionStatusEventRequestInputs: [String!]!
-  executionRunStepRetryAttemptCompletionStatusEventRequestStatus: String!
-  executionRunStepRetryAttemptCompletionStatusEventRequestVersion: String!
-  executionRunStepRetryAttemptFinalizationRequestCreated: Boolean!
-  executionRunStepRetryAttemptFinalizationRequestFingerprint: String!
-  executionRunStepRetryAttemptFinalizationRequestInputs: [String!]!
-  executionRunStepRetryAttemptFinalizationRequestStatus: String!
-  executionRunStepRetryAttemptFinalizationRequestVersion: String!
-  executionRunStepRetryAttemptFinalizationStatusEventRequestCreated: Boolean!
-  executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint: String!
-  executionRunStepRetryAttemptFinalizationStatusEventRequestInputs: [String!]!
-  executionRunStepRetryAttemptFinalizationStatusEventRequestStatus: String!
-  executionRunStepRetryAttemptFinalizationStatusEventRequestVersion: String!
-  executionRunStepRetryAttemptCloseRequestCreated: Boolean!
-  executionRunStepRetryAttemptCloseRequestFingerprint: String!
-  executionRunStepRetryAttemptCloseRequestInputs: [String!]!
-  executionRunStepRetryAttemptCloseRequestStatus: String!
-  executionRunStepRetryAttemptCloseRequestVersion: String!
-  executionRunStepRetryAttemptCloseStatusEventRequestCreated: Boolean!
-  executionRunStepRetryAttemptCloseStatusEventRequestFingerprint: String!
-  executionRunStepRetryAttemptCloseStatusEventRequestInputs: [String!]!
-  executionRunStepRetryAttemptCloseStatusEventRequestStatus: String!
-  executionRunStepRetryAttemptCloseStatusEventRequestVersion: String!
-  executionRunStepRetryAttemptRetentionPolicyRequestCreated: Boolean!
-  executionRunStepRetryAttemptRetentionPolicyRequestFingerprint: String!
-  executionRunStepRetryAttemptRetentionPolicyRequestInputs: [String!]!
-  executionRunStepRetryAttemptRetentionPolicyRequestStatus: String!
-  executionRunStepRetryAttemptRetentionPolicyRequestVersion: String!
-  executionRunStepRetryAttemptRetentionPolicyRuleRequestCreated: Boolean!
-  executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint: String!
-  executionRunStepRetryAttemptRetentionPolicyRuleRequestInputs: [String!]!
-  executionRunStepRetryAttemptRetentionPolicyRuleRequestStatus: String!
-  executionRunStepRetryAttemptRetentionPolicyRuleRequestVersion: String!
-  executionRunStepRetryAttemptRetentionLeaseRequestCreated: Boolean!
-  executionRunStepRetryAttemptRetentionLeaseRequestFingerprint: String!
-  executionRunStepRetryAttemptRetentionLeaseRequestInputs: [String!]!
-  executionRunStepRetryAttemptRetentionLeaseRequestStatus: String!
-  executionRunStepRetryAttemptRetentionLeaseRequestVersion: String!
-  executionRunStepRetryAttemptArchiveRequestCreated: Boolean!
-  executionRunStepRetryAttemptArchiveRequestFingerprint: String!
-  executionRunStepRetryAttemptArchiveRequestInputs: [String!]!
-  executionRunStepRetryAttemptArchiveRequestStatus: String!
-  executionRunStepRetryAttemptArchiveRequestVersion: String!
-  executionFailureEventRequestCreated: Boolean!
-  executionFailureEventRequestFingerprint: String!
-  executionFailureEventRequestInputs: [String!]!
-  executionFailureEventRequestStatus: String!
-  executionFailureEventRequestVersion: String!
+  executionOperationEntryRequestCreated: Boolean!
+  executionOperationEntryRequestFingerprint: String!
+  executionOperationEntryRequestInputs: [String!]!
+  executionOperationEntryRequestStatus: String!
+  executionOperationEntryRequestVersion: String!
   executionProviderResponseRequestCreated: Boolean!
   executionProviderResponseRequestFingerprint: String!
   executionProviderResponseRequestInputs: [String!]!
   executionProviderResponseRequestStatus: String!
   executionProviderResponseRequestVersion: String!
+  executionQueueRequestCreated: Boolean!
+  executionQueueRequestFingerprint: String!
+  executionQueueRequestInputs: [String!]!
+  executionQueueRequestStatus: String!
+  executionQueueRequestVersion: String!
+  executionRecord: CopilotRepairExecutionRecordType
+  executionRequested: Boolean!
   executionResultRequestCreated: Boolean!
   executionResultRequestFingerprint: String!
   executionResultRequestInputs: [String!]!
@@ -1384,17 +2077,142 @@ type CopilotPromptRegistryRepairExecutionRequestType {
   executionRollbackTriggerRequestInputs: [String!]!
   executionRollbackTriggerRequestStatus: String!
   executionRollbackTriggerRequestVersion: String!
-  executionTraceRequestCreated: Boolean!
-  executionTraceRequestFingerprint: String!
-  executionTraceRequestInputs: [String!]!
-  executionTraceRequestStatus: String!
-  executionTraceRequestVersion: String!
+  executionRunStepCompletionRequestCreated: Boolean!
+  executionRunStepCompletionRequestFingerprint: String!
+  executionRunStepCompletionRequestInputs: [String!]!
+  executionRunStepCompletionRequestStatus: String!
+  executionRunStepCompletionRequestVersion: String!
+  executionRunStepRequestCreated: Boolean!
+  executionRunStepRequestFingerprint: String!
+  executionRunStepRequestInputs: [String!]!
+  executionRunStepRequestStatus: String!
+  executionRunStepRequestVersion: String!
+  executionRunStepResultRequestCreated: Boolean!
+  executionRunStepResultRequestFingerprint: String!
+  executionRunStepResultRequestInputs: [String!]!
+  executionRunStepResultRequestStatus: String!
+  executionRunStepResultRequestVersion: String!
+  executionRunStepRetryAttemptArchiveRequestCreated: Boolean!
+  executionRunStepRetryAttemptArchiveRequestFingerprint: String!
+  executionRunStepRetryAttemptArchiveRequestInputs: [String!]!
+  executionRunStepRetryAttemptArchiveRequestStatus: String!
+  executionRunStepRetryAttemptArchiveRequestVersion: String!
+  executionRunStepRetryAttemptCloseRequestCreated: Boolean!
+  executionRunStepRetryAttemptCloseRequestFingerprint: String!
+  executionRunStepRetryAttemptCloseRequestInputs: [String!]!
+  executionRunStepRetryAttemptCloseRequestStatus: String!
+  executionRunStepRetryAttemptCloseRequestVersion: String!
+  executionRunStepRetryAttemptCloseStatusEventRequestCreated: Boolean!
+  executionRunStepRetryAttemptCloseStatusEventRequestFingerprint: String!
+  executionRunStepRetryAttemptCloseStatusEventRequestInputs: [String!]!
+  executionRunStepRetryAttemptCloseStatusEventRequestStatus: String!
+  executionRunStepRetryAttemptCloseStatusEventRequestVersion: String!
+  executionRunStepRetryAttemptCompletionRequestCreated: Boolean!
+  executionRunStepRetryAttemptCompletionRequestFingerprint: String!
+  executionRunStepRetryAttemptCompletionRequestInputs: [String!]!
+  executionRunStepRetryAttemptCompletionRequestStatus: String!
+  executionRunStepRetryAttemptCompletionRequestVersion: String!
+  executionRunStepRetryAttemptCompletionStatusEventRequestCreated: Boolean!
+  executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint: String!
+  executionRunStepRetryAttemptCompletionStatusEventRequestInputs: [String!]!
+  executionRunStepRetryAttemptCompletionStatusEventRequestStatus: String!
+  executionRunStepRetryAttemptCompletionStatusEventRequestVersion: String!
+  executionRunStepRetryAttemptFinalizationRequestCreated: Boolean!
+  executionRunStepRetryAttemptFinalizationRequestFingerprint: String!
+  executionRunStepRetryAttemptFinalizationRequestInputs: [String!]!
+  executionRunStepRetryAttemptFinalizationRequestStatus: String!
+  executionRunStepRetryAttemptFinalizationRequestVersion: String!
+  executionRunStepRetryAttemptFinalizationStatusEventRequestCreated: Boolean!
+  executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint: String!
+  executionRunStepRetryAttemptFinalizationStatusEventRequestInputs: [String!]!
+  executionRunStepRetryAttemptFinalizationStatusEventRequestStatus: String!
+  executionRunStepRetryAttemptFinalizationStatusEventRequestVersion: String!
+  executionRunStepRetryAttemptRequestCreated: Boolean!
+  executionRunStepRetryAttemptRequestFingerprint: String!
+  executionRunStepRetryAttemptRequestInputs: [String!]!
+  executionRunStepRetryAttemptRequestStatus: String!
+  executionRunStepRetryAttemptRequestVersion: String!
+  executionRunStepRetryAttemptResultRequestCreated: Boolean!
+  executionRunStepRetryAttemptResultRequestFingerprint: String!
+  executionRunStepRetryAttemptResultRequestInputs: [String!]!
+  executionRunStepRetryAttemptResultRequestStatus: String!
+  executionRunStepRetryAttemptResultRequestVersion: String!
+  executionRunStepRetryAttemptRetentionLeaseRequestCreated: Boolean!
+  executionRunStepRetryAttemptRetentionLeaseRequestFingerprint: String!
+  executionRunStepRetryAttemptRetentionLeaseRequestInputs: [String!]!
+  executionRunStepRetryAttemptRetentionLeaseRequestStatus: String!
+  executionRunStepRetryAttemptRetentionLeaseRequestVersion: String!
+  executionRunStepRetryAttemptRetentionPolicyRequestCreated: Boolean!
+  executionRunStepRetryAttemptRetentionPolicyRequestFingerprint: String!
+  executionRunStepRetryAttemptRetentionPolicyRequestInputs: [String!]!
+  executionRunStepRetryAttemptRetentionPolicyRequestStatus: String!
+  executionRunStepRetryAttemptRetentionPolicyRequestVersion: String!
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestCreated: Boolean!
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint: String!
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestInputs: [String!]!
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestStatus: String!
+  executionRunStepRetryAttemptRetentionPolicyRuleRequestVersion: String!
+  executionRunStepRetryAttemptStatusEventRequestCreated: Boolean!
+  executionRunStepRetryAttemptStatusEventRequestFingerprint: String!
+  executionRunStepRetryAttemptStatusEventRequestInputs: [String!]!
+  executionRunStepRetryAttemptStatusEventRequestStatus: String!
+  executionRunStepRetryAttemptStatusEventRequestVersion: String!
+  executionRunStepRetryAttemptTraceRequestCreated: Boolean!
+  executionRunStepRetryAttemptTraceRequestFingerprint: String!
+  executionRunStepRetryAttemptTraceRequestInputs: [String!]!
+  executionRunStepRetryAttemptTraceRequestStatus: String!
+  executionRunStepRetryAttemptTraceRequestVersion: String!
+  executionRunStepRetryRequestCreated: Boolean!
+  executionRunStepRetryRequestFingerprint: String!
+  executionRunStepRetryRequestInputs: [String!]!
+  executionRunStepRetryRequestStatus: String!
+  executionRunStepRetryRequestVersion: String!
+  executionRunStepStatusEventRequestCreated: Boolean!
+  executionRunStepStatusEventRequestFingerprint: String!
+  executionRunStepStatusEventRequestInputs: [String!]!
+  executionRunStepStatusEventRequestStatus: String!
+  executionRunStepStatusEventRequestVersion: String!
+  executionRunStepTraceRequestCreated: Boolean!
+  executionRunStepTraceRequestFingerprint: String!
+  executionRunStepTraceRequestInputs: [String!]!
+  executionRunStepTraceRequestStatus: String!
+  executionRunStepTraceRequestVersion: String!
+  executionStartRequestCreated: Boolean!
+  executionStartRequestFingerprint: String!
+  executionStartRequestInputs: [String!]!
+  executionStartRequestStatus: String!
+  executionStartRequestVersion: String!
   executionStateRequestCreated: Boolean!
   executionStateRequestFingerprint: String!
   executionStateRequestInputs: [String!]!
   executionStateRequestStatus: String!
   executionStateRequestVersion: String!
-  executionRequested: Boolean!
+  executionStatusPollRequestCreated: Boolean!
+  executionStatusPollRequestFingerprint: String!
+  executionStatusPollRequestInputs: [String!]!
+  executionStatusPollRequestStatus: String!
+  executionStatusPollRequestVersion: String!
+  executionTraceRequestCreated: Boolean!
+  executionTraceRequestFingerprint: String!
+  executionTraceRequestInputs: [String!]!
+  executionTraceRequestStatus: String!
+  executionTraceRequestVersion: String!
+  executionWorkerLeaseRequestCreated: Boolean!
+  executionWorkerLeaseRequestFingerprint: String!
+  executionWorkerLeaseRequestInputs: [String!]!
+  executionWorkerLeaseRequestStatus: String!
+  executionWorkerLeaseRequestVersion: String!
+  expectedCandidateEvidenceSetFingerprint: String!
+  expectedEmbeddingIndexContractEvidenceSetFingerprint: String!
+  expectedPreparedRouteOrderEvidenceSetFingerprint: String!
+  expectedRepairGateManifestExportPolicyFingerprint: String!
+  expectedRepairGateManifestFingerprint: String!
+  expectedRepairGateManifestRetentionPolicyFingerprint: String!
+  expectedRerankRuntimeContractEvidenceSetFingerprint: String!
+  expectedTargetLocatorFingerprint: String!
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprint: String!
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: [String!]!
+  expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: String!
   idempotencyLockAcquired: Boolean!
   idempotencyLockFingerprint: String!
   idempotencyLockInputs: [String!]!
@@ -1411,25 +2229,15 @@ type CopilotPromptRegistryRepairExecutionRequestType {
   repairJobRequestInputs: [String!]!
   repairJobRequestStatus: String!
   repairJobRequestVersion: String!
+  requestFingerprint: String!
+  requestInputs: [String!]!
+  requestStatus: String!
+  requestVersion: String!
   rollbackPlanRequestCreated: Boolean!
   rollbackPlanRequestFingerprint: String!
   rollbackPlanRequestInputs: [String!]!
   rollbackPlanRequestStatus: String!
   rollbackPlanRequestVersion: String!
-  requestFingerprint: String!
-  requestInputs: [String!]!
-  requestStatus: String!
-  requestVersion: String!
-  supportBundleArtifactCreated: Boolean!
-  supportBundleArtifactFingerprint: String!
-  supportBundleArtifactInputs: [String!]!
-  supportBundleArtifactRecordRequestCreated: Boolean!
-  supportBundleArtifactRecordRequestFingerprint: String!
-  supportBundleArtifactRecordRequestInputs: [String!]!
-  supportBundleArtifactRecordRequestStatus: String!
-  supportBundleArtifactRecordRequestVersion: String!
-  supportBundleArtifactStatus: String!
-  supportBundleArtifactVersion: String!
   supportBundleArchiveFormat: String!
   supportBundleArchiveRequestCreated: Boolean!
   supportBundleArchiveRequestFingerprint: String!
@@ -1443,6 +2251,16 @@ type CopilotPromptRegistryRepairExecutionRequestType {
   supportBundleArchiveSignatureRequestInputs: [String!]!
   supportBundleArchiveSignatureRequestStatus: String!
   supportBundleArchiveSignatureRequestVersion: String!
+  supportBundleArtifactCreated: Boolean!
+  supportBundleArtifactFingerprint: String!
+  supportBundleArtifactInputs: [String!]!
+  supportBundleArtifactRecordRequestCreated: Boolean!
+  supportBundleArtifactRecordRequestFingerprint: String!
+  supportBundleArtifactRecordRequestInputs: [String!]!
+  supportBundleArtifactRecordRequestStatus: String!
+  supportBundleArtifactRecordRequestVersion: String!
+  supportBundleArtifactStatus: String!
+  supportBundleArtifactVersion: String!
   supportBundleAuditPersistenceRequestCreated: Boolean!
   supportBundleAuditPersistenceRequestFingerprint: String!
   supportBundleAuditPersistenceRequestInputs: [String!]!
@@ -1489,41 +2307,13 @@ type CopilotPromptRegistryRepairExecutionRequestType {
   supportBundleStorageKeyRequestStatus: String!
   supportBundleStorageKeyRequestVersion: String!
   supportBundleStorageKeyScope: String!
-  supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint: String!
   supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints: [String!]!
   supportBundleTaskRouteEffectiveSourceEvidenceSetEntries: [CopilotPromptRegistryRepairExecutionRequestSourceEvidenceEntryType!]!
+  supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint: String!
   supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: [String!]!
+  supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: String!
   supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints: [String!]!
   supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints: [String!]!
-  supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: String!
-}
-
-input CopilotPromptRegistryRepairExecutionRequestInput {
-  expectedApprovalRecordFingerprint: String!
-  expectedApprovalRequestFingerprint: String!
-  expectedAuditEventFingerprint: String!
-  expectedCandidateEvidenceSetFingerprint: String!
-  expectedTaskRouteEffectiveSourceEvidenceSetFingerprint: String!
-  expectedEmbeddingIndexContractEvidenceSetFingerprint: String!
-  expectedRerankRuntimeContractEvidenceSetFingerprint: String!
-  expectedPreparedRouteOrderEvidenceSetFingerprint: String!
-  expectedTargetLocatorFingerprint: String!
-  expectedRepairGateManifestFingerprint: String!
-  expectedRepairGateManifestExportPolicyFingerprint: String!
-  expectedRepairGateManifestRetentionPolicyFingerprint: String!
-  expectedExecutionGateFingerprint: String!
-  expectedExecutionGateStatus: String!
-  expectedExecutionStateFingerprint: String!
-  expectedIdempotencyFingerprint: String!
-  expectedPolicyBindingFingerprint: String!
-  expectedPreflightStatus: String!
-  expectedRepairJobFingerprint: String!
-  expectedReviewBindingFingerprint: String!
-  expectedRollbackPlanFingerprint: String!
-  expectedVersion: CopilotPromptRegistryPublishGateExpectedVersionInput
-  name: String!
-  submission: CopilotPromptRegistryRepairSubmissionInput!
-  workspaceId: String!
 }
 
 type CopilotPromptRegistryRepairPreflightType {
@@ -1556,19 +2346,13 @@ type CopilotPromptRegistryRepairPreflightType {
   auditEventVersion: String!
   authorizationStatus: String!
   candidateEvidenceSetFingerprint: String!
-  taskRouteEffectiveSourceEvidenceSetFingerprint: String!
-  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: [String!]!
-  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: String!
-  embeddingIndexContractEvidenceSetFingerprint: String!
-  rerankRuntimeContractEvidenceSetFingerprint: String!
-  preparedRouteOrderEvidenceSetFingerprint: String!
   capabilityCheckMode: String!
   capabilityFingerprint: String!
   capabilitySource: String!
   capabilityStatus: String!
   contractVersion: String!
   currentSubmissionFingerprint: String!
-  expectedSubmissionFingerprint: String!
+  embeddingIndexContractEvidenceSetFingerprint: String!
   executionGateFingerprint: String!
   executionGateInputs: [String!]!
   executionGateStatus: String!
@@ -1579,13 +2363,14 @@ type CopilotPromptRegistryRepairPreflightType {
   executionStateStatus: String!
   executionStateVersion: String!
   expectedCandidateEvidenceSetFingerprint: String!
+  expectedEmbeddingIndexContractEvidenceSetFingerprint: String!
+  expectedPreparedRouteOrderEvidenceSetFingerprint: String!
+  expectedRerankRuntimeContractEvidenceSetFingerprint: String!
+  expectedSubmissionFingerprint: String!
+  expectedTargetLocatorFingerprint: String!
   expectedTaskRouteEffectiveSourceEvidenceSetFingerprint: String!
   expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs: [String!]!
   expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion: String!
-  expectedEmbeddingIndexContractEvidenceSetFingerprint: String!
-  expectedRerankRuntimeContractEvidenceSetFingerprint: String!
-  expectedPreparedRouteOrderEvidenceSetFingerprint: String!
-  expectedTargetLocatorFingerprint: String!
   idempotencyFingerprint: String!
   idempotencyKey: String!
   idempotencyLockAcquired: Boolean!
@@ -1605,14 +2390,17 @@ type CopilotPromptRegistryRepairPreflightType {
   policyBindingStatus: String!
   policyBindingVersion: String!
   policySource: String!
-  requiredCapabilities: [String!]!
-  requiredCapabilityCount: SafeInt!
-  requiredPermission: String!
+  preparedRouteOrderEvidenceSetFingerprint: String!
+  readOnly: Boolean!
   repairJobCreated: Boolean!
   repairJobFingerprint: String!
   repairJobInputs: [String!]!
   repairJobStatus: String!
   repairJobVersion: String!
+  requiredCapabilities: [String!]!
+  requiredCapabilityCount: SafeInt!
+  requiredPermission: String!
+  rerankRuntimeContractEvidenceSetFingerprint: String!
   reviewBindingFingerprint: String!
   reviewBindingInputs: [String!]!
   reviewBindingStatus: String!
@@ -1622,9 +2410,11 @@ type CopilotPromptRegistryRepairPreflightType {
   rollbackPlanInputs: [String!]!
   rollbackPlanStatus: String!
   rollbackPlanVersion: String!
-  readOnly: Boolean!
   status: String!
   targetLocatorFingerprint: String!
+  taskRouteEffectiveSourceEvidenceSetFingerprint: String!
+  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: [String!]!
+  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: String!
   workspaceId: String
 }
 
@@ -1632,566 +2422,43 @@ input CopilotPromptRegistryRepairSubmissionInput {
   approvalPolicyFingerprint: String!
   authorizationFingerprint: String!
   candidateEvidenceSetFingerprint: String!
-  taskRouteEffectiveSourceEvidenceSetFingerprint: String!
-  embeddingIndexContractEvidenceSetFingerprint: String!
-  rerankRuntimeContractEvidenceSetFingerprint: String!
-  preparedRouteOrderEvidenceSetFingerprint: String!
   catalogFingerprint: String!
   contractVersion: String!
+  embeddingIndexContractEvidenceSetFingerprint: String!
   expectedRegistryFingerprint: String!
   expectedRegistryId: SafeInt!
   expectedRegistryUpdatedAt: String!
   guardFingerprint: String!
   idempotencyKey: String!
   operationSetFingerprint: String!
+  preparedRouteOrderEvidenceSetFingerprint: String!
   previewFingerprint: String!
   requiredInputs: [String!]!
+  rerankRuntimeContractEvidenceSetFingerprint: String!
   submissionFingerprint: String!
   targetLocatorFingerprint: String!
+  taskRouteEffectiveSourceEvidenceSetFingerprint: String!
 }
 
-type CopilotPromptRegistryPublishGateActionRouteDryRunRouteType {
-  fallbackOrderIndex: SafeInt
-  modelId: String!
-  protocol: String
-  providerConfiguredModelCount: SafeInt
-  providerConfiguredModelIds: [String!]
-  providerHealth: String
-  providerHealthCheckedAt: String
-  providerHealthLastError: String
-  providerId: String!
-  providerName: String
-  providerPrivacy: String
-  providerPriority: SafeInt
-  providerProfileConfigPath: String
-  providerProfileId: String
-  providerProfileSource: String
-  providerSource: String
-  providerType: String
-  requestLayer: String
-  routeIndex: SafeInt!
-  routeModelAliasMatched: Boolean
-  routeModelDefinitionAliases: [String!]
-  routeModelDefinitionId: String
-  routeModelDefinitionSource: String
-  routeRawModelId: String
-}
-
-type CopilotPromptRegistryPublishGateActionRouteDryRunStepType {
-  actualRouteCount: SafeInt!
-  fallbackProviderIds: [String!]!
-  kind: String!
-  requestedModelId: String
-  requestedModelSource: String
-  routeCount: SafeInt!
-  routeCountMismatch: Boolean!
-  routes: [CopilotPromptRegistryPublishGateActionRouteDryRunRouteType!]!
-  stepId: String!
-}
-
-type CopilotPromptRegistryPublishGateActionRouteDryRunType {
-  actionId: String
-  actualRouteCount: SafeInt!
-  diagnosticsErrorCode: String
-  diagnosticsErrorMessage: String
-  diagnosticsErrorStage: String
-  errorCode: String
-  errorMessage: String
-  expectedRouteCount: SafeInt!
+type CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType {
   featureKind: String!
-  missingRouteCount: SafeInt!
-  routeCountMismatch: Boolean!
-  routeCountMismatchStepIds: [String!]!
-  status: String!
-  steps: [CopilotPromptRegistryPublishGateActionRouteDryRunStepType!]!
-}
-
-type CopilotPromptRegistryPublishGateRouteCandidateType {
-  candidateModelIds: [String!]
-  costInputPer1M: Float
-  costOutputPer1M: Float
-  routeContextWindow: SafeInt
-  routeEmbeddingDimensions: SafeInt
-  routeMaxOutputTokens: SafeInt
-  health: String
-  healthCheckedAt: String
-  matched: Boolean!
-  modelId: String
-  privacy: String
-  providerConfiguredModelCount: SafeInt
-  providerConfiguredModelIds: [String!]
-  providerId: String!
-  providerName: String
-  providerPriority: SafeInt
-  providerProfileConfigPath: String
-  providerProfileId: String
-  providerProfileSource: String
-  providerSource: String
-  providerType: String
-  reasons: [String!]!
-  registryAvailable: Boolean
-  registryKind: String
-  registrySelected: Boolean
-  requestedModelId: String
-  routeAttachmentAllowRemoteUrls: Boolean
-  routeAttachmentKinds: [String!]
-  routeAttachmentSourceKinds: [String!]
-  routeInputTypes: [String!]
-  routeModelAliasMatched: Boolean
-  routeModelDefinitionAliases: [String!]
-  routeModelDefinitionId: String
-  routeModelDefinitionSource: String
-  routeOutputTypes: [String!]
-  routeStructuredAttachmentAllowRemoteUrls: Boolean
-  routeStructuredAttachmentKinds: [String!]
-  routeStructuredAttachmentSourceKinds: [String!]
-  routeRawModelId: String
-}
-
-type CopilotPromptRegistryPublishGatePolicyCandidateType {
-  allowed: Boolean!
-  available: Boolean!
-  health: String!
-  healthCheckedAt: String
-  privacy: String!
-  providerConfiguredModelCount: SafeInt
-  providerConfiguredModelIds: [String!]
-  providerId: String!
-  providerName: String
-  providerPriority: SafeInt
-  providerProfileConfigPath: String
-  providerProfileId: String
-  providerProfileSource: String
-  providerSource: String
-  providerType: String
-  reasons: [String!]!
-}
-
-type CopilotPromptRegistryPublishGateRouteTracePhaseType {
-  availableCount: SafeInt
-  blockedCount: SafeInt
-  candidateCount: SafeInt!
-  matchedCount: SafeInt
-  phase: String!
-  preparedCount: SafeInt
-  reasons: [String!]!
-  selectedCount: SafeInt
-}
-
-type CopilotPromptRegistryPublishGateModelRouteType {
-  available: Boolean!
-  behaviorFlags: [String!]
-  candidateCount: SafeInt!
-  candidateConfigPath: String
-  candidateIndex: SafeInt!
-  candidateKind: String!
-  canonicalModelKey: String
-  checked: Boolean!
-  configured: Boolean!
-  diagnosticsErrorCode: String
-  diagnosticsErrorMessage: String
-  diagnosticsErrorStage: String
-  effectiveSourceFingerprint: String
-  effectiveSourceFingerprintInputs: [String!]
-  effectiveSourceFingerprintVersion: String
-  fallbackProviderIds: [String!]!
-  featureKind: String!
-  matchedCandidateCount: SafeInt!
-  modelBackendKind: String
-  modelId: String
-  outputType: String!
-  policyAllowedPrivacy: [String!]
-  policyAllowedProviderIds: [String!]
-  policyBlockedProviderIds: [String!]
-  policyEnabled: Boolean!
-  policyFeatureKind: String
-  policyPreferredPrivacy: [String!]
-  policyWorkspaceId: String
-  policyCandidates: [CopilotPromptRegistryPublishGatePolicyCandidateType!]!
-  protocol: String
-  providerId: String
-  providerConfiguredModelCount: SafeInt
-  providerConfiguredModelIds: [String!]
-  providerHealth: String
-  providerHealthCheckedAt: String
-  providerHealthLastError: String
-  providerName: String
-  providerPrivacy: String
-  providerPriority: SafeInt
-  providerProfileConfigPath: String
-  providerProfileId: String
-  providerProfileSource: String
-  providerSource: String
-  providerType: String
-  reasons: [String!]!
-  requestedModelId: String
-  requestedModelSource: String
-  requestLayer: String
-  routeModelAliasMatched: Boolean
-  routeModelDefinitionAliases: [String!]
-  routeModelDefinitionId: String
-  routeModelDefinitionSource: String
-  routeRawModelId: String
-  routeCandidates: [CopilotPromptRegistryPublishGateRouteCandidateType!]!
-  routeTrace: [CopilotPromptRegistryPublishGateRouteTracePhaseType!]!
-}
-
-type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
-  allowed: Boolean
-  available: Boolean
-  candidateFingerprint: String!
-  candidateIndex: SafeInt!
-  candidateKey: String
-  candidateModelIds: [String!]
-  costInputPer1M: Float
-  costOutputPer1M: Float
-  dimensionMismatch: Boolean
-  embeddingIndexContractDimensions: SafeInt
-  embeddingIndexContractFingerprint: String
-  embeddingIndexContractStatus: String
-  embeddingIndexContractVersion: String
-  diagnosticsErrors: [CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType!]
-  diagnosticsErrorSnapshotFingerprint: String
-  errorCategory: String
-  errorCode: String
-  fallbackProviderIds: [String!]
-  health: String
-  healthCheckedAt: String
-  matched: Boolean
-  modelEmbeddingDimensions: SafeInt
-  modelId: String
-  prepared: Boolean
-  preparedModelId: String
-  prepareCandidateSnapshotFingerprint: String
-  prepareCandidates: [CopilotTaskRoutePrepareCandidateDiagnosticsType!]
-  preparedRouteOrderFingerprint: String
-  preparedRouteSnapshotFingerprint: String
-  preparedRoutes: [CopilotPreparedTaskRouteDiagnosticsType!]
-  providerCapabilitySnapshotFingerprint: String
-  providerCostSnapshotFingerprint: String
-  providerHealthSnapshotFingerprint: String
-  providerLimitSnapshotFingerprint: String
-  rerankRuntimeContractFingerprint: String
-  rerankRuntimeContractStatus: String
-  rerankRuntimeContractTopK: SafeInt
-  rerankRuntimeContractVersion: String
-  taskRouteEmbeddingIndexContractSnapshotFingerprint: String
-  taskRouteRerankRuntimeContractSnapshotFingerprint: String
-  taskRouteDimensionSnapshotFingerprint: String
-  taskRouteEffectiveSourceFingerprint: String
-  taskRouteEffectiveSourceFingerprintInputs: [String!]
-  taskRouteEffectiveSourceFingerprintVersion: String
-  taskRouteModelSourceSnapshotFingerprint: String
-  preparedRouteTargets: [String!]
-  preparedRouteTargetFingerprint: String
-  policyCandidates: [CopilotPromptRegistryPublishGatePolicyCandidateType!]
-  policyCandidateSnapshotFingerprint: String
-  privacy: String
-  providerConfiguredModelCount: SafeInt
-  providerConfiguredModelIds: [String!]
-  providerId: String!
-  providerName: String
-  providerPriority: SafeInt
-  providerProfileConfigPath: String
-  providerProfileId: String
-  providerProfileSource: String
-  providerSource: String
-  providerType: String
-  reasons: [String!]!
-  registryAvailable: Boolean
-  registryKind: String
-  registrySelected: Boolean
   requestedModelConfigKey: String
   requestedModelConfigPath: String
-  requestedDimensions: SafeInt
   requestedModelId: String
   requestedModelSource: String
-  routeAttachmentAllowRemoteUrls: Boolean
-  routeAttachmentKinds: [String!]
-  routeAttachmentSourceKinds: [String!]
-  routeCandidateSnapshotFingerprint: String
-  routeContextWindow: SafeInt
-  routeEmbeddingDimensions: SafeInt
-  routeInputTypes: [String!]
-  routeMaxOutputTokens: SafeInt
-  routeModelAliasMatched: Boolean
-  routeModelDefinitionAliases: [String!]
-  routeModelDefinitionId: String
-  routeModelDefinitionSource: String
-  routeOutputTypes: [String!]
-  routeRawModelId: String
-  routeStructuredAttachmentAllowRemoteUrls: Boolean
-  routeStructuredAttachmentKinds: [String!]
-  routeStructuredAttachmentSourceKinds: [String!]
-  routeTrace: [CopilotPromptRegistryPublishGateRouteTracePhaseType!]
-  routeTracePhases: [String!]
-  routeTraceSnapshotFingerprint: String
+}
+
+type CopilotPromptRegistrySourceChainEntryType {
+  actorId: String
+  configPath: String
+  fingerprint: String
+  registryId: SafeInt
+  revision: String
   scope: String!
-}
-
-type CopilotPromptRegistryPublishGateRepairDiagnosticsErrorType {
-  code: String!
-  message: String!
-  stage: String!
-}
-
-type CopilotPromptRegistryPublishGateRepairRecommendationType {
-  candidateEvidence: [CopilotPromptRegistryPublishGateRepairCandidateEvidenceType!]
-  category: String!
-  code: String!
-  detail: String!
-  diagnosticsFingerprint: String!
-  evidence: [String!]!
-  instanceKey: String
-  severity: String!
-  suggestedAction: String!
-  suggestedActionCatalogVersion: String!
-  suggestedActionInputSchema: JSONObject!
-  suggestedActionKind: String!
-  suggestedActionRequiredCapabilities: [String!]!
-  suggestedActionSafety: String!
-  target: String!
-  targetLocator: CopilotPromptRegistryPublishGateRepairTargetLocatorType
-  title: String!
-}
-
-type CopilotPromptRegistryPublishGateRepairActionCatalogEntryType {
-  actionKind: String!
-  catalogVersion: String!
-  inputSchema: JSONObject!
-  recommendationCount: SafeInt!
-  requiredCapabilities: [String!]!
-  safety: String!
-}
-
-type CopilotPromptRegistryPublishGateRepairActionMutationGuardType {
-  auditSummary: String!
-  auditSummaryFingerprint: String!
-  catalogFingerprint: String!
-  catalogVersion: String!
-  expectedRegistryFingerprint: String!
-  expectedRegistryId: SafeInt!
-  expectedRegistryUpdatedAt: String!
-  guardFingerprint: String!
-  intentFingerprint: String!
-  inputSchemaFingerprint: String!
-  recommendationCategories: [String!]!
-  recommendationCount: SafeInt!
-  recommendationCodes: [String!]!
-  recommendationFingerprints: [String!]!
-  requiredCapabilities: [String!]!
-  requiredReviewModes: [String!]!
-  required: Boolean!
-  safetyLevels: [String!]!
-  suggestedActionKinds: [String!]!
-  targetLocatorCount: SafeInt!
-  targetLocatorFingerprint: String!
-  targetLocatorKinds: [String!]!
-}
-
-type CopilotPromptRegistryPublishGateRepairActionPreviewOperationType {
-  actionKind: String!
-  candidateEvidenceCount: SafeInt!
-  candidateEvidenceEntries: [CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType!]!
-  candidateEvidenceFingerprint: String!
-  candidateEvidenceFingerprints: [String!]!
-  candidateEvidenceKeys: [String!]!
-  category: String!
-  code: String!
-  diagnosticsFingerprint: String!
-  embeddingIndexContractEvidenceFingerprints: [String!]!
-  rerankRuntimeContractEvidenceFingerprints: [String!]!
-  taskRouteEffectiveSourceFingerprints: [String!]!
-  inputSchema: JSONObject!
-  instanceKey: String
-  operationFingerprint: String!
-  preparedRouteOrderFingerprints: [String!]!
-  previewStatus: String!
-  requiredCapabilities: [String!]!
-  reviewMode: String!
-  safety: String!
-  target: String!
-  targetLocator: CopilotPromptRegistryPublishGateRepairTargetLocatorType
-  targetLocatorFingerprint: String!
-}
-
-type CopilotPromptRegistryPublishGateRepairActionSubmissionContractType {
-  approvalPolicyFingerprint: String!
-  authorizationFingerprint: String!
-  candidateEvidenceSetFingerprint: String!
-  taskRouteEffectiveSourceEvidenceSetFingerprint: String!
-  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: [String!]!
-  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: String!
-  embeddingIndexContractEvidenceSetFingerprint: String!
-  rerankRuntimeContractEvidenceSetFingerprint: String!
-  preparedRouteOrderEvidenceSetFingerprint: String!
-  catalogFingerprint: String!
-  contractVersion: String!
-  expectedRegistryFingerprint: String!
-  expectedRegistryId: SafeInt!
-  expectedRegistryUpdatedAt: String!
-  guardFingerprint: String!
-  idempotencyKey: String!
-  mutationAvailable: Boolean!
-  operationSetFingerprint: String!
-  previewFingerprint: String!
-  readOnly: Boolean!
-  requiredInputs: [String!]!
+  source: String!
   status: String!
-  submissionFingerprint: String!
-  targetLocatorFingerprint: String!
-}
-
-type CopilotPromptRegistryPublishGateRepairActionPreviewType {
-  approvalCheckpoints: [String!]!
-  approvalModes: [String!]!
-  approvalPolicyFingerprint: String!
-  approvalPolicyVersion: String!
-  approvalRequired: Boolean!
-  auditSummaryFingerprint: String!
-  authorizationFingerprint: String!
-  authorizationStatus: String!
-  candidateCount: SafeInt!
-  candidateEvidenceSetFingerprint: String!
-  taskRouteEffectiveSourceEvidenceSetFingerprint: String!
-  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: [String!]!
-  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: String!
-  embeddingIndexContractEvidenceSetFingerprint: String!
-  rerankRuntimeContractEvidenceSetFingerprint: String!
-  preparedRouteOrderEvidenceSetFingerprint: String!
-  catalogFingerprint: String!
-  catalogVersion: String!
-  guardFingerprint: String!
-  operationFingerprints: [String!]!
-  operationSetFingerprint: String!
-  operations: [CopilotPromptRegistryPublishGateRepairActionPreviewOperationType!]!
-  previewFingerprint: String!
-  readOnly: Boolean!
-  requiredCapabilities: [String!]!
-  status: String!
-  submissionContract: CopilotPromptRegistryPublishGateRepairActionSubmissionContractType!
-}
-
-type CopilotPromptRegistryPublishGateRepairGateManifestType {
-  version: String!
-  boundary: String!
-  fingerprint: String!
-  registryFingerprint: String!
-  registryId: SafeInt!
-  registryUpdatedAt: String!
-  gateStatus: String!
-  publishStatus: String!
-  reason: String!
-  issueCount: SafeInt!
-  blockingCount: SafeInt!
-  recommendationCount: SafeInt!
-  operationCount: SafeInt!
-  guardFingerprint: String!
-  previewFingerprint: String!
-  submissionFingerprint: String!
-  candidateEvidenceSetFingerprint: String!
-  taskRouteEffectiveSourceEvidenceSetFingerprint: String!
-  taskRouteEffectiveSourceEvidenceSetFingerprintInputs: [String!]!
-  taskRouteEffectiveSourceEvidenceSetFingerprintVersion: String!
-  embeddingIndexContractEvidenceSetFingerprint: String!
-  rerankRuntimeContractEvidenceSetFingerprint: String!
-  preparedRouteOrderEvidenceSetFingerprint: String!
-  operationSetFingerprint: String!
-  targetLocatorFingerprint: String!
-  approvalPolicyFingerprint: String!
-  authorizationFingerprint: String!
-  catalogFingerprint: String!
-  catalogVersion: String!
-  readOnly: Boolean!
-  mutationAvailable: Boolean!
-  requiredCapabilities: [String!]!
-  requiredReviewModes: [String!]!
-  safetyLevels: [String!]!
-  operationFingerprints: [String!]!
-  recommendationFingerprints: [String!]!
-}
-
-type CopilotPromptRegistryPublishGateRepairGateManifestExportMetadataType {
-  version: String!
-  artifact: String!
-  filename: String!
-  mime: String!
-  metadataFilename: String!
-  manifestVersion: String!
-  manifestFingerprint: String!
-  registryFingerprint: String!
-  registryId: SafeInt!
-  registryUpdatedAt: String!
-  gateStatus: String!
-  publishStatus: String!
-  boundary: String!
-  redactionPolicyVersion: String!
-  redactionPolicyStatus: String!
-  redactionPolicyFingerprint: String!
-  exportPolicyVersion: String!
-  exportPolicyStatus: String!
-  exportPolicyFingerprint: String!
-  auditEventVersion: String!
-  auditEventStatus: String!
-  auditEventCreated: Boolean!
-  auditEventFingerprint: String!
-  retentionPolicyVersion: String!
-  retentionPolicyStatus: String!
-  retentionPolicyFingerprint: String!
-}
-
-type CopilotPromptRegistryPublishGateRepairTargetLocatorType {
-  actionId: String
-  candidateIndex: SafeInt
-  candidateKind: String
-  fallbackOrderIndex: SafeInt
-  featureKind: String
-  kind: String!
-  outputType: String
-  path: String!
-  providerId: String
-  providerProfileConfigPath: String
-  providerProfileId: String
-  providerProfileSource: String
-  registryFingerprint: String!
-  registryId: SafeInt!
-  registryUpdatedAt: String!
-  requestedModelConfigKey: String
-  requestedModelConfigPath: String
-  requestedModelId: String
-  requestedModelSource: String
-  routeIndex: SafeInt
-  status: String
-  stepId: String
-}
-
-type CopilotPromptRegistryPublishGateVerdictType {
-  actionRouteDryRun: CopilotPromptRegistryPublishGateActionRouteDryRunType
-  allowed: Boolean!
-  blockingCount: SafeInt!
-  errorCount: SafeInt!
-  issueCount: SafeInt!
-  issues: [CopilotPromptRegistryValidationIssueType!]!
-  modelRoute: CopilotPromptRegistryPublishGateModelRouteType
-  modelRoutes: [CopilotPromptRegistryPublishGateModelRouteType!]!
-  taskRoutes: [CopilotTaskRouteDiagnosticsType!]!
-  name: String!
-  publishStatus: String!
-  reason: String!
-  registryFingerprint: String!
-  registryId: SafeInt!
-  registryUpdatedAt: DateTime!
-  repairActionCatalog: [CopilotPromptRegistryPublishGateRepairActionCatalogEntryType!]!
-  repairActionCatalogFingerprint: String!
-  repairActionMutationGuard: CopilotPromptRegistryPublishGateRepairActionMutationGuardType!
-  repairActionPreview: CopilotPromptRegistryPublishGateRepairActionPreviewType!
-  repairGateManifest: CopilotPromptRegistryPublishGateRepairGateManifestType!
-  repairGateManifestExportMetadata: CopilotPromptRegistryPublishGateRepairGateManifestExportMetadataType!
-  remediations: [CopilotPromptRegistryValidationRemediationType!]!
-  repairRecommendations: [CopilotPromptRegistryPublishGateRepairRecommendationType!]!
-  stale: Boolean!
-  staleReasons: [String!]!
-  status: String!
+  updatedAt: String
+  workspaceId: String
 }
 
 type CopilotPromptRegistryValidationIssueType {
@@ -2208,6 +2475,14 @@ type CopilotPromptRegistryValidationIssueType {
   sourceLocator: CopilotPromptRegistryValidationSourceLocatorType!
 }
 
+type CopilotPromptRegistryValidationRemediationType {
+  detail: String!
+  kind: String!
+  label: String!
+  target: String!
+  targetLocator: CopilotPromptRegistryValidationSourceLocatorType!
+}
+
 type CopilotPromptRegistryValidationSourceLocatorType {
   field: String!
   messageIndex: SafeInt
@@ -2216,14 +2491,6 @@ type CopilotPromptRegistryValidationSourceLocatorType {
   registryId: SafeInt!
   registryUpdatedAt: String!
   table: String!
-}
-
-type CopilotPromptRegistryValidationRemediationType {
-  detail: String!
-  kind: String!
-  label: String!
-  target: String!
-  targetLocator: CopilotPromptRegistryValidationSourceLocatorType!
 }
 
 type CopilotProviderNotSupportedDataType {
@@ -2237,152 +2504,587 @@ type CopilotProviderSideErrorDataType {
   provider: String!
 }
 
+input CopilotProviderRegistryPublishInput {
+  displayName: String
+  enabled: Boolean
+  idempotencyKey: String
+  modelDefinitions: JSON
+  models: [String!]
+  privacy: String
+  priority: Float
+  providerId: String!
+  revision: String
+  workspaceId: String!
+}
+
+input CopilotPromptRegistryPublishInput {
+  expectedVersion: CopilotPromptRegistryPublishGateExpectedVersionInput
+  idempotencyKey: String
+  name: String!
+  reviewNote: String
+  revision: String
+  workspaceId: String!
+}
+
+type CopilotPromptRegistryRevisionType {
+  actorId: String
+  createdAt: DateTime!
+  fallbackSourceChain: JSON!
+  fingerprint: String!
+  id: String!
+  promptName: String!
+  publishEventCount: SafeInt!
+  publishEvents: [CopilotRegistryRevisionPublishEventType!]!
+  revision: String!
+  scopeType: String!
+  status: String!
+  updatedAt: DateTime!
+  workspaceId: String
+}
+
+type CopilotRegistryRevisionPublishEventType {
+  actorId: String
+  createdAt: DateTime!
+  eventFingerprint: String!
+  eventType: String!
+  id: String!
+  metadata: JSON!
+  publishSource: String!
+  registryFamily: String!
+  registryKey: String!
+  registryModelId: String
+  registryProviderId: String
+  revision: String!
+  revisionFingerprint: String!
+  revisionId: String!
+  revisionStatus: String!
+  scopeType: String!
+  workspaceId: String
+}
+
+input CopilotModelRegistryPublishInput {
+  idempotencyKey: String
+  modelDefinition: JSON!
+  modelId: String!
+  providerId: String!
+  revision: String
+  workspaceId: String!
+}
+
+input CopilotTaskRoutePolicyPublishInput {
+  featureKind: String!
+  idempotencyKey: String
+  modelId: String!
+  revision: String
+  workspaceId: String!
+}
+
+input CopilotProviderHealthStateRecordInput {
+  lastError: String
+  providerId: String!
+  status: String!
+  workspaceId: String!
+}
+
+input CopilotProviderHealthProbeAttemptRetryInput {
+  attemptId: String!
+  workspaceId: String!
+}
+
+input CopilotProviderHealthProbeAttemptFilterInput {
+  providerId: String
+  providerProfileFingerprint: String
+  providerRegistryRevisionFingerprint: String
+  providerRegistryRevisionId: String
+  query: String
+  requestFingerprint: String
+  resultFingerprint: String
+  status: String
+}
+
+type CopilotProviderHealthEventType {
+  actorId: String
+  checkedAt: DateTime!
+  createdAt: DateTime!
+  eventType: String!
+  fingerprint: String!
+  id: String!
+  lastError: String
+  metadata: JSON!
+  providerId: String!
+  providerType: String
+  scopeType: String!
+  source: String!
+  stateFingerprint: String!
+  stateId: String!
+  status: String!
+  workspaceId: String
+}
+
+type CopilotProviderHealthStateType {
+  actorId: String
+  checkedAt: DateTime!
+  createdAt: DateTime!
+  eventCount: SafeInt!
+  events: [CopilotProviderHealthEventType!]!
+  fingerprint: String!
+  id: String!
+  lastError: String
+  providerId: String!
+  providerType: String
+  scopeType: String!
+  source: String!
+  status: String!
+  updatedAt: DateTime!
+  workspaceId: String
+}
+
+type CopilotProviderHealthProbeAttemptType {
+  actorId: String!
+  attemptCount: SafeInt!
+  checkedAt: DateTime
+  completedAt: DateTime
+  createdAt: DateTime!
+  deadLetteredAt: DateTime
+  failureCode: String
+  failureMessage: String
+  id: String!
+  maxAttempts: SafeInt!
+  providerHealthStateFingerprint: String
+  providerHealthStateId: String
+  providerId: String!
+  providerProfileFingerprint: String!
+  providerProfileSnapshot: JSON!
+  providerProfileSource: String
+  providerRegistryRevisionFingerprint: String!
+  providerRegistryRevisionId: String!
+  providerType: String
+  requestFingerprint: String!
+  resultFingerprint: String
+  resultLastError: String
+  resultMetadata: JSON!
+  resultStatus: String
+  scheduledAt: DateTime!
+  scopeType: String!
+  status: String!
+  updatedAt: DateTime!
+  workerLeaseExpiresAt: DateTime
+  workerLeaseId: String
+  workspaceId: String!
+}
+
+type CopilotProviderRegistryRevisionType {
+  actorId: String
+  createdAt: DateTime!
+  fallbackSourceChain: JSON!
+  fingerprint: String!
+  id: String!
+  providerId: String!
+  providerHealthProbeAttempt: CopilotProviderHealthProbeAttemptType
+  providerProfile: JSON!
+  providerType: String
+  publishEventCount: SafeInt!
+  publishEvents: [CopilotRegistryRevisionPublishEventType!]!
+  revision: String!
+  scopeType: String!
+  status: String!
+  updatedAt: DateTime!
+  workspaceId: String
+}
+
+type CopilotModelRegistryRevisionType {
+  actorId: String
+  createdAt: DateTime!
+  fallbackSourceChain: JSON!
+  fingerprint: String!
+  id: String!
+  modelDefinition: JSON!
+  modelId: String!
+  providerId: String!
+  publishEventCount: SafeInt!
+  publishEvents: [CopilotRegistryRevisionPublishEventType!]!
+  revision: String!
+  scopeType: String!
+  status: String!
+  updatedAt: DateTime!
+  workspaceId: String
+}
+
+type CopilotTaskRoutePolicyRevisionType {
+  actorId: String
+  configKey: String
+  configPath: String
+  createdAt: DateTime!
+  fallbackSourceChain: JSON!
+  featureKind: String!
+  fingerprint: String!
+  id: String!
+  modelId: String
+  publishEventCount: SafeInt!
+  publishEvents: [CopilotRegistryRevisionPublishEventType!]!
+  revision: String!
+  scopeType: String!
+  status: String!
+  updatedAt: DateTime!
+  workspaceId: String
+}
+
 type CopilotQuota {
   limit: SafeInt
   used: SafeInt!
 }
 
-type CopilotPreparedTaskRouteDiagnosticsType {
-  behaviorFlags: [String!]
-  canonicalModelKey: String
-  dimensionMismatch: Boolean
-  modelBackendKind: String
-  modelEmbeddingDimensions: SafeInt
-  modelId: String!
-  protocol: String
-  providerConfiguredModelCount: SafeInt
-  providerConfiguredModelIds: [String!]
-  providerId: String!
-  providerName: String
-  providerPriority: SafeInt
-  providerProfileConfigPath: String
-  providerProfileId: String
-  providerProfileSource: String
-  providerSource: String
-  providerType: String
-  requestedDimensions: SafeInt
-  requestLayer: String
+input CopilotRepairExecutionApprovalDecisionInput {
+  decision: String!
+  executionRequestId: String!
+  reason: String
+  workspaceId: String!
 }
 
-type CopilotTaskRoutePolicyCandidateDiagnosticsType {
-  allowed: Boolean!
-  available: Boolean!
-  candidateFingerprint: String!
-  candidateKey: String!
-  health: String!
-  healthCheckedAt: String
-  privacy: String!
-  providerConfiguredModelCount: SafeInt
-  providerConfiguredModelIds: [String!]
-  providerId: String!
-  providerName: String
-  providerProfileConfigPath: String
-  providerProfileId: String
-  providerProfileSource: String
-  providerSource: String
-  providerPriority: SafeInt
-  providerType: String
-  reasons: [String!]!
+input CopilotRepairExecutionControlInput {
+  action: String!
+  executionRequestId: String!
+  executorPayload: JSON
+  reason: String
+  workspaceId: String!
+}
+
+input CopilotRepairExecutionListFilterInput {
+  approvalState: String
+  promptName: String
+  query: String
+  requestedAction: String
+  status: String
+}
+
+type CopilotRepairExecutionRecordType {
+  actorId: String!
+  agentRun: CopilotAgentRunType
+  approvalRecordFingerprint: String!
+  approvalState: String!
+  auditEventCount: SafeInt!
+  auditEventFingerprint: String!
+  auditEvents: [CopilotRepairExecutionAuditEventType!]!
+  candidateEvidenceSetFingerprint: String!
+  completedAt: DateTime
+  createdAt: DateTime!
+  failureCode: String
+  failureMessage: String
+  id: String!
+  idempotencyFingerprint: String!
+  idempotencyKey: String!
+  lastAttemptAt: DateTime
+  permissionStatus: String!
+  promptName: String!
+  queuedAt: DateTime
+  repairJobFingerprint: String!
+  requestFingerprint: String!
+  requestedAction: String!
+  runtimeResult: CopilotRepairExecutionRuntimeResultType!
+  sideEffectCount: SafeInt!
+  sideEffects: [CopilotRepairExecutionSideEffectType!]!
+  status: String!
+  targetLocatorFingerprint: String!
+  taskRouteEvidenceSetFingerprint: String!
+  updatedAt: DateTime!
+  workerAttempt: SafeInt!
+  workerLeaseExpiresAt: DateTime
+  workerLeaseId: String
+  workerMaxAttempts: SafeInt!
+  workspaceId: String!
+}
+
+type CopilotRepairExecutionAuditEventType {
+  actorId: String!
+  createdAt: DateTime!
+  eventFingerprint: String!
+  eventType: String!
+  executionRequestId: String!
+  id: String!
+  metadata: JSON!
+  workspaceId: String!
+}
+
+type CopilotRepairExecutionSideEffectType {
+  actorId: String!
+  appliedAt: DateTime!
+  createdAt: DateTime!
+  executionRequestId: String!
+  executorPayloadFingerprint: String!
+  id: String!
+  sideEffectFingerprint: String!
+  sideEffectKind: String!
+  sideEffectRecordId: String!
+  sideEffectSummary: JSON!
+  workerAttempt: SafeInt!
+  workerLeaseId: String!
+  workspaceId: String!
+}
+
+type CopilotRepairExecutionRuntimeResultType {
+  executor: String!
+  message: String!
+  sideEffectFingerprint: String
+  sideEffectKind: String
+  sideEffectRecordId: String
+  sideEffectSummary: JSON
+  sideEffectsApplied: Boolean!
+  version: String!
+}
+
+type CopilotSessionType {
+  docId: String
+  id: ID!
+  model: String!
+  optionalModels: [String!]!
+  parentSessionId: ID
+  pinned: Boolean!
+  promptName: String!
+  title: String
+}
+
+input CopilotSupportBundleCreateInput {
+  workspaceId: String!
+}
+
+type CopilotSupportBundleDownloadAuthorizationType {
+  actorId: String!
+  artifactFilename: String!
+  artifactFingerprint: String!
+  artifactKind: String!
+  artifactMime: String!
+  authorizationFingerprint: String!
+  bundleId: String!
+  createdAt: DateTime!
+  deliveryMethod: String!
+  directDownloadExpiresAt: DateTime
+  directDownloadUrl: String
+  downloadUrl: String!
+  downloadedAt: DateTime
+  expiresAt: DateTime!
+  id: String!
+  manifestFingerprint: String!
+  status: String!
+  updatedAt: DateTime!
+  workspaceId: String!
+}
+
+input CopilotSupportBundleDownloadAuthorizeInput {
+  artifactKind: String
+  bundleId: String!
+  workspaceId: String!
+}
+
+input CopilotSupportBundleDirectDownloadAcknowledgeInput {
+  authorizationId: String!
+  workspaceId: String!
+}
+
+type CopilotSupportBundleManifestType {
+  actorId: String!
+  archive: JSON!
+  bundleId: String!
+  createdAt: String!
+  expiresAt: String!
+  retention: CopilotSupportBundleRetentionType!
+  sourceEvidenceSetFingerprint: String!
+  sourceEvidenceSummary: CopilotSupportBundleSourceEvidenceSummaryType!
+  version: String!
+  workspaceId: String!
+}
+
+input CopilotSupportBundleRetentionCleanupInput {
+  limit: SafeInt
+  workspaceId: String!
+}
+
+input CopilotSupportBundleTransferForwardingReplayInput {
+  forwardingEventId: String!
+  maxAttempts: SafeInt
+  workspaceId: String!
+}
+
+input CopilotSupportBundleListFilterInput {
+  query: String
+  retentionStatus: String
+  status: String
+  transferForwardingStatus: String
+}
+
+type CopilotSupportBundleRetentionCleanupType {
+  archiveObjectCleanupFailedCount: SafeInt!
+  archiveObjectCleanupRecoveredCount: SafeInt!
+  archiveObjectCleanupRetryCount: SafeInt!
+  actorId: String!
+  cleanedAt: DateTime!
+  cleanupFingerprint: String!
+  expiredAuthorizationCount: SafeInt!
+  expiredBundleCount: SafeInt!
+  expiredBundles: [CopilotSupportBundleType!]!
+  manifestObjectRewriteFailedCount: SafeInt!
+  manifestObjectRewriteRecoveredCount: SafeInt!
+  manifestObjectRewriteRetryCount: SafeInt!
+  workspaceId: String!
+}
+
+type CopilotSupportBundleRetentionType {
+  expiresAt: String!
+  status: String!
+}
+
+type CopilotSupportBundleSourceEvidenceSummaryType {
+  actionRunCount: SafeInt!
+  includedSections: [String!]!
+  promptCatalogItemCount: SafeInt!
+  source: String!
+  taskRouteCount: SafeInt!
+}
+
+type CopilotSupportBundleAuditEventType {
+  actorId: String!
+  bundleId: String!
+  createdAt: DateTime!
+  eventFingerprint: String!
+  eventType: String!
+  id: String!
+  metadata: JSON!
+  workspaceId: String!
+}
+
+type CopilotSupportBundleTransferEventType {
+  artifactFingerprint: String!
+  artifactKind: String!
+  authorizationFingerprint: String!
+  authorizationId: String!
+  createdAt: DateTime!
+  deliveryMethod: String!
+  eventFingerprint: String!
+  eventId: String
+  eventSource: String!
+  id: String!
+  manifestFingerprint: String!
+  notificationAuthEvidenceFingerprint: String!
+  storageByteSize: SafeInt!
+  storageContentType: String!
+  storageKey: String!
+  transferredAt: DateTime!
+}
+
+type CopilotSupportBundleTransferForwardingEventType {
+  attemptCount: SafeInt!
+  authorizationId: String!
+  createdAt: DateTime!
+  deadLetteredAt: DateTime
+  eventId: String
+  eventSource: String!
+  failureCode: String
+  failureMessage: String
+  forwardedAt: DateTime
+  forwardedTransferEventFingerprint: String
+  forwardingEventFingerprint: String!
+  forwardingPayload: JSON!
+  forwardingPayloadFingerprint: String!
+  id: String!
+  lastAttemptAt: DateTime
+  maxAttempts: SafeInt!
+  nextAttemptAt: DateTime
+  providerSignatureEvidenceFingerprint: String
+  status: String!
+  updatedAt: DateTime!
+  workerLeaseExpiresAt: DateTime
+  workerLeaseId: String
+}
+
+type CopilotSupportBundleType {
+  actorId: String!
+  archiveByteSize: SafeInt
+  archiveFilename: String
+  archiveFingerprint: String
+  archiveMime: String
+  archiveStorageKey: String
+  auditEventCount: SafeInt!
+  auditEvents: [CopilotSupportBundleAuditEventType!]!
+  createdAt: DateTime!
+  expiresAt: DateTime!
+  failureCode: String
+  failureMessage: String
+  id: String!
+  manifestByteSize: SafeInt
+  manifestFilename: String
+  manifestFingerprint: String!
+  manifestMime: String
+  manifestStorageKey: String
+  manifestJson: CopilotSupportBundleManifestType!
+  retentionStatus: String!
+  sourceEvidenceSetFingerprint: String!
+  sourceEvidenceSummary: CopilotSupportBundleSourceEvidenceSummaryType!
+  status: String!
+  transferEventCount: SafeInt!
+  transferEvents: [CopilotSupportBundleTransferEventType!]!
+  transferForwardingEventCount: SafeInt!
+  transferForwardingEvents: [CopilotSupportBundleTransferForwardingEventType!]!
+  updatedAt: DateTime!
+  workspaceId: String!
 }
 
 type CopilotTaskRouteCandidateDiagnosticsType {
   candidateKey: String
   candidateModelIds: [String!]
-  costInputPer1M: Float
-  costOutputPer1M: Float
-  routeContextWindow: SafeInt
-  routeEmbeddingDimensions: SafeInt
-  routeMaxOutputTokens: SafeInt
+  costInputPer1M: Int
+  costOutputPer1M: Int
+  health: String
+  healthCheckedAt: String
   matched: Boolean!
   modelId: String
+  privacy: String
   providerConfiguredModelCount: SafeInt
   providerConfiguredModelIds: [String!]
   providerId: String!
   providerName: String
+  providerPriority: SafeInt
   providerProfileConfigPath: String
   providerProfileId: String
   providerProfileSource: String
   providerSource: String
   providerType: String
-  providerPriority: SafeInt
-  privacy: String
-  health: String
-  healthCheckedAt: String
-  routeModelAliasMatched: Boolean
-  routeAttachmentAllowRemoteUrls: Boolean
-  routeAttachmentKinds: [String!]
-  routeAttachmentSourceKinds: [String!]
-  routeInputTypes: [String!]
-  routeModelDefinitionAliases: [String!]
-  routeModelDefinitionId: String
-  routeModelDefinitionSource: String
-  routeOutputTypes: [String!]
-  routeStructuredAttachmentAllowRemoteUrls: Boolean
-  routeStructuredAttachmentKinds: [String!]
-  routeStructuredAttachmentSourceKinds: [String!]
-  routeRawModelId: String
   reasons: [String!]!
   registryAvailable: Boolean
   registryKind: String
   registrySelected: Boolean
   requestedModelId: String
-}
-
-type CopilotTaskRoutePrepareCandidateDiagnosticsType {
-  candidateKey: String
-  candidateModelIds: [String!]
-  costInputPer1M: Float
-  costOutputPer1M: Float
+  routeAttachmentAllowRemoteUrls: Boolean
+  routeAttachmentKinds: [String!]
+  routeAttachmentSourceKinds: [String!]
   routeContextWindow: SafeInt
   routeEmbeddingDimensions: SafeInt
-  routeMaxOutputTokens: SafeInt
-  errorCategory: String
-  errorCode: String
-  health: String
-  healthCheckedAt: String
-  modelId: String
-  prepared: Boolean!
-  preparedModelId: String
-  providerConfiguredModelCount: SafeInt
-  providerConfiguredModelIds: [String!]
-  providerId: String!
-  providerName: String
-  providerPriority: SafeInt
-  providerProfileConfigPath: String
-  providerProfileId: String
-  providerProfileSource: String
-  providerSource: String
-  providerType: String
-  privacy: String
-  routeModelAliasMatched: Boolean
-  routeAttachmentAllowRemoteUrls: Boolean
-  routeAttachmentKinds: [String!]
-  routeAttachmentSourceKinds: [String!]
   routeInputTypes: [String!]
+  routeMaxOutputTokens: SafeInt
+  routeModelAliasMatched: Boolean
   routeModelDefinitionAliases: [String!]
   routeModelDefinitionId: String
   routeModelDefinitionSource: String
+  modelRegistryRevision: String
+  modelRegistryRevisionActorId: String
+  modelRegistryRevisionFingerprint: String
+  modelRegistryRevisionId: String
+  modelRegistryRevisionScope: String
+  modelRegistryRevisionSourceChain: [CopilotModelRegistrySourceChainEntryType!]
+  modelRegistryRevisionSourceChainFingerprint: String
+  modelRegistryRevisionStatus: String
+  modelRegistryRevisionWorkspaceId: String
+  modelRegistryRevisionPublishEventCount: SafeInt
+  modelRegistryRevisionPublishEvents: [CopilotRegistryRevisionPublishEventType!]
   routeOutputTypes: [String!]
+  routeRawModelId: String
   routeStructuredAttachmentAllowRemoteUrls: Boolean
   routeStructuredAttachmentKinds: [String!]
   routeStructuredAttachmentSourceKinds: [String!]
-  routeRawModelId: String
-  reasons: [String!]!
-  registryAvailable: Boolean
-  registryKind: String
-  registrySelected: Boolean
-  requestedModelId: String
 }
 
-type CopilotTaskRouteTracePhaseDiagnosticsType {
-  availableCount: SafeInt
-  blockedCount: SafeInt
-  candidateCount: SafeInt!
-  matchedCount: SafeInt
-  phase: String!
-  preparedCount: SafeInt
-  reasons: [String!]!
-  selectedCount: SafeInt
+type CopilotTaskRouteDiagnosticsErrorType {
+  code: String!
+  message: String!
+  stage: String!
 }
 
 type CopilotTaskRouteDiagnosticsType {
@@ -2409,18 +3111,17 @@ type CopilotTaskRouteDiagnosticsType {
   policyAllowedPrivacy: [String!]
   policyAllowedProviderIds: [String!]
   policyBlockedProviderIds: [String!]
+  policyCandidates: [CopilotTaskRoutePolicyCandidateDiagnosticsType!]!
   policyEnabled: Boolean!
   policyFeatureKind: String
   policyPreferredPrivacy: [String!]
   policyWorkspaceId: String
-  policyCandidates: [CopilotTaskRoutePolicyCandidateDiagnosticsType!]!
-  routeCandidates: [CopilotTaskRouteCandidateDiagnosticsType!]!
-  routeTrace: [CopilotTaskRouteTracePhaseDiagnosticsType!]!
   prepareCandidates: [CopilotTaskRoutePrepareCandidateDiagnosticsType!]!
   preparedProviderCount: SafeInt!
-  preparedRouteTargets: [String!]!
   preparedRouteTargetFingerprint: String!
+  preparedRouteTargets: [String!]!
   preparedRoutes: [CopilotPreparedTaskRouteDiagnosticsType!]!
+  protocol: String
   providerConfiguredModelCount: SafeInt
   providerConfiguredModelIds: [String!]
   providerId: String
@@ -2431,35 +3132,137 @@ type CopilotTaskRouteDiagnosticsType {
   providerProfileSource: String
   providerSource: String
   providerType: String
-  protocol: String
-  rerankRuntimeContractFingerprint: String
-  rerankRuntimeContractStatus: String
-  rerankRuntimeContractTopK: SafeInt
-  rerankRuntimeContractVersion: String
+  requestLayer: String
+  requestedDimensions: SafeInt
   requestedModelConfigKey: String
   requestedModelConfigPath: String
   requestedModelId: String
   requestedModelSource: String
-  requestedDimensions: SafeInt
-  requestLayer: String
+  rerankRuntimeContractFingerprint: String
+  rerankRuntimeContractStatus: String
+  rerankRuntimeContractTopK: SafeInt
+  rerankRuntimeContractVersion: String
+  routeCandidates: [CopilotTaskRouteCandidateDiagnosticsType!]!
+  routeTrace: [CopilotTaskRouteTracePhaseDiagnosticsType!]!
+  taskRoutePolicyRevision: String
+  taskRoutePolicyRevisionActorId: String
+  taskRoutePolicyRevisionFingerprint: String
+  taskRoutePolicyRevisionId: String
+  taskRoutePolicyRevisionScope: String
+  taskRoutePolicyRevisionSourceChain: [CopilotTaskRoutePolicySourceChainEntryType!]
+  taskRoutePolicyRevisionSourceChainFingerprint: String
+  taskRoutePolicyRevisionStatus: String
+  taskRoutePolicyRevisionWorkspaceId: String
+  taskRoutePolicyRevisionPublishEventCount: SafeInt
+  taskRoutePolicyRevisionPublishEvents: [CopilotRegistryRevisionPublishEventType!]
   topK: SafeInt
 }
 
-type CopilotTaskRouteDiagnosticsErrorType {
-  code: String!
-  message: String!
-  stage: String!
+type CopilotTaskRoutePolicyCandidateDiagnosticsType {
+  allowed: Boolean!
+  available: Boolean!
+  candidateFingerprint: String!
+  candidateKey: String!
+  health: String!
+  healthCheckedAt: String
+  privacy: String!
+  providerConfiguredModelCount: SafeInt
+  providerConfiguredModelIds: [String!]
+  providerId: String!
+  providerName: String
+  providerPriority: SafeInt
+  providerProfileConfigPath: String
+  providerProfileId: String
+  providerProfileSource: String
+  providerSource: String
+  providerType: String
+  reasons: [String!]!
+  registryAvailable: Boolean
+  registryKind: String
+  registrySelected: Boolean
 }
 
-type CopilotSessionType {
-  docId: String
-  id: ID!
-  model: String!
-  optionalModels: [String!]!
-  parentSessionId: ID
-  pinned: Boolean!
-  promptName: String!
-  title: String
+type CopilotTaskRoutePolicySourceChainEntryType {
+  actorId: String
+  configKey: String
+  configPath: String
+  featureKind: String
+  fingerprint: String
+  modelId: String
+  revision: String
+  scope: String!
+  source: String!
+  status: String!
+  updatedAt: String
+  workspaceId: String
+}
+
+type CopilotTaskRoutePrepareCandidateDiagnosticsType {
+  candidateKey: String
+  candidateModelIds: [String!]
+  costInputPer1M: Int
+  costOutputPer1M: Int
+  errorCategory: String
+  errorCode: String
+  health: String
+  healthCheckedAt: String
+  modelId: String
+  prepared: Boolean!
+  preparedModelId: String
+  privacy: String
+  providerConfiguredModelCount: SafeInt
+  providerConfiguredModelIds: [String!]
+  providerId: String!
+  providerName: String
+  providerPriority: SafeInt
+  providerProfileConfigPath: String
+  providerProfileId: String
+  providerProfileSource: String
+  providerSource: String
+  providerType: String
+  reasons: [String!]!
+  registryAvailable: Boolean
+  registryKind: String
+  registrySelected: Boolean
+  requestedModelId: String
+  routeAttachmentAllowRemoteUrls: Boolean
+  routeAttachmentKinds: [String!]
+  routeAttachmentSourceKinds: [String!]
+  routeContextWindow: SafeInt
+  routeEmbeddingDimensions: SafeInt
+  routeInputTypes: [String!]
+  routeMaxOutputTokens: SafeInt
+  routeModelAliasMatched: Boolean
+  routeModelDefinitionAliases: [String!]
+  routeModelDefinitionId: String
+  routeModelDefinitionSource: String
+  modelRegistryRevision: String
+  modelRegistryRevisionActorId: String
+  modelRegistryRevisionFingerprint: String
+  modelRegistryRevisionId: String
+  modelRegistryRevisionScope: String
+  modelRegistryRevisionSourceChain: [CopilotModelRegistrySourceChainEntryType!]
+  modelRegistryRevisionSourceChainFingerprint: String
+  modelRegistryRevisionStatus: String
+  modelRegistryRevisionWorkspaceId: String
+  modelRegistryRevisionPublishEventCount: SafeInt
+  modelRegistryRevisionPublishEvents: [CopilotRegistryRevisionPublishEventType!]
+  routeOutputTypes: [String!]
+  routeRawModelId: String
+  routeStructuredAttachmentAllowRemoteUrls: Boolean
+  routeStructuredAttachmentKinds: [String!]
+  routeStructuredAttachmentSourceKinds: [String!]
+}
+
+type CopilotTaskRouteTracePhaseDiagnosticsType {
+  availableCount: SafeInt
+  blockedCount: SafeInt
+  candidateCount: SafeInt!
+  matchedCount: SafeInt
+  phase: String!
+  preparedCount: SafeInt
+  reasons: [String!]!
+  selectedCount: SafeInt
 }
 
 type CopilotWorkspaceConfig {
@@ -3336,6 +4139,16 @@ type Mutation {
   adminUpdateWorkspace(input: AdminUpdateWorkspaceInput!): AdminWorkspace
   approveMember(userId: String!, workspaceId: String!): Boolean!
 
+  """
+  Authorize a short-lived manifest or archive artifact download for a DB-backed support bundle.
+  """
+  authorizeCopilotSupportBundleDownload(input: CopilotSupportBundleDownloadAuthorizeInput!): CopilotSupportBundleDownloadAuthorizationType!
+
+  """
+  Acknowledge client completion telemetry for a direct object-storage support bundle download.
+  """
+  acknowledgeCopilotSupportBundleDirectDownload(input: CopilotSupportBundleDirectDownloadAcknowledgeInput!): CopilotSupportBundleDownloadAuthorizationType!
+
   """Ban an user"""
   banUser(id: String!): UserType!
   cancelSubscription(idempotencyKey: String @deprecated(reason: "use header `Idempotency-Key`"), plan: SubscriptionPlan = Pro, workspaceId: String): SubscriptionType!
@@ -3344,6 +4157,9 @@ type Mutation {
 
   """Cleanup sessions"""
   cleanupCopilotSession(options: DeleteSessionInput!): [String!]!
+
+  """Expire DB-backed support bundles whose retention window has elapsed and retry failed archive object cleanup."""
+  cleanupCopilotSupportBundleRetention(input: CopilotSupportBundleRetentionCleanupInput!): CopilotSupportBundleRetentionCleanupType!
   clearWorkspaceByokConfigs(provider: ByokProvider, workspaceId: String!): Boolean!
   completeBlobUpload(key: String!, parts: [BlobUploadPartInput!], uploadId: String, workspaceId: String!): String!
   createBlobUpload(key: String!, mime: String!, size: Int!, workspaceId: String!): BlobUploadInit!
@@ -3367,8 +4183,15 @@ type Mutation {
   """Create a chat session and return full session payload"""
   createCopilotSessionWithHistory(options: CreateChatSessionInput!): CopilotHistories!
 
-  """Request prompt registry repair execution. Current implementation is read-only and always blocks execution."""
-  requestCopilotPromptRegistryRepairExecution(input: CopilotPromptRegistryRepairExecutionRequestInput!): CopilotPromptRegistryRepairExecutionRequestType!
+  """
+  Create a DB-backed support bundle request with a minimal persisted manifest.
+  """
+  createCopilotSupportBundle(input: CopilotSupportBundleCreateInput!): CopilotSupportBundleType!
+
+  """
+  Queue a fresh replay for a dead-lettered support bundle transfer forwarding event without mutating terminal evidence.
+  """
+  replayCopilotSupportBundleTransferForwardingEvent(input: CopilotSupportBundleTransferForwardingReplayInput!): CopilotSupportBundleTransferForwardingEventType!
 
   """Create a stripe customer portal to manage payment methods"""
   createCustomerPortal: String!
@@ -3383,6 +4206,21 @@ type Mutation {
   createWorkspace(init: Upload): WorkspaceType!
   createWorkspaceByokLocalLease(input: CreateWorkspaceByokLocalLeaseInput!): CreateWorkspaceByokLocalLeaseResultType!
   deactivateLicense(workspaceId: String!): Boolean!
+
+  """
+  Approve or reject a persisted repair execution request that is waiting for approval.
+  """
+  decideCopilotRepairExecutionApproval(input: CopilotRepairExecutionApprovalDecisionInput!): CopilotRepairExecutionRecordType!
+
+  """
+  Cancel, retry, or recover a stale persisted repair execution request after workspace permission checks.
+  """
+  controlCopilotRepairExecution(input: CopilotRepairExecutionControlInput!): CopilotRepairExecutionRecordType!
+
+  """
+  Control a standalone persisted Agent Runtime run outside repair execution.
+  """
+  controlCopilotAgentRuntimeRun(input: CopilotAgentRuntimeControlInput!): CopilotAgentRunType!
   deleteAccount: DeleteAccount!
   deleteBlob(hash: String @deprecated(reason: "use parameter [key]"), key: String, permanently: Boolean! = false, workspaceId: String!): Boolean!
 
@@ -3419,6 +4257,36 @@ type Mutation {
   """mention user in a doc"""
   mentionUser(input: MentionInput!): ID!
   previewLicense(license: Upload!): AdminLicensePreview!
+
+  """
+  Persist a workspace-scoped provider health state for an existing configured provider.
+  """
+  recordCopilotProviderHealthState(input: CopilotProviderHealthStateRecordInput!): CopilotProviderHealthStateType!
+
+  """
+  Queue a fresh Provider Health probe attempt for a dead-lettered workspace attempt without mutating terminal evidence.
+  """
+  retryCopilotProviderHealthProbeAttempt(input: CopilotProviderHealthProbeAttemptRetryInput!): CopilotProviderHealthProbeAttemptType!
+
+  """
+  Publish a workspace-scoped DB-backed prompt registry revision after publish-gate and route-readiness checks.
+  """
+  publishCopilotPromptRegistryRevision(input: CopilotPromptRegistryPublishInput!): CopilotPromptRegistryRevisionType!
+
+  """
+  Publish a workspace-scoped DB-backed provider profile metadata revision for an existing configured provider.
+  """
+  publishCopilotProviderRegistryRevision(input: CopilotProviderRegistryPublishInput!): CopilotProviderRegistryRevisionType!
+
+  """
+  Publish a workspace-scoped DB-backed model definition revision for an existing configured provider.
+  """
+  publishCopilotModelRegistryRevision(input: CopilotModelRegistryPublishInput!): CopilotModelRegistryRevisionType!
+
+  """
+  Publish a workspace-scoped DB-backed task route policy revision for embedding, workspace indexing, or rerank model selection.
+  """
+  publishCopilotTaskRoutePolicyRevision(input: CopilotTaskRoutePolicyPublishInput!): CopilotTaskRoutePolicyRevisionType!
   publishDoc(docId: String!, mode: PublicDocMode = Page, workspaceId: String!): DocType!
 
   """queue workspace doc embedding"""
@@ -3456,6 +4324,11 @@ type Mutation {
 
   """Request to apply the subscription in advance"""
   requestApplySubscription(transactionId: String!): [SubscriptionType!]!
+
+  """
+  Request prompt registry repair execution. Approval-gated requests can publish a DB-backed workspace prompt registry revision after approval.
+  """
+  requestCopilotPromptRegistryRepairExecution(input: CopilotPromptRegistryRepairExecutionRequestInput!): CopilotPromptRegistryRepairExecutionRequestType!
 
   """Resolve a comment or not"""
   resolveComment(input: CommentResolveInput!): Boolean!
@@ -3741,6 +4614,7 @@ type Query {
 
   """get workspace invitation info"""
   getInviteInfo(inviteId: String!): InvitationType!
+  hello: String!
   prices: [SubscriptionPrice!]!
 
   """Get public user by id"""

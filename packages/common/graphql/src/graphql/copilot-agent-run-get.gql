@@ -1,0 +1,95 @@
+query getCopilotAgentRun($workspaceId: String!, $id: String!) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      agentRuntimeWorkflowAdapters {
+        workflow
+        capabilities {
+          version
+          supportedStepTypes
+          sideEffectMode
+          summary
+        }
+      }
+      agentRun(id: $id) {
+        actorId
+        completedAt
+        createdAt
+        evidenceFingerprint
+        executionResultCount
+        executionResults {
+          actorId
+          adapterWorkflow
+          completedAt
+          createdAt
+          executor
+          failureCode
+          failureMessage
+          id
+          resultFingerprint
+          resultPayload
+          resultStatus
+          runId
+          sideEffectMode
+          sideEffectsApplied
+          sourceId
+          sourceType
+          summary
+          workerAttempt
+          workerLeaseId
+          workflow
+          workspaceId
+        }
+        failureCode
+        failureMessage
+        id
+        lastAttemptAt
+        queuedAt
+        sourceId
+        sourceType
+        startedAt
+        status
+        targetFingerprint
+        timelineFingerprint
+        title
+        updatedAt
+        workerAttempt
+        workerLeaseExpiresAt
+        workerLeaseId
+        workerMaxAttempts
+        workflow
+        workspaceId
+        steps {
+          actorId
+          completedAt
+          createdAt
+          evidenceFingerprint
+          id
+          order
+          outputSummary
+          runId
+          startedAt
+          status
+          stepKey
+          stepType
+          title
+          updatedAt
+          workspaceId
+        }
+        timelineEvents {
+          actorId
+          createdAt
+          eventFingerprint
+          eventType
+          id
+          ordinal
+          payload
+          runId
+          status
+          stepId
+          summary
+          workspaceId
+        }
+      }
+    }
+  }
+}

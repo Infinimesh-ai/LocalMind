@@ -1,5 +1,10 @@
+import { createHash } from 'node:crypto';
+
 import type {
   CopilotModelDefinition,
+  CopilotModelRegistrySourceChainEntry,
+  CopilotProviderHealth,
+  CopilotProviderHealthStatus,
   CopilotProviderConfigMap,
   CopilotProviderDefaults,
   CopilotProviderPrivacy,
@@ -10,6 +15,7 @@ import type {
   CopilotProviderRoutePolicyRule,
   ProviderMiddlewareConfig,
 } from '../config';
+import type { RegistryRevisionPublishEventRecord } from '../../../models/copilot-registry-revision-publish-event';
 import { resolveProviderMiddleware } from './provider-middleware';
 import { CopilotProviderType, ModelOutputType } from './types';
 
@@ -54,6 +60,18 @@ export type NormalizedCopilotProviderProfile = Omit<
   source: CopilotProviderProfileSource;
   middleware: ProviderMiddlewareConfig;
   modelDefinitions: CopilotModelDefinition[];
+  providerRegistryRecordSource?: 'db_revision';
+  providerRegistryRevision?: string;
+  providerRegistryRevisionActorId?: string;
+  providerRegistryRevisionFingerprint?: string;
+  providerRegistryRevisionId?: string;
+  providerRegistryRevisionScope?: 'global' | 'workspace';
+  providerRegistryRevisionSourceChain?: CopilotProviderRegistrySourceChainEntry[];
+  providerRegistryRevisionSourceChainFingerprint?: string;
+  providerRegistryRevisionStatus?: string;
+  providerRegistryRevisionWorkspaceId?: string;
+  providerRegistryRevisionPublishEventCount?: number;
+  providerRegistryRevisionPublishEvents?: RegistryRevisionPublishEventRecord[];
 };
 
 export type CopilotProviderRegistry = {
@@ -62,6 +80,72 @@ export type CopilotProviderRegistry = {
   routePolicy: CopilotProviderRoutePolicy;
   order: string[];
   byType: Map<CopilotProviderType, string[]>;
+};
+
+export type CopilotProviderModelRegistryRevisionOverlay = {
+  id: string;
+  providerId: string;
+  modelId: string;
+  scopeType: 'global' | 'workspace';
+  workspaceId?: string;
+  actorId?: string;
+  revision: string;
+  status: 'active' | 'archived' | 'disabled';
+  fingerprint: string;
+  modelDefinition: CopilotModelDefinition;
+  fallbackSourceChain: CopilotModelRegistrySourceChainEntry[];
+  updatedAt: Date;
+  publishEventCount?: number;
+  publishEvents?: RegistryRevisionPublishEventRecord[];
+};
+
+export type CopilotProviderRegistrySourceChainEntry = {
+  source:
+    | 'db_revision'
+    | 'provider_profile'
+    | 'legacy_profile'
+    | 'config_fallback';
+  scope: 'global' | 'workspace';
+  status: string;
+  actorId?: string;
+  fingerprint?: string;
+  providerId?: string;
+  providerType?: string;
+  revision?: string;
+  updatedAt?: string;
+  workspaceId?: string;
+};
+
+export type CopilotProviderRegistryRevisionOverlay = {
+  id: string;
+  providerId: string;
+  providerType?: CopilotProviderType;
+  scopeType: 'global' | 'workspace';
+  workspaceId?: string;
+  actorId?: string;
+  revision: string;
+  status: 'active' | 'archived' | 'disabled';
+  fingerprint: string;
+  providerProfile: CopilotProviderProfile;
+  fallbackSourceChain: CopilotProviderRegistrySourceChainEntry[];
+  updatedAt: Date;
+  publishEventCount?: number;
+  publishEvents?: RegistryRevisionPublishEventRecord[];
+};
+
+export type CopilotProviderHealthStateOverlay = {
+  id: string;
+  providerId: string;
+  providerType?: CopilotProviderType;
+  scopeType: 'global' | 'workspace';
+  workspaceId?: string;
+  actorId?: string;
+  status: CopilotProviderHealthStatus;
+  checkedAt: Date;
+  lastError?: string;
+  source: 'manual_override' | 'probe_result';
+  fingerprint: string;
+  updatedAt: Date;
 };
 
 export type ResolveModelResult = {
@@ -168,13 +252,22 @@ function unionOptional<T>(left: T[] | undefined, right: T[] | undefined) {
 }
 
 export function providerProfileConfigPathHint(
-  profile: Pick<NormalizedCopilotProviderProfile, 'id' | 'source' | 'type'>
+  profile: Pick<NormalizedCopilotProviderProfile, 'id' | 'source' | 'type'> &
+    Pick<
+      Partial<NormalizedCopilotProviderProfile>,
+      'providerRegistryRevisionId'
+    >
 ) {
   if (profile.source === 'configured') {
     return `copilot.providers.profiles[id=${profile.id}]`;
   }
   if (profile.source === 'legacy') {
     return `copilot.providers.${profile.type}`;
+  }
+  if (profile.source === 'db_revision') {
+    return profile.providerRegistryRevisionId
+      ? `ai_provider_registry_revisions[id=${profile.providerRegistryRevisionId}]`
+      : `ai_provider_registry_revisions[provider_id=${profile.id}]`;
   }
   if (profile.source === 'byok_local') {
     return 'workspace.byok.local';
@@ -212,6 +305,145 @@ function providerProfileMetadata(profile: NormalizedCopilotProviderProfile) {
         }
       : {}),
   };
+}
+
+function modelDefinitionKeys(definition: CopilotModelDefinition) {
+  return new Set([
+    definition.id,
+    ...(definition.rawModelId ? [definition.rawModelId] : []),
+    ...(definition.aliases ?? []),
+  ]);
+}
+
+function sourceChainFingerprint(
+  sourceChain: CopilotModelRegistrySourceChainEntry[]
+) {
+  return JSON.stringify(
+    sourceChain.map(entry => ({
+      actorId: entry.actorId ?? null,
+      fingerprint: entry.fingerprint ?? null,
+      modelId: entry.modelId ?? null,
+      providerId: entry.providerId ?? null,
+      revision: entry.revision ?? null,
+      scope: entry.scope,
+      source: entry.source,
+      status: entry.status,
+      updatedAt: entry.updatedAt ?? null,
+      workspaceId: entry.workspaceId ?? null,
+    }))
+  );
+}
+
+function hashSourceChain(sourceChain: CopilotModelRegistrySourceChainEntry[]) {
+  return createHash('sha256')
+    .update(sourceChainFingerprint(sourceChain))
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function providerSourceChainFingerprint(
+  sourceChain: CopilotProviderRegistrySourceChainEntry[]
+) {
+  return JSON.stringify(
+    sourceChain.map(entry => ({
+      actorId: entry.actorId ?? null,
+      fingerprint: entry.fingerprint ?? null,
+      providerId: entry.providerId ?? null,
+      providerType: entry.providerType ?? null,
+      revision: entry.revision ?? null,
+      scope: entry.scope,
+      source: entry.source,
+      status: entry.status,
+      updatedAt: entry.updatedAt ?? null,
+      workspaceId: entry.workspaceId ?? null,
+    }))
+  );
+}
+
+function hashProviderSourceChain(
+  sourceChain: CopilotProviderRegistrySourceChainEntry[]
+) {
+  return createHash('sha256')
+    .update(providerSourceChainFingerprint(sourceChain))
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function providerRevisionSourceChainEntry(
+  revision: CopilotProviderRegistryRevisionOverlay
+): CopilotProviderRegistrySourceChainEntry {
+  return {
+    source: 'db_revision',
+    scope: revision.scopeType,
+    status: revision.status,
+    fingerprint: revision.fingerprint,
+    providerId: revision.providerId,
+    ...(revision.providerType ? { providerType: revision.providerType } : {}),
+    revision: revision.revision,
+    updatedAt: revision.updatedAt.toISOString(),
+    ...(revision.actorId ? { actorId: revision.actorId } : {}),
+    ...(revision.workspaceId ? { workspaceId: revision.workspaceId } : {}),
+  };
+}
+
+function revisionSourceChainEntry(
+  revision: CopilotProviderModelRegistryRevisionOverlay
+): CopilotModelRegistrySourceChainEntry {
+  return {
+    source: 'db_revision',
+    scope: revision.scopeType,
+    status: revision.status,
+    fingerprint: revision.fingerprint,
+    modelId: revision.modelId,
+    providerId: revision.providerId,
+    revision: revision.revision,
+    updatedAt: revision.updatedAt.toISOString(),
+    ...(revision.actorId ? { actorId: revision.actorId } : {}),
+    ...(revision.workspaceId ? { workspaceId: revision.workspaceId } : {}),
+  };
+}
+
+function definitionWithRegistryRevision(
+  revision: CopilotProviderModelRegistryRevisionOverlay
+): CopilotModelDefinition {
+  const sourceChain = [
+    revisionSourceChainEntry(revision),
+    ...revision.fallbackSourceChain,
+  ];
+  return {
+    ...revision.modelDefinition,
+    registryRecordSource: 'db_revision',
+    registryRevision: revision.revision,
+    registryRevisionActorId: revision.actorId,
+    registryRevisionFingerprint: revision.fingerprint,
+    registryRevisionId: revision.id,
+    registryRevisionScope: revision.scopeType,
+    registryRevisionSourceChain: sourceChain,
+    registryRevisionSourceChainFingerprint: hashSourceChain(sourceChain),
+    registryRevisionStatus: revision.status,
+    registryRevisionWorkspaceId: revision.workspaceId,
+    registryRevisionPublishEventCount: revision.publishEventCount,
+    registryRevisionPublishEvents: revision.publishEvents,
+  };
+}
+
+function mergeDbModelDefinitions(
+  existingDefinitions: CopilotModelDefinition[],
+  revisions: CopilotProviderModelRegistryRevisionOverlay[] | undefined
+) {
+  if (!revisions?.length) {
+    return existingDefinitions;
+  }
+
+  const dbDefinitions = revisions.map(definitionWithRegistryRevision);
+  const dbKeys = new Set(
+    dbDefinitions.flatMap(definition => Array.from(modelDefinitionKeys(definition)))
+  );
+  const fallbackDefinitions = existingDefinitions.filter(definition => {
+    const keys = modelDefinitionKeys(definition);
+    return !Array.from(keys).some(key => dbKeys.has(key));
+  });
+  return [...dbDefinitions, ...fallbackDefinitions];
 }
 
 function baseRoutePolicyRule(
@@ -551,6 +783,111 @@ function sortProfiles(profiles: NormalizedCopilotProviderProfile[]) {
   });
 }
 
+function registryWithProfiles(
+  registry: CopilotProviderRegistry,
+  profilesInput: NormalizedCopilotProviderProfile[]
+): CopilotProviderRegistry {
+  const sortedProfiles = sortProfiles(
+    profilesInput.filter(profile => profile.enabled)
+  );
+  const profiles = new Map(
+    sortedProfiles.map(profile => [profile.id, profile] as const)
+  );
+  const byType = new Map<CopilotProviderType, string[]>();
+  for (const profile of sortedProfiles) {
+    const ids = byType.get(profile.type) ?? [];
+    ids.push(profile.id);
+    byType.set(profile.type, ids);
+  }
+
+  return {
+    ...registry,
+    profiles,
+    order: sortedProfiles.map(profile => profile.id),
+    byType,
+  };
+}
+
+function providerRevisionMatchesProfile(
+  profile: NormalizedCopilotProviderProfile,
+  revision: CopilotProviderRegistryRevisionOverlay
+) {
+  if (revision.providerType && revision.providerType !== profile.type) {
+    return false;
+  }
+  if (revision.providerProfile.type !== profile.type) {
+    return false;
+  }
+  return true;
+}
+
+function profileWithProviderRegistryRevision(
+  profile: NormalizedCopilotProviderProfile,
+  revision: CopilotProviderRegistryRevisionOverlay
+): NormalizedCopilotProviderProfile {
+  const revisionProfile = revision.providerProfile;
+  const merged = normalizeProfile({
+    ...profile,
+    displayName: revisionProfile.displayName ?? profile.displayName,
+    enabled: revisionProfile.enabled ?? profile.enabled,
+    health: revisionProfile.health ?? profile.health,
+    middleware: revisionProfile.middleware ?? profile.middleware,
+    modelDefinitions:
+      revisionProfile.modelDefinitions ?? profile.modelDefinitions,
+    models: revisionProfile.models ?? profile.models,
+    privacy: revisionProfile.privacy ?? profile.privacy,
+    priority: revisionProfile.priority ?? profile.priority,
+    id: profile.id,
+    type: profile.type,
+    source: 'db_revision',
+    config: profile.config,
+  } as CopilotProviderProfile);
+  const sourceChain = [
+    providerRevisionSourceChainEntry(revision),
+    ...revision.fallbackSourceChain,
+  ];
+
+  return {
+    ...merged,
+    providerRegistryRecordSource: 'db_revision',
+    providerRegistryRevision: revision.revision,
+    providerRegistryRevisionActorId: revision.actorId,
+    providerRegistryRevisionFingerprint: revision.fingerprint,
+    providerRegistryRevisionId: revision.id,
+    providerRegistryRevisionScope: revision.scopeType,
+    providerRegistryRevisionSourceChain: sourceChain,
+    providerRegistryRevisionSourceChainFingerprint:
+      hashProviderSourceChain(sourceChain),
+    providerRegistryRevisionStatus: revision.status,
+    providerRegistryRevisionWorkspaceId: revision.workspaceId,
+    providerRegistryRevisionPublishEventCount: revision.publishEventCount,
+    providerRegistryRevisionPublishEvents: revision.publishEvents,
+  };
+}
+
+function providerHealthStateMatchesProfile(
+  profile: NormalizedCopilotProviderProfile,
+  state: CopilotProviderHealthStateOverlay
+) {
+  return !state.providerType || state.providerType === profile.type;
+}
+
+function profileWithProviderHealthState(
+  profile: NormalizedCopilotProviderProfile,
+  state: CopilotProviderHealthStateOverlay
+): NormalizedCopilotProviderProfile {
+  const health: CopilotProviderHealth = {
+    status: state.status,
+    lastCheckedAt: state.checkedAt.toISOString(),
+    ...(state.lastError ? { lastError: state.lastError } : {}),
+  };
+
+  return {
+    ...profile,
+    health,
+  };
+}
+
 function assertDefaults(
   defaults: CopilotProviderDefaults,
   profiles: Map<string, NormalizedCopilotProviderProfile>
@@ -599,6 +936,95 @@ export function buildProviderRegistry(
   }
 
   return { profiles, defaults, routePolicy, order, byType };
+}
+
+export function applyProviderRegistryRevisions(
+  registry: CopilotProviderRegistry,
+  revisionsByProvider: Map<string, CopilotProviderRegistryRevisionOverlay>
+): CopilotProviderRegistry {
+  if (!revisionsByProvider.size) {
+    return registry;
+  }
+
+  return registryWithProfiles(
+    registry,
+    Array.from(registry.profiles.values()).map(profile => {
+      const revision = revisionsByProvider.get(profile.id);
+      if (!revision || !providerRevisionMatchesProfile(profile, revision)) {
+        return profile;
+      }
+      return profileWithProviderRegistryRevision(profile, revision);
+    })
+  );
+}
+
+export function applyProviderHealthStates(
+  registry: CopilotProviderRegistry,
+  statesByProvider: Map<string, CopilotProviderHealthStateOverlay>
+): CopilotProviderRegistry {
+  if (!statesByProvider.size) {
+    return registry;
+  }
+
+  return registryWithProfiles(
+    registry,
+    Array.from(registry.profiles.values()).map(profile => {
+      const state = statesByProvider.get(profile.id);
+      if (!state || !providerHealthStateMatchesProfile(profile, state)) {
+        return profile;
+      }
+      return profileWithProviderHealthState(profile, state);
+    })
+  );
+}
+
+export function buildProviderRegistryWithProviderRevisions(
+  config: CopilotProvidersConfigInput,
+  revisionsByProvider: Map<string, CopilotProviderRegistryRevisionOverlay>
+): CopilotProviderRegistry {
+  return applyProviderRegistryRevisions(
+    buildProviderRegistry(config),
+    revisionsByProvider
+  );
+}
+
+export function buildProviderRegistryWithModelRevisions(
+  config: CopilotProvidersConfigInput,
+  revisionsByProvider: Map<string, CopilotProviderModelRegistryRevisionOverlay[]>
+): CopilotProviderRegistry {
+  return applyModelRegistryRevisions(
+    buildProviderRegistry(config),
+    revisionsByProvider
+  );
+}
+
+export function applyModelRegistryRevisions(
+  registry: CopilotProviderRegistry,
+  revisionsByProvider: Map<string, CopilotProviderModelRegistryRevisionOverlay[]>
+): CopilotProviderRegistry {
+  if (!revisionsByProvider.size) {
+    return registry;
+  }
+
+  const profiles = new Map(registry.profiles);
+  for (const [providerId, revisions] of revisionsByProvider.entries()) {
+    const profile = profiles.get(providerId);
+    if (!profile) {
+      continue;
+    }
+    profiles.set(providerId, {
+      ...profile,
+      modelDefinitions: mergeDbModelDefinitions(
+        profile.modelDefinitions,
+        revisions
+      ),
+    });
+  }
+
+  return {
+    ...registry,
+    profiles,
+  };
 }
 
 export function resolveModel({

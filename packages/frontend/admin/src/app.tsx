@@ -79,15 +79,7 @@ function RootRoutes() {
   }
 
   if (/^\/admin\/?$/.test(location.pathname)) {
-    return (
-      <Navigate
-        to={
-          environment.isSelfHosted
-            ? ROUTES.admin.accounts
-            : ROUTES.admin.dashboard
-        }
-      />
-    );
+    return <Navigate to={ROUTES.admin.dashboard} replace />;
   }
 
   return <Outlet />;
@@ -105,19 +97,17 @@ export const App = () => {
         >
           <BrowserRouter basename={environment.subPath}>
             <Routes>
+              <Route
+                path="/"
+                element={<Navigate to={ROUTES.admin.index} replace />}
+              />
               <Route path={ROUTES.admin.index} element={<RootRoutes />}>
                 <Route path={ROUTES.admin.auth} element={<Auth />} />
                 <Route path={ROUTES.admin.setup} element={<Setup />} />
                 <Route element={<AuthenticatedRoutes />}>
                   <Route
                     path={ROUTES.admin.dashboard}
-                    element={
-                      environment.isSelfHosted ? (
-                        <Navigate to={ROUTES.admin.accounts} replace />
-                      ) : (
-                        <Dashboard />
-                      )
-                    }
+                    element={<Dashboard />}
                   />
                   <Route path={ROUTES.admin.accounts} element={<Accounts />} />
                   <Route
@@ -131,7 +121,7 @@ export const App = () => {
                     }
                   />
                   <Route path={`${ROUTES.admin.queue}/*`} element={<Queue />} />
-                  <Route path={ROUTES.admin.ai} element={<AI />} />
+                  <Route path={`${ROUTES.admin.ai}/*`} element={<AI />} />
                   <Route path={ROUTES.admin.about} element={<About />} />
                   <Route
                     path={ROUTES.admin.settings.index}

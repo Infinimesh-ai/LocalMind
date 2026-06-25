@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { CopilotQuotaExceeded } from '../../../base';
 import { ServerFeature, ServerService } from '../../../core';
 import { type CopilotAccessContext, CopilotAccessPolicy } from '../access';
+import type { RegistryRevisionPublishEventRecord } from '../../../models/copilot-registry-revision-publish-event';
 import type {
   CopilotModelDefinition,
   CopilotProviderPrivacy,
@@ -74,6 +75,7 @@ export type ResolvedCopilotProvider = {
 };
 
 type CopilotRouteModelDefinitionSource =
+  | 'db_revision'
   | 'native_registry'
   | 'provider_profile'
   | 'provider_runtime';
@@ -99,6 +101,17 @@ export type CopilotProviderRouteCandidateDiagnostics = {
   modelId?: string;
   routeRawModelId?: string;
   routeModelDefinitionSource?: CopilotRouteModelDefinitionSource;
+  modelRegistryRevision?: string;
+  modelRegistryRevisionActorId?: string;
+  modelRegistryRevisionFingerprint?: string;
+  modelRegistryRevisionId?: string;
+  modelRegistryRevisionScope?: string;
+  modelRegistryRevisionSourceChain?: unknown[];
+  modelRegistryRevisionSourceChainFingerprint?: string;
+  modelRegistryRevisionStatus?: string;
+  modelRegistryRevisionWorkspaceId?: string;
+  modelRegistryRevisionPublishEventCount?: number;
+  modelRegistryRevisionPublishEvents?: RegistryRevisionPublishEventRecord[];
   routeModelDefinitionId?: string;
   routeModelDefinitionAliases?: string[];
   routeModelAliasMatched?: boolean;
@@ -132,6 +145,23 @@ export type CopilotProviderEffectiveModelSelectionScope = {
   configuredModelIds: string[];
 };
 
+export type CopilotProviderHealthProbeResult = {
+  providerId: string;
+  providerType?: CopilotProviderType;
+  status: 'healthy' | 'degraded' | 'down';
+  checkedAt: Date;
+  errorCode?: string;
+  errorMessage?: string;
+  diagnostics: {
+    providerRegistered: boolean;
+    providerConfigured: boolean;
+    profileEnabled: boolean;
+    configuredModelIds: string[];
+    matchedModelId?: string;
+    reasons: string[];
+  };
+};
+
 export type CopilotProviderPrepareCandidateDiagnostics = {
   providerId: string;
   providerName?: string;
@@ -149,6 +179,17 @@ export type CopilotProviderPrepareCandidateDiagnostics = {
   modelId?: string;
   routeRawModelId?: string;
   routeModelDefinitionSource?: CopilotRouteModelDefinitionSource;
+  modelRegistryRevision?: string;
+  modelRegistryRevisionActorId?: string;
+  modelRegistryRevisionFingerprint?: string;
+  modelRegistryRevisionId?: string;
+  modelRegistryRevisionScope?: string;
+  modelRegistryRevisionSourceChain?: unknown[];
+  modelRegistryRevisionSourceChainFingerprint?: string;
+  modelRegistryRevisionStatus?: string;
+  modelRegistryRevisionWorkspaceId?: string;
+  modelRegistryRevisionPublishEventCount?: number;
+  modelRegistryRevisionPublishEvents?: RegistryRevisionPublishEventRecord[];
   routeModelDefinitionId?: string;
   routeModelDefinitionAliases?: string[];
   routeModelAliasMatched?: boolean;
@@ -263,6 +304,9 @@ function resolveModelDefinitionSource(
   resolvedProviderModel: Partial<ResolvedProviderModel> | undefined,
   profileDefinition: CopilotModelDefinition | undefined
 ): CopilotRouteModelDefinitionSource | undefined {
+  if (profileDefinition?.registryRecordSource === 'db_revision') {
+    return 'db_revision';
+  }
   if (profileDefinition) {
     return 'provider_profile';
   }
@@ -394,8 +438,31 @@ function routeCandidateModelDefinitionMetadata(
   const routeEmbeddingDimensions =
     profileDefinition?.limits?.embeddingDimensions ??
     resolvedProviderModel?.limits?.embeddingDimensions;
+  const modelRegistryRevisionMetadata = profileDefinition?.registryRecordSource
+    ? {
+        modelRegistryRevision: profileDefinition.registryRevision,
+        modelRegistryRevisionActorId: profileDefinition.registryRevisionActorId,
+        modelRegistryRevisionFingerprint:
+          profileDefinition.registryRevisionFingerprint,
+        modelRegistryRevisionId: profileDefinition.registryRevisionId,
+        modelRegistryRevisionScope: profileDefinition.registryRevisionScope,
+        modelRegistryRevisionSourceChain:
+          profileDefinition.registryRevisionSourceChain,
+        modelRegistryRevisionSourceChainFingerprint:
+          profileDefinition.registryRevisionSourceChainFingerprint,
+        modelRegistryRevisionStatus:
+          profileDefinition.registryRevisionStatus,
+        modelRegistryRevisionWorkspaceId:
+          profileDefinition.registryRevisionWorkspaceId,
+        modelRegistryRevisionPublishEventCount:
+          profileDefinition.registryRevisionPublishEventCount,
+        modelRegistryRevisionPublishEvents:
+          profileDefinition.registryRevisionPublishEvents,
+      }
+    : {};
 
   return {
+    ...modelRegistryRevisionMetadata,
     ...(routeRawModelId ? { routeRawModelId } : {}),
     ...(routeModelDefinitionSource ? { routeModelDefinitionSource } : {}),
     ...(routeModelDefinitionId ? { routeModelDefinitionId } : {}),
@@ -534,6 +601,140 @@ export class CopilotProviderFactory {
 
   private getProfileModelIds(profile: NormalizedCopilotProviderProfile) {
     return getProfileModelIds(profile);
+  }
+
+  async probeProviderProfile(input: {
+    providerId: string;
+    workspaceId: string;
+  }): Promise<CopilotProviderHealthProbeResult> {
+    const checkedAt = new Date();
+    const registry = await this.registries.getRegistryWithModelRevisions(
+      input.workspaceId
+    );
+    const profile = registry.profiles.get(input.providerId);
+    if (!profile) {
+      return {
+        providerId: input.providerId,
+        status: 'down',
+        checkedAt,
+        errorCode: 'provider_profile_missing',
+        errorMessage:
+          'Provider profile is no longer active in the workspace registry.',
+        diagnostics: {
+          providerRegistered: false,
+          providerConfigured: false,
+          profileEnabled: false,
+          configuredModelIds: [],
+          reasons: ['provider_profile_missing'],
+        },
+      };
+    }
+
+    const provider = this.getProviderByProfile(input.providerId, profile);
+    const configuredModelIds = this.getProfileModelIds(profile);
+    const diagnostics = {
+      providerRegistered: !!provider,
+      providerConfigured: false,
+      profileEnabled: profile.enabled,
+      configuredModelIds,
+      reasons: [] as string[],
+    };
+    if (!profile.enabled) {
+      diagnostics.reasons.push('provider_profile_disabled');
+    }
+    if (!provider) {
+      diagnostics.reasons.push('provider_runtime_missing');
+      return {
+        providerId: input.providerId,
+        providerType: profile.type,
+        status: 'down',
+        checkedAt,
+        errorCode: 'provider_runtime_missing',
+        errorMessage:
+          'No provider runtime is registered for the workspace provider profile.',
+        diagnostics,
+      };
+    }
+
+    const execution = { providerId: input.providerId, profile };
+    diagnostics.providerConfigured = provider.configured(execution);
+    if (!diagnostics.providerConfigured) {
+      diagnostics.reasons.push('provider_runtime_not_configured');
+      return {
+        providerId: input.providerId,
+        providerType: profile.type,
+        status: 'degraded',
+        checkedAt,
+        errorCode: 'provider_runtime_not_configured',
+        errorMessage:
+          'Provider runtime is registered but is missing required configuration.',
+        diagnostics,
+      };
+    }
+
+    const candidateModelIds = configuredModelIds.length
+      ? configuredModelIds
+      : [undefined];
+    try {
+      for (const modelId of candidateModelIds) {
+        const matched = await provider.match(
+          {
+            ...(modelId ? { modelId } : {}),
+            outputType: ModelOutputType.Text,
+          },
+          execution
+        );
+        if (matched) {
+          const normalized = await provider.checkParams({
+            cond: {
+              ...(modelId ? { modelId } : {}),
+              outputType: ModelOutputType.Text,
+            },
+            withAttachment: false,
+            execution,
+          });
+          const selectedModel = provider.selectModel(normalized, execution);
+          diagnostics.reasons.push('provider_profile_probe_succeeded');
+          return {
+            providerId: input.providerId,
+            providerType: profile.type,
+            status: 'healthy',
+            checkedAt,
+            diagnostics: {
+              ...diagnostics,
+              matchedModelId: normalized.modelId ?? modelId ?? selectedModel.id,
+            },
+          };
+        }
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Provider runtime contract probe failed';
+      diagnostics.reasons.push('provider_runtime_contract_error');
+      return {
+        providerId: input.providerId,
+        providerType: profile.type,
+        status: 'degraded',
+        checkedAt,
+        errorCode: 'provider_runtime_contract_error',
+        errorMessage: message,
+        diagnostics,
+      };
+    }
+
+    diagnostics.reasons.push('provider_model_unmatched');
+    return {
+      providerId: input.providerId,
+      providerType: profile.type,
+      status: 'degraded',
+      checkedAt,
+      errorCode: 'provider_model_unmatched',
+      errorMessage:
+        'Provider runtime is configured but no text-capable model matched the provider profile.',
+      diagnostics,
+    };
   }
 
   private getConfiguredModelIdsFromRegistry(
@@ -1093,7 +1294,8 @@ export class CopilotProviderFactory {
   private async getEffectiveRegistry(
     context: CopilotAccessContext = {}
   ): Promise<EffectiveProviderRegistry> {
-    const quotaBackedRegistry = this.getRegistry();
+    const quotaBackedRegistry =
+      await this.registries.getRegistryWithModelRevisions(context.workspaceId);
     const routeAccess = await this.access.resolveRouteAccess(context);
 
     return {
@@ -1711,8 +1913,5 @@ export class CopilotProviderFactory {
     this.logger.log(
       `Copilot provider [${provider.type}] unregistered from [${providerId}].`
     );
-    if (this.#providers.size === 0) {
-      this.server.disableFeature(ServerFeature.Copilot);
-    }
   }
 }

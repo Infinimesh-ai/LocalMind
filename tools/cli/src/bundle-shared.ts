@@ -13,6 +13,10 @@ export const RSPACK_SUPPORTED_PACKAGES = [
 ] as const;
 
 const rspackSupportedPackageSet = new Set<string>(RSPACK_SUPPORTED_PACKAGES);
+const devServerProxyTarget =
+  process.env.AFFINE_DEV_SERVER_PROXY_TARGET || 'http://localhost:3010';
+const selfHostedAdminAssetPathPattern =
+  /^\/admin\/(?:(?:assets|fonts|js|static|workers)\/|[^/?#]+\.[^/?#]+)/;
 
 export function isRspackSupportedPackageName(name: string) {
   return rspackSupportedPackageSet.has(name);
@@ -26,6 +30,21 @@ export function assertRspackSupportedPackageName(name: string) {
   throw new Error(
     `Rspack bundling currently supports: ${Array.from(RSPACK_SUPPORTED_PACKAGES).join(', ')}. Unsupported package: ${name}.`
   );
+}
+
+function rewriteSelfHostedAdminAssetPath(url: string | undefined) {
+  if (process.env.SELF_HOSTED !== 'true' || !url) {
+    return url;
+  }
+
+  const separatorIndex = url.search(/[?#]/);
+  const pathname = separatorIndex === -1 ? url : url.slice(0, separatorIndex);
+
+  if (!selfHostedAdminAssetPathPattern.test(pathname)) {
+    return url;
+  }
+
+  return pathname.slice('/admin'.length) + url.slice(pathname.length);
 }
 
 export const DEFAULT_DEV_SERVER_CONFIG: RspackDevServerConfiguration = {
@@ -55,19 +74,30 @@ export const DEFAULT_DEV_SERVER_CONFIG: RspackDevServerConfiguration = {
       },
     ],
   },
+  setupMiddlewares: middlewares => {
+    middlewares.unshift({
+      name: 'self-hosted-admin-asset-public-path',
+      middleware: (req, _res, next) => {
+        req.url = rewriteSelfHostedAdminAssetPath(req.url);
+        next();
+      },
+    });
+
+    return middlewares;
+  },
   proxy: [
     {
       context: '/api',
-      target: 'http://localhost:3010',
+      target: devServerProxyTarget,
     },
     {
       context: '/socket.io',
-      target: 'http://localhost:3010',
+      target: devServerProxyTarget,
       ws: true,
     },
     {
       context: '/graphql',
-      target: 'http://localhost:3010',
+      target: devServerProxyTarget,
     },
   ],
 };

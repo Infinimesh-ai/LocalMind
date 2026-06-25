@@ -3,6 +3,10 @@ import type {
   PromptMessage,
   PromptParams,
 } from '../providers/types';
+import type {
+  RegistryRevisionPublishEventHistory,
+  RegistryRevisionPublishEventRecord,
+} from '../../../models/copilot-registry-revision-publish-event';
 
 export type Prompt = {
   name: string;
@@ -31,6 +35,38 @@ export type Prompt = {
 export type PromptRegistryValidationStatus = 'ready' | 'ignored';
 
 export type PromptRegistryValidationPublishStatus = 'allowed' | 'blocked';
+
+export type PromptRegistryRecordSource =
+  | 'db_revision'
+  | 'legacy_registry'
+  | 'config_fallback';
+
+export type PromptRegistrySourceChainEntry = {
+  source: string;
+  scope: string;
+  status: string;
+  actorId?: string;
+  configPath?: string;
+  fingerprint?: string;
+  registryId?: number;
+  revision?: string;
+  updatedAt?: string;
+  workspaceId?: string;
+};
+
+export type PromptRegistryRevision = {
+  id: string;
+  promptName: string;
+  scopeType: 'global' | 'workspace';
+  workspaceId?: string;
+  actorId?: string;
+  revision: string;
+  status: 'active' | 'archived' | 'disabled';
+  fingerprint: string;
+  fallbackSourceChain: PromptRegistrySourceChainEntry[];
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 export type PromptRegistryValidationReason =
   | 'ready'
@@ -146,6 +182,18 @@ export type ResolvedPrompt = {
   registryValidationRemediations?: PromptRegistryValidationRemediation[];
   registryValidationReason?: PromptRegistryValidationReason;
   registryValidationStatus?: PromptRegistryValidationStatus;
+  registryRecordSource?: PromptRegistryRecordSource;
+  registryRevision?: string;
+  registryRevisionActorId?: string;
+  registryRevisionFingerprint?: string;
+  registryRevisionId?: string;
+  registryRevisionPublishEventCount?: number;
+  registryRevisionPublishEvents?: RegistryRevisionPublishEventRecord[];
+  registryRevisionScope?: PromptRegistryRevision['scopeType'];
+  registryRevisionStatus?: PromptRegistryRevision['status'];
+  registryRevisionWorkspaceId?: string;
+  registrySourceChain?: PromptRegistrySourceChainEntry[];
+  registrySourceChainFingerprint?: string;
 };
 
 export type PromptCatalogItem = Omit<
@@ -161,6 +209,9 @@ export type PromptCatalogItem = Omit<
   templateFingerprint: string;
   versionEvidence: PromptCatalogVersionEvidence;
 };
+
+export type PromptRegistryRevisionWithPublishEvents =
+  PromptRegistryRevision & RegistryRevisionPublishEventHistory;
 
 export type PromptCatalogVersionEvidence = {
   defaultPolicy?: ResolvedPrompt['defaultPolicy'];
@@ -184,6 +235,18 @@ export type PromptCatalogVersionEvidence = {
   registryValidationRemediations?: PromptRegistryValidationRemediation[];
   registryValidationReason?: PromptRegistryValidationReason;
   registryValidationStatus?: PromptRegistryValidationStatus;
+  registryRecordSource?: PromptRegistryRecordSource;
+  registryRevision?: string;
+  registryRevisionActorId?: string;
+  registryRevisionFingerprint?: string;
+  registryRevisionId?: string;
+  registryRevisionPublishEventCount?: number;
+  registryRevisionPublishEvents?: RegistryRevisionPublishEventRecord[];
+  registryRevisionScope?: PromptRegistryRevision['scopeType'];
+  registryRevisionStatus?: PromptRegistryRevision['status'];
+  registryRevisionWorkspaceId?: string;
+  registrySourceChain?: PromptRegistrySourceChainEntry[];
+  registrySourceChainFingerprint?: string;
   revision: string;
   templateFingerprint: string;
 };

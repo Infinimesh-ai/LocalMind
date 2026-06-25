@@ -49,7 +49,10 @@ FROM native-build AS test
 FROM native-build AS verify
 
 RUN yarn prettier --ignore-unknown --check \
-    docs/ai-capability-modernization-plan.md \
+    docs/README.md \
+    docs/ai-modernization/README.md \
+    docs/ai-modernization/document-map.md \
+    docs/ai-modernization/archive/README.md \
     packages/backend/server/src/schema.gql \
     packages/backend/server/ava.config.js \
     packages/backend/server/src/__tests__/copilot/copilot.spec.ts \

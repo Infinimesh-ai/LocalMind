@@ -1,0 +1,37 @@
+mutation retryCopilotProviderHealthProbeAttempt(
+  $input: CopilotProviderHealthProbeAttemptRetryInput!
+) {
+  retryCopilotProviderHealthProbeAttempt(input: $input) {
+    id
+    providerId
+    providerType
+    scopeType
+    workspaceId
+    actorId
+    providerRegistryRevisionId
+    providerRegistryRevisionFingerprint
+    providerProfileSource
+    providerProfileFingerprint
+    providerProfileSnapshot
+    requestFingerprint
+    status
+    attemptCount
+    maxAttempts
+    scheduledAt
+    workerLeaseId
+    workerLeaseExpiresAt
+    checkedAt
+    completedAt
+    deadLetteredAt
+    failureCode
+    failureMessage
+    resultStatus
+    resultLastError
+    resultMetadata
+    resultFingerprint
+    providerHealthStateId
+    providerHealthStateFingerprint
+    createdAt
+    updatedAt
+  }
+}

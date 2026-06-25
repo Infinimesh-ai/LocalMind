@@ -1,0 +1,28 @@
+mutation replayCopilotSupportBundleTransferForwardingEvent(
+  $input: CopilotSupportBundleTransferForwardingReplayInput!
+) {
+  replayCopilotSupportBundleTransferForwardingEvent(input: $input) {
+    attemptCount
+    authorizationId
+    createdAt
+    deadLetteredAt
+    eventId
+    eventSource
+    failureCode
+    failureMessage
+    forwardedAt
+    forwardedTransferEventFingerprint
+    forwardingEventFingerprint
+    forwardingPayload
+    forwardingPayloadFingerprint
+    id
+    lastAttemptAt
+    maxAttempts
+    nextAttemptAt
+    providerSignatureEvidenceFingerprint
+    status
+    updatedAt
+    workerLeaseExpiresAt
+    workerLeaseId
+  }
+}

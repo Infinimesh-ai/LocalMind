@@ -17,11 +17,19 @@ import { CommentModel } from './comment';
 import { CommentAttachmentModel } from './comment-attachment';
 import { AppConfigModel } from './config';
 import { CopilotActionRunModel } from './copilot-action-run';
+import { CopilotAgentRuntimeModel } from './copilot-agent-runtime';
 import { CopilotWorkspaceByokConfigModel } from './copilot-byok';
 import { CopilotContextModel } from './copilot-context';
 import { CopilotJobModel } from './copilot-job';
+import { CopilotModelRegistryRevisionModel } from './copilot-model-registry-revision';
 import { CopilotPromptModel } from './copilot-prompt';
+import { CopilotPromptRegistryRevisionModel } from './copilot-prompt-registry-revision';
+import { CopilotProviderHealthStateModel } from './copilot-provider-health-state';
+import { CopilotProviderRegistryRevisionModel } from './copilot-provider-registry-revision';
+import { CopilotRepairExecutionModel } from './copilot-repair-execution';
 import { CopilotSessionModel } from './copilot-session';
+import { CopilotSupportBundleModel } from './copilot-support-bundle';
+import { CopilotTaskRoutePolicyRevisionModel } from './copilot-task-route-policy-revision';
 import { CopilotTranscriptTaskModel } from './copilot-transcript-task';
 import { CopilotUsageModel } from './copilot-usage';
 import { CopilotWorkspaceConfigModel } from './copilot-workspace';
@@ -80,11 +88,19 @@ const MODELS = {
   copilotUsage: CopilotUsageModel,
   copilotTranscriptTask: CopilotTranscriptTaskModel,
   copilotActionRun: CopilotActionRunModel,
+  copilotAgentRuntime: CopilotAgentRuntimeModel,
   copilotContext: CopilotContextModel,
   copilotWorkspace: CopilotWorkspaceConfigModel,
   copilotWorkspaceByokConfig: CopilotWorkspaceByokConfigModel,
   copilotJob: CopilotJobModel,
+  copilotModelRegistryRevision: CopilotModelRegistryRevisionModel,
   copilotPrompt: CopilotPromptModel,
+  copilotPromptRegistryRevision: CopilotPromptRegistryRevisionModel,
+  copilotProviderHealthState: CopilotProviderHealthStateModel,
+  copilotProviderRegistryRevision: CopilotProviderRegistryRevisionModel,
+  copilotTaskRoutePolicyRevision: CopilotTaskRoutePolicyRevisionModel,
+  copilotRepairExecution: CopilotRepairExecutionModel,
+  copilotSupportBundle: CopilotSupportBundleModel,
   appConfig: AppConfigModel,
   comment: CommentModel,
   commentAttachment: CommentAttachmentModel,
@@ -155,11 +171,19 @@ export * from './calendar-subscription';
 export * from './comment';
 export * from './comment-attachment';
 export * from './common';
+export * from './copilot-agent-runtime';
 export * from './copilot-byok';
 export * from './copilot-context';
 export * from './copilot-job';
+export * from './copilot-model-registry-revision';
 export * from './copilot-prompt';
+export * from './copilot-prompt-registry-revision';
+export * from './copilot-provider-health-state';
+export * from './copilot-provider-registry-revision';
+export * from './copilot-repair-execution';
 export * from './copilot-session';
+export * from './copilot-support-bundle';
+export * from './copilot-task-route-policy-revision';
 export * from './copilot-transcript-task';
 export * from './copilot-usage';
 export * from './copilot-workspace';
