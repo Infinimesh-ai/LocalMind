@@ -1,244 +1,159 @@
-<div align="center">
+# LocalMind
 
-<h1 style="border-bottom: none">
-    <b><a href="https://affine.pro">AFFiNE.Pro</a></b><br />
-    Write, Draw and Plan All at Once
-    <br>
-</h1>
-<a href="https://affine.pro/download">
-    <img alt="affine logo" src="https://cdn.affine.pro/Github_hero_image2.png" style="width: 100%">
-</a>
-<br/>
-<p align="center">
-  A privacy-focused, local-first, open-source, and ready-to-use alternative for Notion & Miro. <br />
-  One hyper-fused platform for wildly creative minds.
-</p>
+LocalMind is an AFFiNE-based workspace branch focused on making AI work
+auditable, durable, and operational inside a local-first office environment.
 
-<br/>
+The project keeps the upstream AFFiNE foundation for docs, canvas, sync, desktop
+apps, and self-hosting, then adds a LocalMind-specific AI operations layer. The
+active direction is to move beyond chat and read-only diagnostics toward office
+task execution with persisted state, approval gates, worker queues, operator
+visibility, and container-grounded validation.
 
-<br/>
-<a href="https://www.producthunt.com/posts/affine-3?utm_source=badge-featured&utm_medium=badge&utm_souce=badge-affine&#0045;3" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=440671&theme=light" alt="AFFiNE - One&#0032;app&#0032;for&#0032;all&#0032;&#0045;&#0032;Where&#0032;Notion&#0032;meets&#0032;Miro | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
-<br/>
-<br/>
+## Project Direction
 
-<div align="center">
-    <a href="https://affine.pro">Home Page</a> |
-    <a href="https://affine.pro/redirect/discord">Discord</a> |
-    <a href="https://app.affine.pro">Live Demo</a> |
-    <a href="https://affine.pro/blog/">Blog</a> |
-    <a href="https://docs.affine.pro/">Documentation</a>
-</div>
-<br/>
+LocalMind work is centered on:
 
-[![Releases](https://img.shields.io/github/downloads/toeverything/AFFiNE/total)](https://github.com/toeverything/AFFiNE/releases/latest)
-[![All Contributors][all-contributors-badge]](#contributors)
-[![TypeScript-version-icon]](https://www.typescriptlang.org/)
+- durable AI runtime state for runs, steps, timeline events, worker leases,
+  execution results, and cancellation requests;
+- DB-backed Prompt Registry, Model Registry, Provider Registry, Task Route
+  Policy, Provider Health state, and probe attempt records;
+- approval-gated repair execution with preview, preflight, queued workers,
+  audit history, side effect ledgers, manual controls, and constrained registry
+  mutation;
+- persisted support bundle requests, archive artifacts, retention cleanup,
+  download authorization, object-storage delivery, transfer forwarding, replay,
+  and audit metadata;
+- Admin-facing diagnostics and operator controls for durable AI state;
+- fixed Docker image roles for validation instead of accumulating
+  milestone-specific build tags.
 
-</div>
+New LocalMind AI work should normally produce at least one of these outcomes:
 
-<br />
-<div align="center">
-<em>Docs, canvas and tables are hyper-merged with AFFiNE - just like the word affine (əˈfʌɪn | a-fine).</em>
-</div>
-<br />
+- persisted state;
+- executable or queued behavior;
+- authorization and audit history;
+- an Admin or user-facing operation surface;
+- focused container validation.
 
-<div align="center">
-<img src="https://github.com/toeverything/AFFiNE/assets/79301703/49a426bb-8d2b-4216-891a-fa5993642253" style="width: 100%"/>
-</div>
+Avoid adding more placeholder-only diagnostic fields unless a task explicitly
+asks for that exact field.
 
-## LocalMind branch
+## Current Focus
 
-This checkout is the LocalMind branch of AFFiNE. It keeps the upstream
-local-first workspace foundation and adds a LocalMind-specific AI modernization
-direction focused on durable AI runtime state, DB-backed AI registries,
-auditable repair execution, persisted support bundles, and Docker-grounded
-validation.
+The most active implementation track is AI modernization:
 
-LocalMind planning starts here:
+- support bundle persistence, archive packaging, retention cleanup, signed URL
+  delivery, transfer event ingestion, forwarding, replay, and operator
+  visibility;
+- DB-backed AI provider/model/prompt registries and route policy behavior;
+- repair execution contracts, policy enforcement, queued execution, and audit
+  surfaces;
+- durable agent runtime state for future office task execution.
+
+Start with these documents before working on LocalMind AI features:
 
 - [LocalMind documentation index](./docs/README.md)
 - [AI modernization entrypoint](./docs/ai-modernization/README.md)
 - [Branch differences](./docs/ai-modernization/branch-differences.md)
-- [AI document map](./docs/ai-modernization/document-map.md)
+- [Current state](./docs/ai-modernization/current-state.md)
+- [Next goals](./docs/ai-modernization/next-goals.md)
+- [Docker development constraints](./docs/localmind-docker-development-constraints.md)
 
-These LocalMind planning documents are maintained for this branch. Updating
-them locally does not publish changes to GitHub; commit, push, or pull request
-steps are separate explicit actions.
+## Standard Environment
 
-## Getting started & staying tuned with us.
+LocalMind standardizes local development and validation on Linux and Linux
+containers. Write local commands, documentation examples, and automation
+snippets for POSIX shell unless a task explicitly targets an upstream
+platform-specific desktop package or signing flow.
 
-Star us, and you will receive all release notifications from GitHub without any delay!
+Baseline tooling:
 
-<img src="https://user-images.githubusercontent.com/79301703/230891830-0110681e-8c7e-483b-b6d9-9e42b291b9ef.gif" style="width: 100%"/>
+- Node.js `>=22.12.0 <23.0.0`
+- Yarn `4.13.0` through Corepack
+- Rust toolchain from `rust-toolchain.toml`
+- Docker and Docker Compose for validation
 
-## What is AFFiNE
+Windows-specific release steps may remain in inherited CI when needed to build
+or sign Windows desktop artifacts, but they are not the default LocalMind
+development or test path.
 
-[AFFiNE](https://affine.pro) is an open-source, all-in-one workspace and an operating system for all the building blocks that assemble your knowledge base and much more -- wiki, knowledge management, presentation and digital assets. It's a better alternative to Notion and Miro.
+## Development Loop
 
-## Features
+Install dependencies when needed:
 
-**A true canvas for blocks in any form. Docs and whiteboard are now fully merged.**
+```shell
+corepack enable
+yarn install
+```
 
-- Many editor apps claim to be a canvas for productivity, but AFFiNE is one of the very few which allows you to put any building block on an edgeless canvas -- rich text, sticky notes, any embedded web pages, multi-view databases, linked pages, shapes and even slides. We have it all.
+Use the smallest Docker-based validation that proves the change. Full image
+rebuilds are not the default loop for ordinary TypeScript, frontend, backend,
+GraphQL, prompt, registry, or test edits.
 
-**Multimodal AI partner ready to kick in any work**
+Inspect the current Docker state before heavy validation:
 
-- Write up professional work report? Turn an outline into expressive and presentable slides? Summary an article into a well-structured mindmap? Sorting your job plan and backlog for tasks? Or... draw and code prototype apps and web pages directly all with one prompt? With you, [AFFiNE AI](https://affine.pro/ai) pushes your creativity to the edge of your imagination, just like [Canvas AI](https://affine.pro/blog/best-canvas-ai) to generate mind map for brainstorming.
+```shell
+docker system df
+docker image ls localmind-affine
+docker ps -a --filter "name=localmind"
+```
 
-**Local-first & Real-time collaborative**
+Use the fixed image roles documented in
+[Docker development constraints](./docs/localmind-docker-development-constraints.md):
 
-- We love the idea of local-first that you always own your data on your disk, in spite of the cloud. Furthermore, AFFiNE supports real-time sync and collaborations on web and cross-platform clients.
+```text
+localmind-affine:dev-base
+localmind-affine:test
+localmind-affine:local
+```
 
-**Self-host & Shape your own AFFiNE**
+Do not create milestone-specific image tags for normal development.
 
-- You have the freedom to manage, self-host, fork and build your own AFFiNE. Plugin community and third-party blocks are coming soon. More tractions on [Blocksuite](https://blocksuite.io). Check there to learn how to [self-host AFFiNE](https://docs.affine.pro/self-host-affine).
+## Repository Map
 
-## Acknowledgement
+- `docs/ai-modernization/` - LocalMind AI planning, current state, next goals,
+  and active track documents.
+- `docs/localmind-docker-development-constraints.md` - Docker validation rules
+  and resource limits.
+- `packages/backend/server/` - backend services, GraphQL/API, queues, storage,
+  and copilot-related persistence.
+- `packages/frontend/admin/` - Admin UI surfaces for operator-facing AI state.
+- `packages/frontend/core/` - main AFFiNE/LocalMind frontend shell and user
+  experience.
+- `blocksuite/` - upstream BlockSuite editor foundation.
+- `.github/workflows/` - inherited and LocalMind-adjusted CI/release workflows.
 
-“We shape our tools and thereafter our tools shape us”. A lot of pioneers have inspired us along the way, e.g.:
+The rest of the repository largely follows upstream AFFiNE structure. Prefer
+existing package patterns, GraphQL generation, Admin module conventions, and
+backend module boundaries when adding LocalMind behavior.
 
-- Quip & Notion with their great concept of “everything is a block”
-- Trello with their Kanban
-- Airtable & Miro with their no-code programmable datasheets
-- Miro & Whimiscal with their edgeless visual whiteboard
-- Remote & Capacities with their object-based tag system
+## Upstream Relationship
 
-There is a large overlap of their atomic “building blocks” between these apps. They are not open source, nor do they have a plugin system like Vscode for contributors to customize. We want to have something that contains all the features we love and also goes one step even further.
+LocalMind is not a rebranded upstream checkout, but it is built on AFFiNE and
+should remain compatible with upstream architecture where practical.
 
-Thanks for checking us out, we appreciate your interest and sincerely hope that AFFiNE resonates with you! 🎵 Checking https://affine.pro/ for more details ions.
+Useful upstream references:
 
-## Contributing
+- [AFFiNE](https://github.com/toeverything/AFFiNE)
+- [AFFiNE documentation](https://docs.affine.pro/)
+- [BlockSuite](https://github.com/toeverything/BlockSuite)
 
-| Bug Reports                                                                                                                                         | Feature Requests                                                                                                                                               | Questions/Discussions                                                         | AFFiNE Community                                                  |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| [Create a bug report](https://github.com/toeverything/AFFiNE/issues/new?assignees=&labels=bug%2Cproduct-review&template=BUG-REPORT.yml&title=TITLE) | [Submit a feature request](https://github.com/toeverything/AFFiNE/issues/new?assignees=&labels=feat%2Cproduct-review&template=FEATURE-REQUEST.yml&title=TITLE) | [Check GitHub Discussion](https://github.com/toeverything/AFFiNE/discussions) | [Visit the AFFiNE's Discord](https://affine.pro/redirect/discord) |
-| Something isn't working as expected                                                                                                                 | An idea for a new feature, or improvements                                                                                                                     | Discuss and ask questions                                                     | A place to ask, learn and engage with others                      |
-
-Calling all developers, testers, tech writers and more! Contributions of all types are more than welcome, you can read more in [docs/types-of-contributions.md](docs/types-of-contributions.md). If you are interested in contributing code, read our [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) and feel free to check out our GitHub issues to get stuck in to show us what you’re made of.
-
-**Before you start contributing, please make sure you have read and accepted our [Contributor License Agreement]. To indicate your agreement, simply edit this file and submit a pull request.**
-
-For **bug reports**, **feature requests** and other **suggestions** you can also [create a new issue](https://github.com/toeverything/AFFiNE/issues/new/choose) and choose the most appropriate template for your feedback.
-
-For **translation** and **language support** you can visit our [Discord](https://affine.pro/redirect/discord).
-
-If you have questions, you are welcome to contact us. One of the best places to get more info and learn more is in the [Discord](https://affine.pro/redirect/discord) where you can engage with other like-minded individuals.
-
-## Templates
-
-AFFiNE now provides pre-built [templates](https://affine.pro/templates) from our team. Following are the Top 10 most popular templates among AFFiNE users,if you want to contribute, you can contribute your own template so other people can use it too.
-
-- [vision board template](https://affine.pro/templates/category-vision-board-template)
-- [one pager template](https://affine.pro/templates/category-one-pager-template-free)
-- [sample lesson plan math template](https://affine.pro/templates/sample-lesson-plan-math-template)
-- [grr lesson plan template free](https://affine.pro/templates/grr-lesson-plan-template-free)
-- [free editable lesson plan template for pre k](https://affine.pro/templates/free-editable-lesson-plan-template-for-pre-k)
-- [high note collection planners](https://affine.pro/templates/high-note-collection-planners)
-- [digital planner](https://affine.pro/templates/category-digital-planner)
-- [ADHD Planner](https://affine.pro/templates/adhd-planner)
-- [Reading Log](https://affine.pro/templates/reading-log)
-- [Cornell Notes Template](https://affine.pro/templates/category-cornell-notes-template)
-
-## Blog
-
-Welcome to the AFFiNE blog section! Here, you’ll find the latest insights, tips, and guides on how to maximize your experience with AFFiNE and AFFiNE AI, the leading Canvas AI tool for flexible note-taking and creative organization.
-
-- [vision board template](https://affine.pro/blog/8-free-printable-vision-board-templates-examples-2023)
-- [ai homework helper](https://affine.pro/blog/ai-homework-helper)
-- [vision board maker](https://affine.pro/blog/vision-board-maker)
-- [itinerary template](https://affine.pro/blog/free-customized-travel-itinerary-planner-templates)
-- [one pager template](https://affine.pro/blog/top-12-one-pager-examples-how-to-create-your-own)
-- [cornell notes template](https://affine.pro/blog/the-cornell-notes-template-and-system-learning-tips)
-- [swot chart template](https://affine.pro/blog/top-10-free-editable-swot-analysis-template-examples)
-- [apps like luna task](https://affine.pro/blog/apps-like-luna-task)
-- [note taking ai from rough notes to mind map](https://affine.pro/blog/dynamic-AI-notes)
-- [canvas ai](https://affine.pro/blog/best-canvas-ai)
-- [one pager](https://affine.pro/blog/top-12-one-pager-examples-how-to-create-your-own)
-- [SOP Template](https://affine.pro/blog/how-to-write-sop-step-by-step-guide-5-best-free-tools-templates)
-- [Chore Chart](https://affine.pro/blog/10-best-free-chore-chart-templates-kids-adults)
-
-## Ecosystem
-
-| Name                                             |                            |                                                                                                                                         |
-| ------------------------------------------------ | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| [@affine/component](packages/frontend/component) | AFFiNE Component Resources | ![](https://img.shields.io/codecov/c/github/toeverything/affine?style=flat-square)                                                      |
-| [@toeverything/theme](packages/common/theme)     | AFFiNE theme               | [![](https://img.shields.io/npm/dm/@toeverything/theme?style=flat-square&color=eee)](https://www.npmjs.com/package/@toeverything/theme) |
-
-## Upstreams
-
-We would also like to give thanks to open-source projects that make AFFiNE possible:
-
-- [Blocksuite](https://github.com/toeverything/BlockSuite) - 💠 BlockSuite is the open-source collaborative editor project behind AFFiNE.
-- [y-octo](https://github.com/y-crdt/y-octo) - 🐙 y-octo is a native, high-performance, thread-safe YJS CRDT implementation, serving as the core engine enabling the AFFiNE Client/Server to achieve "local-first" functionality.
-- [OctoBase](https://github.com/toeverything/OctoBase) - 🐙 OctoBase is the open-source database behind AFFiNE, local-first, yet collaborative. A light-weight, scalable, data engine written in Rust.
-
-- [yjs](https://github.com/yjs/yjs) - Fundamental support of CRDTs for our implementation on state management and data sync on web.
-- [electron](https://github.com/electron/electron) - Build cross-platform desktop apps with JavaScript, HTML, and CSS.
-- [React](https://github.com/facebook/react) - The library for web and native user interfaces.
-- [napi-rs](https://github.com/napi-rs/napi-rs) - A framework for building compiled Node.js add-ons in Rust via Node-API.
-- [Jotai](https://github.com/pmndrs/jotai) - Primitive and flexible state management for React.
-- [async-call-rpc](https://github.com/Jack-Works/async-call-rpc) - A lightweight JSON RPC client & server.
-- [Vite](https://github.com/vitejs/vite) - Next generation frontend tooling.
-- Other upstream [dependencies](https://github.com/toeverything/AFFiNE/network/dependencies).
-
-Thanks a lot to the community for providing such powerful and simple libraries, so that we can focus more on the implementation of the product logic, and we hope that in the future our projects will also provide a more easy-to-use knowledge base for everyone.
-
-## Contributors
-
-We would like to express our gratitude to all the individuals who have already contributed to AFFiNE! If you have any AFFiNE-related project, documentation, tool or template, please feel free to contribute it by submitting a pull request to our curated list on GitHub: [awesome-affine](https://github.com/toeverything/awesome-affine).
-
-<a href="https://github.com/toeverything/affine/graphs/contributors">
-  <img alt="contributors" src="https://opencollective.com/affine/contributors.svg?width=890&button=false" />
-</a>
-
-## Self-Host
-
-Begin with Docker to deploy your own feature-rich, unrestricted version of AFFiNE. Our team is diligently updating to the latest version. For more information on how to self-host AFFiNE, please refer to our [documentation](https://docs.affine.pro/self-host-affine).
-
-[![Run on Sealos](https://sealos.io/Deploy-on-Sealos.svg)](https://sealos.io/products/app-store/affine)
-
-[![Run on ClawCloud](https://raw.githubusercontent.com/ClawCloud/Run-Template/refs/heads/main/Run-on-ClawCloud.svg)](https://template.run.claw.cloud/?openapp=system-fastdeploy%3FtemplateName%3Daffine)
-
-## Feature Request
-
-For feature requests, please see [discussions](https://github.com/toeverything/AFFiNE/discussions/categories/ideas).
-
-## Building
-
-### Codespaces
-
-From the GitHub repo main page, click the green "Code" button and select "Create codespace on master". This will open a new Codespace with the (supposedly auto-forked
-AFFiNE repo cloned, built, and ready to go).
-
-### Local
-
-See [BUILDING.md] for instructions on how to build AFFiNE from source code.
+Upstream documentation remains in this repository for build, contribution,
+server, mobile, and desktop reference. Treat upstream product marketing,
+community, template, and release material as inherited context, not the
+LocalMind project brief.
 
 ## Contributing
 
-We welcome contributions from everyone.
-See [docs/contributing/tutorial.md](./docs/contributing/tutorial.md) for details.
+For LocalMind work, read the LocalMind documentation index and the relevant AI
+track document first. Keep changes scoped, preserve upstream conventions, and
+report the Docker validation method used for behavior changes.
+
+Planning documents in `docs/ai-modernization/` are local branch documentation.
+Editing them does not publish anything to GitHub; commit, push, and pull
+request steps are separate explicit actions.
 
 ## License
 
-### Editions
-
-- AFFiNE Community Edition (CE) is the current available version, it's free for self-host under the MIT license.
-
-- AFFiNE Enterprise Edition (EE) is yet to be published, it will have more advanced features and enterprise-oriented offerings, including but not exclusive to rebranding and SSO, advanced admin and audit, etc., you may refer to https://affine.pro/pricing for more information
-
-See [LICENSE] for details.
-
-[all-contributors-badge]: https://img.shields.io/github/contributors/toeverything/AFFiNE
-[license]: ./LICENSE
-[building.md]: ./docs/BUILDING.md
-[update page]: https://affine.pro/blog?tag=Release%20Note
-[jobs available]: ./docs/jobs.md
-[latest packages]: https://github.com/toeverything/AFFiNE/pkgs/container/affine-self-hosted
-[contributor license agreement]: https://github.com/toeverything/affine/edit/canary/.github/CLA.md
-[stars-icon]: https://img.shields.io/github/stars/toeverything/AFFiNE.svg?style=flat&logo=github&colorB=red&label=stars
-[codecov]: https://codecov.io/gh/toeverything/affine/branch/canary/graphs/badge.svg?branch=canary
-[node-version-icon]: https://img.shields.io/badge/node-%3E=18.16.1-success
-[typescript-version-icon]: https://img.shields.io/github/package-json/dependency-version/toeverything/affine/dev/typescript
-[react-version-icon]: https://img.shields.io/github/package-json/dependency-version/toeverything/AFFiNE/react?filename=packages%2Ffrontend%2Fcore%2Fpackage.json&color=rgb(97%2C228%2C251)
-[blocksuite-icon]: https://img.shields.io/github/package-json/dependency-version/toeverything/AFFiNE/@blocksuite/store?color=6880ff&filename=packages%2Ffrontend%2Fcore%2Fpackage.json&label=blocksuite
+LocalMind inherits the AFFiNE licensing files in this repository. See
+[LICENSE](./LICENSE) and [LICENSE-MIT](./LICENSE-MIT).

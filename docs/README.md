@@ -10,6 +10,11 @@ branch adds planning and implementation work around durable AI runtime state,
 DB-backed AI registries, auditable repair execution, support bundle artifacts,
 and Docker-grounded validation.
 
+LocalMind standardizes local development and validation on Linux and Linux
+containers. Upstream documentation may still describe other platforms for
+desktop packaging or release support; treat those notes as platform-specific
+reference unless the current task explicitly targets them.
+
 Start here for LocalMind-specific work:
 
 - [AI modernization entrypoint](./ai-modernization/README.md)

@@ -4,6 +4,17 @@ This document defines the Docker workflow constraints for LocalMind / AFFiNE AI 
 
 It exists to prevent expensive full-image rebuilds during normal development while still keeping all build, runtime, and test conclusions grounded in Docker/container execution.
 
+## Standard Environment
+
+LocalMind development and validation standardizes on Linux and Linux containers.
+Write local commands, documentation examples, and automation snippets for POSIX
+shell unless a task explicitly targets an upstream platform-specific desktop
+package or signing flow.
+
+Windows-specific release steps may remain in inherited CI when needed to build
+or sign Windows desktop artifacts, but they are not the default LocalMind
+development or test path.
+
 ## Core Rule
 
 Docker is the required validation environment, but a full Docker image rebuild is not the default development loop.
@@ -113,7 +124,7 @@ For each change, use this order:
 
 1. Inspect the current Docker state:
 
-   ```powershell
+   ```shell
    docker system df
    docker image ls localmind-affine
    docker ps -a --filter "name=localmind"
@@ -121,7 +132,7 @@ For each change, use this order:
 
 2. Reuse existing containers or images when possible:
 
-   ```powershell
+   ```shell
    docker compose run --no-build ...
    docker exec ...
    docker logs ...
@@ -162,7 +173,7 @@ Not allowed unless explicitly requested by the user:
 
 Before any Docker build, check:
 
-```powershell
+```shell
 docker system df
 ```
 
@@ -170,13 +181,13 @@ Stop and report instead of continuing if the planned build is likely to add more
 
 After heavy validation, clean unused build cache while preserving useful cache when possible:
 
-```powershell
+```shell
 docker builder prune --force --filter until=24h --keep-storage 20GB
 ```
 
 If Docker still reports very large BuildKit cache and the user approves full cache cleanup:
 
-```powershell
+```shell
 docker builder prune --all --force
 ```
 

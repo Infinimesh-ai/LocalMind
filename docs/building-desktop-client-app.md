@@ -33,7 +33,8 @@ We will explain the steps in the following sections.
 
 Before you start building AFFiNE Desktop Client Application, please following the same steps in [BUILDING#Prerequisites](./BUILDING.md#prerequisites) to install Node.js and Rust.
 
-On Windows, you must enable symbolic links this code repo. See [#### Windows](./BUILDING.md#Windows).
+LocalMind standardizes local development on Linux and Linux containers. Platform
+specific desktop release flows are handled by CI when needed.
 
 ## Build, package & make the desktop client app
 
@@ -45,21 +46,12 @@ Please refer to `Build Native Dependencies` section in [BUILDING.md](./BUILDING.
 
 ### 1. Build the core
 
-On Mac & Linux
+On Linux
 
 ```shell
 BUILD_TYPE=canary yarn affine @affine/electron build
 
 BUILD_TYPE=canary yarn affine @affine/electron generate-assets
-```
-
-On Windows (powershell)
-
-```powershell
-$env:BUILD_TYPE="canary"
-$env:DISTRIBUTION=desktop
-$env:SKIP_WEB_BUILD=1
-yarn build
 ```
 
 ### 2. Re-config yarn, clean up the node_modules and reinstall the dependencies
@@ -73,41 +65,19 @@ yarn config set nmHoistingLimits workspaces
 
 Then, clean up all node_modules and reinstall the dependencies:
 
-On Mac & Linux
+On Linux
 
 ```shell
 find . -name 'node_modules' -type d -prune -exec rm -rf '{}' +
 yarn install
 ```
 
-On Windows (powershell)
-
-```powershell
-dir -Path . -Filter node_modules -recurse | foreach {echo $_.fullname; rm -r -Force $_.fullname}
-yarn install
-```
-
 ### 3. Build the desktop client app installer
 
-#### Mac & Linux
-
-Note: you need to comment out `osxSign` and `osxNotarize` in `forge.config.mjs` to skip signing and notarizing the app.
+#### Linux
 
 ```shell
 BUILD_TYPE=canary SKIP_WEB_BUILD=1 HOIST_NODE_MODULES=1 yarn affine @affine/electron make
-```
-
-#### Windows
-
-Making the windows installer is a bit different. Right now we provide two installer options: squirrel and nsis.
-
-```powershell
-$env:BUILD_TYPE="canary"
-$env:SKIP_WEB_BUILD=1
-$env:HOIST_NODE_MODULES=1
-yarn affine @affine/electron package
-yarn affine @affine/electron make-squirrel
-yarn affine @affine/electron make-nsis
 ```
 
 Once the build is complete, you can find the paths to the binaries in the terminal output.
