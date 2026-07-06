@@ -395,7 +395,9 @@ Status: first durable slice plus independent read/list observability and
 generic run creation implemented. Repair execution approval and worker
 execution now sync queued, running, completed, failed, and cancelled
 run/step/timeline state including applied side-effect summaries, and internal
-adapter code can persist generic tool/Codex/MCP step records.
+adapter code can persist generic tool/Codex/MCP step records. The first
+production adapter (`agent_runtime_model_completion`) now executes persisted
+model steps through the DB-routed Copilot prompt/provider stack.
 
 Introduce real run/step/job state for office tasks.
 
@@ -557,13 +559,24 @@ Implemented outcome:
   terminal update and result-history insertion fails closed before stale
   ledger evidence persists.
 
+- the `agent_runtime_model_completion` workflow adapter executes exactly one
+  active persisted `model` step through `PromptRuntime.runText`, using the
+  DB-backed Prompt Registry fallback chain and workspace/user-scoped route
+  policy resolution, with a versioned bounded `modelRequest` step input
+  contract, an abortable 120s-bounded provider call, cooperative cancellation
+  polling before/during/after generation, bounded output evidence in the
+  generic worker completion summary, and fail-closed invalid-request handling
+  before any provider call.
+
 Remaining follow-up:
 
 - connect additional action/prompt workflows;
 - add true preemptive live interrupt semantics for running production adapters
   while they are still executing external work;
-- wire real Codex/MCP/tool/model execution adapters that drive the persisted
-  generic step records.
+- wire real Codex/MCP/tool execution adapters that drive the persisted
+  generic step records;
+- add an executor-specific persisted model result schema (beyond bounded
+  summary evidence) once model outputs need to feed downstream steps.
 
 See `tracks/agent-runtime.md`.
 

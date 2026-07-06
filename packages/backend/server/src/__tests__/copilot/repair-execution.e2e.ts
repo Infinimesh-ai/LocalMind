@@ -15,6 +15,7 @@ import { CopilotAgentRuntimeWorker } from '../../plugins/copilot/agent-runtime-w
 import { CopilotAgentRuntimeWorkflowRegistry } from '../../plugins/copilot/agent-runtime-workflow-registry';
 import { CopilotCronJobs } from '../../plugins/copilot/cron';
 import { CopilotRepairExecutionWorker } from '../../plugins/copilot/repair-execution-worker';
+import { PromptRuntime } from '../../plugins/copilot/runtime/prompt-runtime';
 import {
   createTestingApp,
   createWorkspace,
@@ -5083,6 +5084,11 @@ test('standalone Agent Runtime worker leases queued runs and records unsupported
         sideEffectMode: 'none',
       },
       {
+        workflow: 'agent_runtime_model_completion',
+        supportedStepTypes: ['model'],
+        sideEffectMode: 'none',
+      },
+      {
         workflow: 'agent_runtime_record_only',
         supportedStepTypes: [
           'approval',
@@ -5496,9 +5502,11 @@ test('standalone Agent Runtime worker completes record-only runs', async t => {
   const driftActor = await app.createUser();
   t.deepEqual(agentRuntimeWorkflowRegistry.supportedWorkflows(), [
     'agent_runtime_local_completion',
+    'agent_runtime_model_completion',
     'agent_runtime_record_only',
   ]);
   t.truthy(agentRuntimeWorkflowRegistry.get('agent_runtime_local_completion'));
+  t.truthy(agentRuntimeWorkflowRegistry.get('agent_runtime_model_completion'));
   t.truthy(agentRuntimeWorkflowRegistry.get('agent_runtime_record_only'));
   t.deepEqual(agentRuntimeWorkflowRegistry.adapterCapabilities(), [
     {
@@ -5516,6 +5524,16 @@ test('standalone Agent Runtime worker completes record-only runs', async t => {
         sideEffectMode: 'none',
         summary:
           'Completes local Agent Runtime workflows through the generic worker completion contract.',
+      },
+    },
+    {
+      workflow: 'agent_runtime_model_completion',
+      capabilities: {
+        version: 'agent-runtime-workflow-adapter-capabilities/v1',
+        supportedStepTypes: ['model'],
+        sideEffectMode: 'none',
+        summary:
+          'Executes one persisted model step through the DB-routed Copilot prompt/provider stack and records bounded output evidence.',
       },
     },
     {
@@ -5959,7 +5977,6 @@ test('standalone Agent Runtime worker completes record-only runs', async t => {
     sideEffectsApplied: false,
   });
   const detailResult = await app.gql({
-    contextValue: await getGqlContext(t, owner),
     query: agentRuntimeRunQuery,
     variables: {
       id: run.id,
@@ -6000,7 +6017,6 @@ test('standalone Agent Runtime worker completes record-only runs', async t => {
     workerLeaseId: recordOnlyExecution.workerLeaseId,
   });
   const listResult = await app.gql({
-    contextValue: await getGqlContext(t, owner),
     query: agentRuntimeRunsQuery,
     variables: {
       limit: 5,
@@ -6109,7 +6125,8 @@ test('standalone Agent Runtime worker completes record-only runs', async t => {
       WHERE run_id = ${run.id}
     `,
     {
-      message: /ai_agent_steps_run_snapshot_fkey/,
+      message:
+        /ai_agent_steps_run_snapshot_fkey|ai_agent_timeline_events_step_snapshot_fkey/,
     }
   );
   await t.throwsAsync(
@@ -6119,7 +6136,8 @@ test('standalone Agent Runtime worker completes record-only runs', async t => {
       WHERE run_id = ${run.id}
     `,
     {
-      message: /ai_agent_timeline_events_run_snapshot_fkey/,
+      message:
+        /ai_agent_timeline_events_run_snapshot_fkey|ai_agent_timeline_events_step_snapshot_fkey/,
     }
   );
   const otherRun = await app.models.copilotAgentRuntime.createRun({
@@ -6241,12 +6259,12 @@ test('standalone Agent Runtime worker completes record-only runs', async t => {
   await t.throwsAsync(
     db.$executeRaw`
       UPDATE ai_agent_runtime_execution_results
-      SET created_at = ${new Date('2026-06-23T03:20:00.000Z')}
+      SET created_at = created_at - interval '2 seconds'
       WHERE run_id = ${run.id}
     `,
     {
       message:
-        /ai_agent_runtime_execution_results_content_update_restrict_check/,
+        /ai_agent_runtime_execution_results_timestamp_check|ai_agent_runtime_execution_results_content_update_restrict_check/,
     }
   );
   await t.throwsAsync(
@@ -6403,7 +6421,8 @@ test('standalone Agent Runtime worker completes record-only runs', async t => {
       WHERE id = ${isolatedResultRunId}
     `,
     {
-      message: /ai_agent_runtime_execution_results_run_id_fkey/,
+      message:
+        /ai_agent_runtime_execution_results_run_id_fkey|ai_agent_timeline_events_run_snapshot_fkey/,
     }
   );
   await t.throwsAsync(
@@ -6413,7 +6432,8 @@ test('standalone Agent Runtime worker completes record-only runs', async t => {
       WHERE id = ${isolatedResultRunId}
     `,
     {
-      message: /ai_agent_runtime_execution_results_run_source_snapshot_fkey/,
+      message:
+        /ai_agent_runtime_execution_results_run_source_snapshot_fkey|ai_agent_timeline_events_run_snapshot_fkey/,
     }
   );
   await t.throwsAsync(
@@ -6649,7 +6669,6 @@ test('standalone Agent Runtime worker completes local workflows through generic 
   });
 
   const detailResult = await app.gql({
-    contextValue: await getGqlContext(t, owner),
     query: agentRuntimeRunQuery,
     variables: {
       id: run.id,
@@ -6770,6 +6789,338 @@ test('standalone Agent Runtime worker completes local workflows through generic 
       message: /ai_agent_steps_worker_failure_payload_check/,
     }
   );
+});
+
+test('standalone Agent Runtime worker executes model steps through the model completion adapter', async t => {
+  const { agentRuntimeWorker, app, owner } = t.context;
+  const workspace = await createWorkspace(app);
+  const promptRuntime = app.get(PromptRuntime);
+  const run = await app.models.copilotAgentRuntime.createRun({
+    workspaceId: workspace.id,
+    actorId: owner.id,
+    workflow: 'agent_runtime_model_completion',
+    sourceType: 'agent_runtime_test',
+    sourceId: 'model-completion-runtime-run',
+    status: 'queued',
+    title: 'Model completion runtime run',
+    steps: [
+      {
+        stepKey: 'model_generate',
+        stepType: 'model',
+        outputSummary: {
+          modelRequest: {
+            version: 'agent-runtime-model-request/v1',
+            promptName: 'Summary',
+            params: { content: 'model completion adapter source content' },
+            modelId: 'model-completion-e2e-model',
+          },
+        },
+      },
+    ],
+  });
+
+  const runTextStub = Sinon.stub(promptRuntime, 'runText').resolves(
+    '  Model completion adapter\n produced   output. '
+  );
+  try {
+    const signal = await agentRuntimeWorker.runStandaloneAgentRuntime({
+      workspaceId: workspace.id,
+      runId: run.id,
+    });
+    t.is(signal, JOB_SIGNAL.Done);
+  } finally {
+    runTextStub.restore();
+  }
+
+  t.is(runTextStub.callCount, 1);
+  const [promptName, params, options] = runTextStub.firstCall.args;
+  t.is(promptName, 'Summary');
+  t.deepEqual(params, {
+    content: 'model completion adapter source content',
+  });
+  t.is(options?.modelId, 'model-completion-e2e-model');
+  t.is(options?.providerOptions?.workspace, workspace.id);
+  t.is(options?.providerOptions?.user, owner.id);
+  t.true(options?.providerOptions?.signal instanceof AbortSignal);
+
+  const completed = await app.models.copilotAgentRuntime.get(
+    workspace.id,
+    run.id
+  );
+  t.truthy(completed);
+  t.is(completed?.status, 'completed');
+  t.is(completed?.failureCode, null);
+  t.is(completed?.workerAttempt, 1);
+  t.is(completed?.workerLeaseId, null);
+  t.deepEqual(
+    completed?.steps.map(step => step.status),
+    ['completed']
+  );
+  t.like(completed?.steps[0].outputSummary.modelRequest, {
+    version: 'agent-runtime-model-request/v1',
+    promptName: 'Summary',
+    modelId: 'model-completion-e2e-model',
+  });
+  const workerCompletion = completed?.steps[0].outputSummary
+    .workerCompletion as {
+    adapterResolution?: {
+      adapter: {
+        sideEffectMode: string;
+        supportedStepTypes: string[];
+        workflow: string;
+      };
+      status: string;
+    };
+    adapterWorkflow: string;
+    executor: string;
+    sideEffectMode: string;
+    sideEffectsApplied: boolean;
+    summary: string;
+    version: string;
+  };
+  t.like(workerCompletion, {
+    version: 'agent-runtime-worker-completion/v1',
+    executor: 'agent_runtime_worker',
+    adapterWorkflow: 'agent_runtime_model_completion',
+    sideEffectMode: 'none',
+    sideEffectsApplied: false,
+    summary:
+      'Model step "model_generate" completed through prompt "Summary" (requested model model-completion-e2e-model): Model completion adapter produced output.',
+  });
+  t.like(workerCompletion.adapterResolution, {
+    status: 'completed',
+    adapter: {
+      workflow: 'agent_runtime_model_completion',
+      supportedStepTypes: ['model'],
+      sideEffectMode: 'none',
+    },
+  });
+  t.is(completed?.executionResultCount, 1);
+  t.like(completed?.executionResults[0], {
+    adapterWorkflow: 'agent_runtime_model_completion',
+    executor: 'agent_runtime_worker',
+    resultStatus: 'completed',
+    sideEffectMode: 'none',
+    sideEffectsApplied: false,
+    workerAttempt: 1,
+  });
+});
+
+test('standalone Agent Runtime model completion bounds oversized model output evidence', async t => {
+  const { agentRuntimeWorker, app, owner } = t.context;
+  const workspace = await createWorkspace(app);
+  const promptRuntime = app.get(PromptRuntime);
+  const run = await app.models.copilotAgentRuntime.createRun({
+    workspaceId: workspace.id,
+    actorId: owner.id,
+    workflow: 'agent_runtime_model_completion',
+    sourceType: 'agent_runtime_test',
+    sourceId: 'model-completion-bounded-output-run',
+    status: 'queued',
+    steps: [
+      {
+        stepKey: 'model_generate',
+        stepType: 'model',
+        outputSummary: {
+          modelRequest: {
+            version: 'agent-runtime-model-request/v1',
+            promptName: 'Summary',
+          },
+        },
+      },
+    ],
+  });
+
+  const runTextStub = Sinon.stub(promptRuntime, 'runText').resolves(
+    'o'.repeat(5000)
+  );
+  try {
+    const signal = await agentRuntimeWorker.runStandaloneAgentRuntime({
+      workspaceId: workspace.id,
+      runId: run.id,
+    });
+    t.is(signal, JOB_SIGNAL.Done);
+  } finally {
+    runTextStub.restore();
+  }
+
+  const completed = await app.models.copilotAgentRuntime.get(
+    workspace.id,
+    run.id
+  );
+  t.is(completed?.status, 'completed');
+  const workerCompletion = completed?.steps[0].outputSummary
+    .workerCompletion as { summary: string };
+  t.true(workerCompletion.summary.includes(`: ${'o'.repeat(640)}…`));
+  t.true(workerCompletion.summary.length <= 1024);
+});
+
+test('standalone Agent Runtime model completion fails closed on invalid model requests', async t => {
+  const { agentRuntimeWorker, app, owner } = t.context;
+  const workspace = await createWorkspace(app);
+  const promptRuntime = app.get(PromptRuntime);
+  const missingRequestRun = await app.models.copilotAgentRuntime.createRun({
+    workspaceId: workspace.id,
+    actorId: owner.id,
+    workflow: 'agent_runtime_model_completion',
+    sourceType: 'agent_runtime_test',
+    sourceId: 'model-completion-missing-request-run',
+    status: 'queued',
+    steps: [
+      {
+        stepKey: 'model_generate',
+        stepType: 'model',
+      },
+    ],
+  });
+
+  const runTextStub = Sinon.stub(promptRuntime, 'runText').resolves(
+    'unused output'
+  );
+  try {
+    const missingRequestSignal =
+      await agentRuntimeWorker.runStandaloneAgentRuntime({
+        workspaceId: workspace.id,
+        runId: missingRequestRun.id,
+      });
+    t.is(missingRequestSignal, JOB_SIGNAL.Done);
+
+    const missingRequestFailed = await app.models.copilotAgentRuntime.get(
+      workspace.id,
+      missingRequestRun.id
+    );
+    t.is(missingRequestFailed?.status, 'failed');
+    t.is(
+      missingRequestFailed?.failureCode,
+      'agent_runtime_adapter_execution_failed'
+    );
+    t.true(
+      missingRequestFailed?.failureMessage?.includes('invalid model request') ??
+        false
+    );
+    t.is(runTextStub.callCount, 0);
+    t.is(missingRequestFailed?.executionResultCount, 1);
+    t.like(missingRequestFailed?.executionResults[0], {
+      resultStatus: 'failed',
+      failureCode: 'agent_runtime_adapter_execution_failed',
+    });
+
+    const badVersionRun = await app.models.copilotAgentRuntime.createRun({
+      workspaceId: workspace.id,
+      actorId: owner.id,
+      workflow: 'agent_runtime_model_completion',
+      sourceType: 'agent_runtime_test',
+      sourceId: 'model-completion-bad-version-run',
+      status: 'queued',
+      steps: [
+        {
+          stepKey: 'model_generate',
+          stepType: 'model',
+          outputSummary: {
+            modelRequest: {
+              version: 'agent-runtime-model-request/v0',
+              promptName: 'Summary',
+            },
+          },
+        },
+      ],
+    });
+    const badVersionSignal = await agentRuntimeWorker.runStandaloneAgentRuntime(
+      {
+        workspaceId: workspace.id,
+        runId: badVersionRun.id,
+      }
+    );
+    t.is(badVersionSignal, JOB_SIGNAL.Done);
+    const badVersionFailed = await app.models.copilotAgentRuntime.get(
+      workspace.id,
+      badVersionRun.id
+    );
+    t.is(badVersionFailed?.status, 'failed');
+    t.is(
+      badVersionFailed?.failureCode,
+      'agent_runtime_adapter_execution_failed'
+    );
+    t.true(
+      badVersionFailed?.failureMessage?.includes(
+        'version must be agent-runtime-model-request/v1'
+      ) ?? false
+    );
+    t.is(runTextStub.callCount, 0);
+  } finally {
+    runTextStub.restore();
+  }
+});
+
+test('standalone Agent Runtime model completion consumes cooperative cancellation during generation', async t => {
+  const { agentRuntimeWorker, app, owner } = t.context;
+  const workspace = await createWorkspace(app);
+  const promptRuntime = app.get(PromptRuntime);
+  const run = await app.models.copilotAgentRuntime.createRun({
+    workspaceId: workspace.id,
+    actorId: owner.id,
+    workflow: 'agent_runtime_model_completion',
+    sourceType: 'agent_runtime_test',
+    sourceId: 'model-completion-cancel-run',
+    status: 'queued',
+    steps: [
+      {
+        stepKey: 'model_generate',
+        stepType: 'model',
+        outputSummary: {
+          modelRequest: {
+            version: 'agent-runtime-model-request/v1',
+            promptName: 'Summary',
+          },
+        },
+      },
+    ],
+  });
+
+  const runTextStub = Sinon.stub(promptRuntime, 'runText').callsFake(
+    async (_promptName, _params, options) => {
+      await app.models.copilotAgentRuntime.controlRun({
+        workspaceId: workspace.id,
+        actorId: owner.id,
+        id: run.id,
+        action: 'cancel',
+        reason: 'cancel during model generation',
+      });
+      return await new Promise<string>((_resolve, reject) => {
+        options?.providerOptions?.signal?.addEventListener('abort', () => {
+          reject(new Error('model generation aborted'));
+        });
+      });
+    }
+  );
+  try {
+    const signal = await agentRuntimeWorker.runStandaloneAgentRuntime({
+      workspaceId: workspace.id,
+      runId: run.id,
+    });
+    t.is(signal, JOB_SIGNAL.Done);
+  } finally {
+    runTextStub.restore();
+  }
+
+  const cancelled = await app.models.copilotAgentRuntime.get(
+    workspace.id,
+    run.id
+  );
+  t.is(cancelled?.status, 'cancelled');
+  t.is(cancelled?.failureCode, null);
+  t.is(cancelled?.workerLeaseId, null);
+  t.deepEqual(
+    cancelled?.steps.map(step => step.status),
+    ['skipped']
+  );
+  t.is(cancelled?.executionResultCount, 0);
+  const cancelRequestedEvent = cancelled?.timelineEvents.find(
+    event =>
+      event.eventType === 'run_cancellation' &&
+      event.payload.action === 'cancel_requested'
+  );
+  t.truthy(cancelRequestedEvent);
 });
 
 test('standalone Agent Runtime worker ignores stale completion after same-lease attempt drift', async t => {

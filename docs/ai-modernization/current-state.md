@@ -761,13 +761,28 @@ The first durable Agent Runtime slice is now implemented:
   source-unique insert conflicts against the computed create-time
   workflow/source/target/evidence and step evidence, while preserving the
   existing pre-read idempotent reuse behavior;
+- the first production workflow adapter, `agent_runtime_model_completion`,
+  executes exactly one active persisted `model` step through
+  `PromptRuntime.runText`, so prompt resolution uses the DB-backed Prompt
+  Registry fallback chain and model/provider routing uses the existing
+  workspace/user-scoped capability policy; the step carries a versioned
+  bounded `modelRequest` input contract
+  (`agent-runtime-model-request/v1` with bounded prompt name, optional model
+  id, and bounded string-only params), the provider call is abortable and
+  bounded by a 120s timeout, cooperative cancellation is polled before,
+  during, and after generation through the lease-scoped fence, bounded model
+  output evidence flows through the existing DB-constrained generic worker
+  completion contract, and invalid model requests fail closed before any
+  provider call;
 - focused backend and Admin tests cover run/step/timeline persistence,
   idempotency reuse, generic tool/Codex/MCP step persistence, independent
   read/list authorization, workspace isolation, Admin observability,
-  generic local-completion execution, terminal stale-lease execution result
-  persistence, cooperative running cancellation before adapter execution,
-  same-lease worker-attempt drift rejection, and execution result ledger read
-  exposure.
+  generic local-completion execution, model completion adapter execution with
+  bounded output evidence, invalid model request fail-closed behavior,
+  cooperative cancellation consumed during model generation, terminal
+  stale-lease execution result persistence, cooperative running cancellation
+  before adapter execution, same-lease worker-attempt drift rejection, and
+  execution result ledger read exposure.
 
 The first DB-backed registry slice is now implemented:
 

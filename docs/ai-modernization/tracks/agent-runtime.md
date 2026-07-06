@@ -17,7 +17,10 @@ path that consumes queued standalone runs. Broader task execution is still not
 covered:
 
 - no generic planner;
-- no production tool/Codex/MCP/model adapter execution worker.
+- the first production model adapter
+  (`agent_runtime_model_completion`) now executes persisted model steps
+  through the DB-routed prompt/provider stack, but tool/Codex/MCP/handoff
+  execution adapters are still missing.
 
 ## First Vertical Slice
 
@@ -915,6 +918,52 @@ Implemented behavior:
 4. Focused Agent Runtime coverage verifies status, source, evidence
    fingerprint locator, and no-match filters.
 
+## Model Completion Adapter Slice
+
+Status: implemented.
+
+The standalone Agent Runtime now has its first production workflow adapter
+that performs real external model work through the existing DB-routed Copilot
+prompt/provider stack instead of only recording local completion evidence.
+
+Implemented behavior:
+
+1. `agent_runtime_model_completion` is registered as a standalone workflow
+   adapter with `supportedStepTypes=['model']` and `sideEffectMode='none'`
+   through the existing capability-validated registry path.
+2. The adapter requires exactly one active `model` step on the leased run and
+   reads a versioned `modelRequest` object from that step's persisted output
+   summary: `version='agent-runtime-model-request/v1'`, a required bounded
+   `promptName`, an optional bounded `modelId`, and optional bounded
+   string-only `params` (capped key/value lengths and entry count).
+3. Execution goes through `PromptRuntime.runText`, so prompt resolution uses
+   the DB-backed Prompt Registry fallback chain and model/provider routing
+   uses the existing capability policy with `workspace`/`user` scope from the
+   run row, without introducing a parallel provider invocation path.
+4. The provider call carries an `AbortSignal`. The adapter polls the
+   lease-scoped `checkCancellationRequested()` fence before the call, every
+   second during generation, and again before the completion write; a consumed
+   running cancellation aborts in-flight generation and returns without
+   terminal worker writes, preserving the cooperative cancel contract.
+5. Generation is bounded by a 120s timeout that aborts the provider call and
+   fails the run through the existing worker exception path.
+6. Model output is whitespace-normalized and truncated to bounded evidence
+   before persistence; the bounded summary flows through the existing generic
+   worker completion contract (`completeStandaloneWorkerExecution`), so step
+   output, timeline payloads, and the execution-result ledger reuse the
+   DB-constrained `agent-runtime-worker-completion/v1` shape with
+   `sideEffectsApplied=false` and `adapterResolution.status=completed`.
+7. Invalid model requests (missing/oversized/wrongly-typed `modelRequest`,
+   unsupported version, non-string params, or an ambiguous active model step
+   count) fail closed through the worker's
+   `agent_runtime_adapter_execution_failed` path before any provider call.
+8. Focused e2e coverage verifies the happy path (prompt name, params, model
+   id, workspace/user scope, and abort signal reach `PromptRuntime.runText`;
+   bounded output evidence lands in step output, timeline, and the result
+   ledger), oversized output truncation, invalid-request fail-closed behavior
+   without provider calls, and cooperative cancellation consumed during
+   generation with skipped steps and no terminal execution result.
+
 ## Agent Run Source Conflict Evidence Fence Slice
 
 Status: implemented.
@@ -953,8 +1002,12 @@ source_id) DO NOTHING` loses the insert race, the model validates the
   unsupported-adapter or unsupported-contract failure until real workflow
   adapters are registered with matching contracts;
 - registered adapter exceptions and incomplete adapter returns now fail closed
-  durably instead of waiting for stale-lease recovery, but no production tool,
-  Codex, MCP, handoff, approval, model, or planner executor is implemented yet.
+  durably instead of waiting for stale-lease recovery, and the
+  `agent_runtime_model_completion` adapter now performs real model execution
+  through the DB-routed prompt/provider stack, but no production tool, Codex,
+  MCP, handoff, approval, or planner executor is implemented yet, and model
+  output evidence remains bounded summary text rather than an
+  executor-specific persisted result schema.
 - generic standalone run creation and worker/control metadata are now bounded
   at the model persistence and hydration boundary, and timeline status
   vocabulary, worker attempt counters, worker lease pair and lease-id string
