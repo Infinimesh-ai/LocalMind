@@ -1,4 +1,7 @@
 import { CopilotAccessPolicy } from './access';
+import { CopilotAgentRuntimeModelCompletionAdapter } from './agent-runtime-model-adapter';
+import { CopilotAgentRuntimeWorker } from './agent-runtime-worker';
+import { CopilotAgentRuntimeWorkflowRegistry } from './agent-runtime-workflow-registry';
 import {
   ByokEntitlementPolicy,
   ByokService,
@@ -23,10 +26,9 @@ import {
   CopilotEmbeddingClientService,
   CopilotEmbeddingJob,
 } from './embedding';
-import { CopilotAgentRuntimeWorker } from './agent-runtime-worker';
-import { CopilotAgentRuntimeWorkflowRegistry } from './agent-runtime-workflow-registry';
 import { WorkspaceMcpProvider } from './mcp/provider';
 import { PromptService } from './prompt';
+import { CopilotProviderHealthWorker } from './provider-health-worker';
 import {
   CopilotFeatureService,
   CopilotProviderFactory,
@@ -34,7 +36,6 @@ import {
   CopilotProviderRegistryService,
   CopilotProviders,
 } from './providers';
-import { CopilotProviderHealthWorker } from './provider-health-worker';
 import { CopilotRepairExecutionWorker } from './repair-execution-worker';
 import { CopilotResolver, UserCopilotResolver } from './resolver';
 import { ActionRuntimeBridge } from './runtime/action-runtime-bridge';
@@ -152,6 +153,7 @@ export const COPILOT_JOB_PROVIDERS = [
   CopilotEmbeddingJob,
   CopilotCronJobs,
   CopilotAgentRuntimeWorkflowRegistry,
+  CopilotAgentRuntimeModelCompletionAdapter,
   CopilotAgentRuntimeWorker,
   CopilotProviderHealthWorker,
   CopilotRepairExecutionWorker,

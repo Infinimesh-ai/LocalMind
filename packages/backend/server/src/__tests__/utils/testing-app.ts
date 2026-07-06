@@ -23,7 +23,7 @@ import {
 import { SocketIoAdapter } from '../../base/websocket';
 import { AuthService } from '../../core/auth';
 import { Mailer } from '../../core/mail';
-import { UserModel } from '../../models';
+import { Models, UserModel } from '../../models';
 import {
   createFactory,
   MockedUser,
@@ -102,6 +102,7 @@ export class TestingApp extends ApplyType<INestApplication>() {
 
   readonly create!: ReturnType<typeof createFactory>;
   readonly mails!: MockMailer;
+  readonly models!: Models;
   readonly queue!: MockJobQueue;
 
   [Symbol.asyncDispose](): Promise<void> {
@@ -365,6 +366,8 @@ function makeTestingApp(app: INestApplication): TestingApp {
   testingApp.create = createFactory(app.get(PrismaClient, { strict: false }));
   // @ts-expect-error allow
   testingApp.mails = app.get(Mailer, { strict: false }) as MockMailer;
+  // @ts-expect-error allow
+  testingApp.models = app.get(Models, { strict: false });
   // @ts-expect-error allow
   testingApp.queue = app.get(JobQueue, { strict: false }) as MockJobQueue;
 

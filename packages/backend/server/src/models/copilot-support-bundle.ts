@@ -3,14 +3,12 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 
-import {
-  Config,
-  readableToBuffer,
-  type StorageProvider,
-  StorageProviderFactory,
-} from '../base';
+import { readableToBuffer } from '../base';
+import { StorageRuntimeProvider } from '../core/storage-runtime';
 import type { PromptCatalogItem } from '../plugins/copilot/prompt/spec';
 import { BaseModel } from './base';
+
+const SUPPORT_BUNDLE_STORAGE_SCOPE = 'blob';
 
 export type CopilotSupportBundleStatus =
   | 'pending'
@@ -1686,13 +1684,9 @@ function archiveEntry(section: string, file: CopilotSupportBundleArchiveFile) {
 
 @Injectable()
 export class CopilotSupportBundleModel extends BaseModel {
-  private storageProvider: StorageProvider | null = null;
-
   constructor(
-    @Inject(Config)
-    private readonly config: Config,
-    @Inject(StorageProviderFactory)
-    private readonly storageFactory: StorageProviderFactory
+    @Inject(StorageRuntimeProvider)
+    private readonly storageRuntime: StorageRuntimeProvider
   ) {
     super();
   }
@@ -1789,7 +1783,8 @@ export class CopilotSupportBundleModel extends BaseModel {
 
     const writtenStorageKeys: string[] = [];
     try {
-      await this.getStorageProvider().put(
+      await this.storageRuntime.putObject(
+        SUPPORT_BUNDLE_STORAGE_SCOPE,
         manifestObjectStorageKey,
         manifestBody,
         {
@@ -1798,10 +1793,15 @@ export class CopilotSupportBundleModel extends BaseModel {
         }
       );
       writtenStorageKeys.push(manifestObjectStorageKey);
-      await this.getStorageProvider().put(storageKey, archiveBody, {
-        contentLength: archiveBody.length,
-        contentType: archiveMime,
-      });
+      await this.storageRuntime.putObject(
+        SUPPORT_BUNDLE_STORAGE_SCOPE,
+        storageKey,
+        archiveBody,
+        {
+          contentLength: archiveBody.length,
+          contentType: archiveMime,
+        }
+      );
       writtenStorageKeys.push(storageKey);
 
       await this.db.$executeRaw`
@@ -1889,7 +1889,9 @@ export class CopilotSupportBundleModel extends BaseModel {
       return bundle;
     } catch (error) {
       await Promise.allSettled(
-        writtenStorageKeys.map(key => this.getStorageProvider().delete(key))
+        writtenStorageKeys.map(key =>
+          this.storageRuntime.deleteObject(SUPPORT_BUNDLE_STORAGE_SCOPE, key)
+        )
       );
       throw error;
     }
@@ -5104,15 +5106,6 @@ export class CopilotSupportBundleModel extends BaseModel {
     }
   }
 
-  private getStorageProvider() {
-    if (!this.storageProvider) {
-      this.storageProvider = this.storageFactory.create(
-        this.config.storages.blob.storage
-      );
-    }
-    return this.storageProvider;
-  }
-
   private async cleanupArchiveObject(
     bundle: CopilotSupportBundleRecord
   ): Promise<CopilotSupportBundleArchiveObjectCleanupResult> {
@@ -5124,7 +5117,10 @@ export class CopilotSupportBundleModel extends BaseModel {
     }
 
     try {
-      await this.getStorageProvider().delete(bundle.archiveStorageKey);
+      await this.storageRuntime.deleteObject(
+        SUPPORT_BUNDLE_STORAGE_SCOPE,
+        bundle.archiveStorageKey
+      );
       return {
         archiveStorageKey: bundle.archiveStorageKey,
         status: 'deleted',
@@ -5152,7 +5148,8 @@ export class CopilotSupportBundleModel extends BaseModel {
     }
 
     try {
-      await this.getStorageProvider().put(
+      await this.storageRuntime.putObject(
+        SUPPORT_BUNDLE_STORAGE_SCOPE,
         input.bundle.manifestStorageKey,
         input.body,
         {
@@ -5187,19 +5184,26 @@ export class CopilotSupportBundleModel extends BaseModel {
       return null;
     }
 
-    const storedArtifact = await this.getStorageProvider().get(
-      artifact.storageKey,
-      true
+    const presigned = await this.storageRuntime.presignGet(
+      SUPPORT_BUNDLE_STORAGE_SCOPE,
+      artifact.storageKey
     );
-    if (!storedArtifact.redirectUrl || !storedArtifact.metadata) {
+    if (!presigned) {
       return null;
     }
-    if (storedArtifact.metadata.contentLength !== artifact.byteSize) {
+    const storageMetadata = await this.storageRuntime.headObject(
+      SUPPORT_BUNDLE_STORAGE_SCOPE,
+      artifact.storageKey
+    );
+    if (!storageMetadata) {
+      return null;
+    }
+    if (storageMetadata.contentLength !== artifact.byteSize) {
       return null;
     }
 
     return {
-      url: storedArtifact.redirectUrl,
+      url: presigned.url,
       expiresAt,
     };
   }
@@ -5231,7 +5235,10 @@ export class CopilotSupportBundleModel extends BaseModel {
     fingerprint: string;
     storageKey: string;
   }) {
-    const artifact = await this.getStorageProvider().get(input.storageKey);
+    const artifact = await this.storageRuntime.getObject(
+      SUPPORT_BUNDLE_STORAGE_SCOPE,
+      input.storageKey
+    );
     if (!artifact.body) {
       return null;
     }
@@ -5264,7 +5271,8 @@ export class CopilotSupportBundleModel extends BaseModel {
       expected,
     });
 
-    const storageMetadata = await this.getStorageProvider().head(
+    const storageMetadata = await this.storageRuntime.headObject(
+      SUPPORT_BUNDLE_STORAGE_SCOPE,
       expected.storageKey
     );
     if (!storageMetadata) {

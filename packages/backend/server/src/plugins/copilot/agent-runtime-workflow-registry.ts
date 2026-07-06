@@ -162,10 +162,7 @@ export class CopilotAgentRuntimeWorkflowRegistry {
     return [...new Set(run.steps.map(step => step.stepType))].sort();
   }
 
-  private completedAdapterResolution(
-    run: CopilotAgentRunRecord,
-    workflow: string
-  ) {
+  completedAdapterResolution(run: CopilotAgentRunRecord, workflow: string) {
     const registeredAdapters = this.adapterCapabilitySnapshots();
     const adapter = registeredAdapters.find(item => item.workflow === workflow);
     if (!adapter) {
