@@ -21,7 +21,7 @@ import {
   JobQueue,
 } from '../../base';
 import { SocketIoAdapter } from '../../base/websocket';
-import { AuthService } from '../../core/auth';
+import { AuthService, AuthSigningKeyRing } from '../../core/auth';
 import { Mailer } from '../../core/mail';
 import { Models, UserModel } from '../../models';
 import {
@@ -111,6 +111,7 @@ export class TestingApp extends ApplyType<INestApplication>() {
 
   async initTestingDB() {
     await initTestingDB(this);
+    await this.get(AuthSigningKeyRing).onConfigInit();
     this.clearAuth();
   }
 

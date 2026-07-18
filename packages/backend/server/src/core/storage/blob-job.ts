@@ -62,6 +62,14 @@ export class StorageBlobJob {
     private readonly db: PrismaClient
   ) {}
 
+  private autoLog(message: string, shouldDetail: boolean) {
+    if (shouldDetail) {
+      this.logger.log(message);
+    } else {
+      this.logger.verbose(message);
+    }
+  }
+
   async enqueueBackfillMissingBlobMetadata(workspaceId: string, limit = 1000) {
     await this.queue.add('backendRuntime.backfillMissingBlobMetadata', {
       workspaceId,
@@ -381,8 +389,9 @@ export class StorageBlobJob {
         this.event.emitAsync('workspace.blobs.updated', { workspaceId })
       )
     );
-    this.logger.log(
-      `executed blob cleanup run=${runId} deleted=${result.deletedObjects} skipped=${result.skippedStillReferenced} failed=${result.failed}`
+    this.autoLog(
+      `executed blob cleanup run=${runId} deleted=${result.deletedObjects} skipped=${result.skippedStillReferenced} failed=${result.failed}`,
+      Boolean(result.failed)
     );
   }
 
@@ -441,8 +450,9 @@ export class StorageBlobJob {
           this.event.emitAsync('workspace.blobs.updated', { workspaceId })
         )
       );
-      this.logger.log(
-        `backfilled blob metadata workspace=${workspaceId}${context.sid === undefined ? '' : ` sid=${context.sid}`} upserted=${result.upsertedMetadata} scanned=${result.scannedObjects}`
+      this.autoLog(
+        `backfilled blob metadata workspace=${workspaceId}${context.sid === undefined ? '' : ` sid=${context.sid}`} upserted=${result.upsertedMetadata} scanned=${result.scannedObjects}`,
+        Boolean(result.upsertedMetadata)
       );
       if (!result.nextCursor) {
         break;
@@ -460,8 +470,9 @@ export class StorageBlobJob {
         workspaceId,
         limit
       );
-      this.logger.log(
-        `rebuilt doc blob refs workspace=${workspaceId}${context.sid === undefined ? '' : ` sid=${context.sid}`} parsed=${result.parsedDocs} failed=${result.failedDocs}`
+      this.autoLog(
+        `rebuilt doc blob refs workspace=${workspaceId}${context.sid === undefined ? '' : ` sid=${context.sid}`} parsed=${result.parsedDocs} failed=${result.failedDocs}`,
+        Boolean(result.failedDocs)
       );
       if (!result.nextCursor) {
         break;
@@ -481,8 +492,9 @@ export class StorageBlobJob {
         gracePeriodDays,
         limit
       );
-      this.logger.log(
-        `planned blob cleanup workspace=${workspaceId}${context.sid === undefined ? '' : ` sid=${context.sid}`} run=${result.runId} candidates=${result.candidatesMarked} scanned=${result.scannedBlobs}`
+      this.autoLog(
+        `planned blob cleanup workspace=${workspaceId}${context.sid === undefined ? '' : ` sid=${context.sid}`} run=${result.runId} candidates=${result.candidatesMarked} scanned=${result.scannedBlobs}`,
+        Boolean(result.candidatesMarked)
       );
       if (!result.nextCursor) {
         break;
@@ -506,8 +518,9 @@ export class StorageBlobJob {
           this.event.emitAsync('workspace.blobs.updated', { workspaceId })
         )
       );
-      this.logger.log(
-        `executed blob cleanup run=${runId} deleted=${result.deletedObjects} skipped=${result.skippedStillReferenced} failed=${result.failed}`
+      this.autoLog(
+        `executed blob cleanup run=${runId} deleted=${result.deletedObjects} skipped=${result.skippedStillReferenced} failed=${result.failed}`,
+        Boolean(result.failed)
       );
 
       const progressed =

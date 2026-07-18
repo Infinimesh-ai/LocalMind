@@ -67,28 +67,6 @@ export const licenseBodyFragment = `fragment licenseBody on License {
   validatedAt
   variant
 }`;
-export const generateUserAccessTokenMutation = {
-  id: 'generateUserAccessTokenMutation' as const,
-  op: 'generateUserAccessToken',
-  query: `mutation generateUserAccessToken($input: GenerateAccessTokenInput!) {
-  generateUserAccessToken(input: $input) {
-    id
-    name
-    token
-    createdAt
-    expiresAt
-  }
-}`,
-};
-
-export const revokeUserAccessTokenMutation = {
-  id: 'revokeUserAccessTokenMutation' as const,
-  op: 'revokeUserAccessToken',
-  query: `mutation revokeUserAccessToken($id: String!) {
-  revokeUserAccessToken(id: $id)
-}`,
-};
-
 export const adminAllSharedLinksQuery = {
   id: 'adminAllSharedLinksQuery' as const,
   op: 'adminAllSharedLinks',
@@ -149,6 +127,14 @@ export const adminDashboardQuery = {
       effectiveSize
     }
     copilotConversations
+    copilotWindow {
+      from
+      to
+      timezone
+      bucket
+      requestedSize
+      effectiveSize
+    }
     workspaceStorageBytes
     blobStorageBytes
     workspaceStorageHistory {
@@ -191,6 +177,61 @@ export const adminDashboardQuery = {
 }`,
 };
 
+export const adminMailDeliveriesQuery = {
+  id: 'adminMailDeliveriesQuery' as const,
+  op: 'adminMailDeliveries',
+  query: `query adminMailDeliveries($input: AdminMailDeliveriesInput) {
+  adminMailDeliveries(input: $input) {
+    window {
+      from
+      to
+      timezone
+      bucket
+      requestedSize
+      effectiveSize
+    }
+    summary {
+      total
+      sent
+      failed
+      skipped
+      canceled
+      queued
+      sending
+      retryWait
+      successRate
+    }
+    byStatus {
+      key
+      label
+      total
+      points {
+        bucket
+        count
+      }
+    }
+    byType {
+      key
+      label
+      total
+      points {
+        bucket
+        count
+      }
+    }
+    byOutcome {
+      key
+      label
+      total
+      points {
+        bucket
+        count
+      }
+    }
+  }
+}`,
+};
+
 export const adminServerConfigQuery = {
   id: 'adminServerConfigQuery' as const,
   op: 'adminServerConfig',
@@ -212,7 +253,6 @@ export const adminServerConfigQuery = {
       url
     }
     availableUserFeatures
-    availableWorkspaceFeatures
   }
 }
 ${passwordLimitsFragment}
@@ -233,7 +273,6 @@ export const adminUpdateWorkspaceMutation = {
     enableSharing
     enableUrlPreview
     enableDocEmbedding
-    features
     owner {
       id
       name
@@ -264,7 +303,6 @@ export const adminWorkspaceQuery = {
     enableSharing
     enableUrlPreview
     enableDocEmbedding
-    features
     owner {
       id
       name
@@ -308,7 +346,6 @@ export const adminWorkspacesQuery = {
     enableSharing
     enableUrlPreview
     enableDocEmbedding
-    features
     owner {
       id
       name
@@ -330,6 +367,22 @@ export const adminWorkspacesCountQuery = {
   op: 'adminWorkspacesCount',
   query: `query adminWorkspacesCount($filter: ListWorkspaceInput!) {
   adminWorkspacesCount(filter: $filter)
+}`,
+};
+
+export const authSigningKeysQuery = {
+  id: 'authSigningKeysQuery' as const,
+  op: 'authSigningKeys',
+  query: `query authSigningKeys {
+  authSigningKeys {
+    id
+    status
+    source
+    createdAt
+    retiredAt
+    verifyUntil
+    canDelete
+  }
 }`,
 };
 
@@ -355,6 +408,22 @@ export const createUserMutation = {
   query: `mutation createUser($input: CreateUserInput!) {
   createUser(input: $input) {
     id
+  }
+}`,
+};
+
+export const deleteAuthSigningKeyMutation = {
+  id: 'deleteAuthSigningKeyMutation' as const,
+  op: 'deleteAuthSigningKey',
+  query: `mutation deleteAuthSigningKey($id: String!) {
+  deleteAuthSigningKey(id: $id) {
+    id
+    status
+    source
+    createdAt
+    retiredAt
+    verifyUntil
+    canDelete
   }
 }`,
 };
@@ -442,6 +511,22 @@ export const listUsersQuery = {
     avatarUrl
   }
   usersCount(filter: $filter)
+}`,
+};
+
+export const rotateAuthSigningKeyMutation = {
+  id: 'rotateAuthSigningKeyMutation' as const,
+  op: 'rotateAuthSigningKey',
+  query: `mutation rotateAuthSigningKey($expectedActiveKeyId: String!) {
+  rotateAuthSigningKey(expectedActiveKeyId: $expectedActiveKeyId) {
+    id
+    status
+    source
+    createdAt
+    retiredAt
+    verifyUntil
+    canDelete
+  }
 }`,
 };
 
@@ -1400,170 +1485,10 @@ export const getCopilotAgentRunsQuery = {
 }`,
 };
 
-export const getCopilotRepairExecutionsQuery = {
-  id: 'getCopilotRepairExecutionsQuery' as const,
-  op: 'getCopilotRepairExecutions',
-  query: `query getCopilotRepairExecutions($workspaceId: String!, $limit: SafeInt, $filter: CopilotRepairExecutionListFilterInput) {
-  currentUser {
-    copilot(workspaceId: $workspaceId) {
-      repairExecutions(filter: $filter, limit: $limit) {
-        actorId
-        approvalRecordFingerprint
-        approvalState
-        auditEventCount
-        auditEvents {
-          actorId
-          createdAt
-          eventFingerprint
-          eventType
-          executionRequestId
-          id
-          metadata
-          workspaceId
-        }
-        auditEventFingerprint
-        candidateEvidenceSetFingerprint
-        completedAt
-        createdAt
-        failureCode
-        failureMessage
-        id
-        idempotencyFingerprint
-        idempotencyKey
-        lastAttemptAt
-        permissionStatus
-        promptName
-        queuedAt
-        repairJobFingerprint
-        requestFingerprint
-        requestedAction
-        runtimeResult {
-          executor
-          message
-          sideEffectsApplied
-          sideEffectFingerprint
-          sideEffectKind
-          sideEffectRecordId
-          sideEffectSummary
-          version
-        }
-        sideEffectCount
-        sideEffects {
-          actorId
-          appliedAt
-          createdAt
-          executionRequestId
-          executorPayloadFingerprint
-          id
-          sideEffectFingerprint
-          sideEffectKind
-          sideEffectRecordId
-          sideEffectSummary
-          workerAttempt
-          workerLeaseId
-          workspaceId
-        }
-        status
-        targetLocatorFingerprint
-        taskRouteEvidenceSetFingerprint
-        updatedAt
-        workerAttempt
-        workerLeaseExpiresAt
-        workerLeaseId
-        workerMaxAttempts
-        workspaceId
-        agentRun {
-          actorId
-          completedAt
-          createdAt
-          evidenceFingerprint
-          executionResultCount
-          executionResults {
-            actorId
-            adapterWorkflow
-            completedAt
-            createdAt
-            executor
-            failureCode
-            failureMessage
-            id
-            resultFingerprint
-            resultPayload
-            resultStatus
-            runId
-            sideEffectMode
-            sideEffectsApplied
-            sourceId
-            sourceType
-            summary
-            workerAttempt
-            workerLeaseId
-            workflow
-            workspaceId
-          }
-          failureCode
-          failureMessage
-          id
-          lastAttemptAt
-          queuedAt
-          sourceId
-          sourceType
-          startedAt
-          status
-          targetFingerprint
-          timelineFingerprint
-          title
-          updatedAt
-          workerAttempt
-          workerLeaseExpiresAt
-          workerLeaseId
-          workerMaxAttempts
-          workflow
-          workspaceId
-          steps {
-            actorId
-            completedAt
-            createdAt
-            evidenceFingerprint
-            id
-            order
-            outputSummary
-            runId
-            startedAt
-            status
-            stepKey
-            stepType
-            title
-            updatedAt
-            workspaceId
-          }
-          timelineEvents {
-            actorId
-            createdAt
-            eventFingerprint
-            eventType
-            id
-            ordinal
-            payload
-            runId
-            status
-            stepId
-            summary
-            workspaceId
-          }
-        }
-      }
-    }
-  }
-}`,
-};
-
 export const controlCopilotAgentRuntimeRunMutation = {
   id: 'controlCopilotAgentRuntimeRunMutation' as const,
   op: 'controlCopilotAgentRuntimeRun',
-  query: `mutation controlCopilotAgentRuntimeRun(
-  $input: CopilotAgentRuntimeControlInput!
-) {
+  query: `mutation controlCopilotAgentRuntimeRun($input: CopilotAgentRuntimeControlInput!) {
   controlCopilotAgentRuntimeRun(input: $input) {
     actorId
     completedAt
@@ -2886,90 +2811,6 @@ export const getPromptModelsQuery = {
         }
       }
     }
-  }
-}`,
-};
-
-export const getCopilotProviderHealthProbeAttemptsQuery = {
-  id: 'getCopilotProviderHealthProbeAttemptsQuery' as const,
-  op: 'getCopilotProviderHealthProbeAttempts',
-  query: `query getCopilotProviderHealthProbeAttempts($workspaceId: String!, $limit: SafeInt, $filter: CopilotProviderHealthProbeAttemptFilterInput) {
-  currentUser {
-    copilot(workspaceId: $workspaceId) {
-      providerHealthProbeAttempts(filter: $filter, limit: $limit) {
-        id
-        providerId
-        providerType
-        scopeType
-        workspaceId
-        actorId
-        providerRegistryRevisionId
-        providerRegistryRevisionFingerprint
-        providerProfileSource
-        providerProfileFingerprint
-        providerProfileSnapshot
-        requestFingerprint
-        status
-        attemptCount
-        maxAttempts
-        scheduledAt
-        workerLeaseId
-        workerLeaseExpiresAt
-        checkedAt
-        completedAt
-        deadLetteredAt
-        failureCode
-        failureMessage
-        resultStatus
-        resultLastError
-        resultMetadata
-        resultFingerprint
-        providerHealthStateId
-        providerHealthStateFingerprint
-        createdAt
-        updatedAt
-      }
-    }
-  }
-}`,
-};
-
-export const retryCopilotProviderHealthProbeAttemptMutation = {
-  id: 'retryCopilotProviderHealthProbeAttemptMutation' as const,
-  op: 'retryCopilotProviderHealthProbeAttempt',
-  query: `mutation retryCopilotProviderHealthProbeAttempt($input: CopilotProviderHealthProbeAttemptRetryInput!) {
-  retryCopilotProviderHealthProbeAttempt(input: $input) {
-    id
-    providerId
-    providerType
-    scopeType
-    workspaceId
-    actorId
-    providerRegistryRevisionId
-    providerRegistryRevisionFingerprint
-    providerProfileSource
-    providerProfileFingerprint
-    providerProfileSnapshot
-    requestFingerprint
-    status
-    attemptCount
-    maxAttempts
-    scheduledAt
-    workerLeaseId
-    workerLeaseExpiresAt
-    checkedAt
-    completedAt
-    deadLetteredAt
-    failureCode
-    failureMessage
-    resultStatus
-    resultLastError
-    resultMetadata
-    resultFingerprint
-    providerHealthStateId
-    providerHealthStateFingerprint
-    createdAt
-    updatedAt
   }
 }`,
 };
@@ -5180,6 +5021,90 @@ export const getCopilotPromptsQuery = {
 }`,
 };
 
+export const retryCopilotProviderHealthProbeAttemptMutation = {
+  id: 'retryCopilotProviderHealthProbeAttemptMutation' as const,
+  op: 'retryCopilotProviderHealthProbeAttempt',
+  query: `mutation retryCopilotProviderHealthProbeAttempt($input: CopilotProviderHealthProbeAttemptRetryInput!) {
+  retryCopilotProviderHealthProbeAttempt(input: $input) {
+    id
+    providerId
+    providerType
+    scopeType
+    workspaceId
+    actorId
+    providerRegistryRevisionId
+    providerRegistryRevisionFingerprint
+    providerProfileSource
+    providerProfileFingerprint
+    providerProfileSnapshot
+    requestFingerprint
+    status
+    attemptCount
+    maxAttempts
+    scheduledAt
+    workerLeaseId
+    workerLeaseExpiresAt
+    checkedAt
+    completedAt
+    deadLetteredAt
+    failureCode
+    failureMessage
+    resultStatus
+    resultLastError
+    resultMetadata
+    resultFingerprint
+    providerHealthStateId
+    providerHealthStateFingerprint
+    createdAt
+    updatedAt
+  }
+}`,
+};
+
+export const getCopilotProviderHealthProbeAttemptsQuery = {
+  id: 'getCopilotProviderHealthProbeAttemptsQuery' as const,
+  op: 'getCopilotProviderHealthProbeAttempts',
+  query: `query getCopilotProviderHealthProbeAttempts($workspaceId: String!, $limit: SafeInt, $filter: CopilotProviderHealthProbeAttemptFilterInput) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      providerHealthProbeAttempts(filter: $filter, limit: $limit) {
+        id
+        providerId
+        providerType
+        scopeType
+        workspaceId
+        actorId
+        providerRegistryRevisionId
+        providerRegistryRevisionFingerprint
+        providerProfileSource
+        providerProfileFingerprint
+        providerProfileSnapshot
+        requestFingerprint
+        status
+        attemptCount
+        maxAttempts
+        scheduledAt
+        workerLeaseId
+        workerLeaseExpiresAt
+        checkedAt
+        completedAt
+        deadLetteredAt
+        failureCode
+        failureMessage
+        resultStatus
+        resultLastError
+        resultMetadata
+        resultFingerprint
+        providerHealthStateId
+        providerHealthStateFingerprint
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}`,
+};
+
 export const copilotQuotaQuery = {
   id: 'copilotQuotaQuery' as const,
   op: 'copilotQuota',
@@ -5503,6 +5428,164 @@ export const controlCopilotRepairExecutionMutation = {
 }`,
 };
 
+export const getCopilotRepairExecutionsQuery = {
+  id: 'getCopilotRepairExecutionsQuery' as const,
+  op: 'getCopilotRepairExecutions',
+  query: `query getCopilotRepairExecutions($workspaceId: String!, $limit: SafeInt, $filter: CopilotRepairExecutionListFilterInput) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      repairExecutions(filter: $filter, limit: $limit) {
+        actorId
+        approvalRecordFingerprint
+        approvalState
+        auditEventCount
+        auditEvents {
+          actorId
+          createdAt
+          eventFingerprint
+          eventType
+          executionRequestId
+          id
+          metadata
+          workspaceId
+        }
+        auditEventFingerprint
+        candidateEvidenceSetFingerprint
+        completedAt
+        createdAt
+        failureCode
+        failureMessage
+        id
+        idempotencyFingerprint
+        idempotencyKey
+        lastAttemptAt
+        permissionStatus
+        promptName
+        queuedAt
+        repairJobFingerprint
+        requestFingerprint
+        requestedAction
+        runtimeResult {
+          executor
+          message
+          sideEffectsApplied
+          sideEffectFingerprint
+          sideEffectKind
+          sideEffectRecordId
+          sideEffectSummary
+          version
+        }
+        sideEffectCount
+        sideEffects {
+          actorId
+          appliedAt
+          createdAt
+          executionRequestId
+          executorPayloadFingerprint
+          id
+          sideEffectFingerprint
+          sideEffectKind
+          sideEffectRecordId
+          sideEffectSummary
+          workerAttempt
+          workerLeaseId
+          workspaceId
+        }
+        status
+        targetLocatorFingerprint
+        taskRouteEvidenceSetFingerprint
+        updatedAt
+        workerAttempt
+        workerLeaseExpiresAt
+        workerLeaseId
+        workerMaxAttempts
+        workspaceId
+        agentRun {
+          actorId
+          completedAt
+          createdAt
+          evidenceFingerprint
+          executionResultCount
+          executionResults {
+            actorId
+            adapterWorkflow
+            completedAt
+            createdAt
+            executor
+            failureCode
+            failureMessage
+            id
+            resultFingerprint
+            resultPayload
+            resultStatus
+            runId
+            sideEffectMode
+            sideEffectsApplied
+            sourceId
+            sourceType
+            summary
+            workerAttempt
+            workerLeaseId
+            workflow
+            workspaceId
+          }
+          failureCode
+          failureMessage
+          id
+          lastAttemptAt
+          queuedAt
+          sourceId
+          sourceType
+          startedAt
+          status
+          targetFingerprint
+          timelineFingerprint
+          title
+          updatedAt
+          workerAttempt
+          workerLeaseExpiresAt
+          workerLeaseId
+          workerMaxAttempts
+          workflow
+          workspaceId
+          steps {
+            actorId
+            completedAt
+            createdAt
+            evidenceFingerprint
+            id
+            order
+            outputSummary
+            runId
+            startedAt
+            status
+            stepKey
+            stepType
+            title
+            updatedAt
+            workspaceId
+          }
+          timelineEvents {
+            actorId
+            createdAt
+            eventFingerprint
+            eventType
+            id
+            ordinal
+            payload
+            runId
+            status
+            stepId
+            summary
+            workspaceId
+          }
+        }
+      }
+    }
+  }
+}`,
+};
+
 export const cleanupCopilotSessionMutation = {
   id: 'cleanupCopilotSessionMutation' as const,
   op: 'cleanupCopilotSession',
@@ -5727,11 +5810,11 @@ export const createCopilotSupportBundleMutation = {
 }`,
 };
 
-export const authorizeCopilotSupportBundleDownloadMutation = {
-  id: 'authorizeCopilotSupportBundleDownloadMutation' as const,
-  op: 'authorizeCopilotSupportBundleDownload',
-  query: `mutation authorizeCopilotSupportBundleDownload($input: CopilotSupportBundleDownloadAuthorizeInput!) {
-  authorizeCopilotSupportBundleDownload(input: $input) {
+export const acknowledgeCopilotSupportBundleDirectDownloadMutation = {
+  id: 'acknowledgeCopilotSupportBundleDirectDownloadMutation' as const,
+  op: 'acknowledgeCopilotSupportBundleDirectDownload',
+  query: `mutation acknowledgeCopilotSupportBundleDirectDownload($input: CopilotSupportBundleDirectDownloadAcknowledgeInput!) {
+  acknowledgeCopilotSupportBundleDirectDownload(input: $input) {
     actorId
     artifactFingerprint
     artifactFilename
@@ -5755,11 +5838,11 @@ export const authorizeCopilotSupportBundleDownloadMutation = {
 }`,
 };
 
-export const acknowledgeCopilotSupportBundleDirectDownloadMutation = {
-  id: 'acknowledgeCopilotSupportBundleDirectDownloadMutation' as const,
-  op: 'acknowledgeCopilotSupportBundleDirectDownload',
-  query: `mutation acknowledgeCopilotSupportBundleDirectDownload($input: CopilotSupportBundleDirectDownloadAcknowledgeInput!) {
-  acknowledgeCopilotSupportBundleDirectDownload(input: $input) {
+export const authorizeCopilotSupportBundleDownloadMutation = {
+  id: 'authorizeCopilotSupportBundleDownloadMutation' as const,
+  op: 'authorizeCopilotSupportBundleDownload',
+  query: `mutation authorizeCopilotSupportBundleDownload($input: CopilotSupportBundleDownloadAuthorizeInput!) {
+  authorizeCopilotSupportBundleDownload(input: $input) {
     actorId
     artifactFingerprint
     artifactFilename
@@ -6519,7 +6602,7 @@ export const getCurrentUserQuery = {
     }
   }
 }`,
-  deprecations: ["'token' is deprecated: use native session exchange instead"],
+  deprecations: ["'token' is deprecated: use auth session exchange instead"],
 };
 
 export const getDocCreatedByUpdatedByListQuery = {
@@ -7094,6 +7177,85 @@ export const listNotificationsQuery = {
         hasPreviousPage
       }
     }
+  }
+}`,
+};
+
+export const createMcpCredentialMutation = {
+  id: 'createMcpCredentialMutation' as const,
+  op: 'createMcpCredential',
+  query: `mutation createMcpCredential($input: CreateMcpCredentialInput!) {
+  createMcpCredential(input: $input) {
+    credential {
+      id
+      name
+      workspaceId
+      accessMode
+      fingerprint
+      createdAt
+      expiresAt
+      lastUsedAt
+      revokedAt
+      graceEndsAt
+      status
+    }
+    token
+  }
+}`,
+};
+
+export const mcpCredentialsQuery = {
+  id: 'mcpCredentialsQuery' as const,
+  op: 'mcpCredentials',
+  query: `query mcpCredentials($workspaceId: String!) {
+  mcpCredentialReadWriteAvailable
+  mcpCredentials(workspaceId: $workspaceId) {
+    id
+    name
+    workspaceId
+    accessMode
+    fingerprint
+    createdAt
+    expiresAt
+    lastUsedAt
+    revokedAt
+    graceEndsAt
+    status
+  }
+}`,
+};
+
+export const revokeMcpCredentialMutation = {
+  id: 'revokeMcpCredentialMutation' as const,
+  op: 'revokeMcpCredential',
+  query: `mutation revokeMcpCredential($id: ID!, $workspaceId: String!) {
+  revokeMcpCredential(id: $id, workspaceId: $workspaceId)
+}`,
+};
+
+export const rotateMcpCredentialMutation = {
+  id: 'rotateMcpCredentialMutation' as const,
+  op: 'rotateMcpCredential',
+  query: `mutation rotateMcpCredential($id: ID!, $workspaceId: String!, $expirationDays: Int!) {
+  rotateMcpCredential(
+    id: $id
+    workspaceId: $workspaceId
+    expirationDays: $expirationDays
+  ) {
+    credential {
+      id
+      name
+      workspaceId
+      accessMode
+      fingerprint
+      createdAt
+      expiresAt
+      lastUsedAt
+      revokedAt
+      graceEndsAt
+      status
+    }
+    token
   }
 }`,
 };
