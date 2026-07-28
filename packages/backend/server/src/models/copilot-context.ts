@@ -348,6 +348,7 @@ export class CopilotContextModel extends BaseModel {
     workspaceId: string,
     topK: number,
     threshold: number,
+    readablePredicate: Prisma.Sql,
     matchDocIds?: string[]
   ): Promise<DocChunkSimilarity[]> {
     const similarityChunks = await this.db.$queryRaw<Array<DocChunkSimilarity>>`
@@ -364,6 +365,7 @@ export class CopilotContextModel extends BaseModel {
       WHERE
         w."workspace_id" = ${workspaceId}
         AND i."doc_id" IS NULL
+        AND ${readablePredicate}
         AND (w."embedding" <=> ${embedding}::vector) <= ${threshold}
       ORDER BY "distance" ASC
       LIMIT ${topK};

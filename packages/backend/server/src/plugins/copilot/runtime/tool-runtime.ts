@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { Config } from '../../../base';
 import { DocReader, DocWriter } from '../../../core/doc';
-import { PermissionAccess } from '../../../core/permission';
+import { PermissionAccess, PermissionService } from '../../../core/permission';
 import { Models } from '../../../models';
 import { IndexerService } from '../../indexer';
 import type { NodeTextMiddleware } from '../config';
@@ -49,6 +49,7 @@ export class ToolRuntime {
   constructor(
     private readonly config: Config,
     private readonly ac: PermissionAccess,
+    private readonly permission: PermissionService,
     private readonly context: CopilotContextService,
     private readonly docReader: DocReader,
     private readonly docWriter: DocWriter,
@@ -136,6 +137,7 @@ export class ToolRuntime {
           if (this.config.indexer.enabled) {
             const searchDocs = buildDocKeywordSearchGetter(
               this.ac,
+              this.permission,
               this.indexerService,
               this.models
             );

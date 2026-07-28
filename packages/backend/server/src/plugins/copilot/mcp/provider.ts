@@ -4,7 +4,7 @@ import { pick } from 'lodash-es';
 import z from 'zod/v3';
 
 import { DocReader, DocWriter } from '../../../core/doc';
-import { PermissionAccess } from '../../../core/permission';
+import { PermissionAccess, PermissionService } from '../../../core/permission';
 import { clearEmbeddingChunk } from '../../../models';
 import { IndexerService } from '../../indexer';
 import { CopilotContextService } from '../context/service';
@@ -101,6 +101,7 @@ function defineTool<T extends z.ZodTypeAny>(
 export class WorkspaceMcpProvider {
   constructor(
     private readonly ac: PermissionAccess,
+    private readonly permission: PermissionService,
     private readonly reader: DocReader,
     private readonly writer: DocWriter,
     private readonly context: CopilotContextService,
@@ -178,7 +179,9 @@ export class WorkspaceMcpProvider {
           workspaceId,
           trimmed,
           5,
-          options.signal
+          options.signal,
+          undefined,
+          { userId }
         );
 
         const abortedAfterMatch = abortIfNeeded(options.signal);
@@ -226,7 +229,17 @@ export class WorkspaceMcpProvider {
         const trimmed = query.trim();
         if (!trimmed) return toolError('Query is required for keyword search.');
 
-        let docs = await this.indexer.searchDocsByKeyword(workspaceId, trimmed);
+        const docIds = await this.permission.listReadableDocIds({
+          userId,
+          workspaceId,
+        });
+        let docs = await this.indexer.searchDocsByKeyword(
+          workspaceId,
+          trimmed,
+          {
+            docIds,
+          }
+        );
 
         const abortedAfterSearch = abortIfNeeded(options.signal);
         if (abortedAfterSearch) return abortedAfterSearch;

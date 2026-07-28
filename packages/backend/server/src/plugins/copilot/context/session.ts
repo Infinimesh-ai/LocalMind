@@ -1,5 +1,7 @@
+import { Prisma } from '@prisma/client';
 import { nanoid } from 'nanoid';
 
+import { PermissionService } from '../../../core/permission';
 import {
   ContextBlob,
   ContextCategories,
@@ -23,6 +25,7 @@ export class ContextSession implements AsyncDisposable {
     private readonly contextId: string,
     private readonly config: ContextConfig,
     private readonly models: Models,
+    private readonly permission: PermissionService,
     private readonly dispatcher?: (config: ContextConfig) => Promise<void>
   ) {}
 
@@ -83,6 +86,18 @@ export class ContextSession implements AsyncDisposable {
       ...routeContext,
       featureKind: 'embedding',
     };
+  }
+
+  private readableDocPredicate(routeContext?: EmbeddingRouteContext) {
+    if (!routeContext?.userId) {
+      throw new Error('Document embedding search requires a user id.');
+    }
+    return this.permission.docReadableSqlPredicate({
+      userId: routeContext.userId,
+      workspaceId: this.workspaceId,
+      action: 'Doc.Read',
+      docIdColumn: Prisma.raw('w."doc_id"'),
+    });
   }
 
   async addCategoryRecord(type: ContextCategories, id: string, docs: string[]) {
@@ -344,6 +359,7 @@ export class ContextSession implements AsyncDisposable {
     routeContext?: EmbeddingRouteContext
   ) {
     if (!this.client) return [];
+    const readablePredicate = this.readableDocPredicate(routeContext);
     const options = this.embeddingOptions(signal, routeContext);
     const embedding = await this.client.getEmbedding(content, options);
     if (!embedding) return [];
@@ -355,13 +371,15 @@ export class ContextSession implements AsyncDisposable {
         this.workspaceId,
         topK * 2,
         scopedThreshold,
+        readablePredicate,
         docIds
       ),
       this.models.copilotContext.matchWorkspaceEmbedding(
         embedding,
         this.workspaceId,
         topK * 2,
-        threshold
+        threshold,
+        readablePredicate
       ),
     ]);
 

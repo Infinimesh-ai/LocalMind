@@ -169,9 +169,10 @@ export async function matchFiles(
 
 export async function matchWorkspaceDocs(
   app: TestingApp,
-  contextId: string,
+  contextId: string | undefined,
   content: string,
-  limit: number
+  limit: number,
+  workspaceId?: string
 ): Promise<
   | {
       docId: string;
@@ -183,7 +184,7 @@ export async function matchWorkspaceDocs(
 > {
   const res = await app.gql({
     query: matchWorkspaceDocsQuery,
-    variables: { contextId, content, limit, threshold: 1 },
+    variables: { contextId, workspaceId, content, limit, threshold: 1 },
   });
 
   return res.currentUser?.copilot?.contexts?.[0]?.matchWorkspaceDocs;

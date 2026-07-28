@@ -999,13 +999,18 @@ export class CopilotContextResolver {
       }
 
       if (!context.id) {
-        return await this.context.matchWorkspaceDocs(
+        const chunks = await this.context.matchWorkspaceDocs(
           context.workspaceId,
           content,
           limit,
           getSignal(ctx.req).signal,
-          threshold
+          threshold,
+          { userId: user.id }
         );
+        return await this.ac
+          .user(user.id)
+          .workspace(context.workspaceId)
+          .docs(chunks, 'Doc.Read');
       }
 
       const session = await getSession(
@@ -1020,20 +1025,13 @@ export class CopilotContextResolver {
         limit,
         getSignal(ctx.req).signal,
         scopedThreshold,
-        threshold
+        threshold,
+        { userId: user.id }
       );
-      const docsMap = await Promise.all(
-        chunks.map(c =>
-          this.ac
-            .user(user.id)
-            .workspace(session.workspaceId)
-            .doc(c.docId)
-            .can('Doc.Read')
-            .then(ret => [c.docId, ret] as const)
-        )
-      ).then(r => new Map(r));
-
-      return chunks.filter(c => docsMap.get(c.docId));
+      return await this.ac
+        .user(user.id)
+        .workspace(session.workspaceId)
+        .docs(chunks, 'Doc.Read');
     } catch (e: any) {
       // passthrough user friendly error
       if (e instanceof UserFriendlyError) {

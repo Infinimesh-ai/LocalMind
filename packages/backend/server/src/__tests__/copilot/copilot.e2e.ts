@@ -13,7 +13,12 @@ import { ConfigModule } from '../../base/config';
 import { AuthService } from '../../core/auth';
 import { DocReader } from '../../core/doc';
 import { QuotaService } from '../../core/quota';
-import { ContextCategories, DocRole, WorkspaceRole } from '../../models';
+import {
+  ContextCategories,
+  CopilotContextModel,
+  DocRole,
+  WorkspaceRole,
+} from '../../models';
 import { CompatSubmissionStore } from '../../plugins/copilot/compat/submission-store';
 import { CopilotContextService } from '../../plugins/copilot/context';
 import {
@@ -1780,6 +1785,74 @@ test('should skip unauthorized docs when adding context category', async t => {
   );
   t.deepEqual(
     ret?.collections?.[0]?.docs.map(doc => doc.id),
+    [readableSnapshot.id]
+  );
+});
+
+test('global context search excludes unauthorized docs before reranking', async t => {
+  const { app, context, u1 } = t.context;
+  const member = await app.signupV1();
+  await app.switchUser(u1);
+
+  const { id: workspaceId } = await createWorkspace(app);
+  await app.create(Mockers.WorkspaceUser, {
+    workspaceId,
+    userId: member.id,
+    type: WorkspaceRole.Collaborator,
+  });
+  const readableSnapshot = await app.create(Mockers.DocSnapshot, {
+    workspaceId,
+    user: u1,
+  });
+  const hiddenSnapshot = await app.create(Mockers.DocSnapshot, {
+    workspaceId,
+    user: u1,
+  });
+  await app.create(Mockers.DocMeta, {
+    workspaceId,
+    docId: readableSnapshot.id,
+    title: 'readable-doc',
+  });
+  await app.create(Mockers.DocMeta, {
+    workspaceId,
+    docId: hiddenSnapshot.id,
+    title: 'hidden-doc',
+    defaultRole: DocRole.None,
+  });
+
+  const embeddingClient = new MockEmbeddingClient();
+  const rerank = Sinon.spy(embeddingClient, 'reRank');
+  Sinon.stub(context, 'embeddingClient').get(() => embeddingClient);
+  const contextModel = app.get(CopilotContextModel);
+  for (const [docId, content] of [
+    [readableSnapshot.id, 'readable content'],
+    [hiddenSnapshot.id, 'hidden content'],
+  ]) {
+    await contextModel.insertWorkspaceEmbedding(workspaceId, docId, [
+      {
+        index: 0,
+        content,
+        embedding: Array.from({ length: 1024 }, () => 1),
+      },
+    ]);
+  }
+
+  await app.switchUser(member);
+  const result = await matchWorkspaceDocs(
+    app,
+    undefined,
+    'content',
+    10,
+    workspaceId
+  );
+
+  t.deepEqual(
+    result?.map(chunk => chunk.docId),
+    [readableSnapshot.id]
+  );
+  const rerankedChunks = rerank.firstCall?.args[1] ?? [];
+  t.deepEqual(
+    rerankedChunks.flatMap(chunk => ('docId' in chunk ? [chunk.docId] : [])),
     [readableSnapshot.id]
   );
 });

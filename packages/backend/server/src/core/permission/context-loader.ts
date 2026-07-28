@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 
 import type { PermissionEvaluationInputV1 } from '../../native';
@@ -258,6 +258,24 @@ export class PermissionContextLoader {
       select: { id: true },
     });
     return !!workspace;
+  }
+
+  async listReadableDocIds(workspaceId: string, predicate: Prisma.Sql) {
+    const rows = await this.db.$queryRaw<{ docId: string }[]>`
+      WITH candidate_docs AS (
+        SELECT "workspace_pages"."page_id" AS doc_id
+        FROM "workspace_pages"
+        WHERE "workspace_pages"."workspace_id" = ${workspaceId}
+        UNION
+        SELECT "snapshots"."guid" AS doc_id
+        FROM "snapshots"
+        WHERE "snapshots"."workspace_id" = ${workspaceId}
+      )
+      SELECT candidate_docs.doc_id AS "docId"
+      FROM candidate_docs
+      WHERE ${predicate}
+    `;
+    return rows.map(row => row.docId);
   }
 
   private async docPolicies(workspaceId: string, docIds: string[]) {
