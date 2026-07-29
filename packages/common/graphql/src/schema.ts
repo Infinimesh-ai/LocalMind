@@ -624,6 +624,14 @@ export interface Copilot {
   /** List registered Agent Runtime workflow adapter capabilities for standalone run diagnostics */
   agentRuntimeWorkflowAdapters: Array<CopilotAgentRuntimeWorkflowAdapterType>;
   chats: PaginatedCopilotHistoriesType;
+  /** List authorized rules, automatic memories, and project summaries */
+  contextMemories: Array<CopilotContextMemoryType>;
+  /** List immutable context planner revisions and checkpoint activity */
+  contextPlannerStrategies: Array<CopilotContextStrategyType>;
+  /** List context projects whose documents the current user can access */
+  contextProjects: Array<CopilotContextProjectType>;
+  /** Get the current user context preferences for this workspace */
+  contextSettings: CopilotContextSettingsType;
   /** Get the context list of a session */
   contexts: Array<CopilotContext>;
   /** @deprecated use `chats` instead */
@@ -679,6 +687,15 @@ export interface CopilotChatsArgs {
   docId?: InputMaybe<Scalars['String']['input']>;
   options?: InputMaybe<QueryChatHistoriesInput>;
   pagination: PaginationInput;
+}
+
+export interface CopilotContextMemoriesArgs {
+  docId?: InputMaybe<Scalars['String']['input']>;
+  includeDisabled?: InputMaybe<Scalars['Boolean']['input']>;
+}
+
+export interface CopilotContextProjectsArgs {
+  includeArchived?: InputMaybe<Scalars['Boolean']['input']>;
 }
 
 export interface CopilotContextsArgs {
@@ -1147,6 +1164,53 @@ export interface CopilotContextFileNotSupportedDataType {
   __typename?: 'CopilotContextFileNotSupportedDataType';
   fileName: Scalars['String']['output'];
   message: Scalars['String']['output'];
+}
+
+export interface CopilotContextMemoryType {
+  __typename?: 'CopilotContextMemoryType';
+  content: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  docId: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  kind: Scalars['String']['output'];
+  ownerUserId: Scalars['String']['output'];
+  projectId: Maybe<Scalars['String']['output']>;
+  scope: Scalars['String']['output'];
+  sourceSessionId: Maybe<Scalars['String']['output']>;
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  visibility: Scalars['String']['output'];
+  workspaceId: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotContextProjectType {
+  __typename?: 'CopilotContextProjectType';
+  canManage: Scalars['Boolean']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  createdByUserId: Maybe<Scalars['String']['output']>;
+  description: Scalars['String']['output'];
+  documentCount: Scalars['Int']['output'];
+  documentIds: Array<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface CopilotContextSettingsType {
+  __typename?: 'CopilotContextSettingsType';
+  autoMemoryEnabled: Scalars['Boolean']['output'];
+}
+
+export interface CopilotContextStrategyType {
+  __typename?: 'CopilotContextStrategyType';
+  checkpointCount: Scalars['Int']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  fingerprint: Scalars['String']['output'];
+  lastCheckpointAt: Maybe<Scalars['DateTime']['output']>;
+  status: Scalars['String']['output'];
+  version: Scalars['String']['output'];
 }
 
 export interface CopilotDocNotFoundDataType {
@@ -3074,7 +3138,7 @@ export interface CopilotProviderRegistryPublishInput {
   idempotencyKey?: InputMaybe<Scalars['String']['input']>;
   modelDefinitions?: InputMaybe<Scalars['JSON']['input']>;
   models?: InputMaybe<Array<Scalars['String']['input']>>;
-  priority?: InputMaybe<Scalars['Float']['input']>;
+  priority?: InputMaybe<Scalars['Int']['input']>;
   privacy?: InputMaybe<Scalars['String']['input']>;
   providerId: Scalars['String']['input'];
   revision?: InputMaybe<Scalars['String']['input']>;
@@ -3088,6 +3152,7 @@ export interface CopilotProviderRegistryRevisionType {
   fallbackSourceChain: Scalars['JSON']['output'];
   fingerprint: Scalars['String']['output'];
   id: Scalars['String']['output'];
+  /** Immediate durable no-network provider health probe attempt created for this workspace provider revision. */
   providerHealthProbeAttempt: Maybe<CopilotProviderHealthProbeAttemptType>;
   providerId: Scalars['String']['output'];
   providerProfile: Scalars['JSON']['output'];
@@ -3817,6 +3882,22 @@ export interface CreateCheckoutSessionInput {
   recurring?: InputMaybe<SubscriptionRecurring>;
   successCallbackLink: Scalars['String']['input'];
   variant?: InputMaybe<SubscriptionVariant>;
+}
+
+export interface CreateCopilotContextMemoryInput {
+  content: Scalars['String']['input'];
+  docId?: InputMaybe<Scalars['String']['input']>;
+  kind: Scalars['String']['input'];
+  projectId?: InputMaybe<Scalars['String']['input']>;
+  scope: Scalars['String']['input'];
+  workspaceId?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface CreateCopilotContextProjectInput {
+  description?: InputMaybe<Scalars['String']['input']>;
+  documentIds: Array<Scalars['String']['input']>;
+  name: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
 }
 
 export interface CreateMcpCredentialInput {
@@ -4755,6 +4836,8 @@ export interface Mutation {
   createComment: CommentObjectType;
   /** Create a context session */
   createCopilotContext: Scalars['String']['output'];
+  createCopilotContextMemory: CopilotContextMemoryType;
+  createCopilotContextProject: CopilotContextProjectType;
   /** Create a chat message */
   createCopilotMessage: Scalars['String']['output'];
   /**
@@ -4785,6 +4868,8 @@ export interface Mutation {
   deleteBlob: Scalars['Boolean']['output'];
   /** Delete a comment */
   deleteComment: Scalars['Boolean']['output'];
+  deleteCopilotContextMemory: Scalars['Boolean']['output'];
+  deleteCopilotContextProject: Scalars['Boolean']['output'];
   /** Delete a reply */
   deleteReply: Scalars['Boolean']['output'];
   /** Delete a user account */
@@ -4879,6 +4964,9 @@ export interface Mutation {
   updateCalendarAccount: Maybe<CalendarAccountObjectType>;
   /** Update a comment content */
   updateComment: Scalars['Boolean']['output'];
+  updateCopilotContextMemory: CopilotContextMemoryType;
+  updateCopilotContextProject: CopilotContextProjectType;
+  updateCopilotContextSettings: CopilotContextSettingsType;
   /** Update a chat session */
   updateCopilotSession: Scalars['String']['output'];
   updateDocDefaultRole: Scalars['Boolean']['output'];
@@ -5036,6 +5124,14 @@ export interface MutationCreateCopilotContextArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationCreateCopilotContextMemoryArgs {
+  input: CreateCopilotContextMemoryInput;
+}
+
+export interface MutationCreateCopilotContextProjectArgs {
+  input: CreateCopilotContextProjectInput;
+}
+
 export interface MutationCreateCopilotMessageArgs {
   options: CreateChatMessageInput;
 }
@@ -5102,6 +5198,14 @@ export interface MutationDeleteBlobArgs {
 
 export interface MutationDeleteCommentArgs {
   id: Scalars['String']['input'];
+}
+
+export interface MutationDeleteCopilotContextMemoryArgs {
+  id: Scalars['ID']['input'];
+}
+
+export interface MutationDeleteCopilotContextProjectArgs {
+  id: Scalars['ID']['input'];
 }
 
 export interface MutationDeleteReplyArgs {
@@ -5390,6 +5494,18 @@ export interface MutationUpdateCalendarAccountArgs {
 
 export interface MutationUpdateCommentArgs {
   input: CommentUpdateInput;
+}
+
+export interface MutationUpdateCopilotContextMemoryArgs {
+  input: UpdateCopilotContextMemoryInput;
+}
+
+export interface MutationUpdateCopilotContextProjectArgs {
+  input: UpdateCopilotContextProjectInput;
+}
+
+export interface MutationUpdateCopilotContextSettingsArgs {
+  input: UpdateCopilotContextSettingsInput;
 }
 
 export interface MutationUpdateCopilotSessionArgs {
@@ -6322,6 +6438,25 @@ export interface UpdateChatSessionInput {
   /** The prompt name to use for the session */
   promptName?: InputMaybe<Scalars['String']['input']>;
   sessionId: Scalars['String']['input'];
+}
+
+export interface UpdateCopilotContextMemoryInput {
+  content?: InputMaybe<Scalars['String']['input']>;
+  id: Scalars['ID']['input'];
+  status?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface UpdateCopilotContextProjectInput {
+  description?: InputMaybe<Scalars['String']['input']>;
+  documentIds?: InputMaybe<Array<Scalars['String']['input']>>;
+  id: Scalars['ID']['input'];
+  name?: InputMaybe<Scalars['String']['input']>;
+  status?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface UpdateCopilotContextSettingsInput {
+  autoMemoryEnabled: Scalars['Boolean']['input'];
+  workspaceId: Scalars['String']['input'];
 }
 
 export interface UpdateDocDefaultRoleInput {
@@ -8557,6 +8692,63 @@ export type CreateCopilotContextMutation = {
   createCopilotContext: string;
 };
 
+export type CopilotContextDashboardGetQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  includeDisabled?: InputMaybe<Scalars['Boolean']['input']>;
+}>;
+
+export type CopilotContextDashboardGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      contextSettings: {
+        __typename?: 'CopilotContextSettingsType';
+        autoMemoryEnabled: boolean;
+      };
+      contextPlannerStrategies: Array<{
+        __typename?: 'CopilotContextStrategyType';
+        version: string;
+        fingerprint: string;
+        status: string;
+        checkpointCount: number;
+        lastCheckpointAt: string | null;
+        createdAt: string;
+      }>;
+      contextProjects: Array<{
+        __typename?: 'CopilotContextProjectType';
+        id: string;
+        workspaceId: string;
+        createdByUserId: string | null;
+        name: string;
+        description: string;
+        status: string;
+        documentIds: Array<string>;
+        documentCount: number;
+        canManage: boolean;
+        createdAt: string;
+        updatedAt: string;
+      }>;
+      contextMemories: Array<{
+        __typename?: 'CopilotContextMemoryType';
+        id: string;
+        ownerUserId: string;
+        workspaceId: string | null;
+        docId: string | null;
+        projectId: string | null;
+        sourceSessionId: string | null;
+        scope: string;
+        kind: string;
+        status: string;
+        content: string;
+        createdAt: string;
+        updatedAt: string;
+      }>;
+    };
+  } | null;
+};
+
 export type AddContextDocMutationVariables = Exact<{
   options: AddContextDocInput;
 }>;
@@ -8791,6 +8983,157 @@ export type MatchFilesQuery = {
       }>;
     };
   } | null;
+};
+
+export type CopilotContextMemoriesGetQueryVariables = Exact<{
+  workspaceId?: InputMaybe<Scalars['String']['input']>;
+  docId?: InputMaybe<Scalars['String']['input']>;
+  includeDisabled?: InputMaybe<Scalars['Boolean']['input']>;
+}>;
+
+export type CopilotContextMemoriesGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      contextMemories: Array<{
+        __typename?: 'CopilotContextMemoryType';
+        id: string;
+        ownerUserId: string;
+        workspaceId: string | null;
+        docId: string | null;
+        projectId: string | null;
+        sourceSessionId: string | null;
+        scope: string;
+        kind: string;
+        status: string;
+        content: string;
+        createdAt: string;
+        updatedAt: string;
+      }>;
+    };
+  } | null;
+};
+
+export type CopilotContextMemoryCreateMutationVariables = Exact<{
+  input: CreateCopilotContextMemoryInput;
+}>;
+
+export type CopilotContextMemoryCreateMutation = {
+  __typename?: 'Mutation';
+  createCopilotContextMemory: {
+    __typename?: 'CopilotContextMemoryType';
+    id: string;
+    ownerUserId: string;
+    workspaceId: string | null;
+    docId: string | null;
+    projectId: string | null;
+    sourceSessionId: string | null;
+    scope: string;
+    kind: string;
+    status: string;
+    content: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type CopilotContextMemoryDeleteMutationVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+export type CopilotContextMemoryDeleteMutation = {
+  __typename?: 'Mutation';
+  deleteCopilotContextMemory: boolean;
+};
+
+export type CopilotContextMemoryUpdateMutationVariables = Exact<{
+  input: UpdateCopilotContextMemoryInput;
+}>;
+
+export type CopilotContextMemoryUpdateMutation = {
+  __typename?: 'Mutation';
+  updateCopilotContextMemory: {
+    __typename?: 'CopilotContextMemoryType';
+    id: string;
+    ownerUserId: string;
+    workspaceId: string | null;
+    docId: string | null;
+    projectId: string | null;
+    sourceSessionId: string | null;
+    scope: string;
+    kind: string;
+    status: string;
+    content: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type CopilotContextProjectCreateMutationVariables = Exact<{
+  input: CreateCopilotContextProjectInput;
+}>;
+
+export type CopilotContextProjectCreateMutation = {
+  __typename?: 'Mutation';
+  createCopilotContextProject: {
+    __typename?: 'CopilotContextProjectType';
+    id: string;
+    workspaceId: string;
+    createdByUserId: string | null;
+    name: string;
+    description: string;
+    status: string;
+    documentIds: Array<string>;
+    documentCount: number;
+    canManage: boolean;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type CopilotContextProjectDeleteMutationVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+export type CopilotContextProjectDeleteMutation = {
+  __typename?: 'Mutation';
+  deleteCopilotContextProject: boolean;
+};
+
+export type CopilotContextProjectUpdateMutationVariables = Exact<{
+  input: UpdateCopilotContextProjectInput;
+}>;
+
+export type CopilotContextProjectUpdateMutation = {
+  __typename?: 'Mutation';
+  updateCopilotContextProject: {
+    __typename?: 'CopilotContextProjectType';
+    id: string;
+    workspaceId: string;
+    createdByUserId: string | null;
+    name: string;
+    description: string;
+    status: string;
+    documentIds: Array<string>;
+    documentCount: number;
+    canManage: boolean;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type CopilotContextSettingsUpdateMutationVariables = Exact<{
+  input: UpdateCopilotContextSettingsInput;
+}>;
+
+export type CopilotContextSettingsUpdateMutation = {
+  __typename?: 'Mutation';
+  updateCopilotContextSettings: {
+    __typename?: 'CopilotContextSettingsType';
+    autoMemoryEnabled: boolean;
+  };
 };
 
 export type QueueWorkspaceEmbeddingMutationVariables = Exact<{
@@ -15960,6 +16303,11 @@ export type Queries =
       response: GetCopilotAgentRunsQuery;
     }
   | {
+      name: 'copilotContextDashboardGetQuery';
+      variables: CopilotContextDashboardGetQueryVariables;
+      response: CopilotContextDashboardGetQuery;
+    }
+  | {
       name: 'listContextObjectQuery';
       variables: ListContextObjectQueryVariables;
       response: ListContextObjectQuery;
@@ -15983,6 +16331,11 @@ export type Queries =
       name: 'matchFilesQuery';
       variables: MatchFilesQueryVariables;
       response: MatchFilesQuery;
+    }
+  | {
+      name: 'copilotContextMemoriesGetQuery';
+      variables: CopilotContextMemoriesGetQueryVariables;
+      response: CopilotContextMemoriesGetQuery;
     }
   | {
       name: 'getCopilotHistoryIdsQuery';
@@ -16515,6 +16868,41 @@ export type Mutations =
       name: 'removeContextFileMutation';
       variables: RemoveContextFileMutationVariables;
       response: RemoveContextFileMutation;
+    }
+  | {
+      name: 'copilotContextMemoryCreateMutation';
+      variables: CopilotContextMemoryCreateMutationVariables;
+      response: CopilotContextMemoryCreateMutation;
+    }
+  | {
+      name: 'copilotContextMemoryDeleteMutation';
+      variables: CopilotContextMemoryDeleteMutationVariables;
+      response: CopilotContextMemoryDeleteMutation;
+    }
+  | {
+      name: 'copilotContextMemoryUpdateMutation';
+      variables: CopilotContextMemoryUpdateMutationVariables;
+      response: CopilotContextMemoryUpdateMutation;
+    }
+  | {
+      name: 'copilotContextProjectCreateMutation';
+      variables: CopilotContextProjectCreateMutationVariables;
+      response: CopilotContextProjectCreateMutation;
+    }
+  | {
+      name: 'copilotContextProjectDeleteMutation';
+      variables: CopilotContextProjectDeleteMutationVariables;
+      response: CopilotContextProjectDeleteMutation;
+    }
+  | {
+      name: 'copilotContextProjectUpdateMutation';
+      variables: CopilotContextProjectUpdateMutationVariables;
+      response: CopilotContextProjectUpdateMutation;
+    }
+  | {
+      name: 'copilotContextSettingsUpdateMutation';
+      variables: CopilotContextSettingsUpdateMutationVariables;
+      response: CopilotContextSettingsUpdateMutation;
     }
   | {
       name: 'queueWorkspaceEmbeddingMutation';

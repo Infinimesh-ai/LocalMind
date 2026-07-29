@@ -138,8 +138,12 @@ test('should insert and search embedding', async t => {
         1,
         1
       );
+      t.true((ret[0]?.distance ?? Infinity) < 0.00001);
       t.snapshot(
-        cleanObject(ret, ['fileId']),
+        cleanObject(ret, ['fileId']).map(result => ({
+          ...result,
+          distance: 0,
+        })),
         'should match workspace file embedding'
       );
     }
@@ -175,7 +179,11 @@ test('should insert and search embedding', async t => {
         1,
         1
       );
-      t.snapshot(cleanObject(ret), 'should match workspace blob embedding');
+      t.true((ret[0]?.distance ?? Infinity) < 0.00001);
+      t.snapshot(
+        cleanObject(ret).map(result => ({ ...result, distance: 0 })),
+        'should match workspace blob embedding'
+      );
     }
 
     await t.context.copilotWorkspace.removeBlob(workspace.id, blobId);

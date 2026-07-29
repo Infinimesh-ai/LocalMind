@@ -78,8 +78,8 @@ import {
   getPromptModelsQuery,
   getWorkspacesQuery,
   type QueryResponse,
-  requestCopilotPromptRegistryRepairExecutionMutation,
   replayCopilotSupportBundleTransferForwardingEventMutation,
+  requestCopilotPromptRegistryRepairExecutionMutation,
   retryCopilotProviderHealthProbeAttemptMutation,
   updateAppConfigMutation,
 } from '@affine/graphql';
@@ -136,10 +136,6 @@ const REPAIR_EXECUTION_STATUSES = [
   'cancelled',
 ] as const;
 const EMPTY_REPAIR_EXECUTION_PAYLOAD_JSON = '{\n  "kind": ""\n}';
-const REPAIR_EXECUTION_DETERMINISTIC_PAYLOAD_FAILURE_CODES = new Set([
-  'invalid_executor_payload',
-  'unsupported_executor_payload',
-]);
 const OPENAI_COMPATIBLE_API_STYLES = [
   'chat_completions',
   'responses',

@@ -6,13 +6,22 @@ import { JOB_SIGNAL, OnJob } from '../../base';
 import { Models } from '../../models';
 import type { CopilotAgentRunRecord } from '../../models/copilot-agent-runtime';
 import {
-  CopilotAgentRuntimeWorkflowRegistry,
   type CopilotAgentRuntimeWorkflowAdapter,
+  CopilotAgentRuntimeWorkflowRegistry,
 } from './agent-runtime-workflow-registry';
 
 const AGENT_RUNTIME_WORKER_LEASE_MS = 5 * 60 * 1000;
 const AGENT_RUNTIME_ADAPTER_RESOLUTION_VERSION =
   'agent-runtime-worker-adapter-resolution/v1';
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'then' in value &&
+    typeof value.then === 'function'
+  );
+}
 
 declare global {
   interface Jobs {
@@ -114,13 +123,13 @@ export class CopilotAgentRuntimeWorker {
               workerAttempt: current.workerAttempt,
             }
           );
-        const execution = adapter.execute({
+        const execution: unknown = adapter.execute({
           run: current,
           workerLeaseId: workerId,
           workerAttempt: current.workerAttempt,
           checkCancellationRequested,
         });
-        if (!execution || typeof execution.then !== 'function') {
+        if (!isPromiseLike(execution)) {
           await this.failInvalidAdapterExecutorResultIfStillLeased(
             current,
             adapter,
@@ -164,15 +173,17 @@ export class CopilotAgentRuntimeWorker {
       message: [
         'Standalone Agent Runtime worker leased this run, but no workflow',
         'adapter is registered for durable execution yet.',
-        `Registered adapters: ${this.workflowRegistry
-          .adapterCapabilities()
-          .map(
-            adapter =>
-              `${adapter.workflow}[steps=${adapter.capabilities.supportedStepTypes.join(
-                '|'
-              )}; sideEffects=${adapter.capabilities.sideEffectMode}]`
-          )
-          .join(', ') || 'none'}.`,
+        `Registered adapters: ${
+          this.workflowRegistry
+            .adapterCapabilities()
+            .map(
+              adapter =>
+                `${adapter.workflow}[steps=${adapter.capabilities.supportedStepTypes.join(
+                  '|'
+                )}; sideEffects=${adapter.capabilities.sideEffectMode}]`
+            )
+            .join(', ') || 'none'
+        }.`,
       ].join(' '),
       adapterResolution: this.unsupportedWorkflowResolution(current),
     });

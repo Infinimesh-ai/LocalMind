@@ -49,7 +49,7 @@ function parseArgs(args: string[]) {
   const overrides: Record<string, any> = {};
   let count: number = 1;
 
-  args.forEach(arg => {
+  args.forEach((arg: string) => {
     let kvSep = arg.indexOf('=');
     if (kvSep) {
       const key = arg.slice(0, kvSep);

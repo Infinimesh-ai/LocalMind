@@ -67,6 +67,9 @@ model User {
   aiProviderRegistryRevisions           AiProviderRegistryRevision[]           @relation("provider_registry_revision_actor")
   aiProviderHealthStates                AiProviderHealthState[]                @relation("provider_health_state_actor")
   aiProviderHealthEvents                AiProviderHealthEvent[]                @relation("provider_health_event_actor")
+  aiContextMemories                     AiContextMemory[]                      @relation("context_memory_owner")
+  aiContextPreferences                  AiContextPreference[]                  @relation("context_preference_user")
+  createdAiContextProjects              AiContextProject[]                     @relation("context_project_creator")
 
   @@index([email])
   @@map("users")
@@ -236,6 +239,9 @@ model Workspace {
   aiProviderRegistryRevisions           AiProviderRegistryRevision[]           @relation("provider_registry_revision_workspace")
   aiProviderHealthStates                AiProviderHealthState[]                @relation("provider_health_state_workspace")
   aiProviderHealthEvents                AiProviderHealthEvent[]                @relation("provider_health_event_workspace")
+  aiContextMemories                     AiContextMemory[]                      @relation("context_memory_workspace")
+  aiContextPreferences                  AiContextPreference[]                  @relation("context_preference_workspace")
+  aiContextProjects                     AiContextProject[]                     @relation("context_project_workspace")
   mcpCredentials                        McpCredential[]
 
   @@index([lastCheckEmbeddings])
@@ -1082,11 +1088,13 @@ model AiSession {
   updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  prompt     AiPrompt           @relation(fields: [promptName], references: [name], onDelete: Cascade)
-  messages   AiSessionMessage[]
-  context    AiContext[]
-  actionRuns AiActionRun[]
+  user               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt             AiPrompt              @relation(fields: [promptName], references: [name], onDelete: Cascade)
+  messages           AiSessionMessage[]
+  context            AiContext[]
+  contextCheckpoints AiContextCheckpoint[]
+  sourceMemories     AiContextMemory[]     @relation("context_memory_source_session")
+  actionRuns         AiActionRun[]
 
   //NOTE:
   // unrecorded index:
@@ -1097,6 +1105,115 @@ model AiSession {
   @@index([userId])
   @@index([userId, workspaceId, docId])
   @@map("ai_sessions_metadata")
+}
+
+model AiContextMemory {
+  id              String   @id @default(uuid()) @db.VarChar
+  ownerUserId     String   @map("owner_user_id") @db.VarChar
+  workspaceId     String?  @map("workspace_id") @db.VarChar
+  docId           String?  @map("doc_id") @db.VarChar
+  projectId       String?  @map("project_id") @db.VarChar
+  sourceSessionId String?  @map("source_session_id") @db.VarChar
+  scope           String   @db.VarChar
+  kind            String   @db.VarChar
+  visibility      String   @default("private") @db.VarChar
+  status          String   @default("active") @db.VarChar
+  content         String   @db.Text
+  fingerprint     String   @db.VarChar
+  metadata        Json     @default("{}") @db.JsonB
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  owner         User              @relation("context_memory_owner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  workspace     Workspace?        @relation("context_memory_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  project       AiContextProject? @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  sourceSession AiSession?        @relation("context_memory_source_session", fields: [sourceSessionId], references: [id], onDelete: SetNull)
+
+  @@index([ownerUserId, status, updatedAt])
+  @@index([workspaceId, docId, status, updatedAt])
+  @@index([projectId, status, updatedAt])
+  @@index([sourceSessionId])
+  @@index([fingerprint])
+  @@map("ai_context_memories")
+}
+
+model AiContextProject {
+  id              String   @id @default(uuid()) @db.VarChar
+  workspaceId     String   @map("workspace_id") @db.VarChar
+  createdByUserId String?  @map("created_by_user_id") @db.VarChar
+  name            String   @db.VarChar
+  description     String   @default("") @db.Text
+  status          String   @default("active") @db.VarChar
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace Workspace             @relation("context_project_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator   User?                 @relation("context_project_creator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  documents AiContextProjectDoc[]
+  memories  AiContextMemory[]
+
+  @@index([workspaceId, status, updatedAt])
+  @@map("ai_context_projects")
+}
+
+model AiContextProjectDoc {
+  projectId String   @map("project_id") @db.VarChar
+  docId     String   @map("doc_id") @db.VarChar
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  project AiContextProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, docId])
+  @@index([docId, projectId])
+  @@map("ai_context_project_docs")
+}
+
+model AiContextCheckpoint {
+  id                     String   @id @default(uuid()) @db.VarChar
+  sessionId              String   @map("session_id") @db.VarChar
+  strategyVersion        String   @map("strategy_version") @db.VarChar
+  strategyFingerprint    String   @map("strategy_fingerprint") @db.VarChar
+  summary                String   @db.Text
+  summarizedMessageCount Int      @default(0) @map("summarized_message_count")
+  sourceFingerprint      String   @map("source_fingerprint") @db.VarChar
+  diagnostics            Json     @default("{}") @db.JsonB
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  session AiSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, strategyVersion])
+  @@index([strategyVersion, updatedAt])
+  @@map("ai_context_checkpoints")
+}
+
+model AiContextPreference {
+  id                String   @id @default(uuid()) @db.VarChar
+  userId            String   @map("user_id") @db.VarChar
+  workspaceId       String   @map("workspace_id") @db.VarChar
+  autoMemoryEnabled Boolean  @default(true) @map("auto_memory_enabled")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user      User      @relation("context_preference_user", fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation("context_preference_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId, updatedAt])
+  @@map("ai_context_preferences")
+}
+
+model AiContextStrategyRevision {
+  id          String   @id @default(uuid()) @db.VarChar
+  version     String   @unique @db.VarChar
+  fingerprint String   @db.VarChar
+  status      String   @db.VarChar
+  config      Json     @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([status, createdAt])
+  @@map("ai_context_strategy_revisions")
 }
 
 model AiActionRun {

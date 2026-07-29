@@ -56,12 +56,12 @@ export class CopilotEmbeddingRealtimeProvider implements OnModuleInit {
 
   @OnEvent('workspace.doc.embed.finished', { suppressError: true })
   async onDocEmbedFinished(payload: Events['workspace.doc.embed.finished']) {
-    await this.publishContext(payload.contextId, 'finished');
+    await this.publishDocEmbeddingProgress(payload, 'finished');
   }
 
   @OnEvent('workspace.doc.embed.failed', { suppressError: true })
   async onDocEmbedFailed(payload: Events['workspace.doc.embed.failed']) {
-    await this.publishContext(payload.contextId, 'failed');
+    await this.publishDocEmbeddingProgress(payload, 'failed');
   }
 
   @OnEvent('workspace.file.embed.finished', { suppressError: true })
@@ -92,6 +92,19 @@ export class CopilotEmbeddingRealtimeProvider implements OnModuleInit {
     const context = await this.models.copilotContext.getConfig(contextId);
     if (!context) return;
     this.publishWorkspace(context.workspaceId, reason);
+  }
+
+  private async publishDocEmbeddingProgress(
+    payload:
+      | Events['workspace.doc.embed.finished']
+      | Events['workspace.doc.embed.failed'],
+    reason: 'finished' | 'failed'
+  ) {
+    if (payload.contextId) {
+      await this.publishContext(payload.contextId, reason);
+      return;
+    }
+    this.publishWorkspace(payload.workspaceId, reason);
   }
 
   private async publishEmbeddingProgress(

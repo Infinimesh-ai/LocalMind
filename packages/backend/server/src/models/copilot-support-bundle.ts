@@ -1452,7 +1452,7 @@ function normalizeHydratedAuditEvents(
 
   return value
     .filter(isSupportBundleRecord)
-    .map(event => ({
+    .map<CopilotSupportBundleAuditEventRecord>(event => ({
       id: String(event.id ?? ''),
       bundleId: String(event.bundleId ?? ''),
       workspaceId: String(event.workspaceId ?? ''),
@@ -1478,7 +1478,7 @@ function normalizeHydratedTransferEvents(
 
   return value
     .filter(isSupportBundleRecord)
-    .map(event => ({
+    .map<CopilotSupportBundleTransferEventRecord>(event => ({
       id: String(event.id ?? ''),
       authorizationId: String(event.authorizationId ?? ''),
       artifactKind:

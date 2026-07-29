@@ -1921,7 +1921,9 @@ export class CopilotRepairExecutionModel extends BaseModel {
       existing.workerLeaseId !== input.workerLeaseId ||
       existing.workerAttempt !== input.workerAttempt
     ) {
-      return null;
+      throw new Error(
+        `Repair execution request is not leased by this worker: ${input.id}`
+      );
     }
 
     const retryScheduled =
@@ -2193,9 +2195,11 @@ export class CopilotRepairExecutionModel extends BaseModel {
     };
     workerLeaseId: string;
   }) {
-    const terminalRequestSnapshot =
-      input.terminalRequestSnapshot ??
-      ({
+    type TerminalRequestSnapshot = NonNullable<
+      typeof input.terminalRequestSnapshot
+    >;
+    const terminalRequestSnapshot: TerminalRequestSnapshot =
+      input.terminalRequestSnapshot ?? {
         completedAt: input.record.completedAt ?? input.appliedAt,
         failureCode: input.record.failureCode,
         failureMessage: input.record.failureMessage,
@@ -2203,7 +2207,7 @@ export class CopilotRepairExecutionModel extends BaseModel {
         status: input.record.status,
         updatedAt: input.record.updatedAt,
         workerLeaseCleared: false,
-      } satisfies NonNullable<typeof input.terminalRequestSnapshot>);
+      };
     const insertedRows = await this.db.$queryRaw<Array<{ id: string }>>`
       INSERT INTO ai_repair_execution_side_effects (
         id,

@@ -15,6 +15,13 @@ export const chatRoot = style({
   minHeight: 0,
 });
 
+export const chatTools = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 4,
+  flexShrink: 0,
+});
+
 export const chatHeader = style({
   display: 'flex',
   alignItems: 'center',

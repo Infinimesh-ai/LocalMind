@@ -18,6 +18,8 @@ import {
   CopilotContextService,
   CopilotEmbeddingRealtimeProvider,
 } from './context';
+import { CopilotContextMemoryResolver } from './context-memory-resolver';
+import { ContextMemoryService } from './context-memory-service';
 import { ConversationInboxService } from './conversation/inbox';
 import { ConversationPolicy } from './conversation/policy';
 import { ConversationStore } from './conversation/store';
@@ -40,6 +42,7 @@ import { CopilotRepairExecutionWorker } from './repair-execution-worker';
 import { CopilotResolver, UserCopilotResolver } from './resolver';
 import { ActionRuntimeBridge } from './runtime/action-runtime-bridge';
 import { CapabilityRuntime } from './runtime/capability-runtime';
+import { ContextPlanner } from './runtime/context-planner';
 import { CopilotExecutionMetrics } from './runtime/execution-metrics';
 import { ExecutionPlanBuilder } from './runtime/execution-plan';
 import { ActionStreamHost } from './runtime/hosts/action-stream-host';
@@ -86,6 +89,7 @@ export const COPILOT_RUNTIME_PROVIDERS = [
   ConversationStore,
   ConversationInboxService,
   ConversationPolicy,
+  ContextMemoryService,
   CopilotAccessPolicy,
   HistoryAttachmentUrlProjector,
   CompatHistoryProjector,
@@ -103,6 +107,7 @@ export const COPILOT_RUNTIME_PROVIDERS = [
   CapabilityPolicyHost,
   ConversationHost,
   CapabilityRuntime,
+  ContextPlanner,
   NativeExecutionEngine,
   TaskPolicy,
   ToolRuntime,
@@ -144,6 +149,7 @@ export const COPILOT_WORKSPACE_PROVIDERS = [
 
 export const COPILOT_RESOLVER_PROVIDERS = [
   CopilotResolver,
+  CopilotContextMemoryResolver,
   UserCopilotResolver,
   CopilotContextRootResolver,
   WorkspaceByokResolver,

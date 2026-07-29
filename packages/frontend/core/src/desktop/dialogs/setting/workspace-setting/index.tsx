@@ -7,6 +7,7 @@ import { ServerDeploymentType } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import {
   AiEmbeddingIcon,
+  AiIcon,
   CollaborationIcon,
   IntegrationsIcon,
   PaymentIcon,
@@ -18,6 +19,7 @@ import { useLiveData, useService } from '@toeverything/infra';
 import { useMemo } from 'react';
 
 import type { SettingSidebarItem, SettingState } from '../types';
+import { AIContextSettings } from './ai-context';
 import { WorkspaceSettingBilling } from './billing';
 import { IntegrationSetting } from './integration';
 import { WorkspaceSettingLicense } from './license';
@@ -59,6 +61,14 @@ export const WorkspaceSetting = ({
       return <IntegrationSetting scrollAnchor={scrollAnchor} />;
     case 'workspace:embedding':
       return <EmbeddingSettings />;
+    case 'workspace:ai-context':
+      return (
+        <AIContextSettings
+          onOpenMembers={() =>
+            onChangeSettingState({ activeTab: 'workspace:members' })
+          }
+        />
+      );
     default:
       return null;
   }
@@ -74,6 +84,8 @@ export const useWorkspaceSettingList = (): SettingSidebarItem[] => {
       c => c.type === ServerDeploymentType.Selfhosted
     )
   );
+  const serverFeatures = useLiveData(serverService.server.features$);
+  const showAIContext = Boolean(serverFeatures?.copilot);
 
   const t = useI18n();
 
@@ -121,6 +133,12 @@ export const useWorkspaceSettingList = (): SettingSidebarItem[] => {
         icon: <AiEmbeddingIcon />,
         testId: 'workspace-setting:embedding',
       },
+      showAIContext && {
+        key: 'workspace:ai-context' as SettingTab,
+        title: 'AI context',
+        icon: <AiIcon />,
+        testId: 'workspace-setting:ai-context',
+      },
       showBilling && {
         key: 'workspace:billing' as SettingTab,
         title: t['com.affine.settings.workspace.billing'](),
@@ -134,7 +152,7 @@ export const useWorkspaceSettingList = (): SettingSidebarItem[] => {
         testId: 'workspace-setting:license',
       },
     ].filter((item): item is SettingSidebarItem => !!item);
-  }, [showBilling, showLicense, t]);
+  }, [showAIContext, showBilling, showLicense, t]);
 
   return items;
 };

@@ -5,6 +5,7 @@ import {
   StorageJSONSchema,
   StorageProviderConfig,
 } from '../../base';
+import type { RegistryRevisionPublishEventRecord } from '../../models/copilot-registry-revision-publish-event';
 import type { LlmBackendConfig, LlmProtocol } from '../../native';
 import {
   AnthropicOfficialConfig,
@@ -27,7 +28,6 @@ import {
   PromptConfigStrictSchema,
   VertexSchema,
 } from './providers/types';
-import type { RegistryRevisionPublishEventRecord } from '../../models/copilot-registry-revision-publish-event';
 
 export type CopilotProviderConfigMap = {
   [CopilotProviderType.OpenAI]: OpenAIConfig;
@@ -143,6 +143,10 @@ export const CopilotModelBackendKindValues = [
   'gemini_vertex',
   'fal',
   'anthropic_vertex',
+  'deepseek',
+  'kimi',
+  'opencode_go',
+  'opencode_zen',
 ] as const;
 
 export const LlmProtocolValues = [

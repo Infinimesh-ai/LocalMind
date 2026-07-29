@@ -33,12 +33,14 @@ declare global {
     }>;
 
     'workspace.doc.embed.failed': {
-      contextId: string;
+      contextId?: string;
+      workspaceId: string;
       docId: string;
     };
 
     'workspace.doc.embed.finished': {
-      contextId: string;
+      contextId?: string;
+      workspaceId: string;
       docId: string;
     };
 

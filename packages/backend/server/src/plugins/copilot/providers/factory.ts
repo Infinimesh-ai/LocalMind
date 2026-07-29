@@ -2,8 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { CopilotQuotaExceeded } from '../../../base';
 import { ServerFeature, ServerService } from '../../../core';
-import { type CopilotAccessContext, CopilotAccessPolicy } from '../access';
 import type { RegistryRevisionPublishEventRecord } from '../../../models/copilot-registry-revision-publish-event';
+import { type CopilotAccessContext, CopilotAccessPolicy } from '../access';
 import type {
   CopilotModelDefinition,
   CopilotProviderPrivacy,
@@ -450,8 +450,7 @@ function routeCandidateModelDefinitionMetadata(
           profileDefinition.registryRevisionSourceChain,
         modelRegistryRevisionSourceChainFingerprint:
           profileDefinition.registryRevisionSourceChainFingerprint,
-        modelRegistryRevisionStatus:
-          profileDefinition.registryRevisionStatus,
+        modelRegistryRevisionStatus: profileDefinition.registryRevisionStatus,
         modelRegistryRevisionWorkspaceId:
           profileDefinition.registryRevisionWorkspaceId,
         modelRegistryRevisionPublishEventCount:

@@ -152,7 +152,6 @@ function registryRevisionPublishEventArrayJson(value: unknown): string {
 function revisionIdsForFamily(
   family: RegistryRevisionPublishEventFamily,
   revisionId: string,
-  registryKey: string,
   registryProviderId?: string | null,
   registryModelId?: string | null
 ) {
@@ -177,12 +176,13 @@ function revisionIdsForFamily(
     modelRegistryRevisionId: family === 'model_registry' ? revisionId : null,
     providerRegistryRevisionId:
       family === 'provider_registry' ? revisionId : null,
-    registryModelId: family === 'model_registry' ? registryModelId : null,
+    registryModelId:
+      family === 'model_registry' ? (registryModelId ?? null) : null,
     registryProviderId:
       family === 'model_registry'
-        ? registryProviderId
+        ? (registryProviderId ?? null)
         : family === 'provider_registry'
-          ? registryProviderId
+          ? (registryProviderId ?? null)
           : null,
   };
 }
@@ -215,7 +215,6 @@ export async function createRegistryRevisionPublishEvent(
   const revisionIds = revisionIdsForFamily(
     input.registryFamily,
     input.revisionId,
-    input.registryKey,
     input.registryProviderId,
     input.registryModelId
   );

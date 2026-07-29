@@ -1,0 +1,18 @@
+mutation copilotContextMemoryCreate(
+  $input: CreateCopilotContextMemoryInput!
+) {
+  createCopilotContextMemory(input: $input) {
+    id
+    ownerUserId
+    workspaceId
+    docId
+    projectId
+    sourceSessionId
+    scope
+    kind
+    status
+    content
+    createdAt
+    updatedAt
+  }
+}

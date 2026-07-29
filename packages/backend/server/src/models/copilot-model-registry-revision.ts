@@ -1382,16 +1382,6 @@ export class CopilotModelRegistryRevisionModel extends BaseModel {
     );
   }
 
-  private async getByWorkspaceRevision(input: {
-    providerId: string;
-    modelId: string;
-    revision: string;
-    workspaceId: string;
-  }) {
-    const row = await this.getWorkspaceRevisionRow(input);
-    return row ? toRevision(row) : null;
-  }
-
   private async getWorkspaceRevisionRow(input: {
     providerId: string;
     modelId: string;

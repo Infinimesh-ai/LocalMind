@@ -3,8 +3,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { JOB_SIGNAL, OnJob } from '../../base';
 import { Models } from '../../models';
 import {
-  PROVIDER_HEALTH_STATE_PROBE_RESULT_MAX_AGE_MS,
   type CopilotProviderHealthProbeAttemptRecord,
+  PROVIDER_HEALTH_STATE_PROBE_RESULT_MAX_AGE_MS,
 } from '../../models/copilot-provider-health-state';
 import { CopilotProviderFactory } from './providers/factory';
 import { providerProfileConfigPathHint } from './providers/provider-registry';
@@ -67,11 +67,9 @@ export class CopilotProviderHealthWorker {
         }
       );
     const staleProbeResults =
-      await this.models.copilotProviderHealthState.clearStaleProbeResultStates(
-        {
-          maxAgeMs: PROVIDER_HEALTH_STATE_PROBE_RESULT_MAX_AGE_MS,
-        }
-      );
+      await this.models.copilotProviderHealthState.clearStaleProbeResultStates({
+        maxAgeMs: PROVIDER_HEALTH_STATE_PROBE_RESULT_MAX_AGE_MS,
+      });
 
     this.logger.log(
       `Persisted ${persistedCount} configured provider health snapshots, cleared ${cleared.length} stale snapshots, and expired ${staleProbeResults.length} stale probe results`
@@ -122,10 +120,7 @@ export class CopilotProviderHealthWorker {
     return result.retryScheduledCount > 0 ? JOB_SIGNAL.Retry : JOB_SIGNAL.Done;
   }
 
-  async processDueProbeAttempts(input: {
-    limit?: number;
-    attemptId?: string;
-  }) {
+  async processDueProbeAttempts(input: { limit?: number; attemptId?: string }) {
     const attempts =
       await this.models.copilotProviderHealthState.leaseDueProviderHealthProbeAttempts(
         {

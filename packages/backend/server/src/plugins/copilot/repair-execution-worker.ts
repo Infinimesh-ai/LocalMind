@@ -14,12 +14,10 @@ import type {
   CopilotRepairExecutionApprovedSideEffectResult,
   CopilotRepairExecutionRecord,
 } from '../../models/copilot-repair-execution';
+import { taskRoutePolicyRevisionFingerprint } from '../../models/copilot-task-route-policy-revision';
 import {
-  taskRoutePolicyRevisionFingerprint,
-} from '../../models/copilot-task-route-policy-revision';
-import {
-  providerProfileConfigPathHint,
   type NormalizedCopilotProviderProfile,
+  providerProfileConfigPathHint,
 } from './providers/provider-registry';
 import { CopilotProviderRegistryService } from './providers/registry-service';
 
@@ -194,9 +192,7 @@ export class CopilotRepairExecutionWorker {
       (payload as Record<string, unknown>).kind ===
         'provider_registry_revision_publish'
     ) {
-      const profile = this.configuredProviderProfileForPayload(
-        payload
-      );
+      const profile = this.configuredProviderProfileForPayload(payload);
       const revision =
         await this.models.copilotProviderRegistryRevision.publishWorkspaceRepairRevision(
           {

@@ -748,6 +748,248 @@ test('should be able to render listed prompt', async t => {
   );
 });
 
+test('context memories should stay private to their owner and scope', async t => {
+  const { auth, db, models, workspace } = t.context;
+  const otherUser = await auth.signUp(
+    `memory-${randomUUID()}@affine.pro`,
+    '123456'
+  );
+  const primaryWorkspace = await workspace.create(userId);
+  const otherWorkspace = await workspace.create(otherUser.id);
+  const memory = models.copilotContextMemory;
+  const projectA = await memory.createProject({
+    workspaceId: primaryWorkspace.id,
+    createdByUserId: userId,
+    name: 'Project A',
+    documentIds: ['doc-a'],
+  });
+  const projectB = await memory.createProject({
+    workspaceId: primaryWorkspace.id,
+    createdByUserId: userId,
+    name: 'Project B',
+    documentIds: ['doc-b'],
+  });
+  const cleanupProject = await memory.createProject({
+    workspaceId: primaryWorkspace.id,
+    createdByUserId: userId,
+    name: 'Document cleanup',
+    documentIds: ['doc-cleanup'],
+  });
+
+  await Promise.all([
+    memory.put({
+      ownerUserId: userId,
+      scope: 'user',
+      kind: 'rule',
+      visibility: 'private',
+      content: 'GLOBAL_VISIBLE_RULE',
+    }),
+    memory.put({
+      ownerUserId: userId,
+      workspaceId: primaryWorkspace.id,
+      scope: 'workspace',
+      kind: 'auto_memory',
+      visibility: 'private',
+      content: 'PRIVATE_WORKSPACE_VISIBLE',
+    }),
+    memory.put({
+      ownerUserId: otherUser.id,
+      workspaceId: primaryWorkspace.id,
+      scope: 'workspace',
+      kind: 'rule',
+      visibility: 'private',
+      content: 'OTHER_USER_RULE_HIDDEN',
+    }),
+    memory.put({
+      ownerUserId: userId,
+      workspaceId: primaryWorkspace.id,
+      projectId: projectA.id,
+      scope: 'project',
+      kind: 'project_summary',
+      visibility: 'private',
+      content: 'PROJECT_A_VISIBLE',
+    }),
+    memory.put({
+      ownerUserId: userId,
+      workspaceId: primaryWorkspace.id,
+      projectId: projectB.id,
+      scope: 'project',
+      kind: 'auto_memory',
+      visibility: 'private',
+      content: 'PROJECT_B_HIDDEN',
+    }),
+    memory.put({
+      ownerUserId: otherUser.id,
+      workspaceId: primaryWorkspace.id,
+      scope: 'workspace',
+      kind: 'auto_memory',
+      visibility: 'private',
+      content: 'OTHER_USER_PRIVATE_HIDDEN',
+    }),
+    memory.put({
+      ownerUserId: userId,
+      workspaceId: otherWorkspace.id,
+      scope: 'workspace',
+      kind: 'auto_memory',
+      visibility: 'private',
+      content: 'OTHER_WORKSPACE_HIDDEN',
+    }),
+    memory.put({
+      ownerUserId: userId,
+      workspaceId: primaryWorkspace.id,
+      scope: 'workspace',
+      kind: 'auto_memory',
+      visibility: 'private',
+      status: 'disabled',
+      content: 'DISABLED_HIDDEN',
+    }),
+    memory.put({
+      ownerUserId: userId,
+      workspaceId: primaryWorkspace.id,
+      docId: 'doc-cleanup',
+      scope: 'document',
+      kind: 'auto_memory',
+      visibility: 'private',
+      content: 'DELETED_DOCUMENT_MEMORY',
+    }),
+  ]);
+
+  const visible = await memory.listVisible({
+    userId,
+    workspaceId: primaryWorkspace.id,
+    docId: 'doc-a',
+    projectIds: [projectA.id],
+  });
+  const contents = visible.map(item => item.content);
+
+  t.deepEqual(contents.toSorted(), [
+    'GLOBAL_VISIBLE_RULE',
+    'PRIVATE_WORKSPACE_VISIBLE',
+    'PROJECT_A_VISIBLE',
+  ]);
+  const allOwned = await memory.listManageable({
+    userId,
+    includeDisabled: true,
+  });
+  t.true(
+    allOwned.some(item => item.content === 'OTHER_WORKSPACE_HIDDEN'),
+    'an account-level management query should include every owner record'
+  );
+  t.false(allOwned.some(item => item.content === 'OTHER_USER_PRIVATE_HIDDEN'));
+
+  t.deepEqual(
+    await memory.removeDocumentReferences({
+      workspaceId: primaryWorkspace.id,
+      docId: 'doc-cleanup',
+    }),
+    { memoryCount: 1, projectDocumentCount: 1 }
+  );
+  t.is((await memory.getProject(cleanupProject.id))?.documents.length, 0);
+  t.false(
+    (
+      await memory.listManageable({
+        userId,
+        includeDisabled: true,
+      })
+    ).some(item => item.content === 'DELETED_DOCUMENT_MEMORY')
+  );
+
+  t.deepEqual(
+    await memory.listProjectIdsForDoc({
+      workspaceId: primaryWorkspace.id,
+      docId: 'doc-a',
+    }),
+    [projectA.id]
+  );
+
+  await memory.updateProject(projectA.id, { status: 'archived' });
+  t.deepEqual(
+    await memory.listProjectIdsForDoc({
+      workspaceId: primaryWorkspace.id,
+      docId: 'doc-a',
+    }),
+    []
+  );
+  await t.throwsAsync(
+    db.aiContextProject.delete({
+      where: { id: projectA.id },
+    })
+  );
+  t.false(await memory.deleteProject(projectA.id));
+  t.true(
+    (
+      await memory.listManageable({
+        userId,
+        workspaceId: primaryWorkspace.id,
+        projectIds: [projectA.id],
+      })
+    ).some(item => item.content === 'PROJECT_A_VISIBLE')
+  );
+  t.truthy(await memory.getProject(projectA.id));
+  t.truthy(
+    await db.aiContextMemory.findFirst({
+      where: {
+        projectId: projectA.id,
+        content: 'PROJECT_A_VISIBLE',
+      },
+    })
+  );
+
+  const auditUser = await auth.signUp(
+    `memory-audit-${randomUUID()}@affine.pro`,
+    '123456'
+  );
+  const auditProject = await memory.createProject({
+    workspaceId: primaryWorkspace.id,
+    createdByUserId: auditUser.id,
+    name: 'Audit creator lifecycle',
+    documentIds: ['doc-audit'],
+  });
+  await db.user.delete({ where: { id: auditUser.id } });
+  t.is((await memory.getProject(auditProject.id))?.createdByUserId, null);
+});
+
+test('context preferences and strategy revisions should persist safely', async t => {
+  const { models, workspace } = t.context;
+  const targetWorkspace = await workspace.create(userId);
+  const memory = models.copilotContextMemory;
+
+  t.is(await memory.getPreference(userId, targetWorkspace.id), null);
+  await memory.putPreference({
+    userId,
+    workspaceId: targetWorkspace.id,
+    autoMemoryEnabled: false,
+  });
+  t.false(
+    (await memory.getPreference(userId, targetWorkspace.id))?.autoMemoryEnabled
+  );
+
+  const version = `context-planner/test-${randomUUID()}`;
+  await memory.ensureStrategyRevision({
+    version,
+    fingerprint: 'fingerprint-a',
+    status: 'archived',
+    config: { mode: 'test' },
+  });
+  await memory.ensureStrategyRevision({
+    version,
+    fingerprint: 'fingerprint-a',
+    status: 'active',
+    config: { mode: 'test' },
+  });
+  await t.throwsAsync(
+    memory.ensureStrategyRevision({
+      version,
+      fingerprint: 'fingerprint-b',
+      status: 'active',
+      config: { mode: 'changed-without-version-bump' },
+    }),
+    {
+      message: `Context strategy ${version} changed without a version bump`,
+    }
+  );
+});
+
 test('PromptContract should preserve render/session payloads and reject legacy aliases', t => {
   const render = parsePromptRenderContract({
     messages: [
@@ -5305,6 +5547,7 @@ test('resolver models should expose workspace task route diagnostics', async t =
       {
         providerId: 'ollama-main',
         modelId: 'nomic-embed-text',
+        routeIndex: 0,
         protocol: 'openai_chat',
         requestLayer: 'chat_completions',
         modelBackendKind: 'openai_chat',
@@ -5314,6 +5557,7 @@ test('resolver models should expose workspace task route diagnostics', async t =
       {
         providerId: 'openai-default',
         modelId: 'text-embedding-3-small',
+        routeIndex: 1,
         protocol: 'openai_responses',
         requestLayer: 'responses',
         modelBackendKind: 'openai_responses',
@@ -5346,6 +5590,7 @@ test('resolver models should expose workspace task route diagnostics', async t =
       {
         providerId: 'ollama-main',
         modelId: 'bge-reranker-v2',
+        routeIndex: 0,
         protocol: 'openai_chat',
         requestLayer: 'chat_completions',
         modelBackendKind: 'openai_chat',
@@ -5658,6 +5903,7 @@ test('resolver models should expose workspace task route diagnostics', async t =
       {
         providerId: 'ollama-main',
         modelId: 'nomic-embed-text',
+        routeIndex: 0,
         protocol: 'openai_chat',
         requestLayer: 'chat_completions',
         modelBackendKind: 'openai_chat',
@@ -5667,6 +5913,7 @@ test('resolver models should expose workspace task route diagnostics', async t =
       {
         providerId: 'openai-default',
         modelId: 'text-embedding-3-small',
+        routeIndex: 1,
         protocol: 'openai_responses',
         requestLayer: 'responses',
         modelBackendKind: 'openai_responses',
@@ -5827,6 +6074,7 @@ test('resolver models should expose workspace task route diagnostics', async t =
       {
         providerId: 'ollama-main',
         modelId: 'bge-reranker-v2',
+        routeIndex: 0,
         protocol: 'openai_chat',
         requestLayer: 'chat_completions',
         modelBackendKind: 'openai_chat',

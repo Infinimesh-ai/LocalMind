@@ -1,0 +1,17 @@
+mutation copilotContextProjectCreate(
+  $input: CreateCopilotContextProjectInput!
+) {
+  createCopilotContextProject(input: $input) {
+    id
+    workspaceId
+    createdByUserId
+    name
+    description
+    status
+    documentIds
+    documentCount
+    canManage
+    createdAt
+    updatedAt
+  }
+}

@@ -21,12 +21,18 @@ import {
   UpdateChatSessionOptions,
 } from '../../models';
 import { CopilotAccessPolicy } from './access';
+import { ContextMemoryService } from './context-memory-service';
 import { ConversationPolicy } from './conversation/policy';
 import { ConversationStore } from './conversation/store';
 import { type Conversation, promptMessageFromTurn, type Turn } from './core';
 import type { ResolvedPrompt } from './prompt';
 import { PromptService } from './prompt/service';
 import { type PromptMessage, type PromptParams } from './providers/types';
+import {
+  ContextPlanner,
+  type ContextPlannerCheckpoint,
+  type ContextPlannerMemory,
+} from './runtime/context-planner';
 import { PromptRuntime } from './runtime/prompt-runtime';
 import {
   type ChatSessionForkOptions,
@@ -59,6 +65,7 @@ function resolveEffectiveMaxTokenSize(
 
 export class ChatSession implements AsyncDisposable {
   private stashTurnCount = 0;
+  private pendingCheckpoint?: ContextPlannerCheckpoint;
   private readonly renderPromptSession: (
     prompt: ResolvedPrompt,
     turns: PromptMessage[],
@@ -76,7 +83,14 @@ export class ChatSession implements AsyncDisposable {
       sessionId?: string
     ) => PromptMessage[],
     private readonly dispose?: (state: ChatSessionState) => Promise<void>,
-    private readonly maxTokenSize = state.prompt.config?.maxTokens || 128 * 1024
+    private readonly maxTokenSize = state.prompt.config?.maxTokens ||
+      128 * 1024,
+    private readonly context?: {
+      planner: ContextPlanner;
+      memories: ContextPlannerMemory[];
+      checkpoint: ContextPlannerCheckpoint | null;
+      saveCheckpoint: (checkpoint: ContextPlannerCheckpoint) => Promise<void>;
+    }
   ) {
     this.renderPromptSession = renderPromptSession;
   }
@@ -148,13 +162,29 @@ export class ChatSession implements AsyncDisposable {
     params: PromptParams,
     options: { contextWindow?: number } = {}
   ): PromptMessage[] {
-    return this.renderPromptSession(
-      this.state.prompt,
-      this.state.turns.map(turn => promptMessageFromTurn(turn)),
-      params,
-      resolveEffectiveMaxTokenSize(this.maxTokenSize, options.contextWindow),
-      this.state.sessionId
+    const turns = this.state.turns.map(turn => promptMessageFromTurn(turn));
+    const maxTokenSize = resolveEffectiveMaxTokenSize(
+      this.maxTokenSize,
+      options.contextWindow
     );
+    const render = (plannedTurns: PromptMessage[]) =>
+      this.renderPromptSession(
+        this.state.prompt,
+        plannedTurns,
+        params,
+        maxTokenSize,
+        this.state.sessionId
+      );
+    if (!this.context) return render(turns);
+
+    const plan = this.context.planner.plan({
+      turns,
+      memories: this.context.memories,
+      checkpoint: this.context.checkpoint,
+      render,
+    });
+    this.pendingCheckpoint = plan.checkpoint;
+    return plan.messages;
   }
 
   async save() {
@@ -162,6 +192,9 @@ export class ChatSession implements AsyncDisposable {
       ...this.state,
       turns: this.state.turns.slice(-this.stashTurnCount),
     });
+    if (this.pendingCheckpoint) {
+      await this.context?.saveCheckpoint(this.pendingCheckpoint);
+    }
     this.stashTurnCount = 0;
   }
 
@@ -202,7 +235,9 @@ export class ChatSessionService {
     private readonly access: CopilotAccessPolicy,
     private readonly conversationPolicy: ConversationPolicy,
     private readonly prompts: PromptService,
-    private readonly promptRuntime: PromptRuntime
+    private readonly promptRuntime: PromptRuntime,
+    private readonly contextPlanner: ContextPlanner,
+    private readonly contextMemory: ContextMemoryService
   ) {}
 
   private stripNullBytes(value?: string | null): string {
@@ -492,6 +527,18 @@ export class ChatSessionService {
   async get(sessionId: string): Promise<ChatSession | null> {
     const state = await this.getState(sessionId);
     if (state) {
+      const contextScope = {
+        userId: state.conversation.userId,
+        workspaceId: state.conversation.workspaceId,
+        docId: state.conversation.docId,
+      };
+      const contextEnabled = state.prompt.category === 'text';
+      const [memories, checkpoint] = contextEnabled
+        ? await Promise.all([
+            this.contextMemory.listVisible(contextScope),
+            this.contextMemory.loadCheckpoint(sessionId),
+          ])
+        : [[], null];
       return new ChatSession(
         {
           userId: state.conversation.userId,
@@ -518,7 +565,24 @@ export class ChatSessionService {
               { priority: BACKGROUND_COPILOT_JOB_PRIORITY }
             );
           }
-        }
+        },
+        undefined,
+        contextEnabled
+          ? {
+              planner: this.contextPlanner,
+              memories: memories.map(memory => ({
+                id: memory.id,
+                scope: memory.scope as ContextPlannerMemory['scope'],
+                kind: memory.kind as ContextPlannerMemory['kind'],
+                content: memory.content,
+                updatedAt: memory.updatedAt,
+              })),
+              checkpoint,
+              saveCheckpoint: async checkpoint => {
+                await this.contextMemory.saveCheckpoint(sessionId, checkpoint);
+              },
+            }
+          : undefined
       );
     }
     return null;
@@ -526,13 +590,19 @@ export class ChatSessionService {
 
   @OnJob('copilot.session.deleteDoc')
   async deleteDocSessions(doc: Jobs['copilot.session.deleteDoc']) {
-    const sessionIds = await this.models.copilotSession
-      .list({
-        userId: undefined,
+    const [sessionIds] = await Promise.all([
+      this.models.copilotSession
+        .list({
+          userId: undefined,
+          workspaceId: doc.workspaceId,
+          docId: doc.docId,
+        })
+        .then(s => s.map(s => [s.userId, s.id])),
+      this.models.copilotContextMemory.removeDocumentReferences({
         workspaceId: doc.workspaceId,
         docId: doc.docId,
-      })
-      .then(s => s.map(s => [s.userId, s.id]));
+      }),
+    ]);
     for (const [userId, sessionId] of sessionIds) {
       await this.models.copilotSession.update(
         { userId, sessionId, docId: null },

@@ -17,6 +17,7 @@ reference unless the current task explicitly targets them.
 
 Start here for LocalMind-specific work:
 
+- [AI Chat context and memory](./ai-chat-context-and-memory.md)
 - [AI modernization entrypoint](./ai-modernization/README.md)
 - [Branch differences](./ai-modernization/branch-differences.md)
 - [AI document map](./ai-modernization/document-map.md)

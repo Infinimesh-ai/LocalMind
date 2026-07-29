@@ -14,6 +14,7 @@ import {
   type Embedding,
   type FileChunkSimilarity,
   type IgnoredDoc,
+  toPgVector,
 } from './common';
 
 @Injectable()
@@ -390,6 +391,7 @@ export class CopilotWorkspaceConfigModel extends BaseModel {
     if (!(await this.allowEmbedding(workspaceId))) {
       return [];
     }
+    const vector = toPgVector(embedding);
 
     const similarityChunks = await this.db.$queryRaw<
       Array<FileChunkSimilarity>
@@ -401,7 +403,7 @@ export class CopilotWorkspaceConfigModel extends BaseModel {
         f."mime_type" as "mimeType",
         e."chunk",
         e."content",
-        e."embedding" <=> ${embedding}::vector as "distance" 
+        e."embedding" <=> ${vector}::vector as "distance"
       FROM "ai_workspace_file_embeddings" e
       JOIN "ai_workspace_files" f
         ON e."workspace_id" = f."workspace_id"
@@ -470,6 +472,7 @@ export class CopilotWorkspaceConfigModel extends BaseModel {
     if (!(await this.allowEmbedding(workspaceId))) {
       return [];
     }
+    const vector = toPgVector(embedding);
 
     const similarityChunks = await this.db.$queryRaw<
       Array<BlobChunkSimilarity>
@@ -478,7 +481,7 @@ export class CopilotWorkspaceConfigModel extends BaseModel {
         e."blob_id" as "blobId",
         e."chunk",
         e."content",
-        e."embedding" <=> ${embedding}::vector as "distance" 
+        e."embedding" <=> ${vector}::vector as "distance"
       FROM "ai_workspace_blob_embeddings" e
       WHERE e.workspace_id = ${workspaceId}
       ORDER BY "distance" ASC

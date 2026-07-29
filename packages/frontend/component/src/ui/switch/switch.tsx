@@ -27,6 +27,9 @@ export const Switch = ({
   children,
   className,
   disabled,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
+  'aria-describedby': ariaDescribedBy,
   style,
   size: propsSize,
   padding: propsPadding,
@@ -72,6 +75,10 @@ export const Switch = ({
         type="checkbox"
         value={checked ? 'on' : 'off'}
         checked={checked}
+        disabled={disabled}
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
+        aria-describedby={ariaDescribedBy}
         onChange={onChange}
       />
       <span

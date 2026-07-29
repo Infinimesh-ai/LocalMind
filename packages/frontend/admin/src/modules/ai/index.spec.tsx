@@ -22,8 +22,8 @@ import {
   getCopilotSupportBundlesQuery,
   getPromptModelsQuery,
   getWorkspacesQuery,
-  requestCopilotPromptRegistryRepairExecutionMutation,
   replayCopilotSupportBundleTransferForwardingEventMutation,
+  requestCopilotPromptRegistryRepairExecutionMutation,
   retryCopilotProviderHealthProbeAttemptMutation,
   updateAppConfigMutation,
 } from '@affine/graphql';

@@ -1,0 +1,3 @@
+mutation copilotContextMemoryDelete($id: ID!) {
+  deleteCopilotContextMemory(id: $id)
+}

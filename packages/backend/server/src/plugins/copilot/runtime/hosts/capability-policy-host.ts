@@ -250,6 +250,12 @@ export class CapabilityPolicyHost {
   }
 
   async resolveFixedTaskModel(input: ResolveModelInput) {
-    return await this.resolveModel(input, ModelOutputType.Text);
+    return await this.resolveModel(
+      {
+        ...input,
+        routeContext: input.routeContext ?? undefined,
+      },
+      ModelOutputType.Text
+    );
   }
 }

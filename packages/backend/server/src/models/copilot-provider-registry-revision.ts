@@ -1439,15 +1439,6 @@ export class CopilotProviderRegistryRevisionModel extends BaseModel {
     return revisionsByProvider.get(providerId) ?? null;
   }
 
-  private async getByWorkspaceRevision(input: {
-    providerId: string;
-    revision: string;
-    workspaceId: string;
-  }): Promise<ProviderRegistryRevision | null> {
-    const row = await this.getWorkspaceRevisionRow(input);
-    return row ? toRevision(row) : null;
-  }
-
   private async getWorkspaceRevisionRow(input: {
     providerId: string;
     revision: string;

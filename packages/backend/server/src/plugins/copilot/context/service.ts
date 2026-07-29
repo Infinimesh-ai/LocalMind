@@ -360,6 +360,7 @@ export class CopilotContextService implements OnApplicationBootstrap {
     contextId,
     docId,
   }: Events['workspace.doc.embed.failed']) {
+    if (!contextId) return;
     const context = await this.get(contextId);
     await context.saveDocRecord(docId, doc => ({
       ...(doc as ContextDoc),
@@ -372,6 +373,7 @@ export class CopilotContextService implements OnApplicationBootstrap {
     contextId,
     docId,
   }: Events['workspace.doc.embed.finished']) {
+    if (!contextId) return;
     const context = await this.get(contextId);
     await context.saveDocRecord(docId, doc => ({
       ...(doc as ContextDoc),

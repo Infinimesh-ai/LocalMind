@@ -1,9 +1,11 @@
 import { Prisma } from '@prisma/client';
 import test from 'ava';
 
+import { BadRequest } from '../../base';
 import type { PermissionService } from '../../core/permission';
 import type { Models } from '../../models';
 import { CopilotContextService } from '../../plugins/copilot/context';
+import { CopilotContextMemoryResolver } from '../../plugins/copilot/context-memory-resolver';
 import type { EmbeddingClient } from '../../plugins/copilot/embedding';
 
 test('workspace semantic search applies Doc.Read before reranking', async t => {
@@ -101,4 +103,19 @@ test('workspace semantic search rejects calls without an actor', async t => {
     message: 'Document embedding search requires a user id.',
   });
   t.false(embeddingCalled);
+});
+
+test('context mutations expose validation failures as user-friendly errors', async t => {
+  const resolver = new CopilotContextMemoryResolver({} as never, {} as never);
+
+  const error = await t.throwsAsync(
+    resolver.createCopilotContextMemory({ id: 'user-1' } as never, {
+      scope: 'user',
+      kind: 'rule',
+      content: ' ',
+    })
+  );
+
+  t.true(error instanceof BadRequest);
+  t.is(error.message, 'Memory content is required');
 });

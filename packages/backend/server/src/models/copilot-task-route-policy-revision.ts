@@ -1042,15 +1042,6 @@ export class CopilotTaskRoutePolicyRevisionModel extends BaseModel {
     return new Map(entries);
   }
 
-  private async getByWorkspaceRevision(input: {
-    featureKind: TaskRoutePolicyFeatureKind;
-    revision: string;
-    workspaceId: string;
-  }) {
-    const row = await this.getWorkspaceRevisionRow(input);
-    return row ? toRevision(row) : null;
-  }
-
   private async getWorkspaceRevisionRow(input: {
     featureKind: TaskRoutePolicyFeatureKind;
     revision: string;

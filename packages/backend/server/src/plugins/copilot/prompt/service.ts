@@ -28,7 +28,6 @@ import type {
   Prompt,
   PromptCatalogItem,
   PromptRegistryDiagnostic,
-  PromptRegistryRevision,
   PromptRegistryRevisionWithPublishEvents,
   PromptRegistrySourceChainEntry,
   PromptSpec,
@@ -41,6 +40,15 @@ type PromptDefaultPolicyResult = {
 };
 
 type MaybePromise<T> = T | Promise<T>;
+
+type PromptCatalogDraft = Omit<
+  PromptCatalogItem,
+  | 'fingerprint'
+  | 'modelStrategyFingerprint'
+  | 'revision'
+  | 'templateFingerprint'
+  | 'versionEvidence'
+>;
 
 @Injectable()
 export class PromptService {
@@ -559,7 +567,7 @@ export class PromptService {
   private toRegistryDiagnosticCatalogItem(
     diagnostic: PromptRegistryDiagnostic
   ): PromptCatalogItem {
-    const catalogItem = {
+    const catalogItem: PromptCatalogDraft = {
       ...(diagnostic.action ? { action: diagnostic.action } : {}),
       category: this.resolvePromptCategory(diagnostic),
       model: diagnostic.model,
@@ -1162,6 +1170,8 @@ export class PromptService {
     ) {
       return { name: 'text', policy: textPolicy };
     }
+
+    return undefined;
   }
 
   private applyPromptOverride(prompt: ResolvedPrompt): ResolvedPrompt {
@@ -1233,7 +1243,7 @@ export class PromptService {
 
   private hasPromptDefaultPayload(
     defaultPolicy: CopilotPromptModelDefault | undefined
-  ) {
+  ): defaultPolicy is CopilotPromptModelDefault {
     if (!defaultPolicy || defaultPolicy.enabled === false) {
       return false;
     }

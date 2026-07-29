@@ -31,7 +31,7 @@ export const DesktopMenu = ({
     style: contentStyle = EMPTY_CONTENT_STYLE,
     ...otherContentOptions
   } = rawContentOptions ?? EMPTY_CONTENT_OPTIONS;
-  const [innerOpen, setInnerOpen] = useState(defaultOpen);
+  const [innerOpen, setInnerOpen] = useState(defaultOpen ?? false);
   const finalOpen = open ?? innerOpen;
 
   const handleOpenChange = useCallback(

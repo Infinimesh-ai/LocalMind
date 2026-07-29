@@ -1,4 +1,4 @@
-import { observeResize, useConfirmModal } from '@affine/component';
+import { IconButton, observeResize, useConfirmModal } from '@affine/component';
 import {
   AIChatRuntime,
   createAIRequestService,
@@ -46,6 +46,7 @@ import { useI18n } from '@affine/i18n';
 import { RefNodeSlotsProvider } from '@blocksuite/affine/inlines/reference';
 import { BlockStdScope } from '@blocksuite/affine/std';
 import type { Workspace } from '@blocksuite/affine/store';
+import { SettingsIcon } from '@blocksuite/icons/rc';
 import { type Signal, signal } from '@preact/signals-core';
 import { useFramework, useService } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
@@ -151,6 +152,12 @@ export const Component = () => {
   const specs = useAISpecs();
   const mockStd = useMockStd();
   const handleAISubscribe = useAISubscribe();
+  const workspaceDialogService = useService(WorkspaceDialogService);
+  const openAIContextSettings = useCallback(() => {
+    workspaceDialogService.open('setting', {
+      activeTab: 'workspace:ai-context',
+    });
+  }, [workspaceDialogService]);
 
   const deleteSession = useCallback(
     async (sessionToDelete: BlockSuitePresets.AIRecentSession) => {
@@ -297,7 +304,15 @@ export const Component = () => {
             className={styles.chatTabsContainer}
             ref={onChatTabsContainerRef}
           />
-          <div ref={onChatToolContainerRef} />
+          <div className={styles.chatTools}>
+            <div ref={onChatToolContainerRef} />
+            <IconButton
+              size="20"
+              title="AI context settings"
+              icon={<SettingsIcon />}
+              onClick={openAIContextSettings}
+            />
+          </div>
         </div>
       </ViewHeader>
       <ViewBody>
