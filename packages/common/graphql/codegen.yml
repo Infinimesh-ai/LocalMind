@@ -19,7 +19,7 @@ config:
     Decimal: number
     UUID: string
     ID: string
-    JSON: Record<string, string>
+    JSON: unknown
     Upload: File
     SafeInt: number
 overwrite: true

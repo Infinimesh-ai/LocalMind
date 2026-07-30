@@ -17,6 +17,7 @@ import { GraphQLJSON, SafeIntResolver } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.mjs';
 
 import {
+  BadRequest,
   CallMetric,
   CopilotDocNotFound,
   CopilotFailedToCreateMessage,
@@ -23096,6 +23097,8 @@ export class CopilotResolver {
       });
     }
     const matchedCandidates = candidates.filter(candidate => candidate.matched);
+    const selectedCandidate =
+      selectPromptRegistryPublishGateRouteCandidate(candidates);
     const routeCandidates = candidates.map(
       toPromptRegistryPublishGateRouteCandidate
     );
@@ -23111,8 +23114,6 @@ export class CopilotResolver {
         routePolicyContext
       );
       if (!resolved) {
-        const selectedCandidate =
-          selectPromptRegistryPublishGateRouteCandidate(candidates);
         return withPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint(
           {
             ...baseRoute,
@@ -23170,6 +23171,7 @@ export class CopilotResolver {
 
       return withPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint({
         ...baseRoute,
+        ...promptRegistryPublishGateRouteCandidateMetadata(selectedCandidate),
         available: true,
         candidateCount: candidates.length,
         configured: true,
@@ -23244,8 +23246,6 @@ export class CopilotResolver {
         ...(routeRawModelId ? { routeRawModelId } : {}),
       });
     } catch (error) {
-      const selectedCandidate =
-        selectPromptRegistryPublishGateRouteCandidate(candidates);
       return withPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint({
         ...baseRoute,
         ...promptRegistryPublishGateRouteCandidateMetadata(selectedCandidate),
@@ -24180,8 +24180,9 @@ export class CopilotResolver {
     const { workspaceId } = await this.assertPermission(user, {
       workspaceId: input.workspaceId,
     });
-    const record =
-      await this.modelsStore.copilotRepairExecution.controlExecution({
+    let record;
+    try {
+      record = await this.modelsStore.copilotRepairExecution.controlExecution({
         workspaceId,
         actorId: user.id,
         id: input.executionRequestId,
@@ -24189,6 +24190,15 @@ export class CopilotResolver {
         executorPayload: input.executorPayload,
         reason: input.reason,
       });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.startsWith('Repair execution')
+      ) {
+        throw new BadRequest(error.message);
+      }
+      throw error;
+    }
     const agentRun =
       input.action === 'cancel' && record.status === 'running'
         ? await this.modelsStore.copilotAgentRuntime?.getBySource(
@@ -24243,13 +24253,21 @@ export class CopilotResolver {
       workspaceId: input.workspaceId,
     });
 
-    const record = await this.modelsStore.copilotAgentRuntime.controlRun({
-      workspaceId,
-      actorId: user.id,
-      id: input.runId,
-      action: input.action,
-      reason: input.reason,
-    });
+    let record;
+    try {
+      record = await this.modelsStore.copilotAgentRuntime.controlRun({
+        workspaceId,
+        actorId: user.id,
+        id: input.runId,
+        action: input.action,
+        reason: input.reason,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Agent runtime')) {
+        throw new BadRequest(error.message);
+      }
+      throw error;
+    }
 
     if (input.action === 'resume') {
       await this.jobs.add(

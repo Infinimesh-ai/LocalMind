@@ -337,7 +337,7 @@ export class CopilotRepairExecutionWorker {
       };
     }
 
-    if (record.approvalState === 'approved') {
+    if (payload !== null) {
       throw new Error('Unsupported repair execution executor payload');
     }
 
@@ -406,7 +406,10 @@ export class CopilotRepairExecutionWorker {
     if (message.includes('Invalid repair execution executor payload')) {
       return 'invalid_executor_payload';
     }
-    if (message.includes('already exists with different fingerprint')) {
+    if (
+      message.includes('already exists with different fingerprint') ||
+      message.includes('revision conflict reused mismatched row evidence')
+    ) {
       return 'side_effect_revision_conflict';
     }
     return 'repair_execution_worker_failed';

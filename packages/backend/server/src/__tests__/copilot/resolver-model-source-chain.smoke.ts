@@ -101,6 +101,15 @@ const taskRouteEffectiveSourceFingerprintInputsFixture = [
   'requestLayer',
   'routeCandidates',
   'routeTrace',
+  'taskRoutePolicyRevision',
+  'taskRoutePolicyRevisionActorId',
+  'taskRoutePolicyRevisionFingerprint',
+  'taskRoutePolicyRevisionId',
+  'taskRoutePolicyRevisionScope',
+  'taskRoutePolicyRevisionSourceChain',
+  'taskRoutePolicyRevisionSourceChainFingerprint',
+  'taskRoutePolicyRevisionStatus',
+  'taskRoutePolicyRevisionWorkspaceId',
   'topK',
 ] as const;
 const taskRouteEffectiveSourceFingerprintVersionFixture =
@@ -922,6 +931,8 @@ function taskRoutePolicyCandidateEvidenceFixture<
   T extends {
     allowed: boolean;
     available: boolean;
+    candidateFingerprint: string;
+    candidateKey: string;
     effectiveSourceFingerprint?: string;
     health: string;
     healthCheckedAt?: string;
@@ -945,6 +956,8 @@ function taskRoutePolicyCandidateEvidenceFixture<
   return candidates?.map(candidate => ({
     allowed: candidate.allowed,
     available: candidate.available,
+    candidateFingerprint: candidate.candidateFingerprint,
+    candidateKey: candidate.candidateKey,
     ...(candidate.effectiveSourceFingerprint !== undefined
       ? {
           taskRouteEffectiveSourceFingerprint:
@@ -2086,12 +2099,14 @@ async function main() {
         id: 'local',
         type: CopilotProviderType.OpenAICompatible,
         privacy: 'local',
+        config: { baseURL: 'http://local.test/v1' },
         models: ['office-chat', 'pro-chat'],
       },
       {
         id: 'cloud',
         type: CopilotProviderType.OpenAI,
         privacy: 'cloud',
+        config: { apiKey: 'test' },
         models: ['office-chat', 'pro-chat'],
       },
     ],
@@ -2161,28 +2176,31 @@ async function main() {
   }
 
   const effectiveSelectionProvider = new SmokeProvider();
+  const effectiveSelectionQuotaRegistry = buildProviderRegistry({
+    profiles: [
+      {
+        id: 'quota-cloud',
+        type: CopilotProviderType.OpenAI,
+        privacy: 'cloud',
+        priority: 1,
+        config: { apiKey: 'test' },
+        models: ['quota-chat'],
+      },
+    ],
+    routePolicy: {
+      byFeature: {
+        chat: {
+          preferredPrivacy: ['private_cloud', 'cloud'],
+        },
+      },
+    },
+  });
   const effectiveSelectionFactory = new CopilotProviderFactory(
     { enableFeature() {}, disableFeature() {} } as any,
     {
-      getRegistry: () =>
-        buildProviderRegistry({
-          profiles: [
-            {
-              id: 'quota-cloud',
-              type: CopilotProviderType.OpenAI,
-              privacy: 'cloud',
-              priority: 1,
-              models: ['quota-chat'],
-            },
-          ],
-          routePolicy: {
-            byFeature: {
-              chat: {
-                preferredPrivacy: ['private_cloud', 'cloud'],
-              },
-            },
-          },
-        }),
+      getRegistry: () => effectiveSelectionQuotaRegistry,
+      getRegistryWithModelRevisions: async () =>
+        effectiveSelectionQuotaRegistry,
     } as any,
     {
       resolveRouteAccess: async () => ({
@@ -2815,6 +2833,13 @@ async function main() {
       configPath: 'copilot.tasks.models.workspaceIndexing',
     }),
     resolveRerankModel: () => ({ modelId: undefined }),
+    resolveEffectiveWorkspaceIndexingModel: async () => ({
+      modelId: 'embed-alias',
+      source: 'workspace_indexing',
+      configKey: 'workspaceIndexing',
+      configPath: 'copilot.tasks.models.workspaceIndexing',
+    }),
+    resolveEffectiveRerankModel: async () => ({ modelId: undefined }),
   };
   const planBuilder = {
     async buildStructuredPlan(
@@ -2880,8 +2905,11 @@ async function main() {
     {} as any,
     {} as any,
     providerFactory as any,
+    {} as any,
     capabilityRuntime as any,
     taskPolicy as any,
+    {} as any,
+    {} as any,
     {} as any
   );
 
@@ -2960,8 +2988,11 @@ async function main() {
     {} as any,
     {} as any,
     fallbackProviderFactory as any,
+    {} as any,
     capabilityRuntime as any,
     taskPolicy as any,
+    {} as any,
+    {} as any,
     {} as any
   );
   const fallbackResult = await fallbackResolver.models(promptName, {
@@ -3474,6 +3505,7 @@ async function main() {
     {} as any,
     {} as any,
     providerFactory as any,
+    {} as any,
     capabilityRuntime as any,
     taskPolicy as any,
     {
@@ -3481,7 +3513,9 @@ async function main() {
         getRegistryPrompt: async () => gatePrompt,
         getRegistryPublishGateVerdict: async () => gateVerdict,
       },
-    } as any
+    } as any,
+    {} as any,
+    {} as any
   );
   const routeReadyGate = await routeAwareResolver.promptRegistryPublishGate(
     { workspaceId: 'workspace-smoke' } as any,
@@ -6176,16 +6210,24 @@ async function main() {
     'task route source evidence candidate references should expose policy candidate entries'
   );
   assert.ok(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.some(entry =>
-      entry.prepareCandidateEntries?.some(
-        candidate => candidate.providerId && candidate.preparedModelId
-      )
+    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetEntries.some(
+      entry =>
+        entry.candidateEvidenceEntries.some(candidateEntry =>
+          candidateEntry.prepareCandidateEntries?.some(
+            candidate => candidate.providerId && candidate.preparedModelId
+          )
+        )
     ),
     'task route source evidence candidate references should expose prepare candidate entries'
   );
   assert.ok(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.some(entry =>
-      entry.routeCandidateEntries?.some(candidate => candidate.providerId)
+    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetEntries.some(
+      entry =>
+        entry.candidateEvidenceEntries.some(candidateEntry =>
+          candidateEntry.routeCandidateEntries?.some(
+            candidate => candidate.providerId
+          )
+        )
     ),
     'task route source evidence candidate references should expose route candidate entries'
   );
@@ -9917,6 +9959,7 @@ async function main() {
         return [];
       },
     } as any,
+    {} as any,
     capabilityRuntime as any,
     taskPolicy as any,
     {
@@ -9925,6 +9968,8 @@ async function main() {
         getRegistryPublishGateVerdict: async () => structuredVerdict,
       },
     } as any,
+    {} as any,
+    {} as any,
     planBuilder as any
   );
   const structuredRouteGate =
@@ -10070,6 +10115,7 @@ async function main() {
         return [];
       },
     } as any,
+    {} as any,
     capabilityRuntime as any,
     taskPolicy as any,
     {
@@ -10078,6 +10124,8 @@ async function main() {
         getRegistryPublishGateVerdict: async () => structuredVerdict,
       },
     } as any,
+    {} as any,
+    {} as any,
     mismatchPlanBuilder as any
   );
   const structuredRouteMismatchGate =
@@ -10316,6 +10364,7 @@ async function main() {
         return [];
       },
     } as any,
+    {} as any,
     capabilityRuntime as any,
     taskPolicy as any,
     {
@@ -10324,6 +10373,8 @@ async function main() {
         getRegistryPublishGateVerdict: async () => structuredVerdict,
       },
     } as any,
+    {} as any,
+    {} as any,
     failingPlanBuilder as any
   );
   const structuredDryRunFailureGate =
@@ -10417,6 +10468,7 @@ async function main() {
         return [];
       },
     } as any,
+    {} as any,
     capabilityRuntime as any,
     taskPolicy as any,
     {
@@ -10424,7 +10476,9 @@ async function main() {
         getRegistryPrompt: async () => imagePrompt,
         getRegistryPublishGateVerdict: async () => imageVerdict,
       },
-    } as any
+    } as any,
+    {} as any,
+    {} as any
   );
   const imageRouteGate = await imageRouteResolver.promptRegistryPublishGate(
     { workspaceId: 'workspace-smoke' } as any,
@@ -10539,6 +10593,7 @@ async function main() {
     {} as any,
     {} as any,
     unavailableProviderFactory as any,
+    {} as any,
     capabilityRuntime as any,
     taskPolicy as any,
     {
@@ -10546,7 +10601,9 @@ async function main() {
         getRegistryPrompt: async () => gatePrompt,
         getRegistryPublishGateVerdict: async () => gateVerdict,
       },
-    } as any
+    } as any,
+    {} as any,
+    {} as any
   );
   const routeBlockedGate = await routeBlockedResolver.promptRegistryPublishGate(
     { workspaceId: 'workspace-smoke' } as any,
@@ -10729,6 +10786,7 @@ async function main() {
     {} as any,
     {} as any,
     diagnosticsErrorProviderFactory as any,
+    {} as any,
     capabilityRuntime as any,
     taskPolicy as any,
     {
@@ -10736,7 +10794,9 @@ async function main() {
         getRegistryPrompt: async () => gatePrompt,
         getRegistryPublishGateVerdict: async () => gateVerdict,
       },
-    } as any
+    } as any,
+    {} as any,
+    {} as any
   );
   const diagnosticsErrorGate =
     await diagnosticsErrorResolver.promptRegistryPublishGate(
@@ -10820,6 +10880,7 @@ async function main() {
     {} as any,
     {} as any,
     taskDiagnosticsErrorProviderFactory as any,
+    {} as any,
     capabilityRuntime as any,
     taskPolicy as any,
     {
@@ -10827,7 +10888,9 @@ async function main() {
         getRegistryPrompt: async () => gatePrompt,
         getRegistryPublishGateVerdict: async () => gateVerdict,
       },
-    } as any
+    } as any,
+    {} as any,
+    {} as any
   );
   const taskDiagnosticsErrorGate =
     await taskDiagnosticsErrorResolver.promptRegistryPublishGate(

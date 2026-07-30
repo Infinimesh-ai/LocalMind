@@ -4,20 +4,18 @@ import type { GraphQLQuery } from '@affine/graphql';
 import { PrismaClient } from '@prisma/client';
 import type { ExecutionContext, TestFn } from 'ava';
 import ava from 'ava';
+import Sinon from 'sinon';
 
 import { AppModule } from '../../app.module';
 import {
-  Config,
   CryptoHelper,
   JOB_SIGNAL,
   JobQueue,
   readableToBuffer,
-  type StorageProvider,
-  type StorageProviderConfig,
-  StorageProviderFactory,
 } from '../../base';
 import { ConfigModule } from '../../base/config';
 import { AuthService } from '../../core/auth';
+import { StorageRuntimeProvider } from '../../core/storage-runtime';
 import {
   CopilotSupportBundleArchive,
   CopilotSupportBundleManifest,
@@ -49,6 +47,7 @@ const test = ava.serial as TestFn<{
   owner: TestUser;
   prompt: TestingPromptService;
 }>;
+const supportBundleStorageScope = 'blob';
 
 const supportBundleFields = `
   actorId
@@ -361,51 +360,68 @@ function assertArchiveFile(
 }
 
 function installSignedUrlStorageMock(app: TestingApp) {
-  const factory = app.get(StorageProviderFactory);
-  const originalCreate = factory.create.bind(factory);
-  const supportBundleModel = app.get(Models)
-    .copilotSupportBundle as unknown as {
-    storageProvider: StorageProvider | null;
-  };
-  supportBundleModel.storageProvider = null;
-
-  factory.create = ((config: StorageProviderConfig) => {
-    const provider = originalCreate(config);
-    return {
-      put: provider.put.bind(provider),
-      presignPut: provider.presignPut?.bind(provider),
-      createMultipartUpload: provider.createMultipartUpload?.bind(provider),
-      presignUploadPart: provider.presignUploadPart?.bind(provider),
-      listMultipartUploadParts:
-        provider.listMultipartUploadParts?.bind(provider),
-      completeMultipartUpload: provider.completeMultipartUpload?.bind(provider),
-      abortMultipartUpload: provider.abortMultipartUpload?.bind(provider),
-      head: provider.head.bind(provider),
-      async get(key: string, signedUrl?: boolean) {
-        if (signedUrl && key.startsWith('support-bundles/')) {
-          const metadata = await provider.head(key);
-          if (!metadata) {
-            return {};
-          }
-          return {
-            metadata,
-            redirectUrl: `https://objects.example.test/${encodeURIComponent(
-              key
-            )}?signature=support-bundle-test`,
-          };
+  const storageRuntime = app.get(StorageRuntimeProvider);
+  const originalPresignGet = storageRuntime.presignGet.bind(storageRuntime);
+  const presignGetStub = Sinon.stub(storageRuntime, 'presignGet').callsFake(
+    async (scope, key) => {
+      if (
+        scope === supportBundleStorageScope &&
+        key.startsWith('support-bundles/')
+      ) {
+        const metadata = await storageRuntime.headObject(scope, key);
+        if (!metadata) {
+          return undefined;
         }
+        return {
+          url: `https://objects.example.test/${encodeURIComponent(
+            key
+          )}?signature=support-bundle-test`,
+          headers: {},
+          expiresAt: new Date(Date.now() + 15 * 60_000),
+        };
+      }
 
-        return await provider.get(key, signedUrl);
-      },
-      list: provider.list.bind(provider),
-      delete: provider.delete.bind(provider),
-    } satisfies StorageProvider;
-  }) as StorageProviderFactory['create'];
+      return await originalPresignGet(scope, key);
+    }
+  );
 
-  return () => {
-    factory.create = originalCreate;
-    supportBundleModel.storageProvider = null;
-  };
+  return () => presignGetStub.restore();
+}
+
+function installPutObjectFailureMock(
+  app: TestingApp,
+  getError: (scope: string, key: string) => Error | undefined
+) {
+  const storageRuntime = app.get(StorageRuntimeProvider);
+  const originalPutObject = storageRuntime.putObject.bind(storageRuntime);
+  const stub = Sinon.stub(storageRuntime, 'putObject').callsFake(
+    async (scope, key, body, metadata) => {
+      const error = getError(scope, key);
+      if (error) {
+        throw error;
+      }
+      return await originalPutObject(scope, key, body, metadata);
+    }
+  );
+  return () => stub.restore();
+}
+
+function installDeleteObjectFailureMock(
+  app: TestingApp,
+  getError: (scope: string, key: string) => Error | undefined
+) {
+  const storageRuntime = app.get(StorageRuntimeProvider);
+  const originalDeleteObject = storageRuntime.deleteObject.bind(storageRuntime);
+  const stub = Sinon.stub(storageRuntime, 'deleteObject').callsFake(
+    async (scope, key) => {
+      const error = getError(scope, key);
+      if (error) {
+        throw error;
+      }
+      await originalDeleteObject(scope, key);
+    }
+  );
+  return () => stub.restore();
 }
 
 function createSupportBundleTransferEventAccessToken(app: TestingApp) {
@@ -575,6 +591,9 @@ async function createDownloadAuthorizationFixture(input: {
     artifactKind,
     artifactMime,
     authorizationFingerprint,
+    deliveryMethod,
+    directDownloadExpiresAt,
+    directDownloadUrl,
     downloadToken,
     downloadUrl: `/api/copilot/support-bundles/${id}/artifact?token=${encodeURIComponent(
       downloadToken
@@ -586,7 +605,14 @@ async function createDownloadAuthorizationFixture(input: {
 
 async function markDownloadAuthorizationDownloadedFixture(input: {
   db: PrismaClient;
-  authorization: Awaited<ReturnType<typeof createDownloadAuthorizationFixture>>;
+  authorization: {
+    artifactFilename: string;
+    artifactFingerprint: string;
+    artifactKind: 'manifest_json' | 'archive_json';
+    artifactMime: string;
+    authorizationFingerprint: string;
+    id: string;
+  };
   bundle: CopilotSupportBundleRecord;
   downloadedAt?: Date;
 }) {
@@ -2518,39 +2544,30 @@ test('creates and reads a persisted support bundle request with manifest and aud
 test('support bundle create deletes written storage objects when DB persistence fails', async t => {
   const { app, db, owner, prompt } = t.context;
   const workspace = await createWorkspace(app);
-  const provider = app
-    .get(StorageProviderFactory)
-    .create(app.get(Config).storages.blob.storage);
+  const storageRuntime = app.get(StorageRuntimeProvider);
   const supportBundleModel = app.get(Models)
     .copilotSupportBundle as unknown as {
     create: Models['copilotSupportBundle']['create'];
     createAuditEvent(input: unknown): Promise<void>;
-    storageProvider: StorageProvider | null;
   };
-  const originalStorageProvider = supportBundleModel.storageProvider;
   const originalCreateAuditEvent =
     supportBundleModel.createAuditEvent.bind(supportBundleModel);
+  const originalPutObject = storageRuntime.putObject.bind(storageRuntime);
+  const originalDeleteObject = storageRuntime.deleteObject.bind(storageRuntime);
   const putKeys: string[] = [];
   const deleteKeys: string[] = [];
-  supportBundleModel.storageProvider = {
-    put: async (key, body, metadata) => {
+  const putObjectStub = Sinon.stub(storageRuntime, 'putObject').callsFake(
+    async (scope, key, body, metadata) => {
       putKeys.push(key);
-      await provider.put(key, body, metadata);
-    },
-    presignPut: provider.presignPut?.bind(provider),
-    createMultipartUpload: provider.createMultipartUpload?.bind(provider),
-    presignUploadPart: provider.presignUploadPart?.bind(provider),
-    listMultipartUploadParts: provider.listMultipartUploadParts?.bind(provider),
-    completeMultipartUpload: provider.completeMultipartUpload?.bind(provider),
-    abortMultipartUpload: provider.abortMultipartUpload?.bind(provider),
-    head: provider.head.bind(provider),
-    get: provider.get.bind(provider),
-    list: provider.list.bind(provider),
-    delete: async key => {
+      return await originalPutObject(scope, key, body, metadata);
+    }
+  );
+  const deleteObjectStub = Sinon.stub(storageRuntime, 'deleteObject').callsFake(
+    async (scope, key) => {
       deleteKeys.push(key);
-      await provider.delete(key);
-    },
-  } satisfies StorageProvider;
+      await originalDeleteObject(scope, key);
+    }
+  );
   supportBundleModel.createAuditEvent = async () => {
     throw new Error('support bundle create audit failure for cleanup test');
   };
@@ -2569,7 +2586,8 @@ test('support bundle create deletes written storage objects when DB persistence 
     );
   } finally {
     supportBundleModel.createAuditEvent = originalCreateAuditEvent;
-    supportBundleModel.storageProvider = originalStorageProvider;
+    putObjectStub.restore();
+    deleteObjectStub.restore();
   }
 
   t.is(putKeys.length, 2);
@@ -2578,7 +2596,10 @@ test('support bundle create deletes written storage objects when DB persistence 
     [...putKeys].sort(compareTestStrings)
   );
   for (const key of putKeys) {
-    t.is(await provider.head(key), undefined);
+    t.is(
+      await storageRuntime.headObject(supportBundleStorageScope, key),
+      undefined
+    );
   }
   const rows = await db.$queryRaw<Array<{ count: number }>>`
     SELECT COUNT(*)::int AS count
@@ -3310,30 +3331,12 @@ test('support bundle API-proxy download consume fails closed when authorization 
     bundleId: bundle.id,
     artifactKind: 'manifest_json',
   });
-  const storageProvider = app
-    .get(StorageProviderFactory)
-    .create(app.get(Config).storages.blob.storage);
-  const supportBundleModel = app.get(Models)
-    .copilotSupportBundle as unknown as {
-    storageProvider: StorageProvider | null;
-  };
-  const originalStorageProvider = supportBundleModel.storageProvider;
+  const storageRuntime = app.get(StorageRuntimeProvider);
+  const originalGetObject = storageRuntime.getObject.bind(storageRuntime);
   let expiredBeforeDownloadUpdate = false;
-  supportBundleModel.storageProvider = {
-    put: storageProvider.put.bind(storageProvider),
-    presignPut: storageProvider.presignPut?.bind(storageProvider),
-    createMultipartUpload:
-      storageProvider.createMultipartUpload?.bind(storageProvider),
-    presignUploadPart: storageProvider.presignUploadPart?.bind(storageProvider),
-    listMultipartUploadParts:
-      storageProvider.listMultipartUploadParts?.bind(storageProvider),
-    completeMultipartUpload:
-      storageProvider.completeMultipartUpload?.bind(storageProvider),
-    abortMultipartUpload:
-      storageProvider.abortMultipartUpload?.bind(storageProvider),
-    head: storageProvider.head.bind(storageProvider),
-    async get(key: string, signedUrl?: boolean) {
-      const result = await storageProvider.get(key, signedUrl);
+  const getObjectStub = Sinon.stub(storageRuntime, 'getObject').callsFake(
+    async (scope, key) => {
+      const result = await originalGetObject(scope, key);
       if (key === bundle.manifestStorageKey && !expiredBeforeDownloadUpdate) {
         expiredBeforeDownloadUpdate = true;
         await markDownloadAuthorizationDownloadedFixture({
@@ -3343,10 +3346,8 @@ test('support bundle API-proxy download consume fails closed when authorization 
         });
       }
       return result;
-    },
-    list: storageProvider.list.bind(storageProvider),
-    delete: storageProvider.delete.bind(storageProvider),
-  } satisfies StorageProvider;
+    }
+  );
   try {
     const artifact = await supportBundleModels.consumeDownload({
       authorizationId: authorization.id,
@@ -3354,7 +3355,7 @@ test('support bundle API-proxy download consume fails closed when authorization 
     });
     t.is(artifact, null);
   } finally {
-    supportBundleModel.storageProvider = originalStorageProvider;
+    getObjectStub.restore();
   }
   t.true(expiredBeforeDownloadUpdate);
 
@@ -3405,31 +3406,13 @@ test('support bundle API-proxy download consume fails closed when bundle snapsho
     bundleId: bundle.id,
     artifactKind: 'manifest_json',
   });
-  const storageProvider = app
-    .get(StorageProviderFactory)
-    .create(app.get(Config).storages.blob.storage);
-  const supportBundleModel = app.get(Models)
-    .copilotSupportBundle as unknown as {
-    storageProvider: StorageProvider | null;
-  };
-  const originalStorageProvider = supportBundleModel.storageProvider;
+  const storageRuntime = app.get(StorageRuntimeProvider);
+  const originalGetObject = storageRuntime.getObject.bind(storageRuntime);
   let bundleDriftedBeforeDownloadUpdate = false;
   const driftedAt = new Date(new Date(bundle.updatedAt).getTime() + 60_000);
-  supportBundleModel.storageProvider = {
-    put: storageProvider.put.bind(storageProvider),
-    presignPut: storageProvider.presignPut?.bind(storageProvider),
-    createMultipartUpload:
-      storageProvider.createMultipartUpload?.bind(storageProvider),
-    presignUploadPart: storageProvider.presignUploadPart?.bind(storageProvider),
-    listMultipartUploadParts:
-      storageProvider.listMultipartUploadParts?.bind(storageProvider),
-    completeMultipartUpload:
-      storageProvider.completeMultipartUpload?.bind(storageProvider),
-    abortMultipartUpload:
-      storageProvider.abortMultipartUpload?.bind(storageProvider),
-    head: storageProvider.head.bind(storageProvider),
-    async get(key: string, signedUrl?: boolean) {
-      const result = await storageProvider.get(key, signedUrl);
+  const getObjectStub = Sinon.stub(storageRuntime, 'getObject').callsFake(
+    async (scope, key) => {
+      const result = await originalGetObject(scope, key);
       if (
         key === bundle.manifestStorageKey &&
         !bundleDriftedBeforeDownloadUpdate
@@ -3442,10 +3425,8 @@ test('support bundle API-proxy download consume fails closed when bundle snapsho
         `;
       }
       return result;
-    },
-    list: storageProvider.list.bind(storageProvider),
-    delete: storageProvider.delete.bind(storageProvider),
-  } satisfies StorageProvider;
+    }
+  );
   try {
     const artifact = await supportBundleModels.consumeDownload({
       authorizationId: authorization.id,
@@ -3453,7 +3434,7 @@ test('support bundle API-proxy download consume fails closed when bundle snapsho
     });
     t.is(artifact, null);
   } finally {
-    supportBundleModel.storageProvider = originalStorageProvider;
+    getObjectStub.restore();
   }
   t.true(bundleDriftedBeforeDownloadUpdate);
 
@@ -3721,14 +3702,15 @@ test('support bundle direct download expiration fails closed when authorization 
       promptCatalog: await prompt.listCatalog(workspace.id),
       taskRoutes: [],
     });
+    const expiredAt = new Date(Date.now() - 60_000);
     const authorizationFixture = await createDownloadAuthorizationFixture({
       db,
       bundle,
       artifactKind: 'archive_json',
       deliveryMethod: 'object_storage_signed_url',
-      directDownloadExpiresAt: new Date(Date.now() - 60_000),
+      directDownloadExpiresAt: expiredAt,
       directDownloadUrl: 'https://objects.example.test/expired-stale-direct',
-      expiresAt: new Date(Date.now() - 60_000),
+      expiresAt: expiredAt,
     });
     const modelWithPrivateGet = supportBundleModel as unknown as {
       getDownloadAuthorizationById(
@@ -4230,11 +4212,9 @@ test('rejects API-proxy manifest downloads when stored manifest bytes fail finge
   });
   const authorization =
     authorizationResult.authorizeCopilotSupportBundleDownload;
-  const storageProvider = app
-    .get(StorageProviderFactory)
-    .create(app.get(Config).storages.blob.storage);
-
-  await storageProvider.put(
+  const storageRuntime = app.get(StorageRuntimeProvider);
+  await storageRuntime.putObject(
+    supportBundleStorageScope,
     bundle.manifestStorageKey,
     Buffer.from(JSON.stringify({ version: 'tampered-manifest' }), 'utf8'),
     {
@@ -5723,14 +5703,18 @@ test('persists support bundle transfer forwarding retries and dead letters befor
     });
     const authorization =
       authorizationResult.authorizeCopilotSupportBundleDownload;
-    const storageProvider = app
-      .get(StorageProviderFactory)
-      .create(app.get(Config).storages.blob.storage);
-    const archiveObject = await storageProvider.get(bundle.archiveStorageKey);
+    const storageRuntime = app.get(StorageRuntimeProvider);
+    const archiveObject = await storageRuntime.getObject(
+      supportBundleStorageScope,
+      bundle.archiveStorageKey
+    );
     const archiveBody = archiveObject.body
       ? await readableToBuffer(archiveObject.body)
       : null;
-    await storageProvider.delete(bundle.archiveStorageKey);
+    await storageRuntime.deleteObject(
+      supportBundleStorageScope,
+      bundle.archiveStorageKey
+    );
 
     await app
       .POST(supportBundleTransferEventPath)
@@ -5817,7 +5801,8 @@ test('persists support bundle transfer forwarding retries and dead letters befor
       WHERE authorization_id = ${authorization.id}
     `;
     t.truthy(archiveBody);
-    await storageProvider.put(
+    await storageRuntime.putObject(
+      supportBundleStorageScope,
       bundle.archiveStorageKey,
       archiveBody ?? Buffer.alloc(0),
       {
@@ -6987,6 +6972,9 @@ test('support bundle transfer forwarding forwarded terminal write fails closed w
       }
     ).getDirectDownloadTransferForwardingEvent(forwardingEvent.id);
     t.truthy(currentEvent);
+    if (!currentEvent) {
+      throw new Error('Expected current transfer forwarding event');
+    }
     t.is(currentEvent.status, 'processing');
     t.is(currentEvent.workerLeaseId, staleEvent.workerLeaseId);
     t.is(currentEvent.attemptCount, staleEvent.attemptCount);
@@ -7106,6 +7094,9 @@ test('support bundle transfer forwarding rolls back transfer ingestion when forw
         forwardingEvent.id
       );
     t.truthy(currentEvent);
+    if (!currentEvent) {
+      throw new Error('Expected current transfer forwarding event');
+    }
     t.is(currentEvent.status, 'processing');
     t.is(currentEvent.workerLeaseId, staleEvent.workerLeaseId);
     t.is(currentEvent.forwardedTransferEventFingerprint, null);
@@ -7245,6 +7236,9 @@ test('support bundle transfer forwarding failed terminal write fails closed when
       }
     ).getDirectDownloadTransferForwardingEvent(forwardingEvent.id);
     t.truthy(currentEvent);
+    if (!currentEvent) {
+      throw new Error('Expected current transfer forwarding event');
+    }
     t.is(currentEvent.status, 'processing');
     t.is(currentEvent.workerLeaseId, staleEvent.workerLeaseId);
     t.is(currentEvent.attemptCount, staleEvent.attemptCount);
@@ -7336,11 +7330,17 @@ test('expires due support bundles, revokes downloads, and records cleanup audit'
     db,
     bundle,
   });
-  const config = app.get(Config);
-  const storageProvider = app
-    .get(StorageProviderFactory)
-    .create(config.storages.blob.storage);
-  t.truthy(await storageProvider.head(bundle.archiveStorageKey));
+  const archiveStorageKey = bundle.archiveStorageKey;
+  if (!archiveStorageKey) {
+    throw new Error('Expected support bundle archive storage key');
+  }
+  const storageRuntime = app.get(StorageRuntimeProvider);
+  t.truthy(
+    await storageRuntime.headObject(
+      supportBundleStorageScope,
+      archiveStorageKey
+    )
+  );
 
   const cleanupResult = await app.gql({
     query: cleanupSupportBundleRetentionMutation,
@@ -7406,7 +7406,13 @@ test('expires due support bundles, revokes downloads, and records cleanup audit'
     rows[0].manifestFingerprint,
     cleanup.expiredBundles[0].manifestFingerprint
   );
-  t.is(await storageProvider.head(bundle.archiveStorageKey), undefined);
+  t.is(
+    await storageRuntime.headObject(
+      supportBundleStorageScope,
+      archiveStorageKey
+    ),
+    undefined
+  );
 
   const authorizationRows = await db.$queryRaw<Array<{ status: string }>>`
     SELECT status
@@ -7504,7 +7510,7 @@ test('retention cleanup skips stale bundle snapshots before expiration update', 
     bundle,
   });
 
-  const originalQueryRaw = db.$queryRaw.bind(db);
+  const originalQueryRaw = db.$queryRaw;
   let driftedBeforeExpirationUpdate = false;
   db.$queryRaw = (async (
     strings: TemplateStringsArray,
@@ -7522,7 +7528,7 @@ test('retention cleanup skips stale bundle snapshots before expiration update', 
         WHERE id = ${bundle.id}
       `;
     }
-    return await originalQueryRaw(strings, ...values);
+    return await originalQueryRaw.call(db, strings, ...values);
   }) as typeof db.$queryRaw;
 
   try {
@@ -7541,7 +7547,7 @@ test('retention cleanup skips stale bundle snapshots before expiration update', 
       workspaceId: workspace.id,
     });
   } finally {
-    db.$queryRaw = originalQueryRaw as typeof db.$queryRaw;
+    db.$queryRaw = originalQueryRaw;
   }
   t.true(driftedBeforeExpirationUpdate);
 
@@ -7696,39 +7702,17 @@ test('retention cleanup records manifest object rewrite failure without rolling 
     workspaceId: workspace.id,
     actorId: owner.id,
   });
-  const factory = app.get(StorageProviderFactory);
-  const originalCreate = factory.create.bind(factory);
-  const supportBundleModel = app.get(Models)
-    .copilotSupportBundle as unknown as {
-    storageProvider: StorageProvider | null;
-  };
   let failManifestRewrite = true;
   const overlongStorageError = `manifest rewrite unavailable ${'x'.repeat(
     800
   )}`;
-  supportBundleModel.storageProvider = null;
-  factory.create = ((config: StorageProviderConfig) => {
-    const provider = originalCreate(config);
-    return {
-      async put(key, body, metadata) {
-        if (failManifestRewrite && key === bundle.manifestStorageKey) {
-          throw new Error(overlongStorageError);
-        }
-        await provider.put(key, body, metadata);
-      },
-      presignPut: provider.presignPut?.bind(provider),
-      createMultipartUpload: provider.createMultipartUpload?.bind(provider),
-      presignUploadPart: provider.presignUploadPart?.bind(provider),
-      listMultipartUploadParts:
-        provider.listMultipartUploadParts?.bind(provider),
-      completeMultipartUpload: provider.completeMultipartUpload?.bind(provider),
-      abortMultipartUpload: provider.abortMultipartUpload?.bind(provider),
-      head: provider.head.bind(provider),
-      get: provider.get.bind(provider),
-      list: provider.list.bind(provider),
-      delete: provider.delete.bind(provider),
-    } satisfies StorageProvider;
-  }) as StorageProviderFactory['create'];
+  const restoreStorageFailure = installPutObjectFailureMock(
+    app,
+    (_scope, key) =>
+      failManifestRewrite && key === bundle.manifestStorageKey
+        ? new Error(overlongStorageError)
+        : undefined
+  );
 
   try {
     const cleanupResult = await app.gql({
@@ -7801,7 +7785,6 @@ test('retention cleanup records manifest object rewrite failure without rolling 
     );
 
     failManifestRewrite = false;
-    supportBundleModel.storageProvider = null;
 
     const retryResult = await app.gql({
       query: cleanupSupportBundleRetentionMutation,
@@ -7850,8 +7833,7 @@ test('retention cleanup records manifest object rewrite failure without rolling 
       overlongStorageError.slice(0, 512)
     );
   } finally {
-    factory.create = originalCreate;
-    supportBundleModel.storageProvider = null;
+    restoreStorageFailure();
   }
 });
 
@@ -7863,8 +7845,6 @@ test('support bundle retention retry audit fails closed when source cleanup evid
     workspaceId: workspace.id,
     actorId: owner.id,
   });
-  const factory = app.get(StorageProviderFactory);
-  const originalCreate = factory.create.bind(factory);
   const supportBundleModel = app.get(Models)
     .copilotSupportBundle as unknown as {
     cleanupRetention(input: {
@@ -7881,32 +7861,15 @@ test('support bundle retention retry audit fails closed when source cleanup evid
       manifestStorageKey: string | null;
       status: 'failed' | 'missing' | 'written';
     }>;
-    storageProvider: StorageProvider | null;
   };
   let failManifestRewrite = true;
-  supportBundleModel.storageProvider = null;
-  factory.create = ((config: StorageProviderConfig) => {
-    const provider = originalCreate(config);
-    return {
-      put: async (key, body, options) => {
-        if (failManifestRewrite && key === bundle.manifestStorageKey) {
-          throw new Error('manifest rewrite unavailable');
-        }
-        await provider.put(key, body, options);
-      },
-      presignPut: provider.presignPut?.bind(provider),
-      createMultipartUpload: provider.createMultipartUpload?.bind(provider),
-      presignUploadPart: provider.presignUploadPart?.bind(provider),
-      listMultipartUploadParts:
-        provider.listMultipartUploadParts?.bind(provider),
-      completeMultipartUpload: provider.completeMultipartUpload?.bind(provider),
-      abortMultipartUpload: provider.abortMultipartUpload?.bind(provider),
-      head: provider.head.bind(provider),
-      get: provider.get.bind(provider),
-      list: provider.list.bind(provider),
-      delete: provider.delete.bind(provider),
-    } satisfies StorageProvider;
-  }) as StorageProviderFactory['create'];
+  const restoreStorageFailure = installPutObjectFailureMock(
+    app,
+    (_scope, key) =>
+      failManifestRewrite && key === bundle.manifestStorageKey
+        ? new Error('manifest rewrite unavailable')
+        : undefined
+  );
 
   try {
     const cleanupResult = await app.gql({
@@ -7941,7 +7904,6 @@ test('support bundle retention retry audit fails closed when source cleanup evid
     });
 
     failManifestRewrite = false;
-    supportBundleModel.storageProvider = null;
     const originalRewriteManifestObject =
       supportBundleModel.rewriteManifestObject.bind(supportBundleModel);
     supportBundleModel.rewriteManifestObject = async input => {
@@ -8011,8 +7973,7 @@ test('support bundle retention retry audit fails closed when source cleanup evid
     `;
     t.is(retryAuditRows[0]?.retryAuditCount, 0);
   } finally {
-    factory.create = originalCreate;
-    supportBundleModel.storageProvider = null;
+    restoreStorageFailure();
   }
 });
 
@@ -8024,36 +7985,14 @@ test('scheduled support bundle retention cleanup repeats after recovering failed
     workspaceId: workspace.id,
     actorId: owner.id,
   });
-  const factory = app.get(StorageProviderFactory);
-  const originalCreate = factory.create.bind(factory);
-  const supportBundleModel = app.get(Models)
-    .copilotSupportBundle as unknown as {
-    storageProvider: StorageProvider | null;
-  };
   let failManifestRewrite = true;
-  supportBundleModel.storageProvider = null;
-  factory.create = ((config: StorageProviderConfig) => {
-    const provider = originalCreate(config);
-    return {
-      async put(key, body, metadata) {
-        if (failManifestRewrite && key === bundle.manifestStorageKey) {
-          throw new Error('manifest rewrite unavailable');
-        }
-        await provider.put(key, body, metadata);
-      },
-      presignPut: provider.presignPut?.bind(provider),
-      createMultipartUpload: provider.createMultipartUpload?.bind(provider),
-      presignUploadPart: provider.presignUploadPart?.bind(provider),
-      listMultipartUploadParts:
-        provider.listMultipartUploadParts?.bind(provider),
-      completeMultipartUpload: provider.completeMultipartUpload?.bind(provider),
-      abortMultipartUpload: provider.abortMultipartUpload?.bind(provider),
-      head: provider.head.bind(provider),
-      get: provider.get.bind(provider),
-      list: provider.list.bind(provider),
-      delete: provider.delete.bind(provider),
-    } satisfies StorageProvider;
-  }) as StorageProviderFactory['create'];
+  const restoreStorageFailure = installPutObjectFailureMock(
+    app,
+    (_scope, key) =>
+      failManifestRewrite && key === bundle.manifestStorageKey
+        ? new Error('manifest rewrite unavailable')
+        : undefined
+  );
 
   try {
     const firstSignal = await cronJobs.cleanupSupportBundleRetention({
@@ -8062,7 +8001,6 @@ test('scheduled support bundle retention cleanup repeats after recovering failed
     t.is(firstSignal, JOB_SIGNAL.Done);
 
     failManifestRewrite = false;
-    supportBundleModel.storageProvider = null;
 
     const retrySignal = await cronJobs.cleanupSupportBundleRetention({
       limit: 1,
@@ -8097,8 +8035,7 @@ test('scheduled support bundle retention cleanup repeats after recovering failed
     });
     t.is(noOpSignal, JOB_SIGNAL.Done);
   } finally {
-    factory.create = originalCreate;
-    supportBundleModel.storageProvider = null;
+    restoreStorageFailure();
   }
 });
 
@@ -8110,36 +8047,14 @@ test('scheduled support bundle retention cleanup escalates persistent manifest r
     workspaceId: workspace.id,
     actorId: owner.id,
   });
-  const factory = app.get(StorageProviderFactory);
-  const originalCreate = factory.create.bind(factory);
-  const supportBundleModel = app.get(Models)
-    .copilotSupportBundle as unknown as {
-    storageProvider: StorageProvider | null;
-  };
   let failManifestRewrite = true;
-  supportBundleModel.storageProvider = null;
-  factory.create = ((config: StorageProviderConfig) => {
-    const provider = originalCreate(config);
-    return {
-      async put(key, body, metadata) {
-        if (failManifestRewrite && key === bundle.manifestStorageKey) {
-          throw new Error('manifest rewrite unavailable');
-        }
-        await provider.put(key, body, metadata);
-      },
-      presignPut: provider.presignPut?.bind(provider),
-      createMultipartUpload: provider.createMultipartUpload?.bind(provider),
-      presignUploadPart: provider.presignUploadPart?.bind(provider),
-      listMultipartUploadParts:
-        provider.listMultipartUploadParts?.bind(provider),
-      completeMultipartUpload: provider.completeMultipartUpload?.bind(provider),
-      abortMultipartUpload: provider.abortMultipartUpload?.bind(provider),
-      head: provider.head.bind(provider),
-      get: provider.get.bind(provider),
-      list: provider.list.bind(provider),
-      delete: provider.delete.bind(provider),
-    } satisfies StorageProvider;
-  }) as StorageProviderFactory['create'];
+  const restoreStorageFailure = installPutObjectFailureMock(
+    app,
+    (_scope, key) =>
+      failManifestRewrite && key === bundle.manifestStorageKey
+        ? new Error('manifest rewrite unavailable')
+        : undefined
+  );
 
   try {
     const firstSignal = await cronJobs.cleanupSupportBundleRetention({
@@ -8199,7 +8114,6 @@ test('scheduled support bundle retention cleanup escalates persistent manifest r
     t.is(skippedCountRows[0].count, 2);
 
     failManifestRewrite = false;
-    supportBundleModel.storageProvider = null;
 
     const manualRetryResult = await app.gql({
       query: cleanupSupportBundleRetentionMutation,
@@ -8244,8 +8158,7 @@ test('scheduled support bundle retention cleanup escalates persistent manifest r
       undefined
     );
   } finally {
-    factory.create = originalCreate;
-    supportBundleModel.storageProvider = null;
+    restoreStorageFailure();
   }
 });
 
@@ -8257,36 +8170,14 @@ test('retention cleanup records archive object cleanup failure without rolling b
     workspaceId: workspace.id,
     actorId: owner.id,
   });
-  const factory = app.get(StorageProviderFactory);
-  const originalCreate = factory.create.bind(factory);
-  const supportBundleModel = app.get(Models)
-    .copilotSupportBundle as unknown as {
-    storageProvider: StorageProvider | null;
-  };
   const overlongStorageError = `archive delete unavailable ${'x'.repeat(800)}`;
-  supportBundleModel.storageProvider = null;
-  factory.create = ((config: StorageProviderConfig) => {
-    const provider = originalCreate(config);
-    return {
-      put: provider.put.bind(provider),
-      presignPut: provider.presignPut?.bind(provider),
-      createMultipartUpload: provider.createMultipartUpload?.bind(provider),
-      presignUploadPart: provider.presignUploadPart?.bind(provider),
-      listMultipartUploadParts:
-        provider.listMultipartUploadParts?.bind(provider),
-      completeMultipartUpload: provider.completeMultipartUpload?.bind(provider),
-      abortMultipartUpload: provider.abortMultipartUpload?.bind(provider),
-      head: provider.head.bind(provider),
-      get: provider.get.bind(provider),
-      list: provider.list.bind(provider),
-      async delete(key: string) {
-        if (key === bundle.archiveStorageKey) {
-          throw new Error(overlongStorageError);
-        }
-        await provider.delete(key);
-      },
-    } satisfies StorageProvider;
-  }) as StorageProviderFactory['create'];
+  const restoreStorageFailure = installDeleteObjectFailureMock(
+    app,
+    (_scope, key) =>
+      key === bundle.archiveStorageKey
+        ? new Error(overlongStorageError)
+        : undefined
+  );
 
   try {
     const cleanupResult = await app.gql({
@@ -8341,8 +8232,7 @@ test('retention cleanup records archive object cleanup failure without rolling b
       overlongStorageError.slice(0, 512)
     );
   } finally {
-    factory.create = originalCreate;
-    supportBundleModel.storageProvider = null;
+    restoreStorageFailure();
   }
 });
 
@@ -8354,36 +8244,14 @@ test('retention cleanup retries failed archive object cleanup on expired bundles
     workspaceId: workspace.id,
     actorId: owner.id,
   });
-  const factory = app.get(StorageProviderFactory);
-  const originalCreate = factory.create.bind(factory);
-  const supportBundleModel = app.get(Models)
-    .copilotSupportBundle as unknown as {
-    storageProvider: StorageProvider | null;
-  };
   let failArchiveDelete = true;
-  supportBundleModel.storageProvider = null;
-  factory.create = ((config: StorageProviderConfig) => {
-    const provider = originalCreate(config);
-    return {
-      put: provider.put.bind(provider),
-      presignPut: provider.presignPut?.bind(provider),
-      createMultipartUpload: provider.createMultipartUpload?.bind(provider),
-      presignUploadPart: provider.presignUploadPart?.bind(provider),
-      listMultipartUploadParts:
-        provider.listMultipartUploadParts?.bind(provider),
-      completeMultipartUpload: provider.completeMultipartUpload?.bind(provider),
-      abortMultipartUpload: provider.abortMultipartUpload?.bind(provider),
-      head: provider.head.bind(provider),
-      get: provider.get.bind(provider),
-      list: provider.list.bind(provider),
-      async delete(key: string) {
-        if (failArchiveDelete && key === bundle.archiveStorageKey) {
-          throw new Error('archive delete unavailable');
-        }
-        await provider.delete(key);
-      },
-    } satisfies StorageProvider;
-  }) as StorageProviderFactory['create'];
+  const restoreStorageFailure = installDeleteObjectFailureMock(
+    app,
+    (_scope, key) =>
+      failArchiveDelete && key === bundle.archiveStorageKey
+        ? new Error('archive delete unavailable')
+        : undefined
+  );
 
   try {
     const cleanupResult = await app.gql({
@@ -8421,7 +8289,6 @@ test('retention cleanup retries failed archive object cleanup on expired bundles
     });
 
     failArchiveDelete = false;
-    supportBundleModel.storageProvider = null;
 
     const retryResult = await app.gql({
       query: cleanupSupportBundleRetentionMutation,
@@ -8463,8 +8330,7 @@ test('retention cleanup retries failed archive object cleanup on expired bundles
       previousArchiveObjectCleanupFingerprint: cleanup.cleanupFingerprint,
     });
   } finally {
-    factory.create = originalCreate;
-    supportBundleModel.storageProvider = null;
+    restoreStorageFailure();
   }
 });
 
@@ -8604,36 +8470,14 @@ test('scheduled support bundle retention cleanup retries failed archive object c
     workspaceId: workspace.id,
     actorId: owner.id,
   });
-  const factory = app.get(StorageProviderFactory);
-  const originalCreate = factory.create.bind(factory);
-  const supportBundleModel = app.get(Models)
-    .copilotSupportBundle as unknown as {
-    storageProvider: StorageProvider | null;
-  };
   let failArchiveDelete = true;
-  supportBundleModel.storageProvider = null;
-  factory.create = ((config: StorageProviderConfig) => {
-    const provider = originalCreate(config);
-    return {
-      put: provider.put.bind(provider),
-      presignPut: provider.presignPut?.bind(provider),
-      createMultipartUpload: provider.createMultipartUpload?.bind(provider),
-      presignUploadPart: provider.presignUploadPart?.bind(provider),
-      listMultipartUploadParts:
-        provider.listMultipartUploadParts?.bind(provider),
-      completeMultipartUpload: provider.completeMultipartUpload?.bind(provider),
-      abortMultipartUpload: provider.abortMultipartUpload?.bind(provider),
-      head: provider.head.bind(provider),
-      get: provider.get.bind(provider),
-      list: provider.list.bind(provider),
-      async delete(key: string) {
-        if (failArchiveDelete && key === bundle.archiveStorageKey) {
-          throw new Error('archive delete unavailable');
-        }
-        await provider.delete(key);
-      },
-    } satisfies StorageProvider;
-  }) as StorageProviderFactory['create'];
+  const restoreStorageFailure = installDeleteObjectFailureMock(
+    app,
+    (_scope, key) =>
+      failArchiveDelete && key === bundle.archiveStorageKey
+        ? new Error('archive delete unavailable')
+        : undefined
+  );
 
   try {
     const firstSignal = await cronJobs.cleanupSupportBundleRetention({
@@ -8642,7 +8486,6 @@ test('scheduled support bundle retention cleanup retries failed archive object c
     t.is(firstSignal, JOB_SIGNAL.Done);
 
     failArchiveDelete = false;
-    supportBundleModel.storageProvider = null;
 
     const retrySignal = await cronJobs.cleanupSupportBundleRetention({
       limit: 1,
@@ -8677,8 +8520,7 @@ test('scheduled support bundle retention cleanup retries failed archive object c
     });
     t.is(noOpSignal, JOB_SIGNAL.Done);
   } finally {
-    factory.create = originalCreate;
-    supportBundleModel.storageProvider = null;
+    restoreStorageFailure();
   }
 });
 
@@ -8690,36 +8532,14 @@ test('scheduled support bundle retention cleanup escalates persistent archive cl
     workspaceId: workspace.id,
     actorId: owner.id,
   });
-  const factory = app.get(StorageProviderFactory);
-  const originalCreate = factory.create.bind(factory);
-  const supportBundleModel = app.get(Models)
-    .copilotSupportBundle as unknown as {
-    storageProvider: StorageProvider | null;
-  };
   let failArchiveDelete = true;
-  supportBundleModel.storageProvider = null;
-  factory.create = ((config: StorageProviderConfig) => {
-    const provider = originalCreate(config);
-    return {
-      put: provider.put.bind(provider),
-      presignPut: provider.presignPut?.bind(provider),
-      createMultipartUpload: provider.createMultipartUpload?.bind(provider),
-      presignUploadPart: provider.presignUploadPart?.bind(provider),
-      listMultipartUploadParts:
-        provider.listMultipartUploadParts?.bind(provider),
-      completeMultipartUpload: provider.completeMultipartUpload?.bind(provider),
-      abortMultipartUpload: provider.abortMultipartUpload?.bind(provider),
-      head: provider.head.bind(provider),
-      get: provider.get.bind(provider),
-      list: provider.list.bind(provider),
-      async delete(key: string) {
-        if (failArchiveDelete && key === bundle.archiveStorageKey) {
-          throw new Error('archive delete unavailable');
-        }
-        await provider.delete(key);
-      },
-    } satisfies StorageProvider;
-  }) as StorageProviderFactory['create'];
+  const restoreStorageFailure = installDeleteObjectFailureMock(
+    app,
+    (_scope, key) =>
+      failArchiveDelete && key === bundle.archiveStorageKey
+        ? new Error('archive delete unavailable')
+        : undefined
+  );
 
   try {
     const firstSignal = await cronJobs.cleanupSupportBundleRetention({
@@ -8779,7 +8599,6 @@ test('scheduled support bundle retention cleanup escalates persistent archive cl
     t.is(skippedCountRows[0].count, 2);
 
     failArchiveDelete = false;
-    supportBundleModel.storageProvider = null;
 
     const manualRetryResult = await app.gql({
       query: cleanupSupportBundleRetentionMutation,
@@ -8824,7 +8643,6 @@ test('scheduled support bundle retention cleanup escalates persistent archive cl
       undefined
     );
   } finally {
-    factory.create = originalCreate;
-    supportBundleModel.storageProvider = null;
+    restoreStorageFailure();
   }
 });

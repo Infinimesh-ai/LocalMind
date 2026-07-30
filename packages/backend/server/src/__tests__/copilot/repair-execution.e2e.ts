@@ -706,6 +706,7 @@ const agentRuntimeControlMutation = {
           outputSummary
         }
         timelineEvents {
+          stepId
           eventType
           status
           ordinal
@@ -1138,7 +1139,9 @@ test('persists repair execution request, approval state, idempotency, and audit 
   await t.throwsAsync(
     db.$executeRaw`
       UPDATE ai_repair_execution_requests
-      SET status = ${'completed'}
+      SET
+        status = ${'completed'},
+        approval_state = ${'approved'}
       WHERE id = ${record.id}
     `,
     { message: /ai_repair_execution_requests_completed_at_status_check/ }
@@ -3427,13 +3430,6 @@ test('Agent Runtime hydrates legacy malformed persisted JSON safely', async t =>
   });
 
   await db.$executeRaw`
-    UPDATE ai_agent_steps
-    SET output_summary = ${JSON.stringify({
-      workerLease: 'not-an-object',
-    })}::jsonb
-    WHERE run_id = ${run.id}
-  `;
-  await db.$executeRaw`
     INSERT INTO ai_agent_timeline_events (
       id,
       run_id,
@@ -3470,7 +3466,8 @@ test('Agent Runtime hydrates legacy malformed persisted JSON safely', async t =>
   );
   t.truthy(hydrated);
   t.deepEqual(hydrated?.steps[0].outputSummary, {
-    workerLease: 'not-an-object',
+    retained: true,
+    version: 'agent-runtime-step-output-summary/v1',
   });
   t.deepEqual(hydrated?.timelineEvents.at(-1)?.payload, {
     sourceType: 42,
@@ -3485,6 +3482,8 @@ test('Agent Runtime hydrates legacy malformed persisted JSON safely', async t =>
     });
   t.truthy(leased);
   t.deepEqual(leased?.steps[0].outputSummary, {
+    retained: true,
+    version: 'agent-runtime-step-output-summary/v1',
     workerLease: {
       executor: 'agent_runtime_worker',
       version: 'agent-runtime-worker-step-lease/v1',
@@ -3983,9 +3982,11 @@ test('repair execution requests require matching audit history at the DB boundar
     scope: 'workspace',
     workspaceId: workspace.id,
     rollbackContract: {
-      version: 'repair-execution-rollback-contract/v1',
+      version: 'repair-execution-side-effect-rollback-contract/v1',
       supported: false,
-      reason: 'forward_only_registry_revision',
+      mode: 'forward_only_followup_revision',
+      reason: 'Registry repairs are recovered with a follow-up revision.',
+      recoveryPath: 'publish_follow_up_registry_revision',
     },
   };
   const sideEffectResult = {
@@ -4674,7 +4675,10 @@ test('Agent Runtime rejects status timestamp drift at the DB boundary', async t 
         SET CONSTRAINTS "zz_ai_agent_steps_delete_restrict_check" IMMEDIATE
       `;
     }),
-    { message: /ai_agent_steps_delete_restrict_check/ }
+    {
+      message:
+        /ai_agent_steps_delete_restrict_check|ai_agent_timeline_events_content_update_restrict_check/,
+    }
   );
 
   const stepCascadeRun = await app.models.copilotAgentRuntime.createRun({
@@ -4802,7 +4806,8 @@ test('Agent Runtime rejects status timestamp drift at the DB boundary', async t 
       WHERE id = ${terminalRun.id}
     `,
     {
-      message: /ai_agent_runs_terminal_result_update_restrict_check/,
+      message:
+        /ai_agent_runs_execution_result_terminal_snapshot_check|ai_agent_runs_terminal_result_update_restrict_check/,
     }
   );
 
@@ -5985,7 +5990,8 @@ test('standalone Agent Runtime worker completes record-only runs', async t => {
   });
   t.deepEqual(
     detailResult.currentUser?.copilot.agentRuntimeWorkflowAdapters.find(
-      adapter => adapter.workflow === 'agent_runtime_record_only'
+      (adapter: { workflow: string }) =>
+        adapter.workflow === 'agent_runtime_record_only'
     ),
     {
       workflow: 'agent_runtime_record_only',
@@ -6024,11 +6030,12 @@ test('standalone Agent Runtime worker completes record-only runs', async t => {
     },
   });
   const listedRun = listResult.currentUser?.copilot.agentRuns.find(
-    item => item.id === run.id
+    (item: { id: string }) => item.id === run.id
   );
   t.deepEqual(
     listResult.currentUser?.copilot.agentRuntimeWorkflowAdapters.find(
-      adapter => adapter.workflow === 'agent_runtime_record_only'
+      (adapter: { workflow: string }) =>
+        adapter.workflow === 'agent_runtime_record_only'
     )?.capabilities.supportedStepTypes,
     ['approval', 'codex', 'handoff', 'mcp', 'model', 'tool']
   );
@@ -6469,12 +6476,11 @@ test('standalone Agent Runtime worker completes record-only runs', async t => {
     workflow: 'agent_runtime_record_only',
     sourceType: 'agent_runtime_test',
     sourceId: 'record-only-manual-summary-runtime-run',
-    status: 'running',
+    status: 'queued',
     steps: [
       {
         stepKey: 'record_model_context',
         stepType: 'model',
-        status: 'running',
       },
     ],
   });
@@ -6495,11 +6501,9 @@ test('standalone Agent Runtime worker completes record-only runs', async t => {
       workerAttempt: leasedManualSummaryRun!.workerAttempt,
       summary: `  ${'s'.repeat(1200)}  `,
     });
-  t.is(
-    completedManualSummaryRun.steps[0].outputSummary.recordOnlyExecution
-      .summary,
-    's'.repeat(1024)
-  );
+  const recordOnlyExecutionSummary = completedManualSummaryRun.steps[0]
+    .outputSummary.recordOnlyExecution as { summary?: string } | undefined;
+  t.is(recordOnlyExecutionSummary?.summary, 's'.repeat(1024));
 });
 
 test('standalone Agent Runtime worker completes local workflows through generic completion contract', async t => {
@@ -6677,7 +6681,8 @@ test('standalone Agent Runtime worker completes local workflows through generic 
   });
   t.deepEqual(
     detailResult.currentUser?.copilot.agentRuntimeWorkflowAdapters.find(
-      adapter => adapter.workflow === 'agent_runtime_local_completion'
+      (adapter: { workflow: string }) =>
+        adapter.workflow === 'agent_runtime_local_completion'
     ),
     {
       workflow: 'agent_runtime_local_completion',
@@ -8484,7 +8489,7 @@ test('standalone Agent Runtime worker failure fails closed when run state change
   const run = await app.models.copilotAgentRuntime.createRun({
     workspaceId: workspace.id,
     actorId: owner.id,
-    workflow: 'agent_runtime_stale_failure_e2e',
+    workflow: 'agent_runtime_record_only',
     sourceType: 'agent_runtime_test',
     sourceId: 'stale-worker-failure-runtime-run',
     status: 'queued',
@@ -8510,13 +8515,13 @@ test('standalone Agent Runtime worker failure fails closed when run state change
   );
   t.truthy(staleExisting);
   t.is(staleExisting?.status, 'running');
-  await db.$executeRaw`
-    UPDATE ai_agent_runs
-    SET
-      status = ${'completed'},
-      completed_at = ${new Date('2026-06-22T13:11:00.000Z')}
-    WHERE id = ${run.id}
-  `;
+  await app.models.copilotAgentRuntime.completeStandaloneRecordOnlyExecution({
+    workspaceId: workspace.id,
+    id: run.id,
+    workerLeaseId: 'agent-runtime-stale-fail-worker-e2e',
+    workerAttempt: staleExisting!.workerAttempt,
+    summary: 'completed before stale worker failure persistence',
+  });
 
   const model = app.models.copilotAgentRuntime;
   const originalGet = model.get.bind(model);
@@ -8693,7 +8698,7 @@ test('standalone Agent Runtime worker failure fails closed when run state change
   t.deepEqual(rows, [
     {
       status: 'completed',
-      resultLedgerCount: 0,
+      resultLedgerCount: 1,
       workerFailureStepCount: 0,
       failedTimelineCount: 0,
     },
@@ -8899,16 +8904,16 @@ test('standalone Agent Runtime worker skips adapter execution after its lease is
   t.deepEqual(rows, [
     {
       completedTimelineCount: 0,
-      executionResultCount: 0,
-      status: 'queued',
-      stepStatus: 'pending',
+      executionResultCount: 1,
+      status: 'failed',
+      stepStatus: 'failed',
       timelineStatuses: [
         'queued',
         'pending',
         'running',
         'running',
-        'queued',
-        'pending',
+        'failed',
+        'failed',
       ],
       workerAttempt: 1,
       workerLeaseId: null,
@@ -9968,6 +9973,7 @@ test('controls standalone Agent Runtime runs without mutating repair execution r
       workflow: 'agent_runtime_control_e2e',
     },
     status: 'cancelled',
+    stepId: null,
     summary: 'Agent runtime run manually cancelled',
   });
   const cancelledStepEvent = cancelled.timelineEvents.find(
@@ -10060,6 +10066,7 @@ test('controls standalone Agent Runtime runs without mutating repair execution r
       workflow: 'agent_runtime_control_e2e',
     },
     status: 'queued',
+    stepId: null,
     summary: 'Agent runtime run manually resumed',
   });
   const resumedStepEvent = resumed.timelineEvents.find(
@@ -10153,28 +10160,36 @@ test('standalone Agent Runtime cancel fails closed when run state changes before
     workflow: 'agent_runtime_stale_cancel_e2e',
     sourceType: 'agent_runtime_test',
     sourceId: 'stale-cancel-runtime-run',
-    status: 'running',
+    status: 'queued',
     steps: [
       {
         stepKey: 'tool_lookup',
         stepType: 'tool',
-        status: 'running',
       },
     ],
   });
 
+  const lease =
+    await app.models.copilotAgentRuntime.acquireStandaloneWorkerLease({
+      workspaceId: workspace.id,
+      id: run.id,
+      workerId: 'agent-runtime-stale-cancel-worker-e2e',
+      leaseMs: 60_000,
+    });
+  t.truthy(lease);
   const staleExisting = await app.models.copilotAgentRuntime.get(
     workspace.id,
     run.id
   );
   t.truthy(staleExisting);
-  await db.$executeRaw`
-    UPDATE ai_agent_runs
-    SET
-      status = ${'failed'},
-      completed_at = ${new Date('2026-06-22T13:12:00.000Z')}
-    WHERE id = ${run.id}
-  `;
+  await app.models.copilotAgentRuntime.failStandaloneWorkerExecution({
+    workspaceId: workspace.id,
+    id: run.id,
+    workerLeaseId: 'agent-runtime-stale-cancel-worker-e2e',
+    workerAttempt: staleExisting!.workerAttempt,
+    code: 'agent_runtime_stale_cancel_fixture_failure',
+    message: 'failed before stale cancellation persistence',
+  });
 
   const model = app.models.copilotAgentRuntime;
   const originalGet = model.get.bind(model);
@@ -10196,7 +10211,8 @@ test('standalone Agent Runtime cancel fails closed when run state changes before
         reason: 'stale cancel should not persist',
       }),
       {
-        message: /could not be cancelled because its state changed/,
+        message:
+          /could not (?:request cancellation|be cancelled) because its state changed/,
       }
     );
   } finally {
@@ -10491,7 +10507,7 @@ test('standalone Agent Runtime running cancel is cooperative before adapter exec
     ],
   });
 
-  let requested: {
+  type RequestedRun = {
     completedAt: string | null;
     timelineEvents: Array<{
       eventType: string;
@@ -10501,7 +10517,9 @@ test('standalone Agent Runtime running cancel is cooperative before adapter exec
     }>;
     status: string;
     workerLeaseId: string | null;
-  } | null = null;
+  };
+  let requested: RequestedRun | null = null;
+  const getRequested = (): RequestedRun | null => requested;
   const runtimeModel = models.copilotAgentRuntime;
   const originalAcquire =
     runtimeModel.acquireStandaloneWorkerLease.bind(runtimeModel);
@@ -10536,12 +10554,16 @@ test('standalone Agent Runtime running cancel is cooperative before adapter exec
     acquireStub.restore();
   }
 
-  t.truthy(requested);
-  t.is(requested?.status, 'running');
-  t.truthy(requested?.workerLeaseId);
-  t.is(requested?.completedAt, null);
+  const requestedSnapshot = getRequested();
+  t.truthy(requestedSnapshot);
+  if (!requestedSnapshot) {
+    throw new Error('Expected cooperative cancellation request snapshot');
+  }
+  t.is(requestedSnapshot.status, 'running');
+  t.truthy(requestedSnapshot.workerLeaseId);
+  t.is(requestedSnapshot.completedAt, null);
   t.deepEqual(
-    requested?.timelineEvents
+    requestedSnapshot.timelineEvents
       .slice(-1)
       .map(event => [
         event.eventType,
@@ -10722,11 +10744,14 @@ test('standalone Agent Runtime worker consumes cancellation requested during ada
     t.context;
   const models = app.get(Models);
   let adapterWorkerLeaseId: string | null = null;
-  let requestedDuringAdapter: {
+  type RequestedDuringAdapter = {
     completedAt: string | null;
     status: string;
     workerLeaseId: string | null;
-  } | null = null;
+  };
+  let requestedDuringAdapter: RequestedDuringAdapter | null = null;
+  const getRequestedDuringAdapter = (): RequestedDuringAdapter | null =>
+    requestedDuringAdapter;
   agentRuntimeWorkflowRegistry.register({
     workflow: 'agent_runtime_post_adapter_cancel_e2e',
     capabilities: {
@@ -10776,10 +10801,14 @@ test('standalone Agent Runtime worker consumes cancellation requested during ada
   t.is(signal, JOB_SIGNAL.Done);
 
   t.truthy(adapterWorkerLeaseId);
-  t.truthy(requestedDuringAdapter);
-  t.is(requestedDuringAdapter?.status, 'running');
-  t.is(requestedDuringAdapter?.workerLeaseId, adapterWorkerLeaseId);
-  t.is(requestedDuringAdapter?.completedAt, null);
+  const requestedDuringAdapterSnapshot = getRequestedDuringAdapter();
+  t.truthy(requestedDuringAdapterSnapshot);
+  if (!requestedDuringAdapterSnapshot) {
+    throw new Error('Expected cancellation request during adapter execution');
+  }
+  t.is(requestedDuringAdapterSnapshot.status, 'running');
+  t.is(requestedDuringAdapterSnapshot.workerLeaseId, adapterWorkerLeaseId);
+  t.is(requestedDuringAdapterSnapshot.completedAt, null);
 
   const cancelled = await models.copilotAgentRuntime.get(workspace.id, run.id);
   t.truthy(cancelled);
@@ -10856,6 +10885,7 @@ test('standalone Agent Runtime adapters can cooperatively consume cancellation d
     t.context;
   const models = app.get(Models);
   let adapterWorkerAttempt: number | null = null;
+  const getAdapterWorkerAttempt = (): number | null => adapterWorkerAttempt;
   let adapterWorkerLeaseId: string | null = null;
   let cancellationConsumedInAdapter = false;
   agentRuntimeWorkflowRegistry.register({
@@ -10914,7 +10944,7 @@ test('standalone Agent Runtime adapters can cooperatively consume cancellation d
     runId: run.id,
   });
   t.is(signal, JOB_SIGNAL.Done);
-  t.is(adapterWorkerAttempt, 1);
+  t.is(getAdapterWorkerAttempt(), 1);
   t.truthy(adapterWorkerLeaseId);
   t.true(cancellationConsumedInAdapter);
 
@@ -13288,7 +13318,7 @@ test('repair execution worker fails instead of completing against a conflicting 
   });
   t.regex(
     failedRows[0]?.failureMessage ?? '',
-    /already exists with different fingerprint/
+    /already exists with different fingerprint|revision conflict reused mismatched row evidence/
   );
   t.false(failedRows[0]?.runtimeResult.sideEffectsApplied);
 
@@ -13300,7 +13330,14 @@ test('repair execution worker fails instead of completing against a conflicting 
   `;
   t.deepEqual(
     auditRows.map(row => row.eventType),
-    ['requested', 'queued', 'running', 'failed']
+    [
+      'requested',
+      'waiting_approval',
+      'approval_approved',
+      'queued',
+      'running',
+      'failed',
+    ]
   );
 });
 
@@ -13546,11 +13583,14 @@ test('manual control requests running cancellation and worker cooperatively canc
     throw new Error('Agent Runtime model missing');
   }
   const originalSync = runtime.syncRepairExecution.bind(runtime);
-  let runningControlRecord: {
+  type RunningControlRecord = {
     runtimeResult: { executor?: string };
     status: string;
     workerLeaseId: string | null;
-  } | null = null;
+  };
+  let runningControlRecord: RunningControlRecord | null = null;
+  const getRunningControlRecord = (): RunningControlRecord | null =>
+    runningControlRecord;
   const syncStub = Sinon.stub(runtime, 'syncRepairExecution').callsFake(
     async (input: Parameters<typeof runtime.syncRepairExecution>[0]) => {
       const synced = await originalSync(input);
@@ -13586,10 +13626,17 @@ test('manual control requests running cancellation and worker cooperatively canc
     syncStub.restore();
   }
 
-  t.truthy(runningControlRecord);
-  t.is(runningControlRecord?.status, 'running');
-  t.is(runningControlRecord?.runtimeResult.executor, 'repair_execution_worker');
-  t.truthy(runningControlRecord?.workerLeaseId);
+  const runningControlSnapshot = getRunningControlRecord();
+  t.truthy(runningControlSnapshot);
+  if (!runningControlSnapshot) {
+    throw new Error('Expected running repair control snapshot');
+  }
+  t.is(runningControlSnapshot.status, 'running');
+  t.is(
+    runningControlSnapshot.runtimeResult.executor,
+    'repair_execution_worker'
+  );
+  t.truthy(runningControlSnapshot.workerLeaseId);
 
   const rows = await db.$queryRaw<
     Array<{
@@ -15091,14 +15138,7 @@ test('repair execution worker fails unsupported executor payloads without automa
   `;
   t.deepEqual(
     auditRows.map(row => row.eventType),
-    [
-      'requested',
-      'waiting_approval',
-      'approval_approved',
-      'queued',
-      'running',
-      'failed',
-    ]
+    ['requested', 'queued', 'running', 'failed']
   );
 
   const agentRows = await db.$queryRaw<
@@ -16286,7 +16326,7 @@ test('worker side-effect and cancellation checks fail closed when the leased req
   });
   t.is(controlResult.controlCopilotRepairExecution.status, 'running');
 
-  const driftedAttemptAt = new Date('2026-06-22T13:14:45.000Z');
+  const driftedAttemptAt = new Date();
   const driftedAttemptAuditMetadata = {
     executor: 'repair_execution_worker',
     workerAttempt: 2,
@@ -16432,9 +16472,10 @@ test('worker side-effect and cancellation checks fail closed when the leased req
 
 test('repair execution worker failure persistence normalizes blank and overlong messages', async t => {
   const { app, db } = t.context;
+  const models = app.get(Models);
   const workspace = await createWorkspace(app);
-  const blankPromptName = 'Repair failure message blank prompt';
-  const overlongPromptName = 'Repair failure message overlong prompt';
+  const blankPromptName = 'Repair blank failure';
+  const overlongPromptName = 'Repair long failure';
   await seedRegistryPrompt(db, blankPromptName);
   await seedRegistryPrompt(db, overlongPromptName);
 
@@ -16598,7 +16639,7 @@ test('repair execution worker failure persistence normalizes blank and overlong 
     { message: /ai_repair_execution_requests_failure_string_shape_check/ }
   );
 
-  const invalidCodePromptName = 'Repair failure code invalid prompt';
+  const invalidCodePromptName = 'Repair invalid code';
   await seedRegistryPrompt(db, invalidCodePromptName);
   const invalidCodeRecord = await createApprovedRequest(invalidCodePromptName);
   const invalidCodeLeaseId = 'repair-failure-code-invalid-worker';

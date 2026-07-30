@@ -130,6 +130,8 @@ test.before(async t => {
       ConfigModule.override({
         copilot: {
           providers: {
+            defaults: {},
+            routePolicy: {},
             openaiCompatible: {
               apiStyle: 'chat_completions',
               baseURL: 'http://localmind.invalid/v1',
@@ -415,7 +417,7 @@ test('model registry DB constraints reject invalid revision scope and status row
       ${'invalidstatus111'},
       ${modelDefinition}::jsonb,
       ${'[]'}::jsonb,
-      ${'{}'}::jsonb,
+      ${'{"version":"legacy-test"}'}::jsonb,
       ${now},
       ${now}
     )
@@ -450,7 +452,7 @@ test('model registry DB constraints reject invalid revision scope and status row
       ${'invalidscope111'},
       ${modelDefinition}::jsonb,
       ${'[]'}::jsonb,
-      ${'{}'}::jsonb,
+      ${'{"version":"legacy-test"}'}::jsonb,
       ${now},
       ${now}
     )
@@ -485,7 +487,7 @@ test('model registry DB constraints reject invalid revision scope and status row
       ${'globalworkspace1'},
       ${modelDefinition}::jsonb,
       ${'[]'}::jsonb,
-      ${'{}'}::jsonb,
+      ${'{"version":"legacy-test"}'}::jsonb,
       ${now},
       ${now}
     )
@@ -520,7 +522,7 @@ test('model registry DB constraints reject invalid revision scope and status row
       ${'workspacewithout1'},
       ${modelDefinition}::jsonb,
       ${'[]'}::jsonb,
-      ${'{}'}::jsonb,
+      ${'{"version":"legacy-test"}'}::jsonb,
       ${now},
       ${now}
     )
@@ -555,7 +557,7 @@ test('model registry DB constraints reject invalid revision scope and status row
         ${'active'},
         ${'invalidjson111'},
         ${modelDefinition}::jsonb,
-        ${'{}'}::jsonb,
+        ${'{"version":"legacy-test"}'}::jsonb,
         ${'[]'}::jsonb,
         ${now},
         ${now}
@@ -600,7 +602,7 @@ test('model registry DB constraints reject invalid revision scope and status row
             status: 'available',
           },
         ])}::jsonb,
-        ${'{}'}::jsonb,
+        ${'{"version":"legacy-test"}'}::jsonb,
         ${now},
         ${now}
       )
@@ -647,7 +649,7 @@ test('model registry DB constraints reject invalid revision scope and status row
             modelId: 42,
           },
         ])}::jsonb,
-        ${'{}'}::jsonb,
+        ${'{"version":"legacy-test"}'}::jsonb,
         ${now},
         ${now}
       )
@@ -687,7 +689,7 @@ test('model registry DB constraints reject invalid revision scope and status row
         ${'invalidpayload1'},
         ${'[]'}::jsonb,
         ${'[]'}::jsonb,
-        ${'{}'}::jsonb,
+        ${'{"version":"legacy-test"}'}::jsonb,
         ${now},
         ${now}
       )
@@ -725,7 +727,7 @@ test('model registry DB constraints reject invalid revision scope and status row
         ${'invalidrevision3'},
         ${modelDefinition}::jsonb,
         ${'[]'}::jsonb,
-        ${'{}'}::jsonb,
+        ${'{"version":"legacy-test"}'}::jsonb,
         ${now},
         ${now}
       )
@@ -763,7 +765,7 @@ test('model registry DB constraints reject invalid revision scope and status row
         ${'invalidmodelid1'},
         ${modelDefinition}::jsonb,
         ${'[]'}::jsonb,
-        ${'{}'}::jsonb,
+        ${'{"version":"legacy-test"}'}::jsonb,
         ${now},
         ${now}
       )
@@ -801,7 +803,7 @@ test('model registry DB constraints reject invalid revision scope and status row
         ${'   '},
         ${modelDefinition}::jsonb,
         ${'[]'}::jsonb,
-        ${'{}'}::jsonb,
+        ${'{"version":"legacy-test"}'}::jsonb,
         ${now},
         ${now}
       )
@@ -839,7 +841,7 @@ test('model registry DB constraints reject invalid revision scope and status row
         ${'invalidtimestamp2'},
         ${modelDefinition}::jsonb,
         ${'[]'}::jsonb,
-        ${'{}'}::jsonb,
+        ${'{"version":"legacy-test"}'}::jsonb,
         ${now},
         ${new Date(now.getTime() - 60_000)}
       )

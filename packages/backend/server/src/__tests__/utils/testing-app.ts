@@ -40,6 +40,11 @@ interface TestingAppMetadata extends ModuleMetadata {
   tapApp?(app: INestApplication): void;
 }
 
+interface UnregisteredGraphQLQueryOptions {
+  query: GraphQLQuery;
+  variables?: any;
+}
+
 export type TestUser = Omit<User, 'password'> & { password: string };
 
 const OneMB = 1024 * 1024;
@@ -204,10 +209,13 @@ export class TestingApp extends ApplyType<INestApplication>() {
   async gql<Query extends GraphQLQuery>(
     options: QueryOptions<Query>
   ): Promise<QueryResponse<Query>>;
-  async gql<Data = any, Query extends GraphQLQuery = GraphQLQuery>(
-    queryOrOptions: string | QueryOptions<Query>,
+  async gql<Data = any>(
+    options: UnregisteredGraphQLQueryOptions
+  ): Promise<Data>;
+  async gql(
+    queryOrOptions: string | UnregisteredGraphQLQueryOptions,
     variables?: any
-  ): Promise<Data | QueryResponse<Query>> {
+  ): Promise<any> {
     const req = this.POST('/graphql').set({ 'x-request-id': 'test' });
     let res: supertest.Response;
 

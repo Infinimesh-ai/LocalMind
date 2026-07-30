@@ -157,7 +157,7 @@ export interface AIModelRegistryRevisionPublishEvent {
   eventFingerprint: string;
   eventType: string;
   id: string;
-  metadata?: Record<string, unknown> | null;
+  metadata?: unknown;
   publishSource: string;
   registryFamily: string;
   registryKey: string;
@@ -181,6 +181,10 @@ export interface AIModelTaskRoute {
   effectiveSourceFingerprint?: string | null;
   effectiveSourceFingerprintInputs?: string[] | null;
   effectiveSourceFingerprintVersion?: string | null;
+  embeddingIndexContractDimensions?: number | null;
+  embeddingIndexContractFingerprint?: string | null;
+  embeddingIndexContractStatus?: string | null;
+  embeddingIndexContractVersion?: string | null;
   errorCode?: string | null;
   errorMessage?: string | null;
   fallbackProviderIds?: string[] | null;
@@ -234,6 +238,10 @@ export interface AIModelTaskRoute {
     | null;
   requestedDimensions?: number | null;
   requestLayer?: string | null;
+  rerankRuntimeContractFingerprint?: string | null;
+  rerankRuntimeContractStatus?: string | null;
+  rerankRuntimeContractTopK?: number | null;
+  rerankRuntimeContractVersion?: string | null;
   topK?: number | null;
   preparedRoutes?: AIModelPreparedTaskRoute[] | null;
 }
@@ -339,10 +347,21 @@ export interface AIModelTaskRouteCandidate {
   health?: string | null;
   healthCheckedAt?: string | null;
   routeRawModelId?: string | null;
+  routeAttachmentAllowRemoteUrls?: boolean | null;
+  routeAttachmentKinds?: string[] | null;
+  routeAttachmentSourceKinds?: string[] | null;
+  routeContextWindow?: number | null;
+  routeEmbeddingDimensions?: number | null;
+  routeInputTypes?: string[] | null;
+  routeMaxOutputTokens?: number | null;
   routeModelDefinitionSource?: string | null;
   routeModelDefinitionId?: string | null;
   routeModelDefinitionAliases?: string[] | null;
   routeModelAliasMatched?: boolean | null;
+  routeOutputTypes?: string[] | null;
+  routeStructuredAttachmentAllowRemoteUrls?: boolean | null;
+  routeStructuredAttachmentKinds?: string[] | null;
+  routeStructuredAttachmentSourceKinds?: string[] | null;
   reasons: string[];
   registryAvailable?: boolean | null;
   registryKind?: string | null;
@@ -385,10 +404,21 @@ export interface AIModelTaskRoutePrepareCandidate {
   preparedModelId?: string | null;
   providerId: string;
   routeRawModelId?: string | null;
+  routeAttachmentAllowRemoteUrls?: boolean | null;
+  routeAttachmentKinds?: string[] | null;
+  routeAttachmentSourceKinds?: string[] | null;
+  routeContextWindow?: number | null;
+  routeEmbeddingDimensions?: number | null;
+  routeInputTypes?: string[] | null;
+  routeMaxOutputTokens?: number | null;
   routeModelDefinitionSource?: string | null;
   routeModelDefinitionId?: string | null;
   routeModelDefinitionAliases?: string[] | null;
   routeModelAliasMatched?: boolean | null;
+  routeOutputTypes?: string[] | null;
+  routeStructuredAttachmentAllowRemoteUrls?: boolean | null;
+  routeStructuredAttachmentKinds?: string[] | null;
+  routeStructuredAttachmentSourceKinds?: string[] | null;
   reasons: string[];
   registryAvailable?: boolean | null;
   registryKind?: string | null;
@@ -1695,14 +1725,12 @@ function taskRouteModelRegistryMetadata(
     modelRegistryRevisionFingerprint:
       candidate?.modelRegistryRevisionFingerprint ?? null,
     modelRegistryRevisionId: candidate?.modelRegistryRevisionId ?? null,
-    modelRegistryRevisionScope:
-      candidate?.modelRegistryRevisionScope ?? null,
+    modelRegistryRevisionScope: candidate?.modelRegistryRevisionScope ?? null,
     modelRegistryRevisionSourceChain:
       candidate?.modelRegistryRevisionSourceChain ?? null,
     modelRegistryRevisionSourceChainFingerprint:
       candidate?.modelRegistryRevisionSourceChainFingerprint ?? null,
-    modelRegistryRevisionStatus:
-      candidate?.modelRegistryRevisionStatus ?? null,
+    modelRegistryRevisionStatus: candidate?.modelRegistryRevisionStatus ?? null,
     modelRegistryRevisionWorkspaceId:
       candidate?.modelRegistryRevisionWorkspaceId ?? null,
     modelRegistryRevisionPublishEventCount:
@@ -3561,7 +3589,7 @@ export class AIModelService extends Service {
     const models = await this.ensurePromptModelsRequest(
       nextPromptName,
       nextWorkspaceId
-    ).catch(err => {
+    ).catch((err: unknown) => {
       console.error(err);
       return undefined;
     });

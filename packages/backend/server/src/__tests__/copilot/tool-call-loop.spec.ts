@@ -464,7 +464,7 @@ test('document search tools should return sync error for local workspace', async
       keywordSearchCalled = true;
       return [];
     },
-  } as unknown as Parameters<typeof buildDocKeywordSearchGetter>[1];
+  } as unknown as Parameters<typeof buildDocKeywordSearchGetter>[2];
 
   let semanticSearchCalled = false;
   const contextService = {

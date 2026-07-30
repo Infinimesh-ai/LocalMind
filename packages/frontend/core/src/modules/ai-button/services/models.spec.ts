@@ -1078,6 +1078,17 @@ describe('AIModelService model registry helpers', () => {
           privacy: 'local',
           health: 'healthy',
           healthCheckedAt: '2026-06-16T10:00:00.000Z',
+          modelRegistryRevision: null,
+          modelRegistryRevisionActorId: null,
+          modelRegistryRevisionFingerprint: null,
+          modelRegistryRevisionId: null,
+          modelRegistryRevisionPublishEventCount: null,
+          modelRegistryRevisionPublishEvents: null,
+          modelRegistryRevisionScope: null,
+          modelRegistryRevisionSourceChain: null,
+          modelRegistryRevisionSourceChainFingerprint: null,
+          modelRegistryRevisionStatus: null,
+          modelRegistryRevisionWorkspaceId: null,
           routeRawModelId: 'nomic-embed-text',
           routeModelDefinitionSource: 'provider_profile',
           routeModelDefinitionId: 'workspace-embedding',
@@ -1176,6 +1187,17 @@ describe('AIModelService model registry helpers', () => {
           privacy: null,
           health: null,
           healthCheckedAt: null,
+          modelRegistryRevision: null,
+          modelRegistryRevisionActorId: null,
+          modelRegistryRevisionFingerprint: null,
+          modelRegistryRevisionId: null,
+          modelRegistryRevisionPublishEventCount: null,
+          modelRegistryRevisionPublishEvents: null,
+          modelRegistryRevisionScope: null,
+          modelRegistryRevisionSourceChain: null,
+          modelRegistryRevisionSourceChainFingerprint: null,
+          modelRegistryRevisionStatus: null,
+          modelRegistryRevisionWorkspaceId: null,
           routeRawModelId: null,
           routeModelDefinitionSource: null,
           routeModelDefinitionId: null,
@@ -1298,6 +1320,17 @@ describe('AIModelService model registry helpers', () => {
           privacy: null,
           health: null,
           healthCheckedAt: null,
+          modelRegistryRevision: null,
+          modelRegistryRevisionActorId: null,
+          modelRegistryRevisionFingerprint: null,
+          modelRegistryRevisionId: null,
+          modelRegistryRevisionPublishEventCount: null,
+          modelRegistryRevisionPublishEvents: null,
+          modelRegistryRevisionScope: null,
+          modelRegistryRevisionSourceChain: null,
+          modelRegistryRevisionSourceChainFingerprint: null,
+          modelRegistryRevisionStatus: null,
+          modelRegistryRevisionWorkspaceId: null,
           routeRawModelId: null,
           routeModelDefinitionSource: null,
           routeModelDefinitionId: null,
@@ -1406,6 +1439,17 @@ describe('AIModelService model registry helpers', () => {
           privacy: 'private_cloud',
           health: 'degraded',
           healthCheckedAt: '2026-06-16T11:00:00.000Z',
+          modelRegistryRevision: null,
+          modelRegistryRevisionActorId: null,
+          modelRegistryRevisionFingerprint: null,
+          modelRegistryRevisionId: null,
+          modelRegistryRevisionPublishEventCount: null,
+          modelRegistryRevisionPublishEvents: null,
+          modelRegistryRevisionScope: null,
+          modelRegistryRevisionSourceChain: null,
+          modelRegistryRevisionSourceChainFingerprint: null,
+          modelRegistryRevisionStatus: null,
+          modelRegistryRevisionWorkspaceId: null,
           routeRawModelId: null,
           routeModelDefinitionSource: 'native_registry',
           routeModelDefinitionId: 'text-embedding-3-large',
@@ -2283,7 +2327,7 @@ describe('AIModelService model registry helpers', () => {
         candidateCount: 1,
         topK: null,
       },
-    });
+    } as unknown as Parameters<typeof buildAIModels>[0]);
 
     expect(models).toEqual([
       {
@@ -3168,7 +3212,12 @@ describe('AIModelService model registry helpers', () => {
       '$0.2000/M in / $0.8000/M out',
     ]);
 
-    expect(formatAIModelMenuLabels({})).toEqual([]);
+    expect(
+      formatAIModelMenuLabels({
+        isDefault: false,
+        isPro: false,
+      })
+    ).toEqual([]);
   });
 
   test('formats prompt model policy metadata for diagnostics', () => {

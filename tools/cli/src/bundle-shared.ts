@@ -1,3 +1,4 @@
+import type { DevServerMiddlewareHandler } from '@rspack/core';
 import type { Configuration as RspackDevServerConfiguration } from '@rspack/dev-server';
 
 export const RSPACK_SUPPORTED_PACKAGES = [
@@ -76,10 +77,10 @@ export const DEFAULT_DEV_SERVER_CONFIG: RspackDevServerConfiguration = {
   setupMiddlewares: middlewares => {
     middlewares.unshift({
       name: 'self-hosted-admin-asset-public-path',
-      middleware: (req, _res, next) => {
+      middleware: ((req, _res, next) => {
         req.url = rewriteSelfHostedAdminAssetPath(req.url);
         next();
-      },
+      }) satisfies DevServerMiddlewareHandler,
     });
 
     return middlewares;

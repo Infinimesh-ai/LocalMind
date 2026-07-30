@@ -117,6 +117,8 @@ query getCopilotPromptRegistryPublishGate(
           policyCandidates {
             allowed
             available
+            candidateFingerprint
+            candidateKey
             health
             healthCheckedAt
             privacy

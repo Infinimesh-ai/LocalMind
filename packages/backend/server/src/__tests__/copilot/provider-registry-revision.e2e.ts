@@ -4,7 +4,7 @@ import type { TestFn } from 'ava';
 import ava from 'ava';
 
 import { AppModule } from '../../app.module';
-import { JobQueue } from '../../base';
+import { JOB_SIGNAL, JobQueue } from '../../base';
 import { ConfigModule } from '../../base/config';
 import { AuthService } from '../../core/auth';
 import { Models } from '../../models';
@@ -282,6 +282,8 @@ test.before(async t => {
       ConfigModule.override({
         copilot: {
           providers: {
+            defaults: {},
+            routePolicy: {},
             openaiCompatible: {
               apiStyle: 'chat_completions',
               baseURL: 'http://localmind.invalid/v1',
@@ -314,7 +316,10 @@ test.before(async t => {
                 },
               },
             ],
-            openai: { apiKey: '1' },
+            openai: {
+              apiKey: '1',
+              baseURL: 'https://api.openai.com/v1',
+            },
           },
           prompts: {
             defaults: {
@@ -942,6 +947,9 @@ test('provider registry DB constraints reject invalid revision scope and status 
     source: 'db_revision',
     config: {},
   });
+  const registryTestMetadata = JSON.stringify({
+    version: 'provider-registry-revision-test/v1',
+  });
 
   await t.throwsAsync(db.$executeRaw`
     INSERT INTO ai_provider_registry_revisions (
@@ -972,7 +980,7 @@ test('provider registry DB constraints reject invalid revision scope and status 
       ${'invalidstatus222'},
       ${providerProfile}::jsonb,
       ${'[]'}::jsonb,
-      ${'{}'}::jsonb,
+      ${registryTestMetadata}::jsonb,
       ${now},
       ${now}
     )
@@ -1007,7 +1015,7 @@ test('provider registry DB constraints reject invalid revision scope and status 
       ${'invalidscope222'},
       ${providerProfile}::jsonb,
       ${'[]'}::jsonb,
-      ${'{}'}::jsonb,
+      ${registryTestMetadata}::jsonb,
       ${now},
       ${now}
     )
@@ -1042,7 +1050,7 @@ test('provider registry DB constraints reject invalid revision scope and status 
       ${'globalworkspace2'},
       ${providerProfile}::jsonb,
       ${'[]'}::jsonb,
-      ${'{}'}::jsonb,
+      ${registryTestMetadata}::jsonb,
       ${now},
       ${now}
     )
@@ -1077,7 +1085,7 @@ test('provider registry DB constraints reject invalid revision scope and status 
       ${'workspacewithout2'},
       ${providerProfile}::jsonb,
       ${'[]'}::jsonb,
-      ${'{}'}::jsonb,
+      ${registryTestMetadata}::jsonb,
       ${now},
       ${now}
     )
@@ -1157,7 +1165,7 @@ test('provider registry DB constraints reject invalid revision scope and status 
             status: 'untrusted_status',
           },
         ])}::jsonb,
-        ${'{}'}::jsonb,
+        ${registryTestMetadata}::jsonb,
         ${now},
         ${now}
       )
@@ -1204,7 +1212,7 @@ test('provider registry DB constraints reject invalid revision scope and status 
             providerType: 'unknownProviderType',
           },
         ])}::jsonb,
-        ${'{}'}::jsonb,
+        ${registryTestMetadata}::jsonb,
         ${now},
         ${now}
       )
@@ -1244,7 +1252,7 @@ test('provider registry DB constraints reject invalid revision scope and status 
         ${'invalidpayload2'},
         ${'[]'}::jsonb,
         ${'[]'}::jsonb,
-        ${'{}'}::jsonb,
+        ${registryTestMetadata}::jsonb,
         ${now},
         ${now}
       )
@@ -1282,7 +1290,7 @@ test('provider registry DB constraints reject invalid revision scope and status 
         ${'invalidrevision4'},
         ${providerProfile}::jsonb,
         ${'[]'}::jsonb,
-        ${'{}'}::jsonb,
+        ${registryTestMetadata}::jsonb,
         ${now},
         ${now}
       )
@@ -1320,7 +1328,7 @@ test('provider registry DB constraints reject invalid revision scope and status 
         ${'invalidprovider1'},
         ${providerProfile}::jsonb,
         ${'[]'}::jsonb,
-        ${'{}'}::jsonb,
+        ${registryTestMetadata}::jsonb,
         ${now},
         ${now}
       )
@@ -1358,7 +1366,7 @@ test('provider registry DB constraints reject invalid revision scope and status 
         ${'invalidprovider2'},
         ${providerProfile}::jsonb,
         ${'[]'}::jsonb,
-        ${'{}'}::jsonb,
+        ${registryTestMetadata}::jsonb,
         ${now},
         ${now}
       )
@@ -1396,7 +1404,7 @@ test('provider registry DB constraints reject invalid revision scope and status 
         ${'   '},
         ${providerProfile}::jsonb,
         ${'[]'}::jsonb,
-        ${'{}'}::jsonb,
+        ${registryTestMetadata}::jsonb,
         ${now},
         ${now}
       )
@@ -1434,7 +1442,7 @@ test('provider registry DB constraints reject invalid revision scope and status 
         ${'invalidtimestamp3'},
         ${providerProfile}::jsonb,
         ${'[]'}::jsonb,
-        ${'{}'}::jsonb,
+        ${registryTestMetadata}::jsonb,
         ${now},
         ${new Date(now.getTime() - 60_000)}
       )
@@ -2929,7 +2937,7 @@ test('provider health worker persists configured profile health as global DB ove
   });
 
   const signal = await providerHealthWorker.persistConfiguredSnapshots();
-  t.is(signal, 'done');
+  t.is(signal, JOB_SIGNAL.Done);
 
   const rows = await db.$queryRaw<
     Array<{
@@ -3088,7 +3096,7 @@ test('provider health worker clears stale configured snapshot global overlays', 
   });
 
   const signal = await providerHealthWorker.persistConfiguredSnapshots();
-  t.is(signal, 'done');
+  t.is(signal, JOB_SIGNAL.Done);
 
   const rows = await db.$queryRaw<
     Array<{
@@ -3246,8 +3254,8 @@ test('stale provider health probe results do not drive route overlays', async t 
     (item: { id: string }) => item.id === 'db-provider-chat'
   );
   t.truthy(model);
-  t.is(model.providerHealth, 'healthy');
-  t.is(model.providerHealthCheckedAt, '2026-06-21T11:00:00.000Z');
+  t.is(model.providerHealth, 'degraded');
+  t.is(model.providerHealthCheckedAt, configuredProviderHealthCheckedAt);
 });
 
 test('provider health worker clears stale probe results but keeps manual overrides', async t => {
@@ -3288,7 +3296,7 @@ test('provider health worker clears stale probe results but keeps manual overrid
   });
 
   const signal = await providerHealthWorker.persistConfiguredSnapshots();
-  t.is(signal, 'done');
+  t.is(signal, JOB_SIGNAL.Done);
 
   const rows = await db.$queryRaw<
     Array<{
@@ -3638,7 +3646,7 @@ test('provider health worker persists automatic workspace probe attempt results'
     await providerHealthWorker.enqueueWorkspaceProbeAttempts({
       limit: 10,
     });
-  t.is(enqueueSignal, 'done');
+  t.is(enqueueSignal, JOB_SIGNAL.Done);
 
   const queuedRows = await db.$queryRaw<
     Array<{
@@ -3713,7 +3721,7 @@ test('provider health worker persists automatic workspace probe attempt results'
     await providerHealthWorker.enqueueWorkspaceProbeAttempts({
       limit: 10,
     });
-  t.is(secondEnqueueSignal, 'done');
+  t.is(secondEnqueueSignal, JOB_SIGNAL.Done);
   const idempotentCountRows = await db.$queryRaw<Array<{ count: number }>>`
     SELECT COUNT(*)::int AS count
     FROM ai_provider_health_probe_attempts
@@ -3724,7 +3732,7 @@ test('provider health worker persists automatic workspace probe attempt results'
   const processSignal = await providerHealthWorker.processProbeAttempts({
     limit: 10,
   });
-  t.is(processSignal, 'done');
+  t.is(processSignal, JOB_SIGNAL.Done);
 
   const completedRows = await db.$queryRaw<
     Array<{
@@ -3839,10 +3847,13 @@ test('provider health worker persists automatic workspace probe attempt results'
     source: 'probe_result',
     status: 'healthy',
   });
-  t.is(
-    eventRows[0].stateFingerprint,
-    completedRows[0]?.providerHealthStateFingerprint
-  );
+  const completedStateFingerprint =
+    completedRows[0]?.providerHealthStateFingerprint;
+  t.truthy(completedStateFingerprint);
+  if (!completedStateFingerprint) {
+    throw new Error('Expected completed provider health state fingerprint');
+  }
+  t.is(eventRows[0].stateFingerprint, completedStateFingerprint);
 
   const attemptsResult = await app.gql({
     query: providerHealthProbeAttemptsQuery,
@@ -4490,8 +4501,8 @@ test('provider health probe retry queues a fresh attempt without mutating dead-l
   const { app, db, owner } = t.context;
   const workspace = await createWorkspace(app);
   const models = app.get(Models);
-  const scheduledAt = new Date('2026-06-23T09:00:00.000Z');
-  const checkedAt = new Date('2026-06-23T09:01:00.000Z');
+  const checkedAt = new Date();
+  const scheduledAt = new Date(checkedAt.getTime() - 1000);
 
   await insertProviderRegistryRevision({
     actorId: owner.id,
@@ -4693,7 +4704,7 @@ test('provider health probe attempt constraints reject malformed SQL writes', as
       )
     `,
     {
-      message: /ai_provider_health_probe_attempts_scope_check/,
+      message: /ai_provider_health_probe_attempts_revision_snapshot_check/,
     }
   );
 
@@ -4787,7 +4798,14 @@ test('provider health probe attempt constraints reject malformed SQL writes', as
         ${1},
         ${3},
         ${now},
-        ${JSON.stringify({})}::jsonb,
+        ${JSON.stringify({
+          version: 'provider-health-probe-attempt-result/v1',
+          providerHealthProbeAttemptId: 'provider-health-probe-sql-bad-state',
+          providerHealthProbeRequestFingerprint: 'probe-sql-bad-state',
+          providerRegistryRevisionId: 'provider-registry-probe-health-sql',
+          providerRegistryRevisionFingerprint: 'probehealth22222',
+          providerProfileFingerprint: 'probeprofilebad3',
+        })}::jsonb,
         ${now},
         ${now}
       )

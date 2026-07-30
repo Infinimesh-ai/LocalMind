@@ -140,7 +140,7 @@ test('should insert and search embedding', async t => {
       );
       t.true((ret[0]?.distance ?? Infinity) < 0.00001);
       t.snapshot(
-        cleanObject(ret, ['fileId']).map(result => ({
+        cleanObject(ret, ['fileId']).map((result: (typeof ret)[number]) => ({
           ...result,
           distance: 0,
         })),
@@ -181,7 +181,10 @@ test('should insert and search embedding', async t => {
       );
       t.true((ret[0]?.distance ?? Infinity) < 0.00001);
       t.snapshot(
-        cleanObject(ret).map(result => ({ ...result, distance: 0 })),
+        cleanObject(ret).map((result: (typeof ret)[number]) => ({
+          ...result,
+          distance: 0,
+        })),
         'should match workspace blob embedding'
       );
     }

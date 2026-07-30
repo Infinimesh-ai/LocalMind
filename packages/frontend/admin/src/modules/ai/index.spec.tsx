@@ -4020,7 +4020,10 @@ function withRepairActionPreview<
     repairRecommendations: Array<{
       candidateEvidence?: Array<{
         candidateFingerprint: string;
-        candidateKey?: string | null;
+        candidateIndex: number;
+        candidateKey?: string;
+        providerId: string;
+        scope: string;
         taskRouteEmbeddingIndexContractSnapshotFingerprint?: string | null;
         taskRouteRerankRuntimeContractSnapshotFingerprint?: string | null;
         taskRouteEffectiveSourceFingerprint?: string | null;
@@ -10321,8 +10324,15 @@ describe('AiPage', () => {
         const variablesInput = variables as
           | {
               submission?: {
+                candidateEvidenceSetFingerprint?: string;
                 contractVersion?: string;
+                embeddingIndexContractEvidenceSetFingerprint?: string;
+                idempotencyKey?: string;
+                preparedRouteOrderEvidenceSetFingerprint?: string;
+                rerankRuntimeContractEvidenceSetFingerprint?: string;
                 submissionFingerprint?: string;
+                targetLocatorFingerprint?: string;
+                taskRouteEffectiveSourceEvidenceSetFingerprint?: string;
               };
               workspaceId?: string;
             }
@@ -12368,14 +12378,15 @@ describe('AiPage', () => {
                   failureMessage:
                     'Unsupported repair execution executor payload',
                   status: 'failed',
-                  steps: executionRecord.agentRun.steps.map((step, index) =>
-                    index === 0
-                      ? {
-                          ...step,
-                          completedAt: '2026-06-20T09:10:00.000Z',
-                          status: 'failed',
-                        }
-                      : step
+                  steps: executionRecord.agentRun.steps.map(
+                    (step: Record<string, unknown>, index: number) =>
+                      index === 0
+                        ? {
+                            ...step,
+                            completedAt: '2026-06-20T09:10:00.000Z',
+                            status: 'failed',
+                          }
+                        : step
                   ),
                 }
               : null,
@@ -12488,14 +12499,15 @@ describe('AiPage', () => {
                   failureMessage:
                     'Unsupported repair execution executor payload',
                   status: 'failed',
-                  steps: executionRecord.agentRun.steps.map((step, index) =>
-                    index === 0
-                      ? {
-                          ...step,
-                          completedAt: '2026-06-20T09:10:00.000Z',
-                          status: 'failed',
-                        }
-                      : step
+                  steps: executionRecord.agentRun.steps.map(
+                    (step: Record<string, unknown>, index: number) =>
+                      index === 0
+                        ? {
+                            ...step,
+                            completedAt: '2026-06-20T09:10:00.000Z',
+                            status: 'failed',
+                          }
+                        : step
                   ),
                 }
               : null,
@@ -12647,14 +12659,15 @@ describe('AiPage', () => {
                   ...executionRecord.agentRun,
                   completedAt: '2026-06-20T09:30:00.000Z',
                   status: 'completed',
-                  steps: executionRecord.agentRun.steps.map((step, index) =>
-                    index === 0
-                      ? {
-                          ...step,
-                          completedAt: '2026-06-20T09:30:00.000Z',
-                          status: 'completed',
-                        }
-                      : step
+                  steps: executionRecord.agentRun.steps.map(
+                    (step: Record<string, unknown>, index: number) =>
+                      index === 0
+                        ? {
+                            ...step,
+                            completedAt: '2026-06-20T09:30:00.000Z',
+                            status: 'completed',
+                          }
+                        : step
                   ),
                 }
               : null,
@@ -15216,7 +15229,9 @@ describe('AiPage', () => {
     );
     expect(rerankDiagnostics).toContain('Registry model-registry-rerank-1');
     expect(rerankDiagnostics).toContain('Revision workspace-rerank-model-r1');
-    expect(rerankDiagnostics).toContain('Publish events 1');
+    expect(rerankDiagnostics).toContain(
+      'Task route policy revision publish events 1'
+    );
     expect(rerankDiagnostics).toContain(
       'Candidate model registry revision publish events ollama-main / bge-reranker-v2 1'
     );

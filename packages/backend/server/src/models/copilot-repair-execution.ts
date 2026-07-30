@@ -2058,9 +2058,7 @@ export class CopilotRepairExecutionModel extends BaseModel {
       existing.workerLeaseId !== input.workerLeaseId ||
       existing.workerAttempt !== input.workerAttempt
     ) {
-      throw new Error(
-        `Repair execution request is not leased by this worker: ${input.id}`
-      );
+      return null;
     }
 
     const requestRows = await this.db.$queryRaw<

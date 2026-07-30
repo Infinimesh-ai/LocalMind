@@ -28,7 +28,7 @@ const test = ava.serial as TestFn<{
   worker: CopilotRepairExecutionWorker;
 }>;
 
-const promptName = 'Repair model registry route prompt';
+const promptName = 'Repair model route prompt';
 const missingDefaultModel = 'missing-default-chat';
 const providerId = 'localmind-repair-model-registry';
 const providerModelId = 'available-default-chat';
@@ -213,7 +213,16 @@ test.before(async t => {
               },
             },
           },
+          tasks: {
+            models: {
+              embedding: providerEmbeddingModelId,
+              rerank: providerRerankModelId,
+              workspaceIndexing: providerEmbeddingModelId,
+            },
+          },
           providers: {
+            defaults: {},
+            routePolicy: {},
             openaiCompatible: {
               apiStyle: 'chat_completions',
               baseURL: 'http://localmind.invalid/v1',
@@ -285,7 +294,7 @@ test.beforeEach(async t => {
 });
 
 test.after.always(async t => {
-  await t.context.app.close();
+  await t.context.app?.close();
 });
 
 async function seedReadyRegistryPrompt(db: PrismaClient) {
@@ -597,7 +606,7 @@ test(modelRegistryRepairTestName, async t => {
   const repairedGate =
     repairedGateResult.currentUser.copilot.promptRegistryPublishGate;
   t.true(repairedGate.allowed);
-  t.is(repairedGate.publishStatus, 'ready');
+  t.is(repairedGate.publishStatus, 'allowed');
   t.is(repairedGate.reason, 'ready');
   t.true(repairedGate.modelRoute.available);
   t.is(repairedGate.modelRoute.requestedModelId, missingDefaultModel);

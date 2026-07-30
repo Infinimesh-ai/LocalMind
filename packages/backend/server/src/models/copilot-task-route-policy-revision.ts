@@ -118,6 +118,7 @@ const TASK_ROUTE_POLICY_SOURCE_CHAIN_STATUSES = new Set([
   'active',
   'available',
   'disabled',
+  'prepared_for_approval',
 ]);
 const SOURCE_CHAIN_MAX_ENTRIES = 16;
 const SOURCE_CHAIN_OPTIONAL_STRING_MAX_LENGTH = 512;

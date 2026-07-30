@@ -3112,6 +3112,8 @@ export const getCopilotPromptRegistryPublishGateQuery = {
           policyCandidates {
             allowed
             available
+            candidateFingerprint
+            candidateKey
             health
             healthCheckedAt
             privacy

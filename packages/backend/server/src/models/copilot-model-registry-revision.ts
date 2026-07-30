@@ -156,6 +156,7 @@ const MODEL_REGISTRY_SOURCE_CHAIN_STATUSES = new Set([
   'active',
   'available',
   'disabled',
+  'prepared_for_approval',
   'provider_available',
 ]);
 const MODEL_REGISTRY_REVISION_SCOPE_TYPES = new Set(['global', 'workspace']);
