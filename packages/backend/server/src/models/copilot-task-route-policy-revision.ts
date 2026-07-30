@@ -118,6 +118,7 @@ const TASK_ROUTE_POLICY_SOURCE_CHAIN_STATUSES = new Set([
   'active',
   'available',
   'disabled',
+  'prepared_for_approval',
 ]);
 const SOURCE_CHAIN_MAX_ENTRIES = 16;
 const SOURCE_CHAIN_OPTIONAL_STRING_MAX_LENGTH = 512;
@@ -1040,15 +1041,6 @@ export class CopilotTaskRoutePolicyRevisionModel extends BaseModel {
     );
 
     return new Map(entries);
-  }
-
-  private async getByWorkspaceRevision(input: {
-    featureKind: TaskRoutePolicyFeatureKind;
-    revision: string;
-    workspaceId: string;
-  }) {
-    const row = await this.getWorkspaceRevisionRow(input);
-    return row ? toRevision(row) : null;
   }
 
   private async getWorkspaceRevisionRow(input: {

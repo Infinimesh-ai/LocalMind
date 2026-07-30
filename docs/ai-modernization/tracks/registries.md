@@ -1620,6 +1620,26 @@ Implemented behavior:
 4. The filter stays exact-field and workspace-scoped; it is not a broad
    free-text scan or alerting workflow.
 
+## Implemented Repair Source-chain Status Compatibility Slice
+
+Registry repair preparation now preserves its pending-approval provenance
+through the same model and database boundaries used by durable revision
+publication.
+
+Implemented behavior:
+
+1. Task Route Policy and Model Registry repair payloads retain
+   `prepared_for_approval` fallback source-chain entries instead of dropping
+   them during model-layer normalization.
+2. The matching PostgreSQL source-chain provenance constraints accept the same
+   status through a forward migration, keeping direct SQL validation aligned
+   with the model vocabulary.
+3. Successful publish-gate model-route resolution carries the selected
+   candidate's Model Registry revision and source-chain metadata, matching the
+   existing unavailable/error result paths.
+4. Focused repair and Registry coverage verifies the persisted source chain and
+   resolver source-chain smoke verifies the successful route projection.
+
 ## Remaining Work
 
 - add Prompt Registry prompt-body edit APIs, full audit/history views, and

@@ -32,7 +32,7 @@ type PromptRuntimeProviderOptions =
   | PromptRuntimeStructuredProviderOptions;
 
 function resolveEffectiveMaxTokenSize(
-  promptMaxTokenSize: number | undefined,
+  promptMaxTokenSize: number | null | undefined,
   contextWindow?: number
 ) {
   const maxTokenSize = promptMaxTokenSize || 128 * 1024;
@@ -69,7 +69,7 @@ export class PromptRuntime {
       prefer?: CopilotProviderType;
       appendMessages?: PromptMessage[];
       providerOptions?: PromptRuntimeProviderOptions;
-      outputType?: ModelOutputType.Text | ModelOutputType.Structured;
+      outputType?: 'text' | 'structured';
     } = {}
   ) {
     const prompt = await this.prompts.get(promptName);

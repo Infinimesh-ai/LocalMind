@@ -20,6 +20,7 @@ import { CopilotActionRunModel } from './copilot-action-run';
 import { CopilotAgentRuntimeModel } from './copilot-agent-runtime';
 import { CopilotWorkspaceByokConfigModel } from './copilot-byok';
 import { CopilotContextModel } from './copilot-context';
+import { CopilotContextMemoryModel } from './copilot-context-memory';
 import { CopilotJobModel } from './copilot-job';
 import { CopilotModelRegistryRevisionModel } from './copilot-model-registry-revision';
 import { CopilotPromptModel } from './copilot-prompt';
@@ -88,6 +89,7 @@ const MODELS = {
   copilotActionRun: CopilotActionRunModel,
   copilotAgentRuntime: CopilotAgentRuntimeModel,
   copilotContext: CopilotContextModel,
+  copilotContextMemory: CopilotContextMemoryModel,
   copilotWorkspace: CopilotWorkspaceConfigModel,
   copilotWorkspaceByokConfig: CopilotWorkspaceByokConfigModel,
   copilotJob: CopilotJobModel,
@@ -173,6 +175,7 @@ export * from './common';
 export * from './copilot-agent-runtime';
 export * from './copilot-byok';
 export * from './copilot-context';
+export * from './copilot-context-memory';
 export * from './copilot-job';
 export * from './copilot-model-registry-revision';
 export * from './copilot-prompt';

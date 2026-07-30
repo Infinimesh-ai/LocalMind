@@ -1,0 +1,18 @@
+mutation copilotContextMemoryUpdate(
+  $input: UpdateCopilotContextMemoryInput!
+) {
+  updateCopilotContextMemory(input: $input) {
+    id
+    ownerUserId
+    workspaceId
+    docId
+    projectId
+    sourceSessionId
+    scope
+    kind
+    status
+    content
+    createdAt
+    updatedAt
+  }
+}

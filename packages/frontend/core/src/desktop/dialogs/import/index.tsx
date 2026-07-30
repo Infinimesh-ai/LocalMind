@@ -1,4 +1,9 @@
-import { Button, IconButton, Modal } from '@affine/component';
+import {
+  Button,
+  IconButton,
+  Modal,
+  startSafeViewTransition,
+} from '@affine/component';
 import { getStoreManager } from '@affine/core/blocksuite/manager/store';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import { useNavigateHelper } from '@affine/core/components/hooks/use-navigate-helper';
@@ -660,8 +665,8 @@ export const ImportDialog = ({
   const { jumpToPage } = useNavigateHelper();
   const handleCreatedWorkspace = useCallback(
     (payload: { metadata: WorkspaceMetadata; defaultDocId?: string }) => {
-      if (document.startViewTransition) {
-        document.startViewTransition(() => {
+      startSafeViewTransition(
+        () => {
           if (payload.defaultDocId) {
             jumpToPage(payload.metadata.id, payload.defaultDocId);
           } else {
@@ -670,14 +675,9 @@ export const ImportDialog = ({
           return new Promise(resolve =>
             setTimeout(resolve, 150)
           ); /* start transition after 150ms */
-        });
-      } else {
-        if (payload.defaultDocId) {
-          jumpToPage(payload.metadata.id, payload.defaultDocId);
-        } else {
-          jumpToPage(payload.metadata.id, 'all');
-        }
-      }
+        },
+        { name: 'imported workspace navigation' }
+      );
     },
     [jumpToPage]
   );

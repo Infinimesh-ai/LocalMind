@@ -79,6 +79,14 @@ function createNativeExecutionEngine() {
   } as never);
 }
 
+function withModelRevisionRegistry<
+  T extends { getRegistry: (...args: any[]) => any },
+>(registryService: T) {
+  return Object.assign(registryService, {
+    getRegistryWithModelRevisions: registryService.getRegistry,
+  });
+}
+
 function structuredOptions(
   schema: z.ZodTypeAny,
   extra?: Record<string, unknown>
@@ -733,6 +741,7 @@ test('CapabilityRuntime should route capability plans through plan builder and n
         {
           providerId: 'openai-primary',
           modelId: 'text-embedding-3-small',
+          routeIndex: 0,
           protocol: 'openai_chat',
           requestLayer: 'chat_completions',
           modelBackendKind: 'openai_chat',
@@ -742,6 +751,7 @@ test('CapabilityRuntime should route capability plans through plan builder and n
         {
           providerId: 'openai-fallback',
           modelId: 'text-embedding-3-large',
+          routeIndex: 1,
           protocol: 'openai_responses',
           requestLayer: 'responses',
           modelBackendKind: 'openai_responses',
@@ -758,6 +768,15 @@ test('CapabilityRuntime should route capability plans through plan builder and n
       modelBackendKind: 'openai_chat',
       canonicalModelKey: 'text-embedding-3-small',
       behaviorFlags: ['disable_batch_embeddings'],
+      providerConfiguredModelCount: undefined,
+      providerConfiguredModelIds: undefined,
+      providerName: undefined,
+      providerPriority: undefined,
+      providerProfileConfigPath: undefined,
+      providerProfileId: undefined,
+      providerProfileSource: undefined,
+      providerSource: undefined,
+      providerType: undefined,
       requestedDimensions: 1024,
       modelEmbeddingDimensions: 1024,
       dimensionMismatch: false,
@@ -770,6 +789,7 @@ test('CapabilityRuntime should route capability plans through plan builder and n
       {
         providerId: 'openai-primary',
         modelId: 'gpt-4o-mini',
+        routeIndex: 0,
         protocol: 'openai_chat',
         requestLayer: 'chat_completions',
         modelBackendKind: 'openai_chat',
@@ -779,6 +799,7 @@ test('CapabilityRuntime should route capability plans through plan builder and n
       {
         providerId: 'openai-fallback',
         modelId: 'gpt-5-mini',
+        routeIndex: 1,
         protocol: 'openai_responses',
         requestLayer: 'responses',
         modelBackendKind: 'openai_responses',
@@ -795,6 +816,15 @@ test('CapabilityRuntime should route capability plans through plan builder and n
     modelBackendKind: 'openai_chat',
     canonicalModelKey: 'gpt-4o-mini',
     behaviorFlags: ['rerank_cross_encoder'],
+    providerConfiguredModelCount: undefined,
+    providerConfiguredModelIds: undefined,
+    providerName: undefined,
+    providerPriority: undefined,
+    providerProfileConfigPath: undefined,
+    providerProfileId: undefined,
+    providerProfileSource: undefined,
+    providerSource: undefined,
+    providerType: undefined,
     topK: undefined,
     candidateCount: 1,
   });
@@ -830,84 +860,51 @@ test('CapabilityRuntime should defer no-route embedding plans to native engine',
   });
 });
 
-test('NativeExecutionEngine should expose execute/executeStream as the single plan entrypoints', async t => {
-  const engine = createNativeExecutionEngine();
-  let dispatchCalls = 0;
-  let streamCalls = 0;
+test.serial(
+  'NativeExecutionEngine should expose execute/executeStream as the single plan entrypoints',
+  async t => {
+    const engine = createNativeExecutionEngine();
+    let dispatchCalls = 0;
+    let streamCalls = 0;
 
-  const originalDispatch = (serverNativeModule as any).llmDispatchPrepared;
-  const originalStream = (serverNativeModule as any).llmDispatchPreparedStream;
-  (serverNativeModule as any).llmDispatchPrepared = () => {
-    dispatchCalls += 1;
-    return JSON.stringify({
-      provider_id: 'openai-primary',
-      response: {
-        id: 'chat_execute',
-        model: 'gpt-5-mini',
-        message: {
-          role: 'assistant',
-          content: [{ type: 'text', text: 'execute-ok' }],
+    const originalDispatch = (serverNativeModule as any).llmDispatchPrepared;
+    const originalStream = (serverNativeModule as any)
+      .llmDispatchPreparedStream;
+    (serverNativeModule as any).llmDispatchPrepared = () => {
+      dispatchCalls += 1;
+      return JSON.stringify({
+        provider_id: 'openai-primary',
+        response: {
+          id: 'chat_execute',
+          model: 'gpt-5-mini',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'execute-ok' }],
+          },
+          usage: {
+            prompt_tokens: 1,
+            completion_tokens: 1,
+            total_tokens: 2,
+          },
+          finish_reason: 'stop',
         },
-        usage: {
-          prompt_tokens: 1,
-          completion_tokens: 1,
-          total_tokens: 2,
-        },
-        finish_reason: 'stop',
-      },
+      });
+    };
+    (serverNativeModule as any).llmDispatchPreparedStream = (
+      _routesJson: string,
+      callback: (error: Error | null, arg: string) => void
+    ) => {
+      streamCalls += 1;
+      callback(null, JSON.stringify({ type: 'text_delta', text: 'stream-ok' }));
+      callback(null, '__AFFINE_LLM_STREAM_END__');
+      return { abort() {} };
+    };
+    t.teardown(() => {
+      (serverNativeModule as any).llmDispatchPrepared = originalDispatch;
+      (serverNativeModule as any).llmDispatchPreparedStream = originalStream;
     });
-  };
-  (serverNativeModule as any).llmDispatchPreparedStream = (
-    _routesJson: string,
-    callback: (error: Error | null, arg: string) => void
-  ) => {
-    streamCalls += 1;
-    callback(null, JSON.stringify({ type: 'text_delta', text: 'stream-ok' }));
-    callback(null, '__AFFINE_LLM_STREAM_END__');
-    return { abort() {} };
-  };
-  t.teardown(() => {
-    (serverNativeModule as any).llmDispatchPrepared = originalDispatch;
-    (serverNativeModule as any).llmDispatchPreparedStream = originalStream;
-  });
 
-  const text = await engine.execute({
-    nativeDispatch: {
-      chat: {
-        routes: [
-          nativeRoute({
-            providerId: 'openai-primary',
-            authToken: 'primary-key',
-            request: nativeTextRequest('hello'),
-          }),
-        ],
-        prepared: {
-          route: preparedRoute({
-            providerId: 'openai-primary',
-            authToken: 'primary-key',
-          }),
-          request: nativeTextRequest('hello'),
-          tools: {},
-          postprocess: { nodeTextMiddleware: [] },
-        },
-        hasTools: false,
-      },
-    },
-    request: {
-      kind: 'text',
-      cond: { modelId: 'gpt-5-mini' },
-      messages: singleUserPromptMessages('hello'),
-      options: undefined,
-    },
-    routePolicy: { fallbackOrder: ['openai-primary'] },
-    runtimePolicy: {},
-    attachmentPolicy: { materializeRemoteAttachments: true },
-    responsePostprocess: { mode: 'text' },
-    hostPersistence: { persistAssistantTurn: true, outputKind: 'text' },
-    hostContext: {},
-  });
-  const chunks = await collectAsync(
-    engine.executeStream({
+    const text = await engine.execute({
       nativeDispatch: {
         chat: {
           routes: [
@@ -930,7 +927,7 @@ test('NativeExecutionEngine should expose execute/executeStream as the single pl
         },
       },
       request: {
-        kind: 'streamText',
+        kind: 'text',
         cond: { modelId: 'gpt-5-mini' },
         messages: singleUserPromptMessages('hello'),
         options: undefined,
@@ -938,66 +935,205 @@ test('NativeExecutionEngine should expose execute/executeStream as the single pl
       routePolicy: { fallbackOrder: ['openai-primary'] },
       runtimePolicy: {},
       attachmentPolicy: { materializeRemoteAttachments: true },
-      responsePostprocess: { mode: 'streamText' },
-      hostPersistence: { persistAssistantTurn: true, outputKind: 'streamText' },
+      responsePostprocess: { mode: 'text' },
+      hostPersistence: { persistAssistantTurn: true, outputKind: 'text' },
       hostContext: {},
-    })
-  );
-
-  t.is(text, 'execute-ok');
-  t.deepEqual(chunks, ['stream-ok']);
-  t.is(dispatchCalls, 1);
-  t.is(streamCalls, 1);
-});
-
-test('NativeExecutionEngine should record BYOK usage when stream finalizes with selected provider', async t => {
-  const byok = {
-    recordUsage: Sinon.stub().resolves(),
-  };
-  const engine = new NativeExecutionEngine(byok as never);
-  const providerId = 'byok-aaaaaaaaaaaa-openai-server-key1';
-
-  const originalStream = (serverNativeModule as any).llmDispatchPreparedStream;
-  (serverNativeModule as any).llmDispatchPreparedStream = (
-    _routesJson: string,
-    callback: (error: Error | null, arg: string) => void
-  ) => {
-    callback(
-      null,
-      JSON.stringify({
-        type: 'message_start',
-        model: 'gpt-5-mini',
-      })
-    );
-    callback(null, JSON.stringify({ type: 'text_delta', text: 'ok' }));
-    callback(
-      null,
-      JSON.stringify({
-        type: 'done',
-        finish_reason: 'stop',
-        usage: {
-          prompt_tokens: 2,
-          completion_tokens: 3,
-          total_tokens: 5,
+    });
+    const chunks = await collectAsync(
+      engine.executeStream({
+        nativeDispatch: {
+          chat: {
+            routes: [
+              nativeRoute({
+                providerId: 'openai-primary',
+                authToken: 'primary-key',
+                request: nativeTextRequest('hello'),
+              }),
+            ],
+            prepared: {
+              route: preparedRoute({
+                providerId: 'openai-primary',
+                authToken: 'primary-key',
+              }),
+              request: nativeTextRequest('hello'),
+              tools: {},
+              postprocess: { nodeTextMiddleware: [] },
+            },
+            hasTools: false,
+          },
         },
+        request: {
+          kind: 'streamText',
+          cond: { modelId: 'gpt-5-mini' },
+          messages: singleUserPromptMessages('hello'),
+          options: undefined,
+        },
+        routePolicy: { fallbackOrder: ['openai-primary'] },
+        runtimePolicy: {},
+        attachmentPolicy: { materializeRemoteAttachments: true },
+        responsePostprocess: { mode: 'streamText' },
+        hostPersistence: {
+          persistAssistantTurn: true,
+          outputKind: 'streamText',
+        },
+        hostContext: {},
       })
     );
-    callback(
-      null,
-      JSON.stringify({
-        type: 'provider_selected',
-        provider_id: providerId,
-      })
-    );
-    callback(null, '__AFFINE_LLM_STREAM_END__');
-    return { abort() {} };
-  };
-  t.teardown(() => {
-    (serverNativeModule as any).llmDispatchPreparedStream = originalStream;
-  });
 
-  const chunks = await collectAsync(
-    engine.executeStream({
+    t.is(text, 'execute-ok');
+    t.deepEqual(chunks, ['stream-ok']);
+    t.is(dispatchCalls, 1);
+    t.is(streamCalls, 1);
+  }
+);
+
+test.serial(
+  'NativeExecutionEngine should record BYOK usage when stream finalizes with selected provider',
+  async t => {
+    const byok = {
+      recordUsage: Sinon.stub().resolves(),
+    };
+    const engine = new NativeExecutionEngine(byok as never);
+    const providerId = 'byok-aaaaaaaaaaaa-openai-server-key1';
+
+    const originalStream = (serverNativeModule as any)
+      .llmDispatchPreparedStream;
+    (serverNativeModule as any).llmDispatchPreparedStream = (
+      _routesJson: string,
+      callback: (error: Error | null, arg: string) => void
+    ) => {
+      callback(
+        null,
+        JSON.stringify({
+          type: 'message_start',
+          model: 'gpt-5-mini',
+        })
+      );
+      callback(null, JSON.stringify({ type: 'text_delta', text: 'ok' }));
+      callback(
+        null,
+        JSON.stringify({
+          type: 'done',
+          finish_reason: 'stop',
+          usage: {
+            prompt_tokens: 2,
+            completion_tokens: 3,
+            total_tokens: 5,
+          },
+        })
+      );
+      callback(
+        null,
+        JSON.stringify({
+          type: 'provider_selected',
+          provider_id: providerId,
+        })
+      );
+      callback(null, '__AFFINE_LLM_STREAM_END__');
+      return { abort() {} };
+    };
+    t.teardown(() => {
+      (serverNativeModule as any).llmDispatchPreparedStream = originalStream;
+    });
+
+    const chunks = await collectAsync(
+      engine.executeStream({
+        nativeDispatch: {
+          chat: {
+            routes: [
+              nativeRoute({
+                providerId,
+                authToken: 'byok-key',
+                request: nativeTextRequest('hello'),
+              }),
+            ],
+            prepared: {
+              route: preparedRoute({
+                providerId,
+                authToken: 'byok-key',
+              }),
+              request: nativeTextRequest('hello'),
+              tools: {},
+              postprocess: { nodeTextMiddleware: [] },
+            },
+            hasTools: false,
+          },
+        },
+        request: {
+          kind: 'streamText',
+          cond: { modelId: 'gpt-5-mini' },
+          messages: singleUserPromptMessages('hello'),
+          options: {
+            workspace: 'workspace-1',
+            user: 'user-1',
+            session: 'session-1',
+            featureKind: 'chat',
+          },
+        },
+        routePolicy: { fallbackOrder: [providerId] },
+        runtimePolicy: {},
+        attachmentPolicy: { materializeRemoteAttachments: true },
+        responsePostprocess: { mode: 'streamText' },
+        hostPersistence: {
+          persistAssistantTurn: true,
+          outputKind: 'streamText',
+        },
+        hostContext: {},
+      })
+    );
+
+    t.deepEqual(chunks, ['ok']);
+    Sinon.assert.calledOnceWithMatch(byok.recordUsage, {
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      sessionId: 'session-1',
+      featureKind: 'chat',
+      providerId,
+      model: 'gpt-5-mini',
+      usage: {
+        prompt_tokens: 2,
+        completion_tokens: 3,
+        total_tokens: 5,
+      },
+    });
+  }
+);
+
+test.serial(
+  'NativeExecutionEngine should record plain text BYOK usage as chat by default',
+  async t => {
+    const byok = {
+      recordUsage: Sinon.stub().resolves(),
+      recordProviderFailure: Sinon.stub().resolves(),
+    };
+    const engine = new NativeExecutionEngine(byok as never);
+    const providerId = 'byok-aaaaaaaaaaaa-openai-server-key1';
+
+    const originalDispatch = (serverNativeModule as any).llmDispatchPrepared;
+    (serverNativeModule as any).llmDispatchPrepared = () => {
+      return JSON.stringify({
+        provider_id: providerId,
+        response: {
+          id: 'chat_execute',
+          model: 'gpt-5-mini',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'execute-ok' }],
+          },
+          usage: {
+            prompt_tokens: 1,
+            completion_tokens: 2,
+            total_tokens: 3,
+          },
+          finish_reason: 'stop',
+        },
+      });
+    };
+    t.teardown(() => {
+      (serverNativeModule as any).llmDispatchPrepared = originalDispatch;
+    });
+
+    const text = await engine.execute({
       nativeDispatch: {
         chat: {
           routes: [
@@ -1020,208 +1156,126 @@ test('NativeExecutionEngine should record BYOK usage when stream finalizes with 
         },
       },
       request: {
-        kind: 'streamText',
+        kind: 'text',
         cond: { modelId: 'gpt-5-mini' },
         messages: singleUserPromptMessages('hello'),
         options: {
           workspace: 'workspace-1',
           user: 'user-1',
           session: 'session-1',
-          featureKind: 'chat',
         },
       },
       routePolicy: { fallbackOrder: [providerId] },
       runtimePolicy: {},
       attachmentPolicy: { materializeRemoteAttachments: true },
-      responsePostprocess: { mode: 'streamText' },
-      hostPersistence: { persistAssistantTurn: true, outputKind: 'streamText' },
+      responsePostprocess: { mode: 'text' },
+      hostPersistence: { persistAssistantTurn: true, outputKind: 'text' },
       hostContext: {},
-    })
-  );
+    });
 
-  t.deepEqual(chunks, ['ok']);
-  Sinon.assert.calledOnceWithMatch(byok.recordUsage, {
-    workspaceId: 'workspace-1',
-    userId: 'user-1',
-    sessionId: 'session-1',
-    featureKind: 'chat',
-    providerId,
-    model: 'gpt-5-mini',
-    usage: {
-      prompt_tokens: 2,
-      completion_tokens: 3,
-      total_tokens: 5,
-    },
-  });
-});
-
-test('NativeExecutionEngine should record plain text BYOK usage as chat by default', async t => {
-  const byok = {
-    recordUsage: Sinon.stub().resolves(),
-    recordProviderFailure: Sinon.stub().resolves(),
-  };
-  const engine = new NativeExecutionEngine(byok as never);
-  const providerId = 'byok-aaaaaaaaaaaa-openai-server-key1';
-
-  const originalDispatch = (serverNativeModule as any).llmDispatchPrepared;
-  (serverNativeModule as any).llmDispatchPrepared = () => {
-    return JSON.stringify({
-      provider_id: providerId,
-      response: {
-        id: 'chat_execute',
-        model: 'gpt-5-mini',
-        message: {
-          role: 'assistant',
-          content: [{ type: 'text', text: 'execute-ok' }],
-        },
-        usage: {
-          prompt_tokens: 1,
-          completion_tokens: 2,
-          total_tokens: 3,
-        },
-        finish_reason: 'stop',
+    t.is(text, 'execute-ok');
+    Sinon.assert.calledOnceWithMatch(byok.recordUsage, {
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      sessionId: 'session-1',
+      featureKind: 'chat',
+      providerId,
+      model: 'gpt-5-mini',
+      usage: {
+        prompt_tokens: 1,
+        completion_tokens: 2,
+        total_tokens: 3,
       },
     });
-  };
-  t.teardown(() => {
-    (serverNativeModule as any).llmDispatchPrepared = originalDispatch;
-  });
+  }
+);
 
-  const text = await engine.execute({
-    nativeDispatch: {
-      chat: {
-        routes: [
-          nativeRoute({
-            providerId,
-            authToken: 'byok-key',
-            request: nativeTextRequest('hello'),
-          }),
-        ],
-        prepared: {
-          route: preparedRoute({
-            providerId,
-            authToken: 'byok-key',
-          }),
-          request: nativeTextRequest('hello'),
-          tools: {},
-          postprocess: { nodeTextMiddleware: [] },
+test.serial(
+  'NativeExecutionEngine should not fail stream when BYOK usage recording fails',
+  async t => {
+    const byok = {
+      recordUsage: Sinon.stub().rejects(new Error('usage db down')),
+    };
+    const engine = new NativeExecutionEngine(byok as never);
+    const providerId = 'byok-aaaaaaaaaaaa-openai-server-key1';
+
+    const originalStream = (serverNativeModule as any)
+      .llmDispatchPreparedStream;
+    (serverNativeModule as any).llmDispatchPreparedStream = (
+      _routesJson: string,
+      callback: (error: Error | null, arg: string) => void
+    ) => {
+      callback(
+        null,
+        JSON.stringify({ type: 'message_start', model: 'gpt-5-mini' })
+      );
+      callback(null, JSON.stringify({ type: 'text_delta', text: 'ok' }));
+      callback(
+        null,
+        JSON.stringify({
+          type: 'done',
+          finish_reason: 'stop',
+          usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 },
+        })
+      );
+      callback(
+        null,
+        JSON.stringify({ type: 'provider_selected', provider_id: providerId })
+      );
+      callback(null, '__AFFINE_LLM_STREAM_END__');
+      return { abort() {} };
+    };
+    t.teardown(() => {
+      (serverNativeModule as any).llmDispatchPreparedStream = originalStream;
+    });
+
+    const chunks = await collectAsync(
+      engine.executeStream({
+        nativeDispatch: {
+          chat: {
+            routes: [
+              nativeRoute({
+                providerId,
+                authToken: 'byok-key',
+                request: nativeTextRequest('hello'),
+              }),
+            ],
+            prepared: {
+              route: preparedRoute({ providerId, authToken: 'byok-key' }),
+              request: nativeTextRequest('hello'),
+              tools: {},
+              postprocess: { nodeTextMiddleware: [] },
+            },
+            hasTools: false,
+          },
         },
-        hasTools: false,
-      },
-    },
-    request: {
-      kind: 'text',
-      cond: { modelId: 'gpt-5-mini' },
-      messages: singleUserPromptMessages('hello'),
-      options: {
-        workspace: 'workspace-1',
-        user: 'user-1',
-        session: 'session-1',
-      },
-    },
-    routePolicy: { fallbackOrder: [providerId] },
-    runtimePolicy: {},
-    attachmentPolicy: { materializeRemoteAttachments: true },
-    responsePostprocess: { mode: 'text' },
-    hostPersistence: { persistAssistantTurn: true, outputKind: 'text' },
-    hostContext: {},
-  });
-
-  t.is(text, 'execute-ok');
-  Sinon.assert.calledOnceWithMatch(byok.recordUsage, {
-    workspaceId: 'workspace-1',
-    userId: 'user-1',
-    sessionId: 'session-1',
-    featureKind: 'chat',
-    providerId,
-    model: 'gpt-5-mini',
-    usage: {
-      prompt_tokens: 1,
-      completion_tokens: 2,
-      total_tokens: 3,
-    },
-  });
-});
-
-test('NativeExecutionEngine should not fail stream when BYOK usage recording fails', async t => {
-  const byok = {
-    recordUsage: Sinon.stub().rejects(new Error('usage db down')),
-  };
-  const engine = new NativeExecutionEngine(byok as never);
-  const providerId = 'byok-aaaaaaaaaaaa-openai-server-key1';
-
-  const originalStream = (serverNativeModule as any).llmDispatchPreparedStream;
-  (serverNativeModule as any).llmDispatchPreparedStream = (
-    _routesJson: string,
-    callback: (error: Error | null, arg: string) => void
-  ) => {
-    callback(
-      null,
-      JSON.stringify({ type: 'message_start', model: 'gpt-5-mini' })
-    );
-    callback(null, JSON.stringify({ type: 'text_delta', text: 'ok' }));
-    callback(
-      null,
-      JSON.stringify({
-        type: 'done',
-        finish_reason: 'stop',
-        usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 },
+        request: {
+          kind: 'streamText',
+          cond: { modelId: 'gpt-5-mini' },
+          messages: singleUserPromptMessages('hello'),
+          options: {
+            workspace: 'workspace-1',
+            user: 'user-1',
+            session: 'session-1',
+            featureKind: 'chat',
+          },
+        },
+        routePolicy: { fallbackOrder: [providerId] },
+        runtimePolicy: {},
+        attachmentPolicy: { materializeRemoteAttachments: true },
+        responsePostprocess: { mode: 'streamText' },
+        hostPersistence: {
+          persistAssistantTurn: true,
+          outputKind: 'streamText',
+        },
+        hostContext: {},
       })
     );
-    callback(
-      null,
-      JSON.stringify({ type: 'provider_selected', provider_id: providerId })
-    );
-    callback(null, '__AFFINE_LLM_STREAM_END__');
-    return { abort() {} };
-  };
-  t.teardown(() => {
-    (serverNativeModule as any).llmDispatchPreparedStream = originalStream;
-  });
 
-  const chunks = await collectAsync(
-    engine.executeStream({
-      nativeDispatch: {
-        chat: {
-          routes: [
-            nativeRoute({
-              providerId,
-              authToken: 'byok-key',
-              request: nativeTextRequest('hello'),
-            }),
-          ],
-          prepared: {
-            route: preparedRoute({ providerId, authToken: 'byok-key' }),
-            request: nativeTextRequest('hello'),
-            tools: {},
-            postprocess: { nodeTextMiddleware: [] },
-          },
-          hasTools: false,
-        },
-      },
-      request: {
-        kind: 'streamText',
-        cond: { modelId: 'gpt-5-mini' },
-        messages: singleUserPromptMessages('hello'),
-        options: {
-          workspace: 'workspace-1',
-          user: 'user-1',
-          session: 'session-1',
-          featureKind: 'chat',
-        },
-      },
-      routePolicy: { fallbackOrder: [providerId] },
-      runtimePolicy: {},
-      attachmentPolicy: { materializeRemoteAttachments: true },
-      responsePostprocess: { mode: 'streamText' },
-      hostPersistence: { persistAssistantTurn: true, outputKind: 'streamText' },
-      hostContext: {},
-    })
-  );
-
-  t.deepEqual(chunks, ['ok']);
-  Sinon.assert.calledOnce(byok.recordUsage);
-});
+    t.deepEqual(chunks, ['ok']);
+    Sinon.assert.calledOnce(byok.recordUsage);
+  }
+);
 
 test('CopilotProviderFactory should return no prepared routes when native prepare returns null', async t => {
   const provider = new DriverOnlyProvider();
@@ -1272,7 +1326,7 @@ test('CopilotProviderFactory should return no prepared routes when native prepar
   };
   const factory = new CopilotProviderFactory(
     server as never,
-    registryService as never,
+    withModelRevisionRegistry(registryService) as never,
     access as never
   );
   factory.register('openai-main', provider);
@@ -1376,7 +1430,7 @@ test('CopilotProviderFactory should describe provider prepare diagnostics withou
   };
   const factory = new CopilotProviderFactory(
     server as never,
-    registryService as never,
+    withModelRevisionRegistry(registryService) as never,
     access as never
   );
   factory.register('openai-main', provider);
@@ -1449,181 +1503,188 @@ test('CopilotProviderFactory should describe provider prepare diagnostics withou
   );
 });
 
-test('driver-only provider should use base native driver templates', async t => {
-  const provider = new DriverOnlyProvider();
-  (provider as any).AFFiNEConfig = { copilot: { providers: { openai: {} } } };
-  (provider as any).toolExecutorHost = {
-    createNativeAdapter: () => ({
-      text: async () => 'driver text',
-      streamText: async function* () {
-        yield 'driver stream';
-      },
-      streamObject: async function* () {
-        yield { type: 'text-delta', textDelta: 'driver object' };
-      },
-    }),
-    getTools: async () => ({}),
-  };
-  const originalStructured = (serverNativeModule as any).llmStructuredDispatch;
-  const originalEmbedding = (serverNativeModule as any).llmEmbeddingDispatch;
-  const originalRerank = (serverNativeModule as any).llmRerankDispatch;
-  (serverNativeModule as any).llmStructuredDispatch = (
-    _protocol: string,
-    _backendConfigJson: string,
-    _requestJson: string
-  ) =>
-    JSON.stringify({
-      id: 'structured_1',
-      model: 'gpt-5-mini',
-      output_text: '{"ok":true}',
-      output_json: { ok: true },
-      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-      finish_reason: 'stop',
+test.serial(
+  'driver-only provider should use base native driver templates',
+  async t => {
+    const provider = new DriverOnlyProvider();
+    (provider as any).AFFiNEConfig = { copilot: { providers: { openai: {} } } };
+    (provider as any).toolExecutorHost = {
+      createNativeAdapter: () => ({
+        text: async () => 'driver text',
+        streamText: async function* () {
+          yield 'driver stream';
+        },
+        streamObject: async function* () {
+          yield { type: 'text-delta', textDelta: 'driver object' };
+        },
+      }),
+      getTools: async () => ({}),
+    };
+    const originalStructured = (serverNativeModule as any)
+      .llmStructuredDispatch;
+    const originalEmbedding = (serverNativeModule as any).llmEmbeddingDispatch;
+    const originalRerank = (serverNativeModule as any).llmRerankDispatch;
+    (serverNativeModule as any).llmStructuredDispatch = (
+      _protocol: string,
+      _backendConfigJson: string,
+      _requestJson: string
+    ) =>
+      JSON.stringify({
+        id: 'structured_1',
+        model: 'gpt-5-mini',
+        output_text: '{"ok":true}',
+        output_json: { ok: true },
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        finish_reason: 'stop',
+      });
+    (serverNativeModule as any).llmEmbeddingDispatch = (
+      _protocol: string,
+      _backendConfigJson: string,
+      _requestJson: string
+    ) => JSON.stringify({ embeddings: [[0.1, 0.2]] });
+    (serverNativeModule as any).llmRerankDispatch = (
+      _protocol: string,
+      _backendConfigJson: string,
+      _requestJson: string
+    ) => JSON.stringify({ scores: [0.9, 0.1] });
+    t.teardown(() => {
+      (serverNativeModule as any).llmStructuredDispatch = originalStructured;
+      (serverNativeModule as any).llmEmbeddingDispatch = originalEmbedding;
+      (serverNativeModule as any).llmRerankDispatch = originalRerank;
     });
-  (serverNativeModule as any).llmEmbeddingDispatch = (
-    _protocol: string,
-    _backendConfigJson: string,
-    _requestJson: string
-  ) => JSON.stringify({ embeddings: [[0.1, 0.2]] });
-  (serverNativeModule as any).llmRerankDispatch = (
-    _protocol: string,
-    _backendConfigJson: string,
-    _requestJson: string
-  ) => JSON.stringify({ scores: [0.9, 0.1] });
-  t.teardown(() => {
-    (serverNativeModule as any).llmStructuredDispatch = originalStructured;
-    (serverNativeModule as any).llmEmbeddingDispatch = originalEmbedding;
-    (serverNativeModule as any).llmRerankDispatch = originalRerank;
-  });
 
-  const runtimeHost = getProviderRuntimeHost(provider);
-  const schema = z.object({ ok: z.boolean() });
-  const helloPrompt = promptMessages(userPrompt('hello'));
-  const cases = [
-    {
-      title: 'text',
-      run: () => runtimeHost.run.text({ modelId: 'gpt-5-mini' }, helloPrompt),
-      expected: 'driver text',
-    },
-    {
-      title: 'streamText',
-      run: () =>
-        collectAsync(
-          runtimeHost.run.streamText({ modelId: 'gpt-5-mini' }, helloPrompt)
-        ),
-      expected: ['driver stream'],
-    },
-    {
-      title: 'streamObject',
-      run: () =>
-        collectAsync(
-          runtimeHost.run.streamObject({ modelId: 'gpt-5-mini' }, helloPrompt)
-        ),
-      expected: [{ type: 'text-delta', textDelta: 'driver object' }],
-    },
-    {
-      title: 'structured',
-      run: () =>
-        runtimeHost.run.structured(
-          { modelId: 'gpt-5-mini' },
-          helloPrompt,
-          structuredOptions(schema),
-          structuredContract(schema)
-        ),
-      expected: '{"ok":true}',
-    },
-    {
-      title: 'embedding',
-      run: () =>
-        runtimeHost.run.embedding(
-          { modelId: 'text-embedding-3-small' },
-          'hello world'
-        ),
-      expected: [[0.1, 0.2]],
-    },
-    {
-      title: 'rerank',
-      run: () =>
-        runtimeHost.run.rerank(
-          { modelId: 'gpt-4o-mini' },
-          {
-            query: 'programming',
-            candidates: [{ text: 'React is a UI library.' }],
-          }
-        ),
-      expected: [0.9, 0.1],
-    },
-  ] as const;
+    const runtimeHost = getProviderRuntimeHost(provider);
+    const schema = z.object({ ok: z.boolean() });
+    const helloPrompt = promptMessages(userPrompt('hello'));
+    const cases = [
+      {
+        title: 'text',
+        run: () => runtimeHost.run.text({ modelId: 'gpt-5-mini' }, helloPrompt),
+        expected: 'driver text',
+      },
+      {
+        title: 'streamText',
+        run: () =>
+          collectAsync(
+            runtimeHost.run.streamText({ modelId: 'gpt-5-mini' }, helloPrompt)
+          ),
+        expected: ['driver stream'],
+      },
+      {
+        title: 'streamObject',
+        run: () =>
+          collectAsync(
+            runtimeHost.run.streamObject({ modelId: 'gpt-5-mini' }, helloPrompt)
+          ),
+        expected: [{ type: 'text-delta', textDelta: 'driver object' }],
+      },
+      {
+        title: 'structured',
+        run: () =>
+          runtimeHost.run.structured(
+            { modelId: 'gpt-5-mini' },
+            helloPrompt,
+            structuredOptions(schema),
+            structuredContract(schema)
+          ),
+        expected: '{"ok":true}',
+      },
+      {
+        title: 'embedding',
+        run: () =>
+          runtimeHost.run.embedding(
+            { modelId: 'text-embedding-3-small' },
+            'hello world'
+          ),
+        expected: [[0.1, 0.2]],
+      },
+      {
+        title: 'rerank',
+        run: () =>
+          runtimeHost.run.rerank(
+            { modelId: 'gpt-4o-mini' },
+            {
+              query: 'programming',
+              candidates: [{ text: 'React is a UI library.' }],
+            }
+          ),
+        expected: [0.9, 0.1],
+      },
+    ] as const;
 
-  for (const testCase of cases) {
-    t.deepEqual(await testCase.run(), testCase.expected, testCase.title);
+    for (const testCase of cases) {
+      t.deepEqual(await testCase.run(), testCase.expected, testCase.title);
+    }
   }
-});
+);
 
-test('driver-only provider should require explicit structured response contracts', async t => {
-  const provider = new DriverOnlyProvider();
-  (provider as any).AFFiNEConfig = { copilot: { providers: { openai: {} } } };
-  (provider as any).toolExecutorHost = {
-    createNativeAdapter: () => {
-      throw new Error(
-        'chat adapter should not be used in non-chat driver test'
-      );
-    },
-    getTools: async () => ({}),
-  };
+test.serial(
+  'driver-only provider should require explicit structured response contracts',
+  async t => {
+    const provider = new DriverOnlyProvider();
+    (provider as any).AFFiNEConfig = { copilot: { providers: { openai: {} } } };
+    (provider as any).toolExecutorHost = {
+      createNativeAdapter: () => {
+        throw new Error(
+          'chat adapter should not be used in non-chat driver test'
+        );
+      },
+      getTools: async () => ({}),
+    };
 
-  const schemaJson = {
-    type: 'object',
-    properties: {
-      ok: { type: 'boolean' },
-    },
-    additionalProperties: false,
-    required: ['ok'],
-  };
-  let capturedRequest:
-    | {
-        schema?: unknown;
-        strict?: boolean;
-        messages?: Array<{
-          response_format?: {
-            response_schema_json?: unknown;
-            strict?: boolean;
-          };
-        }>;
-      }
-    | undefined;
+    const schemaJson = {
+      type: 'object',
+      properties: {
+        ok: { type: 'boolean' },
+      },
+      additionalProperties: false,
+      required: ['ok'],
+    };
+    let capturedRequest:
+      | {
+          schema?: unknown;
+          strict?: boolean;
+          messages?: Array<{
+            response_format?: {
+              response_schema_json?: unknown;
+              strict?: boolean;
+            };
+          }>;
+        }
+      | undefined;
 
-  const original = (serverNativeModule as any)
-    .llmBuildCanonicalStructuredRequest;
-  (serverNativeModule as any).llmBuildCanonicalStructuredRequest = (
-    requestJson: string
-  ) => {
-    capturedRequest = JSON.parse(requestJson);
-    return original(requestJson);
-  };
-  t.teardown(() => {
-    (serverNativeModule as any).llmBuildCanonicalStructuredRequest = original;
-  });
+    const original = (serverNativeModule as any)
+      .llmBuildCanonicalStructuredRequest;
+    (serverNativeModule as any).llmBuildCanonicalStructuredRequest = (
+      requestJson: string
+    ) => {
+      capturedRequest = JSON.parse(requestJson);
+      return original(requestJson);
+    };
+    t.teardown(() => {
+      (serverNativeModule as any).llmBuildCanonicalStructuredRequest = original;
+    });
 
-  const error = await t.throwsAsync(() =>
-    getProviderRuntimeHost(provider).prepare.structured(
-      { modelId: 'gpt-5-mini' },
-      [
-        systemPrompt('Return JSON only.', {
-          responseFormat: {
-            type: 'json_schema',
-            responseSchemaJson: schemaJson,
-            strict: false,
-          },
-        }),
-        userPrompt('hello'),
-      ]
-    )
-  );
+    const error = await t.throwsAsync(() =>
+      getProviderRuntimeHost(provider).prepare.structured(
+        { modelId: 'gpt-5-mini' },
+        [
+          systemPrompt('Return JSON only.', {
+            responseFormat: {
+              type: 'json_schema',
+              responseSchemaJson: schemaJson,
+              strict: false,
+            },
+          }),
+          userPrompt('hello'),
+        ]
+      )
+    );
 
-  t.true(error instanceof CopilotPromptInvalid);
-  t.is(capturedRequest, undefined);
-});
+    t.true(error instanceof CopilotPromptInvalid);
+    t.is(capturedRequest, undefined);
+  }
+);
 
 test('getActiveProviderMiddleware should merge defaults with profile override', t => {
   const provider = createProvider({
@@ -1895,7 +1956,7 @@ test('CopilotProviderFactory should resolve legacy model ids through native regi
   };
   const factory = new CopilotProviderFactory(
     server as never,
-    registryService as never,
+    withModelRevisionRegistry(registryService) as never,
     access as never
   );
   factory.register('openai-main', provider);
@@ -1951,7 +2012,7 @@ test('CopilotProviderFactory should skip down provider routes and configured mod
   };
   const factory = new CopilotProviderFactory(
     server as never,
-    registryService as never,
+    withModelRevisionRegistry(registryService) as never,
     access as never
   );
   factory.register('openai-main', provider);
@@ -2013,7 +2074,7 @@ test('CopilotProviderFactory should apply provider route policy from request con
   };
   const factory = new CopilotProviderFactory(
     server as never,
-    registryService as never,
+    withModelRevisionRegistry(registryService) as never,
     access as never
   );
   factory.register('cloud-main', provider);
@@ -2114,7 +2175,7 @@ function createProviderFactoryWithByokRoutes({
   };
   const factory = new CopilotProviderFactory(
     server as never,
-    registryService as never,
+    withModelRevisionRegistry(registryService) as never,
     access as never
   );
   factory.register('openai-main', provider);
@@ -2652,7 +2713,7 @@ test('CopilotProviderFactory should expose configured model aliases as stable ro
   };
   const factory = new CopilotProviderFactory(
     server as never,
-    registryService as never,
+    withModelRevisionRegistry(registryService) as never,
     access as never
   );
   factory.register('ollama-main', provider);
@@ -2746,7 +2807,7 @@ test('CopilotProviderFactory should use model definition embedding dimensions fo
   };
   const factory = new CopilotProviderFactory(
     server as never,
-    registryService as never,
+    withModelRevisionRegistry(registryService) as never,
     access as never
   );
   factory.register('ollama-main', provider);
@@ -2942,7 +3003,7 @@ test('CopilotProviderFactory should resolve embedding and rerank defaults from p
   };
   const factory = new CopilotProviderFactory(
     server as never,
-    registryService as never,
+    withModelRevisionRegistry(registryService) as never,
     access as never
   );
   factory.register('ollama-main', provider);
@@ -3061,7 +3122,7 @@ test('CopilotProviderFactory should describe route candidates after policy filte
   };
   const factory = new CopilotProviderFactory(
     server as never,
-    registryService as never,
+    withModelRevisionRegistry(registryService) as never,
     access as never
   );
   factory.register('embed-main', provider);
@@ -3100,6 +3161,8 @@ test('CopilotProviderFactory should describe route candidates after policy filte
         routeModelDefinitionId: 'office-embedding',
         routeModelDefinitionAliases: ['workspace-embedding'],
         routeModelAliasMatched: false,
+        routeInputTypes: [ModelInputType.Text],
+        routeOutputTypes: [ModelOutputType.Embedding],
         candidateModelIds: ['office-embedding', 'workspace-embedding'],
         matched: true,
         reasons: [
@@ -3252,7 +3315,7 @@ test('CopilotProviderFactory should describe route candidate attachment mismatch
   };
   const factory = new CopilotProviderFactory(
     server as never,
-    registryService as never,
+    withModelRevisionRegistry(registryService) as never,
     access as never
   );
   factory.register('local-file', provider);
@@ -3329,6 +3392,18 @@ test('CopilotProviderFactory should describe BYOK and quota-backed route branche
         modelId: 'gpt-5-mini',
         routeModelDefinitionSource: 'native_registry',
         routeModelDefinitionId: 'gpt-5-mini',
+        routeInputTypes: [ModelInputType.Text, ModelInputType.Image],
+        routeOutputTypes: [
+          ModelOutputType.Text,
+          ModelOutputType.Object,
+          ModelOutputType.Structured,
+        ],
+        routeAttachmentKinds: ['image'],
+        routeAttachmentSourceKinds: ['url', 'data'],
+        routeAttachmentAllowRemoteUrls: true,
+        routeStructuredAttachmentKinds: ['image'],
+        routeStructuredAttachmentSourceKinds: ['url', 'data'],
+        routeStructuredAttachmentAllowRemoteUrls: true,
         matched: true,
         reasons: ['capability_matched', 'registry_selected'],
       },
@@ -3349,6 +3424,18 @@ test('CopilotProviderFactory should describe BYOK and quota-backed route branche
         modelId: 'gpt-5-mini',
         routeModelDefinitionSource: 'native_registry',
         routeModelDefinitionId: 'gpt-5-mini',
+        routeInputTypes: [ModelInputType.Text, ModelInputType.Image],
+        routeOutputTypes: [
+          ModelOutputType.Text,
+          ModelOutputType.Object,
+          ModelOutputType.Structured,
+        ],
+        routeAttachmentKinds: ['image'],
+        routeAttachmentSourceKinds: ['url', 'data'],
+        routeAttachmentAllowRemoteUrls: true,
+        routeStructuredAttachmentKinds: ['image'],
+        routeStructuredAttachmentSourceKinds: ['url', 'data'],
+        routeStructuredAttachmentAllowRemoteUrls: true,
         matched: true,
         reasons: ['capability_matched', 'registry_shadowed_by_byok'],
       },
@@ -3386,6 +3473,18 @@ test('CopilotProviderFactory should describe unavailable quota-backed route bran
         modelId: 'gpt-5-mini',
         routeModelDefinitionSource: 'native_registry',
         routeModelDefinitionId: 'gpt-5-mini',
+        routeInputTypes: [ModelInputType.Text, ModelInputType.Image],
+        routeOutputTypes: [
+          ModelOutputType.Text,
+          ModelOutputType.Object,
+          ModelOutputType.Structured,
+        ],
+        routeAttachmentKinds: ['image'],
+        routeAttachmentSourceKinds: ['url', 'data'],
+        routeAttachmentAllowRemoteUrls: true,
+        routeStructuredAttachmentKinds: ['image'],
+        routeStructuredAttachmentSourceKinds: ['url', 'data'],
+        routeStructuredAttachmentAllowRemoteUrls: true,
         matched: true,
         reasons: [
           'capability_matched',
@@ -3460,7 +3559,7 @@ test('CopilotProviderFactory should apply model max output tokens to prepared ch
   };
   const factory = new CopilotProviderFactory(
     server as never,
-    registryService as never,
+    withModelRevisionRegistry(registryService) as never,
     access as never
   );
   factory.register('ollama-main', provider);
@@ -3564,7 +3663,7 @@ test('CopilotProviderFactory should expose model context window from configured 
   };
   const factory = new CopilotProviderFactory(
     server as never,
-    registryService as never,
+    withModelRevisionRegistry(registryService) as never,
     access as never
   );
   factory.register('ollama-main', provider);
@@ -3760,139 +3859,81 @@ test('ProviderDriverSpec should freeze declarative driver shape', t => {
   t.truthy(error);
 });
 
-test('NativeExecutionEngine should dispatch prepared text routes through native fallback', async t => {
-  const engine = createNativeExecutionEngine();
-  const registry = buildProviderRegistry({
-    profiles: [
-      {
-        id: 'openai-primary',
-        type: CopilotProviderType.OpenAI,
-        config: { apiKey: '1' },
-      },
-      {
-        id: 'openai-fallback',
-        type: CopilotProviderType.OpenAI,
-        config: { apiKey: '2' },
-      },
-    ],
-  });
-  const primaryProfile = registry.profiles.get('openai-primary');
-  const fallbackProfile = registry.profiles.get('openai-fallback');
-  if (!primaryProfile || !fallbackProfile) {
-    throw new Error('missing test provider profiles');
-  }
-
-  let capturedRoutes: unknown;
-  let called = false;
-  const original = (serverNativeModule as any).llmDispatchPrepared;
-  (serverNativeModule as any).llmDispatchPrepared = (routesJson: string) => {
-    called = true;
-    capturedRoutes = JSON.parse(routesJson);
-    return JSON.stringify({
-      provider_id: 'openai-fallback',
-      response: {
-        id: 'chat_2',
-        model: 'gpt-5-mini',
-        message: {
-          role: 'assistant',
-          content: [{ type: 'text', text: 'fallback-ok' }],
+test.serial(
+  'NativeExecutionEngine should dispatch prepared text routes through native fallback',
+  async t => {
+    const engine = createNativeExecutionEngine();
+    const registry = buildProviderRegistry({
+      profiles: [
+        {
+          id: 'openai-primary',
+          type: CopilotProviderType.OpenAI,
+          config: { apiKey: '1' },
         },
-        usage: {
-          prompt_tokens: 1,
-          completion_tokens: 1,
-          total_tokens: 2,
+        {
+          id: 'openai-fallback',
+          type: CopilotProviderType.OpenAI,
+          config: { apiKey: '2' },
         },
-        finish_reason: 'stop',
-      },
+      ],
     });
-  };
-  t.teardown(() => {
-    (serverNativeModule as any).llmDispatchPrepared = original;
-  });
+    const primaryProfile = registry.profiles.get('openai-primary');
+    const fallbackProfile = registry.profiles.get('openai-fallback');
+    if (!primaryProfile || !fallbackProfile) {
+      throw new Error('missing test provider profiles');
+    }
 
-  const result = await engine.execute({
-    nativeDispatch: {
-      chat: {
-        routes: [
-          nativeRoute({
-            providerId: 'openai-primary',
-            authToken: 'primary-key',
-            request: nativeTextRequest('hello from primary'),
-          }),
-          nativeRoute({
-            providerId: 'openai-fallback',
-            authToken: 'fallback-key',
-            protocol: 'gemini',
-            baseUrl: GEMINI_BASE_URL,
-            request: nativeTextRequest('hello from fallback'),
-          }),
-        ],
-        prepared: {
-          route: preparedRoute({
-            providerId: 'openai-primary',
-            authToken: 'primary-key',
-          }),
-          request: nativeTextRequest('hello from primary'),
-          tools: {},
-          postprocess: { nodeTextMiddleware: [] },
+    let capturedRoutes: unknown;
+    let called = false;
+    const original = (serverNativeModule as any).llmDispatchPrepared;
+    (serverNativeModule as any).llmDispatchPrepared = (routesJson: string) => {
+      called = true;
+      capturedRoutes = JSON.parse(routesJson);
+      return JSON.stringify({
+        provider_id: 'openai-fallback',
+        response: {
+          id: 'chat_2',
+          model: 'gpt-5-mini',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'fallback-ok' }],
+          },
+          usage: {
+            prompt_tokens: 1,
+            completion_tokens: 1,
+            total_tokens: 2,
+          },
+          finish_reason: 'stop',
         },
-        hasTools: false,
-      },
-    },
-    request: {
-      kind: 'text',
-      cond: { modelId: 'gpt-5-mini' },
-      messages: singleUserPromptMessages('hello'),
-      options: undefined,
-    },
-    routePolicy: { fallbackOrder: ['openai-primary', 'openai-fallback'] },
-    runtimePolicy: {},
-    attachmentPolicy: { materializeRemoteAttachments: true },
-    responsePostprocess: { mode: 'text' },
-    hostPersistence: { persistAssistantTurn: true, outputKind: 'text' },
-    hostContext: {
-      currentMessages: singleUserPromptMessages('hello'),
-    },
-  });
+      });
+    };
+    t.teardown(() => {
+      (serverNativeModule as any).llmDispatchPrepared = original;
+    });
 
-  t.is(result, 'fallback-ok');
-  t.true(called);
-  t.snapshot(summarizePreparedDispatchRoutes(capturedRoutes));
-});
-
-test('NativeExecutionEngine should record single BYOK route dispatch failure', async t => {
-  const byok = {
-    recordProviderFailure: Sinon.stub().resolves(),
-    recordUsage: Sinon.stub().resolves(),
-  };
-  const engine = new NativeExecutionEngine(byok as never);
-  const providerId = 'byok-aaaaaaaaaaaa-openai-server-key1';
-
-  const original = (serverNativeModule as any).llmDispatchPrepared;
-  (serverNativeModule as any).llmDispatchPrepared = () => {
-    throw new Error('401 invalid sk-test-primary');
-  };
-  t.teardown(() => {
-    (serverNativeModule as any).llmDispatchPrepared = original;
-  });
-
-  const error = await t.throwsAsync(
-    engine.execute({
+    const result = await engine.execute({
       nativeDispatch: {
         chat: {
           routes: [
             nativeRoute({
-              providerId,
+              providerId: 'openai-primary',
               authToken: 'primary-key',
-              request: nativeTextRequest('hello'),
+              request: nativeTextRequest('hello from primary'),
+            }),
+            nativeRoute({
+              providerId: 'openai-fallback',
+              authToken: 'fallback-key',
+              protocol: 'gemini',
+              baseUrl: GEMINI_BASE_URL,
+              request: nativeTextRequest('hello from fallback'),
             }),
           ],
           prepared: {
             route: preparedRoute({
-              providerId,
+              providerId: 'openai-primary',
               authToken: 'primary-key',
             }),
-            request: nativeTextRequest('hello'),
+            request: nativeTextRequest('hello from primary'),
             tools: {},
             postprocess: { nodeTextMiddleware: [] },
           },
@@ -3903,14 +3944,9 @@ test('NativeExecutionEngine should record single BYOK route dispatch failure', a
         kind: 'text',
         cond: { modelId: 'gpt-5-mini' },
         messages: singleUserPromptMessages('hello'),
-        options: {
-          workspace: 'workspace-1',
-          user: 'user-1',
-          session: 'session-1',
-          featureKind: 'chat',
-        },
+        options: undefined,
       },
-      routePolicy: { fallbackOrder: [providerId] },
+      routePolicy: { fallbackOrder: ['openai-primary', 'openai-fallback'] },
       runtimePolicy: {},
       attachmentPolicy: { materializeRemoteAttachments: true },
       responsePostprocess: { mode: 'text' },
@@ -3918,17 +3954,86 @@ test('NativeExecutionEngine should record single BYOK route dispatch failure', a
       hostContext: {
         currentMessages: singleUserPromptMessages('hello'),
       },
-    })
-  );
+    });
 
-  t.truthy(error);
-  Sinon.assert.calledOnceWithMatch(byok.recordProviderFailure, {
-    workspaceId: 'workspace-1',
-    providerId,
-    featureKind: 'chat',
-  });
-  Sinon.assert.notCalled(byok.recordUsage);
-});
+    t.is(result, 'fallback-ok');
+    t.true(called);
+    t.snapshot(summarizePreparedDispatchRoutes(capturedRoutes));
+  }
+);
+
+test.serial(
+  'NativeExecutionEngine should record single BYOK route dispatch failure',
+  async t => {
+    const byok = {
+      recordProviderFailure: Sinon.stub().resolves(),
+      recordUsage: Sinon.stub().resolves(),
+    };
+    const engine = new NativeExecutionEngine(byok as never);
+    const providerId = 'byok-aaaaaaaaaaaa-openai-server-key1';
+
+    const original = (serverNativeModule as any).llmDispatchPrepared;
+    (serverNativeModule as any).llmDispatchPrepared = () => {
+      throw new Error('401 invalid sk-test-primary');
+    };
+    t.teardown(() => {
+      (serverNativeModule as any).llmDispatchPrepared = original;
+    });
+
+    const error = await t.throwsAsync(
+      engine.execute({
+        nativeDispatch: {
+          chat: {
+            routes: [
+              nativeRoute({
+                providerId,
+                authToken: 'primary-key',
+                request: nativeTextRequest('hello'),
+              }),
+            ],
+            prepared: {
+              route: preparedRoute({
+                providerId,
+                authToken: 'primary-key',
+              }),
+              request: nativeTextRequest('hello'),
+              tools: {},
+              postprocess: { nodeTextMiddleware: [] },
+            },
+            hasTools: false,
+          },
+        },
+        request: {
+          kind: 'text',
+          cond: { modelId: 'gpt-5-mini' },
+          messages: singleUserPromptMessages('hello'),
+          options: {
+            workspace: 'workspace-1',
+            user: 'user-1',
+            session: 'session-1',
+            featureKind: 'chat',
+          },
+        },
+        routePolicy: { fallbackOrder: [providerId] },
+        runtimePolicy: {},
+        attachmentPolicy: { materializeRemoteAttachments: true },
+        responsePostprocess: { mode: 'text' },
+        hostPersistence: { persistAssistantTurn: true, outputKind: 'text' },
+        hostContext: {
+          currentMessages: singleUserPromptMessages('hello'),
+        },
+      })
+    );
+
+    t.truthy(error);
+    Sinon.assert.calledOnceWithMatch(byok.recordProviderFailure, {
+      workspaceId: 'workspace-1',
+      providerId,
+      featureKind: 'chat',
+    });
+    Sinon.assert.notCalled(byok.recordUsage);
+  }
+);
 
 test('NativeExecutionEngine should reject single-route plans when no native route is prepared', async t => {
   const engine = createNativeExecutionEngine();
@@ -3996,158 +4101,164 @@ test('CapabilityRuntime should expose task route preflight errors', async t => {
   });
 });
 
-test('NativeExecutionEngine should prefer prepared native fallback dispatch for explicit routes', async t => {
-  const engine = createNativeExecutionEngine();
-  let capturedRoutes: unknown;
-  let called = false;
+test.serial(
+  'NativeExecutionEngine should prefer prepared native fallback dispatch for explicit routes',
+  async t => {
+    const engine = createNativeExecutionEngine();
+    let capturedRoutes: unknown;
+    let called = false;
 
-  const original = (serverNativeModule as any).llmDispatchPrepared;
-  (serverNativeModule as any).llmDispatchPrepared = (routesJson: string) => {
-    called = true;
-    capturedRoutes = JSON.parse(routesJson);
-    return JSON.stringify({
-      provider_id: 'openai-fallback',
-      response: {
-        id: 'chat_1',
-        model: 'gpt-5-mini',
-        message: {
-          role: 'assistant',
-          content: [{ type: 'text', text: 'native-fallback-ok' }],
+    const original = (serverNativeModule as any).llmDispatchPrepared;
+    (serverNativeModule as any).llmDispatchPrepared = (routesJson: string) => {
+      called = true;
+      capturedRoutes = JSON.parse(routesJson);
+      return JSON.stringify({
+        provider_id: 'openai-fallback',
+        response: {
+          id: 'chat_1',
+          model: 'gpt-5-mini',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'native-fallback-ok' }],
+          },
+          usage: {
+            prompt_tokens: 1,
+            completion_tokens: 1,
+            total_tokens: 2,
+          },
+          finish_reason: 'stop',
         },
-        usage: {
-          prompt_tokens: 1,
-          completion_tokens: 1,
-          total_tokens: 2,
-        },
-        finish_reason: 'stop',
-      },
+      });
+    };
+    t.teardown(() => {
+      (serverNativeModule as any).llmDispatchPrepared = original;
     });
-  };
-  t.teardown(() => {
-    (serverNativeModule as any).llmDispatchPrepared = original;
-  });
 
-  const result = await engine.execute({
-    nativeDispatch: {
-      chat: {
-        routes: [
-          nativeRoute({
-            providerId: 'openai-primary',
-            authToken: 'primary-key',
+    const result = await engine.execute({
+      nativeDispatch: {
+        chat: {
+          routes: [
+            nativeRoute({
+              providerId: 'openai-primary',
+              authToken: 'primary-key',
+              request: nativeTextRequest('hello'),
+            }),
+            nativeRoute({
+              providerId: 'openai-fallback',
+              authToken: 'fallback-key',
+              request: nativeTextRequest('hello'),
+            }),
+          ],
+          prepared: {
+            route: preparedRoute({
+              providerId: 'openai-primary',
+              authToken: 'primary-key',
+            }),
             request: nativeTextRequest('hello'),
-          }),
-          nativeRoute({
-            providerId: 'openai-fallback',
-            authToken: 'fallback-key',
-            request: nativeTextRequest('hello'),
-          }),
-        ],
-        prepared: {
-          route: preparedRoute({
-            providerId: 'openai-primary',
-            authToken: 'primary-key',
-          }),
-          request: nativeTextRequest('hello'),
-          tools: {},
-          postprocess: {
-            nodeTextMiddleware: [],
+            tools: {},
+            postprocess: {
+              nodeTextMiddleware: [],
+            },
           },
+          hasTools: false,
         },
-        hasTools: false,
       },
-    },
-    request: {
-      kind: 'text',
-      cond: { modelId: 'gpt-5-mini' },
-      messages: singleUserPromptMessages('hello'),
-      options: undefined,
-    },
-    routePolicy: { fallbackOrder: ['openai-primary'] },
-    runtimePolicy: {},
-    attachmentPolicy: { materializeRemoteAttachments: true },
-    responsePostprocess: { mode: 'text' },
-    hostPersistence: { persistAssistantTurn: true, outputKind: 'text' },
-    hostContext: {},
-  });
-
-  t.is(result, 'native-fallback-ok');
-  t.true(called);
-  t.snapshot(summarizePreparedDispatchRoutes(capturedRoutes));
-});
-
-test('NativeExecutionEngine should stream through prepared native fallback dispatch', async t => {
-  const engine = createNativeExecutionEngine();
-  let called = false;
-
-  const original = (serverNativeModule as any).llmDispatchPreparedStream;
-  (serverNativeModule as any).llmDispatchPreparedStream = (
-    _routesJson: string,
-    callback: (error: Error | null, arg: string) => void
-  ) => {
-    called = true;
-    callback(
-      null,
-      JSON.stringify({ type: 'text_delta', text: 'stream-native-ok' })
-    );
-    callback(null, '__AFFINE_LLM_STREAM_END__');
-    return { abort() {} };
-  };
-  t.teardown(() => {
-    (serverNativeModule as any).llmDispatchPreparedStream = original;
-  });
-
-  const chunks: string[] = [];
-  for await (const chunk of engine.executeStream({
-    nativeDispatch: {
-      chat: {
-        routes: [
-          nativeRoute({
-            providerId: 'openai-primary',
-            authToken: 'primary-key',
-            request: nativeTextRequest('hello'),
-          }),
-          nativeRoute({
-            providerId: 'openai-fallback',
-            authToken: 'fallback-key',
-            request: nativeTextRequest('hello'),
-          }),
-        ],
-        prepared: {
-          route: preparedRoute({
-            providerId: 'openai-primary',
-            authToken: 'primary-key',
-          }),
-          request: nativeTextRequest('hello'),
-          tools: {},
-          postprocess: {
-            nodeTextMiddleware: [],
-          },
-        },
-        hasTools: false,
+      request: {
+        kind: 'text',
+        cond: { modelId: 'gpt-5-mini' },
+        messages: singleUserPromptMessages('hello'),
+        options: undefined,
       },
-    },
-    request: {
-      kind: 'streamText',
-      cond: { modelId: 'gpt-5-mini' },
-      messages: promptMessages(userPrompt('hello')),
-      options: undefined,
-    },
-    routePolicy: { fallbackOrder: ['openai-primary'] },
-    runtimePolicy: {},
-    attachmentPolicy: { materializeRemoteAttachments: true },
-    responsePostprocess: { mode: 'streamText' },
-    hostPersistence: {
-      persistAssistantTurn: true,
-      outputKind: 'streamText',
-    },
-    hostContext: {},
-  })) {
-    chunks.push(chunk);
+      routePolicy: { fallbackOrder: ['openai-primary'] },
+      runtimePolicy: {},
+      attachmentPolicy: { materializeRemoteAttachments: true },
+      responsePostprocess: { mode: 'text' },
+      hostPersistence: { persistAssistantTurn: true, outputKind: 'text' },
+      hostContext: {},
+    });
+
+    t.is(result, 'native-fallback-ok');
+    t.true(called);
+    t.snapshot(summarizePreparedDispatchRoutes(capturedRoutes));
   }
+);
 
-  t.true(called);
-  t.deepEqual(chunks, ['stream-native-ok']);
-});
+test.serial(
+  'NativeExecutionEngine should stream through prepared native fallback dispatch',
+  async t => {
+    const engine = createNativeExecutionEngine();
+    let called = false;
+
+    const original = (serverNativeModule as any).llmDispatchPreparedStream;
+    (serverNativeModule as any).llmDispatchPreparedStream = (
+      _routesJson: string,
+      callback: (error: Error | null, arg: string) => void
+    ) => {
+      called = true;
+      callback(
+        null,
+        JSON.stringify({ type: 'text_delta', text: 'stream-native-ok' })
+      );
+      callback(null, '__AFFINE_LLM_STREAM_END__');
+      return { abort() {} };
+    };
+    t.teardown(() => {
+      (serverNativeModule as any).llmDispatchPreparedStream = original;
+    });
+
+    const chunks: string[] = [];
+    for await (const chunk of engine.executeStream({
+      nativeDispatch: {
+        chat: {
+          routes: [
+            nativeRoute({
+              providerId: 'openai-primary',
+              authToken: 'primary-key',
+              request: nativeTextRequest('hello'),
+            }),
+            nativeRoute({
+              providerId: 'openai-fallback',
+              authToken: 'fallback-key',
+              request: nativeTextRequest('hello'),
+            }),
+          ],
+          prepared: {
+            route: preparedRoute({
+              providerId: 'openai-primary',
+              authToken: 'primary-key',
+            }),
+            request: nativeTextRequest('hello'),
+            tools: {},
+            postprocess: {
+              nodeTextMiddleware: [],
+            },
+          },
+          hasTools: false,
+        },
+      },
+      request: {
+        kind: 'streamText',
+        cond: { modelId: 'gpt-5-mini' },
+        messages: promptMessages(userPrompt('hello')),
+        options: undefined,
+      },
+      routePolicy: { fallbackOrder: ['openai-primary'] },
+      runtimePolicy: {},
+      attachmentPolicy: { materializeRemoteAttachments: true },
+      responsePostprocess: { mode: 'streamText' },
+      hostPersistence: {
+        persistAssistantTurn: true,
+        outputKind: 'streamText',
+      },
+      hostContext: {},
+    })) {
+      chunks.push(chunk);
+    }
+
+    t.true(called);
+    t.deepEqual(chunks, ['stream-native-ok']);
+  }
+);
 
 test('ExecutionPlanBuilder should keep tool-loop chat routes on prepared dispatch path', async t => {
   const provider = new TestOpenAIProvider();
@@ -4304,81 +4415,125 @@ test('ExecutionPlanBuilder should keep single-route tool chat plans on prepared_
   t.snapshot(plan.transport);
 });
 
-test('NativeExecutionEngine should route tool-loop chat prepared routes through native dispatch', async t => {
-  const engine = createNativeExecutionEngine();
-  let capturedRoutes: unknown;
-  let called = false;
-  let toolCallbackCount = 0;
+test.serial(
+  'NativeExecutionEngine should route tool-loop chat prepared routes through native dispatch',
+  async t => {
+    const engine = createNativeExecutionEngine();
+    let capturedRoutes: unknown;
+    let called = false;
+    let toolCallbackCount = 0;
 
-  const original = (serverNativeModule as any)
-    .llmDispatchToolLoopStreamPrepared;
-  (serverNativeModule as any).llmDispatchToolLoopStreamPrepared = async (
-    routesJson: string,
-    maxSteps: number,
-    callback: (error: Error | null, eventJson: string) => void,
-    toolCallback: (error: Error | null, requestJson: string) => Promise<string>
-  ) => {
-    called = true;
-    capturedRoutes = JSON.parse(routesJson);
-    t.is(maxSteps, 4);
+    const original = (serverNativeModule as any)
+      .llmDispatchToolLoopStreamPrepared;
+    (serverNativeModule as any).llmDispatchToolLoopStreamPrepared = async (
+      routesJson: string,
+      maxSteps: number,
+      callback: (error: Error | null, eventJson: string) => void,
+      toolCallback: (
+        error: Error | null,
+        requestJson: string
+      ) => Promise<string>
+    ) => {
+      called = true;
+      capturedRoutes = JSON.parse(routesJson);
+      t.is(maxSteps, 4);
 
-    const toolResult = JSON.parse(
-      await toolCallback(
+      const toolResult = JSON.parse(
+        await toolCallback(
+          null,
+          JSON.stringify({
+            callId: 'call_1',
+            name: 'answer',
+            args: { value: 'native-tool-ok' },
+          })
+        )
+      ) as {
+        callId: string;
+        name: string;
+        args: Record<string, unknown>;
+        output: unknown;
+        isError?: boolean;
+      };
+      toolCallbackCount += 1;
+
+      callback(
         null,
         JSON.stringify({
-          callId: 'call_1',
+          type: 'tool_call',
+          call_id: 'call_1',
           name: 'answer',
-          args: { value: 'native-tool-ok' },
+          arguments: { value: 'native-tool-ok' },
         })
-      )
-    ) as {
-      callId: string;
-      name: string;
-      args: Record<string, unknown>;
-      output: unknown;
-      isError?: boolean;
+      );
+      callback(
+        null,
+        JSON.stringify({
+          type: 'tool_result',
+          call_id: 'call_1',
+          name: toolResult.name,
+          arguments: toolResult.args,
+          output: toolResult.output,
+        })
+      );
+      callback(
+        null,
+        JSON.stringify({ type: 'text_delta', text: 'native-tool-ok' })
+      );
+      callback(null, JSON.stringify({ type: 'done' }));
+      callback(null, '__AFFINE_LLM_STREAM_END__');
+
+      return { abort() {} };
     };
-    toolCallbackCount += 1;
+    t.teardown(() => {
+      (serverNativeModule as any).llmDispatchToolLoopStreamPrepared = original;
+    });
 
-    callback(
-      null,
-      JSON.stringify({
-        type: 'tool_call',
-        call_id: 'call_1',
-        name: 'answer',
-        arguments: { value: 'native-tool-ok' },
-      })
-    );
-    callback(
-      null,
-      JSON.stringify({
-        type: 'tool_result',
-        call_id: 'call_1',
-        name: toolResult.name,
-        arguments: toolResult.args,
-        output: toolResult.output,
-      })
-    );
-    callback(
-      null,
-      JSON.stringify({ type: 'text_delta', text: 'native-tool-ok' })
-    );
-    callback(null, JSON.stringify({ type: 'done' }));
-    callback(null, '__AFFINE_LLM_STREAM_END__');
-
-    return { abort() {} };
-  };
-  t.teardown(() => {
-    (serverNativeModule as any).llmDispatchToolLoopStreamPrepared = original;
-  });
-
-  const result = await engine.execute({
-    nativeDispatch: {
-      chat: {
-        routes: [
-          nativeRoute({
-            providerId: 'openai-primary',
-            authToken: 'primary-key',
+    const result = await engine.execute({
+      nativeDispatch: {
+        chat: {
+          routes: [
+            nativeRoute({
+              providerId: 'openai-primary',
+              authToken: 'primary-key',
+              request: {
+                ...nativeTextRequest('hello'),
+                tools: [
+                  {
+                    name: 'answer',
+                    parameters: {
+                      type: 'object',
+                      properties: { value: { type: 'string' } },
+                      required: ['value'],
+                    },
+                  },
+                ],
+              },
+            }),
+            nativeRoute({
+              providerId: 'openai-fallback',
+              authToken: 'fallback-key',
+              protocol: 'gemini',
+              baseUrl: GEMINI_BASE_URL,
+              request: {
+                ...nativeTextRequest('hello from fallback'),
+                tools: [
+                  {
+                    name: 'answer',
+                    parameters: {
+                      type: 'object',
+                      properties: { value: { type: 'string' } },
+                      required: ['value'],
+                    },
+                  },
+                ],
+              },
+            }),
+          ],
+          prepared: {
+            route: preparedRoute({
+              providerId: 'openai-primary',
+              authToken: 'primary-key',
+            }),
             request: {
               ...nativeTextRequest('hello'),
               tools: [
@@ -4386,89 +4541,51 @@ test('NativeExecutionEngine should route tool-loop chat prepared routes through 
                   name: 'answer',
                   parameters: {
                     type: 'object',
-                    properties: { value: { type: 'string' } },
+                    properties: {
+                      value: { type: 'string' },
+                    },
                     required: ['value'],
                   },
                 },
               ],
             },
-          }),
-          nativeRoute({
-            providerId: 'openai-fallback',
-            authToken: 'fallback-key',
-            protocol: 'gemini',
-            baseUrl: GEMINI_BASE_URL,
-            request: {
-              ...nativeTextRequest('hello from fallback'),
-              tools: [
-                {
-                  name: 'answer',
-                  parameters: {
-                    type: 'object',
-                    properties: { value: { type: 'string' } },
-                    required: ['value'],
-                  },
-                },
-              ],
+            tools: {
+              answer: defineTool({
+                description: 'Answer',
+                inputSchema: z.object({ value: z.string() }),
+                execute: async args => ({ value: String(args.value) }),
+              }),
             },
-          }),
-        ],
-        prepared: {
-          route: preparedRoute({
-            providerId: 'openai-primary',
-            authToken: 'primary-key',
-          }),
-          request: {
-            ...nativeTextRequest('hello'),
-            tools: [
-              {
-                name: 'answer',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    value: { type: 'string' },
-                  },
-                  required: ['value'],
-                },
-              },
-            ],
+            maxSteps: 4,
+            postprocess: {
+              nodeTextMiddleware: [],
+            },
           },
-          tools: {
-            answer: defineTool({
-              description: 'Answer',
-              inputSchema: z.object({ value: z.string() }),
-              execute: async args => ({ value: String(args.value) }),
-            }),
-          },
-          maxSteps: 4,
-          postprocess: {
-            nodeTextMiddleware: [],
-          },
+          hasTools: true,
         },
-        hasTools: true,
       },
-    },
-    request: {
-      kind: 'text',
-      cond: { modelId: 'gpt-5-mini' },
-      messages: singleUserPromptMessages('hello'),
-      options: undefined,
-    },
-    routePolicy: { fallbackOrder: ['openai-primary'] },
-    runtimePolicy: {},
-    attachmentPolicy: { materializeRemoteAttachments: true },
-    responsePostprocess: { mode: 'text' },
-    hostPersistence: { persistAssistantTurn: true, outputKind: 'text' },
-    hostContext: {
-      currentMessages: singleUserPromptMessages('hello'),
-    },
-  });
+      request: {
+        kind: 'text',
+        cond: { modelId: 'gpt-5-mini' },
+        messages: singleUserPromptMessages('hello'),
+        options: undefined,
+      },
+      routePolicy: { fallbackOrder: ['openai-primary'] },
+      runtimePolicy: {},
+      attachmentPolicy: { materializeRemoteAttachments: true },
+      responsePostprocess: { mode: 'text' },
+      hostPersistence: { persistAssistantTurn: true, outputKind: 'text' },
+      hostContext: {
+        currentMessages: singleUserPromptMessages('hello'),
+      },
+    });
 
-  t.is(result, 'native-tool-ok');
-  t.true(called);
-  t.is(toolCallbackCount, 1);
-  t.snapshot(summarizePreparedDispatchRoutes(capturedRoutes));
-});
+    t.is(result, 'native-tool-ok');
+    t.true(called);
+    t.is(toolCallbackCount, 1);
+    t.snapshot(summarizePreparedDispatchRoutes(capturedRoutes));
+  }
+);
 
 test('ExecutionPlanBuilder should build native prepared routes for structured, image, embedding and rerank', async t => {
   const provider = new TestOpenAIProvider();
@@ -4658,413 +4775,428 @@ test('ExecutionPlanBuilder should build native prepared routes for structured, i
   ]);
 });
 
-test('NativeExecutionEngine should dispatch structured prepared routes through native execution', async t => {
-  const engine = createNativeExecutionEngine();
-  let capturedRoutes: unknown;
-  let called = false;
+test.serial(
+  'NativeExecutionEngine should dispatch structured prepared routes through native execution',
+  async t => {
+    const engine = createNativeExecutionEngine();
+    let capturedRoutes: unknown;
+    let called = false;
 
-  const original = (serverNativeModule as any).llmStructuredDispatchPrepared;
-  (serverNativeModule as any).llmStructuredDispatchPrepared = (
-    routesJson: string
-  ) => {
-    called = true;
-    capturedRoutes = JSON.parse(routesJson);
-    return JSON.stringify({
-      provider_id: 'openai-fallback',
-      response: {
-        id: 'structured_1',
-        model: 'gpt-5-mini',
-        output_text: '{"ok":true}',
-        output_json: { ok: true },
-        usage: {
-          prompt_tokens: 1,
-          completion_tokens: 1,
-          total_tokens: 2,
+    const original = (serverNativeModule as any).llmStructuredDispatchPrepared;
+    (serverNativeModule as any).llmStructuredDispatchPrepared = (
+      routesJson: string
+    ) => {
+      called = true;
+      capturedRoutes = JSON.parse(routesJson);
+      return JSON.stringify({
+        provider_id: 'openai-fallback',
+        response: {
+          id: 'structured_1',
+          model: 'gpt-5-mini',
+          output_text: '{"ok":true}',
+          output_json: { ok: true },
+          usage: {
+            prompt_tokens: 1,
+            completion_tokens: 1,
+            total_tokens: 2,
+          },
+          finish_reason: 'stop',
         },
-        finish_reason: 'stop',
-      },
+      });
+    };
+    t.teardown(() => {
+      (serverNativeModule as any).llmStructuredDispatchPrepared = original;
     });
-  };
-  t.teardown(() => {
-    (serverNativeModule as any).llmStructuredDispatchPrepared = original;
-  });
 
-  const result = await engine.execute({
-    nativeDispatch: {
-      structured: {
-        routes: [
-          nativeRoute({
-            providerId: 'openai-primary',
-            authToken: 'primary-key',
+    const result = await engine.execute({
+      nativeDispatch: {
+        structured: {
+          routes: [
+            nativeRoute({
+              providerId: 'openai-primary',
+              authToken: 'primary-key',
+              request: nativeStructuredRequest('hello', {
+                type: 'object',
+                properties: { ok: { type: 'boolean' } },
+                required: ['ok'],
+              }),
+            }),
+            nativeRoute({
+              providerId: 'openai-fallback',
+              authToken: 'fallback-key',
+              protocol: 'gemini',
+              baseUrl: GEMINI_BASE_URL,
+              request: nativeStructuredRequest('hello from fallback', {
+                type: 'object',
+                properties: { ok: { type: 'boolean' } },
+                required: ['ok'],
+              }),
+            }),
+          ],
+          prepared: {
+            route: preparedRoute({
+              providerId: 'openai-primary',
+              authToken: 'primary-key',
+            }),
             request: nativeStructuredRequest('hello', {
               type: 'object',
               properties: { ok: { type: 'boolean' } },
               required: ['ok'],
             }),
-          }),
-          nativeRoute({
-            providerId: 'openai-fallback',
-            authToken: 'fallback-key',
-            protocol: 'gemini',
-            baseUrl: GEMINI_BASE_URL,
-            request: nativeStructuredRequest('hello from fallback', {
-              type: 'object',
-              properties: { ok: { type: 'boolean' } },
-              required: ['ok'],
+          },
+        },
+      },
+      request: {
+        kind: 'structured',
+        cond: { modelId: 'gpt-5-mini' },
+        messages: singleUserPromptMessages('hello'),
+        options: structuredOptions(z.object({ ok: z.boolean() })),
+      },
+      routePolicy: { fallbackOrder: ['openai-primary'] },
+      runtimePolicy: {},
+      attachmentPolicy: { materializeRemoteAttachments: true },
+      responsePostprocess: { mode: 'structured' },
+      hostPersistence: { persistAssistantTurn: true, outputKind: 'structured' },
+      hostContext: {},
+    });
+
+    t.is(result, '{"ok":true}');
+    t.true(called);
+    t.snapshot(summarizePreparedDispatchRoutes(capturedRoutes));
+  }
+);
+
+test.serial(
+  'NativeExecutionEngine should dispatch embedding prepared routes through native execution',
+  async t => {
+    const engine = createNativeExecutionEngine();
+    let capturedRoutes: unknown;
+    let called = false;
+
+    const original = (serverNativeModule as any).llmEmbeddingDispatchPrepared;
+    (serverNativeModule as any).llmEmbeddingDispatchPrepared = (
+      routesJson: string
+    ) => {
+      called = true;
+      capturedRoutes = JSON.parse(routesJson);
+      return JSON.stringify({
+        provider_id: 'openai-fallback',
+        response: {
+          model: 'text-embedding-3-small',
+          embeddings: [[0.1, 0.2]],
+        },
+      });
+    };
+    t.teardown(() => {
+      (serverNativeModule as any).llmEmbeddingDispatchPrepared = original;
+    });
+
+    const result = await engine.execute({
+      nativeDispatch: {
+        embedding: {
+          routes: [
+            nativeRoute({
+              providerId: 'openai-primary',
+              authToken: 'primary-key',
+              model: 'text-embedding-3-small',
+              request: nativeEmbeddingRequest('hello'),
             }),
-          }),
-        ],
-        prepared: {
-          route: preparedRoute({
-            providerId: 'openai-primary',
-            authToken: 'primary-key',
-          }),
-          request: nativeStructuredRequest('hello', {
-            type: 'object',
-            properties: { ok: { type: 'boolean' } },
-            required: ['ok'],
-          }),
-        },
-      },
-    },
-    request: {
-      kind: 'structured',
-      cond: { modelId: 'gpt-5-mini' },
-      messages: singleUserPromptMessages('hello'),
-      options: structuredOptions(z.object({ ok: z.boolean() })),
-    },
-    routePolicy: { fallbackOrder: ['openai-primary'] },
-    runtimePolicy: {},
-    attachmentPolicy: { materializeRemoteAttachments: true },
-    responsePostprocess: { mode: 'structured' },
-    hostPersistence: { persistAssistantTurn: true, outputKind: 'structured' },
-    hostContext: {},
-  });
-
-  t.is(result, '{"ok":true}');
-  t.true(called);
-  t.snapshot(summarizePreparedDispatchRoutes(capturedRoutes));
-});
-
-test('NativeExecutionEngine should dispatch embedding prepared routes through native execution', async t => {
-  const engine = createNativeExecutionEngine();
-  let capturedRoutes: unknown;
-  let called = false;
-
-  const original = (serverNativeModule as any).llmEmbeddingDispatchPrepared;
-  (serverNativeModule as any).llmEmbeddingDispatchPrepared = (
-    routesJson: string
-  ) => {
-    called = true;
-    capturedRoutes = JSON.parse(routesJson);
-    return JSON.stringify({
-      provider_id: 'openai-fallback',
-      response: {
-        model: 'text-embedding-3-small',
-        embeddings: [[0.1, 0.2]],
-      },
-    });
-  };
-  t.teardown(() => {
-    (serverNativeModule as any).llmEmbeddingDispatchPrepared = original;
-  });
-
-  const result = await engine.execute({
-    nativeDispatch: {
-      embedding: {
-        routes: [
-          nativeRoute({
-            providerId: 'openai-primary',
-            authToken: 'primary-key',
-            model: 'text-embedding-3-small',
+            nativeRoute({
+              providerId: 'openai-fallback',
+              authToken: 'fallback-key',
+              protocol: 'gemini',
+              model: 'text-embedding-3-small',
+              baseUrl: GEMINI_BASE_URL,
+              request: nativeEmbeddingRequest('hello fallback'),
+            }),
+          ],
+          prepared: {
+            route: preparedRoute({
+              providerId: 'openai-primary',
+              authToken: 'primary-key',
+              model: 'text-embedding-3-small',
+            }),
             request: nativeEmbeddingRequest('hello'),
-          }),
-          nativeRoute({
-            providerId: 'openai-fallback',
-            authToken: 'fallback-key',
-            protocol: 'gemini',
-            model: 'text-embedding-3-small',
-            baseUrl: GEMINI_BASE_URL,
-            request: nativeEmbeddingRequest('hello fallback'),
-          }),
-        ],
-        prepared: {
-          route: preparedRoute({
-            providerId: 'openai-primary',
-            authToken: 'primary-key',
-            model: 'text-embedding-3-small',
-          }),
-          request: nativeEmbeddingRequest('hello'),
+          },
         },
       },
-    },
-    request: {
-      kind: 'embedding',
-      cond: { modelId: 'text-embedding-3-small' },
-      modelId: 'text-embedding-3-small',
-      input: 'hello',
-      options: undefined,
-    },
-    routePolicy: { fallbackOrder: ['openai-primary'] },
-    runtimePolicy: {},
-    attachmentPolicy: { materializeRemoteAttachments: false },
-    responsePostprocess: { mode: 'embedding' },
-    hostPersistence: { persistAssistantTurn: false, outputKind: 'embedding' },
-    hostContext: {},
-  });
-
-  t.snapshot({
-    called,
-    result,
-    routes: summarizePreparedDispatchRoutes(capturedRoutes),
-  });
-});
-
-test('NativeExecutionEngine should dispatch rerank prepared routes through native execution', async t => {
-  const engine = createNativeExecutionEngine();
-  let capturedRoutes: unknown;
-  let called = false;
-
-  const original = (serverNativeModule as any).llmRerankDispatchPrepared;
-  (serverNativeModule as any).llmRerankDispatchPrepared = (
-    routesJson: string
-  ) => {
-    called = true;
-    capturedRoutes = JSON.parse(routesJson);
-    return JSON.stringify({
-      provider_id: 'openai-fallback',
-      response: {
-        model: 'gpt-4o-mini',
-        scores: [0.9, 0.1],
+      request: {
+        kind: 'embedding',
+        cond: { modelId: 'text-embedding-3-small' },
+        modelId: 'text-embedding-3-small',
+        input: 'hello',
+        options: undefined,
       },
+      routePolicy: { fallbackOrder: ['openai-primary'] },
+      runtimePolicy: {},
+      attachmentPolicy: { materializeRemoteAttachments: false },
+      responsePostprocess: { mode: 'embedding' },
+      hostPersistence: { persistAssistantTurn: false, outputKind: 'embedding' },
+      hostContext: {},
     });
-  };
-  t.teardown(() => {
-    (serverNativeModule as any).llmRerankDispatchPrepared = original;
-  });
 
-  const result = await engine.execute({
-    nativeDispatch: {
-      rerank: {
-        routes: [
-          nativeRoute({
-            providerId: 'openai-primary',
-            authToken: 'primary-key',
-            model: 'gpt-4o-mini',
+    t.snapshot({
+      called,
+      result,
+      routes: summarizePreparedDispatchRoutes(capturedRoutes),
+    });
+  }
+);
+
+test.serial(
+  'NativeExecutionEngine should dispatch rerank prepared routes through native execution',
+  async t => {
+    const engine = createNativeExecutionEngine();
+    let capturedRoutes: unknown;
+    let called = false;
+
+    const original = (serverNativeModule as any).llmRerankDispatchPrepared;
+    (serverNativeModule as any).llmRerankDispatchPrepared = (
+      routesJson: string
+    ) => {
+      called = true;
+      capturedRoutes = JSON.parse(routesJson);
+      return JSON.stringify({
+        provider_id: 'openai-fallback',
+        response: {
+          model: 'gpt-4o-mini',
+          scores: [0.9, 0.1],
+        },
+      });
+    };
+    t.teardown(() => {
+      (serverNativeModule as any).llmRerankDispatchPrepared = original;
+    });
+
+    const result = await engine.execute({
+      nativeDispatch: {
+        rerank: {
+          routes: [
+            nativeRoute({
+              providerId: 'openai-primary',
+              authToken: 'primary-key',
+              model: 'gpt-4o-mini',
+              request: nativeRerankRequest('programming', [
+                { text: 'React is a UI library.' },
+              ]),
+            }),
+            nativeRoute({
+              providerId: 'openai-fallback',
+              authToken: 'fallback-key',
+              protocol: 'gemini',
+              model: 'gpt-4o-mini',
+              baseUrl: GEMINI_BASE_URL,
+              request: nativeRerankRequest('programming fallback', [
+                { text: 'Vue is a UI framework.' },
+              ]),
+            }),
+          ],
+          prepared: {
+            route: preparedRoute({
+              providerId: 'openai-primary',
+              authToken: 'primary-key',
+              model: 'gpt-4o-mini',
+            }),
             request: nativeRerankRequest('programming', [
               { text: 'React is a UI library.' },
             ]),
-          }),
-          nativeRoute({
-            providerId: 'openai-fallback',
-            authToken: 'fallback-key',
-            protocol: 'gemini',
-            model: 'gpt-4o-mini',
-            baseUrl: GEMINI_BASE_URL,
-            request: nativeRerankRequest('programming fallback', [
-              { text: 'Vue is a UI framework.' },
-            ]),
-          }),
-        ],
-        prepared: {
-          route: preparedRoute({
-            providerId: 'openai-primary',
-            authToken: 'primary-key',
-            model: 'gpt-4o-mini',
-          }),
-          request: nativeRerankRequest('programming', [
-            { text: 'React is a UI library.' },
-          ]),
-        },
-      },
-    },
-    request: {
-      kind: 'rerank',
-      cond: { modelId: 'gpt-4o-mini' },
-      modelId: 'gpt-4o-mini',
-      request: {
-        query: 'programming',
-        candidates: [{ text: 'React is a UI library.' }],
-      },
-      options: undefined,
-    },
-    routePolicy: { fallbackOrder: ['openai-primary'] },
-    runtimePolicy: {},
-    attachmentPolicy: { materializeRemoteAttachments: false },
-    responsePostprocess: { mode: 'rerank' },
-    hostPersistence: { persistAssistantTurn: false, outputKind: 'rerank' },
-    hostContext: {},
-  });
-
-  t.snapshot({
-    called,
-    result,
-    routes: summarizePreparedDispatchRoutes(capturedRoutes),
-  });
-});
-
-test('NativeExecutionEngine should dispatch image plans through prepared native routes', async t => {
-  const engine = createNativeExecutionEngine();
-  let capturedRoutes: unknown;
-  const original = (serverNativeModule as any).llmImageDispatchPrepared;
-  (serverNativeModule as any).llmImageDispatchPrepared = (
-    routesJson: string
-  ) => {
-    capturedRoutes = JSON.parse(routesJson);
-    return JSON.stringify({
-      provider_id: 'openai-image',
-      response: {
-        images: [
-          {
-            data_base64: 'aW1hZ2U=',
-            media_type: 'image/webp',
-          },
-          {
-            url: 'https://cdn.example.com/image.png',
-            media_type: 'image/png',
-          },
-        ],
-      },
-    });
-  };
-  t.teardown(() => {
-    (serverNativeModule as any).llmImageDispatchPrepared = original;
-  });
-
-  const request = nativeImageRequest('draw a cat');
-  const imageArtifacts = await collectAsync(
-    engine.executeImageArtifacts({
-      nativeDispatch: {
-        image: {
-          routes: [
-            nativeRoute({
-              providerId: 'openai-image',
-              authToken: 'image-key',
-              protocol: 'openai_images',
-              model: 'gpt-image-1',
-              request,
-            }),
-          ],
-          prepared: {
-            route: preparedRoute({
-              providerId: 'openai-image',
-              authToken: 'image-key',
-              protocol: 'openai_images',
-              model: 'gpt-image-1',
-            }),
-            request,
           },
         },
       },
       request: {
-        kind: 'image',
-        cond: { modelId: 'gpt-image-1' },
-        messages: singleUserPromptMessages('draw a cat'),
+        kind: 'rerank',
+        cond: { modelId: 'gpt-4o-mini' },
+        modelId: 'gpt-4o-mini',
+        request: {
+          query: 'programming',
+          candidates: [{ text: 'React is a UI library.' }],
+        },
         options: undefined,
       },
-      routePolicy: { fallbackOrder: ['openai-image'] },
+      routePolicy: { fallbackOrder: ['openai-primary'] },
       runtimePolicy: {},
-      attachmentPolicy: { materializeRemoteAttachments: true },
-      responsePostprocess: { mode: 'image' },
-      hostPersistence: { persistAssistantTurn: true, outputKind: 'image' },
+      attachmentPolicy: { materializeRemoteAttachments: false },
+      responsePostprocess: { mode: 'rerank' },
+      hostPersistence: { persistAssistantTurn: false, outputKind: 'rerank' },
       hostContext: {},
-    })
-  );
-
-  t.deepEqual(imageArtifacts, [
-    {
-      data_base64: 'aW1hZ2U=',
-      media_type: 'image/webp',
-    },
-    {
-      url: 'https://cdn.example.com/image.png',
-      media_type: 'image/png',
-    },
-  ]);
-  t.snapshot(summarizePreparedDispatchRoutes(capturedRoutes));
-});
-
-test('NativeExecutionEngine should record zero-token BYOK image usage without provider usage', async t => {
-  const byok = {
-    recordUsage: Sinon.stub().resolves(),
-  };
-  const engine = new NativeExecutionEngine(byok as never);
-  const providerId = 'byok-aaaaaaaaaaaa-fal-server-key1';
-
-  const original = (serverNativeModule as any).llmImageDispatchPrepared;
-  (serverNativeModule as any).llmImageDispatchPrepared = () => {
-    return JSON.stringify({
-      provider_id: providerId,
-      response: {
-        images: [
-          {
-            url: 'https://cdn.example.com/image.png',
-            media_type: 'image/png',
-          },
-        ],
-      },
     });
-  };
-  t.teardown(() => {
-    (serverNativeModule as any).llmImageDispatchPrepared = original;
-  });
 
-  const request = nativeImageRequest('draw a cat');
-  const imageArtifacts = await collectAsync(
-    engine.executeImageArtifacts({
-      nativeDispatch: {
-        image: {
-          routes: [
-            nativeRoute({
-              providerId,
-              authToken: 'image-key',
-              protocol: 'fal_image',
-              model: 'fal-ai/fast-sdxl',
-              request,
-            }),
+    t.snapshot({
+      called,
+      result,
+      routes: summarizePreparedDispatchRoutes(capturedRoutes),
+    });
+  }
+);
+
+test.serial(
+  'NativeExecutionEngine should dispatch image plans through prepared native routes',
+  async t => {
+    const engine = createNativeExecutionEngine();
+    let capturedRoutes: unknown;
+    const original = (serverNativeModule as any).llmImageDispatchPrepared;
+    (serverNativeModule as any).llmImageDispatchPrepared = (
+      routesJson: string
+    ) => {
+      capturedRoutes = JSON.parse(routesJson);
+      return JSON.stringify({
+        provider_id: 'openai-image',
+        response: {
+          images: [
+            {
+              data_base64: 'aW1hZ2U=',
+              media_type: 'image/webp',
+            },
+            {
+              url: 'https://cdn.example.com/image.png',
+              media_type: 'image/png',
+            },
           ],
-          prepared: {
-            route: preparedRoute({
-              providerId,
-              authToken: 'image-key',
-              protocol: 'fal_image',
-              model: 'fal-ai/fast-sdxl',
-            }),
-            request,
+        },
+      });
+    };
+    t.teardown(() => {
+      (serverNativeModule as any).llmImageDispatchPrepared = original;
+    });
+
+    const request = nativeImageRequest('draw a cat');
+    const imageArtifacts = await collectAsync(
+      engine.executeImageArtifacts({
+        nativeDispatch: {
+          image: {
+            routes: [
+              nativeRoute({
+                providerId: 'openai-image',
+                authToken: 'image-key',
+                protocol: 'openai_images',
+                model: 'gpt-image-1',
+                request,
+              }),
+            ],
+            prepared: {
+              route: preparedRoute({
+                providerId: 'openai-image',
+                authToken: 'image-key',
+                protocol: 'openai_images',
+                model: 'gpt-image-1',
+              }),
+              request,
+            },
           },
         },
-      },
-      request: {
-        kind: 'image',
-        cond: { modelId: 'fal-ai/fast-sdxl' },
-        messages: singleUserPromptMessages('draw a cat'),
-        options: {
-          workspace: 'workspace-1',
-          user: 'user-1',
-          session: 'session-1',
-          featureKind: 'image',
+        request: {
+          kind: 'image',
+          cond: { modelId: 'gpt-image-1' },
+          messages: singleUserPromptMessages('draw a cat'),
+          options: undefined,
         },
-      },
-      routePolicy: { fallbackOrder: [providerId] },
-      runtimePolicy: {},
-      attachmentPolicy: { materializeRemoteAttachments: true },
-      responsePostprocess: { mode: 'image' },
-      hostPersistence: { persistAssistantTurn: true, outputKind: 'image' },
-      hostContext: {},
-    })
-  );
+        routePolicy: { fallbackOrder: ['openai-image'] },
+        runtimePolicy: {},
+        attachmentPolicy: { materializeRemoteAttachments: true },
+        responsePostprocess: { mode: 'image' },
+        hostPersistence: { persistAssistantTurn: true, outputKind: 'image' },
+        hostContext: {},
+      })
+    );
 
-  t.is(imageArtifacts.length, 1);
-  Sinon.assert.calledOnceWithMatch(byok.recordUsage, {
-    workspaceId: 'workspace-1',
-    userId: 'user-1',
-    sessionId: 'session-1',
-    featureKind: 'image',
-    providerId,
-    model: 'fal-ai/fast-sdxl',
-    usage: undefined,
-  });
-});
+    t.deepEqual(imageArtifacts, [
+      {
+        data_base64: 'aW1hZ2U=',
+        media_type: 'image/webp',
+      },
+      {
+        url: 'https://cdn.example.com/image.png',
+        media_type: 'image/png',
+      },
+    ]);
+    t.snapshot(summarizePreparedDispatchRoutes(capturedRoutes));
+  }
+);
+
+test.serial(
+  'NativeExecutionEngine should record zero-token BYOK image usage without provider usage',
+  async t => {
+    const byok = {
+      recordUsage: Sinon.stub().resolves(),
+    };
+    const engine = new NativeExecutionEngine(byok as never);
+    const providerId = 'byok-aaaaaaaaaaaa-fal-server-key1';
+
+    const original = (serverNativeModule as any).llmImageDispatchPrepared;
+    (serverNativeModule as any).llmImageDispatchPrepared = () => {
+      return JSON.stringify({
+        provider_id: providerId,
+        response: {
+          images: [
+            {
+              url: 'https://cdn.example.com/image.png',
+              media_type: 'image/png',
+            },
+          ],
+        },
+      });
+    };
+    t.teardown(() => {
+      (serverNativeModule as any).llmImageDispatchPrepared = original;
+    });
+
+    const request = nativeImageRequest('draw a cat');
+    const imageArtifacts = await collectAsync(
+      engine.executeImageArtifacts({
+        nativeDispatch: {
+          image: {
+            routes: [
+              nativeRoute({
+                providerId,
+                authToken: 'image-key',
+                protocol: 'fal_image',
+                model: 'fal-ai/fast-sdxl',
+                request,
+              }),
+            ],
+            prepared: {
+              route: preparedRoute({
+                providerId,
+                authToken: 'image-key',
+                protocol: 'fal_image',
+                model: 'fal-ai/fast-sdxl',
+              }),
+              request,
+            },
+          },
+        },
+        request: {
+          kind: 'image',
+          cond: { modelId: 'fal-ai/fast-sdxl' },
+          messages: singleUserPromptMessages('draw a cat'),
+          options: {
+            workspace: 'workspace-1',
+            user: 'user-1',
+            session: 'session-1',
+            featureKind: 'image',
+          },
+        },
+        routePolicy: { fallbackOrder: [providerId] },
+        runtimePolicy: {},
+        attachmentPolicy: { materializeRemoteAttachments: true },
+        responsePostprocess: { mode: 'image' },
+        hostPersistence: { persistAssistantTurn: true, outputKind: 'image' },
+        hostContext: {},
+      })
+    );
+
+    t.is(imageArtifacts.length, 1);
+    Sinon.assert.calledOnceWithMatch(byok.recordUsage, {
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      sessionId: 'session-1',
+      featureKind: 'image',
+      providerId,
+      model: 'fal-ai/fast-sdxl',
+      usage: undefined,
+    });
+  }
+);
 
 test('NativeExecutionEngine should reject image plans without native dispatch', async t => {
   const engine = createNativeExecutionEngine();

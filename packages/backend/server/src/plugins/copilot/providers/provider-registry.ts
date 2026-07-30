@@ -1,12 +1,13 @@
 import { createHash } from 'node:crypto';
 
+import type { RegistryRevisionPublishEventRecord } from '../../../models/copilot-registry-revision-publish-event';
 import type {
   CopilotModelDefinition,
   CopilotModelRegistrySourceChainEntry,
-  CopilotProviderHealth,
-  CopilotProviderHealthStatus,
   CopilotProviderConfigMap,
   CopilotProviderDefaults,
+  CopilotProviderHealth,
+  CopilotProviderHealthStatus,
   CopilotProviderPrivacy,
   CopilotProviderProfile,
   CopilotProviderProfileSource,
@@ -15,7 +16,6 @@ import type {
   CopilotProviderRoutePolicyRule,
   ProviderMiddlewareConfig,
 } from '../config';
-import type { RegistryRevisionPublishEventRecord } from '../../../models/copilot-registry-revision-publish-event';
 import { resolveProviderMiddleware } from './provider-middleware';
 import { CopilotProviderType, ModelOutputType } from './types';
 
@@ -437,7 +437,9 @@ function mergeDbModelDefinitions(
 
   const dbDefinitions = revisions.map(definitionWithRegistryRevision);
   const dbKeys = new Set(
-    dbDefinitions.flatMap(definition => Array.from(modelDefinitionKeys(definition)))
+    dbDefinitions.flatMap(definition =>
+      Array.from(modelDefinitionKeys(definition))
+    )
   );
   const fallbackDefinitions = existingDefinitions.filter(definition => {
     const keys = modelDefinitionKeys(definition);
@@ -617,10 +619,10 @@ export function describeProviderRoutePolicyCandidates(
   );
 
   return candidates
-    .map(providerId => {
+    .flatMap<CopilotProviderRoutePolicyCandidateDiagnostics>(providerId => {
       const profile = registry.profiles.get(providerId);
       if (!profile) {
-        return null;
+        return [];
       }
 
       const providerAvailable = available
@@ -654,7 +656,7 @@ export function describeProviderRoutePolicyCandidates(
           : null,
       ].filter((reason): reason is string => !!reason);
 
-      return {
+      const candidate: CopilotProviderRoutePolicyCandidateDiagnostics = {
         providerId,
         ...(profile.displayName ? { providerName: profile.displayName } : {}),
         ...providerProfileMetadata(profile),
@@ -670,13 +672,8 @@ export function describeProviderRoutePolicyCandidates(
         allowed,
         reasons,
       };
+      return [candidate];
     })
-    .filter(
-      (
-        candidate
-      ): candidate is CopilotProviderRoutePolicyCandidateDiagnostics =>
-        candidate !== null
-    )
     .toSorted((a, b) => {
       const allowedA = allowedOrder.get(a.providerId);
       const allowedB = allowedOrder.get(b.providerId);
@@ -990,7 +987,10 @@ export function buildProviderRegistryWithProviderRevisions(
 
 export function buildProviderRegistryWithModelRevisions(
   config: CopilotProvidersConfigInput,
-  revisionsByProvider: Map<string, CopilotProviderModelRegistryRevisionOverlay[]>
+  revisionsByProvider: Map<
+    string,
+    CopilotProviderModelRegistryRevisionOverlay[]
+  >
 ): CopilotProviderRegistry {
   return applyModelRegistryRevisions(
     buildProviderRegistry(config),
@@ -1000,7 +1000,10 @@ export function buildProviderRegistryWithModelRevisions(
 
 export function applyModelRegistryRevisions(
   registry: CopilotProviderRegistry,
-  revisionsByProvider: Map<string, CopilotProviderModelRegistryRevisionOverlay[]>
+  revisionsByProvider: Map<
+    string,
+    CopilotProviderModelRegistryRevisionOverlay[]
+  >
 ): CopilotProviderRegistry {
   if (!revisionsByProvider.size) {
     return registry;

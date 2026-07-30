@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { PrismaClient, User, Workspace } from '@prisma/client';
+import { Prisma, PrismaClient, User, Workspace } from '@prisma/client';
 import ava, { TestFn } from 'ava';
 import Sinon from 'sinon';
 
@@ -182,7 +182,8 @@ test('should insert embedding by doc id', async t => {
         Array.from({ length: 1024 }, () => 0.9),
         workspace.id,
         1,
-        1
+        1,
+        Prisma.sql`TRUE`
       );
       t.snapshot(
         cleanObject(ret, ['chunk', 'content', 'distance']),
@@ -196,7 +197,8 @@ test('should insert embedding by doc id', async t => {
         Array.from({ length: 1024 }, () => 0.9),
         workspace.id,
         1,
-        1
+        1,
+        Prisma.sql`TRUE`
       );
       t.snapshot(ret, 'should return empty array when doc is ignored');
     }
@@ -211,7 +213,8 @@ test('should insert embedding by doc id', async t => {
         Array.from({ length: 1024 }, () => 0.9),
         workspace.id,
         1,
-        1
+        1,
+        Prisma.sql`TRUE`
       );
       t.snapshot(
         cleanObject(ret, ['chunk', 'content', 'distance']),
@@ -228,7 +231,8 @@ test('should insert embedding by doc id', async t => {
         Array.from({ length: 1024 }, () => 0.9),
         workspace.id,
         1,
-        1
+        1,
+        Prisma.sql`TRUE`
       );
       t.snapshot(ret, 'should return empty array when embedding deleted');
     }

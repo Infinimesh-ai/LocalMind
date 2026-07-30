@@ -1,0 +1,47 @@
+query copilotContextDashboardGet(
+  $workspaceId: String!
+  $includeDisabled: Boolean
+) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      contextSettings {
+        autoMemoryEnabled
+      }
+      contextPlannerStrategies {
+        version
+        fingerprint
+        status
+        checkpointCount
+        lastCheckpointAt
+        createdAt
+      }
+      contextProjects(includeArchived: true) {
+        id
+        workspaceId
+        createdByUserId
+        name
+        description
+        status
+        documentIds
+        documentCount
+        canManage
+        createdAt
+        updatedAt
+      }
+      contextMemories(includeDisabled: $includeDisabled) {
+        id
+        ownerUserId
+        workspaceId
+        docId
+        projectId
+        sourceSessionId
+        scope
+        kind
+        status
+        content
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}

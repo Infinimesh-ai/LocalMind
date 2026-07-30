@@ -3,9 +3,9 @@ export {
   AnthropicVertexProvider,
 } from './anthropic';
 export { CloudflareWorkersAIProvider } from './cloudflare';
-export { CopilotFeatureService } from './feature-service';
 export { CopilotProviderFactory } from './factory';
 export { FalProvider } from './fal';
+export { CopilotFeatureService } from './feature-service';
 export { GeminiGenerativeProvider, GeminiVertexProvider } from './gemini';
 export { CopilotProviderLifecycleService } from './lifecycle-service';
 export { OpenAICompatibleProvider, OpenAIProvider } from './openai';

@@ -485,7 +485,9 @@ function normalizeStepStatus(
 function normalizeTimelineStatus(value: unknown) {
   if (
     typeof value !== 'string' ||
-    !AGENT_RUNTIME_TIMELINE_STATUSES.has(value)
+    !AGENT_RUNTIME_TIMELINE_STATUSES.has(
+      value as CopilotAgentRunStatus | CopilotAgentStepStatus
+    )
   ) {
     throw new Error('Agent runtime timeline status is invalid');
   }
@@ -1020,7 +1022,7 @@ function controlledRunTimeline(input: {
   reason?: string | null;
   run: CopilotAgentRunRecord;
   startedAt: Date;
-}) {
+}): AgentRuntimeTimelineEventInput {
   const status: CopilotAgentRunStatus =
     input.action === 'cancel'
       ? 'cancelled'
@@ -2187,6 +2189,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
     ) {
       throw new Error('Agent runtime worker lease has not expired');
     }
+    const workerLeaseExpiresAt = existing.workerLeaseExpiresAt;
 
     const retryScheduled = existing.workerAttempt < existing.workerMaxAttempts;
     const nextStatus: CopilotAgentRunStatus = retryScheduled
@@ -2219,8 +2222,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
         executor: 'agent_runtime_stale_recovery_worker',
         previousStatus: existing.status,
         previousWorkerLeaseId: existing.workerLeaseId,
-        previousWorkerLeaseExpiresAt:
-          existing.workerLeaseExpiresAt.toISOString(),
+        previousWorkerLeaseExpiresAt: workerLeaseExpiresAt.toISOString(),
         reason:
           input.reason ?? 'system recovered expired Agent Runtime worker lease',
         retryScheduled,
@@ -2246,8 +2248,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
           executor: 'agent_runtime_stale_recovery_worker',
           previousStatus: step.status,
           previousWorkerLeaseId: existing.workerLeaseId,
-          previousWorkerLeaseExpiresAt:
-            existing.workerLeaseExpiresAt.toISOString(),
+          previousWorkerLeaseExpiresAt: workerLeaseExpiresAt.toISOString(),
           reason:
             input.reason ??
             'system recovered expired Agent Runtime worker lease',
@@ -3407,9 +3408,9 @@ export class CopilotAgentRuntimeModel extends BaseModel {
     });
     const ledgerId = `agent-runtime-execution-result-${resultFingerprint}`;
 
-    const terminalRunSnapshot =
-      input.terminalRunSnapshot ??
-      ({
+    type TerminalRunSnapshot = NonNullable<typeof input.terminalRunSnapshot>;
+    const terminalRunSnapshot: TerminalRunSnapshot =
+      input.terminalRunSnapshot ?? {
         completedAt: input.completedAt,
         failureCode: input.failureCode ?? null,
         failureMessage: input.failureMessage ?? null,
@@ -3417,7 +3418,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
         timelineFingerprint: input.run.timelineFingerprint,
         updatedAt: input.run.updatedAt,
         workerLeaseCleared: false,
-      } satisfies NonNullable<typeof input.terminalRunSnapshot>);
+      };
 
     const insertedRows = await this.db.$queryRaw<Array<{ id: string }>>`
       INSERT INTO ai_agent_runtime_execution_results (

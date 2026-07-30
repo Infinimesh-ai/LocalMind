@@ -1,4 +1,8 @@
-import { Menu, type MenuProps } from '@affine/component';
+import {
+  Menu,
+  type MenuProps,
+  startSafeViewTransition,
+} from '@affine/component';
 import { useNavigateHelper } from '@affine/core/components/hooks/use-navigate-helper';
 import { GlobalContextService } from '@affine/core/modules/global-context';
 import { WorkbenchService } from '@affine/core/modules/workbench';
@@ -164,26 +168,24 @@ export const WorkspaceNavigator = ({
           }
         });
 
-      if (document.startViewTransition) {
-        document.startViewTransition(() => {
+      startSafeViewTransition(
+        () => {
           closeInactiveViews();
           jumpToPage(workspaceMetadata.id, 'all');
           return new Promise(resolve =>
             setTimeout(resolve, 150)
           ); /* start transition after 150ms */
-        });
-      } else {
-        closeInactiveViews();
-        jumpToPage(workspaceMetadata.id, 'all');
-      }
+        },
+        { name: 'workspace navigation' }
+      );
     },
     [jumpToPage, onSelectWorkspace, workbench]
   );
   const handleCreatedWorkspace = useCallback(
     (payload: { metadata: WorkspaceMetadata; defaultDocId?: string }) => {
       onCreatedWorkspace?.(payload);
-      if (document.startViewTransition) {
-        document.startViewTransition(() => {
+      startSafeViewTransition(
+        () => {
           if (payload.defaultDocId) {
             jumpToPage(payload.metadata.id, payload.defaultDocId);
           } else {
@@ -192,14 +194,9 @@ export const WorkspaceNavigator = ({
           return new Promise(resolve =>
             setTimeout(resolve, 150)
           ); /* start transition after 150ms */
-        });
-      } else {
-        if (payload.defaultDocId) {
-          jumpToPage(payload.metadata.id, payload.defaultDocId);
-        } else {
-          jumpToPage(payload.metadata.id, 'all');
-        }
-      }
+        },
+        { name: 'workspace creation' }
+      );
     },
     [jumpToPage, onCreatedWorkspace]
   );

@@ -45,7 +45,10 @@ import {
 } from '../../plugins/copilot/embedding';
 import { McpCredentialService } from '../../plugins/copilot/mcp/credential';
 import { WorkspaceMcpProvider } from '../../plugins/copilot/mcp/provider';
-import { PromptService } from '../../plugins/copilot/prompt';
+import {
+  PromptService,
+  type ResolvedPrompt,
+} from '../../plugins/copilot/prompt';
 import {
   CopilotProviderFactory,
   CopilotProviderType,
@@ -137,6 +140,17 @@ const cleanSnapshotObject = (obj: unknown, omittedKeys: string[] = []) =>
 
 const cleanFinalMessages = (messages: unknown) =>
   cleanSnapshotObject(messages, ['attachments']);
+
+const normalizeModelListForAssertion = (models: unknown[]) =>
+  models.map(model => {
+    const {
+      effectiveSourceFingerprint: _effectiveSourceFingerprint,
+      effectiveSourceFingerprintInputs: _effectiveSourceFingerprintInputs,
+      effectiveSourceFingerprintVersion: _effectiveSourceFingerprintVersion,
+      ...stableModel
+    } = model as Record<string, unknown>;
+    return stableModel;
+  });
 
 function taskRouteTargetFingerprintFixture(input: {
   featureKind: string;
@@ -369,8 +383,12 @@ test.before(async t => {
       ConfigModule.override({
         copilot: {
           providers: {
+            profiles: [],
+            defaults: {},
+            routePolicy: {},
             openai: {
               apiKey: process.env.COPILOT_OPENAI_API_KEY ?? '1',
+              baseURL: 'https://api.openai.com/v1',
             },
             fal: {
               apiKey: process.env.COPILOT_FAL_API_KEY ?? '1',
@@ -378,6 +396,13 @@ test.before(async t => {
             anthropic: {
               apiKey: process.env.COPILOT_ANTHROPIC_API_KEY ?? '1',
             },
+          },
+          prompts: {
+            defaults: {},
+            overrides: [],
+          },
+          tasks: {
+            models: {},
           },
           exa: {
             key: process.env.COPILOT_EXA_API_KEY ?? '1',
@@ -748,6 +773,248 @@ test('should be able to render listed prompt', async t => {
   );
 });
 
+test('context memories should stay private to their owner and scope', async t => {
+  const { auth, db, models, workspace } = t.context;
+  const otherUser = await auth.signUp(
+    `memory-${randomUUID()}@affine.pro`,
+    '123456'
+  );
+  const primaryWorkspace = await workspace.create(userId);
+  const otherWorkspace = await workspace.create(otherUser.id);
+  const memory = models.copilotContextMemory;
+  const projectA = await memory.createProject({
+    workspaceId: primaryWorkspace.id,
+    createdByUserId: userId,
+    name: 'Project A',
+    documentIds: ['doc-a'],
+  });
+  const projectB = await memory.createProject({
+    workspaceId: primaryWorkspace.id,
+    createdByUserId: userId,
+    name: 'Project B',
+    documentIds: ['doc-b'],
+  });
+  const cleanupProject = await memory.createProject({
+    workspaceId: primaryWorkspace.id,
+    createdByUserId: userId,
+    name: 'Document cleanup',
+    documentIds: ['doc-cleanup'],
+  });
+
+  await Promise.all([
+    memory.put({
+      ownerUserId: userId,
+      scope: 'user',
+      kind: 'rule',
+      visibility: 'private',
+      content: 'GLOBAL_VISIBLE_RULE',
+    }),
+    memory.put({
+      ownerUserId: userId,
+      workspaceId: primaryWorkspace.id,
+      scope: 'workspace',
+      kind: 'auto_memory',
+      visibility: 'private',
+      content: 'PRIVATE_WORKSPACE_VISIBLE',
+    }),
+    memory.put({
+      ownerUserId: otherUser.id,
+      workspaceId: primaryWorkspace.id,
+      scope: 'workspace',
+      kind: 'rule',
+      visibility: 'private',
+      content: 'OTHER_USER_RULE_HIDDEN',
+    }),
+    memory.put({
+      ownerUserId: userId,
+      workspaceId: primaryWorkspace.id,
+      projectId: projectA.id,
+      scope: 'project',
+      kind: 'project_summary',
+      visibility: 'private',
+      content: 'PROJECT_A_VISIBLE',
+    }),
+    memory.put({
+      ownerUserId: userId,
+      workspaceId: primaryWorkspace.id,
+      projectId: projectB.id,
+      scope: 'project',
+      kind: 'auto_memory',
+      visibility: 'private',
+      content: 'PROJECT_B_HIDDEN',
+    }),
+    memory.put({
+      ownerUserId: otherUser.id,
+      workspaceId: primaryWorkspace.id,
+      scope: 'workspace',
+      kind: 'auto_memory',
+      visibility: 'private',
+      content: 'OTHER_USER_PRIVATE_HIDDEN',
+    }),
+    memory.put({
+      ownerUserId: userId,
+      workspaceId: otherWorkspace.id,
+      scope: 'workspace',
+      kind: 'auto_memory',
+      visibility: 'private',
+      content: 'OTHER_WORKSPACE_HIDDEN',
+    }),
+    memory.put({
+      ownerUserId: userId,
+      workspaceId: primaryWorkspace.id,
+      scope: 'workspace',
+      kind: 'auto_memory',
+      visibility: 'private',
+      status: 'disabled',
+      content: 'DISABLED_HIDDEN',
+    }),
+    memory.put({
+      ownerUserId: userId,
+      workspaceId: primaryWorkspace.id,
+      docId: 'doc-cleanup',
+      scope: 'document',
+      kind: 'auto_memory',
+      visibility: 'private',
+      content: 'DELETED_DOCUMENT_MEMORY',
+    }),
+  ]);
+
+  const visible = await memory.listVisible({
+    userId,
+    workspaceId: primaryWorkspace.id,
+    docId: 'doc-a',
+    projectIds: [projectA.id],
+  });
+  const contents = visible.map(item => item.content);
+
+  t.deepEqual(contents.toSorted(), [
+    'GLOBAL_VISIBLE_RULE',
+    'PRIVATE_WORKSPACE_VISIBLE',
+    'PROJECT_A_VISIBLE',
+  ]);
+  const allOwned = await memory.listManageable({
+    userId,
+    includeDisabled: true,
+  });
+  t.true(
+    allOwned.some(item => item.content === 'OTHER_WORKSPACE_HIDDEN'),
+    'an account-level management query should include every owner record'
+  );
+  t.false(allOwned.some(item => item.content === 'OTHER_USER_PRIVATE_HIDDEN'));
+
+  t.deepEqual(
+    await memory.removeDocumentReferences({
+      workspaceId: primaryWorkspace.id,
+      docId: 'doc-cleanup',
+    }),
+    { memoryCount: 1, projectDocumentCount: 1 }
+  );
+  t.is((await memory.getProject(cleanupProject.id))?.documents.length, 0);
+  t.false(
+    (
+      await memory.listManageable({
+        userId,
+        includeDisabled: true,
+      })
+    ).some(item => item.content === 'DELETED_DOCUMENT_MEMORY')
+  );
+
+  t.deepEqual(
+    await memory.listProjectIdsForDoc({
+      workspaceId: primaryWorkspace.id,
+      docId: 'doc-a',
+    }),
+    [projectA.id]
+  );
+
+  await memory.updateProject(projectA.id, { status: 'archived' });
+  t.deepEqual(
+    await memory.listProjectIdsForDoc({
+      workspaceId: primaryWorkspace.id,
+      docId: 'doc-a',
+    }),
+    []
+  );
+  await t.throwsAsync(
+    db.aiContextProject.delete({
+      where: { id: projectA.id },
+    })
+  );
+  t.false(await memory.deleteProject(projectA.id));
+  t.true(
+    (
+      await memory.listManageable({
+        userId,
+        workspaceId: primaryWorkspace.id,
+        projectIds: [projectA.id],
+      })
+    ).some(item => item.content === 'PROJECT_A_VISIBLE')
+  );
+  t.truthy(await memory.getProject(projectA.id));
+  t.truthy(
+    await db.aiContextMemory.findFirst({
+      where: {
+        projectId: projectA.id,
+        content: 'PROJECT_A_VISIBLE',
+      },
+    })
+  );
+
+  const auditUser = await auth.signUp(
+    `memory-audit-${randomUUID()}@affine.pro`,
+    '123456'
+  );
+  const auditProject = await memory.createProject({
+    workspaceId: primaryWorkspace.id,
+    createdByUserId: auditUser.id,
+    name: 'Audit creator lifecycle',
+    documentIds: ['doc-audit'],
+  });
+  await db.user.delete({ where: { id: auditUser.id } });
+  t.is((await memory.getProject(auditProject.id))?.createdByUserId, null);
+});
+
+test('context preferences and strategy revisions should persist safely', async t => {
+  const { models, workspace } = t.context;
+  const targetWorkspace = await workspace.create(userId);
+  const memory = models.copilotContextMemory;
+
+  t.is(await memory.getPreference(userId, targetWorkspace.id), null);
+  await memory.putPreference({
+    userId,
+    workspaceId: targetWorkspace.id,
+    autoMemoryEnabled: false,
+  });
+  t.false(
+    (await memory.getPreference(userId, targetWorkspace.id))?.autoMemoryEnabled
+  );
+
+  const version = `context-planner/test-${randomUUID()}`;
+  await memory.ensureStrategyRevision({
+    version,
+    fingerprint: 'fingerprint-a',
+    status: 'archived',
+    config: { mode: 'test' },
+  });
+  await memory.ensureStrategyRevision({
+    version,
+    fingerprint: 'fingerprint-a',
+    status: 'active',
+    config: { mode: 'test' },
+  });
+  await t.throwsAsync(
+    memory.ensureStrategyRevision({
+      version,
+      fingerprint: 'fingerprint-b',
+      status: 'active',
+      config: { mode: 'changed-without-version-bump' },
+    }),
+    {
+      message: `Context strategy ${version} changed without a version bump`,
+    }
+  );
+});
+
 test('PromptContract should preserve render/session payloads and reject legacy aliases', t => {
   const render = parsePromptRenderContract({
     messages: [
@@ -908,7 +1175,7 @@ test('should be able to manage chat session', async t => {
 });
 
 test('chat session should cap prompt render budget by model context window', t => {
-  const prompt = {
+  const prompt: ResolvedPrompt = {
     name: `context-window-${randomUUID()}`,
     model: 'local-chat',
     modelSource: 'compat',
@@ -2596,10 +2863,37 @@ test('should handle copilot cron jobs correctly', async t => {
           },
         ],
         [
+          'copilot.supportBundle.processTransferForwardingEvents',
+          {
+            limit: 50,
+          },
+          {
+            jobId: 'daily-copilot-support-bundle-transfer-forwarding-events',
+          },
+        ],
+        [
           'copilot.providerHealth.persistConfiguredSnapshots',
           {},
           {
             jobId: 'daily-copilot-provider-health-snapshot-persistence',
+          },
+        ],
+        [
+          'copilot.providerHealth.enqueueWorkspaceProbeAttempts',
+          {
+            limit: 100,
+          },
+          {
+            jobId: 'daily-copilot-provider-health-probe-enqueue',
+          },
+        ],
+        [
+          'copilot.providerHealth.processProbeAttempts',
+          {
+            limit: 50,
+          },
+          {
+            jobId: 'daily-copilot-provider-health-probe-process',
           },
         ],
       ]
@@ -2616,6 +2910,15 @@ test('should handle copilot cron jobs correctly', async t => {
     t.deepEqual(
       jobAddStub.getCalls().map(call => call.args),
       [
+        [
+          'copilot.supportBundle.processTransferForwardingEvents',
+          {
+            limit: 50,
+          },
+          {
+            jobId: 'minute-copilot-support-bundle-transfer-forwarding-events',
+          },
+        ],
         [
           'copilot.agentRuntime.recoverExpiredLeases',
           {
@@ -2651,6 +2954,15 @@ test('should handle copilot cron jobs correctly', async t => {
           },
           {
             jobId: 'minute-copilot-repair-execution-enqueue-queued',
+          },
+        ],
+        [
+          'copilot.providerHealth.processProbeAttempts',
+          {
+            limit: 50,
+          },
+          {
+            jobId: 'minute-copilot-provider-health-probe-process',
           },
         ],
       ]
@@ -2777,9 +3089,10 @@ test('capability policy host should fallback when prompt default model is not ro
   const capabilityPolicy = module.get(CapabilityPolicyHost);
   const factory = module.get(CopilotProviderFactory);
 
-  Sinon.stub(factory, 'getConfiguredModelIds').returns([
-    'openai-default/gpt-5-mini',
-  ]);
+  Sinon.stub(factory, 'getEffectiveModelSelectionScope').resolves({
+    providerIds: ['openai-default'],
+    configuredModelIds: ['openai-default/gpt-5-mini'],
+  });
   Sinon.stub(factory, 'resolveModelId').callsFake(async cond => {
     if (cond.modelId === 'gemini-2.5-flash') {
       return undefined;
@@ -2823,10 +3136,13 @@ test('capability policy host should select image routes with image output type',
     quotaBackedRoutesAllowed: false,
   };
 
-  const getConfiguredModelIds = Sinon.stub(
+  const getEffectiveModelSelectionScope = Sinon.stub(
     factory,
-    'getConfiguredModelIds'
-  ).returns(['local-image-model']);
+    'getEffectiveModelSelectionScope'
+  ).resolves({
+    providerIds: [],
+    configuredModelIds: ['local-image-model'],
+  });
   const resolveModelId = Sinon.stub(factory, 'resolveModelId').callsFake(
     async cond =>
       cond.outputType === ModelOutputType.Image &&
@@ -2867,18 +3183,21 @@ test('capability policy host should select image routes with image output type',
     featureKind: 'image',
     quotaBackedRoutesAllowed: false,
   });
-  Sinon.assert.calledOnceWithExactly(getConfiguredModelIds, routeContext);
+  Sinon.assert.calledOnceWithExactly(
+    getEffectiveModelSelectionScope,
+    routeContext
+  );
   t.true(
     resolveModelId.getCalls().some(call => {
       const [cond, filter, context] = call.args;
       return (
         cond.modelId === 'local-image-model' &&
         cond.outputType === ModelOutputType.Image &&
-        Object.keys(filter).length === 0 &&
+        Object.keys(filter ?? {}).length === 0 &&
         context?.workspaceId === routeContext.workspaceId &&
-        context.byokLeaseId === routeContext.byokLeaseId &&
-        context.featureKind === routeContext.featureKind &&
-        context.quotaBackedRoutesAllowed ===
+        context?.byokLeaseId === routeContext.byokLeaseId &&
+        context?.featureKind === routeContext.featureKind &&
+        context?.quotaBackedRoutesAllowed ===
           routeContext.quotaBackedRoutesAllowed
       );
     })
@@ -3145,7 +3464,7 @@ test('prompt runtime should resolve models with action route context', async t =
     { content: 'hello' },
     {
       providerOptions: {
-        user: 'user-1',
+        user: userId,
         workspace: 'workspace-1',
         session: 'session-1',
         byokLeaseId: 'lease-1',
@@ -3156,7 +3475,7 @@ test('prompt runtime should resolve models with action route context', async t =
 
   t.is(textStub.firstCall.args[0].modelId, 'local/office-fast');
   t.like(textStub.firstCall.args[2], {
-    user: 'user-1',
+    user: userId,
     workspace: 'workspace-1',
     session: 'session-1',
     byokLeaseId: 'lease-1',
@@ -3205,7 +3524,7 @@ test('prompt runtime should infer image route context from prompt metadata', asy
     { content: 'draw a quiet workspace' },
     {
       providerOptions: {
-        user: 'user-1',
+        user: userId,
         workspace: 'workspace-1',
       },
     }
@@ -3213,7 +3532,7 @@ test('prompt runtime should infer image route context from prompt metadata', asy
 
   t.is(textStub.firstCall.args[0].modelId, 'local/image-text');
   t.like(textStub.firstCall.args[2], {
-    user: 'user-1',
+    user: userId,
     workspace: 'workspace-1',
     featureKind: 'image',
   });
@@ -3289,7 +3608,7 @@ test('prompt runtime should resolve structured prompts with structured route pol
         schemaHash: 'schema-hash',
       },
       providerOptions: {
-        user: 'user-1',
+        user: userId,
         workspace: 'workspace-1',
       },
     }
@@ -3359,7 +3678,7 @@ test('prompt runtime should infer transcript route context for structured prompt
         schemaHash: 'schema-hash',
       },
       providerOptions: {
-        user: 'user-1',
+        user: userId,
         workspace: 'workspace-1',
       },
     }
@@ -3367,7 +3686,7 @@ test('prompt runtime should infer transcript route context for structured prompt
 
   t.is(structuredStub.firstCall.args[0].modelId, 'local/transcript-structured');
   t.like(structuredStub.firstCall.args[2], {
-    user: 'user-1',
+    user: userId,
     workspace: 'workspace-1',
     featureKind: 'transcript',
   });
@@ -3434,7 +3753,7 @@ test('prompt runtime should keep explicit route feature context', async t => {
         schemaHash: 'schema-hash',
       },
       providerOptions: {
-        user: 'user-1',
+        user: userId,
         workspace: 'workspace-1',
         featureKind: 'action',
       },
@@ -3443,7 +3762,7 @@ test('prompt runtime should keep explicit route feature context', async t => {
 
   t.is(structuredStub.firstCall.args[0].modelId, 'local/action-structured');
   t.like(structuredStub.firstCall.args[2], {
-    user: 'user-1',
+    user: userId,
     workspace: 'workspace-1',
     featureKind: 'action',
   });
@@ -3554,7 +3873,21 @@ test('resolver models should use resolved provider metadata for display names', 
 
   const models = await resolver.models(promptName);
 
-  t.deepEqual(models.optionalModels, [
+  for (const model of [...models.optionalModels, ...models.proModels]) {
+    t.regex(model.effectiveSourceFingerprint ?? '', /^[a-f0-9]{16}$/);
+    t.is(
+      model.effectiveSourceFingerprintVersion,
+      'copilot-model-list-effective-source/v1'
+    );
+    t.true(
+      model.effectiveSourceFingerprintInputs?.includes('providerProfileSource')
+    );
+    t.true(
+      model.effectiveSourceFingerprintInputs?.includes('routePolicyFeatureKind')
+    );
+  }
+
+  t.deepEqual(normalizeModelListForAssertion(models.optionalModels), [
     {
       id: 'gemini-2.5-flash',
       name: 'Resolved gemini-2.5-flash',
@@ -3618,7 +3951,7 @@ test('resolver models should use resolved provider metadata for display names', 
       routePolicyPreferredPrivacy: ['private_cloud', 'cloud'],
     },
   ]);
-  t.deepEqual(models.proModels, [
+  t.deepEqual(normalizeModelListForAssertion(models.proModels), [
     {
       id: 'gemini-2.5-pro',
       name: 'Resolved gemini-2.5-pro',
@@ -3654,10 +3987,11 @@ test('resolver models should use resolved provider metadata for display names', 
       outputType: ModelOutputType.Text,
     })
   );
+  t.true(resolveProvider.called);
   t.true(
-    resolveProvider.alwaysCalledWithMatch(Sinon.match.any, Sinon.match.any, {
-      featureKind: 'chat',
-    })
+    resolveProvider
+      .getCalls()
+      .every(call => call.args[2]?.featureKind === 'chat')
   );
 });
 
@@ -3665,7 +3999,7 @@ test('resolver prompts should expose safe prompt catalog metadata', async t => {
   const { module } = t.context;
   const resolver = module.get(CopilotResolver);
 
-  const prompts = await resolver.prompts();
+  const prompts = await resolver.prompts({ workspaceId: null });
   const chat = prompts.find(prompt => prompt.name === 'Chat With AFFiNE AI');
 
   t.true(prompts.length > 0);
@@ -3944,8 +4278,10 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
 
   t.is(diagnostics.length, 2);
   t.deepEqual(
-    diagnostics.map(item => item.id).sort(),
-    [run.id, failedRun.id].sort()
+    diagnostics
+      .map(item => item.id)
+      .sort((left, right) => left.localeCompare(right)),
+    [run.id, failedRun.id].sort((left, right) => left.localeCompare(right))
   );
   const successfulDiagnostics = diagnostics.find(item => item.id === run.id);
   const failedDiagnostics = diagnostics.find(item => item.id === failedRun.id);
@@ -4682,7 +5018,10 @@ test('resolver models should expose configured model limits metadata', async t =
     { optionalModels: ['ollama-main/office-chat-fast'] }
   );
 
-  Sinon.stub(factory, 'getConfiguredModelIds').returns([]);
+  Sinon.stub(factory, 'getEffectiveModelSelectionScope').resolves({
+    providerIds: [],
+    configuredModelIds: [],
+  });
   Sinon.stub(factory, 'resolveModelId').callsFake(async cond => cond.modelId);
   Sinon.stub(factory, 'describeRoutePolicy').returns({
     enabled: true,
@@ -4748,7 +5087,20 @@ test('resolver models should expose configured model limits metadata', async t =
   t.is(models.promptDefaultModel, 'ollama-main/office-chat-fast');
   t.is(models.defaultModelSource, 'prompt');
   t.is(models.defaultModelFallbackReason, undefined);
-  t.deepEqual(models.optionalModels, [
+  for (const model of models.optionalModels) {
+    t.regex(model.effectiveSourceFingerprint ?? '', /^[a-f0-9]{16}$/);
+    t.is(
+      model.effectiveSourceFingerprintVersion,
+      'copilot-model-list-effective-source/v1'
+    );
+    t.true(
+      model.effectiveSourceFingerprintInputs?.includes(
+        'routeModelDefinitionSource'
+      )
+    );
+    t.true(model.effectiveSourceFingerprintInputs?.includes('routeRawModelId'));
+  }
+  t.deepEqual(normalizeModelListForAssertion(models.optionalModels), [
     {
       id: 'ollama-main/office-chat-fast',
       name: 'Resolved office-chat-fast',
@@ -4812,9 +5164,10 @@ test('resolver models should include configured provider models and fallback def
     { optionalModels: ['gemini-2.5-flash'] }
   );
 
-  Sinon.stub(factory, 'getConfiguredModelIds').returns([
-    'openai-default/gpt-5-mini',
-  ]);
+  Sinon.stub(factory, 'getEffectiveModelSelectionScope').resolves({
+    providerIds: ['openai-default'],
+    configuredModelIds: ['openai-default/gpt-5-mini'],
+  });
   Sinon.stub(factory, 'describeRoutePolicy').returns({
     enabled: true,
     featureKind: 'chat',
@@ -4903,12 +5256,18 @@ test('resolver models should inherit workspace route policy context from copilot
     { optionalModels: ['ollama-main/office-chat-fast'] }
   );
 
-  Sinon.stub(factory, 'getConfiguredModelIds').returns([]);
+  const getEffectiveModelSelectionScope = Sinon.stub(
+    factory,
+    'getEffectiveModelSelectionScope'
+  ).resolves({
+    providerIds: [],
+    configuredModelIds: [],
+  });
   const describeRoutePolicy = Sinon.stub(
     factory,
     'describeRoutePolicy'
   ).callsFake(context => {
-    if (context.featureKind === 'chat') {
+    if (context?.featureKind === 'chat') {
       return {
         enabled: true,
         featureKind: 'chat',
@@ -4919,7 +5278,7 @@ test('resolver models should inherit workspace route policy context from copilot
     }
     return {
       enabled: true,
-      featureKind: context.featureKind,
+      featureKind: context?.featureKind,
       workspaceId: 'workspace-local-only',
       preferredPrivacy: ['local'],
     };
@@ -4966,17 +5325,31 @@ test('resolver models should inherit workspace route policy context from copilot
       workspaceId: 'workspace-local-only',
     })
   );
-  Sinon.assert.calledOnceWithExactly(getConfiguredModelIds, {
+  Sinon.assert.calledOnceWithExactly(getEffectiveModelSelectionScope, {
     featureKind: 'chat',
     workspaceId: 'workspace-local-only',
   });
+  t.true(resolveProvider.called);
   t.true(
-    resolveProvider.alwaysCalledWithMatch(Sinon.match.any, Sinon.match.any, {
-      featureKind: 'chat',
-      workspaceId: 'workspace-local-only',
+    resolveProvider.getCalls().every(call => {
+      const context = call.args[2];
+      return (
+        context?.featureKind === 'chat' &&
+        context.workspaceId === 'workspace-local-only'
+      );
     })
   );
-  t.deepEqual(models.optionalModels, [
+  for (const model of models.optionalModels) {
+    t.regex(model.effectiveSourceFingerprint ?? '', /^[a-f0-9]{16}$/);
+    t.is(
+      model.effectiveSourceFingerprintVersion,
+      'copilot-model-list-effective-source/v1'
+    );
+    t.true(
+      model.effectiveSourceFingerprintInputs?.includes('routePolicyWorkspaceId')
+    );
+  }
+  t.deepEqual(normalizeModelListForAssertion(models.optionalModels), [
     {
       id: 'ollama-main/office-chat-fast',
       name: 'Resolved office-chat-fast',
@@ -5029,9 +5402,12 @@ test('resolver models should expose workspace task route diagnostics', async t =
     { optionalModels: ['ollama-main/office-chat-fast'] }
   );
 
-  Sinon.stub(factory, 'getConfiguredModelIds').returns([]);
+  Sinon.stub(factory, 'getEffectiveModelSelectionScope').resolves({
+    providerIds: [],
+    configuredModelIds: [],
+  });
   Sinon.stub(factory, 'describeRoutePolicy').callsFake(context => {
-    if (context.featureKind === 'workspace_indexing') {
+    if (context?.featureKind === 'workspace_indexing') {
       return {
         enabled: true,
         featureKind: 'workspace_indexing',
@@ -5042,7 +5418,7 @@ test('resolver models should expose workspace task route diagnostics', async t =
         preferredPrivacy: ['local', 'private_cloud'],
       };
     }
-    if (context.featureKind === 'rerank') {
+    if (context?.featureKind === 'rerank') {
       return {
         enabled: true,
         featureKind: 'rerank',
@@ -5060,10 +5436,13 @@ test('resolver models should expose workspace task route diagnostics', async t =
   });
   Sinon.stub(factory, 'describeEffectiveRoutePolicyCandidates').callsFake(
     async context => {
-      if (context.featureKind === 'workspace_indexing') {
+      if (context?.featureKind === 'workspace_indexing') {
         return [
           {
             providerId: 'ollama-main',
+            providerSource: 'configured',
+            providerType: CopilotProviderType.OpenAICompatible,
+            providerPriority: 10,
             privacy: 'local',
             health: 'healthy',
             available: true,
@@ -5079,6 +5458,9 @@ test('resolver models should expose workspace task route diagnostics', async t =
           },
           {
             providerId: 'openai-default',
+            providerSource: 'configured',
+            providerType: CopilotProviderType.OpenAI,
+            providerPriority: 20,
             privacy: 'private_cloud',
             health: 'degraded',
             available: true,
@@ -5094,6 +5476,9 @@ test('resolver models should expose workspace task route diagnostics', async t =
           },
           {
             providerId: 'blocked-cloud',
+            providerSource: 'configured',
+            providerType: CopilotProviderType.OpenAI,
+            providerPriority: 30,
             privacy: 'cloud',
             health: 'healthy',
             available: true,
@@ -5109,10 +5494,13 @@ test('resolver models should expose workspace task route diagnostics', async t =
           },
         ];
       }
-      if (context.featureKind === 'rerank') {
+      if (context?.featureKind === 'rerank') {
         return [
           {
             providerId: 'ollama-main',
+            providerSource: 'configured',
+            providerType: CopilotProviderType.OpenAICompatible,
+            providerPriority: 10,
             privacy: 'local',
             health: 'healthy',
             available: true,
@@ -5128,6 +5516,9 @@ test('resolver models should expose workspace task route diagnostics', async t =
           },
           {
             providerId: 'blocked-cloud',
+            providerSource: 'configured',
+            providerType: CopilotProviderType.OpenAI,
+            providerPriority: 30,
             privacy: 'cloud',
             health: 'down',
             available: false,
@@ -5305,6 +5696,7 @@ test('resolver models should expose workspace task route diagnostics', async t =
       {
         providerId: 'ollama-main',
         modelId: 'nomic-embed-text',
+        routeIndex: 0,
         protocol: 'openai_chat',
         requestLayer: 'chat_completions',
         modelBackendKind: 'openai_chat',
@@ -5314,6 +5706,7 @@ test('resolver models should expose workspace task route diagnostics', async t =
       {
         providerId: 'openai-default',
         modelId: 'text-embedding-3-small',
+        routeIndex: 1,
         protocol: 'openai_responses',
         requestLayer: 'responses',
         modelBackendKind: 'openai_responses',
@@ -5346,6 +5739,7 @@ test('resolver models should expose workspace task route diagnostics', async t =
       {
         providerId: 'ollama-main',
         modelId: 'bge-reranker-v2',
+        routeIndex: 0,
         protocol: 'openai_chat',
         requestLayer: 'chat_completions',
         modelBackendKind: 'openai_chat',
@@ -5413,6 +5807,11 @@ test('resolver models should expose workspace task route diagnostics', async t =
     JSON.parse(
       JSON.stringify(value, (key, item) =>
         key === 'candidateFingerprint' ||
+        key === 'effectiveSourceFingerprint' ||
+        key === 'effectiveSourceFingerprintInputs' ||
+        key === 'effectiveSourceFingerprintVersion' ||
+        key === 'embeddingIndexContractFingerprint' ||
+        key === 'rerankRuntimeContractFingerprint' ||
         (key === 'candidateKey' &&
           typeof item === 'string' &&
           item.startsWith('["policy"'))
@@ -5430,6 +5829,70 @@ test('resolver models should expose workspace task route diagnostics', async t =
     models.rerankRoute?.policyCandidates.every(
       candidate => candidate.candidateKey && candidate.candidateFingerprint
     )
+  );
+  t.regex(
+    models.embeddingRoute?.effectiveSourceFingerprint ?? '',
+    /^[a-f0-9]{16}$/
+  );
+  t.is(
+    models.embeddingRoute?.effectiveSourceFingerprintVersion,
+    'copilot-task-route-effective-source/v1'
+  );
+  t.true(
+    models.embeddingRoute?.effectiveSourceFingerprintInputs?.includes(
+      'preparedRoutes'
+    )
+  );
+  t.true(
+    models.embeddingRoute?.effectiveSourceFingerprintInputs?.includes(
+      'embeddingIndexContractFingerprint'
+    )
+  );
+  t.is(
+    models.embeddingRoute?.embeddingIndexContractVersion,
+    'workspace-embedding-index/v1'
+  );
+  t.is(
+    models.embeddingRoute?.embeddingIndexContractStatus,
+    'dimension_mismatch'
+  );
+  t.is(
+    models.embeddingRoute?.embeddingIndexContractDimensions,
+    EMBEDDING_DIMENSIONS
+  );
+  t.regex(
+    models.embeddingRoute?.embeddingIndexContractFingerprint ?? '',
+    /^[a-f0-9]{16}$/
+  );
+  t.regex(
+    models.rerankRoute?.effectiveSourceFingerprint ?? '',
+    /^[a-f0-9]{16}$/
+  );
+  t.is(
+    models.rerankRoute?.effectiveSourceFingerprintVersion,
+    'copilot-task-route-effective-source/v1'
+  );
+  t.true(
+    models.rerankRoute?.effectiveSourceFingerprintInputs?.includes(
+      'rerankRuntimeContractFingerprint'
+    )
+  );
+  t.is(
+    models.rerankRoute?.rerankRuntimeContractVersion,
+    'workspace-rerank-runtime/v1'
+  );
+  t.is(
+    models.rerankRoute?.rerankRuntimeContractStatus,
+    'prepared_route_available'
+  );
+  t.is(models.rerankRoute?.rerankRuntimeContractTopK, undefined);
+  t.regex(
+    models.rerankRoute?.rerankRuntimeContractFingerprint ?? '',
+    /^[a-f0-9]{16}$/
+  );
+  t.not(
+    models.embeddingRoute?.effectiveSourceFingerprint,
+    models.rerankRoute?.effectiveSourceFingerprint
   );
   const embeddingRoute = normalizeTaskRouteDiagnosticsForAssertion(
     models.embeddingRoute
@@ -5452,6 +5915,9 @@ test('resolver models should expose workspace task route diagnostics', async t =
     policyCandidates: [
       {
         providerId: 'ollama-main',
+        providerSource: 'configured',
+        providerType: CopilotProviderType.OpenAICompatible,
+        providerPriority: 10,
         privacy: 'local',
         health: 'healthy',
         available: true,
@@ -5467,6 +5933,9 @@ test('resolver models should expose workspace task route diagnostics', async t =
       },
       {
         providerId: 'openai-default',
+        providerSource: 'configured',
+        providerType: CopilotProviderType.OpenAI,
+        providerPriority: 20,
         privacy: 'private_cloud',
         health: 'degraded',
         available: true,
@@ -5482,6 +5951,9 @@ test('resolver models should expose workspace task route diagnostics', async t =
       },
       {
         providerId: 'blocked-cloud',
+        providerSource: 'configured',
+        providerType: CopilotProviderType.OpenAI,
+        providerPriority: 30,
         privacy: 'cloud',
         health: 'healthy',
         available: true,
@@ -5658,6 +6130,7 @@ test('resolver models should expose workspace task route diagnostics', async t =
       {
         providerId: 'ollama-main',
         modelId: 'nomic-embed-text',
+        routeIndex: 0,
         protocol: 'openai_chat',
         requestLayer: 'chat_completions',
         modelBackendKind: 'openai_chat',
@@ -5667,6 +6140,7 @@ test('resolver models should expose workspace task route diagnostics', async t =
       {
         providerId: 'openai-default',
         modelId: 'text-embedding-3-small',
+        routeIndex: 1,
         protocol: 'openai_responses',
         requestLayer: 'responses',
         modelBackendKind: 'openai_responses',
@@ -5688,6 +6162,21 @@ test('resolver models should expose workspace task route diagnostics', async t =
     requestedDimensions: EMBEDDING_DIMENSIONS,
     modelEmbeddingDimensions: 768,
     dimensionMismatch: true,
+    embeddingIndexContractVersion: 'workspace-embedding-index/v1',
+    embeddingIndexContractStatus: 'dimension_mismatch',
+    embeddingIndexContractDimensions: EMBEDDING_DIMENSIONS,
+    taskRoutePolicyRevisionSourceChain: [
+      {
+        configKey: 'workspaceIndexing',
+        configPath: 'copilot.tasks.models.workspaceIndexing',
+        featureKind: 'workspace_indexing',
+        modelId: 'ollama-main/workspace-embedding',
+        scope: 'global',
+        source: 'config_fallback',
+        status: 'available',
+      },
+    ],
+    taskRoutePolicyRevisionSourceChainFingerprint: 'e9ff9a1fa24cb17c',
   });
   t.deepEqual(rerankRoute, {
     configured: true,
@@ -5703,6 +6192,9 @@ test('resolver models should expose workspace task route diagnostics', async t =
     policyCandidates: [
       {
         providerId: 'ollama-main',
+        providerSource: 'configured',
+        providerType: CopilotProviderType.OpenAICompatible,
+        providerPriority: 10,
         privacy: 'local',
         health: 'healthy',
         available: true,
@@ -5718,6 +6210,9 @@ test('resolver models should expose workspace task route diagnostics', async t =
       },
       {
         providerId: 'blocked-cloud',
+        providerSource: 'configured',
+        providerType: CopilotProviderType.OpenAI,
+        providerPriority: 30,
         privacy: 'cloud',
         health: 'down',
         available: false,
@@ -5827,6 +6322,7 @@ test('resolver models should expose workspace task route diagnostics', async t =
       {
         providerId: 'ollama-main',
         modelId: 'bge-reranker-v2',
+        routeIndex: 0,
         protocol: 'openai_chat',
         requestLayer: 'chat_completions',
         modelBackendKind: 'openai_chat',
@@ -5846,6 +6342,20 @@ test('resolver models should expose workspace task route diagnostics', async t =
     canonicalModelKey: 'office-rerank',
     behaviorFlags: ['rerank_cross_encoder'],
     candidateCount: 1,
+    rerankRuntimeContractVersion: 'workspace-rerank-runtime/v1',
+    rerankRuntimeContractStatus: 'prepared_route_available',
+    taskRoutePolicyRevisionSourceChain: [
+      {
+        configKey: 'rerank',
+        configPath: 'copilot.tasks.models.rerank',
+        featureKind: 'rerank',
+        modelId: 'ollama-main/office-rerank',
+        scope: 'global',
+        source: 'config_fallback',
+        status: 'available',
+      },
+    ],
+    taskRoutePolicyRevisionSourceChainFingerprint: '39b08806c44eb114',
   });
   Sinon.assert.calledOnceWithExactly(
     describeEmbeddingRoute,

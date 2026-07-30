@@ -21,7 +21,6 @@ import type { GfxModel } from '@blocksuite/affine/std/gfx';
 import type { BlockModel } from '@blocksuite/affine/store';
 
 import type { AIEmbeddingStatus } from '../provider';
-import type { PromptKey } from '../provider/prompt';
 
 export const translateLangs = [
   'English',
@@ -390,7 +389,7 @@ declare global {
     };
 
     interface AICreateSessionOptions {
-      promptName: PromptKey;
+      promptName: string;
       workspaceId: string;
       docId?: string;
       sessionId?: string;

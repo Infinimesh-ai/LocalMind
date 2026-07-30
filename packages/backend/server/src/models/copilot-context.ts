@@ -17,6 +17,7 @@ import {
   EMBEDDING_DIMENSIONS,
   FileChunkSimilarity,
   MinimalContextConfigSchema,
+  toPgVector,
 } from './common/copilot';
 
 type UpdateCopilotContextInput = Pick<CopilotContext, 'config'>;
@@ -268,10 +269,11 @@ export class CopilotContextModel extends BaseModel {
     topK: number,
     threshold: number
   ): Promise<Omit<FileChunkSimilarity, 'blobId' | 'name' | 'mimeType'>[]> {
+    const vector = toPgVector(embedding);
     const similarityChunks = await this.db.$queryRaw<
       Array<Omit<FileChunkSimilarity, 'blobId' | 'name' | 'mimeType'>>
     >`
-      SELECT "file_id" as "fileId", "chunk", "content", "embedding" <=> ${embedding}::vector as "distance" 
+      SELECT "file_id" as "fileId", "chunk", "content", "embedding" <=> ${vector}::vector as "distance"
       FROM "ai_context_embeddings"
       WHERE context_id = ${contextId}
       ORDER BY "distance" ASC
@@ -348,14 +350,16 @@ export class CopilotContextModel extends BaseModel {
     workspaceId: string,
     topK: number,
     threshold: number,
+    readablePredicate: Prisma.Sql,
     matchDocIds?: string[]
   ): Promise<DocChunkSimilarity[]> {
+    const vector = toPgVector(embedding);
     const similarityChunks = await this.db.$queryRaw<Array<DocChunkSimilarity>>`
       SELECT
         w."doc_id" as "docId",
         w."chunk",
         w."content",
-        w."embedding" <=> ${embedding}::vector as "distance"
+        w."embedding" <=> ${vector}::vector as "distance"
       FROM "ai_workspace_embeddings" w
       LEFT JOIN "ai_workspace_ignored_docs" i
         ON i."workspace_id" = w."workspace_id"
@@ -364,7 +368,8 @@ export class CopilotContextModel extends BaseModel {
       WHERE
         w."workspace_id" = ${workspaceId}
         AND i."doc_id" IS NULL
-        AND (w."embedding" <=> ${embedding}::vector) <= ${threshold}
+        AND ${readablePredicate}
+        AND (w."embedding" <=> ${vector}::vector) <= ${threshold}
       ORDER BY "distance" ASC
       LIMIT ${topK};
     `;

@@ -1027,15 +1027,6 @@ export class CopilotPromptRegistryRevisionModel extends BaseModel {
     return new Map(entries);
   }
 
-  private async getByWorkspaceRevision(input: {
-    promptName: string;
-    revision: string;
-    workspaceId: string;
-  }) {
-    const row = await this.getWorkspaceRevisionRow(input);
-    return row ? toRevision(row) : null;
-  }
-
   private async getWorkspaceRevisionRow(input: {
     promptName: string;
     revision: string;

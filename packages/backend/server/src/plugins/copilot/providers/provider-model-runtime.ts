@@ -198,6 +198,22 @@ const DEFAULT_MODEL_ROUTE_BY_BACKEND_KIND: Record<
     protocol: 'fal_image',
     requestLayer: 'fal',
   },
+  deepseek: {
+    protocol: 'openai_chat',
+    requestLayer: 'chat_completions_no_v1',
+  },
+  kimi: {
+    protocol: 'openai_chat',
+    requestLayer: 'chat_completions',
+  },
+  opencode_go: {
+    protocol: 'openai_chat',
+    requestLayer: 'chat_completions',
+  },
+  opencode_zen: {
+    protocol: 'openai_chat',
+    requestLayer: 'chat_completions',
+  },
 };
 
 const DEFAULT_IMAGE_ROUTE_BY_BACKEND_KIND: Partial<
@@ -313,11 +329,12 @@ function matchConfiguredProviderModel(
   }
 
   if (cond.modelId) {
+    const requestedModelId = cond.modelId;
     const requested = entries.find(({ definition, model }) => {
       return (
-        model.id === cond.modelId ||
-        model.canonicalKey === cond.modelId ||
-        definition?.aliases?.includes(cond.modelId)
+        model.id === requestedModelId ||
+        model.canonicalKey === requestedModelId ||
+        definition?.aliases?.includes(requestedModelId)
       );
     });
     if (!requested) {

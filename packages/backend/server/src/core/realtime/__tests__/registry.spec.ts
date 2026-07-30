@@ -1025,7 +1025,15 @@ test('copilot embedding realtime provider uses lightweight model reads', async t
     realtimeWorkspaceEmbeddingProgressRoom('space')
   );
 
-  await provider.onDocEmbedFinished({ contextId: 'context', docId: 'doc' });
+  await provider.onDocEmbedFinished({
+    contextId: 'context',
+    workspaceId: 'space',
+    docId: 'doc',
+  });
+  await provider.onDocEmbedFinished({
+    workspaceId: 'workspace-index',
+    docId: 'doc',
+  });
 
   t.deepEqual(assertions, [
     { userId: 'u1', workspaceId: 'space', action: 'Workspace.Copilot' },
@@ -1035,6 +1043,14 @@ test('copilot embedding realtime provider uses lightweight model reads', async t
     { workspaceId: 'space' },
     { reason: 'finished' },
     { room: realtimeWorkspaceEmbeddingProgressRoom('space') },
+  ]);
+  t.deepEqual(published[1], [
+    'workspace.embedding.progress.changed',
+    { workspaceId: 'workspace-index' },
+    { reason: 'finished' },
+    {
+      room: realtimeWorkspaceEmbeddingProgressRoom('workspace-index'),
+    },
   ]);
 });
 

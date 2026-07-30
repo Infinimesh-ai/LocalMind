@@ -4,10 +4,10 @@ use llm_adapter::middleware::RequestMiddleware;
 use llm_adapter::middleware::resolve_request_chain as adapter_resolve_request_chain;
 use llm_adapter::{
   backend::{BackendError, BackendRequestLayer, ChatProtocol, EmbeddingProtocol, RerankProtocol, StructuredProtocol},
-  core::{CoreRequest, StructuredRequest},
+  core::{CoreRequest, StreamEvent, StructuredRequest},
   middleware::{
-    StreamMiddleware, apply_request_middleware_names, apply_structured_request_middleware_names,
-    resolve_stream_middleware_chain,
+    MiddlewareConfig, PipelineContext, StreamMiddleware, apply_request_middleware_names,
+    apply_structured_request_middleware_names, resolve_stream_middleware_chain,
   },
 };
 use napi::{Error, Result, Status};
@@ -56,7 +56,28 @@ pub(crate) fn resolve_request_chain(
 }
 
 pub(crate) fn resolve_stream_chain(stream: &[String]) -> Result<Vec<StreamMiddleware>> {
-  resolve_stream_middleware_chain(stream).map_err(map_backend_parse_error)
+  let mut chain = resolve_stream_middleware_chain(stream).map_err(map_backend_parse_error)?;
+  chain.push(preserve_accumulated_tool_name);
+  Ok(chain)
+}
+
+fn preserve_accumulated_tool_name(
+  event: StreamEvent,
+  _context: &mut PipelineContext,
+  _config: &MiddlewareConfig,
+) -> Option<StreamEvent> {
+  match event {
+    StreamEvent::ToolCallDelta {
+      call_id,
+      name: Some(name),
+      arguments_delta,
+    } if name.is_empty() => Some(StreamEvent::ToolCallDelta {
+      call_id,
+      name: None,
+      arguments_delta,
+    }),
+    event => Some(event),
+  }
 }
 
 pub(crate) fn parse_protocol(protocol: &str) -> Result<ChatProtocol> {

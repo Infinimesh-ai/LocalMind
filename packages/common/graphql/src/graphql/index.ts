@@ -1625,6 +1625,55 @@ export const createCopilotContextMutation = {
 }`,
 };
 
+export const copilotContextDashboardGetQuery = {
+  id: 'copilotContextDashboardGetQuery' as const,
+  op: 'copilotContextDashboardGet',
+  query: `query copilotContextDashboardGet($workspaceId: String!, $includeDisabled: Boolean) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      contextSettings {
+        autoMemoryEnabled
+      }
+      contextPlannerStrategies {
+        version
+        fingerprint
+        status
+        checkpointCount
+        lastCheckpointAt
+        createdAt
+      }
+      contextProjects(includeArchived: true) {
+        id
+        workspaceId
+        createdByUserId
+        name
+        description
+        status
+        documentIds
+        documentCount
+        canManage
+        createdAt
+        updatedAt
+      }
+      contextMemories(includeDisabled: $includeDisabled) {
+        id
+        ownerUserId
+        workspaceId
+        docId
+        projectId
+        sourceSessionId
+        scope
+        kind
+        status
+        content
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}`,
+};
+
 export const addContextDocMutation = {
   id: 'addContextDocMutation' as const,
   op: 'addContextDoc',
@@ -1822,6 +1871,139 @@ export const matchFilesQuery = {
         }
       }
     }
+  }
+}`,
+};
+
+export const copilotContextMemoriesGetQuery = {
+  id: 'copilotContextMemoriesGetQuery' as const,
+  op: 'copilotContextMemoriesGet',
+  query: `query copilotContextMemoriesGet($workspaceId: String, $docId: String, $includeDisabled: Boolean) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      contextMemories(docId: $docId, includeDisabled: $includeDisabled) {
+        id
+        ownerUserId
+        workspaceId
+        docId
+        projectId
+        sourceSessionId
+        scope
+        kind
+        status
+        content
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}`,
+};
+
+export const copilotContextMemoryCreateMutation = {
+  id: 'copilotContextMemoryCreateMutation' as const,
+  op: 'copilotContextMemoryCreate',
+  query: `mutation copilotContextMemoryCreate($input: CreateCopilotContextMemoryInput!) {
+  createCopilotContextMemory(input: $input) {
+    id
+    ownerUserId
+    workspaceId
+    docId
+    projectId
+    sourceSessionId
+    scope
+    kind
+    status
+    content
+    createdAt
+    updatedAt
+  }
+}`,
+};
+
+export const copilotContextMemoryDeleteMutation = {
+  id: 'copilotContextMemoryDeleteMutation' as const,
+  op: 'copilotContextMemoryDelete',
+  query: `mutation copilotContextMemoryDelete($id: ID!) {
+  deleteCopilotContextMemory(id: $id)
+}`,
+};
+
+export const copilotContextMemoryUpdateMutation = {
+  id: 'copilotContextMemoryUpdateMutation' as const,
+  op: 'copilotContextMemoryUpdate',
+  query: `mutation copilotContextMemoryUpdate($input: UpdateCopilotContextMemoryInput!) {
+  updateCopilotContextMemory(input: $input) {
+    id
+    ownerUserId
+    workspaceId
+    docId
+    projectId
+    sourceSessionId
+    scope
+    kind
+    status
+    content
+    createdAt
+    updatedAt
+  }
+}`,
+};
+
+export const copilotContextProjectCreateMutation = {
+  id: 'copilotContextProjectCreateMutation' as const,
+  op: 'copilotContextProjectCreate',
+  query: `mutation copilotContextProjectCreate($input: CreateCopilotContextProjectInput!) {
+  createCopilotContextProject(input: $input) {
+    id
+    workspaceId
+    createdByUserId
+    name
+    description
+    status
+    documentIds
+    documentCount
+    canManage
+    createdAt
+    updatedAt
+  }
+}`,
+};
+
+export const copilotContextProjectDeleteMutation = {
+  id: 'copilotContextProjectDeleteMutation' as const,
+  op: 'copilotContextProjectDelete',
+  query: `mutation copilotContextProjectDelete($id: ID!) {
+  deleteCopilotContextProject(id: $id)
+}`,
+};
+
+export const copilotContextProjectUpdateMutation = {
+  id: 'copilotContextProjectUpdateMutation' as const,
+  op: 'copilotContextProjectUpdate',
+  query: `mutation copilotContextProjectUpdate($input: UpdateCopilotContextProjectInput!) {
+  updateCopilotContextProject(input: $input) {
+    id
+    workspaceId
+    createdByUserId
+    name
+    description
+    status
+    documentIds
+    documentCount
+    canManage
+    createdAt
+    updatedAt
+  }
+}`,
+};
+
+export const copilotContextSettingsUpdateMutation = {
+  id: 'copilotContextSettingsUpdateMutation' as const,
+  op: 'copilotContextSettingsUpdate',
+  query: `mutation copilotContextSettingsUpdate($input: UpdateCopilotContextSettingsInput!) {
+  updateCopilotContextSettings(input: $input) {
+    autoMemoryEnabled
   }
 }`,
 };
@@ -2930,6 +3112,8 @@ export const getCopilotPromptRegistryPublishGateQuery = {
           policyCandidates {
             allowed
             available
+            candidateFingerprint
+            candidateKey
             health
             healthCheckedAt
             privacy

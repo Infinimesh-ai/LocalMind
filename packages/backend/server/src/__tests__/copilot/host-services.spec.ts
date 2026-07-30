@@ -371,6 +371,7 @@ test('ToolRuntime should pass route context into prompt-backed tools', async t =
     {} as any,
     {} as any,
     {} as any,
+    {} as any,
     promptRuntime as any,
     {} as any
   );
@@ -639,9 +640,9 @@ test('action result projection should map image result url to assistant attachme
 
 test('CopilotEmbeddingClientService should keep dispatch client across global config refreshes', async t => {
   const taskPolicy = {
-    resolveEmbeddingModelId: () => 'text-embedding-3-large',
-    resolveWorkspaceIndexingModelId: () => 'text-embedding-3-large',
-    resolveRerankModelId: () => undefined,
+    resolveEffectiveEmbeddingModelId: () => 'text-embedding-3-large',
+    resolveEffectiveWorkspaceIndexingModelId: () => 'text-embedding-3-large',
+    resolveEffectiveRerankModelId: () => undefined,
   };
   const runtime = {
     describeEmbeddingRoute: Sinon.stub()
@@ -694,9 +695,9 @@ test('CopilotEmbeddingClientService should keep dispatch client across global co
 
 test('CopilotEmbeddingClientService should keep workspace-routed embedding client without global provider', async t => {
   const taskPolicy = {
-    resolveEmbeddingModelId: () => undefined,
-    resolveWorkspaceIndexingModelId: () => undefined,
-    resolveRerankModelId: () => undefined,
+    resolveEffectiveEmbeddingModelId: () => undefined,
+    resolveEffectiveWorkspaceIndexingModelId: () => undefined,
+    resolveEffectiveRerankModelId: () => undefined,
   };
   const runtime = {
     describeEmbeddingRoute: Sinon.stub().resolves({
@@ -733,9 +734,9 @@ test('CopilotEmbeddingClientService should keep workspace-routed embedding clien
 
 test('CopilotEmbeddingClientService should surface workspace dimension contract diagnostics', async t => {
   const taskPolicy = {
-    resolveEmbeddingModelId: () => undefined,
-    resolveWorkspaceIndexingModelId: () => undefined,
-    resolveRerankModelId: () => undefined,
+    resolveEffectiveEmbeddingModelId: () => undefined,
+    resolveEffectiveWorkspaceIndexingModelId: () => undefined,
+    resolveEffectiveRerankModelId: () => undefined,
   };
   const runtime = {
     describeEmbeddingRoute: Sinon.stub().resolves({
@@ -779,9 +780,9 @@ test('CopilotEmbeddingClientService should surface workspace dimension contract 
 
 test('CopilotEmbeddingClientService should surface rerank route diagnostics without blocking embedding client', async t => {
   const taskPolicy = {
-    resolveEmbeddingModelId: () => undefined,
-    resolveWorkspaceIndexingModelId: () => undefined,
-    resolveRerankModelId: () => 'ollama-main/local-rerank',
+    resolveEffectiveEmbeddingModelId: () => undefined,
+    resolveEffectiveWorkspaceIndexingModelId: () => undefined,
+    resolveEffectiveRerankModelId: () => 'ollama-main/local-rerank',
   };
   const runtime = {
     describeEmbeddingRoute: Sinon.stub().resolves({
@@ -818,9 +819,9 @@ test('CopilotEmbeddingClientService should surface rerank route diagnostics with
 test('CopilotEmbeddingClientService should pass workspace context into embedding routes', async t => {
   const signal = new AbortController().signal;
   const taskPolicy = {
-    resolveEmbeddingModelId: () => undefined,
-    resolveWorkspaceIndexingModelId: () => undefined,
-    resolveRerankModelId: () => undefined,
+    resolveEffectiveEmbeddingModelId: () => undefined,
+    resolveEffectiveWorkspaceIndexingModelId: () => undefined,
+    resolveEffectiveRerankModelId: () => undefined,
   };
   const runtime = {
     describeEmbeddingRoute: Sinon.stub().resolves({
@@ -892,9 +893,10 @@ test('CopilotEmbeddingClientService should pass workspace context into embedding
 
 test('CopilotEmbeddingClientService should use configured workspace indexing model alias', async t => {
   const taskPolicy = {
-    resolveEmbeddingModelId: () => 'ollama-main/office-embedding',
-    resolveWorkspaceIndexingModelId: () => 'ollama-main/workspace-embedding',
-    resolveRerankModelId: () => 'ollama-main/office-rerank',
+    resolveEffectiveEmbeddingModelId: () => 'ollama-main/office-embedding',
+    resolveEffectiveWorkspaceIndexingModelId: () =>
+      'ollama-main/workspace-embedding',
+    resolveEffectiveRerankModelId: () => 'ollama-main/office-rerank',
   };
   const runtime = {
     describeEmbeddingRoute: Sinon.stub().resolves({
@@ -954,9 +956,9 @@ test('CopilotEmbeddingClientService should use configured workspace indexing mod
 
 test('CopilotEmbeddingClientService should reject embeddings that do not match workspace vector dimensions', async t => {
   const taskPolicy = {
-    resolveEmbeddingModelId: () => undefined,
-    resolveWorkspaceIndexingModelId: () => undefined,
-    resolveRerankModelId: () => undefined,
+    resolveEffectiveEmbeddingModelId: () => undefined,
+    resolveEffectiveWorkspaceIndexingModelId: () => undefined,
+    resolveEffectiveRerankModelId: () => undefined,
   };
   const runtime = {
     describeEmbeddingRoute: Sinon.stub().resolves({
@@ -1535,7 +1537,12 @@ test('ActionRuntimeBridge should inject prepared structured routes into native i
           actionVersion: 'v1',
           status: 'succeeded' as const,
           result: { content: 'ok' },
-          trace: { lightweight: [{ type: 'action_trace' }] },
+          trace: {
+            actionId: 'mindmap.generate',
+            actionVersion: 'v1',
+            status: 'succeeded' as const,
+            lightweight: [{ type: 'action_trace' }],
+          },
         };
       })();
     }
@@ -1631,7 +1638,12 @@ test('ActionRuntimeBridge should inject prepared structured routes into native i
     { provider: 'openai', modelId: 'model-1' },
   ]);
   t.deepEqual((completedRuns[0] as { input: { trace: unknown } }).input.trace, {
-    native: { lightweight: [{ type: 'action_trace' }] },
+    native: {
+      actionId: 'mindmap.generate',
+      actionVersion: 'v1',
+      status: 'succeeded',
+      lightweight: [{ type: 'action_trace' }],
+    },
     preparedRoutes: {
       type: 'prepared_routes',
       status: 'succeeded',

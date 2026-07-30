@@ -1,4 +1,5 @@
 import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import {
   Cache,
@@ -6,6 +7,7 @@ import {
   NoCopilotProviderAvailable,
   OnEvent,
 } from '../../../base';
+import { PermissionService } from '../../../core/permission';
 import {
   ContextConfig,
   ContextConfigSchema,
@@ -32,7 +34,8 @@ export class CopilotContextService implements OnApplicationBootstrap {
   constructor(
     private readonly embeddingClients: CopilotEmbeddingClientService,
     private readonly cache: Cache,
-    private readonly models: Models
+    private readonly models: Models,
+    private readonly permission: PermissionService
   ) {}
 
   @OnEvent('config.init')
@@ -74,6 +77,21 @@ export class CopilotContextService implements OnApplicationBootstrap {
     return { workspaceId, signal, ...routeContext, featureKind: 'embedding' };
   }
 
+  private readableDocPredicate(
+    workspaceId: string,
+    routeContext?: EmbeddingRouteContext
+  ) {
+    if (!routeContext?.userId) {
+      throw new Error('Document embedding search requires a user id.');
+    }
+    return this.permission.docReadableSqlPredicate({
+      userId: routeContext.userId,
+      workspaceId,
+      action: 'Doc.Read',
+      docIdColumn: Prisma.raw('w."doc_id"'),
+    });
+  }
+
   private async saveConfig(
     contextId: string,
     config: ContextConfig,
@@ -99,6 +117,7 @@ export class CopilotContextService implements OnApplicationBootstrap {
           contextId,
           config.data,
           this.models,
+          this.permission,
           this.saveConfig.bind(this, contextId)
         );
       }
@@ -121,6 +140,7 @@ export class CopilotContextService implements OnApplicationBootstrap {
       contextId,
       config,
       this.models,
+      this.permission,
       dispatcher
     );
   }
@@ -239,6 +259,10 @@ export class CopilotContextService implements OnApplicationBootstrap {
   ) {
     const client = this.embeddingClient;
     if (!client) return [];
+    const readablePredicate = this.readableDocPredicate(
+      workspaceId,
+      routeContext
+    );
     const options = this.embeddingOptions(workspaceId, signal, routeContext);
     const embedding = await client.getEmbedding(content, options);
     if (!embedding) return [];
@@ -248,7 +272,8 @@ export class CopilotContextService implements OnApplicationBootstrap {
         embedding,
         workspaceId,
         topK * 2,
-        threshold
+        threshold,
+        readablePredicate
       );
     if (!workspaceChunks.length) return [];
 
@@ -267,6 +292,10 @@ export class CopilotContextService implements OnApplicationBootstrap {
   ) {
     const client = this.embeddingClient;
     if (!client) return [];
+    const readablePredicate = this.readableDocPredicate(
+      workspaceId,
+      routeContext
+    );
     const options = this.embeddingOptions(workspaceId, signal, routeContext);
     const embedding = await client.getEmbedding(content, options);
     if (!embedding) return [];
@@ -289,7 +318,8 @@ export class CopilotContextService implements OnApplicationBootstrap {
           embedding,
           workspaceId,
           topK * 2,
-          threshold
+          threshold,
+          readablePredicate
         ),
         docIds
           ? this.models.copilotContext.matchWorkspaceEmbedding(
@@ -297,6 +327,7 @@ export class CopilotContextService implements OnApplicationBootstrap {
               workspaceId,
               topK * 2,
               scopedThreshold,
+              readablePredicate,
               docIds
             )
           : null,
@@ -329,6 +360,7 @@ export class CopilotContextService implements OnApplicationBootstrap {
     contextId,
     docId,
   }: Events['workspace.doc.embed.failed']) {
+    if (!contextId) return;
     const context = await this.get(contextId);
     await context.saveDocRecord(docId, doc => ({
       ...(doc as ContextDoc),
@@ -341,6 +373,7 @@ export class CopilotContextService implements OnApplicationBootstrap {
     contextId,
     docId,
   }: Events['workspace.doc.embed.finished']) {
+    if (!contextId) return;
     const context = await this.get(contextId);
     await context.saveDocRecord(docId, doc => ({
       ...(doc as ContextDoc),

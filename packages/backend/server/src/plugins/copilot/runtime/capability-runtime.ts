@@ -33,6 +33,7 @@ type ProviderFilter = {
 type PreparedTaskRouteDiagnostics = {
   providerId: string;
   modelId: string;
+  routeIndex: number;
   protocol?: string;
   requestLayer?: string;
   modelBackendKind?: string;
@@ -179,7 +180,7 @@ export class CapabilityRuntime {
   private describePreparedTaskRoutes(
     routes: PreparedTaskRouteExecution[] | undefined
   ): PreparedTaskRouteDiagnostics[] {
-    return (routes ?? []).map(prepared => {
+    return (routes ?? []).map((prepared, routeIndex) => {
       const requestedDimensions = prepared.requestedDimensions;
       const modelEmbeddingDimensions =
         prepared.modelLimits?.embeddingDimensions;
@@ -189,6 +190,7 @@ export class CapabilityRuntime {
       return {
         providerId: prepared.route.providerId,
         modelId: prepared.route.model,
+        routeIndex,
         protocol: prepared.route.protocol,
         requestLayer: prepared.route.backendConfig.request_layer,
         modelBackendKind: prepared.modelDefinition?.backendKind,

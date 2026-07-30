@@ -1,4 +1,8 @@
-use llm_adapter::backend::{BackendRequestLayer, ChatProtocol};
+use llm_adapter::{
+  backend::{BackendRequestLayer, ChatProtocol},
+  core::StreamEvent,
+  middleware::{MiddlewareConfig, StreamPipeline},
+};
 use napi::{Status, Task};
 
 use super::AsyncLlmDispatchPreparedTask;
@@ -91,4 +95,33 @@ fn resolve_stream_chain_should_reject_unknown_middleware() {
   let error = resolve_stream_chain(&["unknown".to_string()]).unwrap_err();
   assert_eq!(error.status, Status::InvalidArg);
   assert!(error.reason.contains("unsupported stream middleware"));
+}
+
+#[test]
+fn resolve_stream_chain_should_preserve_tool_name_across_empty_deltas() {
+  let chain = resolve_stream_chain(&[]).unwrap();
+  let mut pipeline = StreamPipeline::new(chain, MiddlewareConfig::default());
+
+  let first = pipeline.process(StreamEvent::ToolCallDelta {
+    call_id: "call-1".to_string(),
+    name: Some("doc_keyword_search".to_string()),
+    arguments_delta: String::new(),
+  });
+  let second = pipeline.process(StreamEvent::ToolCallDelta {
+    call_id: "call-1".to_string(),
+    name: Some(String::new()),
+    arguments_delta: "{\"query\":\"test\"}".to_string(),
+  });
+
+  assert!(matches!(
+    first.as_slice(),
+    [StreamEvent::ToolCallDelta {
+      name: Some(name),
+      ..
+    }] if name == "doc_keyword_search"
+  ));
+  assert!(matches!(
+    second.as_slice(),
+    [StreamEvent::ToolCallDelta { name: None, .. }]
+  ));
 }

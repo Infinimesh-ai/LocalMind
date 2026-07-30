@@ -243,6 +243,18 @@ export type CopilotSupportBundleRecord = {
   transferForwardingEvents: CopilotSupportBundleTransferForwardingEventRecord[];
 };
 
+const SUPPORT_BUNDLE_PERSISTED_JSON_SNAPSHOT = Symbol(
+  'support-bundle-persisted-json-snapshot'
+);
+
+type CopilotSupportBundleRecordWithPersistedJsonSnapshot =
+  CopilotSupportBundleRecord & {
+    [SUPPORT_BUNDLE_PERSISTED_JSON_SNAPSHOT]?: {
+      manifestJson: unknown;
+      sourceEvidenceSummary: unknown;
+    };
+  };
+
 export type CopilotSupportBundleAuditEventRecord = {
   id: string;
   bundleId: string;
@@ -1423,7 +1435,7 @@ function hydrateSupportBundleRecord<T extends CopilotSupportBundleRecord>(
     ...record,
     sourceEvidenceSummary,
   };
-  return {
+  const hydrated = {
     ...withSourceEvidence,
     auditEventCount: Number(record.auditEventCount ?? 0),
     auditEvents: normalizeHydratedAuditEvents(record.auditEvents),
@@ -1441,6 +1453,16 @@ function hydrateSupportBundleRecord<T extends CopilotSupportBundleRecord>(
       sourceEvidenceSummary
     ),
   } as T;
+  Object.defineProperty(hydrated, SUPPORT_BUNDLE_PERSISTED_JSON_SNAPSHOT, {
+    configurable: false,
+    enumerable: false,
+    value: {
+      manifestJson: record.manifestJson,
+      sourceEvidenceSummary: record.sourceEvidenceSummary,
+    },
+    writable: false,
+  });
+  return hydrated;
 }
 
 function normalizeHydratedAuditEvents(
@@ -1452,7 +1474,7 @@ function normalizeHydratedAuditEvents(
 
   return value
     .filter(isSupportBundleRecord)
-    .map(event => ({
+    .map<CopilotSupportBundleAuditEventRecord>(event => ({
       id: String(event.id ?? ''),
       bundleId: String(event.bundleId ?? ''),
       workspaceId: String(event.workspaceId ?? ''),
@@ -1478,7 +1500,7 @@ function normalizeHydratedTransferEvents(
 
   return value
     .filter(isSupportBundleRecord)
-    .map(event => ({
+    .map<CopilotSupportBundleTransferEventRecord>(event => ({
       id: String(event.id ?? ''),
       authorizationId: String(event.authorizationId ?? ''),
       artifactKind:
@@ -2166,10 +2188,26 @@ export class CopilotSupportBundleModel extends BaseModel {
     const forwardingEvents = await this.listTransferForwardingEventsForBundle(
       record.id
     );
-    return {
+    const withForwardingEvents = {
       ...record,
       ...forwardingEvents,
-    };
+    } as T;
+    const persistedJsonSnapshot = (
+      record as CopilotSupportBundleRecordWithPersistedJsonSnapshot
+    )[SUPPORT_BUNDLE_PERSISTED_JSON_SNAPSHOT];
+    if (persistedJsonSnapshot) {
+      Object.defineProperty(
+        withForwardingEvents,
+        SUPPORT_BUNDLE_PERSISTED_JSON_SNAPSHOT,
+        {
+          configurable: false,
+          enumerable: false,
+          value: persistedJsonSnapshot,
+          writable: false,
+        }
+      );
+    }
+    return withForwardingEvents;
   }
 
   private async listTransferForwardingEventsForBundle(
@@ -2257,6 +2295,12 @@ export class CopilotSupportBundleModel extends BaseModel {
     if (bundle.expiresAt.getTime() <= Date.now()) {
       throw new Error('Support bundle has expired');
     }
+    const persistedJsonSnapshot = (
+      bundle as CopilotSupportBundleRecordWithPersistedJsonSnapshot
+    )[SUPPORT_BUNDLE_PERSISTED_JSON_SNAPSHOT] ?? {
+      manifestJson: bundle.manifestJson,
+      sourceEvidenceSummary: bundle.sourceEvidenceSummary,
+    };
 
     const now = new Date();
     const id = randomUUID();
@@ -2392,20 +2436,26 @@ export class CopilotSupportBundleModel extends BaseModel {
         AND bundle.actor_id = ${bundle.actorId}
         AND bundle.status = ${'ready'}
         AND bundle.source_evidence_summary = ${toJsonString(
-          bundle.sourceEvidenceSummary
+          persistedJsonSnapshot.sourceEvidenceSummary
         )}::jsonb
         AND bundle.source_evidence_set_fingerprint = ${
           bundle.sourceEvidenceSetFingerprint
         }
         AND bundle.retention_status = ${'active'}
         AND bundle.manifest_fingerprint = ${bundle.manifestFingerprint}
-        AND bundle.manifest_json = ${toJsonString(bundle.manifestJson)}::jsonb
+        AND bundle.manifest_json = ${toJsonString(
+          persistedJsonSnapshot.manifestJson
+        )}::jsonb
         AND bundle.manifest_storage_key IS NOT DISTINCT FROM ${
           bundle.manifestStorageKey
         }
-        AND bundle.manifest_byte_size = ${bundle.manifestByteSize}
-        AND bundle.manifest_mime = ${bundle.manifestMime}
-        AND bundle.manifest_filename = ${bundle.manifestFilename}
+        AND bundle.manifest_byte_size IS NOT DISTINCT FROM ${
+          bundle.manifestByteSize
+        }
+        AND bundle.manifest_mime IS NOT DISTINCT FROM ${bundle.manifestMime}
+        AND bundle.manifest_filename IS NOT DISTINCT FROM ${
+          bundle.manifestFilename
+        }
         AND bundle.archive_storage_key IS NOT DISTINCT FROM ${
           bundle.archiveStorageKey
         }

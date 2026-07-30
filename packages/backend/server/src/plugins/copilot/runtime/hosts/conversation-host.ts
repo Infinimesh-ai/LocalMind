@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 
 import {
   CopilotMessageNotFound,
@@ -7,6 +7,7 @@ import {
 } from '../../../../base';
 import { CopilotAccessPolicy } from '../../access';
 import { CompatSubmissionStore } from '../../compat/submission-store';
+import { ContextMemoryService } from '../../context-memory-service';
 import {
   canonicalizeTurnTrace,
   type Turn,
@@ -35,7 +36,8 @@ export class ConversationHost {
     private readonly sessions: ChatSessionService,
     private readonly submissions: CompatSubmissionStore,
     private readonly mutex: Mutex,
-    private readonly access: CopilotAccessPolicy
+    private readonly access: CopilotAccessPolicy,
+    @Optional() private readonly contextMemory?: ContextMemoryService
   ) {}
 
   private async loadAcceptedTurn(
@@ -239,6 +241,13 @@ export class ConversationHost {
     const currentUserMessage =
       session.stashTurns.findLast(turn => turn.role === 'user') ??
       appended.turn;
+    await this.contextMemory?.captureDurableTurn({
+      userId,
+      workspaceId: session.config.workspaceId,
+      docId: session.config.docId,
+      sessionId,
+      turn: currentUserMessage,
+    });
 
     return {
       messageId,

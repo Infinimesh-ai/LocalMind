@@ -992,9 +992,10 @@ test('should cleanup empty sessions correctly', async t => {
     recent: 2,
     withMessages: 3,
   };
+  type SessionType = keyof typeof sessionTypeOrder;
   const remainingSessionDiagnostics = remainingSessions
     .map(s => {
-      const type = neverUsedSessionIds.includes(s.id)
+      const type: SessionType = neverUsedSessionIds.includes(s.id)
         ? 'zeroCost'
         : emptySessionIds.includes(s.id)
           ? 'noMessages'

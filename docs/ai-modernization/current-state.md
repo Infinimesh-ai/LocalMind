@@ -1234,6 +1234,32 @@ The latest DB-history hardening slices are now implemented:
   preserved through workspace deletion, and disposable Postgres smoke verifies
   direct-delete rejection plus cascade compatibility.
 
+The latest compatibility and verification repair is now implemented:
+
+- stale repair workers that no longer own the current lease/attempt treat
+  cooperative cancellation as a no-op instead of surfacing a false worker
+  error;
+- deterministic malformed or conflicting repair executor payloads terminate
+  with stable failure codes instead of entering automatic retry;
+- support bundle download authorization compares the original persisted JSONB
+  snapshot and nullable artifact metadata, so safe hydration of legacy rows
+  does not create a false stale-snapshot conflict;
+- GraphQL manual-control mutations translate expected repair/Agent Runtime
+  domain validation failures into user-facing bad requests;
+- task-route diagnostics carry policy-candidate identity fingerprints,
+  embedding-index and rerank-runtime contracts, provider provenance, and
+  effective-source evidence through generated GraphQL types and Admin/model
+  consumers;
+- generated GraphQL `JSON` values use an `unknown` client boundary instead of
+  a string-only record or global `any`, and the Registry publish-event
+  metadata consumer keeps that value opaque until a concrete use site narrows
+  it;
+- the root typecheck now includes isolated per-file Copilot AVA/e2e/spec test
+  typechecking, preventing those suites from being silently excluded after the
+  production project was narrowed; the legacy 12,000-line resolver smoke stays
+  on its documented `yarn r` runtime path because it exceeds TypeScript's
+  control-flow analysis limit.
+
 ## Not Completed
 
 The completed diagnostics do not yet provide the intended durable architecture.

@@ -38,6 +38,10 @@ export const CopilotModelBackendKindValues = [
   'gemini_vertex',
   'fal',
   'anthropic_vertex',
+  'deepseek',
+  'kimi',
+  'opencode_go',
+  'opencode_zen',
 ] as const satisfies readonly CopilotModelBackendKind[];
 
 export const LlmProtocolValues = [
@@ -52,6 +56,7 @@ export const LlmProtocolValues = [
 export const LlmRequestLayerValues = [
   'anthropic',
   'chat_completions',
+  'chat_completions_no_v1',
   'cloudflare_workers_ai',
   'responses',
   'openai_images',

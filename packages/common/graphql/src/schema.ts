@@ -28,7 +28,7 @@ export interface Scalars {
   /** A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format. */
   DateTime: { input: string; output: string };
   /** The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf). */
-  JSON: { input: Record<string, string>; output: Record<string, string> };
+  JSON: { input: unknown; output: unknown };
   /** The `JSONObject` scalar type represents JSON objects as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf). */
   JSONObject: { input: any; output: any };
   /** The `SafeInt` scalar type represents non-fractional signed whole numeric values that are considered safe as defined by the ECMAScript specification. */
@@ -624,6 +624,14 @@ export interface Copilot {
   /** List registered Agent Runtime workflow adapter capabilities for standalone run diagnostics */
   agentRuntimeWorkflowAdapters: Array<CopilotAgentRuntimeWorkflowAdapterType>;
   chats: PaginatedCopilotHistoriesType;
+  /** List authorized rules, automatic memories, and project summaries */
+  contextMemories: Array<CopilotContextMemoryType>;
+  /** List immutable context planner revisions and checkpoint activity */
+  contextPlannerStrategies: Array<CopilotContextStrategyType>;
+  /** List context projects whose documents the current user can access */
+  contextProjects: Array<CopilotContextProjectType>;
+  /** Get the current user context preferences for this workspace */
+  contextSettings: CopilotContextSettingsType;
   /** Get the context list of a session */
   contexts: Array<CopilotContext>;
   /** @deprecated use `chats` instead */
@@ -679,6 +687,15 @@ export interface CopilotChatsArgs {
   docId?: InputMaybe<Scalars['String']['input']>;
   options?: InputMaybe<QueryChatHistoriesInput>;
   pagination: PaginationInput;
+}
+
+export interface CopilotContextMemoriesArgs {
+  docId?: InputMaybe<Scalars['String']['input']>;
+  includeDisabled?: InputMaybe<Scalars['Boolean']['input']>;
+}
+
+export interface CopilotContextProjectsArgs {
+  includeArchived?: InputMaybe<Scalars['Boolean']['input']>;
 }
 
 export interface CopilotContextsArgs {
@@ -1147,6 +1164,53 @@ export interface CopilotContextFileNotSupportedDataType {
   __typename?: 'CopilotContextFileNotSupportedDataType';
   fileName: Scalars['String']['output'];
   message: Scalars['String']['output'];
+}
+
+export interface CopilotContextMemoryType {
+  __typename?: 'CopilotContextMemoryType';
+  content: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  docId: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  kind: Scalars['String']['output'];
+  ownerUserId: Scalars['String']['output'];
+  projectId: Maybe<Scalars['String']['output']>;
+  scope: Scalars['String']['output'];
+  sourceSessionId: Maybe<Scalars['String']['output']>;
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  visibility: Scalars['String']['output'];
+  workspaceId: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotContextProjectType {
+  __typename?: 'CopilotContextProjectType';
+  canManage: Scalars['Boolean']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  createdByUserId: Maybe<Scalars['String']['output']>;
+  description: Scalars['String']['output'];
+  documentCount: Scalars['Int']['output'];
+  documentIds: Array<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface CopilotContextSettingsType {
+  __typename?: 'CopilotContextSettingsType';
+  autoMemoryEnabled: Scalars['Boolean']['output'];
+}
+
+export interface CopilotContextStrategyType {
+  __typename?: 'CopilotContextStrategyType';
+  checkpointCount: Scalars['Int']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  fingerprint: Scalars['String']['output'];
+  lastCheckpointAt: Maybe<Scalars['DateTime']['output']>;
+  status: Scalars['String']['output'];
+  version: Scalars['String']['output'];
 }
 
 export interface CopilotDocNotFoundDataType {
@@ -3074,7 +3138,7 @@ export interface CopilotProviderRegistryPublishInput {
   idempotencyKey?: InputMaybe<Scalars['String']['input']>;
   modelDefinitions?: InputMaybe<Scalars['JSON']['input']>;
   models?: InputMaybe<Array<Scalars['String']['input']>>;
-  priority?: InputMaybe<Scalars['Float']['input']>;
+  priority?: InputMaybe<Scalars['Int']['input']>;
   privacy?: InputMaybe<Scalars['String']['input']>;
   providerId: Scalars['String']['input'];
   revision?: InputMaybe<Scalars['String']['input']>;
@@ -3088,6 +3152,7 @@ export interface CopilotProviderRegistryRevisionType {
   fallbackSourceChain: Scalars['JSON']['output'];
   fingerprint: Scalars['String']['output'];
   id: Scalars['String']['output'];
+  /** Immediate durable no-network provider health probe attempt created for this workspace provider revision. */
   providerHealthProbeAttempt: Maybe<CopilotProviderHealthProbeAttemptType>;
   providerId: Scalars['String']['output'];
   providerProfile: Scalars['JSON']['output'];
@@ -3817,6 +3882,22 @@ export interface CreateCheckoutSessionInput {
   recurring?: InputMaybe<SubscriptionRecurring>;
   successCallbackLink: Scalars['String']['input'];
   variant?: InputMaybe<SubscriptionVariant>;
+}
+
+export interface CreateCopilotContextMemoryInput {
+  content: Scalars['String']['input'];
+  docId?: InputMaybe<Scalars['String']['input']>;
+  kind: Scalars['String']['input'];
+  projectId?: InputMaybe<Scalars['String']['input']>;
+  scope: Scalars['String']['input'];
+  workspaceId?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface CreateCopilotContextProjectInput {
+  description?: InputMaybe<Scalars['String']['input']>;
+  documentIds: Array<Scalars['String']['input']>;
+  name: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
 }
 
 export interface CreateMcpCredentialInput {
@@ -4755,6 +4836,8 @@ export interface Mutation {
   createComment: CommentObjectType;
   /** Create a context session */
   createCopilotContext: Scalars['String']['output'];
+  createCopilotContextMemory: CopilotContextMemoryType;
+  createCopilotContextProject: CopilotContextProjectType;
   /** Create a chat message */
   createCopilotMessage: Scalars['String']['output'];
   /**
@@ -4785,6 +4868,8 @@ export interface Mutation {
   deleteBlob: Scalars['Boolean']['output'];
   /** Delete a comment */
   deleteComment: Scalars['Boolean']['output'];
+  deleteCopilotContextMemory: Scalars['Boolean']['output'];
+  deleteCopilotContextProject: Scalars['Boolean']['output'];
   /** Delete a reply */
   deleteReply: Scalars['Boolean']['output'];
   /** Delete a user account */
@@ -4879,6 +4964,9 @@ export interface Mutation {
   updateCalendarAccount: Maybe<CalendarAccountObjectType>;
   /** Update a comment content */
   updateComment: Scalars['Boolean']['output'];
+  updateCopilotContextMemory: CopilotContextMemoryType;
+  updateCopilotContextProject: CopilotContextProjectType;
+  updateCopilotContextSettings: CopilotContextSettingsType;
   /** Update a chat session */
   updateCopilotSession: Scalars['String']['output'];
   updateDocDefaultRole: Scalars['Boolean']['output'];
@@ -5036,6 +5124,14 @@ export interface MutationCreateCopilotContextArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationCreateCopilotContextMemoryArgs {
+  input: CreateCopilotContextMemoryInput;
+}
+
+export interface MutationCreateCopilotContextProjectArgs {
+  input: CreateCopilotContextProjectInput;
+}
+
 export interface MutationCreateCopilotMessageArgs {
   options: CreateChatMessageInput;
 }
@@ -5102,6 +5198,14 @@ export interface MutationDeleteBlobArgs {
 
 export interface MutationDeleteCommentArgs {
   id: Scalars['String']['input'];
+}
+
+export interface MutationDeleteCopilotContextMemoryArgs {
+  id: Scalars['ID']['input'];
+}
+
+export interface MutationDeleteCopilotContextProjectArgs {
+  id: Scalars['ID']['input'];
 }
 
 export interface MutationDeleteReplyArgs {
@@ -5390,6 +5494,18 @@ export interface MutationUpdateCalendarAccountArgs {
 
 export interface MutationUpdateCommentArgs {
   input: CommentUpdateInput;
+}
+
+export interface MutationUpdateCopilotContextMemoryArgs {
+  input: UpdateCopilotContextMemoryInput;
+}
+
+export interface MutationUpdateCopilotContextProjectArgs {
+  input: UpdateCopilotContextProjectInput;
+}
+
+export interface MutationUpdateCopilotContextSettingsArgs {
+  input: UpdateCopilotContextSettingsInput;
 }
 
 export interface MutationUpdateCopilotSessionArgs {
@@ -6322,6 +6438,25 @@ export interface UpdateChatSessionInput {
   /** The prompt name to use for the session */
   promptName?: InputMaybe<Scalars['String']['input']>;
   sessionId: Scalars['String']['input'];
+}
+
+export interface UpdateCopilotContextMemoryInput {
+  content?: InputMaybe<Scalars['String']['input']>;
+  id: Scalars['ID']['input'];
+  status?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface UpdateCopilotContextProjectInput {
+  description?: InputMaybe<Scalars['String']['input']>;
+  documentIds?: InputMaybe<Array<Scalars['String']['input']>>;
+  id: Scalars['ID']['input'];
+  name?: InputMaybe<Scalars['String']['input']>;
+  status?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface UpdateCopilotContextSettingsInput {
+  autoMemoryEnabled: Scalars['Boolean']['input'];
+  workspaceId: Scalars['String']['input'];
 }
 
 export interface UpdateDocDefaultRoleInput {
@@ -7385,7 +7520,7 @@ export type ValidateConfigQuery = {
     __typename?: 'AppConfigValidateResult';
     module: string;
     key: string;
-    value: Record<string, string>;
+    value: unknown;
     valid: boolean;
     error: string | null;
   }>;
@@ -8241,7 +8376,7 @@ export type GetCopilotAgentRunQuery = {
           failureMessage: string | null;
           id: string;
           resultFingerprint: string;
-          resultPayload: Record<string, string>;
+          resultPayload: unknown;
           resultStatus: string;
           runId: string;
           sideEffectMode: string;
@@ -8262,7 +8397,7 @@ export type GetCopilotAgentRunQuery = {
           evidenceFingerprint: string;
           id: string;
           order: number;
-          outputSummary: Record<string, string>;
+          outputSummary: unknown;
           runId: string;
           startedAt: string | null;
           status: string;
@@ -8280,7 +8415,7 @@ export type GetCopilotAgentRunQuery = {
           eventType: string;
           id: string;
           ordinal: number;
-          payload: Record<string, string>;
+          payload: unknown;
           runId: string;
           status: string;
           stepId: string | null;
@@ -8352,7 +8487,7 @@ export type GetCopilotAgentRunsQuery = {
           failureMessage: string | null;
           id: string;
           resultFingerprint: string;
-          resultPayload: Record<string, string>;
+          resultPayload: unknown;
           resultStatus: string;
           runId: string;
           sideEffectMode: string;
@@ -8373,7 +8508,7 @@ export type GetCopilotAgentRunsQuery = {
           evidenceFingerprint: string;
           id: string;
           order: number;
-          outputSummary: Record<string, string>;
+          outputSummary: unknown;
           runId: string;
           startedAt: string | null;
           status: string;
@@ -8391,7 +8526,7 @@ export type GetCopilotAgentRunsQuery = {
           eventType: string;
           id: string;
           ordinal: number;
-          payload: Record<string, string>;
+          payload: unknown;
           runId: string;
           status: string;
           stepId: string | null;
@@ -8446,7 +8581,7 @@ export type ControlCopilotAgentRuntimeRunMutation = {
       failureMessage: string | null;
       id: string;
       resultFingerprint: string;
-      resultPayload: Record<string, string>;
+      resultPayload: unknown;
       resultStatus: string;
       runId: string;
       sideEffectMode: string;
@@ -8467,7 +8602,7 @@ export type ControlCopilotAgentRuntimeRunMutation = {
       evidenceFingerprint: string;
       id: string;
       order: number;
-      outputSummary: Record<string, string>;
+      outputSummary: unknown;
       runId: string;
       startedAt: string | null;
       status: string;
@@ -8485,7 +8620,7 @@ export type ControlCopilotAgentRuntimeRunMutation = {
       eventType: string;
       id: string;
       ordinal: number;
-      payload: Record<string, string>;
+      payload: unknown;
       runId: string;
       status: string;
       stepId: string | null;
@@ -8555,6 +8690,63 @@ export type CreateCopilotContextMutationVariables = Exact<{
 export type CreateCopilotContextMutation = {
   __typename?: 'Mutation';
   createCopilotContext: string;
+};
+
+export type CopilotContextDashboardGetQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  includeDisabled?: InputMaybe<Scalars['Boolean']['input']>;
+}>;
+
+export type CopilotContextDashboardGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      contextSettings: {
+        __typename?: 'CopilotContextSettingsType';
+        autoMemoryEnabled: boolean;
+      };
+      contextPlannerStrategies: Array<{
+        __typename?: 'CopilotContextStrategyType';
+        version: string;
+        fingerprint: string;
+        status: string;
+        checkpointCount: number;
+        lastCheckpointAt: string | null;
+        createdAt: string;
+      }>;
+      contextProjects: Array<{
+        __typename?: 'CopilotContextProjectType';
+        id: string;
+        workspaceId: string;
+        createdByUserId: string | null;
+        name: string;
+        description: string;
+        status: string;
+        documentIds: Array<string>;
+        documentCount: number;
+        canManage: boolean;
+        createdAt: string;
+        updatedAt: string;
+      }>;
+      contextMemories: Array<{
+        __typename?: 'CopilotContextMemoryType';
+        id: string;
+        ownerUserId: string;
+        workspaceId: string | null;
+        docId: string | null;
+        projectId: string | null;
+        sourceSessionId: string | null;
+        scope: string;
+        kind: string;
+        status: string;
+        content: string;
+        createdAt: string;
+        updatedAt: string;
+      }>;
+    };
+  } | null;
 };
 
 export type AddContextDocMutationVariables = Exact<{
@@ -8793,6 +8985,157 @@ export type MatchFilesQuery = {
   } | null;
 };
 
+export type CopilotContextMemoriesGetQueryVariables = Exact<{
+  workspaceId?: InputMaybe<Scalars['String']['input']>;
+  docId?: InputMaybe<Scalars['String']['input']>;
+  includeDisabled?: InputMaybe<Scalars['Boolean']['input']>;
+}>;
+
+export type CopilotContextMemoriesGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      contextMemories: Array<{
+        __typename?: 'CopilotContextMemoryType';
+        id: string;
+        ownerUserId: string;
+        workspaceId: string | null;
+        docId: string | null;
+        projectId: string | null;
+        sourceSessionId: string | null;
+        scope: string;
+        kind: string;
+        status: string;
+        content: string;
+        createdAt: string;
+        updatedAt: string;
+      }>;
+    };
+  } | null;
+};
+
+export type CopilotContextMemoryCreateMutationVariables = Exact<{
+  input: CreateCopilotContextMemoryInput;
+}>;
+
+export type CopilotContextMemoryCreateMutation = {
+  __typename?: 'Mutation';
+  createCopilotContextMemory: {
+    __typename?: 'CopilotContextMemoryType';
+    id: string;
+    ownerUserId: string;
+    workspaceId: string | null;
+    docId: string | null;
+    projectId: string | null;
+    sourceSessionId: string | null;
+    scope: string;
+    kind: string;
+    status: string;
+    content: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type CopilotContextMemoryDeleteMutationVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+export type CopilotContextMemoryDeleteMutation = {
+  __typename?: 'Mutation';
+  deleteCopilotContextMemory: boolean;
+};
+
+export type CopilotContextMemoryUpdateMutationVariables = Exact<{
+  input: UpdateCopilotContextMemoryInput;
+}>;
+
+export type CopilotContextMemoryUpdateMutation = {
+  __typename?: 'Mutation';
+  updateCopilotContextMemory: {
+    __typename?: 'CopilotContextMemoryType';
+    id: string;
+    ownerUserId: string;
+    workspaceId: string | null;
+    docId: string | null;
+    projectId: string | null;
+    sourceSessionId: string | null;
+    scope: string;
+    kind: string;
+    status: string;
+    content: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type CopilotContextProjectCreateMutationVariables = Exact<{
+  input: CreateCopilotContextProjectInput;
+}>;
+
+export type CopilotContextProjectCreateMutation = {
+  __typename?: 'Mutation';
+  createCopilotContextProject: {
+    __typename?: 'CopilotContextProjectType';
+    id: string;
+    workspaceId: string;
+    createdByUserId: string | null;
+    name: string;
+    description: string;
+    status: string;
+    documentIds: Array<string>;
+    documentCount: number;
+    canManage: boolean;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type CopilotContextProjectDeleteMutationVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+export type CopilotContextProjectDeleteMutation = {
+  __typename?: 'Mutation';
+  deleteCopilotContextProject: boolean;
+};
+
+export type CopilotContextProjectUpdateMutationVariables = Exact<{
+  input: UpdateCopilotContextProjectInput;
+}>;
+
+export type CopilotContextProjectUpdateMutation = {
+  __typename?: 'Mutation';
+  updateCopilotContextProject: {
+    __typename?: 'CopilotContextProjectType';
+    id: string;
+    workspaceId: string;
+    createdByUserId: string | null;
+    name: string;
+    description: string;
+    status: string;
+    documentIds: Array<string>;
+    documentCount: number;
+    canManage: boolean;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type CopilotContextSettingsUpdateMutationVariables = Exact<{
+  input: UpdateCopilotContextSettingsInput;
+}>;
+
+export type CopilotContextSettingsUpdateMutation = {
+  __typename?: 'Mutation';
+  updateCopilotContextSettings: {
+    __typename?: 'CopilotContextSettingsType';
+    autoMemoryEnabled: boolean;
+  };
+};
+
 export type QueueWorkspaceEmbeddingMutationVariables = Exact<{
   workspaceId: Scalars['String']['input'];
   docId: Array<Scalars['String']['input']> | Scalars['String']['input'];
@@ -8898,8 +9241,8 @@ export type GetCopilotDocSessionsQuery = {
                 textDelta: string | null;
                 toolCallId: string | null;
                 toolName: string | null;
-                args: Record<string, string> | null;
-                result: Record<string, string> | null;
+                args: unknown | null;
+                result: unknown | null;
               }> | null;
             }>;
           };
@@ -8962,8 +9305,8 @@ export type GetCopilotPinnedSessionsQuery = {
                 textDelta: string | null;
                 toolCallId: string | null;
                 toolName: string | null;
-                args: Record<string, string> | null;
-                result: Record<string, string> | null;
+                args: unknown | null;
+                result: unknown | null;
               }> | null;
             }>;
           };
@@ -9025,8 +9368,8 @@ export type GetCopilotWorkspaceSessionsQuery = {
                 textDelta: string | null;
                 toolCallId: string | null;
                 toolName: string | null;
-                args: Record<string, string> | null;
-                result: Record<string, string> | null;
+                args: unknown | null;
+                result: unknown | null;
               }> | null;
             }>;
           };
@@ -9089,8 +9432,8 @@ export type GetCopilotHistoriesQuery = {
                 textDelta: string | null;
                 toolCallId: string | null;
                 toolName: string | null;
-                args: Record<string, string> | null;
-                result: Record<string, string> | null;
+                args: unknown | null;
+                result: unknown | null;
               }> | null;
             }>;
           };
@@ -9286,7 +9629,7 @@ export type GetPromptModelsQuery = {
               eventFingerprint: string;
               eventType: string;
               id: string;
-              metadata: Record<string, string>;
+              metadata: unknown;
               publishSource: string;
               registryFamily: string;
               registryKey: string;
@@ -9385,7 +9728,7 @@ export type GetPromptModelsQuery = {
               eventFingerprint: string;
               eventType: string;
               id: string;
-              metadata: Record<string, string>;
+              metadata: unknown;
               publishSource: string;
               registryFamily: string;
               registryKey: string;
@@ -9445,7 +9788,7 @@ export type GetPromptModelsQuery = {
             eventFingerprint: string;
             eventType: string;
             id: string;
-            metadata: Record<string, string>;
+            metadata: unknown;
             publishSource: string;
             registryFamily: string;
             registryKey: string;
@@ -9559,7 +9902,7 @@ export type GetPromptModelsQuery = {
             eventFingerprint: string;
             eventType: string;
             id: string;
-            metadata: Record<string, string>;
+            metadata: unknown;
             publishSource: string;
             registryFamily: string;
             registryKey: string;
@@ -9673,7 +10016,7 @@ export type GetPromptModelsQuery = {
             eventFingerprint: string;
             eventType: string;
             id: string;
-            metadata: Record<string, string>;
+            metadata: unknown;
             publishSource: string;
             registryFamily: string;
             registryKey: string;
@@ -9847,7 +10190,7 @@ export type GetPromptModelsQuery = {
               eventFingerprint: string;
               eventType: string;
               id: string;
-              metadata: Record<string, string>;
+              metadata: unknown;
               publishSource: string;
               registryFamily: string;
               registryKey: string;
@@ -9946,7 +10289,7 @@ export type GetPromptModelsQuery = {
               eventFingerprint: string;
               eventType: string;
               id: string;
-              metadata: Record<string, string>;
+              metadata: unknown;
               publishSource: string;
               registryFamily: string;
               registryKey: string;
@@ -10006,7 +10349,7 @@ export type GetPromptModelsQuery = {
             eventFingerprint: string;
             eventType: string;
             id: string;
-            metadata: Record<string, string>;
+            metadata: unknown;
             publishSource: string;
             registryFamily: string;
             registryKey: string;
@@ -10196,6 +10539,8 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             __typename?: 'CopilotPromptRegistryPublishGatePolicyCandidateType';
             allowed: boolean;
             available: boolean;
+            candidateFingerprint: string;
+            candidateKey: string;
             health: string;
             healthCheckedAt: string | null;
             privacy: string;
@@ -10693,7 +11038,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
           __typename?: 'CopilotPromptRegistryPublishGateRepairActionCatalogEntryType';
           actionKind: string;
           catalogVersion: string;
-          inputSchema: Record<string, string>;
+          inputSchema: unknown;
           recommendationCount: number;
           requiredCapabilities: Array<string>;
           safety: string;
@@ -10763,7 +11108,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
             embeddingIndexContractEvidenceFingerprints: Array<string>;
             rerankRuntimeContractEvidenceFingerprints: Array<string>;
             taskRouteEffectiveSourceFingerprints: Array<string>;
-            inputSchema: Record<string, string>;
+            inputSchema: unknown;
             instanceKey: string | null;
             operationFingerprint: string;
             preparedRouteOrderFingerprints: Array<string>;
@@ -10923,7 +11268,7 @@ export type GetCopilotPromptRegistryPublishGateQuery = {
           severity: string;
           suggestedAction: string;
           suggestedActionCatalogVersion: string;
-          suggestedActionInputSchema: Record<string, string>;
+          suggestedActionInputSchema: unknown;
           suggestedActionKind: string;
           suggestedActionRequiredCapabilities: Array<string>;
           suggestedActionSafety: string;
@@ -11515,7 +11860,7 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
         eventType: string;
         executionRequestId: string;
         id: string;
-        metadata: Record<string, string>;
+        metadata: unknown;
         workspaceId: string;
       }>;
       runtimeResult: {
@@ -11526,7 +11871,7 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
         sideEffectFingerprint: string | null;
         sideEffectKind: string | null;
         sideEffectRecordId: string | null;
-        sideEffectSummary: Record<string, string> | null;
+        sideEffectSummary: unknown | null;
         version: string;
       };
       sideEffects: Array<{
@@ -11540,7 +11885,7 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
         sideEffectFingerprint: string;
         sideEffectKind: string;
         sideEffectRecordId: string;
-        sideEffectSummary: Record<string, string>;
+        sideEffectSummary: unknown;
         workerAttempt: number;
         workerLeaseId: string;
         workspaceId: string;
@@ -11582,7 +11927,7 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
           failureMessage: string | null;
           id: string;
           resultFingerprint: string;
-          resultPayload: Record<string, string>;
+          resultPayload: unknown;
           resultStatus: string;
           runId: string;
           sideEffectMode: string;
@@ -11603,7 +11948,7 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
           evidenceFingerprint: string;
           id: string;
           order: number;
-          outputSummary: Record<string, string>;
+          outputSummary: unknown;
           runId: string;
           startedAt: string | null;
           status: string;
@@ -11621,7 +11966,7 @@ export type RequestCopilotPromptRegistryRepairExecutionMutation = {
           eventType: string;
           id: string;
           ordinal: number;
-          payload: Record<string, string>;
+          payload: unknown;
           runId: string;
           status: string;
           stepId: string | null;
@@ -12184,7 +12529,7 @@ export type GetCopilotPromptsQuery = {
           eventFingerprint: string;
           eventType: string;
           id: string;
-          metadata: Record<string, string>;
+          metadata: unknown;
           publishSource: string;
           registryFamily: string;
           registryKey: string;
@@ -12290,7 +12635,7 @@ export type GetCopilotPromptsQuery = {
             eventFingerprint: string;
             eventType: string;
             id: string;
-            metadata: Record<string, string>;
+            metadata: unknown;
             publishSource: string;
             registryFamily: string;
             registryKey: string;
@@ -12340,7 +12685,7 @@ export type RetryCopilotProviderHealthProbeAttemptMutation = {
     providerRegistryRevisionFingerprint: string;
     providerProfileSource: string | null;
     providerProfileFingerprint: string;
-    providerProfileSnapshot: Record<string, string>;
+    providerProfileSnapshot: unknown;
     requestFingerprint: string;
     status: string;
     attemptCount: number;
@@ -12355,7 +12700,7 @@ export type RetryCopilotProviderHealthProbeAttemptMutation = {
     failureMessage: string | null;
     resultStatus: string | null;
     resultLastError: string | null;
-    resultMetadata: Record<string, string>;
+    resultMetadata: unknown;
     resultFingerprint: string | null;
     providerHealthStateId: string | null;
     providerHealthStateFingerprint: string | null;
@@ -12388,7 +12733,7 @@ export type GetCopilotProviderHealthProbeAttemptsQuery = {
         providerRegistryRevisionFingerprint: string;
         providerProfileSource: string | null;
         providerProfileFingerprint: string;
-        providerProfileSnapshot: Record<string, string>;
+        providerProfileSnapshot: unknown;
         requestFingerprint: string;
         status: string;
         attemptCount: number;
@@ -12403,7 +12748,7 @@ export type GetCopilotProviderHealthProbeAttemptsQuery = {
         failureMessage: string | null;
         resultStatus: string | null;
         resultLastError: string | null;
-        resultMetadata: Record<string, string>;
+        resultMetadata: unknown;
         resultFingerprint: string | null;
         providerHealthStateId: string | null;
         providerHealthStateFingerprint: string | null;
@@ -12477,7 +12822,7 @@ export type DecideCopilotRepairExecutionApprovalMutation = {
       eventType: string;
       executionRequestId: string;
       id: string;
-      metadata: Record<string, string>;
+      metadata: unknown;
       workspaceId: string;
     }>;
     runtimeResult: {
@@ -12488,7 +12833,7 @@ export type DecideCopilotRepairExecutionApprovalMutation = {
       sideEffectFingerprint: string | null;
       sideEffectKind: string | null;
       sideEffectRecordId: string | null;
-      sideEffectSummary: Record<string, string> | null;
+      sideEffectSummary: unknown | null;
       version: string;
     };
     sideEffects: Array<{
@@ -12502,7 +12847,7 @@ export type DecideCopilotRepairExecutionApprovalMutation = {
       sideEffectFingerprint: string;
       sideEffectKind: string;
       sideEffectRecordId: string;
-      sideEffectSummary: Record<string, string>;
+      sideEffectSummary: unknown;
       workerAttempt: number;
       workerLeaseId: string;
       workspaceId: string;
@@ -12544,7 +12889,7 @@ export type DecideCopilotRepairExecutionApprovalMutation = {
         failureMessage: string | null;
         id: string;
         resultFingerprint: string;
-        resultPayload: Record<string, string>;
+        resultPayload: unknown;
         resultStatus: string;
         runId: string;
         sideEffectMode: string;
@@ -12565,7 +12910,7 @@ export type DecideCopilotRepairExecutionApprovalMutation = {
         evidenceFingerprint: string;
         id: string;
         order: number;
-        outputSummary: Record<string, string>;
+        outputSummary: unknown;
         runId: string;
         startedAt: string | null;
         status: string;
@@ -12583,7 +12928,7 @@ export type DecideCopilotRepairExecutionApprovalMutation = {
         eventType: string;
         id: string;
         ordinal: number;
-        payload: Record<string, string>;
+        payload: unknown;
         runId: string;
         status: string;
         stepId: string | null;
@@ -12640,7 +12985,7 @@ export type ControlCopilotRepairExecutionMutation = {
       eventType: string;
       executionRequestId: string;
       id: string;
-      metadata: Record<string, string>;
+      metadata: unknown;
       workspaceId: string;
     }>;
     runtimeResult: {
@@ -12651,7 +12996,7 @@ export type ControlCopilotRepairExecutionMutation = {
       sideEffectFingerprint: string | null;
       sideEffectKind: string | null;
       sideEffectRecordId: string | null;
-      sideEffectSummary: Record<string, string> | null;
+      sideEffectSummary: unknown | null;
       version: string;
     };
     sideEffects: Array<{
@@ -12665,7 +13010,7 @@ export type ControlCopilotRepairExecutionMutation = {
       sideEffectFingerprint: string;
       sideEffectKind: string;
       sideEffectRecordId: string;
-      sideEffectSummary: Record<string, string>;
+      sideEffectSummary: unknown;
       workerAttempt: number;
       workerLeaseId: string;
       workspaceId: string;
@@ -12707,7 +13052,7 @@ export type ControlCopilotRepairExecutionMutation = {
         failureMessage: string | null;
         id: string;
         resultFingerprint: string;
-        resultPayload: Record<string, string>;
+        resultPayload: unknown;
         resultStatus: string;
         runId: string;
         sideEffectMode: string;
@@ -12728,7 +13073,7 @@ export type ControlCopilotRepairExecutionMutation = {
         evidenceFingerprint: string;
         id: string;
         order: number;
-        outputSummary: Record<string, string>;
+        outputSummary: unknown;
         runId: string;
         startedAt: string | null;
         status: string;
@@ -12746,7 +13091,7 @@ export type ControlCopilotRepairExecutionMutation = {
         eventType: string;
         id: string;
         ordinal: number;
-        payload: Record<string, string>;
+        payload: unknown;
         runId: string;
         status: string;
         stepId: string | null;
@@ -12809,7 +13154,7 @@ export type GetCopilotRepairExecutionsQuery = {
           eventType: string;
           executionRequestId: string;
           id: string;
-          metadata: Record<string, string>;
+          metadata: unknown;
           workspaceId: string;
         }>;
         runtimeResult: {
@@ -12820,7 +13165,7 @@ export type GetCopilotRepairExecutionsQuery = {
           sideEffectFingerprint: string | null;
           sideEffectKind: string | null;
           sideEffectRecordId: string | null;
-          sideEffectSummary: Record<string, string> | null;
+          sideEffectSummary: unknown | null;
           version: string;
         };
         sideEffects: Array<{
@@ -12834,7 +13179,7 @@ export type GetCopilotRepairExecutionsQuery = {
           sideEffectFingerprint: string;
           sideEffectKind: string;
           sideEffectRecordId: string;
-          sideEffectSummary: Record<string, string>;
+          sideEffectSummary: unknown;
           workerAttempt: number;
           workerLeaseId: string;
           workspaceId: string;
@@ -12876,7 +13221,7 @@ export type GetCopilotRepairExecutionsQuery = {
             failureMessage: string | null;
             id: string;
             resultFingerprint: string;
-            resultPayload: Record<string, string>;
+            resultPayload: unknown;
             resultStatus: string;
             runId: string;
             sideEffectMode: string;
@@ -12897,7 +13242,7 @@ export type GetCopilotRepairExecutionsQuery = {
             evidenceFingerprint: string;
             id: string;
             order: number;
-            outputSummary: Record<string, string>;
+            outputSummary: unknown;
             runId: string;
             startedAt: string | null;
             status: string;
@@ -12915,7 +13260,7 @@ export type GetCopilotRepairExecutionsQuery = {
             eventType: string;
             id: string;
             ordinal: number;
-            payload: Record<string, string>;
+            payload: unknown;
             runId: string;
             status: string;
             stepId: string | null;
@@ -12971,8 +13316,8 @@ export type CreateCopilotSessionWithHistoryMutation = {
         textDelta: string | null;
         toolCallId: string | null;
         toolName: string | null;
-        args: Record<string, string> | null;
-        result: Record<string, string> | null;
+        args: unknown | null;
+        result: unknown | null;
       }> | null;
     }>;
   };
@@ -13047,8 +13392,8 @@ export type GetCopilotLatestDocSessionQuery = {
                 textDelta: string | null;
                 toolCallId: string | null;
                 toolName: string | null;
-                args: Record<string, string> | null;
-                result: Record<string, string> | null;
+                args: unknown | null;
+                result: unknown | null;
               }> | null;
             }>;
           };
@@ -13109,8 +13454,8 @@ export type GetCopilotSessionQuery = {
                 textDelta: string | null;
                 toolCallId: string | null;
                 toolName: string | null;
-                args: Record<string, string> | null;
-                result: Record<string, string> | null;
+                args: unknown | null;
+                result: unknown | null;
               }> | null;
             }>;
           };
@@ -13172,8 +13517,8 @@ export type GetCopilotRecentSessionsQuery = {
                 textDelta: string | null;
                 toolCallId: string | null;
                 toolName: string | null;
-                args: Record<string, string> | null;
-                result: Record<string, string> | null;
+                args: unknown | null;
+                result: unknown | null;
               }> | null;
             }>;
           };
@@ -13245,8 +13590,8 @@ export type GetCopilotSessionsQuery = {
                 textDelta: string | null;
                 toolCallId: string | null;
                 toolName: string | null;
-                args: Record<string, string> | null;
-                result: Record<string, string> | null;
+                args: unknown | null;
+                result: unknown | null;
               }> | null;
             }>;
           };
@@ -13296,13 +13641,13 @@ export type CreateCopilotSupportBundleMutation = {
       eventFingerprint: string;
       eventType: string;
       id: string;
-      metadata: Record<string, string>;
+      metadata: unknown;
       workspaceId: string;
     }>;
     manifestJson: {
       __typename?: 'CopilotSupportBundleManifestType';
       actorId: string;
-      archive: Record<string, string>;
+      archive: unknown;
       bundleId: string;
       createdAt: string;
       expiresAt: string;
@@ -13363,7 +13708,7 @@ export type CreateCopilotSupportBundleMutation = {
       forwardedAt: string | null;
       forwardedTransferEventFingerprint: string | null;
       forwardingEventFingerprint: string;
-      forwardingPayload: Record<string, string>;
+      forwardingPayload: unknown;
       forwardingPayloadFingerprint: string;
       id: string;
       lastAttemptAt: string | null;
@@ -13484,13 +13829,13 @@ export type GetCopilotSupportBundleQuery = {
           eventFingerprint: string;
           eventType: string;
           id: string;
-          metadata: Record<string, string>;
+          metadata: unknown;
           workspaceId: string;
         }>;
         manifestJson: {
           __typename?: 'CopilotSupportBundleManifestType';
           actorId: string;
-          archive: Record<string, string>;
+          archive: unknown;
           bundleId: string;
           createdAt: string;
           expiresAt: string;
@@ -13551,7 +13896,7 @@ export type GetCopilotSupportBundleQuery = {
           forwardedAt: string | null;
           forwardedTransferEventFingerprint: string | null;
           forwardingEventFingerprint: string;
-          forwardingPayload: Record<string, string>;
+          forwardingPayload: unknown;
           forwardingPayloadFingerprint: string;
           id: string;
           lastAttemptAt: string | null;
@@ -13616,13 +13961,13 @@ export type CleanupCopilotSupportBundleRetentionMutation = {
         eventFingerprint: string;
         eventType: string;
         id: string;
-        metadata: Record<string, string>;
+        metadata: unknown;
         workspaceId: string;
       }>;
       manifestJson: {
         __typename?: 'CopilotSupportBundleManifestType';
         actorId: string;
-        archive: Record<string, string>;
+        archive: unknown;
         bundleId: string;
         createdAt: string;
         expiresAt: string;
@@ -13675,7 +14020,7 @@ export type ReplayCopilotSupportBundleTransferForwardingEventMutation = {
     forwardedAt: string | null;
     forwardedTransferEventFingerprint: string | null;
     forwardingEventFingerprint: string;
-    forwardingPayload: Record<string, string>;
+    forwardingPayload: unknown;
     forwardingPayloadFingerprint: string;
     id: string;
     lastAttemptAt: string | null;
@@ -13735,13 +14080,13 @@ export type GetCopilotSupportBundlesQuery = {
           eventFingerprint: string;
           eventType: string;
           id: string;
-          metadata: Record<string, string>;
+          metadata: unknown;
           workspaceId: string;
         }>;
         manifestJson: {
           __typename?: 'CopilotSupportBundleManifestType';
           actorId: string;
-          archive: Record<string, string>;
+          archive: unknown;
           bundleId: string;
           createdAt: string;
           expiresAt: string;
@@ -13802,7 +14147,7 @@ export type GetCopilotSupportBundlesQuery = {
           forwardedAt: string | null;
           forwardedTransferEventFingerprint: string | null;
           forwardingEventFingerprint: string;
-          forwardingPayload: Record<string, string>;
+          forwardingPayload: unknown;
           forwardingPayloadFingerprint: string;
           id: string;
           lastAttemptAt: string | null;
@@ -14261,8 +14606,8 @@ export type CopilotChatHistoryFragment = {
       textDelta: string | null;
       toolCallId: string | null;
       toolName: string | null;
-      args: Record<string, string> | null;
-      result: Record<string, string> | null;
+      args: unknown | null;
+      result: unknown | null;
     }> | null;
   }>;
 };
@@ -14316,8 +14661,8 @@ export type PaginatedCopilotChatsFragment = {
           textDelta: string | null;
           toolCallId: string | null;
           toolName: string | null;
-          args: Record<string, string> | null;
-          result: Record<string, string> | null;
+          args: unknown | null;
+          result: unknown | null;
         }> | null;
       }>;
     };
@@ -15960,6 +16305,11 @@ export type Queries =
       response: GetCopilotAgentRunsQuery;
     }
   | {
+      name: 'copilotContextDashboardGetQuery';
+      variables: CopilotContextDashboardGetQueryVariables;
+      response: CopilotContextDashboardGetQuery;
+    }
+  | {
       name: 'listContextObjectQuery';
       variables: ListContextObjectQueryVariables;
       response: ListContextObjectQuery;
@@ -15983,6 +16333,11 @@ export type Queries =
       name: 'matchFilesQuery';
       variables: MatchFilesQueryVariables;
       response: MatchFilesQuery;
+    }
+  | {
+      name: 'copilotContextMemoriesGetQuery';
+      variables: CopilotContextMemoriesGetQueryVariables;
+      response: CopilotContextMemoriesGetQuery;
     }
   | {
       name: 'getCopilotHistoryIdsQuery';
@@ -16515,6 +16870,41 @@ export type Mutations =
       name: 'removeContextFileMutation';
       variables: RemoveContextFileMutationVariables;
       response: RemoveContextFileMutation;
+    }
+  | {
+      name: 'copilotContextMemoryCreateMutation';
+      variables: CopilotContextMemoryCreateMutationVariables;
+      response: CopilotContextMemoryCreateMutation;
+    }
+  | {
+      name: 'copilotContextMemoryDeleteMutation';
+      variables: CopilotContextMemoryDeleteMutationVariables;
+      response: CopilotContextMemoryDeleteMutation;
+    }
+  | {
+      name: 'copilotContextMemoryUpdateMutation';
+      variables: CopilotContextMemoryUpdateMutationVariables;
+      response: CopilotContextMemoryUpdateMutation;
+    }
+  | {
+      name: 'copilotContextProjectCreateMutation';
+      variables: CopilotContextProjectCreateMutationVariables;
+      response: CopilotContextProjectCreateMutation;
+    }
+  | {
+      name: 'copilotContextProjectDeleteMutation';
+      variables: CopilotContextProjectDeleteMutationVariables;
+      response: CopilotContextProjectDeleteMutation;
+    }
+  | {
+      name: 'copilotContextProjectUpdateMutation';
+      variables: CopilotContextProjectUpdateMutationVariables;
+      response: CopilotContextProjectUpdateMutation;
+    }
+  | {
+      name: 'copilotContextSettingsUpdateMutation';
+      variables: CopilotContextSettingsUpdateMutationVariables;
+      response: CopilotContextSettingsUpdateMutation;
     }
   | {
       name: 'queueWorkspaceEmbeddingMutation';

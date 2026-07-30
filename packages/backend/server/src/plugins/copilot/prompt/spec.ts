@@ -1,12 +1,12 @@
 import type {
+  RegistryRevisionPublishEventHistory,
+  RegistryRevisionPublishEventRecord,
+} from '../../../models/copilot-registry-revision-publish-event';
+import type {
   PromptConfig,
   PromptMessage,
   PromptParams,
 } from '../providers/types';
-import type {
-  RegistryRevisionPublishEventHistory,
-  RegistryRevisionPublishEventRecord,
-} from '../../../models/copilot-registry-revision-publish-event';
 
 export type Prompt = {
   name: string;
@@ -210,8 +210,8 @@ export type PromptCatalogItem = Omit<
   versionEvidence: PromptCatalogVersionEvidence;
 };
 
-export type PromptRegistryRevisionWithPublishEvents =
-  PromptRegistryRevision & RegistryRevisionPublishEventHistory;
+export type PromptRegistryRevisionWithPublishEvents = PromptRegistryRevision &
+  RegistryRevisionPublishEventHistory;
 
 export type PromptCatalogVersionEvidence = {
   defaultPolicy?: ResolvedPrompt['defaultPolicy'];

@@ -160,6 +160,8 @@ test.before(async t => {
             },
           },
           providers: {
+            defaults: {},
+            routePolicy: {},
             openaiCompatible: {
               apiStyle: 'chat_completions',
               baseURL: 'http://localmind.invalid/v1',
@@ -466,7 +468,7 @@ test('task route policy DB constraints reject mismatched revision scope and work
       ${'copilot.tasks.models.workspaceIndexing'},
       ${'globalworkspace4'},
       ${'[]'}::jsonb,
-      ${'{}'}::jsonb,
+      ${'{"version":"legacy-test"}'}::jsonb,
       ${now},
       ${now}
     )
@@ -503,7 +505,7 @@ test('task route policy DB constraints reject mismatched revision scope and work
       ${'copilot.tasks.models.workspaceIndexing'},
       ${'workspacewithout4'},
       ${'[]'}::jsonb,
-      ${'{}'}::jsonb,
+      ${'{"version":"legacy-test"}'}::jsonb,
       ${now},
       ${now}
     )
@@ -540,7 +542,7 @@ test('task route policy DB constraints reject mismatched revision scope and work
         ${'workspaceIndexing'},
         ${'copilot.tasks.models.workspaceIndexing'},
         ${'invalidjson444'},
-        ${'{}'}::jsonb,
+        ${'{"version":"legacy-test"}'}::jsonb,
         ${'[]'}::jsonb,
         ${now},
         ${now}
@@ -587,7 +589,7 @@ test('task route policy DB constraints reject mismatched revision scope and work
             status: 'untrusted_status',
           },
         ])}::jsonb,
-        ${'{}'}::jsonb,
+        ${'{"version":"legacy-test"}'}::jsonb,
         ${now},
         ${now}
       )
@@ -636,7 +638,7 @@ test('task route policy DB constraints reject mismatched revision scope and work
             configKey: 'unknownConfigKey',
           },
         ])}::jsonb,
-        ${'{}'}::jsonb,
+        ${'{"version":"legacy-test"}'}::jsonb,
         ${now},
         ${now}
       )
@@ -678,7 +680,7 @@ test('task route policy DB constraints reject mismatched revision scope and work
         ${'copilot.tasks.models.workspaceIndexing'},
         ${'invalidrevision2'},
         ${'[]'}::jsonb,
-        ${'{}'}::jsonb,
+        ${'{"version":"legacy-test"}'}::jsonb,
         ${now},
         ${now}
       )
@@ -718,7 +720,7 @@ test('task route policy DB constraints reject mismatched revision scope and work
         ${'copilot.tasks.models.rerank'},
         ${'invalidtaskroute4'},
         ${'[]'}::jsonb,
-        ${'{}'}::jsonb,
+        ${'{"version":"legacy-test"}'}::jsonb,
         ${now},
         ${now}
       )
@@ -758,7 +760,7 @@ test('task route policy DB constraints reject mismatched revision scope and work
         ${'copilot.tasks.models.rerank'},
         ${'   '},
         ${'[]'}::jsonb,
-        ${'{}'}::jsonb,
+        ${'{"version":"legacy-test"}'}::jsonb,
         ${now},
         ${now}
       )
@@ -800,7 +802,7 @@ test('task route policy DB constraints reject mismatched revision scope and work
         ${'copilot.tasks.models.rerank'},
         ${'invalidconfigkey1'},
         ${'[]'}::jsonb,
-        ${'{}'}::jsonb,
+        ${'{"version":"legacy-test"}'}::jsonb,
         ${now},
         ${now}
       )
@@ -842,7 +844,7 @@ test('task route policy DB constraints reject mismatched revision scope and work
         ${'   '},
         ${'invalidconfigpath1'},
         ${'[]'}::jsonb,
-        ${'{}'}::jsonb,
+        ${'{"version":"legacy-test"}'}::jsonb,
         ${now},
         ${now}
       )
@@ -884,7 +886,7 @@ test('task route policy DB constraints reject mismatched revision scope and work
         ${'copilot.tasks.models.rerank'},
         ${'invalidtimestamp4'},
         ${'[]'}::jsonb,
-        ${'{}'}::jsonb,
+        ${'{"version":"legacy-test"}'}::jsonb,
         ${now},
         ${new Date(now.getTime() - 60_000)}
       )

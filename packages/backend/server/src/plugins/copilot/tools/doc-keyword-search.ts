@@ -1,6 +1,9 @@
 import { z } from 'zod';
 
-import type { PermissionAccess } from '../../../core/permission';
+import type {
+  PermissionAccess,
+  PermissionService,
+} from '../../../core/permission';
 import type { Models } from '../../../models';
 import type { IndexerService, SearchDoc } from '../../indexer';
 import { workspaceSyncRequiredError } from './doc-sync';
@@ -10,6 +13,7 @@ import type { CopilotChatOptions } from './types';
 
 export const buildDocKeywordSearchGetter = (
   ac: PermissionAccess,
+  permission: PermissionService,
   indexerService: IndexerService,
   models: Models
 ) => {
@@ -35,9 +39,14 @@ export const buildDocKeywordSearchGetter = (
         'You do not have permission to access this workspace.'
       );
     }
+    const docIds = await permission.listReadableDocIds({
+      userId: options.user,
+      workspaceId: options.workspace,
+    });
     const docs = await indexerService.searchDocsByKeyword(
       options.workspace,
-      queryTrimmed
+      queryTrimmed,
+      { docIds }
     );
 
     // filter current user readable docs

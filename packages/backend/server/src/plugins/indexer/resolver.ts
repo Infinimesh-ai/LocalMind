@@ -1,5 +1,4 @@
 import { Args, Parent, ResolveField, Resolver } from '@nestjs/graphql';
-import { Prisma, PrismaClient } from '@prisma/client';
 
 import { CurrentUser } from '../../core/auth';
 import { PermissionAccess, PermissionService } from '../../core/permission';
@@ -24,7 +23,6 @@ export class IndexerResolver {
   constructor(
     private readonly indexer: IndexerService,
     private readonly ac: PermissionAccess,
-    private readonly db: PrismaClient,
     private readonly permission: PermissionService,
     private readonly quotaState: QuotaStateService
   ) {}
@@ -165,7 +163,10 @@ export class IndexerResolver {
       return null;
     }
 
-    return await this.#listReadableDocIds(workspace, user);
+    return await this.permission.listReadableDocIds({
+      userId: user.id,
+      workspaceId: workspace.id,
+    });
   }
 
   #docIdFilterQuery(docIds: string[]): SearchQuery {
@@ -178,30 +179,5 @@ export class IndexerResolver {
         match: docId,
       })),
     };
-  }
-
-  async #listReadableDocIds(workspace: WorkspaceType, user: UserType) {
-    const input = {
-      userId: user.id,
-      workspaceId: workspace.id,
-      action: 'Doc.Read',
-      docIdColumn: Prisma.raw('candidate_docs.doc_id'),
-    } as const;
-    const predicate = this.permission.docReadableSqlPredicate(input);
-    const rows = await this.db.$queryRaw<{ docId: string }[]>`
-        WITH candidate_docs AS (
-          SELECT "workspace_pages"."page_id" AS doc_id
-          FROM "workspace_pages"
-          WHERE "workspace_pages"."workspace_id" = ${workspace.id}
-          UNION
-          SELECT "snapshots"."guid" AS doc_id
-          FROM "snapshots"
-          WHERE "snapshots"."workspace_id" = ${workspace.id}
-        )
-        SELECT candidate_docs.doc_id AS "docId"
-        FROM candidate_docs
-        WHERE ${predicate}
-      `;
-    return rows.map(row => row.docId);
   }
 }

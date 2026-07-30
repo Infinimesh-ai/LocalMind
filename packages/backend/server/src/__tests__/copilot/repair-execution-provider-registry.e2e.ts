@@ -96,6 +96,8 @@ test.before(async t => {
       ConfigModule.override({
         copilot: {
           providers: {
+            defaults: {},
+            routePolicy: {},
             profiles: [
               {
                 id: providerId,
@@ -119,7 +121,10 @@ test.before(async t => {
                 ],
               },
             ],
-            openai: { apiKey: '1' },
+            openai: {
+              apiKey: '1',
+              baseURL: 'https://api.openai.com/v1',
+            },
           },
           prompts: {
             defaults: {
@@ -146,15 +151,16 @@ test.beforeEach(async t => {
 });
 
 test.after.always(async t => {
-  await t.context.app.close();
+  await t.context.app?.close();
 });
 
 test(providerRegistryRepairTestName, async t => {
   const { app, db, owner, worker } = t.context;
   const workspace = await createWorkspace(app);
 
-  const { record: waitingRecord } =
-    await app.get(Models).copilotRepairExecution.createOrReuse({
+  const { record: waitingRecord } = await app
+    .get(Models)
+    .copilotRepairExecution.createOrReuse({
       workspaceId: workspace.id,
       actorId: owner.id,
       promptName: 'provider-registry-repair-test',
@@ -232,10 +238,7 @@ test(providerRegistryRepairTestName, async t => {
       },
     },
   });
-  t.is(
-    decisionResult.decideCopilotRepairExecutionApproval.status,
-    'queued'
-  );
+  t.is(decisionResult.decideCopilotRepairExecutionApproval.status, 'queued');
   t.is(
     decisionResult.decideCopilotRepairExecutionApproval.approvalState,
     'approved'
@@ -322,10 +325,7 @@ test(providerRegistryRepairTestName, async t => {
     status: 'active',
     workspaceId: workspace.id,
   });
-  t.is(
-    revisionRows[0]?.metadata.executionRequestId,
-    waitingRecord.id
-  );
+  t.is(revisionRows[0]?.metadata.executionRequestId, waitingRecord.id);
   t.is(revisionRows[0]?.metadata.publishSource, 'repair_execution_worker');
   t.is(revisionRows[0]?.metadata.operationFingerprint, 'providerrepairop');
   t.deepEqual(revisionRows[0]?.providerProfile.config, {});
@@ -431,8 +431,9 @@ test(providerRegistryBoundaryTestName, async t => {
   const { app, db, owner, worker } = t.context;
   const workspace = await createWorkspace(app);
 
-  const { record: waitingRecord } =
-    await app.get(Models).copilotRepairExecution.createOrReuse({
+  const { record: waitingRecord } = await app
+    .get(Models)
+    .copilotRepairExecution.createOrReuse({
       workspaceId: workspace.id,
       actorId: owner.id,
       promptName: 'provider-registry-boundary-test',
@@ -480,7 +481,7 @@ test(providerRegistryBoundaryTestName, async t => {
     workspaceId: workspace.id,
     executionRequestId: waitingRecord.id,
   });
-  t.is(signal, JOB_SIGNAL.Retry);
+  t.is(signal, JOB_SIGNAL.Done);
 
   const failureRows = await db.$queryRaw<
     Array<{
@@ -500,7 +501,7 @@ test(providerRegistryBoundaryTestName, async t => {
   `;
   t.like(failureRows[0], {
     failureCode: 'invalid_executor_payload',
-    status: 'queued',
+    status: 'failed',
   });
   t.false(failureRows[0]?.runtimeResult.sideEffectsApplied);
 

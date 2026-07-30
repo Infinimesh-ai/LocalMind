@@ -151,6 +151,13 @@ export type IgnoredDoc = {
 
 export const EMBEDDING_DIMENSIONS = 1024;
 
+export function toPgVector(embedding: number[]): string {
+  if (!embedding.length || embedding.some(value => !Number.isFinite(value))) {
+    throw new Error('Embedding vector must contain finite numbers');
+  }
+  return `[${embedding.join(',')}]`;
+}
+
 const FILTER_PREFIX = [
   'Title: ',
   'Created at: ',

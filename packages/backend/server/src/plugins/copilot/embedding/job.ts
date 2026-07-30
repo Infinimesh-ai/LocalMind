@@ -464,12 +464,11 @@ export class CopilotEmbeddingJob {
               this.logger.debug(
                 `Doc ${docId} in workspace ${workspaceId} has no content change, skipping embedding.`
               );
-              if (contextId) {
-                this.event.emit('workspace.doc.embed.finished', {
-                  contextId,
-                  docId,
-                });
-              }
+              this.event.emit('workspace.doc.embed.finished', {
+                contextId,
+                workspaceId,
+                docId,
+              });
               return;
             }
 
@@ -512,19 +511,12 @@ export class CopilotEmbeddingJob {
           );
         }
       }
-      if (contextId) {
-        this.event.emit('workspace.doc.embed.finished', {
-          contextId,
-          docId,
-        });
-      }
+      this.event.emit('workspace.doc.embed.finished', {
+        contextId,
+        workspaceId,
+        docId,
+      });
     } catch (error: any) {
-      if (contextId) {
-        this.event.emit('workspace.doc.embed.failed', {
-          contextId,
-          docId,
-        });
-      }
       if (
         error instanceof CopilotContextFileNotSupported &&
         error.message.includes('no content found')
@@ -537,8 +529,19 @@ export class CopilotEmbeddingJob {
           workspaceId,
           docId
         );
+        this.event.emit('workspace.doc.embed.finished', {
+          contextId,
+          workspaceId,
+          docId,
+        });
         return;
       }
+
+      this.event.emit('workspace.doc.embed.failed', {
+        contextId,
+        workspaceId,
+        docId,
+      });
 
       // log error and skip the job
       this.logger.error(

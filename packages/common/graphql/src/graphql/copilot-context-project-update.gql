@@ -1,0 +1,17 @@
+mutation copilotContextProjectUpdate(
+  $input: UpdateCopilotContextProjectInput!
+) {
+  updateCopilotContextProject(input: $input) {
+    id
+    workspaceId
+    createdByUserId
+    name
+    description
+    status
+    documentIds
+    documentCount
+    canManage
+    createdAt
+    updatedAt
+  }
+}

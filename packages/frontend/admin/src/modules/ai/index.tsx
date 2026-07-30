@@ -37,6 +37,7 @@ import {
   type AIModelTaskRouteCandidateTraceRow,
   type AIModelTaskRouteDiagnosticsSummary,
   type AIModelTaskRoutePhaseTraceRow,
+  type AIModelTaskRoutePolicyCandidate,
   type AIModelTaskRoutePolicyCandidateTraceRow,
   type AIModelTaskRouteReadinessStatus,
   type AIModelTaskRouteReasonRemediationActionKind,
@@ -78,8 +79,8 @@ import {
   getPromptModelsQuery,
   getWorkspacesQuery,
   type QueryResponse,
-  requestCopilotPromptRegistryRepairExecutionMutation,
   replayCopilotSupportBundleTransferForwardingEventMutation,
+  requestCopilotPromptRegistryRepairExecutionMutation,
   retryCopilotProviderHealthProbeAttemptMutation,
   updateAppConfigMutation,
 } from '@affine/graphql';
@@ -136,10 +137,6 @@ const REPAIR_EXECUTION_STATUSES = [
   'cancelled',
 ] as const;
 const EMPTY_REPAIR_EXECUTION_PAYLOAD_JSON = '{\n  "kind": ""\n}';
-const REPAIR_EXECUTION_DETERMINISTIC_PAYLOAD_FAILURE_CODES = new Set([
-  'invalid_executor_payload',
-  'unsupported_executor_payload',
-]);
 const OPENAI_COMPATIBLE_API_STYLES = [
   'chat_completions',
   'responses',
@@ -662,6 +659,7 @@ function formatProviderMetadata(value: string, labels: Record<string, string>) {
 
 function formatProviderIdentity(
   row:
+    | AIModelTaskRoutePolicyCandidate
     | AIModelTaskRoutePolicyCandidateTraceRow
     | AIModelTaskRouteCandidateTraceRow
     | PromptRegistryPublishGatePolicyCandidate
@@ -1579,9 +1577,11 @@ function formatTaskRoutePreparedRouteText(route: AIModelPreparedTaskRoute) {
   ]);
 }
 
-function formatTaskRouteDiagnosticsErrorText(
-  error: PromptRegistryPublishGateTaskRoute['diagnosticsErrors'][number]
-) {
+function formatTaskRouteDiagnosticsErrorText(error: {
+  code: string;
+  message: string;
+  stage: string;
+}) {
   return compactList([
     `stage ${formatFeatureKind(error.stage)}`,
     `code ${formatFeatureKind(error.code)}`,
@@ -1647,7 +1647,7 @@ function formatTaskRoutePolicyCandidateText(
 }
 
 function formatPromptRegistryPublishGatePolicyCandidate(
-  row: PromptRegistryPublishGatePolicyCandidate
+  row: AIModelTaskRoutePolicyCandidate
 ) {
   const providerProfileLabel = formatAIModelProviderProfileLabel({
     providerConfiguredModelCount: row.providerConfiguredModelCount,
@@ -1730,8 +1730,6 @@ function formatTaskRouteCandidateText(row: AIModelTaskRouteCandidateTraceRow) {
       row.modelRegistryRevisionSourceChainFingerprint,
     modelRegistryRevisionStatus: row.modelRegistryRevisionStatus,
     modelRegistryRevisionWorkspaceId: row.modelRegistryRevisionWorkspaceId,
-    modelRegistryRevisionPublishEventCount:
-      row.modelRegistryRevisionPublishEventCount,
     routeProtocol: null,
     routeRawModelId: row.routeRawModelId,
     routeRequestLayer: null,
@@ -1922,8 +1920,6 @@ function formatPromptRegistryPublishGateRouteCandidate(
       row.modelRegistryRevisionSourceChainFingerprint,
     modelRegistryRevisionStatus: row.modelRegistryRevisionStatus,
     modelRegistryRevisionWorkspaceId: row.modelRegistryRevisionWorkspaceId,
-    modelRegistryRevisionPublishEventCount:
-      row.modelRegistryRevisionPublishEventCount,
     routeProtocol: null,
     routeRawModelId: row.routeRawModelId,
     routeRequestLayer: null,
@@ -3093,6 +3089,7 @@ function PromptRegistryPublishGateQueryResult({
             approvalPolicyFingerprint: '',
             authorizationFingerprint: '',
             candidateEvidenceSetFingerprint: '',
+            taskRouteEffectiveSourceEvidenceSetFingerprint: '',
             embeddingIndexContractEvidenceSetFingerprint: '',
             rerankRuntimeContractEvidenceSetFingerprint: '',
             preparedRouteOrderEvidenceSetFingerprint: '',
@@ -3107,6 +3104,7 @@ function PromptRegistryPublishGateQueryResult({
             previewFingerprint: '',
             requiredInputs: [],
             submissionFingerprint: '',
+            targetLocatorFingerprint: '',
           },
       workspaceId,
     },

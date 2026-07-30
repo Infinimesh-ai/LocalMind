@@ -57,6 +57,35 @@ Use `localmind-affine:local` when the goal changes:
 
 Report whether the image was rebuilt and which fixed tag was used.
 
+## Latest Validation Record
+
+The 2026-07-29 compatibility repair was validated with:
+
+- 56 Copilot resolver/session/runtime tests;
+- 33 tool-loop, session, workspace embedding, and permission-filtering tests;
+- 152 repair execution, Agent Runtime, Provider Registry, and Provider Health
+  tests;
+- 37 support bundle lifecycle and transfer-forwarding tests;
+- the resolver source-chain smoke plus 29 Admin AI and 39 frontend model
+  service tests on the host and again in an ephemeral container based on
+  `localmind-affine:dev-base`;
+- root TypeScript project references plus isolated typechecking of 26 Copilot
+  test files;
+- GraphQL generation, Prettier, oxlint, and `git diff --check`;
+- live runtime requests returning HTTP 200 from the configured Infinimesh text,
+  Sparkclaw embedding, and Sparkclaw reranker routes; the embedding route
+  returned a 1024-dimensional vector.
+- the ephemeral container source manifest was synchronized to the current
+  tracked and untracked source set without macOS `._*` metadata or deleted-file
+  leftovers; Prisma Client was regenerated from the current schema before the
+  forced backend project-reference and Copilot test typechecks.
+
+No image was rebuilt. The fixed `localmind-affine:test` image was absent, and
+the existing `localmind-affine:dev-base` image lacked its ARM64 native addon
+and Rust toolchain. Container source validation therefore reused the Linux
+ARM64 addon from the running fixed `localmind-affine:local` image in an
+ephemeral container. No Docker volume or persisted service data was changed.
+
 ## Definition Of Done
 
 Every future goal summary should state:

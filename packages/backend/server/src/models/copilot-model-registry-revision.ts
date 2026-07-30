@@ -156,6 +156,7 @@ const MODEL_REGISTRY_SOURCE_CHAIN_STATUSES = new Set([
   'active',
   'available',
   'disabled',
+  'prepared_for_approval',
   'provider_available',
 ]);
 const MODEL_REGISTRY_REVISION_SCOPE_TYPES = new Set(['global', 'workspace']);
@@ -1380,16 +1381,6 @@ export class CopilotModelRegistryRevisionModel extends BaseModel {
         .get(providerId)
         ?.find(revision => revision.modelId === modelId) ?? null
     );
-  }
-
-  private async getByWorkspaceRevision(input: {
-    providerId: string;
-    modelId: string;
-    revision: string;
-    workspaceId: string;
-  }) {
-    const row = await this.getWorkspaceRevisionRow(input);
-    return row ? toRevision(row) : null;
   }
 
   private async getWorkspaceRevisionRow(input: {

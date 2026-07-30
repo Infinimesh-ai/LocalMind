@@ -74,6 +74,15 @@ export class PermissionService {
     return this.sqlPredicate.docReadableSql(input);
   }
 
+  async listReadableDocIds(input: { userId: string; workspaceId: string }) {
+    const predicate = this.docReadableSqlPredicate({
+      ...input,
+      action: 'Doc.Read',
+      docIdColumn: Prisma.raw('candidate_docs.doc_id'),
+    });
+    return await this.loader.listReadableDocIds(input.workspaceId, predicate);
+  }
+
   evaluate(input: PermissionEvaluationInputV1) {
     try {
       return evaluatePermissionV1(input);

@@ -17,6 +17,7 @@ import { GraphQLJSON, SafeIntResolver } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.mjs';
 
 import {
+  BadRequest,
   CallMetric,
   CopilotDocNotFound,
   CopilotFailedToCreateMessage,
@@ -60,30 +61,30 @@ import type {
   CopilotAgentTimelineEventRecord,
 } from '../../models/copilot-agent-runtime';
 import type {
-  CopilotRepairExecutionAuditEventRecord,
-  CopilotRepairExecutionListFilter,
-  CopilotRepairExecutionRecord,
-  CopilotRepairExecutionRuntimeResult,
-  CopilotRepairExecutionSideEffectRecord,
-} from '../../models/copilot-repair-execution';
-import type {
-  RegistryRevisionPublishEventHistory,
-  RegistryRevisionPublishEventRecord,
-} from '../../models/copilot-registry-revision-publish-event';
-import type {
   ModelRegistryRevision,
   ModelRegistrySourceChainEntry,
 } from '../../models/copilot-model-registry-revision';
-import type {
-  ProviderRegistryRevision,
-  ProviderRegistrySourceChainEntry,
-} from '../../models/copilot-provider-registry-revision';
 import type {
   CopilotProviderHealthEventRecord,
   CopilotProviderHealthProbeAttemptListFilter,
   CopilotProviderHealthProbeAttemptRecord,
   CopilotProviderHealthState,
 } from '../../models/copilot-provider-health-state';
+import type {
+  ProviderRegistryRevision,
+  ProviderRegistrySourceChainEntry,
+} from '../../models/copilot-provider-registry-revision';
+import type {
+  RegistryRevisionPublishEventHistory,
+  RegistryRevisionPublishEventRecord,
+} from '../../models/copilot-registry-revision-publish-event';
+import type {
+  CopilotRepairExecutionAuditEventRecord,
+  CopilotRepairExecutionListFilter,
+  CopilotRepairExecutionRecord,
+  CopilotRepairExecutionRuntimeResult,
+  CopilotRepairExecutionSideEffectRecord,
+} from '../../models/copilot-repair-execution';
 import type {
   CopilotSupportBundleAuditEventRecord,
   CopilotSupportBundleDownloadAuthorization,
@@ -98,6 +99,10 @@ import type {
   CopilotSupportBundleTransferForwardingEventRecord,
 } from '../../models/copilot-support-bundle';
 import type { CopilotAccessContext } from './access';
+import {
+  type CopilotAgentRuntimeWorkflowAdapterCapabilities,
+  CopilotAgentRuntimeWorkflowRegistry,
+} from './agent-runtime-workflow-registry';
 import { CompatHistoryProjector } from './compat/history-projector';
 import type {
   CopilotModelDefinition,
@@ -128,12 +133,12 @@ import {
   type ResolvedProviderModel,
   resolveModelLimits,
 } from './providers/provider-model-runtime';
-import { CopilotProviderRegistryService } from './providers/registry-service';
 import type {
-  NormalizedCopilotProviderProfile,
   CopilotProviderRoutePolicyCandidateDiagnostics,
   CopilotProviderRoutePolicySummary,
+  NormalizedCopilotProviderProfile,
 } from './providers/provider-registry';
+import { CopilotProviderRegistryService } from './providers/registry-service';
 import {
   ModelInputType,
   ModelOutputType,
@@ -148,16 +153,12 @@ import {
 import { ExecutionPlanBuilder } from './runtime/execution-plan';
 import {
   TaskPolicy,
-  type TaskRoutePolicyRevision,
   type TaskRoutePolicyFeatureKind,
+  type TaskRoutePolicyRevision,
   type TaskRoutePolicySourceChainEntry,
 } from './runtime/task-policy';
 import { ChatSessionService } from './session';
 import { type ChatHistory, type ChatMessage, SubmittedMessage } from './types';
-import {
-  CopilotAgentRuntimeWorkflowRegistry,
-  type CopilotAgentRuntimeWorkflowAdapterCapabilities,
-} from './agent-runtime-workflow-registry';
 
 export const COPILOT_LOCKER = 'copilot';
 
@@ -1688,6 +1689,17 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidence = {
   matched?: boolean;
   modelEmbeddingDimensions?: number;
   modelId?: string;
+  modelRegistryRevision?: string;
+  modelRegistryRevisionActorId?: string;
+  modelRegistryRevisionFingerprint?: string;
+  modelRegistryRevisionId?: string;
+  modelRegistryRevisionPublishEventCount?: number;
+  modelRegistryRevisionPublishEvents?: RegistryRevisionPublishEventRecord[];
+  modelRegistryRevisionScope?: string;
+  modelRegistryRevisionSourceChain?: CopilotModelRegistrySourceChainEntry[];
+  modelRegistryRevisionSourceChainFingerprint?: string;
+  modelRegistryRevisionStatus?: string;
+  modelRegistryRevisionWorkspaceId?: string;
   prepared?: boolean;
   preparedModelId?: string;
   prepareCandidateSnapshotFingerprint?: string;
@@ -3424,6 +3436,12 @@ class CopilotPromptRegistryPublishGateRepairCandidateEvidenceType implements Cop
 
   @Field(() => String, { nullable: true })
   modelRegistryRevisionId?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelRegistryRevisionId'];
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  modelRegistryRevisionPublishEventCount?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelRegistryRevisionPublishEventCount'];
+
+  @Field(() => [CopilotRegistryRevisionPublishEventType], { nullable: true })
+  modelRegistryRevisionPublishEvents?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelRegistryRevisionPublishEvents'];
 
   @Field(() => String, { nullable: true })
   modelRegistryRevisionScope?: CopilotPromptRegistryPublishGateRepairCandidateEvidence['modelRegistryRevisionScope'];
@@ -8356,7 +8374,16 @@ function promptRegistryPublishGateRouteCandidateMetadata(
       : {}),
     ...(candidate.providerType ? { providerType: candidate.providerType } : {}),
     ...(candidate.privacy ? { providerPrivacy: candidate.privacy } : {}),
-    ...(candidate.health ? { providerHealth: candidate.health } : {}),
+    ...(candidate.health
+      ? {
+          providerHealth:
+            candidate.health === 'healthy' ||
+            candidate.health === 'degraded' ||
+            candidate.health === 'down'
+              ? candidate.health
+              : 'unknown',
+        }
+      : {}),
     ...(candidate.healthCheckedAt
       ? { providerHealthCheckedAt: candidate.healthCheckedAt }
       : {}),
@@ -8434,7 +8461,9 @@ function promptRegistryPublishGateRouteCandidateMetadata(
 }
 
 function toPromptRegistryPublishGateRouteCandidate(
-  candidate: PromptRegistryPublishGateRouteCandidateDiagnostics
+  candidate:
+    | PromptRegistryPublishGateRouteCandidateDiagnostics
+    | CopilotTaskRouteCandidateDiagnosticsType
 ): CopilotPromptRegistryPublishGateRouteCandidate {
   return {
     ...(candidate.candidateModelIds !== undefined
@@ -8720,51 +8749,61 @@ const TASK_ROUTE_RECOMMENDATION_EVIDENCE_LIMIT = 192;
 function modelRouteCandidateProfileStructuredEvidence(
   route: CopilotPromptRegistryPublishGateModelRoute
 ) {
-  const policyCandidateSnapshot = route.policyCandidates.map(candidate => ({
-    allowed: candidate.allowed,
-    available: candidate.available,
-    health: candidate.health,
-    ...(candidate.healthCheckedAt
-      ? { healthCheckedAt: candidate.healthCheckedAt }
-      : {}),
-    privacy: candidate.privacy,
-    providerId: candidate.providerId,
-    ...(candidate.providerConfiguredModelCount !== undefined
-      ? {
-          providerConfiguredModelCount: candidate.providerConfiguredModelCount,
-        }
-      : {}),
-    ...(candidate.providerConfiguredModelIds?.length
-      ? {
-          providerConfiguredModelIds: candidate.providerConfiguredModelIds,
-        }
-      : {}),
-    ...(candidate.providerName ? { providerName: candidate.providerName } : {}),
-    ...(candidate.providerPriority !== undefined
-      ? { providerPriority: candidate.providerPriority }
-      : {}),
-    ...(candidate.providerProfileConfigPath
-      ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
-      : {}),
-    ...(candidate.providerProfileId
-      ? { providerProfileId: candidate.providerProfileId }
-      : {}),
-    ...(candidate.providerProfileSource
-      ? { providerProfileSource: candidate.providerProfileSource }
-      : {}),
-    ...(candidate.providerSource
-      ? { providerSource: candidate.providerSource }
-      : {}),
-    ...(candidate.providerType ? { providerType: candidate.providerType } : {}),
-    ...(candidate.registryAvailable !== undefined
-      ? { registryAvailable: candidate.registryAvailable }
-      : {}),
-    ...(candidate.registryKind ? { registryKind: candidate.registryKind } : {}),
-    ...(candidate.registrySelected !== undefined
-      ? { registrySelected: candidate.registrySelected }
-      : {}),
-    reasons: candidate.reasons,
-  }));
+  const policyCandidateSnapshot: CopilotPromptRegistryPublishGatePolicyCandidate[] =
+    route.policyCandidates.map(candidate => ({
+      allowed: candidate.allowed,
+      available: candidate.available,
+      candidateFingerprint: candidate.candidateFingerprint,
+      candidateKey: candidate.candidateKey,
+      health: candidate.health,
+      ...(candidate.healthCheckedAt
+        ? { healthCheckedAt: candidate.healthCheckedAt }
+        : {}),
+      privacy: candidate.privacy,
+      providerId: candidate.providerId,
+      ...(candidate.providerConfiguredModelCount !== undefined
+        ? {
+            providerConfiguredModelCount:
+              candidate.providerConfiguredModelCount,
+          }
+        : {}),
+      ...(candidate.providerConfiguredModelIds?.length
+        ? {
+            providerConfiguredModelIds: candidate.providerConfiguredModelIds,
+          }
+        : {}),
+      ...(candidate.providerName
+        ? { providerName: candidate.providerName }
+        : {}),
+      ...(candidate.providerPriority !== undefined
+        ? { providerPriority: candidate.providerPriority }
+        : {}),
+      ...(candidate.providerProfileConfigPath
+        ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
+        : {}),
+      ...(candidate.providerProfileId
+        ? { providerProfileId: candidate.providerProfileId }
+        : {}),
+      ...(candidate.providerProfileSource
+        ? { providerProfileSource: candidate.providerProfileSource }
+        : {}),
+      ...(candidate.providerSource
+        ? { providerSource: candidate.providerSource }
+        : {}),
+      ...(candidate.providerType
+        ? { providerType: candidate.providerType }
+        : {}),
+      ...(candidate.registryAvailable !== undefined
+        ? { registryAvailable: candidate.registryAvailable }
+        : {}),
+      ...(candidate.registryKind
+        ? { registryKind: candidate.registryKind }
+        : {}),
+      ...(candidate.registrySelected !== undefined
+        ? { registrySelected: candidate.registrySelected }
+        : {}),
+      reasons: candidate.reasons,
+    }));
   const routeCandidateSnapshot = route.routeCandidates;
   const routeTraceSnapshot = route.routeTrace.map(phase => ({
     ...(phase.availableCount !== undefined
@@ -9488,58 +9527,63 @@ function taskRouteCandidateProfileStructuredEvidence(
     },
     index: number
   ): CopilotPromptRegistryPublishGateRepairCandidateEvidence => {
-    const policyCandidateSnapshot = route.policyCandidates.map(candidate => ({
-      allowed: candidate.allowed,
-      available: candidate.available,
-      health: candidate.health,
-      ...(candidate.healthCheckedAt
-        ? { healthCheckedAt: candidate.healthCheckedAt }
-        : {}),
-      privacy: candidate.privacy,
-      providerId: candidate.providerId,
-      ...(candidate.providerConfiguredModelCount !== undefined
-        ? {
-            providerConfiguredModelCount:
-              candidate.providerConfiguredModelCount,
-          }
-        : {}),
-      ...(candidate.providerConfiguredModelIds?.length
-        ? {
-            providerConfiguredModelIds: candidate.providerConfiguredModelIds,
-          }
-        : {}),
-      ...(candidate.providerName
-        ? { providerName: candidate.providerName }
-        : {}),
-      ...(candidate.providerPriority !== undefined
-        ? { providerPriority: candidate.providerPriority }
-        : {}),
-      ...(candidate.providerProfileConfigPath
-        ? { providerProfileConfigPath: candidate.providerProfileConfigPath }
-        : {}),
-      ...(candidate.providerProfileId
-        ? { providerProfileId: candidate.providerProfileId }
-        : {}),
-      ...(candidate.providerProfileSource
-        ? { providerProfileSource: candidate.providerProfileSource }
-        : {}),
-      ...(candidate.providerSource
-        ? { providerSource: candidate.providerSource }
-        : {}),
-      ...(candidate.providerType
-        ? { providerType: candidate.providerType }
-        : {}),
-      ...(candidate.registryAvailable !== undefined
-        ? { registryAvailable: candidate.registryAvailable }
-        : {}),
-      ...(candidate.registryKind
-        ? { registryKind: candidate.registryKind }
-        : {}),
-      ...(candidate.registrySelected !== undefined
-        ? { registrySelected: candidate.registrySelected }
-        : {}),
-      reasons: candidate.reasons,
-    }));
+    const policyCandidateSnapshot: CopilotPromptRegistryPublishGatePolicyCandidate[] =
+      route.policyCandidates.map(candidate => ({
+        allowed: candidate.allowed,
+        available: candidate.available,
+        candidateFingerprint: candidate.candidateFingerprint,
+        candidateKey: candidate.candidateKey,
+        health: candidate.health,
+        ...(candidate.healthCheckedAt
+          ? { healthCheckedAt: candidate.healthCheckedAt }
+          : {}),
+        privacy: candidate.privacy,
+        providerId: candidate.providerId,
+        ...(candidate.providerConfiguredModelCount !== undefined
+          ? {
+              providerConfiguredModelCount:
+                candidate.providerConfiguredModelCount,
+            }
+          : {}),
+        ...(candidate.providerConfiguredModelIds?.length
+          ? {
+              providerConfiguredModelIds: candidate.providerConfiguredModelIds,
+            }
+          : {}),
+        ...(candidate.providerName
+          ? { providerName: candidate.providerName }
+          : {}),
+        ...(candidate.providerPriority !== undefined
+          ? { providerPriority: candidate.providerPriority }
+          : {}),
+        ...(candidate.providerProfileConfigPath
+          ? {
+              providerProfileConfigPath: candidate.providerProfileConfigPath,
+            }
+          : {}),
+        ...(candidate.providerProfileId
+          ? { providerProfileId: candidate.providerProfileId }
+          : {}),
+        ...(candidate.providerProfileSource
+          ? { providerProfileSource: candidate.providerProfileSource }
+          : {}),
+        ...(candidate.providerSource
+          ? { providerSource: candidate.providerSource }
+          : {}),
+        ...(candidate.providerType
+          ? { providerType: candidate.providerType }
+          : {}),
+        ...(candidate.registryAvailable !== undefined
+          ? { registryAvailable: candidate.registryAvailable }
+          : {}),
+        ...(candidate.registryKind
+          ? { registryKind: candidate.registryKind }
+          : {}),
+        ...(candidate.registrySelected !== undefined
+          ? { registrySelected: candidate.registrySelected }
+          : {}),
+        reasons: candidate.reasons,
+      }));
     const routeCandidateSnapshot = route.routeCandidates.map(
       toPromptRegistryPublishGateRouteCandidate
     );
@@ -12254,7 +12298,7 @@ function taskRouteProviderHealthSnapshot(
   ];
 }
 
-function taskRouteSnapshotFingerprint(candidates: unknown[]) {
+function taskRouteSnapshotFingerprint(candidates: unknown) {
   return createHash('sha256')
     .update(stableRepairRecommendationStringify(candidates))
     .digest('hex')
@@ -19280,23 +19324,27 @@ function buildTaskRoutePolicyRepairExecutorPayload(input: {
   }
 
   const { featureKind, modelId, operation } = selected;
+  const targetLocator = operation.targetLocator;
+  if (!targetLocator || targetLocator.kind !== 'task_route') {
+    return null;
+  }
 
   const configKey =
-    operation.targetLocator.requestedModelConfigKey ??
+    targetLocator.requestedModelConfigKey ??
     configKeyFromTaskRouteFeatureKind(featureKind);
   const configPath =
-    operation.targetLocator.requestedModelConfigPath ??
+    targetLocator.requestedModelConfigPath ??
     `copilot.tasks.models.${configKey}`;
   const fallbackSourceChain: TaskRoutePolicySourceChainEntry[] = [
     {
-      source: operation.targetLocator.requestedModelId
+      source: targetLocator.requestedModelId
         ? 'config_fallback'
         : 'provider_default',
       scope: 'global',
       status: 'available',
       featureKind,
-      ...(operation.targetLocator.requestedModelId
-        ? { modelId: operation.targetLocator.requestedModelId }
+      ...(targetLocator.requestedModelId
+        ? { modelId: targetLocator.requestedModelId }
         : {}),
       configKey: configKey as 'embedding' | 'workspaceIndexing' | 'rerank',
       configPath,
@@ -19392,13 +19440,14 @@ function selectModelRegistryRepairProviderCandidate(
           candidate.modelId ||
           candidate.requestedModelId)
     );
-    if (routeCandidate?.providerId) {
+    const routeProviderModelId =
+      routeCandidate?.routeModelDefinitionId ??
+      routeCandidate?.modelId ??
+      routeCandidate?.requestedModelId;
+    if (routeCandidate?.providerId && routeProviderModelId) {
       return {
         providerId: routeCandidate.providerId,
-        providerModelId:
-          routeCandidate.routeModelDefinitionId ??
-          routeCandidate.modelId ??
-          routeCandidate.requestedModelId!,
+        providerModelId: routeProviderModelId,
         providerName: routeCandidate.providerName,
         providerProfileSource: routeCandidate.providerProfileSource,
       };
@@ -19532,7 +19581,8 @@ function isPromptRegistryPublishGateActionDryRunCandidate(
     prompt.defaultPolicy === 'structured' ||
     prompt.defaultPolicy === 'image' ||
     prompt.category === 'image' ||
-    isImagePromptCategory(prompt)
+    (prompt.name !== undefined &&
+      isImagePromptCategory({ ...prompt, name: prompt.name }))
   );
 }
 
@@ -20726,8 +20776,10 @@ function buildTaskRoutePrepareCandidates(
       candidate.modelRegistryRevisionScope ??
       providerPrepareCandidate?.modelRegistryRevisionScope;
     const modelRegistryRevisionSourceChain =
-      candidate.modelRegistryRevisionSourceChain ??
-      providerPrepareCandidate?.modelRegistryRevisionSourceChain;
+      (candidate.modelRegistryRevisionSourceChain ??
+        providerPrepareCandidate?.modelRegistryRevisionSourceChain) as
+        | CopilotModelRegistrySourceChainEntry[]
+        | undefined;
     const modelRegistryRevisionSourceChainFingerprint =
       candidate.modelRegistryRevisionSourceChainFingerprint ??
       providerPrepareCandidate?.modelRegistryRevisionSourceChainFingerprint;
@@ -22028,7 +22080,7 @@ class CopilotTaskRoutePolicySourceChainEntryType implements TaskRoutePolicySourc
   configPath?: string;
 
   @Field(() => String, { nullable: true })
-  featureKind?: string;
+  featureKind?: TaskRoutePolicySourceChainEntry['featureKind'];
 
   @Field(() => String, { nullable: true })
   fingerprint?: string;
@@ -22670,12 +22722,22 @@ export class CopilotResolver {
           embeddingRoutePolicyContext
         );
         const route = routeResult.value;
-        const routeCandidates = (routeCandidatesResult.value ?? []).map(
-          candidate => ({
-            ...candidate,
+        const routeCandidates: CopilotTaskRouteCandidateDiagnosticsType[] = (
+          routeCandidatesResult.value ?? []
+        ).map(candidate => {
+          const { modelRegistryRevisionSourceChain, ...routeCandidate } =
+            candidate;
+          return {
+            ...routeCandidate,
+            ...(modelRegistryRevisionSourceChain
+              ? {
+                  modelRegistryRevisionSourceChain:
+                    modelRegistryRevisionSourceChain as CopilotModelRegistrySourceChainEntry[],
+                }
+              : {}),
             candidateKey: buildTaskRouteCandidateKey(candidate),
-          })
-        );
+          };
+        });
         const providerPrepareCandidates = prepareCandidatesResult.value ?? [];
         const emptyPreparedTargetSummary = buildTaskRoutePreparedTargetSummary({
           featureKind: 'workspace_indexing',
@@ -22828,12 +22890,22 @@ export class CopilotResolver {
           rerankRoutePolicyContext
         );
         const route = routeResult.value;
-        const routeCandidates = (routeCandidatesResult.value ?? []).map(
-          candidate => ({
-            ...candidate,
+        const routeCandidates: CopilotTaskRouteCandidateDiagnosticsType[] = (
+          routeCandidatesResult.value ?? []
+        ).map(candidate => {
+          const { modelRegistryRevisionSourceChain, ...routeCandidate } =
+            candidate;
+          return {
+            ...routeCandidate,
+            ...(modelRegistryRevisionSourceChain
+              ? {
+                  modelRegistryRevisionSourceChain:
+                    modelRegistryRevisionSourceChain as CopilotModelRegistrySourceChainEntry[],
+                }
+              : {}),
             candidateKey: buildTaskRouteCandidateKey(candidate),
-          })
-        );
+          };
+        });
         const providerPrepareCandidates = prepareCandidatesResult.value ?? [];
         const emptyPreparedTargetSummary = buildTaskRoutePreparedTargetSummary({
           featureKind: 'rerank',
@@ -23025,6 +23097,8 @@ export class CopilotResolver {
       });
     }
     const matchedCandidates = candidates.filter(candidate => candidate.matched);
+    const selectedCandidate =
+      selectPromptRegistryPublishGateRouteCandidate(candidates);
     const routeCandidates = candidates.map(
       toPromptRegistryPublishGateRouteCandidate
     );
@@ -23040,8 +23114,6 @@ export class CopilotResolver {
         routePolicyContext
       );
       if (!resolved) {
-        const selectedCandidate =
-          selectPromptRegistryPublishGateRouteCandidate(candidates);
         return withPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint(
           {
             ...baseRoute,
@@ -23099,6 +23171,7 @@ export class CopilotResolver {
 
       return withPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint({
         ...baseRoute,
+        ...promptRegistryPublishGateRouteCandidateMetadata(selectedCandidate),
         available: true,
         candidateCount: candidates.length,
         configured: true,
@@ -23173,8 +23246,6 @@ export class CopilotResolver {
         ...(routeRawModelId ? { routeRawModelId } : {}),
       });
     } catch (error) {
-      const selectedCandidate =
-        selectPromptRegistryPublishGateRouteCandidate(candidates);
       return withPromptRegistryPublishGateModelRouteEffectiveSourceFingerprint({
         ...baseRoute,
         ...promptRegistryPublishGateRouteCandidateMetadata(selectedCandidate),
@@ -23669,13 +23740,13 @@ export class CopilotResolver {
       actionRouteDryRun,
       modelRoute,
       modelRoutes,
-      publishStatus: 'blocked',
-      reason: 'model_route_unavailable',
+      publishStatus: 'blocked' as const,
+      reason: 'model_route_unavailable' as const,
       remediations: [
         ...verdict.remediations,
         this.toPromptRegistryModelRouteRemediation(verdict),
       ],
-      status: 'ignored',
+      status: 'ignored' as const,
     };
 
     return this.toPromptRegistryPublishGateVerdictWithRepairRecommendations({
@@ -24109,8 +24180,9 @@ export class CopilotResolver {
     const { workspaceId } = await this.assertPermission(user, {
       workspaceId: input.workspaceId,
     });
-    const record =
-      await this.modelsStore.copilotRepairExecution.controlExecution({
+    let record;
+    try {
+      record = await this.modelsStore.copilotRepairExecution.controlExecution({
         workspaceId,
         actorId: user.id,
         id: input.executionRequestId,
@@ -24118,6 +24190,15 @@ export class CopilotResolver {
         executorPayload: input.executorPayload,
         reason: input.reason,
       });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.startsWith('Repair execution')
+      ) {
+        throw new BadRequest(error.message);
+      }
+      throw error;
+    }
     const agentRun =
       input.action === 'cancel' && record.status === 'running'
         ? await this.modelsStore.copilotAgentRuntime?.getBySource(
@@ -24172,13 +24253,21 @@ export class CopilotResolver {
       workspaceId: input.workspaceId,
     });
 
-    const record = await this.modelsStore.copilotAgentRuntime.controlRun({
-      workspaceId,
-      actorId: user.id,
-      id: input.runId,
-      action: input.action,
-      reason: input.reason,
-    });
+    let record;
+    try {
+      record = await this.modelsStore.copilotAgentRuntime.controlRun({
+        workspaceId,
+        actorId: user.id,
+        id: input.runId,
+        action: input.action,
+        reason: input.reason,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Agent runtime')) {
+        throw new BadRequest(error.message);
+      }
+      throw error;
+    }
 
     if (input.action === 'resume') {
       await this.jobs.add(

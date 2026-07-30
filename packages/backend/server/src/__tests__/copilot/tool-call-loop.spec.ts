@@ -3,7 +3,10 @@ import test from 'ava';
 import { z } from 'zod';
 
 import type { DocReader } from '../../core/doc';
-import type { PermissionAccess } from '../../core/permission';
+import type {
+  PermissionAccess,
+  PermissionService,
+} from '../../core/permission';
 import type { Models } from '../../models';
 import {
   LlmRequest,
@@ -461,7 +464,7 @@ test('document search tools should return sync error for local workspace', async
       keywordSearchCalled = true;
       return [];
     },
-  } as unknown as Parameters<typeof buildDocKeywordSearchGetter>[1];
+  } as unknown as Parameters<typeof buildDocKeywordSearchGetter>[2];
 
   let semanticSearchCalled = false;
   const contextService = {
@@ -472,7 +475,12 @@ test('document search tools should return sync error for local workspace', async
   } as unknown as Parameters<typeof buildDocSearchGetter>[1];
 
   const keywordTool = createDocKeywordSearchTool(
-    buildDocKeywordSearchGetter(ac, indexerService, models).bind(null, {
+    buildDocKeywordSearchGetter(
+      ac,
+      {} as PermissionService,
+      indexerService,
+      models
+    ).bind(null, {
       user: 'user-1',
       workspace: 'workspace-1',
     })
@@ -584,6 +592,54 @@ test('doc_semantic_search should pass BYOK route context into embedding matches'
     userId: 'user-1',
     byokLeaseId: 'lease-1',
   });
+});
+
+test('doc_keyword_search ranks only readable document ids', async t => {
+  const readableDocIds = ['doc-11', 'doc-12'];
+  let searchOptions: unknown;
+  const ac = {
+    user: () => ({
+      workspace: () => ({
+        can: async () => true,
+        docs: async (docs: unknown[]) => docs,
+      }),
+    }),
+  } as unknown as PermissionAccess;
+  const permission = {
+    listReadableDocIds: async () => readableDocIds,
+  } as unknown as PermissionService;
+  const indexerService = {
+    searchDocsByKeyword: async (
+      _workspaceId: string,
+      _query: string,
+      options: unknown
+    ) => {
+      searchOptions = options;
+      return readableDocIds.map(docId => ({ docId, title: docId }));
+    },
+  } as unknown as Parameters<typeof buildDocKeywordSearchGetter>[2];
+  const models = {
+    workspace: {
+      get: async () => ({ id: 'workspace-1' }),
+    },
+  } as unknown as Models;
+  const search = buildDocKeywordSearchGetter(
+    ac,
+    permission,
+    indexerService,
+    models
+  );
+
+  const result = await search(
+    { user: 'user-1', workspace: 'workspace-1' },
+    'hello'
+  );
+
+  t.deepEqual(searchOptions, { docIds: readableDocIds });
+  t.deepEqual(
+    Array.isArray(result) ? result.map(doc => doc.docId) : result,
+    readableDocIds
+  );
 });
 
 test('blob_read should return explicit error when attachment context is missing', async t => {

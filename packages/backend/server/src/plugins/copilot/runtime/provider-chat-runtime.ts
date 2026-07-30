@@ -68,7 +68,7 @@ export async function prepareNativeChatExecution(
     ...prepared,
     execution: input.execution,
     options: prepared.resolvedModel
-      ? applyModelMaxOutputTokens(prepared.resolvedModel, input.options)
+      ? applyModelMaxOutputTokens(prepared.resolvedModel, input.options ?? {})
       : input.options,
   });
 }

@@ -571,22 +571,24 @@ type Copilot {
   agentRuntimeWorkflowAdapters: [CopilotAgentRuntimeWorkflowAdapterType!]!
   chats(docId: String, options: QueryChatHistoriesInput, pagination: PaginationInput!): PaginatedCopilotHistoriesType!
 
+  """List authorized rules, automatic memories, and project summaries"""
+  contextMemories(docId: String, includeDisabled: Boolean = false): [CopilotContextMemoryType!]!
+
+  """List immutable context planner revisions and checkpoint activity"""
+  contextPlannerStrategies: [CopilotContextStrategyType!]!
+
+  """List context projects whose documents the current user can access"""
+  contextProjects(includeArchived: Boolean = false): [CopilotContextProjectType!]!
+
+  """Get the current user context preferences for this workspace"""
+  contextSettings: CopilotContextSettingsType!
+
   """Get the context list of a session"""
   contexts(contextId: String, sessionId: String): [CopilotContext!]!
   histories(docId: String, options: QueryChatHistoriesInput): [CopilotHistories!]! @deprecated(reason: "use `chats` instead")
 
   """List available models for a prompt, with human-readable names"""
   models(promptName: String!): CopilotModelsType!
-
-  """
-  List recent DB-backed provider health probe attempts for the current workspace
-  """
-  providerHealthProbeAttempts(filter: CopilotProviderHealthProbeAttemptFilterInput, limit: SafeInt): [CopilotProviderHealthProbeAttemptType!]!
-
-  """
-  List recent persisted repair execution requests for the current workspace
-  """
-  repairExecutions(filter: CopilotRepairExecutionListFilterInput, limit: SafeInt): [CopilotRepairExecutionRecordType!]!
 
   """
   Evaluate whether the current prompt registry row can pass the publish gate
@@ -599,8 +601,18 @@ type Copilot {
   """List prompt catalog metadata for diagnostics"""
   prompts: [CopilotPromptCatalogItemType!]!
 
+  """
+  List recent DB-backed provider health probe attempts for the current workspace
+  """
+  providerHealthProbeAttempts(filter: CopilotProviderHealthProbeAttemptFilterInput, limit: SafeInt): [CopilotProviderHealthProbeAttemptType!]!
+
   """Get the quota of the user in the workspace"""
   quota: CopilotQuota!
+
+  """
+  List recent persisted repair execution requests for the current workspace
+  """
+  repairExecutions(filter: CopilotRepairExecutionListFilterInput, limit: SafeInt): [CopilotRepairExecutionRecordType!]!
 
   """Get the session by id"""
   session(sessionId: String!): CopilotSessionType!
@@ -828,6 +840,14 @@ type CopilotActionRunPreparedRouteDiagnosticsType {
   type: String!
 }
 
+input CopilotAgentRunListFilterInput {
+  query: String
+  sourceId: String
+  sourceType: String
+  status: String
+  workflow: String
+}
+
 type CopilotAgentRunType {
   actorId: String!
   completedAt: DateTime
@@ -855,6 +875,13 @@ type CopilotAgentRunType {
   workerLeaseId: String
   workerMaxAttempts: SafeInt!
   workflow: String!
+  workspaceId: String!
+}
+
+input CopilotAgentRuntimeControlInput {
+  action: String!
+  reason: String
+  runId: String!
   workspaceId: String!
 }
 
@@ -927,21 +954,6 @@ type CopilotAgentTimelineEventType {
   workspaceId: String!
 }
 
-input CopilotAgentRuntimeControlInput {
-  action: String!
-  reason: String
-  runId: String!
-  workspaceId: String!
-}
-
-input CopilotAgentRunListFilterInput {
-  query: String
-  sourceId: String
-  sourceType: String
-  status: String
-  workflow: String
-}
-
 type CopilotContext {
   """list blobs in context"""
   blobs: [CopilotContextBlob!]!
@@ -1000,6 +1012,49 @@ type CopilotContextFile {
 type CopilotContextFileNotSupportedDataType {
   fileName: String!
   message: String!
+}
+
+type CopilotContextMemoryType {
+  content: String!
+  createdAt: DateTime!
+  docId: String
+  id: ID!
+  kind: String!
+  ownerUserId: String!
+  projectId: String
+  scope: String!
+  sourceSessionId: String
+  status: String!
+  updatedAt: DateTime!
+  visibility: String!
+  workspaceId: String
+}
+
+type CopilotContextProjectType {
+  canManage: Boolean!
+  createdAt: DateTime!
+  createdByUserId: String
+  description: String!
+  documentCount: Int!
+  documentIds: [String!]!
+  id: ID!
+  name: String!
+  status: String!
+  updatedAt: DateTime!
+  workspaceId: String!
+}
+
+type CopilotContextSettingsType {
+  autoMemoryEnabled: Boolean!
+}
+
+type CopilotContextStrategyType {
+  checkpointCount: Int!
+  createdAt: DateTime!
+  fingerprint: String!
+  lastCheckpointAt: DateTime
+  status: String!
+  version: String!
 }
 
 type CopilotDocNotFoundDataType {
@@ -1071,6 +1126,33 @@ type CopilotModelPromptSourceType {
   modelSource: String
 }
 
+input CopilotModelRegistryPublishInput {
+  idempotencyKey: String
+  modelDefinition: JSON!
+  modelId: String!
+  providerId: String!
+  revision: String
+  workspaceId: String!
+}
+
+type CopilotModelRegistryRevisionType {
+  actorId: String
+  createdAt: DateTime!
+  fallbackSourceChain: JSON!
+  fingerprint: String!
+  id: String!
+  modelDefinition: JSON!
+  modelId: String!
+  providerId: String!
+  publishEventCount: SafeInt!
+  publishEvents: [CopilotRegistryRevisionPublishEventType!]!
+  revision: String!
+  scopeType: String!
+  status: String!
+  updatedAt: DateTime!
+  workspaceId: String
+}
+
 type CopilotModelRegistrySourceChainEntryType {
   actorId: String
   fingerprint: String
@@ -1094,6 +1176,17 @@ type CopilotModelType {
   embeddingDimensions: SafeInt
   id: String!
   maxOutputTokens: SafeInt
+  modelRegistryRevision: String
+  modelRegistryRevisionActorId: String
+  modelRegistryRevisionFingerprint: String
+  modelRegistryRevisionId: String
+  modelRegistryRevisionPublishEventCount: SafeInt
+  modelRegistryRevisionPublishEvents: [CopilotRegistryRevisionPublishEventType!]
+  modelRegistryRevisionScope: String
+  modelRegistryRevisionSourceChain: [CopilotModelRegistrySourceChainEntryType!]
+  modelRegistryRevisionSourceChainFingerprint: String
+  modelRegistryRevisionStatus: String
+  modelRegistryRevisionWorkspaceId: String
   name: String!
   promptAction: String
   promptCategory: String!
@@ -1133,17 +1226,6 @@ type CopilotModelType {
   routeModelDefinitionAliases: [String!]
   routeModelDefinitionId: String
   routeModelDefinitionSource: String
-  modelRegistryRevision: String
-  modelRegistryRevisionActorId: String
-  modelRegistryRevisionFingerprint: String
-  modelRegistryRevisionId: String
-  modelRegistryRevisionScope: String
-  modelRegistryRevisionSourceChain: [CopilotModelRegistrySourceChainEntryType!]
-  modelRegistryRevisionSourceChainFingerprint: String
-  modelRegistryRevisionStatus: String
-  modelRegistryRevisionWorkspaceId: String
-  modelRegistryRevisionPublishEventCount: SafeInt
-  modelRegistryRevisionPublishEvents: [CopilotRegistryRevisionPublishEventType!]
   routeModelId: String
   routeOutputTypes: [String!]
   routePolicyAllowedPrivacy: [String!]
@@ -1374,6 +1456,15 @@ type CopilotPromptRegistryPublishGateModelRouteType {
   matchedCandidateCount: SafeInt!
   modelBackendKind: String
   modelId: String
+  modelRegistryRevision: String
+  modelRegistryRevisionActorId: String
+  modelRegistryRevisionFingerprint: String
+  modelRegistryRevisionId: String
+  modelRegistryRevisionScope: String
+  modelRegistryRevisionSourceChain: [CopilotModelRegistrySourceChainEntryType!]
+  modelRegistryRevisionSourceChainFingerprint: String
+  modelRegistryRevisionStatus: String
+  modelRegistryRevisionWorkspaceId: String
   outputType: String!
   policyAllowedPrivacy: [String!]
   policyAllowedProviderIds: [String!]
@@ -1407,15 +1498,6 @@ type CopilotPromptRegistryPublishGateModelRouteType {
   routeModelDefinitionAliases: [String!]
   routeModelDefinitionId: String
   routeModelDefinitionSource: String
-  modelRegistryRevision: String
-  modelRegistryRevisionActorId: String
-  modelRegistryRevisionFingerprint: String
-  modelRegistryRevisionId: String
-  modelRegistryRevisionScope: String
-  modelRegistryRevisionSourceChain: [CopilotModelRegistrySourceChainEntryType!]
-  modelRegistryRevisionSourceChainFingerprint: String
-  modelRegistryRevisionStatus: String
-  modelRegistryRevisionWorkspaceId: String
   routeRawModelId: String
   routeTrace: [CopilotPromptRegistryPublishGateRouteTracePhaseType!]!
 }
@@ -1585,6 +1667,17 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   matched: Boolean
   modelEmbeddingDimensions: SafeInt
   modelId: String
+  modelRegistryRevision: String
+  modelRegistryRevisionActorId: String
+  modelRegistryRevisionFingerprint: String
+  modelRegistryRevisionId: String
+  modelRegistryRevisionPublishEventCount: SafeInt
+  modelRegistryRevisionPublishEvents: [CopilotRegistryRevisionPublishEventType!]
+  modelRegistryRevisionScope: String
+  modelRegistryRevisionSourceChain: [CopilotModelRegistrySourceChainEntryType!]
+  modelRegistryRevisionSourceChainFingerprint: String
+  modelRegistryRevisionStatus: String
+  modelRegistryRevisionWorkspaceId: String
   policyCandidateSnapshotFingerprint: String
   policyCandidates: [CopilotPromptRegistryPublishGatePolicyCandidateType!]
   prepareCandidateSnapshotFingerprint: String
@@ -1636,17 +1729,6 @@ type CopilotPromptRegistryPublishGateRepairCandidateEvidenceType {
   routeModelDefinitionAliases: [String!]
   routeModelDefinitionId: String
   routeModelDefinitionSource: String
-  modelRegistryRevision: String
-  modelRegistryRevisionActorId: String
-  modelRegistryRevisionFingerprint: String
-  modelRegistryRevisionId: String
-  modelRegistryRevisionScope: String
-  modelRegistryRevisionSourceChain: [CopilotModelRegistrySourceChainEntryType!]
-  modelRegistryRevisionSourceChainFingerprint: String
-  modelRegistryRevisionStatus: String
-  modelRegistryRevisionWorkspaceId: String
-  modelRegistryRevisionPublishEventCount: SafeInt
-  modelRegistryRevisionPublishEvents: [CopilotRegistryRevisionPublishEventType!]
   routeOutputTypes: [String!]
   routeRawModelId: String
   routeStructuredAttachmentAllowRemoteUrls: Boolean
@@ -1792,6 +1874,15 @@ type CopilotPromptRegistryPublishGateRouteCandidateType {
   healthCheckedAt: String
   matched: Boolean!
   modelId: String
+  modelRegistryRevision: String
+  modelRegistryRevisionActorId: String
+  modelRegistryRevisionFingerprint: String
+  modelRegistryRevisionId: String
+  modelRegistryRevisionScope: String
+  modelRegistryRevisionSourceChain: [CopilotModelRegistrySourceChainEntryType!]
+  modelRegistryRevisionSourceChainFingerprint: String
+  modelRegistryRevisionStatus: String
+  modelRegistryRevisionWorkspaceId: String
   privacy: String
   providerConfiguredModelCount: SafeInt
   providerConfiguredModelIds: [String!]
@@ -1819,15 +1910,6 @@ type CopilotPromptRegistryPublishGateRouteCandidateType {
   routeModelDefinitionAliases: [String!]
   routeModelDefinitionId: String
   routeModelDefinitionSource: String
-  modelRegistryRevision: String
-  modelRegistryRevisionActorId: String
-  modelRegistryRevisionFingerprint: String
-  modelRegistryRevisionId: String
-  modelRegistryRevisionScope: String
-  modelRegistryRevisionSourceChain: [CopilotModelRegistrySourceChainEntryType!]
-  modelRegistryRevisionSourceChainFingerprint: String
-  modelRegistryRevisionStatus: String
-  modelRegistryRevisionWorkspaceId: String
   routeOutputTypes: [String!]
   routeRawModelId: String
   routeStructuredAttachmentAllowRemoteUrls: Boolean
@@ -1873,6 +1955,15 @@ type CopilotPromptRegistryPublishGateVerdictType {
   staleReasons: [String!]!
   status: String!
   taskRoutes: [CopilotTaskRouteDiagnosticsType!]!
+}
+
+input CopilotPromptRegistryPublishInput {
+  expectedVersion: CopilotPromptRegistryPublishGateExpectedVersionInput
+  idempotencyKey: String
+  name: String!
+  reviewNote: String
+  revision: String
+  workspaceId: String!
 }
 
 type CopilotPromptRegistryRepairCandidateEvidenceReferenceEntryType {
@@ -2498,6 +2589,22 @@ type CopilotPromptRegistryRepairTaskRouteModelSourceSnapshotEntryType {
   requestedModelSource: String
 }
 
+type CopilotPromptRegistryRevisionType {
+  actorId: String
+  createdAt: DateTime!
+  fallbackSourceChain: JSON!
+  fingerprint: String!
+  id: String!
+  promptName: String!
+  publishEventCount: SafeInt!
+  publishEvents: [CopilotRegistryRevisionPublishEventType!]!
+  revision: String!
+  scopeType: String!
+  status: String!
+  updatedAt: DateTime!
+  workspaceId: String
+}
+
 type CopilotPromptRegistrySourceChainEntryType {
   actorId: String
   configPath: String
@@ -2543,115 +2650,6 @@ type CopilotPromptRegistryValidationSourceLocatorType {
   table: String!
 }
 
-type CopilotProviderNotSupportedDataType {
-  kind: String!
-  provider: String!
-}
-
-type CopilotProviderSideErrorDataType {
-  kind: String!
-  message: String!
-  provider: String!
-}
-
-input CopilotProviderRegistryPublishInput {
-  displayName: String
-  enabled: Boolean
-  idempotencyKey: String
-  modelDefinitions: JSON
-  models: [String!]
-  privacy: String
-  priority: Float
-  providerId: String!
-  revision: String
-  workspaceId: String!
-}
-
-input CopilotPromptRegistryPublishInput {
-  expectedVersion: CopilotPromptRegistryPublishGateExpectedVersionInput
-  idempotencyKey: String
-  name: String!
-  reviewNote: String
-  revision: String
-  workspaceId: String!
-}
-
-type CopilotPromptRegistryRevisionType {
-  actorId: String
-  createdAt: DateTime!
-  fallbackSourceChain: JSON!
-  fingerprint: String!
-  id: String!
-  promptName: String!
-  publishEventCount: SafeInt!
-  publishEvents: [CopilotRegistryRevisionPublishEventType!]!
-  revision: String!
-  scopeType: String!
-  status: String!
-  updatedAt: DateTime!
-  workspaceId: String
-}
-
-type CopilotRegistryRevisionPublishEventType {
-  actorId: String
-  createdAt: DateTime!
-  eventFingerprint: String!
-  eventType: String!
-  id: String!
-  metadata: JSON!
-  publishSource: String!
-  registryFamily: String!
-  registryKey: String!
-  registryModelId: String
-  registryProviderId: String
-  revision: String!
-  revisionFingerprint: String!
-  revisionId: String!
-  revisionStatus: String!
-  scopeType: String!
-  workspaceId: String
-}
-
-input CopilotModelRegistryPublishInput {
-  idempotencyKey: String
-  modelDefinition: JSON!
-  modelId: String!
-  providerId: String!
-  revision: String
-  workspaceId: String!
-}
-
-input CopilotTaskRoutePolicyPublishInput {
-  featureKind: String!
-  idempotencyKey: String
-  modelId: String!
-  revision: String
-  workspaceId: String!
-}
-
-input CopilotProviderHealthStateRecordInput {
-  lastError: String
-  providerId: String!
-  status: String!
-  workspaceId: String!
-}
-
-input CopilotProviderHealthProbeAttemptRetryInput {
-  attemptId: String!
-  workspaceId: String!
-}
-
-input CopilotProviderHealthProbeAttemptFilterInput {
-  providerId: String
-  providerProfileFingerprint: String
-  providerRegistryRevisionFingerprint: String
-  providerRegistryRevisionId: String
-  query: String
-  requestFingerprint: String
-  resultFingerprint: String
-  status: String
-}
-
 type CopilotProviderHealthEventType {
   actorId: String
   checkedAt: DateTime!
@@ -2671,22 +2669,20 @@ type CopilotProviderHealthEventType {
   workspaceId: String
 }
 
-type CopilotProviderHealthStateType {
-  actorId: String
-  checkedAt: DateTime!
-  createdAt: DateTime!
-  eventCount: SafeInt!
-  events: [CopilotProviderHealthEventType!]!
-  fingerprint: String!
-  id: String!
-  lastError: String
-  providerId: String!
-  providerType: String
-  scopeType: String!
-  source: String!
-  status: String!
-  updatedAt: DateTime!
-  workspaceId: String
+input CopilotProviderHealthProbeAttemptFilterInput {
+  providerId: String
+  providerProfileFingerprint: String
+  providerRegistryRevisionFingerprint: String
+  providerRegistryRevisionId: String
+  query: String
+  requestFingerprint: String
+  resultFingerprint: String
+  status: String
+}
+
+input CopilotProviderHealthProbeAttemptRetryInput {
+  attemptId: String!
+  workspaceId: String!
 }
 
 type CopilotProviderHealthProbeAttemptType {
@@ -2723,14 +2719,61 @@ type CopilotProviderHealthProbeAttemptType {
   workspaceId: String!
 }
 
+input CopilotProviderHealthStateRecordInput {
+  lastError: String
+  providerId: String!
+  status: String!
+  workspaceId: String!
+}
+
+type CopilotProviderHealthStateType {
+  actorId: String
+  checkedAt: DateTime!
+  createdAt: DateTime!
+  eventCount: SafeInt!
+  events: [CopilotProviderHealthEventType!]!
+  fingerprint: String!
+  id: String!
+  lastError: String
+  providerId: String!
+  providerType: String
+  scopeType: String!
+  source: String!
+  status: String!
+  updatedAt: DateTime!
+  workspaceId: String
+}
+
+type CopilotProviderNotSupportedDataType {
+  kind: String!
+  provider: String!
+}
+
+input CopilotProviderRegistryPublishInput {
+  displayName: String
+  enabled: Boolean
+  idempotencyKey: String
+  modelDefinitions: JSON
+  models: [String!]
+  priority: Int
+  privacy: String
+  providerId: String!
+  revision: String
+  workspaceId: String!
+}
+
 type CopilotProviderRegistryRevisionType {
   actorId: String
   createdAt: DateTime!
   fallbackSourceChain: JSON!
   fingerprint: String!
   id: String!
-  providerId: String!
+
+  """
+  Immediate durable no-network provider health probe attempt created for this workspace provider revision.
+  """
   providerHealthProbeAttempt: CopilotProviderHealthProbeAttemptType
+  providerId: String!
   providerProfile: JSON!
   providerType: String
   publishEventCount: SafeInt!
@@ -2742,41 +2785,10 @@ type CopilotProviderRegistryRevisionType {
   workspaceId: String
 }
 
-type CopilotModelRegistryRevisionType {
-  actorId: String
-  createdAt: DateTime!
-  fallbackSourceChain: JSON!
-  fingerprint: String!
-  id: String!
-  modelDefinition: JSON!
-  modelId: String!
-  providerId: String!
-  publishEventCount: SafeInt!
-  publishEvents: [CopilotRegistryRevisionPublishEventType!]!
-  revision: String!
-  scopeType: String!
-  status: String!
-  updatedAt: DateTime!
-  workspaceId: String
-}
-
-type CopilotTaskRoutePolicyRevisionType {
-  actorId: String
-  configKey: String
-  configPath: String
-  createdAt: DateTime!
-  fallbackSourceChain: JSON!
-  featureKind: String!
-  fingerprint: String!
-  id: String!
-  modelId: String
-  publishEventCount: SafeInt!
-  publishEvents: [CopilotRegistryRevisionPublishEventType!]!
-  revision: String!
-  scopeType: String!
-  status: String!
-  updatedAt: DateTime!
-  workspaceId: String
+type CopilotProviderSideErrorDataType {
+  kind: String!
+  message: String!
+  provider: String!
 }
 
 type CopilotQuota {
@@ -2784,10 +2796,41 @@ type CopilotQuota {
   used: SafeInt!
 }
 
+type CopilotRegistryRevisionPublishEventType {
+  actorId: String
+  createdAt: DateTime!
+  eventFingerprint: String!
+  eventType: String!
+  id: String!
+  metadata: JSON!
+  publishSource: String!
+  registryFamily: String!
+  registryKey: String!
+  registryModelId: String
+  registryProviderId: String
+  revision: String!
+  revisionFingerprint: String!
+  revisionId: String!
+  revisionStatus: String!
+  scopeType: String!
+  workspaceId: String
+}
+
 input CopilotRepairExecutionApprovalDecisionInput {
   decision: String!
   executionRequestId: String!
   reason: String
+  workspaceId: String!
+}
+
+type CopilotRepairExecutionAuditEventType {
+  actorId: String!
+  createdAt: DateTime!
+  eventFingerprint: String!
+  eventType: String!
+  executionRequestId: String!
+  id: String!
+  metadata: JSON!
   workspaceId: String!
 }
 
@@ -2844,15 +2887,15 @@ type CopilotRepairExecutionRecordType {
   workspaceId: String!
 }
 
-type CopilotRepairExecutionAuditEventType {
-  actorId: String!
-  createdAt: DateTime!
-  eventFingerprint: String!
-  eventType: String!
-  executionRequestId: String!
-  id: String!
-  metadata: JSON!
-  workspaceId: String!
+type CopilotRepairExecutionRuntimeResultType {
+  executor: String!
+  message: String!
+  sideEffectFingerprint: String
+  sideEffectKind: String
+  sideEffectRecordId: String
+  sideEffectSummary: JSON
+  sideEffectsApplied: Boolean!
+  version: String!
 }
 
 type CopilotRepairExecutionSideEffectType {
@@ -2871,17 +2914,6 @@ type CopilotRepairExecutionSideEffectType {
   workspaceId: String!
 }
 
-type CopilotRepairExecutionRuntimeResultType {
-  executor: String!
-  message: String!
-  sideEffectFingerprint: String
-  sideEffectKind: String
-  sideEffectRecordId: String
-  sideEffectSummary: JSON
-  sideEffectsApplied: Boolean!
-  version: String!
-}
-
 type CopilotSessionType {
   docId: String
   id: ID!
@@ -2893,7 +2925,23 @@ type CopilotSessionType {
   title: String
 }
 
+type CopilotSupportBundleAuditEventType {
+  actorId: String!
+  bundleId: String!
+  createdAt: DateTime!
+  eventFingerprint: String!
+  eventType: String!
+  id: String!
+  metadata: JSON!
+  workspaceId: String!
+}
+
 input CopilotSupportBundleCreateInput {
+  workspaceId: String!
+}
+
+input CopilotSupportBundleDirectDownloadAcknowledgeInput {
+  authorizationId: String!
   workspaceId: String!
 }
 
@@ -2925,9 +2973,11 @@ input CopilotSupportBundleDownloadAuthorizeInput {
   workspaceId: String!
 }
 
-input CopilotSupportBundleDirectDownloadAcknowledgeInput {
-  authorizationId: String!
-  workspaceId: String!
+input CopilotSupportBundleListFilterInput {
+  query: String
+  retentionStatus: String
+  status: String
+  transferForwardingStatus: String
 }
 
 type CopilotSupportBundleManifestType {
@@ -2948,24 +2998,11 @@ input CopilotSupportBundleRetentionCleanupInput {
   workspaceId: String!
 }
 
-input CopilotSupportBundleTransferForwardingReplayInput {
-  forwardingEventId: String!
-  maxAttempts: SafeInt
-  workspaceId: String!
-}
-
-input CopilotSupportBundleListFilterInput {
-  query: String
-  retentionStatus: String
-  status: String
-  transferForwardingStatus: String
-}
-
 type CopilotSupportBundleRetentionCleanupType {
+  actorId: String!
   archiveObjectCleanupFailedCount: SafeInt!
   archiveObjectCleanupRecoveredCount: SafeInt!
   archiveObjectCleanupRetryCount: SafeInt!
-  actorId: String!
   cleanedAt: DateTime!
   cleanupFingerprint: String!
   expiredAuthorizationCount: SafeInt!
@@ -2988,17 +3025,6 @@ type CopilotSupportBundleSourceEvidenceSummaryType {
   promptCatalogItemCount: SafeInt!
   source: String!
   taskRouteCount: SafeInt!
-}
-
-type CopilotSupportBundleAuditEventType {
-  actorId: String!
-  bundleId: String!
-  createdAt: DateTime!
-  eventFingerprint: String!
-  eventType: String!
-  id: String!
-  metadata: JSON!
-  workspaceId: String!
 }
 
 type CopilotSupportBundleTransferEventType {
@@ -3045,6 +3071,12 @@ type CopilotSupportBundleTransferForwardingEventType {
   workerLeaseId: String
 }
 
+input CopilotSupportBundleTransferForwardingReplayInput {
+  forwardingEventId: String!
+  maxAttempts: SafeInt
+  workspaceId: String!
+}
+
 type CopilotSupportBundleType {
   actorId: String!
   archiveByteSize: SafeInt
@@ -3062,9 +3094,9 @@ type CopilotSupportBundleType {
   manifestByteSize: SafeInt
   manifestFilename: String
   manifestFingerprint: String!
+  manifestJson: CopilotSupportBundleManifestType!
   manifestMime: String
   manifestStorageKey: String
-  manifestJson: CopilotSupportBundleManifestType!
   retentionStatus: String!
   sourceEvidenceSetFingerprint: String!
   sourceEvidenceSummary: CopilotSupportBundleSourceEvidenceSummaryType!
@@ -3086,6 +3118,17 @@ type CopilotTaskRouteCandidateDiagnosticsType {
   healthCheckedAt: String
   matched: Boolean!
   modelId: String
+  modelRegistryRevision: String
+  modelRegistryRevisionActorId: String
+  modelRegistryRevisionFingerprint: String
+  modelRegistryRevisionId: String
+  modelRegistryRevisionPublishEventCount: SafeInt
+  modelRegistryRevisionPublishEvents: [CopilotRegistryRevisionPublishEventType!]
+  modelRegistryRevisionScope: String
+  modelRegistryRevisionSourceChain: [CopilotModelRegistrySourceChainEntryType!]
+  modelRegistryRevisionSourceChainFingerprint: String
+  modelRegistryRevisionStatus: String
+  modelRegistryRevisionWorkspaceId: String
   privacy: String
   providerConfiguredModelCount: SafeInt
   providerConfiguredModelIds: [String!]
@@ -3113,17 +3156,6 @@ type CopilotTaskRouteCandidateDiagnosticsType {
   routeModelDefinitionAliases: [String!]
   routeModelDefinitionId: String
   routeModelDefinitionSource: String
-  modelRegistryRevision: String
-  modelRegistryRevisionActorId: String
-  modelRegistryRevisionFingerprint: String
-  modelRegistryRevisionId: String
-  modelRegistryRevisionScope: String
-  modelRegistryRevisionSourceChain: [CopilotModelRegistrySourceChainEntryType!]
-  modelRegistryRevisionSourceChainFingerprint: String
-  modelRegistryRevisionStatus: String
-  modelRegistryRevisionWorkspaceId: String
-  modelRegistryRevisionPublishEventCount: SafeInt
-  modelRegistryRevisionPublishEvents: [CopilotRegistryRevisionPublishEventType!]
   routeOutputTypes: [String!]
   routeRawModelId: String
   routeStructuredAttachmentAllowRemoteUrls: Boolean
@@ -3198,13 +3230,13 @@ type CopilotTaskRouteDiagnosticsType {
   taskRoutePolicyRevisionActorId: String
   taskRoutePolicyRevisionFingerprint: String
   taskRoutePolicyRevisionId: String
+  taskRoutePolicyRevisionPublishEventCount: SafeInt
+  taskRoutePolicyRevisionPublishEvents: [CopilotRegistryRevisionPublishEventType!]
   taskRoutePolicyRevisionScope: String
   taskRoutePolicyRevisionSourceChain: [CopilotTaskRoutePolicySourceChainEntryType!]
   taskRoutePolicyRevisionSourceChainFingerprint: String
   taskRoutePolicyRevisionStatus: String
   taskRoutePolicyRevisionWorkspaceId: String
-  taskRoutePolicyRevisionPublishEventCount: SafeInt
-  taskRoutePolicyRevisionPublishEvents: [CopilotRegistryRevisionPublishEventType!]
   topK: SafeInt
 }
 
@@ -3232,6 +3264,33 @@ type CopilotTaskRoutePolicyCandidateDiagnosticsType {
   registrySelected: Boolean
 }
 
+input CopilotTaskRoutePolicyPublishInput {
+  featureKind: String!
+  idempotencyKey: String
+  modelId: String!
+  revision: String
+  workspaceId: String!
+}
+
+type CopilotTaskRoutePolicyRevisionType {
+  actorId: String
+  configKey: String
+  configPath: String
+  createdAt: DateTime!
+  fallbackSourceChain: JSON!
+  featureKind: String!
+  fingerprint: String!
+  id: String!
+  modelId: String
+  publishEventCount: SafeInt!
+  publishEvents: [CopilotRegistryRevisionPublishEventType!]!
+  revision: String!
+  scopeType: String!
+  status: String!
+  updatedAt: DateTime!
+  workspaceId: String
+}
+
 type CopilotTaskRoutePolicySourceChainEntryType {
   actorId: String
   configKey: String
@@ -3257,6 +3316,17 @@ type CopilotTaskRoutePrepareCandidateDiagnosticsType {
   health: String
   healthCheckedAt: String
   modelId: String
+  modelRegistryRevision: String
+  modelRegistryRevisionActorId: String
+  modelRegistryRevisionFingerprint: String
+  modelRegistryRevisionId: String
+  modelRegistryRevisionPublishEventCount: SafeInt
+  modelRegistryRevisionPublishEvents: [CopilotRegistryRevisionPublishEventType!]
+  modelRegistryRevisionScope: String
+  modelRegistryRevisionSourceChain: [CopilotModelRegistrySourceChainEntryType!]
+  modelRegistryRevisionSourceChainFingerprint: String
+  modelRegistryRevisionStatus: String
+  modelRegistryRevisionWorkspaceId: String
   prepared: Boolean!
   preparedModelId: String
   privacy: String
@@ -3286,17 +3356,6 @@ type CopilotTaskRoutePrepareCandidateDiagnosticsType {
   routeModelDefinitionAliases: [String!]
   routeModelDefinitionId: String
   routeModelDefinitionSource: String
-  modelRegistryRevision: String
-  modelRegistryRevisionActorId: String
-  modelRegistryRevisionFingerprint: String
-  modelRegistryRevisionId: String
-  modelRegistryRevisionScope: String
-  modelRegistryRevisionSourceChain: [CopilotModelRegistrySourceChainEntryType!]
-  modelRegistryRevisionSourceChainFingerprint: String
-  modelRegistryRevisionStatus: String
-  modelRegistryRevisionWorkspaceId: String
-  modelRegistryRevisionPublishEventCount: SafeInt
-  modelRegistryRevisionPublishEvents: [CopilotRegistryRevisionPublishEventType!]
   routeOutputTypes: [String!]
   routeRawModelId: String
   routeStructuredAttachmentAllowRemoteUrls: Boolean
@@ -3382,6 +3441,22 @@ input CreateCheckoutSessionInput {
   recurring: SubscriptionRecurring = Yearly
   successCallbackLink: String!
   variant: SubscriptionVariant
+}
+
+input CreateCopilotContextMemoryInput {
+  content: String!
+  docId: String
+  kind: String!
+  projectId: String
+  scope: String!
+  workspaceId: String
+}
+
+input CreateCopilotContextProjectInput {
+  description: String
+  documentIds: [String!]!
+  name: String!
+  workspaceId: String!
 }
 
 input CreateMcpCredentialInput {
@@ -4197,6 +4272,11 @@ type MissingOauthQueryParameterDataType {
 type Mutation {
   abortBlobUpload(key: String!, uploadId: String!, workspaceId: String!): Boolean!
   acceptInviteById(inviteId: String!, sendAcceptMail: Boolean @deprecated(reason: "never used"), workspaceId: String @deprecated(reason: "never used")): Boolean!
+
+  """
+  Acknowledge client completion telemetry for a direct object-storage support bundle download.
+  """
+  acknowledgeCopilotSupportBundleDirectDownload(input: CopilotSupportBundleDirectDownloadAcknowledgeInput!): CopilotSupportBundleDownloadAuthorizationType!
   activateLicense(license: String!, workspaceId: String!): License!
 
   """add a blob to context"""
@@ -4223,11 +4303,6 @@ type Mutation {
   """
   authorizeCopilotSupportBundleDownload(input: CopilotSupportBundleDownloadAuthorizeInput!): CopilotSupportBundleDownloadAuthorizationType!
 
-  """
-  Acknowledge client completion telemetry for a direct object-storage support bundle download.
-  """
-  acknowledgeCopilotSupportBundleDirectDownload(input: CopilotSupportBundleDirectDownloadAcknowledgeInput!): CopilotSupportBundleDownloadAuthorizationType!
-
   """Ban an user"""
   banUser(id: String!): UserType!
   cancelSubscription(idempotencyKey: String @deprecated(reason: "use header `Idempotency-Key`"), plan: SubscriptionPlan = Pro, workspaceId: String): SubscriptionType!
@@ -4237,10 +4312,22 @@ type Mutation {
   """Cleanup sessions"""
   cleanupCopilotSession(options: DeleteSessionInput!): [String!]!
 
-  """Expire DB-backed support bundles whose retention window has elapsed and retry failed archive object cleanup."""
+  """
+  Expire DB-backed support bundles whose retention window has elapsed and retry failed archive object cleanup.
+  """
   cleanupCopilotSupportBundleRetention(input: CopilotSupportBundleRetentionCleanupInput!): CopilotSupportBundleRetentionCleanupType!
   clearWorkspaceByokConfigs(provider: ByokProvider, workspaceId: String!): Boolean!
   completeBlobUpload(key: String!, parts: [BlobUploadPartInput!], uploadId: String, workspaceId: String!): String!
+
+  """
+  Control a standalone persisted Agent Runtime run outside repair execution.
+  """
+  controlCopilotAgentRuntimeRun(input: CopilotAgentRuntimeControlInput!): CopilotAgentRunType!
+
+  """
+  Cancel, retry, or recover a stale persisted repair execution request after workspace permission checks.
+  """
+  controlCopilotRepairExecution(input: CopilotRepairExecutionControlInput!): CopilotRepairExecutionRecordType!
   createBlobUpload(key: String!, mime: String!, size: Int!, workspaceId: String!): BlobUploadInit!
 
   """Create change password url"""
@@ -4252,6 +4339,8 @@ type Mutation {
 
   """Create a context session"""
   createCopilotContext(sessionId: String!, workspaceId: String!): String!
+  createCopilotContextMemory(input: CreateCopilotContextMemoryInput!): CopilotContextMemoryType!
+  createCopilotContextProject(input: CreateCopilotContextProjectInput!): CopilotContextProjectType!
 
   """Create a chat message"""
   createCopilotMessage(options: CreateChatMessageInput!): String!
@@ -4266,11 +4355,6 @@ type Mutation {
   Create a DB-backed support bundle request with a minimal persisted manifest.
   """
   createCopilotSupportBundle(input: CopilotSupportBundleCreateInput!): CopilotSupportBundleType!
-
-  """
-  Queue a fresh replay for a dead-lettered support bundle transfer forwarding event without mutating terminal evidence.
-  """
-  replayCopilotSupportBundleTransferForwardingEvent(input: CopilotSupportBundleTransferForwardingReplayInput!): CopilotSupportBundleTransferForwardingEventType!
 
   """Create a stripe customer portal to manage payment methods"""
   createCustomerPortal: String!
@@ -4291,22 +4375,14 @@ type Mutation {
   Approve or reject a persisted repair execution request that is waiting for approval.
   """
   decideCopilotRepairExecutionApproval(input: CopilotRepairExecutionApprovalDecisionInput!): CopilotRepairExecutionRecordType!
-
-  """
-  Cancel, retry, or recover a stale persisted repair execution request after workspace permission checks.
-  """
-  controlCopilotRepairExecution(input: CopilotRepairExecutionControlInput!): CopilotRepairExecutionRecordType!
-
-  """
-  Control a standalone persisted Agent Runtime run outside repair execution.
-  """
-  controlCopilotAgentRuntimeRun(input: CopilotAgentRuntimeControlInput!): CopilotAgentRunType!
   deleteAccount: DeleteAccount!
   deleteAuthSigningKey(id: String!): [AuthSigningKeyType!]!
   deleteBlob(hash: String @deprecated(reason: "use parameter [key]"), key: String, permanently: Boolean! = false, workspaceId: String!): Boolean!
 
   """Delete a comment"""
   deleteComment(id: String!): Boolean!
+  deleteCopilotContextMemory(id: ID!): Boolean!
+  deleteCopilotContextProject(id: ID!): Boolean!
 
   """Delete a reply"""
   deleteReply(id: String!): Boolean!
@@ -4339,14 +4415,9 @@ type Mutation {
   previewLicense(license: Upload!): AdminLicensePreview!
 
   """
-  Persist a workspace-scoped provider health state for an existing configured provider.
+  Publish a workspace-scoped DB-backed model definition revision for an existing configured provider.
   """
-  recordCopilotProviderHealthState(input: CopilotProviderHealthStateRecordInput!): CopilotProviderHealthStateType!
-
-  """
-  Queue a fresh Provider Health probe attempt for a dead-lettered workspace attempt without mutating terminal evidence.
-  """
-  retryCopilotProviderHealthProbeAttempt(input: CopilotProviderHealthProbeAttemptRetryInput!): CopilotProviderHealthProbeAttemptType!
+  publishCopilotModelRegistryRevision(input: CopilotModelRegistryPublishInput!): CopilotModelRegistryRevisionType!
 
   """
   Publish a workspace-scoped DB-backed prompt registry revision after publish-gate and route-readiness checks.
@@ -4357,11 +4428,6 @@ type Mutation {
   Publish a workspace-scoped DB-backed provider profile metadata revision for an existing configured provider.
   """
   publishCopilotProviderRegistryRevision(input: CopilotProviderRegistryPublishInput!): CopilotProviderRegistryRevisionType!
-
-  """
-  Publish a workspace-scoped DB-backed model definition revision for an existing configured provider.
-  """
-  publishCopilotModelRegistryRevision(input: CopilotModelRegistryPublishInput!): CopilotModelRegistryRevisionType!
 
   """
   Publish a workspace-scoped DB-backed task route policy revision for embedding, workspace indexing, or rerank model selection.
@@ -4377,6 +4443,11 @@ type Mutation {
 
   """mark notification as read"""
   readNotification(id: String!): Boolean!
+
+  """
+  Persist a workspace-scoped provider health state for an existing configured provider.
+  """
+  recordCopilotProviderHealthState(input: CopilotProviderHealthStateRecordInput!): CopilotProviderHealthStateType!
   recoverDoc(guid: String!, timestamp: DateTime!, workspaceId: String!): DateTime!
 
   """Refresh current user subscriptions and return latest."""
@@ -4402,6 +4473,11 @@ type Mutation {
   removeWorkspaceEmbeddingFiles(fileId: String!, workspaceId: String!): Boolean!
   reorderWorkspaceByokConfigs(input: ReorderWorkspaceByokConfigsInput!): [WorkspaceByokKeyConfigType!]!
 
+  """
+  Queue a fresh replay for a dead-lettered support bundle transfer forwarding event without mutating terminal evidence.
+  """
+  replayCopilotSupportBundleTransferForwardingEvent(input: CopilotSupportBundleTransferForwardingReplayInput!): CopilotSupportBundleTransferForwardingEventType!
+
   """Request to apply the subscription in advance"""
   requestApplySubscription(transactionId: String!): [SubscriptionType!]!
 
@@ -4413,6 +4489,11 @@ type Mutation {
   """Resolve a comment or not"""
   resolveComment(input: CommentResolveInput!): Boolean!
   resumeSubscription(idempotencyKey: String @deprecated(reason: "use header `Idempotency-Key`"), plan: SubscriptionPlan = Pro, workspaceId: String): SubscriptionType!
+
+  """
+  Queue a fresh Provider Health probe attempt for a dead-lettered workspace attempt without mutating terminal evidence.
+  """
+  retryCopilotProviderHealthProbeAttempt(input: CopilotProviderHealthProbeAttemptRetryInput!): CopilotProviderHealthProbeAttemptType!
   retryTranscriptTask(taskId: String!, workspaceId: String!): TranscriptionResultType
   revokeCommercialEntitlement(targetId: String!, targetType: String!): Boolean!
   revokeDocUserRoles(input: RevokeDocUserRoleInput!): Boolean!
@@ -4440,6 +4521,9 @@ type Mutation {
 
   """Update a comment content"""
   updateComment(input: CommentUpdateInput!): Boolean!
+  updateCopilotContextMemory(input: UpdateCopilotContextMemoryInput!): CopilotContextMemoryType!
+  updateCopilotContextProject(input: UpdateCopilotContextProjectInput!): CopilotContextProjectType!
+  updateCopilotContextSettings(input: UpdateCopilotContextSettingsInput!): CopilotContextSettingsType!
 
   """Update a chat session"""
   updateCopilotSession(options: UpdateChatSessionInput!): String!
@@ -5248,6 +5332,25 @@ input UpdateChatSessionInput {
   """The prompt name to use for the session"""
   promptName: String
   sessionId: String!
+}
+
+input UpdateCopilotContextMemoryInput {
+  content: String
+  id: ID!
+  status: String
+}
+
+input UpdateCopilotContextProjectInput {
+  description: String
+  documentIds: [String!]
+  id: ID!
+  name: String
+  status: String
+}
+
+input UpdateCopilotContextSettingsInput {
+  autoMemoryEnabled: Boolean!
+  workspaceId: String!
 }
 
 input UpdateDocDefaultRoleInput {

@@ -225,6 +225,8 @@ test.before(async t => {
             },
           },
           providers: {
+            defaults: {},
+            routePolicy: {},
             openaiCompatible: {
               apiStyle: 'chat_completions',
               baseURL: 'http://localmind.invalid/v1',
@@ -271,7 +273,7 @@ test.beforeEach(async t => {
 });
 
 test.after.always(async t => {
-  await t.context.app.close();
+  await t.context.app?.close();
 });
 
 async function seedReadyRegistryPrompt(db: PrismaClient, name: string) {

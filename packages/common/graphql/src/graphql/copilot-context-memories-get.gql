@@ -1,0 +1,27 @@
+query copilotContextMemoriesGet(
+  $workspaceId: String
+  $docId: String
+  $includeDisabled: Boolean
+) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      contextMemories(
+        docId: $docId
+        includeDisabled: $includeDisabled
+      ) {
+        id
+        ownerUserId
+        workspaceId
+        docId
+        projectId
+        sourceSessionId
+        scope
+        kind
+        status
+        content
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}

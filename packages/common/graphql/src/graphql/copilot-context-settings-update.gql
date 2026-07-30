@@ -1,0 +1,7 @@
+mutation copilotContextSettingsUpdate(
+  $input: UpdateCopilotContextSettingsInput!
+) {
+  updateCopilotContextSettings(input: $input) {
+    autoMemoryEnabled
+  }
+}
