@@ -279,6 +279,16 @@ test('durable memory extraction rejects questions and secrets', t => {
     ),
     []
   );
+  t.deepEqual(
+    extractDurableMemories(
+      'What is the deployment codename? Reply with only the codename.'
+    ),
+    []
+  );
+  t.deepEqual(
+    extractDurableMemories('The deployment codename is ORCHID_FACT.'),
+    ['The deployment codename is ORCHID_FACT.']
+  );
   t.deepEqual(extractDurableMemories('请记住：以后始终用中文回答。'), [
     '请记住：以后始终用中文回答。',
   ]);

@@ -28,7 +28,9 @@ import {
 const SECRET_PATTERN =
   /\b(password|passwd|api[_ -]?key|access[_ -]?token|refresh[_ -]?token|private[_ -]?key|client[_ -]?secret)\b\s*(?:[:=]|\bis\b|是)/i;
 const EXPLICIT_MEMORY_PATTERN =
-  /\b(remember|preference|prefer|always|never|decision|decided|selected|codename|deployment region|must use|should use)\b|记住|偏好|以后|始终|永远|决定|代号|部署区域/u;
+  /\b(remember|preference|prefer|always|never|decision|decided|selected|must use|should use)\b|记住|偏好|以后|始终|永远|决定/u;
+const STRUCTURED_FACT_PATTERN =
+  /\b(?:codename|deployment region)\b\s*(?:is|:|=)\s*\S|(?:代号|部署区域)\s*(?:是|为|：|:|=)\s*\S/iu;
 const REQUEST_PATTERN = /^(?:please\b|请)/i;
 const PERSISTENT_REQUEST_PATTERN =
   /\b(remember|preference|prefer|always|never|must use|should use)\b|记住|偏好|以后|始终|永远|必须/u;
@@ -58,6 +60,7 @@ export function extractDurableMemories(content: string) {
     }
     if (
       EXPLICIT_MEMORY_PATTERN.test(candidate) ||
+      STRUCTURED_FACT_PATTERN.test(candidate) ||
       BENCHMARK_FACT_PATTERN.test(candidate)
     ) {
       memories.add(candidate);
