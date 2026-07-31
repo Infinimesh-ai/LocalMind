@@ -3,5 +3,8 @@ mutation addContextDoc($options: AddContextDocInput!) {
     id
     createdAt
     status
+    snapshotUpdatedAt
+    updatedAt
+    isModified
   }
 }

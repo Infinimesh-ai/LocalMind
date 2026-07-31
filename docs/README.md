@@ -17,6 +17,8 @@ reference unless the current task explicitly targets them.
 
 Start here for LocalMind-specific work:
 
+- [LocalMind 用户使用指南](./localmind-user-guide.zh-CN.md)
+- [LocalMind 使用提示](./localmind-usage-tips.zh-CN.md)
 - [AI Chat context and memory](./ai-chat-context-and-memory.md)
 - [AI modernization entrypoint](./ai-modernization/README.md)
 - [Branch differences](./ai-modernization/branch-differences.md)

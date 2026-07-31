@@ -227,8 +227,8 @@ export class ChatPanelChips extends SignalWatcher(
     this._disposables.add(collections.cleanup);
   }
 
-  protected override updated(_changedProperties: PropertyValues): void {
-    if (_changedProperties.has('chips')) {
+  protected override willUpdate(changedProperties: PropertyValues): void {
+    if (changedProperties.has('chips')) {
       this._updateReferenceDocs();
     }
   }

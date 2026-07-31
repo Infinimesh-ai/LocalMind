@@ -28,12 +28,12 @@ import {
 const SECRET_PATTERN =
   /\b(password|passwd|api[_ -]?key|access[_ -]?token|refresh[_ -]?token|private[_ -]?key|client[_ -]?secret)\b\s*(?:[:=]|\bis\b|是)/i;
 const EXPLICIT_MEMORY_PATTERN =
-  /\b(remember|preference|prefer|always|never|decision|decided|selected|must use|should use)\b|记住|偏好|以后|始终|永远|决定/u;
+  /\b(remember|preference|prefer|always|never|decision|decided|selected|must use|should use)\b|记住|偏好|以后|始终|永远|决定/iu;
 const STRUCTURED_FACT_PATTERN =
   /\b(?:codename|deployment region)\b\s*(?:is|:|=)\s*\S|(?:代号|部署区域)\s*(?:是|为|：|:|=)\s*\S/iu;
 const REQUEST_PATTERN = /^(?:please\b|请)/i;
 const PERSISTENT_REQUEST_PATTERN =
-  /\b(remember|preference|prefer|always|never|must use|should use)\b|记住|偏好|以后|始终|永远|必须/u;
+  /\b(remember|preference|prefer|always|never|must use|should use)\b|记住|偏好|以后|始终|永远|必须/iu;
 const BENCHMARK_FACT_PATTERN = /\b[A-Z][A-Z0-9_]*_FACT\b/;
 
 function normalize(value: string) {

@@ -45,6 +45,7 @@ const ContextBlobSchema = z.object({
 const ContextDocSchema = z.object({
   id: z.string(),
   createdAt: z.number(),
+  snapshotUpdatedAt: z.number().optional(),
 });
 
 export const ContextFileSchema = z.object({

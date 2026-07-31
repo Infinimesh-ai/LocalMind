@@ -120,9 +120,16 @@ export type AIChatContextItem =
       tooltip?: string;
     };
 
+export type AIChatModifiedDocument = {
+  docId: string;
+  snapshotUpdatedAt?: number;
+  updatedAt: number;
+};
+
 export type AIChatContextState = {
   contextId: string | null;
   items: AIChatContextItem[];
+  modifiedDocuments: AIChatModifiedDocument[];
   loading: boolean;
   polling: boolean;
   error: Error | null;
@@ -175,6 +182,7 @@ export function createInitialComposerState(): AIChatComposerState {
     context: {
       contextId: null,
       items: [],
+      modifiedDocuments: [],
       loading: false,
       polling: false,
       error: null,

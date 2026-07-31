@@ -14,6 +14,20 @@ bridges:
 - nested placeholder statuses and fingerprints for support bundle source
   evidence.
 
+The AI Chat document snapshot freshness slice is implemented:
+
+- context documents persist the saved document timestamp captured when they
+  are attached, including documents added through tags and collections;
+- context GraphQL reads compare that baseline with the latest saved snapshot or
+  pending update timestamp without replacing the conversation snapshot;
+- active document conversations continue a restrained freshness poll after
+  embedding completes and expose deduplicated modified-document state;
+- AI Chat shows a dismissible update warning above the composer, offers
+  `New chat`, persists dismissal per workspace/session/document version, and
+  shows the warning again after a later save;
+- new drafts and session switches clear stale composer context before the
+  selected session reloads its own context.
+
 The latest confirmed slice is main-plan section 554:
 
 - the source-evidence field
@@ -1236,6 +1250,17 @@ The latest DB-history hardening slices are now implemented:
 
 The latest compatibility and verification repair is now implemented:
 
+- automatic memory extraction treats English durable-memory directives
+  case-insensitively, so sentence-initial forms such as `Remember ...` follow
+  the same private owner/workspace capture path as lowercase directives;
+- AI Chat derives context chips and reference-document state before Lit
+  renders, eliminating update-cycle warnings without changing persisted
+  context or document-freshness polling behavior;
+- image execution plans deduplicate identical attachments across prompt
+  messages before native preparation, and serialize the N-API image request
+  DTO into the snake-case transport contract expected by the Rust execution
+  plan compiler, restoring single-image edit requests without changing text or
+  multimodal chat planning;
 - stale repair workers that no longer own the current lease/attempt treat
   cooperative cancellation as a no-op instead of surfacing a false worker
   error;

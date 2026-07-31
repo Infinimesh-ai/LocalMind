@@ -253,6 +253,28 @@ describe('AIChatRuntime', () => {
     expect(runtime.getSnapshot().activeSessionId).toBe('session-1');
   });
 
+  test('context-only session can open a clean draft', async () => {
+    const runtime = createRuntime();
+    await runtime.dispatch({ type: 'initialize' });
+    await runtime.dispatch({
+      type: 'addContextItem',
+      item: { kind: 'doc', docId: 'doc-2' },
+    });
+
+    expect(runtime.getSnapshot().uiPolicy.canCreateNewSession).toBe(true);
+
+    await runtime.dispatch({ type: 'createNewSession' });
+
+    expect(runtime.getSnapshot().activeSessionId).toBeNull();
+    expect(runtime.getSnapshot().composer.context).toEqual(
+      expect.objectContaining({
+        contextId: null,
+        items: [],
+        modifiedDocuments: [],
+      })
+    );
+  });
+
   test('send binds an unbound session to the active doc after success', async () => {
     const unboundSession = session({ docId: null });
     const boundSession = session({ docId: 'doc-1' });
@@ -458,6 +480,56 @@ describe('AIChatRuntime', () => {
     expect(request.getSession).toHaveBeenCalledWith('workspace-1', 'session-1');
     expect(runtime.getSnapshot().activeSessionId).toBe('session-1');
     expect(runtime.getSnapshot().messages).toEqual(fallbackSession.messages);
+  });
+
+  test('closing the last session ignores an in-flight context poll', async () => {
+    let releasePoll!: (value: unknown) => void;
+    const request = createRequest();
+    (
+      request.context.getContextDocsAndFiles as ReturnType<typeof vi.fn>
+    ).mockImplementation(
+      () =>
+        new Promise(resolve => {
+          releasePoll = resolve;
+        })
+    );
+    const runtime = createRuntime(request);
+    await runtime.dispatch({
+      type: 'openSessionObject',
+      session: session(),
+    });
+    await runtime.dispatch({
+      type: 'addContextItem',
+      item: { kind: 'doc', docId: 'doc-2' },
+    });
+
+    await runtime.dispatch({ type: 'startContextPolling' });
+    await waitUntil(() => {
+      expect(request.context.getContextDocsAndFiles).toHaveBeenCalledTimes(1);
+    });
+    await runtime.dispatch({ type: 'closeTab', tabId: 'session-1' });
+    releasePoll({
+      docs: [
+        {
+          id: 'doc-2',
+          status: 'finished',
+          snapshotUpdatedAt: 2,
+          updatedAt: 20,
+          isModified: true,
+        },
+      ],
+    });
+    await Promise.resolve();
+
+    expect(runtime.getSnapshot().activeSessionId).toBeNull();
+    expect(runtime.getSnapshot().composer.context).toEqual(
+      expect.objectContaining({
+        contextId: null,
+        items: [],
+        modifiedDocuments: [],
+      })
+    );
+    runtime.dispose();
   });
 
   test('refreshHistory keeps current doc sessions separate from recent sessions', async () => {
@@ -898,7 +970,16 @@ describe('AIChatRuntime', () => {
     (
       request.context.getContextDocsAndFiles as ReturnType<typeof vi.fn>
     ).mockResolvedValue({
-      docs: [{ id: 'doc-2', status: 'finished', createdAt: 2 }],
+      docs: [
+        {
+          id: 'doc-2',
+          status: 'finished',
+          createdAt: 2,
+          snapshotUpdatedAt: 2,
+          updatedAt: 20,
+          isModified: true,
+        },
+      ],
       files: [
         {
           id: 'file-1',
@@ -911,7 +992,22 @@ describe('AIChatRuntime', () => {
       tags: [
         {
           id: 'tag-1',
-          docs: [{ id: 'tag-doc', status: 'failed' }],
+          docs: [
+            {
+              id: 'doc-2',
+              status: 'finished',
+              snapshotUpdatedAt: 2,
+              updatedAt: 18,
+              isModified: true,
+            },
+            {
+              id: 'tag-doc',
+              status: 'failed',
+              snapshotUpdatedAt: 3,
+              updatedAt: 30,
+              isModified: true,
+            },
+          ],
           createdAt: 3,
         },
       ],
@@ -939,17 +1035,112 @@ describe('AIChatRuntime', () => {
       {
         kind: 'tag',
         tagId: 'tag-1',
-        docIds: ['tag-doc'],
+        docIds: ['doc-2', 'tag-doc'],
         state: 'finished',
         createdAt: 3,
         tooltip: undefined,
       },
     ]);
     expect(runtime.getSnapshot().composer.context.embeddingCount).toEqual({
-      finished: 1,
+      finished: 2,
       processing: 1,
       failed: 1,
     });
+    expect(runtime.getSnapshot().composer.context.modifiedDocuments).toEqual([
+      { docId: 'doc-2', snapshotUpdatedAt: 2, updatedAt: 20 },
+      { docId: 'tag-doc', snapshotUpdatedAt: 3, updatedAt: 30 },
+    ]);
+  });
+
+  test('keeps polling idle document contexts for later saved updates', async () => {
+    vi.useFakeTimers();
+    const request = createRequest();
+    (
+      request.context.getContextId as ReturnType<typeof vi.fn>
+    ).mockResolvedValue('context-1');
+    (
+      request.context.getContextDocsAndFiles as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
+      docs: [
+        {
+          id: 'doc-2',
+          status: 'finished',
+          createdAt: 2,
+          snapshotUpdatedAt: 2,
+          updatedAt: 2,
+          isModified: false,
+        },
+      ],
+    });
+    const runtime = createRuntime(request);
+    await runtime.dispatch({
+      type: 'openSessionObject',
+      session: session(),
+    });
+    await runtime.dispatch({ type: 'loadContext' });
+
+    await runtime.dispatch({ type: 'startContextPolling' });
+    await waitUntil(() => {
+      expect(request.context.getContextDocsAndFiles).toHaveBeenCalledTimes(2);
+    });
+    await vi.advanceTimersByTimeAsync(10000);
+    await waitUntil(() => {
+      expect(request.context.getContextDocsAndFiles).toHaveBeenCalledTimes(3);
+    });
+
+    runtime.dispose();
+    vi.useRealTimers();
+  });
+
+  test('new chat clears context and modified document state', async () => {
+    const request = createRequest();
+    (
+      request.context.getContextId as ReturnType<typeof vi.fn>
+    ).mockResolvedValue('context-1');
+    (
+      request.context.getContextDocsAndFiles as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
+      docs: [
+        {
+          id: 'doc-2',
+          status: 'finished',
+          createdAt: 2,
+          snapshotUpdatedAt: 2,
+          updatedAt: 20,
+          isModified: true,
+        },
+      ],
+    });
+    const runtime = createRuntime(request);
+    await runtime.dispatch({
+      type: 'openSessionObject',
+      session: session({
+        messages: [
+          {
+            id: 'message-1',
+            role: 'user',
+            content: 'read doc-2',
+            attachments: [],
+            streamObjects: [],
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      }),
+    });
+    await runtime.dispatch({ type: 'loadContext' });
+    expect(
+      runtime.getSnapshot().composer.context.modifiedDocuments
+    ).toHaveLength(1);
+
+    await runtime.dispatch({ type: 'createNewSession' });
+
+    expect(runtime.getSnapshot().composer.context).toEqual(
+      expect.objectContaining({
+        contextId: null,
+        items: [],
+        modifiedDocuments: [],
+      })
+    );
   });
 
   test('pollEmbeddingStatus updates composer embedding completion state', async () => {

@@ -7,6 +7,9 @@ mutation addContextCategory($options: AddContextCategoryInput!) {
       id
       createdAt
       status
+      snapshotUpdatedAt
+      updatedAt
+      isModified
     }
   }
 }

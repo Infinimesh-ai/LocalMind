@@ -373,6 +373,66 @@ export class DocModel extends BaseModel {
     return result;
   }
 
+  /**
+   * Find the latest saved timestamp for a bounded set of docs.
+   *
+   * Queries are chunked so large tag or collection contexts do not create an
+   * unbounded SQL parameter list.
+   */
+  async findTimestampsByDocIds(workspaceId: string, docIds: string[]) {
+    const ids = Array.from(new Set(docIds));
+    if (!ids.length) {
+      return {};
+    }
+
+    const result: Record<string, number> = {};
+    const chunkSize = 500;
+
+    for (let offset = 0; offset < ids.length; offset += chunkSize) {
+      const chunk = ids.slice(offset, offset + chunkSize);
+      const [snapshots, updates] = await Promise.all([
+        this.db.snapshot.findMany({
+          select: {
+            id: true,
+            updatedAt: true,
+          },
+          where: {
+            workspaceId,
+            id: {
+              in: chunk,
+            },
+          },
+        }),
+        this.db.update.groupBy({
+          where: {
+            workspaceId,
+            id: {
+              in: chunk,
+            },
+          },
+          by: ['id'],
+          _max: {
+            createdAt: true,
+          },
+        }),
+      ]);
+
+      snapshots.forEach(snapshot => {
+        result[snapshot.id] = snapshot.updatedAt.getTime();
+      });
+      updates.forEach(update => {
+        if (update._max.createdAt) {
+          result[update.id] = Math.max(
+            result[update.id] ?? 0,
+            update._max.createdAt.getTime()
+          );
+        }
+      });
+    }
+
+    return result;
+  }
+
   // #endregion
 
   // #region DocMeta

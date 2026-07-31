@@ -2473,7 +2473,17 @@ test('should be able to manage context', async t => {
 
     {
       const docId = await addDoc();
-      await session.addDocRecord(docId);
+      const record = await session.addDocRecord(docId);
+      const timestamp = (
+        await t.context.models.doc.findTimestampsByDocIds(session.workspaceId, [
+          docId,
+        ])
+      )[docId];
+      t.is(
+        record.snapshotUpdatedAt,
+        timestamp,
+        'should capture the saved doc timestamp as the context baseline'
+      );
       const docs = session.docs.map(d => d.id);
       t.deepEqual(docs, [docId], 'should list doc id');
 
@@ -2493,8 +2503,13 @@ test('should be able to manage context', async t => {
         const tags = session.tags.map(t => t.id);
         t.deepEqual(tags, [tagId], 'should list tag id');
 
-        const docs = session.tags.flatMap(l => l.docs.map(d => d.id));
-        t.deepEqual(docs, [docId1], 'should list doc ids');
+        const docs = session.tags.flatMap(l => l.docs);
+        t.truthy(
+          docs[0].snapshotUpdatedAt,
+          'should capture baselines for category docs'
+        );
+        const docIds = docs.map(d => d.id);
+        t.deepEqual(docIds, [docId1], 'should list doc ids');
       }
 
       {

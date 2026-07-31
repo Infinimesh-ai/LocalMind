@@ -292,6 +292,14 @@ test('durable memory extraction rejects questions and secrets', t => {
   t.deepEqual(extractDurableMemories('请记住：以后始终用中文回答。'), [
     '请记住：以后始终用中文回答。',
   ]);
+  t.deepEqual(
+    extractDurableMemories(
+      'Remember that my preferred verification response starts with the conclusion.'
+    ),
+    [
+      'Remember that my preferred verification response starts with the conclusion.',
+    ]
+  );
 });
 
 test('automatic memory follows its owner into the active project', async t => {

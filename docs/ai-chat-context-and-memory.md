@@ -1,5 +1,9 @@
 # AI Chat Context and Memory
 
+For end-user instructions, see the
+[LocalMind 用户使用指南](./localmind-user-guide.zh-CN.md) and the concise
+[LocalMind 使用提示](./localmind-usage-tips.zh-CN.md).
+
 LocalMind uses two kinds of information when answering in AI Chat:
 
 - conversation context, including recent messages and summaries of older turns;
@@ -68,10 +72,21 @@ instruction.
 
 ## Updated Documents
 
+> [!IMPORTANT]
+> An existing conversation never refreshes its document snapshot
+> automatically. LocalMind checks the saved versions of documents attached to
+> the active conversation and shows a dismissible warning above the chat input
+> when one changes. Click **New Chat** and add or reference the document again.
+> Switching to another old conversation does not refresh that conversation's
+> snapshot either.
+
 When AI Chat reads an attached or referenced document, that conversation uses a
 snapshot of the document. Editing the source document does not replace the
 snapshot in an existing conversation.
 
-Start a new conversation after editing a document when the AI needs to use its
-latest content. This keeps earlier answers reproducible and avoids silently
-changing the evidence behind an active conversation.
+After editing a document, wait for it to save and sync, click **New Chat**, and
+add or reference the document again when the AI needs its latest content. This
+keeps earlier answers reproducible and avoids silently changing the evidence
+behind an active conversation. Dismissing the warning hides it for that
+conversation and saved document version; saving a later version makes the
+warning appear again.

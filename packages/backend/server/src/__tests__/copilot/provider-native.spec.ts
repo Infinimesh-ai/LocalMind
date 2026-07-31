@@ -4674,7 +4674,34 @@ test('ExecutionPlanBuilder should build native prepared routes for structured, i
             protocol: 'openai_images',
             model: 'gpt-image-1',
           }),
-          request: nativeImageRequest('draw a cat'),
+          request: {
+            ...nativeImageRequest('draw a cat'),
+            operation: 'edit',
+            images: [
+              {
+                kind: 'data',
+                dataBase64: 'image-data',
+                mediaType: 'image/png',
+                fileName: 'cat.png',
+              },
+            ],
+            mask: {
+              kind: 'url',
+              url: 'https://example.com/mask.png',
+            },
+            options: {
+              aspectRatio: '1:1',
+              outputCompression: 80,
+              outputFormat: 'png',
+              quality: 'high',
+            },
+            providerOptions: {
+              provider: 'openai',
+              options: {
+                input_fidelity: 'high',
+              },
+            },
+          },
         },
       },
     ]),
@@ -4729,7 +4756,27 @@ test('ExecutionPlanBuilder should build native prepared routes for structured, i
     structuredContract(z.object({ ok: z.boolean() }))
   );
   const imagePlan = await builder.buildImagePlan({ modelId: 'gpt-image-1' }, [
-    userPrompt('draw a cat'),
+    {
+      ...systemPrompt('edit a cat'),
+      attachments: [
+        {
+          kind: 'data',
+          data: 'image-data',
+          mimeType: 'image/png',
+        },
+      ],
+    },
+    {
+      ...userPrompt('draw a cat'),
+      attachments: [
+        {
+          kind: 'data',
+          data: 'image-data',
+          mimeType: 'image/png',
+        },
+        'https://example.com/reference.png',
+      ],
+    },
   ]);
   const signal = new AbortController().signal;
   const embeddingPlan = await builder.buildEmbeddingPlan(
@@ -4760,6 +4807,70 @@ test('ExecutionPlanBuilder should build native prepared routes for structured, i
 
   t.is(structuredPlan.nativeDispatch?.structured?.preparedRoutes, undefined);
   t.is(imagePlan.nativeDispatch?.image?.preparedRoutes, undefined);
+  t.deepEqual(imagePlan.transport, {
+    kind: 'image',
+    request: {
+      images: [
+        {
+          data_base64: 'image-data',
+          file_name: 'cat.png',
+          kind: 'data',
+          media_type: 'image/png',
+        },
+      ],
+      mask: {
+        kind: 'url',
+        url: 'https://example.com/mask.png',
+      },
+      model: 'gpt-image-1',
+      operation: 'edit',
+      options: {
+        aspect_ratio: '1:1',
+        output_compression: 80,
+        output_format: 'png',
+        quality: 'high',
+      },
+      prompt: 'draw a cat',
+      provider_options: {
+        options: {
+          input_fidelity: 'high',
+        },
+        provider: 'openai',
+      },
+    },
+  });
+  t.deepEqual(imagePlan.request.messages, [
+    {
+      ...systemPrompt('edit a cat'),
+      attachments: [
+        {
+          kind: 'data',
+          data: 'image-data',
+          mimeType: 'image/png',
+        },
+      ],
+    },
+    {
+      ...userPrompt('draw a cat'),
+      attachments: ['https://example.com/reference.png'],
+    },
+  ]);
+  t.deepEqual(providers.prepareImageRoutes.firstCall.args[1], [
+    {
+      ...systemPrompt('edit a cat'),
+      attachments: [
+        {
+          kind: 'data',
+          data: 'image-data',
+          mimeType: 'image/png',
+        },
+      ],
+    },
+    {
+      ...userPrompt('draw a cat'),
+      attachments: ['https://example.com/reference.png'],
+    },
+  ]);
   t.is(embeddingPlan.nativeDispatch?.embedding?.preparedRoutes?.length, 2);
   t.is(rerankPlan.nativeDispatch?.rerank?.preparedRoutes?.length, 2);
   t.is(embeddingPlan.hostContext.signal, signal);

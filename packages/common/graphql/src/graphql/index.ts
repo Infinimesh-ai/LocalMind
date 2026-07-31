@@ -1604,6 +1604,9 @@ export const addContextCategoryMutation = {
       id
       createdAt
       status
+      snapshotUpdatedAt
+      updatedAt
+      isModified
     }
   }
 }`,
@@ -1682,6 +1685,9 @@ export const addContextDocMutation = {
     id
     createdAt
     status
+    snapshotUpdatedAt
+    updatedAt
+    isModified
   }
 }`,
 };
@@ -1736,6 +1742,9 @@ export const listContextObjectQuery = {
           id
           status
           createdAt
+          snapshotUpdatedAt
+          updatedAt
+          isModified
         }
         files {
           id
@@ -1754,6 +1763,9 @@ export const listContextObjectQuery = {
             id
             status
             createdAt
+            snapshotUpdatedAt
+            updatedAt
+            isModified
           }
           createdAt
         }
@@ -1764,6 +1776,9 @@ export const listContextObjectQuery = {
             id
             status
             createdAt
+            snapshotUpdatedAt
+            updatedAt
+            isModified
           }
           createdAt
         }

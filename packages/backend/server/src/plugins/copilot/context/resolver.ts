@@ -199,7 +199,10 @@ class CopilotContextBlob implements Omit<ContextBlob, 'status'> {
 }
 
 @ObjectType()
-class CopilotContextDoc implements Omit<ContextDoc, 'status'> {
+class CopilotContextDoc implements Omit<
+  ContextDoc,
+  'status' | 'snapshotUpdatedAt'
+> {
   @Field(() => ID)
   id!: string;
 
@@ -208,6 +211,15 @@ class CopilotContextDoc implements Omit<ContextDoc, 'status'> {
 
   @Field(() => SafeIntResolver)
   createdAt!: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  snapshotUpdatedAt!: number | null;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  updatedAt!: number | null;
+
+  @Field(() => Boolean)
+  isModified!: boolean;
 }
 
 @ObjectType()
@@ -446,11 +458,74 @@ export class CopilotContextResolver {
     private readonly storage: CopilotStorage
   ) {}
 
+  private async enrichContextDocs(
+    userId: string,
+    workspaceId: string,
+    docs: ContextDoc[]
+  ): Promise<CopilotContextDoc[]> {
+    const candidates = Array.from(new Set(docs.map(doc => doc.id))).map(
+      docId => ({ docId })
+    );
+    const readableDocs = await this.ac
+      .user(userId)
+      .workspace(workspaceId)
+      .allowLocal()
+      .docs(candidates, 'Doc.Read');
+    const readableDocIds = new Set(readableDocs.map(doc => doc.docId));
+    const timestamps = await this.models.doc.findTimestampsByDocIds(
+      workspaceId,
+      readableDocs.map(doc => doc.docId)
+    );
+
+    return docs.map(doc => {
+      const canRead = readableDocIds.has(doc.id);
+      const updatedAt = timestamps[doc.id] ?? null;
+      const snapshotUpdatedAt = canRead
+        ? (doc.snapshotUpdatedAt ?? null)
+        : null;
+      const baseline = snapshotUpdatedAt ?? doc.createdAt;
+      return {
+        ...doc,
+        status: doc.status ?? null,
+        snapshotUpdatedAt,
+        updatedAt,
+        isModified: canRead && updatedAt !== null && updatedAt > baseline,
+      };
+    });
+  }
+
+  private async enrichContextCategories(
+    userId: string,
+    workspaceId: string,
+    categories: ContextCategory[]
+  ): Promise<CopilotContextCategory[]> {
+    const docs = categories.flatMap(category => category.docs);
+    const enrichedDocs = await this.enrichContextDocs(
+      userId,
+      workspaceId,
+      docs
+    );
+    let offset = 0;
+
+    return categories.map(category => {
+      const categoryDocs = enrichedDocs.slice(
+        offset,
+        offset + category.docs.length
+      );
+      offset += category.docs.length;
+      return {
+        ...category,
+        docs: categoryDocs,
+      };
+    });
+  }
+
   @ResolveField(() => [CopilotContextCategory], {
     description: 'list collections in context',
   })
   @CallMetric('ai', 'context_file_list')
   async collections(
+    @CurrentUser() user: CurrentUser,
     @Parent() context: CopilotContextType
   ): Promise<CopilotContextCategory[]> {
     if (!context.id) {
@@ -463,7 +538,11 @@ export class CopilotContextResolver {
       collections.flatMap(c => c.docs)
     );
 
-    return collections;
+    return await this.enrichContextCategories(
+      user.id,
+      session.workspaceId,
+      collections
+    );
   }
 
   @ResolveField(() => [CopilotContextCategory], {
@@ -471,6 +550,7 @@ export class CopilotContextResolver {
   })
   @CallMetric('ai', 'context_file_list')
   async tags(
+    @CurrentUser() user: CurrentUser,
     @Parent() context: CopilotContextType
   ): Promise<CopilotContextCategory[]> {
     if (!context.id) {
@@ -483,7 +563,11 @@ export class CopilotContextResolver {
       tags.flatMap(c => c.docs)
     );
 
-    return tags;
+    return await this.enrichContextCategories(
+      user.id,
+      session.workspaceId,
+      tags
+    );
   }
 
   @ResolveField(() => [CopilotContextBlob], {
@@ -511,6 +595,7 @@ export class CopilotContextResolver {
   })
   @CallMetric('ai', 'context_file_list')
   async docs(
+    @CurrentUser() user: CurrentUser,
     @Parent() context: CopilotContextType
   ): Promise<CopilotContextDoc[]> {
     if (!context.id) {
@@ -520,7 +605,7 @@ export class CopilotContextResolver {
     const docs = session.docs;
     await this.models.copilotContext.mergeDocStatus(session.workspaceId, docs);
 
-    return docs.map(doc => ({ ...doc, status: doc.status || null }));
+    return await this.enrichContextDocs(user.id, session.workspaceId, docs);
   }
 
   @ResolveField(() => [CopilotContextFile], {
@@ -590,7 +675,14 @@ export class CopilotContextResolver {
         );
       }
 
-      return records;
+      return {
+        ...records,
+        docs: await this.enrichContextDocs(
+          user.id,
+          session.workspaceId,
+          records.docs
+        ),
+      };
     } catch (e: any) {
       throw new CopilotFailedToModifyContext({
         contextId: options.contextId,
@@ -666,7 +758,9 @@ export class CopilotContextResolver {
         { contextId: session.id, priority: 0 }
       );
 
-      return { ...record, status: record.status || null };
+      return (
+        await this.enrichContextDocs(user.id, session.workspaceId, [record])
+      )[0];
     } catch (e: any) {
       throw new CopilotFailedToModifyContext({
         contextId: options.contextId,

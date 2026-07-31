@@ -21,6 +21,7 @@ import type { Store } from '@blocksuite/affine/store';
 import {
   AiOutlineIcon,
   AllDocsIcon,
+  HelpIcon,
   ImportIcon,
   JournalIcon,
   SettingsIcon,
@@ -112,6 +113,24 @@ const AIChatButton = () => {
       <span data-testid="ai-chat">
         {t['com.affine.workspaceSubPath.chat']()}
       </span>
+    </MenuLinkItem>
+  );
+};
+
+const HelpButton = () => {
+  const workbench = useService(WorkbenchService).workbench;
+  const helpActive = useLiveData(
+    workbench.location$.selector(location => location.pathname === '/help')
+  );
+
+  return (
+    <MenuLinkItem
+      icon={<HelpIcon />}
+      active={helpActive}
+      to="/help"
+      data-testid="slider-bar-help-button"
+    >
+      <span>Help &amp; guide</span>
     </MenuLinkItem>
   );
 };
@@ -236,6 +255,7 @@ export const RootAppSidebar = memo((): ReactElement => {
           title={t['com.affine.rootAppSidebar.others']()}
           contentStyle={{ padding: '6px 8px 0 8px' }}
         >
+          <HelpButton />
           <TrashButton />
           <MenuItem
             data-testid="slider-bar-import-button"

@@ -995,7 +995,10 @@ type CopilotContextCategory {
 type CopilotContextDoc {
   createdAt: SafeInt!
   id: ID!
+  isModified: Boolean!
+  snapshotUpdatedAt: SafeInt
   status: ContextEmbedStatus
+  updatedAt: SafeInt
 }
 
 type CopilotContextFile {

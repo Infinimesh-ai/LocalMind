@@ -298,6 +298,9 @@ export async function listContextDocAndFiles(
         id: string;
         status: string | null;
         createdAt: number;
+        snapshotUpdatedAt: number | null;
+        updatedAt: number | null;
+        isModified: boolean;
       }[];
       files: {
         id: string;
@@ -341,6 +344,9 @@ export async function listContextCategories(
           id: string;
           status: string | null;
           createdAt: number;
+          snapshotUpdatedAt: number | null;
+          updatedAt: number | null;
+          isModified: boolean;
         }[];
       }[];
     }

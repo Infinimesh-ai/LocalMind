@@ -109,10 +109,16 @@ export class ContextSession implements AsyncDisposable {
         docId => !category.docs.some(d => d.id === docId)
       );
       if (missingDocs.length) {
+        const createdAt = Date.now();
+        const timestamps = await this.models.doc.findTimestampsByDocIds(
+          this.workspaceId,
+          missingDocs
+        );
         category.docs.push(
           ...missingDocs.map(id => ({
             id,
-            createdAt: Date.now(),
+            createdAt,
+            snapshotUpdatedAt: timestamps[id] ?? createdAt,
             status: ContextEmbedStatus.processing,
           }))
         );
@@ -122,12 +128,17 @@ export class ContextSession implements AsyncDisposable {
       return category;
     }
     const createdAt = Date.now();
+    const timestamps = await this.models.doc.findTimestampsByDocIds(
+      this.workspaceId,
+      docs
+    );
     const record = {
       id,
       type,
       docs: docs.map(id => ({
         id,
         createdAt,
+        snapshotUpdatedAt: timestamps[id] ?? createdAt,
         status: ContextEmbedStatus.processing,
       })),
       createdAt,
@@ -210,7 +221,16 @@ export class ContextSession implements AsyncDisposable {
     if (doc) {
       return doc;
     }
-    const record = { id: docId, createdAt: Date.now() };
+    const createdAt = Date.now();
+    const timestamps = await this.models.doc.findTimestampsByDocIds(
+      this.workspaceId,
+      [docId]
+    );
+    const record = {
+      id: docId,
+      createdAt,
+      snapshotUpdatedAt: timestamps[docId] ?? createdAt,
+    };
     this.config.docs.push(record);
     await this.save();
     return record;

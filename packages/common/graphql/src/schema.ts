@@ -1145,7 +1145,10 @@ export interface CopilotContextDoc {
   __typename?: 'CopilotContextDoc';
   createdAt: Scalars['SafeInt']['output'];
   id: Scalars['ID']['output'];
+  isModified: Scalars['Boolean']['output'];
+  snapshotUpdatedAt: Maybe<Scalars['SafeInt']['output']>;
   status: Maybe<ContextEmbedStatus>;
+  updatedAt: Maybe<Scalars['SafeInt']['output']>;
 }
 
 export interface CopilotContextFile {
@@ -8669,6 +8672,9 @@ export type AddContextCategoryMutation = {
       id: string;
       createdAt: number;
       status: ContextEmbedStatus | null;
+      snapshotUpdatedAt: number | null;
+      updatedAt: number | null;
+      isModified: boolean;
     }>;
   };
 };
@@ -8760,6 +8766,9 @@ export type AddContextDocMutation = {
     id: string;
     createdAt: number;
     status: ContextEmbedStatus | null;
+    snapshotUpdatedAt: number | null;
+    updatedAt: number | null;
+    isModified: boolean;
   };
 };
 
@@ -8826,6 +8835,9 @@ export type ListContextObjectQuery = {
           id: string;
           status: ContextEmbedStatus | null;
           createdAt: number;
+          snapshotUpdatedAt: number | null;
+          updatedAt: number | null;
+          isModified: boolean;
         }>;
         files: Array<{
           __typename?: 'CopilotContextFile';
@@ -8848,6 +8860,9 @@ export type ListContextObjectQuery = {
             id: string;
             status: ContextEmbedStatus | null;
             createdAt: number;
+            snapshotUpdatedAt: number | null;
+            updatedAt: number | null;
+            isModified: boolean;
           }>;
         }>;
         collections: Array<{
@@ -8860,6 +8875,9 @@ export type ListContextObjectQuery = {
             id: string;
             status: ContextEmbedStatus | null;
             createdAt: number;
+            snapshotUpdatedAt: number | null;
+            updatedAt: number | null;
+            isModified: boolean;
           }>;
         }>;
       }>;

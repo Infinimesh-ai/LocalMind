@@ -1,4 +1,5 @@
 import './ai-chat-composer-tip';
+import './ai-chat-document-update-alert';
 
 import type {
   AIDraftService,
@@ -52,6 +53,55 @@ import {
 } from '../ai-chat-chips';
 import type { AIChatInputContext, AIReasoningConfig } from '../ai-chat-input';
 import { MAX_IMAGE_COUNT } from '../ai-chat-input/const';
+
+type ComposerContextRuntime = Pick<AIChatRuntime, 'dispatch' | 'getSnapshot'>;
+
+export async function initializeComposerContext(
+  runtime: ComposerContextRuntime | null | undefined,
+  sessionId: string | null,
+  isCurrent: () => boolean,
+  reset: () => void,
+  sync: () => void
+) {
+  await runtime?.dispatch({ type: 'stopContextPolling' });
+  if (!runtime || !sessionId) {
+    reset();
+    return;
+  }
+
+  await runtime.dispatch({ type: 'loadContext' });
+  if (!isCurrent()) return;
+
+  sync();
+  const needPoll = runtime
+    .getSnapshot()
+    .composer.context.items.some(
+      item =>
+        item.state === 'processing' ||
+        item.kind === 'doc' ||
+        item.kind === 'tag' ||
+        item.kind === 'collection'
+    );
+  if (needPoll) {
+    await runtime.dispatch({ type: 'startContextPolling' });
+    sync();
+  }
+  if (isCurrent()) {
+    await runtime.dispatch({ type: 'pollEmbeddingStatus' });
+  }
+}
+
+export function hasActiveComposerContextOperation(
+  runtime: ComposerContextRuntime | null | undefined,
+  sessionId: string | null
+) {
+  const snapshot = runtime?.getSnapshot();
+  return Boolean(
+    sessionId &&
+    snapshot?.activeSessionId === sessionId &&
+    snapshot.composer.context.loading
+  );
+}
 
 export class AIChatComposer extends SignalWatcher(
   WithDisposable(ShadowlessElement)
@@ -152,6 +202,10 @@ export class AIChatComposer extends SignalWatcher(
   @state()
   accessor embeddingCompleted = false;
 
+  private composerInitializationSeq = 0;
+  private initializedRuntime: AIChatRuntime | null | undefined;
+  private initializedSessionId: string | null = null;
+
   private get activePromptName() {
     return this.promptName ?? this.session?.promptName;
   }
@@ -170,6 +224,19 @@ export class AIChatComposer extends SignalWatcher(
         .portalContainer=${this.portalContainer}
         .addImages=${this.addImages}
       ></chat-panel-chips>
+      <ai-chat-document-update-alert
+        .workspaceId=${this.workspaceId}
+        .sessionId=${
+          this.runtimeSnapshot?.activeSessionId ??
+          this.session?.sessionId ??
+          null
+        }
+        .documents=${
+          this.runtimeSnapshot?.composer.context.modifiedDocuments ?? []
+        }
+        .docDisplayConfig=${this.docDisplayConfig}
+        .onNewChat=${this.createNewChat}
+      ></ai-chat-document-update-alert>
       <ai-chat-input
         .independentMode=${this.independentMode}
         .host=${this.host}
@@ -219,10 +286,13 @@ export class AIChatComposer extends SignalWatcher(
     this._disposables.add(
       AIAppEvents.requestSendWithChat.subscribe(this.beforeChatContextSend)
     );
-    this.initComposer().catch(console.error);
+    this.initializeComposerForSession();
   }
 
   override disconnectedCallback() {
+    this.composerInitializationSeq++;
+    this.initializedRuntime = undefined;
+    this.initializedSessionId = null;
     super.disconnectedCallback();
     this.runtime?.dispatch({ type: 'stopContextPolling' }).catch(console.error);
   }
@@ -240,12 +310,35 @@ export class AIChatComposer extends SignalWatcher(
     ) {
       this.isChipsCollapsed = true;
     }
-  }
-
-  protected override updated(changedProperties: PropertyValues): void {
     if (changedProperties.has('runtimeSnapshot')) {
       this.syncChipsFromRuntimeSnapshot();
     }
+  }
+
+  protected override updated(changedProperties: PropertyValues): void {
+    if (changedProperties.has('session') || changedProperties.has('runtime')) {
+      this.initializeComposerForSession();
+    }
+  }
+
+  private readonly createNewChat = () => {
+    return this.runtime?.dispatch({ type: 'createNewSession' });
+  };
+
+  private initializeComposerForSession() {
+    const sessionId = this.session?.sessionId ?? null;
+    if (
+      this.initializedRuntime === this.runtime &&
+      this.initializedSessionId === sessionId
+    ) {
+      return;
+    }
+    this.initializedRuntime = this.runtime;
+    this.initializedSessionId = sessionId;
+    if (hasActiveComposerContextOperation(this.runtime, sessionId)) {
+      return;
+    }
+    void this.initComposer(sessionId).catch(console.error);
   }
 
   private readonly beforeChatContextSend = (
@@ -381,11 +474,6 @@ export class AIChatComposer extends SignalWatcher(
       return { kind: 'blob', blobId: chip.sourceId, state: chip.state };
     }
     return null;
-  };
-
-  private readonly initChips = async () => {
-    await this.runtime?.dispatch({ type: 'loadContext' });
-    this.syncChipsFromRuntime();
   };
 
   private readonly updateChips = (chips: ChatChip[]) => {
@@ -640,24 +728,22 @@ export class AIChatComposer extends SignalWatcher(
     this.syncChipsFromRuntime();
   };
 
-  private readonly pollEmbeddingStatus = async () => {
-    if (!this.runtime) return;
-    await this.runtime.dispatch({ type: 'pollEmbeddingStatus' });
-    this.syncChipsFromRuntime();
-  };
-
-  private readonly initComposer = async () => {
-    const userId = AIAppEvents.userInfo.value?.id;
-    if (!userId || !this.session) return;
-
-    await this.initChips();
-    const needPoll = this.chips.some(
-      chip =>
-        chip.state === 'processing' || isTagChip(chip) || isCollectionChip(chip)
+  private readonly initComposer = async (sessionId: string | null) => {
+    const seq = ++this.composerInitializationSeq;
+    const runtime = this.runtime;
+    const isCurrent = () =>
+      seq === this.composerInitializationSeq &&
+      runtime === this.runtime &&
+      runtime?.getSnapshot().activeSessionId === sessionId;
+    await initializeComposerContext(
+      runtime,
+      sessionId,
+      isCurrent,
+      () => {
+        this.updateChips([]);
+        this.embeddingCompleted = false;
+      },
+      this.syncChipsFromRuntime
     );
-    if (needPoll) {
-      await this.pollContextDocsAndFiles();
-    }
-    await this.pollEmbeddingStatus();
   };
 }

@@ -1,6 +1,9 @@
+import { isDeepStrictEqual } from 'node:util';
+
 import { Injectable } from '@nestjs/common';
 
 import type {
+  LlmImageRequest,
   LlmPreparedDispatchRoute,
   LlmPreparedEmbeddingDispatchRoute,
   LlmPreparedImageDispatchRoute,
@@ -180,26 +183,6 @@ type PreparedRouteLike<TRequest = unknown> = {
   request: TRequest;
 };
 
-function buildPreparedTransport<
-  TKind extends ExecutionTransportContract['kind'],
-  TPrepared extends PreparedRouteLike,
->(
-  kind: TKind,
-  routes: ResolvedCopilotProvider[],
-  getPrepared: (route: ResolvedCopilotProvider) => TPrepared | undefined
-): ExecutionTransportContract | undefined {
-  const prepared =
-    routes.length === 1 ? routes[0] && getPrepared(routes[0]) : undefined;
-  if (!prepared) {
-    return;
-  }
-
-  return {
-    kind,
-    request: prepared.request,
-  } as ExecutionTransportContract;
-}
-
 function collectPreparedRoutes<TPrepared extends PreparedRouteLike, TRoute>(
   routes: ResolvedCopilotProvider[],
   getPrepared: (route: ResolvedCopilotProvider) => TPrepared | undefined,
@@ -287,7 +270,7 @@ function mapPreparedDispatchRoute<TRequest>(
 type PreparedExecutionArtifactSpec<
   TKind extends ExecutionTransportContract['kind'],
   TPrepared extends PreparedRouteLike,
-  TRoute,
+  TRoute extends { request: unknown },
   TDispatch extends NativePreparedDispatchPlan<TRoute, TPrepared>,
 > = {
   transportKind: TKind;
@@ -305,27 +288,101 @@ type PreparedExecutionArtifacts<TDispatch> = {
   transport?: ExecutionTransportContract;
 };
 
+function serializeImageInput(
+  input: NonNullable<LlmImageRequest['images']>[number]
+) {
+  return {
+    kind: input.kind,
+    ...(input.url !== undefined ? { url: input.url } : {}),
+    ...(input.dataBase64 !== undefined
+      ? { data_base64: input.dataBase64 }
+      : {}),
+    ...(input.data !== undefined ? { data: input.data } : {}),
+    ...(input.mediaType !== undefined ? { media_type: input.mediaType } : {}),
+    ...(input.fileName !== undefined ? { file_name: input.fileName } : {}),
+  };
+}
+
+function serializeImageRequest(request: LlmImageRequest) {
+  const options = request.options;
+  const providerOptions = request.providerOptions;
+
+  return {
+    model: request.model,
+    prompt: request.prompt,
+    operation: request.operation,
+    ...(request.images !== undefined
+      ? { images: request.images.map(serializeImageInput) }
+      : {}),
+    ...(request.mask !== undefined
+      ? { mask: serializeImageInput(request.mask) }
+      : {}),
+    ...(options !== undefined
+      ? {
+          options: {
+            ...(options.n !== undefined ? { n: options.n } : {}),
+            ...(options.size !== undefined ? { size: options.size } : {}),
+            ...(options.aspectRatio !== undefined
+              ? { aspect_ratio: options.aspectRatio }
+              : {}),
+            ...(options.quality !== undefined
+              ? { quality: options.quality }
+              : {}),
+            ...(options.outputFormat !== undefined
+              ? { output_format: options.outputFormat }
+              : {}),
+            ...(options.outputCompression !== undefined
+              ? { output_compression: options.outputCompression }
+              : {}),
+            ...(options.background !== undefined
+              ? { background: options.background }
+              : {}),
+            ...(options.seed !== undefined ? { seed: options.seed } : {}),
+          },
+        }
+      : {}),
+    ...(providerOptions !== undefined
+      ? {
+          provider_options: {
+            provider: providerOptions.provider,
+            ...(providerOptions.options !== undefined
+              ? { options: providerOptions.options }
+              : {}),
+          },
+        }
+      : {}),
+  };
+}
+
 function buildPreparedExecutionArtifacts<
   TKind extends ExecutionTransportContract['kind'],
   TPrepared extends PreparedRouteLike,
-  TRoute,
+  TRoute extends { request: unknown },
   TDispatch extends NativePreparedDispatchPlan<TRoute, TPrepared>,
 >(
   routes: ResolvedCopilotProvider[],
   spec: PreparedExecutionArtifactSpec<TKind, TPrepared, TRoute, TDispatch>
 ): PreparedExecutionArtifacts<TDispatch> {
+  const dispatch = buildPreparedDispatchPlan(
+    routes,
+    spec.getPrepared,
+    spec.mapPreparedRoute,
+    spec.buildPreparedDispatch
+  );
+  const transportRoute =
+    dispatch?.routes.length === 1 ? dispatch.routes[0] : undefined;
+
   return {
-    dispatch: buildPreparedDispatchPlan(
-      routes,
-      spec.getPrepared,
-      spec.mapPreparedRoute,
-      spec.buildPreparedDispatch
-    ),
-    transport: buildPreparedTransport(
-      spec.transportKind,
-      routes,
-      spec.getPrepared
-    ),
+    dispatch,
+    transport: transportRoute
+      ? ({
+          kind: spec.transportKind,
+          request:
+            spec.transportKind === 'image'
+              ? serializeImageRequest(transportRoute.request as LlmImageRequest)
+              : transportRoute.request,
+        } as ExecutionTransportContract)
+      : undefined,
   };
 }
 
@@ -676,6 +733,33 @@ function buildSerializableExecutionPlan(
 
 type MessagePlanArtifacts = Pick<ExecutionPlan, 'nativeDispatch' | 'transport'>;
 
+function dedupeImageMessageAttachments(messages: PromptMessage[]) {
+  const seen: NonNullable<PromptMessage['attachments']> = [];
+
+  return messages.map(message => {
+    if (!message.attachments?.length) {
+      return message;
+    }
+
+    const attachments = message.attachments.filter(attachment => {
+      if (seen.some(candidate => isDeepStrictEqual(candidate, attachment))) {
+        return false;
+      }
+      seen.push(attachment);
+      return true;
+    });
+
+    if (attachments.length === message.attachments.length) {
+      return message;
+    }
+
+    return {
+      ...message,
+      attachments: attachments.length ? attachments : undefined,
+    };
+  });
+}
+
 function buildMessagePlanArtifacts(
   kind: Extract<
     ExecutionRequestKind,
@@ -778,26 +862,28 @@ export class ExecutionPlanBuilder {
           : kind === 'structured'
             ? ModelOutputType.Structured
             : ModelOutputType.Text;
+    const plannedMessages =
+      kind === 'image' ? dedupeImageMessageAttachments(messages) : messages;
 
     const routes =
       kind === 'text' || kind === 'streamText' || kind === 'streamObject'
         ? await this.providers.prepareRoutes(
             kind,
             { ...cond, outputType },
-            messages,
+            plannedMessages,
             (options as CopilotChatOptions | undefined) ?? {},
             filter
           )
         : kind === 'structured'
           ? await this.providers.prepareStructuredRoutes(
               { ...cond, outputType },
-              messages,
+              plannedMessages,
               (options as CopilotStructuredOptions | undefined) ?? {},
               filter
             )
           : await this.providers.prepareImageRoutes(
               { ...cond, outputType },
-              messages,
+              plannedMessages,
               (options as CopilotImageOptions | undefined) ?? {},
               filter
             );
@@ -811,7 +897,7 @@ export class ExecutionPlanBuilder {
       request: {
         kind,
         cond: { ...cond, modelId: cond.modelId },
-        messages,
+        messages: plannedMessages,
         options,
       } as Extract<ExecutionPlanRequest, { kind: TKind }>,
       routePolicy: {
@@ -826,7 +912,7 @@ export class ExecutionPlanBuilder {
       },
       hostContext: {
         signal: options?.signal,
-        currentMessages: messages,
+        currentMessages: plannedMessages,
       },
     } as Omit<ExecutionPlanForKind<TKind>, 'nativeDispatch' | 'serializable'>;
 

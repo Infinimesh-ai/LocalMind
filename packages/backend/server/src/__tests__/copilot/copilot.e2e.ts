@@ -49,6 +49,7 @@ import {
   smallestPng,
   TestingApp,
   TestUser,
+  updateDocDefaultRole,
 } from '../utils';
 import {
   addContextCategory,
@@ -1636,15 +1637,12 @@ test('should be able to manage context', async t => {
     const contextId = await createCopilotContext(app, workspaceId, sessionId);
 
     const docId = 'docId1';
-    await t.context.db.snapshot.create({
-      data: {
-        workspaceId: workspaceId,
-        id: docId,
-        blob: Buffer.from([1, 1]),
-        state: Buffer.from([1, 1]),
-        updatedAt: new Date(),
-        createdAt: new Date(),
-      },
+    const initialUpdatedAt = new Date(Date.now() - 5000);
+    await app.create(Mockers.DocSnapshot, {
+      workspaceId,
+      docId,
+      user: t.context.u1,
+      updatedAt: initialUpdatedAt,
     });
 
     await addContextDoc(app, contextId, docId);
@@ -1664,7 +1662,33 @@ test('should be able to manage context', async t => {
     t.deepEqual(cleanObject(docs, ['error', 'createdAt']), [
       {
         id: docId,
+        isModified: false,
+        snapshotUpdatedAt: initialUpdatedAt.getTime(),
         status: 'finished',
+        updatedAt: initialUpdatedAt.getTime(),
+      },
+    ]);
+
+    const nextUpdatedAt = new Date(initialUpdatedAt.getTime() + 1000);
+    await t.context.db.update.create({
+      data: {
+        workspaceId,
+        id: docId,
+        blob: Buffer.from([2, 2]),
+        createdAt: nextUpdatedAt,
+        createdBy: t.context.u1.id,
+      },
+    });
+    const modifiedDocs = (
+      await listContextDocAndFiles(app, workspaceId, sessionId, contextId)
+    )?.docs;
+    t.deepEqual(cleanObject(modifiedDocs, ['error', 'createdAt']), [
+      {
+        id: docId,
+        isModified: true,
+        snapshotUpdatedAt: initialUpdatedAt.getTime(),
+        status: 'finished',
+        updatedAt: nextUpdatedAt.getTime(),
       },
     ]);
 
@@ -1786,6 +1810,39 @@ test('should skip unauthorized docs when adding context category', async t => {
   t.deepEqual(
     ret?.collections?.[0]?.docs.map(doc => doc.id),
     [readableSnapshot.id]
+  );
+
+  await app.switchUser(u1);
+  await updateDocDefaultRole(
+    app,
+    workspaceId,
+    readableSnapshot.id,
+    DocRole.None
+  );
+  await app.switchUser(member);
+
+  const revokedRet = await listContextCategories(
+    app,
+    workspaceId,
+    sessionId,
+    contextId
+  );
+  t.deepEqual(
+    revokedRet?.collections?.[0]?.docs.map(doc => ({
+      id: doc.id,
+      snapshotUpdatedAt: doc.snapshotUpdatedAt,
+      updatedAt: doc.updatedAt,
+      isModified: doc.isModified,
+    })),
+    [
+      {
+        id: readableSnapshot.id,
+        snapshotUpdatedAt: null,
+        updatedAt: null,
+        isModified: false,
+      },
+    ],
+    'should not expose freshness metadata after document read access is revoked'
   );
 });
 

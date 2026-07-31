@@ -416,6 +416,47 @@ test('should find all docs timestamps in a workspace', async t => {
   });
 });
 
+test('should find latest timestamps for only the requested docs', async t => {
+  const docId1 = randomUUID();
+  const docId2 = randomUUID();
+  const snapshotTimestamp = Date.now();
+  const updateTimestamp = snapshotTimestamp + 1000;
+  await t.context.doc.upsert({
+    spaceId: workspace.id,
+    docId: docId1,
+    blob: Buffer.from('snapshot'),
+    timestamp: snapshotTimestamp,
+    editorId: user.id,
+  });
+  await t.context.doc.createUpdates([
+    {
+      spaceId: workspace.id,
+      docId: docId1,
+      blob: Buffer.from('update'),
+      timestamp: updateTimestamp,
+      editorId: user.id,
+    },
+  ]);
+  await t.context.doc.upsert({
+    spaceId: workspace.id,
+    docId: docId2,
+    blob: Buffer.from('other'),
+    timestamp: snapshotTimestamp + 2000,
+    editorId: user.id,
+  });
+
+  const timestamps = await t.context.doc.findTimestampsByDocIds(workspace.id, [
+    docId1,
+    docId1,
+    'missing-doc',
+  ]);
+
+  t.deepEqual(timestamps, {
+    [docId1]: updateTimestamp,
+  });
+  t.deepEqual(await t.context.doc.findTimestampsByDocIds(workspace.id, []), {});
+});
+
 test('should detect doc exists or not', async t => {
   const docId = randomUUID();
   t.false(await t.context.doc.exists(workspace.id, docId));

@@ -6,6 +6,7 @@ import type { AIChatSessionStrategy } from './session-strategy';
 import {
   type AIChatContextItem,
   type AIChatMessage,
+  type AIChatModifiedDocument,
   type AIChatScope,
   type AIChatSnapshot,
   type AIChatStatus,
@@ -31,6 +32,9 @@ type ContextObject = {
   status?: ContextStatus;
   error?: string | null;
   createdAt?: number | null;
+  snapshotUpdatedAt?: number | null;
+  updatedAt?: number | null;
+  isModified?: boolean;
   docs?: ContextObject[];
 };
 
@@ -247,7 +251,7 @@ export class AIChatRuntime {
     const isGenerating = status === 'loading' || status === 'transmitting';
     return {
       showDraftTab: activeTab?.kind === 'draft',
-      canCreateNewSession: !!activeTab?.hasMessages && !isGenerating,
+      canCreateNewSession: activeTab?.kind === 'session' && !isGenerating,
       canCloseActiveTab: activeTab?.kind === 'session' && tabs.length > 1,
       canPinActiveSession: activeTab?.kind === 'session',
       canSend: !isGenerating,
@@ -280,6 +284,8 @@ export class AIChatRuntime {
   }
 
   private async initialize(scope: AIChatScope) {
+    this.contextRequestSeq++;
+    this.stopContextPolling();
     const seq = ++this.requestSeq;
     this.commit({
       ...this.createInitialSnapshot(scope),
@@ -607,13 +613,25 @@ export class AIChatRuntime {
         await this.deleteContextItem(contextId, item);
       }
       if (seq !== this.contextRequestSeq) return;
+      const items = this.snapshot.composer.context.items.filter(
+        existing =>
+          this.getContextItemKey(existing) !== this.getContextItemKey(item)
+      );
+      const referencedDocIds = this.getReferencedDocumentIds(items);
       this.updateContextState({
         loading: false,
-        items: this.snapshot.composer.context.items.filter(
-          existing =>
-            this.getContextItemKey(existing) !== this.getContextItemKey(item)
-        ),
+        items,
+        modifiedDocuments:
+          this.snapshot.composer.context.modifiedDocuments.filter(document =>
+            referencedDocIds.has(document.docId)
+          ),
       });
+      if (
+        referencedDocIds.size === 0 &&
+        this.snapshot.composer.context.embeddingCount.processing === 0
+      ) {
+        this.stopContextPolling();
+      }
     } catch (error) {
       if (seq !== this.contextRequestSeq) return;
       this.updateContextState({ loading: false, error: this.toError(error) });
@@ -637,6 +655,7 @@ export class AIChatRuntime {
       this.updateContextState({
         polling: false,
         items: this.mergePolledContextItems(context),
+        modifiedDocuments: this.getModifiedDocuments(context),
         embeddingCount: this.getContextEmbeddingCount(context),
       });
     } catch (error) {
@@ -664,7 +683,11 @@ export class AIChatRuntime {
     while (!signal.aborted) {
       await this.pollContext();
       if (signal.aborted) return;
-      if (this.snapshot.composer.context.embeddingCount.processing === 0) {
+      if (
+        this.snapshot.composer.context.embeddingCount.processing === 0 &&
+        this.getReferencedDocumentIds(this.snapshot.composer.context.items)
+          .size === 0
+      ) {
         this.stopContextPolling();
         return;
       }
@@ -703,6 +726,7 @@ export class AIChatRuntime {
         this.updateContextState({
           contextId: null,
           items: [],
+          modifiedDocuments: [],
           loading: false,
           embeddingCount: { finished: 0, processing: 0, failed: 0 },
         });
@@ -718,6 +742,7 @@ export class AIChatRuntime {
         contextId,
         loading: false,
         items: this.contextDataToItems(context),
+        modifiedDocuments: this.getModifiedDocuments(context),
         embeddingCount: this.getContextEmbeddingCount(context),
       });
     } catch (error) {
@@ -981,6 +1006,55 @@ export class AIChatRuntime {
     return count;
   }
 
+  private getModifiedDocuments(context: unknown): AIChatModifiedDocument[] {
+    if (!context || typeof context !== 'object') return [];
+    const data = context as ContextData;
+    const documents = [
+      ...(data.docs ?? []),
+      ...(data.tags ?? []).flatMap(tag => tag.docs ?? []),
+      ...(data.collections ?? []).flatMap(collection => collection.docs ?? []),
+    ];
+    const byId = new Map<string, AIChatModifiedDocument>();
+
+    for (const document of documents) {
+      const docId = document.docId ?? document.id;
+      if (
+        !docId ||
+        !document.isModified ||
+        typeof document.updatedAt !== 'number'
+      ) {
+        continue;
+      }
+      const current = byId.get(docId);
+      if (!current || document.updatedAt > current.updatedAt) {
+        byId.set(docId, {
+          docId,
+          snapshotUpdatedAt:
+            typeof document.snapshotUpdatedAt === 'number'
+              ? document.snapshotUpdatedAt
+              : undefined,
+          updatedAt: document.updatedAt,
+        });
+      }
+    }
+
+    return Array.from(byId.values()).sort((a, b) =>
+      a.docId.localeCompare(b.docId)
+    );
+  }
+
+  private getReferencedDocumentIds(items: AIChatContextItem[]) {
+    const docIds = new Set<string>();
+    for (const item of items) {
+      if (item.kind === 'doc') {
+        docIds.add(item.docId);
+      } else if (item.kind === 'tag' || item.kind === 'collection') {
+        item.docIds.forEach(docId => docIds.add(docId));
+      }
+    }
+    return docIds;
+  }
+
   private isEmbeddingCompleted(status: unknown) {
     if (!status || typeof status !== 'object') return false;
     const { embedded, total } = status as EmbeddingStatus;
@@ -1035,6 +1109,8 @@ export class AIChatRuntime {
       this.snapshot.scope
     );
     if (result.type === 'navigate') {
+      this.contextRequestSeq++;
+      this.stopContextPolling();
       this.commit({
         navigationRequest: {
           ...result.target,
@@ -1044,8 +1120,17 @@ export class AIChatRuntime {
         sessions: [],
         activeSessionId: null,
         activeTabId: null,
+        composer: createInitialComposerState(),
       });
       return;
+    }
+    const shouldResetComposer =
+      !preserveMessages ||
+      (this.snapshot.activeSessionId !== null &&
+        this.snapshot.activeSessionId !== result.session.sessionId);
+    if (shouldResetComposer) {
+      this.contextRequestSeq++;
+      this.stopContextPolling();
     }
     const tab = sessionToTab(result.session);
     const existing = this.snapshot.tabs.findIndex(item => item.id === tab.id);
@@ -1071,6 +1156,9 @@ export class AIChatRuntime {
       messages: preserveMessages
         ? this.snapshot.messages
         : ((result.session.messages ?? []) as AIChatMessage[]).slice(),
+      ...(shouldResetComposer
+        ? { composer: createInitialComposerState() }
+        : {}),
     });
   }
 
@@ -1083,6 +1171,8 @@ export class AIChatRuntime {
       this.commit({ tabs, sessions });
       return;
     }
+    this.contextRequestSeq++;
+    this.stopContextPolling();
     const fallback =
       tabs.at(-1) ??
       this.options.strategy.createDraftSession(this.snapshot.scope);
@@ -1105,11 +1195,14 @@ export class AIChatRuntime {
       activeTabId: fallback.id,
       activeSessionId: fallback.kind === 'session' ? fallback.sessionId : null,
       messages: [],
+      composer: createInitialComposerState(),
     });
   }
 
   private async createNewSession(pinned?: boolean) {
     if (!this.snapshot.uiPolicy.canCreateNewSession) return;
+    this.contextRequestSeq++;
+    this.stopContextPolling();
     const seq = ++this.requestSeq;
     const draft = this.options.strategy.createDraftSession(this.snapshot.scope);
     const activeTabIndex = this.snapshot.tabs.findIndex(
@@ -1128,6 +1221,7 @@ export class AIChatRuntime {
       activeTabId: draft.id,
       activeSessionId: null,
       messages: [],
+      composer: createInitialComposerState(),
     });
     if (pinned) {
       const session = await this.options.strategy.createSession(

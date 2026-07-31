@@ -52,6 +52,8 @@ The most active implementation track is AI modernization:
 
 Start with these documents before working on LocalMind AI features:
 
+- [LocalMind 用户使用指南](./docs/localmind-user-guide.zh-CN.md)
+- [LocalMind 使用提示](./docs/localmind-usage-tips.zh-CN.md)
 - [LocalMind documentation index](./docs/README.md)
 - [AI modernization entrypoint](./docs/ai-modernization/README.md)
 - [Branch differences](./docs/ai-modernization/branch-differences.md)
