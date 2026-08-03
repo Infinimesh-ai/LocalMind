@@ -1058,6 +1058,23 @@ type CopilotContextMemoryEventType {
   writerVersion: String!
 }
 
+enum CopilotContextMemoryManualKindInput {
+  project_summary
+  rule
+}
+
+enum CopilotContextMemoryMutableStatusInput {
+  active
+  disabled
+}
+
+enum CopilotContextMemoryScopeInput {
+  document
+  project
+  user
+  workspace
+}
+
 type CopilotContextMemoryType {
   captureMode: String!
   confidence: Float!
@@ -3650,9 +3667,9 @@ input CreateCheckoutSessionInput {
 input CreateCopilotContextMemoryInput {
   content: String!
   docId: String
-  kind: String!
+  kind: CopilotContextMemoryManualKindInput!
   projectId: String
-  scope: String!
+  scope: CopilotContextMemoryScopeInput!
   workspaceId: String
 }
 
@@ -5590,7 +5607,7 @@ input UpdateChatSessionInput {
 input UpdateCopilotContextMemoryInput {
   content: String
   id: ID!
-  status: String
+  status: CopilotContextMemoryMutableStatusInput
 }
 
 input UpdateCopilotContextPolicyInput {

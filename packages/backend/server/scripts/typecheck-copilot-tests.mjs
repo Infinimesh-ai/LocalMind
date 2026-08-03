@@ -72,9 +72,9 @@ function typecheckTarget(targetArg) {
 
 async function typecheckAllTargets() {
   const targets = readdirSync(copilotTestRoot)
-    // The legacy smoke is executed with `yarn r`; its single 12k-line main
-    // exceeds TypeScript's control-flow analysis limit.
-    .filter(file => !file.startsWith('._') && /\.(?:e2e|spec)\.ts$/.test(file))
+    .filter(
+      file => !file.startsWith('._') && /\.(?:e2e|smoke|spec)\.ts$/.test(file)
+    )
     .sort()
     .map(file => relative(serverRoot, resolve(copilotTestRoot, file)));
   const failures = [];

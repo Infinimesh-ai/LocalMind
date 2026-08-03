@@ -23,6 +23,7 @@ import { StorageModule, WorkspaceBlobStorage } from '../../core/storage';
 import {
   ContextCategories,
   CopilotSessionModel,
+  DocRole,
   EMBEDDING_DIMENSIONS,
   Models,
   WorkspaceMemberStatus,
@@ -83,6 +84,7 @@ import type {
 } from '../../plugins/copilot/tools';
 import { CopilotTranscriptionService } from '../../plugins/copilot/transcript';
 import { CopilotWorkspaceService } from '../../plugins/copilot/workspace';
+import { IndexerService } from '../../plugins/indexer';
 import { PaymentModule } from '../../plugins/payment';
 import { SubscriptionService } from '../../plugins/payment/service';
 import { SubscriptionStatus } from '../../plugins/payment/types';
@@ -647,6 +649,90 @@ test('MCP credentials stay bound to their endpoint, workspace, and profile', asy
     data: { expiresAt: new Date(0) },
   });
   await t.throwsAsync(mcpCredentials.authenticate(disabled.token, ws.id));
+});
+
+test('MCP keyword search excludes hidden documents and contains permission-cache staleness', async t => {
+  const { auth, mcpProvider, models, module, workspace } = t.context;
+  const member = await auth.signUp(
+    `mcp-member-${randomUUID()}@affine.pro`,
+    '123456'
+  );
+  const ws = await workspace.create(userId);
+  await models.workspaceUser.set(ws.id, member.id, WorkspaceRole.Collaborator, {
+    status: WorkspaceMemberStatus.Accepted,
+  });
+  await models.doc.upsertMeta(ws.id, 'mcp-readable-doc', {
+    title: 'Readable MCP document',
+    defaultRole: DocRole.Reader,
+  });
+  await models.doc.upsertMeta(ws.id, 'mcp-hidden-doc', {
+    title: 'Hidden MCP document',
+    defaultRole: DocRole.None,
+  });
+
+  const searchOptions: Array<{ docIds?: string[] }> = [];
+  Sinon.stub(module.get(IndexerService), 'searchDocsByKeyword').callsFake(
+    async (_workspaceId, _query, options) => {
+      searchOptions.push(options ?? {});
+      return [
+        { docId: 'mcp-readable-doc', title: 'Readable MCP document' },
+        { docId: 'mcp-hidden-doc', title: 'Hidden MCP document' },
+      ] as never;
+    }
+  );
+
+  const server = await mcpProvider.for(
+    member.id,
+    ws.id,
+    McpAccessMode.READ_ONLY
+  );
+  const keywordSearch = server.tools.find(
+    tool => tool.name === 'keyword_search'
+  );
+  t.truthy(keywordSearch);
+  const first = await keywordSearch!.execute(
+    { query: 'MCP document' },
+    { signal: new AbortController().signal }
+  );
+  t.deepEqual(searchOptions[0]?.docIds, ['mcp-readable-doc']);
+  t.deepEqual(
+    first.content.map(item => JSON.parse(item.text).docId),
+    ['mcp-readable-doc']
+  );
+
+  await models.doc.upsertMeta(ws.id, 'mcp-readable-doc', {
+    defaultRole: DocRole.None,
+  });
+  const cached = await keywordSearch!.execute(
+    { query: 'MCP document after revoke' },
+    { signal: new AbortController().signal }
+  );
+  t.deepEqual(
+    searchOptions[1]?.docIds,
+    ['mcp-readable-doc'],
+    'the short-lived candidate cache may be stale inside one MCP instance'
+  );
+  t.deepEqual(cached, {
+    content: [{ type: 'text', text: 'No matching documents found.' }],
+  });
+
+  const freshServer = await mcpProvider.for(
+    member.id,
+    ws.id,
+    McpAccessMode.READ_ONLY
+  );
+  const freshKeywordSearch = freshServer.tools.find(
+    tool => tool.name === 'keyword_search'
+  );
+  await freshKeywordSearch!.execute(
+    { query: 'MCP document from a fresh instance' },
+    { signal: new AbortController().signal }
+  );
+  t.deepEqual(
+    searchOptions[2]?.docIds,
+    [],
+    'MCP instances must not share readable-document caches'
+  );
 });
 
 test('should reject context file uploads after workspace write access is revoked', async t => {
@@ -1279,6 +1365,83 @@ test('structured context memory lifecycle should version, expire, and undo facts
     null,
     'privacy deletion should remove writer history linked to the deleted content'
   );
+});
+
+test('context memory quota keeps the most recently used automatic memories', async t => {
+  const { db, models, workspace } = t.context;
+  const targetWorkspace = await workspace.create(userId);
+  const memory = models.copilotContextMemory;
+  const created = [];
+  for (const [index, content] of [
+    'The deployment region is us-east-1.',
+    'The deployment codename is Juniper.',
+    'Use UTC for release timestamps.',
+  ].entries()) {
+    const row = await memory.put({
+      ownerUserId: userId,
+      workspaceId: targetWorkspace.id,
+      scope: 'workspace',
+      kind: 'auto_memory',
+      visibility: 'private',
+      content,
+      factKey: `quota:test:${index}`,
+      captureMode: 'explicit',
+      writerVersion: 'structured-memory-writer/test',
+    });
+    await db.aiContextMemory.update({
+      where: { id: row.id },
+      data: { lastUsedAt: new Date(Date.UTC(2026, 0, index + 1)) },
+    });
+    created.push(row);
+  }
+
+  const cleanup = await memory.enforceAutoMemoryQuota(
+    {
+      ownerUserId: userId,
+      workspaceId: targetWorkspace.id,
+      scope: 'workspace',
+    },
+    2
+  );
+
+  t.is(cleanup.count, 1);
+  t.is(await memory.get(created[0].id), null);
+  t.truthy(await memory.get(created[1].id));
+  t.truthy(await memory.get(created[2].id));
+});
+
+test('context memory update maps identity conflicts and concurrent deletion', async t => {
+  const { db, models, workspace } = t.context;
+  const targetWorkspace = await workspace.create(userId);
+  const memory = models.copilotContextMemory;
+  const putSummary = (content: string) =>
+    memory.put({
+      ownerUserId: userId,
+      workspaceId: targetWorkspace.id,
+      scope: 'workspace',
+      kind: 'project_summary',
+      visibility: 'private',
+      content,
+    });
+  const first = await putSummary('First project summary.');
+  await putSummary('Existing project summary.');
+
+  await t.throwsAsync(
+    memory.update(first.id, { content: 'Existing project summary.' }),
+    {
+      message:
+        'An identical active AI context memory already exists in this scope',
+    }
+  );
+
+  const stale = await putSummary('Summary deleted during update.');
+  const getStub = Sinon.stub(memory, 'get');
+  getStub.withArgs(stale.id).resolves(stale);
+  await db.aiContextMemory.delete({ where: { id: stale.id } });
+  await t.throwsAsync(memory.update(stale.id, { status: 'disabled' }), {
+    message: 'AI context memory not found',
+  });
+  getStub.restore();
 });
 
 test('context rules and workspace policies should retain revisions and hit history', async t => {
@@ -4104,7 +4267,7 @@ test('prompt runtime should infer transcript route context for structured prompt
   const resolveModelId = Sinon.stub(factory, 'resolveModelId').callsFake(
     async (cond, _filter, context) => {
       if (
-        cond.modelId === 'gemini-2.5-flash' &&
+        cond.modelId === 'gemini-3.5-flash-lite' &&
         cond.outputType === ModelOutputType.Structured &&
         context?.featureKind === 'transcript'
       ) {
@@ -4164,7 +4327,7 @@ test('prompt runtime should infer transcript route context for structured prompt
     resolveModelId.getCalls().some(call => {
       const [cond, , context] = call.args;
       return (
-        cond.modelId === 'gemini-2.5-flash' &&
+        cond.modelId === 'gemini-3.5-flash-lite' &&
         cond.outputType === ModelOutputType.Structured &&
         context?.workspaceId === 'workspace-1' &&
         context.featureKind === 'transcript'
@@ -4179,7 +4342,7 @@ test('prompt runtime should keep explicit route feature context', async t => {
   const resolveModelId = Sinon.stub(factory, 'resolveModelId').callsFake(
     async (cond, _filter, context) => {
       if (
-        cond.modelId === 'gemini-2.5-flash' &&
+        cond.modelId === 'gemini-3.5-flash-lite' &&
         cond.outputType === ModelOutputType.Structured &&
         context?.featureKind === 'action'
       ) {
@@ -4240,7 +4403,7 @@ test('prompt runtime should keep explicit route feature context', async t => {
     resolveModelId.getCalls().some(call => {
       const [cond, , context] = call.args;
       return (
-        cond.modelId === 'gemini-2.5-flash' &&
+        cond.modelId === 'gemini-3.5-flash-lite' &&
         cond.outputType === ModelOutputType.Structured &&
         context?.workspaceId === 'workspace-1' &&
         context.featureKind === 'action'
@@ -4359,8 +4522,8 @@ test('resolver models should use resolved provider metadata for display names', 
 
   t.deepEqual(normalizeModelListForAssertion(models.optionalModels), [
     {
-      id: 'gemini-2.5-flash',
-      name: 'Resolved gemini-2.5-flash',
+      id: 'gpt-5.6-luna',
+      name: 'Resolved gpt-5.6-luna',
       sources: ['default', 'prompt'],
       promptName,
       promptSource: 'compat',
@@ -4379,7 +4542,7 @@ test('resolver models should use resolved provider metadata for display names', 
       promptOverrideApplied: false,
       providerId: 'openai-default',
       providerProfileId: 'openai-default',
-      routeModelId: 'gemini-2.5-flash',
+      routeModelId: 'gpt-5.6-luna',
       routeFallbackProviderIds: ['openai-default', 'private-cloud-backup'],
       providerType: CopilotProviderType.OpenAI,
       providerPrivacy: 'private_cloud',
@@ -4392,8 +4555,8 @@ test('resolver models should use resolved provider metadata for display names', 
       routePolicyPreferredPrivacy: ['private_cloud', 'cloud'],
     },
     {
-      id: 'gemini-2.5-pro',
-      name: 'Resolved gemini-2.5-pro',
+      id: 'gpt-5.6-terra',
+      name: 'Resolved gpt-5.6-terra',
       sources: ['prompt'],
       promptName,
       promptSource: 'compat',
@@ -4408,7 +4571,7 @@ test('resolver models should use resolved provider metadata for display names', 
       promptOverrideApplied: false,
       providerId: 'openai-default',
       providerProfileId: 'openai-default',
-      routeModelId: 'gemini-2.5-pro',
+      routeModelId: 'gpt-5.6-terra',
       routeFallbackProviderIds: ['openai-default', 'private-cloud-backup'],
       providerType: CopilotProviderType.OpenAI,
       providerPrivacy: 'private_cloud',
@@ -4423,8 +4586,8 @@ test('resolver models should use resolved provider metadata for display names', 
   ]);
   t.deepEqual(normalizeModelListForAssertion(models.proModels), [
     {
-      id: 'gemini-2.5-pro',
-      name: 'Resolved gemini-2.5-pro',
+      id: 'gpt-5.6-terra',
+      name: 'Resolved gpt-5.6-terra',
       sources: ['pro'],
       promptName,
       promptSource: 'compat',
@@ -4439,7 +4602,7 @@ test('resolver models should use resolved provider metadata for display names', 
       promptOverrideApplied: false,
       providerId: 'openai-default',
       providerProfileId: 'openai-default',
-      routeModelId: 'gemini-2.5-pro',
+      routeModelId: 'gpt-5.6-terra',
       routeFallbackProviderIds: ['openai-default', 'private-cloud-backup'],
       providerType: CopilotProviderType.OpenAI,
       providerPrivacy: 'private_cloud',
@@ -5789,13 +5952,7 @@ test('resolver models should inherit workspace route policy context from copilot
     workspaceId: 'workspace-local-only',
   });
 
-  t.deepEqual(models.optionalModels, [
-    { id: 'gpt-5.6-luna', name: 'Resolved gpt-5.6-luna' },
-    { id: 'gpt-5.6-terra', name: 'Resolved gpt-5.6-terra' },
-  ]);
-  t.deepEqual(models.proModels, [
-    { id: 'gpt-5.6-terra', name: 'Resolved gpt-5.6-terra' },
-  ]);
+  t.deepEqual(models.proModels, []);
   t.true(
     describeRoutePolicy.calledWithMatch({
       featureKind: 'chat',

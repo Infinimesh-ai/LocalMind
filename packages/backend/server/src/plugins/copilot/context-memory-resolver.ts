@@ -10,12 +10,13 @@ import {
   Mutation,
   ObjectType,
   Parent,
+  registerEnumType,
   ResolveField,
   Resolver,
 } from '@nestjs/graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
-import { BadRequest } from '../../base';
+import { BadRequest, Throttle } from '../../base';
 import type { CurrentUser as CurrentUserType } from '../../core/auth';
 import { CurrentUser } from '../../core/auth';
 import { PermissionAccess } from '../../core/permission';
@@ -34,6 +35,33 @@ import {
 } from './context-memory-service';
 import { ContextRuleService } from './context-rule-service';
 import { CopilotType } from './resolver';
+
+enum CopilotContextMemoryScopeInputValue {
+  user = 'user',
+  workspace = 'workspace',
+  document = 'document',
+  project = 'project',
+}
+
+enum CopilotContextMemoryManualKindInputValue {
+  rule = 'rule',
+  project_summary = 'project_summary',
+}
+
+enum CopilotContextMemoryMutableStatusInputValue {
+  active = 'active',
+  disabled = 'disabled',
+}
+
+registerEnumType(CopilotContextMemoryScopeInputValue, {
+  name: 'CopilotContextMemoryScopeInput',
+});
+registerEnumType(CopilotContextMemoryManualKindInputValue, {
+  name: 'CopilotContextMemoryManualKindInput',
+});
+registerEnumType(CopilotContextMemoryMutableStatusInputValue, {
+  name: 'CopilotContextMemoryMutableStatusInput',
+});
 
 @ObjectType()
 export class CopilotContextMemoryType {
@@ -439,10 +467,10 @@ export class CreateCopilotContextMemoryInput {
   @Field(() => String, { nullable: true })
   projectId?: string;
 
-  @Field(() => String)
+  @Field(() => CopilotContextMemoryScopeInputValue)
   scope!: CopilotContextMemoryScope;
 
-  @Field(() => String)
+  @Field(() => CopilotContextMemoryManualKindInputValue)
   kind!: Exclude<CopilotContextMemoryKind, 'auto_memory'>;
 
   @Field(() => String)
@@ -457,7 +485,7 @@ export class UpdateCopilotContextMemoryInput {
   @Field(() => String, { nullable: true })
   content?: string;
 
-  @Field(() => String, { nullable: true })
+  @Field(() => CopilotContextMemoryMutableStatusInputValue, { nullable: true })
   status?: CopilotContextMemoryStatus;
 }
 
@@ -643,6 +671,7 @@ type StoredPolicy = NonNullable<
 >;
 
 @Resolver(() => CopilotType)
+@Throttle()
 export class CopilotContextMemoryResolver {
   constructor(
     private readonly ac: PermissionAccess,
@@ -761,7 +790,7 @@ export class CopilotContextMemoryResolver {
     }
     this.assertDlpSafe(content);
     if (
-      !['user', 'workspace', 'project'].includes(input.scope) ||
+      !['user', 'workspace', 'document', 'project'].includes(input.scope) ||
       !['rule', 'project_summary'].includes(input.kind)
     ) {
       throw new BadRequest('Invalid context memory type');
@@ -779,6 +808,14 @@ export class CopilotContextMemoryResolver {
       (!input.workspaceId || input.docId || input.projectId)
     ) {
       throw new BadRequest('Workspace-scoped memory requires only workspaceId');
+    }
+    if (
+      input.scope === 'document' &&
+      (!input.workspaceId || !input.docId || input.projectId)
+    ) {
+      throw new BadRequest(
+        'Document-scoped memory requires workspaceId and docId'
+      );
     }
     if (
       input.scope === 'project' &&
@@ -1213,6 +1250,7 @@ export class CopilotContextMemoryResolver {
         await this.ac
           .user(user.id)
           .workspace(workspaceId)
+          .allowLocal()
           .docs(documentMemories, 'Doc.Read')
       ).map(memory => memory.id)
     );
@@ -1457,7 +1495,10 @@ export class CopilotContextMemoryResolver {
     ) {
       throw new BadRequest('No context policy fields to update');
     }
-    if (input.applicationMode === 'manual') {
+    if (
+      input.applicationMode !== undefined &&
+      !['always', 'relevant'].includes(input.applicationMode)
+    ) {
       throw new BadRequest('Workspace policies cannot use manual mode');
     }
     const policy = await this.ruleService.getPolicy(input.id);

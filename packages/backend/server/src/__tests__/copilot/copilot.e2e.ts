@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import type { GraphQLQuery } from '@affine/graphql';
 import serverNativeModule from '@affine/server-native';
 import { ProjectRoot } from '@affine-tools/utils/path';
 import { PrismaClient } from '@prisma/client';
@@ -122,6 +123,10 @@ const waitForStatus = async (
     }`
   );
 };
+
+function unregisteredTestQuery(id: string, query: string): GraphQLQuery {
+  return { id, op: id, query };
+}
 
 test.before(async t => {
   restoreMockCopilotRuntime = installMockCopilotRuntime();
@@ -594,7 +599,7 @@ test('should be able to chat with api', async t => {
     t.is(
       array2sse(sse2array(ret3).filter(e => e.event !== 'event')),
       textToEventStream(
-        ['https://example.com/gpt-image-2.jpg'],
+        ['https://example.com/gpt-image-1.jpg'],
         messageId,
         'attachment'
       ),
@@ -744,7 +749,7 @@ test('should be able to chat with special image model', async t => {
       ret3,
       textToEventStream(
         [
-          'https://example.com/gpt-image-2.jpg',
+          'https://example.com/gpt-image-1.jpg',
           `https://example.com/generated/${encodeURIComponent(finalPrompt)}.jpg`,
         ],
         messageId,
@@ -1740,6 +1745,206 @@ test('should reject context reads from another user', async t => {
     `)
   );
   await t.throwsAsync(matchFiles(app, contextId, 'test', 1));
+});
+
+test('context memory GraphQL enforces workspace, document, and project permissions across users', async t => {
+  const { app, u1 } = t.context;
+  const u2 = await app.signupV1();
+  const workspace2 = await createWorkspace(app);
+
+  await app.switchUser(u1);
+  const workspace1 = await createWorkspace(app);
+  const readableSnapshot = await app.create(Mockers.DocSnapshot, {
+    workspaceId: workspace1.id,
+    user: u1,
+  });
+  const laterHiddenSnapshot = await app.create(Mockers.DocSnapshot, {
+    workspaceId: workspace1.id,
+    user: u1,
+  });
+  await app.create(Mockers.DocMeta, {
+    workspaceId: workspace1.id,
+    docId: readableSnapshot.id,
+    title: 'context-readable-doc',
+    defaultRole: DocRole.Reader,
+  });
+  await app.create(Mockers.DocMeta, {
+    workspaceId: workspace1.id,
+    docId: laterHiddenSnapshot.id,
+    title: 'context-later-hidden-doc',
+    defaultRole: DocRole.Reader,
+  });
+
+  const createProjectResult = await app.gql({
+    query: unregisteredTestQuery(
+      'createContextProjectPermissionE2E',
+      `
+      mutation CreateContextProject($input: CreateCopilotContextProjectInput!) {
+        createCopilotContextProject(input: $input) { id documentIds canManage }
+      }
+    `
+    ),
+    variables: {
+      input: {
+        workspaceId: workspace1.id,
+        name: 'Permission project',
+        description: 'Permission e2e project',
+        documentIds: [readableSnapshot.id, laterHiddenSnapshot.id],
+      },
+    },
+  });
+  const project = createProjectResult.createCopilotContextProject as {
+    id: string;
+  };
+
+  await app.switchUser(u2);
+  await t.throwsAsync(
+    app.gql({
+      query: unregisteredTestQuery(
+        'createUnauthorizedContextMemoryE2E',
+        `
+        mutation CreateContextMemory($input: CreateCopilotContextMemoryInput!) {
+          createCopilotContextMemory(input: $input) { id }
+        }
+      `
+      ),
+      variables: {
+        input: {
+          workspaceId: workspace1.id,
+          scope: 'workspace',
+          kind: 'rule',
+          content: 'An outsider must not persist this memory.',
+        },
+      },
+    })
+  );
+  await t.throwsAsync(
+    app.gql({
+      query: unregisteredTestQuery(
+        'readUnauthorizedContextMemoryE2E',
+        `
+        query ContextMemories($workspaceId: String!) {
+          currentUser { copilot(workspaceId: $workspaceId) { contextMemories { id } } }
+        }
+      `
+      ),
+      variables: { workspaceId: workspace1.id },
+    })
+  );
+  await t.throwsAsync(
+    app.gql({
+      query: unregisteredTestQuery(
+        'deleteUnauthorizedContextProjectE2E',
+        `mutation DeleteContextProject($id: ID!) { deleteCopilotContextProject(id: $id) }`
+      ),
+      variables: { id: project.id },
+    })
+  );
+
+  const ownMemoryResult = await app.gql({
+    query: unregisteredTestQuery(
+      'createOwnWorkspaceContextMemoryE2E',
+      `
+      mutation CreateContextMemory($input: CreateCopilotContextMemoryInput!) {
+        createCopilotContextMemory(input: $input) { id workspaceId }
+      }
+    `
+    ),
+    variables: {
+      input: {
+        workspaceId: workspace2.id,
+        scope: 'workspace',
+        kind: 'rule',
+        content: 'This memory belongs only to the second workspace.',
+      },
+    },
+  });
+  t.is(ownMemoryResult.createCopilotContextMemory.workspaceId, workspace2.id);
+
+  await app.switchUser(u1);
+  await app.create(Mockers.WorkspaceUser, {
+    workspaceId: workspace1.id,
+    userId: u2.id,
+    type: WorkspaceRole.Collaborator,
+  });
+  await app.switchUser(u2);
+
+  const documentMemoryResult = await app.gql({
+    query: unregisteredTestQuery(
+      'createDocumentContextMemoryE2E',
+      `
+      mutation CreateContextMemory($input: CreateCopilotContextMemoryInput!) {
+        createCopilotContextMemory(input: $input) { id docId }
+      }
+    `
+    ),
+    variables: {
+      input: {
+        workspaceId: workspace1.id,
+        docId: laterHiddenSnapshot.id,
+        scope: 'document',
+        kind: 'rule',
+        content: 'This document memory must disappear after access is revoked.',
+      },
+    },
+  });
+  const documentMemoryId = documentMemoryResult.createCopilotContextMemory
+    .id as string;
+  await t.throwsAsync(
+    app.gql({
+      query: unregisteredTestQuery(
+        'deleteContextProjectAsCollaboratorE2E',
+        `mutation DeleteContextProject($id: ID!) { deleteCopilotContextProject(id: $id) }`
+      ),
+      variables: { id: project.id },
+    }),
+    undefined,
+    'a collaborator cannot delete an AI context project'
+  );
+
+  await app.switchUser(u1);
+  await updateDocDefaultRole(
+    app,
+    workspace1.id,
+    laterHiddenSnapshot.id,
+    DocRole.None
+  );
+  await app.switchUser(u2);
+  const scopedResult = await app.gql({
+    query: unregisteredTestQuery(
+      'readRevokedDocumentContextMemoryE2E',
+      `
+      query ContextState($workspaceId: String!) {
+        currentUser {
+          copilot(workspaceId: $workspaceId) {
+            contextMemories(includeDisabled: true) { id docId }
+            contextProjects { id documentIds canManage }
+          }
+        }
+      }
+    `
+    ),
+    variables: { workspaceId: workspace1.id },
+  });
+  const scoped = scopedResult.currentUser.copilot as {
+    contextMemories: Array<{ id: string }>;
+    contextProjects: Array<{
+      id: string;
+      documentIds: string[];
+      canManage: boolean;
+    }>;
+  };
+  t.false(
+    scoped.contextMemories.some(memory => memory.id === documentMemoryId),
+    'document memory is hidden immediately after Doc.Read is revoked'
+  );
+  t.deepEqual(scoped.contextProjects, [
+    {
+      id: project.id,
+      documentIds: [readableSnapshot.id],
+      canManage: false,
+    },
+  ]);
 });
 
 test('should skip unauthorized docs when adding context category', async t => {

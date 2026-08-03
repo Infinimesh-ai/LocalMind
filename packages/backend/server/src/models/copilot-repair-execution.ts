@@ -3,9 +3,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 
+import { BadRequest } from '../base';
 import type { CopilotProviderType } from '../plugins/copilot/providers/types';
 import type { TaskRoutePolicyFeatureKind } from '../plugins/copilot/runtime/task-policy';
 import { BaseModel } from './base';
+
+export class RepairExecutionControlError extends BadRequest {}
 
 export type CopilotRepairExecutionStatus =
   | 'queued'
@@ -473,14 +476,18 @@ function normalizeRepairExecutionControlReason(value: unknown) {
     return null;
   }
   if (typeof value !== 'string') {
-    throw new Error('Repair execution control reason must be a string');
+    throw new RepairExecutionControlError(
+      'Repair execution control reason must be a string'
+    );
   }
   const normalized = value.trim();
   if (!normalized) {
     return null;
   }
   if (normalized.length > REPAIR_EXECUTION_CONTROL_REASON_MAX_LENGTH) {
-    throw new Error('Repair execution control reason is too long');
+    throw new RepairExecutionControlError(
+      'Repair execution control reason is too long'
+    );
   }
   return normalized;
 }
@@ -1577,13 +1584,15 @@ export class CopilotRepairExecutionModel extends BaseModel {
   }): Promise<CopilotRepairExecutionRecord> {
     const existing = await this.get(input.workspaceId, input.id);
     if (!existing) {
-      throw new Error(`Repair execution request not found: ${input.id}`);
+      throw new RepairExecutionControlError(
+        `Repair execution request not found: ${input.id}`
+      );
     }
     if (
       existing.status !== 'waiting_approval' ||
       existing.approvalState !== 'waiting'
     ) {
-      throw new Error(
+      throw new RepairExecutionControlError(
         `Repair execution request is not waiting for approval: ${input.id}`
       );
     }
@@ -1655,7 +1664,7 @@ export class CopilotRepairExecutionModel extends BaseModel {
       RETURNING id
     `;
     if (!decidedRows.length) {
-      throw new Error(
+      throw new RepairExecutionControlError(
         `Repair execution request could not be decided because its state changed: ${input.id}`
       );
     }
@@ -2403,7 +2412,9 @@ export class CopilotRepairExecutionModel extends BaseModel {
   }): Promise<CopilotRepairExecutionRecord> {
     const existing = await this.get(input.workspaceId, input.id);
     if (!existing) {
-      throw new Error(`Repair execution request not found: ${input.id}`);
+      throw new RepairExecutionControlError(
+        `Repair execution request not found: ${input.id}`
+      );
     }
 
     if (input.action === 'cancel') {
@@ -2566,7 +2577,7 @@ export class CopilotRepairExecutionModel extends BaseModel {
       existing.status !== 'queued' &&
       existing.status !== 'failed'
     ) {
-      throw new Error(
+      throw new RepairExecutionControlError(
         `Repair execution request cannot be cancelled from status: ${existing.status}`
       );
     }
@@ -2628,7 +2639,7 @@ export class CopilotRepairExecutionModel extends BaseModel {
       RETURNING id
     `;
     if (!cancelledRows.length) {
-      throw new Error(
+      throw new RepairExecutionControlError(
         `Repair execution request could not be cancelled because its state changed: ${input.id}`
       );
     }
@@ -2670,7 +2681,7 @@ export class CopilotRepairExecutionModel extends BaseModel {
       existing.approvalState !== 'approved' &&
       existing.approvalState !== 'not_required'
     ) {
-      throw new Error(
+      throw new RepairExecutionControlError(
         [
           'Repair execution request cannot request running cancellation',
           `without executable approval state: ${existing.approvalState}`,
@@ -2678,7 +2689,7 @@ export class CopilotRepairExecutionModel extends BaseModel {
       );
     }
     if (!existing.workerLeaseId || !existing.workerLeaseExpiresAt) {
-      throw new Error(
+      throw new RepairExecutionControlError(
         'Repair execution request cannot request running cancellation without an active worker lease'
       );
     }
@@ -2728,7 +2739,7 @@ export class CopilotRepairExecutionModel extends BaseModel {
       FOR UPDATE
     `;
     if (!requestedRows.length) {
-      throw new Error(
+      throw new RepairExecutionControlError(
         `Repair execution request could not request cancellation because its state changed: ${input.id}`
       );
     }
@@ -2769,7 +2780,7 @@ export class CopilotRepairExecutionModel extends BaseModel {
     existing: CopilotRepairExecutionRecord
   ): Promise<CopilotRepairExecutionRecord> {
     if (existing.status !== 'failed') {
-      throw new Error(
+      throw new RepairExecutionControlError(
         `Repair execution request cannot be retried from status: ${existing.status}`
       );
     }
@@ -2777,7 +2788,7 @@ export class CopilotRepairExecutionModel extends BaseModel {
       existing.approvalState !== 'approved' &&
       existing.approvalState !== 'not_required'
     ) {
-      throw new Error(
+      throw new RepairExecutionControlError(
         [
           'Repair execution request cannot be retried without executable',
           `approval state: ${existing.approvalState}`,
@@ -2785,7 +2796,7 @@ export class CopilotRepairExecutionModel extends BaseModel {
       );
     }
     if (isDeterministicExecutorPayloadFailure(existing.failureCode)) {
-      throw new Error(
+      throw new RepairExecutionControlError(
         [
           'Repair execution request cannot be retried after deterministic',
           `executor payload failure: ${existing.failureCode}`,
@@ -2864,7 +2875,7 @@ export class CopilotRepairExecutionModel extends BaseModel {
       RETURNING id
     `;
     if (!retriedRows.length) {
-      throw new Error(
+      throw new RepairExecutionControlError(
         `Repair execution request could not be retried because its state changed: ${input.id}`
       );
     }
@@ -2921,7 +2932,7 @@ export class CopilotRepairExecutionModel extends BaseModel {
     existing: CopilotRepairExecutionRecord
   ): Promise<CopilotRepairExecutionRecord> {
     if (existing.status !== 'failed') {
-      throw new Error(
+      throw new RepairExecutionControlError(
         `Repair execution request cannot resume with payload from status: ${existing.status}`
       );
     }
@@ -2929,7 +2940,7 @@ export class CopilotRepairExecutionModel extends BaseModel {
       existing.approvalState !== 'approved' &&
       existing.approvalState !== 'not_required'
     ) {
-      throw new Error(
+      throw new RepairExecutionControlError(
         [
           'Repair execution request cannot resume with payload without',
           `executable approval state: ${existing.approvalState}`,
@@ -2937,12 +2948,12 @@ export class CopilotRepairExecutionModel extends BaseModel {
       );
     }
     if (existing.sideEffectCount > 0) {
-      throw new Error(
+      throw new RepairExecutionControlError(
         'Repair execution request cannot replace executor payload after side effects were recorded'
       );
     }
     if (input.executorPayload === undefined || input.executorPayload === null) {
-      throw new Error(
+      throw new RepairExecutionControlError(
         'Repair execution resume with payload requires executor payload'
       );
     }
@@ -2950,13 +2961,22 @@ export class CopilotRepairExecutionModel extends BaseModel {
     const previousExecutorPayloadFingerprint = executorPayloadFingerprint(
       existing.executorPayload
     );
-    const nextExecutorPayload = normalizeRepairExecutionExecutorPayload(
-      input.executorPayload
-    );
+    let nextExecutorPayload: CopilotRepairExecutionExecutorPayload;
+    try {
+      nextExecutorPayload = normalizeRepairExecutionExecutorPayload(
+        input.executorPayload
+      );
+    } catch (error) {
+      throw new RepairExecutionControlError(
+        error instanceof Error
+          ? error.message
+          : 'Repair execution executor payload is invalid'
+      );
+    }
     const nextExecutorPayloadFingerprint =
       executorPayloadFingerprint(nextExecutorPayload);
     if (previousExecutorPayloadFingerprint === nextExecutorPayloadFingerprint) {
-      throw new Error(
+      throw new RepairExecutionControlError(
         'Repair execution resume with payload requires a changed executor payload'
       );
     }
@@ -3051,7 +3071,7 @@ export class CopilotRepairExecutionModel extends BaseModel {
       RETURNING id
     `;
     if (!resumedRows.length) {
-      throw new Error(
+      throw new RepairExecutionControlError(
         `Repair execution request could not resume with payload because its state changed: ${input.id}`
       );
     }
@@ -3090,7 +3110,7 @@ export class CopilotRepairExecutionModel extends BaseModel {
     existing: CopilotRepairExecutionRecord
   ): Promise<CopilotRepairExecutionRecord> {
     if (existing.status !== 'running') {
-      throw new Error(
+      throw new RepairExecutionControlError(
         `Repair execution request cannot recover stale lease from status: ${existing.status}`
       );
     }
@@ -3098,7 +3118,7 @@ export class CopilotRepairExecutionModel extends BaseModel {
       existing.approvalState !== 'approved' &&
       existing.approvalState !== 'not_required'
     ) {
-      throw new Error(
+      throw new RepairExecutionControlError(
         [
           'Repair execution request cannot recover stale lease without',
           `executable approval state: ${existing.approvalState}`,
@@ -3110,7 +3130,9 @@ export class CopilotRepairExecutionModel extends BaseModel {
       !existing.workerLeaseExpiresAt ||
       existing.workerLeaseExpiresAt.getTime() > now.getTime()
     ) {
-      throw new Error('Repair execution worker lease has not expired');
+      throw new RepairExecutionControlError(
+        'Repair execution worker lease has not expired'
+      );
     }
 
     const retryScheduled = existing.workerAttempt < existing.workerMaxAttempts;
@@ -3181,7 +3203,7 @@ export class CopilotRepairExecutionModel extends BaseModel {
       RETURNING id
     `;
     if (!recoveredRows.length) {
-      throw new Error(
+      throw new RepairExecutionControlError(
         `Repair execution stale lease could not be recovered because its state changed: ${input.id}`
       );
     }

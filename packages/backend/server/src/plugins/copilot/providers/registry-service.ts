@@ -8,7 +8,6 @@ import {
   applyProviderRegistryRevisions,
   buildProviderRegistry,
   type CopilotProviderRegistry,
-  type CopilotProviderRegistryRevisionOverlay,
   type CopilotProvidersConfigInput,
   type NormalizedCopilotProviderProfile,
 } from './provider-registry';
@@ -54,10 +53,7 @@ export class CopilotProviderRegistryService {
       );
     const providerRegistry = applyProviderRegistryRevisions(
       baseRegistry,
-      providerRevisions as unknown as Map<
-        string,
-        CopilotProviderRegistryRevisionOverlay
-      >
+      providerRevisions
     );
     const providerHealthStates =
       await this.models.copilotProviderHealthState.listLatestActiveByProviderIds(

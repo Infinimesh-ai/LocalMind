@@ -241,16 +241,18 @@ export class ConversationHost {
     const currentUserMessage =
       session.stashTurns.findLast(turn => turn.role === 'user') ??
       appended.turn;
-    await this.contextMemory?.captureDurableTurn({
-      userId,
-      workspaceId: session.config.workspaceId,
-      docId: session.config.docId,
-      sessionId,
-      turn: currentUserMessage,
-      scope: session.contextScope,
-      modelId: session.model,
-    });
-    await session.refreshContextMemories(currentUserMessage.content);
+    if (currentUserMessage) {
+      await this.contextMemory?.captureDurableTurn({
+        userId,
+        workspaceId: session.config.workspaceId,
+        docId: session.config.docId,
+        sessionId,
+        turn: currentUserMessage,
+        scope: session.contextScope,
+        modelId: session.model,
+      });
+      await session.refreshContextMemories(currentUserMessage.content);
+    }
 
     return {
       messageId,

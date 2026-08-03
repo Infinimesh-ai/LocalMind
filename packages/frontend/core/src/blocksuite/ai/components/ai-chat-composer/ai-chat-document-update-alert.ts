@@ -1,3 +1,5 @@
+import { getOrCreateI18n, I18n } from '@affine/i18n';
+import { unsafeCSSVarV2 } from '@blocksuite/affine-shared/theme';
 import { CloseIcon, PlusIcon, WarningIcon } from '@blocksuite/icons/lit';
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
@@ -7,6 +9,79 @@ import type { DocDisplayConfig } from '../ai-chat-chips';
 
 const DISMISSED_DOCUMENT_UPDATE_KEY =
   'localmind:ai-chat:document-update-dismissed';
+const DISMISSAL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const DISMISSAL_STORAGE_LIMIT = 100;
+
+type DocumentUpdateDismissal = {
+  expiresAt: number;
+  versions: Record<string, unknown>;
+};
+
+type DocumentUpdateStorage = Pick<Storage, 'getItem'> &
+  Partial<Pick<Storage, 'key' | 'length' | 'removeItem' | 'setItem'>>;
+
+function parseDocumentUpdateDismissal(
+  value: string | null
+): DocumentUpdateDismissal | null {
+  if (!value) return null;
+  const parsed = JSON.parse(value) as unknown;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return null;
+  }
+  const record = parsed as Record<string, unknown>;
+  if (
+    typeof record.expiresAt === 'number' &&
+    record.versions &&
+    typeof record.versions === 'object' &&
+    !Array.isArray(record.versions)
+  ) {
+    return {
+      expiresAt: record.expiresAt,
+      versions: record.versions as Record<string, unknown>,
+    };
+  }
+
+  // Read existing flat records once, then rewrite them in the bounded format.
+  return {
+    expiresAt: Date.now() + DISMISSAL_TTL_MS,
+    versions: record,
+  };
+}
+
+function cleanupDocumentUpdateDismissals(
+  storage: DocumentUpdateStorage,
+  now: number
+) {
+  if (
+    typeof storage.length !== 'number' ||
+    !storage.key ||
+    !storage.removeItem
+  ) {
+    return;
+  }
+  const entries: Array<{ key: string; expiresAt: number }> = [];
+  for (let index = 0; index < storage.length; index++) {
+    const key = storage.key(index);
+    if (!key?.startsWith(`${DISMISSED_DOCUMENT_UPDATE_KEY}:`)) continue;
+    try {
+      const dismissal = parseDocumentUpdateDismissal(storage.getItem(key));
+      if (!dismissal || dismissal.expiresAt <= now) {
+        storage.removeItem(key);
+        index--;
+        continue;
+      }
+      entries.push({ key, expiresAt: dismissal.expiresAt });
+    } catch {
+      storage.removeItem(key);
+      index--;
+    }
+  }
+  for (const entry of entries
+    .toSorted((left, right) => left.expiresAt - right.expiresAt)
+    .slice(0, Math.max(0, entries.length - DISMISSAL_STORAGE_LIMIT))) {
+    storage.removeItem(entry.key);
+  }
+}
 
 export function createDocumentUpdateSignature(
   documents: AIChatModifiedDocument[]
@@ -25,21 +100,19 @@ export function createDocumentUpdateStorageKey(
 }
 
 export function isDocumentUpdateDismissed(
-  storage: Pick<Storage, 'getItem'>,
+  storage: DocumentUpdateStorage,
   storageKey: string,
   documents: AIChatModifiedDocument[]
 ) {
   try {
-    const stored = storage.getItem(storageKey);
-    if (!stored) return false;
-    const versions = JSON.parse(stored) as unknown;
-    if (!versions || typeof versions !== 'object' || Array.isArray(versions)) {
+    const dismissal = parseDocumentUpdateDismissal(storage.getItem(storageKey));
+    if (!dismissal) return false;
+    if (dismissal.expiresAt <= Date.now()) {
+      storage.removeItem?.(storageKey);
       return false;
     }
     return documents.every(
-      document =>
-        (versions as Record<string, unknown>)[document.docId] ===
-        document.updatedAt
+      document => dismissal.versions[document.docId] === document.updatedAt
     );
   } catch {
     return false;
@@ -47,21 +120,23 @@ export function isDocumentUpdateDismissed(
 }
 
 export function persistDocumentUpdateDismissal(
-  storage: Pick<Storage, 'getItem' | 'setItem'>,
+  storage: DocumentUpdateStorage & Pick<Storage, 'setItem'>,
   storageKey: string,
   documents: AIChatModifiedDocument[]
 ) {
   try {
-    const stored = storage.getItem(storageKey);
-    const parsed = stored ? (JSON.parse(stored) as unknown) : {};
-    const versions =
-      parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-        ? { ...(parsed as Record<string, unknown>) }
-        : {};
+    const now = Date.now();
+    const versions = {
+      ...parseDocumentUpdateDismissal(storage.getItem(storageKey))?.versions,
+    };
     for (const document of documents) {
       versions[document.docId] = document.updatedAt;
     }
-    storage.setItem(storageKey, JSON.stringify(versions));
+    storage.setItem(
+      storageKey,
+      JSON.stringify({ expiresAt: now + DISMISSAL_TTL_MS, versions })
+    );
+    cleanupDocumentUpdateDismissals(storage, now);
     return true;
   } catch {
     return false;
@@ -83,17 +158,17 @@ export class AIChatDocumentUpdateAlert extends LitElement {
       box-sizing: border-box;
       margin: 4px 0 8px;
       padding: 8px 10px;
-      border: 1px solid var(--affine-warning-color, #d99a1b);
+      border: 1px solid ${unsafeCSSVarV2('chip/tag/yellow')};
       border-radius: 6px;
-      background: var(--affine-warning-background, #fff8df);
-      color: var(--affine-text-primary-color, #121212);
+      background: ${unsafeCSSVarV2('block/callout/background/yellow')};
+      color: ${unsafeCSSVarV2('text/primary')};
     }
 
     .warning-icon {
       display: flex;
       align-items: center;
       justify-content: center;
-      color: var(--affine-warning-color, #9a6700);
+      color: ${unsafeCSSVarV2('block/callout/icon/yellow')};
     }
 
     .warning-icon svg,
@@ -113,7 +188,7 @@ export class AIChatDocumentUpdateAlert extends LitElement {
     }
 
     .description {
-      color: var(--affine-text-secondary-color, #666);
+      color: ${unsafeCSSVarV2('text/secondary')};
       font-size: 12px;
       overflow-wrap: anywhere;
     }
@@ -134,8 +209,8 @@ export class AIChatDocumentUpdateAlert extends LitElement {
     .new-chat {
       gap: 4px;
       padding: 0 8px;
-      background: var(--affine-button-background-primary, #1e1e1e);
-      color: var(--affine-button-foreground-primary, #fff);
+      background: ${unsafeCSSVarV2('button/primary')};
+      color: ${unsafeCSSVarV2('button/pureWhiteText')};
       font-size: 12px;
       font-weight: 500;
       white-space: nowrap;
@@ -145,7 +220,7 @@ export class AIChatDocumentUpdateAlert extends LitElement {
       width: 28px;
       padding: 0;
       background: transparent;
-      color: var(--affine-icon-secondary, #666);
+      color: ${unsafeCSSVarV2('icon/secondary')};
     }
 
     button:hover {
@@ -153,7 +228,7 @@ export class AIChatDocumentUpdateAlert extends LitElement {
     }
 
     button:focus-visible {
-      outline: 2px solid var(--affine-link-color, #1e66d0);
+      outline: 2px solid ${unsafeCSSVarV2('text/link')};
       outline-offset: 1px;
     }
 
@@ -191,6 +266,18 @@ export class AIChatDocumentUpdateAlert extends LitElement {
 
   private dismissedSignature: string | null = null;
   private dismissedStorageKey: string | null = null;
+  private readonly i18n = getOrCreateI18n();
+  private readonly onLanguageChanged = () => this.requestUpdate();
+
+  override connectedCallback() {
+    super.connectedCallback();
+    this.i18n.on('languageChanged', this.onLanguageChanged);
+  }
+
+  override disconnectedCallback() {
+    this.i18n.off('languageChanged', this.onLanguageChanged);
+    super.disconnectedCallback();
+  }
 
   private get signature() {
     return createDocumentUpdateSignature(this.documents);
@@ -221,16 +308,26 @@ export class AIChatDocumentUpdateAlert extends LitElement {
   private get documentLabel() {
     const titles = this.documents.map(document => {
       const title = this.docDisplayConfig?.getTitle(document.docId)?.trim();
-      return title || 'Untitled document';
+      return title || I18n['com.affine.localmind.documentUpdate.untitled']();
     });
     const visible = titles.slice(0, 2).map(title => `“${title}”`);
     const remaining = titles.length - visible.length;
-    return remaining > 0
-      ? `${visible.join(', ')} and ${remaining} more`
-      : visible.join(' and ');
+    if (remaining > 0) {
+      return I18n['com.affine.localmind.documentUpdate.list.more']({
+        documents: visible.join(', '),
+        remaining: String(remaining),
+      });
+    }
+    if (visible.length === 2) {
+      return I18n['com.affine.localmind.documentUpdate.list.two']({
+        first: visible[0],
+        second: visible[1],
+      });
+    }
+    return visible[0] ?? '';
   }
 
-  private readonly dismiss = () => {
+  private dismiss() {
     const storageKey = this.storageKey;
     if (!storageKey || !this.signature) return;
     this.dismissedStorageKey = storageKey;
@@ -241,11 +338,11 @@ export class AIChatDocumentUpdateAlert extends LitElement {
       this.documents
     );
     this.requestUpdate();
-  };
+  }
 
-  private readonly createNewChat = () => {
+  private createNewChat() {
     Promise.resolve(this.onNewChat?.()).catch(console.error);
-  };
+  }
 
   override render() {
     if (
@@ -257,7 +354,14 @@ export class AIChatDocumentUpdateAlert extends LitElement {
       return nothing;
     }
 
-    const plural = this.documents.length > 1;
+    const description =
+      this.documents.length > 1
+        ? I18n['com.affine.localmind.documentUpdate.description.many']({
+            documents: this.documentLabel,
+          })
+        : I18n['com.affine.localmind.documentUpdate.description.one']({
+            documents: this.documentLabel,
+          });
     return html`
       <div
         class="alert"
@@ -267,30 +371,33 @@ export class AIChatDocumentUpdateAlert extends LitElement {
       >
         <span class="warning-icon">${WarningIcon()}</span>
         <div class="copy">
-          <div class="title">Document updated</div>
-          <div class="description">
-            ${this.documentLabel} ${plural ? 'have' : 'has'} changed since
-            ${plural ? 'they were' : 'it was'} added. This chat still uses the
-            earlier version.
+          <div class="title">
+            ${I18n['com.affine.localmind.documentUpdate.title']()}
           </div>
+          <div class="description">${description}</div>
         </div>
         <button
           class="new-chat"
           type="button"
           data-testid="ai-chat-document-update-new-chat"
-          @click=${this.createNewChat}
+          @click=${() => this.createNewChat()}
         >
-          ${PlusIcon()} <span>New chat</span>
+          ${PlusIcon()}
+          <span>${I18n['com.affine.localmind.documentUpdate.newChat']()}</span>
         </button>
         <button
           class="dismiss"
           type="button"
-          aria-label="Dismiss document update warning"
+          aria-label=${I18n['com.affine.localmind.documentUpdate.dismiss']()}
           data-testid="ai-chat-document-update-dismiss"
-          @click=${this.dismiss}
+          @click=${() => this.dismiss()}
         >
           ${CloseIcon()}
-          <affine-tooltip>Dismiss</affine-tooltip>
+          <affine-tooltip
+            >${I18n[
+              'com.affine.localmind.documentUpdate.dismissShort'
+            ]()}</affine-tooltip
+          >
         </button>
       </div>
     `;

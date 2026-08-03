@@ -135,7 +135,7 @@ export const useWorkspaceSettingList = (): SettingSidebarItem[] => {
       },
       showAIContext && {
         key: 'workspace:ai-context' as SettingTab,
-        title: 'AI context',
+        title: t['com.affine.localmind.aiContext.title'](),
         icon: <AiIcon />,
         testId: 'workspace-setting:ai-context',
       },

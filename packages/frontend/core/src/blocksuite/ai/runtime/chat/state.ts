@@ -122,7 +122,6 @@ export type AIChatContextItem =
 
 export type AIChatModifiedDocument = {
   docId: string;
-  snapshotUpdatedAt?: number;
   updatedAt: number;
 };
 

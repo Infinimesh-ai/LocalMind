@@ -8,6 +8,7 @@ import { PermissionAccess, PermissionService } from '../../../core/permission';
 import { clearEmbeddingChunk } from '../../../models';
 import { IndexerService } from '../../indexer';
 import { CopilotContextService } from '../context/service';
+import { createReadableDocIdsLoader } from '../tools/doc-keyword-search';
 
 type McpTextContent = {
   type: 'text';
@@ -114,6 +115,7 @@ export class WorkspaceMcpProvider {
     accessMode: McpAccessMode = McpAccessMode.READ_ONLY
   ): Promise<WorkspaceMcpServer> {
     await this.ac.user(userId).workspace(workspaceId).assert('Workspace.Read');
+    const loadReadableDocIds = createReadableDocIdsLoader(this.permission);
 
     const readDocument = defineTool({
       name: 'read_document',
@@ -229,7 +231,7 @@ export class WorkspaceMcpProvider {
         const trimmed = query.trim();
         if (!trimmed) return toolError('Query is required for keyword search.');
 
-        const docIds = await this.permission.listReadableDocIds({
+        const docIds = await loadReadableDocIds({
           userId,
           workspaceId,
         });

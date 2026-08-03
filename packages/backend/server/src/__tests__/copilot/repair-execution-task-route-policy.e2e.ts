@@ -546,6 +546,16 @@ test('approval queues task route repair and worker publishes DB-backed task rout
         entry.modelId === 'missing-rerank-route'
     )
   );
+  t.true(
+    revisionRows[0]?.fallbackSourceChain.some(
+      entry =>
+        entry.source === 'config_fallback' &&
+        entry.status === 'prepared_for_approval' &&
+        entry.featureKind === 'rerank' &&
+        entry.modelId === 'localmind-repair-task-route/available-rerank-route'
+    ),
+    'persisted task route JSONB must retain the prepared-for-approval source entry'
+  );
 
   const diagnosticsResult = await app.gql({
     query: taskRoutePolicyDiagnosticsQuery,

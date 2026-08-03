@@ -1455,7 +1455,9 @@ function hydrateSupportBundleRecord<T extends CopilotSupportBundleRecord>(
   } as T;
   Object.defineProperty(hydrated, SUPPORT_BUNDLE_PERSISTED_JSON_SNAPSHOT, {
     configurable: false,
-    enumerable: false,
+    // Object spread copies enumerable symbol keys while JSON serialization
+    // still ignores them, so enriched records retain the raw DB snapshot.
+    enumerable: true,
     value: {
       manifestJson: record.manifestJson,
       sourceEvidenceSummary: record.sourceEvidenceSummary,
@@ -2192,21 +2194,6 @@ export class CopilotSupportBundleModel extends BaseModel {
       ...record,
       ...forwardingEvents,
     } as T;
-    const persistedJsonSnapshot = (
-      record as CopilotSupportBundleRecordWithPersistedJsonSnapshot
-    )[SUPPORT_BUNDLE_PERSISTED_JSON_SNAPSHOT];
-    if (persistedJsonSnapshot) {
-      Object.defineProperty(
-        withForwardingEvents,
-        SUPPORT_BUNDLE_PERSISTED_JSON_SNAPSHOT,
-        {
-          configurable: false,
-          enumerable: false,
-          value: persistedJsonSnapshot,
-          writable: false,
-        }
-      );
-    }
     return withForwardingEvents;
   }
 

@@ -1,5 +1,9 @@
 import { createHash } from 'node:crypto';
 
+import type {
+  ProviderRegistryRevision,
+  ProviderRegistrySourceChainEntry,
+} from '../../../models/copilot-provider-registry-revision';
 import type { RegistryRevisionPublishEventRecord } from '../../../models/copilot-registry-revision-publish-event';
 import type {
   CopilotModelDefinition,
@@ -99,36 +103,24 @@ export type CopilotProviderModelRegistryRevisionOverlay = {
   publishEvents?: RegistryRevisionPublishEventRecord[];
 };
 
-export type CopilotProviderRegistrySourceChainEntry = {
-  source:
-    | 'db_revision'
-    | 'provider_profile'
-    | 'legacy_profile'
-    | 'config_fallback';
-  scope: 'global' | 'workspace';
-  status: string;
-  actorId?: string;
-  fingerprint?: string;
-  providerId?: string;
-  providerType?: string;
-  revision?: string;
-  updatedAt?: string;
-  workspaceId?: string;
-};
+export type CopilotProviderRegistrySourceChainEntry =
+  ProviderRegistrySourceChainEntry;
 
-export type CopilotProviderRegistryRevisionOverlay = {
-  id: string;
-  providerId: string;
-  providerType?: CopilotProviderType;
-  scopeType: 'global' | 'workspace';
-  workspaceId?: string;
-  actorId?: string;
-  revision: string;
-  status: 'active' | 'archived' | 'disabled';
-  fingerprint: string;
-  providerProfile: CopilotProviderProfile;
-  fallbackSourceChain: CopilotProviderRegistrySourceChainEntry[];
-  updatedAt: Date;
+export type CopilotProviderRegistryRevisionOverlay = Pick<
+  ProviderRegistryRevision,
+  | 'actorId'
+  | 'fallbackSourceChain'
+  | 'fingerprint'
+  | 'id'
+  | 'providerId'
+  | 'providerProfile'
+  | 'providerType'
+  | 'revision'
+  | 'scopeType'
+  | 'status'
+  | 'updatedAt'
+  | 'workspaceId'
+> & {
   publishEventCount?: number;
   publishEvents?: RegistryRevisionPublishEventRecord[];
 };
@@ -937,7 +929,10 @@ export function buildProviderRegistry(
 
 export function applyProviderRegistryRevisions(
   registry: CopilotProviderRegistry,
-  revisionsByProvider: Map<string, CopilotProviderRegistryRevisionOverlay>
+  revisionsByProvider: ReadonlyMap<
+    string,
+    CopilotProviderRegistryRevisionOverlay
+  >
 ): CopilotProviderRegistry {
   if (!revisionsByProvider.size) {
     return registry;
@@ -977,7 +972,10 @@ export function applyProviderHealthStates(
 
 export function buildProviderRegistryWithProviderRevisions(
   config: CopilotProvidersConfigInput,
-  revisionsByProvider: Map<string, CopilotProviderRegistryRevisionOverlay>
+  revisionsByProvider: ReadonlyMap<
+    string,
+    CopilotProviderRegistryRevisionOverlay
+  >
 ): CopilotProviderRegistry {
   return applyProviderRegistryRevisions(
     buildProviderRegistry(config),

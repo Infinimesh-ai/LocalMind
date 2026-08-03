@@ -6,7 +6,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { PropsWithChildren, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { filterGuideSections, HelpCenterPage } from './index';
+import { HelpCenterPage } from './index';
 
 const openWorkbench = vi.hoisted(() => vi.fn());
 const openDialog = vi.hoisted(() => vi.fn());
@@ -14,6 +14,37 @@ const WorkspaceDialogServiceToken = vi.hoisted(
   () => class WorkspaceDialogService {}
 );
 const WorkbenchServiceToken = vi.hoisted(() => class WorkbenchService {});
+
+vi.mock('@affine/i18n', () => {
+  const messages: Record<string, string> = {
+    'com.affine.localmind.help.title': 'Help & guide',
+    'com.affine.localmind.help.pageTitle': 'LocalMind guide',
+    'com.affine.localmind.help.search.placeholder': 'Search the guide',
+    'com.affine.localmind.help.search.clear': 'Clear search',
+    'com.affine.localmind.help.openChat': 'Open AI Chat',
+    'com.affine.localmind.help.manageContext': 'Manage AI context',
+    'com.affine.localmind.help.openEmbedding': 'Open Embedding settings',
+    'com.affine.localmind.help.alert.title':
+      'AI Chat will prompt you to start a new chat after a document changes',
+    'com.affine.localmind.help.section.snapshots.title':
+      'Document updates and snapshots',
+    'com.affine.localmind.help.snapshots.why.description':
+      'A chat preserves the source version it read so prior answers remain reproducible.',
+    'com.affine.localmind.help.section.permissions.title':
+      'Permissions and privacy',
+  };
+  const translate = (key: string) => messages[key] ?? key;
+  const t = new Proxy(
+    { t: translate },
+    {
+      get(target, key: string) {
+        if (key in target) return target[key as keyof typeof target];
+        return () => translate(key);
+      },
+    }
+  );
+  return { useI18n: () => t };
+});
 
 vi.mock('@affine/core/components/pure/header', () => ({
   Header: ({ left, right }: { left?: ReactNode; right?: ReactNode }) => (
@@ -60,49 +91,68 @@ describe('LocalMind help center', () => {
     openDialog.mockReset();
   });
 
-  test('filters guide sections by user-facing keywords', () => {
-    expect(
-      filterGuideSections('Automatic Memory').map(item => item.id)
-    ).toEqual(['memory', 'troubleshooting']);
-    expect(filterGuideSections('文档更新').map(item => item.id)).toEqual([
-      'snapshots',
-    ]);
+  test('filters guide sections from translated content that is displayed', () => {
+    render(<HelpCenterPage />);
+
+    fireEvent.change(screen.getByPlaceholderText('Search the guide'), {
+      target: { value: 'reproducible' },
+    });
+
+    expect(screen.getByTestId('guide-section-snapshots')).not.toBeNull();
+    expect(screen.queryByTestId('guide-section-start')).toBeNull();
   });
 
   test('keeps the document snapshot warning visible while searching', () => {
     render(<HelpCenterPage />);
 
     expect(
-      screen.getByText('文档更新后，AI Chat 会提醒你新建对话')
+      screen.getByText(
+        'AI Chat will prompt you to start a new chat after a document changes'
+      )
     ).not.toBeNull();
 
-    fireEvent.change(screen.getByPlaceholderText('搜索使用指南'), {
-      target: { value: '权限' },
+    fireEvent.change(screen.getByPlaceholderText('Search the guide'), {
+      target: { value: 'permissions' },
     });
 
     expect(screen.getByTestId('guide-section-permissions')).not.toBeNull();
     expect(screen.queryByTestId('guide-section-start')).toBeNull();
     expect(
-      screen.getByText('文档更新后，AI Chat 会提醒你新建对话')
+      screen.getByText(
+        'AI Chat will prompt you to start a new chat after a document changes'
+      )
     ).not.toBeNull();
   });
 
   test('opens AI chat and contextual workspace settings', () => {
     render(<HelpCenterPage />);
 
-    fireEvent.click(screen.getByRole('button', { name: '打开 AI Chat' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open AI Chat' }));
     expect(openWorkbench).toHaveBeenCalledWith('/chat', { at: 'active' });
 
-    fireEvent.click(screen.getByRole('button', { name: '管理 AI 上下文' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Manage AI context' }));
     expect(openDialog).toHaveBeenCalledWith('setting', {
       activeTab: 'workspace:ai-context',
     });
 
     fireEvent.click(
-      screen.getByRole('button', { name: '打开 Embedding 设置' })
+      screen.getByRole('button', { name: 'Open Embedding settings' })
     );
     expect(openDialog).toHaveBeenCalledWith('setting', {
       activeTab: 'workspace:embedding',
     });
+  });
+
+  test('uses unique section anchors when two help views are open', () => {
+    render(
+      <>
+        <HelpCenterPage />
+        <HelpCenterPage />
+      </>
+    );
+
+    const sections = screen.getAllByTestId(/^guide-section-/);
+    const ids = sections.map(section => section.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });

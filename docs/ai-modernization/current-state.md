@@ -1297,6 +1297,34 @@ implemented:
   time, and focused scope/planner/session/DB tests plus host and Docker smoke
   cover the new contract.
 
+The active `context-planner/v6` commercial-memory foundation is now
+implemented:
+
+- Automatic Memory writes use structured `ADD`, `UPDATE`, `DELETE`, and
+  `NOOP` decisions, with a deterministic path for explicit remember/forget
+  commands and a bounded heuristic fallback when no structured extractor is
+  configured;
+- memory rows persist fact keys, confidence, importance, validity/expiry,
+  sensitivity, supersession, embedding, use-count, and last-used evidence;
+- conflicting facts update or supersede the active version, disabled facts can
+  be reactivated safely, and the user can undo or delete captured memory;
+- permission-prefiltered retrieval combines keyword and embedding similarity,
+  temporal/confidence/importance features, reranking, and MMR diversity;
+- each owner/scope is bounded to 200 active Automatic Memory rows with
+  least-recently-used eviction, preventing unbounded per-scope growth;
+- Rule has independent application modes, conditions, priority, immutable
+  revisions, rollback, and hit history, while workspace-enforced Policy is a
+  separate higher-trust layer;
+- ambiguous readable document sets can use an explicit project selection, but
+  stale or unauthorized selections fail closed;
+- AI Context settings expose the corresponding inspect, edit, disable, delete,
+  undo, revision, and rollback controls;
+- the v6 renderer preserves private Rule, Memory, and project context as an
+  explicitly untrusted `user` message, while workspace Policy can occupy the
+  policy layer without promoting private content into `system`;
+- the v6 evaluation smoke covers extraction, sensitive-data rejection,
+  retrieval, scope leakage, Rule interference/conflict priority, and latency.
+
 The latest compatibility and verification repair is now implemented:
 
 - automatic memory extraction treats English durable-memory directives
@@ -1334,22 +1362,45 @@ The latest compatibility and verification repair is now implemented:
   on its documented `yarn r` runtime path because it exceeds TypeScript's
   control-flow analysis limit.
 
+The GitHub issues #2-#8 stabilization pass is now implemented:
+
+- production and baseline memory extraction no longer contain benchmark-only
+  marker patterns; natural durable cues drive the v6/v5/v4 baseline;
+- sentence parsing preserves decimal versions and rejects questions,
+  one-request-only phrasing, and common sensitive forms before persistence;
+- GraphQL memory operations are throttled, workspace/document/project access is
+  rechecked, enum inputs are schema-backed, and expected Prisma conflicts are
+  translated into bounded user-facing errors;
+- the database limits Automatic Memory content length through a new forward
+  migration, while the v1-to-project transition cleans legacy user-scope
+  workspace ids before enforcing the current scope contract;
+- context refresh polling uses independent request sequencing, pauses while the
+  page is hidden, applies bounded exponential backoff, and reauthorizes cached
+  MCP/keyword-search results before returning them;
+- AI Context, Help, sidebar, and document-update alert copy is localized; the
+  alert uses theme tokens, bounded TTL/count storage, and covered light/dark
+  contrast behavior;
+- registry source-chain, repair-control, support-bundle snapshot, readable-doc,
+  and realtime publication regressions are covered by focused tests, including
+  double-user/double-workspace GraphQL isolation and persisted approval state;
+- provider/model fixtures and the oversized resolver smoke are aligned with the
+  current upstream model registry and isolated typecheck/runtime contracts.
+
 ## Not Completed
 
-The completed diagnostics do not yet provide the intended durable architecture.
+Remaining production gaps include:
 
-Still missing:
-
-- a structured Automatic Memory writer with broader DLP,
-  `ADD/UPDATE/DELETE/NOOP`, fact keys, confidence, temporal validity,
-  supersession, undo, and conflict handling;
-- embedding plus keyword hybrid context retrieval, reranking, lifecycle
-  management, feedback signals, and full retrieval/answer quality evaluation;
-- an independent Rule engine with application modes, conditions, priority,
-  revisions, rollback, hit history, and a separate workspace-enforced Policy
-  layer;
-- explicit project selection for mixed or multi-project attached-document
-  context;
+- production-model evaluation and tuning for implicit structured memory
+  extraction beyond the deterministic explicit-command and heuristic fallback
+  paths;
+- enterprise-grade DLP/classification beyond the current fail-closed known
+  sensitive-form filters;
+- real Sparkclaw embedding/reranker shadow evaluation, quality/cost thresholds,
+  and large-corpus production load validation;
+- model-generated structured rolling summaries with provenance and
+  conflict-safe refresh;
+- planner trace joins to answer quality, correction/undo feedback, staged
+  rollout, and online A/B outcomes without storing sensitive context text;
 - mutating repair executors beyond the constrained Prompt Registry, Task Route
   Policy, Model Registry, and Provider Registry workspace revision publishers;
 - rollback behavior written by a real runtime;

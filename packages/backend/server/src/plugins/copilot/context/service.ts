@@ -1,5 +1,4 @@
 import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 
 import {
   Cache,
@@ -22,6 +21,7 @@ import type {
   EmbeddingClient,
   EmbeddingRouteContext,
 } from '../embedding/types';
+import { readableContextDocPredicate } from './readable-doc-predicate';
 import { ContextSession } from './session';
 
 const CONTEXT_SESSION_KEY = 'context-session';
@@ -81,15 +81,11 @@ export class CopilotContextService implements OnApplicationBootstrap {
     workspaceId: string,
     routeContext?: EmbeddingRouteContext
   ) {
-    if (!routeContext?.userId) {
-      throw new Error('Document embedding search requires a user id.');
-    }
-    return this.permission.docReadableSqlPredicate({
-      userId: routeContext.userId,
+    return readableContextDocPredicate(
+      this.permission,
       workspaceId,
-      action: 'Doc.Read',
-      docIdColumn: Prisma.raw('w."doc_id"'),
-    });
+      routeContext
+    );
   }
 
   private async saveConfig(

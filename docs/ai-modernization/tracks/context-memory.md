@@ -57,6 +57,8 @@ trust and scope boundary:
   decisions, with deterministic handling for direct remember/forget requests;
 - memory rows carry fact keys, confidence, importance, validity and expiry,
   sensitivity, supersession, embedding, use count, and last-used evidence;
+- each owner/scope retains at most 200 active Automatic Memory rows, evicting
+  the least recently used rows when a write would exceed the quota;
 - a disabled memory can be reactivated without violating the active-fact
   uniqueness contract or leaving conflicting active versions;
 - authorized candidates are ranked with keyword and embedding similarity,
@@ -103,15 +105,15 @@ The v6 foundation still has follow-up work before broad production rollout:
   summaries;
 - traces support replay diagnostics but do not yet join answer-quality,
   user-feedback, and online experiment outcomes;
-- lifecycle quotas, cleanup scheduling, and large-corpus query performance need
-  production load validation.
+- scheduled expiry cleanup and large-corpus query performance still need
+  production load validation beyond the write-time per-scope LRU quota.
 
 ## Next Vertical Slices
 
 1. Replace heuristic implicit extraction with a configured structured model
    extractor while preserving the deterministic explicit-command path.
-2. Add bounded per-owner/scope storage quotas, scheduled lifecycle cleanup, and
-   production-scale retrieval benchmarks.
+2. Add scheduled lifecycle cleanup and production-scale retrieval/load
+   benchmarks around the existing per-owner/scope quota.
 3. Connect Sparkclaw embedding/reranker providers behind the existing hybrid
    retrieval interfaces and add shadow evaluation before rollout.
 4. Join planner traces with explicit user correction/undo and answer-quality

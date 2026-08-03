@@ -4,8 +4,11 @@ import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 import { Prisma } from '@prisma/client';
 
+import { BadRequest, NotFound } from '../base';
 import { BaseModel } from './base';
 import { toPgVector } from './common';
+
+export const AUTO_MEMORY_SCOPE_LIMIT = 200;
 
 export const COPILOT_CONTEXT_MEMORY_SCOPES = [
   'user',
@@ -730,6 +733,45 @@ export class CopilotContextMemoryModel extends BaseModel {
     });
   }
 
+  @Transactional()
+  async enforceAutoMemoryQuota(
+    input: {
+      ownerUserId: string;
+      workspaceId: string;
+      scope: Exclude<CopilotContextMemoryScope, 'user'>;
+      docId?: string | null;
+      projectId?: string | null;
+    },
+    limit = AUTO_MEMORY_SCOPE_LIMIT
+  ) {
+    const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 1_000);
+    const overflow = await this.db.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "ai_context_memories"
+      WHERE
+        "owner_user_id" = ${input.ownerUserId} AND
+        "workspace_id" = ${input.workspaceId} AND
+        "scope" = ${input.scope} AND
+        "doc_id" IS NOT DISTINCT FROM ${input.docId ?? null} AND
+        "project_id" IS NOT DISTINCT FROM ${input.projectId ?? null} AND
+        "kind" = 'auto_memory'
+      ORDER BY
+        CASE "status"
+          WHEN 'active' THEN 0
+          WHEN 'disabled' THEN 1
+          ELSE 2
+        END ASC,
+        COALESCE("last_used_at", "updated_at") DESC,
+        "updated_at" DESC,
+        "id" DESC
+      OFFSET ${boundedLimit}
+    `;
+    if (!overflow.length) return { count: 0 };
+    return await this.db.aiContextMemory.deleteMany({
+      where: { id: { in: overflow.map(memory => memory.id) } },
+    });
+  }
+
   async putEmbedding(id: string, embedding: number[]) {
     const vector = toPgVector(embedding);
     await this.db.$executeRaw`
@@ -842,21 +884,35 @@ export class CopilotContextMemoryModel extends BaseModel {
       input.content === undefined
         ? current.content
         : normalizeMemoryContent(input.content);
-    return await this.db.aiContextMemory.update({
-      where: { id },
-      data: {
-        content,
-        status: input.status,
-        fingerprint:
-          input.content === undefined
-            ? current.fingerprint
-            : fingerprintContextMemory({
-                scope: current.scope as CopilotContextMemoryScope,
-                kind: current.kind as CopilotContextMemoryKind,
-                content,
-              }),
-      },
-    });
+    try {
+      return await this.db.aiContextMemory.update({
+        where: { id },
+        data: {
+          content,
+          status: input.status,
+          fingerprint:
+            input.content === undefined
+              ? current.fingerprint
+              : fingerprintContextMemory({
+                  scope: current.scope as CopilotContextMemoryScope,
+                  kind: current.kind as CopilotContextMemoryKind,
+                  content,
+                }),
+        },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          throw new BadRequest(
+            'An identical active AI context memory already exists in this scope'
+          );
+        }
+        if (error.code === 'P2025') {
+          throw new NotFound('AI context memory not found');
+        }
+      }
+      throw error;
+    }
   }
 
   async retireDisabledVersion(id: string, validUntil = new Date()) {

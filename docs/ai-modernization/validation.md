@@ -59,6 +59,38 @@ Report whether the image was rebuilt and which fixed tag was used.
 
 ## Latest Validation Record
 
+The 2026-08-02 Context Memory v6 and GitHub issues #2-#8 stabilization pass was
+validated with:
+
+- 95 focused backend tests for context planning, memory scope, session,
+  resolver, permission, tool-loop, repair-control, support-bundle, realtime,
+  and registry source-chain behavior, plus the large resolver source-chain and
+  memory-scope smoke files;
+- 51 frontend tests covering AI Context polling/drafts, document-update alerts,
+  and Help search/navigation, followed by manual light/dark browser inspection;
+- the v6 evaluation smoke with extraction precision/recall/F1 of `1`, sensitive
+  write rate `0`, Recall@5/MRR/nDCG@5 of `1`, scope leakage `0`, and Rule
+  conflict accuracy `1`;
+- native-renderer v6, v5, and v4 natural-language baselines with short, early,
+  recent, cross-session, and rolling-summary checkpoint recall all equal to
+  `1`;
+- root TypeScript project references, isolated checking of 31 Copilot test
+  files, Prisma Client/GraphQL/i18n generation, Prettier, oxlint, and
+  `git diff --check`;
+- a fresh disposable PostgreSQL database applying all 296 migrations, plus a
+  separate v1-to-project transition fixture proving legacy user-scope cleanup
+  before the new constraints are installed.
+
+The missing/stale fixed development images were rebuilt as
+`localmind-affine:dev-base` and `localmind-affine:test`; no milestone-specific
+tag was created. The Linux ARM64 native addon was compiled in an ephemeral
+builder with two Cargo jobs, release LTO disabled, and 16 codegen units after
+the default fat-LTO build exceeded the 8 GB Docker memory allowance. Docker
+filled during the test-image build, so only 8.145 GB of unused BuildKit cache
+was removed; no volume or persisted service data was deleted. After cleanup,
+Docker reported 29.41 GB of images, 8.142 GB of containers, 102.4 MB of local
+volumes, and 0 B of BuildKit cache.
+
 The 2026-07-31 Context Memory hardening slice was validated with:
 
 - isolated TypeScript checking of 26 Copilot test files;

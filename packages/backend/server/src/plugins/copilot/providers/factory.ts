@@ -812,10 +812,7 @@ export class CopilotProviderFactory {
 
     try {
       const output = await getProviderRuntimeHost(provider).run.text(
-        {
-          ...(modelId ? { modelId } : {}),
-          outputType: ModelOutputType.Text,
-        },
+        modelId ? { modelId } : {},
         PROVIDER_HEALTH_NETWORK_PROBE_PROMPT,
         {
           featureKind: 'action',

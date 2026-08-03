@@ -22,7 +22,7 @@ import {
 
 const BASELINE_VERSION = 'context-baseline/v1';
 const TOKENIZER_MODEL = 'gpt-4';
-const DEFAULT_ITERATIONS = 2_000;
+const DEFAULT_ITERATIONS = 200;
 const DEFAULT_OUTPUT = 'tmp/context-baseline/latest.json';
 
 type BaselineScenario = {
@@ -126,19 +126,19 @@ function plan(
 
 function buildScenarios(): BaselineScenario[] {
   const shortTurns = [
-    promptMessage('user', 'SHORT_1 Define the release goal.'),
-    promptMessage('assistant', 'SHORT_2 The goal is a reliable release.'),
-    promptMessage('user', 'SHORT_3 Use PostgreSQL for persistence.'),
-    promptMessage('assistant', 'SHORT_4 PostgreSQL is selected.'),
-    promptMessage('user', 'SHORT_5 Summarize the current decisions.'),
-    promptMessage('assistant', 'SHORT_6 The release prioritizes reliability.'),
+    promptMessage('user', 'Define the Atlas release goal.'),
+    promptMessage('assistant', 'The Atlas goal is a reliable release.'),
+    promptMessage('user', 'Use PostgreSQL for Atlas persistence.'),
+    promptMessage('assistant', 'PostgreSQL is selected for Atlas.'),
+    promptMessage('user', 'Summarize the current Atlas decisions.'),
+    promptMessage('assistant', 'The Atlas release prioritizes reliability.'),
   ];
   const shortBudget = promptTokens + countTokens(shortTurns) + 16;
 
   const longTurns: PromptMessage[] = [
     promptMessage(
       'user',
-      `EARLY_REQUIRED_FACT The deployment region is eu-west-1. ${padding(
+      `Remember that the durable release deployment region is eu-west-1. ${padding(
         'Initial deployment context'
       )}`
     ),
@@ -154,19 +154,13 @@ function buildScenarios(): BaselineScenario[] {
     );
   }
   longTurns.push(
-    promptMessage(
-      'user',
-      'RECENT_REQUIRED_FACT Produce the final deployment checklist now.'
-    )
+    promptMessage('user', 'Produce the final deployment checklist now.')
   );
   const retainedTail = longTurns.slice(-6);
   const longBudget = promptTokens + countTokens(retainedTail);
 
   const sourceSessionTurns = [
-    promptMessage(
-      'user',
-      'CROSS_SESSION_FACT The project codename is Juniper.'
-    ),
+    promptMessage('user', 'Remember that the project codename is Juniper.'),
     promptMessage('assistant', 'I will use Juniper in this conversation.'),
   ];
   const targetSessionTurns = [
@@ -185,7 +179,7 @@ function buildScenarios(): BaselineScenario[] {
       maxTokenSize: shortBudget,
       markers: shortTurns.map((turn, index) => ({
         id: `short-${index + 1}`,
-        value: turn.content.split(' ')[0],
+        value: turn.content,
         category: 'required',
       })),
     },
@@ -198,12 +192,12 @@ function buildScenarios(): BaselineScenario[] {
       markers: [
         {
           id: 'early-required-fact',
-          value: 'EARLY_REQUIRED_FACT',
+          value: 'eu-west-1',
           category: 'required',
         },
         {
           id: 'recent-required-fact',
-          value: 'RECENT_REQUIRED_FACT',
+          value: 'final deployment checklist',
           category: 'recent',
         },
       ],
@@ -224,7 +218,7 @@ function buildScenarios(): BaselineScenario[] {
       markers: [
         {
           id: 'cross-session-fact',
-          value: 'CROSS_SESSION_FACT',
+          value: 'Juniper',
           category: 'cross_session',
         },
       ],

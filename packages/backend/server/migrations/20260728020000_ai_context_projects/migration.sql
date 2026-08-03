@@ -48,6 +48,10 @@ UPDATE "ai_context_memories"
 SET "visibility" = 'private'
 WHERE "visibility" <> 'private';
 
+UPDATE "ai_context_memories"
+SET "workspace_id" = NULL
+WHERE "scope" = 'user';
+
 ALTER TABLE "ai_context_memories"
   DROP CONSTRAINT "ai_context_memories_scope_check",
   DROP CONSTRAINT "ai_context_memories_scope_shape_check",

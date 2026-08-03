@@ -52,7 +52,8 @@ type EmbeddingStatus = {
 };
 
 const DEFAULT_CHAT_PROMPT_NAME = 'Chat With AFFiNE AI';
-const CONTEXT_POLLING_INTERVAL = 10000;
+const CONTEXT_POLLING_MIN_INTERVAL = 10_000;
+const CONTEXT_POLLING_MAX_INTERVAL = 5 * 60_000;
 
 function normalizePromptScope(promptName?: string) {
   const nextPromptName = promptName?.trim();
@@ -66,6 +67,7 @@ export class AIChatRuntime {
   private requestSeq = 0;
   private historyRequestSeq = 0;
   private contextRequestSeq = 0;
+  private contextPollingSeq = 0;
   private projectScopeRequestSeq = 0;
   private streamAbortController: AbortController | null = null;
   private contextPollingAbortController: AbortController | null = null;
@@ -113,7 +115,7 @@ export class AIChatRuntime {
     this.createSessionPromise = null;
     this.createSessionPromiseKey = null;
     this.streamAbortController?.abort();
-    this.contextPollingAbortController?.abort();
+    this.stopContextPolling();
     this.embeddingStatusAbortController?.abort();
     this.listeners.clear();
   }
@@ -723,10 +725,12 @@ export class AIChatRuntime {
   }
 
   private async pollContext() {
-    const seq = ++this.contextRequestSeq;
+    const seq = this.contextPollingSeq;
     const sessionId = this.snapshot.activeSessionId;
     const contextId = this.snapshot.composer.context.contextId;
-    if (!sessionId || !contextId) return;
+    if (!sessionId || !contextId || this.snapshot.composer.context.loading) {
+      return false;
+    }
 
     this.updateContextState({ polling: true, error: null });
     try {
@@ -735,18 +739,52 @@ export class AIChatRuntime {
         sessionId,
         contextId
       );
-      if (seq !== this.contextRequestSeq) return;
+      if (
+        seq !== this.contextPollingSeq ||
+        sessionId !== this.snapshot.activeSessionId ||
+        contextId !== this.snapshot.composer.context.contextId
+      ) {
+        return false;
+      }
+      if (this.snapshot.composer.context.loading) {
+        this.updateContextState({ polling: false });
+        return false;
+      }
+      const items = this.mergePolledContextItems(context);
+      const modifiedDocuments = this.getModifiedDocuments(context);
+      const embeddingCount = this.getContextEmbeddingCount(context);
+      const changed =
+        this.contextPollingStateFingerprint(
+          items,
+          modifiedDocuments,
+          embeddingCount
+        ) !==
+        this.contextPollingStateFingerprint(
+          this.snapshot.composer.context.items,
+          this.snapshot.composer.context.modifiedDocuments,
+          this.snapshot.composer.context.embeddingCount
+        );
       this.updateContextState({
         polling: false,
-        items: this.mergePolledContextItems(context),
-        modifiedDocuments: this.getModifiedDocuments(context),
-        embeddingCount: this.getContextEmbeddingCount(context),
+        items,
+        modifiedDocuments,
+        embeddingCount,
       });
       await this.loadProjectScope();
+      return changed;
     } catch (error) {
-      if (seq !== this.contextRequestSeq) return;
+      if (seq !== this.contextPollingSeq) return false;
       this.updateContextState({ polling: false, error: this.toError(error) });
+      return false;
     }
+  }
+
+  private contextPollingStateFingerprint(
+    items: AIChatContextItem[],
+    modifiedDocuments: AIChatModifiedDocument[],
+    embeddingCount: AIChatSnapshot['composer']['context']['embeddingCount']
+  ) {
+    return JSON.stringify({ items, modifiedDocuments, embeddingCount });
   }
 
   private startContextPolling() {
@@ -760,13 +798,20 @@ export class AIChatRuntime {
   }
 
   private stopContextPolling() {
+    this.contextPollingSeq++;
     this.contextPollingAbortController?.abort();
     this.contextPollingAbortController = null;
+    if (this.snapshot.composer.context.polling) {
+      this.updateContextState({ polling: false });
+    }
   }
 
   private async pollContextUntilIdle(signal: AbortSignal) {
+    let interval = CONTEXT_POLLING_MIN_INTERVAL;
     while (!signal.aborted) {
-      await this.pollContext();
+      await this.waitForDocumentVisibility(signal);
+      if (signal.aborted) return;
+      const changed = await this.pollContext();
       if (signal.aborted) return;
       if (
         this.snapshot.composer.context.embeddingCount.processing === 0 &&
@@ -776,21 +821,46 @@ export class AIChatRuntime {
         this.stopContextPolling();
         return;
       }
-      await this.waitForContextPollingInterval(signal);
+      await this.waitForContextPollingInterval(signal, interval);
+      interval =
+        changed || this.snapshot.composer.context.embeddingCount.processing > 0
+          ? CONTEXT_POLLING_MIN_INTERVAL
+          : Math.min(interval * 2, CONTEXT_POLLING_MAX_INTERVAL);
     }
   }
 
-  private waitForContextPollingInterval(signal: AbortSignal) {
+  private waitForDocumentVisibility(signal: AbortSignal) {
+    if (typeof document === 'undefined' || !document.hidden) {
+      return Promise.resolve();
+    }
     return new Promise<void>(resolve => {
-      const timeout = setTimeout(resolve, CONTEXT_POLLING_INTERVAL);
-      signal.addEventListener(
-        'abort',
-        () => {
-          clearTimeout(timeout);
-          resolve();
-        },
-        { once: true }
-      );
+      const cleanup = () => {
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+        signal.removeEventListener('abort', onAbort);
+      };
+      const finish = () => {
+        cleanup();
+        resolve();
+      };
+      const onVisibilityChange = () => {
+        if (!document.hidden) finish();
+      };
+      const onAbort = () => finish();
+      document.addEventListener('visibilitychange', onVisibilityChange);
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
+  }
+
+  private waitForContextPollingInterval(signal: AbortSignal, interval: number) {
+    return new Promise<void>(resolve => {
+      const onAbort = () => finish();
+      const finish = () => {
+        clearTimeout(timeout);
+        signal.removeEventListener('abort', onAbort);
+        resolve();
+      };
+      const timeout = setTimeout(finish, interval);
+      signal.addEventListener('abort', onAbort, { once: true });
     });
   }
 
@@ -1116,10 +1186,6 @@ export class AIChatRuntime {
       if (!current || document.updatedAt > current.updatedAt) {
         byId.set(docId, {
           docId,
-          snapshotUpdatedAt:
-            typeof document.snapshotUpdatedAt === 'number'
-              ? document.snapshotUpdatedAt
-              : undefined,
           updatedAt: document.updatedAt,
         });
       }

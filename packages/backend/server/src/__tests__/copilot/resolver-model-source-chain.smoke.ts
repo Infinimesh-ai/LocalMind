@@ -2904,6 +2904,7 @@ async function main() {
     {} as any,
     {} as any,
     {} as any,
+    {} as any,
     providerFactory as any,
     {} as any,
     capabilityRuntime as any,
@@ -2984,6 +2985,7 @@ async function main() {
     {} as any,
     {} as any,
     { get: async () => fallbackPrompt } as any,
+    {} as any,
     {} as any,
     {} as any,
     {} as any,
@@ -3504,6 +3506,7 @@ async function main() {
     {} as any,
     {} as any,
     {} as any,
+    {} as any,
     providerFactory as any,
     {} as any,
     capabilityRuntime as any,
@@ -3526,617 +3529,726 @@ async function main() {
       registryUpdatedAt: gateVerdict.registryUpdatedAt.toISOString(),
     }
   );
-  assert.equal(routeReadyGate?.allowed, true);
-  assert.deepEqual(effectiveModelSelectionScopeContextCalls.slice(-1), [
-    {
-      featureKind: 'chat',
-      method: 'getEffectiveModelSelectionScope',
-      workspaceId: 'workspace-smoke',
-    },
-  ]);
-  assert.equal(routeReadyGate?.publishStatus, 'allowed');
-  assert.equal(routeReadyGate?.modelRoute?.available, true);
-  assert.deepEqual(
-    routeReadyGate?.taskRoutes.map(route => route.featureKind),
-    ['workspace_indexing', 'rerank']
-  );
-  assert.equal(routeReadyGate?.taskRoutes[0]?.providerId, 'local');
-  assert.equal(routeReadyGate?.taskRoutes[0]?.providerProfileId, 'local');
-  assert.equal(
-    routeReadyGate?.taskRoutes[0]?.providerProfileSource,
-    'configured'
-  );
-  assert.equal(
-    routeReadyGate?.taskRoutes[0]?.providerProfileConfigPath,
-    'copilot.providers.profiles[id=local]'
-  );
-  assert.deepEqual(routeReadyGate?.taskRoutes[0]?.providerConfiguredModelIds, [
-    'workspace-embedding',
-    'embed-alias',
-  ]);
-  assert.equal(routeReadyGate?.taskRoutes[0]?.providerConfiguredModelCount, 2);
-  assert.equal(
-    routeReadyGate?.taskRoutes[0]?.requestedModelConfigPath,
-    'copilot.tasks.models.workspaceIndexing'
-  );
-  assert.equal(
-    routeReadyGate?.taskRoutes[0]?.routeCandidates[0]?.providerProfileId,
-    'local'
-  );
-  assert.equal(
-    routeReadyGate?.taskRoutes[0]?.routeCandidates[0]?.routeModelDefinitionId,
-    'workspace-embedding'
-  );
-  assert.deepEqual(routeReadyGate?.taskRoutes[0]?.diagnosticsErrors, []);
-  assert.equal(
-    routeReadyGate?.taskRoutes[0]?.prepareCandidates[0]?.preparedModelId,
-    'nomic-embed-text'
-  );
-  assert.equal(
-    routeReadyGate?.taskRoutes[0]?.preparedRoutes[0]?.providerName,
-    'Local profile'
-  );
-  assert.equal(
-    routeReadyGate?.taskRoutes[0]?.preparedRoutes[0]?.providerSource,
-    'configured'
-  );
-  assert.equal(
-    routeReadyGate?.taskRoutes[0]?.preparedRoutes[0]?.providerProfileId,
-    'local'
-  );
-  assert.equal(
-    routeReadyGate?.taskRoutes[0]?.preparedRoutes[0]?.providerProfileSource,
-    'configured'
-  );
-  assert.equal(
-    routeReadyGate?.taskRoutes[0]?.preparedRoutes[0]?.providerProfileConfigPath,
-    'copilot.providers.profiles[id=local]'
-  );
-  assert.deepEqual(
-    routeReadyGate?.taskRoutes[0]?.preparedRoutes[0]
-      ?.providerConfiguredModelIds,
-    ['workspace-embedding', 'embed-alias']
-  );
-  assert.equal(
-    routeReadyGate?.taskRoutes[0]?.preparedRoutes[0]
-      ?.providerConfiguredModelCount,
-    2
-  );
-  assert.equal(
-    routeReadyGate?.taskRoutes[0]?.preparedRoutes[0]?.providerType,
-    'openaiCompatible'
-  );
-  assert.equal(
-    routeReadyGate?.taskRoutes[0]?.preparedRoutes[0]?.providerPriority,
-    10
-  );
-  assert.deepEqual(
-    routeReadyGate?.taskRoutes[0]?.routeTrace.map(phase => phase.phase),
-    ['policy', 'resolution', 'prepared']
-  );
-  assert.equal(routeReadyGate?.taskRoutes[1]?.featureKind, 'rerank');
-  assert.equal(routeReadyGate?.taskRoutes[1]?.configured, false);
-  assert.equal(
-    routeReadyGate?.taskRoutes[1]?.rerankRuntimeContractVersion,
-    'workspace-rerank-runtime/v1'
-  );
-  assert.equal(
-    routeReadyGate?.taskRoutes[1]?.rerankRuntimeContractStatus,
-    'no_prepared_route_read_only'
-  );
-  assert.equal(
-    routeReadyGate?.taskRoutes[1]?.rerankRuntimeContractTopK,
-    undefined
-  );
-  assert.match(
-    routeReadyGate?.taskRoutes[1]?.rerankRuntimeContractFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    routeReadyGate?.taskRoutes.map(route =>
-      /^[0-9a-f]{16}$/.test(route.effectiveSourceFingerprint ?? '')
-    ),
-    [true, true]
-  );
-  assert.notEqual(
-    routeReadyGate?.taskRoutes[0]?.effectiveSourceFingerprint,
-    routeReadyGate?.taskRoutes[1]?.effectiveSourceFingerprint
-  );
-  assert.equal(routeReadyGate?.modelRoute?.providerId, 'local');
-  assert.equal(routeReadyGate?.modelRoute?.providerName, 'local');
-  assert.equal(routeReadyGate?.modelRoute?.providerSource, 'configured');
-  assert.equal(routeReadyGate?.modelRoute?.providerProfileId, 'local');
-  assert.equal(
-    routeReadyGate?.modelRoute?.providerProfileConfigPath,
-    'copilot.providers.profiles[id=local]'
-  );
-  assert.deepEqual(routeReadyGate?.modelRoute?.providerConfiguredModelIds, [
-    'runtime-listed-chat',
-    'default-chat',
-    'default-alias',
-    'optional-chat',
-    'optional-alias',
-  ]);
-  assert.equal(routeReadyGate?.modelRoute?.providerConfiguredModelCount, 5);
-  assert.equal(routeReadyGate?.modelRoute?.providerType, 'openaiCompatible');
-  assert.equal(routeReadyGate?.modelRoute?.providerPrivacy, 'local');
-  assert.equal(routeReadyGate?.modelRoute?.providerHealth, 'healthy');
-  assert.equal(routeReadyGate?.modelRoute?.providerPriority, 1);
-  assert.equal(routeReadyGate?.modelRoute?.modelId, 'default-chat');
-  assert.equal(routeReadyGate?.modelRoute?.requestedModelId, gatePrompt.model);
-  assert.equal(routeReadyGate?.modelRoute?.outputType, 'object');
-  assert.equal(routeReadyGate?.modelRoute?.featureKind, 'chat');
-  assert.equal(routeReadyGate?.modelRoute?.candidateKind, 'default');
-  assert.equal(routeReadyGate?.modelRoute?.candidateIndex, 0);
-  assert.match(
-    routeReadyGate?.modelRoute?.effectiveSourceFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.equal(
-    routeReadyGate?.modelRoute?.effectiveSourceFingerprintVersion,
-    'prompt-registry-publish-gate-model-route-effective-source/v1'
-  );
-  assert.ok(
-    routeReadyGate?.modelRoute?.effectiveSourceFingerprintInputs?.includes(
-      'routeCandidates'
-    )
-  );
-  assert.ok(
-    routeReadyGate?.modelRoute?.effectiveSourceFingerprintInputs?.includes(
-      'policyCandidates'
-    )
-  );
-  assert.deepEqual(
-    routeReadyGate?.modelRoute?.policyCandidates.map(candidate => [
-      candidate.providerId,
-      candidate.available,
-      candidate.allowed,
-      candidate.providerProfileId,
-      candidate.providerProfileConfigPath,
-      candidate.providerConfiguredModelIds,
-      candidate.registryKind,
-      candidate.registryAvailable,
-      candidate.registrySelected,
-      candidate.reasons,
-    ]),
-    [
-      [
-        'local',
-        true,
-        true,
-        'local',
-        'copilot.providers.profiles[id=local]',
-        ['workspace-embedding', 'embed-alias'],
-        'byok',
-        true,
-        true,
-        ['candidate_allowed', 'registry_selected'],
-      ],
-      [
-        'cloud',
-        true,
-        false,
-        'cloud',
-        'copilot.providers.profiles[id=cloud]',
-        undefined,
-        'quota_backed',
-        true,
-        false,
-        ['provider_not_allowed', 'registry_shadowed_by_byok'],
-      ],
-    ]
-  );
-  assert.equal(
-    routeReadyGate?.taskRoutes[0]?.policyCandidates[0]?.providerProfileId,
-    'local'
-  );
-  assert.equal(
-    routeReadyGate?.taskRoutes[0]?.policyCandidates[0]
-      ?.providerProfileConfigPath,
-    'copilot.providers.profiles[id=local]'
-  );
-  assert.deepEqual(
-    routeReadyGate?.taskRoutes[0]?.policyCandidates[0]
-      ?.providerConfiguredModelIds,
-    ['workspace-embedding', 'embed-alias']
-  );
-  assert.equal(
-    routeReadyGate?.taskRoutes[0]?.policyCandidates[0]
-      ?.providerConfiguredModelCount,
-    2
-  );
-  assert.deepEqual(routeReadyGate?.modelRoute?.routeTrace, [
-    {
-      phase: 'policy',
-      candidateCount: 2,
-      availableCount: 2,
-      selectedCount: 1,
-      blockedCount: 1,
-      reasons: [
-        'candidate_allowed',
-        'registry_selected',
-        'provider_not_allowed',
-        'registry_shadowed_by_byok',
-      ],
-    },
-    {
-      phase: 'resolution',
-      candidateCount: 1,
-      availableCount: 1,
-      selectedCount: 1,
-      matchedCount: 1,
-      reasons: ['profile_model_matched', 'capability_matched'],
-    },
-  ]);
-  assert.equal(
-    routeReadyGate?.modelRoute?.candidateConfigPath,
-    'copilot.prompts.defaults.text.model'
-  );
-  assert.equal(routeReadyGate?.modelRoutes?.length, 6);
-  assert.deepEqual(
-    routeReadyGate?.modelRoutes?.map(route =>
-      /^[0-9a-f]{16}$/.test(route.effectiveSourceFingerprint ?? '')
-    ),
-    [true, true, true, true, true, true]
-  );
-  assert.notEqual(
-    routeReadyGate?.modelRoutes?.[4]?.effectiveSourceFingerprint,
-    routeReadyGate?.modelRoutes?.[5]?.effectiveSourceFingerprint
-  );
-  assert.deepEqual(
-    routeReadyGate?.modelRoutes?.map(route => [
-      route.candidateKind,
-      route.candidateIndex,
-      route.requestedModelId,
-      route.available,
-    ]),
-    [
-      ['default', 0, gatePrompt.model, true],
-      ['optional', 0, 'local/default-chat', true],
-      ['optional', 1, 'local/optional-chat', false],
-      ['pro', 0, 'cloud/pro-chat', true],
-      ['registry', 0, 'registry/only-chat', true],
-      ['registry', 1, 'byok/effective-chat', true],
-    ]
-  );
-  assert.deepEqual(routeReadyGate?.modelRoutes?.[1]?.reasons, [
-    'model_route_available',
-    'profile_model_matched',
-    'capability_matched',
-  ]);
-  assert.deepEqual(routeReadyGate?.modelRoutes?.[2]?.reasons, [
-    'model_route_unavailable',
-    'no_matching_provider_route',
-    'capability_mismatch',
-  ]);
-  assert.equal(
-    routeReadyGate?.modelRoutes?.[2]?.candidateConfigPath,
-    'copilot.prompts.overrides[].optionalModels'
-  );
-  assert.equal(
-    routeReadyGate?.modelRoutes?.[3]?.candidateConfigPath,
-    'copilot.prompts.overrides[].config.proModels'
-  );
-  assert.equal(
-    routeReadyGate?.modelRoutes?.[4]?.candidateConfigPath,
-    'copilot.providers.profiles[].models'
-  );
-  assert.equal(routeReadyGate?.modelRoutes?.[2]?.policyCandidates.length, 2);
-  assert.equal(
-    routeReadyGate?.modelRoutes?.[2]?.routeTrace[1]?.matchedCount,
-    0
-  );
-  assert.deepEqual(routeReadyGate?.modelRoutes?.[2]?.routeTrace[1]?.reasons, [
-    'capability_mismatch',
-  ]);
-  assert.deepEqual(
-    routeReadyGate?.repairRecommendations.map(recommendation => [
-      recommendation.category,
-      recommendation.code,
-      recommendation.target,
-      recommendation.instanceKey,
-      recommendation.suggestedActionCatalogVersion,
-      recommendation.suggestedActionKind,
-      recommendation.suggestedActionRequiredCapabilities,
-      recommendation.suggestedActionSafety,
-      recommendation.targetLocator?.kind,
-      recommendation.targetLocator?.path,
-    ]),
-    [
-      [
-        'model_route',
-        'optional_model_route_unavailable',
-        'copilot.prompts.overrides[].optionalModels',
-        'chat:object:optional:1:local/optional-chat',
-        'repair-actions/v1',
-        'review_non_default_model_route',
-        ['model_registry.read', 'provider_route.preview'],
-        'preview_required',
-        'model_route',
-        'copilot.prompts.overrides[].optionalModels',
-      ],
-      [
-        'provider_health',
-        'selected_provider_health_not_healthy',
-        'copilot.providers.profiles[id=local]',
-        'chat:object:optional:1:local/optional-chat',
-        'repair-actions/v1',
-        'check_provider_health',
-        ['provider_profile.read', 'provider_health.probe'],
-        'read_only_probe',
-        'model_route',
-        'copilot.providers.profiles[id=local]',
-      ],
-      [
-        'task_route',
-        'workspace_indexing_embedding_dimension_mismatch',
-        'copilot.tasks.models.workspaceIndexing',
-        'workspace_indexing:workspaceIndexing:embed-alias:embedding-dimension-mismatch',
-        'repair-actions/v1',
-        'fix_embedding_dimensions',
-        [
-          'task_route.read',
-          'embedding_index.read',
-          'embedding_index.migration_review',
-        ],
-        'manual_review_required',
-        'task_route',
-        'copilot.tasks.models.workspaceIndexing',
-      ],
-      [
-        'task_route',
-        'rerank_task_route_unavailable',
-        'copilot.tasks.models.rerank',
-        'rerank:task-config:default-route:unavailable',
-        'repair-actions/v1',
-        'repair_task_model_route',
-        ['task_route.read', 'model_registry.read', 'provider_route.preview'],
-        'preview_required',
-        'task_route',
-        'copilot.tasks.models.rerank',
-      ],
-    ]
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairRecommendations.map(recommendation =>
-      /^[0-9a-f]{16}$/.test(recommendation.diagnosticsFingerprint)
-    ),
-    routeReadyGate?.repairRecommendations.map(() => true)
-  );
-  assert.equal(
-    new Set(
-      routeReadyGate?.repairRecommendations.map(
-        recommendation => recommendation.diagnosticsFingerprint
+  assert.ok(routeReadyGate);
+  await (async () => {
+    assert.equal(routeReadyGate?.allowed, true);
+    assert.deepEqual(effectiveModelSelectionScopeContextCalls.slice(-1), [
+      {
+        featureKind: 'chat',
+        method: 'getEffectiveModelSelectionScope',
+        workspaceId: 'workspace-smoke',
+      },
+    ]);
+    assert.equal(routeReadyGate?.publishStatus, 'allowed');
+    assert.equal(routeReadyGate?.modelRoute?.available, true);
+    assert.deepEqual(
+      routeReadyGate?.taskRoutes.map(route => route.featureKind),
+      ['workspace_indexing', 'rerank']
+    );
+    assert.equal(routeReadyGate?.taskRoutes[0]?.providerId, 'local');
+    assert.equal(routeReadyGate?.taskRoutes[0]?.providerProfileId, 'local');
+    assert.equal(
+      routeReadyGate?.taskRoutes[0]?.providerProfileSource,
+      'configured'
+    );
+    assert.equal(
+      routeReadyGate?.taskRoutes[0]?.providerProfileConfigPath,
+      'copilot.providers.profiles[id=local]'
+    );
+    assert.deepEqual(
+      routeReadyGate?.taskRoutes[0]?.providerConfiguredModelIds,
+      ['workspace-embedding', 'embed-alias']
+    );
+    assert.equal(
+      routeReadyGate?.taskRoutes[0]?.providerConfiguredModelCount,
+      2
+    );
+    assert.equal(
+      routeReadyGate?.taskRoutes[0]?.requestedModelConfigPath,
+      'copilot.tasks.models.workspaceIndexing'
+    );
+    assert.equal(
+      routeReadyGate?.taskRoutes[0]?.routeCandidates[0]?.providerProfileId,
+      'local'
+    );
+    assert.equal(
+      routeReadyGate?.taskRoutes[0]?.routeCandidates[0]?.routeModelDefinitionId,
+      'workspace-embedding'
+    );
+    assert.deepEqual(routeReadyGate?.taskRoutes[0]?.diagnosticsErrors, []);
+    assert.equal(
+      routeReadyGate?.taskRoutes[0]?.prepareCandidates[0]?.preparedModelId,
+      'nomic-embed-text'
+    );
+    assert.equal(
+      routeReadyGate?.taskRoutes[0]?.preparedRoutes[0]?.providerName,
+      'Local profile'
+    );
+    assert.equal(
+      routeReadyGate?.taskRoutes[0]?.preparedRoutes[0]?.providerSource,
+      'configured'
+    );
+    assert.equal(
+      routeReadyGate?.taskRoutes[0]?.preparedRoutes[0]?.providerProfileId,
+      'local'
+    );
+    assert.equal(
+      routeReadyGate?.taskRoutes[0]?.preparedRoutes[0]?.providerProfileSource,
+      'configured'
+    );
+    assert.equal(
+      routeReadyGate?.taskRoutes[0]?.preparedRoutes[0]
+        ?.providerProfileConfigPath,
+      'copilot.providers.profiles[id=local]'
+    );
+    assert.deepEqual(
+      routeReadyGate?.taskRoutes[0]?.preparedRoutes[0]
+        ?.providerConfiguredModelIds,
+      ['workspace-embedding', 'embed-alias']
+    );
+    assert.equal(
+      routeReadyGate?.taskRoutes[0]?.preparedRoutes[0]
+        ?.providerConfiguredModelCount,
+      2
+    );
+    assert.equal(
+      routeReadyGate?.taskRoutes[0]?.preparedRoutes[0]?.providerType,
+      'openaiCompatible'
+    );
+    assert.equal(
+      routeReadyGate?.taskRoutes[0]?.preparedRoutes[0]?.providerPriority,
+      10
+    );
+    assert.deepEqual(
+      routeReadyGate?.taskRoutes[0]?.routeTrace.map(phase => phase.phase),
+      ['policy', 'resolution', 'prepared']
+    );
+    assert.equal(routeReadyGate?.taskRoutes[1]?.featureKind, 'rerank');
+    assert.equal(routeReadyGate?.taskRoutes[1]?.configured, false);
+    assert.equal(
+      routeReadyGate?.taskRoutes[1]?.rerankRuntimeContractVersion,
+      'workspace-rerank-runtime/v1'
+    );
+    assert.equal(
+      routeReadyGate?.taskRoutes[1]?.rerankRuntimeContractStatus,
+      'no_prepared_route_read_only'
+    );
+    assert.equal(
+      routeReadyGate?.taskRoutes[1]?.rerankRuntimeContractTopK,
+      undefined
+    );
+    assert.match(
+      routeReadyGate?.taskRoutes[1]?.rerankRuntimeContractFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      routeReadyGate?.taskRoutes.map(route =>
+        /^[0-9a-f]{16}$/.test(route.effectiveSourceFingerprint ?? '')
+      ),
+      [true, true]
+    );
+    assert.notEqual(
+      routeReadyGate?.taskRoutes[0]?.effectiveSourceFingerprint,
+      routeReadyGate?.taskRoutes[1]?.effectiveSourceFingerprint
+    );
+    assert.equal(routeReadyGate?.modelRoute?.providerId, 'local');
+    assert.equal(routeReadyGate?.modelRoute?.providerName, 'local');
+    assert.equal(routeReadyGate?.modelRoute?.providerSource, 'configured');
+    assert.equal(routeReadyGate?.modelRoute?.providerProfileId, 'local');
+    assert.equal(
+      routeReadyGate?.modelRoute?.providerProfileConfigPath,
+      'copilot.providers.profiles[id=local]'
+    );
+    assert.deepEqual(routeReadyGate?.modelRoute?.providerConfiguredModelIds, [
+      'runtime-listed-chat',
+      'default-chat',
+      'default-alias',
+      'optional-chat',
+      'optional-alias',
+    ]);
+    assert.equal(routeReadyGate?.modelRoute?.providerConfiguredModelCount, 5);
+    assert.equal(routeReadyGate?.modelRoute?.providerType, 'openaiCompatible');
+    assert.equal(routeReadyGate?.modelRoute?.providerPrivacy, 'local');
+    assert.equal(routeReadyGate?.modelRoute?.providerHealth, 'healthy');
+    assert.equal(routeReadyGate?.modelRoute?.providerPriority, 1);
+    assert.equal(routeReadyGate?.modelRoute?.modelId, 'default-chat');
+    assert.equal(
+      routeReadyGate?.modelRoute?.requestedModelId,
+      gatePrompt.model
+    );
+    assert.equal(routeReadyGate?.modelRoute?.outputType, 'object');
+    assert.equal(routeReadyGate?.modelRoute?.featureKind, 'chat');
+    assert.equal(routeReadyGate?.modelRoute?.candidateKind, 'default');
+    assert.equal(routeReadyGate?.modelRoute?.candidateIndex, 0);
+    assert.match(
+      routeReadyGate?.modelRoute?.effectiveSourceFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.equal(
+      routeReadyGate?.modelRoute?.effectiveSourceFingerprintVersion,
+      'prompt-registry-publish-gate-model-route-effective-source/v1'
+    );
+    assert.ok(
+      routeReadyGate?.modelRoute?.effectiveSourceFingerprintInputs?.includes(
+        'routeCandidates'
       )
-    ).size,
-    routeReadyGate?.repairRecommendations.length
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairRecommendations.map(
-      recommendation => recommendation.suggestedActionInputSchema.required
-    ),
-    [
-      ['diagnosticsFingerprint', 'targetLocator'],
-      ['diagnosticsFingerprint', 'targetLocator'],
-      ['diagnosticsFingerprint', 'targetLocator'],
-      ['diagnosticsFingerprint', 'targetLocator'],
-    ]
-  );
-  const rerankTaskRoute = routeReadyGate?.taskRoutes.find(
-    route => route.featureKind === 'rerank'
-  );
-  const rerankTaskRouteRepair = routeReadyGate?.repairRecommendations.find(
-    recommendation => recommendation.code === 'rerank_task_route_unavailable'
-  );
-  const rerankRuntimeContractSnapshot =
-    taskRouteRerankRuntimeContractSnapshotFixture(rerankTaskRoute!);
-  const rerankRuntimeContractSnapshotFingerprint =
-    taskRouteSnapshotFingerprintFixture(rerankRuntimeContractSnapshot);
-  assert.match(rerankRuntimeContractSnapshotFingerprint, /^[0-9a-f]{16}$/);
-  assert.equal(
-    rerankTaskRouteRepair?.evidence.includes(
-      'policyCandidate#0:rerankRuntimeContractVersion:workspace-rerank-runtime/v1'
-    ),
-    true,
-    'rerank repair evidence should include runtime contract version'
-  );
-  assert.equal(
-    rerankTaskRouteRepair?.evidence.includes(
-      'policyCandidate#0:rerankRuntimeContractStatus:no_prepared_route_read_only'
-    ),
-    true,
-    'rerank repair evidence should include runtime contract status'
-  );
-  assert.equal(
-    rerankTaskRouteRepair?.evidence.includes(
-      `policyCandidate#0:rerankRuntimeContractFingerprint:${rerankTaskRoute?.rerankRuntimeContractFingerprint}`
-    ),
-    true,
-    'rerank repair evidence should include runtime contract fingerprint'
-  );
-  assert.equal(
-    rerankTaskRouteRepair?.evidence.includes(
-      `policyCandidate#0:taskRouteRerankRuntimeContractSnapshotFingerprint:${rerankRuntimeContractSnapshotFingerprint}`
-    ),
-    true,
-    'rerank repair evidence should include runtime contract snapshot fingerprint'
-  );
-  const assertRerankRuntimeContractEvidence = (
-    evidence:
-      | NonNullable<
-          NonNullable<typeof rerankTaskRouteRepair>['candidateEvidence']
-        >[number]
-      | undefined,
-    label: string
-  ) => {
-    assert.equal(
-      evidence?.rerankRuntimeContractVersion,
-      rerankTaskRoute?.rerankRuntimeContractVersion,
-      `${label} should bind rerank runtime contract version`
     );
-    assert.equal(
-      evidence?.rerankRuntimeContractStatus,
-      rerankTaskRoute?.rerankRuntimeContractStatus,
-      `${label} should bind rerank runtime contract status`
+    assert.ok(
+      routeReadyGate?.modelRoute?.effectiveSourceFingerprintInputs?.includes(
+        'policyCandidates'
+      )
     );
-    assert.equal(
-      evidence?.rerankRuntimeContractTopK,
-      rerankTaskRoute?.rerankRuntimeContractTopK,
-      `${label} should bind rerank runtime contract topK`
-    );
-    assert.equal(
-      evidence?.rerankRuntimeContractFingerprint,
-      rerankTaskRoute?.rerankRuntimeContractFingerprint,
-      `${label} should bind rerank runtime contract fingerprint`
-    );
-    assert.equal(
-      evidence?.taskRouteRerankRuntimeContractSnapshotFingerprint,
-      rerankRuntimeContractSnapshotFingerprint,
-      `${label} should bind rerank runtime contract snapshot fingerprint`
-    );
-  };
-  assertRerankRuntimeContractEvidence(
-    rerankTaskRouteRepair?.candidateEvidence?.find(
-      evidence => evidence.scope === 'policyCandidate'
-    ),
-    'rerank policy candidate evidence'
-  );
-  assert.equal(
-    rerankTaskRouteRepair?.candidateEvidence?.some(
-      evidence => evidence.scope === 'policyCandidate'
-    ),
-    true
-  );
-  rerankTaskRouteRepair?.candidateEvidence?.forEach(evidence =>
-    assertRerankRuntimeContractEvidence(
-      evidence,
-      `rerank ${evidence.scope} evidence`
-    )
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairActionCatalog.map(entry => [
-      entry.catalogVersion,
-      entry.actionKind,
-      entry.safety,
-      entry.requiredCapabilities,
-      entry.recommendationCount,
-      entry.inputSchema.required,
-    ]),
-    [
+    assert.deepEqual(
+      routeReadyGate?.modelRoute?.policyCandidates.map(candidate => [
+        candidate.providerId,
+        candidate.available,
+        candidate.allowed,
+        candidate.providerProfileId,
+        candidate.providerProfileConfigPath,
+        candidate.providerConfiguredModelIds,
+        candidate.registryKind,
+        candidate.registryAvailable,
+        candidate.registrySelected,
+        candidate.reasons,
+      ]),
       [
-        'repair-actions/v1',
-        'check_provider_health',
-        'read_only_probe',
-        ['provider_profile.read', 'provider_health.probe'],
-        1,
-        ['diagnosticsFingerprint', 'targetLocator'],
-      ],
-      [
-        'repair-actions/v1',
-        'fix_embedding_dimensions',
-        'manual_review_required',
         [
-          'task_route.read',
-          'embedding_index.read',
-          'embedding_index.migration_review',
+          'local',
+          true,
+          true,
+          'local',
+          'copilot.providers.profiles[id=local]',
+          ['workspace-embedding', 'embed-alias'],
+          'byok',
+          true,
+          true,
+          ['candidate_allowed', 'registry_selected'],
         ],
-        1,
-        ['diagnosticsFingerprint', 'targetLocator'],
-      ],
+        [
+          'cloud',
+          true,
+          false,
+          'cloud',
+          'copilot.providers.profiles[id=cloud]',
+          undefined,
+          'quota_backed',
+          true,
+          false,
+          ['provider_not_allowed', 'registry_shadowed_by_byok'],
+        ],
+      ]
+    );
+    assert.equal(
+      routeReadyGate?.taskRoutes[0]?.policyCandidates[0]?.providerProfileId,
+      'local'
+    );
+    assert.equal(
+      routeReadyGate?.taskRoutes[0]?.policyCandidates[0]
+        ?.providerProfileConfigPath,
+      'copilot.providers.profiles[id=local]'
+    );
+    assert.deepEqual(
+      routeReadyGate?.taskRoutes[0]?.policyCandidates[0]
+        ?.providerConfiguredModelIds,
+      ['workspace-embedding', 'embed-alias']
+    );
+    assert.equal(
+      routeReadyGate?.taskRoutes[0]?.policyCandidates[0]
+        ?.providerConfiguredModelCount,
+      2
+    );
+    assert.deepEqual(routeReadyGate?.modelRoute?.routeTrace, [
+      {
+        phase: 'policy',
+        candidateCount: 2,
+        availableCount: 2,
+        selectedCount: 1,
+        blockedCount: 1,
+        reasons: [
+          'candidate_allowed',
+          'registry_selected',
+          'provider_not_allowed',
+          'registry_shadowed_by_byok',
+        ],
+      },
+      {
+        phase: 'resolution',
+        candidateCount: 1,
+        availableCount: 1,
+        selectedCount: 1,
+        matchedCount: 1,
+        reasons: ['profile_model_matched', 'capability_matched'],
+      },
+    ]);
+    assert.equal(
+      routeReadyGate?.modelRoute?.candidateConfigPath,
+      'copilot.prompts.defaults.text.model'
+    );
+    assert.equal(routeReadyGate?.modelRoutes?.length, 6);
+    assert.deepEqual(
+      routeReadyGate?.modelRoutes?.map(route =>
+        /^[0-9a-f]{16}$/.test(route.effectiveSourceFingerprint ?? '')
+      ),
+      [true, true, true, true, true, true]
+    );
+    assert.notEqual(
+      routeReadyGate?.modelRoutes?.[4]?.effectiveSourceFingerprint,
+      routeReadyGate?.modelRoutes?.[5]?.effectiveSourceFingerprint
+    );
+    assert.deepEqual(
+      routeReadyGate?.modelRoutes?.map(route => [
+        route.candidateKind,
+        route.candidateIndex,
+        route.requestedModelId,
+        route.available,
+      ]),
       [
-        'repair-actions/v1',
+        ['default', 0, gatePrompt.model, true],
+        ['optional', 0, 'local/default-chat', true],
+        ['optional', 1, 'local/optional-chat', false],
+        ['pro', 0, 'cloud/pro-chat', true],
+        ['registry', 0, 'registry/only-chat', true],
+        ['registry', 1, 'byok/effective-chat', true],
+      ]
+    );
+    assert.deepEqual(routeReadyGate?.modelRoutes?.[1]?.reasons, [
+      'model_route_available',
+      'profile_model_matched',
+      'capability_matched',
+    ]);
+    assert.deepEqual(routeReadyGate?.modelRoutes?.[2]?.reasons, [
+      'model_route_unavailable',
+      'no_matching_provider_route',
+      'capability_mismatch',
+    ]);
+    assert.equal(
+      routeReadyGate?.modelRoutes?.[2]?.candidateConfigPath,
+      'copilot.prompts.overrides[].optionalModels'
+    );
+    assert.equal(
+      routeReadyGate?.modelRoutes?.[3]?.candidateConfigPath,
+      'copilot.prompts.overrides[].config.proModels'
+    );
+    assert.equal(
+      routeReadyGate?.modelRoutes?.[4]?.candidateConfigPath,
+      'copilot.providers.profiles[].models'
+    );
+    assert.equal(routeReadyGate?.modelRoutes?.[2]?.policyCandidates.length, 2);
+    assert.equal(
+      routeReadyGate?.modelRoutes?.[2]?.routeTrace[1]?.matchedCount,
+      0
+    );
+    assert.deepEqual(routeReadyGate?.modelRoutes?.[2]?.routeTrace[1]?.reasons, [
+      'capability_mismatch',
+    ]);
+    assert.deepEqual(
+      routeReadyGate?.repairRecommendations.map(recommendation => [
+        recommendation.category,
+        recommendation.code,
+        recommendation.target,
+        recommendation.instanceKey,
+        recommendation.suggestedActionCatalogVersion,
+        recommendation.suggestedActionKind,
+        recommendation.suggestedActionRequiredCapabilities,
+        recommendation.suggestedActionSafety,
+        recommendation.targetLocator?.kind,
+        recommendation.targetLocator?.path,
+      ]),
+      [
+        [
+          'model_route',
+          'optional_model_route_unavailable',
+          'copilot.prompts.overrides[].optionalModels',
+          'chat:object:optional:1:local/optional-chat',
+          'repair-actions/v1',
+          'review_non_default_model_route',
+          ['model_registry.read', 'provider_route.preview'],
+          'preview_required',
+          'model_route',
+          'copilot.prompts.overrides[].optionalModels',
+        ],
+        [
+          'provider_health',
+          'selected_provider_health_not_healthy',
+          'copilot.providers.profiles[id=local]',
+          'chat:object:optional:1:local/optional-chat',
+          'repair-actions/v1',
+          'check_provider_health',
+          ['provider_profile.read', 'provider_health.probe'],
+          'read_only_probe',
+          'model_route',
+          'copilot.providers.profiles[id=local]',
+        ],
+        [
+          'task_route',
+          'workspace_indexing_embedding_dimension_mismatch',
+          'copilot.tasks.models.workspaceIndexing',
+          'workspace_indexing:workspaceIndexing:embed-alias:embedding-dimension-mismatch',
+          'repair-actions/v1',
+          'fix_embedding_dimensions',
+          [
+            'task_route.read',
+            'embedding_index.read',
+            'embedding_index.migration_review',
+          ],
+          'manual_review_required',
+          'task_route',
+          'copilot.tasks.models.workspaceIndexing',
+        ],
+        [
+          'task_route',
+          'rerank_task_route_unavailable',
+          'copilot.tasks.models.rerank',
+          'rerank:task-config:default-route:unavailable',
+          'repair-actions/v1',
+          'repair_task_model_route',
+          ['task_route.read', 'model_registry.read', 'provider_route.preview'],
+          'preview_required',
+          'task_route',
+          'copilot.tasks.models.rerank',
+        ],
+      ]
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairRecommendations.map(recommendation =>
+        /^[0-9a-f]{16}$/.test(recommendation.diagnosticsFingerprint)
+      ),
+      routeReadyGate?.repairRecommendations.map(() => true)
+    );
+    assert.equal(
+      new Set(
+        routeReadyGate?.repairRecommendations.map(
+          recommendation => recommendation.diagnosticsFingerprint
+        )
+      ).size,
+      routeReadyGate?.repairRecommendations.length
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairRecommendations.map(
+        recommendation => recommendation.suggestedActionInputSchema.required
+      ),
+      [
+        ['diagnosticsFingerprint', 'targetLocator'],
+        ['diagnosticsFingerprint', 'targetLocator'],
+        ['diagnosticsFingerprint', 'targetLocator'],
+        ['diagnosticsFingerprint', 'targetLocator'],
+      ]
+    );
+    const rerankTaskRoute = routeReadyGate?.taskRoutes.find(
+      route => route.featureKind === 'rerank'
+    );
+    const rerankTaskRouteRepair = routeReadyGate?.repairRecommendations.find(
+      recommendation => recommendation.code === 'rerank_task_route_unavailable'
+    );
+    const rerankRuntimeContractSnapshot =
+      taskRouteRerankRuntimeContractSnapshotFixture(rerankTaskRoute!);
+    const rerankRuntimeContractSnapshotFingerprint =
+      taskRouteSnapshotFingerprintFixture(rerankRuntimeContractSnapshot);
+    assert.match(rerankRuntimeContractSnapshotFingerprint, /^[0-9a-f]{16}$/);
+    assert.equal(
+      rerankTaskRouteRepair?.evidence.includes(
+        'policyCandidate#0:rerankRuntimeContractVersion:workspace-rerank-runtime/v1'
+      ),
+      true,
+      'rerank repair evidence should include runtime contract version'
+    );
+    assert.equal(
+      rerankTaskRouteRepair?.evidence.includes(
+        'policyCandidate#0:rerankRuntimeContractStatus:no_prepared_route_read_only'
+      ),
+      true,
+      'rerank repair evidence should include runtime contract status'
+    );
+    assert.equal(
+      rerankTaskRouteRepair?.evidence.includes(
+        `policyCandidate#0:rerankRuntimeContractFingerprint:${rerankTaskRoute?.rerankRuntimeContractFingerprint}`
+      ),
+      true,
+      'rerank repair evidence should include runtime contract fingerprint'
+    );
+    assert.equal(
+      rerankTaskRouteRepair?.evidence.includes(
+        `policyCandidate#0:taskRouteRerankRuntimeContractSnapshotFingerprint:${rerankRuntimeContractSnapshotFingerprint}`
+      ),
+      true,
+      'rerank repair evidence should include runtime contract snapshot fingerprint'
+    );
+    const assertRerankRuntimeContractEvidence = (
+      evidence:
+        | NonNullable<
+            NonNullable<typeof rerankTaskRouteRepair>['candidateEvidence']
+          >[number]
+        | undefined,
+      label: string
+    ) => {
+      assert.equal(
+        evidence?.rerankRuntimeContractVersion,
+        rerankTaskRoute?.rerankRuntimeContractVersion,
+        `${label} should bind rerank runtime contract version`
+      );
+      assert.equal(
+        evidence?.rerankRuntimeContractStatus,
+        rerankTaskRoute?.rerankRuntimeContractStatus,
+        `${label} should bind rerank runtime contract status`
+      );
+      assert.equal(
+        evidence?.rerankRuntimeContractTopK,
+        rerankTaskRoute?.rerankRuntimeContractTopK,
+        `${label} should bind rerank runtime contract topK`
+      );
+      assert.equal(
+        evidence?.rerankRuntimeContractFingerprint,
+        rerankTaskRoute?.rerankRuntimeContractFingerprint,
+        `${label} should bind rerank runtime contract fingerprint`
+      );
+      assert.equal(
+        evidence?.taskRouteRerankRuntimeContractSnapshotFingerprint,
+        rerankRuntimeContractSnapshotFingerprint,
+        `${label} should bind rerank runtime contract snapshot fingerprint`
+      );
+    };
+    assertRerankRuntimeContractEvidence(
+      rerankTaskRouteRepair?.candidateEvidence?.find(
+        evidence => evidence.scope === 'policyCandidate'
+      ),
+      'rerank policy candidate evidence'
+    );
+    assert.equal(
+      rerankTaskRouteRepair?.candidateEvidence?.some(
+        evidence => evidence.scope === 'policyCandidate'
+      ),
+      true
+    );
+    rerankTaskRouteRepair?.candidateEvidence?.forEach(evidence =>
+      assertRerankRuntimeContractEvidence(
+        evidence,
+        `rerank ${evidence.scope} evidence`
+      )
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairActionCatalog.map(entry => [
+        entry.catalogVersion,
+        entry.actionKind,
+        entry.safety,
+        entry.requiredCapabilities,
+        entry.recommendationCount,
+        entry.inputSchema.required,
+      ]),
+      [
+        [
+          'repair-actions/v1',
+          'check_provider_health',
+          'read_only_probe',
+          ['provider_profile.read', 'provider_health.probe'],
+          1,
+          ['diagnosticsFingerprint', 'targetLocator'],
+        ],
+        [
+          'repair-actions/v1',
+          'fix_embedding_dimensions',
+          'manual_review_required',
+          [
+            'task_route.read',
+            'embedding_index.read',
+            'embedding_index.migration_review',
+          ],
+          1,
+          ['diagnosticsFingerprint', 'targetLocator'],
+        ],
+        [
+          'repair-actions/v1',
+          'repair_task_model_route',
+          'preview_required',
+          ['task_route.read', 'model_registry.read', 'provider_route.preview'],
+          1,
+          ['diagnosticsFingerprint', 'targetLocator'],
+        ],
+        [
+          'repair-actions/v1',
+          'review_non_default_model_route',
+          'preview_required',
+          ['model_registry.read', 'provider_route.preview'],
+          1,
+          ['diagnosticsFingerprint', 'targetLocator'],
+        ],
+      ]
+    );
+    assert.match(
+      routeReadyGate?.repairActionCatalogFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.equal(
+      routeReadyGate?.repairActionMutationGuard.catalogFingerprint,
+      routeReadyGate?.repairActionCatalogFingerprint
+    );
+    assert.match(
+      routeReadyGate?.repairActionMutationGuard.auditSummary ?? '',
+      /registry:7 .* catalog:repair-actions\/v1 .* recommendations:4/
+    );
+    assert.match(
+      routeReadyGate?.repairActionMutationGuard.auditSummary ?? '',
+      /targetKinds:model_route,task_route .* reviewModes:manual_review,preview,probe/
+    );
+    assert.match(
+      routeReadyGate?.repairActionMutationGuard.auditSummaryFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.equal(
+      routeReadyGate?.repairActionMutationGuard.catalogVersion,
+      'repair-actions/v1'
+    );
+    assert.equal(
+      routeReadyGate?.repairActionMutationGuard.expectedRegistryFingerprint,
+      gateVerdict.registryFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairActionMutationGuard.expectedRegistryId,
+      gateVerdict.registryId
+    );
+    assert.equal(
+      routeReadyGate?.repairActionMutationGuard.expectedRegistryUpdatedAt,
+      gateVerdict.registryUpdatedAt.toISOString()
+    );
+    assert.equal(routeReadyGate?.repairActionMutationGuard.required, true);
+    assert.equal(
+      routeReadyGate?.repairActionMutationGuard.recommendationCount,
+      routeReadyGate?.repairRecommendations.length
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairActionMutationGuard.recommendationFingerprints,
+      routeReadyGate?.repairRecommendations
+        .map(recommendation => recommendation.diagnosticsFingerprint)
+        .sort()
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairActionMutationGuard.recommendationCategories,
+      ['model_route', 'provider_health', 'task_route']
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairActionMutationGuard.recommendationCodes,
+      [
+        'optional_model_route_unavailable',
+        'rerank_task_route_unavailable',
+        'selected_provider_health_not_healthy',
+        'workspace_indexing_embedding_dimension_mismatch',
+      ]
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairActionMutationGuard.suggestedActionKinds,
+      [
+        'check_provider_health',
+        'fix_embedding_dimensions',
         'repair_task_model_route',
-        'preview_required',
-        ['task_route.read', 'model_registry.read', 'provider_route.preview'],
-        1,
-        ['diagnosticsFingerprint', 'targetLocator'],
-      ],
-      [
-        'repair-actions/v1',
         'review_non_default_model_route',
-        'preview_required',
-        ['model_registry.read', 'provider_route.preview'],
-        1,
-        ['diagnosticsFingerprint', 'targetLocator'],
-      ],
-    ]
-  );
-  assert.match(
-    routeReadyGate?.repairActionCatalogFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.equal(
-    routeReadyGate?.repairActionMutationGuard.catalogFingerprint,
-    routeReadyGate?.repairActionCatalogFingerprint
-  );
-  assert.match(
-    routeReadyGate?.repairActionMutationGuard.auditSummary ?? '',
-    /registry:7 .* catalog:repair-actions\/v1 .* recommendations:4/
-  );
-  assert.match(
-    routeReadyGate?.repairActionMutationGuard.auditSummary ?? '',
-    /targetKinds:model_route,task_route .* reviewModes:manual_review,preview,probe/
-  );
-  assert.match(
-    routeReadyGate?.repairActionMutationGuard.auditSummaryFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.equal(
-    routeReadyGate?.repairActionMutationGuard.catalogVersion,
-    'repair-actions/v1'
-  );
-  assert.equal(
-    routeReadyGate?.repairActionMutationGuard.expectedRegistryFingerprint,
-    gateVerdict.registryFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairActionMutationGuard.expectedRegistryId,
-    gateVerdict.registryId
-  );
-  assert.equal(
-    routeReadyGate?.repairActionMutationGuard.expectedRegistryUpdatedAt,
-    gateVerdict.registryUpdatedAt.toISOString()
-  );
-  assert.equal(routeReadyGate?.repairActionMutationGuard.required, true);
-  assert.equal(
-    routeReadyGate?.repairActionMutationGuard.recommendationCount,
-    routeReadyGate?.repairRecommendations.length
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairActionMutationGuard.recommendationFingerprints,
-    routeReadyGate?.repairRecommendations
-      .map(recommendation => recommendation.diagnosticsFingerprint)
-      .sort()
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairActionMutationGuard.recommendationCategories,
-    ['model_route', 'provider_health', 'task_route']
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairActionMutationGuard.recommendationCodes,
-    [
-      'optional_model_route_unavailable',
-      'rerank_task_route_unavailable',
-      'selected_provider_health_not_healthy',
-      'workspace_indexing_embedding_dimension_mismatch',
-    ]
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairActionMutationGuard.suggestedActionKinds,
-    [
-      'check_provider_health',
-      'fix_embedding_dimensions',
-      'repair_task_model_route',
-      'review_non_default_model_route',
-    ]
-  );
-  assert.match(
-    routeReadyGate?.repairActionMutationGuard.intentFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairActionMutationGuard.requiredCapabilities,
-    [
+      ]
+    );
+    assert.match(
+      routeReadyGate?.repairActionMutationGuard.intentFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairActionMutationGuard.requiredCapabilities,
+      [
+        'embedding_index.migration_review',
+        'embedding_index.read',
+        'model_registry.read',
+        'provider_health.probe',
+        'provider_profile.read',
+        'provider_route.preview',
+        'task_route.read',
+      ]
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairActionMutationGuard.requiredReviewModes,
+      ['manual_review', 'preview', 'probe']
+    );
+    assert.match(
+      routeReadyGate?.repairActionMutationGuard.inputSchemaFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.equal(
+      routeReadyGate?.repairActionMutationGuard.targetLocatorCount,
+      routeReadyGate?.repairRecommendations.length
+    );
+    assert.match(
+      routeReadyGate?.repairActionMutationGuard.targetLocatorFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairActionMutationGuard.targetLocatorKinds,
+      ['model_route', 'task_route']
+    );
+    assert.deepEqual(routeReadyGate?.repairActionMutationGuard.safetyLevels, [
+      'manual_review_required',
+      'preview_required',
+      'read_only_probe',
+    ]);
+    assert.match(
+      routeReadyGate?.repairActionMutationGuard.guardFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.equal(routeReadyGate?.repairActionPreview.readOnly, true);
+    assert.equal(
+      routeReadyGate?.repairActionPreview.status,
+      'manual_review_required'
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.candidateCount,
+      routeReadyGate?.repairRecommendations.length
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.catalogFingerprint,
+      routeReadyGate?.repairActionCatalogFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.guardFingerprint,
+      routeReadyGate?.repairActionMutationGuard.guardFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.auditSummaryFingerprint,
+      routeReadyGate?.repairActionMutationGuard.auditSummaryFingerprint
+    );
+    assert.match(
+      routeReadyGate?.repairActionPreview.previewFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.match(
+      routeReadyGate?.repairActionPreview.operationSetFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.authorizationStatus,
+      'approval_required'
+    );
+    assert.equal(routeReadyGate?.repairActionPreview.approvalRequired, true);
+    assert.match(
+      routeReadyGate?.repairActionPreview.authorizationFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.approvalPolicyVersion,
+      'repair-preview-approval/v1'
+    );
+    assert.match(
+      routeReadyGate?.repairActionPreview.approvalPolicyFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(routeReadyGate?.repairActionPreview.approvalModes, [
+      'manual_review',
+      'preview',
+      'probe',
+    ]);
+    assert.deepEqual(routeReadyGate?.repairActionPreview.approvalCheckpoints, [
+      'approval_required',
+      'authorization_snapshot',
+      'capability_scope',
+      'operation_set',
+      'read_only_contract',
+      'review_mode:manual_review',
+      'review_mode:preview',
+      'review_mode:probe',
+    ]);
+    assert.deepEqual(routeReadyGate?.repairActionPreview.requiredCapabilities, [
       'embedding_index.migration_review',
       'embedding_index.read',
       'model_registry.read',
@@ -4144,744 +4256,655 @@ async function main() {
       'provider_profile.read',
       'provider_route.preview',
       'task_route.read',
-    ]
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairActionMutationGuard.requiredReviewModes,
-    ['manual_review', 'preview', 'probe']
-  );
-  assert.match(
-    routeReadyGate?.repairActionMutationGuard.inputSchemaFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.equal(
-    routeReadyGate?.repairActionMutationGuard.targetLocatorCount,
-    routeReadyGate?.repairRecommendations.length
-  );
-  assert.match(
-    routeReadyGate?.repairActionMutationGuard.targetLocatorFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairActionMutationGuard.targetLocatorKinds,
-    ['model_route', 'task_route']
-  );
-  assert.deepEqual(routeReadyGate?.repairActionMutationGuard.safetyLevels, [
-    'manual_review_required',
-    'preview_required',
-    'read_only_probe',
-  ]);
-  assert.match(
-    routeReadyGate?.repairActionMutationGuard.guardFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.equal(routeReadyGate?.repairActionPreview.readOnly, true);
-  assert.equal(
-    routeReadyGate?.repairActionPreview.status,
-    'manual_review_required'
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.candidateCount,
-    routeReadyGate?.repairRecommendations.length
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.catalogFingerprint,
-    routeReadyGate?.repairActionCatalogFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.guardFingerprint,
-    routeReadyGate?.repairActionMutationGuard.guardFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.auditSummaryFingerprint,
-    routeReadyGate?.repairActionMutationGuard.auditSummaryFingerprint
-  );
-  assert.match(
-    routeReadyGate?.repairActionPreview.previewFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.match(
-    routeReadyGate?.repairActionPreview.operationSetFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.authorizationStatus,
-    'approval_required'
-  );
-  assert.equal(routeReadyGate?.repairActionPreview.approvalRequired, true);
-  assert.match(
-    routeReadyGate?.repairActionPreview.authorizationFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.approvalPolicyVersion,
-    'repair-preview-approval/v1'
-  );
-  assert.match(
-    routeReadyGate?.repairActionPreview.approvalPolicyFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(routeReadyGate?.repairActionPreview.approvalModes, [
-    'manual_review',
-    'preview',
-    'probe',
-  ]);
-  assert.deepEqual(routeReadyGate?.repairActionPreview.approvalCheckpoints, [
-    'approval_required',
-    'authorization_snapshot',
-    'capability_scope',
-    'operation_set',
-    'read_only_contract',
-    'review_mode:manual_review',
-    'review_mode:preview',
-    'review_mode:probe',
-  ]);
-  assert.deepEqual(routeReadyGate?.repairActionPreview.requiredCapabilities, [
-    'embedding_index.migration_review',
-    'embedding_index.read',
-    'model_registry.read',
-    'provider_health.probe',
-    'provider_profile.read',
-    'provider_route.preview',
-    'task_route.read',
-  ]);
-  assert.equal(
-    routeReadyGate?.repairGateManifest.version,
-    'prompt-registry-repair-gate-manifest/v1'
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifest.boundary,
-    'repair_gate_manifest_only_no_prompt_or_provider_payload'
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifest.registryFingerprint,
-    gateVerdict.registryFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifest.registryId,
-    gateVerdict.registryId
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifest.registryUpdatedAt,
-    gateVerdict.registryUpdatedAt.toISOString()
-  );
-  assert.equal(routeReadyGate?.repairGateManifest.gateStatus, 'ready');
-  assert.equal(routeReadyGate?.repairGateManifest.publishStatus, 'allowed');
-  assert.equal(routeReadyGate?.repairGateManifest.reason, 'ready');
-  assert.equal(routeReadyGate?.repairGateManifest.issueCount, 0);
-  assert.equal(routeReadyGate?.repairGateManifest.blockingCount, 0);
-  assert.equal(
-    routeReadyGate?.repairGateManifest.recommendationCount,
-    routeReadyGate?.repairRecommendations.length
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifest.operationCount,
-    routeReadyGate?.repairActionPreview.operations.length
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifest.guardFingerprint,
-    routeReadyGate?.repairActionMutationGuard.guardFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifest.previewFingerprint,
-    routeReadyGate?.repairActionPreview.previewFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifest.submissionFingerprint,
-    routeReadyGate?.repairActionPreview.submissionContract.submissionFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifest.candidateEvidenceSetFingerprint,
-    routeReadyGate?.repairActionPreview.candidateEvidenceSetFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifest
-      .taskRouteEffectiveSourceEvidenceSetFingerprint,
-    routeReadyGate?.repairActionPreview
-      .taskRouteEffectiveSourceEvidenceSetFingerprint
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairGateManifest
-      .taskRouteEffectiveSourceEvidenceSetFingerprintInputs,
-    [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifest
-      .taskRouteEffectiveSourceEvidenceSetFingerprintVersion,
-    taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifest
-      .embeddingIndexContractEvidenceSetFingerprint,
-    routeReadyGate?.repairActionPreview
-      .embeddingIndexContractEvidenceSetFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifest
-      .rerankRuntimeContractEvidenceSetFingerprint,
-    routeReadyGate?.repairActionPreview
-      .rerankRuntimeContractEvidenceSetFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifest.preparedRouteOrderEvidenceSetFingerprint,
-    routeReadyGate?.repairActionPreview.preparedRouteOrderEvidenceSetFingerprint
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairGateManifest.requiredCapabilities,
-    routeReadyGate?.repairActionPreview.requiredCapabilities
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairGateManifest.requiredReviewModes,
-    routeReadyGate?.repairActionMutationGuard.requiredReviewModes
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairGateManifest.safetyLevels,
-    routeReadyGate?.repairActionMutationGuard.safetyLevels
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairGateManifest.operationFingerprints,
-    routeReadyGate?.repairActionPreview.operationFingerprints
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairGateManifest.recommendationFingerprints,
-    routeReadyGate?.repairActionMutationGuard.recommendationFingerprints
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifest.fingerprint,
-    routeReadyGate
-      ? createHash('sha256')
-          .update(
-            stableFingerprintFixtureStringify({
-              version: routeReadyGate.repairGateManifest.version,
-              boundary: routeReadyGate.repairGateManifest.boundary,
-              registryFingerprint:
-                routeReadyGate.repairGateManifest.registryFingerprint,
-              registryId: routeReadyGate.repairGateManifest.registryId,
-              registryUpdatedAt:
-                routeReadyGate.repairGateManifest.registryUpdatedAt,
-              gateStatus: routeReadyGate.repairGateManifest.gateStatus,
-              publishStatus: routeReadyGate.repairGateManifest.publishStatus,
-              reason: routeReadyGate.repairGateManifest.reason,
-              issueCount: routeReadyGate.repairGateManifest.issueCount,
-              blockingCount: routeReadyGate.repairGateManifest.blockingCount,
-              recommendationCount:
-                routeReadyGate.repairGateManifest.recommendationCount,
-              operationCount: routeReadyGate.repairGateManifest.operationCount,
-              guardFingerprint:
-                routeReadyGate.repairGateManifest.guardFingerprint,
-              previewFingerprint:
-                routeReadyGate.repairGateManifest.previewFingerprint,
-              submissionFingerprint:
-                routeReadyGate.repairGateManifest.submissionFingerprint,
-              candidateEvidenceSetFingerprint:
-                routeReadyGate.repairGateManifest
-                  .candidateEvidenceSetFingerprint,
-              taskRouteEffectiveSourceEvidenceSetFingerprint:
-                routeReadyGate.repairGateManifest
-                  .taskRouteEffectiveSourceEvidenceSetFingerprint,
-              embeddingIndexContractEvidenceSetFingerprint:
-                routeReadyGate.repairGateManifest
-                  .embeddingIndexContractEvidenceSetFingerprint,
-              rerankRuntimeContractEvidenceSetFingerprint:
-                routeReadyGate.repairGateManifest
-                  .rerankRuntimeContractEvidenceSetFingerprint,
-              preparedRouteOrderEvidenceSetFingerprint:
-                routeReadyGate.repairGateManifest
-                  .preparedRouteOrderEvidenceSetFingerprint,
-              operationSetFingerprint:
-                routeReadyGate.repairGateManifest.operationSetFingerprint,
-              targetLocatorFingerprint:
-                routeReadyGate.repairGateManifest.targetLocatorFingerprint,
-              approvalPolicyFingerprint:
-                routeReadyGate.repairGateManifest.approvalPolicyFingerprint,
-              authorizationFingerprint:
-                routeReadyGate.repairGateManifest.authorizationFingerprint,
-              catalogFingerprint:
-                routeReadyGate.repairGateManifest.catalogFingerprint,
-              catalogVersion: routeReadyGate.repairGateManifest.catalogVersion,
-              readOnly: routeReadyGate.repairGateManifest.readOnly,
-              mutationAvailable:
-                routeReadyGate.repairGateManifest.mutationAvailable,
-              requiredCapabilities:
-                routeReadyGate.repairGateManifest.requiredCapabilities,
-              requiredReviewModes:
-                routeReadyGate.repairGateManifest.requiredReviewModes,
-              safetyLevels: routeReadyGate.repairGateManifest.safetyLevels,
-              operationFingerprints:
-                routeReadyGate.repairGateManifest.operationFingerprints,
-              recommendationFingerprints:
-                routeReadyGate.repairGateManifest.recommendationFingerprints,
-            })
-          )
-          .digest('hex')
-          .slice(0, 16)
-      : undefined
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.version,
-    'prompt-registry-repair-gate-manifest-export-metadata/v1'
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.artifact,
-    'prompt_registry_repair_gate_manifest_json'
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.filename,
-    routeReadyGate
-      ? `prompt-registry-repair-gate-manifest-${routeReadyGate.repairGateManifest.registryId}-${routeReadyGate.repairGateManifest.fingerprint}.json`
-      : undefined
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.metadataFilename,
-    routeReadyGate
-      ? `prompt-registry-repair-gate-manifest-metadata-${routeReadyGate.repairGateManifest.registryId}-${routeReadyGate.repairGateManifest.fingerprint}.json`
-      : undefined
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.mime,
-    'application/json;charset=utf-8'
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.manifestVersion,
-    routeReadyGate?.repairGateManifest.version
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.manifestFingerprint,
-    routeReadyGate?.repairGateManifest.fingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.boundary,
-    routeReadyGate?.repairGateManifest.boundary
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.registryFingerprint,
-    routeReadyGate?.repairGateManifest.registryFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.registryId,
-    routeReadyGate?.repairGateManifest.registryId
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.registryUpdatedAt,
-    routeReadyGate?.repairGateManifest.registryUpdatedAt
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.gateStatus,
-    routeReadyGate?.repairGateManifest.gateStatus
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.publishStatus,
-    routeReadyGate?.repairGateManifest.publishStatus
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.redactionPolicyVersion,
-    'prompt-registry-repair-gate-manifest-redaction-policy/v1'
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.redactionPolicyStatus,
-    'redacted_projection_no_prompt_provider_payload_or_secret'
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.exportPolicyVersion,
-    'prompt-registry-repair-gate-manifest-export-policy/v1'
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.exportPolicyStatus,
-    'read_only_projection'
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.auditEventVersion,
-    'prompt-registry-repair-gate-manifest-export-audit-event/v1'
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.auditEventStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.auditEventCreated,
-    false
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.retentionPolicyVersion,
-    'prompt-registry-repair-gate-manifest-retention-policy/v1'
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.retentionPolicyStatus,
-    'not_persisted_read_only'
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.redactionPolicyFingerprint,
-    routeReadyGate
-      ? createHash('sha256')
-          .update(
-            stableFingerprintFixtureStringify({
-              version:
-                'prompt-registry-repair-gate-manifest-redaction-policy-fingerprint/v1',
-              artifact:
-                routeReadyGate.repairGateManifestExportMetadata.artifact,
-              boundary:
-                routeReadyGate.repairGateManifestExportMetadata.boundary,
-              manifestFingerprint:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .manifestFingerprint,
-              manifestVersion:
-                routeReadyGate.repairGateManifestExportMetadata.manifestVersion,
-              redactionPolicyStatus:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .redactionPolicyStatus,
-              redactionPolicyVersion:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .redactionPolicyVersion,
-              registryFingerprint:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .registryFingerprint,
-              registryId:
-                routeReadyGate.repairGateManifestExportMetadata.registryId,
-            })
-          )
-          .digest('hex')
-          .slice(0, 16)
-      : undefined
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.exportPolicyFingerprint,
-    routeReadyGate
-      ? createHash('sha256')
-          .update(
-            stableFingerprintFixtureStringify({
-              version:
-                'prompt-registry-repair-gate-manifest-export-policy-fingerprint/v1',
-              artifact:
-                routeReadyGate.repairGateManifestExportMetadata.artifact,
-              boundary:
-                routeReadyGate.repairGateManifestExportMetadata.boundary,
-              exportPolicyStatus:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .exportPolicyStatus,
-              exportPolicyVersion:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .exportPolicyVersion,
-              filename:
-                routeReadyGate.repairGateManifestExportMetadata.filename,
-              gateStatus:
-                routeReadyGate.repairGateManifestExportMetadata.gateStatus,
-              manifestFingerprint:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .manifestFingerprint,
-              manifestVersion:
-                routeReadyGate.repairGateManifestExportMetadata.manifestVersion,
-              metadataFilename:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .metadataFilename,
-              mime: routeReadyGate.repairGateManifestExportMetadata.mime,
-              publishStatus:
-                routeReadyGate.repairGateManifestExportMetadata.publishStatus,
-              redactionPolicyFingerprint:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .redactionPolicyFingerprint,
-              registryFingerprint:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .registryFingerprint,
-              registryId:
-                routeReadyGate.repairGateManifestExportMetadata.registryId,
-              registryUpdatedAt:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .registryUpdatedAt,
-            })
-          )
-          .digest('hex')
-          .slice(0, 16)
-      : undefined
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.auditEventFingerprint,
-    routeReadyGate
-      ? createHash('sha256')
-          .update(
-            stableFingerprintFixtureStringify({
-              version:
-                'prompt-registry-repair-gate-manifest-audit-event-fingerprint/v1',
-              auditEventCreated:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .auditEventCreated,
-              auditEventStatus:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .auditEventStatus,
-              auditEventVersion:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .auditEventVersion,
-              exportPolicyFingerprint:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .exportPolicyFingerprint,
-              manifestFingerprint:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .manifestFingerprint,
-              registryId:
-                routeReadyGate.repairGateManifestExportMetadata.registryId,
-            })
-          )
-          .digest('hex')
-          .slice(0, 16)
-      : undefined
-  );
-  assert.equal(
-    routeReadyGate?.repairGateManifestExportMetadata.retentionPolicyFingerprint,
-    routeReadyGate
-      ? createHash('sha256')
-          .update(
-            stableFingerprintFixtureStringify({
-              version:
-                'prompt-registry-repair-gate-manifest-retention-policy-fingerprint/v1',
-              artifact:
-                routeReadyGate.repairGateManifestExportMetadata.artifact,
-              boundary:
-                routeReadyGate.repairGateManifestExportMetadata.boundary,
-              exportPolicyFingerprint:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .exportPolicyFingerprint,
-              manifestFingerprint:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .manifestFingerprint,
-              registryId:
-                routeReadyGate.repairGateManifestExportMetadata.registryId,
-              retentionPolicyStatus:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .retentionPolicyStatus,
-              retentionPolicyVersion:
-                routeReadyGate.repairGateManifestExportMetadata
-                  .retentionPolicyVersion,
-            })
-          )
-          .digest('hex')
-          .slice(0, 16)
-      : undefined
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract.contractVersion,
-    'repair-preview-submission/v1'
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract.readOnly,
-    true
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract.mutationAvailable,
-    false
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract.status,
-    'read_only_contract'
-  );
-  assert.match(
-    routeReadyGate?.repairActionPreview.submissionContract
-      .submissionFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract.previewFingerprint,
-    routeReadyGate?.repairActionPreview.previewFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract
-      .operationSetFingerprint,
-    routeReadyGate?.repairActionPreview.operationSetFingerprint
-  );
-  assert.match(
-    routeReadyGate?.repairActionPreview.candidateEvidenceSetFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairActionPreview
-      .taskRouteEffectiveSourceEvidenceSetFingerprintInputs,
-    [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview
-      .taskRouteEffectiveSourceEvidenceSetFingerprintVersion,
-    taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
-  );
-  assert.match(
-    routeReadyGate?.repairActionPreview
-      .preparedRouteOrderEvidenceSetFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.match(
-    routeReadyGate?.repairActionPreview
-      .embeddingIndexContractEvidenceSetFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract
-      .candidateEvidenceSetFingerprint,
-    routeReadyGate?.repairActionPreview.candidateEvidenceSetFingerprint
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairActionPreview.submissionContract
-      .taskRouteEffectiveSourceEvidenceSetFingerprintInputs,
-    [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract
-      .taskRouteEffectiveSourceEvidenceSetFingerprintVersion,
-    taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract
-      .embeddingIndexContractEvidenceSetFingerprint,
-    routeReadyGate?.repairActionPreview
-      .embeddingIndexContractEvidenceSetFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract
-      .rerankRuntimeContractEvidenceSetFingerprint,
-    routeReadyGate?.repairActionPreview
-      .rerankRuntimeContractEvidenceSetFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract
-      .preparedRouteOrderEvidenceSetFingerprint,
-    routeReadyGate?.repairActionPreview.preparedRouteOrderEvidenceSetFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview
-      .preparedRouteOrderEvidenceSetFingerprint,
-    routeReadyGate
-      ? createHash('sha256')
-          .update(
-            stableFingerprintFixtureStringify(
-              routeReadyGate.repairActionPreview.operations
-                .map(operation => ({
-                  diagnosticsFingerprint: operation.diagnosticsFingerprint,
-                  operationFingerprint: operation.operationFingerprint,
-                  preparedRouteOrderFingerprints:
-                    operation.preparedRouteOrderFingerprints,
-                }))
-                .sort((left, right) =>
-                  left.operationFingerprint.localeCompare(
-                    right.operationFingerprint
-                  )
-                )
+    ]);
+    assert.equal(
+      routeReadyGate?.repairGateManifest.version,
+      'prompt-registry-repair-gate-manifest/v1'
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifest.boundary,
+      'repair_gate_manifest_only_no_prompt_or_provider_payload'
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifest.registryFingerprint,
+      gateVerdict.registryFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifest.registryId,
+      gateVerdict.registryId
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifest.registryUpdatedAt,
+      gateVerdict.registryUpdatedAt.toISOString()
+    );
+    assert.equal(routeReadyGate?.repairGateManifest.gateStatus, 'ready');
+    assert.equal(routeReadyGate?.repairGateManifest.publishStatus, 'allowed');
+    assert.equal(routeReadyGate?.repairGateManifest.reason, 'ready');
+    assert.equal(routeReadyGate?.repairGateManifest.issueCount, 0);
+    assert.equal(routeReadyGate?.repairGateManifest.blockingCount, 0);
+    assert.equal(
+      routeReadyGate?.repairGateManifest.recommendationCount,
+      routeReadyGate?.repairRecommendations.length
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifest.operationCount,
+      routeReadyGate?.repairActionPreview.operations.length
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifest.guardFingerprint,
+      routeReadyGate?.repairActionMutationGuard.guardFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifest.previewFingerprint,
+      routeReadyGate?.repairActionPreview.previewFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifest.submissionFingerprint,
+      routeReadyGate?.repairActionPreview.submissionContract
+        .submissionFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifest.candidateEvidenceSetFingerprint,
+      routeReadyGate?.repairActionPreview.candidateEvidenceSetFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifest
+        .taskRouteEffectiveSourceEvidenceSetFingerprint,
+      routeReadyGate?.repairActionPreview
+        .taskRouteEffectiveSourceEvidenceSetFingerprint
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairGateManifest
+        .taskRouteEffectiveSourceEvidenceSetFingerprintInputs,
+      [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifest
+        .taskRouteEffectiveSourceEvidenceSetFingerprintVersion,
+      taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifest
+        .embeddingIndexContractEvidenceSetFingerprint,
+      routeReadyGate?.repairActionPreview
+        .embeddingIndexContractEvidenceSetFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifest
+        .rerankRuntimeContractEvidenceSetFingerprint,
+      routeReadyGate?.repairActionPreview
+        .rerankRuntimeContractEvidenceSetFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifest
+        .preparedRouteOrderEvidenceSetFingerprint,
+      routeReadyGate?.repairActionPreview
+        .preparedRouteOrderEvidenceSetFingerprint
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairGateManifest.requiredCapabilities,
+      routeReadyGate?.repairActionPreview.requiredCapabilities
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairGateManifest.requiredReviewModes,
+      routeReadyGate?.repairActionMutationGuard.requiredReviewModes
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairGateManifest.safetyLevels,
+      routeReadyGate?.repairActionMutationGuard.safetyLevels
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairGateManifest.operationFingerprints,
+      routeReadyGate?.repairActionPreview.operationFingerprints
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairGateManifest.recommendationFingerprints,
+      routeReadyGate?.repairActionMutationGuard.recommendationFingerprints
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifest.fingerprint,
+      routeReadyGate
+        ? createHash('sha256')
+            .update(
+              stableFingerprintFixtureStringify({
+                version: routeReadyGate.repairGateManifest.version,
+                boundary: routeReadyGate.repairGateManifest.boundary,
+                registryFingerprint:
+                  routeReadyGate.repairGateManifest.registryFingerprint,
+                registryId: routeReadyGate.repairGateManifest.registryId,
+                registryUpdatedAt:
+                  routeReadyGate.repairGateManifest.registryUpdatedAt,
+                gateStatus: routeReadyGate.repairGateManifest.gateStatus,
+                publishStatus: routeReadyGate.repairGateManifest.publishStatus,
+                reason: routeReadyGate.repairGateManifest.reason,
+                issueCount: routeReadyGate.repairGateManifest.issueCount,
+                blockingCount: routeReadyGate.repairGateManifest.blockingCount,
+                recommendationCount:
+                  routeReadyGate.repairGateManifest.recommendationCount,
+                operationCount:
+                  routeReadyGate.repairGateManifest.operationCount,
+                guardFingerprint:
+                  routeReadyGate.repairGateManifest.guardFingerprint,
+                previewFingerprint:
+                  routeReadyGate.repairGateManifest.previewFingerprint,
+                submissionFingerprint:
+                  routeReadyGate.repairGateManifest.submissionFingerprint,
+                candidateEvidenceSetFingerprint:
+                  routeReadyGate.repairGateManifest
+                    .candidateEvidenceSetFingerprint,
+                taskRouteEffectiveSourceEvidenceSetFingerprint:
+                  routeReadyGate.repairGateManifest
+                    .taskRouteEffectiveSourceEvidenceSetFingerprint,
+                embeddingIndexContractEvidenceSetFingerprint:
+                  routeReadyGate.repairGateManifest
+                    .embeddingIndexContractEvidenceSetFingerprint,
+                rerankRuntimeContractEvidenceSetFingerprint:
+                  routeReadyGate.repairGateManifest
+                    .rerankRuntimeContractEvidenceSetFingerprint,
+                preparedRouteOrderEvidenceSetFingerprint:
+                  routeReadyGate.repairGateManifest
+                    .preparedRouteOrderEvidenceSetFingerprint,
+                operationSetFingerprint:
+                  routeReadyGate.repairGateManifest.operationSetFingerprint,
+                targetLocatorFingerprint:
+                  routeReadyGate.repairGateManifest.targetLocatorFingerprint,
+                approvalPolicyFingerprint:
+                  routeReadyGate.repairGateManifest.approvalPolicyFingerprint,
+                authorizationFingerprint:
+                  routeReadyGate.repairGateManifest.authorizationFingerprint,
+                catalogFingerprint:
+                  routeReadyGate.repairGateManifest.catalogFingerprint,
+                catalogVersion:
+                  routeReadyGate.repairGateManifest.catalogVersion,
+                readOnly: routeReadyGate.repairGateManifest.readOnly,
+                mutationAvailable:
+                  routeReadyGate.repairGateManifest.mutationAvailable,
+                requiredCapabilities:
+                  routeReadyGate.repairGateManifest.requiredCapabilities,
+                requiredReviewModes:
+                  routeReadyGate.repairGateManifest.requiredReviewModes,
+                safetyLevels: routeReadyGate.repairGateManifest.safetyLevels,
+                operationFingerprints:
+                  routeReadyGate.repairGateManifest.operationFingerprints,
+                recommendationFingerprints:
+                  routeReadyGate.repairGateManifest.recommendationFingerprints,
+              })
             )
-          )
-          .digest('hex')
-          .slice(0, 16)
-      : undefined
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview
-      .embeddingIndexContractEvidenceSetFingerprint,
-    routeReadyGate
-      ? createHash('sha256')
-          .update(
-            stableFingerprintFixtureStringify(
-              routeReadyGate.repairActionPreview.operations
-                .map(operation => ({
-                  diagnosticsFingerprint: operation.diagnosticsFingerprint,
-                  embeddingIndexContractEvidenceFingerprints:
-                    operation.embeddingIndexContractEvidenceFingerprints,
-                  operationFingerprint: operation.operationFingerprint,
-                }))
-                .sort((left, right) =>
-                  left.operationFingerprint.localeCompare(
-                    right.operationFingerprint
-                  )
-                )
+            .digest('hex')
+            .slice(0, 16)
+        : undefined
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.version,
+      'prompt-registry-repair-gate-manifest-export-metadata/v1'
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.artifact,
+      'prompt_registry_repair_gate_manifest_json'
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.filename,
+      routeReadyGate
+        ? `prompt-registry-repair-gate-manifest-${routeReadyGate.repairGateManifest.registryId}-${routeReadyGate.repairGateManifest.fingerprint}.json`
+        : undefined
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.metadataFilename,
+      routeReadyGate
+        ? `prompt-registry-repair-gate-manifest-metadata-${routeReadyGate.repairGateManifest.registryId}-${routeReadyGate.repairGateManifest.fingerprint}.json`
+        : undefined
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.mime,
+      'application/json;charset=utf-8'
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.manifestVersion,
+      routeReadyGate?.repairGateManifest.version
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.manifestFingerprint,
+      routeReadyGate?.repairGateManifest.fingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.boundary,
+      routeReadyGate?.repairGateManifest.boundary
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.registryFingerprint,
+      routeReadyGate?.repairGateManifest.registryFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.registryId,
+      routeReadyGate?.repairGateManifest.registryId
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.registryUpdatedAt,
+      routeReadyGate?.repairGateManifest.registryUpdatedAt
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.gateStatus,
+      routeReadyGate?.repairGateManifest.gateStatus
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.publishStatus,
+      routeReadyGate?.repairGateManifest.publishStatus
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.redactionPolicyVersion,
+      'prompt-registry-repair-gate-manifest-redaction-policy/v1'
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.redactionPolicyStatus,
+      'redacted_projection_no_prompt_provider_payload_or_secret'
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.exportPolicyVersion,
+      'prompt-registry-repair-gate-manifest-export-policy/v1'
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.exportPolicyStatus,
+      'read_only_projection'
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.auditEventVersion,
+      'prompt-registry-repair-gate-manifest-export-audit-event/v1'
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.auditEventStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.auditEventCreated,
+      false
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.retentionPolicyVersion,
+      'prompt-registry-repair-gate-manifest-retention-policy/v1'
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.retentionPolicyStatus,
+      'not_persisted_read_only'
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata
+        .redactionPolicyFingerprint,
+      routeReadyGate
+        ? createHash('sha256')
+            .update(
+              stableFingerprintFixtureStringify({
+                version:
+                  'prompt-registry-repair-gate-manifest-redaction-policy-fingerprint/v1',
+                artifact:
+                  routeReadyGate.repairGateManifestExportMetadata.artifact,
+                boundary:
+                  routeReadyGate.repairGateManifestExportMetadata.boundary,
+                manifestFingerprint:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .manifestFingerprint,
+                manifestVersion:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .manifestVersion,
+                redactionPolicyStatus:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .redactionPolicyStatus,
+                redactionPolicyVersion:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .redactionPolicyVersion,
+                registryFingerprint:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .registryFingerprint,
+                registryId:
+                  routeReadyGate.repairGateManifestExportMetadata.registryId,
+              })
             )
-          )
-          .digest('hex')
-          .slice(0, 16)
-      : undefined
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview
-      .rerankRuntimeContractEvidenceSetFingerprint,
-    routeReadyGate
-      ? createHash('sha256')
-          .update(
-            stableFingerprintFixtureStringify(
-              routeReadyGate.repairActionPreview.operations
-                .map(operation => ({
-                  diagnosticsFingerprint: operation.diagnosticsFingerprint,
-                  operationFingerprint: operation.operationFingerprint,
-                  rerankRuntimeContractEvidenceFingerprints:
-                    operation.rerankRuntimeContractEvidenceFingerprints,
-                }))
-                .sort((left, right) =>
-                  left.operationFingerprint.localeCompare(
-                    right.operationFingerprint
-                  )
-                )
+            .digest('hex')
+            .slice(0, 16)
+        : undefined
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.exportPolicyFingerprint,
+      routeReadyGate
+        ? createHash('sha256')
+            .update(
+              stableFingerprintFixtureStringify({
+                version:
+                  'prompt-registry-repair-gate-manifest-export-policy-fingerprint/v1',
+                artifact:
+                  routeReadyGate.repairGateManifestExportMetadata.artifact,
+                boundary:
+                  routeReadyGate.repairGateManifestExportMetadata.boundary,
+                exportPolicyStatus:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .exportPolicyStatus,
+                exportPolicyVersion:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .exportPolicyVersion,
+                filename:
+                  routeReadyGate.repairGateManifestExportMetadata.filename,
+                gateStatus:
+                  routeReadyGate.repairGateManifestExportMetadata.gateStatus,
+                manifestFingerprint:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .manifestFingerprint,
+                manifestVersion:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .manifestVersion,
+                metadataFilename:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .metadataFilename,
+                mime: routeReadyGate.repairGateManifestExportMetadata.mime,
+                publishStatus:
+                  routeReadyGate.repairGateManifestExportMetadata.publishStatus,
+                redactionPolicyFingerprint:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .redactionPolicyFingerprint,
+                registryFingerprint:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .registryFingerprint,
+                registryId:
+                  routeReadyGate.repairGateManifestExportMetadata.registryId,
+                registryUpdatedAt:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .registryUpdatedAt,
+              })
             )
-          )
-          .digest('hex')
-          .slice(0, 16)
-      : undefined
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract
-      .targetLocatorFingerprint,
-    routeReadyGate?.repairActionMutationGuard.targetLocatorFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract.guardFingerprint,
-    routeReadyGate?.repairActionMutationGuard.guardFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract
-      .authorizationFingerprint,
-    routeReadyGate?.repairActionPreview.authorizationFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract
-      .approvalPolicyFingerprint,
-    routeReadyGate?.repairActionPreview.approvalPolicyFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract.catalogFingerprint,
-    routeReadyGate?.repairActionCatalogFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract.expectedRegistryId,
-    routeReadyGate?.repairActionMutationGuard.expectedRegistryId
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract
-      .expectedRegistryFingerprint,
-    routeReadyGate?.repairActionMutationGuard.expectedRegistryFingerprint
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract
-      .expectedRegistryUpdatedAt,
-    routeReadyGate?.repairActionMutationGuard.expectedRegistryUpdatedAt
-  );
-  assert.equal(
-    routeReadyGate?.repairActionPreview.submissionContract.idempotencyKey,
-    [
-      routeReadyGate?.repairActionMutationGuard.expectedRegistryId,
-      routeReadyGate?.repairActionMutationGuard.expectedRegistryFingerprint,
-      routeReadyGate?.repairActionPreview.previewFingerprint,
-      routeReadyGate?.repairActionPreview.operationSetFingerprint,
-    ].join(':')
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairActionPreview.submissionContract.requiredInputs,
-    [
-      'approvalPolicyFingerprint',
-      'authorizationFingerprint',
-      'candidateEvidenceSetFingerprint',
-      'embeddingIndexContractEvidenceSetFingerprint',
-      'expectedRegistryFingerprint',
-      'expectedRegistryId',
-      'expectedRegistryUpdatedAt',
-      'guardFingerprint',
-      'operationSetFingerprint',
-      'preparedRouteOrderEvidenceSetFingerprint',
-      'previewFingerprint',
-      'rerankRuntimeContractEvidenceSetFingerprint',
-      'targetLocatorFingerprint',
-      'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    ]
-  );
+            .digest('hex')
+            .slice(0, 16)
+        : undefined
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata.auditEventFingerprint,
+      routeReadyGate
+        ? createHash('sha256')
+            .update(
+              stableFingerprintFixtureStringify({
+                version:
+                  'prompt-registry-repair-gate-manifest-audit-event-fingerprint/v1',
+                auditEventCreated:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .auditEventCreated,
+                auditEventStatus:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .auditEventStatus,
+                auditEventVersion:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .auditEventVersion,
+                exportPolicyFingerprint:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .exportPolicyFingerprint,
+                manifestFingerprint:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .manifestFingerprint,
+                registryId:
+                  routeReadyGate.repairGateManifestExportMetadata.registryId,
+              })
+            )
+            .digest('hex')
+            .slice(0, 16)
+        : undefined
+    );
+    assert.equal(
+      routeReadyGate?.repairGateManifestExportMetadata
+        .retentionPolicyFingerprint,
+      routeReadyGate
+        ? createHash('sha256')
+            .update(
+              stableFingerprintFixtureStringify({
+                version:
+                  'prompt-registry-repair-gate-manifest-retention-policy-fingerprint/v1',
+                artifact:
+                  routeReadyGate.repairGateManifestExportMetadata.artifact,
+                boundary:
+                  routeReadyGate.repairGateManifestExportMetadata.boundary,
+                exportPolicyFingerprint:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .exportPolicyFingerprint,
+                manifestFingerprint:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .manifestFingerprint,
+                registryId:
+                  routeReadyGate.repairGateManifestExportMetadata.registryId,
+                retentionPolicyStatus:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .retentionPolicyStatus,
+                retentionPolicyVersion:
+                  routeReadyGate.repairGateManifestExportMetadata
+                    .retentionPolicyVersion,
+              })
+            )
+            .digest('hex')
+            .slice(0, 16)
+        : undefined
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract.contractVersion,
+      'repair-preview-submission/v1'
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract.readOnly,
+      true
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract.mutationAvailable,
+      false
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract.status,
+      'read_only_contract'
+    );
+    assert.match(
+      routeReadyGate?.repairActionPreview.submissionContract
+        .submissionFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract.previewFingerprint,
+      routeReadyGate?.repairActionPreview.previewFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract
+        .operationSetFingerprint,
+      routeReadyGate?.repairActionPreview.operationSetFingerprint
+    );
+    assert.match(
+      routeReadyGate?.repairActionPreview.candidateEvidenceSetFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairActionPreview
+        .taskRouteEffectiveSourceEvidenceSetFingerprintInputs,
+      [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview
+        .taskRouteEffectiveSourceEvidenceSetFingerprintVersion,
+      taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
+    );
+    assert.match(
+      routeReadyGate?.repairActionPreview
+        .preparedRouteOrderEvidenceSetFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.match(
+      routeReadyGate?.repairActionPreview
+        .embeddingIndexContractEvidenceSetFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract
+        .candidateEvidenceSetFingerprint,
+      routeReadyGate?.repairActionPreview.candidateEvidenceSetFingerprint
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairActionPreview.submissionContract
+        .taskRouteEffectiveSourceEvidenceSetFingerprintInputs,
+      [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract
+        .taskRouteEffectiveSourceEvidenceSetFingerprintVersion,
+      taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract
+        .embeddingIndexContractEvidenceSetFingerprint,
+      routeReadyGate?.repairActionPreview
+        .embeddingIndexContractEvidenceSetFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract
+        .rerankRuntimeContractEvidenceSetFingerprint,
+      routeReadyGate?.repairActionPreview
+        .rerankRuntimeContractEvidenceSetFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract
+        .preparedRouteOrderEvidenceSetFingerprint,
+      routeReadyGate?.repairActionPreview
+        .preparedRouteOrderEvidenceSetFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview
+        .preparedRouteOrderEvidenceSetFingerprint,
+      routeReadyGate
+        ? createHash('sha256')
+            .update(
+              stableFingerprintFixtureStringify(
+                routeReadyGate.repairActionPreview.operations
+                  .map(operation => ({
+                    diagnosticsFingerprint: operation.diagnosticsFingerprint,
+                    operationFingerprint: operation.operationFingerprint,
+                    preparedRouteOrderFingerprints:
+                      operation.preparedRouteOrderFingerprints,
+                  }))
+                  .sort((left, right) =>
+                    left.operationFingerprint.localeCompare(
+                      right.operationFingerprint
+                    )
+                  )
+              )
+            )
+            .digest('hex')
+            .slice(0, 16)
+        : undefined
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview
+        .embeddingIndexContractEvidenceSetFingerprint,
+      routeReadyGate
+        ? createHash('sha256')
+            .update(
+              stableFingerprintFixtureStringify(
+                routeReadyGate.repairActionPreview.operations
+                  .map(operation => ({
+                    diagnosticsFingerprint: operation.diagnosticsFingerprint,
+                    embeddingIndexContractEvidenceFingerprints:
+                      operation.embeddingIndexContractEvidenceFingerprints,
+                    operationFingerprint: operation.operationFingerprint,
+                  }))
+                  .sort((left, right) =>
+                    left.operationFingerprint.localeCompare(
+                      right.operationFingerprint
+                    )
+                  )
+              )
+            )
+            .digest('hex')
+            .slice(0, 16)
+        : undefined
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview
+        .rerankRuntimeContractEvidenceSetFingerprint,
+      routeReadyGate
+        ? createHash('sha256')
+            .update(
+              stableFingerprintFixtureStringify(
+                routeReadyGate.repairActionPreview.operations
+                  .map(operation => ({
+                    diagnosticsFingerprint: operation.diagnosticsFingerprint,
+                    operationFingerprint: operation.operationFingerprint,
+                    rerankRuntimeContractEvidenceFingerprints:
+                      operation.rerankRuntimeContractEvidenceFingerprints,
+                  }))
+                  .sort((left, right) =>
+                    left.operationFingerprint.localeCompare(
+                      right.operationFingerprint
+                    )
+                  )
+              )
+            )
+            .digest('hex')
+            .slice(0, 16)
+        : undefined
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract
+        .targetLocatorFingerprint,
+      routeReadyGate?.repairActionMutationGuard.targetLocatorFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract.guardFingerprint,
+      routeReadyGate?.repairActionMutationGuard.guardFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract
+        .authorizationFingerprint,
+      routeReadyGate?.repairActionPreview.authorizationFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract
+        .approvalPolicyFingerprint,
+      routeReadyGate?.repairActionPreview.approvalPolicyFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract.catalogFingerprint,
+      routeReadyGate?.repairActionCatalogFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract.expectedRegistryId,
+      routeReadyGate?.repairActionMutationGuard.expectedRegistryId
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract
+        .expectedRegistryFingerprint,
+      routeReadyGate?.repairActionMutationGuard.expectedRegistryFingerprint
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract
+        .expectedRegistryUpdatedAt,
+      routeReadyGate?.repairActionMutationGuard.expectedRegistryUpdatedAt
+    );
+    assert.equal(
+      routeReadyGate?.repairActionPreview.submissionContract.idempotencyKey,
+      [
+        routeReadyGate?.repairActionMutationGuard.expectedRegistryId,
+        routeReadyGate?.repairActionMutationGuard.expectedRegistryFingerprint,
+        routeReadyGate?.repairActionPreview.previewFingerprint,
+        routeReadyGate?.repairActionPreview.operationSetFingerprint,
+      ].join(':')
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairActionPreview.submissionContract.requiredInputs,
+      [
+        'approvalPolicyFingerprint',
+        'authorizationFingerprint',
+        'candidateEvidenceSetFingerprint',
+        'embeddingIndexContractEvidenceSetFingerprint',
+        'expectedRegistryFingerprint',
+        'expectedRegistryId',
+        'expectedRegistryUpdatedAt',
+        'guardFingerprint',
+        'operationSetFingerprint',
+        'preparedRouteOrderEvidenceSetFingerprint',
+        'previewFingerprint',
+        'rerankRuntimeContractEvidenceSetFingerprint',
+        'targetLocatorFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      ]
+    );
+  })();
   const matchingPreflight =
     await routeAwareResolver.promptRegistryRepairPreflight(
       currentUser as any,
@@ -4949,366 +4972,382 @@ async function main() {
         registryUpdatedAt: gateVerdict.registryUpdatedAt.toISOString(),
       }
     );
-  assert.equal(matchingPreflight?.readOnly, true);
-  assert.equal(matchingPreflight?.mutationAvailable, false);
-  assert.equal(matchingPreflight?.accepted, false);
-  assert.equal(matchingPreflight?.status, 'ready_for_review');
-  assert.equal(matchingPreflight?.permissionChecked, true);
-  assert.equal(matchingPreflight?.permissionCheckMode, 'workspace_assert');
-  assert.equal(matchingPreflight?.permissionScope, 'workspace');
-  assert.equal(matchingPreflight?.permissionStatus, 'granted');
-  assert.equal(matchingPreflight?.requiredPermission, 'Workspace.Copilot');
-  assert.equal(matchingPreflight?.workspaceId, 'workspace-smoke');
-  assert.match(
-    matchingPreflight?.permissionFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.equal(
-    matchingPreflight?.capabilityCheckMode,
-    'preview_capability_snapshot'
-  );
-  assert.equal(matchingPreflight?.capabilitySource, 'repair_action_preview');
-  assert.equal(matchingPreflight?.capabilityStatus, 'declared');
-  assert.equal(
-    matchingPreflight?.candidateEvidenceSetFingerprint,
-    routeReadyGate.repairActionPreview.candidateEvidenceSetFingerprint
-  );
-  assert.equal(
-    matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
-    routeReadyGate.repairActionPreview
-      .taskRouteEffectiveSourceEvidenceSetFingerprint
-  );
-  assert.deepEqual(
-    matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprintInputs,
-    [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
-  );
-  assert.equal(
-    matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprintVersion,
-    taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
-  );
-  assert.equal(
-    matchingPreflight?.embeddingIndexContractEvidenceSetFingerprint,
-    routeReadyGate.repairActionPreview
-      .embeddingIndexContractEvidenceSetFingerprint
-  );
-  assert.equal(
-    matchingPreflight?.rerankRuntimeContractEvidenceSetFingerprint,
-    routeReadyGate.repairActionPreview
-      .rerankRuntimeContractEvidenceSetFingerprint
-  );
-  assert.equal(
-    matchingPreflight?.preparedRouteOrderEvidenceSetFingerprint,
-    routeReadyGate.repairActionPreview.preparedRouteOrderEvidenceSetFingerprint
-  );
-  assert.equal(
-    matchingPreflight?.expectedCandidateEvidenceSetFingerprint,
-    routeReadyGate.repairActionPreview.candidateEvidenceSetFingerprint
-  );
-  assert.equal(
-    matchingPreflight?.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
-    routeReadyGate.repairActionPreview
-      .taskRouteEffectiveSourceEvidenceSetFingerprint
-  );
-  assert.deepEqual(
-    matchingPreflight?.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs,
-    [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
-  );
-  assert.equal(
-    matchingPreflight?.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion,
-    taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
-  );
-  assert.equal(
-    matchingPreflight?.expectedEmbeddingIndexContractEvidenceSetFingerprint,
-    routeReadyGate.repairActionPreview
-      .embeddingIndexContractEvidenceSetFingerprint
-  );
-  assert.equal(
-    matchingPreflight?.expectedRerankRuntimeContractEvidenceSetFingerprint,
-    routeReadyGate.repairActionPreview
-      .rerankRuntimeContractEvidenceSetFingerprint
-  );
-  assert.equal(
-    matchingPreflight?.expectedPreparedRouteOrderEvidenceSetFingerprint,
-    routeReadyGate.repairActionPreview.preparedRouteOrderEvidenceSetFingerprint
-  );
-  assert.equal(
-    matchingPreflight?.targetLocatorFingerprint,
-    routeReadyGate.repairActionMutationGuard.targetLocatorFingerprint
-  );
-  assert.equal(
-    matchingPreflight?.expectedTargetLocatorFingerprint,
-    routeReadyGate.repairActionMutationGuard.targetLocatorFingerprint
-  );
-  assert.match(
-    matchingPreflight?.capabilityFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    matchingPreflight?.requiredCapabilities,
-    routeReadyGate.repairActionPreview.requiredCapabilities
-  );
-  assert.equal(
-    matchingPreflight?.requiredCapabilityCount,
-    routeReadyGate.repairActionPreview.requiredCapabilities.length
-  );
-  assert.equal(
-    matchingPreflight?.reviewBindingVersion,
-    'repair-preflight-review-binding/v1'
-  );
-  assert.equal(matchingPreflight?.reviewBindingStatus, 'ready_for_review');
-  assert.match(
-    matchingPreflight?.reviewBindingFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(matchingPreflight?.reviewBindingInputs, [
-    'candidateEvidenceSetFingerprint',
-    'capabilityFingerprint',
-    'embeddingIndexContractEvidenceSetFingerprint',
-    'permissionFingerprint',
-    'preparedRouteOrderEvidenceSetFingerprint',
-    'rerankRuntimeContractEvidenceSetFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-  ]);
-  assert.equal(
-    matchingPreflight?.idempotencyVersion,
-    'repair-preflight-idempotency/v1'
-  );
-  assert.equal(
-    matchingPreflight?.idempotencyKey,
-    routeReadyGate.repairActionPreview.submissionContract.idempotencyKey
-  );
-  assert.equal(matchingPreflight?.idempotencyScope, 'workspace');
-  assert.equal(matchingPreflight?.idempotencyStatus, 'not_acquired_read_only');
-  assert.equal(matchingPreflight?.idempotencyLockAcquired, false);
-  assert.match(
-    matchingPreflight?.idempotencyFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.equal(
-    matchingPreflight?.actorSnapshotVersion,
-    'repair-preflight-actor-snapshot/v1'
-  );
-  assert.equal(matchingPreflight?.actorSnapshotStatus, 'bound_to_current_user');
-  assert.equal(matchingPreflight?.actorType, 'user');
-  assert.match(matchingPreflight?.actorFingerprint ?? '', /^[0-9a-f]{16}$/);
-  assert.deepEqual(matchingPreflight?.actorSnapshotInputs, [
-    'actorHash',
-    'actorType',
-    'source',
-    'workspaceId',
-  ]);
-  assert.equal(
-    matchingPreflight?.auditBindingVersion,
-    'repair-preflight-audit-binding/v1'
-  );
-  assert.equal(matchingPreflight?.auditBindingStatus, 'ready_for_review');
-  assert.match(
-    matchingPreflight?.auditBindingFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(matchingPreflight?.auditBindingInputs, [
-    'actorFingerprint',
-    'capabilityFingerprint',
-    'permissionFingerprint',
-    'reviewBindingFingerprint',
-  ]);
-  assert.equal(
-    matchingPreflight?.auditEventVersion,
-    'repair-preflight-audit-event/v1'
-  );
-  assert.equal(matchingPreflight?.auditEventStatus, 'not_created_read_only');
-  assert.equal(matchingPreflight?.auditEventCreated, false);
-  assert.match(
-    matchingPreflight?.auditEventFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(matchingPreflight?.auditEventInputs, [
-    'actorFingerprint',
-    'approvalRecordFingerprint',
-    'auditBindingFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'embeddingIndexContractEvidenceSetFingerprint',
-    'operationSetFingerprint',
-    'policyBindingFingerprint',
-    'repairJobFingerprint',
-    'rerankRuntimeContractEvidenceSetFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-  ]);
-  assert.equal(
-    matchingPreflight?.executionStateVersion,
-    'repair-preflight-execution-state/v1'
-  );
-  assert.equal(
-    matchingPreflight?.executionStateStatus,
-    'not_started_read_only'
-  );
-  assert.equal(matchingPreflight?.executionStateCreated, false);
-  assert.match(
-    matchingPreflight?.executionStateFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(matchingPreflight?.executionStateInputs, [
-    'auditEventFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'embeddingIndexContractEvidenceSetFingerprint',
-    'idempotencyFingerprint',
-    'operationSetFingerprint',
-    'repairJobFingerprint',
-    'rerankRuntimeContractEvidenceSetFingerprint',
-    'reviewBindingFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-  ]);
-  assert.equal(
-    matchingPreflight?.rollbackPlanVersion,
-    'repair-preflight-rollback-plan/v1'
-  );
-  assert.equal(matchingPreflight?.rollbackPlanStatus, 'not_created_read_only');
-  assert.equal(matchingPreflight?.rollbackPlanCreated, false);
-  assert.match(
-    matchingPreflight?.rollbackPlanFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(matchingPreflight?.rollbackPlanInputs, [
-    'auditEventFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'embeddingIndexContractEvidenceSetFingerprint',
-    'executionStateFingerprint',
-    'operationSetFingerprint',
-    'repairJobFingerprint',
-    'rerankRuntimeContractEvidenceSetFingerprint',
-    'reviewBindingFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-  ]);
-  assert.equal(
-    matchingPreflight?.policyBindingVersion,
-    'repair-preflight-policy-binding/v1'
-  );
-  assert.equal(matchingPreflight?.policyBindingStatus, 'ready_for_review');
-  assert.equal(
-    matchingPreflight?.policySource,
-    'repair_action_preview_policy_snapshot'
-  );
-  assert.match(
-    matchingPreflight?.policyBindingFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(matchingPreflight?.policyBindingInputs, [
-    'actorFingerprint',
-    'approvalPolicyFingerprint',
-    'auditBindingFingerprint',
-    'authorizationFingerprint',
-    'capabilityFingerprint',
-    'permissionFingerprint',
-  ]);
-  assert.equal(
-    matchingPreflight?.approvalRequestVersion,
-    'repair-preflight-approval-request/v1'
-  );
-  assert.equal(matchingPreflight?.approvalRequestStatus, 'approval_required');
-  assert.equal(matchingPreflight?.approvalRequired, true);
-  assert.equal(matchingPreflight?.authorizationStatus, 'approval_required');
-  assert.match(
-    matchingPreflight?.approvalRequestFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    matchingPreflight?.approvalModes,
-    routeReadyGate.repairActionPreview.approvalModes
-  );
-  assert.deepEqual(
-    matchingPreflight?.approvalCheckpoints,
-    routeReadyGate.repairActionPreview.approvalCheckpoints
-  );
-  assert.deepEqual(matchingPreflight?.approvalRequestInputs, [
-    'approvalCheckpoints',
-    'approvalModes',
-    'approvalPolicyFingerprint',
-    'approvalRequired',
-    'authorizationFingerprint',
-    'authorizationStatus',
-    'policyBindingFingerprint',
-    'reviewBindingFingerprint',
-  ]);
-  assert.equal(
-    matchingPreflight?.approvalRecordVersion,
-    'repair-preflight-approval-record/v1'
-  );
-  assert.equal(
-    matchingPreflight?.approvalRecordStatus,
-    'not_created_read_only'
-  );
-  assert.equal(matchingPreflight?.approvalRecordCreated, false);
-  assert.match(
-    matchingPreflight?.approvalRecordFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(matchingPreflight?.approvalRecordInputs, [
-    'actorFingerprint',
-    'approvalRequestFingerprint',
-    'auditBindingFingerprint',
-    'policyBindingFingerprint',
-    'reviewBindingFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    matchingPreflight?.repairJobVersion,
-    'repair-preflight-job-contract/v1'
-  );
-  assert.equal(matchingPreflight?.repairJobStatus, 'not_created_read_only');
-  assert.equal(matchingPreflight?.repairJobCreated, false);
-  assert.match(matchingPreflight?.repairJobFingerprint ?? '', /^[0-9a-f]{16}$/);
-  assert.deepEqual(matchingPreflight?.repairJobInputs, [
-    'actorFingerprint',
-    'auditBindingFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'embeddingIndexContractEvidenceSetFingerprint',
-    'idempotencyFingerprint',
-    'operationSetFingerprint',
-    'policyBindingFingerprint',
-    'rerankRuntimeContractEvidenceSetFingerprint',
-    'reviewBindingFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-  ]);
-  assert.equal(
-    matchingPreflight?.executionGateVersion,
-    'repair-preflight-execution-gate/v1'
-  );
-  assert.equal(matchingPreflight?.executionGateStatus, 'blocked_read_only');
-  assert.match(
-    matchingPreflight?.executionGateFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(matchingPreflight?.executionGateInputs, [
-    'approvalRecordFingerprint',
-    'approvalRequestFingerprint',
-    'auditEventFingerprint',
-    'executionStateFingerprint',
-    'idempotencyFingerprint',
-    'mutationAvailable',
-    'policyBindingFingerprint',
-    'readOnly',
-    'repairJobFingerprint',
-    'reviewBindingFingerprint',
-    'rollbackPlanFingerprint',
-    'targetLocatorFingerprint',
-  ]);
-  assert.deepEqual(permissionAssertions, [
-    {
-      action: 'Workspace.Copilot',
-      userId: 'user-smoke',
-      workspaceId: 'workspace-smoke',
-    },
-  ]);
+  await (async () => {
+    assert.equal(matchingPreflight?.readOnly, true);
+    assert.equal(matchingPreflight?.mutationAvailable, false);
+    assert.equal(matchingPreflight?.accepted, false);
+    assert.equal(matchingPreflight?.status, 'ready_for_review');
+    assert.equal(matchingPreflight?.permissionChecked, true);
+    assert.equal(matchingPreflight?.permissionCheckMode, 'workspace_assert');
+    assert.equal(matchingPreflight?.permissionScope, 'workspace');
+    assert.equal(matchingPreflight?.permissionStatus, 'granted');
+    assert.equal(matchingPreflight?.requiredPermission, 'Workspace.Copilot');
+    assert.equal(matchingPreflight?.workspaceId, 'workspace-smoke');
+    assert.match(
+      matchingPreflight?.permissionFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.equal(
+      matchingPreflight?.capabilityCheckMode,
+      'preview_capability_snapshot'
+    );
+    assert.equal(matchingPreflight?.capabilitySource, 'repair_action_preview');
+    assert.equal(matchingPreflight?.capabilityStatus, 'declared');
+    assert.equal(
+      matchingPreflight?.candidateEvidenceSetFingerprint,
+      routeReadyGate.repairActionPreview.candidateEvidenceSetFingerprint
+    );
+    assert.equal(
+      matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
+      routeReadyGate.repairActionPreview
+        .taskRouteEffectiveSourceEvidenceSetFingerprint
+    );
+    assert.deepEqual(
+      matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprintInputs,
+      [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
+    );
+    assert.equal(
+      matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprintVersion,
+      taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
+    );
+    assert.equal(
+      matchingPreflight?.embeddingIndexContractEvidenceSetFingerprint,
+      routeReadyGate.repairActionPreview
+        .embeddingIndexContractEvidenceSetFingerprint
+    );
+    assert.equal(
+      matchingPreflight?.rerankRuntimeContractEvidenceSetFingerprint,
+      routeReadyGate.repairActionPreview
+        .rerankRuntimeContractEvidenceSetFingerprint
+    );
+    assert.equal(
+      matchingPreflight?.preparedRouteOrderEvidenceSetFingerprint,
+      routeReadyGate.repairActionPreview
+        .preparedRouteOrderEvidenceSetFingerprint
+    );
+    assert.equal(
+      matchingPreflight?.expectedCandidateEvidenceSetFingerprint,
+      routeReadyGate.repairActionPreview.candidateEvidenceSetFingerprint
+    );
+    assert.equal(
+      matchingPreflight?.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
+      routeReadyGate.repairActionPreview
+        .taskRouteEffectiveSourceEvidenceSetFingerprint
+    );
+    assert.deepEqual(
+      matchingPreflight?.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs,
+      [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
+    );
+    assert.equal(
+      matchingPreflight?.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion,
+      taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
+    );
+    assert.equal(
+      matchingPreflight?.expectedEmbeddingIndexContractEvidenceSetFingerprint,
+      routeReadyGate.repairActionPreview
+        .embeddingIndexContractEvidenceSetFingerprint
+    );
+    assert.equal(
+      matchingPreflight?.expectedRerankRuntimeContractEvidenceSetFingerprint,
+      routeReadyGate.repairActionPreview
+        .rerankRuntimeContractEvidenceSetFingerprint
+    );
+    assert.equal(
+      matchingPreflight?.expectedPreparedRouteOrderEvidenceSetFingerprint,
+      routeReadyGate.repairActionPreview
+        .preparedRouteOrderEvidenceSetFingerprint
+    );
+    assert.equal(
+      matchingPreflight?.targetLocatorFingerprint,
+      routeReadyGate.repairActionMutationGuard.targetLocatorFingerprint
+    );
+    assert.equal(
+      matchingPreflight?.expectedTargetLocatorFingerprint,
+      routeReadyGate.repairActionMutationGuard.targetLocatorFingerprint
+    );
+    assert.match(
+      matchingPreflight?.capabilityFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      matchingPreflight?.requiredCapabilities,
+      routeReadyGate.repairActionPreview.requiredCapabilities
+    );
+    assert.equal(
+      matchingPreflight?.requiredCapabilityCount,
+      routeReadyGate.repairActionPreview.requiredCapabilities.length
+    );
+    assert.equal(
+      matchingPreflight?.reviewBindingVersion,
+      'repair-preflight-review-binding/v1'
+    );
+    assert.equal(matchingPreflight?.reviewBindingStatus, 'ready_for_review');
+    assert.match(
+      matchingPreflight?.reviewBindingFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(matchingPreflight?.reviewBindingInputs, [
+      'candidateEvidenceSetFingerprint',
+      'capabilityFingerprint',
+      'embeddingIndexContractEvidenceSetFingerprint',
+      'permissionFingerprint',
+      'preparedRouteOrderEvidenceSetFingerprint',
+      'rerankRuntimeContractEvidenceSetFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+    ]);
+    assert.equal(
+      matchingPreflight?.idempotencyVersion,
+      'repair-preflight-idempotency/v1'
+    );
+    assert.equal(
+      matchingPreflight?.idempotencyKey,
+      routeReadyGate.repairActionPreview.submissionContract.idempotencyKey
+    );
+    assert.equal(matchingPreflight?.idempotencyScope, 'workspace');
+    assert.equal(
+      matchingPreflight?.idempotencyStatus,
+      'not_acquired_read_only'
+    );
+    assert.equal(matchingPreflight?.idempotencyLockAcquired, false);
+    assert.match(
+      matchingPreflight?.idempotencyFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.equal(
+      matchingPreflight?.actorSnapshotVersion,
+      'repair-preflight-actor-snapshot/v1'
+    );
+    assert.equal(
+      matchingPreflight?.actorSnapshotStatus,
+      'bound_to_current_user'
+    );
+    assert.equal(matchingPreflight?.actorType, 'user');
+    assert.match(matchingPreflight?.actorFingerprint ?? '', /^[0-9a-f]{16}$/);
+    assert.deepEqual(matchingPreflight?.actorSnapshotInputs, [
+      'actorHash',
+      'actorType',
+      'source',
+      'workspaceId',
+    ]);
+    assert.equal(
+      matchingPreflight?.auditBindingVersion,
+      'repair-preflight-audit-binding/v1'
+    );
+    assert.equal(matchingPreflight?.auditBindingStatus, 'ready_for_review');
+    assert.match(
+      matchingPreflight?.auditBindingFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(matchingPreflight?.auditBindingInputs, [
+      'actorFingerprint',
+      'capabilityFingerprint',
+      'permissionFingerprint',
+      'reviewBindingFingerprint',
+    ]);
+    assert.equal(
+      matchingPreflight?.auditEventVersion,
+      'repair-preflight-audit-event/v1'
+    );
+    assert.equal(matchingPreflight?.auditEventStatus, 'not_created_read_only');
+    assert.equal(matchingPreflight?.auditEventCreated, false);
+    assert.match(
+      matchingPreflight?.auditEventFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(matchingPreflight?.auditEventInputs, [
+      'actorFingerprint',
+      'approvalRecordFingerprint',
+      'auditBindingFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'embeddingIndexContractEvidenceSetFingerprint',
+      'operationSetFingerprint',
+      'policyBindingFingerprint',
+      'repairJobFingerprint',
+      'rerankRuntimeContractEvidenceSetFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+    ]);
+    assert.equal(
+      matchingPreflight?.executionStateVersion,
+      'repair-preflight-execution-state/v1'
+    );
+    assert.equal(
+      matchingPreflight?.executionStateStatus,
+      'not_started_read_only'
+    );
+    assert.equal(matchingPreflight?.executionStateCreated, false);
+    assert.match(
+      matchingPreflight?.executionStateFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(matchingPreflight?.executionStateInputs, [
+      'auditEventFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'embeddingIndexContractEvidenceSetFingerprint',
+      'idempotencyFingerprint',
+      'operationSetFingerprint',
+      'repairJobFingerprint',
+      'rerankRuntimeContractEvidenceSetFingerprint',
+      'reviewBindingFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+    ]);
+    assert.equal(
+      matchingPreflight?.rollbackPlanVersion,
+      'repair-preflight-rollback-plan/v1'
+    );
+    assert.equal(
+      matchingPreflight?.rollbackPlanStatus,
+      'not_created_read_only'
+    );
+    assert.equal(matchingPreflight?.rollbackPlanCreated, false);
+    assert.match(
+      matchingPreflight?.rollbackPlanFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(matchingPreflight?.rollbackPlanInputs, [
+      'auditEventFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'embeddingIndexContractEvidenceSetFingerprint',
+      'executionStateFingerprint',
+      'operationSetFingerprint',
+      'repairJobFingerprint',
+      'rerankRuntimeContractEvidenceSetFingerprint',
+      'reviewBindingFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+    ]);
+    assert.equal(
+      matchingPreflight?.policyBindingVersion,
+      'repair-preflight-policy-binding/v1'
+    );
+    assert.equal(matchingPreflight?.policyBindingStatus, 'ready_for_review');
+    assert.equal(
+      matchingPreflight?.policySource,
+      'repair_action_preview_policy_snapshot'
+    );
+    assert.match(
+      matchingPreflight?.policyBindingFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(matchingPreflight?.policyBindingInputs, [
+      'actorFingerprint',
+      'approvalPolicyFingerprint',
+      'auditBindingFingerprint',
+      'authorizationFingerprint',
+      'capabilityFingerprint',
+      'permissionFingerprint',
+    ]);
+    assert.equal(
+      matchingPreflight?.approvalRequestVersion,
+      'repair-preflight-approval-request/v1'
+    );
+    assert.equal(matchingPreflight?.approvalRequestStatus, 'approval_required');
+    assert.equal(matchingPreflight?.approvalRequired, true);
+    assert.equal(matchingPreflight?.authorizationStatus, 'approval_required');
+    assert.match(
+      matchingPreflight?.approvalRequestFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      matchingPreflight?.approvalModes,
+      routeReadyGate.repairActionPreview.approvalModes
+    );
+    assert.deepEqual(
+      matchingPreflight?.approvalCheckpoints,
+      routeReadyGate.repairActionPreview.approvalCheckpoints
+    );
+    assert.deepEqual(matchingPreflight?.approvalRequestInputs, [
+      'approvalCheckpoints',
+      'approvalModes',
+      'approvalPolicyFingerprint',
+      'approvalRequired',
+      'authorizationFingerprint',
+      'authorizationStatus',
+      'policyBindingFingerprint',
+      'reviewBindingFingerprint',
+    ]);
+    assert.equal(
+      matchingPreflight?.approvalRecordVersion,
+      'repair-preflight-approval-record/v1'
+    );
+    assert.equal(
+      matchingPreflight?.approvalRecordStatus,
+      'not_created_read_only'
+    );
+    assert.equal(matchingPreflight?.approvalRecordCreated, false);
+    assert.match(
+      matchingPreflight?.approvalRecordFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(matchingPreflight?.approvalRecordInputs, [
+      'actorFingerprint',
+      'approvalRequestFingerprint',
+      'auditBindingFingerprint',
+      'policyBindingFingerprint',
+      'reviewBindingFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      matchingPreflight?.repairJobVersion,
+      'repair-preflight-job-contract/v1'
+    );
+    assert.equal(matchingPreflight?.repairJobStatus, 'not_created_read_only');
+    assert.equal(matchingPreflight?.repairJobCreated, false);
+    assert.match(
+      matchingPreflight?.repairJobFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(matchingPreflight?.repairJobInputs, [
+      'actorFingerprint',
+      'auditBindingFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'embeddingIndexContractEvidenceSetFingerprint',
+      'idempotencyFingerprint',
+      'operationSetFingerprint',
+      'policyBindingFingerprint',
+      'rerankRuntimeContractEvidenceSetFingerprint',
+      'reviewBindingFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+    ]);
+    assert.equal(
+      matchingPreflight?.executionGateVersion,
+      'repair-preflight-execution-gate/v1'
+    );
+    assert.equal(matchingPreflight?.executionGateStatus, 'blocked_read_only');
+    assert.match(
+      matchingPreflight?.executionGateFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(matchingPreflight?.executionGateInputs, [
+      'approvalRecordFingerprint',
+      'approvalRequestFingerprint',
+      'auditEventFingerprint',
+      'executionStateFingerprint',
+      'idempotencyFingerprint',
+      'mutationAvailable',
+      'policyBindingFingerprint',
+      'readOnly',
+      'repairJobFingerprint',
+      'reviewBindingFingerprint',
+      'rollbackPlanFingerprint',
+      'targetLocatorFingerprint',
+    ]);
+    assert.deepEqual(permissionAssertions, [
+      {
+        action: 'Workspace.Copilot',
+        userId: 'user-smoke',
+        workspaceId: 'workspace-smoke',
+      },
+    ]);
+  })();
   const executionRequest =
     await routeAwareResolver.requestCopilotPromptRegistryRepairExecution(
       currentUser as any,
@@ -5425,2361 +5464,2308 @@ async function main() {
           matchingPreflight?.rollbackPlanFingerprint ?? '',
       } as any
     );
-  assert.equal(executionRequest.requestVersion, 'repair-execution-request/v1');
-  assert.equal(executionRequest.requestStatus, 'blocked_read_only');
-  assert.equal(executionRequest.readOnly, true);
-  assert.equal(executionRequest.mutationAvailable, false);
-  assert.equal(executionRequest.accepted, false);
-  assert.equal(executionRequest.executionRequested, false);
-  assert.equal(
-    executionRequest.expectedCandidateEvidenceSetFingerprint,
-    matchingPreflight?.candidateEvidenceSetFingerprint
-  );
-  assert.equal(
-    executionRequest.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
-    matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint
-  );
-  assert.deepEqual(
-    executionRequest.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs,
-    [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
-  );
-  assert.equal(
-    executionRequest.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion,
-    taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
-  );
-  assert.equal(
-    executionRequest.expectedEmbeddingIndexContractEvidenceSetFingerprint,
-    matchingPreflight?.embeddingIndexContractEvidenceSetFingerprint
-  );
-  assert.equal(
-    executionRequest.expectedRerankRuntimeContractEvidenceSetFingerprint,
-    matchingPreflight?.rerankRuntimeContractEvidenceSetFingerprint
-  );
-  assert.equal(
-    executionRequest.expectedTargetLocatorFingerprint,
-    matchingPreflight?.targetLocatorFingerprint
-  );
-  assert.equal(
-    executionRequest.expectedRepairGateManifestFingerprint,
-    routeReadyGate.repairGateManifest.fingerprint
-  );
-  assert.equal(
-    executionRequest.expectedRepairGateManifestExportPolicyFingerprint,
-    routeReadyGate.repairGateManifestExportMetadata.exportPolicyFingerprint
-  );
-  assert.equal(
-    executionRequest.expectedRepairGateManifestRetentionPolicyFingerprint,
-    routeReadyGate.repairGateManifestExportMetadata.retentionPolicyFingerprint
-  );
-  assert.equal(
-    executionRequest.supportBundleArtifactVersion,
-    'prompt-registry-repair-gate-support-bundle-artifact/v1'
-  );
-  assert.equal(
-    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint,
-    matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint
-  );
-  assert.deepEqual(
-    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints,
-    routeReadyGate.repairActionPreview.operations
-      .map(operation => operation.operationFingerprint)
-      .sort()
-  );
-  assert.deepEqual(
-    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetEntries,
-    routeReadyGate.repairActionPreview.operations
-      .map(operation => {
-        const candidateEvidenceKeys = [
-          ...operation.candidateEvidenceKeys,
-        ].sort();
+  await (async () => {
+    assert.equal(
+      executionRequest.requestVersion,
+      'repair-execution-request/v1'
+    );
+    assert.equal(executionRequest.requestStatus, 'blocked_read_only');
+    assert.equal(executionRequest.readOnly, true);
+    assert.equal(executionRequest.mutationAvailable, false);
+    assert.equal(executionRequest.accepted, false);
+    assert.equal(executionRequest.executionRequested, false);
+    assert.equal(
+      executionRequest.expectedCandidateEvidenceSetFingerprint,
+      matchingPreflight?.candidateEvidenceSetFingerprint
+    );
+    assert.equal(
+      executionRequest.expectedTaskRouteEffectiveSourceEvidenceSetFingerprint,
+      matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint
+    );
+    assert.deepEqual(
+      executionRequest.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintInputs,
+      [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
+    );
+    assert.equal(
+      executionRequest.expectedTaskRouteEffectiveSourceEvidenceSetFingerprintVersion,
+      taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
+    );
+    assert.equal(
+      executionRequest.expectedEmbeddingIndexContractEvidenceSetFingerprint,
+      matchingPreflight?.embeddingIndexContractEvidenceSetFingerprint
+    );
+    assert.equal(
+      executionRequest.expectedRerankRuntimeContractEvidenceSetFingerprint,
+      matchingPreflight?.rerankRuntimeContractEvidenceSetFingerprint
+    );
+    assert.equal(
+      executionRequest.expectedTargetLocatorFingerprint,
+      matchingPreflight?.targetLocatorFingerprint
+    );
+    assert.equal(
+      executionRequest.expectedRepairGateManifestFingerprint,
+      routeReadyGate.repairGateManifest.fingerprint
+    );
+    assert.equal(
+      executionRequest.expectedRepairGateManifestExportPolicyFingerprint,
+      routeReadyGate.repairGateManifestExportMetadata.exportPolicyFingerprint
+    );
+    assert.equal(
+      executionRequest.expectedRepairGateManifestRetentionPolicyFingerprint,
+      routeReadyGate.repairGateManifestExportMetadata.retentionPolicyFingerprint
+    );
+    assert.equal(
+      executionRequest.supportBundleArtifactVersion,
+      'prompt-registry-repair-gate-support-bundle-artifact/v1'
+    );
+    assert.equal(
+      executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprint,
+      matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint
+    );
+    assert.deepEqual(
+      executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetOperationFingerprints,
+      routeReadyGate.repairActionPreview.operations
+        .map(operation => operation.operationFingerprint)
+        .sort()
+    );
+    assert.deepEqual(
+      executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetEntries,
+      routeReadyGate.repairActionPreview.operations
+        .map(operation => {
+          const candidateEvidenceKeys = [
+            ...operation.candidateEvidenceKeys,
+          ].sort();
 
-        return {
-          ...candidateEvidenceClassificationSummaryFixture(
-            candidateEvidenceKeys
-          ),
-          candidateEvidenceCount: operation.candidateEvidenceCount,
-          candidateEvidenceReferenceSchemaArtifactFingerprint:
-            candidateEvidenceReferenceSchemaArtifactFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactFingerprintInputs: [
-            ...candidateEvidenceReferenceSchemaArtifactFingerprintInputsFixture,
-          ],
-          candidateEvidenceReferenceSchemaArtifactRecordFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs: [
-            ...candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputsFixture,
-          ],
-          candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputsFixture,
+          return {
+            ...candidateEvidenceClassificationSummaryFixture(
+              candidateEvidenceKeys
+            ),
+            candidateEvidenceCount: operation.candidateEvidenceCount,
+            candidateEvidenceReferenceSchemaArtifactFingerprint:
+              candidateEvidenceReferenceSchemaArtifactFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactFingerprintInputs: [
+              ...candidateEvidenceReferenceSchemaArtifactFingerprintInputsFixture,
             ],
-          candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputsFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs: [
+              ...candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputsFixture,
             ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputsFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputs:
+              [
+                ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputsFixture,
+              ],
+            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStorageStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStorageStatusFixture,
+            candidateEvidenceReferenceSchemaArtifactRecordStatus:
+              candidateEvidenceReferenceSchemaArtifactRecordStatusFixture,
+            candidateEvidenceReferenceSchemaFields: [
+              ...candidateEvidenceReferenceSchemaFieldsFixture,
             ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputsFixture,
+            candidateEvidenceReferenceSchemaArtifactStatus:
+              candidateEvidenceReferenceSchemaArtifactStatusFixture,
+            candidateEvidenceReferenceSchemaFingerprint:
+              candidateEvidenceReferenceSchemaFingerprintFixture,
+            candidateEvidenceReferenceSchemaFingerprintInputs: [
+              ...candidateEvidenceReferenceSchemaFingerprintInputsFixture,
             ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputs:
-            [
-              ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputsFixture,
-            ],
-          candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStorageStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStorageStatusFixture,
-          candidateEvidenceReferenceSchemaArtifactRecordStatus:
-            candidateEvidenceReferenceSchemaArtifactRecordStatusFixture,
-          candidateEvidenceReferenceSchemaFields: [
-            ...candidateEvidenceReferenceSchemaFieldsFixture,
-          ],
-          candidateEvidenceReferenceSchemaArtifactStatus:
-            candidateEvidenceReferenceSchemaArtifactStatusFixture,
-          candidateEvidenceReferenceSchemaFingerprint:
-            candidateEvidenceReferenceSchemaFingerprintFixture,
-          candidateEvidenceReferenceSchemaFingerprintInputs: [
-            ...candidateEvidenceReferenceSchemaFingerprintInputsFixture,
-          ],
-          candidateEvidenceReferenceSchemaRegistryStatus:
-            candidateEvidenceReferenceSchemaRegistryStatusFixture,
-          candidateEvidenceReferenceSchemaVersion:
-            candidateEvidenceReferenceSchemaVersionFixture,
-          candidateEvidenceEntries: operation.candidateEvidenceEntries,
-          candidateEvidenceFingerprint: operation.candidateEvidenceFingerprint,
-          candidateEvidenceFingerprints: [
-            ...operation.candidateEvidenceFingerprints,
-          ].sort(),
-          candidateEvidenceKeys,
-          diagnosticsFingerprint: operation.diagnosticsFingerprint,
-          operationFingerprint: operation.operationFingerprint,
-          taskRouteEffectiveSourceFingerprints: [
-            ...operation.taskRouteEffectiveSourceFingerprints,
-          ].sort(),
-        };
-      })
-      .sort((left, right) =>
-        left.operationFingerprint.localeCompare(right.operationFingerprint)
-      )
-  );
-  const taskRouteSourceEvidenceEntry =
-    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetEntries.find(
-      entry => entry.taskRouteEffectiveSourceFingerprints.length
-    );
-  const taskRouteSourcePreviewOperation =
-    routeReadyGate.repairActionPreview.operations.find(
-      operation =>
-        operation.operationFingerprint ===
-        taskRouteSourceEvidenceEntry?.operationFingerprint
-    );
-  assert.notEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.length,
-    0,
-    'task route source evidence entry should expose per-candidate evidence references'
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceEntries,
-    taskRouteSourcePreviewOperation?.candidateEvidenceEntries
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaFields,
-    [...candidateEvidenceReferenceSchemaFieldsFixture]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactFingerprint,
-    candidateEvidenceReferenceSchemaArtifactFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactFingerprintInputs,
-    [...candidateEvidenceReferenceSchemaArtifactFingerprintInputsFixture]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs,
-    [...candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputsFixture]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputs,
-    [
-      ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputsFixture,
-    ]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStorageStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStatus,
-    candidateEvidenceReferenceSchemaArtifactRecordStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactStatus,
-    candidateEvidenceReferenceSchemaArtifactStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaFingerprint,
-    candidateEvidenceReferenceSchemaFingerprintFixture
-  );
-  assert.deepEqual(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaFingerprintInputs,
-    [...candidateEvidenceReferenceSchemaFingerprintInputsFixture]
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaRegistryStatus,
-    candidateEvidenceReferenceSchemaRegistryStatusFixture
-  );
-  assert.equal(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaVersion,
-    candidateEvidenceReferenceSchemaVersionFixture
-  );
-  assert.ok(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.some(
-      entry => entry.taskRouteEffectiveSourceFingerprint
-    ),
-    'task route source evidence candidate references should expose source fingerprints'
-  );
-  assert.ok(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.some(
-      entry => entry.preparedRouteOrderFingerprint
-    ),
-    'task route source evidence candidate references should expose prepared route order fingerprints'
-  );
-  assert.ok(
-    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetEntries.some(
-      entry =>
-        entry.candidateEvidenceEntries.some(candidateEntry =>
-          candidateEntry.preparedRouteEntries?.some(
-            preparedRoute => preparedRoute.providerId && preparedRoute.modelId
-          )
-        )
-    ),
-    'task route source evidence candidate references should expose prepared route entries'
-  );
-  assert.ok(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.some(
-      entry => entry.taskRouteModelSourceSnapshotFingerprint
-    ),
-    'task route source evidence candidate references should expose model source snapshot fingerprints'
-  );
-  assert.ok(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.some(entry =>
-      entry.taskRouteModelSourceSnapshotEntries?.some(
-        snapshot => snapshot.featureKind
-      )
-    ),
-    'task route source evidence candidate references should expose model source snapshot entries'
-  );
-  assert.ok(
-    taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.some(entry =>
-      entry.policyCandidateEntries?.some(candidate => candidate.providerId)
-    ),
-    'task route source evidence candidate references should expose policy candidate entries'
-  );
-  assert.ok(
-    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetEntries.some(
-      entry =>
-        entry.candidateEvidenceEntries.some(candidateEntry =>
-          candidateEntry.prepareCandidateEntries?.some(
-            candidate => candidate.providerId && candidate.preparedModelId
-          )
-        )
-    ),
-    'task route source evidence candidate references should expose prepare candidate entries'
-  );
-  assert.ok(
-    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetEntries.some(
-      entry =>
-        entry.candidateEvidenceEntries.some(candidateEntry =>
-          candidateEntry.routeCandidateEntries?.some(
-            candidate => candidate.providerId
-          )
-        )
-    ),
-    'task route source evidence candidate references should expose route candidate entries'
-  );
-  assert.deepEqual(
-    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints,
-    Array.from(
-      new Set(
-        routeReadyGate.repairActionPreview.operations.map(
-          operation => operation.diagnosticsFingerprint
-        )
-      )
-    ).sort()
-  );
-  assert.deepEqual(
-    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints,
-    Array.from(
-      new Set(
-        routeReadyGate.repairActionPreview.operations.flatMap(
-          operation => operation.taskRouteEffectiveSourceFingerprints
-        )
-      )
-    ).sort()
-  );
-  assert.deepEqual(
-    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs,
-    [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
-  );
-  assert.equal(
-    executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion,
-    taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
-  );
-  assert.equal(
-    executionRequest.supportBundleArtifactStatus,
-    'not_created_read_only'
-  );
-  assert.equal(executionRequest.supportBundleArtifactCreated, false);
-  assert.match(
-    executionRequest.supportBundleArtifactFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.supportBundleArtifactInputs, [
-    'candidateEvidenceSetFingerprint',
-    'embeddingIndexContractEvidenceSetFingerprint',
-    'manifestExportPolicyFingerprint',
-    'manifestFingerprint',
-    'manifestMetadataRetentionPolicyFingerprint',
-    'preparedRouteOrderEvidenceSetFingerprint',
-    'requestStatus',
-    'rerankRuntimeContractEvidenceSetFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-  ]);
-  assert.equal(
-    executionRequest.supportBundleArtifactFingerprint,
-    createHash('sha256')
-      .update(
-        stableFingerprintFixtureStringify({
-          candidateEvidenceSetFingerprint:
-            matchingPreflight?.candidateEvidenceSetFingerprint,
-          taskRouteEffectiveSourceEvidenceSetFingerprint:
-            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
-          created: false,
-          embeddingIndexContractEvidenceSetFingerprint:
-            matchingPreflight?.embeddingIndexContractEvidenceSetFingerprint,
-          inputs: executionRequest.supportBundleArtifactInputs,
-          manifestExportPolicyFingerprint:
-            routeReadyGate.repairGateManifestExportMetadata
-              .exportPolicyFingerprint,
-          manifestFilename:
-            routeReadyGate.repairGateManifestExportMetadata.filename,
-          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
-          manifestMetadataFilename:
-            routeReadyGate.repairGateManifestExportMetadata.metadataFilename,
-          manifestMetadataRetentionPolicyFingerprint:
-            routeReadyGate.repairGateManifestExportMetadata
-              .retentionPolicyFingerprint,
-          preparedRouteOrderEvidenceSetFingerprint:
-            matchingPreflight?.preparedRouteOrderEvidenceSetFingerprint,
-          requestStatus: executionRequest.requestStatus,
-          rerankRuntimeContractEvidenceSetFingerprint:
-            matchingPreflight?.rerankRuntimeContractEvidenceSetFingerprint,
-          status: executionRequest.supportBundleArtifactStatus,
-          submissionFingerprint:
-            matchingPreflight?.currentSubmissionFingerprint,
-          targetLocatorFingerprint: matchingPreflight?.targetLocatorFingerprint,
-          version: executionRequest.supportBundleArtifactVersion,
-          workspaceId: matchingPreflight?.workspaceId ?? null,
+            candidateEvidenceReferenceSchemaRegistryStatus:
+              candidateEvidenceReferenceSchemaRegistryStatusFixture,
+            candidateEvidenceReferenceSchemaVersion:
+              candidateEvidenceReferenceSchemaVersionFixture,
+            candidateEvidenceEntries: operation.candidateEvidenceEntries,
+            candidateEvidenceFingerprint:
+              operation.candidateEvidenceFingerprint,
+            candidateEvidenceFingerprints: [
+              ...operation.candidateEvidenceFingerprints,
+            ].sort(),
+            candidateEvidenceKeys,
+            diagnosticsFingerprint: operation.diagnosticsFingerprint,
+            operationFingerprint: operation.operationFingerprint,
+            taskRouteEffectiveSourceFingerprints: [
+              ...operation.taskRouteEffectiveSourceFingerprints,
+            ].sort(),
+          };
         })
-      )
-      .digest('hex')
-      .slice(0, 16)
-  );
-  assert.equal(
-    executionRequest.supportBundleManifestFilename,
-    routeReadyGate.repairGateManifestExportMetadata.filename
-  );
-  assert.equal(
-    executionRequest.supportBundleManifestFingerprint,
-    routeReadyGate.repairGateManifest.fingerprint
-  );
-  assert.equal(
-    executionRequest.supportBundleManifestMetadataFilename,
-    routeReadyGate.repairGateManifestExportMetadata.metadataFilename
-  );
-  assert.equal(
-    executionRequest.supportBundleManifestMetadataFingerprint,
-    routeReadyGate.repairGateManifestExportMetadata.exportPolicyFingerprint
-  );
-  assert.equal(
-    executionRequest.supportBundlePackageVersion,
-    'prompt-registry-repair-gate-support-bundle-package/v1'
-  );
-  assert.equal(
-    executionRequest.supportBundlePackageStatus,
-    'not_created_read_only'
-  );
-  assert.equal(executionRequest.supportBundlePackageCreated, false);
-  assert.equal(
-    executionRequest.supportBundleDownloadAuthorizationStatus,
-    'not_checked_read_only'
-  );
-  assert.equal(
-    executionRequest.supportBundleDownloadAuthorizationRequestVersion,
-    'prompt-registry-repair-gate-support-bundle-download-authorization-request/v1'
-  );
-  assert.equal(
-    executionRequest.supportBundleDownloadAuthorizationRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    executionRequest.supportBundleDownloadAuthorizationRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    executionRequest.supportBundleDownloadAuthorizationRequestInputs,
-    [
-      'actorFingerprint',
-      'authorizationStatus',
-      'downloadAuthorizationStatus',
-      'exportPolicyFingerprint',
+        .sort((left, right) =>
+          left.operationFingerprint.localeCompare(right.operationFingerprint)
+        )
+    );
+    const taskRouteSourceEvidenceEntry =
+      executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetEntries.find(
+        entry => entry.taskRouteEffectiveSourceFingerprints.length
+      );
+    const taskRouteSourcePreviewOperation =
+      routeReadyGate.repairActionPreview.operations.find(
+        operation =>
+          operation.operationFingerprint ===
+          taskRouteSourceEvidenceEntry?.operationFingerprint
+      );
+    assert.notEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.length,
+      0,
+      'task route source evidence entry should expose per-candidate evidence references'
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceEntries,
+      taskRouteSourcePreviewOperation?.candidateEvidenceEntries
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaFields,
+      [...candidateEvidenceReferenceSchemaFieldsFixture]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactFingerprint,
+      candidateEvidenceReferenceSchemaArtifactFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactFingerprintInputs,
+      [...candidateEvidenceReferenceSchemaArtifactFingerprintInputsFixture]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordPersistenceFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordPersistenceStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageBackendFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageBackendStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveInclusionStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageBackendStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionFingerprintFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveInclusionStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceRecordStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryPersistenceStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectArchiveManifestEntryStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageObjectStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStorageStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceRecordStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectArchiveManifestEntryPersistenceStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprint,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputs,
+      [
+        ...candidateEvidenceReferenceSchemaArtifactRecordStorageObjectFingerprintInputsFixture,
+      ]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageObjectStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStorageStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStorageStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactRecordStatus,
+      candidateEvidenceReferenceSchemaArtifactRecordStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaArtifactStatus,
+      candidateEvidenceReferenceSchemaArtifactStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaFingerprint,
+      candidateEvidenceReferenceSchemaFingerprintFixture
+    );
+    assert.deepEqual(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaFingerprintInputs,
+      [...candidateEvidenceReferenceSchemaFingerprintInputsFixture]
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaRegistryStatus,
+      candidateEvidenceReferenceSchemaRegistryStatusFixture
+    );
+    assert.equal(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceReferenceSchemaVersion,
+      candidateEvidenceReferenceSchemaVersionFixture
+    );
+    assert.ok(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.some(
+        entry => entry.taskRouteEffectiveSourceFingerprint
+      ),
+      'task route source evidence candidate references should expose source fingerprints'
+    );
+    assert.ok(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.some(
+        entry => entry.preparedRouteOrderFingerprint
+      ),
+      'task route source evidence candidate references should expose prepared route order fingerprints'
+    );
+    assert.ok(
+      executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetEntries.some(
+        entry =>
+          entry.candidateEvidenceEntries.some(candidateEntry =>
+            candidateEntry.preparedRouteEntries?.some(
+              preparedRoute => preparedRoute.providerId && preparedRoute.modelId
+            )
+          )
+      ),
+      'task route source evidence candidate references should expose prepared route entries'
+    );
+    assert.ok(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.some(
+        entry => entry.taskRouteModelSourceSnapshotFingerprint
+      ),
+      'task route source evidence candidate references should expose model source snapshot fingerprints'
+    );
+    assert.ok(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.some(entry =>
+        entry.taskRouteModelSourceSnapshotEntries?.some(
+          snapshot => snapshot.featureKind
+        )
+      ),
+      'task route source evidence candidate references should expose model source snapshot entries'
+    );
+    assert.ok(
+      taskRouteSourceEvidenceEntry?.candidateEvidenceEntries.some(entry =>
+        entry.policyCandidateEntries?.some(candidate => candidate.providerId)
+      ),
+      'task route source evidence candidate references should expose policy candidate entries'
+    );
+    assert.ok(
+      executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetEntries.some(
+        entry =>
+          entry.candidateEvidenceEntries.some(candidateEntry =>
+            candidateEntry.prepareCandidateEntries?.some(
+              candidate => candidate.providerId && candidate.preparedModelId
+            )
+          )
+      ),
+      'task route source evidence candidate references should expose prepare candidate entries'
+    );
+    assert.ok(
+      executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetEntries.some(
+        entry =>
+          entry.candidateEvidenceEntries.some(candidateEntry =>
+            candidateEntry.routeCandidateEntries?.some(
+              candidate => candidate.providerId
+            )
+          )
+      ),
+      'task route source evidence candidate references should expose route candidate entries'
+    );
+    assert.deepEqual(
+      executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetDiagnosticsFingerprints,
+      Array.from(
+        new Set(
+          routeReadyGate.repairActionPreview.operations.map(
+            operation => operation.diagnosticsFingerprint
+          )
+        )
+      ).sort()
+    );
+    assert.deepEqual(
+      executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetSourceFingerprints,
+      Array.from(
+        new Set(
+          routeReadyGate.repairActionPreview.operations.flatMap(
+            operation => operation.taskRouteEffectiveSourceFingerprints
+          )
+        )
+      ).sort()
+    );
+    assert.deepEqual(
+      executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintInputs,
+      [...taskRouteEffectiveSourceEvidenceSetFingerprintInputsFixture]
+    );
+    assert.equal(
+      executionRequest.supportBundleTaskRouteEffectiveSourceEvidenceSetFingerprintVersion,
+      taskRouteEffectiveSourceEvidenceSetFingerprintVersionFixture
+    );
+    assert.equal(
+      executionRequest.supportBundleArtifactStatus,
+      'not_created_read_only'
+    );
+    assert.equal(executionRequest.supportBundleArtifactCreated, false);
+    assert.match(
+      executionRequest.supportBundleArtifactFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.supportBundleArtifactInputs, [
+      'candidateEvidenceSetFingerprint',
+      'embeddingIndexContractEvidenceSetFingerprint',
+      'manifestExportPolicyFingerprint',
       'manifestFingerprint',
-      'manifestMetadataFingerprint',
+      'manifestMetadataRetentionPolicyFingerprint',
+      'preparedRouteOrderEvidenceSetFingerprint',
       'requestStatus',
-      'supportBundleArtifactFingerprint',
+      'rerankRuntimeContractEvidenceSetFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
       'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    ]
-  );
-  assert.equal(
-    executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
-    createHash('sha256')
-      .update(
-        stableFingerprintFixtureStringify({
-          actorFingerprint: matchingPreflight?.actorFingerprint,
-          authorizationStatus: matchingPreflight?.authorizationStatus,
-          created: false,
-          downloadAuthorizationStatus:
-            executionRequest.supportBundleDownloadAuthorizationStatus,
-          exportPolicyFingerprint:
-            routeReadyGate.repairGateManifestExportMetadata
-              .exportPolicyFingerprint,
-          inputs:
-            executionRequest.supportBundleDownloadAuthorizationRequestInputs,
-          manifestFilename:
-            routeReadyGate.repairGateManifestExportMetadata.filename,
-          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
-          manifestMetadataFilename:
-            routeReadyGate.repairGateManifestExportMetadata.metadataFilename,
-          manifestMetadataFingerprint:
-            routeReadyGate.repairGateManifestExportMetadata
-              .exportPolicyFingerprint,
-          requestStatus: executionRequest.requestStatus,
-          status:
-            executionRequest.supportBundleDownloadAuthorizationRequestStatus,
-          supportBundleArtifactFingerprint:
-            executionRequest.supportBundleArtifactFingerprint,
-          taskRouteEffectiveSourceEvidenceSetFingerprint:
-            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
-          version:
-            executionRequest.supportBundleDownloadAuthorizationRequestVersion,
-          workspaceId: matchingPreflight?.workspaceId ?? null,
-        })
-      )
-      .digest('hex')
-      .slice(0, 16)
-  );
-  assert.equal(
-    executionRequest.supportBundleAuditPersistenceStatus,
-    'not_persisted_read_only'
-  );
-  assert.equal(
-    executionRequest.supportBundleAuditPersistenceRequestVersion,
-    'prompt-registry-repair-gate-support-bundle-audit-persistence-request/v1'
-  );
-  assert.equal(
-    executionRequest.supportBundleAuditPersistenceRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    executionRequest.supportBundleAuditPersistenceRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.supportBundleAuditPersistenceRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    executionRequest.supportBundleAuditPersistenceRequestInputs,
-    [
-      'actorFingerprint',
+    ]);
+    assert.equal(
+      executionRequest.supportBundleArtifactFingerprint,
+      createHash('sha256')
+        .update(
+          stableFingerprintFixtureStringify({
+            candidateEvidenceSetFingerprint:
+              matchingPreflight?.candidateEvidenceSetFingerprint,
+            taskRouteEffectiveSourceEvidenceSetFingerprint:
+              matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
+            created: false,
+            embeddingIndexContractEvidenceSetFingerprint:
+              matchingPreflight?.embeddingIndexContractEvidenceSetFingerprint,
+            inputs: executionRequest.supportBundleArtifactInputs,
+            manifestExportPolicyFingerprint:
+              routeReadyGate.repairGateManifestExportMetadata
+                .exportPolicyFingerprint,
+            manifestFilename:
+              routeReadyGate.repairGateManifestExportMetadata.filename,
+            manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+            manifestMetadataFilename:
+              routeReadyGate.repairGateManifestExportMetadata.metadataFilename,
+            manifestMetadataRetentionPolicyFingerprint:
+              routeReadyGate.repairGateManifestExportMetadata
+                .retentionPolicyFingerprint,
+            preparedRouteOrderEvidenceSetFingerprint:
+              matchingPreflight?.preparedRouteOrderEvidenceSetFingerprint,
+            requestStatus: executionRequest.requestStatus,
+            rerankRuntimeContractEvidenceSetFingerprint:
+              matchingPreflight?.rerankRuntimeContractEvidenceSetFingerprint,
+            status: executionRequest.supportBundleArtifactStatus,
+            submissionFingerprint:
+              matchingPreflight?.currentSubmissionFingerprint,
+            targetLocatorFingerprint:
+              matchingPreflight?.targetLocatorFingerprint,
+            version: executionRequest.supportBundleArtifactVersion,
+            workspaceId: matchingPreflight?.workspaceId ?? null,
+          })
+        )
+        .digest('hex')
+        .slice(0, 16)
+    );
+    assert.equal(
+      executionRequest.supportBundleManifestFilename,
+      routeReadyGate.repairGateManifestExportMetadata.filename
+    );
+    assert.equal(
+      executionRequest.supportBundleManifestFingerprint,
+      routeReadyGate.repairGateManifest.fingerprint
+    );
+    assert.equal(
+      executionRequest.supportBundleManifestMetadataFilename,
+      routeReadyGate.repairGateManifestExportMetadata.metadataFilename
+    );
+    assert.equal(
+      executionRequest.supportBundleManifestMetadataFingerprint,
+      routeReadyGate.repairGateManifestExportMetadata.exportPolicyFingerprint
+    );
+    assert.equal(
+      executionRequest.supportBundlePackageVersion,
+      'prompt-registry-repair-gate-support-bundle-package/v1'
+    );
+    assert.equal(
+      executionRequest.supportBundlePackageStatus,
+      'not_created_read_only'
+    );
+    assert.equal(executionRequest.supportBundlePackageCreated, false);
+    assert.equal(
+      executionRequest.supportBundleDownloadAuthorizationStatus,
+      'not_checked_read_only'
+    );
+    assert.equal(
+      executionRequest.supportBundleDownloadAuthorizationRequestVersion,
+      'prompt-registry-repair-gate-support-bundle-download-authorization-request/v1'
+    );
+    assert.equal(
+      executionRequest.supportBundleDownloadAuthorizationRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      executionRequest.supportBundleDownloadAuthorizationRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.supportBundleDownloadAuthorizationRequestInputs,
+      [
+        'actorFingerprint',
+        'authorizationStatus',
+        'downloadAuthorizationStatus',
+        'exportPolicyFingerprint',
+        'manifestFingerprint',
+        'manifestMetadataFingerprint',
+        'requestStatus',
+        'supportBundleArtifactFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      ]
+    );
+    assert.equal(
+      executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
+      createHash('sha256')
+        .update(
+          stableFingerprintFixtureStringify({
+            actorFingerprint: matchingPreflight?.actorFingerprint,
+            authorizationStatus: matchingPreflight?.authorizationStatus,
+            created: false,
+            downloadAuthorizationStatus:
+              executionRequest.supportBundleDownloadAuthorizationStatus,
+            exportPolicyFingerprint:
+              routeReadyGate.repairGateManifestExportMetadata
+                .exportPolicyFingerprint,
+            inputs:
+              executionRequest.supportBundleDownloadAuthorizationRequestInputs,
+            manifestFilename:
+              routeReadyGate.repairGateManifestExportMetadata.filename,
+            manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+            manifestMetadataFilename:
+              routeReadyGate.repairGateManifestExportMetadata.metadataFilename,
+            manifestMetadataFingerprint:
+              routeReadyGate.repairGateManifestExportMetadata
+                .exportPolicyFingerprint,
+            requestStatus: executionRequest.requestStatus,
+            status:
+              executionRequest.supportBundleDownloadAuthorizationRequestStatus,
+            supportBundleArtifactFingerprint:
+              executionRequest.supportBundleArtifactFingerprint,
+            taskRouteEffectiveSourceEvidenceSetFingerprint:
+              matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
+            version:
+              executionRequest.supportBundleDownloadAuthorizationRequestVersion,
+            workspaceId: matchingPreflight?.workspaceId ?? null,
+          })
+        )
+        .digest('hex')
+        .slice(0, 16)
+    );
+    assert.equal(
+      executionRequest.supportBundleAuditPersistenceStatus,
+      'not_persisted_read_only'
+    );
+    assert.equal(
+      executionRequest.supportBundleAuditPersistenceRequestVersion,
+      'prompt-registry-repair-gate-support-bundle-audit-persistence-request/v1'
+    );
+    assert.equal(
+      executionRequest.supportBundleAuditPersistenceRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      executionRequest.supportBundleAuditPersistenceRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.supportBundleAuditPersistenceRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.supportBundleAuditPersistenceRequestInputs,
+      [
+        'actorFingerprint',
+        'auditEventFingerprint',
+        'auditEventStatus',
+        'auditPersistenceStatus',
+        'downloadAuthorizationRequestFingerprint',
+        'exportPolicyFingerprint',
+        'manifestFingerprint',
+        'requestStatus',
+        'supportBundlePackageFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      ]
+    );
+    assert.equal(
+      executionRequest.supportBundleAuditPersistenceRequestFingerprint,
+      createHash('sha256')
+        .update(
+          stableFingerprintFixtureStringify({
+            actorFingerprint: matchingPreflight?.actorFingerprint,
+            auditEventFingerprint:
+              routeReadyGate.repairGateManifestExportMetadata
+                .auditEventFingerprint,
+            auditEventStatus:
+              routeReadyGate.repairGateManifestExportMetadata.auditEventStatus,
+            auditPersistenceStatus:
+              executionRequest.supportBundleAuditPersistenceStatus,
+            created: false,
+            downloadAuthorizationRequestFingerprint:
+              executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
+            exportPolicyFingerprint:
+              routeReadyGate.repairGateManifestExportMetadata
+                .exportPolicyFingerprint,
+            inputs: executionRequest.supportBundleAuditPersistenceRequestInputs,
+            manifestFilename:
+              routeReadyGate.repairGateManifestExportMetadata.filename,
+            manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+            requestStatus: executionRequest.requestStatus,
+            status: executionRequest.supportBundleAuditPersistenceRequestStatus,
+            supportBundlePackageFingerprint:
+              executionRequest.supportBundlePackageFingerprint,
+            taskRouteEffectiveSourceEvidenceSetFingerprint:
+              matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
+            version:
+              executionRequest.supportBundleAuditPersistenceRequestVersion,
+            workspaceId: matchingPreflight?.workspaceId ?? null,
+          })
+        )
+        .digest('hex')
+        .slice(0, 16)
+    );
+    assert.equal(
+      executionRequest.supportBundleRetentionCleanupStatus,
+      'not_scheduled_read_only'
+    );
+    assert.match(
+      executionRequest.supportBundlePackageFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.supportBundlePackageInputs, [
       'auditEventFingerprint',
       'auditEventStatus',
       'auditPersistenceStatus',
       'downloadAuthorizationRequestFingerprint',
+      'downloadAuthorizationStatus',
       'exportPolicyFingerprint',
       'manifestFingerprint',
-      'requestStatus',
-      'supportBundlePackageFingerprint',
-      'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    ]
-  );
-  assert.equal(
-    executionRequest.supportBundleAuditPersistenceRequestFingerprint,
-    createHash('sha256')
-      .update(
-        stableFingerprintFixtureStringify({
-          actorFingerprint: matchingPreflight?.actorFingerprint,
-          auditEventFingerprint:
-            routeReadyGate.repairGateManifestExportMetadata
-              .auditEventFingerprint,
-          auditEventStatus:
-            routeReadyGate.repairGateManifestExportMetadata.auditEventStatus,
-          auditPersistenceStatus:
-            executionRequest.supportBundleAuditPersistenceStatus,
-          created: false,
-          downloadAuthorizationRequestFingerprint:
-            executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
-          exportPolicyFingerprint:
-            routeReadyGate.repairGateManifestExportMetadata
-              .exportPolicyFingerprint,
-          inputs: executionRequest.supportBundleAuditPersistenceRequestInputs,
-          manifestFilename:
-            routeReadyGate.repairGateManifestExportMetadata.filename,
-          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
-          requestStatus: executionRequest.requestStatus,
-          status: executionRequest.supportBundleAuditPersistenceRequestStatus,
-          supportBundlePackageFingerprint:
-            executionRequest.supportBundlePackageFingerprint,
-          taskRouteEffectiveSourceEvidenceSetFingerprint:
-            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
-          version: executionRequest.supportBundleAuditPersistenceRequestVersion,
-          workspaceId: matchingPreflight?.workspaceId ?? null,
-        })
-      )
-      .digest('hex')
-      .slice(0, 16)
-  );
-  assert.equal(
-    executionRequest.supportBundleRetentionCleanupStatus,
-    'not_scheduled_read_only'
-  );
-  assert.match(
-    executionRequest.supportBundlePackageFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.supportBundlePackageInputs, [
-    'auditEventFingerprint',
-    'auditEventStatus',
-    'auditPersistenceStatus',
-    'downloadAuthorizationRequestFingerprint',
-    'downloadAuthorizationStatus',
-    'exportPolicyFingerprint',
-    'manifestFingerprint',
-    'manifestMetadataFingerprint',
-    'redactionPolicyFingerprint',
-    'retentionCleanupStatus',
-    'retentionPolicyFingerprint',
-    'supportBundleArtifactFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-  ]);
-  assert.equal(
-    executionRequest.supportBundlePackageFingerprint,
-    createHash('sha256')
-      .update(
-        stableFingerprintFixtureStringify({
-          auditEventFingerprint:
-            routeReadyGate.repairGateManifestExportMetadata
-              .auditEventFingerprint,
-          auditEventStatus:
-            routeReadyGate.repairGateManifestExportMetadata.auditEventStatus,
-          auditPersistenceStatus:
-            executionRequest.supportBundleAuditPersistenceStatus,
-          created: false,
-          downloadAuthorizationStatus:
-            executionRequest.supportBundleDownloadAuthorizationStatus,
-          downloadAuthorizationRequestFingerprint:
-            executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
-          exportPolicyFingerprint:
-            routeReadyGate.repairGateManifestExportMetadata
-              .exportPolicyFingerprint,
-          inputs: executionRequest.supportBundlePackageInputs,
-          manifestFilename:
-            routeReadyGate.repairGateManifestExportMetadata.filename,
-          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
-          manifestMetadataFilename:
-            routeReadyGate.repairGateManifestExportMetadata.metadataFilename,
-          manifestMetadataFingerprint:
-            routeReadyGate.repairGateManifestExportMetadata
-              .exportPolicyFingerprint,
-          redactionPolicyFingerprint:
-            routeReadyGate.repairGateManifestExportMetadata
-              .redactionPolicyFingerprint,
-          retentionCleanupStatus:
-            executionRequest.supportBundleRetentionCleanupStatus,
-          retentionPolicyFingerprint:
-            routeReadyGate.repairGateManifestExportMetadata
-              .retentionPolicyFingerprint,
-          status: executionRequest.supportBundlePackageStatus,
-          supportBundleArtifactFingerprint:
-            executionRequest.supportBundleArtifactFingerprint,
-          supportBundleArtifactStatus:
-            executionRequest.supportBundleArtifactStatus,
-          taskRouteEffectiveSourceEvidenceSetFingerprint:
-            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
-          version: executionRequest.supportBundlePackageVersion,
-          workspaceId: matchingPreflight?.workspaceId ?? null,
-        })
-      )
-      .digest('hex')
-      .slice(0, 16)
-  );
-  assert.equal(
-    executionRequest.supportBundleRetentionCleanupRequestVersion,
-    'prompt-registry-repair-gate-support-bundle-retention-cleanup-request/v1'
-  );
-  assert.equal(
-    executionRequest.supportBundleRetentionCleanupRequestStatus,
-    'not_scheduled_read_only'
-  );
-  assert.equal(
-    executionRequest.supportBundleRetentionCleanupRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.supportBundleRetentionCleanupRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    executionRequest.supportBundleRetentionCleanupRequestInputs,
-    [
-      'actorFingerprint',
-      'auditPersistenceRequestFingerprint',
-      'manifestFingerprint',
-      'requestStatus',
+      'manifestMetadataFingerprint',
+      'redactionPolicyFingerprint',
       'retentionCleanupStatus',
       'retentionPolicyFingerprint',
-      'retentionPolicyStatus',
-      'supportBundlePackageFingerprint',
+      'supportBundleArtifactFingerprint',
       'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    ]
-  );
-  assert.equal(
-    executionRequest.supportBundleRetentionCleanupRequestFingerprint,
-    createHash('sha256')
-      .update(
-        stableFingerprintFixtureStringify({
-          actorFingerprint: matchingPreflight?.actorFingerprint,
-          auditPersistenceRequestFingerprint:
-            executionRequest.supportBundleAuditPersistenceRequestFingerprint,
-          created: false,
-          inputs: executionRequest.supportBundleRetentionCleanupRequestInputs,
-          manifestFilename:
-            routeReadyGate.repairGateManifestExportMetadata.filename,
-          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
-          requestStatus: executionRequest.requestStatus,
-          retentionCleanupStatus:
-            executionRequest.supportBundleRetentionCleanupStatus,
-          retentionPolicyFingerprint:
-            routeReadyGate.repairGateManifestExportMetadata
-              .retentionPolicyFingerprint,
-          retentionPolicyStatus:
-            routeReadyGate.repairGateManifestExportMetadata
-              .retentionPolicyStatus,
-          status: executionRequest.supportBundleRetentionCleanupRequestStatus,
-          supportBundlePackageFingerprint:
-            executionRequest.supportBundlePackageFingerprint,
-          taskRouteEffectiveSourceEvidenceSetFingerprint:
-            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
-          version: executionRequest.supportBundleRetentionCleanupRequestVersion,
-          workspaceId: matchingPreflight?.workspaceId ?? null,
-        })
-      )
-      .digest('hex')
-      .slice(0, 16)
-  );
-  assert.equal(
-    executionRequest.supportBundleArtifactRecordRequestVersion,
-    'prompt-registry-repair-gate-support-bundle-artifact-record-request/v1'
-  );
-  assert.equal(
-    executionRequest.supportBundleArtifactRecordRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    executionRequest.supportBundleArtifactRecordRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.supportBundleArtifactRecordRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.supportBundleArtifactRecordRequestInputs, [
-    'artifactFingerprint',
-    'artifactStatus',
-    'auditPersistenceRequestFingerprint',
-    'downloadAuthorizationRequestFingerprint',
-    'manifestFingerprint',
-    'manifestMetadataFingerprint',
-    'packageFingerprint',
-    'requestStatus',
-    'retentionCleanupRequestFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-  ]);
-  assert.equal(
-    executionRequest.supportBundleArtifactRecordRequestFingerprint,
-    createHash('sha256')
-      .update(
-        stableFingerprintFixtureStringify({
-          artifactFingerprint:
-            executionRequest.supportBundleArtifactFingerprint,
-          artifactStatus: executionRequest.supportBundleArtifactStatus,
-          auditPersistenceRequestFingerprint:
-            executionRequest.supportBundleAuditPersistenceRequestFingerprint,
-          created: false,
-          downloadAuthorizationRequestFingerprint:
-            executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
-          inputs: executionRequest.supportBundleArtifactRecordRequestInputs,
-          manifestFilename:
-            routeReadyGate.repairGateManifestExportMetadata.filename,
-          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
-          manifestMetadataFilename:
-            routeReadyGate.repairGateManifestExportMetadata.metadataFilename,
-          manifestMetadataFingerprint:
-            routeReadyGate.repairGateManifestExportMetadata
-              .exportPolicyFingerprint,
-          packageFingerprint: executionRequest.supportBundlePackageFingerprint,
-          requestStatus: executionRequest.requestStatus,
-          retentionCleanupRequestFingerprint:
-            executionRequest.supportBundleRetentionCleanupRequestFingerprint,
-          status: executionRequest.supportBundleArtifactRecordRequestStatus,
-          taskRouteEffectiveSourceEvidenceSetFingerprint:
-            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
-          version: executionRequest.supportBundleArtifactRecordRequestVersion,
-          workspaceId: matchingPreflight?.workspaceId ?? null,
-        })
-      )
-      .digest('hex')
-      .slice(0, 16)
-  );
-  assert.equal(
-    executionRequest.supportBundleStorageKeyRequestVersion,
-    'prompt-registry-repair-gate-support-bundle-storage-key-request/v1'
-  );
-  assert.equal(
-    executionRequest.supportBundleStorageKeyRequestStatus,
-    'not_allocated_read_only'
-  );
-  assert.equal(executionRequest.supportBundleStorageKeyRequestCreated, false);
-  assert.equal(
-    executionRequest.supportBundleStorageKeyScope,
-    'support_bundle_artifact_record'
-  );
-  assert.match(
-    executionRequest.supportBundleStorageKeyRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.supportBundleStorageKeyRequestInputs, [
-    'artifactFingerprint',
-    'artifactRecordRequestFingerprint',
-    'manifestFingerprint',
-    'packageFingerprint',
-    'requestStatus',
-    'storageKeyScope',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-  ]);
-  assert.equal(
-    executionRequest.supportBundleStorageKeyRequestFingerprint,
-    createHash('sha256')
-      .update(
-        stableFingerprintFixtureStringify({
-          artifactFingerprint:
-            executionRequest.supportBundleArtifactFingerprint,
-          artifactRecordRequestFingerprint:
-            executionRequest.supportBundleArtifactRecordRequestFingerprint,
-          created: false,
-          inputs: executionRequest.supportBundleStorageKeyRequestInputs,
-          manifestFilename:
-            routeReadyGate.repairGateManifestExportMetadata.filename,
-          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
-          packageFingerprint: executionRequest.supportBundlePackageFingerprint,
-          requestStatus: executionRequest.requestStatus,
-          scope: executionRequest.supportBundleStorageKeyScope,
-          status: executionRequest.supportBundleStorageKeyRequestStatus,
-          taskRouteEffectiveSourceEvidenceSetFingerprint:
-            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
-          version: executionRequest.supportBundleStorageKeyRequestVersion,
-          workspaceId: matchingPreflight?.workspaceId ?? null,
-        })
-      )
-      .digest('hex')
-      .slice(0, 16)
-  );
-  assert.equal(
-    executionRequest.supportBundleArchiveRequestVersion,
-    'prompt-registry-repair-gate-support-bundle-archive-request/v1'
-  );
-  assert.equal(
-    executionRequest.supportBundleArchiveRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(executionRequest.supportBundleArchiveRequestCreated, false);
-  assert.equal(
-    executionRequest.supportBundleArchiveFormat,
-    'json_manifest_bundle'
-  );
-  assert.equal(
-    executionRequest.supportBundleArchiveScope,
-    'support_bundle_download_archive'
-  );
-  assert.match(
-    executionRequest.supportBundleArchiveRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.supportBundleArchiveRequestInputs, [
-    'archiveFormat',
-    'archiveScope',
-    'artifactFingerprint',
-    'artifactRecordRequestFingerprint',
-    'manifestFingerprint',
-    'manifestMetadataFingerprint',
-    'packageFingerprint',
-    'requestStatus',
-    'storageKeyRequestFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-  ]);
-  assert.equal(
-    executionRequest.supportBundleArchiveRequestFingerprint,
-    createHash('sha256')
-      .update(
-        stableFingerprintFixtureStringify({
-          archiveFormat: executionRequest.supportBundleArchiveFormat,
-          archiveScope: executionRequest.supportBundleArchiveScope,
-          artifactFingerprint:
-            executionRequest.supportBundleArtifactFingerprint,
-          artifactRecordRequestFingerprint:
-            executionRequest.supportBundleArtifactRecordRequestFingerprint,
-          created: false,
-          inputs: executionRequest.supportBundleArchiveRequestInputs,
-          manifestFilename:
-            routeReadyGate.repairGateManifestExportMetadata.filename,
-          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
-          manifestMetadataFilename:
-            routeReadyGate.repairGateManifestExportMetadata.metadataFilename,
-          manifestMetadataFingerprint:
-            routeReadyGate.repairGateManifestExportMetadata
-              .exportPolicyFingerprint,
-          packageFingerprint: executionRequest.supportBundlePackageFingerprint,
-          requestStatus: executionRequest.requestStatus,
-          status: executionRequest.supportBundleArchiveRequestStatus,
-          storageKeyRequestFingerprint:
-            executionRequest.supportBundleStorageKeyRequestFingerprint,
-          taskRouteEffectiveSourceEvidenceSetFingerprint:
-            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
-          version: executionRequest.supportBundleArchiveRequestVersion,
-          workspaceId: matchingPreflight?.workspaceId ?? null,
-        })
-      )
-      .digest('hex')
-      .slice(0, 16)
-  );
-  assert.equal(
-    executionRequest.supportBundleArchiveSignatureRequestVersion,
-    'prompt-registry-repair-gate-support-bundle-archive-signature-request/v1'
-  );
-  assert.equal(
-    executionRequest.supportBundleArchiveSignatureRequestStatus,
-    'not_signed_read_only'
-  );
-  assert.equal(
-    executionRequest.supportBundleArchiveSignatureRequestCreated,
-    false
-  );
-  assert.equal(
-    executionRequest.supportBundleArchiveSignaturePolicy,
-    'support_bundle_archive_signature_read_only'
-  );
-  assert.match(
-    executionRequest.supportBundleArchiveSignatureRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    executionRequest.supportBundleArchiveSignatureRequestInputs,
-    [
+    ]);
+    assert.equal(
+      executionRequest.supportBundlePackageFingerprint,
+      createHash('sha256')
+        .update(
+          stableFingerprintFixtureStringify({
+            auditEventFingerprint:
+              routeReadyGate.repairGateManifestExportMetadata
+                .auditEventFingerprint,
+            auditEventStatus:
+              routeReadyGate.repairGateManifestExportMetadata.auditEventStatus,
+            auditPersistenceStatus:
+              executionRequest.supportBundleAuditPersistenceStatus,
+            created: false,
+            downloadAuthorizationStatus:
+              executionRequest.supportBundleDownloadAuthorizationStatus,
+            downloadAuthorizationRequestFingerprint:
+              executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
+            exportPolicyFingerprint:
+              routeReadyGate.repairGateManifestExportMetadata
+                .exportPolicyFingerprint,
+            inputs: executionRequest.supportBundlePackageInputs,
+            manifestFilename:
+              routeReadyGate.repairGateManifestExportMetadata.filename,
+            manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+            manifestMetadataFilename:
+              routeReadyGate.repairGateManifestExportMetadata.metadataFilename,
+            manifestMetadataFingerprint:
+              routeReadyGate.repairGateManifestExportMetadata
+                .exportPolicyFingerprint,
+            redactionPolicyFingerprint:
+              routeReadyGate.repairGateManifestExportMetadata
+                .redactionPolicyFingerprint,
+            retentionCleanupStatus:
+              executionRequest.supportBundleRetentionCleanupStatus,
+            retentionPolicyFingerprint:
+              routeReadyGate.repairGateManifestExportMetadata
+                .retentionPolicyFingerprint,
+            status: executionRequest.supportBundlePackageStatus,
+            supportBundleArtifactFingerprint:
+              executionRequest.supportBundleArtifactFingerprint,
+            supportBundleArtifactStatus:
+              executionRequest.supportBundleArtifactStatus,
+            taskRouteEffectiveSourceEvidenceSetFingerprint:
+              matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
+            version: executionRequest.supportBundlePackageVersion,
+            workspaceId: matchingPreflight?.workspaceId ?? null,
+          })
+        )
+        .digest('hex')
+        .slice(0, 16)
+    );
+    assert.equal(
+      executionRequest.supportBundleRetentionCleanupRequestVersion,
+      'prompt-registry-repair-gate-support-bundle-retention-cleanup-request/v1'
+    );
+    assert.equal(
+      executionRequest.supportBundleRetentionCleanupRequestStatus,
+      'not_scheduled_read_only'
+    );
+    assert.equal(
+      executionRequest.supportBundleRetentionCleanupRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.supportBundleRetentionCleanupRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.supportBundleRetentionCleanupRequestInputs,
+      [
+        'actorFingerprint',
+        'auditPersistenceRequestFingerprint',
+        'manifestFingerprint',
+        'requestStatus',
+        'retentionCleanupStatus',
+        'retentionPolicyFingerprint',
+        'retentionPolicyStatus',
+        'supportBundlePackageFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      ]
+    );
+    assert.equal(
+      executionRequest.supportBundleRetentionCleanupRequestFingerprint,
+      createHash('sha256')
+        .update(
+          stableFingerprintFixtureStringify({
+            actorFingerprint: matchingPreflight?.actorFingerprint,
+            auditPersistenceRequestFingerprint:
+              executionRequest.supportBundleAuditPersistenceRequestFingerprint,
+            created: false,
+            inputs: executionRequest.supportBundleRetentionCleanupRequestInputs,
+            manifestFilename:
+              routeReadyGate.repairGateManifestExportMetadata.filename,
+            manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+            requestStatus: executionRequest.requestStatus,
+            retentionCleanupStatus:
+              executionRequest.supportBundleRetentionCleanupStatus,
+            retentionPolicyFingerprint:
+              routeReadyGate.repairGateManifestExportMetadata
+                .retentionPolicyFingerprint,
+            retentionPolicyStatus:
+              routeReadyGate.repairGateManifestExportMetadata
+                .retentionPolicyStatus,
+            status: executionRequest.supportBundleRetentionCleanupRequestStatus,
+            supportBundlePackageFingerprint:
+              executionRequest.supportBundlePackageFingerprint,
+            taskRouteEffectiveSourceEvidenceSetFingerprint:
+              matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
+            version:
+              executionRequest.supportBundleRetentionCleanupRequestVersion,
+            workspaceId: matchingPreflight?.workspaceId ?? null,
+          })
+        )
+        .digest('hex')
+        .slice(0, 16)
+    );
+    assert.equal(
+      executionRequest.supportBundleArtifactRecordRequestVersion,
+      'prompt-registry-repair-gate-support-bundle-artifact-record-request/v1'
+    );
+    assert.equal(
+      executionRequest.supportBundleArtifactRecordRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      executionRequest.supportBundleArtifactRecordRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.supportBundleArtifactRecordRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.supportBundleArtifactRecordRequestInputs,
+      [
+        'artifactFingerprint',
+        'artifactStatus',
+        'auditPersistenceRequestFingerprint',
+        'downloadAuthorizationRequestFingerprint',
+        'manifestFingerprint',
+        'manifestMetadataFingerprint',
+        'packageFingerprint',
+        'requestStatus',
+        'retentionCleanupRequestFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      ]
+    );
+    assert.equal(
+      executionRequest.supportBundleArtifactRecordRequestFingerprint,
+      createHash('sha256')
+        .update(
+          stableFingerprintFixtureStringify({
+            artifactFingerprint:
+              executionRequest.supportBundleArtifactFingerprint,
+            artifactStatus: executionRequest.supportBundleArtifactStatus,
+            auditPersistenceRequestFingerprint:
+              executionRequest.supportBundleAuditPersistenceRequestFingerprint,
+            created: false,
+            downloadAuthorizationRequestFingerprint:
+              executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
+            inputs: executionRequest.supportBundleArtifactRecordRequestInputs,
+            manifestFilename:
+              routeReadyGate.repairGateManifestExportMetadata.filename,
+            manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+            manifestMetadataFilename:
+              routeReadyGate.repairGateManifestExportMetadata.metadataFilename,
+            manifestMetadataFingerprint:
+              routeReadyGate.repairGateManifestExportMetadata
+                .exportPolicyFingerprint,
+            packageFingerprint:
+              executionRequest.supportBundlePackageFingerprint,
+            requestStatus: executionRequest.requestStatus,
+            retentionCleanupRequestFingerprint:
+              executionRequest.supportBundleRetentionCleanupRequestFingerprint,
+            status: executionRequest.supportBundleArtifactRecordRequestStatus,
+            taskRouteEffectiveSourceEvidenceSetFingerprint:
+              matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
+            version: executionRequest.supportBundleArtifactRecordRequestVersion,
+            workspaceId: matchingPreflight?.workspaceId ?? null,
+          })
+        )
+        .digest('hex')
+        .slice(0, 16)
+    );
+    assert.equal(
+      executionRequest.supportBundleStorageKeyRequestVersion,
+      'prompt-registry-repair-gate-support-bundle-storage-key-request/v1'
+    );
+    assert.equal(
+      executionRequest.supportBundleStorageKeyRequestStatus,
+      'not_allocated_read_only'
+    );
+    assert.equal(executionRequest.supportBundleStorageKeyRequestCreated, false);
+    assert.equal(
+      executionRequest.supportBundleStorageKeyScope,
+      'support_bundle_artifact_record'
+    );
+    assert.match(
+      executionRequest.supportBundleStorageKeyRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.supportBundleStorageKeyRequestInputs, [
+      'artifactFingerprint',
+      'artifactRecordRequestFingerprint',
+      'manifestFingerprint',
+      'packageFingerprint',
+      'requestStatus',
+      'storageKeyScope',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+    ]);
+    assert.equal(
+      executionRequest.supportBundleStorageKeyRequestFingerprint,
+      createHash('sha256')
+        .update(
+          stableFingerprintFixtureStringify({
+            artifactFingerprint:
+              executionRequest.supportBundleArtifactFingerprint,
+            artifactRecordRequestFingerprint:
+              executionRequest.supportBundleArtifactRecordRequestFingerprint,
+            created: false,
+            inputs: executionRequest.supportBundleStorageKeyRequestInputs,
+            manifestFilename:
+              routeReadyGate.repairGateManifestExportMetadata.filename,
+            manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+            packageFingerprint:
+              executionRequest.supportBundlePackageFingerprint,
+            requestStatus: executionRequest.requestStatus,
+            scope: executionRequest.supportBundleStorageKeyScope,
+            status: executionRequest.supportBundleStorageKeyRequestStatus,
+            taskRouteEffectiveSourceEvidenceSetFingerprint:
+              matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
+            version: executionRequest.supportBundleStorageKeyRequestVersion,
+            workspaceId: matchingPreflight?.workspaceId ?? null,
+          })
+        )
+        .digest('hex')
+        .slice(0, 16)
+    );
+    assert.equal(
+      executionRequest.supportBundleArchiveRequestVersion,
+      'prompt-registry-repair-gate-support-bundle-archive-request/v1'
+    );
+    assert.equal(
+      executionRequest.supportBundleArchiveRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(executionRequest.supportBundleArchiveRequestCreated, false);
+    assert.equal(
+      executionRequest.supportBundleArchiveFormat,
+      'json_manifest_bundle'
+    );
+    assert.equal(
+      executionRequest.supportBundleArchiveScope,
+      'support_bundle_download_archive'
+    );
+    assert.match(
+      executionRequest.supportBundleArchiveRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.supportBundleArchiveRequestInputs, [
       'archiveFormat',
-      'archiveRequestFingerprint',
       'archiveScope',
+      'artifactFingerprint',
       'artifactRecordRequestFingerprint',
       'manifestFingerprint',
       'manifestMetadataFingerprint',
       'packageFingerprint',
       'requestStatus',
-      'signaturePolicy',
       'storageKeyRequestFingerprint',
       'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    ]
-  );
-  assert.equal(
-    executionRequest.supportBundleArchiveSignatureRequestFingerprint,
-    createHash('sha256')
-      .update(
-        stableFingerprintFixtureStringify({
-          archiveFormat: executionRequest.supportBundleArchiveFormat,
-          archiveRequestFingerprint:
-            executionRequest.supportBundleArchiveRequestFingerprint,
-          archiveScope: executionRequest.supportBundleArchiveScope,
-          artifactRecordRequestFingerprint:
-            executionRequest.supportBundleArtifactRecordRequestFingerprint,
-          created: false,
-          inputs: executionRequest.supportBundleArchiveSignatureRequestInputs,
-          manifestFilename:
-            routeReadyGate.repairGateManifestExportMetadata.filename,
-          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
-          manifestMetadataFilename:
-            routeReadyGate.repairGateManifestExportMetadata.metadataFilename,
-          manifestMetadataFingerprint:
-            routeReadyGate.repairGateManifestExportMetadata
-              .exportPolicyFingerprint,
-          packageFingerprint: executionRequest.supportBundlePackageFingerprint,
-          requestStatus: executionRequest.requestStatus,
-          signaturePolicy: executionRequest.supportBundleArchiveSignaturePolicy,
-          status: executionRequest.supportBundleArchiveSignatureRequestStatus,
-          storageKeyRequestFingerprint:
-            executionRequest.supportBundleStorageKeyRequestFingerprint,
-          taskRouteEffectiveSourceEvidenceSetFingerprint:
-            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
-          version: executionRequest.supportBundleArchiveSignatureRequestVersion,
-          workspaceId: matchingPreflight?.workspaceId ?? null,
-        })
-      )
-      .digest('hex')
-      .slice(0, 16)
-  );
-  assert.equal(
-    executionRequest.supportBundleDownloadResolverRequestVersion,
-    'prompt-registry-repair-gate-support-bundle-download-resolver-request/v1'
-  );
-  assert.equal(
-    executionRequest.supportBundleDownloadResolverRequestStatus,
-    'not_registered_read_only'
-  );
-  assert.equal(
-    executionRequest.supportBundleDownloadResolverRequestCreated,
-    false
-  );
-  assert.equal(
-    executionRequest.supportBundleDownloadResolverRoute,
-    'support_bundle_signed_archive_download'
-  );
-  assert.match(
-    executionRequest.supportBundleDownloadResolverRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    executionRequest.supportBundleDownloadResolverRequestInputs,
-    [
-      'archiveRequestFingerprint',
+    ]);
+    assert.equal(
+      executionRequest.supportBundleArchiveRequestFingerprint,
+      createHash('sha256')
+        .update(
+          stableFingerprintFixtureStringify({
+            archiveFormat: executionRequest.supportBundleArchiveFormat,
+            archiveScope: executionRequest.supportBundleArchiveScope,
+            artifactFingerprint:
+              executionRequest.supportBundleArtifactFingerprint,
+            artifactRecordRequestFingerprint:
+              executionRequest.supportBundleArtifactRecordRequestFingerprint,
+            created: false,
+            inputs: executionRequest.supportBundleArchiveRequestInputs,
+            manifestFilename:
+              routeReadyGate.repairGateManifestExportMetadata.filename,
+            manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+            manifestMetadataFilename:
+              routeReadyGate.repairGateManifestExportMetadata.metadataFilename,
+            manifestMetadataFingerprint:
+              routeReadyGate.repairGateManifestExportMetadata
+                .exportPolicyFingerprint,
+            packageFingerprint:
+              executionRequest.supportBundlePackageFingerprint,
+            requestStatus: executionRequest.requestStatus,
+            status: executionRequest.supportBundleArchiveRequestStatus,
+            storageKeyRequestFingerprint:
+              executionRequest.supportBundleStorageKeyRequestFingerprint,
+            taskRouteEffectiveSourceEvidenceSetFingerprint:
+              matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
+            version: executionRequest.supportBundleArchiveRequestVersion,
+            workspaceId: matchingPreflight?.workspaceId ?? null,
+          })
+        )
+        .digest('hex')
+        .slice(0, 16)
+    );
+    assert.equal(
+      executionRequest.supportBundleArchiveSignatureRequestVersion,
+      'prompt-registry-repair-gate-support-bundle-archive-signature-request/v1'
+    );
+    assert.equal(
+      executionRequest.supportBundleArchiveSignatureRequestStatus,
+      'not_signed_read_only'
+    );
+    assert.equal(
+      executionRequest.supportBundleArchiveSignatureRequestCreated,
+      false
+    );
+    assert.equal(
+      executionRequest.supportBundleArchiveSignaturePolicy,
+      'support_bundle_archive_signature_read_only'
+    );
+    assert.match(
+      executionRequest.supportBundleArchiveSignatureRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.supportBundleArchiveSignatureRequestInputs,
+      [
+        'archiveFormat',
+        'archiveRequestFingerprint',
+        'archiveScope',
+        'artifactRecordRequestFingerprint',
+        'manifestFingerprint',
+        'manifestMetadataFingerprint',
+        'packageFingerprint',
+        'requestStatus',
+        'signaturePolicy',
+        'storageKeyRequestFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      ]
+    );
+    assert.equal(
+      executionRequest.supportBundleArchiveSignatureRequestFingerprint,
+      createHash('sha256')
+        .update(
+          stableFingerprintFixtureStringify({
+            archiveFormat: executionRequest.supportBundleArchiveFormat,
+            archiveRequestFingerprint:
+              executionRequest.supportBundleArchiveRequestFingerprint,
+            archiveScope: executionRequest.supportBundleArchiveScope,
+            artifactRecordRequestFingerprint:
+              executionRequest.supportBundleArtifactRecordRequestFingerprint,
+            created: false,
+            inputs: executionRequest.supportBundleArchiveSignatureRequestInputs,
+            manifestFilename:
+              routeReadyGate.repairGateManifestExportMetadata.filename,
+            manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+            manifestMetadataFilename:
+              routeReadyGate.repairGateManifestExportMetadata.metadataFilename,
+            manifestMetadataFingerprint:
+              routeReadyGate.repairGateManifestExportMetadata
+                .exportPolicyFingerprint,
+            packageFingerprint:
+              executionRequest.supportBundlePackageFingerprint,
+            requestStatus: executionRequest.requestStatus,
+            signaturePolicy:
+              executionRequest.supportBundleArchiveSignaturePolicy,
+            status: executionRequest.supportBundleArchiveSignatureRequestStatus,
+            storageKeyRequestFingerprint:
+              executionRequest.supportBundleStorageKeyRequestFingerprint,
+            taskRouteEffectiveSourceEvidenceSetFingerprint:
+              matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
+            version:
+              executionRequest.supportBundleArchiveSignatureRequestVersion,
+            workspaceId: matchingPreflight?.workspaceId ?? null,
+          })
+        )
+        .digest('hex')
+        .slice(0, 16)
+    );
+    assert.equal(
+      executionRequest.supportBundleDownloadResolverRequestVersion,
+      'prompt-registry-repair-gate-support-bundle-download-resolver-request/v1'
+    );
+    assert.equal(
+      executionRequest.supportBundleDownloadResolverRequestStatus,
+      'not_registered_read_only'
+    );
+    assert.equal(
+      executionRequest.supportBundleDownloadResolverRequestCreated,
+      false
+    );
+    assert.equal(
+      executionRequest.supportBundleDownloadResolverRoute,
+      'support_bundle_signed_archive_download'
+    );
+    assert.match(
+      executionRequest.supportBundleDownloadResolverRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.supportBundleDownloadResolverRequestInputs,
+      [
+        'archiveRequestFingerprint',
+        'archiveSignatureRequestFingerprint',
+        'artifactRecordRequestFingerprint',
+        'downloadAuthorizationRequestFingerprint',
+        'downloadResolverRoute',
+        'manifestFingerprint',
+        'packageFingerprint',
+        'requestStatus',
+        'storageKeyRequestFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      ]
+    );
+    assert.equal(
+      executionRequest.supportBundleDownloadResolverRequestFingerprint,
+      createHash('sha256')
+        .update(
+          stableFingerprintFixtureStringify({
+            archiveRequestFingerprint:
+              executionRequest.supportBundleArchiveRequestFingerprint,
+            archiveSignatureRequestFingerprint:
+              executionRequest.supportBundleArchiveSignatureRequestFingerprint,
+            artifactRecordRequestFingerprint:
+              executionRequest.supportBundleArtifactRecordRequestFingerprint,
+            created: false,
+            downloadAuthorizationRequestFingerprint:
+              executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
+            downloadResolverRoute:
+              executionRequest.supportBundleDownloadResolverRoute,
+            inputs: executionRequest.supportBundleDownloadResolverRequestInputs,
+            manifestFilename:
+              routeReadyGate.repairGateManifestExportMetadata.filename,
+            manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+            packageFingerprint:
+              executionRequest.supportBundlePackageFingerprint,
+            requestStatus: executionRequest.requestStatus,
+            status: executionRequest.supportBundleDownloadResolverRequestStatus,
+            storageKeyRequestFingerprint:
+              executionRequest.supportBundleStorageKeyRequestFingerprint,
+            taskRouteEffectiveSourceEvidenceSetFingerprint:
+              matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
+            version:
+              executionRequest.supportBundleDownloadResolverRequestVersion,
+            workspaceId: matchingPreflight?.workspaceId ?? null,
+          })
+        )
+        .digest('hex')
+        .slice(0, 16)
+    );
+    assert.equal(
+      executionRequest.supportBundleSignedUrlRequestVersion,
+      'prompt-registry-repair-gate-support-bundle-signed-url-request/v1'
+    );
+    assert.equal(
+      executionRequest.supportBundleSignedUrlRequestStatus,
+      'not_issued_read_only'
+    );
+    assert.equal(executionRequest.supportBundleSignedUrlRequestCreated, false);
+    assert.equal(
+      executionRequest.supportBundleSignedUrlPolicy,
+      'support_bundle_signed_url_read_only'
+    );
+    assert.equal(
+      executionRequest.supportBundleSignedUrlScope,
+      'support_bundle_download_resolver'
+    );
+    assert.match(
+      executionRequest.supportBundleSignedUrlRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.supportBundleSignedUrlRequestInputs, [
       'archiveSignatureRequestFingerprint',
       'artifactRecordRequestFingerprint',
       'downloadAuthorizationRequestFingerprint',
-      'downloadResolverRoute',
+      'downloadResolverRequestFingerprint',
       'manifestFingerprint',
       'packageFingerprint',
       'requestStatus',
+      'signedUrlPolicy',
+      'signedUrlScope',
       'storageKeyRequestFingerprint',
       'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    ]
-  );
-  assert.equal(
-    executionRequest.supportBundleDownloadResolverRequestFingerprint,
-    createHash('sha256')
-      .update(
-        stableFingerprintFixtureStringify({
-          archiveRequestFingerprint:
-            executionRequest.supportBundleArchiveRequestFingerprint,
-          archiveSignatureRequestFingerprint:
-            executionRequest.supportBundleArchiveSignatureRequestFingerprint,
-          artifactRecordRequestFingerprint:
-            executionRequest.supportBundleArtifactRecordRequestFingerprint,
-          created: false,
-          downloadAuthorizationRequestFingerprint:
-            executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
-          downloadResolverRoute:
-            executionRequest.supportBundleDownloadResolverRoute,
-          inputs: executionRequest.supportBundleDownloadResolverRequestInputs,
-          manifestFilename:
-            routeReadyGate.repairGateManifestExportMetadata.filename,
-          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
-          packageFingerprint: executionRequest.supportBundlePackageFingerprint,
-          requestStatus: executionRequest.requestStatus,
-          status: executionRequest.supportBundleDownloadResolverRequestStatus,
-          storageKeyRequestFingerprint:
-            executionRequest.supportBundleStorageKeyRequestFingerprint,
-          taskRouteEffectiveSourceEvidenceSetFingerprint:
-            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
-          version: executionRequest.supportBundleDownloadResolverRequestVersion,
-          workspaceId: matchingPreflight?.workspaceId ?? null,
-        })
-      )
-      .digest('hex')
-      .slice(0, 16)
-  );
-  assert.equal(
-    executionRequest.supportBundleSignedUrlRequestVersion,
-    'prompt-registry-repair-gate-support-bundle-signed-url-request/v1'
-  );
-  assert.equal(
-    executionRequest.supportBundleSignedUrlRequestStatus,
-    'not_issued_read_only'
-  );
-  assert.equal(executionRequest.supportBundleSignedUrlRequestCreated, false);
-  assert.equal(
-    executionRequest.supportBundleSignedUrlPolicy,
-    'support_bundle_signed_url_read_only'
-  );
-  assert.equal(
-    executionRequest.supportBundleSignedUrlScope,
-    'support_bundle_download_resolver'
-  );
-  assert.match(
-    executionRequest.supportBundleSignedUrlRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.supportBundleSignedUrlRequestInputs, [
-    'archiveSignatureRequestFingerprint',
-    'artifactRecordRequestFingerprint',
-    'downloadAuthorizationRequestFingerprint',
-    'downloadResolverRequestFingerprint',
-    'manifestFingerprint',
-    'packageFingerprint',
-    'requestStatus',
-    'signedUrlPolicy',
-    'signedUrlScope',
-    'storageKeyRequestFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-  ]);
-  assert.equal(
-    executionRequest.supportBundleSignedUrlRequestFingerprint,
-    createHash('sha256')
-      .update(
-        stableFingerprintFixtureStringify({
-          archiveSignatureRequestFingerprint:
-            executionRequest.supportBundleArchiveSignatureRequestFingerprint,
-          artifactRecordRequestFingerprint:
-            executionRequest.supportBundleArtifactRecordRequestFingerprint,
-          created: false,
-          downloadAuthorizationRequestFingerprint:
-            executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
-          downloadResolverRequestFingerprint:
-            executionRequest.supportBundleDownloadResolverRequestFingerprint,
-          inputs: executionRequest.supportBundleSignedUrlRequestInputs,
-          manifestFilename:
-            routeReadyGate.repairGateManifestExportMetadata.filename,
-          manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
-          packageFingerprint: executionRequest.supportBundlePackageFingerprint,
-          requestStatus: executionRequest.requestStatus,
-          signedUrlPolicy: executionRequest.supportBundleSignedUrlPolicy,
-          signedUrlScope: executionRequest.supportBundleSignedUrlScope,
-          status: executionRequest.supportBundleSignedUrlRequestStatus,
-          storageKeyRequestFingerprint:
-            executionRequest.supportBundleStorageKeyRequestFingerprint,
-          taskRouteEffectiveSourceEvidenceSetFingerprint:
-            matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
-          version: executionRequest.supportBundleSignedUrlRequestVersion,
-          workspaceId: matchingPreflight?.workspaceId ?? null,
-        })
-      )
-      .digest('hex')
-      .slice(0, 16)
-  );
-  assert.equal(
-    executionRequest.approvalRecordRequestVersion,
-    'repair-execution-approval-record-request/v1'
-  );
-  assert.equal(
-    executionRequest.approvalRecordRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(executionRequest.approvalRecordRequestCreated, false);
-  assert.match(
-    executionRequest.approvalRecordRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.approvalRecordRequestInputs, [
-    'actorFingerprint',
-    'approvalRecordFingerprint',
-    'approvalRequestFingerprint',
-    'auditBindingFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'idempotencyLockFingerprint',
-    'policyBindingFingerprint',
-    'preparedRouteOrderEvidenceSetFingerprint',
-    'requestStatus',
-    'reviewBindingFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.auditEventRequestVersion,
-    'repair-execution-audit-event-request/v1'
-  );
-  assert.equal(
-    executionRequest.auditEventRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(executionRequest.auditEventRequestCreated, false);
-  assert.match(executionRequest.auditEventRequestFingerprint, /^[0-9a-f]{16}$/);
-  assert.deepEqual(executionRequest.auditEventRequestInputs, [
-    'actorFingerprint',
-    'approvalRecordRequestFingerprint',
-    'auditBindingFingerprint',
-    'auditEventFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'idempotencyLockFingerprint',
-    'operationSetFingerprint',
-    'policyBindingFingerprint',
-    'preparedRouteOrderEvidenceSetFingerprint',
-    'repairJobFingerprint',
-    'requestStatus',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionCompletionEventRequestVersion,
-    'repair-execution-completion-event-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionCompletionEventRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(executionRequest.executionCompletionEventRequestCreated, false);
-  assert.match(
-    executionRequest.executionCompletionEventRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionCompletionEventRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionCompletionRequestFingerprint',
-    'executionFailureEventRequestFingerprint',
-    'executionProviderResponseRequestFingerprint',
-    'executionResultRequestFingerprint',
-    'executionRetryPolicyRequestFingerprint',
-    'executionRollbackOutcomeRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionCompletionRequestVersion,
-    'repair-execution-completion-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionCompletionRequestStatus,
-    'not_completed_read_only'
-  );
-  assert.equal(executionRequest.executionCompletionRequestCreated, false);
-  assert.match(
-    executionRequest.executionCompletionRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionCompletionRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionFailureEventRequestFingerprint',
-    'executionProviderResponseRequestFingerprint',
-    'executionResultRequestFingerprint',
-    'executionRetryPolicyRequestFingerprint',
-    'executionRollbackOutcomeRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionFinalizationEventRequestVersion,
-    'repair-execution-finalization-event-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionFinalizationEventRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    executionRequest.executionFinalizationEventRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.executionFinalizationEventRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionFinalizationEventRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionCompletionEventRequestFingerprint',
-    'executionCompletionRequestFingerprint',
-    'executionFailureEventRequestFingerprint',
-    'executionFinalizationRequestFingerprint',
-    'executionProviderResponseRequestFingerprint',
-    'executionResultRequestFingerprint',
-    'executionRetryPolicyRequestFingerprint',
-    'executionRollbackOutcomeRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionFinalizationRequestVersion,
-    'repair-execution-finalization-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionFinalizationRequestStatus,
-    'not_finalized_read_only'
-  );
-  assert.equal(executionRequest.executionFinalizationRequestCreated, false);
-  assert.match(
-    executionRequest.executionFinalizationRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionFinalizationRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionCompletionEventRequestFingerprint',
-    'executionCompletionRequestFingerprint',
-    'executionFailureEventRequestFingerprint',
-    'executionProviderResponseRequestFingerprint',
-    'executionResultRequestFingerprint',
-    'executionRetryPolicyRequestFingerprint',
-    'executionRollbackOutcomeRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionStatusPollRequestVersion,
-    'repair-execution-status-poll-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionStatusPollRequestStatus,
-    'not_started_read_only'
-  );
-  assert.equal(executionRequest.executionStatusPollRequestCreated, false);
-  assert.match(
-    executionRequest.executionStatusPollRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionStatusPollRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionCompletionEventRequestFingerprint',
-    'executionCompletionRequestFingerprint',
-    'executionFailureEventRequestFingerprint',
-    'executionFinalizationEventRequestFingerprint',
-    'executionFinalizationRequestFingerprint',
-    'executionProviderResponseRequestFingerprint',
-    'executionResultRequestFingerprint',
-    'executionRetryPolicyRequestFingerprint',
-    'executionRollbackOutcomeRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionOperationEntryRequestVersion,
-    'repair-execution-operation-entry-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionOperationEntryRequestStatus,
-    'not_opened_read_only'
-  );
-  assert.equal(executionRequest.executionOperationEntryRequestCreated, false);
-  assert.match(
-    executionRequest.executionOperationEntryRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionOperationEntryRequestInputs, [
-    'approvalRecordRequestFingerprint',
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionCompletionEventRequestFingerprint',
-    'executionCompletionRequestFingerprint',
-    'executionFailureEventRequestFingerprint',
-    'executionFinalizationEventRequestFingerprint',
-    'executionFinalizationRequestFingerprint',
-    'executionProviderResponseRequestFingerprint',
-    'executionResultRequestFingerprint',
-    'executionRetryPolicyRequestFingerprint',
-    'executionRollbackOutcomeRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionStatusPollRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionApprovalUiRequestVersion,
-    'repair-execution-approval-ui-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionApprovalUiRequestStatus,
-    'not_rendered_read_only'
-  );
-  assert.equal(executionRequest.executionApprovalUiRequestCreated, false);
-  assert.match(
-    executionRequest.executionApprovalUiRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionApprovalUiRequestInputs, [
-    'approvalRecordRequestFingerprint',
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionOperationEntryRequestFingerprint',
-    'executionStatusPollRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionDiffPreviewRequestVersion,
-    'repair-execution-diff-preview-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionDiffPreviewRequestStatus,
-    'not_generated_read_only'
-  );
-  assert.equal(executionRequest.executionDiffPreviewRequestCreated, false);
-  assert.match(
-    executionRequest.executionDiffPreviewRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionDiffPreviewRequestInputs, [
-    'approvalRecordRequestFingerprint',
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionApprovalUiRequestFingerprint',
-    'executionOperationEntryRequestFingerprint',
-    'guardFingerprint',
-    'idempotencyLockFingerprint',
-    'operationSetFingerprint',
-    'previewFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionApprovalDecisionRequestVersion,
-    'repair-execution-approval-decision-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionApprovalDecisionRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(executionRequest.executionApprovalDecisionRequestCreated, false);
-  assert.match(
-    executionRequest.executionApprovalDecisionRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionApprovalDecisionRequestInputs, [
-    'approvalRecordRequestFingerprint',
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionApprovalUiRequestFingerprint',
-    'executionDiffPreviewRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionStartRequestVersion,
-    'repair-execution-start-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionStartRequestStatus,
-    'not_started_read_only'
-  );
-  assert.equal(executionRequest.executionStartRequestCreated, false);
-  assert.match(
-    executionRequest.executionStartRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionStartRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionApprovalDecisionRequestFingerprint',
-    'executionOperationEntryRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionStatusPollRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'operationSetFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionQueueRequestVersion,
-    'repair-execution-queue-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionQueueRequestStatus,
-    'not_enqueued_read_only'
-  );
-  assert.equal(executionRequest.executionQueueRequestCreated, false);
-  assert.match(
-    executionRequest.executionQueueRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionQueueRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionStartRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionStatusPollRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'operationSetFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionWorkerLeaseRequestVersion,
-    'repair-execution-worker-lease-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionWorkerLeaseRequestStatus,
-    'not_acquired_read_only'
-  );
-  assert.equal(executionRequest.executionWorkerLeaseRequestCreated, false);
-  assert.match(
-    executionRequest.executionWorkerLeaseRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionWorkerLeaseRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionQueueRequestFingerprint',
-    'executionStartRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionStatusPollRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'operationSetFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionJobRunRequestVersion,
-    'repair-execution-job-run-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionJobRunRequestStatus,
-    'not_started_read_only'
-  );
-  assert.equal(executionRequest.executionJobRunRequestCreated, false);
-  assert.match(
-    executionRequest.executionJobRunRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionJobRunRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionQueueRequestFingerprint',
-    'executionStartRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionStatusPollRequestFingerprint',
-    'executionWorkerLeaseRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'operationSetFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionRunStepRequestVersion,
-    'repair-execution-run-step-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(executionRequest.executionRunStepRequestCreated, false);
-  assert.match(
-    executionRequest.executionRunStepRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionRunStepRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionJobRunRequestFingerprint',
-    'executionQueueRequestFingerprint',
-    'executionStartRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionStatusPollRequestFingerprint',
-    'executionWorkerLeaseRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'operationSetFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionRunStepTraceRequestVersion,
-    'repair-execution-run-step-trace-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepTraceRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(executionRequest.executionRunStepTraceRequestCreated, false);
-  assert.match(
-    executionRequest.executionRunStepTraceRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionRunStepTraceRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionJobRunRequestFingerprint',
-    'executionQueueRequestFingerprint',
-    'executionRunStepRequestFingerprint',
-    'executionStartRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionStatusPollRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'executionWorkerLeaseRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'operationSetFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionRunStepResultRequestVersion,
-    'repair-execution-run-step-result-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepResultRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(executionRequest.executionRunStepResultRequestCreated, false);
-  assert.match(
-    executionRequest.executionRunStepResultRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionRunStepResultRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionJobRunRequestFingerprint',
-    'executionQueueRequestFingerprint',
-    'executionResultRequestFingerprint',
-    'executionRunStepRequestFingerprint',
-    'executionRunStepTraceRequestFingerprint',
-    'executionStartRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionStatusPollRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'executionWorkerLeaseRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'operationSetFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionRunStepCompletionRequestVersion,
-    'repair-execution-run-step-completion-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepCompletionRequestStatus,
-    'not_completed_read_only'
-  );
-  assert.equal(
-    executionRequest.executionRunStepCompletionRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.executionRunStepCompletionRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionRunStepCompletionRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionJobRunRequestFingerprint',
-    'executionQueueRequestFingerprint',
-    'executionResultRequestFingerprint',
-    'executionRunStepRequestFingerprint',
-    'executionRunStepResultRequestFingerprint',
-    'executionRunStepTraceRequestFingerprint',
-    'executionStartRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionStatusPollRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'executionWorkerLeaseRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'operationSetFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionRunStepStatusEventRequestVersion,
-    'repair-execution-run-step-status-event-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepStatusEventRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    executionRequest.executionRunStepStatusEventRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.executionRunStepStatusEventRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionRunStepStatusEventRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionJobRunRequestFingerprint',
-    'executionQueueRequestFingerprint',
-    'executionResultRequestFingerprint',
-    'executionRunStepCompletionRequestFingerprint',
-    'executionRunStepRequestFingerprint',
-    'executionRunStepResultRequestFingerprint',
-    'executionRunStepTraceRequestFingerprint',
-    'executionStartRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionStatusPollRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'executionWorkerLeaseRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'operationSetFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionRunStepRetryRequestVersion,
-    'repair-execution-run-step-retry-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryRequestStatus,
-    'not_scheduled_read_only'
-  );
-  assert.equal(executionRequest.executionRunStepRetryRequestCreated, false);
-  assert.match(
-    executionRequest.executionRunStepRetryRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionRunStepRetryRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionJobRunRequestFingerprint',
-    'executionQueueRequestFingerprint',
-    'executionResultRequestFingerprint',
-    'executionRetryPolicyRequestFingerprint',
-    'executionRunStepCompletionRequestFingerprint',
-    'executionRunStepRequestFingerprint',
-    'executionRunStepResultRequestFingerprint',
-    'executionRunStepStatusEventRequestFingerprint',
-    'executionRunStepTraceRequestFingerprint',
-    'executionStartRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionStatusPollRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'executionWorkerLeaseRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'operationSetFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptRequestVersion,
-    'repair-execution-run-step-retry-attempt-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.executionRunStepRetryAttemptRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionRunStepRetryAttemptRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionJobRunRequestFingerprint',
-    'executionQueueRequestFingerprint',
-    'executionResultRequestFingerprint',
-    'executionRetryPolicyRequestFingerprint',
-    'executionRunStepCompletionRequestFingerprint',
-    'executionRunStepRequestFingerprint',
-    'executionRunStepResultRequestFingerprint',
-    'executionRunStepRetryRequestFingerprint',
-    'executionRunStepStatusEventRequestFingerprint',
-    'executionRunStepTraceRequestFingerprint',
-    'executionStartRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionStatusPollRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'executionWorkerLeaseRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'operationSetFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptStatusEventRequestVersion,
-    'repair-execution-run-step-retry-attempt-status-event-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptStatusEventRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptStatusEventRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.executionRunStepRetryAttemptStatusEventRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    executionRequest.executionRunStepRetryAttemptStatusEventRequestInputs,
-    [
+    ]);
+    assert.equal(
+      executionRequest.supportBundleSignedUrlRequestFingerprint,
+      createHash('sha256')
+        .update(
+          stableFingerprintFixtureStringify({
+            archiveSignatureRequestFingerprint:
+              executionRequest.supportBundleArchiveSignatureRequestFingerprint,
+            artifactRecordRequestFingerprint:
+              executionRequest.supportBundleArtifactRecordRequestFingerprint,
+            created: false,
+            downloadAuthorizationRequestFingerprint:
+              executionRequest.supportBundleDownloadAuthorizationRequestFingerprint,
+            downloadResolverRequestFingerprint:
+              executionRequest.supportBundleDownloadResolverRequestFingerprint,
+            inputs: executionRequest.supportBundleSignedUrlRequestInputs,
+            manifestFilename:
+              routeReadyGate.repairGateManifestExportMetadata.filename,
+            manifestFingerprint: routeReadyGate.repairGateManifest.fingerprint,
+            packageFingerprint:
+              executionRequest.supportBundlePackageFingerprint,
+            requestStatus: executionRequest.requestStatus,
+            signedUrlPolicy: executionRequest.supportBundleSignedUrlPolicy,
+            signedUrlScope: executionRequest.supportBundleSignedUrlScope,
+            status: executionRequest.supportBundleSignedUrlRequestStatus,
+            storageKeyRequestFingerprint:
+              executionRequest.supportBundleStorageKeyRequestFingerprint,
+            taskRouteEffectiveSourceEvidenceSetFingerprint:
+              matchingPreflight?.taskRouteEffectiveSourceEvidenceSetFingerprint,
+            version: executionRequest.supportBundleSignedUrlRequestVersion,
+            workspaceId: matchingPreflight?.workspaceId ?? null,
+          })
+        )
+        .digest('hex')
+        .slice(0, 16)
+    );
+  })();
+  await (async () => {
+    assert.equal(
+      executionRequest.approvalRecordRequestVersion,
+      'repair-execution-approval-record-request/v1'
+    );
+    assert.equal(
+      executionRequest.approvalRecordRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(executionRequest.approvalRecordRequestCreated, false);
+    assert.match(
+      executionRequest.approvalRecordRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.approvalRecordRequestInputs, [
+      'actorFingerprint',
+      'approvalRecordFingerprint',
+      'approvalRequestFingerprint',
+      'auditBindingFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'idempotencyLockFingerprint',
+      'policyBindingFingerprint',
+      'preparedRouteOrderEvidenceSetFingerprint',
+      'requestStatus',
+      'reviewBindingFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.auditEventRequestVersion,
+      'repair-execution-audit-event-request/v1'
+    );
+    assert.equal(
+      executionRequest.auditEventRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(executionRequest.auditEventRequestCreated, false);
+    assert.match(
+      executionRequest.auditEventRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.auditEventRequestInputs, [
+      'actorFingerprint',
+      'approvalRecordRequestFingerprint',
+      'auditBindingFingerprint',
+      'auditEventFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'idempotencyLockFingerprint',
+      'operationSetFingerprint',
+      'policyBindingFingerprint',
+      'preparedRouteOrderEvidenceSetFingerprint',
+      'repairJobFingerprint',
+      'requestStatus',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.executionCompletionEventRequestVersion,
+      'repair-execution-completion-event-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionCompletionEventRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      executionRequest.executionCompletionEventRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionCompletionEventRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionCompletionEventRequestInputs, [
+      'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'executionCompletionRequestFingerprint',
+      'executionFailureEventRequestFingerprint',
+      'executionProviderResponseRequestFingerprint',
+      'executionResultRequestFingerprint',
+      'executionRetryPolicyRequestFingerprint',
+      'executionRollbackOutcomeRequestFingerprint',
+      'executionStateRequestFingerprint',
+      'executionTraceRequestFingerprint',
+      'idempotencyLockFingerprint',
+      'repairJobRequestFingerprint',
+      'requestStatus',
+      'rollbackPlanRequestFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.executionCompletionRequestVersion,
+      'repair-execution-completion-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionCompletionRequestStatus,
+      'not_completed_read_only'
+    );
+    assert.equal(executionRequest.executionCompletionRequestCreated, false);
+    assert.match(
+      executionRequest.executionCompletionRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionCompletionRequestInputs, [
+      'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'executionFailureEventRequestFingerprint',
+      'executionProviderResponseRequestFingerprint',
+      'executionResultRequestFingerprint',
+      'executionRetryPolicyRequestFingerprint',
+      'executionRollbackOutcomeRequestFingerprint',
+      'executionStateRequestFingerprint',
+      'executionTraceRequestFingerprint',
+      'idempotencyLockFingerprint',
+      'repairJobRequestFingerprint',
+      'requestStatus',
+      'rollbackPlanRequestFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.executionFinalizationEventRequestVersion,
+      'repair-execution-finalization-event-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionFinalizationEventRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      executionRequest.executionFinalizationEventRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionFinalizationEventRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionFinalizationEventRequestInputs, [
+      'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'executionCompletionEventRequestFingerprint',
+      'executionCompletionRequestFingerprint',
+      'executionFailureEventRequestFingerprint',
+      'executionFinalizationRequestFingerprint',
+      'executionProviderResponseRequestFingerprint',
+      'executionResultRequestFingerprint',
+      'executionRetryPolicyRequestFingerprint',
+      'executionRollbackOutcomeRequestFingerprint',
+      'executionStateRequestFingerprint',
+      'executionTraceRequestFingerprint',
+      'idempotencyLockFingerprint',
+      'repairJobRequestFingerprint',
+      'requestStatus',
+      'rollbackPlanRequestFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.executionFinalizationRequestVersion,
+      'repair-execution-finalization-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionFinalizationRequestStatus,
+      'not_finalized_read_only'
+    );
+    assert.equal(executionRequest.executionFinalizationRequestCreated, false);
+    assert.match(
+      executionRequest.executionFinalizationRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionFinalizationRequestInputs, [
+      'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'executionCompletionEventRequestFingerprint',
+      'executionCompletionRequestFingerprint',
+      'executionFailureEventRequestFingerprint',
+      'executionProviderResponseRequestFingerprint',
+      'executionResultRequestFingerprint',
+      'executionRetryPolicyRequestFingerprint',
+      'executionRollbackOutcomeRequestFingerprint',
+      'executionStateRequestFingerprint',
+      'executionTraceRequestFingerprint',
+      'idempotencyLockFingerprint',
+      'repairJobRequestFingerprint',
+      'requestStatus',
+      'rollbackPlanRequestFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.executionStatusPollRequestVersion,
+      'repair-execution-status-poll-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionStatusPollRequestStatus,
+      'not_started_read_only'
+    );
+    assert.equal(executionRequest.executionStatusPollRequestCreated, false);
+    assert.match(
+      executionRequest.executionStatusPollRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionStatusPollRequestInputs, [
+      'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'executionCompletionEventRequestFingerprint',
+      'executionCompletionRequestFingerprint',
+      'executionFailureEventRequestFingerprint',
+      'executionFinalizationEventRequestFingerprint',
+      'executionFinalizationRequestFingerprint',
+      'executionProviderResponseRequestFingerprint',
+      'executionResultRequestFingerprint',
+      'executionRetryPolicyRequestFingerprint',
+      'executionRollbackOutcomeRequestFingerprint',
+      'executionStateRequestFingerprint',
+      'executionTraceRequestFingerprint',
+      'idempotencyLockFingerprint',
+      'repairJobRequestFingerprint',
+      'requestStatus',
+      'rollbackPlanRequestFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.executionOperationEntryRequestVersion,
+      'repair-execution-operation-entry-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionOperationEntryRequestStatus,
+      'not_opened_read_only'
+    );
+    assert.equal(executionRequest.executionOperationEntryRequestCreated, false);
+    assert.match(
+      executionRequest.executionOperationEntryRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionOperationEntryRequestInputs, [
+      'approvalRecordRequestFingerprint',
+      'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'executionCompletionEventRequestFingerprint',
+      'executionCompletionRequestFingerprint',
+      'executionFailureEventRequestFingerprint',
+      'executionFinalizationEventRequestFingerprint',
+      'executionFinalizationRequestFingerprint',
+      'executionProviderResponseRequestFingerprint',
+      'executionResultRequestFingerprint',
+      'executionRetryPolicyRequestFingerprint',
+      'executionRollbackOutcomeRequestFingerprint',
+      'executionStateRequestFingerprint',
+      'executionStatusPollRequestFingerprint',
+      'executionTraceRequestFingerprint',
+      'idempotencyLockFingerprint',
+      'repairJobRequestFingerprint',
+      'requestStatus',
+      'rollbackPlanRequestFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.executionApprovalUiRequestVersion,
+      'repair-execution-approval-ui-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionApprovalUiRequestStatus,
+      'not_rendered_read_only'
+    );
+    assert.equal(executionRequest.executionApprovalUiRequestCreated, false);
+    assert.match(
+      executionRequest.executionApprovalUiRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionApprovalUiRequestInputs, [
+      'approvalRecordRequestFingerprint',
+      'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'executionOperationEntryRequestFingerprint',
+      'executionStatusPollRequestFingerprint',
+      'idempotencyLockFingerprint',
+      'repairJobRequestFingerprint',
+      'requestStatus',
+      'rollbackPlanRequestFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.executionDiffPreviewRequestVersion,
+      'repair-execution-diff-preview-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionDiffPreviewRequestStatus,
+      'not_generated_read_only'
+    );
+    assert.equal(executionRequest.executionDiffPreviewRequestCreated, false);
+    assert.match(
+      executionRequest.executionDiffPreviewRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionDiffPreviewRequestInputs, [
+      'approvalRecordRequestFingerprint',
+      'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'executionApprovalUiRequestFingerprint',
+      'executionOperationEntryRequestFingerprint',
+      'guardFingerprint',
+      'idempotencyLockFingerprint',
+      'operationSetFingerprint',
+      'previewFingerprint',
+      'repairJobRequestFingerprint',
+      'requestStatus',
+      'rollbackPlanRequestFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.executionApprovalDecisionRequestVersion,
+      'repair-execution-approval-decision-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionApprovalDecisionRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      executionRequest.executionApprovalDecisionRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionApprovalDecisionRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionApprovalDecisionRequestInputs, [
+      'approvalRecordRequestFingerprint',
+      'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'executionApprovalUiRequestFingerprint',
+      'executionDiffPreviewRequestFingerprint',
+      'idempotencyLockFingerprint',
+      'repairJobRequestFingerprint',
+      'requestStatus',
+      'rollbackPlanRequestFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.executionStartRequestVersion,
+      'repair-execution-start-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionStartRequestStatus,
+      'not_started_read_only'
+    );
+    assert.equal(executionRequest.executionStartRequestCreated, false);
+    assert.match(
+      executionRequest.executionStartRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionStartRequestInputs, [
+      'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'executionApprovalDecisionRequestFingerprint',
+      'executionOperationEntryRequestFingerprint',
+      'executionStateRequestFingerprint',
+      'executionStatusPollRequestFingerprint',
+      'idempotencyLockFingerprint',
+      'operationSetFingerprint',
+      'repairJobRequestFingerprint',
+      'requestStatus',
+      'rollbackPlanRequestFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.executionQueueRequestVersion,
+      'repair-execution-queue-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionQueueRequestStatus,
+      'not_enqueued_read_only'
+    );
+    assert.equal(executionRequest.executionQueueRequestCreated, false);
+    assert.match(
+      executionRequest.executionQueueRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionQueueRequestInputs, [
+      'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'executionStartRequestFingerprint',
+      'executionStateRequestFingerprint',
+      'executionStatusPollRequestFingerprint',
+      'idempotencyLockFingerprint',
+      'operationSetFingerprint',
+      'repairJobRequestFingerprint',
+      'requestStatus',
+      'rollbackPlanRequestFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.executionWorkerLeaseRequestVersion,
+      'repair-execution-worker-lease-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionWorkerLeaseRequestStatus,
+      'not_acquired_read_only'
+    );
+    assert.equal(executionRequest.executionWorkerLeaseRequestCreated, false);
+    assert.match(
+      executionRequest.executionWorkerLeaseRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionWorkerLeaseRequestInputs, [
+      'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'executionQueueRequestFingerprint',
+      'executionStartRequestFingerprint',
+      'executionStateRequestFingerprint',
+      'executionStatusPollRequestFingerprint',
+      'idempotencyLockFingerprint',
+      'operationSetFingerprint',
+      'repairJobRequestFingerprint',
+      'requestStatus',
+      'rollbackPlanRequestFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.executionJobRunRequestVersion,
+      'repair-execution-job-run-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionJobRunRequestStatus,
+      'not_started_read_only'
+    );
+    assert.equal(executionRequest.executionJobRunRequestCreated, false);
+    assert.match(
+      executionRequest.executionJobRunRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionJobRunRequestInputs, [
+      'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'executionQueueRequestFingerprint',
+      'executionStartRequestFingerprint',
+      'executionStateRequestFingerprint',
+      'executionStatusPollRequestFingerprint',
+      'executionWorkerLeaseRequestFingerprint',
+      'idempotencyLockFingerprint',
+      'operationSetFingerprint',
+      'repairJobRequestFingerprint',
+      'requestStatus',
+      'rollbackPlanRequestFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.executionRunStepRequestVersion,
+      'repair-execution-run-step-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(executionRequest.executionRunStepRequestCreated, false);
+    assert.match(
+      executionRequest.executionRunStepRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionRunStepRequestInputs, [
+      'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'executionJobRunRequestFingerprint',
+      'executionQueueRequestFingerprint',
+      'executionStartRequestFingerprint',
+      'executionStateRequestFingerprint',
+      'executionStatusPollRequestFingerprint',
+      'executionWorkerLeaseRequestFingerprint',
+      'idempotencyLockFingerprint',
+      'operationSetFingerprint',
+      'repairJobRequestFingerprint',
+      'requestStatus',
+      'rollbackPlanRequestFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.executionRunStepTraceRequestVersion,
+      'repair-execution-run-step-trace-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepTraceRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(executionRequest.executionRunStepTraceRequestCreated, false);
+    assert.match(
+      executionRequest.executionRunStepTraceRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionRunStepTraceRequestInputs, [
+      'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'executionJobRunRequestFingerprint',
+      'executionQueueRequestFingerprint',
+      'executionRunStepRequestFingerprint',
+      'executionStartRequestFingerprint',
+      'executionStateRequestFingerprint',
+      'executionStatusPollRequestFingerprint',
+      'executionTraceRequestFingerprint',
+      'executionWorkerLeaseRequestFingerprint',
+      'idempotencyLockFingerprint',
+      'operationSetFingerprint',
+      'repairJobRequestFingerprint',
+      'requestStatus',
+      'rollbackPlanRequestFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.executionRunStepResultRequestVersion,
+      'repair-execution-run-step-result-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepResultRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(executionRequest.executionRunStepResultRequestCreated, false);
+    assert.match(
+      executionRequest.executionRunStepResultRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionRunStepResultRequestInputs, [
+      'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'executionJobRunRequestFingerprint',
+      'executionQueueRequestFingerprint',
+      'executionResultRequestFingerprint',
+      'executionRunStepRequestFingerprint',
+      'executionRunStepTraceRequestFingerprint',
+      'executionStartRequestFingerprint',
+      'executionStateRequestFingerprint',
+      'executionStatusPollRequestFingerprint',
+      'executionTraceRequestFingerprint',
+      'executionWorkerLeaseRequestFingerprint',
+      'idempotencyLockFingerprint',
+      'operationSetFingerprint',
+      'repairJobRequestFingerprint',
+      'requestStatus',
+      'rollbackPlanRequestFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.executionRunStepCompletionRequestVersion,
+      'repair-execution-run-step-completion-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepCompletionRequestStatus,
+      'not_completed_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRunStepCompletionRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRunStepCompletionRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionRunStepCompletionRequestInputs, [
+      'auditEventRequestFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'executionJobRunRequestFingerprint',
+      'executionQueueRequestFingerprint',
+      'executionResultRequestFingerprint',
+      'executionRunStepRequestFingerprint',
+      'executionRunStepResultRequestFingerprint',
+      'executionRunStepTraceRequestFingerprint',
+      'executionStartRequestFingerprint',
+      'executionStateRequestFingerprint',
+      'executionStatusPollRequestFingerprint',
+      'executionTraceRequestFingerprint',
+      'executionWorkerLeaseRequestFingerprint',
+      'idempotencyLockFingerprint',
+      'operationSetFingerprint',
+      'repairJobRequestFingerprint',
+      'requestStatus',
+      'rollbackPlanRequestFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+      'workspaceId',
+    ]);
+    assert.equal(
+      executionRequest.executionRunStepStatusEventRequestVersion,
+      'repair-execution-run-step-status-event-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepStatusEventRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRunStepStatusEventRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRunStepStatusEventRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.executionRunStepStatusEventRequestInputs,
+      [
+        'auditEventRequestFingerprint',
+        'candidateEvidenceSetFingerprint',
+        'executionJobRunRequestFingerprint',
+        'executionQueueRequestFingerprint',
+        'executionResultRequestFingerprint',
+        'executionRunStepCompletionRequestFingerprint',
+        'executionRunStepRequestFingerprint',
+        'executionRunStepResultRequestFingerprint',
+        'executionRunStepTraceRequestFingerprint',
+        'executionStartRequestFingerprint',
+        'executionStateRequestFingerprint',
+        'executionStatusPollRequestFingerprint',
+        'executionTraceRequestFingerprint',
+        'executionWorkerLeaseRequestFingerprint',
+        'idempotencyLockFingerprint',
+        'operationSetFingerprint',
+        'repairJobRequestFingerprint',
+        'requestStatus',
+        'rollbackPlanRequestFingerprint',
+        'submissionFingerprint',
+        'targetLocatorFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+        'workspaceId',
+      ]
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryRequestVersion,
+      'repair-execution-run-step-retry-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryRequestStatus,
+      'not_scheduled_read_only'
+    );
+    assert.equal(executionRequest.executionRunStepRetryRequestCreated, false);
+    assert.match(
+      executionRequest.executionRunStepRetryRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionRunStepRetryRequestInputs, [
       'auditEventRequestFingerprint',
       'candidateEvidenceSetFingerprint',
       'executionJobRunRequestFingerprint',
@@ -7789,8 +7775,6 @@ async function main() {
       'executionRunStepCompletionRequestFingerprint',
       'executionRunStepRequestFingerprint',
       'executionRunStepResultRequestFingerprint',
-      'executionRunStepRetryAttemptRequestFingerprint',
-      'executionRunStepRetryRequestFingerprint',
       'executionRunStepStatusEventRequestFingerprint',
       'executionRunStepTraceRequestFingerprint',
       'executionStartRequestFingerprint',
@@ -7807,48 +7791,778 @@ async function main() {
       'targetLocatorFingerprint',
       'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
-    ]
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptTraceRequestVersion,
-    'repair-execution-run-step-retry-attempt-trace-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptTraceRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptTraceRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.executionRunStepRetryAttemptTraceRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    executionRequest.executionRunStepRetryAttemptTraceRequestInputs,
-    [
+    ]);
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptRequestVersion,
+      'repair-execution-run-step-retry-attempt-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRunStepRetryAttemptRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.executionRunStepRetryAttemptRequestInputs,
+      [
+        'auditEventRequestFingerprint',
+        'candidateEvidenceSetFingerprint',
+        'executionJobRunRequestFingerprint',
+        'executionQueueRequestFingerprint',
+        'executionResultRequestFingerprint',
+        'executionRetryPolicyRequestFingerprint',
+        'executionRunStepCompletionRequestFingerprint',
+        'executionRunStepRequestFingerprint',
+        'executionRunStepResultRequestFingerprint',
+        'executionRunStepRetryRequestFingerprint',
+        'executionRunStepStatusEventRequestFingerprint',
+        'executionRunStepTraceRequestFingerprint',
+        'executionStartRequestFingerprint',
+        'executionStateRequestFingerprint',
+        'executionStatusPollRequestFingerprint',
+        'executionTraceRequestFingerprint',
+        'executionWorkerLeaseRequestFingerprint',
+        'idempotencyLockFingerprint',
+        'operationSetFingerprint',
+        'repairJobRequestFingerprint',
+        'requestStatus',
+        'rollbackPlanRequestFingerprint',
+        'submissionFingerprint',
+        'targetLocatorFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+        'workspaceId',
+      ]
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptStatusEventRequestVersion,
+      'repair-execution-run-step-retry-attempt-status-event-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptStatusEventRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptStatusEventRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRunStepRetryAttemptStatusEventRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.executionRunStepRetryAttemptStatusEventRequestInputs,
+      [
+        'auditEventRequestFingerprint',
+        'candidateEvidenceSetFingerprint',
+        'executionJobRunRequestFingerprint',
+        'executionQueueRequestFingerprint',
+        'executionResultRequestFingerprint',
+        'executionRetryPolicyRequestFingerprint',
+        'executionRunStepCompletionRequestFingerprint',
+        'executionRunStepRequestFingerprint',
+        'executionRunStepResultRequestFingerprint',
+        'executionRunStepRetryAttemptRequestFingerprint',
+        'executionRunStepRetryRequestFingerprint',
+        'executionRunStepStatusEventRequestFingerprint',
+        'executionRunStepTraceRequestFingerprint',
+        'executionStartRequestFingerprint',
+        'executionStateRequestFingerprint',
+        'executionStatusPollRequestFingerprint',
+        'executionTraceRequestFingerprint',
+        'executionWorkerLeaseRequestFingerprint',
+        'idempotencyLockFingerprint',
+        'operationSetFingerprint',
+        'repairJobRequestFingerprint',
+        'requestStatus',
+        'rollbackPlanRequestFingerprint',
+        'submissionFingerprint',
+        'targetLocatorFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+        'workspaceId',
+      ]
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptTraceRequestVersion,
+      'repair-execution-run-step-retry-attempt-trace-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptTraceRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptTraceRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRunStepRetryAttemptTraceRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.executionRunStepRetryAttemptTraceRequestInputs,
+      [
+        'auditEventRequestFingerprint',
+        'candidateEvidenceSetFingerprint',
+        'executionJobRunRequestFingerprint',
+        'executionQueueRequestFingerprint',
+        'executionResultRequestFingerprint',
+        'executionRetryPolicyRequestFingerprint',
+        'executionRunStepCompletionRequestFingerprint',
+        'executionRunStepRequestFingerprint',
+        'executionRunStepResultRequestFingerprint',
+        'executionRunStepRetryAttemptRequestFingerprint',
+        'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+        'executionRunStepRetryRequestFingerprint',
+        'executionRunStepStatusEventRequestFingerprint',
+        'executionRunStepTraceRequestFingerprint',
+        'executionStartRequestFingerprint',
+        'executionStateRequestFingerprint',
+        'executionStatusPollRequestFingerprint',
+        'executionTraceRequestFingerprint',
+        'executionWorkerLeaseRequestFingerprint',
+        'idempotencyLockFingerprint',
+        'operationSetFingerprint',
+        'repairJobRequestFingerprint',
+        'requestStatus',
+        'rollbackPlanRequestFingerprint',
+        'submissionFingerprint',
+        'targetLocatorFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+        'workspaceId',
+      ]
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptResultRequestVersion,
+      'repair-execution-run-step-retry-attempt-result-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptResultRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptResultRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRunStepRetryAttemptResultRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.executionRunStepRetryAttemptResultRequestInputs,
+      [
+        'auditEventRequestFingerprint',
+        'candidateEvidenceSetFingerprint',
+        'executionJobRunRequestFingerprint',
+        'executionQueueRequestFingerprint',
+        'executionResultRequestFingerprint',
+        'executionRetryPolicyRequestFingerprint',
+        'executionRunStepCompletionRequestFingerprint',
+        'executionRunStepRequestFingerprint',
+        'executionRunStepResultRequestFingerprint',
+        'executionRunStepRetryAttemptRequestFingerprint',
+        'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptTraceRequestFingerprint',
+        'executionRunStepRetryRequestFingerprint',
+        'executionRunStepStatusEventRequestFingerprint',
+        'executionRunStepTraceRequestFingerprint',
+        'executionStartRequestFingerprint',
+        'executionStateRequestFingerprint',
+        'executionStatusPollRequestFingerprint',
+        'executionTraceRequestFingerprint',
+        'executionWorkerLeaseRequestFingerprint',
+        'idempotencyLockFingerprint',
+        'operationSetFingerprint',
+        'repairJobRequestFingerprint',
+        'requestStatus',
+        'rollbackPlanRequestFingerprint',
+        'submissionFingerprint',
+        'targetLocatorFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+        'workspaceId',
+      ]
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptCompletionRequestVersion,
+      'repair-execution-run-step-retry-attempt-completion-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptCompletionRequestStatus,
+      'not_completed_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptCompletionRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRunStepRetryAttemptCompletionRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.executionRunStepRetryAttemptCompletionRequestInputs,
+      [
+        'auditEventRequestFingerprint',
+        'candidateEvidenceSetFingerprint',
+        'executionJobRunRequestFingerprint',
+        'executionQueueRequestFingerprint',
+        'executionResultRequestFingerprint',
+        'executionRetryPolicyRequestFingerprint',
+        'executionRunStepCompletionRequestFingerprint',
+        'executionRunStepRequestFingerprint',
+        'executionRunStepResultRequestFingerprint',
+        'executionRunStepRetryAttemptRequestFingerprint',
+        'executionRunStepRetryAttemptResultRequestFingerprint',
+        'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptTraceRequestFingerprint',
+        'executionRunStepRetryRequestFingerprint',
+        'executionRunStepStatusEventRequestFingerprint',
+        'executionRunStepTraceRequestFingerprint',
+        'executionStartRequestFingerprint',
+        'executionStateRequestFingerprint',
+        'executionStatusPollRequestFingerprint',
+        'executionTraceRequestFingerprint',
+        'executionWorkerLeaseRequestFingerprint',
+        'idempotencyLockFingerprint',
+        'operationSetFingerprint',
+        'repairJobRequestFingerprint',
+        'requestStatus',
+        'rollbackPlanRequestFingerprint',
+        'submissionFingerprint',
+        'targetLocatorFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+        'workspaceId',
+      ]
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptCompletionStatusEventRequestVersion,
+      'repair-execution-run-step-retry-attempt-completion-status-event-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptCompletionStatusEventRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptCompletionStatusEventRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.executionRunStepRetryAttemptCompletionStatusEventRequestInputs,
+      [
+        'auditEventRequestFingerprint',
+        'candidateEvidenceSetFingerprint',
+        'executionJobRunRequestFingerprint',
+        'executionQueueRequestFingerprint',
+        'executionResultRequestFingerprint',
+        'executionRetryPolicyRequestFingerprint',
+        'executionRunStepCompletionRequestFingerprint',
+        'executionRunStepRequestFingerprint',
+        'executionRunStepResultRequestFingerprint',
+        'executionRunStepRetryAttemptCompletionRequestFingerprint',
+        'executionRunStepRetryAttemptRequestFingerprint',
+        'executionRunStepRetryAttemptResultRequestFingerprint',
+        'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptTraceRequestFingerprint',
+        'executionRunStepRetryRequestFingerprint',
+        'executionRunStepStatusEventRequestFingerprint',
+        'executionRunStepTraceRequestFingerprint',
+        'executionStartRequestFingerprint',
+        'executionStateRequestFingerprint',
+        'executionStatusPollRequestFingerprint',
+        'executionTraceRequestFingerprint',
+        'executionWorkerLeaseRequestFingerprint',
+        'idempotencyLockFingerprint',
+        'operationSetFingerprint',
+        'repairJobRequestFingerprint',
+        'requestStatus',
+        'rollbackPlanRequestFingerprint',
+        'submissionFingerprint',
+        'targetLocatorFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+        'workspaceId',
+      ]
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptFinalizationRequestVersion,
+      'repair-execution-run-step-retry-attempt-finalization-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptFinalizationRequestStatus,
+      'not_finalized_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptFinalizationRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRunStepRetryAttemptFinalizationRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.executionRunStepRetryAttemptFinalizationRequestInputs,
+      [
+        'auditEventRequestFingerprint',
+        'candidateEvidenceSetFingerprint',
+        'executionJobRunRequestFingerprint',
+        'executionQueueRequestFingerprint',
+        'executionResultRequestFingerprint',
+        'executionRetryPolicyRequestFingerprint',
+        'executionRunStepCompletionRequestFingerprint',
+        'executionRunStepRequestFingerprint',
+        'executionRunStepResultRequestFingerprint',
+        'executionRunStepRetryAttemptCompletionRequestFingerprint',
+        'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptRequestFingerprint',
+        'executionRunStepRetryAttemptResultRequestFingerprint',
+        'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptTraceRequestFingerprint',
+        'executionRunStepRetryRequestFingerprint',
+        'executionRunStepStatusEventRequestFingerprint',
+        'executionRunStepTraceRequestFingerprint',
+        'executionStartRequestFingerprint',
+        'executionStateRequestFingerprint',
+        'executionStatusPollRequestFingerprint',
+        'executionTraceRequestFingerprint',
+        'executionWorkerLeaseRequestFingerprint',
+        'idempotencyLockFingerprint',
+        'operationSetFingerprint',
+        'repairJobRequestFingerprint',
+        'requestStatus',
+        'rollbackPlanRequestFingerprint',
+        'submissionFingerprint',
+        'targetLocatorFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+        'workspaceId',
+      ]
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptFinalizationStatusEventRequestVersion,
+      'repair-execution-run-step-retry-attempt-finalization-status-event-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptFinalizationStatusEventRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptFinalizationStatusEventRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.executionRunStepRetryAttemptFinalizationStatusEventRequestInputs,
+      [
+        'auditEventRequestFingerprint',
+        'candidateEvidenceSetFingerprint',
+        'executionJobRunRequestFingerprint',
+        'executionQueueRequestFingerprint',
+        'executionResultRequestFingerprint',
+        'executionRetryPolicyRequestFingerprint',
+        'executionRunStepCompletionRequestFingerprint',
+        'executionRunStepRequestFingerprint',
+        'executionRunStepResultRequestFingerprint',
+        'executionRunStepRetryAttemptCompletionRequestFingerprint',
+        'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptFinalizationRequestFingerprint',
+        'executionRunStepRetryAttemptRequestFingerprint',
+        'executionRunStepRetryAttemptResultRequestFingerprint',
+        'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptTraceRequestFingerprint',
+        'executionRunStepRetryRequestFingerprint',
+        'executionRunStepStatusEventRequestFingerprint',
+        'executionRunStepTraceRequestFingerprint',
+        'executionStartRequestFingerprint',
+        'executionStateRequestFingerprint',
+        'executionStatusPollRequestFingerprint',
+        'executionTraceRequestFingerprint',
+        'executionWorkerLeaseRequestFingerprint',
+        'idempotencyLockFingerprint',
+        'operationSetFingerprint',
+        'repairJobRequestFingerprint',
+        'requestStatus',
+        'rollbackPlanRequestFingerprint',
+        'submissionFingerprint',
+        'targetLocatorFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+        'workspaceId',
+      ]
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptCloseRequestVersion,
+      'repair-execution-run-step-retry-attempt-close-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptCloseRequestStatus,
+      'not_closed_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptCloseRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRunStepRetryAttemptCloseRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.executionRunStepRetryAttemptCloseRequestInputs,
+      [
+        'auditEventRequestFingerprint',
+        'candidateEvidenceSetFingerprint',
+        'executionJobRunRequestFingerprint',
+        'executionQueueRequestFingerprint',
+        'executionResultRequestFingerprint',
+        'executionRetryPolicyRequestFingerprint',
+        'executionRunStepCompletionRequestFingerprint',
+        'executionRunStepRequestFingerprint',
+        'executionRunStepResultRequestFingerprint',
+        'executionRunStepRetryAttemptCompletionRequestFingerprint',
+        'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptFinalizationRequestFingerprint',
+        'executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptRequestFingerprint',
+        'executionRunStepRetryAttemptResultRequestFingerprint',
+        'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptTraceRequestFingerprint',
+        'executionRunStepRetryRequestFingerprint',
+        'executionRunStepStatusEventRequestFingerprint',
+        'executionRunStepTraceRequestFingerprint',
+        'executionStartRequestFingerprint',
+        'executionStateRequestFingerprint',
+        'executionStatusPollRequestFingerprint',
+        'executionTraceRequestFingerprint',
+        'executionWorkerLeaseRequestFingerprint',
+        'idempotencyLockFingerprint',
+        'operationSetFingerprint',
+        'repairJobRequestFingerprint',
+        'requestStatus',
+        'rollbackPlanRequestFingerprint',
+        'submissionFingerprint',
+        'targetLocatorFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+        'workspaceId',
+      ]
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptCloseStatusEventRequestVersion,
+      'repair-execution-run-step-retry-attempt-close-status-event-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptCloseStatusEventRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptCloseStatusEventRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRunStepRetryAttemptCloseStatusEventRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.executionRunStepRetryAttemptCloseStatusEventRequestInputs,
+      [
+        'auditEventRequestFingerprint',
+        'candidateEvidenceSetFingerprint',
+        'executionJobRunRequestFingerprint',
+        'executionQueueRequestFingerprint',
+        'executionResultRequestFingerprint',
+        'executionRetryPolicyRequestFingerprint',
+        'executionRunStepCompletionRequestFingerprint',
+        'executionRunStepRequestFingerprint',
+        'executionRunStepResultRequestFingerprint',
+        'executionRunStepRetryAttemptCloseRequestFingerprint',
+        'executionRunStepRetryAttemptCompletionRequestFingerprint',
+        'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptFinalizationRequestFingerprint',
+        'executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptRequestFingerprint',
+        'executionRunStepRetryAttemptResultRequestFingerprint',
+        'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptTraceRequestFingerprint',
+        'executionRunStepRetryRequestFingerprint',
+        'executionRunStepStatusEventRequestFingerprint',
+        'executionRunStepTraceRequestFingerprint',
+        'executionStartRequestFingerprint',
+        'executionStateRequestFingerprint',
+        'executionStatusPollRequestFingerprint',
+        'executionTraceRequestFingerprint',
+        'executionWorkerLeaseRequestFingerprint',
+        'idempotencyLockFingerprint',
+        'operationSetFingerprint',
+        'repairJobRequestFingerprint',
+        'requestStatus',
+        'rollbackPlanRequestFingerprint',
+        'submissionFingerprint',
+        'targetLocatorFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+        'workspaceId',
+      ]
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptRetentionPolicyRequestVersion,
+      'repair-execution-run-step-retry-attempt-retention-policy-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptRetentionPolicyRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptRetentionPolicyRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRunStepRetryAttemptRetentionPolicyRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.executionRunStepRetryAttemptRetentionPolicyRequestInputs,
+      [
+        'auditEventRequestFingerprint',
+        'candidateEvidenceSetFingerprint',
+        'executionJobRunRequestFingerprint',
+        'executionQueueRequestFingerprint',
+        'executionResultRequestFingerprint',
+        'executionRetryPolicyRequestFingerprint',
+        'executionRunStepCompletionRequestFingerprint',
+        'executionRunStepRequestFingerprint',
+        'executionRunStepResultRequestFingerprint',
+        'executionRunStepRetryAttemptCloseRequestFingerprint',
+        'executionRunStepRetryAttemptCloseStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptCompletionRequestFingerprint',
+        'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptFinalizationRequestFingerprint',
+        'executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptRequestFingerprint',
+        'executionRunStepRetryAttemptResultRequestFingerprint',
+        'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptTraceRequestFingerprint',
+        'executionRunStepRetryRequestFingerprint',
+        'executionRunStepStatusEventRequestFingerprint',
+        'executionRunStepTraceRequestFingerprint',
+        'executionStartRequestFingerprint',
+        'executionStateRequestFingerprint',
+        'executionStatusPollRequestFingerprint',
+        'executionTraceRequestFingerprint',
+        'executionWorkerLeaseRequestFingerprint',
+        'idempotencyLockFingerprint',
+        'operationSetFingerprint',
+        'repairJobRequestFingerprint',
+        'requestStatus',
+        'rollbackPlanRequestFingerprint',
+        'submissionFingerprint',
+        'targetLocatorFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+        'workspaceId',
+      ]
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptRetentionPolicyRuleRequestVersion,
+      'repair-execution-run-step-retry-attempt-retention-policy-rule-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptRetentionPolicyRuleRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptRetentionPolicyRuleRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.executionRunStepRetryAttemptRetentionPolicyRuleRequestInputs,
+      [
+        'auditEventRequestFingerprint',
+        'candidateEvidenceSetFingerprint',
+        'executionJobRunRequestFingerprint',
+        'executionQueueRequestFingerprint',
+        'executionResultRequestFingerprint',
+        'executionRetryPolicyRequestFingerprint',
+        'executionRunStepCompletionRequestFingerprint',
+        'executionRunStepRequestFingerprint',
+        'executionRunStepResultRequestFingerprint',
+        'executionRunStepRetryAttemptCloseRequestFingerprint',
+        'executionRunStepRetryAttemptCloseStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptCompletionRequestFingerprint',
+        'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptFinalizationRequestFingerprint',
+        'executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptRequestFingerprint',
+        'executionRunStepRetryAttemptResultRequestFingerprint',
+        'executionRunStepRetryAttemptRetentionPolicyRequestFingerprint',
+        'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptTraceRequestFingerprint',
+        'executionRunStepRetryRequestFingerprint',
+        'executionRunStepStatusEventRequestFingerprint',
+        'executionRunStepTraceRequestFingerprint',
+        'executionStartRequestFingerprint',
+        'executionStateRequestFingerprint',
+        'executionStatusPollRequestFingerprint',
+        'executionTraceRequestFingerprint',
+        'executionWorkerLeaseRequestFingerprint',
+        'idempotencyLockFingerprint',
+        'operationSetFingerprint',
+        'repairJobRequestFingerprint',
+        'requestStatus',
+        'rollbackPlanRequestFingerprint',
+        'submissionFingerprint',
+        'targetLocatorFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+        'workspaceId',
+      ]
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptRetentionLeaseRequestVersion,
+      'repair-execution-run-step-retry-attempt-retention-lease-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptRetentionLeaseRequestStatus,
+      'not_acquired_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptRetentionLeaseRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRunStepRetryAttemptRetentionLeaseRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.executionRunStepRetryAttemptRetentionLeaseRequestInputs,
+      [
+        'auditEventRequestFingerprint',
+        'candidateEvidenceSetFingerprint',
+        'executionJobRunRequestFingerprint',
+        'executionQueueRequestFingerprint',
+        'executionResultRequestFingerprint',
+        'executionRetryPolicyRequestFingerprint',
+        'executionRunStepCompletionRequestFingerprint',
+        'executionRunStepRequestFingerprint',
+        'executionRunStepResultRequestFingerprint',
+        'executionRunStepRetryAttemptCloseRequestFingerprint',
+        'executionRunStepRetryAttemptCloseStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptCompletionRequestFingerprint',
+        'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptFinalizationRequestFingerprint',
+        'executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptRequestFingerprint',
+        'executionRunStepRetryAttemptResultRequestFingerprint',
+        'executionRunStepRetryAttemptRetentionPolicyRequestFingerprint',
+        'executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint',
+        'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptTraceRequestFingerprint',
+        'executionRunStepRetryRequestFingerprint',
+        'executionRunStepStatusEventRequestFingerprint',
+        'executionRunStepTraceRequestFingerprint',
+        'executionStartRequestFingerprint',
+        'executionStateRequestFingerprint',
+        'executionStatusPollRequestFingerprint',
+        'executionTraceRequestFingerprint',
+        'executionWorkerLeaseRequestFingerprint',
+        'idempotencyLockFingerprint',
+        'operationSetFingerprint',
+        'repairJobRequestFingerprint',
+        'requestStatus',
+        'rollbackPlanRequestFingerprint',
+        'submissionFingerprint',
+        'targetLocatorFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+        'workspaceId',
+      ]
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptArchiveRequestVersion,
+      'repair-execution-run-step-retry-attempt-archive-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptArchiveRequestStatus,
+      'not_archived_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRunStepRetryAttemptArchiveRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRunStepRetryAttemptArchiveRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      executionRequest.executionRunStepRetryAttemptArchiveRequestInputs,
+      [
+        'auditEventRequestFingerprint',
+        'candidateEvidenceSetFingerprint',
+        'executionJobRunRequestFingerprint',
+        'executionQueueRequestFingerprint',
+        'executionResultRequestFingerprint',
+        'executionRetryPolicyRequestFingerprint',
+        'executionRunStepCompletionRequestFingerprint',
+        'executionRunStepRequestFingerprint',
+        'executionRunStepResultRequestFingerprint',
+        'executionRunStepRetryAttemptCloseRequestFingerprint',
+        'executionRunStepRetryAttemptCloseStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptCompletionRequestFingerprint',
+        'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptFinalizationRequestFingerprint',
+        'executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptRequestFingerprint',
+        'executionRunStepRetryAttemptResultRequestFingerprint',
+        'executionRunStepRetryAttemptRetentionLeaseRequestFingerprint',
+        'executionRunStepRetryAttemptRetentionPolicyRequestFingerprint',
+        'executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint',
+        'executionRunStepRetryAttemptStatusEventRequestFingerprint',
+        'executionRunStepRetryAttemptTraceRequestFingerprint',
+        'executionRunStepRetryRequestFingerprint',
+        'executionRunStepStatusEventRequestFingerprint',
+        'executionRunStepTraceRequestFingerprint',
+        'executionStartRequestFingerprint',
+        'executionStateRequestFingerprint',
+        'executionStatusPollRequestFingerprint',
+        'executionTraceRequestFingerprint',
+        'executionWorkerLeaseRequestFingerprint',
+        'idempotencyLockFingerprint',
+        'operationSetFingerprint',
+        'repairJobRequestFingerprint',
+        'requestStatus',
+        'rollbackPlanRequestFingerprint',
+        'submissionFingerprint',
+        'targetLocatorFingerprint',
+        'taskRouteEffectiveSourceEvidenceSetFingerprint',
+        'workspaceId',
+      ]
+    );
+    assert.equal(
+      executionRequest.executionFailureEventRequestVersion,
+      'repair-execution-failure-event-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionFailureEventRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(executionRequest.executionFailureEventRequestCreated, false);
+    assert.match(
+      executionRequest.executionFailureEventRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionFailureEventRequestInputs, [
       'auditEventRequestFingerprint',
       'candidateEvidenceSetFingerprint',
-      'executionJobRunRequestFingerprint',
-      'executionQueueRequestFingerprint',
+      'executionProviderResponseRequestFingerprint',
       'executionResultRequestFingerprint',
       'executionRetryPolicyRequestFingerprint',
-      'executionRunStepCompletionRequestFingerprint',
-      'executionRunStepRequestFingerprint',
-      'executionRunStepResultRequestFingerprint',
-      'executionRunStepRetryAttemptRequestFingerprint',
-      'executionRunStepRetryAttemptStatusEventRequestFingerprint',
-      'executionRunStepRetryRequestFingerprint',
-      'executionRunStepStatusEventRequestFingerprint',
-      'executionRunStepTraceRequestFingerprint',
-      'executionStartRequestFingerprint',
       'executionStateRequestFingerprint',
-      'executionStatusPollRequestFingerprint',
       'executionTraceRequestFingerprint',
-      'executionWorkerLeaseRequestFingerprint',
       'idempotencyLockFingerprint',
-      'operationSetFingerprint',
       'repairJobRequestFingerprint',
       'requestStatus',
       'rollbackPlanRequestFingerprint',
@@ -7856,49 +8570,33 @@ async function main() {
       'targetLocatorFingerprint',
       'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
-    ]
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptResultRequestVersion,
-    'repair-execution-run-step-retry-attempt-result-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptResultRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptResultRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.executionRunStepRetryAttemptResultRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    executionRequest.executionRunStepRetryAttemptResultRequestInputs,
-    [
+    ]);
+  })();
+  await (async () => {
+    assert.equal(
+      executionRequest.executionProviderResponseRequestVersion,
+      'repair-execution-provider-response-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionProviderResponseRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      executionRequest.executionProviderResponseRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionProviderResponseRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionProviderResponseRequestInputs, [
       'auditEventRequestFingerprint',
       'candidateEvidenceSetFingerprint',
-      'executionJobRunRequestFingerprint',
-      'executionQueueRequestFingerprint',
       'executionResultRequestFingerprint',
       'executionRetryPolicyRequestFingerprint',
-      'executionRunStepCompletionRequestFingerprint',
-      'executionRunStepRequestFingerprint',
-      'executionRunStepResultRequestFingerprint',
-      'executionRunStepRetryAttemptRequestFingerprint',
-      'executionRunStepRetryAttemptStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptTraceRequestFingerprint',
-      'executionRunStepRetryRequestFingerprint',
-      'executionRunStepStatusEventRequestFingerprint',
-      'executionRunStepTraceRequestFingerprint',
-      'executionStartRequestFingerprint',
       'executionStateRequestFingerprint',
-      'executionStatusPollRequestFingerprint',
       'executionTraceRequestFingerprint',
-      'executionWorkerLeaseRequestFingerprint',
       'idempotencyLockFingerprint',
-      'operationSetFingerprint',
       'repairJobRequestFingerprint',
       'requestStatus',
       'rollbackPlanRequestFingerprint',
@@ -7906,50 +8604,26 @@ async function main() {
       'targetLocatorFingerprint',
       'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
-    ]
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptCompletionRequestVersion,
-    'repair-execution-run-step-retry-attempt-completion-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptCompletionRequestStatus,
-    'not_completed_read_only'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptCompletionRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.executionRunStepRetryAttemptCompletionRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    executionRequest.executionRunStepRetryAttemptCompletionRequestInputs,
-    [
+    ]);
+    assert.equal(
+      executionRequest.executionResultRequestVersion,
+      'repair-execution-result-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionResultRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(executionRequest.executionResultRequestCreated, false);
+    assert.match(
+      executionRequest.executionResultRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionResultRequestInputs, [
       'auditEventRequestFingerprint',
       'candidateEvidenceSetFingerprint',
-      'executionJobRunRequestFingerprint',
-      'executionQueueRequestFingerprint',
-      'executionResultRequestFingerprint',
-      'executionRetryPolicyRequestFingerprint',
-      'executionRunStepCompletionRequestFingerprint',
-      'executionRunStepRequestFingerprint',
-      'executionRunStepResultRequestFingerprint',
-      'executionRunStepRetryAttemptRequestFingerprint',
-      'executionRunStepRetryAttemptResultRequestFingerprint',
-      'executionRunStepRetryAttemptStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptTraceRequestFingerprint',
-      'executionRunStepRetryRequestFingerprint',
-      'executionRunStepStatusEventRequestFingerprint',
-      'executionRunStepTraceRequestFingerprint',
-      'executionStartRequestFingerprint',
       'executionStateRequestFingerprint',
-      'executionStatusPollRequestFingerprint',
       'executionTraceRequestFingerprint',
-      'executionWorkerLeaseRequestFingerprint',
-      'idempotencyLockFingerprint',
-      'operationSetFingerprint',
+      'preparedRouteOrderEvidenceSetFingerprint',
       'repairJobRequestFingerprint',
       'requestStatus',
       'rollbackPlanRequestFingerprint',
@@ -7957,51 +8631,26 @@ async function main() {
       'targetLocatorFingerprint',
       'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
-    ]
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptCompletionStatusEventRequestVersion,
-    'repair-execution-run-step-retry-attempt-completion-status-event-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptCompletionStatusEventRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptCompletionStatusEventRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    executionRequest.executionRunStepRetryAttemptCompletionStatusEventRequestInputs,
-    [
-      'auditEventRequestFingerprint',
+    ]);
+    assert.equal(
+      executionRequest.executionRetryPolicyRequestVersion,
+      'repair-execution-retry-policy-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRetryPolicyRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(executionRequest.executionRetryPolicyRequestCreated, false);
+    assert.match(
+      executionRequest.executionRetryPolicyRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionRetryPolicyRequestInputs, [
       'candidateEvidenceSetFingerprint',
-      'executionJobRunRequestFingerprint',
-      'executionQueueRequestFingerprint',
       'executionResultRequestFingerprint',
-      'executionRetryPolicyRequestFingerprint',
-      'executionRunStepCompletionRequestFingerprint',
-      'executionRunStepRequestFingerprint',
-      'executionRunStepResultRequestFingerprint',
-      'executionRunStepRetryAttemptCompletionRequestFingerprint',
-      'executionRunStepRetryAttemptRequestFingerprint',
-      'executionRunStepRetryAttemptResultRequestFingerprint',
-      'executionRunStepRetryAttemptStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptTraceRequestFingerprint',
-      'executionRunStepRetryRequestFingerprint',
-      'executionRunStepStatusEventRequestFingerprint',
-      'executionRunStepTraceRequestFingerprint',
-      'executionStartRequestFingerprint',
       'executionStateRequestFingerprint',
-      'executionStatusPollRequestFingerprint',
       'executionTraceRequestFingerprint',
-      'executionWorkerLeaseRequestFingerprint',
       'idempotencyLockFingerprint',
-      'operationSetFingerprint',
       'repairJobRequestFingerprint',
       'requestStatus',
       'rollbackPlanRequestFingerprint',
@@ -8009,52 +8658,32 @@ async function main() {
       'targetLocatorFingerprint',
       'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
-    ]
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptFinalizationRequestVersion,
-    'repair-execution-run-step-retry-attempt-finalization-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptFinalizationRequestStatus,
-    'not_finalized_read_only'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptFinalizationRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.executionRunStepRetryAttemptFinalizationRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    executionRequest.executionRunStepRetryAttemptFinalizationRequestInputs,
-    [
-      'auditEventRequestFingerprint',
+    ]);
+    assert.equal(
+      executionRequest.executionRollbackExecutorRequestVersion,
+      'repair-execution-rollback-executor-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRollbackExecutorRequestStatus,
+      'not_started_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRollbackExecutorRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRollbackExecutorRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionRollbackExecutorRequestInputs, [
       'candidateEvidenceSetFingerprint',
-      'executionJobRunRequestFingerprint',
-      'executionQueueRequestFingerprint',
+      'executionFailureEventRequestFingerprint',
+      'executionProviderResponseRequestFingerprint',
       'executionResultRequestFingerprint',
-      'executionRetryPolicyRequestFingerprint',
-      'executionRunStepCompletionRequestFingerprint',
-      'executionRunStepRequestFingerprint',
-      'executionRunStepResultRequestFingerprint',
-      'executionRunStepRetryAttemptCompletionRequestFingerprint',
-      'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptRequestFingerprint',
-      'executionRunStepRetryAttemptResultRequestFingerprint',
-      'executionRunStepRetryAttemptStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptTraceRequestFingerprint',
-      'executionRunStepRetryRequestFingerprint',
-      'executionRunStepStatusEventRequestFingerprint',
-      'executionRunStepTraceRequestFingerprint',
-      'executionStartRequestFingerprint',
+      'executionRollbackTriggerRequestFingerprint',
       'executionStateRequestFingerprint',
-      'executionStatusPollRequestFingerprint',
       'executionTraceRequestFingerprint',
-      'executionWorkerLeaseRequestFingerprint',
       'idempotencyLockFingerprint',
-      'operationSetFingerprint',
       'repairJobRequestFingerprint',
       'requestStatus',
       'rollbackPlanRequestFingerprint',
@@ -8062,53 +8691,33 @@ async function main() {
       'targetLocatorFingerprint',
       'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
-    ]
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptFinalizationStatusEventRequestVersion,
-    'repair-execution-run-step-retry-attempt-finalization-status-event-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptFinalizationStatusEventRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptFinalizationStatusEventRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    executionRequest.executionRunStepRetryAttemptFinalizationStatusEventRequestInputs,
-    [
-      'auditEventRequestFingerprint',
+    ]);
+    assert.equal(
+      executionRequest.executionRollbackOperationRequestVersion,
+      'repair-execution-rollback-operation-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRollbackOperationRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRollbackOperationRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRollbackOperationRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionRollbackOperationRequestInputs, [
       'candidateEvidenceSetFingerprint',
-      'executionJobRunRequestFingerprint',
-      'executionQueueRequestFingerprint',
+      'executionFailureEventRequestFingerprint',
+      'executionProviderResponseRequestFingerprint',
       'executionResultRequestFingerprint',
-      'executionRetryPolicyRequestFingerprint',
-      'executionRunStepCompletionRequestFingerprint',
-      'executionRunStepRequestFingerprint',
-      'executionRunStepResultRequestFingerprint',
-      'executionRunStepRetryAttemptCompletionRequestFingerprint',
-      'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptFinalizationRequestFingerprint',
-      'executionRunStepRetryAttemptRequestFingerprint',
-      'executionRunStepRetryAttemptResultRequestFingerprint',
-      'executionRunStepRetryAttemptStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptTraceRequestFingerprint',
-      'executionRunStepRetryRequestFingerprint',
-      'executionRunStepStatusEventRequestFingerprint',
-      'executionRunStepTraceRequestFingerprint',
-      'executionStartRequestFingerprint',
+      'executionRollbackExecutorRequestFingerprint',
+      'executionRollbackTriggerRequestFingerprint',
       'executionStateRequestFingerprint',
-      'executionStatusPollRequestFingerprint',
       'executionTraceRequestFingerprint',
-      'executionWorkerLeaseRequestFingerprint',
       'idempotencyLockFingerprint',
-      'operationSetFingerprint',
       'repairJobRequestFingerprint',
       'requestStatus',
       'rollbackPlanRequestFingerprint',
@@ -8116,54 +8725,34 @@ async function main() {
       'targetLocatorFingerprint',
       'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
-    ]
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptCloseRequestVersion,
-    'repair-execution-run-step-retry-attempt-close-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptCloseRequestStatus,
-    'not_closed_read_only'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptCloseRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.executionRunStepRetryAttemptCloseRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    executionRequest.executionRunStepRetryAttemptCloseRequestInputs,
-    [
-      'auditEventRequestFingerprint',
+    ]);
+    assert.equal(
+      executionRequest.executionRollbackOutcomeRequestVersion,
+      'repair-execution-rollback-outcome-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRollbackOutcomeRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRollbackOutcomeRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRollbackOutcomeRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionRollbackOutcomeRequestInputs, [
       'candidateEvidenceSetFingerprint',
-      'executionJobRunRequestFingerprint',
-      'executionQueueRequestFingerprint',
+      'executionFailureEventRequestFingerprint',
+      'executionProviderResponseRequestFingerprint',
       'executionResultRequestFingerprint',
-      'executionRetryPolicyRequestFingerprint',
-      'executionRunStepCompletionRequestFingerprint',
-      'executionRunStepRequestFingerprint',
-      'executionRunStepResultRequestFingerprint',
-      'executionRunStepRetryAttemptCompletionRequestFingerprint',
-      'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptFinalizationRequestFingerprint',
-      'executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptRequestFingerprint',
-      'executionRunStepRetryAttemptResultRequestFingerprint',
-      'executionRunStepRetryAttemptStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptTraceRequestFingerprint',
-      'executionRunStepRetryRequestFingerprint',
-      'executionRunStepStatusEventRequestFingerprint',
-      'executionRunStepTraceRequestFingerprint',
-      'executionStartRequestFingerprint',
+      'executionRollbackExecutorRequestFingerprint',
+      'executionRollbackOperationRequestFingerprint',
+      'executionRollbackTriggerRequestFingerprint',
       'executionStateRequestFingerprint',
-      'executionStatusPollRequestFingerprint',
       'executionTraceRequestFingerprint',
-      'executionWorkerLeaseRequestFingerprint',
       'idempotencyLockFingerprint',
-      'operationSetFingerprint',
       'repairJobRequestFingerprint',
       'requestStatus',
       'rollbackPlanRequestFingerprint',
@@ -8171,55 +8760,32 @@ async function main() {
       'targetLocatorFingerprint',
       'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
-    ]
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptCloseStatusEventRequestVersion,
-    'repair-execution-run-step-retry-attempt-close-status-event-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptCloseStatusEventRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptCloseStatusEventRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.executionRunStepRetryAttemptCloseStatusEventRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    executionRequest.executionRunStepRetryAttemptCloseStatusEventRequestInputs,
-    [
-      'auditEventRequestFingerprint',
+    ]);
+    assert.equal(
+      executionRequest.executionRollbackTriggerRequestVersion,
+      'repair-execution-rollback-trigger-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionRollbackTriggerRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      executionRequest.executionRollbackTriggerRequestCreated,
+      false
+    );
+    assert.match(
+      executionRequest.executionRollbackTriggerRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionRollbackTriggerRequestInputs, [
       'candidateEvidenceSetFingerprint',
-      'executionJobRunRequestFingerprint',
-      'executionQueueRequestFingerprint',
+      'executionFailureEventRequestFingerprint',
+      'executionProviderResponseRequestFingerprint',
       'executionResultRequestFingerprint',
       'executionRetryPolicyRequestFingerprint',
-      'executionRunStepCompletionRequestFingerprint',
-      'executionRunStepRequestFingerprint',
-      'executionRunStepResultRequestFingerprint',
-      'executionRunStepRetryAttemptCloseRequestFingerprint',
-      'executionRunStepRetryAttemptCompletionRequestFingerprint',
-      'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptFinalizationRequestFingerprint',
-      'executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptRequestFingerprint',
-      'executionRunStepRetryAttemptResultRequestFingerprint',
-      'executionRunStepRetryAttemptStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptTraceRequestFingerprint',
-      'executionRunStepRetryRequestFingerprint',
-      'executionRunStepStatusEventRequestFingerprint',
-      'executionRunStepTraceRequestFingerprint',
-      'executionStartRequestFingerprint',
       'executionStateRequestFingerprint',
-      'executionStatusPollRequestFingerprint',
       'executionTraceRequestFingerprint',
-      'executionWorkerLeaseRequestFingerprint',
       'idempotencyLockFingerprint',
-      'operationSetFingerprint',
       'repairJobRequestFingerprint',
       'requestStatus',
       'rollbackPlanRequestFingerprint',
@@ -8227,56 +8793,28 @@ async function main() {
       'targetLocatorFingerprint',
       'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
-    ]
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptRetentionPolicyRequestVersion,
-    'repair-execution-run-step-retry-attempt-retention-policy-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptRetentionPolicyRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptRetentionPolicyRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.executionRunStepRetryAttemptRetentionPolicyRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    executionRequest.executionRunStepRetryAttemptRetentionPolicyRequestInputs,
-    [
+    ]);
+    assert.equal(
+      executionRequest.executionTraceRequestVersion,
+      'repair-execution-trace-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionTraceRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(executionRequest.executionTraceRequestCreated, false);
+    assert.match(
+      executionRequest.executionTraceRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionTraceRequestInputs, [
+      'actorFingerprint',
+      'approvalRecordRequestFingerprint',
       'auditEventRequestFingerprint',
       'candidateEvidenceSetFingerprint',
-      'executionJobRunRequestFingerprint',
-      'executionQueueRequestFingerprint',
-      'executionResultRequestFingerprint',
-      'executionRetryPolicyRequestFingerprint',
-      'executionRunStepCompletionRequestFingerprint',
-      'executionRunStepRequestFingerprint',
-      'executionRunStepResultRequestFingerprint',
-      'executionRunStepRetryAttemptCloseRequestFingerprint',
-      'executionRunStepRetryAttemptCloseStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptCompletionRequestFingerprint',
-      'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptFinalizationRequestFingerprint',
-      'executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptRequestFingerprint',
-      'executionRunStepRetryAttemptResultRequestFingerprint',
-      'executionRunStepRetryAttemptStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptTraceRequestFingerprint',
-      'executionRunStepRetryRequestFingerprint',
-      'executionRunStepStatusEventRequestFingerprint',
-      'executionRunStepTraceRequestFingerprint',
-      'executionStartRequestFingerprint',
       'executionStateRequestFingerprint',
-      'executionStatusPollRequestFingerprint',
-      'executionTraceRequestFingerprint',
-      'executionWorkerLeaseRequestFingerprint',
       'idempotencyLockFingerprint',
-      'operationSetFingerprint',
+      'preparedRouteOrderEvidenceSetFingerprint',
       'repairJobRequestFingerprint',
       'requestStatus',
       'rollbackPlanRequestFingerprint',
@@ -8284,653 +8822,212 @@ async function main() {
       'targetLocatorFingerprint',
       'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
-    ]
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptRetentionPolicyRuleRequestVersion,
-    'repair-execution-run-step-retry-attempt-retention-policy-rule-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptRetentionPolicyRuleRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptRetentionPolicyRuleRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    executionRequest.executionRunStepRetryAttemptRetentionPolicyRuleRequestInputs,
-    [
+    ]);
+    assert.equal(
+      executionRequest.executionStateRequestVersion,
+      'repair-execution-state-request/v1'
+    );
+    assert.equal(
+      executionRequest.executionStateRequestStatus,
+      'not_started_read_only'
+    );
+    assert.equal(executionRequest.executionStateRequestCreated, false);
+    assert.match(
+      executionRequest.executionStateRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.executionStateRequestInputs, [
       'auditEventRequestFingerprint',
       'candidateEvidenceSetFingerprint',
-      'executionJobRunRequestFingerprint',
-      'executionQueueRequestFingerprint',
-      'executionResultRequestFingerprint',
-      'executionRetryPolicyRequestFingerprint',
-      'executionRunStepCompletionRequestFingerprint',
-      'executionRunStepRequestFingerprint',
-      'executionRunStepResultRequestFingerprint',
-      'executionRunStepRetryAttemptCloseRequestFingerprint',
-      'executionRunStepRetryAttemptCloseStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptCompletionRequestFingerprint',
-      'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptFinalizationRequestFingerprint',
-      'executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptRequestFingerprint',
-      'executionRunStepRetryAttemptResultRequestFingerprint',
-      'executionRunStepRetryAttemptRetentionPolicyRequestFingerprint',
-      'executionRunStepRetryAttemptStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptTraceRequestFingerprint',
-      'executionRunStepRetryRequestFingerprint',
-      'executionRunStepStatusEventRequestFingerprint',
-      'executionRunStepTraceRequestFingerprint',
-      'executionStartRequestFingerprint',
-      'executionStateRequestFingerprint',
-      'executionStatusPollRequestFingerprint',
-      'executionTraceRequestFingerprint',
-      'executionWorkerLeaseRequestFingerprint',
+      'executionStateFingerprint',
       'idempotencyLockFingerprint',
       'operationSetFingerprint',
+      'preparedRouteOrderEvidenceSetFingerprint',
       'repairJobRequestFingerprint',
       'requestStatus',
-      'rollbackPlanRequestFingerprint',
+      'reviewBindingFingerprint',
       'submissionFingerprint',
       'targetLocatorFingerprint',
       'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
-    ]
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptRetentionLeaseRequestVersion,
-    'repair-execution-run-step-retry-attempt-retention-lease-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptRetentionLeaseRequestStatus,
-    'not_acquired_read_only'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptRetentionLeaseRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.executionRunStepRetryAttemptRetentionLeaseRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    executionRequest.executionRunStepRetryAttemptRetentionLeaseRequestInputs,
-    [
+    ]);
+    assert.equal(
+      executionRequest.rollbackPlanRequestVersion,
+      'repair-execution-rollback-plan-request/v1'
+    );
+    assert.equal(
+      executionRequest.rollbackPlanRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(executionRequest.rollbackPlanRequestCreated, false);
+    assert.match(
+      executionRequest.rollbackPlanRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.rollbackPlanRequestInputs, [
       'auditEventRequestFingerprint',
       'candidateEvidenceSetFingerprint',
-      'executionJobRunRequestFingerprint',
-      'executionQueueRequestFingerprint',
-      'executionResultRequestFingerprint',
-      'executionRetryPolicyRequestFingerprint',
-      'executionRunStepCompletionRequestFingerprint',
-      'executionRunStepRequestFingerprint',
-      'executionRunStepResultRequestFingerprint',
-      'executionRunStepRetryAttemptCloseRequestFingerprint',
-      'executionRunStepRetryAttemptCloseStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptCompletionRequestFingerprint',
-      'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptFinalizationRequestFingerprint',
-      'executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptRequestFingerprint',
-      'executionRunStepRetryAttemptResultRequestFingerprint',
-      'executionRunStepRetryAttemptRetentionPolicyRequestFingerprint',
-      'executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint',
-      'executionRunStepRetryAttemptStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptTraceRequestFingerprint',
-      'executionRunStepRetryRequestFingerprint',
-      'executionRunStepStatusEventRequestFingerprint',
-      'executionRunStepTraceRequestFingerprint',
-      'executionStartRequestFingerprint',
       'executionStateRequestFingerprint',
-      'executionStatusPollRequestFingerprint',
-      'executionTraceRequestFingerprint',
-      'executionWorkerLeaseRequestFingerprint',
-      'idempotencyLockFingerprint',
       'operationSetFingerprint',
+      'preparedRouteOrderEvidenceSetFingerprint',
       'repairJobRequestFingerprint',
       'requestStatus',
-      'rollbackPlanRequestFingerprint',
+      'reviewBindingFingerprint',
+      'rollbackPlanFingerprint',
       'submissionFingerprint',
       'targetLocatorFingerprint',
       'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
-    ]
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptArchiveRequestVersion,
-    'repair-execution-run-step-retry-attempt-archive-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptArchiveRequestStatus,
-    'not_archived_read_only'
-  );
-  assert.equal(
-    executionRequest.executionRunStepRetryAttemptArchiveRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.executionRunStepRetryAttemptArchiveRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    executionRequest.executionRunStepRetryAttemptArchiveRequestInputs,
-    [
+    ]);
+    assert.equal(
+      executionRequest.repairJobRequestVersion,
+      'repair-execution-repair-job-request/v1'
+    );
+    assert.equal(
+      executionRequest.repairJobRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(executionRequest.repairJobRequestCreated, false);
+    assert.match(
+      executionRequest.repairJobRequestFingerprint,
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(executionRequest.repairJobRequestInputs, [
+      'actorFingerprint',
+      'approvalRecordRequestFingerprint',
       'auditEventRequestFingerprint',
       'candidateEvidenceSetFingerprint',
-      'executionJobRunRequestFingerprint',
-      'executionQueueRequestFingerprint',
-      'executionResultRequestFingerprint',
-      'executionRetryPolicyRequestFingerprint',
-      'executionRunStepCompletionRequestFingerprint',
-      'executionRunStepRequestFingerprint',
-      'executionRunStepResultRequestFingerprint',
-      'executionRunStepRetryAttemptCloseRequestFingerprint',
-      'executionRunStepRetryAttemptCloseStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptCompletionRequestFingerprint',
-      'executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptFinalizationRequestFingerprint',
-      'executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptRequestFingerprint',
-      'executionRunStepRetryAttemptResultRequestFingerprint',
-      'executionRunStepRetryAttemptRetentionLeaseRequestFingerprint',
-      'executionRunStepRetryAttemptRetentionPolicyRequestFingerprint',
-      'executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint',
-      'executionRunStepRetryAttemptStatusEventRequestFingerprint',
-      'executionRunStepRetryAttemptTraceRequestFingerprint',
-      'executionRunStepRetryRequestFingerprint',
-      'executionRunStepStatusEventRequestFingerprint',
-      'executionRunStepTraceRequestFingerprint',
-      'executionStartRequestFingerprint',
-      'executionStateRequestFingerprint',
-      'executionStatusPollRequestFingerprint',
-      'executionTraceRequestFingerprint',
-      'executionWorkerLeaseRequestFingerprint',
       'idempotencyLockFingerprint',
       'operationSetFingerprint',
-      'repairJobRequestFingerprint',
+      'policyBindingFingerprint',
+      'preparedRouteOrderEvidenceSetFingerprint',
+      'repairJobFingerprint',
       'requestStatus',
-      'rollbackPlanRequestFingerprint',
+      'reviewBindingFingerprint',
       'submissionFingerprint',
       'targetLocatorFingerprint',
       'taskRouteEffectiveSourceEvidenceSetFingerprint',
       'workspaceId',
-    ]
-  );
-  assert.equal(
-    executionRequest.executionFailureEventRequestVersion,
-    'repair-execution-failure-event-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionFailureEventRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(executionRequest.executionFailureEventRequestCreated, false);
-  assert.match(
-    executionRequest.executionFailureEventRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionFailureEventRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionProviderResponseRequestFingerprint',
-    'executionResultRequestFingerprint',
-    'executionRetryPolicyRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionProviderResponseRequestVersion,
-    'repair-execution-provider-response-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionProviderResponseRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(executionRequest.executionProviderResponseRequestCreated, false);
-  assert.match(
-    executionRequest.executionProviderResponseRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionProviderResponseRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionResultRequestFingerprint',
-    'executionRetryPolicyRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionResultRequestVersion,
-    'repair-execution-result-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionResultRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(executionRequest.executionResultRequestCreated, false);
-  assert.match(
-    executionRequest.executionResultRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionResultRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionStateRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'preparedRouteOrderEvidenceSetFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionRetryPolicyRequestVersion,
-    'repair-execution-retry-policy-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRetryPolicyRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(executionRequest.executionRetryPolicyRequestCreated, false);
-  assert.match(
-    executionRequest.executionRetryPolicyRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionRetryPolicyRequestInputs, [
-    'candidateEvidenceSetFingerprint',
-    'executionResultRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionRollbackExecutorRequestVersion,
-    'repair-execution-rollback-executor-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRollbackExecutorRequestStatus,
-    'not_started_read_only'
-  );
-  assert.equal(executionRequest.executionRollbackExecutorRequestCreated, false);
-  assert.match(
-    executionRequest.executionRollbackExecutorRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionRollbackExecutorRequestInputs, [
-    'candidateEvidenceSetFingerprint',
-    'executionFailureEventRequestFingerprint',
-    'executionProviderResponseRequestFingerprint',
-    'executionResultRequestFingerprint',
-    'executionRollbackTriggerRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionRollbackOperationRequestVersion,
-    'repair-execution-rollback-operation-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRollbackOperationRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    executionRequest.executionRollbackOperationRequestCreated,
-    false
-  );
-  assert.match(
-    executionRequest.executionRollbackOperationRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionRollbackOperationRequestInputs, [
-    'candidateEvidenceSetFingerprint',
-    'executionFailureEventRequestFingerprint',
-    'executionProviderResponseRequestFingerprint',
-    'executionResultRequestFingerprint',
-    'executionRollbackExecutorRequestFingerprint',
-    'executionRollbackTriggerRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionRollbackOutcomeRequestVersion,
-    'repair-execution-rollback-outcome-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRollbackOutcomeRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(executionRequest.executionRollbackOutcomeRequestCreated, false);
-  assert.match(
-    executionRequest.executionRollbackOutcomeRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionRollbackOutcomeRequestInputs, [
-    'candidateEvidenceSetFingerprint',
-    'executionFailureEventRequestFingerprint',
-    'executionProviderResponseRequestFingerprint',
-    'executionResultRequestFingerprint',
-    'executionRollbackExecutorRequestFingerprint',
-    'executionRollbackOperationRequestFingerprint',
-    'executionRollbackTriggerRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionRollbackTriggerRequestVersion,
-    'repair-execution-rollback-trigger-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionRollbackTriggerRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(executionRequest.executionRollbackTriggerRequestCreated, false);
-  assert.match(
-    executionRequest.executionRollbackTriggerRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionRollbackTriggerRequestInputs, [
-    'candidateEvidenceSetFingerprint',
-    'executionFailureEventRequestFingerprint',
-    'executionProviderResponseRequestFingerprint',
-    'executionResultRequestFingerprint',
-    'executionRetryPolicyRequestFingerprint',
-    'executionStateRequestFingerprint',
-    'executionTraceRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionTraceRequestVersion,
-    'repair-execution-trace-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionTraceRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(executionRequest.executionTraceRequestCreated, false);
-  assert.match(
-    executionRequest.executionTraceRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionTraceRequestInputs, [
-    'actorFingerprint',
-    'approvalRecordRequestFingerprint',
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionStateRequestFingerprint',
-    'idempotencyLockFingerprint',
-    'preparedRouteOrderEvidenceSetFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'rollbackPlanRequestFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.executionStateRequestVersion,
-    'repair-execution-state-request/v1'
-  );
-  assert.equal(
-    executionRequest.executionStateRequestStatus,
-    'not_started_read_only'
-  );
-  assert.equal(executionRequest.executionStateRequestCreated, false);
-  assert.match(
-    executionRequest.executionStateRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.executionStateRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionStateFingerprint',
-    'idempotencyLockFingerprint',
-    'operationSetFingerprint',
-    'preparedRouteOrderEvidenceSetFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'reviewBindingFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.rollbackPlanRequestVersion,
-    'repair-execution-rollback-plan-request/v1'
-  );
-  assert.equal(
-    executionRequest.rollbackPlanRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(executionRequest.rollbackPlanRequestCreated, false);
-  assert.match(
-    executionRequest.rollbackPlanRequestFingerprint,
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(executionRequest.rollbackPlanRequestInputs, [
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'executionStateRequestFingerprint',
-    'operationSetFingerprint',
-    'preparedRouteOrderEvidenceSetFingerprint',
-    'repairJobRequestFingerprint',
-    'requestStatus',
-    'reviewBindingFingerprint',
-    'rollbackPlanFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.repairJobRequestVersion,
-    'repair-execution-repair-job-request/v1'
-  );
-  assert.equal(
-    executionRequest.repairJobRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(executionRequest.repairJobRequestCreated, false);
-  assert.match(executionRequest.repairJobRequestFingerprint, /^[0-9a-f]{16}$/);
-  assert.deepEqual(executionRequest.repairJobRequestInputs, [
-    'actorFingerprint',
-    'approvalRecordRequestFingerprint',
-    'auditEventRequestFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'idempotencyLockFingerprint',
-    'operationSetFingerprint',
-    'policyBindingFingerprint',
-    'preparedRouteOrderEvidenceSetFingerprint',
-    'repairJobFingerprint',
-    'requestStatus',
-    'reviewBindingFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-    'workspaceId',
-  ]);
-  assert.equal(
-    executionRequest.idempotencyLockVersion,
-    'repair-execution-idempotency-lock/v1'
-  );
-  assert.equal(
-    executionRequest.idempotencyLockStatus,
-    'not_acquired_read_only'
-  );
-  assert.equal(executionRequest.idempotencyLockAcquired, false);
-  assert.equal(executionRequest.idempotencyLockScope, 'workspace');
-  assert.match(executionRequest.idempotencyLockFingerprint, /^[0-9a-f]{16}$/);
-  assert.deepEqual(executionRequest.idempotencyLockInputs, [
-    'candidateEvidenceSetFingerprint',
-    'idempotencyFingerprint',
-    'idempotencyKey',
-    'policyBindingFingerprint',
-    'preparedRouteOrderEvidenceSetFingerprint',
-    'requestStatus',
-    'reviewBindingFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-  ]);
-  assert.match(executionRequest.requestFingerprint, /^[0-9a-f]{16}$/);
-  assert.deepEqual(executionRequest.mismatchedFields, []);
-  assert.deepEqual(executionRequest.matchedFields, [
-    'expectedApprovalRecordFingerprint',
-    'expectedApprovalRequestFingerprint',
-    'expectedAuditEventFingerprint',
-    'expectedCandidateEvidenceSetFingerprint',
-    'expectedEmbeddingIndexContractEvidenceSetFingerprint',
-    'expectedExecutionGateFingerprint',
-    'expectedExecutionGateStatus',
-    'expectedExecutionStateFingerprint',
-    'expectedIdempotencyFingerprint',
-    'expectedPolicyBindingFingerprint',
-    'expectedPreflightStatus',
-    'expectedPreparedRouteOrderEvidenceSetFingerprint',
-    'expectedRepairGateManifestExportPolicyFingerprint',
-    'expectedRepairGateManifestFingerprint',
-    'expectedRepairGateManifestRetentionPolicyFingerprint',
-    'expectedRepairJobFingerprint',
-    'expectedRerankRuntimeContractEvidenceSetFingerprint',
-    'expectedReviewBindingFingerprint',
-    'expectedRollbackPlanFingerprint',
-    'expectedTargetLocatorFingerprint',
-    'expectedTaskRouteEffectiveSourceEvidenceSetFingerprint',
-  ]);
-  assert.deepEqual(executionRequest.requestInputs, [
-    'expectedApprovalRecordFingerprint',
-    'expectedApprovalRequestFingerprint',
-    'expectedAuditEventFingerprint',
-    'expectedCandidateEvidenceSetFingerprint',
-    'expectedEmbeddingIndexContractEvidenceSetFingerprint',
-    'expectedExecutionGateFingerprint',
-    'expectedExecutionGateStatus',
-    'expectedExecutionStateFingerprint',
-    'expectedIdempotencyFingerprint',
-    'expectedPolicyBindingFingerprint',
-    'expectedPreflightStatus',
-    'expectedPreparedRouteOrderEvidenceSetFingerprint',
-    'expectedRepairGateManifestExportPolicyFingerprint',
-    'expectedRepairGateManifestFingerprint',
-    'expectedRepairGateManifestRetentionPolicyFingerprint',
-    'expectedRepairJobFingerprint',
-    'expectedRerankRuntimeContractEvidenceSetFingerprint',
-    'expectedReviewBindingFingerprint',
-    'expectedRollbackPlanFingerprint',
-    'expectedTargetLocatorFingerprint',
-    'expectedTaskRouteEffectiveSourceEvidenceSetFingerprint',
-  ]);
-  assert.equal(
-    executionRequest.preflight.executionGateFingerprint,
-    matchingPreflight?.executionGateFingerprint
-  );
-  assert.equal(
-    executionRequest.preflight.candidateEvidenceSetFingerprint,
-    matchingPreflight?.candidateEvidenceSetFingerprint
-  );
-  assert.equal(
-    executionRequest.preflight.embeddingIndexContractEvidenceSetFingerprint,
-    matchingPreflight?.embeddingIndexContractEvidenceSetFingerprint
-  );
-  assert.equal(
-    executionRequest.preflight.rerankRuntimeContractEvidenceSetFingerprint,
-    matchingPreflight?.rerankRuntimeContractEvidenceSetFingerprint
-  );
-  assert.equal(
-    executionRequest.preflight.preparedRouteOrderEvidenceSetFingerprint,
-    matchingPreflight?.preparedRouteOrderEvidenceSetFingerprint
-  );
-  assert.equal(
-    executionRequest.preflight
-      .expectedEmbeddingIndexContractEvidenceSetFingerprint,
-    matchingPreflight?.expectedEmbeddingIndexContractEvidenceSetFingerprint
-  );
-  assert.equal(
-    executionRequest.preflight
-      .expectedRerankRuntimeContractEvidenceSetFingerprint,
-    matchingPreflight?.expectedRerankRuntimeContractEvidenceSetFingerprint
-  );
-  assert.equal(
-    executionRequest.preflight.expectedPreparedRouteOrderEvidenceSetFingerprint,
-    matchingPreflight?.expectedPreparedRouteOrderEvidenceSetFingerprint
-  );
-  assert.equal(
-    executionRequest.preflight.targetLocatorFingerprint,
-    matchingPreflight?.targetLocatorFingerprint
-  );
-  assert.equal(
-    executionRequest.preflight.expectedTargetLocatorFingerprint,
-    matchingPreflight?.expectedTargetLocatorFingerprint
-  );
-  assert.equal(
-    executionRequest.preflight.rollbackPlanFingerprint,
-    matchingPreflight?.rollbackPlanFingerprint
-  );
+    ]);
+    assert.equal(
+      executionRequest.idempotencyLockVersion,
+      'repair-execution-idempotency-lock/v1'
+    );
+    assert.equal(
+      executionRequest.idempotencyLockStatus,
+      'not_acquired_read_only'
+    );
+    assert.equal(executionRequest.idempotencyLockAcquired, false);
+    assert.equal(executionRequest.idempotencyLockScope, 'workspace');
+    assert.match(executionRequest.idempotencyLockFingerprint, /^[0-9a-f]{16}$/);
+    assert.deepEqual(executionRequest.idempotencyLockInputs, [
+      'candidateEvidenceSetFingerprint',
+      'idempotencyFingerprint',
+      'idempotencyKey',
+      'policyBindingFingerprint',
+      'preparedRouteOrderEvidenceSetFingerprint',
+      'requestStatus',
+      'reviewBindingFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+    ]);
+    assert.match(executionRequest.requestFingerprint, /^[0-9a-f]{16}$/);
+    assert.deepEqual(executionRequest.mismatchedFields, []);
+    assert.deepEqual(executionRequest.matchedFields, [
+      'expectedApprovalRecordFingerprint',
+      'expectedApprovalRequestFingerprint',
+      'expectedAuditEventFingerprint',
+      'expectedCandidateEvidenceSetFingerprint',
+      'expectedEmbeddingIndexContractEvidenceSetFingerprint',
+      'expectedExecutionGateFingerprint',
+      'expectedExecutionGateStatus',
+      'expectedExecutionStateFingerprint',
+      'expectedIdempotencyFingerprint',
+      'expectedPolicyBindingFingerprint',
+      'expectedPreflightStatus',
+      'expectedPreparedRouteOrderEvidenceSetFingerprint',
+      'expectedRepairGateManifestExportPolicyFingerprint',
+      'expectedRepairGateManifestFingerprint',
+      'expectedRepairGateManifestRetentionPolicyFingerprint',
+      'expectedRepairJobFingerprint',
+      'expectedRerankRuntimeContractEvidenceSetFingerprint',
+      'expectedReviewBindingFingerprint',
+      'expectedRollbackPlanFingerprint',
+      'expectedTargetLocatorFingerprint',
+      'expectedTaskRouteEffectiveSourceEvidenceSetFingerprint',
+    ]);
+    assert.deepEqual(executionRequest.requestInputs, [
+      'expectedApprovalRecordFingerprint',
+      'expectedApprovalRequestFingerprint',
+      'expectedAuditEventFingerprint',
+      'expectedCandidateEvidenceSetFingerprint',
+      'expectedEmbeddingIndexContractEvidenceSetFingerprint',
+      'expectedExecutionGateFingerprint',
+      'expectedExecutionGateStatus',
+      'expectedExecutionStateFingerprint',
+      'expectedIdempotencyFingerprint',
+      'expectedPolicyBindingFingerprint',
+      'expectedPreflightStatus',
+      'expectedPreparedRouteOrderEvidenceSetFingerprint',
+      'expectedRepairGateManifestExportPolicyFingerprint',
+      'expectedRepairGateManifestFingerprint',
+      'expectedRepairGateManifestRetentionPolicyFingerprint',
+      'expectedRepairJobFingerprint',
+      'expectedRerankRuntimeContractEvidenceSetFingerprint',
+      'expectedReviewBindingFingerprint',
+      'expectedRollbackPlanFingerprint',
+      'expectedTargetLocatorFingerprint',
+      'expectedTaskRouteEffectiveSourceEvidenceSetFingerprint',
+    ]);
+    assert.equal(
+      executionRequest.preflight.executionGateFingerprint,
+      matchingPreflight?.executionGateFingerprint
+    );
+    assert.equal(
+      executionRequest.preflight.candidateEvidenceSetFingerprint,
+      matchingPreflight?.candidateEvidenceSetFingerprint
+    );
+    assert.equal(
+      executionRequest.preflight.embeddingIndexContractEvidenceSetFingerprint,
+      matchingPreflight?.embeddingIndexContractEvidenceSetFingerprint
+    );
+    assert.equal(
+      executionRequest.preflight.rerankRuntimeContractEvidenceSetFingerprint,
+      matchingPreflight?.rerankRuntimeContractEvidenceSetFingerprint
+    );
+    assert.equal(
+      executionRequest.preflight.preparedRouteOrderEvidenceSetFingerprint,
+      matchingPreflight?.preparedRouteOrderEvidenceSetFingerprint
+    );
+    assert.equal(
+      executionRequest.preflight
+        .expectedEmbeddingIndexContractEvidenceSetFingerprint,
+      matchingPreflight?.expectedEmbeddingIndexContractEvidenceSetFingerprint
+    );
+    assert.equal(
+      executionRequest.preflight
+        .expectedRerankRuntimeContractEvidenceSetFingerprint,
+      matchingPreflight?.expectedRerankRuntimeContractEvidenceSetFingerprint
+    );
+    assert.equal(
+      executionRequest.preflight
+        .expectedPreparedRouteOrderEvidenceSetFingerprint,
+      matchingPreflight?.expectedPreparedRouteOrderEvidenceSetFingerprint
+    );
+    assert.equal(
+      executionRequest.preflight.targetLocatorFingerprint,
+      matchingPreflight?.targetLocatorFingerprint
+    );
+    assert.equal(
+      executionRequest.preflight.expectedTargetLocatorFingerprint,
+      matchingPreflight?.expectedTargetLocatorFingerprint
+    );
+    assert.equal(
+      executionRequest.preflight.rollbackPlanFingerprint,
+      matchingPreflight?.rollbackPlanFingerprint
+    );
+  })();
   const staleExecutionRequest =
     await routeAwareResolver.requestCopilotPromptRegistryRepairExecution(
       currentUser as any,
@@ -9046,1820 +9143,1868 @@ async function main() {
           matchingPreflight?.rollbackPlanFingerprint ?? '',
       } as any
     );
-  assert.equal(staleExecutionRequest.requestStatus, 'blocked_stale_preflight');
-  assert.equal(
-    staleExecutionRequest.idempotencyLockStatus,
-    'not_acquired_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.approvalRecordRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.auditEventRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionCompletionEventRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionCompletionRequestStatus,
-    'not_completed_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionFinalizationEventRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionFinalizationRequestStatus,
-    'not_finalized_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionStatusPollRequestStatus,
-    'not_started_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionOperationEntryRequestStatus,
-    'not_opened_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionApprovalUiRequestStatus,
-    'not_rendered_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionDiffPreviewRequestStatus,
-    'not_generated_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionApprovalDecisionRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionStartRequestStatus,
-    'not_started_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionQueueRequestStatus,
-    'not_enqueued_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionWorkerLeaseRequestStatus,
-    'not_acquired_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionJobRunRequestStatus,
-    'not_started_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepTraceRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepResultRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepCompletionRequestStatus,
-    'not_completed_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepStatusEventRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepRetryRequestStatus,
-    'not_scheduled_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepRetryAttemptRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepRetryAttemptStatusEventRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepRetryAttemptTraceRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepRetryAttemptResultRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepRetryAttemptCompletionRequestStatus,
-    'not_completed_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepRetryAttemptCompletionStatusEventRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepRetryAttemptFinalizationRequestStatus,
-    'not_finalized_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepRetryAttemptFinalizationStatusEventRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepRetryAttemptCloseRequestStatus,
-    'not_closed_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepRetryAttemptCloseStatusEventRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepRetryAttemptRetentionPolicyRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepRetryAttemptRetentionPolicyRuleRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepRetryAttemptRetentionLeaseRequestStatus,
-    'not_acquired_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRunStepRetryAttemptArchiveRequestStatus,
-    'not_archived_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionFailureEventRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionProviderResponseRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionResultRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRetryPolicyRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRollbackExecutorRequestStatus,
-    'not_started_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRollbackOperationRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRollbackOutcomeRequestStatus,
-    'not_recorded_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionRollbackTriggerRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionTraceRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.executionStateRequestStatus,
-    'not_started_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.repairJobRequestStatus,
-    'not_created_read_only'
-  );
-  assert.equal(
-    staleExecutionRequest.rollbackPlanRequestStatus,
-    'not_created_read_only'
-  );
-  assert.notEqual(
-    staleExecutionRequest.idempotencyLockFingerprint,
-    executionRequest.idempotencyLockFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.approvalRecordRequestFingerprint,
-    executionRequest.approvalRecordRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.auditEventRequestFingerprint,
-    executionRequest.auditEventRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionCompletionEventRequestFingerprint,
-    executionRequest.executionCompletionEventRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionCompletionRequestFingerprint,
-    executionRequest.executionCompletionRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionFinalizationEventRequestFingerprint,
-    executionRequest.executionFinalizationEventRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionFinalizationRequestFingerprint,
-    executionRequest.executionFinalizationRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionStatusPollRequestFingerprint,
-    executionRequest.executionStatusPollRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionOperationEntryRequestFingerprint,
-    executionRequest.executionOperationEntryRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionApprovalUiRequestFingerprint,
-    executionRequest.executionApprovalUiRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionDiffPreviewRequestFingerprint,
-    executionRequest.executionDiffPreviewRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionApprovalDecisionRequestFingerprint,
-    executionRequest.executionApprovalDecisionRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionStartRequestFingerprint,
-    executionRequest.executionStartRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionQueueRequestFingerprint,
-    executionRequest.executionQueueRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionWorkerLeaseRequestFingerprint,
-    executionRequest.executionWorkerLeaseRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionJobRunRequestFingerprint,
-    executionRequest.executionJobRunRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepRequestFingerprint,
-    executionRequest.executionRunStepRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepTraceRequestFingerprint,
-    executionRequest.executionRunStepTraceRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepResultRequestFingerprint,
-    executionRequest.executionRunStepResultRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepCompletionRequestFingerprint,
-    executionRequest.executionRunStepCompletionRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepStatusEventRequestFingerprint,
-    executionRequest.executionRunStepStatusEventRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepRetryRequestFingerprint,
-    executionRequest.executionRunStepRetryRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepRetryAttemptRequestFingerprint,
-    executionRequest.executionRunStepRetryAttemptRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepRetryAttemptStatusEventRequestFingerprint,
-    executionRequest.executionRunStepRetryAttemptStatusEventRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepRetryAttemptTraceRequestFingerprint,
-    executionRequest.executionRunStepRetryAttemptTraceRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepRetryAttemptResultRequestFingerprint,
-    executionRequest.executionRunStepRetryAttemptResultRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepRetryAttemptCompletionRequestFingerprint,
-    executionRequest.executionRunStepRetryAttemptCompletionRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint,
-    executionRequest.executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepRetryAttemptFinalizationRequestFingerprint,
-    executionRequest.executionRunStepRetryAttemptFinalizationRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint,
-    executionRequest.executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepRetryAttemptCloseRequestFingerprint,
-    executionRequest.executionRunStepRetryAttemptCloseRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepRetryAttemptCloseStatusEventRequestFingerprint,
-    executionRequest.executionRunStepRetryAttemptCloseStatusEventRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepRetryAttemptRetentionPolicyRequestFingerprint,
-    executionRequest.executionRunStepRetryAttemptRetentionPolicyRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint,
-    executionRequest.executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepRetryAttemptRetentionLeaseRequestFingerprint,
-    executionRequest.executionRunStepRetryAttemptRetentionLeaseRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRunStepRetryAttemptArchiveRequestFingerprint,
-    executionRequest.executionRunStepRetryAttemptArchiveRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionFailureEventRequestFingerprint,
-    executionRequest.executionFailureEventRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionProviderResponseRequestFingerprint,
-    executionRequest.executionProviderResponseRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionResultRequestFingerprint,
-    executionRequest.executionResultRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRetryPolicyRequestFingerprint,
-    executionRequest.executionRetryPolicyRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRollbackExecutorRequestFingerprint,
-    executionRequest.executionRollbackExecutorRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRollbackOperationRequestFingerprint,
-    executionRequest.executionRollbackOperationRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRollbackOutcomeRequestFingerprint,
-    executionRequest.executionRollbackOutcomeRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionRollbackTriggerRequestFingerprint,
-    executionRequest.executionRollbackTriggerRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionTraceRequestFingerprint,
-    executionRequest.executionTraceRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.executionStateRequestFingerprint,
-    executionRequest.executionStateRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.repairJobRequestFingerprint,
-    executionRequest.repairJobRequestFingerprint
-  );
-  assert.notEqual(
-    staleExecutionRequest.rollbackPlanRequestFingerprint,
-    executionRequest.rollbackPlanRequestFingerprint
-  );
-  assert.deepEqual(staleExecutionRequest.mismatchedFields, [
-    'expectedExecutionGateFingerprint',
-  ]);
-  assert.notEqual(
-    staleExecutionRequest.requestFingerprint,
-    executionRequest.requestFingerprint
-  );
-  assert.equal(
-    matchingPreflight?.currentSubmissionFingerprint,
-    routeReadyGate.repairActionPreview.submissionContract.submissionFingerprint
-  );
-  assert.equal(
-    matchingPreflight?.expectedSubmissionFingerprint,
-    routeReadyGate.repairActionPreview.submissionContract.submissionFingerprint
-  );
-  assert.deepEqual(matchingPreflight?.mismatchedFields, []);
-  assert.deepEqual(matchingPreflight?.matchedFields, [
-    'approvalPolicyFingerprint',
-    'authorizationFingerprint',
-    'candidateEvidenceSetFingerprint',
-    'catalogFingerprint',
-    'contractVersion',
-    'embeddingIndexContractEvidenceSetFingerprint',
-    'expectedRegistryFingerprint',
-    'expectedRegistryId',
-    'expectedRegistryUpdatedAt',
-    'guardFingerprint',
-    'idempotencyKey',
-    'operationSetFingerprint',
-    'preparedRouteOrderEvidenceSetFingerprint',
-    'previewFingerprint',
-    'requiredInputs',
-    'rerankRuntimeContractEvidenceSetFingerprint',
-    'submissionFingerprint',
-    'targetLocatorFingerprint',
-    'taskRouteEffectiveSourceEvidenceSetFingerprint',
-  ]);
-  const stalePreflight = await routeAwareResolver.promptRegistryRepairPreflight(
-    currentUser as any,
-    { workspaceId: 'workspace-smoke' } as any,
-    gateVerdict.name,
-    {
-      approvalPolicyFingerprint:
-        routeReadyGate.repairActionPreview.submissionContract
-          .approvalPolicyFingerprint,
-      authorizationFingerprint:
-        routeReadyGate.repairActionPreview.submissionContract
-          .authorizationFingerprint,
-      candidateEvidenceSetFingerprint:
-        routeReadyGate.repairActionPreview.submissionContract
-          .candidateEvidenceSetFingerprint,
-      taskRouteEffectiveSourceEvidenceSetFingerprint:
-        routeReadyGate.repairActionPreview.submissionContract
-          .taskRouteEffectiveSourceEvidenceSetFingerprint,
-      embeddingIndexContractEvidenceSetFingerprint:
-        routeReadyGate.repairActionPreview.submissionContract
-          .embeddingIndexContractEvidenceSetFingerprint,
-      rerankRuntimeContractEvidenceSetFingerprint:
-        routeReadyGate.repairActionPreview.submissionContract
-          .rerankRuntimeContractEvidenceSetFingerprint,
-      preparedRouteOrderEvidenceSetFingerprint:
-        routeReadyGate.repairActionPreview.submissionContract
-          .preparedRouteOrderEvidenceSetFingerprint,
-      catalogFingerprint:
-        routeReadyGate.repairActionPreview.submissionContract
-          .catalogFingerprint,
-      contractVersion:
-        routeReadyGate.repairActionPreview.submissionContract.contractVersion,
-      expectedRegistryFingerprint:
-        routeReadyGate.repairActionPreview.submissionContract
-          .expectedRegistryFingerprint,
-      expectedRegistryId:
-        routeReadyGate.repairActionPreview.submissionContract
-          .expectedRegistryId,
-      expectedRegistryUpdatedAt:
-        routeReadyGate.repairActionPreview.submissionContract
-          .expectedRegistryUpdatedAt,
-      guardFingerprint:
-        routeReadyGate.repairActionPreview.submissionContract.guardFingerprint,
-      idempotencyKey:
-        routeReadyGate.repairActionPreview.submissionContract.idempotencyKey,
-      operationSetFingerprint:
-        routeReadyGate.repairActionPreview.submissionContract
-          .operationSetFingerprint,
-      previewFingerprint: '0000aaaabbbbcccc',
-      requiredInputs:
-        routeReadyGate.repairActionPreview.submissionContract.requiredInputs,
-      submissionFingerprint: '0000111122223333',
-      targetLocatorFingerprint:
-        routeReadyGate.repairActionPreview.submissionContract
-          .targetLocatorFingerprint,
-    },
-    {
-      registryFingerprint: gateVerdict.registryFingerprint,
-      registryId: gateVerdict.registryId,
-      registryUpdatedAt: gateVerdict.registryUpdatedAt.toISOString(),
-    }
-  );
-  assert.equal(stalePreflight?.status, 'stale_submission');
-  assert.equal(stalePreflight?.permissionStatus, 'granted');
-  assert.equal(stalePreflight?.capabilityStatus, 'declared');
-  assert.equal(stalePreflight?.reviewBindingStatus, 'stale_submission');
-  assert.equal(stalePreflight?.auditBindingStatus, 'stale_submission');
-  assert.equal(stalePreflight?.auditEventStatus, 'not_created_read_only');
-  assert.notEqual(
-    stalePreflight?.auditEventFingerprint,
-    matchingPreflight?.auditEventFingerprint
-  );
-  assert.equal(stalePreflight?.executionStateStatus, 'not_started_read_only');
-  assert.notEqual(
-    stalePreflight?.executionStateFingerprint,
-    matchingPreflight?.executionStateFingerprint
-  );
-  assert.equal(stalePreflight?.rollbackPlanStatus, 'not_created_read_only');
-  assert.notEqual(
-    stalePreflight?.rollbackPlanFingerprint,
-    matchingPreflight?.rollbackPlanFingerprint
-  );
-  assert.equal(stalePreflight?.policyBindingStatus, 'stale_submission');
-  assert.equal(stalePreflight?.approvalRequestStatus, 'approval_required');
-  assert.notEqual(
-    stalePreflight?.approvalRequestFingerprint,
-    matchingPreflight?.approvalRequestFingerprint
-  );
-  assert.equal(stalePreflight?.approvalRecordStatus, 'not_created_read_only');
-  assert.notEqual(
-    stalePreflight?.approvalRecordFingerprint,
-    matchingPreflight?.approvalRecordFingerprint
-  );
-  assert.notEqual(
-    stalePreflight?.reviewBindingFingerprint,
-    matchingPreflight?.reviewBindingFingerprint
-  );
-  assert.notEqual(
-    stalePreflight?.auditBindingFingerprint,
-    matchingPreflight?.auditBindingFingerprint
-  );
-  assert.notEqual(
-    stalePreflight?.policyBindingFingerprint,
-    matchingPreflight?.policyBindingFingerprint
-  );
-  assert.notEqual(
-    stalePreflight?.idempotencyFingerprint,
-    matchingPreflight?.idempotencyFingerprint
-  );
-  assert.equal(stalePreflight?.repairJobStatus, 'not_created_read_only');
-  assert.notEqual(
-    stalePreflight?.repairJobFingerprint,
-    matchingPreflight?.repairJobFingerprint
-  );
-  assert.equal(stalePreflight?.executionGateStatus, 'blocked_stale_submission');
-  assert.notEqual(
-    stalePreflight?.executionGateFingerprint,
-    matchingPreflight?.executionGateFingerprint
-  );
-  assert.deepEqual(stalePreflight?.mismatchedFields, [
-    'previewFingerprint',
-    'submissionFingerprint',
-  ]);
-  assert.deepEqual(permissionAssertions, [
-    {
-      action: 'Workspace.Copilot',
-      userId: 'user-smoke',
-      workspaceId: 'workspace-smoke',
-    },
-    {
-      action: 'Workspace.Copilot',
-      userId: 'user-smoke',
-      workspaceId: 'workspace-smoke',
-    },
-    {
-      action: 'Workspace.Copilot',
-      userId: 'user-smoke',
-      workspaceId: 'workspace-smoke',
-    },
-    {
-      action: 'Workspace.Copilot',
-      userId: 'user-smoke',
-      workspaceId: 'workspace-smoke',
-    },
-  ]);
-  assert.deepEqual(
-    routeReadyGate?.repairActionPreview.operationFingerprints,
-    routeReadyGate?.repairActionPreview.operations
-      .map(operation => operation.operationFingerprint)
-      .sort()
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairActionPreview.operations.map(operation => [
-      operation.actionKind,
-      operation.category,
-      operation.code,
-      operation.diagnosticsFingerprint,
-      operation.operationFingerprint,
-      operation.previewStatus,
-      operation.reviewMode,
-      operation.safety,
-      operation.target,
-      operation.targetLocator?.kind,
-    ]),
-    [
+  await (async () => {
+    assert.equal(
+      staleExecutionRequest.requestStatus,
+      'blocked_stale_preflight'
+    );
+    assert.equal(
+      staleExecutionRequest.idempotencyLockStatus,
+      'not_acquired_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.approvalRecordRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.auditEventRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionCompletionEventRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionCompletionRequestStatus,
+      'not_completed_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionFinalizationEventRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionFinalizationRequestStatus,
+      'not_finalized_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionStatusPollRequestStatus,
+      'not_started_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionOperationEntryRequestStatus,
+      'not_opened_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionApprovalUiRequestStatus,
+      'not_rendered_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionDiffPreviewRequestStatus,
+      'not_generated_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionApprovalDecisionRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionStartRequestStatus,
+      'not_started_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionQueueRequestStatus,
+      'not_enqueued_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionWorkerLeaseRequestStatus,
+      'not_acquired_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionJobRunRequestStatus,
+      'not_started_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepTraceRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepResultRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepCompletionRequestStatus,
+      'not_completed_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepStatusEventRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepRetryRequestStatus,
+      'not_scheduled_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepRetryAttemptRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepRetryAttemptStatusEventRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepRetryAttemptTraceRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepRetryAttemptResultRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepRetryAttemptCompletionRequestStatus,
+      'not_completed_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepRetryAttemptCompletionStatusEventRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepRetryAttemptFinalizationRequestStatus,
+      'not_finalized_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepRetryAttemptFinalizationStatusEventRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepRetryAttemptCloseRequestStatus,
+      'not_closed_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepRetryAttemptCloseStatusEventRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepRetryAttemptRetentionPolicyRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepRetryAttemptRetentionPolicyRuleRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepRetryAttemptRetentionLeaseRequestStatus,
+      'not_acquired_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRunStepRetryAttemptArchiveRequestStatus,
+      'not_archived_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionFailureEventRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionProviderResponseRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionResultRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRetryPolicyRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRollbackExecutorRequestStatus,
+      'not_started_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRollbackOperationRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRollbackOutcomeRequestStatus,
+      'not_recorded_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionRollbackTriggerRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionTraceRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.executionStateRequestStatus,
+      'not_started_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.repairJobRequestStatus,
+      'not_created_read_only'
+    );
+    assert.equal(
+      staleExecutionRequest.rollbackPlanRequestStatus,
+      'not_created_read_only'
+    );
+    assert.notEqual(
+      staleExecutionRequest.idempotencyLockFingerprint,
+      executionRequest.idempotencyLockFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.approvalRecordRequestFingerprint,
+      executionRequest.approvalRecordRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.auditEventRequestFingerprint,
+      executionRequest.auditEventRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionCompletionEventRequestFingerprint,
+      executionRequest.executionCompletionEventRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionCompletionRequestFingerprint,
+      executionRequest.executionCompletionRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionFinalizationEventRequestFingerprint,
+      executionRequest.executionFinalizationEventRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionFinalizationRequestFingerprint,
+      executionRequest.executionFinalizationRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionStatusPollRequestFingerprint,
+      executionRequest.executionStatusPollRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionOperationEntryRequestFingerprint,
+      executionRequest.executionOperationEntryRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionApprovalUiRequestFingerprint,
+      executionRequest.executionApprovalUiRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionDiffPreviewRequestFingerprint,
+      executionRequest.executionDiffPreviewRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionApprovalDecisionRequestFingerprint,
+      executionRequest.executionApprovalDecisionRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionStartRequestFingerprint,
+      executionRequest.executionStartRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionQueueRequestFingerprint,
+      executionRequest.executionQueueRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionWorkerLeaseRequestFingerprint,
+      executionRequest.executionWorkerLeaseRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionJobRunRequestFingerprint,
+      executionRequest.executionJobRunRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepRequestFingerprint,
+      executionRequest.executionRunStepRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepTraceRequestFingerprint,
+      executionRequest.executionRunStepTraceRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepResultRequestFingerprint,
+      executionRequest.executionRunStepResultRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepCompletionRequestFingerprint,
+      executionRequest.executionRunStepCompletionRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepStatusEventRequestFingerprint,
+      executionRequest.executionRunStepStatusEventRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepRetryRequestFingerprint,
+      executionRequest.executionRunStepRetryRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepRetryAttemptRequestFingerprint,
+      executionRequest.executionRunStepRetryAttemptRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepRetryAttemptStatusEventRequestFingerprint,
+      executionRequest.executionRunStepRetryAttemptStatusEventRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepRetryAttemptTraceRequestFingerprint,
+      executionRequest.executionRunStepRetryAttemptTraceRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepRetryAttemptResultRequestFingerprint,
+      executionRequest.executionRunStepRetryAttemptResultRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepRetryAttemptCompletionRequestFingerprint,
+      executionRequest.executionRunStepRetryAttemptCompletionRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint,
+      executionRequest.executionRunStepRetryAttemptCompletionStatusEventRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepRetryAttemptFinalizationRequestFingerprint,
+      executionRequest.executionRunStepRetryAttemptFinalizationRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint,
+      executionRequest.executionRunStepRetryAttemptFinalizationStatusEventRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepRetryAttemptCloseRequestFingerprint,
+      executionRequest.executionRunStepRetryAttemptCloseRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepRetryAttemptCloseStatusEventRequestFingerprint,
+      executionRequest.executionRunStepRetryAttemptCloseStatusEventRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepRetryAttemptRetentionPolicyRequestFingerprint,
+      executionRequest.executionRunStepRetryAttemptRetentionPolicyRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint,
+      executionRequest.executionRunStepRetryAttemptRetentionPolicyRuleRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepRetryAttemptRetentionLeaseRequestFingerprint,
+      executionRequest.executionRunStepRetryAttemptRetentionLeaseRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRunStepRetryAttemptArchiveRequestFingerprint,
+      executionRequest.executionRunStepRetryAttemptArchiveRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionFailureEventRequestFingerprint,
+      executionRequest.executionFailureEventRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionProviderResponseRequestFingerprint,
+      executionRequest.executionProviderResponseRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionResultRequestFingerprint,
+      executionRequest.executionResultRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRetryPolicyRequestFingerprint,
+      executionRequest.executionRetryPolicyRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRollbackExecutorRequestFingerprint,
+      executionRequest.executionRollbackExecutorRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRollbackOperationRequestFingerprint,
+      executionRequest.executionRollbackOperationRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRollbackOutcomeRequestFingerprint,
+      executionRequest.executionRollbackOutcomeRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionRollbackTriggerRequestFingerprint,
+      executionRequest.executionRollbackTriggerRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionTraceRequestFingerprint,
+      executionRequest.executionTraceRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.executionStateRequestFingerprint,
+      executionRequest.executionStateRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.repairJobRequestFingerprint,
+      executionRequest.repairJobRequestFingerprint
+    );
+    assert.notEqual(
+      staleExecutionRequest.rollbackPlanRequestFingerprint,
+      executionRequest.rollbackPlanRequestFingerprint
+    );
+    assert.deepEqual(staleExecutionRequest.mismatchedFields, [
+      'expectedExecutionGateFingerprint',
+    ]);
+    assert.notEqual(
+      staleExecutionRequest.requestFingerprint,
+      executionRequest.requestFingerprint
+    );
+  })();
+  await (async () => {
+    assert.equal(
+      matchingPreflight?.currentSubmissionFingerprint,
+      routeReadyGate.repairActionPreview.submissionContract
+        .submissionFingerprint
+    );
+    assert.equal(
+      matchingPreflight?.expectedSubmissionFingerprint,
+      routeReadyGate.repairActionPreview.submissionContract
+        .submissionFingerprint
+    );
+    assert.deepEqual(matchingPreflight?.mismatchedFields, []);
+    assert.deepEqual(matchingPreflight?.matchedFields, [
+      'approvalPolicyFingerprint',
+      'authorizationFingerprint',
+      'candidateEvidenceSetFingerprint',
+      'catalogFingerprint',
+      'contractVersion',
+      'embeddingIndexContractEvidenceSetFingerprint',
+      'expectedRegistryFingerprint',
+      'expectedRegistryId',
+      'expectedRegistryUpdatedAt',
+      'guardFingerprint',
+      'idempotencyKey',
+      'operationSetFingerprint',
+      'preparedRouteOrderEvidenceSetFingerprint',
+      'previewFingerprint',
+      'requiredInputs',
+      'rerankRuntimeContractEvidenceSetFingerprint',
+      'submissionFingerprint',
+      'targetLocatorFingerprint',
+      'taskRouteEffectiveSourceEvidenceSetFingerprint',
+    ]);
+    const stalePreflight =
+      await routeAwareResolver.promptRegistryRepairPreflight(
+        currentUser as any,
+        { workspaceId: 'workspace-smoke' } as any,
+        gateVerdict.name,
+        {
+          approvalPolicyFingerprint:
+            routeReadyGate.repairActionPreview.submissionContract
+              .approvalPolicyFingerprint,
+          authorizationFingerprint:
+            routeReadyGate.repairActionPreview.submissionContract
+              .authorizationFingerprint,
+          candidateEvidenceSetFingerprint:
+            routeReadyGate.repairActionPreview.submissionContract
+              .candidateEvidenceSetFingerprint,
+          taskRouteEffectiveSourceEvidenceSetFingerprint:
+            routeReadyGate.repairActionPreview.submissionContract
+              .taskRouteEffectiveSourceEvidenceSetFingerprint,
+          embeddingIndexContractEvidenceSetFingerprint:
+            routeReadyGate.repairActionPreview.submissionContract
+              .embeddingIndexContractEvidenceSetFingerprint,
+          rerankRuntimeContractEvidenceSetFingerprint:
+            routeReadyGate.repairActionPreview.submissionContract
+              .rerankRuntimeContractEvidenceSetFingerprint,
+          preparedRouteOrderEvidenceSetFingerprint:
+            routeReadyGate.repairActionPreview.submissionContract
+              .preparedRouteOrderEvidenceSetFingerprint,
+          catalogFingerprint:
+            routeReadyGate.repairActionPreview.submissionContract
+              .catalogFingerprint,
+          contractVersion:
+            routeReadyGate.repairActionPreview.submissionContract
+              .contractVersion,
+          expectedRegistryFingerprint:
+            routeReadyGate.repairActionPreview.submissionContract
+              .expectedRegistryFingerprint,
+          expectedRegistryId:
+            routeReadyGate.repairActionPreview.submissionContract
+              .expectedRegistryId,
+          expectedRegistryUpdatedAt:
+            routeReadyGate.repairActionPreview.submissionContract
+              .expectedRegistryUpdatedAt,
+          guardFingerprint:
+            routeReadyGate.repairActionPreview.submissionContract
+              .guardFingerprint,
+          idempotencyKey:
+            routeReadyGate.repairActionPreview.submissionContract
+              .idempotencyKey,
+          operationSetFingerprint:
+            routeReadyGate.repairActionPreview.submissionContract
+              .operationSetFingerprint,
+          previewFingerprint: '0000aaaabbbbcccc',
+          requiredInputs:
+            routeReadyGate.repairActionPreview.submissionContract
+              .requiredInputs,
+          submissionFingerprint: '0000111122223333',
+          targetLocatorFingerprint:
+            routeReadyGate.repairActionPreview.submissionContract
+              .targetLocatorFingerprint,
+        },
+        {
+          registryFingerprint: gateVerdict.registryFingerprint,
+          registryId: gateVerdict.registryId,
+          registryUpdatedAt: gateVerdict.registryUpdatedAt.toISOString(),
+        }
+      );
+    assert.equal(stalePreflight?.status, 'stale_submission');
+    assert.equal(stalePreflight?.permissionStatus, 'granted');
+    assert.equal(stalePreflight?.capabilityStatus, 'declared');
+    assert.equal(stalePreflight?.reviewBindingStatus, 'stale_submission');
+    assert.equal(stalePreflight?.auditBindingStatus, 'stale_submission');
+    assert.equal(stalePreflight?.auditEventStatus, 'not_created_read_only');
+    assert.notEqual(
+      stalePreflight?.auditEventFingerprint,
+      matchingPreflight?.auditEventFingerprint
+    );
+    assert.equal(stalePreflight?.executionStateStatus, 'not_started_read_only');
+    assert.notEqual(
+      stalePreflight?.executionStateFingerprint,
+      matchingPreflight?.executionStateFingerprint
+    );
+    assert.equal(stalePreflight?.rollbackPlanStatus, 'not_created_read_only');
+    assert.notEqual(
+      stalePreflight?.rollbackPlanFingerprint,
+      matchingPreflight?.rollbackPlanFingerprint
+    );
+    assert.equal(stalePreflight?.policyBindingStatus, 'stale_submission');
+    assert.equal(stalePreflight?.approvalRequestStatus, 'approval_required');
+    assert.notEqual(
+      stalePreflight?.approvalRequestFingerprint,
+      matchingPreflight?.approvalRequestFingerprint
+    );
+    assert.equal(stalePreflight?.approvalRecordStatus, 'not_created_read_only');
+    assert.notEqual(
+      stalePreflight?.approvalRecordFingerprint,
+      matchingPreflight?.approvalRecordFingerprint
+    );
+    assert.notEqual(
+      stalePreflight?.reviewBindingFingerprint,
+      matchingPreflight?.reviewBindingFingerprint
+    );
+    assert.notEqual(
+      stalePreflight?.auditBindingFingerprint,
+      matchingPreflight?.auditBindingFingerprint
+    );
+    assert.notEqual(
+      stalePreflight?.policyBindingFingerprint,
+      matchingPreflight?.policyBindingFingerprint
+    );
+    assert.notEqual(
+      stalePreflight?.idempotencyFingerprint,
+      matchingPreflight?.idempotencyFingerprint
+    );
+    assert.equal(stalePreflight?.repairJobStatus, 'not_created_read_only');
+    assert.notEqual(
+      stalePreflight?.repairJobFingerprint,
+      matchingPreflight?.repairJobFingerprint
+    );
+    assert.equal(
+      stalePreflight?.executionGateStatus,
+      'blocked_stale_submission'
+    );
+    assert.notEqual(
+      stalePreflight?.executionGateFingerprint,
+      matchingPreflight?.executionGateFingerprint
+    );
+    assert.deepEqual(stalePreflight?.mismatchedFields, [
+      'previewFingerprint',
+      'submissionFingerprint',
+    ]);
+    assert.deepEqual(permissionAssertions, [
+      {
+        action: 'Workspace.Copilot',
+        userId: 'user-smoke',
+        workspaceId: 'workspace-smoke',
+      },
+      {
+        action: 'Workspace.Copilot',
+        userId: 'user-smoke',
+        workspaceId: 'workspace-smoke',
+      },
+      {
+        action: 'Workspace.Copilot',
+        userId: 'user-smoke',
+        workspaceId: 'workspace-smoke',
+      },
+      {
+        action: 'Workspace.Copilot',
+        userId: 'user-smoke',
+        workspaceId: 'workspace-smoke',
+      },
+    ]);
+    assert.deepEqual(
+      routeReadyGate?.repairActionPreview.operationFingerprints,
+      routeReadyGate?.repairActionPreview.operations
+        .map(operation => operation.operationFingerprint)
+        .sort()
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairActionPreview.operations.map(operation => [
+        operation.actionKind,
+        operation.category,
+        operation.code,
+        operation.diagnosticsFingerprint,
+        operation.operationFingerprint,
+        operation.previewStatus,
+        operation.reviewMode,
+        operation.safety,
+        operation.target,
+        operation.targetLocator?.kind,
+      ]),
       [
-        'review_non_default_model_route',
-        'model_route',
-        'optional_model_route_unavailable',
-        routeReadyGate?.repairRecommendations[0]?.diagnosticsFingerprint,
-        routeReadyGate?.repairActionPreview.operations[0]?.operationFingerprint,
-        'preview_required',
-        'preview',
-        'preview_required',
-        'copilot.prompts.overrides[].optionalModels',
-        'model_route',
-      ],
-      [
-        'check_provider_health',
-        'provider_health',
-        'selected_provider_health_not_healthy',
-        routeReadyGate?.repairRecommendations[1]?.diagnosticsFingerprint,
-        routeReadyGate?.repairActionPreview.operations[1]?.operationFingerprint,
-        'read_only_probe',
-        'probe',
-        'read_only_probe',
-        'copilot.providers.profiles[id=local]',
-        'model_route',
-      ],
-      [
-        'fix_embedding_dimensions',
-        'task_route',
-        'workspace_indexing_embedding_dimension_mismatch',
-        routeReadyGate?.repairRecommendations[2]?.diagnosticsFingerprint,
-        routeReadyGate?.repairActionPreview.operations[2]?.operationFingerprint,
-        'manual_review_required',
-        'manual_review',
-        'manual_review_required',
-        'copilot.tasks.models.workspaceIndexing',
-        'task_route',
-      ],
-      [
-        'repair_task_model_route',
-        'task_route',
-        'rerank_task_route_unavailable',
-        routeReadyGate?.repairRecommendations[3]?.diagnosticsFingerprint,
-        routeReadyGate?.repairActionPreview.operations[3]?.operationFingerprint,
-        'preview_required',
-        'preview',
-        'preview_required',
-        'copilot.tasks.models.rerank',
-        'task_route',
-      ],
-    ]
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairActionPreview.operations.map(operation =>
-      /^[0-9a-f]{16}$/.test(operation.targetLocatorFingerprint)
-    ),
-    routeReadyGate?.repairActionPreview.operations.map(() => true)
-  );
-  assert.deepEqual(
-    routeReadyGate?.repairActionPreview.operations.map(operation =>
-      /^[0-9a-f]{16}$/.test(operation.operationFingerprint)
-    ),
-    routeReadyGate?.repairActionPreview.operations.map(() => true)
-  );
-  assert.equal(
-    new Set(
+        [
+          'review_non_default_model_route',
+          'model_route',
+          'optional_model_route_unavailable',
+          routeReadyGate?.repairRecommendations[0]?.diagnosticsFingerprint,
+          routeReadyGate?.repairActionPreview.operations[0]
+            ?.operationFingerprint,
+          'preview_required',
+          'preview',
+          'preview_required',
+          'copilot.prompts.overrides[].optionalModels',
+          'model_route',
+        ],
+        [
+          'check_provider_health',
+          'provider_health',
+          'selected_provider_health_not_healthy',
+          routeReadyGate?.repairRecommendations[1]?.diagnosticsFingerprint,
+          routeReadyGate?.repairActionPreview.operations[1]
+            ?.operationFingerprint,
+          'read_only_probe',
+          'probe',
+          'read_only_probe',
+          'copilot.providers.profiles[id=local]',
+          'model_route',
+        ],
+        [
+          'fix_embedding_dimensions',
+          'task_route',
+          'workspace_indexing_embedding_dimension_mismatch',
+          routeReadyGate?.repairRecommendations[2]?.diagnosticsFingerprint,
+          routeReadyGate?.repairActionPreview.operations[2]
+            ?.operationFingerprint,
+          'manual_review_required',
+          'manual_review',
+          'manual_review_required',
+          'copilot.tasks.models.workspaceIndexing',
+          'task_route',
+        ],
+        [
+          'repair_task_model_route',
+          'task_route',
+          'rerank_task_route_unavailable',
+          routeReadyGate?.repairRecommendations[3]?.diagnosticsFingerprint,
+          routeReadyGate?.repairActionPreview.operations[3]
+            ?.operationFingerprint,
+          'preview_required',
+          'preview',
+          'preview_required',
+          'copilot.tasks.models.rerank',
+          'task_route',
+        ],
+      ]
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairActionPreview.operations.map(operation =>
+        /^[0-9a-f]{16}$/.test(operation.targetLocatorFingerprint)
+      ),
+      routeReadyGate?.repairActionPreview.operations.map(() => true)
+    );
+    assert.deepEqual(
+      routeReadyGate?.repairActionPreview.operations.map(operation =>
+        /^[0-9a-f]{16}$/.test(operation.operationFingerprint)
+      ),
+      routeReadyGate?.repairActionPreview.operations.map(() => true)
+    );
+    assert.equal(
+      new Set(
+        routeReadyGate?.repairActionPreview.operations.map(
+          operation => operation.operationFingerprint
+        )
+      ).size,
+      routeReadyGate?.repairActionPreview.operations.length
+    );
+  })();
+  await (async () => {
+    const repeatedRouteReadyGate =
+      await routeAwareResolver.promptRegistryPublishGate(
+        { workspaceId: 'workspace-smoke' } as any,
+        gateVerdict.name,
+        {
+          registryFingerprint: gateVerdict.registryFingerprint,
+          registryId: gateVerdict.registryId,
+          registryUpdatedAt: gateVerdict.registryUpdatedAt.toISOString(),
+        }
+      );
+    assert.equal(
+      repeatedRouteReadyGate?.repairActionCatalogFingerprint,
+      routeReadyGate?.repairActionCatalogFingerprint
+    );
+    assert.equal(
+      repeatedRouteReadyGate?.repairActionMutationGuard.guardFingerprint,
+      routeReadyGate?.repairActionMutationGuard.guardFingerprint
+    );
+    assert.equal(
+      repeatedRouteReadyGate?.repairActionMutationGuard
+        .targetLocatorFingerprint,
+      routeReadyGate?.repairActionMutationGuard.targetLocatorFingerprint
+    );
+    assert.equal(
+      repeatedRouteReadyGate?.repairActionMutationGuard.intentFingerprint,
+      routeReadyGate?.repairActionMutationGuard.intentFingerprint
+    );
+    assert.equal(
+      repeatedRouteReadyGate?.repairActionMutationGuard.auditSummaryFingerprint,
+      routeReadyGate?.repairActionMutationGuard.auditSummaryFingerprint
+    );
+    assert.equal(
+      repeatedRouteReadyGate?.repairActionPreview.previewFingerprint,
+      routeReadyGate?.repairActionPreview.previewFingerprint
+    );
+    assert.deepEqual(
+      repeatedRouteReadyGate?.repairActionPreview.operations.map(
+        operation => operation.targetLocatorFingerprint
+      ),
+      routeReadyGate?.repairActionPreview.operations.map(
+        operation => operation.targetLocatorFingerprint
+      )
+    );
+    assert.deepEqual(
+      repeatedRouteReadyGate?.repairActionPreview.operations.map(
+        operation => operation.operationFingerprint
+      ),
       routeReadyGate?.repairActionPreview.operations.map(
         operation => operation.operationFingerprint
       )
-    ).size,
-    routeReadyGate?.repairActionPreview.operations.length
-  );
-  const repeatedRouteReadyGate =
-    await routeAwareResolver.promptRegistryPublishGate(
-      { workspaceId: 'workspace-smoke' } as any,
-      gateVerdict.name,
-      {
-        registryFingerprint: gateVerdict.registryFingerprint,
-        registryId: gateVerdict.registryId,
-        registryUpdatedAt: gateVerdict.registryUpdatedAt.toISOString(),
-      }
     );
-  assert.equal(
-    repeatedRouteReadyGate?.repairActionCatalogFingerprint,
-    routeReadyGate?.repairActionCatalogFingerprint
-  );
-  assert.equal(
-    repeatedRouteReadyGate?.repairActionMutationGuard.guardFingerprint,
-    routeReadyGate?.repairActionMutationGuard.guardFingerprint
-  );
-  assert.equal(
-    repeatedRouteReadyGate?.repairActionMutationGuard.targetLocatorFingerprint,
-    routeReadyGate?.repairActionMutationGuard.targetLocatorFingerprint
-  );
-  assert.equal(
-    repeatedRouteReadyGate?.repairActionMutationGuard.intentFingerprint,
-    routeReadyGate?.repairActionMutationGuard.intentFingerprint
-  );
-  assert.equal(
-    repeatedRouteReadyGate?.repairActionMutationGuard.auditSummaryFingerprint,
-    routeReadyGate?.repairActionMutationGuard.auditSummaryFingerprint
-  );
-  assert.equal(
-    repeatedRouteReadyGate?.repairActionPreview.previewFingerprint,
-    routeReadyGate?.repairActionPreview.previewFingerprint
-  );
-  assert.deepEqual(
-    repeatedRouteReadyGate?.repairActionPreview.operations.map(
-      operation => operation.targetLocatorFingerprint
-    ),
-    routeReadyGate?.repairActionPreview.operations.map(
-      operation => operation.targetLocatorFingerprint
-    )
-  );
-  assert.deepEqual(
-    repeatedRouteReadyGate?.repairActionPreview.operations.map(
-      operation => operation.operationFingerprint
-    ),
-    routeReadyGate?.repairActionPreview.operations.map(
-      operation => operation.operationFingerprint
-    )
-  );
-  assert.equal(
-    repeatedRouteReadyGate?.repairActionPreview.operationSetFingerprint,
-    routeReadyGate?.repairActionPreview.operationSetFingerprint
-  );
-  assert.equal(
-    repeatedRouteReadyGate?.repairActionPreview.authorizationFingerprint,
-    routeReadyGate?.repairActionPreview.authorizationFingerprint
-  );
-  assert.equal(
-    repeatedRouteReadyGate?.repairActionPreview.approvalPolicyFingerprint,
-    routeReadyGate?.repairActionPreview.approvalPolicyFingerprint
-  );
-  assert.deepEqual(
-    repeatedRouteReadyGate?.repairActionPreview.approvalCheckpoints,
-    routeReadyGate?.repairActionPreview.approvalCheckpoints
-  );
-  assert.equal(
-    repeatedRouteReadyGate?.repairActionPreview.submissionContract
-      .submissionFingerprint,
-    routeReadyGate?.repairActionPreview.submissionContract.submissionFingerprint
-  );
-  assert.equal(
-    repeatedRouteReadyGate?.repairActionPreview.submissionContract
-      .idempotencyKey,
-    routeReadyGate?.repairActionPreview.submissionContract.idempotencyKey
-  );
-  assert.deepEqual(
-    repeatedRouteReadyGate?.repairActionPreview.operationFingerprints,
-    routeReadyGate?.repairActionPreview.operationFingerprints
-  );
-  assert.deepEqual(routeReadyGate?.repairRecommendations[0]?.targetLocator, {
-    candidateIndex: 1,
-    candidateKind: 'optional',
-    featureKind: 'chat',
-    kind: 'model_route',
-    outputType: 'object',
-    path: 'copilot.prompts.overrides[].optionalModels',
-    providerId: 'local',
-    providerProfileConfigPath: 'copilot.providers.profiles[id=local]',
-    providerProfileId: 'local',
-    providerProfileSource: 'configured',
-    registryFingerprint: 'feedfacecafebeef',
-    registryId: 7,
-    registryUpdatedAt: '2026-06-17T01:02:03.000Z',
-    requestedModelId: 'local/optional-chat',
-    requestedModelSource: 'override',
-  });
-  assert.deepEqual(routeReadyGate?.repairRecommendations[0]?.evidence, [
-    'candidate:optional#1',
-    'requestedModelId:local/optional-chat',
-    'requestedModelSource:override',
-    'featureKind:chat',
-    'outputType:object',
-    'matchedCandidateCount:0',
-    'reason:model_route_unavailable',
-    'reason:no_matching_provider_route',
-    'reason:capability_mismatch',
-  ]);
-  assert.deepEqual(routeReadyGate?.modelRoute?.fallbackProviderIds, [
-    'local',
-    'cloud',
-  ]);
-  const routeReadyGateModelRouteCalls = routeCalls.filter(
-    call =>
-      call.workspaceId === 'workspace-smoke' &&
-      call.featureKind === 'chat' &&
-      call.outputType === 'object'
-  );
-  assert.deepEqual(
-    sortRouteCalls(routeReadyGateModelRouteCalls.slice(-12)),
-    sortRouteCalls([
-      {
-        method: 'describeRouteCandidates',
-        modelId: gatePrompt.model,
-        outputType: 'object',
-        featureKind: 'chat',
-        workspaceId: 'workspace-smoke',
-      },
-      {
-        method: 'resolveProvider',
-        modelId: gatePrompt.model,
-        outputType: 'object',
-        featureKind: 'chat',
-        workspaceId: 'workspace-smoke',
-      },
-      {
-        method: 'describeRouteCandidates',
-        modelId: 'local/default-chat',
-        outputType: 'object',
-        featureKind: 'chat',
-        workspaceId: 'workspace-smoke',
-      },
-      {
-        method: 'resolveProvider',
-        modelId: 'local/default-chat',
-        outputType: 'object',
-        featureKind: 'chat',
-        workspaceId: 'workspace-smoke',
-      },
-      {
-        method: 'describeRouteCandidates',
-        modelId: 'local/optional-chat',
-        outputType: 'object',
-        featureKind: 'chat',
-        workspaceId: 'workspace-smoke',
-      },
-      {
-        method: 'resolveProvider',
-        modelId: 'local/optional-chat',
-        outputType: 'object',
-        featureKind: 'chat',
-        workspaceId: 'workspace-smoke',
-      },
-      {
-        method: 'describeRouteCandidates',
-        modelId: 'cloud/pro-chat',
-        outputType: 'object',
-        featureKind: 'chat',
-        workspaceId: 'workspace-smoke',
-      },
-      {
-        method: 'resolveProvider',
-        modelId: 'cloud/pro-chat',
-        outputType: 'object',
-        featureKind: 'chat',
-        workspaceId: 'workspace-smoke',
-      },
-      {
-        method: 'describeRouteCandidates',
-        modelId: 'registry/only-chat',
-        outputType: 'object',
-        featureKind: 'chat',
-        workspaceId: 'workspace-smoke',
-      },
-      {
-        method: 'resolveProvider',
-        modelId: 'registry/only-chat',
-        outputType: 'object',
-        featureKind: 'chat',
-        workspaceId: 'workspace-smoke',
-      },
-      {
-        method: 'describeRouteCandidates',
-        modelId: 'byok/effective-chat',
-        outputType: 'object',
-        featureKind: 'chat',
-        workspaceId: 'workspace-smoke',
-      },
-      {
-        method: 'resolveProvider',
-        modelId: 'byok/effective-chat',
-        outputType: 'object',
-        featureKind: 'chat',
-        workspaceId: 'workspace-smoke',
-      },
-    ])
-  );
-  assert.ok(
-    routeCalls.some(
+    assert.equal(
+      repeatedRouteReadyGate?.repairActionPreview.operationSetFingerprint,
+      routeReadyGate?.repairActionPreview.operationSetFingerprint
+    );
+    assert.equal(
+      repeatedRouteReadyGate?.repairActionPreview.authorizationFingerprint,
+      routeReadyGate?.repairActionPreview.authorizationFingerprint
+    );
+    assert.equal(
+      repeatedRouteReadyGate?.repairActionPreview.approvalPolicyFingerprint,
+      routeReadyGate?.repairActionPreview.approvalPolicyFingerprint
+    );
+    assert.deepEqual(
+      repeatedRouteReadyGate?.repairActionPreview.approvalCheckpoints,
+      routeReadyGate?.repairActionPreview.approvalCheckpoints
+    );
+    assert.equal(
+      repeatedRouteReadyGate?.repairActionPreview.submissionContract
+        .submissionFingerprint,
+      routeReadyGate?.repairActionPreview.submissionContract
+        .submissionFingerprint
+    );
+    assert.equal(
+      repeatedRouteReadyGate?.repairActionPreview.submissionContract
+        .idempotencyKey,
+      routeReadyGate?.repairActionPreview.submissionContract.idempotencyKey
+    );
+    assert.deepEqual(
+      repeatedRouteReadyGate?.repairActionPreview.operationFingerprints,
+      routeReadyGate?.repairActionPreview.operationFingerprints
+    );
+    assert.deepEqual(routeReadyGate?.repairRecommendations[0]?.targetLocator, {
+      candidateIndex: 1,
+      candidateKind: 'optional',
+      featureKind: 'chat',
+      kind: 'model_route',
+      outputType: 'object',
+      path: 'copilot.prompts.overrides[].optionalModels',
+      providerId: 'local',
+      providerProfileConfigPath: 'copilot.providers.profiles[id=local]',
+      providerProfileId: 'local',
+      providerProfileSource: 'configured',
+      registryFingerprint: 'feedfacecafebeef',
+      registryId: 7,
+      registryUpdatedAt: '2026-06-17T01:02:03.000Z',
+      requestedModelId: 'local/optional-chat',
+      requestedModelSource: 'override',
+    });
+    assert.deepEqual(routeReadyGate?.repairRecommendations[0]?.evidence, [
+      'candidate:optional#1',
+      'requestedModelId:local/optional-chat',
+      'requestedModelSource:override',
+      'featureKind:chat',
+      'outputType:object',
+      'matchedCandidateCount:0',
+      'reason:model_route_unavailable',
+      'reason:no_matching_provider_route',
+      'reason:capability_mismatch',
+    ]);
+    assert.deepEqual(routeReadyGate?.modelRoute?.fallbackProviderIds, [
+      'local',
+      'cloud',
+    ]);
+    const routeReadyGateModelRouteCalls = routeCalls.filter(
       call =>
-        call.method === 'describeRouteCandidates' &&
-        call.modelId === 'embed-alias' &&
-        call.outputType === 'embedding' &&
-        call.featureKind === 'workspace_indexing' &&
-        call.workspaceId === 'workspace-smoke'
-    )
-  );
-  assert.ok(
-    routeCalls.some(
-      call =>
-        call.method === 'describeRouteCandidates' &&
-        call.modelId === undefined &&
-        call.outputType === 'rerank' &&
-        call.featureKind === 'rerank' &&
-        call.workspaceId === 'workspace-smoke'
-    )
-  );
+        call.workspaceId === 'workspace-smoke' &&
+        call.featureKind === 'chat' &&
+        call.outputType === 'object'
+    );
+    assert.deepEqual(
+      sortRouteCalls(routeReadyGateModelRouteCalls.slice(-12)),
+      sortRouteCalls([
+        {
+          method: 'describeRouteCandidates',
+          modelId: gatePrompt.model,
+          outputType: 'object',
+          featureKind: 'chat',
+          workspaceId: 'workspace-smoke',
+        },
+        {
+          method: 'resolveProvider',
+          modelId: gatePrompt.model,
+          outputType: 'object',
+          featureKind: 'chat',
+          workspaceId: 'workspace-smoke',
+        },
+        {
+          method: 'describeRouteCandidates',
+          modelId: 'local/default-chat',
+          outputType: 'object',
+          featureKind: 'chat',
+          workspaceId: 'workspace-smoke',
+        },
+        {
+          method: 'resolveProvider',
+          modelId: 'local/default-chat',
+          outputType: 'object',
+          featureKind: 'chat',
+          workspaceId: 'workspace-smoke',
+        },
+        {
+          method: 'describeRouteCandidates',
+          modelId: 'local/optional-chat',
+          outputType: 'object',
+          featureKind: 'chat',
+          workspaceId: 'workspace-smoke',
+        },
+        {
+          method: 'resolveProvider',
+          modelId: 'local/optional-chat',
+          outputType: 'object',
+          featureKind: 'chat',
+          workspaceId: 'workspace-smoke',
+        },
+        {
+          method: 'describeRouteCandidates',
+          modelId: 'cloud/pro-chat',
+          outputType: 'object',
+          featureKind: 'chat',
+          workspaceId: 'workspace-smoke',
+        },
+        {
+          method: 'resolveProvider',
+          modelId: 'cloud/pro-chat',
+          outputType: 'object',
+          featureKind: 'chat',
+          workspaceId: 'workspace-smoke',
+        },
+        {
+          method: 'describeRouteCandidates',
+          modelId: 'registry/only-chat',
+          outputType: 'object',
+          featureKind: 'chat',
+          workspaceId: 'workspace-smoke',
+        },
+        {
+          method: 'resolveProvider',
+          modelId: 'registry/only-chat',
+          outputType: 'object',
+          featureKind: 'chat',
+          workspaceId: 'workspace-smoke',
+        },
+        {
+          method: 'describeRouteCandidates',
+          modelId: 'byok/effective-chat',
+          outputType: 'object',
+          featureKind: 'chat',
+          workspaceId: 'workspace-smoke',
+        },
+        {
+          method: 'resolveProvider',
+          modelId: 'byok/effective-chat',
+          outputType: 'object',
+          featureKind: 'chat',
+          workspaceId: 'workspace-smoke',
+        },
+      ])
+    );
+    assert.ok(
+      routeCalls.some(
+        call =>
+          call.method === 'describeRouteCandidates' &&
+          call.modelId === 'embed-alias' &&
+          call.outputType === 'embedding' &&
+          call.featureKind === 'workspace_indexing' &&
+          call.workspaceId === 'workspace-smoke'
+      )
+    );
+    assert.ok(
+      routeCalls.some(
+        call =>
+          call.method === 'describeRouteCandidates' &&
+          call.modelId === undefined &&
+          call.outputType === 'rerank' &&
+          call.featureKind === 'rerank' &&
+          call.workspaceId === 'workspace-smoke'
+      )
+    );
+  })();
 
-  const structuredPrompt = {
-    ...gatePrompt,
-    name: 'Structured registry gate prompt',
-    model: 'local/office-structured',
-    category: 'text',
-    config: {},
-    defaultPolicy: 'structured',
-    modelSource: 'default_policy',
-    messages: [{ role: 'user', content: 'Generate an office artifact.' }],
-    optionalModels: [],
-  };
-  const structuredVerdict = {
-    ...gateVerdict,
-    name: structuredPrompt.name,
-    registryId: 8,
-  };
-  const structuredRouteResolver = new CopilotResolver(
-    {} as any,
-    {} as any,
-    { get: async () => structuredPrompt } as any,
-    {} as any,
-    {} as any,
-    {} as any,
-    {
-      ...providerFactory,
-      getConfiguredModelIds() {
-        return [];
-      },
-    } as any,
-    {} as any,
-    capabilityRuntime as any,
-    taskPolicy as any,
-    {
-      copilotPrompt: {
-        getRegistryPrompt: async () => structuredPrompt,
-        getRegistryPublishGateVerdict: async () => structuredVerdict,
-      },
-    } as any,
-    {} as any,
-    {} as any,
-    planBuilder as any
-  );
-  const structuredRouteGate =
-    await structuredRouteResolver.promptRegistryPublishGate(
-      { workspaceId: 'workspace-smoke' } as any,
-      structuredVerdict.name,
+  await (async () => {
+    const structuredPrompt = {
+      ...gatePrompt,
+      name: 'Structured registry gate prompt',
+      model: 'local/office-structured',
+      category: 'text',
+      config: {},
+      defaultPolicy: 'structured',
+      modelSource: 'default_policy',
+      messages: [{ role: 'user', content: 'Generate an office artifact.' }],
+      optionalModels: [],
+    };
+    const structuredVerdict = {
+      ...gateVerdict,
+      name: structuredPrompt.name,
+      registryId: 8,
+    };
+    const structuredRouteResolver = new CopilotResolver(
+      {} as any,
+      {} as any,
+      { get: async () => structuredPrompt } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        ...providerFactory,
+        getConfiguredModelIds() {
+          return [];
+        },
+      } as any,
+      {} as any,
+      capabilityRuntime as any,
+      taskPolicy as any,
+      {
+        copilotPrompt: {
+          getRegistryPrompt: async () => structuredPrompt,
+          getRegistryPublishGateVerdict: async () => structuredVerdict,
+        },
+      } as any,
+      {} as any,
+      {} as any,
+      planBuilder as any
+    );
+    const structuredRouteGate =
+      await structuredRouteResolver.promptRegistryPublishGate(
+        { workspaceId: 'workspace-smoke' } as any,
+        structuredVerdict.name,
+        undefined
+      );
+    assert.equal(structuredRouteGate?.allowed, true);
+    assert.equal(structuredRouteGate?.actionRouteDryRun?.status, 'succeeded');
+    assert.equal(
+      structuredRouteGate?.actionRouteDryRun?.diagnosticsErrorStage,
       undefined
     );
-  assert.equal(structuredRouteGate?.allowed, true);
-  assert.equal(structuredRouteGate?.actionRouteDryRun?.status, 'succeeded');
-  assert.equal(
-    structuredRouteGate?.actionRouteDryRun?.diagnosticsErrorStage,
-    undefined
-  );
-  assert.equal(
-    structuredRouteGate?.actionRouteDryRun?.actionId,
-    structuredPrompt.action
-  );
-  assert.equal(structuredRouteGate?.actionRouteDryRun?.featureKind, 'action');
-  assert.equal(structuredRouteGate?.actionRouteDryRun?.actualRouteCount, 1);
-  assert.equal(structuredRouteGate?.actionRouteDryRun?.expectedRouteCount, 1);
-  assert.equal(structuredRouteGate?.actionRouteDryRun?.missingRouteCount, 0);
-  assert.equal(
-    structuredRouteGate?.actionRouteDryRun?.routeCountMismatch,
-    false
-  );
-  assert.deepEqual(
-    structuredRouteGate?.actionRouteDryRun?.routeCountMismatchStepIds,
-    []
-  );
-  assert.equal(
-    structuredRouteGate?.actionRouteDryRun?.steps[0]?.stepId,
-    'generate'
-  );
-  assert.equal(
-    structuredRouteGate?.actionRouteDryRun?.steps[0]?.requestedModelId,
-    structuredPrompt.model
-  );
-  assert.equal(
-    structuredRouteGate?.actionRouteDryRun?.steps[0]?.requestedModelSource,
-    'default_policy'
-  );
-  assert.deepEqual(
-    structuredRouteGate?.actionRouteDryRun?.steps[0]?.fallbackProviderIds,
-    ['local']
-  );
-  assert.equal(
-    structuredRouteGate?.actionRouteDryRun?.steps[0]?.routes[0]?.providerId,
-    'local'
-  );
-  assert.equal(
-    structuredRouteGate?.actionRouteDryRun?.steps[0]?.routes[0]
-      ?.providerProfileConfigPath,
-    'copilot.providers.profiles[id=local]'
-  );
-  assert.equal(
-    structuredRouteGate?.actionRouteDryRun?.steps[0]?.routes[0]
-      ?.routeModelDefinitionId,
-    'office-structured'
-  );
-  assert.equal(
-    structuredRouteGate?.actionRouteDryRun?.steps[0]?.routes[0]?.requestLayer,
-    'chat_completions'
-  );
-  assert.equal(structuredRouteGate?.modelRoute?.outputType, 'structured');
-  assert.equal(structuredRouteGate?.modelRoute?.featureKind, 'action');
-  assert.equal(
-    structuredRouteGate?.modelRoute?.requestedModelId,
-    structuredPrompt.model
-  );
-  assert.equal(
-    structuredRouteGate?.modelRoute?.requestedModelSource,
-    'default_policy'
-  );
-  assert.equal(
-    structuredRouteGate?.repairRecommendations.some(
-      recommendation => recommendation.category === 'action_route'
-    ),
-    false
-  );
+    assert.equal(
+      structuredRouteGate?.actionRouteDryRun?.actionId,
+      structuredPrompt.action
+    );
+    assert.equal(structuredRouteGate?.actionRouteDryRun?.featureKind, 'action');
+    assert.equal(structuredRouteGate?.actionRouteDryRun?.actualRouteCount, 1);
+    assert.equal(structuredRouteGate?.actionRouteDryRun?.expectedRouteCount, 1);
+    assert.equal(structuredRouteGate?.actionRouteDryRun?.missingRouteCount, 0);
+    assert.equal(
+      structuredRouteGate?.actionRouteDryRun?.routeCountMismatch,
+      false
+    );
+    assert.deepEqual(
+      structuredRouteGate?.actionRouteDryRun?.routeCountMismatchStepIds,
+      []
+    );
+    assert.equal(
+      structuredRouteGate?.actionRouteDryRun?.steps[0]?.stepId,
+      'generate'
+    );
+    assert.equal(
+      structuredRouteGate?.actionRouteDryRun?.steps[0]?.requestedModelId,
+      structuredPrompt.model
+    );
+    assert.equal(
+      structuredRouteGate?.actionRouteDryRun?.steps[0]?.requestedModelSource,
+      'default_policy'
+    );
+    assert.deepEqual(
+      structuredRouteGate?.actionRouteDryRun?.steps[0]?.fallbackProviderIds,
+      ['local']
+    );
+    assert.equal(
+      structuredRouteGate?.actionRouteDryRun?.steps[0]?.routes[0]?.providerId,
+      'local'
+    );
+    assert.equal(
+      structuredRouteGate?.actionRouteDryRun?.steps[0]?.routes[0]
+        ?.providerProfileConfigPath,
+      'copilot.providers.profiles[id=local]'
+    );
+    assert.equal(
+      structuredRouteGate?.actionRouteDryRun?.steps[0]?.routes[0]
+        ?.routeModelDefinitionId,
+      'office-structured'
+    );
+    assert.equal(
+      structuredRouteGate?.actionRouteDryRun?.steps[0]?.routes[0]?.requestLayer,
+      'chat_completions'
+    );
+    assert.equal(structuredRouteGate?.modelRoute?.outputType, 'structured');
+    assert.equal(structuredRouteGate?.modelRoute?.featureKind, 'action');
+    assert.equal(
+      structuredRouteGate?.modelRoute?.requestedModelId,
+      structuredPrompt.model
+    );
+    assert.equal(
+      structuredRouteGate?.modelRoute?.requestedModelSource,
+      'default_policy'
+    );
+    assert.equal(
+      structuredRouteGate?.repairRecommendations.some(
+        recommendation => recommendation.category === 'action_route'
+      ),
+      false
+    );
 
-  const mismatchPlanBuilder = {
-    async buildStructuredPlan() {
-      return {
-        routePolicy: { fallbackOrder: ['local', 'cloud', 'edge'] },
-        routeDiagnostics: [
-          {
-            providerId: 'local',
-            protocol: 'openai_chat',
-            model: 'office-structured',
-            backendConfig: { request_layer: 'chat_completions' },
-            providerHealth: 'degraded',
-            providerHealthCheckedAt: '2026-06-17T09:00:00.000Z',
-            providerHealthLastError: 'provider probe timed out',
-            providerSource: 'configured',
-            providerProfileConfigPath: 'copilot.providers.profiles[id=local]',
-            providerProfileId: 'local',
-            providerProfileSource: 'configured',
-          },
-          {
-            providerId: 'cloud',
-            protocol: 'openai_chat',
-            model: 'office-structured-fallback',
-            backendConfig: { request_layer: 'chat_completions' },
-            providerHealth: 'unhealthy',
-            providerHealthCheckedAt: '2026-06-17T09:01:00.000Z',
-            providerHealthLastError: 'fallback provider unauthorized',
-            providerSource: 'configured',
-            providerProfileConfigPath: 'copilot.providers.profiles[id=cloud]',
-            providerProfileId: 'cloud',
-            providerProfileSource: 'configured',
-          },
-        ],
-        serializable: {
-          routes: [
+    const mismatchPlanBuilder = {
+      async buildStructuredPlan() {
+        return {
+          routePolicy: { fallbackOrder: ['local', 'cloud', 'edge'] },
+          routeDiagnostics: [
             {
               providerId: 'local',
               protocol: 'openai_chat',
               model: 'office-structured',
               backendConfig: { request_layer: 'chat_completions' },
+              providerHealth: 'degraded',
+              providerHealthCheckedAt: '2026-06-17T09:00:00.000Z',
+              providerHealthLastError: 'provider probe timed out',
+              providerSource: 'configured',
+              providerProfileConfigPath: 'copilot.providers.profiles[id=local]',
+              providerProfileId: 'local',
+              providerProfileSource: 'configured',
             },
             {
               providerId: 'cloud',
               protocol: 'openai_chat',
               model: 'office-structured-fallback',
               backendConfig: { request_layer: 'chat_completions' },
+              providerHealth: 'unhealthy',
+              providerHealthCheckedAt: '2026-06-17T09:01:00.000Z',
+              providerHealthLastError: 'fallback provider unauthorized',
+              providerSource: 'configured',
+              providerProfileConfigPath: 'copilot.providers.profiles[id=cloud]',
+              providerProfileId: 'cloud',
+              providerProfileSource: 'configured',
             },
           ],
+          serializable: {
+            routes: [
+              {
+                providerId: 'local',
+                protocol: 'openai_chat',
+                model: 'office-structured',
+                backendConfig: { request_layer: 'chat_completions' },
+              },
+              {
+                providerId: 'cloud',
+                protocol: 'openai_chat',
+                model: 'office-structured-fallback',
+                backendConfig: { request_layer: 'chat_completions' },
+              },
+            ],
+          },
+        };
+      },
+    };
+    const structuredRouteMismatchResolver = new CopilotResolver(
+      {} as any,
+      {} as any,
+      { get: async () => structuredPrompt } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        ...providerFactory,
+        getConfiguredModelIds() {
+          return [];
         },
-      };
-    },
-  };
-  const structuredRouteMismatchResolver = new CopilotResolver(
-    {} as any,
-    {} as any,
-    { get: async () => structuredPrompt } as any,
-    {} as any,
-    {} as any,
-    {} as any,
-    {
-      ...providerFactory,
-      getConfiguredModelIds() {
-        return [];
-      },
-    } as any,
-    {} as any,
-    capabilityRuntime as any,
-    taskPolicy as any,
-    {
-      copilotPrompt: {
-        getRegistryPrompt: async () => structuredPrompt,
-        getRegistryPublishGateVerdict: async () => structuredVerdict,
-      },
-    } as any,
-    {} as any,
-    {} as any,
-    mismatchPlanBuilder as any
-  );
-  const structuredRouteMismatchGate =
-    await structuredRouteMismatchResolver.promptRegistryPublishGate(
-      { workspaceId: 'workspace-smoke' } as any,
-      structuredVerdict.name,
-      undefined
+      } as any,
+      {} as any,
+      capabilityRuntime as any,
+      taskPolicy as any,
+      {
+        copilotPrompt: {
+          getRegistryPrompt: async () => structuredPrompt,
+          getRegistryPublishGateVerdict: async () => structuredVerdict,
+        },
+      } as any,
+      {} as any,
+      {} as any,
+      mismatchPlanBuilder as any
     );
-  assert.equal(structuredRouteMismatchGate?.allowed, true);
-  assert.equal(
-    structuredRouteMismatchGate?.actionRouteDryRun?.status,
-    'succeeded'
-  );
-  assert.equal(
-    structuredRouteMismatchGate?.actionRouteDryRun?.actualRouteCount,
-    2
-  );
-  assert.equal(
-    structuredRouteMismatchGate?.actionRouteDryRun?.expectedRouteCount,
-    3
-  );
-  assert.equal(
-    structuredRouteMismatchGate?.actionRouteDryRun?.missingRouteCount,
-    1
-  );
-  assert.equal(
-    structuredRouteMismatchGate?.actionRouteDryRun?.routeCountMismatch,
-    true
-  );
-  assert.deepEqual(
-    structuredRouteMismatchGate?.actionRouteDryRun?.routeCountMismatchStepIds,
-    ['generate']
-  );
-  const actionRouteMismatchRepair =
-    structuredRouteMismatchGate?.repairRecommendations.find(
-      recommendation =>
-        recommendation.code === 'action_generate_route_count_mismatch'
+    const structuredRouteMismatchGate =
+      await structuredRouteMismatchResolver.promptRegistryPublishGate(
+        { workspaceId: 'workspace-smoke' } as any,
+        structuredVerdict.name,
+        undefined
+      );
+    assert.equal(structuredRouteMismatchGate?.allowed, true);
+    assert.equal(
+      structuredRouteMismatchGate?.actionRouteDryRun?.status,
+      'succeeded'
     );
-  assert.equal(actionRouteMismatchRepair?.category, 'action_route');
-  assert.equal(
-    actionRouteMismatchRepair?.instanceKey,
-    'chat:generate:route-count-mismatch'
-  );
-  assert.equal(
-    actionRouteMismatchRepair?.evidence.includes('stepId:generate'),
-    true
-  );
-  assert.equal(
-    actionRouteMismatchRepair?.evidence.includes('actualRouteCount:2'),
-    true
-  );
-  assert.equal(
-    actionRouteMismatchRepair?.evidence.includes('routeCount:3'),
-    true
-  );
-  const actionProviderHealthRepairs =
-    structuredRouteMismatchGate?.repairRecommendations.filter(
-      recommendation =>
-        recommendation.code === 'action_generate_provider_health_not_healthy'
+    assert.equal(
+      structuredRouteMismatchGate?.actionRouteDryRun?.actualRouteCount,
+      2
     );
-  assert.equal(actionProviderHealthRepairs?.length, 2);
-  assert.equal(actionProviderHealthRepairs?.[0]?.category, 'action_route');
-  assert.equal(
-    actionProviderHealthRepairs?.some(recommendation =>
-      recommendation.evidence.includes('providerId:local')
-    ),
-    true
-  );
-  assert.equal(
-    actionProviderHealthRepairs?.some(recommendation =>
-      recommendation.evidence.includes('health:degraded')
-    ),
-    true
-  );
-  assert.equal(
-    actionProviderHealthRepairs?.some(recommendation =>
-      recommendation.evidence.includes('providerId:cloud')
-    ),
-    true
-  );
-  assert.equal(
-    actionProviderHealthRepairs?.some(recommendation =>
-      recommendation.evidence.includes('health:unhealthy')
-    ),
-    true
-  );
-  assert.deepEqual(
-    actionProviderHealthRepairs?.map(
-      recommendation => recommendation.instanceKey
-    ),
-    ['chat:generate:local:0', 'chat:generate:cloud:1']
-  );
-  assert.deepEqual(
-    actionProviderHealthRepairs?.map(
-      recommendation => recommendation.suggestedActionKind
-    ),
-    ['check_action_provider_health', 'check_action_provider_health']
-  );
-  assert.deepEqual(
-    actionProviderHealthRepairs?.map(
-      recommendation => recommendation.suggestedActionCatalogVersion
-    ),
-    ['repair-actions/v1', 'repair-actions/v1']
-  );
-  assert.deepEqual(
-    actionProviderHealthRepairs?.map(
-      recommendation => recommendation.suggestedActionSafety
-    ),
-    ['read_only_probe', 'read_only_probe']
-  );
-  assert.deepEqual(
-    actionProviderHealthRepairs?.map(
-      recommendation => recommendation.suggestedActionRequiredCapabilities
-    ),
-    [
-      ['provider_profile.read', 'provider_health.probe'],
-      ['provider_profile.read', 'provider_health.probe'],
-    ]
-  );
-  assert.deepEqual(
-    actionProviderHealthRepairs?.map(recommendation =>
-      /^[0-9a-f]{16}$/.test(recommendation.diagnosticsFingerprint)
-    ),
-    [true, true]
-  );
-  assert.deepEqual(
-    actionProviderHealthRepairs?.map(
-      recommendation => recommendation.suggestedActionInputSchema.required
-    ),
-    [
-      ['diagnosticsFingerprint', 'targetLocator'],
-      ['diagnosticsFingerprint', 'targetLocator'],
-    ]
-  );
-  assert.deepEqual(
-    actionProviderHealthRepairs?.map(recommendation => ({
-      actionId: recommendation.targetLocator?.actionId,
-      fallbackOrderIndex: recommendation.targetLocator?.fallbackOrderIndex,
-      kind: recommendation.targetLocator?.kind,
-      path: recommendation.targetLocator?.path,
-      providerId: recommendation.targetLocator?.providerId,
-      providerProfileConfigPath:
-        recommendation.targetLocator?.providerProfileConfigPath,
-      providerProfileId: recommendation.targetLocator?.providerProfileId,
-      providerProfileSource:
-        recommendation.targetLocator?.providerProfileSource,
-      routeIndex: recommendation.targetLocator?.routeIndex,
-      stepId: recommendation.targetLocator?.stepId,
-    })),
-    [
-      {
-        actionId: 'chat',
-        fallbackOrderIndex: 0,
-        kind: 'action_route',
-        path: 'ai_prompts_metadata.action.chat',
-        providerId: 'local',
-        providerProfileConfigPath: 'copilot.providers.profiles[id=local]',
-        providerProfileId: 'local',
-        providerProfileSource: 'configured',
-        routeIndex: 0,
-        stepId: 'generate',
-      },
-      {
-        actionId: 'chat',
-        fallbackOrderIndex: 1,
-        kind: 'action_route',
-        path: 'ai_prompts_metadata.action.chat',
-        providerId: 'cloud',
-        providerProfileConfigPath: 'copilot.providers.profiles[id=cloud]',
-        providerProfileId: 'cloud',
-        providerProfileSource: 'configured',
-        routeIndex: 1,
-        stepId: 'generate',
-      },
-    ]
-  );
-  assert.deepEqual(
-    sortRouteCalls(
-      routeCalls.filter(
-        call =>
-          call.modelId === structuredPrompt.model &&
-          call.outputType === 'structured' &&
-          call.featureKind === 'action'
-      )
-    ),
-    sortRouteCalls([
-      {
-        method: 'describeRouteCandidates',
-        modelId: structuredPrompt.model,
-        outputType: 'structured',
-        featureKind: 'action',
-        workspaceId: 'workspace-smoke',
-      },
-      {
-        method: 'describeRouteCandidates',
-        modelId: structuredPrompt.model,
-        outputType: 'structured',
-        featureKind: 'action',
-        workspaceId: 'workspace-smoke',
-      },
-      {
-        method: 'resolveProvider',
-        modelId: structuredPrompt.model,
-        outputType: 'structured',
-        featureKind: 'action',
-        workspaceId: 'workspace-smoke',
-      },
-      {
-        method: 'resolveProvider',
-        modelId: structuredPrompt.model,
-        outputType: 'structured',
-        featureKind: 'action',
-        workspaceId: 'workspace-smoke',
-      },
-    ])
-  );
-
-  class StructuredDryRunFailure extends Error {
-    override name = 'StructuredDryRunFailure';
-  }
-  const failingPlanBuilder = {
-    async buildStructuredPlan() {
-      throw new StructuredDryRunFailure('structured dry-run unavailable');
-    },
-  };
-  const structuredDryRunFailureResolver = new CopilotResolver(
-    {} as any,
-    {} as any,
-    { get: async () => structuredPrompt } as any,
-    {} as any,
-    {} as any,
-    {} as any,
-    {
-      ...providerFactory,
-      getConfiguredModelIds() {
-        return [];
-      },
-    } as any,
-    {} as any,
-    capabilityRuntime as any,
-    taskPolicy as any,
-    {
-      copilotPrompt: {
-        getRegistryPrompt: async () => structuredPrompt,
-        getRegistryPublishGateVerdict: async () => structuredVerdict,
-      },
-    } as any,
-    {} as any,
-    {} as any,
-    failingPlanBuilder as any
-  );
-  const structuredDryRunFailureGate =
-    await structuredDryRunFailureResolver.promptRegistryPublishGate(
-      { workspaceId: 'workspace-smoke' } as any,
-      structuredVerdict.name,
-      undefined
+    assert.equal(
+      structuredRouteMismatchGate?.actionRouteDryRun?.expectedRouteCount,
+      3
     );
-  assert.equal(structuredDryRunFailureGate?.allowed, true);
-  assert.equal(
-    structuredDryRunFailureGate?.actionRouteDryRun?.status,
-    'failed'
-  );
-  assert.equal(
-    structuredDryRunFailureGate?.actionRouteDryRun?.actualRouteCount,
-    0
-  );
-  assert.equal(
-    structuredDryRunFailureGate?.actionRouteDryRun?.expectedRouteCount,
-    0
-  );
-  assert.equal(
-    structuredDryRunFailureGate?.actionRouteDryRun?.missingRouteCount,
-    0
-  );
-  assert.equal(
-    structuredDryRunFailureGate?.actionRouteDryRun?.routeCountMismatch,
-    false
-  );
-  assert.deepEqual(
-    structuredDryRunFailureGate?.actionRouteDryRun?.routeCountMismatchStepIds,
-    []
-  );
-  assert.equal(
-    structuredDryRunFailureGate?.actionRouteDryRun?.diagnosticsErrorStage,
-    'build_structured_plan'
-  );
-  assert.equal(
-    structuredDryRunFailureGate?.actionRouteDryRun?.diagnosticsErrorCode,
-    'StructuredDryRunFailure'
-  );
-  assert.equal(
-    structuredDryRunFailureGate?.actionRouteDryRun?.diagnosticsErrorMessage,
-    'structured dry-run unavailable'
-  );
-  const actionDryRunFailureRepair =
-    structuredDryRunFailureGate?.repairRecommendations.find(
-      recommendation => recommendation.code === 'action_route_dry_run_failed'
+    assert.equal(
+      structuredRouteMismatchGate?.actionRouteDryRun?.missingRouteCount,
+      1
     );
-  assert.equal(actionDryRunFailureRepair?.category, 'action_route');
-  assert.equal(actionDryRunFailureRepair?.instanceKey, 'chat:dry-run:failed');
-  assert.equal(
-    actionDryRunFailureRepair?.evidence.includes(
-      'diagnosticsStage:build_structured_plan'
-    ),
-    true
-  );
-  assert.equal(
-    actionDryRunFailureRepair?.evidence.includes(
-      'diagnosticsCode:StructuredDryRunFailure'
-    ),
-    true
-  );
-
-  const imagePrompt = {
-    ...gatePrompt,
-    name: 'Image registry gate prompt',
-    model: 'local/image-model',
-    action: 'image.generate',
-    category: 'image',
-    config: {},
-    defaultPolicy: 'image',
-    modelSource: 'registry',
-    optionalModels: [],
-  };
-  const imageVerdict = {
-    ...gateVerdict,
-    name: imagePrompt.name,
-    registryId: 9,
-  };
-  const imageRouteResolver = new CopilotResolver(
-    {} as any,
-    {} as any,
-    { get: async () => imagePrompt } as any,
-    {} as any,
-    {} as any,
-    {} as any,
-    {
-      ...providerFactory,
-      getConfiguredModelIds() {
-        return [];
-      },
-    } as any,
-    {} as any,
-    capabilityRuntime as any,
-    taskPolicy as any,
-    {
-      copilotPrompt: {
-        getRegistryPrompt: async () => imagePrompt,
-        getRegistryPublishGateVerdict: async () => imageVerdict,
-      },
-    } as any,
-    {} as any,
-    {} as any
-  );
-  const imageRouteGate = await imageRouteResolver.promptRegistryPublishGate(
-    { workspaceId: 'workspace-smoke' } as any,
-    imageVerdict.name,
-    undefined
-  );
-  assert.equal(imageRouteGate?.allowed, true);
-  assert.equal(imageRouteGate?.modelRoute?.outputType, 'image');
-  assert.equal(imageRouteGate?.modelRoute?.featureKind, 'image');
-  assert.equal(imageRouteGate?.modelRoute?.requestedModelId, imagePrompt.model);
-  assert.deepEqual(
-    sortRouteCalls(
-      routeCalls.filter(
-        call =>
-          call.modelId === imagePrompt.model &&
-          call.outputType === 'image' &&
-          call.featureKind === 'image'
-      )
-    ),
-    sortRouteCalls([
-      {
-        method: 'describeRouteCandidates',
-        modelId: imagePrompt.model,
-        outputType: 'image',
-        featureKind: 'image',
-        workspaceId: 'workspace-smoke',
-      },
-      {
-        method: 'resolveProvider',
-        modelId: imagePrompt.model,
-        outputType: 'image',
-        featureKind: 'image',
-        workspaceId: 'workspace-smoke',
-      },
-    ])
-  );
-
-  const unavailableProviderFactory = {
-    ...providerFactory,
-    async resolveProvider() {
-      return null;
-    },
-    async describeRouteCandidates() {
-      return [
+    assert.equal(
+      structuredRouteMismatchGate?.actionRouteDryRun?.routeCountMismatch,
+      true
+    );
+    assert.deepEqual(
+      structuredRouteMismatchGate?.actionRouteDryRun?.routeCountMismatchStepIds,
+      ['generate']
+    );
+    const actionRouteMismatchRepair =
+      structuredRouteMismatchGate?.repairRecommendations.find(
+        recommendation =>
+          recommendation.code === 'action_generate_route_count_mismatch'
+      );
+    assert.equal(actionRouteMismatchRepair?.category, 'action_route');
+    assert.equal(
+      actionRouteMismatchRepair?.instanceKey,
+      'chat:generate:route-count-mismatch'
+    );
+    assert.equal(
+      actionRouteMismatchRepair?.evidence.includes('stepId:generate'),
+      true
+    );
+    assert.equal(
+      actionRouteMismatchRepair?.evidence.includes('actualRouteCount:2'),
+      true
+    );
+    assert.equal(
+      actionRouteMismatchRepair?.evidence.includes('routeCount:3'),
+      true
+    );
+    const actionProviderHealthRepairs =
+      structuredRouteMismatchGate?.repairRecommendations.filter(
+        recommendation =>
+          recommendation.code === 'action_generate_provider_health_not_healthy'
+      );
+    assert.equal(actionProviderHealthRepairs?.length, 2);
+    assert.equal(actionProviderHealthRepairs?.[0]?.category, 'action_route');
+    assert.equal(
+      actionProviderHealthRepairs?.some(recommendation =>
+        recommendation.evidence.includes('providerId:local')
+      ),
+      true
+    );
+    assert.equal(
+      actionProviderHealthRepairs?.some(recommendation =>
+        recommendation.evidence.includes('health:degraded')
+      ),
+      true
+    );
+    assert.equal(
+      actionProviderHealthRepairs?.some(recommendation =>
+        recommendation.evidence.includes('providerId:cloud')
+      ),
+      true
+    );
+    assert.equal(
+      actionProviderHealthRepairs?.some(recommendation =>
+        recommendation.evidence.includes('health:unhealthy')
+      ),
+      true
+    );
+    assert.deepEqual(
+      actionProviderHealthRepairs?.map(
+        recommendation => recommendation.instanceKey
+      ),
+      ['chat:generate:local:0', 'chat:generate:cloud:1']
+    );
+    assert.deepEqual(
+      actionProviderHealthRepairs?.map(
+        recommendation => recommendation.suggestedActionKind
+      ),
+      ['check_action_provider_health', 'check_action_provider_health']
+    );
+    assert.deepEqual(
+      actionProviderHealthRepairs?.map(
+        recommendation => recommendation.suggestedActionCatalogVersion
+      ),
+      ['repair-actions/v1', 'repair-actions/v1']
+    );
+    assert.deepEqual(
+      actionProviderHealthRepairs?.map(
+        recommendation => recommendation.suggestedActionSafety
+      ),
+      ['read_only_probe', 'read_only_probe']
+    );
+    assert.deepEqual(
+      actionProviderHealthRepairs?.map(
+        recommendation => recommendation.suggestedActionRequiredCapabilities
+      ),
+      [
+        ['provider_profile.read', 'provider_health.probe'],
+        ['provider_profile.read', 'provider_health.probe'],
+      ]
+    );
+    assert.deepEqual(
+      actionProviderHealthRepairs?.map(recommendation =>
+        /^[0-9a-f]{16}$/.test(recommendation.diagnosticsFingerprint)
+      ),
+      [true, true]
+    );
+    assert.deepEqual(
+      actionProviderHealthRepairs?.map(
+        recommendation => recommendation.suggestedActionInputSchema.required
+      ),
+      [
+        ['diagnosticsFingerprint', 'targetLocator'],
+        ['diagnosticsFingerprint', 'targetLocator'],
+      ]
+    );
+    assert.deepEqual(
+      actionProviderHealthRepairs?.map(recommendation => ({
+        actionId: recommendation.targetLocator?.actionId,
+        fallbackOrderIndex: recommendation.targetLocator?.fallbackOrderIndex,
+        kind: recommendation.targetLocator?.kind,
+        path: recommendation.targetLocator?.path,
+        providerId: recommendation.targetLocator?.providerId,
+        providerProfileConfigPath:
+          recommendation.targetLocator?.providerProfileConfigPath,
+        providerProfileId: recommendation.targetLocator?.providerProfileId,
+        providerProfileSource:
+          recommendation.targetLocator?.providerProfileSource,
+        routeIndex: recommendation.targetLocator?.routeIndex,
+        stepId: recommendation.targetLocator?.stepId,
+      })),
+      [
         {
-          registryKind: 'byok',
-          registryAvailable: true,
-          registrySelected: false,
+          actionId: 'chat',
+          fallbackOrderIndex: 0,
+          kind: 'action_route',
+          path: 'ai_prompts_metadata.action.chat',
           providerId: 'local',
-          providerName: 'Local profile',
-          providerSource: 'configured',
+          providerProfileConfigPath: 'copilot.providers.profiles[id=local]',
           providerProfileId: 'local',
           providerProfileSource: 'configured',
-          providerProfileConfigPath: 'copilot.providers.profiles[id=local]',
-          providerConfiguredModelIds: [
-            'runtime-listed-chat',
-            'default-chat',
-            'default-alias',
-            'optional-chat',
-            'optional-alias',
-          ],
-          providerConfiguredModelCount: 5,
-          providerType: 'openaiCompatible',
-          providerPriority: 10,
-          privacy: 'local',
-          health: 'degraded',
-          healthCheckedAt: '2026-06-17T03:30:00.000Z',
-          requestedModelId: gatePrompt.model,
-          modelId: 'default-chat',
-          routeRawModelId: 'qwen3:32b',
-          routeModelDefinitionSource: 'provider_profile',
-          routeModelDefinitionId: 'default-chat',
-          routeModelDefinitionAliases: ['default-alias'],
-          routeModelAliasMatched: false,
-          matched: false,
-          reasons: ['capability_mismatch'],
+          routeIndex: 0,
+          stepId: 'generate',
         },
         {
-          registryKind: 'quota_backed',
-          registryAvailable: true,
-          registrySelected: false,
+          actionId: 'chat',
+          fallbackOrderIndex: 1,
+          kind: 'action_route',
+          path: 'ai_prompts_metadata.action.chat',
           providerId: 'cloud',
-          providerName: 'Cloud fallback',
-          providerSource: 'configured',
+          providerProfileConfigPath: 'copilot.providers.profiles[id=cloud]',
           providerProfileId: 'cloud',
           providerProfileSource: 'configured',
-          providerProfileConfigPath: 'copilot.providers.profiles[id=cloud]',
-          providerConfiguredModelIds: ['pro-chat', 'fallback-chat'],
-          providerConfiguredModelCount: 2,
-          providerType: 'openai',
-          providerPriority: 1,
-          privacy: 'cloud',
-          health: 'healthy',
-          requestedModelId: gatePrompt.model,
-          modelId: 'fallback-chat',
-          routeModelDefinitionSource: 'provider_profile',
-          routeModelDefinitionId: 'fallback-chat',
-          routeModelDefinitionAliases: ['fallback-alias'],
-          routeModelAliasMatched: false,
-          candidateModelIds: ['pro-chat', 'fallback-chat'],
-          matched: false,
-          reasons: ['profile_model_not_allowed'],
+          routeIndex: 1,
+          stepId: 'generate',
         },
-      ];
-    },
-  };
-  const routeBlockedResolver = new CopilotResolver(
-    {} as any,
-    {} as any,
-    { get: async () => gatePrompt } as any,
-    {} as any,
-    {} as any,
-    {} as any,
-    unavailableProviderFactory as any,
-    {} as any,
-    capabilityRuntime as any,
-    taskPolicy as any,
-    {
-      copilotPrompt: {
-        getRegistryPrompt: async () => gatePrompt,
-        getRegistryPublishGateVerdict: async () => gateVerdict,
-      },
-    } as any,
-    {} as any,
-    {} as any
-  );
-  const routeBlockedGate = await routeBlockedResolver.promptRegistryPublishGate(
-    { workspaceId: 'workspace-smoke' } as any,
-    gateVerdict.name,
-    undefined
-  );
-  assert.equal(routeBlockedGate?.allowed, false);
-  assert.equal(routeBlockedGate?.publishStatus, 'blocked');
-  assert.equal(routeBlockedGate?.reason, 'model_route_unavailable');
-  assert.equal(routeBlockedGate?.blockingCount, 1);
-  assert.deepEqual(
-    routeBlockedGate?.taskRoutes.map(route => route.featureKind),
-    ['workspace_indexing', 'rerank']
-  );
-  assert.equal(routeBlockedGate?.issues[0]?.reason, 'model_route_unavailable');
-  assert.equal(routeBlockedGate?.modelRoute?.available, false);
-  assert.equal(routeBlockedGate?.modelRoute?.candidateKind, 'default');
-  assert.equal(routeBlockedGate?.modelRoute?.providerId, 'local');
-  assert.equal(routeBlockedGate?.modelRoute?.providerName, 'Local profile');
-  assert.equal(routeBlockedGate?.modelRoute?.providerProfileId, 'local');
-  assert.equal(
-    routeBlockedGate?.modelRoute?.providerProfileConfigPath,
-    'copilot.providers.profiles[id=local]'
-  );
-  assert.deepEqual(routeBlockedGate?.modelRoute?.providerConfiguredModelIds, [
-    'runtime-listed-chat',
-    'default-chat',
-    'default-alias',
-    'optional-chat',
-    'optional-alias',
-  ]);
-  assert.equal(routeBlockedGate?.modelRoute?.providerConfiguredModelCount, 5);
-  assert.equal(routeBlockedGate?.modelRoute?.providerType, 'openaiCompatible');
-  assert.equal(routeBlockedGate?.modelRoute?.providerPrivacy, 'local');
-  assert.equal(routeBlockedGate?.modelRoute?.providerHealth, 'degraded');
-  assert.equal(
-    routeBlockedGate?.modelRoute?.providerHealthCheckedAt,
-    '2026-06-17T03:30:00.000Z'
-  );
-  assert.equal(routeBlockedGate?.modelRoute?.providerPriority, 10);
-  assert.equal(
-    routeBlockedGate?.modelRoute?.routeModelDefinitionId,
-    'default-chat'
-  );
-  assert.equal(routeBlockedGate?.modelRoute?.routeRawModelId, 'qwen3:32b');
-  assert.equal(routeBlockedGate?.modelRoute?.routeCandidates.length, 2);
-  assert.deepEqual(
-    routeBlockedGate?.modelRoute?.routeCandidates.map(candidate => [
-      candidate.providerId,
-      candidate.modelId,
-      candidate.matched,
-      candidate.reasons,
-    ]),
-    [
-      ['local', 'default-chat', false, ['capability_mismatch']],
-      ['cloud', 'fallback-chat', false, ['profile_model_not_allowed']],
-    ]
-  );
-  assert.deepEqual(
-    routeBlockedGate?.modelRoute?.routeCandidates[1]?.candidateModelIds,
-    ['pro-chat', 'fallback-chat']
-  );
-  assert.deepEqual(routeBlockedGate?.modelRoute?.routeTrace, [
-    {
-      phase: 'policy',
-      candidateCount: 2,
-      availableCount: 2,
-      selectedCount: 1,
-      blockedCount: 1,
-      reasons: [
-        'candidate_allowed',
-        'registry_selected',
-        'provider_not_allowed',
-        'registry_shadowed_by_byok',
-      ],
-    },
-    {
-      phase: 'resolution',
-      candidateCount: 2,
-      availableCount: 2,
-      selectedCount: 0,
-      matchedCount: 0,
-      reasons: ['capability_mismatch', 'profile_model_not_allowed'],
-    },
-  ]);
-  const defaultRouteRepair = routeBlockedGate?.repairRecommendations.find(
-    recommendation => recommendation.code === 'default_model_route_unavailable'
-  );
-  assert.equal(defaultRouteRepair?.severity, 'error');
-  assert.equal(
-    defaultRouteRepair?.target,
-    'copilot.prompts.defaults.text.model'
-  );
-  assert.equal(
-    defaultRouteRepair?.instanceKey,
-    'chat:object:default:0:local/default-chat'
-  );
-  assert.equal(
-    defaultRouteRepair?.suggestedActionKind,
-    'repair_default_model_route'
-  );
-  assert.equal(
-    defaultRouteRepair?.suggestedActionCatalogVersion,
-    'repair-actions/v1'
-  );
-  assert.deepEqual(defaultRouteRepair?.suggestedActionRequiredCapabilities, [
-    'model_registry.read',
-    'provider_route.preview',
-  ]);
-  assert.equal(defaultRouteRepair?.suggestedActionSafety, 'preview_required');
-  assert.match(
-    defaultRouteRepair?.diagnosticsFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(defaultRouteRepair?.suggestedActionInputSchema.required, [
-    'diagnosticsFingerprint',
-    'targetLocator',
-  ]);
-  assert.equal(defaultRouteRepair?.targetLocator?.registryId, 7);
-  assert.equal(defaultRouteRepair?.targetLocator?.candidateKind, 'default');
-  assert.equal(
-    defaultRouteRepair?.targetLocator?.requestedModelId,
-    gatePrompt.model
-  );
-  assert.equal(
-    routeBlockedGate?.repairRecommendations.some(
-      recommendation =>
-        recommendation.code === 'selected_provider_health_not_healthy'
-    ),
-    true
-  );
-  assert.equal(routeBlockedGate?.modelRoutes?.length, 6);
-  assert.deepEqual(
-    routeBlockedGate?.modelRoutes?.map(route =>
-      /^[0-9a-f]{16}$/.test(route.effectiveSourceFingerprint ?? '')
-    ),
-    [true, true, true, true, true, true]
-  );
-  assert.deepEqual(
-    routeBlockedGate?.modelRoutes?.map(route => [
-      route.candidateKind,
-      route.requestedModelId,
-      route.available,
-    ]),
-    [
-      ['default', gatePrompt.model, false],
-      ['optional', 'local/default-chat', false],
-      ['optional', 'local/optional-chat', false],
-      ['pro', 'cloud/pro-chat', false],
-      ['registry', 'registry/only-chat', false],
-      ['registry', 'byok/effective-chat', false],
-    ]
-  );
-  assert.deepEqual(routeBlockedGate?.modelRoute?.reasons, [
-    'model_route_unavailable',
-    'no_matching_provider_route',
-    'capability_mismatch',
-    'profile_model_not_allowed',
-  ]);
+      ]
+    );
+    assert.deepEqual(
+      sortRouteCalls(
+        routeCalls.filter(
+          call =>
+            call.modelId === structuredPrompt.model &&
+            call.outputType === 'structured' &&
+            call.featureKind === 'action'
+        )
+      ),
+      sortRouteCalls([
+        {
+          method: 'describeRouteCandidates',
+          modelId: structuredPrompt.model,
+          outputType: 'structured',
+          featureKind: 'action',
+          workspaceId: 'workspace-smoke',
+        },
+        {
+          method: 'describeRouteCandidates',
+          modelId: structuredPrompt.model,
+          outputType: 'structured',
+          featureKind: 'action',
+          workspaceId: 'workspace-smoke',
+        },
+        {
+          method: 'resolveProvider',
+          modelId: structuredPrompt.model,
+          outputType: 'structured',
+          featureKind: 'action',
+          workspaceId: 'workspace-smoke',
+        },
+        {
+          method: 'resolveProvider',
+          modelId: structuredPrompt.model,
+          outputType: 'structured',
+          featureKind: 'action',
+          workspaceId: 'workspace-smoke',
+        },
+      ])
+    );
 
-  class RouteDiagnosticsFailure extends Error {
-    override name = 'RouteDiagnosticsFailure';
-  }
-  const diagnosticsErrorProviderFactory = {
-    ...providerFactory,
-    getConfiguredModelIds() {
-      return [];
-    },
-    async describeRouteCandidates() {
-      throw new RouteDiagnosticsFailure(
-        'provider registry diagnostics unavailable'
-      );
-    },
-  };
-  const diagnosticsErrorResolver = new CopilotResolver(
-    {} as any,
-    {} as any,
-    { get: async () => gatePrompt } as any,
-    {} as any,
-    {} as any,
-    {} as any,
-    diagnosticsErrorProviderFactory as any,
-    {} as any,
-    capabilityRuntime as any,
-    taskPolicy as any,
-    {
-      copilotPrompt: {
-        getRegistryPrompt: async () => gatePrompt,
-        getRegistryPublishGateVerdict: async () => gateVerdict,
+    class StructuredDryRunFailure extends Error {
+      override name = 'StructuredDryRunFailure';
+    }
+    const failingPlanBuilder = {
+      async buildStructuredPlan() {
+        throw new StructuredDryRunFailure('structured dry-run unavailable');
       },
-    } as any,
-    {} as any,
-    {} as any
-  );
-  const diagnosticsErrorGate =
-    await diagnosticsErrorResolver.promptRegistryPublishGate(
+    };
+    const structuredDryRunFailureResolver = new CopilotResolver(
+      {} as any,
+      {} as any,
+      { get: async () => structuredPrompt } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        ...providerFactory,
+        getConfiguredModelIds() {
+          return [];
+        },
+      } as any,
+      {} as any,
+      capabilityRuntime as any,
+      taskPolicy as any,
+      {
+        copilotPrompt: {
+          getRegistryPrompt: async () => structuredPrompt,
+          getRegistryPublishGateVerdict: async () => structuredVerdict,
+        },
+      } as any,
+      {} as any,
+      {} as any,
+      failingPlanBuilder as any
+    );
+    const structuredDryRunFailureGate =
+      await structuredDryRunFailureResolver.promptRegistryPublishGate(
+        { workspaceId: 'workspace-smoke' } as any,
+        structuredVerdict.name,
+        undefined
+      );
+    assert.equal(structuredDryRunFailureGate?.allowed, true);
+    assert.equal(
+      structuredDryRunFailureGate?.actionRouteDryRun?.status,
+      'failed'
+    );
+    assert.equal(
+      structuredDryRunFailureGate?.actionRouteDryRun?.actualRouteCount,
+      0
+    );
+    assert.equal(
+      structuredDryRunFailureGate?.actionRouteDryRun?.expectedRouteCount,
+      0
+    );
+    assert.equal(
+      structuredDryRunFailureGate?.actionRouteDryRun?.missingRouteCount,
+      0
+    );
+    assert.equal(
+      structuredDryRunFailureGate?.actionRouteDryRun?.routeCountMismatch,
+      false
+    );
+    assert.deepEqual(
+      structuredDryRunFailureGate?.actionRouteDryRun?.routeCountMismatchStepIds,
+      []
+    );
+    assert.equal(
+      structuredDryRunFailureGate?.actionRouteDryRun?.diagnosticsErrorStage,
+      'build_structured_plan'
+    );
+    assert.equal(
+      structuredDryRunFailureGate?.actionRouteDryRun?.diagnosticsErrorCode,
+      'StructuredDryRunFailure'
+    );
+    assert.equal(
+      structuredDryRunFailureGate?.actionRouteDryRun?.diagnosticsErrorMessage,
+      'structured dry-run unavailable'
+    );
+    const actionDryRunFailureRepair =
+      structuredDryRunFailureGate?.repairRecommendations.find(
+        recommendation => recommendation.code === 'action_route_dry_run_failed'
+      );
+    assert.equal(actionDryRunFailureRepair?.category, 'action_route');
+    assert.equal(actionDryRunFailureRepair?.instanceKey, 'chat:dry-run:failed');
+    assert.equal(
+      actionDryRunFailureRepair?.evidence.includes(
+        'diagnosticsStage:build_structured_plan'
+      ),
+      true
+    );
+    assert.equal(
+      actionDryRunFailureRepair?.evidence.includes(
+        'diagnosticsCode:StructuredDryRunFailure'
+      ),
+      true
+    );
+  })();
+
+  await (async () => {
+    const imagePrompt = {
+      ...gatePrompt,
+      name: 'Image registry gate prompt',
+      model: 'local/image-model',
+      action: 'image.generate',
+      category: 'image',
+      config: {},
+      defaultPolicy: 'image',
+      modelSource: 'registry',
+      optionalModels: [],
+    };
+    const imageVerdict = {
+      ...gateVerdict,
+      name: imagePrompt.name,
+      registryId: 9,
+    };
+    const imageRouteResolver = new CopilotResolver(
+      {} as any,
+      {} as any,
+      { get: async () => imagePrompt } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        ...providerFactory,
+        getConfiguredModelIds() {
+          return [];
+        },
+      } as any,
+      {} as any,
+      capabilityRuntime as any,
+      taskPolicy as any,
+      {
+        copilotPrompt: {
+          getRegistryPrompt: async () => imagePrompt,
+          getRegistryPublishGateVerdict: async () => imageVerdict,
+        },
+      } as any,
+      {} as any,
+      {} as any
+    );
+    const imageRouteGate = await imageRouteResolver.promptRegistryPublishGate(
       { workspaceId: 'workspace-smoke' } as any,
-      gateVerdict.name,
+      imageVerdict.name,
       undefined
     );
-  assert.equal(
-    diagnosticsErrorGate?.modelRoute?.diagnosticsErrorStage,
-    'describe_route_candidates'
-  );
-  assert.equal(
-    diagnosticsErrorGate?.modelRoute?.diagnosticsErrorCode,
-    'RouteDiagnosticsFailure'
-  );
-  assert.equal(
-    diagnosticsErrorGate?.modelRoute?.diagnosticsErrorMessage,
-    'provider registry diagnostics unavailable'
-  );
-  assert.deepEqual(diagnosticsErrorGate?.modelRoute?.routeTrace, [
-    {
-      phase: 'policy',
-      candidateCount: 2,
-      availableCount: 2,
-      selectedCount: 1,
-      blockedCount: 1,
-      reasons: [
-        'candidate_allowed',
-        'registry_selected',
-        'provider_not_allowed',
-        'registry_shadowed_by_byok',
-      ],
-    },
-    {
-      phase: 'resolution',
-      candidateCount: 0,
-      availableCount: 0,
-      selectedCount: 0,
-      matchedCount: 0,
-      reasons: [],
-    },
-  ]);
-  const diagnosticsErrorRepair =
-    diagnosticsErrorGate?.repairRecommendations.find(
+    assert.equal(imageRouteGate?.allowed, true);
+    assert.equal(imageRouteGate?.modelRoute?.outputType, 'image');
+    assert.equal(imageRouteGate?.modelRoute?.featureKind, 'image');
+    assert.equal(
+      imageRouteGate?.modelRoute?.requestedModelId,
+      imagePrompt.model
+    );
+    assert.deepEqual(
+      sortRouteCalls(
+        routeCalls.filter(
+          call =>
+            call.modelId === imagePrompt.model &&
+            call.outputType === 'image' &&
+            call.featureKind === 'image'
+        )
+      ),
+      sortRouteCalls([
+        {
+          method: 'describeRouteCandidates',
+          modelId: imagePrompt.model,
+          outputType: 'image',
+          featureKind: 'image',
+          workspaceId: 'workspace-smoke',
+        },
+        {
+          method: 'resolveProvider',
+          modelId: imagePrompt.model,
+          outputType: 'image',
+          featureKind: 'image',
+          workspaceId: 'workspace-smoke',
+        },
+      ])
+    );
+
+    const unavailableProviderFactory = {
+      ...providerFactory,
+      async resolveProvider() {
+        return null;
+      },
+      async describeRouteCandidates() {
+        return [
+          {
+            registryKind: 'byok',
+            registryAvailable: true,
+            registrySelected: false,
+            providerId: 'local',
+            providerName: 'Local profile',
+            providerSource: 'configured',
+            providerProfileId: 'local',
+            providerProfileSource: 'configured',
+            providerProfileConfigPath: 'copilot.providers.profiles[id=local]',
+            providerConfiguredModelIds: [
+              'runtime-listed-chat',
+              'default-chat',
+              'default-alias',
+              'optional-chat',
+              'optional-alias',
+            ],
+            providerConfiguredModelCount: 5,
+            providerType: 'openaiCompatible',
+            providerPriority: 10,
+            privacy: 'local',
+            health: 'degraded',
+            healthCheckedAt: '2026-06-17T03:30:00.000Z',
+            requestedModelId: gatePrompt.model,
+            modelId: 'default-chat',
+            routeRawModelId: 'qwen3:32b',
+            routeModelDefinitionSource: 'provider_profile',
+            routeModelDefinitionId: 'default-chat',
+            routeModelDefinitionAliases: ['default-alias'],
+            routeModelAliasMatched: false,
+            matched: false,
+            reasons: ['capability_mismatch'],
+          },
+          {
+            registryKind: 'quota_backed',
+            registryAvailable: true,
+            registrySelected: false,
+            providerId: 'cloud',
+            providerName: 'Cloud fallback',
+            providerSource: 'configured',
+            providerProfileId: 'cloud',
+            providerProfileSource: 'configured',
+            providerProfileConfigPath: 'copilot.providers.profiles[id=cloud]',
+            providerConfiguredModelIds: ['pro-chat', 'fallback-chat'],
+            providerConfiguredModelCount: 2,
+            providerType: 'openai',
+            providerPriority: 1,
+            privacy: 'cloud',
+            health: 'healthy',
+            requestedModelId: gatePrompt.model,
+            modelId: 'fallback-chat',
+            routeModelDefinitionSource: 'provider_profile',
+            routeModelDefinitionId: 'fallback-chat',
+            routeModelDefinitionAliases: ['fallback-alias'],
+            routeModelAliasMatched: false,
+            candidateModelIds: ['pro-chat', 'fallback-chat'],
+            matched: false,
+            reasons: ['profile_model_not_allowed'],
+          },
+        ];
+      },
+    };
+    const routeBlockedResolver = new CopilotResolver(
+      {} as any,
+      {} as any,
+      { get: async () => gatePrompt } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      unavailableProviderFactory as any,
+      {} as any,
+      capabilityRuntime as any,
+      taskPolicy as any,
+      {
+        copilotPrompt: {
+          getRegistryPrompt: async () => gatePrompt,
+          getRegistryPublishGateVerdict: async () => gateVerdict,
+        },
+      } as any,
+      {} as any,
+      {} as any
+    );
+    const routeBlockedGate =
+      await routeBlockedResolver.promptRegistryPublishGate(
+        { workspaceId: 'workspace-smoke' } as any,
+        gateVerdict.name,
+        undefined
+      );
+    assert.equal(routeBlockedGate?.allowed, false);
+    assert.equal(routeBlockedGate?.publishStatus, 'blocked');
+    assert.equal(routeBlockedGate?.reason, 'model_route_unavailable');
+    assert.equal(routeBlockedGate?.blockingCount, 1);
+    assert.deepEqual(
+      routeBlockedGate?.taskRoutes.map(route => route.featureKind),
+      ['workspace_indexing', 'rerank']
+    );
+    assert.equal(
+      routeBlockedGate?.issues[0]?.reason,
+      'model_route_unavailable'
+    );
+    assert.equal(routeBlockedGate?.modelRoute?.available, false);
+    assert.equal(routeBlockedGate?.modelRoute?.candidateKind, 'default');
+    assert.equal(routeBlockedGate?.modelRoute?.providerId, 'local');
+    assert.equal(routeBlockedGate?.modelRoute?.providerName, 'Local profile');
+    assert.equal(routeBlockedGate?.modelRoute?.providerProfileId, 'local');
+    assert.equal(
+      routeBlockedGate?.modelRoute?.providerProfileConfigPath,
+      'copilot.providers.profiles[id=local]'
+    );
+    assert.deepEqual(routeBlockedGate?.modelRoute?.providerConfiguredModelIds, [
+      'runtime-listed-chat',
+      'default-chat',
+      'default-alias',
+      'optional-chat',
+      'optional-alias',
+    ]);
+    assert.equal(routeBlockedGate?.modelRoute?.providerConfiguredModelCount, 5);
+    assert.equal(
+      routeBlockedGate?.modelRoute?.providerType,
+      'openaiCompatible'
+    );
+    assert.equal(routeBlockedGate?.modelRoute?.providerPrivacy, 'local');
+    assert.equal(routeBlockedGate?.modelRoute?.providerHealth, 'degraded');
+    assert.equal(
+      routeBlockedGate?.modelRoute?.providerHealthCheckedAt,
+      '2026-06-17T03:30:00.000Z'
+    );
+    assert.equal(routeBlockedGate?.modelRoute?.providerPriority, 10);
+    assert.equal(
+      routeBlockedGate?.modelRoute?.routeModelDefinitionId,
+      'default-chat'
+    );
+    assert.equal(routeBlockedGate?.modelRoute?.routeRawModelId, 'qwen3:32b');
+    assert.equal(routeBlockedGate?.modelRoute?.routeCandidates.length, 2);
+    assert.deepEqual(
+      routeBlockedGate?.modelRoute?.routeCandidates.map(candidate => [
+        candidate.providerId,
+        candidate.modelId,
+        candidate.matched,
+        candidate.reasons,
+      ]),
+      [
+        ['local', 'default-chat', false, ['capability_mismatch']],
+        ['cloud', 'fallback-chat', false, ['profile_model_not_allowed']],
+      ]
+    );
+    assert.deepEqual(
+      routeBlockedGate?.modelRoute?.routeCandidates[1]?.candidateModelIds,
+      ['pro-chat', 'fallback-chat']
+    );
+    assert.deepEqual(routeBlockedGate?.modelRoute?.routeTrace, [
+      {
+        phase: 'policy',
+        candidateCount: 2,
+        availableCount: 2,
+        selectedCount: 1,
+        blockedCount: 1,
+        reasons: [
+          'candidate_allowed',
+          'registry_selected',
+          'provider_not_allowed',
+          'registry_shadowed_by_byok',
+        ],
+      },
+      {
+        phase: 'resolution',
+        candidateCount: 2,
+        availableCount: 2,
+        selectedCount: 0,
+        matchedCount: 0,
+        reasons: ['capability_mismatch', 'profile_model_not_allowed'],
+      },
+    ]);
+    const defaultRouteRepair = routeBlockedGate?.repairRecommendations.find(
       recommendation =>
         recommendation.code === 'default_model_route_unavailable'
     );
-  assert.equal(
-    diagnosticsErrorRepair?.evidence.includes(
-      'diagnosticsStage:describe_route_candidates'
-    ),
-    true
-  );
-  assert.equal(
-    diagnosticsErrorRepair?.evidence.includes(
-      'diagnosticsCode:RouteDiagnosticsFailure'
-    ),
-    true
-  );
-  assert.equal(
-    diagnosticsErrorRepair?.instanceKey,
-    'chat:object:default:0:local/default-chat'
-  );
+    assert.equal(defaultRouteRepair?.severity, 'error');
+    assert.equal(
+      defaultRouteRepair?.target,
+      'copilot.prompts.defaults.text.model'
+    );
+    assert.equal(
+      defaultRouteRepair?.instanceKey,
+      'chat:object:default:0:local/default-chat'
+    );
+    assert.equal(
+      defaultRouteRepair?.suggestedActionKind,
+      'repair_default_model_route'
+    );
+    assert.equal(
+      defaultRouteRepair?.suggestedActionCatalogVersion,
+      'repair-actions/v1'
+    );
+    assert.deepEqual(defaultRouteRepair?.suggestedActionRequiredCapabilities, [
+      'model_registry.read',
+      'provider_route.preview',
+    ]);
+    assert.equal(defaultRouteRepair?.suggestedActionSafety, 'preview_required');
+    assert.match(
+      defaultRouteRepair?.diagnosticsFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(defaultRouteRepair?.suggestedActionInputSchema.required, [
+      'diagnosticsFingerprint',
+      'targetLocator',
+    ]);
+    assert.equal(defaultRouteRepair?.targetLocator?.registryId, 7);
+    assert.equal(defaultRouteRepair?.targetLocator?.candidateKind, 'default');
+    assert.equal(
+      defaultRouteRepair?.targetLocator?.requestedModelId,
+      gatePrompt.model
+    );
+    assert.equal(
+      routeBlockedGate?.repairRecommendations.some(
+        recommendation =>
+          recommendation.code === 'selected_provider_health_not_healthy'
+      ),
+      true
+    );
+    assert.equal(routeBlockedGate?.modelRoutes?.length, 6);
+    assert.deepEqual(
+      routeBlockedGate?.modelRoutes?.map(route =>
+        /^[0-9a-f]{16}$/.test(route.effectiveSourceFingerprint ?? '')
+      ),
+      [true, true, true, true, true, true]
+    );
+    assert.deepEqual(
+      routeBlockedGate?.modelRoutes?.map(route => [
+        route.candidateKind,
+        route.requestedModelId,
+        route.available,
+      ]),
+      [
+        ['default', gatePrompt.model, false],
+        ['optional', 'local/default-chat', false],
+        ['optional', 'local/optional-chat', false],
+        ['pro', 'cloud/pro-chat', false],
+        ['registry', 'registry/only-chat', false],
+        ['registry', 'byok/effective-chat', false],
+      ]
+    );
+    assert.deepEqual(routeBlockedGate?.modelRoute?.reasons, [
+      'model_route_unavailable',
+      'no_matching_provider_route',
+      'capability_mismatch',
+      'profile_model_not_allowed',
+    ]);
+  })();
+
+  await (async () => {
+    class RouteDiagnosticsFailure extends Error {
+      override name = 'RouteDiagnosticsFailure';
+    }
+    const diagnosticsErrorProviderFactory = {
+      ...providerFactory,
+      getConfiguredModelIds() {
+        return [];
+      },
+      async describeRouteCandidates() {
+        throw new RouteDiagnosticsFailure(
+          'provider registry diagnostics unavailable'
+        );
+      },
+    };
+    const diagnosticsErrorResolver = new CopilotResolver(
+      {} as any,
+      {} as any,
+      { get: async () => gatePrompt } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      diagnosticsErrorProviderFactory as any,
+      {} as any,
+      capabilityRuntime as any,
+      taskPolicy as any,
+      {
+        copilotPrompt: {
+          getRegistryPrompt: async () => gatePrompt,
+          getRegistryPublishGateVerdict: async () => gateVerdict,
+        },
+      } as any,
+      {} as any,
+      {} as any
+    );
+    const diagnosticsErrorGate =
+      await diagnosticsErrorResolver.promptRegistryPublishGate(
+        { workspaceId: 'workspace-smoke' } as any,
+        gateVerdict.name,
+        undefined
+      );
+    assert.equal(
+      diagnosticsErrorGate?.modelRoute?.diagnosticsErrorStage,
+      'describe_route_candidates'
+    );
+    assert.equal(
+      diagnosticsErrorGate?.modelRoute?.diagnosticsErrorCode,
+      'RouteDiagnosticsFailure'
+    );
+    assert.equal(
+      diagnosticsErrorGate?.modelRoute?.diagnosticsErrorMessage,
+      'provider registry diagnostics unavailable'
+    );
+    assert.deepEqual(diagnosticsErrorGate?.modelRoute?.routeTrace, [
+      {
+        phase: 'policy',
+        candidateCount: 2,
+        availableCount: 2,
+        selectedCount: 1,
+        blockedCount: 1,
+        reasons: [
+          'candidate_allowed',
+          'registry_selected',
+          'provider_not_allowed',
+          'registry_shadowed_by_byok',
+        ],
+      },
+      {
+        phase: 'resolution',
+        candidateCount: 0,
+        availableCount: 0,
+        selectedCount: 0,
+        matchedCount: 0,
+        reasons: [],
+      },
+    ]);
+    const diagnosticsErrorRepair =
+      diagnosticsErrorGate?.repairRecommendations.find(
+        recommendation =>
+          recommendation.code === 'default_model_route_unavailable'
+      );
+    assert.equal(
+      diagnosticsErrorRepair?.evidence.includes(
+        'diagnosticsStage:describe_route_candidates'
+      ),
+      true
+    );
+    assert.equal(
+      diagnosticsErrorRepair?.evidence.includes(
+        'diagnosticsCode:RouteDiagnosticsFailure'
+      ),
+      true
+    );
+    assert.equal(
+      diagnosticsErrorRepair?.instanceKey,
+      'chat:object:default:0:local/default-chat'
+    );
+  })();
 
   class EmbeddingPrepareDiagnosticsFailure extends Error {
     override name = 'EmbeddingPrepareDiagnosticsFailure';
@@ -10876,6 +11021,7 @@ async function main() {
     {} as any,
     {} as any,
     { get: async () => gatePrompt } as any,
+    {} as any,
     {} as any,
     {} as any,
     {} as any,
@@ -11058,1298 +11204,1320 @@ async function main() {
     true,
     'task diagnostics repair evidence should include prepare candidate prepared model id'
   );
-  const taskDiagnosticsPolicyCandidateEvidence =
-    taskDiagnosticsErrorRepair?.candidateEvidence?.find(
-      evidence => evidence.scope === 'policyCandidate'
+  await (async () => {
+    const taskDiagnosticsPolicyCandidateEvidence =
+      taskDiagnosticsErrorRepair?.candidateEvidence?.find(
+        evidence => evidence.scope === 'policyCandidate'
+      );
+    const taskDiagnosticsPolicyCandidateSnapshot =
+      taskRoutePolicyCandidateEvidenceFixture(
+        taskDiagnosticsErrorRoute?.policyCandidates
+      );
+    const taskDiagnosticsPolicyCandidateSnapshotFingerprint =
+      taskRouteSnapshotFingerprintFixture(
+        taskDiagnosticsPolicyCandidateSnapshot
+      );
+    const taskDiagnosticsRouteCandidateSnapshot =
+      taskRouteCandidateEvidenceFixture(
+        taskDiagnosticsErrorRoute?.routeCandidates
+      );
+    const taskDiagnosticsRouteCandidateSnapshotFingerprint =
+      taskRouteSnapshotFingerprintFixture(
+        taskDiagnosticsRouteCandidateSnapshot
+      );
+    const taskDiagnosticsPrepareCandidateSnapshot =
+      taskRoutePrepareCandidateEvidenceFixture(
+        taskDiagnosticsErrorRoute?.prepareCandidates
+      );
+    const taskDiagnosticsPrepareCandidateSnapshotFingerprint =
+      taskRouteSnapshotFingerprintFixture(
+        taskDiagnosticsPrepareCandidateSnapshot
+      );
+    const taskDiagnosticsPreparedRouteSnapshot =
+      taskRoutePreparedRouteEvidenceFixture(
+        taskDiagnosticsErrorRoute?.preparedRoutes
+      );
+    const taskDiagnosticsPreparedRouteSnapshotFingerprint =
+      taskRouteSnapshotFingerprintFixture(taskDiagnosticsPreparedRouteSnapshot);
+    const taskDiagnosticsPreparedRouteOrderSnapshot =
+      taskRoutePreparedRouteOrderEvidenceFixture(
+        taskDiagnosticsErrorRoute?.preparedRoutes
+      );
+    const taskDiagnosticsPreparedRouteOrderFingerprint =
+      taskRouteSnapshotFingerprintFixture(
+        taskDiagnosticsPreparedRouteOrderSnapshot
+      );
+    const taskDiagnosticsProviderHealthSnapshot =
+      taskRouteProviderHealthSnapshotFixture(taskDiagnosticsErrorRoute);
+    const taskDiagnosticsProviderHealthSnapshotFingerprint =
+      taskRouteSnapshotFingerprintFixture(
+        taskDiagnosticsProviderHealthSnapshot
+      );
+    const taskDiagnosticsProviderCostSnapshot =
+      taskRouteProviderCostSnapshotFixture(taskDiagnosticsErrorRoute);
+    const taskDiagnosticsProviderCostSnapshotFingerprint =
+      taskRouteSnapshotFingerprintFixture(taskDiagnosticsProviderCostSnapshot);
+    const taskDiagnosticsProviderCapabilitySnapshot =
+      taskRouteProviderCapabilitySnapshotFixture(taskDiagnosticsErrorRoute);
+    const taskDiagnosticsProviderCapabilitySnapshotFingerprint =
+      taskRouteSnapshotFingerprintFixture(
+        taskDiagnosticsProviderCapabilitySnapshot
+      );
+    const taskDiagnosticsProviderLimitSnapshot =
+      taskRouteProviderLimitSnapshotFixture(taskDiagnosticsErrorRoute);
+    const taskDiagnosticsProviderLimitSnapshotFingerprint =
+      taskRouteSnapshotFingerprintFixture(taskDiagnosticsProviderLimitSnapshot);
+    const taskDiagnosticsDimensionSnapshot = taskRouteDimensionSnapshotFixture(
+      taskDiagnosticsErrorRoute
     );
-  const taskDiagnosticsPolicyCandidateSnapshot =
-    taskRoutePolicyCandidateEvidenceFixture(
-      taskDiagnosticsErrorRoute?.policyCandidates
-    );
-  const taskDiagnosticsPolicyCandidateSnapshotFingerprint =
-    taskRouteSnapshotFingerprintFixture(taskDiagnosticsPolicyCandidateSnapshot);
-  const taskDiagnosticsRouteCandidateSnapshot =
-    taskRouteCandidateEvidenceFixture(
-      taskDiagnosticsErrorRoute?.routeCandidates
-    );
-  const taskDiagnosticsRouteCandidateSnapshotFingerprint =
-    taskRouteSnapshotFingerprintFixture(taskDiagnosticsRouteCandidateSnapshot);
-  const taskDiagnosticsPrepareCandidateSnapshot =
-    taskRoutePrepareCandidateEvidenceFixture(
-      taskDiagnosticsErrorRoute?.prepareCandidates
-    );
-  const taskDiagnosticsPrepareCandidateSnapshotFingerprint =
-    taskRouteSnapshotFingerprintFixture(
-      taskDiagnosticsPrepareCandidateSnapshot
-    );
-  const taskDiagnosticsPreparedRouteSnapshot =
-    taskRoutePreparedRouteEvidenceFixture(
-      taskDiagnosticsErrorRoute?.preparedRoutes
-    );
-  const taskDiagnosticsPreparedRouteSnapshotFingerprint =
-    taskRouteSnapshotFingerprintFixture(taskDiagnosticsPreparedRouteSnapshot);
-  const taskDiagnosticsPreparedRouteOrderSnapshot =
-    taskRoutePreparedRouteOrderEvidenceFixture(
-      taskDiagnosticsErrorRoute?.preparedRoutes
-    );
-  const taskDiagnosticsPreparedRouteOrderFingerprint =
-    taskRouteSnapshotFingerprintFixture(
-      taskDiagnosticsPreparedRouteOrderSnapshot
-    );
-  const taskDiagnosticsProviderHealthSnapshot =
-    taskRouteProviderHealthSnapshotFixture(taskDiagnosticsErrorRoute);
-  const taskDiagnosticsProviderHealthSnapshotFingerprint =
-    taskRouteSnapshotFingerprintFixture(taskDiagnosticsProviderHealthSnapshot);
-  const taskDiagnosticsProviderCostSnapshot =
-    taskRouteProviderCostSnapshotFixture(taskDiagnosticsErrorRoute);
-  const taskDiagnosticsProviderCostSnapshotFingerprint =
-    taskRouteSnapshotFingerprintFixture(taskDiagnosticsProviderCostSnapshot);
-  const taskDiagnosticsProviderCapabilitySnapshot =
-    taskRouteProviderCapabilitySnapshotFixture(taskDiagnosticsErrorRoute);
-  const taskDiagnosticsProviderCapabilitySnapshotFingerprint =
-    taskRouteSnapshotFingerprintFixture(
-      taskDiagnosticsProviderCapabilitySnapshot
-    );
-  const taskDiagnosticsProviderLimitSnapshot =
-    taskRouteProviderLimitSnapshotFixture(taskDiagnosticsErrorRoute);
-  const taskDiagnosticsProviderLimitSnapshotFingerprint =
-    taskRouteSnapshotFingerprintFixture(taskDiagnosticsProviderLimitSnapshot);
-  const taskDiagnosticsDimensionSnapshot = taskRouteDimensionSnapshotFixture(
-    taskDiagnosticsErrorRoute
-  );
-  const taskDiagnosticsDimensionSnapshotFingerprint =
-    taskRouteSnapshotFingerprintFixture(taskDiagnosticsDimensionSnapshot);
-  const taskDiagnosticsEmbeddingIndexContractSnapshot =
-    taskRouteEmbeddingIndexContractSnapshotFixture(taskDiagnosticsErrorRoute!);
-  const taskDiagnosticsEmbeddingIndexContractSnapshotFingerprint =
-    taskRouteSnapshotFingerprintFixture(
-      taskDiagnosticsEmbeddingIndexContractSnapshot
-    );
-  const taskDiagnosticsModelSourceSnapshot =
-    taskRouteModelSourceSnapshotFixture(taskDiagnosticsErrorRoute);
-  const taskDiagnosticsModelSourceSnapshotFingerprint =
-    taskRouteSnapshotFingerprintFixture(taskDiagnosticsModelSourceSnapshot);
-  const taskDiagnosticsErrorSnapshotFingerprint =
-    taskRouteSnapshotFingerprintFixture(
-      taskDiagnosticsErrorRoute?.diagnosticsErrors
-    );
-  const taskDiagnosticsRouteTraceSnapshotFingerprint =
-    taskRouteSnapshotFingerprintFixture(taskDiagnosticsErrorRoute?.routeTrace);
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      `policyCandidate#0:policyCandidateSnapshotFingerprint:${taskDiagnosticsPolicyCandidateSnapshotFingerprint}`
-    ),
-    true,
-    'task diagnostics repair evidence should include policy candidate snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      `policyCandidate#0:routeCandidateSnapshotFingerprint:${taskDiagnosticsRouteCandidateSnapshotFingerprint}`
-    ),
-    true,
-    'task diagnostics repair evidence should include route candidate snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      `policyCandidate#0:routeTraceSnapshotFingerprint:${taskDiagnosticsRouteTraceSnapshotFingerprint}`
-    ),
-    true,
-    'task diagnostics repair evidence should include route trace snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      `policyCandidate#0:prepareCandidateSnapshotFingerprint:${taskDiagnosticsPrepareCandidateSnapshotFingerprint}`
-    ),
-    true,
-    'task diagnostics repair evidence should include prepare candidate snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      `policyCandidate#0:preparedRouteOrderFingerprint:${taskDiagnosticsPreparedRouteOrderFingerprint}`
-    ),
-    true,
-    'task diagnostics repair evidence should include prepared route order fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      `policyCandidate#0:preparedRouteSnapshotFingerprint:${taskDiagnosticsPreparedRouteSnapshotFingerprint}`
-    ),
-    true,
-    'task diagnostics repair evidence should include prepared route snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      `policyCandidate#0:providerCapabilitySnapshotFingerprint:${taskDiagnosticsProviderCapabilitySnapshotFingerprint}`
-    ),
-    true,
-    'task diagnostics repair evidence should include provider capability snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      `policyCandidate#0:providerHealthSnapshotFingerprint:${taskDiagnosticsProviderHealthSnapshotFingerprint}`
-    ),
-    true,
-    'task diagnostics repair evidence should include provider health snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      `policyCandidate#0:providerCostSnapshotFingerprint:${taskDiagnosticsProviderCostSnapshotFingerprint}`
-    ),
-    true,
-    'task diagnostics repair evidence should include provider cost snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      `policyCandidate#0:providerLimitSnapshotFingerprint:${taskDiagnosticsProviderLimitSnapshotFingerprint}`
-    ),
-    true,
-    'task diagnostics repair evidence should include provider limit snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      `policyCandidate#0:taskRouteDimensionSnapshotFingerprint:${taskDiagnosticsDimensionSnapshotFingerprint}`
-    ),
-    true,
-    'task diagnostics repair evidence should include task route dimension snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      `policyCandidate#0:taskRouteEmbeddingIndexContractSnapshotFingerprint:${taskDiagnosticsEmbeddingIndexContractSnapshotFingerprint}`
-    ),
-    true,
-    'task diagnostics repair evidence should include embedding index contract snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'policyCandidate#0:requestedDimensions:1024'
-    ),
-    true,
-    'task diagnostics repair evidence should include requested embedding dimensions'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'policyCandidate#0:modelEmbeddingDimensions:768'
-    ),
-    true,
-    'task diagnostics repair evidence should include model embedding dimensions'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'policyCandidate#0:dimensionMismatch:true'
-    ),
-    true,
-    'task diagnostics repair evidence should include embedding dimension mismatch state'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'policyCandidate#0:embeddingIndexContractVersion:workspace-embedding-index/v1'
-    ),
-    true,
-    'task diagnostics repair evidence should include embedding index contract version'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'policyCandidate#0:embeddingIndexContractDimensions:1024'
-    ),
-    true,
-    'task diagnostics repair evidence should include embedding index contract dimensions'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'policyCandidate#0:embeddingIndexContractStatus:dimension_mismatch'
-    ),
-    true,
-    'task diagnostics repair evidence should include embedding index contract status'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      `policyCandidate#0:taskRouteModelSourceSnapshotFingerprint:${taskDiagnosticsModelSourceSnapshotFingerprint}`
-    ),
-    true,
-    'task diagnostics repair evidence should include task route model source snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      `policyCandidate#0:taskRouteEffectiveSourceFingerprint:${taskDiagnosticsErrorRoute?.effectiveSourceFingerprint}`
-    ),
-    true,
-    'task diagnostics repair evidence should include task route effective source fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      `policyCandidate#0:diagnosticsErrorSnapshotFingerprint:${taskDiagnosticsErrorSnapshotFingerprint}`
-    ),
-    true,
-    'task diagnostics repair evidence should include diagnostics error snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'policyCandidate#0:diagnosticsError#0:stage:describe_embedding_prepare_candidates'
-    ),
-    true,
-    'task diagnostics repair evidence should include diagnostics error stage'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'policyCandidate#0:diagnosticsError#0:code:EmbeddingPrepareDiagnosticsFailure'
-    ),
-    true,
-    'task diagnostics repair evidence should include diagnostics error code'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'policyCandidate#0:diagnosticsError#0:message:embedding prepare diagnostics unavailable'
-    ),
-    true,
-    'task diagnostics repair evidence should include diagnostics error message'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'routeCandidate#0:routeModelDefinitionSource:provider_profile'
-    ),
-    true,
-    'task diagnostics repair evidence should include route candidate model definition source'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'routeCandidate#0:routeModelDefinitionId:workspace-embedding'
-    ),
-    true,
-    'task diagnostics repair evidence should include route candidate model definition id'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'routeCandidate#0:routeModelDefinitionAlias:embed-alias'
-    ),
-    true,
-    'task diagnostics repair evidence should include route candidate model definition alias'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'routeCandidate#0:routeModelAliasMatched:true'
-    ),
-    true,
-    'task diagnostics repair evidence should include route candidate alias match state'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'routeCandidate#0:routeRawModelId:nomic-embed-text'
-    ),
-    true,
-    'task diagnostics repair evidence should include route candidate raw model id'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'routeCandidate#0:routeInputType:text'
-    ),
-    true,
-    'task diagnostics repair evidence should include route candidate input capability'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'routeCandidate#0:routeOutputType:embedding'
-    ),
-    true,
-    'task diagnostics repair evidence should include route candidate output capability'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'routeCandidate#0:routeContextWindow:8192'
-    ),
-    true,
-    'task diagnostics repair evidence should include route candidate context limit'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'routeCandidate#0:routeEmbeddingDimensions:768'
-    ),
-    true,
-    'task diagnostics repair evidence should include route candidate embedding limit'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'routeCandidate#0:costInputPer1M:0.01'
-    ),
-    true,
-    'task diagnostics repair evidence should include route candidate input cost'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'prepareCandidate#0:routeAttachmentAllowRemoteUrls:true'
-    ),
-    true,
-    'task diagnostics repair evidence should include prepare candidate remote attachment support'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'routeCandidate#0:registryKind:byok'
-    ),
-    true,
-    'task diagnostics repair evidence should include route candidate registry kind'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'routeCandidate#0:registryAvailable:true'
-    ),
-    true,
-    'task diagnostics repair evidence should include route candidate registry availability'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'routeCandidate#0:registrySelected:true'
-    ),
-    true,
-    'task diagnostics repair evidence should include route candidate registry selected state'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'routeCandidate#0:privacy:local'
-    ),
-    true,
-    'task diagnostics repair evidence should include route candidate privacy'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'routeCandidate#0:health:degraded'
-    ),
-    true,
-    'task diagnostics repair evidence should include route candidate health'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'routeCandidate#0:healthCheckedAt:2026-06-17T03:30:00.000Z'
-    ),
-    true,
-    'task diagnostics repair evidence should include route candidate health freshness'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'prepareCandidate#0:errorCode:provider_prepare_error'
-    ),
-    true,
-    'task diagnostics repair evidence should include prepare candidate error code'
-  );
-  assert.equal(
-    taskDiagnosticsErrorRepair?.evidence.includes(
-      'prepareCandidate#0:errorCategory:provider_prepare_error'
-    ),
-    true,
-    'task diagnostics repair evidence should include prepare candidate error category'
-  );
-  const assertEmbeddingIndexContractEvidence = (
-    evidence:
-      | (typeof taskDiagnosticsErrorRepair)['candidateEvidence'][number]
-      | undefined,
-    label: string
-  ) => {
+    const taskDiagnosticsDimensionSnapshotFingerprint =
+      taskRouteSnapshotFingerprintFixture(taskDiagnosticsDimensionSnapshot);
+    const taskDiagnosticsEmbeddingIndexContractSnapshot =
+      taskRouteEmbeddingIndexContractSnapshotFixture(
+        taskDiagnosticsErrorRoute!
+      );
+    const taskDiagnosticsEmbeddingIndexContractSnapshotFingerprint =
+      taskRouteSnapshotFingerprintFixture(
+        taskDiagnosticsEmbeddingIndexContractSnapshot
+      );
+    const taskDiagnosticsModelSourceSnapshot =
+      taskRouteModelSourceSnapshotFixture(taskDiagnosticsErrorRoute);
+    const taskDiagnosticsModelSourceSnapshotFingerprint =
+      taskRouteSnapshotFingerprintFixture(taskDiagnosticsModelSourceSnapshot);
+    const taskDiagnosticsErrorSnapshotFingerprint =
+      taskRouteSnapshotFingerprintFixture(
+        taskDiagnosticsErrorRoute?.diagnosticsErrors
+      );
+    const taskDiagnosticsRouteTraceSnapshotFingerprint =
+      taskRouteSnapshotFingerprintFixture(
+        taskDiagnosticsErrorRoute?.routeTrace
+      );
     assert.equal(
-      evidence?.embeddingIndexContractVersion,
-      taskDiagnosticsErrorRoute?.embeddingIndexContractVersion,
-      `${label} should bind embedding index contract version`
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        `policyCandidate#0:policyCandidateSnapshotFingerprint:${taskDiagnosticsPolicyCandidateSnapshotFingerprint}`
+      ),
+      true,
+      'task diagnostics repair evidence should include policy candidate snapshot fingerprint'
     );
     assert.equal(
-      evidence?.embeddingIndexContractDimensions,
-      taskDiagnosticsErrorRoute?.embeddingIndexContractDimensions,
-      `${label} should bind embedding index contract dimensions`
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        `policyCandidate#0:routeCandidateSnapshotFingerprint:${taskDiagnosticsRouteCandidateSnapshotFingerprint}`
+      ),
+      true,
+      'task diagnostics repair evidence should include route candidate snapshot fingerprint'
     );
     assert.equal(
-      evidence?.embeddingIndexContractStatus,
-      taskDiagnosticsErrorRoute?.embeddingIndexContractStatus,
-      `${label} should bind embedding index contract status`
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        `policyCandidate#0:routeTraceSnapshotFingerprint:${taskDiagnosticsRouteTraceSnapshotFingerprint}`
+      ),
+      true,
+      'task diagnostics repair evidence should include route trace snapshot fingerprint'
     );
     assert.equal(
-      evidence?.embeddingIndexContractFingerprint,
-      taskDiagnosticsErrorRoute?.embeddingIndexContractFingerprint,
-      `${label} should bind embedding index contract fingerprint`
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        `policyCandidate#0:prepareCandidateSnapshotFingerprint:${taskDiagnosticsPrepareCandidateSnapshotFingerprint}`
+      ),
+      true,
+      'task diagnostics repair evidence should include prepare candidate snapshot fingerprint'
     );
     assert.equal(
-      evidence?.taskRouteEmbeddingIndexContractSnapshotFingerprint,
-      taskDiagnosticsEmbeddingIndexContractSnapshotFingerprint,
-      `${label} should bind embedding index contract snapshot fingerprint`
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        `policyCandidate#0:preparedRouteOrderFingerprint:${taskDiagnosticsPreparedRouteOrderFingerprint}`
+      ),
+      true,
+      'task diagnostics repair evidence should include prepared route order fingerprint'
     );
-  };
-  assert.match(
-    taskDiagnosticsPolicyCandidateEvidence?.candidateFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assertEmbeddingIndexContractEvidence(
-    taskDiagnosticsPolicyCandidateEvidence,
-    'policy candidate evidence'
-  );
-  assert.equal(taskDiagnosticsPolicyCandidateEvidence?.candidateIndex, 0);
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.candidateKey,
-    routeReadyGate?.taskRoutes[0]?.policyCandidates[0]?.candidateKey
-  );
-  assert.notEqual(
-    taskDiagnosticsPolicyCandidateEvidence?.candidateFingerprint,
-    routeReadyGate?.taskRoutes[0]?.policyCandidates[0]?.candidateFingerprint,
-    'policy candidate repair evidence fingerprint should include the route target fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.candidateKey?.includes('policy'),
-    true
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.candidateKey?.includes(
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        `policyCandidate#0:preparedRouteSnapshotFingerprint:${taskDiagnosticsPreparedRouteSnapshotFingerprint}`
+      ),
+      true,
+      'task diagnostics repair evidence should include prepared route snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        `policyCandidate#0:providerCapabilitySnapshotFingerprint:${taskDiagnosticsProviderCapabilitySnapshotFingerprint}`
+      ),
+      true,
+      'task diagnostics repair evidence should include provider capability snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        `policyCandidate#0:providerHealthSnapshotFingerprint:${taskDiagnosticsProviderHealthSnapshotFingerprint}`
+      ),
+      true,
+      'task diagnostics repair evidence should include provider health snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        `policyCandidate#0:providerCostSnapshotFingerprint:${taskDiagnosticsProviderCostSnapshotFingerprint}`
+      ),
+      true,
+      'task diagnostics repair evidence should include provider cost snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        `policyCandidate#0:providerLimitSnapshotFingerprint:${taskDiagnosticsProviderLimitSnapshotFingerprint}`
+      ),
+      true,
+      'task diagnostics repair evidence should include provider limit snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        `policyCandidate#0:taskRouteDimensionSnapshotFingerprint:${taskDiagnosticsDimensionSnapshotFingerprint}`
+      ),
+      true,
+      'task diagnostics repair evidence should include task route dimension snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        `policyCandidate#0:taskRouteEmbeddingIndexContractSnapshotFingerprint:${taskDiagnosticsEmbeddingIndexContractSnapshotFingerprint}`
+      ),
+      true,
+      'task diagnostics repair evidence should include embedding index contract snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'policyCandidate#0:requestedDimensions:1024'
+      ),
+      true,
+      'task diagnostics repair evidence should include requested embedding dimensions'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'policyCandidate#0:modelEmbeddingDimensions:768'
+      ),
+      true,
+      'task diagnostics repair evidence should include model embedding dimensions'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'policyCandidate#0:dimensionMismatch:true'
+      ),
+      true,
+      'task diagnostics repair evidence should include embedding dimension mismatch state'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'policyCandidate#0:embeddingIndexContractVersion:workspace-embedding-index/v1'
+      ),
+      true,
+      'task diagnostics repair evidence should include embedding index contract version'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'policyCandidate#0:embeddingIndexContractDimensions:1024'
+      ),
+      true,
+      'task diagnostics repair evidence should include embedding index contract dimensions'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'policyCandidate#0:embeddingIndexContractStatus:dimension_mismatch'
+      ),
+      true,
+      'task diagnostics repair evidence should include embedding index contract status'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        `policyCandidate#0:taskRouteModelSourceSnapshotFingerprint:${taskDiagnosticsModelSourceSnapshotFingerprint}`
+      ),
+      true,
+      'task diagnostics repair evidence should include task route model source snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        `policyCandidate#0:taskRouteEffectiveSourceFingerprint:${taskDiagnosticsErrorRoute?.effectiveSourceFingerprint}`
+      ),
+      true,
+      'task diagnostics repair evidence should include task route effective source fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        `policyCandidate#0:diagnosticsErrorSnapshotFingerprint:${taskDiagnosticsErrorSnapshotFingerprint}`
+      ),
+      true,
+      'task diagnostics repair evidence should include diagnostics error snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'policyCandidate#0:diagnosticsError#0:stage:describe_embedding_prepare_candidates'
+      ),
+      true,
+      'task diagnostics repair evidence should include diagnostics error stage'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'policyCandidate#0:diagnosticsError#0:code:EmbeddingPrepareDiagnosticsFailure'
+      ),
+      true,
+      'task diagnostics repair evidence should include diagnostics error code'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'policyCandidate#0:diagnosticsError#0:message:embedding prepare diagnostics unavailable'
+      ),
+      true,
+      'task diagnostics repair evidence should include diagnostics error message'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'routeCandidate#0:routeModelDefinitionSource:provider_profile'
+      ),
+      true,
+      'task diagnostics repair evidence should include route candidate model definition source'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'routeCandidate#0:routeModelDefinitionId:workspace-embedding'
+      ),
+      true,
+      'task diagnostics repair evidence should include route candidate model definition id'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'routeCandidate#0:routeModelDefinitionAlias:embed-alias'
+      ),
+      true,
+      'task diagnostics repair evidence should include route candidate model definition alias'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'routeCandidate#0:routeModelAliasMatched:true'
+      ),
+      true,
+      'task diagnostics repair evidence should include route candidate alias match state'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'routeCandidate#0:routeRawModelId:nomic-embed-text'
+      ),
+      true,
+      'task diagnostics repair evidence should include route candidate raw model id'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'routeCandidate#0:routeInputType:text'
+      ),
+      true,
+      'task diagnostics repair evidence should include route candidate input capability'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'routeCandidate#0:routeOutputType:embedding'
+      ),
+      true,
+      'task diagnostics repair evidence should include route candidate output capability'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'routeCandidate#0:routeContextWindow:8192'
+      ),
+      true,
+      'task diagnostics repair evidence should include route candidate context limit'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'routeCandidate#0:routeEmbeddingDimensions:768'
+      ),
+      true,
+      'task diagnostics repair evidence should include route candidate embedding limit'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'routeCandidate#0:costInputPer1M:0.01'
+      ),
+      true,
+      'task diagnostics repair evidence should include route candidate input cost'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'prepareCandidate#0:routeAttachmentAllowRemoteUrls:true'
+      ),
+      true,
+      'task diagnostics repair evidence should include prepare candidate remote attachment support'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'routeCandidate#0:registryKind:byok'
+      ),
+      true,
+      'task diagnostics repair evidence should include route candidate registry kind'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'routeCandidate#0:registryAvailable:true'
+      ),
+      true,
+      'task diagnostics repair evidence should include route candidate registry availability'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'routeCandidate#0:registrySelected:true'
+      ),
+      true,
+      'task diagnostics repair evidence should include route candidate registry selected state'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'routeCandidate#0:privacy:local'
+      ),
+      true,
+      'task diagnostics repair evidence should include route candidate privacy'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'routeCandidate#0:health:degraded'
+      ),
+      true,
+      'task diagnostics repair evidence should include route candidate health'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'routeCandidate#0:healthCheckedAt:2026-06-17T03:30:00.000Z'
+      ),
+      true,
+      'task diagnostics repair evidence should include route candidate health freshness'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'prepareCandidate#0:errorCode:provider_prepare_error'
+      ),
+      true,
+      'task diagnostics repair evidence should include prepare candidate error code'
+    );
+    assert.equal(
+      taskDiagnosticsErrorRepair?.evidence.includes(
+        'prepareCandidate#0:errorCategory:provider_prepare_error'
+      ),
+      true,
+      'task diagnostics repair evidence should include prepare candidate error category'
+    );
+    const assertEmbeddingIndexContractEvidence = (
+      evidence:
+        | NonNullable<
+            NonNullable<typeof taskDiagnosticsErrorRepair>['candidateEvidence']
+          >[number]
+        | undefined,
+      label: string
+    ) => {
+      assert.equal(
+        evidence?.embeddingIndexContractVersion,
+        taskDiagnosticsErrorRoute?.embeddingIndexContractVersion,
+        `${label} should bind embedding index contract version`
+      );
+      assert.equal(
+        evidence?.embeddingIndexContractDimensions,
+        taskDiagnosticsErrorRoute?.embeddingIndexContractDimensions,
+        `${label} should bind embedding index contract dimensions`
+      );
+      assert.equal(
+        evidence?.embeddingIndexContractStatus,
+        taskDiagnosticsErrorRoute?.embeddingIndexContractStatus,
+        `${label} should bind embedding index contract status`
+      );
+      assert.equal(
+        evidence?.embeddingIndexContractFingerprint,
+        taskDiagnosticsErrorRoute?.embeddingIndexContractFingerprint,
+        `${label} should bind embedding index contract fingerprint`
+      );
+      assert.equal(
+        evidence?.taskRouteEmbeddingIndexContractSnapshotFingerprint,
+        taskDiagnosticsEmbeddingIndexContractSnapshotFingerprint,
+        `${label} should bind embedding index contract snapshot fingerprint`
+      );
+    };
+    assert.match(
+      taskDiagnosticsPolicyCandidateEvidence?.candidateFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assertEmbeddingIndexContractEvidence(
+      taskDiagnosticsPolicyCandidateEvidence,
+      'policy candidate evidence'
+    );
+    assert.equal(taskDiagnosticsPolicyCandidateEvidence?.candidateIndex, 0);
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.candidateKey,
+      routeReadyGate?.taskRoutes[0]?.policyCandidates[0]?.candidateKey
+    );
+    assert.notEqual(
+      taskDiagnosticsPolicyCandidateEvidence?.candidateFingerprint,
+      routeReadyGate?.taskRoutes[0]?.policyCandidates[0]?.candidateFingerprint,
+      'policy candidate repair evidence fingerprint should include the route target fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.candidateKey?.includes('policy'),
+      true
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.candidateKey?.includes(
+        'workspace_indexing'
+      ),
+      true
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.candidateKey?.includes('local'),
+      true
+    );
+    assert.equal(taskDiagnosticsPolicyCandidateEvidence?.providerId, 'local');
+    assert.equal(taskDiagnosticsPolicyCandidateEvidence?.allowed, true);
+    assert.equal(taskDiagnosticsPolicyCandidateEvidence?.available, true);
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.requestedModelConfigKey,
+      'workspaceIndexing'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.requestedModelConfigPath,
+      'copilot.tasks.models.workspaceIndexing'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.requestedModelSource,
       'workspace_indexing'
-    ),
-    true
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.candidateKey?.includes('local'),
-    true
-  );
-  assert.equal(taskDiagnosticsPolicyCandidateEvidence?.providerId, 'local');
-  assert.equal(taskDiagnosticsPolicyCandidateEvidence?.allowed, true);
-  assert.equal(taskDiagnosticsPolicyCandidateEvidence?.available, true);
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.requestedModelConfigKey,
-    'workspaceIndexing'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.requestedModelConfigPath,
-    'copilot.tasks.models.workspaceIndexing'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.requestedModelSource,
-    'workspace_indexing'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.providerProfileId,
-    'local'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.providerProfileConfigPath,
-    'copilot.providers.profiles[id=local]'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.providerConfiguredModelIds?.includes(
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.providerProfileId,
+      'local'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.providerProfileConfigPath,
+      'copilot.providers.profiles[id=local]'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.providerConfiguredModelIds?.includes(
+        'workspace-embedding'
+      ),
+      true
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.preparedRouteTargetFingerprint,
+      taskDiagnosticsErrorRoute?.preparedRouteTargetFingerprint,
+      'policy candidate evidence should bind the task route target fingerprint'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPolicyCandidateEvidence?.preparedRouteTargets,
+      taskDiagnosticsErrorRoute?.preparedRouteTargets,
+      'policy candidate evidence should bind the task route targets'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPolicyCandidateEvidence?.fallbackProviderIds,
+      taskDiagnosticsErrorRoute?.fallbackProviderIds,
+      'policy candidate evidence should bind the task route fallback providers'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPolicyCandidateEvidence?.routeTracePhases,
+      taskDiagnosticsErrorRoute?.routeTrace.map(phase => phase.phase),
+      'policy candidate evidence should bind the task route trace phases'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPolicyCandidateEvidence?.routeTrace,
+      taskDiagnosticsErrorRoute?.routeTrace,
+      'policy candidate evidence should bind the task route trace'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.routeTraceSnapshotFingerprint,
+      taskDiagnosticsRouteTraceSnapshotFingerprint,
+      'policy candidate evidence should bind the task route trace snapshot fingerprint'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPolicyCandidateEvidence?.policyCandidates,
+      taskDiagnosticsPolicyCandidateSnapshot,
+      'policy candidate evidence should bind the task route policy candidates'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.policyCandidateSnapshotFingerprint,
+      taskDiagnosticsPolicyCandidateSnapshotFingerprint,
+      'policy candidate evidence should bind the task route policy candidate snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.routeCandidateSnapshotFingerprint,
+      taskDiagnosticsRouteCandidateSnapshotFingerprint,
+      'policy candidate evidence should bind the task route candidate snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.prepareCandidateSnapshotFingerprint,
+      taskDiagnosticsPrepareCandidateSnapshotFingerprint,
+      'policy candidate evidence should bind the task route prepare candidate snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.preparedRouteSnapshotFingerprint,
+      taskDiagnosticsPreparedRouteSnapshotFingerprint,
+      'policy candidate evidence should bind the task route prepared route snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.preparedRouteOrderFingerprint,
+      taskDiagnosticsPreparedRouteOrderFingerprint,
+      'policy candidate evidence should bind the task route prepared route order fingerprint'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPolicyCandidateEvidence?.preparedRoutes,
+      taskDiagnosticsPreparedRouteSnapshot,
+      'policy candidate evidence should bind the task route prepared route snapshot'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.providerCapabilitySnapshotFingerprint,
+      taskDiagnosticsProviderCapabilitySnapshotFingerprint,
+      'policy candidate evidence should bind the task route provider capability snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.providerHealthSnapshotFingerprint,
+      taskDiagnosticsProviderHealthSnapshotFingerprint,
+      'policy candidate evidence should bind the task route provider health snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.providerCostSnapshotFingerprint,
+      taskDiagnosticsProviderCostSnapshotFingerprint,
+      'policy candidate evidence should bind the task route provider cost snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.providerLimitSnapshotFingerprint,
+      taskDiagnosticsProviderLimitSnapshotFingerprint,
+      'policy candidate evidence should bind the task route provider limit snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.taskRouteDimensionSnapshotFingerprint,
+      taskDiagnosticsDimensionSnapshotFingerprint,
+      'policy candidate evidence should bind the task route dimension snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.requestedDimensions,
+      taskDiagnosticsErrorRoute?.requestedDimensions,
+      'policy candidate evidence should bind the task route requested dimensions'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.modelEmbeddingDimensions,
+      taskDiagnosticsErrorRoute?.modelEmbeddingDimensions,
+      'policy candidate evidence should bind the task route model embedding dimensions'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.dimensionMismatch,
+      taskDiagnosticsErrorRoute?.dimensionMismatch,
+      'policy candidate evidence should bind the task route dimension mismatch state'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.taskRouteModelSourceSnapshotFingerprint,
+      taskDiagnosticsModelSourceSnapshotFingerprint,
+      'policy candidate evidence should bind the task route model source snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.taskRouteEffectiveSourceFingerprint,
+      taskDiagnosticsErrorRoute?.effectiveSourceFingerprint,
+      'policy candidate evidence should bind the task route effective source fingerprint'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPolicyCandidateEvidence?.taskRouteEffectiveSourceFingerprintInputs,
+      [...taskRouteEffectiveSourceFingerprintInputsFixture],
+      'policy candidate evidence should expose the task route effective source fingerprint inputs'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.taskRouteEffectiveSourceFingerprintVersion,
+      taskRouteEffectiveSourceFingerprintVersionFixture,
+      'policy candidate evidence should expose the task route effective source fingerprint version'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPolicyCandidateEvidence?.diagnosticsErrors,
+      taskDiagnosticsErrorRoute?.diagnosticsErrors,
+      'policy candidate evidence should bind the task route diagnostics errors'
+    );
+    assert.equal(
+      taskDiagnosticsPolicyCandidateEvidence?.diagnosticsErrorSnapshotFingerprint,
+      taskDiagnosticsErrorSnapshotFingerprint,
+      'policy candidate evidence should bind the task route diagnostics error snapshot fingerprint'
+    );
+    const taskDiagnosticsRouteCandidateEvidence =
+      taskDiagnosticsErrorRepair?.candidateEvidence?.find(
+        evidence => evidence.scope === 'routeCandidate'
+      );
+    assert.match(
+      taskDiagnosticsRouteCandidateEvidence?.candidateFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assertEmbeddingIndexContractEvidence(
+      taskDiagnosticsRouteCandidateEvidence,
+      'route candidate evidence'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.candidateKey?.includes('local'),
+      true
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.candidateKey?.includes(
+        'embed-alias'
+      ),
+      true
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.providerConfiguredModelIds?.includes(
+        'workspace-embedding'
+      ),
+      true
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.requestedModelConfigKey,
+      'workspaceIndexing'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.requestedModelConfigPath,
+      'copilot.tasks.models.workspaceIndexing'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.requestedModelSource,
+      'workspace_indexing'
+    );
+    assert.equal(taskDiagnosticsRouteCandidateEvidence?.matched, true);
+    assert.equal(taskDiagnosticsRouteCandidateEvidence?.registryKind, 'byok');
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.registryAvailable,
+      true
+    );
+    assert.equal(taskDiagnosticsRouteCandidateEvidence?.registrySelected, true);
+    assert.equal(taskDiagnosticsRouteCandidateEvidence?.privacy, 'local');
+    assert.equal(taskDiagnosticsRouteCandidateEvidence?.health, 'degraded');
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.healthCheckedAt,
+      '2026-06-17T03:30:00.000Z'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.routeModelAliasMatched,
+      true
+    );
+    assert.deepEqual(
+      taskDiagnosticsRouteCandidateEvidence?.routeModelDefinitionAliases,
+      ['embed-alias']
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.routeModelDefinitionId,
       'workspace-embedding'
-    ),
-    true
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.preparedRouteTargetFingerprint,
-    taskDiagnosticsErrorRoute?.preparedRouteTargetFingerprint,
-    'policy candidate evidence should bind the task route target fingerprint'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPolicyCandidateEvidence?.preparedRouteTargets,
-    taskDiagnosticsErrorRoute?.preparedRouteTargets,
-    'policy candidate evidence should bind the task route targets'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPolicyCandidateEvidence?.fallbackProviderIds,
-    taskDiagnosticsErrorRoute?.fallbackProviderIds,
-    'policy candidate evidence should bind the task route fallback providers'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPolicyCandidateEvidence?.routeTracePhases,
-    taskDiagnosticsErrorRoute?.routeTrace.map(phase => phase.phase),
-    'policy candidate evidence should bind the task route trace phases'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPolicyCandidateEvidence?.routeTrace,
-    taskDiagnosticsErrorRoute?.routeTrace,
-    'policy candidate evidence should bind the task route trace'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.routeTraceSnapshotFingerprint,
-    taskDiagnosticsRouteTraceSnapshotFingerprint,
-    'policy candidate evidence should bind the task route trace snapshot fingerprint'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPolicyCandidateEvidence?.policyCandidates,
-    taskDiagnosticsPolicyCandidateSnapshot,
-    'policy candidate evidence should bind the task route policy candidates'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.policyCandidateSnapshotFingerprint,
-    taskDiagnosticsPolicyCandidateSnapshotFingerprint,
-    'policy candidate evidence should bind the task route policy candidate snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.routeCandidateSnapshotFingerprint,
-    taskDiagnosticsRouteCandidateSnapshotFingerprint,
-    'policy candidate evidence should bind the task route candidate snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.prepareCandidateSnapshotFingerprint,
-    taskDiagnosticsPrepareCandidateSnapshotFingerprint,
-    'policy candidate evidence should bind the task route prepare candidate snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.preparedRouteSnapshotFingerprint,
-    taskDiagnosticsPreparedRouteSnapshotFingerprint,
-    'policy candidate evidence should bind the task route prepared route snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.preparedRouteOrderFingerprint,
-    taskDiagnosticsPreparedRouteOrderFingerprint,
-    'policy candidate evidence should bind the task route prepared route order fingerprint'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPolicyCandidateEvidence?.preparedRoutes,
-    taskDiagnosticsPreparedRouteSnapshot,
-    'policy candidate evidence should bind the task route prepared route snapshot'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.providerCapabilitySnapshotFingerprint,
-    taskDiagnosticsProviderCapabilitySnapshotFingerprint,
-    'policy candidate evidence should bind the task route provider capability snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.providerHealthSnapshotFingerprint,
-    taskDiagnosticsProviderHealthSnapshotFingerprint,
-    'policy candidate evidence should bind the task route provider health snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.providerCostSnapshotFingerprint,
-    taskDiagnosticsProviderCostSnapshotFingerprint,
-    'policy candidate evidence should bind the task route provider cost snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.providerLimitSnapshotFingerprint,
-    taskDiagnosticsProviderLimitSnapshotFingerprint,
-    'policy candidate evidence should bind the task route provider limit snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.taskRouteDimensionSnapshotFingerprint,
-    taskDiagnosticsDimensionSnapshotFingerprint,
-    'policy candidate evidence should bind the task route dimension snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.requestedDimensions,
-    taskDiagnosticsErrorRoute?.requestedDimensions,
-    'policy candidate evidence should bind the task route requested dimensions'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.modelEmbeddingDimensions,
-    taskDiagnosticsErrorRoute?.modelEmbeddingDimensions,
-    'policy candidate evidence should bind the task route model embedding dimensions'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.dimensionMismatch,
-    taskDiagnosticsErrorRoute?.dimensionMismatch,
-    'policy candidate evidence should bind the task route dimension mismatch state'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.taskRouteModelSourceSnapshotFingerprint,
-    taskDiagnosticsModelSourceSnapshotFingerprint,
-    'policy candidate evidence should bind the task route model source snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.taskRouteEffectiveSourceFingerprint,
-    taskDiagnosticsErrorRoute?.effectiveSourceFingerprint,
-    'policy candidate evidence should bind the task route effective source fingerprint'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPolicyCandidateEvidence?.taskRouteEffectiveSourceFingerprintInputs,
-    [...taskRouteEffectiveSourceFingerprintInputsFixture],
-    'policy candidate evidence should expose the task route effective source fingerprint inputs'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.taskRouteEffectiveSourceFingerprintVersion,
-    taskRouteEffectiveSourceFingerprintVersionFixture,
-    'policy candidate evidence should expose the task route effective source fingerprint version'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPolicyCandidateEvidence?.diagnosticsErrors,
-    taskDiagnosticsErrorRoute?.diagnosticsErrors,
-    'policy candidate evidence should bind the task route diagnostics errors'
-  );
-  assert.equal(
-    taskDiagnosticsPolicyCandidateEvidence?.diagnosticsErrorSnapshotFingerprint,
-    taskDiagnosticsErrorSnapshotFingerprint,
-    'policy candidate evidence should bind the task route diagnostics error snapshot fingerprint'
-  );
-  const taskDiagnosticsRouteCandidateEvidence =
-    taskDiagnosticsErrorRepair?.candidateEvidence?.find(
-      evidence => evidence.scope === 'routeCandidate'
     );
-  assert.match(
-    taskDiagnosticsRouteCandidateEvidence?.candidateFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assertEmbeddingIndexContractEvidence(
-    taskDiagnosticsRouteCandidateEvidence,
-    'route candidate evidence'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.candidateKey?.includes('local'),
-    true
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.candidateKey?.includes(
-      'embed-alias'
-    ),
-    true
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.providerConfiguredModelIds?.includes(
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.routeModelDefinitionSource,
+      'provider_profile'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.routeRawModelId,
+      'nomic-embed-text'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.costInputPer1M,
+      taskDiagnosticsErrorRoute?.routeCandidates[0]?.costInputPer1M,
+      'route candidate evidence should bind input cost'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.costOutputPer1M,
+      taskDiagnosticsErrorRoute?.routeCandidates[0]?.costOutputPer1M,
+      'route candidate evidence should bind output cost'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.routeContextWindow,
+      taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeContextWindow,
+      'route candidate evidence should bind context window'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.routeMaxOutputTokens,
+      taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeMaxOutputTokens,
+      'route candidate evidence should bind max output tokens'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.routeEmbeddingDimensions,
+      taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeEmbeddingDimensions,
+      'route candidate evidence should bind embedding dimensions'
+    );
+    assert.deepEqual(
+      taskDiagnosticsRouteCandidateEvidence?.routeInputTypes,
+      taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeInputTypes,
+      'route candidate evidence should bind input capabilities'
+    );
+    assert.deepEqual(
+      taskDiagnosticsRouteCandidateEvidence?.routeOutputTypes,
+      taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeOutputTypes,
+      'route candidate evidence should bind output capabilities'
+    );
+    assert.deepEqual(
+      taskDiagnosticsRouteCandidateEvidence?.routeAttachmentKinds,
+      taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeAttachmentKinds,
+      'route candidate evidence should bind attachment kinds'
+    );
+    assert.deepEqual(
+      taskDiagnosticsRouteCandidateEvidence?.routeAttachmentSourceKinds,
+      taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeAttachmentSourceKinds,
+      'route candidate evidence should bind attachment source kinds'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.routeAttachmentAllowRemoteUrls,
+      taskDiagnosticsErrorRoute?.routeCandidates[0]
+        ?.routeAttachmentAllowRemoteUrls,
+      'route candidate evidence should bind remote attachment support'
+    );
+    assert.deepEqual(
+      taskDiagnosticsRouteCandidateEvidence?.routeStructuredAttachmentKinds,
+      taskDiagnosticsErrorRoute?.routeCandidates[0]
+        ?.routeStructuredAttachmentKinds,
+      'route candidate evidence should bind structured attachment kinds'
+    );
+    assert.deepEqual(
+      taskDiagnosticsRouteCandidateEvidence?.routeStructuredAttachmentSourceKinds,
+      taskDiagnosticsErrorRoute?.routeCandidates[0]
+        ?.routeStructuredAttachmentSourceKinds,
+      'route candidate evidence should bind structured attachment source kinds'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.routeStructuredAttachmentAllowRemoteUrls,
+      taskDiagnosticsErrorRoute?.routeCandidates[0]
+        ?.routeStructuredAttachmentAllowRemoteUrls,
+      'route candidate evidence should bind structured remote attachment support'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.preparedRouteTargetFingerprint,
+      taskDiagnosticsErrorRoute?.preparedRouteTargetFingerprint,
+      'route candidate evidence should bind the task route target fingerprint'
+    );
+    assert.deepEqual(
+      taskDiagnosticsRouteCandidateEvidence?.preparedRouteTargets,
+      taskDiagnosticsErrorRoute?.preparedRouteTargets,
+      'route candidate evidence should bind the task route targets'
+    );
+    assert.deepEqual(
+      taskDiagnosticsRouteCandidateEvidence?.fallbackProviderIds,
+      taskDiagnosticsErrorRoute?.fallbackProviderIds,
+      'route candidate evidence should bind the task route fallback providers'
+    );
+    assert.deepEqual(
+      taskDiagnosticsRouteCandidateEvidence?.routeTracePhases,
+      taskDiagnosticsErrorRoute?.routeTrace.map(phase => phase.phase),
+      'route candidate evidence should bind the task route trace phases'
+    );
+    assert.deepEqual(
+      taskDiagnosticsRouteCandidateEvidence?.routeTrace,
+      taskDiagnosticsErrorRoute?.routeTrace,
+      'route candidate evidence should bind the task route trace'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.routeTraceSnapshotFingerprint,
+      taskDiagnosticsRouteTraceSnapshotFingerprint,
+      'route candidate evidence should bind the task route trace snapshot fingerprint'
+    );
+    assert.deepEqual(
+      taskDiagnosticsRouteCandidateEvidence?.policyCandidates,
+      taskDiagnosticsPolicyCandidateSnapshot,
+      'route candidate evidence should bind the task route policy candidates'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.policyCandidateSnapshotFingerprint,
+      taskDiagnosticsPolicyCandidateSnapshotFingerprint,
+      'route candidate evidence should bind the task route policy candidate snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.routeCandidateSnapshotFingerprint,
+      taskDiagnosticsRouteCandidateSnapshotFingerprint,
+      'route candidate evidence should bind the task route candidate snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.prepareCandidateSnapshotFingerprint,
+      taskDiagnosticsPrepareCandidateSnapshotFingerprint,
+      'route candidate evidence should bind the task route prepare candidate snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.preparedRouteSnapshotFingerprint,
+      taskDiagnosticsPreparedRouteSnapshotFingerprint,
+      'route candidate evidence should bind the task route prepared route snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.preparedRouteOrderFingerprint,
+      taskDiagnosticsPreparedRouteOrderFingerprint,
+      'route candidate evidence should bind the task route prepared route order fingerprint'
+    );
+    assert.deepEqual(
+      taskDiagnosticsRouteCandidateEvidence?.preparedRoutes,
+      taskDiagnosticsPreparedRouteSnapshot,
+      'route candidate evidence should bind the task route prepared route snapshot'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.providerCapabilitySnapshotFingerprint,
+      taskDiagnosticsProviderCapabilitySnapshotFingerprint,
+      'route candidate evidence should bind the task route provider capability snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.providerHealthSnapshotFingerprint,
+      taskDiagnosticsProviderHealthSnapshotFingerprint,
+      'route candidate evidence should bind the task route provider health snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.providerCostSnapshotFingerprint,
+      taskDiagnosticsProviderCostSnapshotFingerprint,
+      'route candidate evidence should bind the task route provider cost snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.providerLimitSnapshotFingerprint,
+      taskDiagnosticsProviderLimitSnapshotFingerprint,
+      'route candidate evidence should bind the task route provider limit snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.taskRouteDimensionSnapshotFingerprint,
+      taskDiagnosticsDimensionSnapshotFingerprint,
+      'route candidate evidence should bind the task route dimension snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.requestedDimensions,
+      taskDiagnosticsErrorRoute?.requestedDimensions,
+      'route candidate evidence should bind the task route requested dimensions'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.modelEmbeddingDimensions,
+      taskDiagnosticsErrorRoute?.modelEmbeddingDimensions,
+      'route candidate evidence should bind the task route model embedding dimensions'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.dimensionMismatch,
+      taskDiagnosticsErrorRoute?.dimensionMismatch,
+      'route candidate evidence should bind the task route dimension mismatch state'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.taskRouteModelSourceSnapshotFingerprint,
+      taskDiagnosticsModelSourceSnapshotFingerprint,
+      'route candidate evidence should bind the task route model source snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.taskRouteEffectiveSourceFingerprint,
+      taskDiagnosticsErrorRoute?.effectiveSourceFingerprint,
+      'route candidate evidence should bind the task route effective source fingerprint'
+    );
+    assert.deepEqual(
+      taskDiagnosticsRouteCandidateEvidence?.taskRouteEffectiveSourceFingerprintInputs,
+      [...taskRouteEffectiveSourceFingerprintInputsFixture],
+      'route candidate evidence should expose the task route effective source fingerprint inputs'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.taskRouteEffectiveSourceFingerprintVersion,
+      taskRouteEffectiveSourceFingerprintVersionFixture,
+      'route candidate evidence should expose the task route effective source fingerprint version'
+    );
+    assert.deepEqual(
+      taskDiagnosticsRouteCandidateEvidence?.diagnosticsErrors,
+      taskDiagnosticsErrorRoute?.diagnosticsErrors,
+      'route candidate evidence should bind the task route diagnostics errors'
+    );
+    assert.equal(
+      taskDiagnosticsRouteCandidateEvidence?.diagnosticsErrorSnapshotFingerprint,
+      taskDiagnosticsErrorSnapshotFingerprint,
+      'route candidate evidence should bind the task route diagnostics error snapshot fingerprint'
+    );
+    const taskDiagnosticsPrepareCandidateEvidence =
+      taskDiagnosticsErrorRepair?.candidateEvidence?.find(
+        evidence => evidence.scope === 'prepareCandidate'
+      );
+    assert.match(
+      taskDiagnosticsPrepareCandidateEvidence?.candidateFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assertEmbeddingIndexContractEvidence(
+      taskDiagnosticsPrepareCandidateEvidence,
+      'prepare candidate evidence'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.candidateKey,
+      taskDiagnosticsRouteCandidateEvidence?.candidateKey
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.preparedModelId,
+      'nomic-embed-text'
+    );
+    assert.equal(taskDiagnosticsPrepareCandidateEvidence?.prepared, true);
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.requestedModelConfigKey,
+      'workspaceIndexing'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.requestedModelConfigPath,
+      'copilot.tasks.models.workspaceIndexing'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.requestedModelSource,
+      'workspace_indexing'
+    );
+    assert.equal(taskDiagnosticsPrepareCandidateEvidence?.registryKind, 'byok');
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.registryAvailable,
+      true
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.registrySelected,
+      true
+    );
+    assert.equal(taskDiagnosticsPrepareCandidateEvidence?.privacy, 'local');
+    assert.equal(taskDiagnosticsPrepareCandidateEvidence?.health, 'degraded');
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.healthCheckedAt,
+      '2026-06-17T03:30:00.000Z'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.errorCode,
+      'provider_prepare_error'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.errorCategory,
+      'provider_prepare_error'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.routeModelAliasMatched,
+      true
+    );
+    assert.deepEqual(
+      taskDiagnosticsPrepareCandidateEvidence?.routeModelDefinitionAliases,
+      ['embed-alias']
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.routeModelDefinitionId,
       'workspace-embedding'
-    ),
-    true
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.requestedModelConfigKey,
-    'workspaceIndexing'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.requestedModelConfigPath,
-    'copilot.tasks.models.workspaceIndexing'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.requestedModelSource,
-    'workspace_indexing'
-  );
-  assert.equal(taskDiagnosticsRouteCandidateEvidence?.matched, true);
-  assert.equal(taskDiagnosticsRouteCandidateEvidence?.registryKind, 'byok');
-  assert.equal(taskDiagnosticsRouteCandidateEvidence?.registryAvailable, true);
-  assert.equal(taskDiagnosticsRouteCandidateEvidence?.registrySelected, true);
-  assert.equal(taskDiagnosticsRouteCandidateEvidence?.privacy, 'local');
-  assert.equal(taskDiagnosticsRouteCandidateEvidence?.health, 'degraded');
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.healthCheckedAt,
-    '2026-06-17T03:30:00.000Z'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.routeModelAliasMatched,
-    true
-  );
-  assert.deepEqual(
-    taskDiagnosticsRouteCandidateEvidence?.routeModelDefinitionAliases,
-    ['embed-alias']
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.routeModelDefinitionId,
-    'workspace-embedding'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.routeModelDefinitionSource,
-    'provider_profile'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.routeRawModelId,
-    'nomic-embed-text'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.costInputPer1M,
-    taskDiagnosticsErrorRoute?.routeCandidates[0]?.costInputPer1M,
-    'route candidate evidence should bind input cost'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.costOutputPer1M,
-    taskDiagnosticsErrorRoute?.routeCandidates[0]?.costOutputPer1M,
-    'route candidate evidence should bind output cost'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.routeContextWindow,
-    taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeContextWindow,
-    'route candidate evidence should bind context window'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.routeMaxOutputTokens,
-    taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeMaxOutputTokens,
-    'route candidate evidence should bind max output tokens'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.routeEmbeddingDimensions,
-    taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeEmbeddingDimensions,
-    'route candidate evidence should bind embedding dimensions'
-  );
-  assert.deepEqual(
-    taskDiagnosticsRouteCandidateEvidence?.routeInputTypes,
-    taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeInputTypes,
-    'route candidate evidence should bind input capabilities'
-  );
-  assert.deepEqual(
-    taskDiagnosticsRouteCandidateEvidence?.routeOutputTypes,
-    taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeOutputTypes,
-    'route candidate evidence should bind output capabilities'
-  );
-  assert.deepEqual(
-    taskDiagnosticsRouteCandidateEvidence?.routeAttachmentKinds,
-    taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeAttachmentKinds,
-    'route candidate evidence should bind attachment kinds'
-  );
-  assert.deepEqual(
-    taskDiagnosticsRouteCandidateEvidence?.routeAttachmentSourceKinds,
-    taskDiagnosticsErrorRoute?.routeCandidates[0]?.routeAttachmentSourceKinds,
-    'route candidate evidence should bind attachment source kinds'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.routeAttachmentAllowRemoteUrls,
-    taskDiagnosticsErrorRoute?.routeCandidates[0]
-      ?.routeAttachmentAllowRemoteUrls,
-    'route candidate evidence should bind remote attachment support'
-  );
-  assert.deepEqual(
-    taskDiagnosticsRouteCandidateEvidence?.routeStructuredAttachmentKinds,
-    taskDiagnosticsErrorRoute?.routeCandidates[0]
-      ?.routeStructuredAttachmentKinds,
-    'route candidate evidence should bind structured attachment kinds'
-  );
-  assert.deepEqual(
-    taskDiagnosticsRouteCandidateEvidence?.routeStructuredAttachmentSourceKinds,
-    taskDiagnosticsErrorRoute?.routeCandidates[0]
-      ?.routeStructuredAttachmentSourceKinds,
-    'route candidate evidence should bind structured attachment source kinds'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.routeStructuredAttachmentAllowRemoteUrls,
-    taskDiagnosticsErrorRoute?.routeCandidates[0]
-      ?.routeStructuredAttachmentAllowRemoteUrls,
-    'route candidate evidence should bind structured remote attachment support'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.preparedRouteTargetFingerprint,
-    taskDiagnosticsErrorRoute?.preparedRouteTargetFingerprint,
-    'route candidate evidence should bind the task route target fingerprint'
-  );
-  assert.deepEqual(
-    taskDiagnosticsRouteCandidateEvidence?.preparedRouteTargets,
-    taskDiagnosticsErrorRoute?.preparedRouteTargets,
-    'route candidate evidence should bind the task route targets'
-  );
-  assert.deepEqual(
-    taskDiagnosticsRouteCandidateEvidence?.fallbackProviderIds,
-    taskDiagnosticsErrorRoute?.fallbackProviderIds,
-    'route candidate evidence should bind the task route fallback providers'
-  );
-  assert.deepEqual(
-    taskDiagnosticsRouteCandidateEvidence?.routeTracePhases,
-    taskDiagnosticsErrorRoute?.routeTrace.map(phase => phase.phase),
-    'route candidate evidence should bind the task route trace phases'
-  );
-  assert.deepEqual(
-    taskDiagnosticsRouteCandidateEvidence?.routeTrace,
-    taskDiagnosticsErrorRoute?.routeTrace,
-    'route candidate evidence should bind the task route trace'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.routeTraceSnapshotFingerprint,
-    taskDiagnosticsRouteTraceSnapshotFingerprint,
-    'route candidate evidence should bind the task route trace snapshot fingerprint'
-  );
-  assert.deepEqual(
-    taskDiagnosticsRouteCandidateEvidence?.policyCandidates,
-    taskDiagnosticsPolicyCandidateSnapshot,
-    'route candidate evidence should bind the task route policy candidates'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.policyCandidateSnapshotFingerprint,
-    taskDiagnosticsPolicyCandidateSnapshotFingerprint,
-    'route candidate evidence should bind the task route policy candidate snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.routeCandidateSnapshotFingerprint,
-    taskDiagnosticsRouteCandidateSnapshotFingerprint,
-    'route candidate evidence should bind the task route candidate snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.prepareCandidateSnapshotFingerprint,
-    taskDiagnosticsPrepareCandidateSnapshotFingerprint,
-    'route candidate evidence should bind the task route prepare candidate snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.preparedRouteSnapshotFingerprint,
-    taskDiagnosticsPreparedRouteSnapshotFingerprint,
-    'route candidate evidence should bind the task route prepared route snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.preparedRouteOrderFingerprint,
-    taskDiagnosticsPreparedRouteOrderFingerprint,
-    'route candidate evidence should bind the task route prepared route order fingerprint'
-  );
-  assert.deepEqual(
-    taskDiagnosticsRouteCandidateEvidence?.preparedRoutes,
-    taskDiagnosticsPreparedRouteSnapshot,
-    'route candidate evidence should bind the task route prepared route snapshot'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.providerCapabilitySnapshotFingerprint,
-    taskDiagnosticsProviderCapabilitySnapshotFingerprint,
-    'route candidate evidence should bind the task route provider capability snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.providerHealthSnapshotFingerprint,
-    taskDiagnosticsProviderHealthSnapshotFingerprint,
-    'route candidate evidence should bind the task route provider health snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.providerCostSnapshotFingerprint,
-    taskDiagnosticsProviderCostSnapshotFingerprint,
-    'route candidate evidence should bind the task route provider cost snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.providerLimitSnapshotFingerprint,
-    taskDiagnosticsProviderLimitSnapshotFingerprint,
-    'route candidate evidence should bind the task route provider limit snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.taskRouteDimensionSnapshotFingerprint,
-    taskDiagnosticsDimensionSnapshotFingerprint,
-    'route candidate evidence should bind the task route dimension snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.requestedDimensions,
-    taskDiagnosticsErrorRoute?.requestedDimensions,
-    'route candidate evidence should bind the task route requested dimensions'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.modelEmbeddingDimensions,
-    taskDiagnosticsErrorRoute?.modelEmbeddingDimensions,
-    'route candidate evidence should bind the task route model embedding dimensions'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.dimensionMismatch,
-    taskDiagnosticsErrorRoute?.dimensionMismatch,
-    'route candidate evidence should bind the task route dimension mismatch state'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.taskRouteModelSourceSnapshotFingerprint,
-    taskDiagnosticsModelSourceSnapshotFingerprint,
-    'route candidate evidence should bind the task route model source snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.taskRouteEffectiveSourceFingerprint,
-    taskDiagnosticsErrorRoute?.effectiveSourceFingerprint,
-    'route candidate evidence should bind the task route effective source fingerprint'
-  );
-  assert.deepEqual(
-    taskDiagnosticsRouteCandidateEvidence?.taskRouteEffectiveSourceFingerprintInputs,
-    [...taskRouteEffectiveSourceFingerprintInputsFixture],
-    'route candidate evidence should expose the task route effective source fingerprint inputs'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.taskRouteEffectiveSourceFingerprintVersion,
-    taskRouteEffectiveSourceFingerprintVersionFixture,
-    'route candidate evidence should expose the task route effective source fingerprint version'
-  );
-  assert.deepEqual(
-    taskDiagnosticsRouteCandidateEvidence?.diagnosticsErrors,
-    taskDiagnosticsErrorRoute?.diagnosticsErrors,
-    'route candidate evidence should bind the task route diagnostics errors'
-  );
-  assert.equal(
-    taskDiagnosticsRouteCandidateEvidence?.diagnosticsErrorSnapshotFingerprint,
-    taskDiagnosticsErrorSnapshotFingerprint,
-    'route candidate evidence should bind the task route diagnostics error snapshot fingerprint'
-  );
-  const taskDiagnosticsPrepareCandidateEvidence =
-    taskDiagnosticsErrorRepair?.candidateEvidence?.find(
-      evidence => evidence.scope === 'prepareCandidate'
     );
-  assert.match(
-    taskDiagnosticsPrepareCandidateEvidence?.candidateFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assertEmbeddingIndexContractEvidence(
-    taskDiagnosticsPrepareCandidateEvidence,
-    'prepare candidate evidence'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.candidateKey,
-    taskDiagnosticsRouteCandidateEvidence?.candidateKey
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.preparedModelId,
-    'nomic-embed-text'
-  );
-  assert.equal(taskDiagnosticsPrepareCandidateEvidence?.prepared, true);
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.requestedModelConfigKey,
-    'workspaceIndexing'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.requestedModelConfigPath,
-    'copilot.tasks.models.workspaceIndexing'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.requestedModelSource,
-    'workspace_indexing'
-  );
-  assert.equal(taskDiagnosticsPrepareCandidateEvidence?.registryKind, 'byok');
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.registryAvailable,
-    true
-  );
-  assert.equal(taskDiagnosticsPrepareCandidateEvidence?.registrySelected, true);
-  assert.equal(taskDiagnosticsPrepareCandidateEvidence?.privacy, 'local');
-  assert.equal(taskDiagnosticsPrepareCandidateEvidence?.health, 'degraded');
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.healthCheckedAt,
-    '2026-06-17T03:30:00.000Z'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.errorCode,
-    'provider_prepare_error'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.errorCategory,
-    'provider_prepare_error'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.routeModelAliasMatched,
-    true
-  );
-  assert.deepEqual(
-    taskDiagnosticsPrepareCandidateEvidence?.routeModelDefinitionAliases,
-    ['embed-alias']
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.routeModelDefinitionId,
-    'workspace-embedding'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.routeModelDefinitionSource,
-    'provider_profile'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.routeRawModelId,
-    'nomic-embed-text'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.costInputPer1M,
-    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.costInputPer1M,
-    'prepare candidate evidence should bind input cost'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.costOutputPer1M,
-    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.costOutputPer1M,
-    'prepare candidate evidence should bind output cost'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.routeContextWindow,
-    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.routeContextWindow,
-    'prepare candidate evidence should bind context window'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.routeMaxOutputTokens,
-    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.routeMaxOutputTokens,
-    'prepare candidate evidence should bind max output tokens'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.routeEmbeddingDimensions,
-    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.routeEmbeddingDimensions,
-    'prepare candidate evidence should bind embedding dimensions'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPrepareCandidateEvidence?.routeInputTypes,
-    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.routeInputTypes,
-    'prepare candidate evidence should bind input capabilities'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPrepareCandidateEvidence?.routeOutputTypes,
-    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.routeOutputTypes,
-    'prepare candidate evidence should bind output capabilities'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPrepareCandidateEvidence?.routeAttachmentKinds,
-    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.routeAttachmentKinds,
-    'prepare candidate evidence should bind attachment kinds'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPrepareCandidateEvidence?.routeAttachmentSourceKinds,
-    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]
-      ?.routeAttachmentSourceKinds,
-    'prepare candidate evidence should bind attachment source kinds'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.routeAttachmentAllowRemoteUrls,
-    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]
-      ?.routeAttachmentAllowRemoteUrls,
-    'prepare candidate evidence should bind remote attachment support'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPrepareCandidateEvidence?.routeStructuredAttachmentKinds,
-    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]
-      ?.routeStructuredAttachmentKinds,
-    'prepare candidate evidence should bind structured attachment kinds'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPrepareCandidateEvidence?.routeStructuredAttachmentSourceKinds,
-    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]
-      ?.routeStructuredAttachmentSourceKinds,
-    'prepare candidate evidence should bind structured attachment source kinds'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.routeStructuredAttachmentAllowRemoteUrls,
-    taskDiagnosticsErrorRoute?.prepareCandidates?.[0]
-      ?.routeStructuredAttachmentAllowRemoteUrls,
-    'prepare candidate evidence should bind structured remote attachment support'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.providerProfileConfigPath,
-    'copilot.providers.profiles[id=local]'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.preparedRouteTargetFingerprint,
-    taskDiagnosticsErrorRoute?.preparedRouteTargetFingerprint,
-    'prepare candidate evidence should bind the task route target fingerprint'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPrepareCandidateEvidence?.preparedRouteTargets,
-    taskDiagnosticsErrorRoute?.preparedRouteTargets,
-    'prepare candidate evidence should bind the task route targets'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPrepareCandidateEvidence?.fallbackProviderIds,
-    taskDiagnosticsErrorRoute?.fallbackProviderIds,
-    'prepare candidate evidence should bind the task route fallback providers'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPrepareCandidateEvidence?.routeTracePhases,
-    taskDiagnosticsErrorRoute?.routeTrace.map(phase => phase.phase),
-    'prepare candidate evidence should bind the task route trace phases'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPrepareCandidateEvidence?.routeTrace,
-    taskDiagnosticsErrorRoute?.routeTrace,
-    'prepare candidate evidence should bind the task route trace'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.routeTraceSnapshotFingerprint,
-    taskDiagnosticsRouteTraceSnapshotFingerprint,
-    'prepare candidate evidence should bind the task route trace snapshot fingerprint'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPrepareCandidateEvidence?.policyCandidates,
-    taskDiagnosticsPolicyCandidateSnapshot,
-    'prepare candidate evidence should bind the task route policy candidates'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.policyCandidateSnapshotFingerprint,
-    taskDiagnosticsPolicyCandidateSnapshotFingerprint,
-    'prepare candidate evidence should bind the task route policy candidate snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.routeCandidateSnapshotFingerprint,
-    taskDiagnosticsRouteCandidateSnapshotFingerprint,
-    'prepare candidate evidence should bind the task route candidate snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.prepareCandidateSnapshotFingerprint,
-    taskDiagnosticsPrepareCandidateSnapshotFingerprint,
-    'prepare candidate evidence should bind the task route prepare candidate snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.preparedRouteSnapshotFingerprint,
-    taskDiagnosticsPreparedRouteSnapshotFingerprint,
-    'prepare candidate evidence should bind the task route prepared route snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.preparedRouteOrderFingerprint,
-    taskDiagnosticsPreparedRouteOrderFingerprint,
-    'prepare candidate evidence should bind the task route prepared route order fingerprint'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPrepareCandidateEvidence?.preparedRoutes,
-    taskDiagnosticsPreparedRouteSnapshot,
-    'prepare candidate evidence should bind the task route prepared route snapshot'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.providerCapabilitySnapshotFingerprint,
-    taskDiagnosticsProviderCapabilitySnapshotFingerprint,
-    'prepare candidate evidence should bind the task route provider capability snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.providerHealthSnapshotFingerprint,
-    taskDiagnosticsProviderHealthSnapshotFingerprint,
-    'prepare candidate evidence should bind the task route provider health snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.providerCostSnapshotFingerprint,
-    taskDiagnosticsProviderCostSnapshotFingerprint,
-    'prepare candidate evidence should bind the task route provider cost snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.providerLimitSnapshotFingerprint,
-    taskDiagnosticsProviderLimitSnapshotFingerprint,
-    'prepare candidate evidence should bind the task route provider limit snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.taskRouteDimensionSnapshotFingerprint,
-    taskDiagnosticsDimensionSnapshotFingerprint,
-    'prepare candidate evidence should bind the task route dimension snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.requestedDimensions,
-    taskDiagnosticsErrorRoute?.requestedDimensions,
-    'prepare candidate evidence should bind the task route requested dimensions'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.modelEmbeddingDimensions,
-    taskDiagnosticsErrorRoute?.modelEmbeddingDimensions,
-    'prepare candidate evidence should bind the task route model embedding dimensions'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.dimensionMismatch,
-    taskDiagnosticsErrorRoute?.dimensionMismatch,
-    'prepare candidate evidence should bind the task route dimension mismatch state'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.taskRouteModelSourceSnapshotFingerprint,
-    taskDiagnosticsModelSourceSnapshotFingerprint,
-    'prepare candidate evidence should bind the task route model source snapshot fingerprint'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.taskRouteEffectiveSourceFingerprint,
-    taskDiagnosticsErrorRoute?.effectiveSourceFingerprint,
-    'prepare candidate evidence should bind the task route effective source fingerprint'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPrepareCandidateEvidence?.taskRouteEffectiveSourceFingerprintInputs,
-    [...taskRouteEffectiveSourceFingerprintInputsFixture],
-    'prepare candidate evidence should expose the task route effective source fingerprint inputs'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.taskRouteEffectiveSourceFingerprintVersion,
-    taskRouteEffectiveSourceFingerprintVersionFixture,
-    'prepare candidate evidence should expose the task route effective source fingerprint version'
-  );
-  assert.deepEqual(
-    taskDiagnosticsPrepareCandidateEvidence?.diagnosticsErrors,
-    taskDiagnosticsErrorRoute?.diagnosticsErrors,
-    'prepare candidate evidence should bind the task route diagnostics errors'
-  );
-  assert.equal(
-    taskDiagnosticsPrepareCandidateEvidence?.diagnosticsErrorSnapshotFingerprint,
-    taskDiagnosticsErrorSnapshotFingerprint,
-    'prepare candidate evidence should bind the task route diagnostics error snapshot fingerprint'
-  );
-  const taskDiagnosticsErrorPreviewOperation =
-    taskDiagnosticsErrorGate?.repairActionPreview.operations.find(
-      operation =>
-        operation.diagnosticsFingerprint ===
-        taskDiagnosticsErrorRepair?.diagnosticsFingerprint
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.routeModelDefinitionSource,
+      'provider_profile'
     );
-  const taskDiagnosticsCandidateEvidence =
-    taskDiagnosticsErrorRepair?.candidateEvidence ?? [];
-  assert.equal(
-    taskDiagnosticsErrorPreviewOperation?.candidateEvidenceCount,
-    taskDiagnosticsCandidateEvidence.length
-  );
-  assert.match(
-    taskDiagnosticsErrorPreviewOperation?.candidateEvidenceFingerprint ?? '',
-    /^[0-9a-f]{16}$/
-  );
-  assert.deepEqual(
-    taskDiagnosticsErrorPreviewOperation?.candidateEvidenceFingerprints,
-    taskDiagnosticsCandidateEvidence
-      .map(evidence => evidence.candidateFingerprint)
-      .sort()
-  );
-  assert.deepEqual(
-    taskDiagnosticsErrorPreviewOperation?.candidateEvidenceKeys,
-    Array.from(
-      new Set(
-        taskDiagnosticsCandidateEvidence.flatMap(evidence =>
-          evidence.candidateKey ? [evidence.candidateKey] : []
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.routeRawModelId,
+      'nomic-embed-text'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.costInputPer1M,
+      taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.costInputPer1M,
+      'prepare candidate evidence should bind input cost'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.costOutputPer1M,
+      taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.costOutputPer1M,
+      'prepare candidate evidence should bind output cost'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.routeContextWindow,
+      taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.routeContextWindow,
+      'prepare candidate evidence should bind context window'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.routeMaxOutputTokens,
+      taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.routeMaxOutputTokens,
+      'prepare candidate evidence should bind max output tokens'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.routeEmbeddingDimensions,
+      taskDiagnosticsErrorRoute?.prepareCandidates?.[0]
+        ?.routeEmbeddingDimensions,
+      'prepare candidate evidence should bind embedding dimensions'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPrepareCandidateEvidence?.routeInputTypes,
+      taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.routeInputTypes,
+      'prepare candidate evidence should bind input capabilities'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPrepareCandidateEvidence?.routeOutputTypes,
+      taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.routeOutputTypes,
+      'prepare candidate evidence should bind output capabilities'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPrepareCandidateEvidence?.routeAttachmentKinds,
+      taskDiagnosticsErrorRoute?.prepareCandidates?.[0]?.routeAttachmentKinds,
+      'prepare candidate evidence should bind attachment kinds'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPrepareCandidateEvidence?.routeAttachmentSourceKinds,
+      taskDiagnosticsErrorRoute?.prepareCandidates?.[0]
+        ?.routeAttachmentSourceKinds,
+      'prepare candidate evidence should bind attachment source kinds'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.routeAttachmentAllowRemoteUrls,
+      taskDiagnosticsErrorRoute?.prepareCandidates?.[0]
+        ?.routeAttachmentAllowRemoteUrls,
+      'prepare candidate evidence should bind remote attachment support'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPrepareCandidateEvidence?.routeStructuredAttachmentKinds,
+      taskDiagnosticsErrorRoute?.prepareCandidates?.[0]
+        ?.routeStructuredAttachmentKinds,
+      'prepare candidate evidence should bind structured attachment kinds'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPrepareCandidateEvidence?.routeStructuredAttachmentSourceKinds,
+      taskDiagnosticsErrorRoute?.prepareCandidates?.[0]
+        ?.routeStructuredAttachmentSourceKinds,
+      'prepare candidate evidence should bind structured attachment source kinds'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.routeStructuredAttachmentAllowRemoteUrls,
+      taskDiagnosticsErrorRoute?.prepareCandidates?.[0]
+        ?.routeStructuredAttachmentAllowRemoteUrls,
+      'prepare candidate evidence should bind structured remote attachment support'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.providerProfileConfigPath,
+      'copilot.providers.profiles[id=local]'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.preparedRouteTargetFingerprint,
+      taskDiagnosticsErrorRoute?.preparedRouteTargetFingerprint,
+      'prepare candidate evidence should bind the task route target fingerprint'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPrepareCandidateEvidence?.preparedRouteTargets,
+      taskDiagnosticsErrorRoute?.preparedRouteTargets,
+      'prepare candidate evidence should bind the task route targets'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPrepareCandidateEvidence?.fallbackProviderIds,
+      taskDiagnosticsErrorRoute?.fallbackProviderIds,
+      'prepare candidate evidence should bind the task route fallback providers'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPrepareCandidateEvidence?.routeTracePhases,
+      taskDiagnosticsErrorRoute?.routeTrace.map(phase => phase.phase),
+      'prepare candidate evidence should bind the task route trace phases'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPrepareCandidateEvidence?.routeTrace,
+      taskDiagnosticsErrorRoute?.routeTrace,
+      'prepare candidate evidence should bind the task route trace'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.routeTraceSnapshotFingerprint,
+      taskDiagnosticsRouteTraceSnapshotFingerprint,
+      'prepare candidate evidence should bind the task route trace snapshot fingerprint'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPrepareCandidateEvidence?.policyCandidates,
+      taskDiagnosticsPolicyCandidateSnapshot,
+      'prepare candidate evidence should bind the task route policy candidates'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.policyCandidateSnapshotFingerprint,
+      taskDiagnosticsPolicyCandidateSnapshotFingerprint,
+      'prepare candidate evidence should bind the task route policy candidate snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.routeCandidateSnapshotFingerprint,
+      taskDiagnosticsRouteCandidateSnapshotFingerprint,
+      'prepare candidate evidence should bind the task route candidate snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.prepareCandidateSnapshotFingerprint,
+      taskDiagnosticsPrepareCandidateSnapshotFingerprint,
+      'prepare candidate evidence should bind the task route prepare candidate snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.preparedRouteSnapshotFingerprint,
+      taskDiagnosticsPreparedRouteSnapshotFingerprint,
+      'prepare candidate evidence should bind the task route prepared route snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.preparedRouteOrderFingerprint,
+      taskDiagnosticsPreparedRouteOrderFingerprint,
+      'prepare candidate evidence should bind the task route prepared route order fingerprint'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPrepareCandidateEvidence?.preparedRoutes,
+      taskDiagnosticsPreparedRouteSnapshot,
+      'prepare candidate evidence should bind the task route prepared route snapshot'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.providerCapabilitySnapshotFingerprint,
+      taskDiagnosticsProviderCapabilitySnapshotFingerprint,
+      'prepare candidate evidence should bind the task route provider capability snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.providerHealthSnapshotFingerprint,
+      taskDiagnosticsProviderHealthSnapshotFingerprint,
+      'prepare candidate evidence should bind the task route provider health snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.providerCostSnapshotFingerprint,
+      taskDiagnosticsProviderCostSnapshotFingerprint,
+      'prepare candidate evidence should bind the task route provider cost snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.providerLimitSnapshotFingerprint,
+      taskDiagnosticsProviderLimitSnapshotFingerprint,
+      'prepare candidate evidence should bind the task route provider limit snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.taskRouteDimensionSnapshotFingerprint,
+      taskDiagnosticsDimensionSnapshotFingerprint,
+      'prepare candidate evidence should bind the task route dimension snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.requestedDimensions,
+      taskDiagnosticsErrorRoute?.requestedDimensions,
+      'prepare candidate evidence should bind the task route requested dimensions'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.modelEmbeddingDimensions,
+      taskDiagnosticsErrorRoute?.modelEmbeddingDimensions,
+      'prepare candidate evidence should bind the task route model embedding dimensions'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.dimensionMismatch,
+      taskDiagnosticsErrorRoute?.dimensionMismatch,
+      'prepare candidate evidence should bind the task route dimension mismatch state'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.taskRouteModelSourceSnapshotFingerprint,
+      taskDiagnosticsModelSourceSnapshotFingerprint,
+      'prepare candidate evidence should bind the task route model source snapshot fingerprint'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.taskRouteEffectiveSourceFingerprint,
+      taskDiagnosticsErrorRoute?.effectiveSourceFingerprint,
+      'prepare candidate evidence should bind the task route effective source fingerprint'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPrepareCandidateEvidence?.taskRouteEffectiveSourceFingerprintInputs,
+      [...taskRouteEffectiveSourceFingerprintInputsFixture],
+      'prepare candidate evidence should expose the task route effective source fingerprint inputs'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.taskRouteEffectiveSourceFingerprintVersion,
+      taskRouteEffectiveSourceFingerprintVersionFixture,
+      'prepare candidate evidence should expose the task route effective source fingerprint version'
+    );
+    assert.deepEqual(
+      taskDiagnosticsPrepareCandidateEvidence?.diagnosticsErrors,
+      taskDiagnosticsErrorRoute?.diagnosticsErrors,
+      'prepare candidate evidence should bind the task route diagnostics errors'
+    );
+    assert.equal(
+      taskDiagnosticsPrepareCandidateEvidence?.diagnosticsErrorSnapshotFingerprint,
+      taskDiagnosticsErrorSnapshotFingerprint,
+      'prepare candidate evidence should bind the task route diagnostics error snapshot fingerprint'
+    );
+    const taskDiagnosticsErrorPreviewOperation =
+      taskDiagnosticsErrorGate?.repairActionPreview.operations.find(
+        operation =>
+          operation.diagnosticsFingerprint ===
+          taskDiagnosticsErrorRepair?.diagnosticsFingerprint
+      );
+    const taskDiagnosticsCandidateEvidence =
+      taskDiagnosticsErrorRepair?.candidateEvidence ?? [];
+    assert.equal(
+      taskDiagnosticsErrorPreviewOperation?.candidateEvidenceCount,
+      taskDiagnosticsCandidateEvidence.length
+    );
+    assert.match(
+      taskDiagnosticsErrorPreviewOperation?.candidateEvidenceFingerprint ?? '',
+      /^[0-9a-f]{16}$/
+    );
+    assert.deepEqual(
+      taskDiagnosticsErrorPreviewOperation?.candidateEvidenceFingerprints,
+      taskDiagnosticsCandidateEvidence
+        .map(evidence => evidence.candidateFingerprint)
+        .sort()
+    );
+    assert.deepEqual(
+      taskDiagnosticsErrorPreviewOperation?.candidateEvidenceKeys,
+      Array.from(
+        new Set(
+          taskDiagnosticsCandidateEvidence.flatMap(evidence =>
+            evidence.candidateKey ? [evidence.candidateKey] : []
+          )
         )
-      )
-    ).sort()
-  );
-  assert.deepEqual(
-    taskDiagnosticsErrorPreviewOperation?.preparedRouteOrderFingerprints,
-    Array.from(
-      new Set(
-        taskDiagnosticsCandidateEvidence.flatMap(evidence =>
-          evidence.preparedRouteOrderFingerprint
-            ? [evidence.preparedRouteOrderFingerprint]
-            : []
+      ).sort()
+    );
+    assert.deepEqual(
+      taskDiagnosticsErrorPreviewOperation?.preparedRouteOrderFingerprints,
+      Array.from(
+        new Set(
+          taskDiagnosticsCandidateEvidence.flatMap(evidence =>
+            evidence.preparedRouteOrderFingerprint
+              ? [evidence.preparedRouteOrderFingerprint]
+              : []
+          )
         )
-      )
-    ).sort()
-  );
-  assert.notEqual(
-    taskDiagnosticsErrorPreviewOperation?.preparedRouteOrderFingerprints.length,
-    0,
-    'task route repair preview operation should expose prepared route order evidence anchors'
-  );
-  assert.deepEqual(
-    taskDiagnosticsErrorPreviewOperation?.embeddingIndexContractEvidenceFingerprints,
-    Array.from(
-      new Set(
-        taskDiagnosticsCandidateEvidence.flatMap(evidence =>
-          evidence.taskRouteEmbeddingIndexContractSnapshotFingerprint
-            ? [evidence.taskRouteEmbeddingIndexContractSnapshotFingerprint]
-            : []
+      ).sort()
+    );
+    assert.notEqual(
+      taskDiagnosticsErrorPreviewOperation?.preparedRouteOrderFingerprints
+        .length,
+      0,
+      'task route repair preview operation should expose prepared route order evidence anchors'
+    );
+    assert.deepEqual(
+      taskDiagnosticsErrorPreviewOperation?.embeddingIndexContractEvidenceFingerprints,
+      Array.from(
+        new Set(
+          taskDiagnosticsCandidateEvidence.flatMap(evidence =>
+            evidence.taskRouteEmbeddingIndexContractSnapshotFingerprint
+              ? [evidence.taskRouteEmbeddingIndexContractSnapshotFingerprint]
+              : []
+          )
         )
-      )
-    ).sort()
-  );
-  assert.notEqual(
-    taskDiagnosticsErrorPreviewOperation
-      ?.embeddingIndexContractEvidenceFingerprints.length,
-    0,
-    'task route repair preview operation should expose embedding index contract evidence anchors'
-  );
-  assert.deepEqual(
-    taskDiagnosticsErrorPreviewOperation?.rerankRuntimeContractEvidenceFingerprints,
-    Array.from(
-      new Set(
-        taskDiagnosticsCandidateEvidence.flatMap(evidence =>
-          evidence.taskRouteRerankRuntimeContractSnapshotFingerprint
-            ? [evidence.taskRouteRerankRuntimeContractSnapshotFingerprint]
-            : []
+      ).sort()
+    );
+    assert.notEqual(
+      taskDiagnosticsErrorPreviewOperation
+        ?.embeddingIndexContractEvidenceFingerprints.length,
+      0,
+      'task route repair preview operation should expose embedding index contract evidence anchors'
+    );
+    assert.deepEqual(
+      taskDiagnosticsErrorPreviewOperation?.rerankRuntimeContractEvidenceFingerprints,
+      Array.from(
+        new Set(
+          taskDiagnosticsCandidateEvidence.flatMap(evidence =>
+            evidence.taskRouteRerankRuntimeContractSnapshotFingerprint
+              ? [evidence.taskRouteRerankRuntimeContractSnapshotFingerprint]
+              : []
+          )
         )
-      )
-    ).sort()
-  );
-  assert.deepEqual(
-    taskDiagnosticsErrorPreviewOperation?.taskRouteEffectiveSourceFingerprints,
-    Array.from(
-      new Set(
-        taskDiagnosticsCandidateEvidence.flatMap(evidence =>
-          evidence.taskRouteEffectiveSourceFingerprint
-            ? [evidence.taskRouteEffectiveSourceFingerprint]
-            : []
+      ).sort()
+    );
+    assert.deepEqual(
+      taskDiagnosticsErrorPreviewOperation?.taskRouteEffectiveSourceFingerprints,
+      Array.from(
+        new Set(
+          taskDiagnosticsCandidateEvidence.flatMap(evidence =>
+            evidence.taskRouteEffectiveSourceFingerprint
+              ? [evidence.taskRouteEffectiveSourceFingerprint]
+              : []
+          )
         )
-      )
-    ).sort()
-  );
-  assert.notEqual(
-    taskDiagnosticsErrorPreviewOperation?.taskRouteEffectiveSourceFingerprints
-      .length,
-    0,
-    'task route repair preview operation should expose task route source anchors'
-  );
-  assert.equal(
-    taskDiagnosticsErrorPreviewOperation?.operationFingerprint,
-    taskDiagnosticsErrorPreviewOperation
-      ? repairPreviewOperationFingerprintFixture({
-          actionKind: taskDiagnosticsErrorPreviewOperation.actionKind,
-          candidateEvidenceFingerprint:
-            taskDiagnosticsErrorPreviewOperation.candidateEvidenceFingerprint,
-          catalogVersion:
-            taskDiagnosticsErrorGate.repairActionMutationGuard.catalogVersion,
-          code: taskDiagnosticsErrorPreviewOperation.code,
-          diagnosticsFingerprint:
-            taskDiagnosticsErrorPreviewOperation.diagnosticsFingerprint,
-          embeddingIndexContractEvidenceFingerprints:
-            taskDiagnosticsErrorPreviewOperation.embeddingIndexContractEvidenceFingerprints,
-          inputSchema: taskDiagnosticsErrorPreviewOperation.inputSchema,
-          preparedRouteOrderFingerprints:
-            taskDiagnosticsErrorPreviewOperation.preparedRouteOrderFingerprints,
-          previewStatus: taskDiagnosticsErrorPreviewOperation.previewStatus,
-          rerankRuntimeContractEvidenceFingerprints:
-            taskDiagnosticsErrorPreviewOperation.rerankRuntimeContractEvidenceFingerprints,
-          taskRouteEffectiveSourceFingerprints:
-            taskDiagnosticsErrorPreviewOperation.taskRouteEffectiveSourceFingerprints,
-          requiredCapabilities:
-            taskDiagnosticsErrorPreviewOperation.requiredCapabilities,
-          reviewMode: taskDiagnosticsErrorPreviewOperation.reviewMode,
-          safety: taskDiagnosticsErrorPreviewOperation.safety,
-          target: taskDiagnosticsErrorPreviewOperation.target,
-          targetLocatorFingerprint:
-            taskDiagnosticsErrorPreviewOperation.targetLocatorFingerprint,
-        })
-      : undefined,
-    'operation fingerprint should bind prepared route order and embedding index contract evidence anchors'
-  );
+      ).sort()
+    );
+    assert.notEqual(
+      taskDiagnosticsErrorPreviewOperation?.taskRouteEffectiveSourceFingerprints
+        .length,
+      0,
+      'task route repair preview operation should expose task route source anchors'
+    );
+    assert.equal(
+      taskDiagnosticsErrorPreviewOperation?.operationFingerprint,
+      taskDiagnosticsErrorPreviewOperation
+        ? repairPreviewOperationFingerprintFixture({
+            actionKind: taskDiagnosticsErrorPreviewOperation.actionKind,
+            candidateEvidenceFingerprint:
+              taskDiagnosticsErrorPreviewOperation.candidateEvidenceFingerprint,
+            catalogVersion:
+              taskDiagnosticsErrorGate.repairActionMutationGuard.catalogVersion,
+            code: taskDiagnosticsErrorPreviewOperation.code,
+            diagnosticsFingerprint:
+              taskDiagnosticsErrorPreviewOperation.diagnosticsFingerprint,
+            embeddingIndexContractEvidenceFingerprints:
+              taskDiagnosticsErrorPreviewOperation.embeddingIndexContractEvidenceFingerprints,
+            inputSchema: taskDiagnosticsErrorPreviewOperation.inputSchema,
+            preparedRouteOrderFingerprints:
+              taskDiagnosticsErrorPreviewOperation.preparedRouteOrderFingerprints,
+            previewStatus: taskDiagnosticsErrorPreviewOperation.previewStatus,
+            rerankRuntimeContractEvidenceFingerprints:
+              taskDiagnosticsErrorPreviewOperation.rerankRuntimeContractEvidenceFingerprints,
+            taskRouteEffectiveSourceFingerprints:
+              taskDiagnosticsErrorPreviewOperation.taskRouteEffectiveSourceFingerprints,
+            requiredCapabilities:
+              taskDiagnosticsErrorPreviewOperation.requiredCapabilities,
+            reviewMode: taskDiagnosticsErrorPreviewOperation.reviewMode,
+            safety: taskDiagnosticsErrorPreviewOperation.safety,
+            target: taskDiagnosticsErrorPreviewOperation.target,
+            targetLocatorFingerprint:
+              taskDiagnosticsErrorPreviewOperation.targetLocatorFingerprint,
+          })
+        : undefined,
+      'operation fingerprint should bind prepared route order and embedding index contract evidence anchors'
+    );
+  })();
 
   console.log('resolver source chain smoke passed');
 }

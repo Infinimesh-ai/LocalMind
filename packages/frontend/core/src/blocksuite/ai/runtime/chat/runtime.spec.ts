@@ -1054,6 +1054,67 @@ describe('AIChatRuntime', () => {
     ]);
   });
 
+  test('an interleaved poll cannot invalidate an in-flight context add', async () => {
+    let releasePoll!: (value: unknown) => void;
+    let releaseAdd!: () => void;
+    const addContextDoc = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>(resolve => {
+            releaseAdd = resolve;
+          })
+      );
+    const request = createRequest();
+    (request.context.addContextDoc as ReturnType<typeof vi.fn>) = addContextDoc;
+    (
+      request.context.getContextId as ReturnType<typeof vi.fn>
+    ).mockResolvedValue('context-1');
+    (
+      request.context.getContextDocsAndFiles as ReturnType<typeof vi.fn>
+    ).mockImplementation(
+      () =>
+        new Promise(resolve => {
+          releasePoll = resolve;
+        })
+    );
+    const runtime = createRuntime(request);
+    await runtime.dispatch({
+      type: 'openSessionObject',
+      session: session(),
+    });
+    await runtime.dispatch({
+      type: 'addContextItem',
+      item: { kind: 'doc', docId: 'doc-2' },
+    });
+
+    const poll = runtime.dispatch({ type: 'pollContext' });
+    await waitUntil(() => {
+      expect(request.context.getContextDocsAndFiles).toHaveBeenCalledTimes(1);
+    });
+    const add = runtime.dispatch({
+      type: 'addContextItem',
+      item: { kind: 'doc', docId: 'doc-3' },
+    });
+    await waitUntil(() => {
+      expect(addContextDoc).toHaveBeenCalledTimes(2);
+      expect(runtime.getSnapshot().composer.context.loading).toBe(true);
+    });
+
+    releasePoll({ docs: [{ id: 'doc-2', status: 'finished' }] });
+    await poll;
+    expect(runtime.getSnapshot().composer.context.loading).toBe(true);
+
+    releaseAdd();
+    await add;
+    expect(runtime.getSnapshot().composer.context.loading).toBe(false);
+    expect(runtime.getSnapshot().composer.context.items).toEqual([
+      { kind: 'doc', docId: 'doc-2' },
+      { kind: 'doc', docId: 'doc-3' },
+    ]);
+  });
+
   test('loadContext restores existing session context without creating a new context', async () => {
     const request = createRequest();
     (
@@ -1139,8 +1200,8 @@ describe('AIChatRuntime', () => {
       failed: 1,
     });
     expect(runtime.getSnapshot().composer.context.modifiedDocuments).toEqual([
-      { docId: 'doc-2', snapshotUpdatedAt: 2, updatedAt: 20 },
-      { docId: 'tag-doc', snapshotUpdatedAt: 3, updatedAt: 30 },
+      { docId: 'doc-2', updatedAt: 20 },
+      { docId: 'tag-doc', updatedAt: 30 },
     ]);
   });
 
@@ -1179,9 +1240,59 @@ describe('AIChatRuntime', () => {
     await waitUntil(() => {
       expect(request.context.getContextDocsAndFiles).toHaveBeenCalledTimes(3);
     });
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(request.context.getContextDocsAndFiles).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(10000);
+    await waitUntil(() => {
+      expect(request.context.getContextDocsAndFiles).toHaveBeenCalledTimes(4);
+    });
 
     runtime.dispose();
     vi.useRealTimers();
+  });
+
+  test('pauses context polling while the document is hidden', async () => {
+    const hiddenDescriptor = Object.getOwnPropertyDescriptor(
+      document,
+      'hidden'
+    );
+    let hidden = true;
+    Object.defineProperty(document, 'hidden', {
+      configurable: true,
+      get: () => hidden,
+    });
+    const request = createRequest();
+    (
+      request.context.getContextId as ReturnType<typeof vi.fn>
+    ).mockResolvedValue('context-1');
+    (
+      request.context.getContextDocsAndFiles as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
+      docs: [{ id: 'doc-2', status: 'finished' }],
+    });
+    const runtime = createRuntime(request);
+    await runtime.dispatch({
+      type: 'openSessionObject',
+      session: session(),
+    });
+    await runtime.dispatch({ type: 'loadContext' });
+
+    await runtime.dispatch({ type: 'startContextPolling' });
+    await Promise.resolve();
+    expect(request.context.getContextDocsAndFiles).toHaveBeenCalledTimes(1);
+
+    hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    await waitUntil(() => {
+      expect(request.context.getContextDocsAndFiles).toHaveBeenCalledTimes(2);
+    });
+
+    runtime.dispose();
+    if (hiddenDescriptor) {
+      Object.defineProperty(document, 'hidden', hiddenDescriptor);
+    } else {
+      Reflect.deleteProperty(document, 'hidden');
+    }
   });
 
   test('new chat clears context and modified document state', async () => {

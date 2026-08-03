@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 
 import type {
@@ -14,6 +14,9 @@ import {
   type RegistryRevisionPublishEventHistory,
   withRegistryRevisionPublishEventHistory,
 } from './copilot-registry-revision-publish-event';
+import { warnUnknownRegistrySourceChainStatuses } from './copilot-registry-source-chain-logging';
+
+const sourceChainLogger = new Logger('CopilotPromptRegistryRevisionModel');
 
 type PromptRegistryRevisionRow = {
   id: string;
@@ -178,6 +181,12 @@ function normalizeSourceChain(
   if (!Array.isArray(value)) {
     return [];
   }
+  warnUnknownRegistrySourceChainStatuses({
+    allowedStatuses: PROMPT_REGISTRY_SOURCE_CHAIN_STATUSES,
+    logger: sourceChainLogger,
+    registryKind: 'prompt registry',
+    value,
+  });
   return value
     .filter(isSourceChainEntry)
     .slice(0, SOURCE_CHAIN_MAX_ENTRIES)

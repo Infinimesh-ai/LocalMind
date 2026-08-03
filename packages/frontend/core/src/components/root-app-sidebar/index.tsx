@@ -118,6 +118,7 @@ const AIChatButton = () => {
 };
 
 const HelpButton = () => {
+  const t = useI18n();
   const workbench = useService(WorkbenchService).workbench;
   const helpActive = useLiveData(
     workbench.location$.selector(location => location.pathname === '/help')
@@ -130,7 +131,7 @@ const HelpButton = () => {
       to="/help"
       data-testid="slider-bar-help-button"
     >
-      <span>Help &amp; guide</span>
+      <span>{t['com.affine.localmind.help.title']()}</span>
     </MenuLinkItem>
   );
 };

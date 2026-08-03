@@ -82,8 +82,9 @@ const EXPLICIT_DELETE_PATTERN =
 const EXPLICIT_UPDATE_PATTERN =
   /\b(?:instead|change (?:it|that|my preference)?\s*to|update (?:that|my preference)?\s*to)\b|改为|改成|更新为/iu;
 const IMPLICIT_CANDIDATE_PATTERN =
-  /\b(?:i|we|our|my)\s+(?:prefer|use|decided|selected|work|deploy|need)|\b(?:codename|deployment region|timezone)\b\s*(?:is|:|=)|我(?:们)?(?:喜欢|偏好|决定|选择|使用)|(?:代号|部署区域|时区)\s*(?:是|为|：|:|=)/iu;
-const BENCHMARK_FACT_PATTERN = /\b[A-Z][A-Z0-9_]*_FACT\b/;
+  /\b(?:i|we|our|my)\s+(?:prefer|use|decided|selected|work|deploy|need)|\b(?:codename|deployment region|timezone)\b[^.!?\n]{0,80}(?:\bis\b|\bare\b|:|=)|我(?:们)?(?:喜欢|偏好|决定|选择|使用)|(?:代号|部署区域|时区)[^。！？\n]{0,80}(?:是|为|：|:|=)/iu;
+const IMPLICIT_QUESTION_OR_REQUEST_PATTERN =
+  /^(?:please\s+)?(?:tell|show|explain|answer|reply|say)\b|\b(?:if|whether)\b|^(?:请)?(?:告诉|说明|解释|回答|回复)/iu;
 
 const MemoryWriterDecisionSchema = z.object({
   operation: z.enum(['ADD', 'UPDATE', 'DELETE', 'NOOP']),
@@ -184,8 +185,7 @@ export function extractExplicitMemoryDecisions(content: string) {
       candidate.length > 500 ||
       (!EXPLICIT_ADD_PATTERN.test(candidate) &&
         !EXPLICIT_DELETE_PATTERN.test(candidate) &&
-        !EXPLICIT_UPDATE_PATTERN.test(candidate) &&
-        !BENCHMARK_FACT_PATTERN.test(candidate))
+        !EXPLICIT_UPDATE_PATTERN.test(candidate))
     ) {
       continue;
     }
@@ -224,22 +224,19 @@ export function extractDurableMemories(content: string) {
     ) {
       return false;
     }
-    return (
-      EXPLICIT_ADD_PATTERN.test(candidate) ||
-      BENCHMARK_FACT_PATTERN.test(candidate)
-    );
+    return EXPLICIT_ADD_PATTERN.test(candidate);
   });
 }
 
-function shouldAttemptImplicitExtraction(content: string) {
+export function shouldAttemptImplicitExtraction(content: string) {
   const normalized = normalize(content);
   return (
     normalized.length >= 6 &&
     normalized.length <= 1_200 &&
     !normalized.endsWith('?') &&
     !normalized.endsWith('？') &&
-    (IMPLICIT_CANDIDATE_PATTERN.test(normalized) ||
-      BENCHMARK_FACT_PATTERN.test(normalized))
+    !IMPLICIT_QUESTION_OR_REQUEST_PATTERN.test(normalized) &&
+    IMPLICIT_CANDIDATE_PATTERN.test(normalized)
   );
 }
 
@@ -862,6 +859,12 @@ export class ContextMemoryService implements OnModuleInit {
       const explicitDecisions = extractExplicitMemoryDecisions(
         input.turn.content
       );
+      if (
+        !explicitDecisions.length &&
+        !shouldAttemptImplicitExtraction(input.turn.content)
+      ) {
+        return [];
+      }
       if (!explicitDecisions.length) {
         const settings = await this.getSettings(
           input.userId,
@@ -969,6 +972,32 @@ export class ContextMemoryService implements OnModuleInit {
               });
             }
           }
+        }
+      }
+      if (
+        events.some(
+          event =>
+            event.memoryId &&
+            (event.operation === 'ADD' || event.operation === 'UPDATE')
+        )
+      ) {
+        try {
+          await Promise.all(
+            targets.map(target =>
+              this.models.copilotContextMemory.enforceAutoMemoryQuota({
+                ownerUserId: input.userId,
+                workspaceId: input.workspaceId,
+                scope: target.scope,
+                docId: target.docId,
+                projectId: target.projectId,
+              })
+            )
+          );
+        } catch (error) {
+          this.logger.warn(
+            'Failed to enforce automatic memory quota; capture remains available',
+            { sessionId: input.sessionId, error }
+          );
         }
       }
       return events;

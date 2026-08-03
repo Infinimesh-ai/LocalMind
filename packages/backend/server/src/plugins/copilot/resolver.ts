@@ -24336,7 +24336,7 @@ export class CopilotResolver {
     input: CopilotRepairExecutionApprovalDecisionInput
   ): Promise<CopilotRepairExecutionRecordType> {
     if (input.decision !== 'approve' && input.decision !== 'reject') {
-      throw new Error('Unsupported repair execution approval decision');
+      throw new BadRequest('Unsupported repair execution approval decision');
     }
 
     const { workspaceId } = await this.assertPermission(user, {
@@ -24393,15 +24393,14 @@ export class CopilotResolver {
       input.action !== 'recover_stale' &&
       input.action !== 'resume_with_payload'
     ) {
-      throw new Error('Unsupported repair execution control action');
+      throw new BadRequest('Unsupported repair execution control action');
     }
 
     const { workspaceId } = await this.assertPermission(user, {
       workspaceId: input.workspaceId,
     });
-    let record;
-    try {
-      record = await this.modelsStore.copilotRepairExecution.controlExecution({
+    const record =
+      await this.modelsStore.copilotRepairExecution.controlExecution({
         workspaceId,
         actorId: user.id,
         id: input.executionRequestId,
@@ -24409,15 +24408,6 @@ export class CopilotResolver {
         executorPayload: input.executorPayload,
         reason: input.reason,
       });
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message.startsWith('Repair execution')
-      ) {
-        throw new BadRequest(error.message);
-      }
-      throw error;
-    }
     const agentRun =
       input.action === 'cancel' && record.status === 'running'
         ? await this.modelsStore.copilotAgentRuntime?.getBySource(

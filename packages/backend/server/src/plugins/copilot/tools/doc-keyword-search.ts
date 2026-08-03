@@ -11,12 +11,42 @@ import { toolError } from './error';
 import { defineTool } from './tool';
 import type { CopilotChatOptions } from './types';
 
+export const READABLE_DOC_IDS_CACHE_TTL_MS = 10_000;
+
+export const createReadableDocIdsLoader = (
+  permission: PermissionService,
+  ttlMs = READABLE_DOC_IDS_CACHE_TTL_MS
+) => {
+  const cache = new Map<
+    string,
+    { expiresAt: number; promise: Promise<string[]> }
+  >();
+  return (input: { userId: string; workspaceId: string }) => {
+    const key = `${input.userId}\0${input.workspaceId}`;
+    const existing = cache.get(key);
+    if (existing && existing.expiresAt > Date.now()) {
+      return existing.promise;
+    }
+    const entry = {
+      expiresAt: Date.now() + Math.max(ttlMs, 0),
+      promise: permission.listReadableDocIds(input),
+    };
+    cache.set(key, entry);
+    entry.promise = entry.promise.catch(error => {
+      if (cache.get(key) === entry) cache.delete(key);
+      throw error;
+    });
+    return entry.promise;
+  };
+};
+
 export const buildDocKeywordSearchGetter = (
   ac: PermissionAccess,
   permission: PermissionService,
   indexerService: IndexerService,
   models: Models
 ) => {
+  const loadReadableDocIds = createReadableDocIdsLoader(permission);
   const searchDocs = async (options: CopilotChatOptions, query?: string) => {
     const queryTrimmed = query?.trim();
     if (!options || !queryTrimmed || !options.user || !options.workspace) {
@@ -39,7 +69,7 @@ export const buildDocKeywordSearchGetter = (
         'You do not have permission to access this workspace.'
       );
     }
-    const docIds = await permission.listReadableDocIds({
+    const docIds = await loadReadableDocIds({
       userId: options.user,
       workspaceId: options.workspace,
     });

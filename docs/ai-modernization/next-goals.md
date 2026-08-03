@@ -5,9 +5,9 @@ runtime behavior.
 
 ## P1: Context Memory Quality
 
-Status: scope resolver, attached-document permission filtering, single-project
-fail-closed resolution, Planner v5 trust separation, immutable v4 replay, and
-privacy-preserving plan traces implemented.
+Status: the active Planner v6 commercial-memory foundation and GitHub issues
+#2-#8 stabilization pass are implemented on top of the v5 scope/trust boundary,
+immutable v1-v4 replay, and privacy-preserving plan traces.
 
 Implemented outcome:
 
@@ -24,20 +24,45 @@ Implemented outcome:
   ids and scores, budgets, resolved scope, and fingerprints without context
   text;
 - AI Context settings show active strategy trace count.
+- the structured Memory Writer emits `ADD`, `UPDATE`, `DELETE`, and `NOOP`,
+  preserves a deterministic explicit remember/forget path, and stores fact key,
+  confidence, importance, temporal, sensitivity, supersession, embedding, and
+  usage evidence;
+- conflicting and disabled facts are updated, superseded, reactivated, or
+  undone without leaving multiple active versions;
+- authorized retrieval combines keyword and embedding similarity with temporal,
+  confidence, importance, reranking, and MMR diversity;
+- each owner/scope is bounded to 200 active Automatic Memory rows with LRU
+  eviction;
+- Rule is independently versioned with `always`, `relevant`, and `manual`
+  application modes, conditions, priority, rollback, and hit history, while
+  Workspace Policy is a separate enforcement layer;
+- ambiguous readable document sets accept only an authorized explicit project
+  selection and otherwise fail closed;
+- the AI Context UI supports memory lifecycle and Rule revision/rollback
+  operations, with localized settings, Help, sidebar, and document-update alert
+  text;
+- the v6 smoke measures extraction, DLP, retrieval, scope leakage, Rule
+  interference/conflict priority, and latency with natural-language durable
+  cues instead of production benchmark markers;
+- context refresh/caching paths use independent request sequencing, hidden-page
+  pause, bounded retry, and authorization rechecks, while GraphQL memory APIs
+  enforce throttling, enum validation, scope isolation, quotas, and bounded
+  user-facing persistence errors.
 
 Remaining follow-up:
 
-- replace heuristic implicit capture with a structured Memory Writer and a
-  deterministic explicit-memory path;
-- add DLP, fact keys, confidence, importance, temporal validity, expiry,
-  supersession, undo, and conflict-aware `ADD/UPDATE/DELETE/NOOP`;
-- add permission-prefiltered keyword plus embedding retrieval, reranking,
-  diversity, lifecycle management, and usage feedback;
-- split Rule into a versioned engine with application modes, conditions,
-  priority, rollback, and hit traces, plus a separate Workspace Policy layer;
-- add explicit project selection for ambiguous attached-document sets;
-- build extraction, retrieval, scope-leakage, update, Rule, answer, performance,
-  and product evaluation suites.
+- evaluate and tune production-model implicit structured extraction while
+  preserving the deterministic explicit-command path and bounded fallback;
+- extend known-form sensitive-data filtering into an enterprise DLP classifier
+  with deployment-specific policy controls;
+- run real Sparkclaw embedding/reranker shadow evaluation and production-scale
+  retrieval/load tests before enabling model-backed ranking broadly;
+- replace heuristic rolling summaries with structured model summaries carrying
+  provenance and conflict-safe refresh semantics;
+- join planner traces to correction/undo, answer-quality, cost, and latency
+  outcomes, then add staged rollout and online A/B controls without retaining
+  sensitive prompt text.
 
 See `tracks/context-memory.md`.
 

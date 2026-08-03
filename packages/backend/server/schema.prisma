@@ -1123,6 +1123,8 @@ model AiSession {
 }
 
 model AiContextMemory {
+  // Migrations additionally enforce scope/lifecycle/content CHECK constraints
+  // and expression-based partial uniqueness that Prisma cannot represent.
   id              String                       @id @default(uuid()) @db.VarChar
   ownerUserId     String                       @map("owner_user_id") @db.VarChar
   workspaceId     String?                      @map("workspace_id") @db.VarChar

@@ -30,6 +30,9 @@ import {
   copilotContextDashboardGetQuery,
   copilotContextMemoryCreateMutation,
   copilotContextMemoryDeleteMutation,
+  CopilotContextMemoryManualKindInput,
+  CopilotContextMemoryMutableStatusInput,
+  CopilotContextMemoryScopeInput,
   copilotContextMemoryUpdateMutation,
   copilotContextProjectCreateMutation,
   copilotContextProjectDeleteMutation,
@@ -45,6 +48,7 @@ import {
   updateCopilotContextPolicyMutation,
   updateCopilotContextRuleMutation,
 } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import { DeleteIcon, PlusIcon, SaveIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -82,41 +86,39 @@ type DirectiveConditionsDraft = Pick<
   'description' | 'keywords' | 'documentIds' | 'projectIds' | 'match'
 >;
 
-const kindLabels: Record<string, string> = {
-  rule: 'Rule',
-  auto_memory: 'Automatic memory',
-  project_summary: 'Project summary',
+const memoryFilters: MemoryFilter[] = ['all', 'automatic', 'summaries'];
+
+const usePendingSet = () => {
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const markPending = useCallback((id: string, pending: boolean) => {
+    setPendingIds(current => {
+      const next = new Set(current);
+      if (pending) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+  return { markPending, pendingIds };
 };
 
-const targetLabels: Record<RuleTarget, string> = {
-  personal: 'Every workspace',
-  workspace: 'This team',
-  project: 'Project',
-};
-
-const scopeLabels: Record<string, string> = {
-  user: 'Every workspace',
-  workspace: 'This team',
-  document: 'Document',
-  project: 'Project',
-};
-
-const filterLabels: Record<MemoryFilter, string> = {
-  all: 'All',
-  automatic: 'Automatic',
-  summaries: 'Summaries',
+const useDraftMap = <T,>() => {
+  const [drafts, setDrafts] = useState<Record<string, T>>({});
+  const updateDraft = useCallback(
+    (id: string, fallback: T, update: (current: T) => T) => {
+      setDrafts(current => ({
+        ...current,
+        [id]: update(current[id] ?? fallback),
+      }));
+    },
+    []
+  );
+  return { drafts, setDrafts, updateDraft };
 };
 
 const memoryMatchesFilter = (memory: ContextMemory, filter: MemoryFilter) => {
   if (filter === 'automatic') return memory.kind === 'auto_memory';
   if (filter === 'summaries') return memory.kind === 'project_summary';
   return memory.kind !== 'rule';
-};
-
-const directiveModeLabels: Record<DirectiveMode, string> = {
-  always: 'Always',
-  relevant: 'When relevant',
-  manual: 'Manual',
 };
 
 const parseKeywords = (value: string) => [
@@ -203,9 +205,10 @@ export const getDirectiveContentUpdate = (
 };
 
 const DocumentName = ({ docId }: { docId: string }) => {
+  const t = useI18n();
   const docDisplayService = useService(DocDisplayMetaService);
   const title = useLiveData(docDisplayService.title$(docId));
-  return title || 'Untitled';
+  return title || t['com.affine.localmind.aiContext.untitled']();
 };
 
 const ProjectDocumentNames = ({ documentIds }: { documentIds: string[] }) => {
@@ -241,6 +244,7 @@ const DirectiveConditionControls = ({
   onChange: (value: DirectiveConditionsDraft) => void;
   onSelectDocuments: (ids: string[]) => void;
 }) => {
+  const t = useI18n();
   const toggleProject = (projectId: string) => {
     const projectIds = value.projectIds.includes(projectId)
       ? value.projectIds.filter(id => id !== projectId)
@@ -253,14 +257,14 @@ const DirectiveConditionControls = ({
       <Input
         value={value.description}
         onChange={description => onChange({ ...value, description })}
-        placeholder="Description"
+        placeholder={t['com.affine.localmind.aiContext.description']()}
         maxLength={2000}
         disabled={disabled}
       />
       <Input
         value={value.keywords}
         onChange={keywords => onChange({ ...value, keywords })}
-        placeholder="Keywords, comma separated"
+        placeholder={t['com.affine.localmind.aiContext.keywordsPlaceholder']()}
         disabled={disabled}
       />
       <Menu
@@ -270,12 +274,16 @@ const DirectiveConditionControls = ({
             selected={value.match === match}
             onSelect={() => onChange({ ...value, match })}
           >
-            {match === 'all' ? 'Match all groups' : 'Match any group'}
+            {match === 'all'
+              ? t['com.affine.localmind.aiContext.matchAll']()
+              : t['com.affine.localmind.aiContext.matchAny']()}
           </MenuItem>
         ))}
       >
         <Button variant="secondary" disabled={disabled}>
-          {value.match === 'all' ? 'Match all groups' : 'Match any group'}
+          {value.match === 'all'
+            ? t['com.affine.localmind.aiContext.matchAll']()
+            : t['com.affine.localmind.aiContext.matchAny']()}
         </Button>
       </Menu>
       <Button
@@ -283,7 +291,9 @@ const DirectiveConditionControls = ({
         disabled={disabled || !scopeConditionsEnabled}
         onClick={() => onSelectDocuments(value.documentIds)}
       >
-        Documents {value.documentIds.length}
+        {t['com.affine.localmind.aiContext.documentsCount']({
+          count: String(value.documentIds.length),
+        })}
       </Button>
       <Menu
         items={[
@@ -293,7 +303,7 @@ const DirectiveConditionControls = ({
                   key="clear-projects"
                   onSelect={() => onChange({ ...value, projectIds: [] })}
                 >
-                  Clear projects
+                  {t['com.affine.localmind.aiContext.clearProjects']()}
                 </MenuItem>,
               ]
             : []),
@@ -316,7 +326,9 @@ const DirectiveConditionControls = ({
             (!projects.length && !value.projectIds.length)
           }
         >
-          Projects {value.projectIds.length}
+          {t['com.affine.localmind.aiContext.projectsCount']({
+            count: String(value.projectIds.length),
+          })}
         </Button>
       </Menu>
     </div>
@@ -328,6 +340,7 @@ const AIContextDashboard = ({
 }: {
   onOpenMembers: () => void;
 }) => {
+  const t = useI18n();
   const { openConfirmModal } = useConfirmModal();
   const graphqlService = useService(GraphQLService);
   const permissionService = useService(WorkspacePermissionService);
@@ -337,6 +350,67 @@ const AIContextDashboard = ({
   const isLocal = workspace.flavour === 'local';
   const canManageProjects = useLiveData(
     permissionService.permission.isOwnerOrAdmin$
+  );
+
+  const kindLabels = useMemo<Record<string, string>>(
+    () => ({
+      rule: t['com.affine.localmind.aiContext.kind.rule'](),
+      auto_memory: t['com.affine.localmind.aiContext.kind.autoMemory'](),
+      project_summary:
+        t['com.affine.localmind.aiContext.kind.projectSummary'](),
+    }),
+    [t]
+  );
+  const targetLabels = useMemo<Record<RuleTarget, string>>(
+    () => ({
+      personal: t['com.affine.localmind.aiContext.scope.everyWorkspace'](),
+      workspace: t['com.affine.localmind.aiContext.scope.thisTeam'](),
+      project: t['com.affine.localmind.aiContext.scope.project'](),
+    }),
+    [t]
+  );
+  const scopeLabels = useMemo<Record<string, string>>(
+    () => ({
+      user: t['com.affine.localmind.aiContext.scope.everyWorkspace'](),
+      workspace: t['com.affine.localmind.aiContext.scope.thisTeam'](),
+      document: t['com.affine.localmind.aiContext.scope.document'](),
+      project: t['com.affine.localmind.aiContext.scope.project'](),
+    }),
+    [t]
+  );
+  const filterLabels = useMemo<Record<MemoryFilter, string>>(
+    () => ({
+      all: t['com.affine.localmind.aiContext.filter.all'](),
+      automatic: t['com.affine.localmind.aiContext.filter.automatic'](),
+      summaries: t['com.affine.localmind.aiContext.filter.summaries'](),
+    }),
+    [t]
+  );
+  const directiveModeLabels = useMemo<Record<DirectiveMode, string>>(
+    () => ({
+      always: t['com.affine.localmind.aiContext.mode.always'](),
+      relevant: t['com.affine.localmind.aiContext.mode.relevant'](),
+      manual: t['com.affine.localmind.aiContext.mode.manual'](),
+    }),
+    [t]
+  );
+  const captureModeLabels = useMemo<Record<string, string>>(
+    () => ({
+      manual: t['com.affine.localmind.aiContext.capture.manual'](),
+      explicit: t['com.affine.localmind.aiContext.capture.explicit'](),
+      implicit: t['com.affine.localmind.aiContext.capture.implicit'](),
+      legacy: t['com.affine.localmind.aiContext.capture.legacy'](),
+    }),
+    [t]
+  );
+  const operationLabels = useMemo<Record<string, string>>(
+    () => ({
+      ADD: t['com.affine.localmind.aiContext.operation.add'](),
+      UPDATE: t['com.affine.localmind.aiContext.operation.update'](),
+      DELETE: t['com.affine.localmind.aiContext.operation.delete'](),
+      UNDO: t['com.affine.localmind.aiContext.operation.undo'](),
+    }),
+    [t]
   );
 
   const [newContent, setNewContent] = useState('');
@@ -367,14 +441,13 @@ const AIContextDashboard = ({
   );
   const [filter, setFilter] = useState<MemoryFilter>('all');
   const [search, setSearch] = useState('');
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [directiveDrafts, setDirectiveDrafts] = useState<
-    Record<string, DirectiveDraft>
-  >({});
+  const { drafts, setDrafts, updateDraft } = useDraftMap<string>();
+  const { drafts: directiveDrafts, setDrafts: setDirectiveDrafts } =
+    useDraftMap<DirectiveDraft>();
   const [directiveModes, setDirectiveModes] = useState<
     Record<string, DirectiveMode>
   >({});
-  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const { markPending, pendingIds } = usePendingSet();
   const [creating, setCreating] = useState(false);
   const [settingsPending, setSettingsPending] = useState(false);
 
@@ -384,12 +457,13 @@ const AIContextDashboard = ({
     []
   );
   const [creatingProject, setCreatingProject] = useState(false);
-  const [projectDrafts, setProjectDrafts] = useState<
-    Record<string, ProjectDraft>
-  >({});
-  const [pendingProjectIds, setPendingProjectIds] = useState<Set<string>>(
-    new Set()
-  );
+  const {
+    drafts: projectDrafts,
+    setDrafts: setProjectDrafts,
+    updateDraft: updateProjectDraft,
+  } = useDraftMap<ProjectDraft>();
+  const { markPending: markProjectPending, pendingIds: pendingProjectIds } =
+    usePendingSet();
 
   const { data, error, isLoading, mutate } = useQuery(
     {
@@ -475,7 +549,7 @@ const AIContextDashboard = ({
       }
       return next;
     });
-  }, [memories]);
+  }, [memories, setDrafts]);
 
   useEffect(() => {
     setDirectiveDrafts(current => {
@@ -496,7 +570,7 @@ const AIContextDashboard = ({
       }
       return next;
     });
-  }, [policies, rules]);
+  }, [policies, rules, setDirectiveDrafts]);
 
   useEffect(() => {
     setProjectDrafts(current => {
@@ -512,33 +586,18 @@ const AIContextDashboard = ({
       }
       return next;
     });
-  }, [projects]);
+  }, [projects, setProjectDrafts]);
 
-  const reportError = useCallback((caught: unknown) => {
-    const error = UserFriendlyError.fromAny(caught);
-    notify.error({
-      title: 'AI context update failed',
-      message: error.message,
-    });
-  }, []);
-
-  const markPending = useCallback((id: string, pending: boolean) => {
-    setPendingIds(current => {
-      const next = new Set(current);
-      if (pending) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  }, []);
-
-  const markProjectPending = useCallback((id: string, pending: boolean) => {
-    setPendingProjectIds(current => {
-      const next = new Set(current);
-      if (pending) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  }, []);
+  const reportError = useCallback(
+    (caught: unknown) => {
+      const error = UserFriendlyError.fromAny(caught);
+      notify.error({
+        title: t['com.affine.localmind.aiContext.updateFailed'](),
+        message: error.message,
+      });
+    },
+    [t]
+  );
 
   const selectDocuments = useCallback(
     (
@@ -554,8 +613,13 @@ const AIContextDashboard = ({
             if ((!allowEmpty && ids.length < 1) || ids.length > 100) {
               notify.error({
                 title: allowEmpty
-                  ? 'Select up to 100 documents'
-                  : 'Select between 1 and 100 documents',
+                  ? t['com.affine.localmind.aiContext.selectUpToDocuments']({
+                      count: '100',
+                    })
+                  : t['com.affine.localmind.aiContext.selectDocumentRange']({
+                      min: '1',
+                      max: '100',
+                    }),
               });
               return;
             }
@@ -567,7 +631,7 @@ const AIContextDashboard = ({
         }
       );
     },
-    [workspaceDialogService]
+    [t, workspaceDialogService]
   );
 
   const createProject = useCallback(async () => {
@@ -640,11 +704,11 @@ const AIContextDashboard = ({
   const deleteProject = useCallback(
     (project: ContextProject) => {
       openConfirmModal({
-        title: 'Delete context project?',
+        title: t['com.affine.localmind.aiContext.deleteProject.title'](),
         description:
-          'The project must be empty of personal memories. This cannot be undone.',
-        confirmText: 'Delete',
-        cancelText: 'Cancel',
+          t['com.affine.localmind.aiContext.deleteProject.description'](),
+        confirmText: t['com.affine.localmind.aiContext.delete'](),
+        cancelText: t['com.affine.localmind.aiContext.cancel'](),
         confirmButtonOptions: { variant: 'error' },
         onConfirm: async () => {
           markProjectPending(project.id, true);
@@ -667,7 +731,15 @@ const AIContextDashboard = ({
         },
       });
     },
-    [graphqlService, markProjectPending, mutate, openConfirmModal, reportError]
+    [
+      graphqlService,
+      markProjectPending,
+      mutate,
+      openConfirmModal,
+      reportError,
+      setProjectDrafts,
+      t,
+    ]
   );
 
   const createMemory = useCallback(async () => {
@@ -681,8 +753,8 @@ const AIContextDashboard = ({
           input: {
             workspaceId,
             projectId: selectedProjectId,
-            scope: 'project',
-            kind: 'project_summary',
+            scope: CopilotContextMemoryScopeInput.project,
+            kind: CopilotContextMemoryManualKindInput.project_summary,
             content,
           },
         },
@@ -952,7 +1024,7 @@ const AIContextDashboard = ({
         markPending(rule.id, false);
       }
     },
-    [graphqlService, markPending, mutate, reportError]
+    [graphqlService, markPending, mutate, reportError, setDirectiveDrafts]
   );
 
   const rollbackPolicy = useCallback(
@@ -975,16 +1047,23 @@ const AIContextDashboard = ({
         markPending(policy.id, false);
       }
     },
-    [graphqlService, markPending, mutate, reportError, workspaceId]
+    [
+      graphqlService,
+      markPending,
+      mutate,
+      reportError,
+      setDirectiveDrafts,
+      workspaceId,
+    ]
   );
 
   const deleteRule = useCallback(
     (rule: ContextRule) => {
       openConfirmModal({
-        title: 'Delete rule?',
+        title: t['com.affine.localmind.aiContext.deleteRule.title'](),
         description: rule.name,
-        confirmText: 'Delete',
-        cancelText: 'Cancel',
+        confirmText: t['com.affine.localmind.aiContext.delete'](),
+        cancelText: t['com.affine.localmind.aiContext.cancel'](),
         confirmButtonOptions: { variant: 'error' },
         onConfirm: async () => {
           markPending(rule.id, true);
@@ -1002,16 +1081,16 @@ const AIContextDashboard = ({
         },
       });
     },
-    [graphqlService, markPending, mutate, openConfirmModal, reportError]
+    [graphqlService, markPending, mutate, openConfirmModal, reportError, t]
   );
 
   const deletePolicy = useCallback(
     (policy: ContextPolicy) => {
       openConfirmModal({
-        title: 'Delete workspace policy?',
+        title: t['com.affine.localmind.aiContext.deletePolicy.title'](),
         description: policy.name,
-        confirmText: 'Delete',
-        cancelText: 'Cancel',
+        confirmText: t['com.affine.localmind.aiContext.delete'](),
+        cancelText: t['com.affine.localmind.aiContext.cancel'](),
         confirmButtonOptions: { variant: 'error' },
         onConfirm: async () => {
           markPending(policy.id, true);
@@ -1035,6 +1114,7 @@ const AIContextDashboard = ({
       mutate,
       openConfirmModal,
       reportError,
+      t,
       workspaceId,
     ]
   );
@@ -1060,7 +1140,10 @@ const AIContextDashboard = ({
   const updateMemory = useCallback(
     async (
       memory: ContextMemory,
-      update: { content?: string; status?: string }
+      update: {
+        content?: string;
+        status?: CopilotContextMemoryMutableStatusInput;
+      }
     ) => {
       markPending(memory.id, true);
       try {
@@ -1086,10 +1169,10 @@ const AIContextDashboard = ({
   const deleteMemory = useCallback(
     (memory: ContextMemory) => {
       openConfirmModal({
-        title: 'Delete AI memory?',
+        title: t['com.affine.localmind.aiContext.deleteMemory.title'](),
         description: memory.content,
-        confirmText: 'Delete',
-        cancelText: 'Cancel',
+        confirmText: t['com.affine.localmind.aiContext.delete'](),
+        cancelText: t['com.affine.localmind.aiContext.cancel'](),
         confirmButtonOptions: { variant: 'error' },
         onConfirm: async () => {
           markPending(memory.id, true);
@@ -1112,7 +1195,15 @@ const AIContextDashboard = ({
         },
       });
     },
-    [graphqlService, markPending, mutate, openConfirmModal, reportError]
+    [
+      graphqlService,
+      markPending,
+      mutate,
+      openConfirmModal,
+      reportError,
+      setDrafts,
+      t,
+    ]
   );
 
   const setAutoMemoryEnabled = useCallback(
@@ -1157,7 +1248,7 @@ const AIContextDashboard = ({
         projectName?.toLocaleLowerCase().includes(query)
       );
     });
-  }, [filter, memories, projectById, search]);
+  }, [filter, kindLabels, memories, projectById, scopeLabels, search]);
 
   const isProjectTarget = target === 'project';
   const createDisabled = !newContent.trim() || creating || !selectedProjectId;
@@ -1179,13 +1270,15 @@ const AIContextDashboard = ({
     return (
       <div className={styles.errorState} role="alert">
         <div>
-          <div className={styles.errorTitle}>AI context did not load</div>
+          <div className={styles.errorTitle}>
+            {t['com.affine.localmind.aiContext.loadFailed.title']()}
+          </div>
           <div className={styles.errorDescription}>
-            Check the server connection and your workspace permission.
+            {t['com.affine.localmind.aiContext.loadFailed.description']()}
           </div>
         </div>
         <Button variant="secondary" onClick={() => void mutate()}>
-          Retry
+          {t['com.affine.localmind.aiContext.retry']()}
         </Button>
       </div>
     );
@@ -1193,72 +1286,91 @@ const AIContextDashboard = ({
 
   return (
     <>
-      <SettingWrapper title="Ownership and scope">
+      <SettingWrapper
+        title={t['com.affine.localmind.aiContext.ownership.title']()}
+      >
         <SettingRow
-          name="Memory ownership"
-          desc="Rules, summaries, and automatic memories belong only to your account."
+          name={t['com.affine.localmind.aiContext.ownership.memory.name']()}
+          desc={t[
+            'com.affine.localmind.aiContext.ownership.memory.description'
+          ]()}
         >
-          <span className={styles.privateBadge}>Only you</span>
+          <span className={styles.privateBadge}>
+            {t['com.affine.localmind.aiContext.onlyYou']()}
+          </span>
         </SettingRow>
         <SettingRow
-          name="Team boundary"
-          desc="Team-scoped memories are used only inside this workspace."
+          name={t['com.affine.localmind.aiContext.ownership.team.name']()}
+          desc={t[
+            'com.affine.localmind.aiContext.ownership.team.description'
+          ]()}
         >
           <Button variant="secondary" onClick={onOpenMembers}>
-            Manage members
+            {t['com.affine.localmind.aiContext.manageMembers']()}
           </Button>
         </SettingRow>
         <SettingRow
-          name="Automatic memory"
+          name={t['com.affine.localmind.aiContext.automaticMemory']()}
           desc={
             isLocal
-              ? 'Sync this workspace before using automatic memory.'
-              : 'Save durable preferences and decisions from AI conversations.'
+              ? t['com.affine.localmind.aiContext.autoMemory.syncRequired']()
+              : t['com.affine.localmind.aiContext.autoMemory.description']()
           }
         >
           <Switch
-            aria-label="Automatic memory enabled"
+            aria-label={t[
+              'com.affine.localmind.aiContext.autoMemory.enabled'
+            ]()}
             checked={!isLocal && (settings?.autoMemoryEnabled ?? false)}
             disabled={isLoading || settingsPending || isLocal}
             onChange={value => void setAutoMemoryEnabled(value)}
           />
         </SettingRow>
         <SettingRow
-          name="Context engine"
-          desc="Rolling summaries and scoped memory selection"
+          name={t['com.affine.localmind.aiContext.engine.name']()}
+          desc={t['com.affine.localmind.aiContext.engine.description']()}
         >
           {isLoading ? (
             <Loading />
           ) : (
             <span className={styles.engineStatus}>
-              {activeStrategy?.version ?? 'Unavailable'}
-              {activeStrategy ? ' · Active' : ''}
+              {activeStrategy?.version ??
+                t['com.affine.localmind.aiContext.unavailable']()}
               {activeStrategy
-                ? ` · ${activeStrategy.traceCount} plans traced`
+                ? ` · ${t['com.affine.localmind.aiContext.active']()}`
+                : ''}
+              {activeStrategy
+                ? ` · ${t['com.affine.localmind.aiContext.plansTraced']({
+                    count: String(activeStrategy.traceCount),
+                  })}`
                 : ''}
               {previousStrategyCount
-                ? ` · ${previousStrategyCount} previous retained`
+                ? ` · ${t['com.affine.localmind.aiContext.previousStrategies']({
+                    count: String(previousStrategyCount),
+                  })}`
                 : ''}
             </span>
           )}
         </SettingRow>
       </SettingWrapper>
 
-      <SettingWrapper title="Context projects">
+      <SettingWrapper
+        title={t['com.affine.localmind.aiContext.projects.title']()}
+      >
         {!isLocal && canManageProjects ? (
           <div className={styles.projectCreateArea}>
             <div className={styles.projectCreateFields}>
               <Input
                 value={newProjectName}
                 onChange={setNewProjectName}
-                placeholder="Project name"
+                placeholder={t['com.affine.localmind.aiContext.projectName']()}
                 maxLength={120}
                 disabled={creatingProject}
               />
               <Input
                 value={newProjectDescription}
                 onChange={setNewProjectDescription}
-                placeholder="Description"
+                placeholder={t['com.affine.localmind.aiContext.description']()}
                 maxLength={2000}
                 disabled={creatingProject}
               />
@@ -1275,12 +1387,14 @@ const AIContextDashboard = ({
                 }
               >
                 {newProjectDocumentIds.length
-                  ? `${newProjectDocumentIds.length} documents`
-                  : 'Select documents'}
+                  ? t['com.affine.localmind.aiContext.documentsCount']({
+                      count: String(newProjectDocumentIds.length),
+                    })
+                  : t['com.affine.localmind.aiContext.selectDocuments']()}
               </Button>
               <IconButton
                 size="24"
-                title="Create project"
+                title={t['com.affine.localmind.aiContext.createProject']()}
                 icon={<PlusIcon />}
                 disabled={createProjectDisabled}
                 onClick={() => void createProject()}
@@ -1320,9 +1434,9 @@ const AIContextDashboard = ({
                       <Input
                         value={draft.name}
                         onChange={name =>
-                          setProjectDrafts(current => ({
+                          updateProjectDraft(project.id, draft, current => ({
                             ...current,
-                            [project.id]: { ...draft, name },
+                            name,
                           }))
                         }
                         maxLength={120}
@@ -1331,29 +1445,37 @@ const AIContextDashboard = ({
                       <Input
                         value={draft.description}
                         onChange={description =>
-                          setProjectDrafts(current => ({
+                          updateProjectDraft(project.id, draft, current => ({
                             ...current,
-                            [project.id]: { ...draft, description },
+                            description,
                           }))
                         }
-                        placeholder="Description"
+                        placeholder={t[
+                          'com.affine.localmind.aiContext.description'
+                        ]()}
                         maxLength={2000}
                         disabled={pending || !project.canManage}
                       />
                     </div>
                     <div className={styles.projectMetadata}>
                       <span className={styles.tag}>
-                        {project.status === 'active' ? 'Active' : 'Archived'}
+                        {project.status === 'active'
+                          ? t['com.affine.localmind.aiContext.active']()
+                          : t['com.affine.localmind.aiContext.archived']()}
                       </span>
                       <span className={styles.tag}>
-                        {project.documentCount} documents
+                        {t['com.affine.localmind.aiContext.documentsCount']({
+                          count: String(project.documentCount),
+                        })}
                       </span>
                       <ProjectDocumentNames documentIds={project.documentIds} />
                     </div>
                   </div>
                   <div className={styles.projectActions}>
                     <Switch
-                      aria-label={`${project.name} active`}
+                      aria-label={t[
+                        'com.affine.localmind.aiContext.projectEnabled'
+                      ]({ name: project.name })}
                       checked={project.status === 'active'}
                       disabled={pending || !project.canManage}
                       onChange={active =>
@@ -1367,18 +1489,18 @@ const AIContextDashboard = ({
                       disabled={pending || !project.canManage}
                       onClick={() =>
                         selectDocuments(draft.documentIds, documentIds =>
-                          setProjectDrafts(current => ({
+                          updateProjectDraft(project.id, draft, current => ({
                             ...current,
-                            [project.id]: { ...draft, documentIds },
+                            documentIds,
                           }))
                         )
                       }
                     >
-                      Documents
+                      {t['com.affine.localmind.aiContext.documents']()}
                     </Button>
                     <IconButton
                       size="20"
-                      title="Save project"
+                      title={t['com.affine.localmind.aiContext.saveProject']()}
                       icon={<SaveIcon />}
                       disabled={
                         !changed ||
@@ -1398,7 +1520,9 @@ const AIContextDashboard = ({
                     {project.status === 'archived' ? (
                       <IconButton
                         size="20"
-                        title="Delete project"
+                        title={t[
+                          'com.affine.localmind.aiContext.deleteProject.action'
+                        ]()}
                         icon={<DeleteIcon />}
                         disabled={pending || !project.canManage}
                         onClick={() => deleteProject(project)}
@@ -1411,22 +1535,24 @@ const AIContextDashboard = ({
           ) : (
             <div className={styles.empty}>
               {isLocal
-                ? 'Sync this workspace to create context projects'
+                ? t['com.affine.localmind.aiContext.projects.syncRequired']()
                 : canManageProjects
-                  ? 'No context projects'
-                  : 'No accessible context projects'}
+                  ? t['com.affine.localmind.aiContext.projects.empty']()
+                  : t[
+                      'com.affine.localmind.aiContext.projects.emptyAccessible'
+                    ]()}
             </div>
           )}
         </div>
       </SettingWrapper>
 
-      <SettingWrapper title="Your rules">
+      <SettingWrapper title={t['com.affine.localmind.aiContext.rules.title']()}>
         <div className={styles.createArea}>
           <div className={styles.directiveControls}>
             <Input
               value={newRuleName}
               onChange={setNewRuleName}
-              placeholder="Rule name"
+              placeholder={t['com.affine.localmind.aiContext.ruleName']()}
               maxLength={120}
               disabled={creating}
             />
@@ -1461,7 +1587,7 @@ const AIContextDashboard = ({
               max={1000}
               step={1}
               value={newRulePriority}
-              aria-label="Rule priority"
+              aria-label={t['com.affine.localmind.aiContext.rulePriority']()}
               disabled={creating}
               onChange={event => setNewRulePriority(event.target.value)}
             />
@@ -1483,8 +1609,9 @@ const AIContextDashboard = ({
                 disabled={!activeProjects.length}
               >
                 {selectedProjectId
-                  ? (projectById.get(selectedProjectId)?.name ?? 'Project')
-                  : 'Select project'}
+                  ? (projectById.get(selectedProjectId)?.name ??
+                    t['com.affine.localmind.aiContext.scope.project']())
+                  : t['com.affine.localmind.aiContext.selectProject']()}
               </Button>
             </Menu>
           ) : null}
@@ -1515,13 +1642,15 @@ const AIContextDashboard = ({
               value={newRuleContent}
               onChange={setNewRuleContent}
               onEnter={() => void createRule()}
-              placeholder="Rule instruction"
+              placeholder={t[
+                'com.affine.localmind.aiContext.ruleInstruction'
+              ]()}
               maxLength={8000}
               disabled={creating}
             />
             <IconButton
               size="24"
-              title="Create rule"
+              title={t['com.affine.localmind.aiContext.createRule']()}
               icon={<PlusIcon />}
               disabled={createRuleDisabled}
               onClick={() => void createRule()}
@@ -1565,10 +1694,13 @@ const AIContextDashboard = ({
                       <Input
                         value={draft.name}
                         onChange={name =>
-                          setDirectiveDrafts(current => ({
-                            ...current,
-                            [rule.id]: { ...draft, name },
-                          }))
+                          setDirectiveDrafts(current => {
+                            const currentDraft = current[rule.id] ?? draft;
+                            return {
+                              ...current,
+                              [rule.id]: { ...currentDraft, name },
+                            };
+                          })
                         }
                         maxLength={120}
                         disabled={pending}
@@ -1601,16 +1733,21 @@ const AIContextDashboard = ({
                         max={1000}
                         step={1}
                         value={draft.priority}
-                        aria-label={`${rule.name} priority`}
+                        aria-label={t[
+                          'com.affine.localmind.aiContext.namedPriority'
+                        ]({ name: rule.name })}
                         disabled={pending}
                         onChange={event =>
-                          setDirectiveDrafts(current => ({
-                            ...current,
-                            [rule.id]: {
-                              ...draft,
-                              priority: event.target.value,
-                            },
-                          }))
+                          setDirectiveDrafts(current => {
+                            const currentDraft = current[rule.id] ?? draft;
+                            return {
+                              ...current,
+                              [rule.id]: {
+                                ...currentDraft,
+                                priority: event.target.value,
+                              },
+                            };
+                          })
                         }
                       />
                     </div>
@@ -1620,22 +1757,28 @@ const AIContextDashboard = ({
                       disabled={pending}
                       scopeConditionsEnabled={rule.scope !== 'user'}
                       onChange={value =>
-                        setDirectiveDrafts(current => ({
-                          ...current,
-                          [rule.id]: { ...draft, ...value },
-                        }))
+                        setDirectiveDrafts(current => {
+                          const currentDraft = current[rule.id] ?? draft;
+                          return {
+                            ...current,
+                            [rule.id]: { ...currentDraft, ...value },
+                          };
+                        })
                       }
                       onSelectDocuments={documentIds =>
                         selectDocuments(
                           documentIds,
                           nextDocumentIds =>
-                            setDirectiveDrafts(current => ({
-                              ...current,
-                              [rule.id]: {
-                                ...draft,
-                                documentIds: nextDocumentIds,
-                              },
-                            })),
+                            setDirectiveDrafts(current => {
+                              const currentDraft = current[rule.id] ?? draft;
+                              return {
+                                ...current,
+                                [rule.id]: {
+                                  ...currentDraft,
+                                  documentIds: nextDocumentIds,
+                                },
+                              };
+                            }),
                           true
                         )
                       }
@@ -1646,35 +1789,47 @@ const AIContextDashboard = ({
                       maxLength={8000}
                       rows={2}
                       disabled={pending}
-                      aria-label={`${rule.name} content`}
+                      aria-label={t[
+                        'com.affine.localmind.aiContext.namedContent'
+                      ]({ name: rule.name })}
                       onChange={event =>
-                        setDirectiveDrafts(current => ({
-                          ...current,
-                          [rule.id]: {
-                            ...draft,
-                            content: event.target.value,
-                          },
-                        }))
+                        setDirectiveDrafts(current => {
+                          const currentDraft = current[rule.id] ?? draft;
+                          return {
+                            ...current,
+                            [rule.id]: {
+                              ...currentDraft,
+                              content: event.target.value,
+                            },
+                          };
+                        })
                       }
                     />
                     <div className={styles.metadata}>
                       <span className={styles.tag}>
                         {scopeLabels[rule.scope] ?? rule.scope}
                       </span>
-                      <span className={styles.privateBadge}>Only you</span>
+                      <span className={styles.privateBadge}>
+                        {t['com.affine.localmind.aiContext.onlyYou']()}
+                      </span>
                       {rule.projectId ? (
                         <span className={styles.projectTag}>
-                          {projectById.get(rule.projectId)?.name ?? 'Project'}
+                          {projectById.get(rule.projectId)?.name ??
+                            t['com.affine.localmind.aiContext.scope.project']()}
                         </span>
                       ) : null}
                       <span className={styles.tag}>
-                        {rule.hits.length} recent hits
+                        {t['com.affine.localmind.aiContext.recentHits']({
+                          count: String(rule.hits.length),
+                        })}
                       </span>
                     </div>
                   </div>
                   <div className={styles.directiveActions}>
                     <Switch
-                      aria-label={`${rule.name} enabled`}
+                      aria-label={t[
+                        'com.affine.localmind.aiContext.namedEnabled'
+                      ]({ name: rule.name })}
                       checked={rule.status === 'active'}
                       disabled={pending}
                       onChange={active =>
@@ -1695,17 +1850,21 @@ const AIContextDashboard = ({
                               void rollbackRule(rule, revision.revision)
                             }
                           >
-                            Revision {revision.revision}
+                            {t['com.affine.localmind.aiContext.revision']({
+                              revision: String(revision.revision),
+                            })}
                           </MenuItem>
                         ))}
                     >
                       <Button variant="secondary" disabled={pending}>
-                        Revision {rule.activeRevision}
+                        {t['com.affine.localmind.aiContext.revision']({
+                          revision: String(rule.activeRevision),
+                        })}
                       </Button>
                     </Menu>
                     <IconButton
                       size="20"
-                      title="Save rule"
+                      title={t['com.affine.localmind.aiContext.saveRule']()}
                       icon={<SaveIcon />}
                       disabled={
                         !changed ||
@@ -1718,7 +1877,9 @@ const AIContextDashboard = ({
                     />
                     <IconButton
                       size="20"
-                      title="Delete rule"
+                      title={t[
+                        'com.affine.localmind.aiContext.deleteRule.action'
+                      ]()}
                       icon={<DeleteIcon />}
                       disabled={pending}
                       onClick={() => deleteRule(rule)}
@@ -1728,20 +1889,24 @@ const AIContextDashboard = ({
               );
             })
           ) : (
-            <div className={styles.empty}>No rules</div>
+            <div className={styles.empty}>
+              {t['com.affine.localmind.aiContext.rules.empty']()}
+            </div>
           )}
         </div>
       </SettingWrapper>
 
       {!isLocal ? (
-        <SettingWrapper title="Workspace policies">
+        <SettingWrapper
+          title={t['com.affine.localmind.aiContext.policies.title']()}
+        >
           {canManageProjects ? (
             <div className={styles.createArea}>
               <div className={styles.directiveControls}>
                 <Input
                   value={newPolicyName}
                   onChange={setNewPolicyName}
-                  placeholder="Policy name"
+                  placeholder={t['com.affine.localmind.aiContext.policyName']()}
                   maxLength={120}
                   disabled={creating}
                 />
@@ -1766,7 +1931,9 @@ const AIContextDashboard = ({
                   max={1000}
                   step={1}
                   value={newPolicyPriority}
-                  aria-label="Policy priority"
+                  aria-label={t[
+                    'com.affine.localmind.aiContext.policyPriority'
+                  ]()}
                   disabled={creating}
                   onChange={event => setNewPolicyPriority(event.target.value)}
                 />
@@ -1798,13 +1965,15 @@ const AIContextDashboard = ({
                   value={newPolicyContent}
                   onChange={setNewPolicyContent}
                   onEnter={() => void createPolicy()}
-                  placeholder="Enforced policy instruction"
+                  placeholder={t[
+                    'com.affine.localmind.aiContext.policyInstruction'
+                  ]()}
                   maxLength={8000}
                   disabled={creating}
                 />
                 <IconButton
                   size="24"
-                  title="Create policy"
+                  title={t['com.affine.localmind.aiContext.createPolicy']()}
                   icon={<PlusIcon />}
                   disabled={createPolicyDisabled}
                   onClick={() => void createPolicy()}
@@ -1853,10 +2022,13 @@ const AIContextDashboard = ({
                         <Input
                           value={draft.name}
                           onChange={name =>
-                            setDirectiveDrafts(current => ({
-                              ...current,
-                              [policy.id]: { ...draft, name },
-                            }))
+                            setDirectiveDrafts(current => {
+                              const currentDraft = current[policy.id] ?? draft;
+                              return {
+                                ...current,
+                                [policy.id]: { ...currentDraft, name },
+                              };
+                            })
                           }
                           disabled={pending || !policy.canManage}
                         />
@@ -1891,16 +2063,21 @@ const AIContextDashboard = ({
                           max={1000}
                           step={1}
                           value={draft.priority}
-                          aria-label={`${policy.name} priority`}
+                          aria-label={t[
+                            'com.affine.localmind.aiContext.namedPriority'
+                          ]({ name: policy.name })}
                           disabled={pending || !policy.canManage}
                           onChange={event =>
-                            setDirectiveDrafts(current => ({
-                              ...current,
-                              [policy.id]: {
-                                ...draft,
-                                priority: event.target.value,
-                              },
-                            }))
+                            setDirectiveDrafts(current => {
+                              const currentDraft = current[policy.id] ?? draft;
+                              return {
+                                ...current,
+                                [policy.id]: {
+                                  ...currentDraft,
+                                  priority: event.target.value,
+                                },
+                              };
+                            })
                           }
                         />
                       </div>
@@ -1910,22 +2087,29 @@ const AIContextDashboard = ({
                         disabled={pending || !policy.canManage}
                         scopeConditionsEnabled
                         onChange={value =>
-                          setDirectiveDrafts(current => ({
-                            ...current,
-                            [policy.id]: { ...draft, ...value },
-                          }))
+                          setDirectiveDrafts(current => {
+                            const currentDraft = current[policy.id] ?? draft;
+                            return {
+                              ...current,
+                              [policy.id]: { ...currentDraft, ...value },
+                            };
+                          })
                         }
                         onSelectDocuments={documentIds =>
                           selectDocuments(
                             documentIds,
                             nextDocumentIds =>
-                              setDirectiveDrafts(current => ({
-                                ...current,
-                                [policy.id]: {
-                                  ...draft,
-                                  documentIds: nextDocumentIds,
-                                },
-                              })),
+                              setDirectiveDrafts(current => {
+                                const currentDraft =
+                                  current[policy.id] ?? draft;
+                                return {
+                                  ...current,
+                                  [policy.id]: {
+                                    ...currentDraft,
+                                    documentIds: nextDocumentIds,
+                                  },
+                                };
+                              }),
                             true
                           )
                         }
@@ -1936,27 +2120,40 @@ const AIContextDashboard = ({
                         maxLength={8000}
                         rows={2}
                         disabled={pending || !policy.canManage}
-                        aria-label={`${policy.name} content`}
+                        aria-label={t[
+                          'com.affine.localmind.aiContext.namedContent'
+                        ]({ name: policy.name })}
                         onChange={event =>
-                          setDirectiveDrafts(current => ({
-                            ...current,
-                            [policy.id]: {
-                              ...draft,
-                              content: event.target.value,
-                            },
-                          }))
+                          setDirectiveDrafts(current => {
+                            const currentDraft = current[policy.id] ?? draft;
+                            return {
+                              ...current,
+                              [policy.id]: {
+                                ...currentDraft,
+                                content: event.target.value,
+                              },
+                            };
+                          })
                         }
                       />
                       <div className={styles.metadata}>
-                        <span className={styles.tag}>Workspace policy</span>
                         <span className={styles.tag}>
-                          {policy.hits.length} recent hits
+                          {t[
+                            'com.affine.localmind.aiContext.workspacePolicy'
+                          ]()}
+                        </span>
+                        <span className={styles.tag}>
+                          {t['com.affine.localmind.aiContext.recentHits']({
+                            count: String(policy.hits.length),
+                          })}
                         </span>
                       </div>
                     </div>
                     <div className={styles.directiveActions}>
                       <Switch
-                        aria-label={`${policy.name} enabled`}
+                        aria-label={t[
+                          'com.affine.localmind.aiContext.namedEnabled'
+                        ]({ name: policy.name })}
                         checked={policy.status === 'active'}
                         disabled={pending || !policy.canManage}
                         onChange={active =>
@@ -1978,7 +2175,9 @@ const AIContextDashboard = ({
                                 void rollbackPolicy(policy, revision.revision)
                               }
                             >
-                              Revision {revision.revision}
+                              {t['com.affine.localmind.aiContext.revision']({
+                                revision: String(revision.revision),
+                              })}
                             </MenuItem>
                           ))}
                       >
@@ -1986,12 +2185,14 @@ const AIContextDashboard = ({
                           variant="secondary"
                           disabled={pending || !policy.canManage}
                         >
-                          Revision {policy.activeRevision}
+                          {t['com.affine.localmind.aiContext.revision']({
+                            revision: String(policy.activeRevision),
+                          })}
                         </Button>
                       </Menu>
                       <IconButton
                         size="20"
-                        title="Save policy"
+                        title={t['com.affine.localmind.aiContext.savePolicy']()}
                         icon={<SaveIcon />}
                         disabled={
                           !changed ||
@@ -2005,7 +2206,9 @@ const AIContextDashboard = ({
                       />
                       <IconButton
                         size="20"
-                        title="Delete policy"
+                        title={t[
+                          'com.affine.localmind.aiContext.deletePolicy.action'
+                        ]()}
                         icon={<DeleteIcon />}
                         disabled={pending || !policy.canManage}
                         onClick={() => deletePolicy(policy)}
@@ -2015,13 +2218,17 @@ const AIContextDashboard = ({
                 );
               })
             ) : (
-              <div className={styles.empty}>No workspace policies</div>
+              <div className={styles.empty}>
+                {t['com.affine.localmind.aiContext.policies.empty']()}
+              </div>
             )}
           </div>
         </SettingWrapper>
       ) : null}
 
-      <SettingWrapper title="Memories and project summaries">
+      <SettingWrapper
+        title={t['com.affine.localmind.aiContext.memories.title']()}
+      >
         {!isLocal && activeProjects.length ? (
           <div className={styles.createArea}>
             <div className={styles.createControls}>
@@ -2037,8 +2244,9 @@ const AIContextDashboard = ({
               >
                 <Button className={styles.projectButton} variant="secondary">
                   {selectedProjectId
-                    ? (projectById.get(selectedProjectId)?.name ?? 'Project')
-                    : 'Select project'}
+                    ? (projectById.get(selectedProjectId)?.name ??
+                      t['com.affine.localmind.aiContext.scope.project']())
+                    : t['com.affine.localmind.aiContext.selectProject']()}
                 </Button>
               </Menu>
             </div>
@@ -2047,13 +2255,15 @@ const AIContextDashboard = ({
                 value={newContent}
                 onChange={setNewContent}
                 onEnter={() => void createMemory()}
-                placeholder="Project summary"
+                placeholder={t[
+                  'com.affine.localmind.aiContext.projectSummary'
+                ]()}
                 maxLength={8000}
                 disabled={creating}
               />
               <IconButton
                 size="24"
-                title="Add project summary"
+                title={t['com.affine.localmind.aiContext.addProjectSummary']()}
                 icon={<PlusIcon />}
                 disabled={createDisabled}
                 onClick={() => void createMemory()}
@@ -2068,7 +2278,7 @@ const AIContextDashboard = ({
         >
           <div className={styles.filterBar}>
             <Tabs.List className={styles.tabList}>
-              {(Object.keys(filterLabels) as MemoryFilter[]).map(value => (
+              {memoryFilters.map(value => (
                 <Tabs.Trigger key={value} value={value}>
                   {filterLabels[value]}
                 </Tabs.Trigger>
@@ -2078,10 +2288,10 @@ const AIContextDashboard = ({
               className={styles.searchInput}
               value={search}
               onChange={setSearch}
-              placeholder="Search"
+              placeholder={t['com.affine.localmind.aiContext.search']()}
             />
           </div>
-          {(Object.keys(filterLabels) as MemoryFilter[]).map(value => (
+          {memoryFilters.map(value => (
             <Tabs.Content key={value} value={value}>
               <div className={styles.memoryList}>
                 {isLoading ? (
@@ -2109,12 +2319,17 @@ const AIContextDashboard = ({
                             maxLength={8000}
                             rows={2}
                             disabled={pending}
-                            aria-label={`${kindLabels[memory.kind] ?? memory.kind} content`}
+                            aria-label={t[
+                              'com.affine.localmind.aiContext.namedContent'
+                            ]({
+                              name: kindLabels[memory.kind] ?? memory.kind,
+                            })}
                             onChange={event =>
-                              setDrafts(current => ({
-                                ...current,
-                                [memory.id]: event.target.value,
-                              }))
+                              updateDraft(
+                                memory.id,
+                                memory.content,
+                                () => event.target.value
+                              )
                             }
                           />
                           <div className={styles.metadata}>
@@ -2125,7 +2340,7 @@ const AIContextDashboard = ({
                               {scopeLabels[memory.scope] ?? memory.scope}
                             </span>
                             <span className={styles.privateBadge}>
-                              Only you
+                              {t['com.affine.localmind.aiContext.onlyYou']()}
                             </span>
                             {memory.factKey ? (
                               <span className={styles.tag}>
@@ -2133,28 +2348,38 @@ const AIContextDashboard = ({
                               </span>
                             ) : null}
                             <span className={styles.tag}>
-                              {memory.captureMode}
+                              {captureModeLabels[memory.captureMode] ??
+                                memory.captureMode}
                             </span>
                             <span className={styles.tag}>
-                              Confidence {Math.round(memory.confidence * 100)}%
+                              {t['com.affine.localmind.aiContext.confidence']({
+                                percent: String(
+                                  Math.round(memory.confidence * 100)
+                                ),
+                              })}
                             </span>
                             {memory.expiresAt ? (
                               <span className={styles.tag}>
-                                Expires{' '}
-                                {new Date(
-                                  memory.expiresAt
-                                ).toLocaleDateString()}
+                                {t['com.affine.localmind.aiContext.expires']({
+                                  date: new Date(
+                                    memory.expiresAt
+                                  ).toLocaleDateString(),
+                                })}
                               </span>
                             ) : null}
                             {memory.useCount ? (
                               <span className={styles.tag}>
-                                Used {memory.useCount} times
+                                {t['com.affine.localmind.aiContext.usedTimes']({
+                                  count: String(memory.useCount),
+                                })}
                               </span>
                             ) : null}
                             {memory.projectId ? (
                               <span className={styles.projectTag}>
                                 {projectById.get(memory.projectId)?.name ??
-                                  'Archived project'}
+                                  t[
+                                    'com.affine.localmind.aiContext.archivedProject'
+                                  ]()}
                               </span>
                             ) : null}
                             {memory.docId ? (
@@ -2166,25 +2391,35 @@ const AIContextDashboard = ({
                               </span>
                             ) : null}
                             <span className={styles.updatedAt}>
-                              Updated{' '}
-                              {new Date(memory.updatedAt).toLocaleDateString()}
+                              {t['com.affine.localmind.aiContext.updated']({
+                                date: new Date(
+                                  memory.updatedAt
+                                ).toLocaleDateString(),
+                              })}
                             </span>
                           </div>
                         </div>
                         <div className={styles.actions}>
                           <Switch
-                            aria-label={`${kindLabels[memory.kind] ?? memory.kind} enabled: ${memory.content.slice(0, 80)}`}
+                            aria-label={t[
+                              'com.affine.localmind.aiContext.memoryEnabled'
+                            ]({
+                              kind: kindLabels[memory.kind] ?? memory.kind,
+                              content: memory.content.slice(0, 80),
+                            })}
                             checked={memory.status === 'active'}
                             disabled={pending}
                             onChange={active =>
                               void updateMemory(memory, {
-                                status: active ? 'active' : 'disabled',
+                                status: active
+                                  ? CopilotContextMemoryMutableStatusInput.active
+                                  : CopilotContextMemoryMutableStatusInput.disabled,
                               })
                             }
                           />
                           <IconButton
                             size="20"
-                            title="Save"
+                            title={t['com.affine.localmind.aiContext.save']()}
                             icon={<SaveIcon />}
                             disabled={!changed || !draft.trim() || pending}
                             onClick={() =>
@@ -2195,7 +2430,7 @@ const AIContextDashboard = ({
                           />
                           <IconButton
                             size="20"
-                            title="Delete"
+                            title={t['com.affine.localmind.aiContext.delete']()}
                             icon={<DeleteIcon />}
                             disabled={pending}
                             onClick={() => deleteMemory(memory)}
@@ -2206,7 +2441,11 @@ const AIContextDashboard = ({
                   })
                 ) : (
                   <div className={styles.empty}>
-                    {search ? 'No matching memories' : 'No saved memories'}
+                    {search
+                      ? t[
+                          'com.affine.localmind.aiContext.memories.emptySearch'
+                        ]()
+                      : t['com.affine.localmind.aiContext.memories.empty']()}
                   </div>
                 )}
               </div>
@@ -2215,7 +2454,9 @@ const AIContextDashboard = ({
         </Tabs.Root>
       </SettingWrapper>
 
-      <SettingWrapper title="Automatic memory history">
+      <SettingWrapper
+        title={t['com.affine.localmind.aiContext.history.title']()}
+      >
         <div className={styles.memoryList}>
           {memoryEvents.filter(event => event.operation !== 'NOOP').length ? (
             memoryEvents
@@ -2224,7 +2465,9 @@ const AIContextDashboard = ({
               .map(event => (
                 <div className={styles.eventRow} key={event.id}>
                   <div className={styles.metadata}>
-                    <span className={styles.tag}>{event.operation}</span>
+                    <span className={styles.tag}>
+                      {operationLabels[event.operation] ?? event.operation}
+                    </span>
                     {event.factKey ? (
                       <span className={styles.tag}>{event.factKey}</span>
                     ) : null}
@@ -2239,13 +2482,15 @@ const AIContextDashboard = ({
                       disabled={pendingIds.has(event.id)}
                       onClick={() => void undoMemoryEvent(event)}
                     >
-                      Undo
+                      {t['com.affine.localmind.aiContext.undo']()}
                     </Button>
                   ) : null}
                 </div>
               ))
           ) : (
-            <div className={styles.empty}>No automatic memory changes</div>
+            <div className={styles.empty}>
+              {t['com.affine.localmind.aiContext.history.empty']()}
+            </div>
           )}
         </div>
       </SettingWrapper>
@@ -2258,6 +2503,7 @@ export const AIContextSettings = ({
 }: {
   onOpenMembers: () => void;
 }) => {
+  const t = useI18n();
   const authService = useService(AuthService);
   const globalDialogService = useService(GlobalDialogService);
   const status = useLiveData(authService.session.status$);
@@ -2265,22 +2511,22 @@ export const AIContextSettings = ({
   return (
     <>
       <SettingHeader
-        title="AI context"
-        subtitle="Manage your private AI memory and where it can be used."
+        title={t['com.affine.localmind.aiContext.title']()}
+        subtitle={t['com.affine.localmind.aiContext.subtitle']()}
       />
       {status === 'authenticated' ? (
         <AIContextDashboard onOpenMembers={onOpenMembers} />
       ) : (
         <SettingWrapper title="">
           <SettingRow
-            name="Sign in to manage AI context"
-            desc="Memory controls are tied to your account and workspace permissions."
+            name={t['com.affine.localmind.aiContext.signIn.title']()}
+            desc={t['com.affine.localmind.aiContext.signIn.description']()}
           >
             <Button
               variant="primary"
               onClick={() => globalDialogService.open('sign-in', {})}
             >
-              Sign in
+              {t['com.affine.localmind.aiContext.signIn.action']()}
             </Button>
           </SettingRow>
         </SettingWrapper>

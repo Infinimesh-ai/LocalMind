@@ -1042,6 +1042,16 @@ export interface CopilotAgentRuntimeControlInput {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface CopilotAgentRuntimeDocUpdateRequestInput {
+  content: Scalars['String']['input'];
+  contentFingerprint?: InputMaybe<Scalars['String']['input']>;
+  docId: Scalars['String']['input'];
+  idempotencyKey?: InputMaybe<Scalars['String']['input']>;
+  reason?: InputMaybe<Scalars['String']['input']>;
+  title?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
 export interface CopilotAgentRuntimeExecutionResultType {
   __typename?: 'CopilotAgentRuntimeExecutionResultType';
   actorId: Scalars['String']['output'];
@@ -1209,6 +1219,23 @@ export interface CopilotContextMemoryEventType {
   targetEventId: Maybe<Scalars['String']['output']>;
   undoneAt: Maybe<Scalars['DateTime']['output']>;
   writerVersion: Scalars['String']['output'];
+}
+
+export enum CopilotContextMemoryManualKindInput {
+  project_summary = 'project_summary',
+  rule = 'rule',
+}
+
+export enum CopilotContextMemoryMutableStatusInput {
+  active = 'active',
+  disabled = 'disabled',
+}
+
+export enum CopilotContextMemoryScopeInput {
+  document = 'document',
+  project = 'project',
+  user = 'user',
+  workspace = 'workspace',
 }
 
 export interface CopilotContextMemoryType {
@@ -1720,6 +1747,66 @@ export interface CopilotPromptCatalogVersionEvidenceType {
 export interface CopilotPromptNotFoundDataType {
   __typename?: 'CopilotPromptNotFoundDataType';
   name: Scalars['String']['output'];
+}
+
+export interface CopilotPromptRegistryBodyEditDiffLineType {
+  __typename?: 'CopilotPromptRegistryBodyEditDiffLineType';
+  kind: Scalars['String']['output'];
+  newLine: Maybe<Scalars['SafeInt']['output']>;
+  oldLine: Maybe<Scalars['SafeInt']['output']>;
+  text: Scalars['String']['output'];
+}
+
+export interface CopilotPromptRegistryBodyEditDiffType {
+  __typename?: 'CopilotPromptRegistryBodyEditDiffType';
+  addedLineCount: Scalars['SafeInt']['output'];
+  lines: Array<CopilotPromptRegistryBodyEditDiffLineType>;
+  removedLineCount: Scalars['SafeInt']['output'];
+  unchangedLineCount: Scalars['SafeInt']['output'];
+  version: Scalars['String']['output'];
+}
+
+export interface CopilotPromptRegistryBodyEditPreviewInput {
+  expectedVersion?: InputMaybe<CopilotPromptRegistryPublishGateExpectedVersionInput>;
+  messageIndex: Scalars['SafeInt']['input'];
+  name: Scalars['String']['input'];
+  nextContent: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotPromptRegistryBodyEditPreviewType {
+  __typename?: 'CopilotPromptRegistryBodyEditPreviewType';
+  changed: Scalars['Boolean']['output'];
+  currentContent: Scalars['String']['output'];
+  currentContentFingerprint: Scalars['String']['output'];
+  diff: CopilotPromptRegistryBodyEditDiffType;
+  diffFingerprint: Scalars['String']['output'];
+  messageIndex: Scalars['SafeInt']['output'];
+  name: Scalars['String']['output'];
+  nextContent: Scalars['String']['output'];
+  nextContentFingerprint: Scalars['String']['output'];
+  previewFingerprint: Scalars['String']['output'];
+  registryFingerprint: Scalars['String']['output'];
+  registryId: Scalars['SafeInt']['output'];
+  registryUpdatedAt: Scalars['DateTime']['output'];
+  version: Scalars['String']['output'];
+}
+
+export interface CopilotPromptRegistryBodyEditPublishInput {
+  expectedPreviewFingerprint: Scalars['String']['input'];
+  expectedVersion?: InputMaybe<CopilotPromptRegistryPublishGateExpectedVersionInput>;
+  idempotencyKey?: InputMaybe<Scalars['String']['input']>;
+  messageIndex: Scalars['SafeInt']['input'];
+  name: Scalars['String']['input'];
+  nextContent: Scalars['String']['input'];
+  reviewNote?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotPromptRegistryBodyEditPublishType {
+  __typename?: 'CopilotPromptRegistryBodyEditPublishType';
+  preview: CopilotPromptRegistryBodyEditPreviewType;
+  revision: CopilotPromptRegistryRevisionType;
 }
 
 export interface CopilotPromptRegistryPublishGateActionRouteDryRunRouteType {
@@ -4043,9 +4130,9 @@ export interface CreateCheckoutSessionInput {
 export interface CreateCopilotContextMemoryInput {
   content: Scalars['String']['input'];
   docId?: InputMaybe<Scalars['String']['input']>;
-  kind: Scalars['String']['input'];
+  kind: CopilotContextMemoryManualKindInput;
   projectId?: InputMaybe<Scalars['String']['input']>;
-  scope: Scalars['String']['input'];
+  scope: CopilotContextMemoryScopeInput;
   workspaceId?: InputMaybe<Scalars['String']['input']>;
 }
 
@@ -5075,9 +5162,13 @@ export interface Mutation {
   linkCalendarAccount: Scalars['String']['output'];
   /** mention user in a doc */
   mentionUser: Scalars['ID']['output'];
+  /** Preview a Prompt Registry message body edit and return a publishable diff fingerprint before writing. */
+  previewCopilotPromptRegistryBodyEdit: CopilotPromptRegistryBodyEditPreviewType;
   previewLicense: AdminLicensePreview;
   /** Publish a workspace-scoped DB-backed model definition revision for an existing configured provider. */
   publishCopilotModelRegistryRevision: CopilotModelRegistryRevisionType;
+  /** Publish a Prompt Registry message body edit after a matching diff preview fingerprint. */
+  publishCopilotPromptRegistryBodyEdit: CopilotPromptRegistryBodyEditPublishType;
   /** Publish a workspace-scoped DB-backed prompt registry revision after publish-gate and route-readiness checks. */
   publishCopilotPromptRegistryRevision: CopilotPromptRegistryRevisionType;
   /** Publish a workspace-scoped DB-backed provider profile metadata revision for an existing configured provider. */
@@ -5114,6 +5205,8 @@ export interface Mutation {
   replayCopilotSupportBundleTransferForwardingEvent: CopilotSupportBundleTransferForwardingEventType;
   /** Request to apply the subscription in advance */
   requestApplySubscription: Array<SubscriptionType>;
+  /** Request an approval-gated Agent Runtime office task that updates one workspace document after approval. */
+  requestCopilotAgentRuntimeDocUpdate: CopilotAgentRunType;
   /** Request prompt registry repair execution. Approval-gated requests can publish a DB-backed workspace prompt registry revision after approval. */
   requestCopilotPromptRegistryRepairExecution: CopilotPromptRegistryRepairExecutionRequestType;
   /** Resolve a comment or not */
@@ -5490,12 +5583,20 @@ export interface MutationMentionUserArgs {
   input: MentionInput;
 }
 
+export interface MutationPreviewCopilotPromptRegistryBodyEditArgs {
+  input: CopilotPromptRegistryBodyEditPreviewInput;
+}
+
 export interface MutationPreviewLicenseArgs {
   license: Scalars['Upload']['input'];
 }
 
 export interface MutationPublishCopilotModelRegistryRevisionArgs {
   input: CopilotModelRegistryPublishInput;
+}
+
+export interface MutationPublishCopilotPromptRegistryBodyEditArgs {
+  input: CopilotPromptRegistryBodyEditPublishInput;
 }
 
 export interface MutationPublishCopilotPromptRegistryRevisionArgs {
@@ -5570,6 +5671,10 @@ export interface MutationReplayCopilotSupportBundleTransferForwardingEventArgs {
 
 export interface MutationRequestApplySubscriptionArgs {
   transactionId: Scalars['String']['input'];
+}
+
+export interface MutationRequestCopilotAgentRuntimeDocUpdateArgs {
+  input: CopilotAgentRuntimeDocUpdateRequestInput;
 }
 
 export interface MutationRequestCopilotPromptRegistryRepairExecutionArgs {
@@ -6673,7 +6778,7 @@ export interface UpdateChatSessionInput {
 export interface UpdateCopilotContextMemoryInput {
   content?: InputMaybe<Scalars['String']['input']>;
   id: Scalars['ID']['input'];
-  status?: InputMaybe<Scalars['String']['input']>;
+  status?: InputMaybe<CopilotContextMemoryMutableStatusInput>;
 }
 
 export interface UpdateCopilotContextPolicyInput {

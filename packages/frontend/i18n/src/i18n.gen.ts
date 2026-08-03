@@ -9303,6 +9303,972 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.realtime.connection-error.message"](): string;
     /**
+      * `Help & guide`
+      */
+    ["com.affine.localmind.help.title"](): string;
+    /**
+      * `LOCALMIND HELP CENTER`
+      */
+    ["com.affine.localmind.help.eyebrow"](): string;
+    /**
+      * `AI context`
+      */
+    ["com.affine.localmind.aiContext.title"](): string;
+    /**
+      * `Document updated`
+      */
+    ["com.affine.localmind.documentUpdate.title"](): string;
+    /**
+      * `Untitled document`
+      */
+    ["com.affine.localmind.documentUpdate.untitled"](): string;
+    /**
+      * `{{first}} and {{second}}`
+      */
+    ["com.affine.localmind.documentUpdate.list.two"](options: Readonly<{
+        first: string;
+        second: string;
+    }>): string;
+    /**
+      * `{{documents}} and {{remaining}} more`
+      */
+    ["com.affine.localmind.documentUpdate.list.more"](options: Readonly<{
+        documents: string;
+        remaining: string;
+    }>): string;
+    /**
+      * `{{documents}} has changed since it was added. This chat still uses the earlier version.`
+      */
+    ["com.affine.localmind.documentUpdate.description.one"](options: {
+        readonly documents: string;
+    }): string;
+    /**
+      * `{{documents}} have changed since they were added. This chat still uses the earlier version.`
+      */
+    ["com.affine.localmind.documentUpdate.description.many"](options: {
+        readonly documents: string;
+    }): string;
+    /**
+      * `New chat`
+      */
+    ["com.affine.localmind.documentUpdate.newChat"](): string;
+    /**
+      * `Dismiss document update warning`
+      */
+    ["com.affine.localmind.documentUpdate.dismiss"](): string;
+    /**
+      * `Dismiss`
+      */
+    ["com.affine.localmind.documentUpdate.dismissShort"](): string;
+    /**
+      * `Manage your private AI memory and where it can be used.`
+      */
+    ["com.affine.localmind.aiContext.subtitle"](): string;
+    /**
+      * `Untitled`
+      */
+    ["com.affine.localmind.aiContext.untitled"](): string;
+    /**
+      * `Description`
+      */
+    ["com.affine.localmind.aiContext.description"](): string;
+    /**
+      * `Keywords, comma separated`
+      */
+    ["com.affine.localmind.aiContext.keywordsPlaceholder"](): string;
+    /**
+      * `Match all groups`
+      */
+    ["com.affine.localmind.aiContext.matchAll"](): string;
+    /**
+      * `Match any group`
+      */
+    ["com.affine.localmind.aiContext.matchAny"](): string;
+    /**
+      * `Documents`
+      */
+    ["com.affine.localmind.aiContext.documents"](): string;
+    /**
+      * `{{count}} documents`
+      */
+    ["com.affine.localmind.aiContext.documentsCount"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `{{count}} projects`
+      */
+    ["com.affine.localmind.aiContext.projectsCount"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Clear projects`
+      */
+    ["com.affine.localmind.aiContext.clearProjects"](): string;
+    /**
+      * `Rule`
+      */
+    ["com.affine.localmind.aiContext.kind.rule"](): string;
+    /**
+      * `Automatic memory`
+      */
+    ["com.affine.localmind.aiContext.kind.autoMemory"](): string;
+    /**
+      * `Project summary`
+      */
+    ["com.affine.localmind.aiContext.kind.projectSummary"](): string;
+    /**
+      * `Every workspace`
+      */
+    ["com.affine.localmind.aiContext.scope.everyWorkspace"](): string;
+    /**
+      * `This team`
+      */
+    ["com.affine.localmind.aiContext.scope.thisTeam"](): string;
+    /**
+      * `Document`
+      */
+    ["com.affine.localmind.aiContext.scope.document"](): string;
+    /**
+      * `Project`
+      */
+    ["com.affine.localmind.aiContext.scope.project"](): string;
+    /**
+      * `All`
+      */
+    ["com.affine.localmind.aiContext.filter.all"](): string;
+    /**
+      * `Automatic`
+      */
+    ["com.affine.localmind.aiContext.filter.automatic"](): string;
+    /**
+      * `Summaries`
+      */
+    ["com.affine.localmind.aiContext.filter.summaries"](): string;
+    /**
+      * `Always`
+      */
+    ["com.affine.localmind.aiContext.mode.always"](): string;
+    /**
+      * `When relevant`
+      */
+    ["com.affine.localmind.aiContext.mode.relevant"](): string;
+    /**
+      * `Manual`
+      */
+    ["com.affine.localmind.aiContext.mode.manual"](): string;
+    /**
+      * `Manual`
+      */
+    ["com.affine.localmind.aiContext.capture.manual"](): string;
+    /**
+      * `Explicit`
+      */
+    ["com.affine.localmind.aiContext.capture.explicit"](): string;
+    /**
+      * `Automatic`
+      */
+    ["com.affine.localmind.aiContext.capture.implicit"](): string;
+    /**
+      * `Legacy`
+      */
+    ["com.affine.localmind.aiContext.capture.legacy"](): string;
+    /**
+      * `Added`
+      */
+    ["com.affine.localmind.aiContext.operation.add"](): string;
+    /**
+      * `Updated`
+      */
+    ["com.affine.localmind.aiContext.operation.update"](): string;
+    /**
+      * `Deleted`
+      */
+    ["com.affine.localmind.aiContext.operation.delete"](): string;
+    /**
+      * `Undone`
+      */
+    ["com.affine.localmind.aiContext.operation.undo"](): string;
+    /**
+      * `AI context update failed`
+      */
+    ["com.affine.localmind.aiContext.updateFailed"](): string;
+    /**
+      * `Select up to {{count}} documents`
+      */
+    ["com.affine.localmind.aiContext.selectUpToDocuments"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Select between {{min}} and {{max}} documents`
+      */
+    ["com.affine.localmind.aiContext.selectDocumentRange"](options: Readonly<{
+        min: string;
+        max: string;
+    }>): string;
+    /**
+      * `Delete`
+      */
+    ["com.affine.localmind.aiContext.delete"](): string;
+    /**
+      * `Cancel`
+      */
+    ["com.affine.localmind.aiContext.cancel"](): string;
+    /**
+      * `Delete context project?`
+      */
+    ["com.affine.localmind.aiContext.deleteProject.title"](): string;
+    /**
+      * `The project must be empty of personal memories. This cannot be undone.`
+      */
+    ["com.affine.localmind.aiContext.deleteProject.description"](): string;
+    /**
+      * `Delete project`
+      */
+    ["com.affine.localmind.aiContext.deleteProject.action"](): string;
+    /**
+      * `Delete rule?`
+      */
+    ["com.affine.localmind.aiContext.deleteRule.title"](): string;
+    /**
+      * `Delete rule`
+      */
+    ["com.affine.localmind.aiContext.deleteRule.action"](): string;
+    /**
+      * `Delete workspace policy?`
+      */
+    ["com.affine.localmind.aiContext.deletePolicy.title"](): string;
+    /**
+      * `Delete policy`
+      */
+    ["com.affine.localmind.aiContext.deletePolicy.action"](): string;
+    /**
+      * `Delete AI memory?`
+      */
+    ["com.affine.localmind.aiContext.deleteMemory.title"](): string;
+    /**
+      * `AI context did not load`
+      */
+    ["com.affine.localmind.aiContext.loadFailed.title"](): string;
+    /**
+      * `Check the server connection and your workspace permission.`
+      */
+    ["com.affine.localmind.aiContext.loadFailed.description"](): string;
+    /**
+      * `Retry`
+      */
+    ["com.affine.localmind.aiContext.retry"](): string;
+    /**
+      * `Ownership and scope`
+      */
+    ["com.affine.localmind.aiContext.ownership.title"](): string;
+    /**
+      * `Memory ownership`
+      */
+    ["com.affine.localmind.aiContext.ownership.memory.name"](): string;
+    /**
+      * `Rules, summaries, and automatic memories belong only to your account.`
+      */
+    ["com.affine.localmind.aiContext.ownership.memory.description"](): string;
+    /**
+      * `Team boundary`
+      */
+    ["com.affine.localmind.aiContext.ownership.team.name"](): string;
+    /**
+      * `Team-scoped memories are used only inside this workspace.`
+      */
+    ["com.affine.localmind.aiContext.ownership.team.description"](): string;
+    /**
+      * `Only you`
+      */
+    ["com.affine.localmind.aiContext.onlyYou"](): string;
+    /**
+      * `Manage members`
+      */
+    ["com.affine.localmind.aiContext.manageMembers"](): string;
+    /**
+      * `Automatic memory`
+      */
+    ["com.affine.localmind.aiContext.automaticMemory"](): string;
+    /**
+      * `Sync this workspace before using automatic memory.`
+      */
+    ["com.affine.localmind.aiContext.autoMemory.syncRequired"](): string;
+    /**
+      * `Save durable preferences and decisions from AI conversations.`
+      */
+    ["com.affine.localmind.aiContext.autoMemory.description"](): string;
+    /**
+      * `Automatic memory enabled`
+      */
+    ["com.affine.localmind.aiContext.autoMemory.enabled"](): string;
+    /**
+      * `Context engine`
+      */
+    ["com.affine.localmind.aiContext.engine.name"](): string;
+    /**
+      * `Rolling summaries and scoped memory selection`
+      */
+    ["com.affine.localmind.aiContext.engine.description"](): string;
+    /**
+      * `Unavailable`
+      */
+    ["com.affine.localmind.aiContext.unavailable"](): string;
+    /**
+      * `Active`
+      */
+    ["com.affine.localmind.aiContext.active"](): string;
+    /**
+      * `Archived`
+      */
+    ["com.affine.localmind.aiContext.archived"](): string;
+    /**
+      * `{{count}} plans traced`
+      */
+    ["com.affine.localmind.aiContext.plansTraced"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `{{count}} previous retained`
+      */
+    ["com.affine.localmind.aiContext.previousStrategies"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Context projects`
+      */
+    ["com.affine.localmind.aiContext.projects.title"](): string;
+    /**
+      * `Project name`
+      */
+    ["com.affine.localmind.aiContext.projectName"](): string;
+    /**
+      * `Select documents`
+      */
+    ["com.affine.localmind.aiContext.selectDocuments"](): string;
+    /**
+      * `Create project`
+      */
+    ["com.affine.localmind.aiContext.createProject"](): string;
+    /**
+      * `{{name}} active`
+      */
+    ["com.affine.localmind.aiContext.projectEnabled"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Save project`
+      */
+    ["com.affine.localmind.aiContext.saveProject"](): string;
+    /**
+      * `Sync this workspace to create context projects`
+      */
+    ["com.affine.localmind.aiContext.projects.syncRequired"](): string;
+    /**
+      * `No context projects`
+      */
+    ["com.affine.localmind.aiContext.projects.empty"](): string;
+    /**
+      * `No accessible context projects`
+      */
+    ["com.affine.localmind.aiContext.projects.emptyAccessible"](): string;
+    /**
+      * `Your rules`
+      */
+    ["com.affine.localmind.aiContext.rules.title"](): string;
+    /**
+      * `Rule name`
+      */
+    ["com.affine.localmind.aiContext.ruleName"](): string;
+    /**
+      * `Rule priority`
+      */
+    ["com.affine.localmind.aiContext.rulePriority"](): string;
+    /**
+      * `Select project`
+      */
+    ["com.affine.localmind.aiContext.selectProject"](): string;
+    /**
+      * `Rule instruction`
+      */
+    ["com.affine.localmind.aiContext.ruleInstruction"](): string;
+    /**
+      * `Create rule`
+      */
+    ["com.affine.localmind.aiContext.createRule"](): string;
+    /**
+      * `{{name}} priority`
+      */
+    ["com.affine.localmind.aiContext.namedPriority"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `{{name}} content`
+      */
+    ["com.affine.localmind.aiContext.namedContent"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `{{name}} enabled`
+      */
+    ["com.affine.localmind.aiContext.namedEnabled"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `{{count}} recent hits`
+      */
+    ["com.affine.localmind.aiContext.recentHits"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Revision {{revision}}`
+      */
+    ["com.affine.localmind.aiContext.revision"](options: {
+        readonly revision: string;
+    }): string;
+    /**
+      * `Save rule`
+      */
+    ["com.affine.localmind.aiContext.saveRule"](): string;
+    /**
+      * `No rules`
+      */
+    ["com.affine.localmind.aiContext.rules.empty"](): string;
+    /**
+      * `Workspace policies`
+      */
+    ["com.affine.localmind.aiContext.policies.title"](): string;
+    /**
+      * `Policy name`
+      */
+    ["com.affine.localmind.aiContext.policyName"](): string;
+    /**
+      * `Policy priority`
+      */
+    ["com.affine.localmind.aiContext.policyPriority"](): string;
+    /**
+      * `Enforced policy instruction`
+      */
+    ["com.affine.localmind.aiContext.policyInstruction"](): string;
+    /**
+      * `Create policy`
+      */
+    ["com.affine.localmind.aiContext.createPolicy"](): string;
+    /**
+      * `Workspace policy`
+      */
+    ["com.affine.localmind.aiContext.workspacePolicy"](): string;
+    /**
+      * `Save policy`
+      */
+    ["com.affine.localmind.aiContext.savePolicy"](): string;
+    /**
+      * `No workspace policies`
+      */
+    ["com.affine.localmind.aiContext.policies.empty"](): string;
+    /**
+      * `Memories and project summaries`
+      */
+    ["com.affine.localmind.aiContext.memories.title"](): string;
+    /**
+      * `Project summary`
+      */
+    ["com.affine.localmind.aiContext.projectSummary"](): string;
+    /**
+      * `Add project summary`
+      */
+    ["com.affine.localmind.aiContext.addProjectSummary"](): string;
+    /**
+      * `Search`
+      */
+    ["com.affine.localmind.aiContext.search"](): string;
+    /**
+      * `Confidence {{percent}}%`
+      */
+    ["com.affine.localmind.aiContext.confidence"](options: {
+        readonly percent: string;
+    }): string;
+    /**
+      * `Expires {{date}}`
+      */
+    ["com.affine.localmind.aiContext.expires"](options: {
+        readonly date: string;
+    }): string;
+    /**
+      * `Used {{count}} times`
+      */
+    ["com.affine.localmind.aiContext.usedTimes"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Archived project`
+      */
+    ["com.affine.localmind.aiContext.archivedProject"](): string;
+    /**
+      * `Updated {{date}}`
+      */
+    ["com.affine.localmind.aiContext.updated"](options: {
+        readonly date: string;
+    }): string;
+    /**
+      * `{{kind}} enabled: {{content}}`
+      */
+    ["com.affine.localmind.aiContext.memoryEnabled"](options: Readonly<{
+        kind: string;
+        content: string;
+    }>): string;
+    /**
+      * `Save`
+      */
+    ["com.affine.localmind.aiContext.save"](): string;
+    /**
+      * `No matching memories`
+      */
+    ["com.affine.localmind.aiContext.memories.emptySearch"](): string;
+    /**
+      * `No saved memories`
+      */
+    ["com.affine.localmind.aiContext.memories.empty"](): string;
+    /**
+      * `Automatic memory history`
+      */
+    ["com.affine.localmind.aiContext.history.title"](): string;
+    /**
+      * `Undo`
+      */
+    ["com.affine.localmind.aiContext.undo"](): string;
+    /**
+      * `No automatic memory changes`
+      */
+    ["com.affine.localmind.aiContext.history.empty"](): string;
+    /**
+      * `Sign in to manage AI context`
+      */
+    ["com.affine.localmind.aiContext.signIn.title"](): string;
+    /**
+      * `Memory controls are tied to your account and workspace permissions.`
+      */
+    ["com.affine.localmind.aiContext.signIn.description"](): string;
+    /**
+      * `Sign in`
+      */
+    ["com.affine.localmind.aiContext.signIn.action"](): string;
+    /**
+      * `LocalMind guide`
+      */
+    ["com.affine.localmind.help.pageTitle"](): string;
+    /**
+      * `Learn how to organize workspace sources, AI Chat, personal memory, and project context into a reliable, reviewable workflow.`
+      */
+    ["com.affine.localmind.help.intro"](): string;
+    /**
+      * `Open AI Chat`
+      */
+    ["com.affine.localmind.help.openChat"](): string;
+    /**
+      * `Manage AI context`
+      */
+    ["com.affine.localmind.help.manageContext"](): string;
+    /**
+      * `Open Embedding settings`
+      */
+    ["com.affine.localmind.help.openEmbedding"](): string;
+    /**
+      * `Search the guide`
+      */
+    ["com.affine.localmind.help.search.placeholder"](): string;
+    /**
+      * `Clear search`
+      */
+    ["com.affine.localmind.help.search.clear"](): string;
+    /**
+      * `AI Chat will prompt you to start a new chat after a document changes`
+      */
+    ["com.affine.localmind.help.alert.title"](): string;
+    /**
+      * `Existing chats use the document snapshot saved when the source was read and do not pull later edits automatically. After saving the document, a dismissible notice appears above the composer. Choose New Chat, then select or reference the document again. Dismissal applies only to that saved version; a later save shows the notice again.`
+      */
+    ["com.affine.localmind.help.alert.description"](): string;
+    /**
+      * `Guide contents`
+      */
+    ["com.affine.localmind.help.toc.label"](): string;
+    /**
+      * `Contents`
+      */
+    ["com.affine.localmind.help.toc.title"](): string;
+    /**
+      * `No matching content`
+      */
+    ["com.affine.localmind.help.empty.title"](): string;
+    /**
+      * `Try searching for document updates, Automatic Memory, or permissions.`
+      */
+    ["com.affine.localmind.help.empty.description"](): string;
+    /**
+      * `Quick start`
+      */
+    ["com.affine.localmind.help.section.start.title"](): string;
+    /**
+      * `Go from prepared sources to a verifiable answer.`
+      */
+    ["com.affine.localmind.help.section.start.summary"](): string;
+    /**
+      * `Document updates and snapshots`
+      */
+    ["com.affine.localmind.help.section.snapshots.title"](): string;
+    /**
+      * `Understand why an existing chat does not automatically read an edited document.`
+      */
+    ["com.affine.localmind.help.section.snapshots.summary"](): string;
+    /**
+      * `AI Chat`
+      */
+    ["com.affine.localmind.help.section.chat.title"](): string;
+    /**
+      * `Add sources, manage conversations, and ask questions with clear boundaries.`
+      */
+    ["com.affine.localmind.help.section.chat.summary"](): string;
+    /**
+      * `Rules and memory`
+      */
+    ["com.affine.localmind.help.section.memory.title"](): string;
+    /**
+      * `Manage personal rules, automatic memory, and project summaries.`
+      */
+    ["com.affine.localmind.help.section.memory.summary"](): string;
+    /**
+      * `Projects and teams`
+      */
+    ["com.affine.localmind.help.section.projects.title"](): string;
+    /**
+      * `Create Context Projects and understand member and project boundaries.`
+      */
+    ["com.affine.localmind.help.section.projects.summary"](): string;
+    /**
+      * `Permissions and privacy`
+      */
+    ["com.affine.localmind.help.section.permissions.title"](): string;
+    /**
+      * `Understand permission filtering, personal ownership, and team policy boundaries.`
+      */
+    ["com.affine.localmind.help.section.permissions.summary"](): string;
+    /**
+      * `Indexing and search`
+      */
+    ["com.affine.localmind.help.section.search.title"](): string;
+    /**
+      * `Manage Embedding and diagnose empty search results.`
+      */
+    ["com.affine.localmind.help.section.search.summary"](): string;
+    /**
+      * `Troubleshooting`
+      */
+    ["com.affine.localmind.help.section.troubleshooting.title"](): string;
+    /**
+      * `Quickly diagnose Automatic Memory, project, and search issues.`
+      */
+    ["com.affine.localmind.help.section.troubleshooting.summary"](): string;
+    /**
+      * `Prepare sources`
+      */
+    ["com.affine.localmind.help.quickStart.prepare.title"](): string;
+    /**
+      * `Open or create the workspace documents that AI should use.`
+      */
+    ["com.affine.localmind.help.quickStart.prepare.description"](): string;
+    /**
+      * `Add context`
+      */
+    ["com.affine.localmind.help.quickStart.context.title"](): string;
+    /**
+      * `Open AI Chat and use the + next to the composer to select documents or files.`
+      */
+    ["com.affine.localmind.help.quickStart.context.description"](): string;
+    /**
+      * `Define the task`
+      */
+    ["com.affine.localmind.help.quickStart.task.title"](): string;
+    /**
+      * `State the source boundary, output format, and what must not be guessed.`
+      */
+    ["com.affine.localmind.help.quickStart.task.description"](): string;
+    /**
+      * `Keep durable guidance`
+      */
+    ["com.affine.localmind.help.quickStart.memory.title"](): string;
+    /**
+      * `Save stable constraints as Rules and review Automatic Memory regularly.`
+      */
+    ["com.affine.localmind.help.quickStart.memory.description"](): string;
+    /**
+      * `Suggested prompt`
+      */
+    ["com.affine.localmind.help.quickStart.promptLabel"](): string;
+    /**
+      * `Using only Release plan and Risk list, create next week's checklist grouped by owner. Mark anything the sources do not confirm as Needs confirmation and do not invent missing details.`
+      */
+    ["com.affine.localmind.help.quickStart.promptExample"](): string;
+    /**
+      * `Why snapshots are used`
+      */
+    ["com.affine.localmind.help.snapshots.why.title"](): string;
+    /**
+      * `A chat preserves the source version it read so prior answers remain reproducible instead of silently changing when the source document is edited.`
+      */
+    ["com.affine.localmind.help.snapshots.why.description"](): string;
+    /**
+      * `Read the latest version`
+      */
+    ["com.affine.localmind.help.snapshots.latest.title"](): string;
+    /**
+      * `Save the document and wait for sync to finish.`
+      */
+    ["com.affine.localmind.help.snapshots.latest.step1"](): string;
+    /**
+      * `Wait for the update notice above the current chat composer.`
+      */
+    ["com.affine.localmind.help.snapshots.latest.step2"](): string;
+    /**
+      * `Choose New Chat in the notice.`
+      */
+    ["com.affine.localmind.help.snapshots.latest.step3"](): string;
+    /**
+      * `Select or reference the document again in the new chat.`
+      */
+    ["com.affine.localmind.help.snapshots.latest.step4"](): string;
+    /**
+      * `Ask AI to answer from the latest version.`
+      */
+    ["com.affine.localmind.help.snapshots.latest.step5"](): string;
+    /**
+      * `The notice can be dismissed. It does not repeat for the same saved version and returns after the document is saved again.`
+      */
+    ["com.affine.localmind.help.snapshots.latest.note"](): string;
+    /**
+      * `Add sources`
+      */
+    ["com.affine.localmind.help.chat.add.title"](): string;
+    /**
+      * `Choose + next to the composer to add workspace documents, tags, collections, PDFs, TXT or CSV files, and images. Prefer a small set of authoritative sources.`
+      */
+    ["com.affine.localmind.help.chat.add.description"](): string;
+    /**
+      * `Manage sessions`
+      */
+    ["com.affine.localmind.help.chat.sessions.title"](): string;
+    /**
+      * `Use New Chat for a clean session and Chat History to return to earlier sessions. Keep each chat focused on one continuing topic when possible.`
+      */
+    ["com.affine.localmind.help.chat.sessions.description"](): string;
+    /**
+      * `Long conversations`
+      */
+    ["com.affine.localmind.help.chat.long.title"](): string;
+    /**
+      * `LocalMind keeps recent messages and compresses older content. Start a new chat when the goal, sources, or assumptions change substantially.`
+      */
+    ["com.affine.localmind.help.chat.long.description"](): string;
+    /**
+      * `Prompt check:`
+      */
+    ["com.affine.localmind.help.chat.check.label"](): string;
+    /**
+      * `task, source boundary, output format, content that must be retained, and content that must not be guessed.`
+      */
+    ["com.affine.localmind.help.chat.check.description"](): string;
+    /**
+      * `Type`
+      */
+    ["com.affine.localmind.help.memory.table.type"](): string;
+    /**
+      * `Purpose`
+      */
+    ["com.affine.localmind.help.memory.table.purpose"](): string;
+    /**
+      * `Management`
+      */
+    ["com.affine.localmind.help.memory.table.management"](): string;
+    /**
+      * `Rule`
+      */
+    ["com.affine.localmind.help.memory.rule.name"](): string;
+    /**
+      * `Explicitly constrain answer format and working style`
+      */
+    ["com.affine.localmind.help.memory.rule.purpose"](): string;
+    /**
+      * `Create, edit, disable, or delete`
+      */
+    ["com.affine.localmind.help.memory.rule.management"](): string;
+    /**
+      * `Automatic Memory`
+      */
+    ["com.affine.localmind.help.memory.automatic.name"](): string;
+    /**
+      * `Keep the current user's stable preferences and decisions`
+      */
+    ["com.affine.localmind.help.memory.automatic.purpose"](): string;
+    /**
+      * `Created automatically and available for review and editing`
+      */
+    ["com.affine.localmind.help.memory.automatic.management"](): string;
+    /**
+      * `Project Summary`
+      */
+    ["com.affine.localmind.help.memory.project.name"](): string;
+    /**
+      * `Keep the current user's stable project background`
+      */
+    ["com.affine.localmind.help.memory.project.purpose"](): string;
+    /**
+      * `Managed by Context Project`
+      */
+    ["com.affine.localmind.help.memory.project.management"](): string;
+    /**
+      * `Rolling Summary`
+      */
+    ["com.affine.localmind.help.memory.rolling.name"](): string;
+    /**
+      * `Compress older content in the current long conversation`
+      */
+    ["com.affine.localmind.help.memory.rolling.purpose"](): string;
+    /**
+      * `Belongs only to the current chat`
+      */
+    ["com.affine.localmind.help.memory.rolling.management"](): string;
+    /**
+      * `Good to save`
+      */
+    ["com.affine.localmind.help.memory.save.label"](): string;
+    /**
+      * `Remember: show me the conclusion before the detailed evidence.`
+      */
+    ["com.affine.localmind.help.memory.save.example1"](): string;
+    /**
+      * `Use YYYY-MM-DD for every date.`
+      */
+    ["com.affine.localmind.help.memory.save.example2"](): string;
+    /**
+      * `Do not save`
+      */
+    ["com.affine.localmind.help.memory.skip.label"](): string;
+    /**
+      * `One-time tasks, ordinary questions, passwords, tokens, API keys, or private keys.`
+      */
+    ["com.affine.localmind.help.memory.skip.description"](): string;
+    /**
+      * `Create a project`
+      */
+    ["com.affine.localmind.help.projects.create.title"](): string;
+    /**
+      * `Owners and admins can create a Context Project in AI context and select between 1 and 100 workspace documents.`
+      */
+    ["com.affine.localmind.help.projects.create.description"](): string;
+    /**
+      * `Project memory`
+      */
+    ["com.affine.localmind.help.projects.memory.title"](): string;
+    /**
+      * `Each user can save their own Project Summary or project Rule. The scope is the project, but ownership remains with the person who created it.`
+      */
+    ["com.affine.localmind.help.projects.memory.description"](): string;
+    /**
+      * `Archive and delete`
+      */
+    ["com.affine.localmind.help.projects.archive.title"](): string;
+    /**
+      * `Archive a project when work ends. It can be deleted only after it is archived and no personal project memory refers to it.`
+      */
+    ["com.affine.localmind.help.projects.archive.description"](): string;
+    /**
+      * `Check permissions before relevance ranking`
+      */
+    ["com.affine.localmind.help.permissions.lead"](): string;
+    /**
+      * `Users can search and use only documents they can read. A Context Project never bypasses existing document permissions.`
+      */
+    ["com.affine.localmind.help.permissions.description"](): string;
+    /**
+      * `Rules, Automatic Memory, and Project Summaries belong only to the current user.`
+      */
+    ["com.affine.localmind.help.permissions.item1"](): string;
+    /**
+      * `Team or project scope controls where private memory is used; it does not make that memory shared.`
+      */
+    ["com.affine.localmind.help.permissions.item2"](): string;
+    /**
+      * `Disabling memory does not delete it, and turning off Automatic Memory does not remove existing records.`
+      */
+    ["com.affine.localmind.help.permissions.item3"](): string;
+    /**
+      * `Put shared team requirements in an authoritative permission-controlled document instead of personal memory.`
+      */
+    ["com.affine.localmind.help.permissions.item4"](): string;
+    /**
+      * `Build the index`
+      */
+    ["com.affine.localmind.help.search.index.title"](): string;
+    /**
+      * `Open Workspace settings > Embedding to enable semantic indexing, inspect progress, upload supporting files, or ignore documents.`
+      */
+    ["com.affine.localmind.help.search.index.description"](): string;
+    /**
+      * `When results are empty`
+      */
+    ["com.affine.localmind.help.search.empty.title"](): string;
+    /**
+      * `Check document read permission, the Embedding switch, indexing progress, the ignore list, and whether the current chat selected the right sources.`
+      */
+    ["com.affine.localmind.help.search.empty.description"](): string;
+    /**
+      * `Why can't I enable Automatic Memory?`
+      */
+    ["com.affine.localmind.help.faq.autoMemory.question"](): string;
+    /**
+      * `Sign in and sync the current workspace, then confirm the server has Copilot enabled. Automatic Memory is disabled for unsynced local workspaces.`
+      */
+    ["com.affine.localmind.help.faq.autoMemory.answer"](): string;
+    /**
+      * `Why does AI still reference old document content?`
+      */
+    ["com.affine.localmind.help.faq.snapshot.question"](): string;
+    /**
+      * `This is expected snapshot behavior. Choose New Chat and select the updated document again. Switching to another old chat does not refresh an old snapshot.`
+      */
+    ["com.affine.localmind.help.faq.snapshot.answer"](): string;
+    /**
+      * `Why is old memory still present after I turn off Automatic Memory?`
+      */
+    ["com.affine.localmind.help.faq.oldMemory.question"](): string;
+    /**
+      * `The switch only stops creating new memory. Disable or delete existing records individually from the Automatic list.`
+      */
+    ["com.affine.localmind.help.faq.oldMemory.answer"](): string;
+    /**
+      * `Why can't a regular member create a Context Project?`
+      */
+    ["com.affine.localmind.help.faq.projectAccess.question"](): string;
+    /**
+      * `A Context Project changes workspace-level document grouping, so only owners and admins can manage it. Regular members can still use projects they can access.`
+      */
+    ["com.affine.localmind.help.faq.projectAccess.answer"](): string;
+    /**
+      * `Why can't I delete a project?`
+      */
+    ["com.affine.localmind.help.faq.projectDelete.question"](): string;
+    /**
+      * `The project must be archived and no user's private project memory may still refer to it.`
+      */
+    ["com.affine.localmind.help.faq.projectDelete.answer"](): string;
+    /**
+      * `Why can't search find an existing document?`
+      */
+    ["com.affine.localmind.help.faq.search.question"](): string;
+    /**
+      * `Check permission, the Embedding switch, indexing progress, the ignore list, and the current query scope.`
+      */
+    ["com.affine.localmind.help.faq.search.answer"](): string;
+    /**
       * `An internal error occurred.`
       */
     ["error.INTERNAL_SERVER_ERROR"](): string;

@@ -1,4 +1,3 @@
-import { Prisma } from '@prisma/client';
 import { nanoid } from 'nanoid';
 
 import { PermissionService } from '../../../core/permission';
@@ -18,6 +17,7 @@ import type {
   EmbeddingClient,
   EmbeddingRouteContext,
 } from '../embedding/types';
+import { readableContextDocPredicate } from './readable-doc-predicate';
 
 export class ContextSession implements AsyncDisposable {
   constructor(
@@ -89,15 +89,11 @@ export class ContextSession implements AsyncDisposable {
   }
 
   private readableDocPredicate(routeContext?: EmbeddingRouteContext) {
-    if (!routeContext?.userId) {
-      throw new Error('Document embedding search requires a user id.');
-    }
-    return this.permission.docReadableSqlPredicate({
-      userId: routeContext.userId,
-      workspaceId: this.workspaceId,
-      action: 'Doc.Read',
-      docIdColumn: Prisma.raw('w."doc_id"'),
-    });
+    return readableContextDocPredicate(
+      this.permission,
+      this.workspaceId,
+      routeContext
+    );
   }
 
   async addCategoryRecord(type: ContextCategories, id: string, docs: string[]) {

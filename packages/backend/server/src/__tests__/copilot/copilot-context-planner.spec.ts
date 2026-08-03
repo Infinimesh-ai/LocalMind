@@ -10,6 +10,7 @@ import {
   extractDurableMemories,
   extractExplicitMemoryDecisions,
   sanitizeContextMemoryWriterDecision,
+  shouldAttemptImplicitExtraction,
 } from '../../plugins/copilot/context-memory-service';
 import { ContextRuleService } from '../../plugins/copilot/context-rule-service';
 import { ContextScopeResolver } from '../../plugins/copilot/context-scope-resolver';
@@ -45,11 +46,11 @@ function tailRenderer(maxTurns: number) {
 
 test('ContextPlanner retains early and recent facts with a checkpoint', t => {
   const turns = [
-    message('user', 'EARLY_REQUIRED_FACT The deployment region is eu-west-1.'),
+    message('user', 'Remember that the deployment region is eu-west-1.'),
     message('assistant', 'Acknowledged.'),
     message('user', 'Intermediate discussion without a durable decision.'),
     message('assistant', 'Continuing.'),
-    message('user', 'RECENT_REQUIRED_FACT Produce the checklist.'),
+    message('user', 'Produce the deployment checklist now.'),
   ];
   const result = new ContextPlanner().plan({
     turns,
@@ -57,8 +58,8 @@ test('ContextPlanner retains early and recent facts with a checkpoint', t => {
   });
   const content = result.messages.map(item => item.content).join('\n');
 
-  t.true(content.includes('EARLY_REQUIRED_FACT'));
-  t.true(content.includes('RECENT_REQUIRED_FACT'));
+  t.true(content.includes('deployment region is eu-west-1'));
+  t.true(content.includes('deployment checklist'));
   t.is(result.checkpoint?.strategyVersion, CONTEXT_PLANNER_STRATEGY_VERSION);
   t.is(
     result.checkpoint?.strategyFingerprint,
@@ -84,7 +85,7 @@ test('ContextPlanner synthesizes multiple scoped fragments', t => {
       {
         scope: 'project',
         kind: 'auto_memory',
-        content: 'CROSS_SESSION_FACT The project codename is Juniper.',
+        content: 'The project codename is Juniper.',
       },
     ],
     render: tailRenderer(8),
@@ -93,7 +94,7 @@ test('ContextPlanner synthesizes multiple scoped fragments', t => {
 
   t.true(content.includes('Always require a rollback plan.'));
   t.true(content.includes('PostgreSQL'));
-  t.true(content.includes('CROSS_SESSION_FACT'));
+  t.true(content.includes('Juniper'));
   t.is(result.diagnostics.injectedMemoryCount, 3);
 });
 
@@ -169,7 +170,7 @@ test('ContextPlanner keeps the v4 system-context strategy available for replay',
 
 test('ContextPlanner keeps the legacy strategy available for replay', t => {
   const turns = [
-    message('user', 'EARLY_REQUIRED_FACT Keep this fact.'),
+    message('user', 'Remember the obsolete retention detail.'),
     message('assistant', 'Acknowledged.'),
     message('user', 'Latest request.'),
   ];
@@ -180,7 +181,7 @@ test('ContextPlanner keeps the legacy strategy available for replay', t => {
         {
           scope: 'workspace',
           kind: 'auto_memory',
-          content: 'CROSS_SESSION_FACT Hidden in legacy mode.',
+          content: 'The hidden legacy codename is Juniper.',
         },
       ],
       render: tailRenderer(1),
@@ -189,8 +190,8 @@ test('ContextPlanner keeps the legacy strategy available for replay', t => {
   );
   const content = result.messages.map(item => item.content).join('\n');
 
-  t.false(content.includes('EARLY_REQUIRED_FACT'));
-  t.false(content.includes('CROSS_SESSION_FACT'));
+  t.false(content.includes('obsolete retention detail'));
+  t.false(content.includes('hidden legacy codename'));
   t.is(result.checkpoint, undefined);
   t.is(
     result.diagnostics.strategyVersion,
@@ -202,7 +203,7 @@ test('ContextPlanner keeps the previous rolling-summary strategy available for r
   const result = new ContextPlanner().plan(
     {
       turns: [
-        message('user', 'EARLY_REQUIRED_FACT Keep this fact.'),
+        message('user', 'Remember that the retained region is eu-west-1.'),
         message('assistant', 'Acknowledged.'),
         message('user', 'Latest request.'),
       ],
@@ -220,7 +221,9 @@ test('ContextPlanner keeps the previous rolling-summary strategy available for r
     PREVIOUS_CONTEXT_PLANNER_STRATEGY_FINGERPRINT
   );
   t.true(
-    result.messages.some(item => item.content.includes('EARLY_REQUIRED_FACT'))
+    result.messages.some(item =>
+      item.content.includes('retained region is eu-west-1')
+    )
   );
 });
 
@@ -253,7 +256,7 @@ test('ContextPlanner keeps the bounded v3 candidate available for replay', t => 
 test('ContextPlanner reserves space for summary and marks memory as user-authored', t => {
   const result = new ContextPlanner().plan({
     turns: [
-      message('user', 'EARLY_REQUIRED_FACT Deploy in eu-west-1.'),
+      message('user', 'Remember that deployment runs in eu-west-1.'),
       message('assistant', 'Acknowledged.'),
       message('user', 'Prepare the final checklist.'),
     ],
@@ -270,7 +273,7 @@ test('ContextPlanner reserves space for summary and marks memory as user-authore
 
   t.truthy(contextMessage);
   t.true(
-    contextMessage?.content.includes('EARLY_REQUIRED_FACT') ?? false,
+    contextMessage?.content.includes('deployment runs in eu-west-1') ?? false,
     'summary should not be displaced by large rules'
   );
   t.true(contextMessage?.content.includes('Untrusted user context') ?? false);
@@ -280,14 +283,14 @@ test('ContextPlanner reserves space for summary and marks memory as user-authore
 test('ContextPlanner rejects stale checkpoints after the source prefix changes', t => {
   const result = new ContextPlanner().plan({
     turns: [
-      message('user', 'CURRENT_REQUIRED_FACT Use PostgreSQL.'),
+      message('user', 'Remember that the current database is PostgreSQL.'),
       message('assistant', 'Acknowledged.'),
       message('user', 'Continue.'),
     ],
     checkpoint: {
       strategyVersion: CONTEXT_PLANNER_STRATEGY_VERSION,
       strategyFingerprint: CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
-      summary: '- [user] STALE_REQUIRED_FACT Use SQLite.',
+      summary: '- [user] Remember that the stale database was SQLite.',
       summarizedMessageCount: 2,
       sourceFingerprint: 'does-not-match',
       diagnostics: {},
@@ -296,8 +299,8 @@ test('ContextPlanner rejects stale checkpoints after the source prefix changes',
   });
   const content = result.messages.map(item => item.content).join('\n');
 
-  t.true(content.includes('CURRENT_REQUIRED_FACT'));
-  t.false(content.includes('STALE_REQUIRED_FACT'));
+  t.true(content.includes('current database is PostgreSQL'));
+  t.false(content.includes('stale database was SQLite'));
 });
 
 test('ContextPlanner checkpoints long conversations without durable cues', t => {
@@ -337,8 +340,9 @@ test('durable memory extraction rejects questions and secrets', t => {
   );
   t.deepEqual(
     extractDurableMemories('The deployment codename is ORCHID_FACT.'),
-    ['The deployment codename is ORCHID_FACT.']
+    []
   );
+  t.deepEqual(extractDurableMemories('The code constant is DEFAULT_FACT.'), []);
   t.deepEqual(extractDurableMemories('请记住：以后始终用中文回答。'), [
     '请记住：以后始终用中文回答。',
   ]);
@@ -349,6 +353,21 @@ test('durable memory extraction rejects questions and secrets', t => {
     [
       'Remember that my preferred verification response starts with the conclusion.',
     ]
+  );
+  t.is(
+    extractExplicitMemoryDecisions(
+      'Remember that we always use version 3.5 for builds.'
+    )[0]?.content,
+    'we always use version 3.5 for builds'
+  );
+  t.false(
+    shouldAttemptImplicitExtraction('The code constant is DEFAULT_FACT.')
+  );
+  t.false(shouldAttemptImplicitExtraction('Tell me if the codename is ORCHID'));
+  t.true(
+    shouldAttemptImplicitExtraction(
+      'The codename for the deployment is ORCHID.'
+    )
   );
 });
 
@@ -437,6 +456,34 @@ test('ContextPlanner layers workspace policy above private user context', t => {
   t.deepEqual(
     result.trace.selectedMemories.map(item => item.sourceType),
     ['policy', 'rule']
+  );
+});
+
+test('ContextPlanner avoids mid-conversation system messages without a primary system prompt', t => {
+  const result = new ContextPlanner().plan({
+    turns: [message('user', 'Prepare the release plan.')],
+    memories: [
+      {
+        id: 'policy-a',
+        scope: 'workspace',
+        kind: 'rule',
+        sourceType: 'policy',
+        priority: 100,
+        relevanceScore: 20,
+        content: 'Keep restricted workspace data private.',
+      },
+    ],
+    render: turns => turns,
+  });
+
+  t.false(result.messages.some(item => item.role === 'system'));
+  t.true(
+    result.messages.some(
+      item =>
+        item.role === 'user' &&
+        item.content.includes('[Workspace policy]') &&
+        item.content.includes('Keep restricted workspace data private.')
+    )
   );
 });
 
@@ -693,6 +740,43 @@ test('automatic memory setting disables implicit extraction but not explicit com
   t.is(writes, 1);
 });
 
+test('ordinary turns skip automatic memory settings and persistence work', async t => {
+  let preferenceReads = 0;
+  let projectReads = 0;
+  let writes = 0;
+  const service = new ContextMemoryService({
+    copilotContextMemory: {
+      getPreference: async () => {
+        preferenceReads += 1;
+        return { autoMemoryEnabled: true };
+      },
+      listProjectIdsForDoc: async () => {
+        projectReads += 1;
+        return [];
+      },
+      applyWriterDecision: async () => {
+        writes += 1;
+        return { operation: 'ADD', memoryId: null };
+      },
+    },
+  } as unknown as Models);
+
+  await service.captureDurableTurn({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    docId: 'doc-a',
+    sessionId: 'session-a',
+    turn: {
+      role: 'user',
+      content: 'Can you summarize the document for this meeting?',
+    } as never,
+  });
+
+  t.is(preferenceReads, 0);
+  t.is(projectReads, 0);
+  t.is(writes, 0);
+});
+
 test('automatic memory uses workspace scope when no document is in scope', async t => {
   const stored: Array<Record<string, unknown>> = [];
   const service = new ContextMemoryService({
@@ -942,7 +1026,7 @@ test('ChatSession persists the planner checkpoint on save', async t => {
         {
           conversationId: 'session-a',
           role: 'user',
-          content: 'EARLY_REQUIRED_FACT Use eu-west-1.',
+          content: 'Remember that the release uses eu-west-1.',
           attachments: [],
           metadata: {},
           renderTrace: [],
@@ -1003,7 +1087,7 @@ test('ChatSession persists the planner checkpoint on save', async t => {
   await session.save();
 
   t.is(checkpoints.length, 1);
-  t.true(checkpoints[0].includes('EARLY_REQUIRED_FACT'));
+  t.true(checkpoints[0].includes('release uses eu-west-1'));
   t.is(traces.length, 1);
   t.like(traces[0], {
     sessionId: 'session-a',

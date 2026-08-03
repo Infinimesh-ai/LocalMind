@@ -596,17 +596,22 @@ test('doc_semantic_search should pass BYOK route context into embedding matches'
 
 test('doc_keyword_search ranks only readable document ids', async t => {
   const readableDocIds = ['doc-11', 'doc-12'];
+  let permissionReads = 0;
   let searchOptions: unknown;
   const ac = {
     user: () => ({
       workspace: () => ({
         can: async () => true,
-        docs: async (docs: unknown[]) => docs,
+        docs: async (docs: Array<{ docId: string }>) =>
+          docs.filter(doc => readableDocIds.includes(doc.docId)),
       }),
     }),
   } as unknown as PermissionAccess;
   const permission = {
-    listReadableDocIds: async () => readableDocIds,
+    listReadableDocIds: async () => {
+      permissionReads += 1;
+      return readableDocIds;
+    },
   } as unknown as PermissionService;
   const indexerService = {
     searchDocsByKeyword: async (
@@ -615,7 +620,10 @@ test('doc_keyword_search ranks only readable document ids', async t => {
       options: unknown
     ) => {
       searchOptions = options;
-      return readableDocIds.map(docId => ({ docId, title: docId }));
+      return [...readableDocIds, 'hidden-doc'].map(docId => ({
+        docId,
+        title: docId,
+      }));
     },
   } as unknown as Parameters<typeof buildDocKeywordSearchGetter>[2];
   const models = {
@@ -634,10 +642,19 @@ test('doc_keyword_search ranks only readable document ids', async t => {
     { user: 'user-1', workspace: 'workspace-1' },
     'hello'
   );
+  const repeated = await search(
+    { user: 'user-1', workspace: 'workspace-1' },
+    'another query'
+  );
 
   t.deepEqual(searchOptions, { docIds: readableDocIds });
+  t.is(permissionReads, 1, 'the tool-call loop should reuse permission scans');
   t.deepEqual(
     Array.isArray(result) ? result.map(doc => doc.docId) : result,
+    readableDocIds
+  );
+  t.deepEqual(
+    Array.isArray(repeated) ? repeated.map(doc => doc.docId) : repeated,
     readableDocIds
   );
 });
