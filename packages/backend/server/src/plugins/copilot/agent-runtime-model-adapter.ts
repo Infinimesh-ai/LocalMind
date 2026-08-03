@@ -26,6 +26,19 @@ const MODEL_REQUEST_PARAM_VALUE_MAX_LENGTH = 4096;
 const MODEL_COMPLETION_OUTPUT_EVIDENCE_MAX_LENGTH = 640;
 const MODEL_COMPLETION_TIMEOUT_MS = 120_000;
 const MODEL_COMPLETION_CANCELLATION_POLL_MS = 1_000;
+const MODEL_COMPLETION_REDACTED_SECRET = '[redacted-secret]';
+const MODEL_COMPLETION_REDACTED_EMAIL = '[redacted-email]';
+const MODEL_COMPLETION_REDACTED_CREDENTIALS = '[redacted-credentials]';
+const MODEL_COMPLETION_SECRET_ASSIGNMENT_PATTERN =
+  /\b(api[-_\s]?key|access[-_\s]?token|refresh[-_\s]?token|auth[-_\s]?token|authorization|secret|password|client[-_\s]?secret)\b(\s*[:=]\s*)(["']?)[^"',;\s]+(["']?)/gi;
+const MODEL_COMPLETION_BEARER_SECRET_PATTERN =
+  /\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi;
+const MODEL_COMPLETION_PROVIDER_SECRET_PATTERN =
+  /\b(?:sk-[A-Za-z0-9_-]{8,}|xox[baprs]-[A-Za-z0-9-]{8,}|gh[pousr]_[A-Za-z0-9_]{8,}|AKIA[0-9A-Z]{12,})\b/g;
+const MODEL_COMPLETION_URL_CREDENTIAL_PATTERN =
+  /\b([a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^@\s/]+@/gi;
+const MODEL_COMPLETION_EMAIL_PATTERN =
+  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 
 type AgentRuntimeModelRequest = {
   modelId: string | undefined;
@@ -63,10 +76,42 @@ function normalizeModelRequestOutput(value: string) {
   if (!normalized) {
     return null;
   }
-  if (normalized.length <= MODEL_COMPLETION_OUTPUT_EVIDENCE_MAX_LENGTH) {
-    return normalized;
+  const redacted = redactModelCompletionOutput(normalized);
+  if (redacted.length <= MODEL_COMPLETION_OUTPUT_EVIDENCE_MAX_LENGTH) {
+    return redacted;
   }
-  return `${normalized.slice(0, MODEL_COMPLETION_OUTPUT_EVIDENCE_MAX_LENGTH)}…`;
+  return `${redacted.slice(0, MODEL_COMPLETION_OUTPUT_EVIDENCE_MAX_LENGTH)}…`;
+}
+
+function redactModelCompletionOutput(value: string) {
+  return value
+    .replace(
+      MODEL_COMPLETION_URL_CREDENTIAL_PATTERN,
+      (_match: string, protocol: string) =>
+        `${protocol}${MODEL_COMPLETION_REDACTED_CREDENTIALS}@`
+    )
+    .replace(
+      MODEL_COMPLETION_SECRET_ASSIGNMENT_PATTERN,
+      (
+        _match: string,
+        key: string,
+        separator: string,
+        openQuote: string,
+        closeQuote: string
+      ) => {
+        const quote = openQuote || closeQuote || '';
+        return `${key}${separator}${quote}${MODEL_COMPLETION_REDACTED_SECRET}${quote}`;
+      }
+    )
+    .replace(
+      MODEL_COMPLETION_BEARER_SECRET_PATTERN,
+      `Bearer ${MODEL_COMPLETION_REDACTED_SECRET}`
+    )
+    .replace(
+      MODEL_COMPLETION_PROVIDER_SECRET_PATTERN,
+      MODEL_COMPLETION_REDACTED_SECRET
+    )
+    .replace(MODEL_COMPLETION_EMAIL_PATTERN, MODEL_COMPLETION_REDACTED_EMAIL);
 }
 
 @Injectable()

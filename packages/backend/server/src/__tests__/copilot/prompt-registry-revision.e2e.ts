@@ -155,6 +155,76 @@ const promptRegistryPublishMutation = {
   `,
 } satisfies GraphQLQuery;
 
+const promptRegistryBodyEditPreviewMutation = {
+  id: 'promptRegistryBodyEditPreviewTestMutation',
+  op: 'previewCopilotPromptRegistryBodyEdit',
+  query: `
+    mutation promptRegistryBodyEditPreview(
+      $input: CopilotPromptRegistryBodyEditPreviewInput!
+    ) {
+      previewCopilotPromptRegistryBodyEdit(input: $input) {
+        name
+        registryFingerprint
+        registryId
+        registryUpdatedAt
+        messageIndex
+        currentContent
+        nextContent
+        currentContentFingerprint
+        nextContentFingerprint
+        diffFingerprint
+        previewFingerprint
+        changed
+        diff {
+          addedLineCount
+          removedLineCount
+          unchangedLineCount
+          lines {
+            kind
+            oldLine
+            newLine
+            text
+          }
+        }
+      }
+    }
+  `,
+} satisfies GraphQLQuery;
+
+const promptRegistryBodyEditPublishMutation = {
+  id: 'promptRegistryBodyEditPublishTestMutation',
+  op: 'publishCopilotPromptRegistryBodyEdit',
+  query: `
+    mutation promptRegistryBodyEditPublish(
+      $input: CopilotPromptRegistryBodyEditPublishInput!
+    ) {
+      publishCopilotPromptRegistryBodyEdit(input: $input) {
+        preview {
+          name
+          messageIndex
+          currentContentFingerprint
+          nextContentFingerprint
+          diffFingerprint
+          previewFingerprint
+          changed
+        }
+        revision {
+          id
+          promptName
+          scopeType
+          workspaceId
+          actorId
+          revision
+          status
+          fingerprint
+          fallbackSourceChain
+          ${registryPublishEventFields}
+        }
+      }
+    }
+  `,
+} satisfies GraphQLQuery;
+
 test.before(async t => {
   const app = await createTestingApp({
     imports: [
@@ -1345,6 +1415,166 @@ test(promptRegistryPublishTestName, async t => {
         },
       },
     })
+  );
+});
+
+test('prompt registry body edit preview gates publish and records editable body revision', async t => {
+  const { app, db, owner } = t.context;
+  const workspace = await app.models.workspace.create(owner.id);
+  const promptName = 'Editable body registry prompt';
+  const prompt = await seedRegistryPrompt(db, promptName);
+
+  const gateResult = await app.gql({
+    query: promptPublishGateQuery,
+    variables: {
+      workspaceId: workspace.id,
+      name: promptName,
+    },
+  });
+  const gate = gateResult.currentUser.copilot.promptRegistryPublishGate as {
+    registryFingerprint: string;
+    registryId: number;
+    registryUpdatedAt: string;
+  };
+  const nextContent = [
+    'Answer with the edited Prompt Registry body.',
+    'Keep the response concise.',
+  ].join('\n');
+
+  const previewResult = await app.gql({
+    query: promptRegistryBodyEditPreviewMutation,
+    variables: {
+      input: {
+        workspaceId: workspace.id,
+        name: promptName,
+        messageIndex: 0,
+        nextContent,
+        expectedVersion: {
+          registryFingerprint: gate.registryFingerprint,
+          registryId: gate.registryId,
+          registryUpdatedAt: gate.registryUpdatedAt,
+        },
+      },
+    },
+  });
+  const preview = previewResult.previewCopilotPromptRegistryBodyEdit as {
+    changed: boolean;
+    currentContent: string;
+    currentContentFingerprint: string;
+    diff: {
+      addedLineCount: number;
+      lines: Array<{ kind: string; text: string }>;
+      removedLineCount: number;
+    };
+    diffFingerprint: string;
+    nextContent: string;
+    nextContentFingerprint: string;
+    previewFingerprint: string;
+    registryId: number;
+  };
+  t.true(preview.changed);
+  t.is(preview.registryId, prompt.id);
+  t.is(
+    preview.currentContent,
+    'Answer with the DB-backed registry revision prompt.'
+  );
+  t.is(preview.nextContent, nextContent);
+  t.true(preview.diff.addedLineCount >= 1);
+  t.true(preview.diff.removedLineCount >= 1);
+  t.true(preview.diff.lines.some(line => line.kind === 'added'));
+  t.true(preview.diff.lines.some(line => line.kind === 'removed'));
+
+  const publishResult = await app.gql({
+    query: promptRegistryBodyEditPublishMutation,
+    variables: {
+      input: {
+        workspaceId: workspace.id,
+        name: promptName,
+        messageIndex: 0,
+        nextContent,
+        expectedPreviewFingerprint: preview.previewFingerprint,
+        expectedVersion: {
+          registryFingerprint: gate.registryFingerprint,
+          registryId: gate.registryId,
+          registryUpdatedAt: gate.registryUpdatedAt,
+        },
+        idempotencyKey: ' editable-body-idempotency-1 ',
+        reviewNote: ' Reviewed body diff before publishing. ',
+      },
+    },
+  });
+  const bodyEdit = publishResult.publishCopilotPromptRegistryBodyEdit as {
+    preview: {
+      currentContentFingerprint: string;
+      diffFingerprint: string;
+      nextContentFingerprint: string;
+      previewFingerprint: string;
+    };
+    revision: {
+      actorId: string;
+      id: string;
+      promptName: string;
+      publishEventCount: number;
+      publishEvents: Array<{ eventType: string; publishSource: string }>;
+      revision: string;
+      scopeType: string;
+      workspaceId: string;
+    };
+  };
+  t.is(bodyEdit.preview.previewFingerprint, preview.previewFingerprint);
+  t.is(
+    bodyEdit.preview.currentContentFingerprint,
+    preview.currentContentFingerprint
+  );
+  t.is(bodyEdit.preview.nextContentFingerprint, preview.nextContentFingerprint);
+  t.is(bodyEdit.preview.diffFingerprint, preview.diffFingerprint);
+  t.is(bodyEdit.revision.promptName, promptName);
+  t.is(bodyEdit.revision.scopeType, 'workspace');
+  t.is(bodyEdit.revision.workspaceId, workspace.id);
+  t.is(bodyEdit.revision.actorId, owner.id);
+  t.is(bodyEdit.revision.revision, `body-${preview.nextContentFingerprint}`);
+  t.is(bodyEdit.revision.publishEventCount, 1);
+  t.like(bodyEdit.revision.publishEvents[0], {
+    eventType: 'revision_published',
+    publishSource: 'graphql_mutation',
+  });
+
+  const promptRows = await db.aiPrompt.findUniqueOrThrow({
+    where: { name: promptName },
+    select: {
+      modified: true,
+      messages: {
+        orderBy: { idx: 'asc' },
+        select: { content: true, idx: true },
+      },
+    },
+  });
+  t.true(promptRows.modified);
+  t.is(promptRows.messages[0].idx, 0);
+  t.is(promptRows.messages[0].content, nextContent);
+
+  const revisionRows = await db.$queryRaw<
+    Array<{ metadata: Record<string, unknown> }>
+  >`
+    SELECT metadata
+    FROM ai_prompt_registry_revisions
+    WHERE id = ${bodyEdit.revision.id}
+  `;
+  t.is(
+    revisionRows[0].metadata.promptBodyBoundary,
+    'editable_registry_body_published'
+  );
+  t.like(revisionRows[0].metadata.bodyEdit, {
+    changed: true,
+    currentContentFingerprint: preview.currentContentFingerprint,
+    diffFingerprint: preview.diffFingerprint,
+    messageIndex: 0,
+    nextContentFingerprint: preview.nextContentFingerprint,
+    previewFingerprint: preview.previewFingerprint,
+  });
+  t.is(
+    revisionRows[0].metadata.reviewNote,
+    'Reviewed body diff before publishing.'
   );
 });
 

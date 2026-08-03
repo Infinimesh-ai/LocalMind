@@ -10,6 +10,8 @@ import { CopilotProviderFactory } from './providers/factory';
 import { providerProfileConfigPathHint } from './providers/provider-registry';
 import { CopilotProviderRegistryService } from './providers/registry-service';
 
+const PROVIDER_HEALTH_NETWORK_PROBE_TIMEOUT_MS = 15_000;
+
 declare global {
   interface Jobs {
     'copilot.providerHealth.persistConfiguredSnapshots': {};
@@ -163,10 +165,18 @@ export class CopilotProviderHealthWorker {
     attempt: CopilotProviderHealthProbeAttemptRecord
   ) {
     try {
-      const result = await this.providerFactory.probeProviderProfile({
-        providerId: attempt.providerId,
-        workspaceId: attempt.workspaceId,
-      });
+      const networkProbeEnabled = this.networkProbeEnabled();
+      const result = networkProbeEnabled
+        ? await this.providerFactory.probeProviderProfileNetwork({
+            actorId: attempt.actorId,
+            providerId: attempt.providerId,
+            timeoutMs: PROVIDER_HEALTH_NETWORK_PROBE_TIMEOUT_MS,
+            workspaceId: attempt.workspaceId,
+          })
+        : await this.providerFactory.probeProviderProfile({
+            providerId: attempt.providerId,
+            workspaceId: attempt.workspaceId,
+          });
       return await this.models.copilotProviderHealthState.completeProviderHealthProbeAttempt(
         {
           attempt,
@@ -175,7 +185,16 @@ export class CopilotProviderHealthWorker {
             checkedAt: result.checkedAt,
             lastError: result.errorMessage ?? null,
             metadata: {
-              probeMode: 'local_provider_profile_contract',
+              probeMode: networkProbeEnabled
+                ? 'network_text_completion'
+                : 'local_provider_profile_contract',
+              networkProbeEnabled,
+              ...(networkProbeEnabled
+                ? {
+                    networkProbeTimeoutMs:
+                      PROVIDER_HEALTH_NETWORK_PROBE_TIMEOUT_MS,
+                  }
+                : {}),
               errorCode: result.errorCode ?? null,
               diagnostics: result.diagnostics,
             },
@@ -190,5 +209,12 @@ export class CopilotProviderHealthWorker {
         }
       );
     }
+  }
+
+  private networkProbeEnabled() {
+    const raw =
+      process.env.LOCALMIND_PROVIDER_HEALTH_NETWORK_PROBE ??
+      process.env.COPILOT_PROVIDER_HEALTH_NETWORK_PROBE;
+    return /^(1|true|yes|on)$/i.test(raw ?? '');
   }
 }

@@ -8,6 +8,7 @@ import { AppModule } from '../../app.module';
 import { JOB_SIGNAL } from '../../base';
 import { ConfigModule } from '../../base/config';
 import { AuthService } from '../../core/auth';
+import { DocReader, DocWriter } from '../../core/doc';
 import { Models } from '../../models';
 import { agentRuntimeFingerprint } from '../../models/copilot-agent-runtime';
 import { repairExecutionFingerprint } from '../../models/copilot-repair-execution';
@@ -710,6 +711,41 @@ const agentRuntimeControlMutation = {
           eventType
           status
           ordinal
+          summary
+          payload
+        }
+      }
+    }
+  `,
+} satisfies GraphQLQuery;
+
+const agentRuntimeDocUpdateRequestMutation = {
+  id: 'agentRuntimeDocUpdateRequestTestMutation',
+  op: 'requestCopilotAgentRuntimeDocUpdate',
+  query: `
+    mutation requestCopilotAgentRuntimeDocUpdate(
+      $input: CopilotAgentRuntimeDocUpdateRequestInput!
+    ) {
+      requestCopilotAgentRuntimeDocUpdate(input: $input) {
+        id
+        actorId
+        workspaceId
+        workflow
+        sourceType
+        sourceId
+        status
+        executionResultCount
+        steps {
+          id
+          stepKey
+          stepType
+          status
+          completedAt
+          outputSummary
+        }
+        timelineEvents {
+          eventType
+          status
           summary
           payload
         }
@@ -6481,6 +6517,7 @@ test('standalone Agent Runtime worker completes record-only runs', async t => {
       {
         stepKey: 'record_model_context',
         stepType: 'model',
+        status: 'pending',
       },
     ],
   });
@@ -6825,7 +6862,7 @@ test('standalone Agent Runtime worker executes model steps through the model com
   });
 
   const runTextStub = Sinon.stub(promptRuntime, 'runText').resolves(
-    '  Model completion adapter\n produced   output. '
+    '  Model completion adapter\n produced   output with apiKey=sk-test-secret-token and owner user@example.com. '
   );
   try {
     const signal = await agentRuntimeWorker.runStandaloneAgentRuntime({
@@ -6890,7 +6927,7 @@ test('standalone Agent Runtime worker executes model steps through the model com
     sideEffectMode: 'none',
     sideEffectsApplied: false,
     summary:
-      'Model step "model_generate" completed through prompt "Summary" (requested model model-completion-e2e-model): Model completion adapter produced output.',
+      'Model step "model_generate" completed through prompt "Summary" (requested model model-completion-e2e-model): Model completion adapter produced output with apiKey=[redacted-secret] and owner [redacted-email].',
   });
   t.like(workerCompletion.adapterResolution, {
     status: 'completed',
@@ -6909,6 +6946,146 @@ test('standalone Agent Runtime worker executes model steps through the model com
     sideEffectsApplied: false,
     workerAttempt: 1,
   });
+});
+
+test('standalone Agent Runtime office task updates a workspace document after approval', async t => {
+  const { agentRuntimeWorker, app, owner } = t.context;
+  const workspace = await app.models.workspace.create(owner.id);
+  await app.models.doc.upsert({
+    spaceId: workspace.id,
+    docId: workspace.id,
+    blob: Buffer.from([0, 0]),
+    timestamp: Date.now(),
+    editorId: owner.id,
+  });
+  const docWriter = app.get(DocWriter);
+  const docReader = app.get(DocReader);
+  const createdDoc = await docWriter.createDoc(
+    workspace.id,
+    'Agent Runtime Doc Update',
+    'Original body from e2e.',
+    owner.id
+  );
+  const nextContent = [
+    'Updated by approval-gated Agent Runtime office task.',
+    '',
+    '- Side effect ledger should be applied.',
+  ].join('\n');
+
+  const requestResult = await app.gql({
+    query: agentRuntimeDocUpdateRequestMutation,
+    variables: {
+      input: {
+        workspaceId: workspace.id,
+        docId: createdDoc.docId,
+        content: nextContent,
+        idempotencyKey: 'doc-update-office-task-e2e',
+        title: 'Approved doc update',
+        reason: 'verify office task side effect',
+      },
+    },
+  });
+  const requested = requestResult.requestCopilotAgentRuntimeDocUpdate as {
+    id: string;
+    status: string;
+    steps: Array<{
+      outputSummary: Record<string, unknown>;
+      status: string;
+      stepType: string;
+    }>;
+    workflow: string;
+  };
+  t.is(requested.workflow, 'agent_runtime_doc_update');
+  t.is(requested.status, 'waiting_approval');
+  t.deepEqual(
+    requested.steps.map(step => [step.stepType, step.status]),
+    [
+      ['approval', 'waiting_approval'],
+      ['tool', 'waiting_approval'],
+    ]
+  );
+  t.like(requested.steps[1].outputSummary.docUpdateRequest, {
+    version: 'agent-runtime-doc-update-request/v1',
+    docId: createdDoc.docId,
+    content: nextContent,
+  });
+
+  const approvedResult = await app.gql({
+    query: agentRuntimeControlMutation,
+    variables: {
+      input: {
+        workspaceId: workspace.id,
+        runId: requested.id,
+        action: 'approve',
+        reason: 'approved by e2e',
+      },
+    },
+  });
+  const approved = approvedResult.controlCopilotAgentRuntimeRun as {
+    status: string;
+    steps: Array<{ status: string; stepType: string }>;
+  };
+  t.is(approved.status, 'queued');
+  t.deepEqual(
+    approved.steps.map(step => [step.stepType, step.status]),
+    [
+      ['approval', 'completed'],
+      ['tool', 'pending'],
+    ]
+  );
+
+  const signal = await agentRuntimeWorker.runStandaloneAgentRuntime({
+    workspaceId: workspace.id,
+    runId: requested.id,
+  });
+  t.is(signal, JOB_SIGNAL.Done);
+
+  const completed = await app.models.copilotAgentRuntime.get(
+    workspace.id,
+    requested.id
+  );
+  t.is(completed?.status, 'completed');
+  t.is(completed?.executionResultCount, 1);
+  t.deepEqual(
+    completed?.steps.map(step => [step.stepType, step.status]),
+    [
+      ['approval', 'completed'],
+      ['tool', 'completed'],
+    ]
+  );
+  const toolCompletion = completed?.steps.find(step => step.stepType === 'tool')
+    ?.outputSummary.workerCompletion as {
+    sideEffectSummary?: Record<string, unknown>;
+    sideEffectsApplied: boolean;
+  };
+  t.true(toolCompletion.sideEffectsApplied);
+  t.like(toolCompletion.sideEffectSummary, {
+    version: 'agent-runtime-doc-update-side-effect/v1',
+    sideEffectKind: 'workspace_doc_update',
+    sideEffectRecordId: createdDoc.docId,
+    docId: createdDoc.docId,
+    idempotencyMode: 'deterministic_doc_body_update',
+  });
+  t.like(completed?.executionResults[0], {
+    adapterWorkflow: 'agent_runtime_doc_update',
+    resultStatus: 'completed',
+    sideEffectMode: 'workspace_write',
+    sideEffectsApplied: true,
+  });
+  t.like(completed?.executionResults[0].resultPayload.sideEffectSummary, {
+    sideEffectKind: 'workspace_doc_update',
+    sideEffectRecordId: createdDoc.docId,
+  });
+
+  const markdown = await docReader.getDocMarkdown(
+    workspace.id,
+    createdDoc.docId,
+    true
+  );
+  t.true(
+    markdown?.markdown.includes('Updated by approval-gated Agent Runtime')
+  );
+  t.true(markdown?.markdown.includes('Side effect ledger should be applied.'));
 });
 
 test('standalone Agent Runtime model completion bounds oversized model output evidence', async t => {

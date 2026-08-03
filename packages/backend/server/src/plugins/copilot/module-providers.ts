@@ -1,4 +1,5 @@
 import { CopilotAccessPolicy } from './access';
+import { CopilotAgentRuntimeDocUpdateAdapter } from './agent-runtime-doc-update-adapter';
 import { CopilotAgentRuntimeModelCompletionAdapter } from './agent-runtime-model-adapter';
 import { CopilotAgentRuntimeWorker } from './agent-runtime-worker';
 import { CopilotAgentRuntimeWorkflowRegistry } from './agent-runtime-workflow-registry';
@@ -160,6 +161,7 @@ export const COPILOT_JOB_PROVIDERS = [
   CopilotCronJobs,
   CopilotAgentRuntimeWorkflowRegistry,
   CopilotAgentRuntimeModelCompletionAdapter,
+  CopilotAgentRuntimeDocUpdateAdapter,
   CopilotAgentRuntimeWorker,
   CopilotProviderHealthWorker,
   CopilotRepairExecutionWorker,
