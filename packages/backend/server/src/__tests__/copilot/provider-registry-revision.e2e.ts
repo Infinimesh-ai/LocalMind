@@ -4093,12 +4093,12 @@ test('provider health worker can run optional network provider probes', async t 
       await providerHealthWorker.enqueueWorkspaceProbeAttempts({
         limit: 10,
       });
-    t.is(enqueueSignal, 'done');
+    t.is(enqueueSignal, JOB_SIGNAL.Done);
 
     const processSignal = await providerHealthWorker.processProbeAttempts({
       limit: 10,
     });
-    t.is(processSignal, 'done');
+    t.is(processSignal, JOB_SIGNAL.Done);
     t.true(networkProbeStub.calledOnce);
     t.like(networkProbeStub.firstCall.args[0], {
       actorId: owner.id,

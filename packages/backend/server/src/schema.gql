@@ -5830,6 +5830,7 @@ type WorkspaceByokSettingsType {
   keys: [WorkspaceByokKeyConfigType!]!
   localEntitled: Boolean!
   localStorageSupported: Boolean!
+  privateEndpointSupported: Boolean!
   serverEntitled: Boolean!
   warnings: [WorkspaceByokCapabilityWarningType!]!
   workspaceId: String!

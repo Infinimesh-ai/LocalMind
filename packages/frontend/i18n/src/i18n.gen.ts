@@ -5498,6 +5498,14 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.settings.editorSettings.general.default-code-block.language.title"](): string;
     /**
+      * `Show line numbers in all code blocks by default.`
+      */
+    ["com.affine.settings.editorSettings.general.default-code-block.line-numbers.description"](): string;
+    /**
+      * `Show line numbers in code blocks`
+      */
+    ["com.affine.settings.editorSettings.general.default-code-block.line-numbers.title"](): string;
+    /**
       * `Encapsulate code snippets for better readability.`
       */
     ["com.affine.settings.editorSettings.general.default-code-block.wrap.description"](): string;
@@ -6140,6 +6148,14 @@ export function useAFFiNEI18N(): {
       * `Endpoint`
       */
     ["com.affine.settings.workspace.byok.field.endpoint"](): string;
+    /**
+      * `Custom endpoints are disabled by the server administrator. In Self-hosted Admin, enable copilot.byok.allowCustomEndpoint.`
+      */
+    ["com.affine.settings.workspace.byok.endpoint.custom-disabled"](): string;
+    /**
+      * `Private network endpoints additionally require the server administrator to enable copilot.byok.allowPrivateEndpoint.`
+      */
+    ["com.affine.settings.workspace.byok.endpoint.private-disabled"](): string;
     /**
       * `Primary`
       */
@@ -9278,6 +9294,14 @@ export function useAFFiNEI18N(): {
       * `Failed to sign out devices`
       */
     ["com.affine.settings.devices.sign-out-all-failed"](): string;
+    /**
+      * `Real-time connection failed`
+      */
+    ["com.affine.realtime.connection-error.title"](): string;
+    /**
+      * `Check that your server proxy forwards /socket.io over WebSocket or HTTP polling.`
+      */
+    ["com.affine.realtime.connection-error.message"](): string;
     /**
       * `An internal error occurred.`
       */

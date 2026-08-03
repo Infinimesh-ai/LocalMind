@@ -6921,6 +6921,7 @@ export interface WorkspaceByokSettingsType {
   keys: Array<WorkspaceByokKeyConfigType>;
   localEntitled: Scalars['Boolean']['output'];
   localStorageSupported: Scalars['Boolean']['output'];
+  privateEndpointSupported: Scalars['Boolean']['output'];
   serverEntitled: Scalars['Boolean']['output'];
   warnings: Array<WorkspaceByokCapabilityWarningType>;
   workspaceId: Scalars['String']['output'];
@@ -15231,7 +15232,8 @@ export type GetCurrentUserQuery = {
     email: string;
     emailVerified: boolean;
     avatarUrl: string | null;
-    token: { __typename?: 'tokenType'; sessionToken: string | null };
+    hasPassword: boolean | null;
+    features: Array<FeatureType>;
   } | null;
 };
 
@@ -16498,6 +16500,7 @@ export type WorkspaceByokSettingsQuery = {
       allowedProviders: Array<ByokProvider>;
       localStorageSupported: boolean;
       customEndpointSupported: boolean;
+      privateEndpointSupported: boolean;
       hasAiPlan: boolean;
       keys: Array<{
         __typename?: 'WorkspaceByokKeyConfigType';

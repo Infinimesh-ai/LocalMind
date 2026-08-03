@@ -146,6 +146,23 @@ export const KNOWN_CONFIG_GROUPS = [
     module: 'oauth',
     fields: ['providers.google', 'providers.github', 'providers.oidc'],
   } as ConfigGroup<'oauth'>,
+  {
+    name: 'AI BYOK',
+    module: 'copilot',
+    fields: [
+      {
+        key: 'enabled',
+        desc: 'Enable AI features. Workspace owners configure provider keys in Workspace Settings → Integrations → AI BYOK.',
+      },
+      'byok.enabled',
+      'byok.allowedProviders',
+      'byok.allowCustomEndpoint',
+      {
+        key: 'byok.allowPrivateEndpoint',
+        desc: 'Allow workspace owners and admins to connect BYOK providers on private network endpoints. Only enable this for trusted workspaces.',
+      },
+    ],
+  } as ConfigGroup<'copilot'>,
 ];
 
 export const UNKNOWN_CONFIG_GROUPS = ALL_CONFIGURABLE_MODULES.filter(

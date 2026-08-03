@@ -720,6 +720,7 @@ test('should get doc info', async t => {
   t.like(docInfo, {
     workspaceId: workspace.id,
     docId,
+    public: false,
     updatedAt: new Date(snapshot.timestamp),
     creatorId: user.id,
     lastUpdaterId: user.id,
@@ -768,6 +769,7 @@ test('should paginate docs info', async t => {
   t.is(count, 3);
   t.is(docs.length, 1);
   t.is(docs[0].docId, docId1);
+  t.false(docs[0].public);
 
   [count, docs] = await t.context.doc.paginateDocInfo(workspace.id, {
     first: 1,
@@ -778,5 +780,6 @@ test('should paginate docs info', async t => {
   t.is(count, 3);
   t.is(docs.length, 1);
   t.is(docs[0].docId, docId2);
+  t.false(docs[0].public);
 });
 // #endregion

@@ -51,10 +51,6 @@ declare global {
     'copilot.session.generateTitle': {
       sessionId: string;
     };
-    'copilot.session.deleteDoc': {
-      workspaceId: string;
-      docId: string;
-    };
   }
 }
 

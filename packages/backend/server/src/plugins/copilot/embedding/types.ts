@@ -70,9 +70,10 @@ declare global {
       docId: string;
     };
 
-    'copilot.embedding.deleteDoc': {
+    'copilot.embedding.reconcileDocumentCleanup': {
       workspaceId: string;
       docId: string;
+      cleanupVersion: string;
     };
 
     'copilot.embedding.files': {

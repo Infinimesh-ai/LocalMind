@@ -29,7 +29,7 @@ import {
   WorkspaceModel,
   WorkspaceRole,
 } from '../../models';
-import type { LlmToolCallbackRequest } from '../../native';
+import { addDocToRootDoc, type LlmToolCallbackRequest } from '../../native';
 import { CopilotModule } from '../../plugins/copilot';
 import { CopilotContextService } from '../../plugins/copilot/context';
 import { CopilotContextResolver } from '../../plugins/copilot/context/resolver';
@@ -509,6 +509,80 @@ test.beforeEach(async t => {
 test.after.always(async t => {
   restoreMockCopilotNativeRuntime?.();
   await t.context.module?.close();
+});
+
+test('document cleanup reconciles missing and restored copilot state before ack', async t => {
+  const { db, jobs, models, module, workspace } = t.context;
+  const queue = module.get(JobQueue);
+  const deleteEmbedding = Sinon.spy(
+    models.copilotContext,
+    'purgeWorkspaceEmbedding'
+  );
+  const scheduleEmbedding = Sinon.stub(
+    jobs,
+    'addDocEmbeddingQueueFromEvent'
+  ).resolves();
+
+  for (const [docId, restored, cleanupVersion] of [
+    ['missing-doc', false, 'missing-version'],
+    ['restored-doc', true, 'restored-version'],
+  ] as const) {
+    const ws = await workspace.create(userId);
+    const root = addDocToRootDoc(Buffer.from([0, 0]), docId, docId);
+    const missingRoot = addDocToRootDoc(
+      Buffer.from([0, 0]),
+      'live-doc',
+      'Live'
+    );
+    await db.snapshot.create({
+      data: {
+        workspaceId: ws.id,
+        id: ws.id,
+        blob: restored ? root : missingRoot,
+        state: Buffer.from([0, 0]),
+        updatedAt: new Date(),
+        createdAt: new Date(),
+      },
+    });
+    if (restored) {
+      await db.snapshot.create({
+        data: {
+          workspaceId: ws.id,
+          id: docId,
+          blob: addDocToRootDoc(Buffer.from([0, 0]), 'content', 'Content'),
+          state: Buffer.from([0, 0]),
+          updatedAt: new Date(),
+          createdAt: new Date(),
+        },
+      });
+    }
+
+    await jobs.reconcileDocumentCleanup({
+      workspaceId: ws.id,
+      docId,
+      cleanupVersion,
+    });
+
+    if (restored) {
+      t.true(scheduleEmbedding.calledOnceWith({ workspaceId: ws.id, docId }));
+      t.false(deleteEmbedding.called);
+    } else {
+      t.true(deleteEmbedding.calledOnceWith(ws.id, docId));
+      t.false(scheduleEmbedding.called);
+    }
+    const { payload } = await module.queue.waitFor(
+      'backendRuntime.ackDocumentCleanupEffect'
+    );
+    t.deepEqual(payload, {
+      workspaceId: ws.id,
+      docId,
+      cleanupVersion,
+      effect: 'copilot',
+    });
+    deleteEmbedding.resetHistory();
+    scheduleEmbedding.resetHistory();
+    (queue.add as Sinon.SinonStub).resetHistory();
+  }
 });
 
 test('MCP credentials stay bound to their endpoint, workspace, and profile', async t => {
@@ -3436,63 +3510,47 @@ test('model selection policy should resolve requested optional models consistent
 
   t.deepEqual(
     modelSelection.resolveRequestedModel({
-      defaultModel: 'gemini-2.5-flash',
-      optionalModels: [
-        'gemini-2.5-flash',
-        'gemini-2.5-pro',
-        'claude-sonnet-4-5@20250929',
-      ],
-      requestedModelId: 'gemini-2.5-pro',
+      defaultModel: 'gpt-5.6-luna',
+      optionalModels: ['gpt-5.6-luna', 'gpt-5.6-terra', 'claude-sonnet-4-6'],
+      requestedModelId: 'gpt-5.6-terra',
     }),
     {
-      selectedModel: 'gemini-2.5-pro',
+      selectedModel: 'gpt-5.6-terra',
       matchedOptionalModel: true,
     }
   );
 
   t.deepEqual(
     modelSelection.resolveRequestedModel({
-      defaultModel: 'gemini-2.5-flash',
-      optionalModels: [
-        'gemini-2.5-flash',
-        'gemini-2.5-pro',
-        'claude-sonnet-4-5@20250929',
-      ],
-      requestedModelId: 'openai-default/gemini-2.5-pro',
+      defaultModel: 'gpt-5.6-luna',
+      optionalModels: ['gpt-5.6-luna', 'gpt-5.6-terra', 'claude-sonnet-4-6'],
+      requestedModelId: 'openai-default/gpt-5.6-terra',
     }),
     {
-      selectedModel: 'openai-default/gemini-2.5-pro',
+      selectedModel: 'openai-default/gpt-5.6-terra',
       matchedOptionalModel: true,
     }
   );
 
   t.deepEqual(
     modelSelection.resolveRequestedModel({
-      defaultModel: 'gemini-2.5-flash',
-      optionalModels: [
-        'gemini-2.5-flash',
-        'gemini-2.5-pro',
-        'claude-sonnet-4-5@20250929',
-      ],
+      defaultModel: 'gpt-5.6-luna',
+      optionalModels: ['gpt-5.6-luna', 'gpt-5.6-terra', 'claude-sonnet-4-6'],
       requestedModelId: 'not-in-optional',
     }),
     {
-      selectedModel: 'gemini-2.5-flash',
+      selectedModel: 'gpt-5.6-luna',
       matchedOptionalModel: false,
     }
   );
 
   t.is(
     modelSelection.resolveRequestedModel({
-      defaultModel: 'gemini-2.5-flash',
-      optionalModels: [
-        'gemini-2.5-flash',
-        'gemini-2.5-pro',
-        'claude-sonnet-4-5@20250929',
-      ],
+      defaultModel: 'gpt-5.6-luna',
+      optionalModels: ['gpt-5.6-luna', 'gpt-5.6-terra', 'claude-sonnet-4-6'],
       requestedModelId: 'not-in-optional',
     }).selectedModel,
-    'gemini-2.5-flash'
+    'gpt-5.6-luna'
   );
 });
 
@@ -3628,11 +3686,11 @@ test('capability policy host should select image routes with image output type',
 test('capability policy host should gate pro model requests by subscription status', async t => {
   const { quotaState, subscription, module } = t.context;
   const capabilityPolicy = module.get(CapabilityPolicyHost);
-  const defaultModel = 'gpt-5-mini';
-  const proModel = 'gpt-4.1';
+  const defaultModel = 'gpt-5.6-luna';
+  const proModel = 'gpt-5.6-terra';
   const prefixedProModel = `openai-default/${proModel}`;
-  const optionalModels = [defaultModel, proModel];
-  const proModels = [proModel];
+  const optionalModels = [defaultModel, proModel, 'claude-sonnet-4-6'];
+  const proModels = [proModel, 'claude-sonnet-4-6'];
 
   const mockStatus = (status?: SubscriptionStatus) => {
     Sinon.restore();
@@ -3804,10 +3862,10 @@ test('prompt runtime should resolve prefixed optional models consistently', asyn
   const promptName = randomUUID().replaceAll('-', '');
   await prompt.set(
     promptName,
-    'gpt-5-mini',
+    'gpt-5.6-luna',
     [{ role: 'user', content: '{{content}}' }],
-    { proModels: ['gpt-4.1'] },
-    { optionalModels: ['gpt-4.1'] }
+    { proModels: ['gpt-5.6-terra'] },
+    { optionalModels: ['gpt-5.6-terra'] }
   );
 
   const textStub = Sinon.stub(chatRuntime, 'text').resolves('ok');
@@ -3815,11 +3873,11 @@ test('prompt runtime should resolve prefixed optional models consistently', asyn
   await promptRuntime.runText(
     promptName,
     { content: 'hello' },
-    { modelId: 'openai-default/gpt-4.1' }
+    { modelId: 'openai-default/gpt-5.6-terra' }
   );
   t.is(
     textStub.firstCall.args[0].modelId,
-    'openai-default/gpt-4.1',
+    'openai-default/gpt-5.6-terra',
     'should preserve accepted provider-prefixed optional model'
   );
 
@@ -3830,7 +3888,7 @@ test('prompt runtime should resolve prefixed optional models consistently', asyn
   );
   t.is(
     textStub.secondCall.args[0].modelId,
-    'gpt-5-mini',
+    'gpt-5.6-luna',
     'should fallback to default model for non-optional prefixed model'
   );
 });
@@ -4244,10 +4302,10 @@ test('resolver models should use resolved provider metadata for display names', 
   const promptName = randomUUID().replaceAll('-', '');
   await prompt.set(
     promptName,
-    'gemini-2.5-flash',
+    'gpt-5.6-luna',
     [{ role: 'system', content: 'test' }],
-    { proModels: ['gemini-2.5-pro'] },
-    { optionalModels: ['gemini-2.5-flash', 'gemini-2.5-pro'] }
+    { proModels: ['gpt-5.6-terra'] },
+    { optionalModels: ['gpt-5.6-luna', 'gpt-5.6-terra'] }
   );
 
   const resolveProvider = Sinon.stub(factory, 'resolveProvider').callsFake(
@@ -5731,6 +5789,13 @@ test('resolver models should inherit workspace route policy context from copilot
     workspaceId: 'workspace-local-only',
   });
 
+  t.deepEqual(models.optionalModels, [
+    { id: 'gpt-5.6-luna', name: 'Resolved gpt-5.6-luna' },
+    { id: 'gpt-5.6-terra', name: 'Resolved gpt-5.6-terra' },
+  ]);
+  t.deepEqual(models.proModels, [
+    { id: 'gpt-5.6-terra', name: 'Resolved gpt-5.6-terra' },
+  ]);
   t.true(
     describeRoutePolicy.calledWithMatch({
       featureKind: 'chat',
