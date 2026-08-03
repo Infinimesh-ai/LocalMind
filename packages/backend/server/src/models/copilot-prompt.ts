@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
+import { Transactional } from '@nestjs-cls/transactional';
 import { type Prisma } from '@prisma/client';
 import type { ZodIssue } from 'zod';
 
@@ -8,6 +9,8 @@ import { CopilotPromptInvalid } from '../base';
 import type {
   Prompt,
   PromptRegistryDiagnostic,
+  PromptRegistryRevisionWithPublishEvents,
+  PromptRegistrySourceChainEntry,
   PromptRegistryValidationIssue,
   PromptRegistryValidationPublishStatus,
   PromptRegistryValidationReason,
@@ -52,6 +55,43 @@ type PromptRegistryValidationResult = {
   reason: PromptRegistryValidationReason;
   remediations: PromptRegistryValidationRemediation[];
 };
+
+type PromptRegistryBodyEditDiffLine = {
+  kind: 'added' | 'context' | 'removed';
+  newLine?: number;
+  oldLine?: number;
+  text: string;
+};
+
+export type PromptRegistryBodyEditPreview = {
+  version: 'prompt-registry-body-edit-preview/v1';
+  changed: boolean;
+  currentContent: string;
+  currentContentFingerprint: string;
+  diff: {
+    version: 'prompt-registry-body-edit-diff/v1';
+    addedLineCount: number;
+    lines: PromptRegistryBodyEditDiffLine[];
+    removedLineCount: number;
+    unchangedLineCount: number;
+  };
+  diffFingerprint: string;
+  messageIndex: number;
+  name: string;
+  nextContent: string;
+  nextContentFingerprint: string;
+  previewFingerprint: string;
+  registryFingerprint: string;
+  registryId: number;
+  registryUpdatedAt: Date;
+};
+
+export type PromptRegistryBodyEditPublishResult = {
+  preview: PromptRegistryBodyEditPreview;
+  revision: PromptRegistryRevisionWithPublishEvents;
+};
+
+const PROMPT_REGISTRY_BODY_EDIT_CONTENT_MAX_LENGTH = 32 * 1024;
 
 const PROMPT_REGISTRY_RUNTIME_TEMPLATE_PARAMS = new Set([
   'attachments',
@@ -242,6 +282,379 @@ export class CopilotPromptModel extends BaseModel {
     }
 
     return verdict;
+  }
+
+  async previewRegistryPromptBodyEdit(input: {
+    name: string;
+    messageIndex: number;
+    nextContent: string;
+    expectedVersion?: PromptRegistryPublishGateExpectedVersion;
+  }): Promise<PromptRegistryBodyEditPreview | null> {
+    const row = await this.db.aiPrompt.findUnique({
+      where: { name: input.name },
+      select: PROMPT_REGISTRY_SELECT,
+    });
+    if (!row) {
+      return null;
+    }
+    this.assertRegistryRowVersionFresh(row, input.expectedVersion ?? {});
+    return this.buildBodyEditPreview(row, {
+      messageIndex: input.messageIndex,
+      nextContent: input.nextContent,
+    });
+  }
+
+  @Transactional()
+  async publishRegistryPromptBodyEdit(input: {
+    workspaceId: string;
+    actorId: string;
+    name: string;
+    messageIndex: number;
+    nextContent: string;
+    expectedPreviewFingerprint: string;
+    expectedVersion?: PromptRegistryPublishGateExpectedVersion;
+    idempotencyKey?: string | null;
+    reviewNote?: string | null;
+    fallbackSourceChain?: PromptRegistrySourceChainEntry[];
+  }): Promise<PromptRegistryBodyEditPublishResult> {
+    const row = await this.db.aiPrompt.findUnique({
+      where: { name: input.name },
+      select: PROMPT_REGISTRY_SELECT,
+    });
+    if (!row) {
+      throw new PromptRegistryPublishGateError({
+        gateCode: 'prompt_registry_not_found',
+        promptName: input.name,
+        verdict: null,
+      });
+    }
+
+    const currentVerdict = this.assertRegistryRowVersionFresh(
+      row,
+      input.expectedVersion ?? {}
+    );
+    const preview = this.buildBodyEditPreview(row, {
+      messageIndex: input.messageIndex,
+      nextContent: input.nextContent,
+    });
+    if (preview.previewFingerprint !== input.expectedPreviewFingerprint) {
+      throw new Error('Prompt registry body edit preview is stale');
+    }
+
+    const prospective = this.withEditedMessageContent(row, {
+      messageIndex: input.messageIndex,
+      nextContent: preview.nextContent,
+    });
+    const prospectiveValidation = this.resolveRegistryValidation(prospective);
+    if (
+      this.resolveRegistryValidationPublishStatus(
+        prospectiveValidation.issues
+      ) !== 'allowed'
+    ) {
+      throw new PromptRegistryPublishGateError({
+        gateCode: 'prompt_registry_validation_blocked',
+        promptName: input.name,
+        verdict: {
+          allowed: false,
+          blockingCount: this.countRegistryValidationBlocking(
+            prospectiveValidation.issues
+          ),
+          errorCount: this.countRegistryValidationErrors(
+            prospectiveValidation.issues
+          ),
+          issueCount: prospectiveValidation.issues.length,
+          issues: prospectiveValidation.issues,
+          name: input.name,
+          publishStatus: 'blocked',
+          reason: prospectiveValidation.reason,
+          registryFingerprint: prospectiveValidation.registryFingerprint,
+          registryId: row.id,
+          registryUpdatedAt: row.updatedAt,
+          remediations: prospectiveValidation.remediations,
+          stale: false,
+          staleReasons: [],
+          status:
+            prospectiveValidation.reason === 'ready' ? 'ready' : 'ignored',
+        },
+      });
+    }
+
+    if (preview.changed) {
+      const updatedAt = new Date();
+      const updatedMessageRows = await this.db.$queryRaw<Array<{ id: number }>>`
+        UPDATE ai_prompts_messages
+        SET content = ${preview.nextContent}
+        WHERE prompt_id = ${row.id}
+          AND idx = ${input.messageIndex}
+          AND content = ${preview.currentContent}
+        RETURNING prompt_id AS id
+      `;
+      if (!updatedMessageRows.length) {
+        throw new Error('Prompt registry body edit message state changed');
+      }
+      const updatedPromptRows = await this.db.$queryRaw<Array<{ id: number }>>`
+        UPDATE ai_prompts_metadata
+        SET
+          modified = ${true},
+          updated_at = ${updatedAt}
+        WHERE id = ${row.id}
+          AND updated_at = ${row.updatedAt}
+        RETURNING id
+      `;
+      if (!updatedPromptRows.length) {
+        throw new Error('Prompt registry body edit metadata state changed');
+      }
+    }
+
+    const updated = await this.db.aiPrompt.findUnique({
+      where: { name: input.name },
+      select: PROMPT_REGISTRY_SELECT,
+    });
+    if (!updated) {
+      throw new Error(`Updated prompt registry row not found: ${input.name}`);
+    }
+    const updatedVerdict = this.assertRegistryPublishGateRowAllowed(
+      updated,
+      {}
+    );
+    const revision =
+      await this.models.copilotPromptRegistryRevision.publishWorkspaceRevision({
+        workspaceId: input.workspaceId,
+        actorId: input.actorId,
+        promptName: input.name,
+        revision: `body-${preview.nextContentFingerprint}`,
+        idempotencyKey: input.idempotencyKey,
+        registryFingerprint: updatedVerdict.registryFingerprint,
+        registryId: updatedVerdict.registryId,
+        registryUpdatedAt: updatedVerdict.registryUpdatedAt.toISOString(),
+        gateStatus: updatedVerdict.status,
+        publishStatus: updatedVerdict.publishStatus,
+        validationReason: updatedVerdict.reason,
+        validationIssueCount: updatedVerdict.issueCount,
+        validationBlockingCount: updatedVerdict.blockingCount,
+        validationErrorCount: updatedVerdict.errorCount,
+        reviewNote: input.reviewNote,
+        fallbackSourceChain: input.fallbackSourceChain,
+        bodyEdit: {
+          changed: preview.changed,
+          currentContentFingerprint: preview.currentContentFingerprint,
+          diffFingerprint: preview.diffFingerprint,
+          messageIndex: preview.messageIndex,
+          nextContentFingerprint: preview.nextContentFingerprint,
+          previewFingerprint: preview.previewFingerprint,
+        },
+      });
+
+    return {
+      preview: {
+        ...preview,
+        registryFingerprint: currentVerdict.registryFingerprint,
+      },
+      revision,
+    };
+  }
+
+  private assertRegistryPublishGateRowAllowed(
+    row: PromptRegistryRecord,
+    expectedVersion: PromptRegistryPublishGateExpectedVersion
+  ) {
+    const verdict = this.toRegistryPublishGateVerdict(row, expectedVersion);
+    if (!verdict.allowed) {
+      throw new PromptRegistryPublishGateError({
+        gateCode: this.resolveRegistryPublishGateRejectionCode(verdict),
+        promptName: row.name,
+        verdict,
+      });
+    }
+    return verdict;
+  }
+
+  private assertRegistryRowVersionFresh(
+    row: PromptRegistryRecord,
+    expectedVersion: PromptRegistryPublishGateExpectedVersion
+  ) {
+    const verdict = this.toRegistryPublishGateVerdict(row, expectedVersion);
+    if (verdict.stale) {
+      throw new PromptRegistryPublishGateError({
+        gateCode: 'prompt_registry_version_stale',
+        promptName: row.name,
+        verdict,
+      });
+    }
+    return verdict;
+  }
+
+  private buildBodyEditPreview(
+    row: PromptRegistryRecord,
+    input: {
+      messageIndex: number;
+      nextContent: string;
+    }
+  ): PromptRegistryBodyEditPreview {
+    if (!Number.isInteger(input.messageIndex) || input.messageIndex < 0) {
+      throw new Error('Prompt registry body edit messageIndex is invalid');
+    }
+    const message = row.messages.find(item => item.idx === input.messageIndex);
+    if (!message) {
+      throw new Error('Prompt registry body edit message not found');
+    }
+    const nextContent = this.normalizeBodyEditContent(input.nextContent);
+    const registryFingerprint = this.buildRegistryFingerprint(row);
+    const currentContentFingerprint = this.promptBodyEditFingerprint({
+      version: 'prompt-registry-body-content/v1',
+      name: row.name,
+      registryId: row.id,
+      messageIndex: input.messageIndex,
+      content: message.content,
+    });
+    const nextContentFingerprint = this.promptBodyEditFingerprint({
+      version: 'prompt-registry-body-content/v1',
+      name: row.name,
+      registryId: row.id,
+      messageIndex: input.messageIndex,
+      content: nextContent,
+    });
+    const diff = this.buildBodyEditDiff(message.content, nextContent);
+    const diffFingerprint = this.promptBodyEditFingerprint(diff);
+    const previewFingerprint = this.promptBodyEditFingerprint({
+      version: 'prompt-registry-body-edit-preview/v1',
+      name: row.name,
+      registryId: row.id,
+      registryFingerprint,
+      registryUpdatedAt: row.updatedAt.toISOString(),
+      messageIndex: input.messageIndex,
+      currentContentFingerprint,
+      nextContentFingerprint,
+      diffFingerprint,
+    });
+
+    return {
+      version: 'prompt-registry-body-edit-preview/v1',
+      changed: message.content !== nextContent,
+      currentContent: message.content,
+      currentContentFingerprint,
+      diff,
+      diffFingerprint,
+      messageIndex: input.messageIndex,
+      name: row.name,
+      nextContent,
+      nextContentFingerprint,
+      previewFingerprint,
+      registryFingerprint,
+      registryId: row.id,
+      registryUpdatedAt: row.updatedAt,
+    };
+  }
+
+  private normalizeBodyEditContent(value: unknown) {
+    if (typeof value !== 'string') {
+      throw new Error('Prompt registry body edit content must be a string');
+    }
+    if (!value.trim()) {
+      throw new Error('Prompt registry body edit content must not be blank');
+    }
+    if (value.length > PROMPT_REGISTRY_BODY_EDIT_CONTENT_MAX_LENGTH) {
+      throw new Error('Prompt registry body edit content is too long');
+    }
+    return value;
+  }
+
+  private promptBodyEditFingerprint(value: unknown) {
+    return createHash('sha256')
+      .update(this.stableStringify(value))
+      .digest('hex')
+      .slice(0, 16);
+  }
+
+  private buildBodyEditDiff(
+    currentContent: string,
+    nextContent: string
+  ): PromptRegistryBodyEditPreview['diff'] {
+    const currentLines = currentContent.split(/\r?\n/);
+    const nextLines = nextContent.split(/\r?\n/);
+    let prefixLength = 0;
+    while (
+      prefixLength < currentLines.length &&
+      prefixLength < nextLines.length &&
+      currentLines[prefixLength] === nextLines[prefixLength]
+    ) {
+      prefixLength += 1;
+    }
+
+    let suffixLength = 0;
+    while (
+      suffixLength + prefixLength < currentLines.length &&
+      suffixLength + prefixLength < nextLines.length &&
+      currentLines[currentLines.length - suffixLength - 1] ===
+        nextLines[nextLines.length - suffixLength - 1]
+    ) {
+      suffixLength += 1;
+    }
+
+    const lines: PromptRegistryBodyEditDiffLine[] = [];
+    currentLines.slice(0, prefixLength).forEach((text, index) => {
+      lines.push({
+        kind: 'context',
+        oldLine: index + 1,
+        newLine: index + 1,
+        text,
+      });
+    });
+    currentLines
+      .slice(prefixLength, currentLines.length - suffixLength)
+      .forEach((text, index) => {
+        lines.push({
+          kind: 'removed',
+          oldLine: prefixLength + index + 1,
+          text,
+        });
+      });
+    nextLines
+      .slice(prefixLength, nextLines.length - suffixLength)
+      .forEach((text, index) => {
+        lines.push({
+          kind: 'added',
+          newLine: prefixLength + index + 1,
+          text,
+        });
+      });
+    currentLines
+      .slice(currentLines.length - suffixLength)
+      .forEach((text, index) => {
+        const oldLine = currentLines.length - suffixLength + index + 1;
+        const newLine = nextLines.length - suffixLength + index + 1;
+        lines.push({
+          kind: 'context',
+          oldLine,
+          newLine,
+          text,
+        });
+      });
+
+    return {
+      version: 'prompt-registry-body-edit-diff/v1',
+      addedLineCount: lines.filter(line => line.kind === 'added').length,
+      lines,
+      removedLineCount: lines.filter(line => line.kind === 'removed').length,
+      unchangedLineCount: lines.filter(line => line.kind === 'context').length,
+    };
+  }
+
+  private withEditedMessageContent(
+    row: PromptRegistryRecord,
+    input: {
+      messageIndex: number;
+      nextContent: string;
+    }
+  ): PromptRegistryRecord {
+    return {
+      ...row,
+      messages: row.messages.map(message =>
+        message.idx === input.messageIndex
+          ? { ...message, content: input.nextContent }
+          : message
+      ),
+    };
   }
 
   private toRegistryPrompt(row: PromptRegistryRecord): Prompt | null {

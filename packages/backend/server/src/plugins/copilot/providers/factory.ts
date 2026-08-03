@@ -162,6 +162,17 @@ export type CopilotProviderHealthProbeResult = {
   };
 };
 
+const PROVIDER_HEALTH_NETWORK_PROBE_PROMPT: PromptMessage[] = [
+  {
+    role: 'system',
+    content: 'Reply with exactly: OK',
+  },
+  {
+    role: 'user',
+    content: 'Provider health probe. Reply OK.',
+  },
+];
+
 export type CopilotProviderPrepareCandidateDiagnostics = {
   providerId: string;
   providerName?: string;
@@ -734,6 +745,146 @@ export class CopilotProviderFactory {
         'Provider runtime is configured but no text-capable model matched the provider profile.',
       diagnostics,
     };
+  }
+
+  async probeProviderProfileNetwork(input: {
+    actorId?: string;
+    providerId: string;
+    timeoutMs?: number;
+    workspaceId: string;
+  }): Promise<CopilotProviderHealthProbeResult> {
+    const contractResult = await this.probeProviderProfile({
+      providerId: input.providerId,
+      workspaceId: input.workspaceId,
+    });
+    if (contractResult.status !== 'healthy') {
+      return {
+        ...contractResult,
+        diagnostics: {
+          ...contractResult.diagnostics,
+          reasons: [
+            ...contractResult.diagnostics.reasons,
+            'provider_network_probe_skipped_contract_not_healthy',
+          ],
+        },
+      };
+    }
+
+    const checkedAt = new Date();
+    const registry = await this.registries.getRegistryWithModelRevisions(
+      input.workspaceId
+    );
+    const profile = registry.profiles.get(input.providerId);
+    const provider = profile
+      ? this.getProviderByProfile(input.providerId, profile)
+      : null;
+    if (!profile || !provider) {
+      return {
+        ...contractResult,
+        status: 'down',
+        checkedAt,
+        errorCode: 'provider_network_probe_runtime_missing',
+        errorMessage:
+          'Provider runtime disappeared before the network probe could run.',
+        diagnostics: {
+          ...contractResult.diagnostics,
+          providerRegistered: false,
+          reasons: [
+            ...contractResult.diagnostics.reasons,
+            'provider_network_probe_runtime_missing',
+          ],
+        },
+      };
+    }
+
+    const modelId =
+      contractResult.diagnostics.matchedModelId ??
+      this.getProfileModelIds(profile)[0];
+    const execution = { providerId: input.providerId, profile };
+    const abortController = new AbortController();
+    let timedOut = false;
+    const timeout = input.timeoutMs
+      ? setTimeout(() => {
+          timedOut = true;
+          abortController.abort();
+        }, input.timeoutMs)
+      : null;
+
+    try {
+      const output = await getProviderRuntimeHost(provider).run.text(
+        {
+          ...(modelId ? { modelId } : {}),
+          outputType: ModelOutputType.Text,
+        },
+        PROVIDER_HEALTH_NETWORK_PROBE_PROMPT,
+        {
+          featureKind: 'action',
+          maxTokens: 8,
+          signal: abortController.signal,
+          temperature: 0,
+          user: input.actorId,
+          workspace: input.workspaceId,
+        },
+        execution
+      );
+      if (!output.trim()) {
+        return {
+          ...contractResult,
+          status: 'degraded',
+          checkedAt,
+          errorCode: 'provider_network_probe_empty_response',
+          errorMessage:
+            'Provider network probe completed but returned an empty response.',
+          diagnostics: {
+            ...contractResult.diagnostics,
+            reasons: [
+              ...contractResult.diagnostics.reasons,
+              'provider_network_probe_empty_response',
+            ],
+          },
+        };
+      }
+      return {
+        ...contractResult,
+        checkedAt,
+        diagnostics: {
+          ...contractResult.diagnostics,
+          matchedModelId:
+            contractResult.diagnostics.matchedModelId ?? modelId ?? undefined,
+          reasons: [
+            ...contractResult.diagnostics.reasons,
+            'provider_network_probe_succeeded',
+          ],
+        },
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Provider network probe failed';
+      return {
+        ...contractResult,
+        status: 'down',
+        checkedAt,
+        errorCode: timedOut
+          ? 'provider_network_probe_timeout'
+          : 'provider_network_probe_failed',
+        errorMessage: message,
+        diagnostics: {
+          ...contractResult.diagnostics,
+          reasons: [
+            ...contractResult.diagnostics.reasons,
+            timedOut
+              ? 'provider_network_probe_timeout'
+              : 'provider_network_probe_failed',
+          ],
+        },
+      };
+    } finally {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    }
   }
 
   private getConfiguredModelIdsFromRegistry(

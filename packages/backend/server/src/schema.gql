@@ -899,6 +899,16 @@ input CopilotAgentRuntimeControlInput {
   workspaceId: String!
 }
 
+input CopilotAgentRuntimeDocUpdateRequestInput {
+  content: String!
+  contentFingerprint: String
+  docId: String!
+  idempotencyKey: String
+  reason: String
+  title: String
+  workspaceId: String!
+}
+
 type CopilotAgentRuntimeExecutionResultType {
   actorId: String!
   adapterWorkflow: String!
@@ -1508,6 +1518,62 @@ type CopilotPromptCatalogVersionEvidenceType {
 
 type CopilotPromptNotFoundDataType {
   name: String!
+}
+
+type CopilotPromptRegistryBodyEditDiffLineType {
+  kind: String!
+  newLine: SafeInt
+  oldLine: SafeInt
+  text: String!
+}
+
+type CopilotPromptRegistryBodyEditDiffType {
+  addedLineCount: SafeInt!
+  lines: [CopilotPromptRegistryBodyEditDiffLineType!]!
+  removedLineCount: SafeInt!
+  unchangedLineCount: SafeInt!
+  version: String!
+}
+
+input CopilotPromptRegistryBodyEditPreviewInput {
+  expectedVersion: CopilotPromptRegistryPublishGateExpectedVersionInput
+  messageIndex: SafeInt!
+  name: String!
+  nextContent: String!
+  workspaceId: String!
+}
+
+type CopilotPromptRegistryBodyEditPreviewType {
+  changed: Boolean!
+  currentContent: String!
+  currentContentFingerprint: String!
+  diff: CopilotPromptRegistryBodyEditDiffType!
+  diffFingerprint: String!
+  messageIndex: SafeInt!
+  name: String!
+  nextContent: String!
+  nextContentFingerprint: String!
+  previewFingerprint: String!
+  registryFingerprint: String!
+  registryId: SafeInt!
+  registryUpdatedAt: DateTime!
+  version: String!
+}
+
+input CopilotPromptRegistryBodyEditPublishInput {
+  expectedPreviewFingerprint: String!
+  expectedVersion: CopilotPromptRegistryPublishGateExpectedVersionInput
+  idempotencyKey: String
+  messageIndex: SafeInt!
+  name: String!
+  nextContent: String!
+  reviewNote: String
+  workspaceId: String!
+}
+
+type CopilotPromptRegistryBodyEditPublishType {
+  preview: CopilotPromptRegistryBodyEditPreviewType!
+  revision: CopilotPromptRegistryRevisionType!
 }
 
 type CopilotPromptRegistryPublishGateActionRouteDryRunRouteType {
@@ -4576,12 +4642,22 @@ type Mutation {
 
   """mention user in a doc"""
   mentionUser(input: MentionInput!): ID!
+
+  """
+  Preview a Prompt Registry message body edit and return a publishable diff fingerprint before writing.
+  """
+  previewCopilotPromptRegistryBodyEdit(input: CopilotPromptRegistryBodyEditPreviewInput!): CopilotPromptRegistryBodyEditPreviewType!
   previewLicense(license: Upload!): AdminLicensePreview!
 
   """
   Publish a workspace-scoped DB-backed model definition revision for an existing configured provider.
   """
   publishCopilotModelRegistryRevision(input: CopilotModelRegistryPublishInput!): CopilotModelRegistryRevisionType!
+
+  """
+  Publish a Prompt Registry message body edit after a matching diff preview fingerprint.
+  """
+  publishCopilotPromptRegistryBodyEdit(input: CopilotPromptRegistryBodyEditPublishInput!): CopilotPromptRegistryBodyEditPublishType!
 
   """
   Publish a workspace-scoped DB-backed prompt registry revision after publish-gate and route-readiness checks.
@@ -4644,6 +4720,11 @@ type Mutation {
 
   """Request to apply the subscription in advance"""
   requestApplySubscription(transactionId: String!): [SubscriptionType!]!
+
+  """
+  Request an approval-gated Agent Runtime office task that updates one workspace document after approval.
+  """
+  requestCopilotAgentRuntimeDocUpdate(input: CopilotAgentRuntimeDocUpdateRequestInput!): CopilotAgentRunType!
 
   """
   Request prompt registry repair execution. Approval-gated requests can publish a DB-backed workspace prompt registry revision after approval.

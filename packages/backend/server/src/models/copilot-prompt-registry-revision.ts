@@ -79,6 +79,14 @@ export type PromptRegistryPublishInput = {
   repairGateManifestFingerprint?: string | null;
   reviewNote?: string | null;
   fallbackSourceChain?: PromptRegistrySourceChainEntry[];
+  bodyEdit?: {
+    changed: boolean;
+    currentContentFingerprint: string;
+    diffFingerprint: string;
+    messageIndex: number;
+    nextContentFingerprint: string;
+    previewFingerprint: string;
+  } | null;
 };
 
 function stablePromptRegistryRevisionStringify(value: unknown): string {
@@ -499,6 +507,36 @@ export class CopilotPromptRegistryRevisionModel extends BaseModel {
       input.taskRouteFingerprints
     ).sort();
     const reviewNote = normalizeReviewNote(input.reviewNote);
+    const bodyEdit = input.bodyEdit
+      ? {
+          changed: input.bodyEdit.changed === true,
+          currentContentFingerprint: requirePublishString(
+            input.bodyEdit.currentContentFingerprint,
+            'bodyEdit.currentContentFingerprint'
+          ),
+          diffFingerprint: requirePublishString(
+            input.bodyEdit.diffFingerprint,
+            'bodyEdit.diffFingerprint'
+          ),
+          messageIndex: input.bodyEdit.messageIndex,
+          nextContentFingerprint: requirePublishString(
+            input.bodyEdit.nextContentFingerprint,
+            'bodyEdit.nextContentFingerprint'
+          ),
+          previewFingerprint: requirePublishString(
+            input.bodyEdit.previewFingerprint,
+            'bodyEdit.previewFingerprint'
+          ),
+        }
+      : null;
+    if (
+      bodyEdit &&
+      (!Number.isInteger(bodyEdit.messageIndex) || bodyEdit.messageIndex < 0)
+    ) {
+      throw new Error(
+        'Prompt registry publish contains invalid bodyEdit.messageIndex'
+      );
+    }
     const reviewFingerprint = promptRegistryRevisionFingerprint({
       version: 'prompt-registry-direct-publish-review/v1',
       promptName,
@@ -516,6 +554,7 @@ export class CopilotPromptRegistryRevisionModel extends BaseModel {
       actionRouteDryRunStatus: actionRouteDryRunStatus ?? null,
       repairActionCatalogFingerprint: repairActionCatalogFingerprint ?? null,
       repairGateManifestFingerprint: repairGateManifestFingerprint ?? null,
+      bodyEdit,
       fallbackSourceChain,
       reviewNote: reviewNote ?? null,
     });
@@ -544,6 +583,7 @@ export class CopilotPromptRegistryRevisionModel extends BaseModel {
       modelRouteFingerprints,
       taskRouteFingerprints,
       fallbackSourceChain,
+      bodyEdit,
       reviewFingerprint,
     });
     const id = `prompt-registry-revision-${promptRegistryRevisionFingerprint({
@@ -555,7 +595,9 @@ export class CopilotPromptRegistryRevisionModel extends BaseModel {
     const metadata = {
       version: 'prompt-registry-revision-direct-publish/v1',
       publishSource: 'graphql_mutation',
-      promptBodyBoundary: 'legacy_registry_row_reviewed_no_body_copy',
+      promptBodyBoundary: bodyEdit
+        ? 'editable_registry_body_published'
+        : 'legacy_registry_row_reviewed_no_body_copy',
       registryFingerprint,
       registryId: input.registryId,
       registryUpdatedAt,
@@ -570,6 +612,7 @@ export class CopilotPromptRegistryRevisionModel extends BaseModel {
       actionRouteDryRunStatus: actionRouteDryRunStatus ?? null,
       repairActionCatalogFingerprint: repairActionCatalogFingerprint ?? null,
       repairGateManifestFingerprint: repairGateManifestFingerprint ?? null,
+      ...(bodyEdit ? { bodyEdit } : {}),
       reviewFingerprint,
       ...(reviewNote ? { reviewNote } : {}),
       ...(idempotencyKey

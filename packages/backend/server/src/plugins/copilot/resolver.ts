@@ -43,6 +43,8 @@ import {
   EMBEDDING_DIMENSIONS,
   type ListSessionOptions,
   Models,
+  type PromptRegistryBodyEditPreview,
+  type PromptRegistryBodyEditPublishResult,
   type PromptRegistryPublishGateVerdict,
   type UpdateChatSession,
 } from '../../models';
@@ -99,6 +101,10 @@ import type {
   CopilotSupportBundleTransferForwardingEventRecord,
 } from '../../models/copilot-support-bundle';
 import type { CopilotAccessContext } from './access';
+import {
+  AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION,
+  AGENT_RUNTIME_DOC_UPDATE_WORKFLOW,
+} from './agent-runtime-doc-update-adapter';
 import {
   type CopilotAgentRuntimeWorkflowAdapterCapabilities,
   CopilotAgentRuntimeWorkflowRegistry,
@@ -428,6 +434,62 @@ class CopilotPromptRegistryPublishInput {
 }
 
 @InputType()
+class CopilotPromptRegistryBodyEditPreviewInput {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  name!: string;
+
+  @Field(() => SafeIntResolver)
+  messageIndex!: number;
+
+  @Field(() => String)
+  nextContent!: string;
+
+  @Field(() => CopilotPromptRegistryPublishGateExpectedVersionInput, {
+    nullable: true,
+  })
+  expectedVersion?: CopilotPromptRegistryPublishGateExpectedVersionInput;
+}
+
+@InputType()
+class CopilotPromptRegistryBodyEditPublishInput extends CopilotPromptRegistryBodyEditPreviewInput {
+  @Field(() => String)
+  expectedPreviewFingerprint!: string;
+
+  @Field(() => String, { nullable: true })
+  idempotencyKey?: string;
+
+  @Field(() => String, { nullable: true })
+  reviewNote?: string;
+}
+
+@InputType()
+class CopilotAgentRuntimeDocUpdateRequestInput {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  docId!: string;
+
+  @Field(() => String)
+  content!: string;
+
+  @Field(() => String, { nullable: true })
+  contentFingerprint?: string;
+
+  @Field(() => String, { nullable: true })
+  idempotencyKey?: string;
+
+  @Field(() => String, { nullable: true })
+  title?: string;
+
+  @Field(() => String, { nullable: true })
+  reason?: string;
+}
+
+@InputType()
 class CopilotSupportBundleCreateInput {
   @Field(() => String)
   workspaceId!: string;
@@ -673,7 +735,7 @@ class CopilotAgentRuntimeControlInput {
   runId!: string;
 
   @Field(() => String)
-  action!: 'cancel' | 'resume';
+  action!: 'approve' | 'cancel' | 'reject' | 'resume';
 
   @Field(() => String, { nullable: true })
   reason?: string;
@@ -7356,6 +7418,93 @@ class CopilotPromptRegistryRevisionType
 }
 
 @ObjectType()
+class CopilotPromptRegistryBodyEditDiffLineType {
+  @Field(() => String)
+  kind!: 'added' | 'context' | 'removed';
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  oldLine?: number;
+
+  @Field(() => SafeIntResolver, { nullable: true })
+  newLine?: number;
+
+  @Field(() => String)
+  text!: string;
+}
+
+@ObjectType()
+class CopilotPromptRegistryBodyEditDiffType {
+  @Field(() => String)
+  version!: 'prompt-registry-body-edit-diff/v1';
+
+  @Field(() => SafeIntResolver)
+  addedLineCount!: number;
+
+  @Field(() => SafeIntResolver)
+  removedLineCount!: number;
+
+  @Field(() => SafeIntResolver)
+  unchangedLineCount!: number;
+
+  @Field(() => [CopilotPromptRegistryBodyEditDiffLineType])
+  lines!: PromptRegistryBodyEditPreview['diff']['lines'];
+}
+
+@ObjectType()
+class CopilotPromptRegistryBodyEditPreviewType implements PromptRegistryBodyEditPreview {
+  @Field(() => String)
+  version!: 'prompt-registry-body-edit-preview/v1';
+
+  @Field(() => String)
+  name!: string;
+
+  @Field(() => SafeIntResolver)
+  registryId!: number;
+
+  @Field(() => String)
+  registryFingerprint!: string;
+
+  @Field(() => Date)
+  registryUpdatedAt!: Date;
+
+  @Field(() => SafeIntResolver)
+  messageIndex!: number;
+
+  @Field(() => String)
+  currentContent!: string;
+
+  @Field(() => String)
+  nextContent!: string;
+
+  @Field(() => String)
+  currentContentFingerprint!: string;
+
+  @Field(() => String)
+  nextContentFingerprint!: string;
+
+  @Field(() => String)
+  diffFingerprint!: string;
+
+  @Field(() => String)
+  previewFingerprint!: string;
+
+  @Field(() => Boolean)
+  changed!: boolean;
+
+  @Field(() => CopilotPromptRegistryBodyEditDiffType)
+  diff!: PromptRegistryBodyEditPreview['diff'];
+}
+
+@ObjectType()
+class CopilotPromptRegistryBodyEditPublishType implements PromptRegistryBodyEditPublishResult {
+  @Field(() => CopilotPromptRegistryBodyEditPreviewType)
+  preview!: PromptRegistryBodyEditPreview;
+
+  @Field(() => CopilotPromptRegistryRevisionType)
+  revision!: PromptRegistryBodyEditPublishResult['revision'];
+}
+
+@ObjectType()
 class CopilotProviderHealthProbeAttemptType implements Pick<
   CopilotProviderHealthProbeAttemptRecord,
   | 'actorId'
@@ -11096,6 +11245,62 @@ function stableRepairRecommendationStringify(value: unknown): string {
       .join(',')}}`;
   }
   return JSON.stringify(value);
+}
+
+const AGENT_RUNTIME_DOC_UPDATE_CONTENT_MAX_LENGTH = 6_000;
+const AGENT_RUNTIME_DOC_UPDATE_STRING_MAX_LENGTH = 256;
+
+function agentRuntimeDocUpdateFingerprint(value: unknown) {
+  return createHash('sha256')
+    .update(stableRepairRecommendationStringify(value))
+    .digest('hex');
+}
+
+function normalizeAgentRuntimeDocUpdateRequestString(
+  value: unknown,
+  field: string
+) {
+  if (typeof value !== 'string') {
+    throw new Error(`Agent Runtime doc update ${field} must be a string`);
+  }
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new Error(`Agent Runtime doc update ${field} must not be blank`);
+  }
+  if (normalized.length > AGENT_RUNTIME_DOC_UPDATE_STRING_MAX_LENGTH) {
+    throw new Error(`Agent Runtime doc update ${field} is too long`);
+  }
+  return normalized;
+}
+
+function normalizeOptionalAgentRuntimeDocUpdateRequestString(
+  value: unknown,
+  field: string
+) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  return normalizeAgentRuntimeDocUpdateRequestString(value, field);
+}
+
+function normalizeAgentRuntimeDocUpdateContent(value: unknown) {
+  if (typeof value !== 'string') {
+    throw new Error('Agent Runtime doc update content must be a string');
+  }
+  if (!value.trim()) {
+    throw new Error('Agent Runtime doc update content must not be blank');
+  }
+  if (value.length > AGENT_RUNTIME_DOC_UPDATE_CONTENT_MAX_LENGTH) {
+    throw new Error('Agent Runtime doc update content is too long');
+  }
+  return value;
+}
+
+function agentRuntimeDocUpdateContentFingerprint(content: string) {
+  return agentRuntimeDocUpdateFingerprint({
+    version: 'agent-runtime-doc-update-content/v1',
+    content,
+  });
 }
 
 function promptRegistryRepairCandidateEvidenceReferenceSchemaFingerprint() {
@@ -24249,6 +24454,123 @@ export class CopilotResolver {
 
   @Mutation(() => CopilotAgentRunType, {
     description:
+      'Request an approval-gated Agent Runtime office task that updates one workspace document after approval.',
+  })
+  @CallMetric('ai', 'agent_runtime_doc_update_request')
+  async requestCopilotAgentRuntimeDocUpdate(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotAgentRuntimeDocUpdateRequestInput,
+    })
+    input: CopilotAgentRuntimeDocUpdateRequestInput
+  ): Promise<CopilotAgentRunType> {
+    const docId = normalizeAgentRuntimeDocUpdateRequestString(
+      input.docId,
+      'docId'
+    );
+    const content = normalizeAgentRuntimeDocUpdateContent(input.content);
+    const contentFingerprint = agentRuntimeDocUpdateContentFingerprint(content);
+    const expectedContentFingerprint =
+      normalizeOptionalAgentRuntimeDocUpdateRequestString(
+        input.contentFingerprint,
+        'contentFingerprint'
+      );
+    if (
+      expectedContentFingerprint &&
+      expectedContentFingerprint !== contentFingerprint
+    ) {
+      throw new Error(
+        'Agent Runtime doc update contentFingerprint must match content'
+      );
+    }
+    const idempotencyKey = normalizeOptionalAgentRuntimeDocUpdateRequestString(
+      input.idempotencyKey,
+      'idempotencyKey'
+    );
+    const reason = normalizeOptionalAgentRuntimeDocUpdateRequestString(
+      input.reason,
+      'reason'
+    );
+
+    const { workspaceId } = await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+      docId,
+    });
+    await this.ac
+      .user(user.id)
+      .workspace(workspaceId)
+      .allowLocal()
+      .assert('Workspace.Copilot');
+
+    const requestFingerprint = agentRuntimeDocUpdateFingerprint({
+      version: AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION,
+      workspaceId,
+      docId,
+      contentFingerprint,
+      idempotencyKey,
+    });
+    const sourceId = `agent-runtime-doc-update-${requestFingerprint.slice(
+      0,
+      48
+    )}`;
+    const docUpdateRequest = {
+      version: AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION,
+      docId,
+      content,
+      contentFingerprint,
+    };
+
+    return await this.modelsStore.copilotAgentRuntime.createRun({
+      workspaceId,
+      actorId: user.id,
+      workflow: AGENT_RUNTIME_DOC_UPDATE_WORKFLOW,
+      sourceType: 'agent_runtime_office_task',
+      sourceId,
+      status: 'waiting_approval',
+      title: input.title ?? `Update document ${docId}`,
+      target: {
+        version: 'agent-runtime-doc-update-target/v1',
+        docId,
+        contentFingerprint,
+      },
+      evidence: {
+        version: 'agent-runtime-doc-update-request-evidence/v1',
+        requestFingerprint,
+        idempotencyKey,
+        reason,
+      },
+      steps: [
+        {
+          stepKey: 'approve_doc_update',
+          stepType: 'approval',
+          status: 'waiting_approval',
+          title: 'Approve document update',
+          order: 0,
+          outputSummary: {
+            approvalRequest: {
+              version: 'agent-runtime-doc-update-approval/v1',
+              docId,
+              contentFingerprint,
+              reason,
+            },
+          },
+        },
+        {
+          stepKey: 'update_doc',
+          stepType: 'tool',
+          status: 'waiting_approval',
+          title: 'Update document',
+          order: 1,
+          outputSummary: {
+            docUpdateRequest,
+          },
+        },
+      ],
+    });
+  }
+
+  @Mutation(() => CopilotAgentRunType, {
+    description:
       'Control a standalone persisted Agent Runtime run outside repair execution.',
   })
   @CallMetric('ai', 'agent_runtime_control')
@@ -24259,7 +24581,12 @@ export class CopilotResolver {
     })
     input: CopilotAgentRuntimeControlInput
   ): Promise<CopilotAgentRunType> {
-    if (input.action !== 'cancel' && input.action !== 'resume') {
+    if (
+      input.action !== 'approve' &&
+      input.action !== 'cancel' &&
+      input.action !== 'reject' &&
+      input.action !== 'resume'
+    ) {
       throw new Error('Unsupported Agent Runtime control action');
     }
 
@@ -24283,7 +24610,7 @@ export class CopilotResolver {
       throw error;
     }
 
-    if (input.action === 'resume') {
+    if (input.action === 'approve' || input.action === 'resume') {
       await this.jobs.add(
         'copilot.agentRuntime.run',
         {
@@ -24291,7 +24618,7 @@ export class CopilotResolver {
           runId: record.id,
         },
         {
-          jobId: `copilot-agent-runtime-run-${record.id}-resume-${record.workerAttempt}-${record.workerMaxAttempts}`,
+          jobId: `copilot-agent-runtime-run-${record.id}-${input.action}-${record.workerAttempt}-${record.workerMaxAttempts}`,
         }
       );
     }
@@ -24431,6 +24758,63 @@ export class CopilotResolver {
         maxAttempts: input.maxAttempts,
       }
     );
+  }
+
+  @Mutation(() => CopilotPromptRegistryBodyEditPreviewType, {
+    description:
+      'Preview a Prompt Registry message body edit and return a publishable diff fingerprint before writing.',
+  })
+  @CallMetric('ai', 'prompt_registry_body_edit_preview')
+  async previewCopilotPromptRegistryBodyEdit(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotPromptRegistryBodyEditPreviewInput,
+    })
+    input: CopilotPromptRegistryBodyEditPreviewInput
+  ): Promise<CopilotPromptRegistryBodyEditPreviewType> {
+    await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+    });
+    const preview =
+      await this.modelsStore.copilotPrompt.previewRegistryPromptBodyEdit({
+        name: input.name,
+        messageIndex: input.messageIndex,
+        nextContent: input.nextContent,
+        expectedVersion: input.expectedVersion,
+      });
+    if (!preview) {
+      throw new NotFoundException('Prompt registry row not found');
+    }
+    return preview;
+  }
+
+  @Mutation(() => CopilotPromptRegistryBodyEditPublishType, {
+    description:
+      'Publish a Prompt Registry message body edit after a matching diff preview fingerprint.',
+  })
+  @CallMetric('ai', 'prompt_registry_body_edit_publish')
+  async publishCopilotPromptRegistryBodyEdit(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotPromptRegistryBodyEditPublishInput,
+    })
+    input: CopilotPromptRegistryBodyEditPublishInput
+  ): Promise<CopilotPromptRegistryBodyEditPublishType> {
+    const { workspaceId } = await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+    });
+
+    return await this.modelsStore.copilotPrompt.publishRegistryPromptBodyEdit({
+      workspaceId,
+      actorId: user.id,
+      name: input.name,
+      messageIndex: input.messageIndex,
+      nextContent: input.nextContent,
+      expectedPreviewFingerprint: input.expectedPreviewFingerprint,
+      expectedVersion: input.expectedVersion,
+      idempotencyKey: input.idempotencyKey,
+      reviewNote: input.reviewNote,
+    });
   }
 
   @Mutation(() => CopilotPromptRegistryRevisionType, {

@@ -28,6 +28,29 @@ The AI Chat document snapshot freshness slice is implemented:
 - new drafts and session switches clear stale composer context before the
   selected session reloads its own context.
 
+The original four-step AI modernization vertical plan is now implemented:
+
+- `agent_runtime_model_completion` is registered as a production Agent Runtime
+  workflow adapter and executes persisted model steps through the existing
+  DB-routed PromptRuntime/provider stack with timeout, cooperative
+  cancellation, redacted bounded evidence, timeline output, and
+  `ai_agent_runtime_execution_results` ledger rows;
+- `agent_runtime_doc_update` provides the first approval-gated office-task
+  tool adapter: a user request creates a waiting-approval AgentRun, approval
+  queues the worker, the worker updates a workspace document through
+  `DocWriter`, and side-effect evidence is persisted in step output, timeline,
+  and execution-result ledger rows;
+- Provider Health probe attempts now keep the no-network local provider
+  profile/runtime contract as the default, and can optionally run a real text
+  completion probe through the existing provider runtime when
+  `LOCALMIND_PROVIDER_HEALTH_NETWORK_PROBE=1` or
+  `COPILOT_PROVIDER_HEALTH_NETWORK_PROBE=1`;
+- Prompt Registry now has editable body preview/publish GraphQL APIs for
+  workspace-scoped direct publish: preview returns bounded line diff and
+  fingerprints, publish requires the matching preview fingerprint, updates the
+  underlying prompt message body, and records a DB-backed prompt registry
+  revision with editable-body metadata.
+
 The latest confirmed slice is main-plan section 554:
 
 - the source-evidence field
@@ -784,15 +807,15 @@ The first durable Agent Runtime slice is now implemented:
   (`agent-runtime-model-request/v1` with bounded prompt name, optional model
   id, and bounded string-only params), the provider call is abortable and
   bounded by a 120s timeout, cooperative cancellation is polled before,
-  during, and after generation through the lease-scoped fence, bounded model
-  output evidence flows through the existing DB-constrained generic worker
-  completion contract, and invalid model requests fail closed before any
-  provider call;
+  during, and after generation through the lease-scoped fence, redacted and
+  bounded model output evidence flows through the existing DB-constrained
+  generic worker completion contract, and invalid model requests fail closed
+  before any provider call;
 - focused backend and Admin tests cover run/step/timeline persistence,
   idempotency reuse, generic tool/Codex/MCP step persistence, independent
   read/list authorization, workspace isolation, Admin observability,
   generic local-completion execution, model completion adapter execution with
-  bounded output evidence, invalid model request fail-closed behavior,
+  redacted bounded output evidence, invalid model request fail-closed behavior,
   cooperative cancellation consumed during model generation, terminal
   stale-lease execution result persistence, cooperative running cancellation
   before adapter execution, same-lease worker-attempt drift rejection, and
@@ -1349,12 +1372,12 @@ Still missing:
   still doing external work, plus broader non-registry operator-provided
   manual resume controls beyond the current corrected-payload workflow;
 - full Provider Registry editor workflows, bulk migration, credential
-  management, external network/credential health probes, and probe-attempt
-  search/alert workflows beyond the current no-network local Provider Health
-  probe ledger/read/retry surface;
-- Prompt Registry prompt-body edit APIs, bulk migration UI, diff/eval, and
-  full audit/history views beyond the current read/direct publish/repair-driven
-  revision paths;
+  management, provider credential rotation, and probe-attempt alert workflows
+  beyond the current local and optional real-network Provider Health probe
+  ledger/read/retry surface;
+- Prompt Registry bulk migration UI, richer diff/eval UX, and full
+  audit/history views beyond the current read/direct publish/repair-driven
+  revision paths and editable body preview/publish API;
 - full Model Registry editor workflows, model diff/review UX, and bulk
   migration UI beyond the current constrained direct/repair-driven publish
   paths.

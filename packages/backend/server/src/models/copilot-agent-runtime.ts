@@ -159,7 +159,11 @@ export type CopilotAgentRuntimeCreateInput = {
   steps: CopilotAgentRuntimeCreateStepInput[];
 };
 
-export type CopilotAgentRuntimeControlAction = 'cancel' | 'resume';
+export type CopilotAgentRuntimeControlAction =
+  | 'approve'
+  | 'cancel'
+  | 'reject'
+  | 'resume';
 
 type AgentRuntimeTimelineEventInput = {
   eventType: CopilotAgentTimelineEventType;
@@ -252,6 +256,7 @@ const AGENT_RUNTIME_RECORD_ONLY_SUMMARY_MAX_LENGTH = 1024;
 const AGENT_RUNTIME_WORKER_COMPLETION_SUMMARY_MAX_LENGTH = 1024;
 const AGENT_RUNTIME_FAILURE_CODE_MAX_LENGTH = 128;
 const AGENT_RUNTIME_JSON_PAYLOAD_MAX_LENGTH = 8192;
+const AGENT_RUNTIME_SIDE_EFFECT_SUMMARY_MAX_LENGTH = 4096;
 const AGENT_RUNTIME_CREATE_STEP_MAX_COUNT = 32;
 const AGENT_RUNTIME_MAX_STEP_ORDER = 10_000;
 const DEFAULT_AGENT_RUNTIME_RECORD_ONLY_SUMMARY =
@@ -272,6 +277,8 @@ const AGENT_RUNTIME_ADAPTER_RESOLUTION_VERSION =
   'agent-runtime-worker-adapter-resolution/v1';
 const AGENT_RUNTIME_WORKER_EXECUTION_RESULT_VERSION =
   'agent-runtime-worker-execution-result/v1';
+const AGENT_RUNTIME_APPROVAL_CONTROL_PAYLOAD_VERSION =
+  'agent-runtime-approval-control/v1';
 const AGENT_RUNTIME_RUN_STATUSES = new Set<CopilotAgentRunStatus>([
   'queued',
   'running',
@@ -408,6 +415,18 @@ function normalizeWorkerCompletionSummary(value: unknown) {
     0,
     AGENT_RUNTIME_WORKER_COMPLETION_SUMMARY_MAX_LENGTH
   );
+}
+
+function normalizeWorkerSideEffectSummary(value: unknown) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const summary = normalizeAgentRuntimeJsonObject(value, 'side-effect summary');
+  const serialized = stableAgentRuntimeStringify(summary);
+  if (serialized.length > AGENT_RUNTIME_SIDE_EFFECT_SUMMARY_MAX_LENGTH) {
+    throw new Error('Agent runtime side-effect summary is too large');
+  }
+  return summary;
 }
 
 function normalizeRunStatus(value: unknown): CopilotAgentRunStatus {
@@ -1023,12 +1042,16 @@ function controlledRunTimeline(input: {
   run: CopilotAgentRunRecord;
   startedAt: Date;
 }): AgentRuntimeTimelineEventInput {
+  const approvalDecision =
+    input.action === 'approve' || input.action === 'reject';
   const status: CopilotAgentRunStatus =
-    input.action === 'cancel'
-      ? 'cancelled'
-      : input.action === 'cancel_requested'
-        ? 'running'
-        : 'queued';
+    input.action === 'approve'
+      ? 'queued'
+      : input.action === 'cancel' || input.action === 'reject'
+        ? 'cancelled'
+        : input.action === 'cancel_requested'
+          ? 'running'
+          : 'queued';
   const nextOrdinal =
     Math.max(-1, ...input.run.timelineEvents.map(event => event.ordinal)) + 1;
   return {
@@ -1041,12 +1064,18 @@ function controlledRunTimeline(input: {
     summary:
       input.action === 'cancel'
         ? 'Agent runtime run manually cancelled'
-        : input.action === 'cancel_requested'
-          ? 'Agent runtime run cancellation requested'
-          : 'Agent runtime run manually resumed',
+        : input.action === 'approve'
+          ? 'Agent runtime run manually approved'
+          : input.action === 'reject'
+            ? 'Agent runtime run manually rejected'
+            : input.action === 'cancel_requested'
+              ? 'Agent runtime run cancellation requested'
+              : 'Agent runtime run manually resumed',
     stepId: null,
     payload: {
-      version: 'agent-runtime-manual-control/v1',
+      version: approvalDecision
+        ? AGENT_RUNTIME_APPROVAL_CONTROL_PAYLOAD_VERSION
+        : 'agent-runtime-manual-control/v1',
       action: input.action,
       actorId: input.actorId,
       previousStatus: input.run.status,
@@ -1069,6 +1098,8 @@ function controlledStepTimeline(input: {
   status: CopilotAgentStepStatus;
   step: CopilotAgentStepRecord;
 }) {
+  const approvalDecision =
+    input.action === 'approve' || input.action === 'reject';
   return {
     eventType: timelineEventTypeForStep(input.step.stepType),
     status: input.status,
@@ -1076,10 +1107,16 @@ function controlledStepTimeline(input: {
     summary:
       input.action === 'cancel'
         ? `Agent runtime ${input.step.stepType} step manually cancelled`
-        : `Agent runtime ${input.step.stepType} step manually resumed`,
+        : input.action === 'approve'
+          ? `Agent runtime ${input.step.stepType} step manually approved`
+          : input.action === 'reject'
+            ? `Agent runtime ${input.step.stepType} step manually rejected`
+            : `Agent runtime ${input.step.stepType} step manually resumed`,
     stepId: input.step.id,
     payload: {
-      version: 'agent-runtime-manual-control/v1',
+      version: approvalDecision
+        ? AGENT_RUNTIME_APPROVAL_CONTROL_PAYLOAD_VERSION
+        : 'agent-runtime-manual-control/v1',
       action: input.action,
       actorId: input.actorId,
       previousStatus: input.step.status,
@@ -1531,6 +1568,9 @@ export class CopilotAgentRuntimeModel extends BaseModel {
         'Repair execution Agent Runtime runs must be controlled through repair execution controls'
       );
     }
+    if (input.action === 'approve' || input.action === 'reject') {
+      return await this.decideStandaloneApprovalRun(input, existing);
+    }
     if (input.action === 'cancel') {
       return await this.cancelStandaloneRun(input, existing);
     }
@@ -1538,6 +1578,181 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       return await this.resumeStandaloneRun(input, existing);
     }
     throw new Error('Unsupported Agent Runtime control action');
+  }
+
+  private async decideStandaloneApprovalRun(
+    input: {
+      workspaceId: string;
+      actorId: string;
+      id: string;
+      action: CopilotAgentRuntimeControlAction;
+      reason?: string | null;
+    },
+    existing: CopilotAgentRunRecord
+  ) {
+    if (input.action !== 'approve' && input.action !== 'reject') {
+      throw new Error('Unsupported Agent Runtime approval control action');
+    }
+    if (existing.status !== 'waiting_approval') {
+      throw new Error(
+        `Agent runtime run cannot be ${input.action}d from status: ${existing.status}`
+      );
+    }
+
+    const now = new Date();
+    const reason = normalizeControlReason(input.reason);
+    const approved = input.action === 'approve';
+    const stepDecisions = existing.steps.map(step => {
+      const nextStatus: CopilotAgentStepStatus = approved
+        ? step.stepType === 'approval' && isActiveStepStatus(step.status)
+          ? 'completed'
+          : isTerminalStepStatus(step.status)
+            ? step.status
+            : 'pending'
+        : isActiveStepStatus(step.status)
+          ? 'skipped'
+          : step.status;
+      return { step, nextStatus };
+    });
+    const changedStepDecisions = stepDecisions.filter(
+      decision => decision.nextStatus !== decision.step.status
+    );
+    const event = controlledRunTimeline({
+      action: input.action,
+      actorId: input.actorId,
+      reason,
+      run: existing,
+      startedAt: now,
+    });
+    const controlledStepEvents = changedStepDecisions.map(
+      ({ step, nextStatus }, index) =>
+        controlledStepTimeline({
+          action: input.action,
+          actorId: input.actorId,
+          ordinal: event.ordinal + index + 1,
+          reason,
+          run: existing,
+          startedAt: now,
+          status: nextStatus,
+          step,
+        })
+    );
+    const events = [event, ...controlledStepEvents];
+    const timelineFingerprint = timelineFingerprintWithEvents(existing, events);
+
+    const decidedRows = await this.db.$queryRaw<Array<{ id: string }>>`
+      UPDATE ai_agent_runs
+      SET
+        status = ${approved ? 'queued' : 'cancelled'},
+        timeline_fingerprint = ${timelineFingerprint},
+        completed_at = ${approved ? null : now},
+        failure_code = ${null},
+        failure_message = ${null},
+        queued_at = ${approved ? now : null},
+        worker_lease_id = ${null},
+        worker_lease_expires_at = ${null},
+        updated_at = ${now}
+      WHERE workspace_id = ${input.workspaceId}
+        AND id = ${input.id}
+        AND actor_id = ${existing.actorId}
+        AND source_type <> ${'repair_execution_request'}
+        AND source_type = ${existing.sourceType}
+        AND source_id = ${existing.sourceId}
+        AND workflow = ${existing.workflow}
+        AND status = ${'waiting_approval'}
+        AND title IS NOT DISTINCT FROM ${existing.title}
+        AND target_fingerprint = ${existing.targetFingerprint}
+        AND evidence_fingerprint = ${existing.evidenceFingerprint}
+        AND timeline_fingerprint = ${existing.timelineFingerprint}
+        AND started_at IS NOT DISTINCT FROM ${existing.startedAt}
+        AND completed_at IS NOT DISTINCT FROM ${existing.completedAt}
+        AND failure_code IS NOT DISTINCT FROM ${existing.failureCode}
+        AND failure_message IS NOT DISTINCT FROM ${existing.failureMessage}
+        AND queued_at IS NOT DISTINCT FROM ${existing.queuedAt}
+        AND worker_lease_id IS NOT DISTINCT FROM ${existing.workerLeaseId}
+        AND worker_lease_expires_at IS NOT DISTINCT FROM ${
+          existing.workerLeaseExpiresAt
+        }
+        AND worker_attempt = ${existing.workerAttempt}
+        AND worker_max_attempts = ${existing.workerMaxAttempts}
+        AND last_attempt_at IS NOT DISTINCT FROM ${existing.lastAttemptAt}
+        AND created_at = ${existing.createdAt}
+        AND updated_at IS NOT DISTINCT FROM ${existing.updatedAt}
+      RETURNING id
+    `;
+    if (!decidedRows.length) {
+      throw new Error(
+        `Agent runtime approval decision could not update run because its state changed: ${input.id}`
+      );
+    }
+
+    for (const { step, nextStatus } of changedStepDecisions) {
+      const nextCompletedAt =
+        nextStatus === 'completed' || nextStatus === 'skipped'
+          ? (step.completedAt ?? now)
+          : null;
+      const updatedRows = await this.db.$queryRaw<Array<{ id: string }>>`
+        UPDATE ai_agent_steps
+        SET
+          status = ${nextStatus},
+          completed_at = ${nextCompletedAt},
+          output_summary = (
+            CASE
+              WHEN jsonb_typeof(output_summary) = ${'object'} THEN output_summary
+              ELSE ${'{}'}::jsonb
+            END
+          ) || ${toJsonString({
+            approvalControl: {
+              version: AGENT_RUNTIME_APPROVAL_CONTROL_PAYLOAD_VERSION,
+              action: input.action,
+              actorId: input.actorId,
+              reason,
+            },
+          })}::jsonb,
+          updated_at = ${now}
+        WHERE workspace_id = ${input.workspaceId}
+          AND run_id = ${input.id}
+          AND id = ${step.id}
+          AND actor_id = ${step.actorId}
+          AND step_key = ${step.stepKey}
+          AND step_type = ${step.stepType}
+          AND status = ${step.status}
+          AND title IS NOT DISTINCT FROM ${step.title}
+          AND "order" = ${step.order}
+          AND evidence_fingerprint = ${step.evidenceFingerprint}
+          AND started_at IS NOT DISTINCT FROM ${step.startedAt}
+          AND completed_at IS NOT DISTINCT FROM ${step.completedAt}
+          AND output_summary IS NOT DISTINCT FROM ${toJsonString(
+            step.outputSummary
+          )}::jsonb
+          AND created_at = ${step.createdAt}
+          AND updated_at IS NOT DISTINCT FROM ${step.updatedAt}
+        RETURNING id
+      `;
+      if (!updatedRows.length) {
+        throw new Error(
+          `Agent runtime approval decision could not update step because its state changed: ${step.id}`
+        );
+      }
+    }
+
+    for (const item of events) {
+      await this.insertTimelineEvent({
+        actorId: input.actorId,
+        event: item,
+        runId: existing.id,
+        workspaceId: input.workspaceId,
+        createdAt: now,
+      });
+    }
+
+    const run = await this.get(input.workspaceId, input.id);
+    if (!run) {
+      throw new Error(
+        `Approval-decided agent runtime run not found: ${input.id}`
+      );
+    }
+    return run;
   }
 
   @Transactional()
@@ -3057,6 +3272,8 @@ export class CopilotAgentRuntimeModel extends BaseModel {
     workerAttempt: number;
     adapterWorkflow: string;
     sideEffectMode: string;
+    sideEffectsApplied?: boolean;
+    sideEffectSummary?: Record<string, unknown> | null;
     summary?: string | null;
     adapterResolution: Record<string, unknown>;
   }): Promise<CopilotAgentRunRecord> {
@@ -3107,6 +3324,25 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       runWorkflow: existing.workflow,
       sideEffectMode,
     });
+    const sideEffectsApplied = input.sideEffectsApplied === true;
+    if (sideEffectsApplied && sideEffectMode === 'none') {
+      throw new Error(
+        'Agent runtime completion cannot apply side effects in none mode'
+      );
+    }
+    const sideEffectSummary = normalizeWorkerSideEffectSummary(
+      input.sideEffectSummary
+    );
+    if (sideEffectsApplied && !sideEffectSummary) {
+      throw new Error(
+        'Agent runtime completion applied side effects require a side-effect summary'
+      );
+    }
+    if (sideEffectSummary && !sideEffectsApplied) {
+      throw new Error(
+        'Agent runtime completion side-effect summary requires applied side effects'
+      );
+    }
 
     const completedAt = new Date();
     const summary = normalizeWorkerCompletionSummary(input.summary);
@@ -3127,7 +3363,8 @@ export class CopilotAgentRuntimeModel extends BaseModel {
           executor: 'agent_runtime_worker',
           adapterWorkflow,
           sideEffectMode,
-          sideEffectsApplied: false,
+          sideEffectsApplied,
+          ...(sideEffectSummary ? { sideEffectSummary } : {}),
           summary,
           stepKey: step.stepKey,
           stepType: step.stepType,
@@ -3147,7 +3384,8 @@ export class CopilotAgentRuntimeModel extends BaseModel {
         executor: 'agent_runtime_worker',
         adapterWorkflow,
         sideEffectMode,
-        sideEffectsApplied: false,
+        sideEffectsApplied,
+        ...(sideEffectSummary ? { sideEffectSummary } : {}),
         summary,
         workerAttempt: existing.workerAttempt,
         workerMaxAttempts: existing.workerMaxAttempts,
@@ -3214,7 +3452,8 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       resultStatus: 'completed',
       run: existing,
       sideEffectMode,
-      sideEffectsApplied: false,
+      sideEffectsApplied,
+      sideEffectSummary,
       summary,
       terminalRunSnapshot: {
         completedAt,
@@ -3245,7 +3484,8 @@ export class CopilotAgentRuntimeModel extends BaseModel {
               executor: 'agent_runtime_worker',
               adapterWorkflow,
               sideEffectMode,
-              sideEffectsApplied: false,
+              sideEffectsApplied,
+              ...(sideEffectSummary ? { sideEffectSummary } : {}),
               summary,
               workerAttempt: existing.workerAttempt,
               workerLeaseId: input.workerLeaseId,
@@ -3370,6 +3610,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
     run: CopilotAgentRunRecord;
     sideEffectMode: string;
     sideEffectsApplied: boolean;
+    sideEffectSummary?: Record<string, unknown> | null;
     summary: string;
     terminalRunSnapshot?: {
       completedAt: Date;
@@ -3392,6 +3633,9 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       executor: input.executor,
       sideEffectMode: input.sideEffectMode,
       sideEffectsApplied: input.sideEffectsApplied,
+      ...(input.sideEffectSummary
+        ? { sideEffectSummary: input.sideEffectSummary }
+        : {}),
       summary: input.summary,
       workerAttempt: input.run.workerAttempt,
       workerLeaseId: input.workerLeaseId,

@@ -2,6 +2,7 @@ import type { GraphQLQuery } from '@affine/graphql';
 import { PrismaClient } from '@prisma/client';
 import type { TestFn } from 'ava';
 import ava from 'ava';
+import Sinon from 'sinon';
 
 import { AppModule } from '../../app.module';
 import { JOB_SIGNAL, JobQueue } from '../../base';
@@ -16,6 +17,7 @@ import {
 import { providerRegistryRevisionFingerprint } from '../../models/copilot-provider-registry-revision';
 import { createRegistryRevisionPublishEvent } from '../../models/copilot-registry-revision-publish-event';
 import { CopilotProviderHealthWorker } from '../../plugins/copilot/provider-health-worker';
+import { CopilotProviderFactory } from '../../plugins/copilot/providers/factory';
 import {
   CopilotProviderType,
   ModelInputType,
@@ -4041,6 +4043,115 @@ test('provider health worker persists automatic workspace probe attempt results'
         /Cannot delete provider health probe attempt while registry revision exists/,
     }
   );
+});
+
+test('provider health worker can run optional network provider probes', async t => {
+  const { app, db, owner, providerHealthWorker } = t.context;
+  const workspace = await createWorkspace(app);
+  const providerFactory = app.get(CopilotProviderFactory);
+  const checkedAt = new Date('2026-06-22T09:00:00.000Z');
+  const previousLocalmindFlag =
+    process.env.LOCALMIND_PROVIDER_HEALTH_NETWORK_PROBE;
+  const networkProbeStub = Sinon.stub(
+    providerFactory,
+    'probeProviderProfileNetwork'
+  ).resolves({
+    providerId: 'localmind-db-provider',
+    providerType: CopilotProviderType.OpenAICompatible,
+    status: 'healthy',
+    checkedAt,
+    diagnostics: {
+      providerRegistered: true,
+      providerConfigured: true,
+      profileEnabled: true,
+      configuredModelIds: ['db-provider-chat'],
+      matchedModelId: 'db-provider-chat',
+      reasons: [
+        'provider_profile_probe_succeeded',
+        'provider_network_probe_succeeded',
+      ],
+    },
+  });
+
+  process.env.LOCALMIND_PROVIDER_HEALTH_NETWORK_PROBE = '1';
+  try {
+    await insertProviderRegistryRevision({
+      actorId: owner.id,
+      db,
+      displayName: 'Network probe DB provider',
+      fingerprint: 'networkprobe111',
+      id: 'provider-registry-network-probe',
+      privacy: 'local',
+      priority: 181,
+      rawModelId: 'network-probe-db-provider-chat-raw',
+      revision: 'workspace-provider-network-probe-r1',
+      scopeType: 'workspace',
+      workspaceId: workspace.id,
+    });
+
+    const enqueueSignal =
+      await providerHealthWorker.enqueueWorkspaceProbeAttempts({
+        limit: 10,
+      });
+    t.is(enqueueSignal, 'done');
+
+    const processSignal = await providerHealthWorker.processProbeAttempts({
+      limit: 10,
+    });
+    t.is(processSignal, 'done');
+    t.true(networkProbeStub.calledOnce);
+    t.like(networkProbeStub.firstCall.args[0], {
+      actorId: owner.id,
+      providerId: 'localmind-db-provider',
+      timeoutMs: 15_000,
+      workspaceId: workspace.id,
+    });
+
+    const completedRows = await db.$queryRaw<
+      Array<{
+        resultLastError: string | null;
+        resultMetadata: Record<string, unknown>;
+        resultStatus: string | null;
+        status: string;
+      }>
+    >`
+      SELECT
+        result_last_error AS "resultLastError",
+        result_metadata AS "resultMetadata",
+        result_status AS "resultStatus",
+        status
+      FROM ai_provider_health_probe_attempts
+      WHERE provider_registry_revision_id = ${'provider-registry-network-probe'}
+    `;
+    t.like(completedRows[0], {
+      resultLastError: null,
+      resultStatus: 'healthy',
+      status: 'completed',
+    });
+    t.like(completedRows[0]?.resultMetadata, {
+      diagnostics: {
+        matchedModelId: 'db-provider-chat',
+        reasons: [
+          'provider_profile_probe_succeeded',
+          'provider_network_probe_succeeded',
+        ],
+      },
+      networkProbeEnabled: true,
+      networkProbeTimeoutMs: 15_000,
+      probeMode: 'network_text_completion',
+      providerRegistryRevisionFingerprint: 'networkprobe111',
+      providerRegistryRevisionId: 'provider-registry-network-probe',
+      version: 'provider-health-probe-attempt-result/v1',
+    });
+  } finally {
+    networkProbeStub.restore();
+    if (previousLocalmindFlag === undefined) {
+      delete process.env.LOCALMIND_PROVIDER_HEALTH_NETWORK_PROBE;
+    } else {
+      process.env.LOCALMIND_PROVIDER_HEALTH_NETWORK_PROBE =
+        previousLocalmindFlag;
+    }
+  }
 });
 
 test('provider health probe completion ignores stale worker leases before publishing health', async t => {

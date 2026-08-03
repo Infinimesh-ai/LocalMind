@@ -1640,14 +1640,57 @@ Implemented behavior:
 4. Focused repair and Registry coverage verifies the persisted source chain and
    resolver source-chain smoke verifies the successful route projection.
 
+## Implemented Provider Health Optional Network Probe Slice
+
+Provider Health probe attempts now support an opt-in real provider runtime
+probe without changing the default no-network contract probe.
+
+Implemented behavior:
+
+1. `CopilotProviderHealthWorker` continues to run the local provider
+   profile/runtime contract probe by default.
+2. Setting `LOCALMIND_PROVIDER_HEALTH_NETWORK_PROBE=1` or
+   `COPILOT_PROVIDER_HEALTH_NETWORK_PROBE=1` switches leased probe attempts to
+   a real text-completion probe through the existing provider runtime host.
+3. The network probe first reuses the local contract probe and skips external
+   calls when the provider profile/runtime contract is already down or
+   degraded.
+4. Healthy contract probes execute a minimal text completion with workspace,
+   actor, `featureKind='action'`, low token bound, zero temperature, and an
+   abortable timeout.
+5. Probe result metadata records `probeMode`, whether network probing was
+   enabled, timeout evidence, error code, and diagnostics before publishing
+   the same workspace `probe_result` Provider Health state/event history.
+
+## Implemented Prompt Registry Body Edit API Slice
+
+Prompt Registry now has a constrained body-edit preview/publish path layered
+on the existing direct publish and publish-gate evidence.
+
+Implemented behavior:
+
+1. `previewCopilotPromptRegistryBodyEdit` resolves the current prompt registry
+   record after workspace permission and publish-gate version checks, accepts
+   a bounded message index and next content, and returns current/next content
+   fingerprints, a bounded line diff, diff fingerprint, and preview
+   fingerprint.
+2. `publishCopilotPromptRegistryBodyEdit` requires the matching preview
+   fingerprint before writing, so stale previews fail closed instead of
+   mutating prompt body content.
+3. Publishing updates the selected `ai_prompts_messages.content`, marks prompt
+   metadata as modified, refreshes prompt timestamps, and writes a
+   workspace-scoped Prompt Registry revision with editable-body metadata.
+4. The mutation reuses the existing direct publish source-chain and event
+   history path, so catalog diagnostics resolve the edited workspace revision
+   before legacy/config fallback.
+
 ## Remaining Work
 
-- add Prompt Registry prompt-body edit APIs, full audit/history views, and
-  review UI around the constrained direct publish path;
+- add Prompt Registry full audit/history views, richer diff/eval, and review
+  UI around the constrained direct publish/body-edit path;
 - add bulk migration from existing registry/config defaults where needed;
-- add prompt body diff/eval before editable Admin changes;
 - add full editable Provider Registry workflows, credential management,
-  external network/credential probes, probe attempt alerting/advanced search
+  credential rotation/validation UX, probe attempt alerting/advanced search
   workflows, and bulk migration where needed;
 - add full editable Model Registry workflows, model diff/review UI, and bulk
   migration from provider profile/native registry defaults where needed;
@@ -1839,6 +1882,14 @@ Backend:
   query without leaving the workspace-scoped read path;
 - verifies retrying a dead-lettered Provider Health probe attempt creates a
   fresh queued attempt while preserving the original terminal row evidence;
+- verifies optional Provider Health network probing is disabled by default,
+  can be enabled through the documented environment flags, calls the provider
+  runtime network probe path with workspace/actor/timeout evidence, and
+  persists `probeMode=network_text_completion` metadata on completed attempts;
+- verifies Prompt Registry body edit preview returns bounded diff and
+  fingerprint evidence, publish requires the matching preview fingerprint,
+  updates the selected prompt message body, records modified metadata, and
+  writes an editable-body DB-backed prompt registry revision;
 - verifies Model Registry and Provider Registry row constraints reject unknown
   revision `scope_type` and `status` values at the database boundary;
 - verifies Prompt Registry, Task Route Policy, Model Registry, and Provider
@@ -1898,6 +1949,7 @@ Frontend/Admin if changed:
 
 - full registry editor;
 - bulk migration UI;
-- prompt body diff/eval;
+- richer prompt body eval/review UI beyond the backend preview/publish API;
 - provider secret management;
-- external network health probe execution and provider credential testing.
+- provider credential testing and operational alerting beyond the optional
+  runtime network health probe path.

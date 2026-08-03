@@ -19,8 +19,11 @@ covered:
 - no generic planner;
 - the first production model adapter
   (`agent_runtime_model_completion`) now executes persisted model steps
-  through the DB-routed prompt/provider stack, but tool/Codex/MCP/handoff
-  execution adapters are still missing.
+  through the DB-routed prompt/provider stack;
+- the first production tool adapter (`agent_runtime_doc_update`) now executes
+  an approval-gated workspace document update with durable side-effect
+  evidence, but broader tool/Codex/MCP/handoff/planner execution remains out
+  of scope.
 
 ## First Vertical Slice
 
@@ -947,22 +950,62 @@ Implemented behavior:
    terminal worker writes, preserving the cooperative cancel contract.
 5. Generation is bounded by a 120s timeout that aborts the provider call and
    fails the run through the existing worker exception path.
-6. Model output is whitespace-normalized and truncated to bounded evidence
-   before persistence; the bounded summary flows through the existing generic
-   worker completion contract (`completeStandaloneWorkerExecution`), so step
-   output, timeline payloads, and the execution-result ledger reuse the
-   DB-constrained `agent-runtime-worker-completion/v1` shape with
-   `sideEffectsApplied=false` and `adapterResolution.status=completed`.
+6. Model output is whitespace-normalized, redacted for obvious secrets/PII, and
+   truncated to bounded evidence before persistence; the redacted bounded
+   summary flows through the existing generic worker completion contract
+   (`completeStandaloneWorkerExecution`), so step output, timeline payloads,
+   and the execution-result ledger reuse the DB-constrained
+   `agent-runtime-worker-completion/v1` shape with `sideEffectsApplied=false`
+   and `adapterResolution.status=completed`.
 7. Invalid model requests (missing/oversized/wrongly-typed `modelRequest`,
    unsupported version, non-string params, or an ambiguous active model step
    count) fail closed through the worker's
    `agent_runtime_adapter_execution_failed` path before any provider call.
 8. Focused e2e coverage verifies the happy path (prompt name, params, model
    id, workspace/user scope, and abort signal reach `PromptRuntime.runText`;
-   bounded output evidence lands in step output, timeline, and the result
-   ledger), oversized output truncation, invalid-request fail-closed behavior
-   without provider calls, and cooperative cancellation consumed during
-   generation with skipped steps and no terminal execution result.
+   redacted bounded output evidence lands in step output, timeline, and the
+   result ledger), oversized output truncation, invalid-request fail-closed
+   behavior without provider calls, and cooperative cancellation consumed
+   during generation with skipped steps and no terminal execution result.
+
+## Office Task Document Update Adapter Slice
+
+Status: implemented.
+
+The standalone Agent Runtime now has its first production office-task adapter
+with a real workspace side effect behind an approval gate.
+
+Implemented behavior:
+
+1. `agent_runtime_doc_update` is registered as a standalone workflow adapter
+   with `supportedStepTypes=['approval', 'tool']` and
+   `sideEffectMode='workspace_write'`.
+2. GraphQL `requestCopilotAgentRuntimeDocUpdate` creates a workspace-scoped
+   AgentRun in `waiting_approval` with an approval step and a tool step. The
+   tool step persists a versioned
+   `agent-runtime-doc-update-request/v1` payload with document id, requested
+   content, and deterministic content fingerprint.
+3. Standalone run control now supports `approve` and `reject` in addition to
+   cancel/resume. Approval completes the approval step, moves the tool step to
+   pending, queues the worker, and records `agent-runtime-approval-control/v1`
+   control evidence without overloading the older cancel/resume
+   `manualControl` contract.
+4. The adapter requires a completed approval step, validates exactly one active
+   tool step, checks `Doc.Update` through the existing permission controller,
+   polls the lease-scoped cancellation checker before permission and before
+   side effects, then updates the workspace document through `DocWriter`.
+5. Side-effect evidence records `workspace_doc_update`, document id,
+   content fingerprint, side-effect fingerprint, and deterministic idempotency
+   mode in the worker completion summary and
+   `ai_agent_runtime_execution_results` ledger.
+6. The Agent Runtime worker completion DB contract now accepts side-effectful
+   completions only when `sideEffectsApplied=true`, `sideEffectMode` is
+   `workspace_write` or `external_tool`, and a JSON object side-effect summary
+   is present; no-side-effect completions remain constrained to omit that
+   summary.
+7. Focused e2e coverage verifies request creation, approval, worker
+   execution, workspace document mutation, step/timeline/ledger side-effect
+   evidence, and markdown readback of the updated document.
 
 ## Agent Run Source Conflict Evidence Fence Slice
 
@@ -1002,12 +1045,13 @@ source_id) DO NOTHING` loses the insert race, the model validates the
   unsupported-adapter or unsupported-contract failure until real workflow
   adapters are registered with matching contracts;
 - registered adapter exceptions and incomplete adapter returns now fail closed
-  durably instead of waiting for stale-lease recovery, and the
+  durably instead of waiting for stale-lease recovery, the
   `agent_runtime_model_completion` adapter now performs real model execution
-  through the DB-routed prompt/provider stack, but no production tool, Codex,
-  MCP, handoff, approval, or planner executor is implemented yet, and model
-  output evidence remains bounded summary text rather than an
-  executor-specific persisted result schema.
+  through the DB-routed prompt/provider stack, and
+  `agent_runtime_doc_update` now performs one approval-gated workspace document
+  update side effect. Broader tool, Codex, MCP, handoff, and planner executors
+  are still not implemented, and model output evidence remains bounded summary
+  text rather than a richer executor-specific persisted result schema.
 - generic standalone run creation and worker/control metadata are now bounded
   at the model persistence and hydration boundary, and timeline status
   vocabulary, worker attempt counters, worker lease pair and lease-id string
@@ -1031,10 +1075,10 @@ source_id) DO NOTHING` loses the insert race, the model validates the
   code/message strings at the DB boundary, without requiring every generic
   `failed` row to carry diagnostics.
 - workflow adapter registration metadata is now bounded and immutable before
-  it can flow into worker adapter-resolution persistence, but registered
-  production adapters still need executor-specific schemas, side-effect
-  idempotency contracts, and concrete implementation before arbitrary
-  workflows can execute.
+  it can flow into worker adapter-resolution persistence. The model-completion
+  and document-update adapters now have executor-specific payload schemas, but
+  arbitrary workflows still need additional executor-specific schemas,
+  side-effect idempotency contracts, and concrete implementations.
 - workflow adapter registry storage now allow-lists adapter fields before they
   can flow into diagnostics, but production adapter implementations still need
   executor-specific payload/result schemas and redaction policies.
@@ -1089,7 +1133,7 @@ source_id) DO NOTHING` loses the insert race, the model validates the
   true preemptive interruption while a production executor is still performing
   external work.
 - broader step status transitions outside the current worker/control paths
-  still need executor-specific user-facing summary contracts as real
+  still need executor-specific user-facing summary contracts as additional
   tool/Codex/MCP/model adapters are added.
 - Agent Runtime display strings are now DB-constrained for blank/title/summary
   drift, but production adapters still need domain-specific user-facing
