@@ -1,0 +1,85 @@
+query copilotContextSessionScope($workspaceId: String!, $sessionId: ID!) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      contextSessionScope(sessionId: $sessionId) {
+        sessionId
+        primaryDocId
+        readableDocIds
+        candidateProjectIds
+        projectIds
+        selectedProjectId
+        projectResolution
+        candidateProjects {
+          id
+          name
+        }
+      }
+    }
+  }
+}
+
+mutation createCopilotContextRule($input: CreateCopilotContextRuleInput!) {
+  createCopilotContextRule(input: $input) {
+    id
+  }
+}
+
+mutation updateCopilotContextRule($input: UpdateCopilotContextRuleInput!) {
+  updateCopilotContextRule(input: $input) {
+    id
+  }
+}
+
+mutation rollbackCopilotContextRule($id: ID!, $revision: Int!) {
+  rollbackCopilotContextRule(id: $id, revision: $revision) {
+    id
+  }
+}
+
+mutation deleteCopilotContextRule($id: ID!) {
+  deleteCopilotContextRule(id: $id)
+}
+
+mutation createCopilotContextPolicy($input: CreateCopilotContextPolicyInput!) {
+  createCopilotContextPolicy(input: $input) {
+    id
+  }
+}
+
+mutation updateCopilotContextPolicy($input: UpdateCopilotContextPolicyInput!) {
+  updateCopilotContextPolicy(input: $input) {
+    id
+  }
+}
+
+mutation rollbackCopilotContextPolicy(
+  $id: ID!
+  $workspaceId: String!
+  $revision: Int!
+) {
+  rollbackCopilotContextPolicy(
+    id: $id
+    workspaceId: $workspaceId
+    revision: $revision
+  ) {
+    id
+  }
+}
+
+mutation deleteCopilotContextPolicy($id: ID!, $workspaceId: String!) {
+  deleteCopilotContextPolicy(id: $id, workspaceId: $workspaceId)
+}
+
+mutation undoCopilotContextMemoryEvent(
+  $workspaceId: String!
+  $eventId: ID!
+) {
+  undoCopilotContextMemoryEvent(
+    workspaceId: $workspaceId
+    eventId: $eventId
+  ) {
+    id
+    operation
+    targetEventId
+  }
+}

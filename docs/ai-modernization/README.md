@@ -27,7 +27,8 @@ referenced section.
 
 Move LocalMind from an AI chat and diagnostics layer toward an office task
 execution system with durable runtime state, auditable repair flows, persisted
-support bundles, and DB-backed registries.
+support bundles, DB-backed registries, and scope-correct auditable context
+memory.
 
 ## Working Rule
 
@@ -49,6 +50,7 @@ Future work should prefer vertical slices that create real behavior:
 - `tracks/repair-execution.md`
 - `tracks/agent-runtime.md`
 - `tracks/registries.md`
+- `tracks/context-memory.md`
 
 ## Local Documentation Policy
 

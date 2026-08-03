@@ -2,11 +2,28 @@ import { Prisma } from '@prisma/client';
 import test from 'ava';
 
 import { BadRequest } from '../../base';
-import type { PermissionService } from '../../core/permission';
+import type {
+  PermissionAccess,
+  PermissionService,
+} from '../../core/permission';
 import type { Models } from '../../models';
 import { CopilotContextService } from '../../plugins/copilot/context';
 import { CopilotContextMemoryResolver } from '../../plugins/copilot/context-memory-resolver';
 import type { EmbeddingClient } from '../../plugins/copilot/embedding';
+
+function permissionAccess(
+  assertPermission: (permission: string) => Promise<void> = async () => {}
+) {
+  const chain = {
+    allowLocal: () => chain,
+    assert: assertPermission,
+    can: async () => true,
+    docs: async <T>(documents: T[]) => documents,
+    doc: () => chain,
+    workspace: () => chain,
+  };
+  return { user: () => chain } as unknown as PermissionAccess;
+}
 
 test('workspace semantic search applies Doc.Read before reranking', async t => {
   const readablePredicate = Prisma.sql`TRUE`;
@@ -106,7 +123,11 @@ test('workspace semantic search rejects calls without an actor', async t => {
 });
 
 test('context mutations expose validation failures as user-friendly errors', async t => {
-  const resolver = new CopilotContextMemoryResolver({} as never, {} as never);
+  const resolver = new CopilotContextMemoryResolver(
+    {} as never,
+    {} as never,
+    {} as never
+  );
 
   const error = await t.throwsAsync(
     resolver.createCopilotContextMemory({ id: 'user-1' } as never, {
@@ -118,4 +139,107 @@ test('context mutations expose validation failures as user-friendly errors', asy
 
   t.true(error instanceof BadRequest);
   t.is(error.message, 'Memory content is required');
+});
+
+test('context GraphQL mutations reject sensitive memory and rule content', async t => {
+  const resolver = new CopilotContextMemoryResolver(
+    permissionAccess(),
+    {} as never,
+    {} as never
+  );
+
+  const memoryError = await t.throwsAsync(
+    resolver.createCopilotContextMemory({ id: 'user-1' } as never, {
+      scope: 'user',
+      kind: 'rule',
+      content: 'Remember api_key=super-secret-value',
+    })
+  );
+  t.true(memoryError instanceof BadRequest);
+  t.true(memoryError.message.includes('cannot store secrets'));
+
+  const ruleError = await t.throwsAsync(
+    resolver.createCopilotContextRule({ id: 'user-1' } as never, {
+      scope: 'user',
+      name: 'Unsafe rule',
+      applicationMode: 'always',
+      priority: 0,
+      content: 'Use Bearer abcdefghijklmnopqrstuvwxyz for requests.',
+    })
+  );
+  t.true(ruleError instanceof BadRequest);
+  t.true(ruleError.message.includes('cannot store secrets'));
+});
+
+test('context rule mutations hide rules owned by another user', async t => {
+  const resolver = new CopilotContextMemoryResolver(
+    permissionAccess(),
+    {} as never,
+    {
+      getRule: async () => ({
+        id: 'rule-1',
+        ownerUserId: 'user-2',
+      }),
+    } as never
+  );
+
+  await t.throwsAsync(
+    resolver.updateCopilotContextRule({ id: 'user-1' } as never, {
+      id: 'rule-1',
+      priority: 10,
+    }),
+    { message: 'Context rule not found' }
+  );
+});
+
+test('workspace policy mutations require workspace settings permission', async t => {
+  const checkedPermissions: string[] = [];
+  const resolver = new CopilotContextMemoryResolver(
+    permissionAccess(async permission => {
+      checkedPermissions.push(permission);
+      throw new Error('permission denied');
+    }),
+    {} as never,
+    {} as never
+  );
+
+  await t.throwsAsync(
+    resolver.createCopilotContextPolicy({ id: 'user-1' } as never, {
+      workspaceId: 'workspace-1',
+      name: 'Workspace policy',
+      applicationMode: 'always',
+      priority: 100,
+      content: 'Keep workspace data private.',
+    }),
+    { message: 'permission denied' }
+  );
+  t.deepEqual(checkedPermissions, ['Workspace.Settings.Update']);
+});
+
+test('context memory undo stays bound to the current user and workspace', async t => {
+  const calls: Array<[string, string, string]> = [];
+  const resolver = new CopilotContextMemoryResolver(
+    permissionAccess(),
+    {
+      undoWriterEvent: async (
+        userId: string,
+        workspaceId: string,
+        eventId: string
+      ) => {
+        calls.push([userId, workspaceId, eventId]);
+        return null;
+      },
+    } as never,
+    {} as never
+  );
+
+  const error = await t.throwsAsync(
+    resolver.undoCopilotContextMemoryEvent(
+      { id: 'user-1' } as never,
+      'workspace-1',
+      'event-from-another-owner'
+    )
+  );
+  t.true(error instanceof BadRequest);
+  t.deepEqual(calls, [['user-1', 'workspace-1', 'event-from-another-owner']]);
 });

@@ -7,6 +7,7 @@ import type { AIChatRuntime, AIChatSnapshot } from '../../runtime/chat';
 import {
   hasActiveComposerContextOperation,
   initializeComposerContext,
+  shouldShowContextProjectSelector,
 } from './ai-chat-composer';
 
 describe('AIChatComposer', () => {
@@ -67,5 +68,27 @@ describe('AIChatComposer', () => {
 
     expect(hasActiveComposerContextOperation(runtime, 'session-1')).toBe(true);
     expect(hasActiveComposerContextOperation(runtime, 'session-2')).toBe(false);
+  });
+
+  test('shows project selection only for explicit or unresolved project scope', () => {
+    const scope = (projectResolution: string, candidates: unknown[] = []) =>
+      ({
+        loading: false,
+        error: null,
+        selectedProjectId: null,
+        projectResolution,
+        candidates,
+      }) as AIChatSnapshot['composer']['projectScope'];
+
+    expect(shouldShowContextProjectSelector(scope('none'))).toBe(false);
+    expect(shouldShowContextProjectSelector(scope('single'))).toBe(false);
+    expect(
+      shouldShowContextProjectSelector(
+        scope('ambiguous', [{ id: 'project-1', name: 'One' }])
+      )
+    ).toBe(true);
+    expect(shouldShowContextProjectSelector(scope('invalid_selection'))).toBe(
+      true
+    );
   });
 });

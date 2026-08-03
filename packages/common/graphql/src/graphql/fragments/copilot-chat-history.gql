@@ -2,6 +2,7 @@ fragment CopilotChatHistory on CopilotHistories {
   sessionId
   workspaceId
   docId
+  selectedContextProjectId
   parentSessionId
   promptName
   model

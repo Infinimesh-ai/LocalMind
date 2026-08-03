@@ -17,6 +17,9 @@ an AI operations layer with:
   effect ledgers, manual control, and constrained registry mutation;
 - persisted support bundle requests, manifests, archive artifacts, download
   authorizations, retention cleanup, transfer forwarding, and replay history;
+- private Rule and Automatic Memory with permission-aware cross-session scope
+  resolution, trust-separated prompt rendering, rolling summaries, immutable
+  planner strategies, and privacy-preserving context plan traces;
 - Admin-facing diagnostics and operator controls for the above durable state;
 - fixed Docker image roles for validation instead of milestone-specific build
   tags.
@@ -44,6 +47,7 @@ The active planning tracks are:
 - [Repair Execution](./tracks/repair-execution.md)
 - [Agent Runtime State](./tracks/agent-runtime.md)
 - [DB-backed Registries](./tracks/registries.md)
+- [Context Memory](./tracks/context-memory.md)
 
 Each track document records implemented slices, remaining risk, and what should
 not be expanded until real behavior exists.

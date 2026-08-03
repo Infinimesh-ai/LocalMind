@@ -3,6 +3,44 @@
 This backlog is ordered to push the project from diagnostics toward real
 runtime behavior.
 
+## P1: Context Memory Quality
+
+Status: scope resolver, attached-document permission filtering, single-project
+fail-closed resolution, Planner v5 trust separation, immutable v4 replay, and
+privacy-preserving plan traces implemented.
+
+Implemented outcome:
+
+- the primary conversation document and AI Context attached documents share one
+  permission-filtered scope resolution;
+- only a unique active project can contribute project memory;
+- mixed or multi-project context neither loads every project nor fans out new
+  Automatic Memory;
+- ambiguous multi-document Automatic Memory capture is skipped instead of
+  widening to workspace scope;
+- private context is a bounded untrusted `user` message rather than part of the
+  primary system message;
+- every saved text plan has a DB-backed trace of strategy, candidate/selected
+  ids and scores, budgets, resolved scope, and fingerprints without context
+  text;
+- AI Context settings show active strategy trace count.
+
+Remaining follow-up:
+
+- replace heuristic implicit capture with a structured Memory Writer and a
+  deterministic explicit-memory path;
+- add DLP, fact keys, confidence, importance, temporal validity, expiry,
+  supersession, undo, and conflict-aware `ADD/UPDATE/DELETE/NOOP`;
+- add permission-prefiltered keyword plus embedding retrieval, reranking,
+  diversity, lifecycle management, and usage feedback;
+- split Rule into a versioned engine with application modes, conditions,
+  priority, rollback, and hit traces, plus a separate Workspace Policy layer;
+- add explicit project selection for ambiguous attached-document sets;
+- build extraction, retrieval, scope-leakage, update, Rule, answer, performance,
+  and product evaluation suites.
+
+See `tracks/context-memory.md`.
+
 ## P1: Support Bundle Persistence
 
 Status: archive/manifest object retention cleanup, retry, escalation,

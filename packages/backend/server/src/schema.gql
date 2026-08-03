@@ -574,11 +574,25 @@ type Copilot {
   """List authorized rules, automatic memories, and project summaries"""
   contextMemories(docId: String, includeDisabled: Boolean = false): [CopilotContextMemoryType!]!
 
+  """List Automatic Memory writer and undo events"""
+  contextMemoryEvents(limit: Int = 50): [CopilotContextMemoryEventType!]!
+
   """List immutable context planner revisions and checkpoint activity"""
   contextPlannerStrategies: [CopilotContextStrategyType!]!
 
+  """List workspace-enforced AI context policies"""
+  contextPolicies(includeDisabled: Boolean = false): [CopilotContextPolicyType!]!
+
   """List context projects whose documents the current user can access"""
   contextProjects(includeArchived: Boolean = false): [CopilotContextProjectType!]!
+
+  """List the current user rules and revision history"""
+  contextRules(includeDisabled: Boolean = false): [CopilotContextRuleType!]!
+
+  """
+  Resolve the readable documents and candidate context projects for a chat session
+  """
+  contextSessionScope(sessionId: ID!): CopilotContextSessionScopeType
 
   """Get the current user context preferences for this workspace"""
   contextSettings: CopilotContextSettingsType!
@@ -1017,20 +1031,76 @@ type CopilotContextFileNotSupportedDataType {
   message: String!
 }
 
+type CopilotContextMemoryEventType {
+  canUndo: Boolean!
+  createdAt: DateTime!
+  explicit: Boolean!
+  factKey: String
+  id: ID!
+  memoryId: String
+  operation: String!
+  previousMemoryId: String
+  reasonCode: String!
+  sourceSessionId: String
+  sourceTurnId: String
+  targetEventId: String
+  undoneAt: DateTime
+  writerVersion: String!
+}
+
 type CopilotContextMemoryType {
+  captureMode: String!
+  confidence: Float!
   content: String!
   createdAt: DateTime!
   docId: String
+  expiresAt: DateTime
+  factKey: String
   id: ID!
+  importance: Float!
   kind: String!
+  lastUsedAt: DateTime
   ownerUserId: String!
   projectId: String
   scope: String!
+  sensitivity: String!
   sourceSessionId: String
   status: String!
+  supersedesId: String
   updatedAt: DateTime!
+  useCount: Int!
+  validFrom: DateTime
+  validUntil: DateTime
   visibility: String!
   workspaceId: String
+  writerVersion: String!
+}
+
+type CopilotContextPolicyRevisionType {
+  content: String!
+  createdAt: DateTime!
+  createdByUserId: String
+  fingerprint: String!
+  id: ID!
+  revision: Int!
+  source: String!
+}
+
+type CopilotContextPolicyType {
+  activeRevision: Int!
+  applicationMode: String!
+  canManage: Boolean!
+  conditions: JSON!
+  createdAt: DateTime!
+  description: String!
+  hits: [CopilotContextRuleHitType!]!
+  id: ID!
+  name: String!
+  priority: Int!
+  revisions: [CopilotContextPolicyRevisionType!]!
+  status: String!
+  updatedAt: DateTime!
+  workspaceId: String!
 }
 
 type CopilotContextProjectType {
@@ -1047,6 +1117,67 @@ type CopilotContextProjectType {
   workspaceId: String!
 }
 
+input CopilotContextRuleConditionsInput {
+  docIds: [String!]
+  keywords: [String!]
+  match: String
+  projectIds: [String!]
+}
+
+type CopilotContextRuleHitType {
+  createdAt: DateTime!
+  id: ID!
+  matchReason: String!
+  score: Float!
+  sessionId: String!
+  sourceTurnId: String
+}
+
+type CopilotContextRuleRevisionType {
+  content: String!
+  createdAt: DateTime!
+  createdByUserId: String!
+  fingerprint: String!
+  id: ID!
+  revision: Int!
+  source: String!
+}
+
+type CopilotContextRuleType {
+  activeRevision: Int!
+  applicationMode: String!
+  conditions: JSON!
+  createdAt: DateTime!
+  description: String!
+  hits: [CopilotContextRuleHitType!]!
+  id: ID!
+  name: String!
+  ownerUserId: String!
+  priority: Int!
+  projectId: String
+  revisions: [CopilotContextRuleRevisionType!]!
+  scope: String!
+  status: String!
+  updatedAt: DateTime!
+  workspaceId: String
+}
+
+type CopilotContextScopeProjectType {
+  id: ID!
+  name: String!
+}
+
+type CopilotContextSessionScopeType {
+  candidateProjectIds: [String!]!
+  candidateProjects: [CopilotContextScopeProjectType!]!
+  primaryDocId: String
+  projectIds: [String!]!
+  projectResolution: String!
+  readableDocIds: [String!]!
+  selectedProjectId: String
+  sessionId: String!
+}
+
 type CopilotContextSettingsType {
   autoMemoryEnabled: Boolean!
 }
@@ -1056,7 +1187,9 @@ type CopilotContextStrategyType {
   createdAt: DateTime!
   fingerprint: String!
   lastCheckpointAt: DateTime
+  lastTraceAt: DateTime
   status: String!
+  traceCount: Int!
   version: String!
 }
 
@@ -1101,6 +1234,7 @@ type CopilotHistories {
   parentSessionId: String
   pinned: Boolean!
   promptName: String!
+  selectedContextProjectId: String
   sessionId: String!
   title: String
 
@@ -2925,6 +3059,7 @@ type CopilotSessionType {
   parentSessionId: ID
   pinned: Boolean!
   promptName: String!
+  selectedContextProjectId: ID
   title: String
 }
 
@@ -3455,11 +3590,33 @@ input CreateCopilotContextMemoryInput {
   workspaceId: String
 }
 
+input CreateCopilotContextPolicyInput {
+  applicationMode: String!
+  conditions: CopilotContextRuleConditionsInput
+  content: String!
+  description: String
+  name: String!
+  priority: Int!
+  workspaceId: String!
+}
+
 input CreateCopilotContextProjectInput {
   description: String
   documentIds: [String!]!
   name: String!
   workspaceId: String!
+}
+
+input CreateCopilotContextRuleInput {
+  applicationMode: String!
+  conditions: CopilotContextRuleConditionsInput
+  content: String!
+  description: String
+  name: String!
+  priority: Int!
+  projectId: String
+  scope: String!
+  workspaceId: String
 }
 
 input CreateMcpCredentialInput {
@@ -4343,7 +4500,9 @@ type Mutation {
   """Create a context session"""
   createCopilotContext(sessionId: String!, workspaceId: String!): String!
   createCopilotContextMemory(input: CreateCopilotContextMemoryInput!): CopilotContextMemoryType!
+  createCopilotContextPolicy(input: CreateCopilotContextPolicyInput!): CopilotContextPolicyType!
   createCopilotContextProject(input: CreateCopilotContextProjectInput!): CopilotContextProjectType!
+  createCopilotContextRule(input: CreateCopilotContextRuleInput!): CopilotContextRuleType!
 
   """Create a chat message"""
   createCopilotMessage(options: CreateChatMessageInput!): String!
@@ -4385,7 +4544,9 @@ type Mutation {
   """Delete a comment"""
   deleteComment(id: String!): Boolean!
   deleteCopilotContextMemory(id: ID!): Boolean!
+  deleteCopilotContextPolicy(id: ID!, workspaceId: String!): Boolean!
   deleteCopilotContextProject(id: ID!): Boolean!
+  deleteCopilotContextRule(id: ID!): Boolean!
 
   """Delete a reply"""
   deleteReply(id: String!): Boolean!
@@ -4504,6 +4665,8 @@ type Mutation {
   revokeMcpCredential(id: ID!, workspaceId: String!): Boolean!
   revokeMember(userId: String!, workspaceId: String!): Boolean!
   revokePublicDoc(docId: String!, workspaceId: String!): DocType!
+  rollbackCopilotContextPolicy(id: ID!, revision: Int!, workspaceId: String!): CopilotContextPolicyType!
+  rollbackCopilotContextRule(id: ID!, revision: Int!): CopilotContextRuleType!
   rotateAuthSigningKey(expectedActiveKeyId: String!): [AuthSigningKeyType!]!
   rotateMcpCredential(expirationDays: Int! = 90, id: ID!, workspaceId: String!): RevealedMcpCredentialType!
   sendChangeEmail(callbackUrl: String!): Boolean!
@@ -4516,6 +4679,7 @@ type Mutation {
   settleTranscriptTask(taskId: String!, workspaceId: String!): TranscriptionResultType
   submitTranscriptTask(blob: Upload, blobId: String!, blobs: [Upload!], input: SubmitAudioTranscriptionInput, workspaceId: String!): TranscriptionResultType
   testWorkspaceByokConfig(input: TestWorkspaceByokConfigInput!): TestWorkspaceByokConfigResultType!
+  undoCopilotContextMemoryEvent(eventId: ID!, workspaceId: String!): CopilotContextMemoryEventType!
   unlinkCalendarAccount(accountId: String!): Boolean!
 
   """update app configuration"""
@@ -4525,7 +4689,9 @@ type Mutation {
   """Update a comment content"""
   updateComment(input: CommentUpdateInput!): Boolean!
   updateCopilotContextMemory(input: UpdateCopilotContextMemoryInput!): CopilotContextMemoryType!
+  updateCopilotContextPolicy(input: UpdateCopilotContextPolicyInput!): CopilotContextPolicyType!
   updateCopilotContextProject(input: UpdateCopilotContextProjectInput!): CopilotContextProjectType!
+  updateCopilotContextRule(input: UpdateCopilotContextRuleInput!): CopilotContextRuleType!
   updateCopilotContextSettings(input: UpdateCopilotContextSettingsInput!): CopilotContextSettingsType!
 
   """Update a chat session"""
@@ -5334,6 +5500,9 @@ input UpdateChatSessionInput {
 
   """The prompt name to use for the session"""
   promptName: String
+
+  """The explicitly selected AI context project"""
+  selectedContextProjectId: String
   sessionId: String!
 }
 
@@ -5343,11 +5512,34 @@ input UpdateCopilotContextMemoryInput {
   status: String
 }
 
+input UpdateCopilotContextPolicyInput {
+  applicationMode: String
+  conditions: CopilotContextRuleConditionsInput
+  content: String
+  description: String
+  id: ID!
+  name: String
+  priority: Int
+  status: String
+  workspaceId: String!
+}
+
 input UpdateCopilotContextProjectInput {
   description: String
   documentIds: [String!]
   id: ID!
   name: String
+  status: String
+}
+
+input UpdateCopilotContextRuleInput {
+  applicationMode: String
+  conditions: CopilotContextRuleConditionsInput
+  content: String
+  description: String
+  id: ID!
+  name: String
+  priority: Int
   status: String
 }
 

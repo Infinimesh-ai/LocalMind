@@ -137,10 +137,19 @@ export type AIChatContextState = {
   embeddingCount: Record<'finished' | 'processing' | 'failed', number>;
 };
 
+export type AIChatProjectScopeState = {
+  loading: boolean;
+  error: Error | null;
+  projectResolution: string;
+  selectedProjectId: string | null;
+  candidates: Array<{ id: string; name: string }>;
+};
+
 export type AIChatComposerState = {
   text: string;
   attachments: (string | Blob | File)[];
   context: AIChatContextState;
+  projectScope: AIChatProjectScopeState;
   reasoning: boolean;
   toolsConfig?: AIToolsConfig;
   modelId?: string;
@@ -192,6 +201,13 @@ export function createInitialComposerState(): AIChatComposerState {
         processing: 0,
         failed: 0,
       },
+    },
+    projectScope: {
+      loading: false,
+      error: null,
+      projectResolution: 'none',
+      selectedProjectId: null,
+      candidates: [],
     },
     reasoning: false,
   };

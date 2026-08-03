@@ -13,6 +13,8 @@ query copilotContextDashboardGet(
         status
         checkpointCount
         lastCheckpointAt
+        traceCount
+        lastTraceAt
         createdAt
       }
       contextProjects(includeArchived: true) {
@@ -39,6 +41,98 @@ query copilotContextDashboardGet(
         kind
         status
         content
+        factKey
+        confidence
+        importance
+        sensitivity
+        captureMode
+        writerVersion
+        validFrom
+        validUntil
+        expiresAt
+        supersedesId
+        lastUsedAt
+        useCount
+        createdAt
+        updatedAt
+      }
+      contextMemoryEvents(limit: 100) {
+        id
+        sourceSessionId
+        sourceTurnId
+        operation
+        memoryId
+        previousMemoryId
+        targetEventId
+        factKey
+        explicit
+        reasonCode
+        writerVersion
+        undoneAt
+        canUndo
+        createdAt
+      }
+      contextRules(includeDisabled: $includeDisabled) {
+        id
+        ownerUserId
+        workspaceId
+        projectId
+        scope
+        name
+        description
+        applicationMode
+        priority
+        conditions
+        status
+        activeRevision
+        revisions {
+          id
+          revision
+          content
+          fingerprint
+          createdByUserId
+          source
+          createdAt
+        }
+        hits {
+          id
+          sessionId
+          sourceTurnId
+          matchReason
+          score
+          createdAt
+        }
+        createdAt
+        updatedAt
+      }
+      contextPolicies(includeDisabled: $includeDisabled) {
+        id
+        workspaceId
+        name
+        description
+        applicationMode
+        priority
+        conditions
+        status
+        activeRevision
+        revisions {
+          id
+          revision
+          content
+          fingerprint
+          createdByUserId
+          source
+          createdAt
+        }
+        hits {
+          id
+          sessionId
+          sourceTurnId
+          matchReason
+          score
+          createdAt
+        }
+        canManage
         createdAt
         updatedAt
       }

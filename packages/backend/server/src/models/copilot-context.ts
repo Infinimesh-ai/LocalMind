@@ -105,6 +105,25 @@ export class CopilotContextModel extends BaseModel {
     return row;
   }
 
+  async listSessionDocIds(sessionId: string) {
+    const row = await this.db.aiContext.findFirst({
+      where: { sessionId },
+      select: { config: true },
+    });
+    if (!row) return [];
+
+    const config = ContextConfigSchema.safeParse(row.config);
+    if (!config.success) return [];
+    return Array.from(
+      new Set([
+        ...config.data.docs.map(doc => doc.id),
+        ...config.data.categories.flatMap(category =>
+          category.docs.map(doc => doc.id)
+        ),
+      ])
+    );
+  }
+
   async mergeBlobStatus(
     workspaceId: string,
     blobs: ContextBlob[]

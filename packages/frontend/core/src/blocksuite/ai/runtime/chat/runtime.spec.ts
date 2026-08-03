@@ -91,6 +91,7 @@ function createRequest(
         .fn()
         .mockResolvedValue({ id: 'blob-1', status: 'processing' }),
       removeContextBlob: vi.fn().mockResolvedValue(undefined),
+      getSessionScope: vi.fn().mockResolvedValue(null),
       pollContextDocsAndFiles: vi.fn(),
       pollEmbeddingStatus: vi.fn(),
     },
@@ -271,6 +272,97 @@ describe('AIChatRuntime', () => {
         contextId: null,
         items: [],
         modifiedDocuments: [],
+      })
+    );
+  });
+
+  test('loads project candidates and persists an explicit project selection', async () => {
+    let selectedProjectId: string | null = null;
+    const getSessionScope = vi.fn(async () => ({
+      sessionId: 'session-1',
+      primaryDocId: 'doc-1',
+      readableDocIds: ['doc-1', 'doc-2'],
+      candidateProjectIds: ['project-1', 'project-2'],
+      projectIds: selectedProjectId ? [selectedProjectId] : [],
+      selectedProjectId,
+      projectResolution: selectedProjectId ? 'selected' : 'ambiguous',
+      candidateProjects: [
+        { id: 'project-1', name: 'One' },
+        { id: 'project-2', name: 'Two' },
+      ],
+    }));
+    const updateSession = vi.fn(
+      async (input: { selectedContextProjectId?: string | null }) => {
+        selectedProjectId = input.selectedContextProjectId ?? null;
+        return 'session-1';
+      }
+    );
+    const baseRequest = createRequest();
+    const request = createRequest({
+      updateSession,
+      context: {
+        ...baseRequest.context,
+        getSessionScope,
+      },
+    });
+    const runtime = createRuntime(request);
+    await runtime.dispatch({ type: 'openSessionObject', session: session() });
+
+    await runtime.dispatch({ type: 'loadProjectScope' });
+    expect(runtime.getSnapshot().composer.projectScope).toEqual(
+      expect.objectContaining({
+        projectResolution: 'ambiguous',
+        selectedProjectId: null,
+        candidates: [
+          { id: 'project-1', name: 'One' },
+          { id: 'project-2', name: 'Two' },
+        ],
+      })
+    );
+
+    await runtime.dispatch({
+      type: 'setSelectedContextProject',
+      projectId: 'project-2',
+    });
+    expect(updateSession).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      selectedContextProjectId: 'project-2',
+    });
+    expect(runtime.getSnapshot().composer.projectScope).toEqual(
+      expect.objectContaining({
+        projectResolution: 'selected',
+        selectedProjectId: 'project-2',
+      })
+    );
+  });
+
+  test('keeps a revoked stored project selection fail closed', async () => {
+    const baseRequest = createRequest();
+    const request = createRequest({
+      context: {
+        ...baseRequest.context,
+        getSessionScope: vi.fn().mockResolvedValue({
+          sessionId: 'session-1',
+          primaryDocId: null,
+          readableDocIds: [],
+          candidateProjectIds: [],
+          projectIds: [],
+          selectedProjectId: null,
+          projectResolution: 'invalid_selection',
+          candidateProjects: [],
+        }),
+      },
+    });
+    const runtime = createRuntime(request);
+    await runtime.dispatch({ type: 'openSessionObject', session: session() });
+
+    await runtime.dispatch({ type: 'loadProjectScope' });
+
+    expect(runtime.getSnapshot().composer.projectScope).toEqual(
+      expect.objectContaining({
+        projectResolution: 'invalid_selection',
+        selectedProjectId: null,
+        candidates: [],
       })
     );
   });

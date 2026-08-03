@@ -15,6 +15,7 @@ export const ConversationSchema = z
     userId: z.string(),
     workspaceId: z.string(),
     docId: z.string().nullable(),
+    selectedContextProjectId: z.string().nullable(),
     pinned: z.boolean(),
     parentId: z.string().nullable(),
     title: z.string().nullable(),

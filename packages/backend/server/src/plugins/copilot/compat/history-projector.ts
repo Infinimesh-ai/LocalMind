@@ -41,6 +41,7 @@ export class CompatHistoryProjector {
       sessionId: conversation.id,
       workspaceId: conversation.workspaceId,
       docId: conversation.docId,
+      selectedContextProjectId: conversation.selectedContextProjectId,
       parentSessionId: conversation.parentId,
       pinned: conversation.pinned,
       title: conversation.title,

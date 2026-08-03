@@ -20,6 +20,8 @@ import {
 } from './context';
 import { CopilotContextMemoryResolver } from './context-memory-resolver';
 import { ContextMemoryService } from './context-memory-service';
+import { ContextRuleService } from './context-rule-service';
+import { ContextScopeResolver } from './context-scope-resolver';
 import { ConversationInboxService } from './conversation/inbox';
 import { ConversationPolicy } from './conversation/policy';
 import { ConversationStore } from './conversation/store';
@@ -90,6 +92,8 @@ export const COPILOT_RUNTIME_PROVIDERS = [
   ConversationInboxService,
   ConversationPolicy,
   ContextMemoryService,
+  ContextRuleService,
+  ContextScopeResolver,
   CopilotAccessPolicy,
   HistoryAttachmentUrlProjector,
   CompatHistoryProjector,

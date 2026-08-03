@@ -5,6 +5,7 @@ import { Transactional } from '@nestjs-cls/transactional';
 import { Prisma } from '@prisma/client';
 
 import { BaseModel } from './base';
+import { toPgVector } from './common';
 
 export const COPILOT_CONTEXT_MEMORY_SCOPES = [
   'user',
@@ -27,7 +28,13 @@ export const COPILOT_CONTEXT_MEMORY_VISIBILITIES = ['private'] as const;
 export type CopilotContextMemoryVisibility =
   (typeof COPILOT_CONTEXT_MEMORY_VISIBILITIES)[number];
 
-export const COPILOT_CONTEXT_MEMORY_STATUSES = ['active', 'disabled'] as const;
+export const COPILOT_CONTEXT_MEMORY_STATUSES = [
+  'active',
+  'disabled',
+  'superseded',
+  'deleted',
+  'expired',
+] as const;
 export type CopilotContextMemoryStatus =
   (typeof COPILOT_CONTEXT_MEMORY_STATUSES)[number];
 
@@ -46,7 +53,50 @@ export type CopilotContextMemoryInput = {
   visibility: CopilotContextMemoryVisibility;
   status?: CopilotContextMemoryStatus;
   content: string;
+  factKey?: string | null;
+  confidence?: number;
+  importance?: number;
+  sensitivity?: 'private' | 'personal' | 'restricted';
+  captureMode?: 'manual' | 'explicit' | 'implicit' | 'legacy';
+  writerVersion?: string;
+  validFrom?: Date | null;
+  validUntil?: Date | null;
+  expiresAt?: Date | null;
+  supersedesId?: string | null;
   metadata?: Record<string, unknown>;
+};
+
+export type CopilotContextMemoryWriterOperation =
+  | 'ADD'
+  | 'UPDATE'
+  | 'DELETE'
+  | 'NOOP';
+
+export type CopilotContextMemoryWriterDecision = {
+  operation: CopilotContextMemoryWriterOperation;
+  factKey?: string | null;
+  content?: string | null;
+  confidence: number;
+  importance: number;
+  sensitivity: 'private' | 'personal' | 'restricted';
+  validFrom?: Date | null;
+  validUntil?: Date | null;
+  expiresAt?: Date | null;
+  reasonCode: string;
+};
+
+export type CopilotContextMemoryWriterInput = {
+  ownerUserId: string;
+  workspaceId: string;
+  docId?: string | null;
+  projectId?: string | null;
+  sourceSessionId?: string | null;
+  sourceTurnId?: string | null;
+  scope: Exclude<CopilotContextMemoryScope, 'user'>;
+  explicit: boolean;
+  writerVersion: string;
+  decisionFingerprint: string;
+  decision: CopilotContextMemoryWriterDecision;
 };
 
 export type CopilotContextCheckpointInput = {
@@ -66,6 +116,36 @@ export type CopilotContextStrategyRevisionInput = {
   config: Record<string, unknown>;
 };
 
+export type CopilotContextPlanTraceInput = {
+  sessionId: string;
+  sourceTurnId?: string | null;
+  strategyVersion: string;
+  strategyFingerprint: string;
+  inputMessageCount: number;
+  retainedMessageCount: number;
+  omittedMessageCount: number;
+  candidateMemoryCount: number;
+  selectedMemoryCount: number;
+  summaryInjected: boolean;
+  planningPasses: number;
+  contextCharBudget: number;
+  contextCharCount: number;
+  sourceFingerprint: string;
+  outputFingerprint: string;
+  candidateMemoryIds: string[];
+  selectedMemories: Array<{
+    id: string | null;
+    scope: CopilotContextMemoryScope;
+    kind: CopilotContextMemoryKind;
+    score: number;
+    rank: number;
+    sourceType?: 'memory' | 'rule' | 'policy';
+    sourceRevisionId?: string;
+    matchReason?: 'always' | 'condition' | 'semantic' | 'manual';
+  }>;
+  scope: Record<string, unknown>;
+};
+
 export type CopilotContextProjectInput = {
   workspaceId: string;
   createdByUserId: string;
@@ -76,6 +156,42 @@ export type CopilotContextProjectInput = {
 
 function normalizeMemoryContent(content: string) {
   return content.replace(/\s+/g, ' ').trim();
+}
+
+function normalizeFactKey(factKey?: string | null) {
+  const normalized = factKey?.replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+  return normalized || null;
+}
+
+function activeMemoryLifecycleWhere(now = new Date()) {
+  return {
+    status: 'active',
+    AND: [
+      { OR: [{ validFrom: null }, { validFrom: { lte: now } }] },
+      { OR: [{ validUntil: null }, { validUntil: { gt: now } }] },
+      { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+    ],
+  } satisfies Prisma.AiContextMemoryWhereInput;
+}
+
+function memoryWriterLockKey(input: {
+  ownerUserId: string;
+  workspaceId: string;
+  scope: CopilotContextMemoryScope;
+  docId?: string | null;
+  projectId?: string | null;
+  factKey?: string | null;
+  fallback: string;
+}) {
+  return [
+    'context-memory-writer/v1',
+    input.ownerUserId,
+    input.workspaceId,
+    input.scope,
+    input.docId ?? '',
+    input.projectId ?? '',
+    normalizeFactKey(input.factKey) ?? input.fallback,
+  ].join(':');
 }
 
 export function fingerprintContextMemory(input: {
@@ -103,6 +219,7 @@ function memoryIdentityWhere(input: CopilotContextMemoryInput) {
     docId: input.docId ?? null,
     projectId: input.projectId ?? null,
     kind: input.kind,
+    status: 'active',
     fingerprint: fingerprintContextMemory(input),
   } satisfies Prisma.AiContextMemoryWhereInput;
 }
@@ -111,9 +228,13 @@ export function buildContextMemoryVisibilityWhere(input: {
   userId: string;
   workspaceId?: string | null;
   docId?: string | null;
+  docIds?: string[];
   projectIds?: string[];
   includeDisabled?: boolean;
 }) {
+  const docIds = Array.from(
+    new Set([input.docId, ...(input.docIds ?? [])].filter(Boolean))
+  ) as string[];
   const scopes: Prisma.AiContextMemoryWhereInput[] = [
     {
       ownerUserId: input.userId,
@@ -131,12 +252,12 @@ export function buildContextMemoryVisibilityWhere(input: {
       docId: null,
       projectId: null,
     });
-    if (input.docId) {
+    if (docIds.length) {
       scopes.push({
         ownerUserId: input.userId,
         scope: 'document',
         workspaceId: input.workspaceId,
-        docId: input.docId,
+        docId: { in: docIds },
         projectId: null,
       });
     }
@@ -152,7 +273,9 @@ export function buildContextMemoryVisibilityWhere(input: {
   }
 
   return {
-    ...(input.includeDisabled ? {} : { status: 'active' }),
+    ...(input.includeDisabled
+      ? { status: { in: ['active', 'disabled'] } }
+      : activeMemoryLifecycleWhere()),
     visibility: 'private',
     OR: scopes,
   } satisfies Prisma.AiContextMemoryWhereInput;
@@ -160,6 +283,12 @@ export function buildContextMemoryVisibilityWhere(input: {
 
 @Injectable()
 export class CopilotContextMemoryModel extends BaseModel {
+  private async lockWriterKey(key: string) {
+    await this.db.$queryRaw<Array<{ locked: boolean }>>`
+      SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0)) IS NULL AS "locked"
+    `;
+  }
+
   async getPreference(userId: string, workspaceId: string) {
     return await this.db.aiContextPreference.findUnique({
       where: {
@@ -207,6 +336,16 @@ export class CopilotContextMemoryModel extends BaseModel {
       status: input.status ?? 'active',
       content,
       fingerprint: identity.fingerprint as string,
+      factKey: normalizeFactKey(input.factKey),
+      confidence: input.confidence ?? 1,
+      importance: input.importance ?? 0.5,
+      sensitivity: input.sensitivity ?? 'private',
+      captureMode: input.captureMode ?? 'manual',
+      writerVersion: input.writerVersion ?? 'legacy/v1',
+      validFrom: input.validFrom ?? null,
+      validUntil: input.validUntil ?? null,
+      expiresAt: input.expiresAt ?? null,
+      supersedesId: input.supersedesId ?? null,
       metadata: (input.metadata ?? {}) as Prisma.InputJsonValue,
     };
 
@@ -245,6 +384,386 @@ export class CopilotContextMemoryModel extends BaseModel {
     }
   }
 
+  private async appendWriterEvent(input: {
+    ownerUserId: string;
+    workspaceId: string;
+    sourceSessionId?: string | null;
+    sourceTurnId?: string | null;
+    operation: 'ADD' | 'UPDATE' | 'DELETE' | 'NOOP' | 'UNDO';
+    memoryId?: string | null;
+    previousMemoryId?: string | null;
+    targetEventId?: string | null;
+    factKey?: string | null;
+    explicit: boolean;
+    reasonCode: string;
+    writerVersion: string;
+    decisionFingerprint: string;
+  }) {
+    return await this.db.aiContextMemoryEvent.create({
+      data: {
+        ...input,
+        sourceSessionId: input.sourceSessionId ?? null,
+        sourceTurnId: input.sourceTurnId ?? null,
+        memoryId: input.memoryId ?? null,
+        previousMemoryId: input.previousMemoryId ?? null,
+        targetEventId: input.targetEventId ?? null,
+        factKey: normalizeFactKey(input.factKey),
+      },
+    });
+  }
+
+  @Transactional()
+  async applyWriterDecision(input: CopilotContextMemoryWriterInput) {
+    await this.lockWriterKey(
+      memoryWriterLockKey({
+        ownerUserId: input.ownerUserId,
+        workspaceId: input.workspaceId,
+        scope: input.scope,
+        docId: input.docId,
+        projectId: input.projectId,
+        factKey: input.decision.factKey,
+        fallback: input.decisionFingerprint,
+      })
+    );
+    const replay = await this.db.aiContextMemoryEvent.findUnique({
+      where: { decisionFingerprint: input.decisionFingerprint },
+      include: { memory: true, previousMemory: true },
+    });
+    if (replay) return replay;
+
+    const factKey = normalizeFactKey(input.decision.factKey);
+    const scopeWhere = {
+      ownerUserId: input.ownerUserId,
+      workspaceId: input.workspaceId,
+      docId: input.docId ?? null,
+      projectId: input.projectId ?? null,
+      scope: input.scope,
+      kind: 'auto_memory',
+      visibility: 'private',
+    } satisfies Prisma.AiContextMemoryWhereInput;
+    const current = factKey
+      ? await this.db.aiContextMemory.findFirst({
+          where: {
+            ...scopeWhere,
+            factKey,
+            status: 'active',
+          },
+          orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+        })
+      : null;
+    const eventBase = {
+      ownerUserId: input.ownerUserId,
+      workspaceId: input.workspaceId,
+      sourceSessionId: input.sourceSessionId,
+      sourceTurnId: input.sourceTurnId,
+      factKey,
+      explicit: input.explicit,
+      writerVersion: input.writerVersion,
+      decisionFingerprint: input.decisionFingerprint,
+    };
+
+    if (input.decision.operation === 'NOOP') {
+      return await this.appendWriterEvent({
+        ...eventBase,
+        operation: 'NOOP',
+        memoryId: current?.id,
+        reasonCode: input.decision.reasonCode,
+      });
+    }
+
+    if (input.decision.operation === 'DELETE') {
+      if (!current) {
+        return await this.appendWriterEvent({
+          ...eventBase,
+          operation: 'NOOP',
+          reasonCode: 'delete_target_not_found',
+        });
+      }
+      await this.db.aiContextMemory.update({
+        where: { id: current.id },
+        data: { status: 'deleted' },
+      });
+      return await this.appendWriterEvent({
+        ...eventBase,
+        operation: 'DELETE',
+        memoryId: current.id,
+        reasonCode: input.decision.reasonCode,
+      });
+    }
+
+    const content = normalizeMemoryContent(input.decision.content ?? '');
+    if (!content || !factKey) {
+      return await this.appendWriterEvent({
+        ...eventBase,
+        operation: 'NOOP',
+        memoryId: current?.id,
+        reasonCode: !content ? 'empty_content' : 'missing_fact_key',
+      });
+    }
+    const fingerprint = fingerprintContextMemory({
+      scope: input.scope,
+      kind: 'auto_memory',
+      content,
+    });
+    if (current?.fingerprint === fingerprint) {
+      return await this.appendWriterEvent({
+        ...eventBase,
+        operation: 'NOOP',
+        memoryId: current.id,
+        reasonCode: 'same_fact_value',
+      });
+    }
+
+    if (current) {
+      await this.db.aiContextMemory.update({
+        where: { id: current.id },
+        data: {
+          status: 'superseded',
+          validUntil: input.decision.validFrom ?? new Date(),
+        },
+      });
+    }
+    const memory = await this.db.aiContextMemory.create({
+      data: {
+        ownerUserId: input.ownerUserId,
+        workspaceId: input.workspaceId,
+        docId: input.docId ?? null,
+        projectId: input.projectId ?? null,
+        sourceSessionId: input.sourceSessionId,
+        scope: input.scope,
+        kind: 'auto_memory',
+        visibility: 'private',
+        status: 'active',
+        content,
+        fingerprint,
+        factKey,
+        confidence: input.decision.confidence,
+        importance: input.decision.importance,
+        sensitivity: input.decision.sensitivity,
+        captureMode: input.explicit ? 'explicit' : 'implicit',
+        writerVersion: input.writerVersion,
+        validFrom: input.decision.validFrom ?? new Date(),
+        validUntil: input.decision.validUntil ?? null,
+        expiresAt: input.decision.expiresAt ?? null,
+        supersedesId: current?.id ?? null,
+        metadata: {
+          reasonCode: input.decision.reasonCode,
+          sourceTurnId: input.sourceTurnId ?? null,
+        },
+      },
+    });
+    return await this.appendWriterEvent({
+      ...eventBase,
+      operation: current ? 'UPDATE' : 'ADD',
+      memoryId: memory.id,
+      previousMemoryId: current?.id,
+      reasonCode: input.decision.reasonCode,
+    });
+  }
+
+  @Transactional()
+  async undoWriterEvent(input: {
+    eventId: string;
+    ownerUserId: string;
+    workspaceId: string;
+  }) {
+    const candidate = await this.db.aiContextMemoryEvent.findFirst({
+      where: {
+        id: input.eventId,
+        ownerUserId: input.ownerUserId,
+        workspaceId: input.workspaceId,
+        operation: { in: ['ADD', 'UPDATE', 'DELETE'] },
+        undoneAt: null,
+      },
+      include: { memory: true },
+    });
+    if (!candidate?.memoryId || !candidate.memory) return null;
+    await this.lockWriterKey(
+      memoryWriterLockKey({
+        ownerUserId: input.ownerUserId,
+        workspaceId: input.workspaceId,
+        scope: candidate.memory.scope as CopilotContextMemoryScope,
+        docId: candidate.memory.docId,
+        projectId: candidate.memory.projectId,
+        factKey: candidate.factKey,
+        fallback: candidate.id,
+      })
+    );
+    const event = await this.db.aiContextMemoryEvent.findFirst({
+      where: {
+        id: input.eventId,
+        ownerUserId: input.ownerUserId,
+        workspaceId: input.workspaceId,
+        operation: { in: ['ADD', 'UPDATE', 'DELETE'] },
+        undoneAt: null,
+      },
+      include: { memory: true },
+    });
+    if (!event?.memoryId || !event.memory) return null;
+    const activeFact = await this.db.aiContextMemory.findFirst({
+      where: {
+        ownerUserId: input.ownerUserId,
+        workspaceId: input.workspaceId,
+        scope: event.memory.scope,
+        docId: event.memory.docId,
+        projectId: event.memory.projectId,
+        factKey: event.factKey,
+        kind: 'auto_memory',
+        status: 'active',
+      },
+      select: { id: true },
+    });
+    if (
+      (event.operation === 'DELETE' && event.memory.status !== 'deleted') ||
+      (event.operation !== 'DELETE' && event.memory.status !== 'active') ||
+      (event.operation === 'DELETE' && activeFact) ||
+      (event.operation !== 'DELETE' && activeFact?.id !== event.memoryId)
+    ) {
+      return null;
+    }
+    if (event.operation === 'ADD') {
+      const deleted = await this.db.aiContextMemory.updateMany({
+        where: { id: event.memoryId, status: 'active' },
+        data: { status: 'deleted' },
+      });
+      if (deleted.count !== 1) {
+        throw new Error('Context memory changed while undoing an add');
+      }
+    } else if (event.operation === 'UPDATE') {
+      const superseded = await this.db.aiContextMemory.updateMany({
+        where: { id: event.memoryId, status: 'active' },
+        data: { status: 'superseded', validUntil: new Date() },
+      });
+      if (superseded.count !== 1) {
+        throw new Error('Context memory changed while undoing an update');
+      }
+      if (event.previousMemoryId) {
+        const restored = await this.db.aiContextMemory.updateMany({
+          where: { id: event.previousMemoryId, status: 'superseded' },
+          data: { status: 'active', validUntil: null },
+        });
+        if (restored.count !== 1) {
+          throw new Error(
+            'Previous context memory changed while undoing an update'
+          );
+        }
+      }
+    } else {
+      const restored = await this.db.aiContextMemory.updateMany({
+        where: { id: event.memoryId, status: 'deleted' },
+        data: { status: 'active' },
+      });
+      if (restored.count !== 1) {
+        throw new Error('Context memory changed while undoing a delete');
+      }
+    }
+
+    const undoneAt = new Date();
+    const updated = await this.db.aiContextMemoryEvent.updateMany({
+      where: { id: event.id, undoneAt: null },
+      data: { undoneAt },
+    });
+    if (updated.count !== 1) {
+      throw new Error('Context memory event changed while undoing');
+    }
+    return await this.appendWriterEvent({
+      ownerUserId: input.ownerUserId,
+      workspaceId: input.workspaceId,
+      sourceSessionId: event.sourceSessionId,
+      sourceTurnId: event.sourceTurnId,
+      operation: 'UNDO',
+      memoryId: event.previousMemoryId ?? event.memoryId,
+      previousMemoryId: event.memoryId,
+      targetEventId: event.id,
+      factKey: event.factKey,
+      explicit: true,
+      reasonCode: 'user_undo',
+      writerVersion: event.writerVersion,
+      decisionFingerprint: createHash('sha256')
+        .update(`undo:${event.id}`)
+        .digest('hex'),
+    });
+  }
+
+  async listWriterEvents(input: {
+    ownerUserId: string;
+    workspaceId: string;
+    limit?: number;
+  }) {
+    return await this.db.aiContextMemoryEvent.findMany({
+      where: {
+        ownerUserId: input.ownerUserId,
+        workspaceId: input.workspaceId,
+      },
+      include: {
+        memory: {
+          select: {
+            scope: true,
+            docId: true,
+            projectId: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(Math.max(input.limit ?? 50, 1), 200),
+    });
+  }
+
+  @Transactional()
+  async expireDueMemories(now = new Date()) {
+    return await this.db.aiContextMemory.updateMany({
+      where: {
+        status: 'active',
+        OR: [{ expiresAt: { lte: now } }, { validUntil: { lte: now } }],
+      },
+      data: { status: 'expired' },
+    });
+  }
+
+  @Transactional()
+  async markMemoriesUsed(ids: string[], usedAt = new Date()) {
+    if (!ids.length) return { count: 0 };
+    return await this.db.aiContextMemory.updateMany({
+      where: { id: { in: [...new Set(ids)] }, status: 'active' },
+      data: { lastUsedAt: usedAt, useCount: { increment: 1 } },
+    });
+  }
+
+  async putEmbedding(id: string, embedding: number[]) {
+    const vector = toPgVector(embedding);
+    await this.db.$executeRaw`
+      UPDATE "ai_context_memories"
+      SET "embedding" = ${vector}::vector
+      WHERE "id" = ${id}
+    `;
+  }
+
+  async clearEmbedding(id: string) {
+    await this.db.$executeRaw`
+      UPDATE "ai_context_memories"
+      SET "embedding" = NULL
+      WHERE "id" = ${id}
+    `;
+  }
+
+  async matchAuthorizedEmbeddings(
+    ids: string[],
+    embedding: number[],
+    limit = 64
+  ) {
+    if (!ids.length) return [];
+    const vector = toPgVector(embedding);
+    return await this.db.$queryRaw<Array<{ id: string; distance: number }>>`
+      SELECT "id", "embedding" <=> ${vector}::vector AS "distance"
+      FROM "ai_context_memories"
+      WHERE "id" IN (${Prisma.join([...new Set(ids)])})
+        AND "embedding" IS NOT NULL
+      ORDER BY "distance" ASC
+      LIMIT ${Math.min(Math.max(limit, 1), 256)}
+    `;
+  }
+
   async get(id: string) {
     return await this.db.aiContextMemory.findUnique({ where: { id } });
   }
@@ -253,12 +772,14 @@ export class CopilotContextMemoryModel extends BaseModel {
     userId: string;
     workspaceId?: string | null;
     docId?: string | null;
+    docIds?: string[];
     projectIds?: string[];
     includeDisabled?: boolean;
   }) {
     return await this.db.aiContextMemory.findMany({
       where: buildContextMemoryVisibilityWhere(input),
       orderBy: [{ kind: 'asc' }, { updatedAt: 'desc' }],
+      take: 512,
     });
   }
 
@@ -270,7 +791,9 @@ export class CopilotContextMemoryModel extends BaseModel {
   }) {
     return await this.db.aiContextMemory.findMany({
       where: {
-        ...(input.includeDisabled ? {} : { status: 'active' }),
+        status: input.includeDisabled
+          ? { in: ['active', 'disabled'] }
+          : 'active',
         ownerUserId: input.userId,
         visibility: 'private',
         ...(input.workspaceId
@@ -336,6 +859,13 @@ export class CopilotContextMemoryModel extends BaseModel {
     });
   }
 
+  async retireDisabledVersion(id: string, validUntil = new Date()) {
+    return await this.db.aiContextMemory.updateMany({
+      where: { id, status: 'disabled' },
+      data: { status: 'superseded', validUntil },
+    });
+  }
+
   @Transactional()
   async delete(id: string) {
     const result = await this.db.aiContextMemory.deleteMany({
@@ -385,6 +915,26 @@ export class CopilotContextMemoryModel extends BaseModel {
       select: { id: true },
     });
     return projects.map(project => project.id);
+  }
+
+  async listProjectMembershipsForDocs(input: {
+    workspaceId: string;
+    docIds: string[];
+  }) {
+    if (!input.docIds.length) return [];
+    return await this.db.aiContextProjectDoc.findMany({
+      where: {
+        docId: { in: input.docIds },
+        project: {
+          workspaceId: input.workspaceId,
+          status: 'active',
+        },
+      },
+      select: {
+        docId: true,
+        projectId: true,
+      },
+    });
   }
 
   @Transactional()
@@ -528,6 +1078,26 @@ export class CopilotContextMemoryModel extends BaseModel {
   }
 
   @Transactional()
+  async createPlanTrace(input: CopilotContextPlanTraceInput) {
+    return await this.db.aiContextPlanTrace.create({
+      data: {
+        ...input,
+        candidateMemoryIds: input.candidateMemoryIds as Prisma.InputJsonValue,
+        selectedMemories: input.selectedMemories as Prisma.InputJsonValue,
+        scope: input.scope as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  async listPlanTraces(sessionId: string, limit = 50) {
+    return await this.db.aiContextPlanTrace.findMany({
+      where: { sessionId },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(Math.max(limit, 1), 200),
+    });
+  }
+
+  @Transactional()
   async ensureStrategyRevision(input: CopilotContextStrategyRevisionInput) {
     const existing = await this.db.aiContextStrategyRevision.findUnique({
       where: { version: input.version },
@@ -570,7 +1140,7 @@ export class CopilotContextMemoryModel extends BaseModel {
   }
 
   async listStrategyRevisions(input: { userId: string; workspaceId: string }) {
-    const [revisions, checkpointStats] = await Promise.all([
+    const [revisions, checkpointStats, traceStats] = await Promise.all([
       this.db.aiContextStrategyRevision.findMany({
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
       }),
@@ -585,16 +1155,33 @@ export class CopilotContextMemoryModel extends BaseModel {
         _count: { _all: true },
         _max: { updatedAt: true },
       }),
+      this.db.aiContextPlanTrace.groupBy({
+        by: ['strategyVersion'],
+        where: {
+          session: {
+            userId: input.userId,
+            workspaceId: input.workspaceId,
+          },
+        },
+        _count: { _all: true },
+        _max: { createdAt: true },
+      }),
     ]);
     const statsByVersion = new Map(
       checkpointStats.map(item => [item.strategyVersion, item])
     );
+    const traceStatsByVersion = new Map(
+      traceStats.map(item => [item.strategyVersion, item])
+    );
     return revisions.map(revision => {
       const stats = statsByVersion.get(revision.version);
+      const traces = traceStatsByVersion.get(revision.version);
       return {
         ...revision,
         checkpointCount: stats?._count._all ?? 0,
         lastCheckpointAt: stats?._max.updatedAt ?? null,
+        traceCount: traces?._count._all ?? 0,
+        lastTraceAt: traces?._max.createdAt ?? null,
       };
     });
   }

@@ -35,6 +35,15 @@ import {
   copilotContextProjectDeleteMutation,
   copilotContextProjectUpdateMutation,
   copilotContextSettingsUpdateMutation,
+  createCopilotContextPolicyMutation,
+  createCopilotContextRuleMutation,
+  deleteCopilotContextPolicyMutation,
+  deleteCopilotContextRuleMutation,
+  rollbackCopilotContextPolicyMutation,
+  rollbackCopilotContextRuleMutation,
+  undoCopilotContextMemoryEventMutation,
+  updateCopilotContextPolicyMutation,
+  updateCopilotContextRuleMutation,
 } from '@affine/graphql';
 import { DeleteIcon, PlusIcon, SaveIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
@@ -47,14 +56,31 @@ type DashboardCopilot = NonNullable<
 >;
 type ContextMemory = DashboardCopilot['contextMemories'][number];
 type ContextProject = DashboardCopilot['contextProjects'][number];
-type MemoryKind = 'rule' | 'project_summary';
-type MemoryTarget = 'personal' | 'workspace' | 'project';
-type MemoryFilter = 'all' | 'rules' | 'automatic' | 'summaries';
+type ContextRule = DashboardCopilot['contextRules'][number];
+type ContextPolicy = DashboardCopilot['contextPolicies'][number];
+type ContextMemoryEvent = DashboardCopilot['contextMemoryEvents'][number];
+type MemoryFilter = 'all' | 'automatic' | 'summaries';
+type DirectiveMode = 'always' | 'relevant' | 'manual';
+type RuleTarget = 'personal' | 'workspace' | 'project';
 type ProjectDraft = {
   name: string;
   description: string;
   documentIds: string[];
 };
+type DirectiveDraft = {
+  name: string;
+  description: string;
+  content: string;
+  priority: string;
+  keywords: string;
+  documentIds: string[];
+  projectIds: string[];
+  match: 'any' | 'all';
+};
+type DirectiveConditionsDraft = Pick<
+  DirectiveDraft,
+  'description' | 'keywords' | 'documentIds' | 'projectIds' | 'match'
+>;
 
 const kindLabels: Record<string, string> = {
   rule: 'Rule',
@@ -62,7 +88,7 @@ const kindLabels: Record<string, string> = {
   project_summary: 'Project summary',
 };
 
-const targetLabels: Record<MemoryTarget, string> = {
+const targetLabels: Record<RuleTarget, string> = {
   personal: 'Every workspace',
   workspace: 'This team',
   project: 'Project',
@@ -77,16 +103,103 @@ const scopeLabels: Record<string, string> = {
 
 const filterLabels: Record<MemoryFilter, string> = {
   all: 'All',
-  rules: 'Rules',
   automatic: 'Automatic',
   summaries: 'Summaries',
 };
 
 const memoryMatchesFilter = (memory: ContextMemory, filter: MemoryFilter) => {
-  if (filter === 'rules') return memory.kind === 'rule';
   if (filter === 'automatic') return memory.kind === 'auto_memory';
   if (filter === 'summaries') return memory.kind === 'project_summary';
-  return true;
+  return memory.kind !== 'rule';
+};
+
+const directiveModeLabels: Record<DirectiveMode, string> = {
+  always: 'Always',
+  relevant: 'When relevant',
+  manual: 'Manual',
+};
+
+const parseKeywords = (value: string) => [
+  ...new Set(
+    value
+      .split(',')
+      .map(keyword => keyword.trim())
+      .filter(Boolean)
+  ),
+];
+
+const getDirectiveContent = (directive: ContextRule | ContextPolicy) =>
+  directive.revisions.find(
+    revision => revision.revision === directive.activeRevision
+  )?.content ?? '';
+
+const getDirectiveConditionValues = (
+  directive: ContextRule | ContextPolicy
+) => {
+  const conditions = directive.conditions as Record<string, unknown>;
+  const strings = (value: unknown) =>
+    Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === 'string')
+      : [];
+  return {
+    keywords: strings(conditions.keywords),
+    documentIds: strings(conditions.docIds),
+    projectIds: strings(conditions.projectIds),
+    match: conditions.match === 'all' ? ('all' as const) : ('any' as const),
+  };
+};
+
+const getDirectiveKeywords = (directive: ContextRule | ContextPolicy) =>
+  getDirectiveConditionValues(directive).keywords;
+
+const getDirectiveDraft = (
+  directive: ContextRule | ContextPolicy
+): DirectiveDraft => {
+  const conditions = getDirectiveConditionValues(directive);
+  return {
+    name: directive.name,
+    description: directive.description,
+    content: getDirectiveContent(directive),
+    priority: String(directive.priority),
+    keywords: conditions.keywords.join(', '),
+    documentIds: conditions.documentIds,
+    projectIds: conditions.projectIds,
+    match: conditions.match,
+  };
+};
+
+export const getDirectiveConditionsInput = (
+  directive: ContextRule | ContextPolicy,
+  input: string | DirectiveConditionsDraft
+) => {
+  const conditions = getDirectiveConditionValues(directive);
+  if (typeof input !== 'string') {
+    return {
+      keywords: parseKeywords(input.keywords),
+      docIds: [...new Set(input.documentIds)],
+      projectIds: [...new Set(input.projectIds)],
+      match: input.match,
+    };
+  }
+  return {
+    keywords: parseKeywords(input),
+    docIds: conditions.documentIds,
+    projectIds: conditions.projectIds,
+    match: conditions.match,
+  };
+};
+
+const sameStringList = (left: string[], right: string[]) =>
+  left.length === right.length &&
+  left.every((value, index) => value === right[index]);
+
+export const getDirectiveContentUpdate = (
+  currentContent: string,
+  draftContent?: string
+) => {
+  if (draftContent === undefined) return {};
+  const content = draftContent.trim();
+  return content === currentContent ? {} : { content };
 };
 
 const DocumentName = ({ docId }: { docId: string }) => {
@@ -113,6 +226,103 @@ const ProjectDocumentNames = ({ documentIds }: { documentIds: string[] }) => {
   );
 };
 
+const DirectiveConditionControls = ({
+  value,
+  projects,
+  disabled,
+  scopeConditionsEnabled,
+  onChange,
+  onSelectDocuments,
+}: {
+  value: DirectiveConditionsDraft;
+  projects: ContextProject[];
+  disabled: boolean;
+  scopeConditionsEnabled: boolean;
+  onChange: (value: DirectiveConditionsDraft) => void;
+  onSelectDocuments: (ids: string[]) => void;
+}) => {
+  const toggleProject = (projectId: string) => {
+    const projectIds = value.projectIds.includes(projectId)
+      ? value.projectIds.filter(id => id !== projectId)
+      : [...value.projectIds, projectId].slice(0, 100);
+    onChange({ ...value, projectIds });
+  };
+
+  return (
+    <div className={styles.directiveConditionControls}>
+      <Input
+        value={value.description}
+        onChange={description => onChange({ ...value, description })}
+        placeholder="Description"
+        maxLength={2000}
+        disabled={disabled}
+      />
+      <Input
+        value={value.keywords}
+        onChange={keywords => onChange({ ...value, keywords })}
+        placeholder="Keywords, comma separated"
+        disabled={disabled}
+      />
+      <Menu
+        items={(['any', 'all'] as const).map(match => (
+          <MenuItem
+            key={match}
+            selected={value.match === match}
+            onSelect={() => onChange({ ...value, match })}
+          >
+            {match === 'all' ? 'Match all groups' : 'Match any group'}
+          </MenuItem>
+        ))}
+      >
+        <Button variant="secondary" disabled={disabled}>
+          {value.match === 'all' ? 'Match all groups' : 'Match any group'}
+        </Button>
+      </Menu>
+      <Button
+        variant="secondary"
+        disabled={disabled || !scopeConditionsEnabled}
+        onClick={() => onSelectDocuments(value.documentIds)}
+      >
+        Documents {value.documentIds.length}
+      </Button>
+      <Menu
+        items={[
+          ...(value.projectIds.length
+            ? [
+                <MenuItem
+                  key="clear-projects"
+                  onSelect={() => onChange({ ...value, projectIds: [] })}
+                >
+                  Clear projects
+                </MenuItem>,
+              ]
+            : []),
+          ...projects.map(project => (
+            <MenuItem
+              key={project.id}
+              selected={value.projectIds.includes(project.id)}
+              onSelect={() => toggleProject(project.id)}
+            >
+              {project.name}
+            </MenuItem>
+          )),
+        ]}
+      >
+        <Button
+          variant="secondary"
+          disabled={
+            disabled ||
+            !scopeConditionsEnabled ||
+            (!projects.length && !value.projectIds.length)
+          }
+        >
+          Projects {value.projectIds.length}
+        </Button>
+      </Menu>
+    </div>
+  );
+};
+
 const AIContextDashboard = ({
   onOpenMembers,
 }: {
@@ -130,14 +340,40 @@ const AIContextDashboard = ({
   );
 
   const [newContent, setNewContent] = useState('');
-  const [kind, setKind] = useState<MemoryKind>('rule');
-  const [target, setTarget] = useState<MemoryTarget>('personal');
+  const [target, setTarget] = useState<RuleTarget>('personal');
+  const [newRuleName, setNewRuleName] = useState('');
+  const [newRuleDescription, setNewRuleDescription] = useState('');
+  const [newRuleContent, setNewRuleContent] = useState('');
+  const [newRuleMode, setNewRuleMode] = useState<DirectiveMode>('relevant');
+  const [newRulePriority, setNewRulePriority] = useState('0');
+  const [newRuleKeywords, setNewRuleKeywords] = useState('');
+  const [newRuleDocumentIds, setNewRuleDocumentIds] = useState<string[]>([]);
+  const [newRuleProjectIds, setNewRuleProjectIds] = useState<string[]>([]);
+  const [newRuleMatch, setNewRuleMatch] = useState<'any' | 'all'>('any');
+  const [newPolicyName, setNewPolicyName] = useState('');
+  const [newPolicyDescription, setNewPolicyDescription] = useState('');
+  const [newPolicyContent, setNewPolicyContent] = useState('');
+  const [newPolicyMode, setNewPolicyMode] =
+    useState<Exclude<DirectiveMode, 'manual'>>('always');
+  const [newPolicyPriority, setNewPolicyPriority] = useState('0');
+  const [newPolicyKeywords, setNewPolicyKeywords] = useState('');
+  const [newPolicyDocumentIds, setNewPolicyDocumentIds] = useState<string[]>(
+    []
+  );
+  const [newPolicyProjectIds, setNewPolicyProjectIds] = useState<string[]>([]);
+  const [newPolicyMatch, setNewPolicyMatch] = useState<'any' | 'all'>('any');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     null
   );
   const [filter, setFilter] = useState<MemoryFilter>('all');
   const [search, setSearch] = useState('');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [directiveDrafts, setDirectiveDrafts] = useState<
+    Record<string, DirectiveDraft>
+  >({});
+  const [directiveModes, setDirectiveModes] = useState<
+    Record<string, DirectiveMode>
+  >({});
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState(false);
   const [settingsPending, setSettingsPending] = useState(false);
@@ -173,6 +409,18 @@ const AIContextDashboard = ({
     () => copilot?.contextMemories ?? [],
     [copilot?.contextMemories]
   );
+  const rules = useMemo(
+    () => copilot?.contextRules ?? [],
+    [copilot?.contextRules]
+  );
+  const policies = useMemo(
+    () => copilot?.contextPolicies ?? [],
+    [copilot?.contextPolicies]
+  );
+  const memoryEvents = useMemo(
+    () => copilot?.contextMemoryEvents ?? [],
+    [copilot?.contextMemoryEvents]
+  );
   const projects = useMemo(
     () => copilot?.contextProjects ?? [],
     [copilot?.contextProjects]
@@ -195,17 +443,14 @@ const AIContextDashboard = ({
     [projects]
   );
 
-  const targetOptions = useMemo<MemoryTarget[]>(() => {
-    if (isLocal) return kind === 'rule' ? ['personal'] : [];
-    if (kind === 'project_summary') {
-      return activeProjects.length ? ['project'] : [];
-    }
+  const targetOptions = useMemo<RuleTarget[]>(() => {
+    if (isLocal) return ['personal'];
     return [
       'personal',
       'workspace',
       ...(activeProjects.length ? (['project'] as const) : []),
     ];
-  }, [activeProjects.length, isLocal, kind]);
+  }, [activeProjects.length, isLocal]);
 
   useEffect(() => {
     if (!targetOptions.includes(target) && targetOptions[0]) {
@@ -231,6 +476,27 @@ const AIContextDashboard = ({
       return next;
     });
   }, [memories]);
+
+  useEffect(() => {
+    setDirectiveDrafts(current => {
+      const next = { ...current };
+      for (const directive of [...rules, ...policies]) {
+        if (!next[directive.id]) {
+          next[directive.id] = getDirectiveDraft(directive);
+        }
+      }
+      return next;
+    });
+    setDirectiveModes(current => {
+      const next = { ...current };
+      for (const directive of [...rules, ...policies]) {
+        if (!next[directive.id]) {
+          next[directive.id] = directive.applicationMode as DirectiveMode;
+        }
+      }
+      return next;
+    });
+  }, [policies, rules]);
 
   useEffect(() => {
     setProjectDrafts(current => {
@@ -275,15 +541,21 @@ const AIContextDashboard = ({
   }, []);
 
   const selectDocuments = useCallback(
-    (initial: string[], onSelect: (ids: string[]) => void) => {
+    (
+      initial: string[],
+      onSelect: (ids: string[]) => void,
+      allowEmpty = false
+    ) => {
       workspaceDialogService.open(
         'doc-selector',
         {
           init: initial,
           onBeforeConfirm: (ids, confirm) => {
-            if (ids.length < 1 || ids.length > 100) {
+            if ((!allowEmpty && ids.length < 1) || ids.length > 100) {
               notify.error({
-                title: 'Select between 1 and 100 documents',
+                title: allowEmpty
+                  ? 'Select up to 100 documents'
+                  : 'Select between 1 and 100 documents',
               });
               return;
             }
@@ -291,7 +563,7 @@ const AIContextDashboard = ({
           },
         },
         ids => {
-          if (ids?.length) onSelect([...new Set(ids)]);
+          if (ids) onSelect([...new Set(ids)]);
         }
       );
     },
@@ -400,27 +672,19 @@ const AIContextDashboard = ({
 
   const createMemory = useCallback(async () => {
     const content = newContent.trim();
-    const isProject = target === 'project';
-    if (!content || (isProject && !selectedProjectId)) return;
+    if (!content || !selectedProjectId) return;
     setCreating(true);
     try {
       await graphqlService.gql({
         query: copilotContextMemoryCreateMutation,
         variables: {
-          input:
-            target === 'personal'
-              ? {
-                  scope: 'user',
-                  kind: 'rule',
-                  content,
-                }
-              : {
-                  workspaceId,
-                  ...(isProject ? { projectId: selectedProjectId } : {}),
-                  scope: isProject ? 'project' : 'workspace',
-                  kind,
-                  content,
-                },
+          input: {
+            workspaceId,
+            projectId: selectedProjectId,
+            scope: 'project',
+            kind: 'project_summary',
+            content,
+          },
         },
       });
       setNewContent('');
@@ -432,14 +696,366 @@ const AIContextDashboard = ({
     }
   }, [
     graphqlService,
-    kind,
     mutate,
     newContent,
+    reportError,
+    selectedProjectId,
+    workspaceId,
+  ]);
+
+  const createRule = useCallback(async () => {
+    const name = newRuleName.trim();
+    const content = newRuleContent.trim();
+    const priority = Number(newRulePriority);
+    if (
+      !name ||
+      !content ||
+      !Number.isInteger(priority) ||
+      (target === 'project' && !selectedProjectId)
+    ) {
+      return;
+    }
+    setCreating(true);
+    try {
+      await graphqlService.gql({
+        query: createCopilotContextRuleMutation,
+        variables: {
+          input: {
+            ...(target === 'personal' ? {} : { workspaceId }),
+            ...(target === 'project' ? { projectId: selectedProjectId } : {}),
+            scope:
+              target === 'personal'
+                ? 'user'
+                : target === 'project'
+                  ? 'project'
+                  : 'workspace',
+            name,
+            description: newRuleDescription.trim(),
+            applicationMode: newRuleMode,
+            priority,
+            conditions: {
+              keywords: parseKeywords(newRuleKeywords),
+              docIds: target === 'personal' ? [] : newRuleDocumentIds,
+              projectIds: target === 'personal' ? [] : newRuleProjectIds,
+              match: newRuleMatch,
+            },
+            content,
+          },
+        },
+      });
+      setNewRuleName('');
+      setNewRuleDescription('');
+      setNewRuleContent('');
+      setNewRuleKeywords('');
+      setNewRuleDocumentIds([]);
+      setNewRuleProjectIds([]);
+      setNewRuleMatch('any');
+      setNewRulePriority('0');
+      await mutate();
+    } catch (caught) {
+      reportError(caught);
+    } finally {
+      setCreating(false);
+    }
+  }, [
+    graphqlService,
+    mutate,
+    newRuleContent,
+    newRuleDescription,
+    newRuleDocumentIds,
+    newRuleKeywords,
+    newRuleMatch,
+    newRuleMode,
+    newRuleName,
+    newRulePriority,
+    newRuleProjectIds,
     reportError,
     selectedProjectId,
     target,
     workspaceId,
   ]);
+
+  const createPolicy = useCallback(async () => {
+    const name = newPolicyName.trim();
+    const content = newPolicyContent.trim();
+    const priority = Number(newPolicyPriority);
+    if (!name || !content || !Number.isInteger(priority)) return;
+    setCreating(true);
+    try {
+      await graphqlService.gql({
+        query: createCopilotContextPolicyMutation,
+        variables: {
+          input: {
+            workspaceId,
+            name,
+            description: newPolicyDescription.trim(),
+            applicationMode: newPolicyMode,
+            priority,
+            conditions: {
+              keywords: parseKeywords(newPolicyKeywords),
+              docIds: newPolicyDocumentIds,
+              projectIds: newPolicyProjectIds,
+              match: newPolicyMatch,
+            },
+            content,
+          },
+        },
+      });
+      setNewPolicyName('');
+      setNewPolicyDescription('');
+      setNewPolicyContent('');
+      setNewPolicyKeywords('');
+      setNewPolicyDocumentIds([]);
+      setNewPolicyProjectIds([]);
+      setNewPolicyMatch('any');
+      setNewPolicyPriority('0');
+      await mutate();
+    } catch (caught) {
+      reportError(caught);
+    } finally {
+      setCreating(false);
+    }
+  }, [
+    graphqlService,
+    mutate,
+    newPolicyContent,
+    newPolicyDescription,
+    newPolicyDocumentIds,
+    newPolicyKeywords,
+    newPolicyMatch,
+    newPolicyMode,
+    newPolicyName,
+    newPolicyPriority,
+    newPolicyProjectIds,
+    reportError,
+    workspaceId,
+  ]);
+
+  const updateRule = useCallback(
+    async (
+      rule: ContextRule,
+      update?: { status?: string; applicationMode?: DirectiveMode }
+    ) => {
+      const draft = directiveDrafts[rule.id];
+      const priority = Number(draft?.priority ?? rule.priority);
+      const currentContent = getDirectiveContent(rule);
+      if (!Number.isInteger(priority)) return;
+      markPending(rule.id, true);
+      try {
+        await graphqlService.gql({
+          query: updateCopilotContextRuleMutation,
+          variables: {
+            input: {
+              id: rule.id,
+              ...(update ?? {
+                name: draft?.name.trim() || rule.name,
+                description: draft?.description.trim() ?? rule.description,
+                ...getDirectiveContentUpdate(currentContent, draft?.content),
+                priority,
+                applicationMode:
+                  directiveModes[rule.id] ??
+                  (rule.applicationMode as DirectiveMode),
+                conditions: getDirectiveConditionsInput(
+                  rule,
+                  draft ?? getDirectiveDraft(rule)
+                ),
+              }),
+            },
+          },
+        });
+        await mutate();
+      } catch (caught) {
+        reportError(caught);
+      } finally {
+        markPending(rule.id, false);
+      }
+    },
+    [
+      directiveDrafts,
+      directiveModes,
+      graphqlService,
+      markPending,
+      mutate,
+      reportError,
+    ]
+  );
+
+  const updatePolicy = useCallback(
+    async (
+      policy: ContextPolicy,
+      update?: { status?: string; applicationMode?: 'always' | 'relevant' }
+    ) => {
+      const draft = directiveDrafts[policy.id];
+      const priority = Number(draft?.priority ?? policy.priority);
+      const currentContent = getDirectiveContent(policy);
+      if (!Number.isInteger(priority)) return;
+      markPending(policy.id, true);
+      try {
+        await graphqlService.gql({
+          query: updateCopilotContextPolicyMutation,
+          variables: {
+            input: {
+              id: policy.id,
+              workspaceId,
+              ...(update ?? {
+                name: draft?.name.trim() || policy.name,
+                description: draft?.description.trim() ?? policy.description,
+                ...getDirectiveContentUpdate(currentContent, draft?.content),
+                priority,
+                applicationMode:
+                  directiveModes[policy.id] === 'relevant'
+                    ? 'relevant'
+                    : 'always',
+                conditions: getDirectiveConditionsInput(
+                  policy,
+                  draft ?? getDirectiveDraft(policy)
+                ),
+              }),
+            },
+          },
+        });
+        await mutate();
+      } catch (caught) {
+        reportError(caught);
+      } finally {
+        markPending(policy.id, false);
+      }
+    },
+    [
+      directiveDrafts,
+      directiveModes,
+      graphqlService,
+      markPending,
+      mutate,
+      reportError,
+      workspaceId,
+    ]
+  );
+
+  const rollbackRule = useCallback(
+    async (rule: ContextRule, revision: number) => {
+      markPending(rule.id, true);
+      try {
+        await graphqlService.gql({
+          query: rollbackCopilotContextRuleMutation,
+          variables: { id: rule.id, revision },
+        });
+        setDirectiveDrafts(current => {
+          const next = { ...current };
+          delete next[rule.id];
+          return next;
+        });
+        await mutate();
+      } catch (caught) {
+        reportError(caught);
+      } finally {
+        markPending(rule.id, false);
+      }
+    },
+    [graphqlService, markPending, mutate, reportError]
+  );
+
+  const rollbackPolicy = useCallback(
+    async (policy: ContextPolicy, revision: number) => {
+      markPending(policy.id, true);
+      try {
+        await graphqlService.gql({
+          query: rollbackCopilotContextPolicyMutation,
+          variables: { id: policy.id, workspaceId, revision },
+        });
+        setDirectiveDrafts(current => {
+          const next = { ...current };
+          delete next[policy.id];
+          return next;
+        });
+        await mutate();
+      } catch (caught) {
+        reportError(caught);
+      } finally {
+        markPending(policy.id, false);
+      }
+    },
+    [graphqlService, markPending, mutate, reportError, workspaceId]
+  );
+
+  const deleteRule = useCallback(
+    (rule: ContextRule) => {
+      openConfirmModal({
+        title: 'Delete rule?',
+        description: rule.name,
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        confirmButtonOptions: { variant: 'error' },
+        onConfirm: async () => {
+          markPending(rule.id, true);
+          try {
+            await graphqlService.gql({
+              query: deleteCopilotContextRuleMutation,
+              variables: { id: rule.id },
+            });
+            await mutate();
+          } catch (caught) {
+            reportError(caught);
+          } finally {
+            markPending(rule.id, false);
+          }
+        },
+      });
+    },
+    [graphqlService, markPending, mutate, openConfirmModal, reportError]
+  );
+
+  const deletePolicy = useCallback(
+    (policy: ContextPolicy) => {
+      openConfirmModal({
+        title: 'Delete workspace policy?',
+        description: policy.name,
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        confirmButtonOptions: { variant: 'error' },
+        onConfirm: async () => {
+          markPending(policy.id, true);
+          try {
+            await graphqlService.gql({
+              query: deleteCopilotContextPolicyMutation,
+              variables: { id: policy.id, workspaceId },
+            });
+            await mutate();
+          } catch (caught) {
+            reportError(caught);
+          } finally {
+            markPending(policy.id, false);
+          }
+        },
+      });
+    },
+    [
+      graphqlService,
+      markPending,
+      mutate,
+      openConfirmModal,
+      reportError,
+      workspaceId,
+    ]
+  );
+
+  const undoMemoryEvent = useCallback(
+    async (event: ContextMemoryEvent) => {
+      markPending(event.id, true);
+      try {
+        await graphqlService.gql({
+          query: undoCopilotContextMemoryEventMutation,
+          variables: { workspaceId, eventId: event.id },
+        });
+        await mutate();
+      } catch (caught) {
+        reportError(caught);
+      } finally {
+        markPending(event.id, false);
+      }
+    },
+    [graphqlService, markPending, mutate, reportError, workspaceId]
+  );
 
   const updateMemory = useCallback(
     async (
@@ -544,11 +1160,18 @@ const AIContextDashboard = ({
   }, [filter, memories, projectById, search]);
 
   const isProjectTarget = target === 'project';
-  const createDisabled =
-    !newContent.trim() ||
+  const createDisabled = !newContent.trim() || creating || !selectedProjectId;
+  const createRuleDisabled =
+    !newRuleName.trim() ||
+    !newRuleContent.trim() ||
+    !Number.isInteger(Number(newRulePriority)) ||
     creating ||
-    targetOptions.length === 0 ||
     (isProjectTarget && !selectedProjectId);
+  const createPolicyDisabled =
+    !newPolicyName.trim() ||
+    !newPolicyContent.trim() ||
+    !Number.isInteger(Number(newPolicyPriority)) ||
+    creating;
   const createProjectDisabled =
     !newProjectName.trim() || !newProjectDocumentIds.length || creatingProject;
 
@@ -610,6 +1233,9 @@ const AIContextDashboard = ({
             <span className={styles.engineStatus}>
               {activeStrategy?.version ?? 'Unavailable'}
               {activeStrategy ? ' · Active' : ''}
+              {activeStrategy
+                ? ` · ${activeStrategy.traceCount} plans traced`
+                : ''}
               {previousStrategyCount
                 ? ` · ${previousStrategyCount} previous retained`
                 : ''}
@@ -794,23 +1420,16 @@ const AIContextDashboard = ({
         </div>
       </SettingWrapper>
 
-      <SettingWrapper title="Your rules and memories">
+      <SettingWrapper title="Your rules">
         <div className={styles.createArea}>
-          <div className={styles.createControls}>
-            <Menu
-              items={(isLocal
-                ? (['rule'] as const)
-                : (['rule', 'project_summary'] as const)
-              ).map(value => (
-                <MenuItem key={value} onSelect={() => setKind(value)}>
-                  {kindLabels[value]}
-                </MenuItem>
-              ))}
-            >
-              <Button className={styles.kindButton} variant="secondary">
-                {kindLabels[kind]}
-              </Button>
-            </Menu>
+          <div className={styles.directiveControls}>
+            <Input
+              value={newRuleName}
+              onChange={setNewRuleName}
+              placeholder="Rule name"
+              maxLength={120}
+              disabled={creating}
+            />
             <Menu
               items={targetOptions.map(value => (
                 <MenuItem key={value} onSelect={() => setTarget(value)}>
@@ -818,15 +1437,594 @@ const AIContextDashboard = ({
                 </MenuItem>
               ))}
             >
-              <Button
-                className={styles.targetButton}
-                variant="secondary"
-                disabled={targetOptions.length === 0}
-              >
-                {targetOptions.length ? targetLabels[target] : 'Unavailable'}
+              <Button className={styles.targetButton} variant="secondary">
+                {targetLabels[target]}
               </Button>
             </Menu>
-            {isProjectTarget ? (
+            <Menu
+              items={(Object.keys(directiveModeLabels) as DirectiveMode[]).map(
+                value => (
+                  <MenuItem key={value} onSelect={() => setNewRuleMode(value)}>
+                    {directiveModeLabels[value]}
+                  </MenuItem>
+                )
+              )}
+            >
+              <Button className={styles.kindButton} variant="secondary">
+                {directiveModeLabels[newRuleMode]}
+              </Button>
+            </Menu>
+            <input
+              className={styles.compactInput}
+              type="number"
+              min={-1000}
+              max={1000}
+              step={1}
+              value={newRulePriority}
+              aria-label="Rule priority"
+              disabled={creating}
+              onChange={event => setNewRulePriority(event.target.value)}
+            />
+          </div>
+          {isProjectTarget ? (
+            <Menu
+              items={activeProjects.map(project => (
+                <MenuItem
+                  key={project.id}
+                  onSelect={() => setSelectedProjectId(project.id)}
+                >
+                  {project.name}
+                </MenuItem>
+              ))}
+            >
+              <Button
+                className={styles.projectButton}
+                variant="secondary"
+                disabled={!activeProjects.length}
+              >
+                {selectedProjectId
+                  ? (projectById.get(selectedProjectId)?.name ?? 'Project')
+                  : 'Select project'}
+              </Button>
+            </Menu>
+          ) : null}
+          <DirectiveConditionControls
+            value={{
+              description: newRuleDescription,
+              keywords: newRuleKeywords,
+              documentIds: newRuleDocumentIds,
+              projectIds: newRuleProjectIds,
+              match: newRuleMatch,
+            }}
+            projects={activeProjects}
+            disabled={creating}
+            scopeConditionsEnabled={target !== 'personal'}
+            onChange={value => {
+              setNewRuleDescription(value.description);
+              setNewRuleKeywords(value.keywords);
+              setNewRuleDocumentIds(value.documentIds);
+              setNewRuleProjectIds(value.projectIds);
+              setNewRuleMatch(value.match);
+            }}
+            onSelectDocuments={documentIds =>
+              selectDocuments(documentIds, setNewRuleDocumentIds, true)
+            }
+          />
+          <div className={styles.createInputRow}>
+            <Input
+              value={newRuleContent}
+              onChange={setNewRuleContent}
+              onEnter={() => void createRule()}
+              placeholder="Rule instruction"
+              maxLength={8000}
+              disabled={creating}
+            />
+            <IconButton
+              size="24"
+              title="Create rule"
+              icon={<PlusIcon />}
+              disabled={createRuleDisabled}
+              onClick={() => void createRule()}
+            />
+          </div>
+        </div>
+
+        <div className={styles.memoryList}>
+          {rules.length ? (
+            rules.map(rule => {
+              const pending = pendingIds.has(rule.id);
+              const draft = directiveDrafts[rule.id] ?? getDirectiveDraft(rule);
+              const conditionValues = getDirectiveConditionValues(rule);
+              const mode =
+                directiveModes[rule.id] ??
+                (rule.applicationMode as DirectiveMode);
+              const changed =
+                draft.name.trim() !== rule.name ||
+                draft.content.trim() !== getDirectiveContent(rule) ||
+                Number(draft.priority) !== rule.priority ||
+                draft.keywords !== getDirectiveKeywords(rule).join(', ') ||
+                draft.description.trim() !== rule.description ||
+                !sameStringList(
+                  draft.documentIds,
+                  conditionValues.documentIds
+                ) ||
+                !sameStringList(draft.projectIds, conditionValues.projectIds) ||
+                draft.match !== conditionValues.match ||
+                mode !== rule.applicationMode;
+              return (
+                <div
+                  className={
+                    rule.status === 'active'
+                      ? styles.memoryRow
+                      : `${styles.memoryRow} ${styles.disabledRow}`
+                  }
+                  key={rule.id}
+                >
+                  <div className={styles.memoryMain}>
+                    <div className={styles.directiveControls}>
+                      <Input
+                        value={draft.name}
+                        onChange={name =>
+                          setDirectiveDrafts(current => ({
+                            ...current,
+                            [rule.id]: { ...draft, name },
+                          }))
+                        }
+                        maxLength={120}
+                        disabled={pending}
+                      />
+                      <Menu
+                        items={(
+                          Object.keys(directiveModeLabels) as DirectiveMode[]
+                        ).map(value => (
+                          <MenuItem
+                            key={value}
+                            onSelect={() =>
+                              setDirectiveModes(current => ({
+                                ...current,
+                                [rule.id]: value,
+                              }))
+                            }
+                          >
+                            {directiveModeLabels[value]}
+                          </MenuItem>
+                        ))}
+                      >
+                        <Button variant="secondary" disabled={pending}>
+                          {directiveModeLabels[mode]}
+                        </Button>
+                      </Menu>
+                      <input
+                        className={styles.compactInput}
+                        type="number"
+                        min={-1000}
+                        max={1000}
+                        step={1}
+                        value={draft.priority}
+                        aria-label={`${rule.name} priority`}
+                        disabled={pending}
+                        onChange={event =>
+                          setDirectiveDrafts(current => ({
+                            ...current,
+                            [rule.id]: {
+                              ...draft,
+                              priority: event.target.value,
+                            },
+                          }))
+                        }
+                      />
+                    </div>
+                    <DirectiveConditionControls
+                      value={draft}
+                      projects={activeProjects}
+                      disabled={pending}
+                      scopeConditionsEnabled={rule.scope !== 'user'}
+                      onChange={value =>
+                        setDirectiveDrafts(current => ({
+                          ...current,
+                          [rule.id]: { ...draft, ...value },
+                        }))
+                      }
+                      onSelectDocuments={documentIds =>
+                        selectDocuments(
+                          documentIds,
+                          nextDocumentIds =>
+                            setDirectiveDrafts(current => ({
+                              ...current,
+                              [rule.id]: {
+                                ...draft,
+                                documentIds: nextDocumentIds,
+                              },
+                            })),
+                          true
+                        )
+                      }
+                    />
+                    <textarea
+                      className={styles.memoryInput}
+                      value={draft.content}
+                      maxLength={8000}
+                      rows={2}
+                      disabled={pending}
+                      aria-label={`${rule.name} content`}
+                      onChange={event =>
+                        setDirectiveDrafts(current => ({
+                          ...current,
+                          [rule.id]: {
+                            ...draft,
+                            content: event.target.value,
+                          },
+                        }))
+                      }
+                    />
+                    <div className={styles.metadata}>
+                      <span className={styles.tag}>
+                        {scopeLabels[rule.scope] ?? rule.scope}
+                      </span>
+                      <span className={styles.privateBadge}>Only you</span>
+                      {rule.projectId ? (
+                        <span className={styles.projectTag}>
+                          {projectById.get(rule.projectId)?.name ?? 'Project'}
+                        </span>
+                      ) : null}
+                      <span className={styles.tag}>
+                        {rule.hits.length} recent hits
+                      </span>
+                    </div>
+                  </div>
+                  <div className={styles.directiveActions}>
+                    <Switch
+                      aria-label={`${rule.name} enabled`}
+                      checked={rule.status === 'active'}
+                      disabled={pending}
+                      onChange={active =>
+                        void updateRule(rule, {
+                          status: active ? 'active' : 'disabled',
+                        })
+                      }
+                    />
+                    <Menu
+                      items={rule.revisions
+                        .filter(
+                          revision => revision.revision !== rule.activeRevision
+                        )
+                        .map(revision => (
+                          <MenuItem
+                            key={revision.id}
+                            onSelect={() =>
+                              void rollbackRule(rule, revision.revision)
+                            }
+                          >
+                            Revision {revision.revision}
+                          </MenuItem>
+                        ))}
+                    >
+                      <Button variant="secondary" disabled={pending}>
+                        Revision {rule.activeRevision}
+                      </Button>
+                    </Menu>
+                    <IconButton
+                      size="20"
+                      title="Save rule"
+                      icon={<SaveIcon />}
+                      disabled={
+                        !changed ||
+                        !draft.name.trim() ||
+                        !draft.content.trim() ||
+                        !Number.isInteger(Number(draft.priority)) ||
+                        pending
+                      }
+                      onClick={() => void updateRule(rule)}
+                    />
+                    <IconButton
+                      size="20"
+                      title="Delete rule"
+                      icon={<DeleteIcon />}
+                      disabled={pending}
+                      onClick={() => deleteRule(rule)}
+                    />
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className={styles.empty}>No rules</div>
+          )}
+        </div>
+      </SettingWrapper>
+
+      {!isLocal ? (
+        <SettingWrapper title="Workspace policies">
+          {canManageProjects ? (
+            <div className={styles.createArea}>
+              <div className={styles.directiveControls}>
+                <Input
+                  value={newPolicyName}
+                  onChange={setNewPolicyName}
+                  placeholder="Policy name"
+                  maxLength={120}
+                  disabled={creating}
+                />
+                <Menu
+                  items={(['always', 'relevant'] as const).map(value => (
+                    <MenuItem
+                      key={value}
+                      onSelect={() => setNewPolicyMode(value)}
+                    >
+                      {directiveModeLabels[value]}
+                    </MenuItem>
+                  ))}
+                >
+                  <Button variant="secondary">
+                    {directiveModeLabels[newPolicyMode]}
+                  </Button>
+                </Menu>
+                <input
+                  className={styles.compactInput}
+                  type="number"
+                  min={-1000}
+                  max={1000}
+                  step={1}
+                  value={newPolicyPriority}
+                  aria-label="Policy priority"
+                  disabled={creating}
+                  onChange={event => setNewPolicyPriority(event.target.value)}
+                />
+              </div>
+              <DirectiveConditionControls
+                value={{
+                  description: newPolicyDescription,
+                  keywords: newPolicyKeywords,
+                  documentIds: newPolicyDocumentIds,
+                  projectIds: newPolicyProjectIds,
+                  match: newPolicyMatch,
+                }}
+                projects={activeProjects}
+                disabled={creating}
+                scopeConditionsEnabled
+                onChange={value => {
+                  setNewPolicyDescription(value.description);
+                  setNewPolicyKeywords(value.keywords);
+                  setNewPolicyDocumentIds(value.documentIds);
+                  setNewPolicyProjectIds(value.projectIds);
+                  setNewPolicyMatch(value.match);
+                }}
+                onSelectDocuments={documentIds =>
+                  selectDocuments(documentIds, setNewPolicyDocumentIds, true)
+                }
+              />
+              <div className={styles.createInputRow}>
+                <Input
+                  value={newPolicyContent}
+                  onChange={setNewPolicyContent}
+                  onEnter={() => void createPolicy()}
+                  placeholder="Enforced policy instruction"
+                  maxLength={8000}
+                  disabled={creating}
+                />
+                <IconButton
+                  size="24"
+                  title="Create policy"
+                  icon={<PlusIcon />}
+                  disabled={createPolicyDisabled}
+                  onClick={() => void createPolicy()}
+                />
+              </div>
+            </div>
+          ) : null}
+          <div className={styles.memoryList}>
+            {policies.length ? (
+              policies.map(policy => {
+                const pending = pendingIds.has(policy.id);
+                const draft =
+                  directiveDrafts[policy.id] ?? getDirectiveDraft(policy);
+                const conditionValues = getDirectiveConditionValues(policy);
+                const mode =
+                  directiveModes[policy.id] === 'relevant'
+                    ? 'relevant'
+                    : 'always';
+                const changed =
+                  draft.name.trim() !== policy.name ||
+                  draft.content.trim() !== getDirectiveContent(policy) ||
+                  Number(draft.priority) !== policy.priority ||
+                  draft.keywords !== getDirectiveKeywords(policy).join(', ') ||
+                  draft.description.trim() !== policy.description ||
+                  !sameStringList(
+                    draft.documentIds,
+                    conditionValues.documentIds
+                  ) ||
+                  !sameStringList(
+                    draft.projectIds,
+                    conditionValues.projectIds
+                  ) ||
+                  draft.match !== conditionValues.match ||
+                  mode !== policy.applicationMode;
+                return (
+                  <div
+                    className={
+                      policy.status === 'active'
+                        ? styles.memoryRow
+                        : `${styles.memoryRow} ${styles.disabledRow}`
+                    }
+                    key={policy.id}
+                  >
+                    <div className={styles.memoryMain}>
+                      <div className={styles.directiveControls}>
+                        <Input
+                          value={draft.name}
+                          onChange={name =>
+                            setDirectiveDrafts(current => ({
+                              ...current,
+                              [policy.id]: { ...draft, name },
+                            }))
+                          }
+                          disabled={pending || !policy.canManage}
+                        />
+                        <Menu
+                          items={(['always', 'relevant'] as const).map(
+                            value => (
+                              <MenuItem
+                                key={value}
+                                onSelect={() =>
+                                  setDirectiveModes(current => ({
+                                    ...current,
+                                    [policy.id]: value,
+                                  }))
+                                }
+                              >
+                                {directiveModeLabels[value]}
+                              </MenuItem>
+                            )
+                          )}
+                        >
+                          <Button
+                            variant="secondary"
+                            disabled={pending || !policy.canManage}
+                          >
+                            {directiveModeLabels[mode]}
+                          </Button>
+                        </Menu>
+                        <input
+                          className={styles.compactInput}
+                          type="number"
+                          min={-1000}
+                          max={1000}
+                          step={1}
+                          value={draft.priority}
+                          aria-label={`${policy.name} priority`}
+                          disabled={pending || !policy.canManage}
+                          onChange={event =>
+                            setDirectiveDrafts(current => ({
+                              ...current,
+                              [policy.id]: {
+                                ...draft,
+                                priority: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                      <DirectiveConditionControls
+                        value={draft}
+                        projects={activeProjects}
+                        disabled={pending || !policy.canManage}
+                        scopeConditionsEnabled
+                        onChange={value =>
+                          setDirectiveDrafts(current => ({
+                            ...current,
+                            [policy.id]: { ...draft, ...value },
+                          }))
+                        }
+                        onSelectDocuments={documentIds =>
+                          selectDocuments(
+                            documentIds,
+                            nextDocumentIds =>
+                              setDirectiveDrafts(current => ({
+                                ...current,
+                                [policy.id]: {
+                                  ...draft,
+                                  documentIds: nextDocumentIds,
+                                },
+                              })),
+                            true
+                          )
+                        }
+                      />
+                      <textarea
+                        className={styles.memoryInput}
+                        value={draft.content}
+                        maxLength={8000}
+                        rows={2}
+                        disabled={pending || !policy.canManage}
+                        aria-label={`${policy.name} content`}
+                        onChange={event =>
+                          setDirectiveDrafts(current => ({
+                            ...current,
+                            [policy.id]: {
+                              ...draft,
+                              content: event.target.value,
+                            },
+                          }))
+                        }
+                      />
+                      <div className={styles.metadata}>
+                        <span className={styles.tag}>Workspace policy</span>
+                        <span className={styles.tag}>
+                          {policy.hits.length} recent hits
+                        </span>
+                      </div>
+                    </div>
+                    <div className={styles.directiveActions}>
+                      <Switch
+                        aria-label={`${policy.name} enabled`}
+                        checked={policy.status === 'active'}
+                        disabled={pending || !policy.canManage}
+                        onChange={active =>
+                          void updatePolicy(policy, {
+                            status: active ? 'active' : 'disabled',
+                          })
+                        }
+                      />
+                      <Menu
+                        items={policy.revisions
+                          .filter(
+                            revision =>
+                              revision.revision !== policy.activeRevision
+                          )
+                          .map(revision => (
+                            <MenuItem
+                              key={revision.id}
+                              onSelect={() =>
+                                void rollbackPolicy(policy, revision.revision)
+                              }
+                            >
+                              Revision {revision.revision}
+                            </MenuItem>
+                          ))}
+                      >
+                        <Button
+                          variant="secondary"
+                          disabled={pending || !policy.canManage}
+                        >
+                          Revision {policy.activeRevision}
+                        </Button>
+                      </Menu>
+                      <IconButton
+                        size="20"
+                        title="Save policy"
+                        icon={<SaveIcon />}
+                        disabled={
+                          !changed ||
+                          !draft.name.trim() ||
+                          !draft.content.trim() ||
+                          !Number.isInteger(Number(draft.priority)) ||
+                          pending ||
+                          !policy.canManage
+                        }
+                        onClick={() => void updatePolicy(policy)}
+                      />
+                      <IconButton
+                        size="20"
+                        title="Delete policy"
+                        icon={<DeleteIcon />}
+                        disabled={pending || !policy.canManage}
+                        onClick={() => deletePolicy(policy)}
+                      />
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className={styles.empty}>No workspace policies</div>
+            )}
+          </div>
+        </SettingWrapper>
+      ) : null}
+
+      <SettingWrapper title="Memories and project summaries">
+        {!isLocal && activeProjects.length ? (
+          <div className={styles.createArea}>
+            <div className={styles.createControls}>
               <Menu
                 items={activeProjects.map(project => (
                   <MenuItem
@@ -837,40 +2035,32 @@ const AIContextDashboard = ({
                   </MenuItem>
                 ))}
               >
-                <Button
-                  className={styles.projectButton}
-                  variant="secondary"
-                  disabled={!activeProjects.length}
-                >
+                <Button className={styles.projectButton} variant="secondary">
                   {selectedProjectId
                     ? (projectById.get(selectedProjectId)?.name ?? 'Project')
                     : 'Select project'}
                 </Button>
               </Menu>
-            ) : null}
+            </div>
+            <div className={styles.createInputRow}>
+              <Input
+                value={newContent}
+                onChange={setNewContent}
+                onEnter={() => void createMemory()}
+                placeholder="Project summary"
+                maxLength={8000}
+                disabled={creating}
+              />
+              <IconButton
+                size="24"
+                title="Add project summary"
+                icon={<PlusIcon />}
+                disabled={createDisabled}
+                onClick={() => void createMemory()}
+              />
+            </div>
           </div>
-          <div className={styles.createInputRow}>
-            <Input
-              value={newContent}
-              onChange={setNewContent}
-              onEnter={() => void createMemory()}
-              placeholder={
-                kind === 'project_summary'
-                  ? 'Add your project summary'
-                  : 'Add a rule'
-              }
-              maxLength={8000}
-              disabled={creating || targetOptions.length === 0}
-            />
-            <IconButton
-              size="24"
-              title="Add"
-              icon={<PlusIcon />}
-              disabled={createDisabled}
-              onClick={() => void createMemory()}
-            />
-          </div>
-        </div>
+        ) : null}
 
         <Tabs.Root
           value={filter}
@@ -937,6 +2127,30 @@ const AIContextDashboard = ({
                             <span className={styles.privateBadge}>
                               Only you
                             </span>
+                            {memory.factKey ? (
+                              <span className={styles.tag}>
+                                {memory.factKey}
+                              </span>
+                            ) : null}
+                            <span className={styles.tag}>
+                              {memory.captureMode}
+                            </span>
+                            <span className={styles.tag}>
+                              Confidence {Math.round(memory.confidence * 100)}%
+                            </span>
+                            {memory.expiresAt ? (
+                              <span className={styles.tag}>
+                                Expires{' '}
+                                {new Date(
+                                  memory.expiresAt
+                                ).toLocaleDateString()}
+                              </span>
+                            ) : null}
+                            {memory.useCount ? (
+                              <span className={styles.tag}>
+                                Used {memory.useCount} times
+                              </span>
+                            ) : null}
                             {memory.projectId ? (
                               <span className={styles.projectTag}>
                                 {projectById.get(memory.projectId)?.name ??
@@ -999,6 +2213,41 @@ const AIContextDashboard = ({
             </Tabs.Content>
           ))}
         </Tabs.Root>
+      </SettingWrapper>
+
+      <SettingWrapper title="Automatic memory history">
+        <div className={styles.memoryList}>
+          {memoryEvents.filter(event => event.operation !== 'NOOP').length ? (
+            memoryEvents
+              .filter(event => event.operation !== 'NOOP')
+              .slice(0, 20)
+              .map(event => (
+                <div className={styles.eventRow} key={event.id}>
+                  <div className={styles.metadata}>
+                    <span className={styles.tag}>{event.operation}</span>
+                    {event.factKey ? (
+                      <span className={styles.tag}>{event.factKey}</span>
+                    ) : null}
+                    <span className={styles.tag}>{event.reasonCode}</span>
+                    <span className={styles.updatedAt}>
+                      {new Date(event.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                  {event.canUndo ? (
+                    <Button
+                      variant="secondary"
+                      disabled={pendingIds.has(event.id)}
+                      onClick={() => void undoMemoryEvent(event)}
+                    >
+                      Undo
+                    </Button>
+                  ) : null}
+                </div>
+              ))
+          ) : (
+            <div className={styles.empty}>No automatic memory changes</div>
+          )}
+        </div>
       </SettingWrapper>
     </>
   );

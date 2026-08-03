@@ -71,6 +71,7 @@ type PureChatSession = {
   sessionId: string;
   workspaceId: string;
   docId?: string | null;
+  selectedContextProjectId?: string | null;
   pinned?: boolean;
   title: string | null;
   messages?: ChatMessage[];
@@ -107,7 +108,12 @@ type UpdateChatSessionMessage = ChatSessionBaseState & {
 export type UpdateChatSessionOptions = ChatSessionBaseState &
   Pick<
     Partial<ChatSession>,
-    'docId' | 'pinned' | 'promptName' | 'promptAction' | 'title'
+    | 'docId'
+    | 'selectedContextProjectId'
+    | 'pinned'
+    | 'promptName'
+    | 'promptAction'
+    | 'title'
   > & { promptModel?: string };
 
 export type UpdateChatSession = ChatSessionBaseState & UpdateChatSessionOptions;
@@ -400,6 +406,7 @@ export class CopilotSessionModel extends BaseModel {
         id: state.sessionId,
         workspaceId: state.workspaceId,
         docId: state.docId,
+        selectedContextProjectId: state.selectedContextProjectId,
         pinned: state.pinned ?? false,
         // connect
         userId: state.userId,
@@ -503,6 +510,7 @@ export class CopilotSessionModel extends BaseModel {
       userId: true,
       workspaceId: true,
       docId: true,
+      selectedContextProjectId: true,
       parentSessionId: true,
       pinned: true,
       title: true,
@@ -532,6 +540,7 @@ export class CopilotSessionModel extends BaseModel {
       userId: true,
       workspaceId: true,
       docId: true,
+      selectedContextProjectId: true,
       parentSessionId: true,
       pinned: true,
       title: true,
@@ -601,6 +610,7 @@ export class CopilotSessionModel extends BaseModel {
         userId: true,
         workspaceId: true,
         docId: true,
+        selectedContextProjectId: true,
         parentSessionId: true,
         pinned: true,
         title: true,
@@ -649,7 +659,15 @@ export class CopilotSessionModel extends BaseModel {
     options: UpdateChatSessionOptions,
     internalCall = false
   ): Promise<string> {
-    const { userId, sessionId, docId, promptName, pinned, title } = options;
+    const {
+      userId,
+      sessionId,
+      docId,
+      selectedContextProjectId,
+      promptName,
+      pinned,
+      title,
+    } = options;
     const sanitizedTitle = this.sanitizeString(title);
     const session = await this.getExists(
       sessionId,
@@ -717,6 +735,7 @@ export class CopilotSessionModel extends BaseModel {
       where: { id: sessionId },
       data: {
         docId,
+        selectedContextProjectId,
         promptName,
         promptAction: nextPromptAction,
         pinned,

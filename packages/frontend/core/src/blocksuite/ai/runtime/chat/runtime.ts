@@ -66,6 +66,7 @@ export class AIChatRuntime {
   private requestSeq = 0;
   private historyRequestSeq = 0;
   private contextRequestSeq = 0;
+  private projectScopeRequestSeq = 0;
   private streamAbortController: AbortController | null = null;
   private contextPollingAbortController: AbortController | null = null;
   private embeddingStatusAbortController: AbortController | null = null;
@@ -202,6 +203,12 @@ export class AIChatRuntime {
         return;
       case 'pollEmbeddingStatus':
         this.pollEmbeddingStatus();
+        return;
+      case 'loadProjectScope':
+        await this.loadProjectScope();
+        return;
+      case 'setSelectedContextProject':
+        await this.setSelectedContextProject(action.projectId);
         return;
     }
   }
@@ -556,6 +563,81 @@ export class AIChatRuntime {
     });
   }
 
+  private updateProjectScopeState(
+    patch: Partial<AIChatSnapshot['composer']['projectScope']>
+  ) {
+    this.updateComposer({
+      projectScope: {
+        ...this.snapshot.composer.projectScope,
+        ...patch,
+      },
+    });
+  }
+
+  private async loadProjectScope() {
+    const seq = ++this.projectScopeRequestSeq;
+    const sessionId = this.snapshot.activeSessionId;
+    if (!sessionId) {
+      this.updateProjectScopeState({
+        loading: false,
+        error: null,
+        projectResolution: 'none',
+        selectedProjectId: null,
+        candidates: [],
+      });
+      return;
+    }
+    this.updateProjectScopeState({ loading: true, error: null });
+    try {
+      const scope = await this.options.request.context.getSessionScope(
+        this.snapshot.scope.workspaceId,
+        sessionId
+      );
+      if (seq !== this.projectScopeRequestSeq) return;
+      this.updateProjectScopeState({
+        loading: false,
+        error: null,
+        projectResolution: scope?.projectResolution ?? 'none',
+        selectedProjectId: scope?.selectedProjectId ?? null,
+        candidates: (scope?.candidateProjects ?? []).map(project => ({
+          id: project.id,
+          name: project.name,
+        })),
+      });
+    } catch (error) {
+      if (seq !== this.projectScopeRequestSeq) return;
+      this.updateProjectScopeState({
+        loading: false,
+        error: this.toError(error),
+      });
+    }
+  }
+
+  private async setSelectedContextProject(projectId: string | null) {
+    const sessionId = this.snapshot.activeSessionId;
+    if (!sessionId) return;
+    this.updateProjectScopeState({ loading: true, error: null });
+    try {
+      await this.options.request.updateSession({
+        sessionId,
+        selectedContextProjectId: projectId,
+      });
+      this.commit({
+        sessions: this.snapshot.sessions.map(session =>
+          session.sessionId === sessionId
+            ? { ...session, selectedContextProjectId: projectId }
+            : session
+        ),
+      });
+      await this.loadProjectScope();
+    } catch (error) {
+      this.updateProjectScopeState({
+        loading: false,
+        error: this.toError(error),
+      });
+    }
+  }
+
   private async getContextId(options: { promptName?: string } = {}) {
     const createdSession = this.snapshot.activeSessionId
       ? null
@@ -598,6 +680,7 @@ export class AIChatRuntime {
         loading: false,
         items: [...this.snapshot.composer.context.items, nextItem],
       });
+      await this.loadProjectScope();
     } catch (error) {
       if (seq !== this.contextRequestSeq) return;
       this.updateContextState({ loading: false, error: this.toError(error) });
@@ -626,6 +709,7 @@ export class AIChatRuntime {
             referencedDocIds.has(document.docId)
           ),
       });
+      await this.loadProjectScope();
       if (
         referencedDocIds.size === 0 &&
         this.snapshot.composer.context.embeddingCount.processing === 0
@@ -658,6 +742,7 @@ export class AIChatRuntime {
         modifiedDocuments: this.getModifiedDocuments(context),
         embeddingCount: this.getContextEmbeddingCount(context),
       });
+      await this.loadProjectScope();
     } catch (error) {
       if (seq !== this.contextRequestSeq) return;
       this.updateContextState({ polling: false, error: this.toError(error) });
@@ -730,6 +815,7 @@ export class AIChatRuntime {
           loading: false,
           embeddingCount: { finished: 0, processing: 0, failed: 0 },
         });
+        await this.loadProjectScope();
         return;
       }
       const context = await this.options.request.context.getContextDocsAndFiles(
@@ -745,6 +831,7 @@ export class AIChatRuntime {
         modifiedDocuments: this.getModifiedDocuments(context),
         embeddingCount: this.getContextEmbeddingCount(context),
       });
+      await this.loadProjectScope();
     } catch (error) {
       if (seq !== this.contextRequestSeq) return;
       this.updateContextState({ loading: false, error: this.toError(error) });

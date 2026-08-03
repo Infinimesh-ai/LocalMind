@@ -33,6 +33,7 @@ import type { LlmToolCallbackRequest } from '../../native';
 import { CopilotModule } from '../../plugins/copilot';
 import { CopilotContextService } from '../../plugins/copilot/context';
 import { CopilotContextResolver } from '../../plugins/copilot/context/resolver';
+import { ContextMemoryService } from '../../plugins/copilot/context-memory-service';
 import {
   chatMessageFromTurn,
   turnFromChatMessage,
@@ -892,6 +893,17 @@ test('context memories should stay private to their owner and scope', async t =>
     'PRIVATE_WORKSPACE_VISIBLE',
     'PROJECT_A_VISIBLE',
   ]);
+  const multiDocumentVisible = await memory.listVisible({
+    userId,
+    workspaceId: primaryWorkspace.id,
+    docIds: ['doc-a', 'doc-cleanup'],
+    projectIds: [projectA.id],
+  });
+  t.true(
+    multiDocumentVisible.some(
+      item => item.content === 'DELETED_DOCUMENT_MEMORY'
+    )
+  );
   const allOwned = await memory.listManageable({
     userId,
     includeDisabled: true,
@@ -974,8 +986,336 @@ test('context memories should stay private to their owner and scope', async t =>
   t.is((await memory.getProject(auditProject.id))?.createdByUserId, null);
 });
 
+test('structured context memory lifecycle should version, expire, and undo facts', async t => {
+  const { db, models, module, prompt, session, workspace } = t.context;
+  const targetWorkspace = await workspace.create(userId);
+  const memory = models.copilotContextMemory;
+  const memoryService = module.get(ContextMemoryService);
+  await prompt.set(promptName, 'test', [
+    { role: 'system', content: 'Memory lifecycle test.' },
+  ]);
+  const sessionId = await session.create({
+    userId,
+    workspaceId: targetWorkspace.id,
+    docId: null,
+    promptName,
+    pinned: false,
+    reuseLatestChat: false,
+  });
+  const writerInput = (
+    decisionFingerprint: string,
+    decision: Parameters<typeof memory.applyWriterDecision>[0]['decision'],
+    sourceTurnId: string
+  ) => ({
+    ownerUserId: userId,
+    workspaceId: targetWorkspace.id,
+    sourceSessionId: sessionId,
+    sourceTurnId,
+    scope: 'workspace' as const,
+    explicit: true,
+    writerVersion: 'structured-memory-writer/test',
+    decisionFingerprint,
+    decision,
+  });
+  const baseDecision = {
+    factKey: 'preference:response_language',
+    confidence: 1,
+    importance: 0.9,
+    sensitivity: 'private' as const,
+    validFrom: new Date(),
+    validUntil: null,
+    expiresAt: null,
+    reasonCode: 'explicit_user_directive',
+  };
+  const addInput = writerInput(
+    `memory-add-${randomUUID()}`,
+    {
+      ...baseDecision,
+      operation: 'ADD',
+      content: 'Respond in Chinese.',
+    },
+    'turn-add'
+  );
+  const addEvent = await memory.applyWriterDecision(addInput);
+  const replay = await memory.applyWriterDecision(addInput);
+  t.is(addEvent.operation, 'ADD');
+  t.is(replay.id, addEvent.id, 'decision fingerprints should be idempotent');
+
+  const updateEvent = await memory.applyWriterDecision(
+    writerInput(
+      `memory-update-${randomUUID()}`,
+      {
+        ...baseDecision,
+        operation: 'UPDATE',
+        content: 'Respond in English.',
+        validFrom: new Date(Date.now() + 1),
+        reasonCode: 'user_correction',
+      },
+      'turn-update'
+    )
+  );
+  t.is(updateEvent.operation, 'UPDATE');
+  t.is(updateEvent.previousMemoryId, addEvent.memoryId);
+  const superseded = await memory.get(addEvent.memoryId!);
+  t.is(superseded?.status, 'superseded');
+  t.truthy(superseded?.validUntil);
+
+  const noopEvent = await memory.applyWriterDecision(
+    writerInput(
+      `memory-noop-${randomUUID()}`,
+      {
+        ...baseDecision,
+        operation: 'UPDATE',
+        content: 'Respond in English.',
+        reasonCode: 'same_value_test',
+      },
+      'turn-noop'
+    )
+  );
+  t.is(noopEvent.operation, 'NOOP');
+  t.is(noopEvent.reasonCode, 'same_fact_value');
+
+  const deleteEvent = await memory.applyWriterDecision(
+    writerInput(
+      `memory-delete-${randomUUID()}`,
+      {
+        ...baseDecision,
+        operation: 'DELETE',
+        content: null,
+        reasonCode: 'explicit_user_directive',
+      },
+      'turn-delete'
+    )
+  );
+  t.is(deleteEvent.operation, 'DELETE');
+  t.is((await memory.get(updateEvent.memoryId!))?.status, 'deleted');
+
+  const undoDelete = await memory.undoWriterEvent({
+    eventId: deleteEvent.id,
+    ownerUserId: userId,
+    workspaceId: targetWorkspace.id,
+  });
+  t.is(undoDelete?.operation, 'UNDO');
+  t.is((await memory.get(updateEvent.memoryId!))?.status, 'active');
+
+  const undoUpdate = await memory.undoWriterEvent({
+    eventId: updateEvent.id,
+    ownerUserId: userId,
+    workspaceId: targetWorkspace.id,
+  });
+  t.is(undoUpdate?.operation, 'UNDO');
+  t.is((await memory.get(updateEvent.memoryId!))?.status, 'superseded');
+  t.is((await memory.get(addEvent.memoryId!))?.status, 'active');
+
+  const undoAdd = await memory.undoWriterEvent({
+    eventId: addEvent.id,
+    ownerUserId: userId,
+    workspaceId: targetWorkspace.id,
+  });
+  t.is(undoAdd?.operation, 'UNDO');
+  t.is((await memory.get(addEvent.memoryId!))?.status, 'deleted');
+  t.is(
+    await memory.undoWriterEvent({
+      eventId: addEvent.id,
+      ownerUserId: userId,
+      workspaceId: targetWorkspace.id,
+    }),
+    null,
+    'an event can only be undone once'
+  );
+
+  const expiresAt = new Date(Date.now() + 10_000);
+  const expiringEvent = await memory.applyWriterDecision(
+    writerInput(
+      `memory-expiry-${randomUUID()}`,
+      {
+        ...baseDecision,
+        operation: 'ADD',
+        factKey: 'project:temporary_region',
+        content: 'Temporary deployment region is us-east-1.',
+        expiresAt,
+      },
+      'turn-expiry'
+    )
+  );
+  await memory.expireDueMemories(new Date(expiresAt.getTime() + 1));
+  t.is((await memory.get(expiringEvent.memoryId!))?.status, 'expired');
+
+  const disabledEvent = await memory.applyWriterDecision(
+    writerInput(
+      `memory-disabled-${randomUUID()}`,
+      {
+        ...baseDecision,
+        operation: 'ADD',
+        factKey: 'preference:reenable_conflict',
+        content: 'Use the concise response format.',
+      },
+      'turn-disabled'
+    )
+  );
+  await memoryService.update(disabledEvent.memoryId!, { status: 'disabled' });
+  const replacementEvent = await memory.applyWriterDecision(
+    writerInput(
+      `memory-replacement-${randomUUID()}`,
+      {
+        ...baseDecision,
+        operation: 'UPDATE',
+        factKey: 'preference:reenable_conflict',
+        content: 'Use the detailed response format.',
+      },
+      'turn-replacement'
+    )
+  );
+  const reenabled = await memoryService.update(disabledEvent.memoryId!, {
+    status: 'active',
+  });
+  t.is(reenabled?.content, 'Use the concise response format.');
+  t.not(reenabled?.id, disabledEvent.memoryId);
+  t.is((await memory.get(disabledEvent.memoryId!))?.status, 'superseded');
+  t.is((await memory.get(replacementEvent.memoryId!))?.status, 'superseded');
+  t.is(
+    await db.aiContextMemory.count({
+      where: {
+        ownerUserId: userId,
+        workspaceId: targetWorkspace.id,
+        factKey: 'preference:reenable_conflict',
+        status: 'active',
+      },
+    }),
+    1
+  );
+
+  const removableEvent = await memory.applyWriterDecision(
+    writerInput(
+      `memory-removal-${randomUUID()}`,
+      {
+        ...baseDecision,
+        operation: 'ADD',
+        factKey: 'project:removable_fact',
+        content: 'This fact can be removed.',
+      },
+      'turn-removal'
+    )
+  );
+  t.true(await memory.delete(removableEvent.memoryId!));
+  t.is(
+    await db.aiContextMemoryEvent.findUnique({
+      where: { id: removableEvent.id },
+    }),
+    null,
+    'privacy deletion should remove writer history linked to the deleted content'
+  );
+});
+
+test('context rules and workspace policies should retain revisions and hit history', async t => {
+  const { models, prompt, session, workspace } = t.context;
+  const targetWorkspace = await workspace.create(userId);
+  const directives = models.copilotContextRule;
+  await prompt.set(promptName, 'test', [
+    { role: 'system', content: 'Directive history test.' },
+  ]);
+  const sessionId = await session.create({
+    userId,
+    workspaceId: targetWorkspace.id,
+    docId: null,
+    promptName,
+    pinned: false,
+    reuseLatestChat: false,
+  });
+
+  const createdRule = await directives.createRule({
+    ownerUserId: userId,
+    scope: 'user',
+    name: 'Response style',
+    description: 'Keep answers concise.',
+    applicationMode: 'always',
+    priority: 50,
+    conditions: {},
+    content: 'Use concise answers.',
+  });
+  const metadataOnlyRule = await directives.updateRule(createdRule.id, userId, {
+    priority: 75,
+    content: 'Use concise answers.',
+  });
+  t.is(metadataOnlyRule?.activeRevision, 1);
+  t.is(metadataOnlyRule?.revisions.length, 1);
+  const revisedRule = await directives.updateRule(createdRule.id, userId, {
+    content: 'Use concise answers with a short rationale.',
+  });
+  t.is(revisedRule?.activeRevision, 2);
+  const rolledBackRule = await directives.rollbackRule({
+    id: createdRule.id,
+    ownerUserId: userId,
+    revision: 1,
+  });
+  t.is(rolledBackRule?.activeRevision, 3);
+  t.is(rolledBackRule?.revisions[0].source, 'rollback');
+  t.is(rolledBackRule?.revisions[0].content, 'Use concise answers.');
+
+  const createdPolicy = await directives.createPolicy({
+    workspaceId: targetWorkspace.id,
+    createdByUserId: userId,
+    name: 'Security boundary',
+    applicationMode: 'always',
+    priority: 100,
+    conditions: {},
+    content: 'Do not reveal workspace secrets.',
+  });
+  const metadataOnlyPolicy = await directives.updatePolicy(
+    createdPolicy.id,
+    targetWorkspace.id,
+    userId,
+    { priority: 125, content: 'Do not reveal workspace secrets.' }
+  );
+  t.is(metadataOnlyPolicy?.activeRevision, 1);
+  const revisedPolicy = await directives.updatePolicy(
+    createdPolicy.id,
+    targetWorkspace.id,
+    userId,
+    { content: 'Do not reveal secrets or private credentials.' }
+  );
+  t.is(revisedPolicy?.activeRevision, 2);
+  const rolledBackPolicy = await directives.rollbackPolicy({
+    id: createdPolicy.id,
+    workspaceId: targetWorkspace.id,
+    actorUserId: userId,
+    revision: 1,
+  });
+  t.is(rolledBackPolicy?.activeRevision, 3);
+  t.is(rolledBackPolicy?.revisions[0].source, 'rollback');
+
+  const hitResult = await directives.recordHits({
+    sessionId,
+    sourceTurnId: 'turn-directives',
+    rules: [
+      {
+        ruleId: rolledBackRule!.id,
+        revisionId: rolledBackRule!.revisions[0].id,
+        matchReason: 'always',
+        score: 10,
+      },
+    ],
+    policies: [
+      {
+        policyId: rolledBackPolicy!.id,
+        revisionId: rolledBackPolicy!.revisions[0].id,
+        matchReason: 'always',
+        score: 20,
+      },
+    ],
+  });
+  t.deepEqual(hitResult, { ruleCount: 1, policyCount: 1 });
+  t.is((await directives.getRule(createdRule.id))?.hits.length, 1);
+  t.is((await directives.getPolicy(createdPolicy.id))?.hits.length, 1);
+
+  t.true(await directives.deleteRule(createdRule.id, userId));
+  t.true(await directives.deletePolicy(createdPolicy.id, targetWorkspace.id));
+  t.is(await directives.getRule(createdRule.id), null);
+  t.is(await directives.getPolicy(createdPolicy.id), null);
+});
+
 test('context preferences and strategy revisions should persist safely', async t => {
-  const { models, workspace } = t.context;
+  const { models, prompt, session, workspace } = t.context;
   const targetWorkspace = await workspace.create(userId);
   const memory = models.copilotContextMemory;
 
@@ -1013,6 +1353,63 @@ test('context preferences and strategy revisions should persist safely', async t
       message: `Context strategy ${version} changed without a version bump`,
     }
   );
+
+  await prompt.set(promptName, 'test', [
+    { role: 'system', content: 'Trace test.' },
+  ]);
+  const traceSessionId = await session.create({
+    userId,
+    workspaceId: targetWorkspace.id,
+    docId: null,
+    promptName,
+    pinned: false,
+    reuseLatestChat: false,
+  });
+  await memory.createPlanTrace({
+    sessionId: traceSessionId,
+    sourceTurnId: 'turn-a',
+    strategyVersion: version,
+    strategyFingerprint: 'fingerprint-a',
+    inputMessageCount: 1,
+    retainedMessageCount: 1,
+    omittedMessageCount: 0,
+    candidateMemoryCount: 1,
+    selectedMemoryCount: 1,
+    summaryInjected: false,
+    planningPasses: 2,
+    contextCharBudget: 4800,
+    contextCharCount: 120,
+    sourceFingerprint: 'source-fingerprint',
+    outputFingerprint: 'output-fingerprint',
+    candidateMemoryIds: ['memory-a'],
+    selectedMemories: [
+      {
+        id: 'memory-a',
+        scope: 'workspace',
+        kind: 'rule',
+        score: 32,
+        rank: 1,
+      },
+    ],
+    scope: {
+      readableDocIds: ['doc-a'],
+      projectIds: ['project-a'],
+      projectResolution: 'single',
+    },
+  });
+  const traces = await memory.listPlanTraces(traceSessionId);
+  t.is(traces.length, 1);
+  t.deepEqual(traces[0].candidateMemoryIds, ['memory-a']);
+  t.false(JSON.stringify(traces[0]).includes('Trace test.'));
+
+  const strategy = (
+    await memory.listStrategyRevisions({
+      userId,
+      workspaceId: targetWorkspace.id,
+    })
+  ).find(item => item.version === version);
+  t.is(strategy?.traceCount, 1);
+  t.truthy(strategy?.lastTraceAt);
 });
 
 test('PromptContract should preserve render/session payloads and reject legacy aliases', t => {

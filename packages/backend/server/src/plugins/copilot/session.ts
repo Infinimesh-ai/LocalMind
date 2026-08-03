@@ -15,6 +15,7 @@ import {
 } from '../../base';
 import {
   CleanupSessionOptions,
+  type CopilotContextPlanTraceInput,
   ListSessionOptions,
   Models,
   type UpdateChatSession,
@@ -22,6 +23,11 @@ import {
 } from '../../models';
 import { CopilotAccessPolicy } from './access';
 import { ContextMemoryService } from './context-memory-service';
+import { ContextRuleService } from './context-rule-service';
+import {
+  type ContextScopeResolution,
+  ContextScopeResolver,
+} from './context-scope-resolver';
 import { ConversationPolicy } from './conversation/policy';
 import { ConversationStore } from './conversation/store';
 import { type Conversation, promptMessageFromTurn, type Turn } from './core';
@@ -66,6 +72,7 @@ function resolveEffectiveMaxTokenSize(
 export class ChatSession implements AsyncDisposable {
   private stashTurnCount = 0;
   private pendingCheckpoint?: ContextPlannerCheckpoint;
+  private pendingPlanTrace?: CopilotContextPlanTraceInput;
   private readonly renderPromptSession: (
     prompt: ResolvedPrompt,
     turns: PromptMessage[],
@@ -90,6 +97,9 @@ export class ChatSession implements AsyncDisposable {
       memories: ContextPlannerMemory[];
       checkpoint: ContextPlannerCheckpoint | null;
       saveCheckpoint: (checkpoint: ContextPlannerCheckpoint) => Promise<void>;
+      scope: ContextScopeResolution;
+      savePlanTrace: (trace: CopilotContextPlanTraceInput) => Promise<void>;
+      retrieveMemories: (query: string) => Promise<ContextPlannerMemory[]>;
     }
   ) {
     this.renderPromptSession = renderPromptSession;
@@ -122,6 +132,15 @@ export class ChatSession implements AsyncDisposable {
 
   get latestUserTurn() {
     return this.state.turns.findLast(({ role }) => role === 'user');
+  }
+
+  get contextScope() {
+    return this.context?.scope;
+  }
+
+  async refreshContextMemories(query: string) {
+    if (!this.context) return;
+    this.context.memories = await this.context.retrieveMemories(query);
   }
 
   findTurn(turnId: string) {
@@ -184,6 +203,19 @@ export class ChatSession implements AsyncDisposable {
       render,
     });
     this.pendingCheckpoint = plan.checkpoint;
+    this.pendingPlanTrace = {
+      sessionId: this.state.sessionId,
+      sourceTurnId: this.latestUserTurn?.id ?? null,
+      ...plan.trace,
+      scope: {
+        primaryDocId: this.context.scope.primaryDocId,
+        readableDocIds: this.context.scope.readableDocIds,
+        candidateProjectIds: this.context.scope.candidateProjectIds,
+        projectIds: this.context.scope.projectIds,
+        selectedProjectId: this.context.scope.selectedProjectId,
+        projectResolution: this.context.scope.projectResolution,
+      },
+    };
     return plan.messages;
   }
 
@@ -192,9 +224,16 @@ export class ChatSession implements AsyncDisposable {
       ...this.state,
       turns: this.state.turns.slice(-this.stashTurnCount),
     });
-    if (this.pendingCheckpoint) {
-      await this.context?.saveCheckpoint(this.pendingCheckpoint);
-    }
+    await Promise.all([
+      this.pendingCheckpoint
+        ? this.context?.saveCheckpoint(this.pendingCheckpoint)
+        : undefined,
+      this.pendingPlanTrace
+        ? this.context?.savePlanTrace(this.pendingPlanTrace)
+        : undefined,
+    ]);
+    this.pendingCheckpoint = undefined;
+    this.pendingPlanTrace = undefined;
     this.stashTurnCount = 0;
   }
 
@@ -237,8 +276,76 @@ export class ChatSessionService {
     private readonly prompts: PromptService,
     private readonly promptRuntime: PromptRuntime,
     private readonly contextPlanner: ContextPlanner,
-    private readonly contextMemory: ContextMemoryService
+    private readonly contextMemory: ContextMemoryService,
+    private readonly contextRules: ContextRuleService,
+    private readonly contextScopeResolver: ContextScopeResolver
   ) {}
+
+  private async retrieveContextMemories(
+    scope: ContextScopeResolution,
+    query: string
+  ): Promise<ContextPlannerMemory[]> {
+    const [memories, directives] = await Promise.all([
+      this.contextMemory
+        .retrieveVisible({
+          userId: scope.userId,
+          workspaceId: scope.workspaceId,
+          docIds: scope.readableDocIds,
+          projectIds: scope.projectIds,
+          query,
+        })
+        .catch(error => {
+          this.logger.warn(
+            'Context memory retrieval failed; continuing without memory',
+            {
+              sessionId: scope.sessionId,
+              error,
+            }
+          );
+          return [];
+        }),
+      this.contextRules
+        .retrieveApplicable({
+          userId: scope.userId,
+          workspaceId: scope.workspaceId,
+          scope,
+          query,
+        })
+        .catch(error => {
+          this.logger.warn(
+            'Context rule retrieval failed; continuing without rules',
+            {
+              sessionId: scope.sessionId,
+              error,
+            }
+          );
+          return [];
+        }),
+    ]);
+    return [
+      ...directives.map(directive => ({
+        id: directive.id,
+        scope: directive.scope,
+        kind: 'rule' as const,
+        content: directive.content,
+        updatedAt: directive.updatedAt,
+        sourceType: directive.sourceType,
+        sourceRevisionId: directive.revisionId,
+        matchReason: directive.matchReason,
+        priority: directive.priority,
+        relevanceScore: directive.score,
+      })),
+      ...memories.map(memory => ({
+        id: memory.id,
+        scope: memory.scope as ContextPlannerMemory['scope'],
+        kind: memory.kind as ContextPlannerMemory['kind'],
+        content: memory.content,
+        updatedAt: memory.updatedAt,
+        sourceType: 'memory' as const,
+        relevanceScore: memory.retrievalScore,
+      })),
+    ];
+  }
 
   private stripNullBytes(value?: string | null): string {
     if (!value) return '';
@@ -415,11 +522,13 @@ export class ChatSessionService {
     }
     finalData.pinned = options.pinned;
     finalData.docId = options.docId;
+    finalData.selectedContextProjectId = options.selectedContextProjectId;
 
     if (
       options.promptName === undefined &&
       options.pinned === undefined &&
-      options.docId === undefined
+      options.docId === undefined &&
+      options.selectedContextProjectId === undefined
     ) {
       throw new CopilotSessionInvalidInput(
         'No valid fields to update in the session'
@@ -454,6 +563,7 @@ export class ChatSessionService {
       userId: options.userId,
       workspaceId: state.conversation.workspaceId,
       docId: options.docId,
+      selectedContextProjectId: state.conversation.selectedContextProjectId,
       sessionId: randomUUID(),
       parentSessionId: options.sessionId,
       pinned: state.conversation.pinned,
@@ -527,18 +637,27 @@ export class ChatSessionService {
   async get(sessionId: string): Promise<ChatSession | null> {
     const state = await this.getState(sessionId);
     if (state) {
-      const contextScope = {
-        userId: state.conversation.userId,
-        workspaceId: state.conversation.workspaceId,
-        docId: state.conversation.docId,
-      };
       const contextEnabled = state.prompt.category === 'text';
-      const [memories, checkpoint] = contextEnabled
-        ? await Promise.all([
-            this.contextMemory.listVisible(contextScope),
-            this.contextMemory.loadCheckpoint(sessionId),
-          ])
-        : [[], null];
+      const contextScope = contextEnabled
+        ? await this.contextScopeResolver.resolve({
+            userId: state.conversation.userId,
+            workspaceId: state.conversation.workspaceId,
+            sessionId,
+            primaryDocId: state.conversation.docId,
+            selectedProjectId: state.conversation.selectedContextProjectId,
+          })
+        : null;
+      const [memories, checkpoint] =
+        contextEnabled && contextScope
+          ? await Promise.all([
+              this.retrieveContextMemories(
+                contextScope,
+                state.turns.findLast(turn => turn.role === 'user')?.content ??
+                  ''
+              ),
+              this.contextMemory.loadCheckpoint(sessionId),
+            ])
+          : [[], null];
       return new ChatSession(
         {
           userId: state.conversation.userId,
@@ -567,20 +686,20 @@ export class ChatSessionService {
           }
         },
         undefined,
-        contextEnabled
+        contextEnabled && contextScope
           ? {
               planner: this.contextPlanner,
-              memories: memories.map(memory => ({
-                id: memory.id,
-                scope: memory.scope as ContextPlannerMemory['scope'],
-                kind: memory.kind as ContextPlannerMemory['kind'],
-                content: memory.content,
-                updatedAt: memory.updatedAt,
-              })),
+              memories,
               checkpoint,
+              scope: contextScope,
               saveCheckpoint: async checkpoint => {
                 await this.contextMemory.saveCheckpoint(sessionId, checkpoint);
               },
+              savePlanTrace: async trace => {
+                await this.contextMemory.savePlanTrace(trace);
+              },
+              retrieveMemories: async query =>
+                await this.retrieveContextMemories(contextScope, query),
             }
           : undefined
       );

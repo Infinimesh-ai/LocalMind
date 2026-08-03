@@ -56,6 +56,8 @@ export type AIChatAction =
   | { type: 'startContextPolling' }
   | { type: 'stopContextPolling' }
   | { type: 'pollEmbeddingStatus' }
+  | { type: 'loadProjectScope' }
+  | { type: 'setSelectedContextProject'; projectId: string | null }
   | ({ type: 'send' } & AIChatSendOptions)
   | { type: 'retry'; messageId: string }
   | { type: 'stop' };

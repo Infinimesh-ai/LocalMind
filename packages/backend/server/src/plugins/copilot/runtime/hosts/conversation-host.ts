@@ -247,7 +247,10 @@ export class ConversationHost {
       docId: session.config.docId,
       sessionId,
       turn: currentUserMessage,
+      scope: session.contextScope,
+      modelId: session.model,
     });
+    await session.refreshContextMemories(currentUserMessage.content);
 
     return {
       messageId,

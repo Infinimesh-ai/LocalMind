@@ -186,6 +186,8 @@ export class AIRequestService {
   };
 
   context = {
+    getSessionScope: (workspaceId: string, sessionId: string) =>
+      this.client.getContextSessionScope(workspaceId, sessionId),
     createContext: (workspaceId: string, sessionId: string) =>
       this.client.createContext(workspaceId, sessionId),
     getContextId: (workspaceId: string, sessionId: string) =>

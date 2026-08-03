@@ -103,6 +103,17 @@ export function hasActiveComposerContextOperation(
   );
 }
 
+export function shouldShowContextProjectSelector(
+  scope: AIChatSnapshot['composer']['projectScope'] | null | undefined
+) {
+  return Boolean(
+    scope &&
+    ['ambiguous', 'mixed', 'selected', 'invalid_selection'].includes(
+      scope.projectResolution
+    )
+  );
+}
+
 export class AIChatComposer extends SignalWatcher(
   WithDisposable(ShadowlessElement)
 ) {
@@ -115,6 +126,27 @@ export class AIChatComposer extends SignalWatcher(
       color: var(--affine-text-secondary-color);
       font-size: 12px;
       user-select: none;
+    }
+
+    .context-project-selector {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 36px;
+      padding: 4px 8px;
+      border-top: 1px solid var(--affine-border-color);
+      color: var(--affine-text-secondary-color);
+      font-size: 12px;
+    }
+
+    .context-project-selector select {
+      min-width: 0;
+      max-width: 240px;
+      height: 28px;
+      border: 1px solid var(--affine-border-color);
+      border-radius: 4px;
+      color: var(--affine-text-primary-color);
+      background: var(--affine-background-primary-color);
     }
   `;
 
@@ -237,6 +269,7 @@ export class AIChatComposer extends SignalWatcher(
         .docDisplayConfig=${this.docDisplayConfig}
         .onNewChat=${this.createNewChat}
       ></ai-chat-document-update-alert>
+      ${this.renderProjectSelector()}
       <ai-chat-input
         .independentMode=${this.independentMode}
         .host=${this.host}
@@ -323,6 +356,38 @@ export class AIChatComposer extends SignalWatcher(
 
   private readonly createNewChat = () => {
     return this.runtime?.dispatch({ type: 'createNewSession' });
+  };
+
+  private renderProjectSelector() {
+    const scope = this.runtimeSnapshot?.composer.projectScope;
+    if (!scope || !shouldShowContextProjectSelector(scope)) {
+      return null;
+    }
+    return html`
+      <label class="context-project-selector">
+        <span>Memory project</span>
+        <select
+          aria-label="Memory project"
+          .value=${scope.selectedProjectId ?? ''}
+          ?disabled=${scope.loading}
+          @change=${this.selectContextProject}
+        >
+          <option value="">No project</option>
+          ${scope.candidates.map(
+            project =>
+              html`<option value=${project.id}>${project.name}</option>`
+          )}
+        </select>
+      </label>
+    `;
+  }
+
+  private readonly selectContextProject = async (event: Event) => {
+    const value = (event.currentTarget as HTMLSelectElement).value;
+    await this.runtime?.dispatch({
+      type: 'setSelectedContextProject',
+      projectId: value || null,
+    });
   };
 
   private initializeComposerForSession() {

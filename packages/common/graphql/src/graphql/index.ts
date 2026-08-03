@@ -10,6 +10,7 @@ export const copilotChatHistoryFragment = `fragment CopilotChatHistory on Copilo
   sessionId
   workspaceId
   docId
+  selectedContextProjectId
   parentSessionId
   promptName
   model
@@ -1643,6 +1644,8 @@ export const copilotContextDashboardGetQuery = {
         status
         checkpointCount
         lastCheckpointAt
+        traceCount
+        lastTraceAt
         createdAt
       }
       contextProjects(includeArchived: true) {
@@ -1669,6 +1672,98 @@ export const copilotContextDashboardGetQuery = {
         kind
         status
         content
+        factKey
+        confidence
+        importance
+        sensitivity
+        captureMode
+        writerVersion
+        validFrom
+        validUntil
+        expiresAt
+        supersedesId
+        lastUsedAt
+        useCount
+        createdAt
+        updatedAt
+      }
+      contextMemoryEvents(limit: 100) {
+        id
+        sourceSessionId
+        sourceTurnId
+        operation
+        memoryId
+        previousMemoryId
+        targetEventId
+        factKey
+        explicit
+        reasonCode
+        writerVersion
+        undoneAt
+        canUndo
+        createdAt
+      }
+      contextRules(includeDisabled: $includeDisabled) {
+        id
+        ownerUserId
+        workspaceId
+        projectId
+        scope
+        name
+        description
+        applicationMode
+        priority
+        conditions
+        status
+        activeRevision
+        revisions {
+          id
+          revision
+          content
+          fingerprint
+          createdByUserId
+          source
+          createdAt
+        }
+        hits {
+          id
+          sessionId
+          sourceTurnId
+          matchReason
+          score
+          createdAt
+        }
+        createdAt
+        updatedAt
+      }
+      contextPolicies(includeDisabled: $includeDisabled) {
+        id
+        workspaceId
+        name
+        description
+        applicationMode
+        priority
+        conditions
+        status
+        activeRevision
+        revisions {
+          id
+          revision
+          content
+          fingerprint
+          createdByUserId
+          source
+          createdAt
+        }
+        hits {
+          id
+          sessionId
+          sourceTurnId
+          matchReason
+          score
+          createdAt
+        }
+        canManage
         createdAt
         updatedAt
       }
@@ -2019,6 +2114,122 @@ export const copilotContextSettingsUpdateMutation = {
   query: `mutation copilotContextSettingsUpdate($input: UpdateCopilotContextSettingsInput!) {
   updateCopilotContextSettings(input: $input) {
     autoMemoryEnabled
+  }
+}`,
+};
+
+export const copilotContextSessionScopeQuery = {
+  id: 'copilotContextSessionScopeQuery' as const,
+  op: 'copilotContextSessionScope',
+  query: `query copilotContextSessionScope($workspaceId: String!, $sessionId: ID!) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      contextSessionScope(sessionId: $sessionId) {
+        sessionId
+        primaryDocId
+        readableDocIds
+        candidateProjectIds
+        projectIds
+        selectedProjectId
+        projectResolution
+        candidateProjects {
+          id
+          name
+        }
+      }
+    }
+  }
+}`,
+};
+
+export const createCopilotContextRuleMutation = {
+  id: 'createCopilotContextRuleMutation' as const,
+  op: 'createCopilotContextRule',
+  query: `mutation createCopilotContextRule($input: CreateCopilotContextRuleInput!) {
+  createCopilotContextRule(input: $input) {
+    id
+  }
+}`,
+};
+
+export const updateCopilotContextRuleMutation = {
+  id: 'updateCopilotContextRuleMutation' as const,
+  op: 'updateCopilotContextRule',
+  query: `mutation updateCopilotContextRule($input: UpdateCopilotContextRuleInput!) {
+  updateCopilotContextRule(input: $input) {
+    id
+  }
+}`,
+};
+
+export const rollbackCopilotContextRuleMutation = {
+  id: 'rollbackCopilotContextRuleMutation' as const,
+  op: 'rollbackCopilotContextRule',
+  query: `mutation rollbackCopilotContextRule($id: ID!, $revision: Int!) {
+  rollbackCopilotContextRule(id: $id, revision: $revision) {
+    id
+  }
+}`,
+};
+
+export const deleteCopilotContextRuleMutation = {
+  id: 'deleteCopilotContextRuleMutation' as const,
+  op: 'deleteCopilotContextRule',
+  query: `mutation deleteCopilotContextRule($id: ID!) {
+  deleteCopilotContextRule(id: $id)
+}`,
+};
+
+export const createCopilotContextPolicyMutation = {
+  id: 'createCopilotContextPolicyMutation' as const,
+  op: 'createCopilotContextPolicy',
+  query: `mutation createCopilotContextPolicy($input: CreateCopilotContextPolicyInput!) {
+  createCopilotContextPolicy(input: $input) {
+    id
+  }
+}`,
+};
+
+export const updateCopilotContextPolicyMutation = {
+  id: 'updateCopilotContextPolicyMutation' as const,
+  op: 'updateCopilotContextPolicy',
+  query: `mutation updateCopilotContextPolicy($input: UpdateCopilotContextPolicyInput!) {
+  updateCopilotContextPolicy(input: $input) {
+    id
+  }
+}`,
+};
+
+export const rollbackCopilotContextPolicyMutation = {
+  id: 'rollbackCopilotContextPolicyMutation' as const,
+  op: 'rollbackCopilotContextPolicy',
+  query: `mutation rollbackCopilotContextPolicy($id: ID!, $workspaceId: String!, $revision: Int!) {
+  rollbackCopilotContextPolicy(
+    id: $id
+    workspaceId: $workspaceId
+    revision: $revision
+  ) {
+    id
+  }
+}`,
+};
+
+export const deleteCopilotContextPolicyMutation = {
+  id: 'deleteCopilotContextPolicyMutation' as const,
+  op: 'deleteCopilotContextPolicy',
+  query: `mutation deleteCopilotContextPolicy($id: ID!, $workspaceId: String!) {
+  deleteCopilotContextPolicy(id: $id, workspaceId: $workspaceId)
+}`,
+};
+
+export const undoCopilotContextMemoryEventMutation = {
+  id: 'undoCopilotContextMemoryEventMutation' as const,
+  op: 'undoCopilotContextMemoryEvent',
+  query: `mutation undoCopilotContextMemoryEvent($workspaceId: String!, $eventId: ID!) {
+  undoCopilotContextMemoryEvent(workspaceId: $workspaceId, eventId: $eventId) {
+    id
+    operation
+    targetEventId
   }
 }`,
 };

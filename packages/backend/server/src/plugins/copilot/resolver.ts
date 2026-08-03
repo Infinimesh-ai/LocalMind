@@ -110,6 +110,7 @@ import type {
   CopilotProviderPrivacy,
   CopilotProviderRoutePolicyFeatureKind,
 } from './config';
+import { ContextScopeResolver } from './context-scope-resolver';
 import { ConversationInboxService } from './conversation/inbox';
 import {
   isImagePromptCategory,
@@ -200,6 +201,12 @@ class UpdateChatSessionInput implements Omit<
     nullable: true,
   })
   docId!: string | null | undefined;
+
+  @Field(() => String, {
+    description: 'The explicitly selected AI context project',
+    nullable: true,
+  })
+  selectedContextProjectId!: string | null | undefined;
 
   @Field(() => Boolean, {
     description: 'Whether to pin the session',
@@ -815,6 +822,9 @@ class CopilotHistoriesType implements Omit<ChatHistory, 'userId'> {
 
   @Field(() => String, { nullable: true })
   docId!: string | null;
+
+  @Field(() => String, { nullable: true })
+  selectedContextProjectId!: string | null;
 
   @Field(() => String, { nullable: true })
   parentSessionId!: string | null;
@@ -22342,6 +22352,9 @@ export class CopilotSessionType {
   @Field(() => String, { nullable: true })
   docId!: string | null;
 
+  @Field(() => ID, { nullable: true })
+  selectedContextProjectId!: string | null;
+
   @Field(() => Boolean)
   pinned!: boolean;
 
@@ -22381,6 +22394,7 @@ export class CopilotResolver {
     private readonly chatSession: ChatSessionService,
     private readonly historyProjector: CompatHistoryProjector,
     private readonly inbox: ConversationInboxService,
+    private readonly contextScopeResolver: ContextScopeResolver,
     private readonly providerFactory: CopilotProviderFactory,
     private readonly providerRegistry: CopilotProviderRegistryService,
     private readonly capabilityRuntime: CapabilityRuntime,
@@ -25583,6 +25597,30 @@ export class CopilotResolver {
     // check permission if the docId is changed
     if (newDocId !== undefined && newDocId !== currentDocId) {
       await this.assertPermission(user, { workspaceId, docId: newDocId });
+    }
+    if (
+      options.selectedContextProjectId !== undefined &&
+      options.selectedContextProjectId !== null
+    ) {
+      const selectedContextProjectId = options.selectedContextProjectId.trim();
+      if (!selectedContextProjectId) {
+        options.selectedContextProjectId = null;
+      } else {
+        const scope = await this.contextScopeResolver.resolve({
+          userId: user.id,
+          workspaceId,
+          sessionId: options.sessionId,
+          primaryDocId:
+            newDocId === undefined ? (currentDocId ?? null) : newDocId,
+          selectedProjectId: selectedContextProjectId,
+        });
+        if (scope.selectedProjectId !== selectedContextProjectId) {
+          throw new BadRequest(
+            'The selected context project is not active or does not match a readable context document'
+          );
+        }
+        options.selectedContextProjectId = selectedContextProjectId;
+      }
     }
 
     const lockFlag = `${COPILOT_LOCKER}:session:${user.id}:${workspaceId}`;

@@ -33,9 +33,11 @@ removes all of that user's memories.
 Context projects group one or more workspace documents. Workspace
 administrators manage project names, document membership, and archival.
 Members see only projects containing documents they can read. Opening AI Chat
-from a project document resolves its active projects and loads only the current
-user's matching project memories. Archiving a project stops future injection
-without deleting its users' memories.
+from a project document or attaching project documents through AI Context
+resolves scope only after LocalMind rechecks read access. Project memory loads
+only when every readable document in the conversation resolves to one active
+project. Archiving a project stops future injection without deleting its users'
+memories.
 
 Deleting a document removes its document-only memories and its project
 membership records. Project memories remain attached to the project because
@@ -43,9 +45,18 @@ they may summarize other project documents. An administrator can still see and
 archive an empty project, then delete it after its users have removed their
 private project memories.
 
-A document may belong to more than one active context project. In that case,
-AI Chat loads the current user's memories from every matching project, and new
-automatic memories are saved privately into every matching project.
+A document may belong to more than one active context project, or a conversation
+may attach documents from different projects. LocalMind treats that scope as
+ambiguous: it loads no project memory and does not capture a new Automatic
+Memory from the multi-document turn. A conversation containing project and
+unassigned documents behaves the same way. Explicit project selection is not
+available yet.
+
+When no document is in scope, new Automatic Memory uses workspace scope. With
+one readable unassigned document it uses document scope. With one or more
+readable documents that all resolve to the same project it uses that project.
+This avoids copying a private memory into several projects or silently widening
+document context to the workspace.
 
 The project creator is audit metadata, not the owner of the project. Removing
 that user clears the audit reference while leaving the workspace project
@@ -57,18 +68,24 @@ same page. Disabling it stops new automatic memories from being captured; it
 does not delete existing entries. Existing memories remain visible so the user
 can disable or delete them explicitly.
 
-The context planner stores rolling-summary checkpoints separately from durable
-memories. Every planner strategy version is registered with an immutable
-fingerprint and configuration snapshot. Conversation checkpoints retain the
-strategy version that created them, allowing old and new strategies to be
-replayed against the same evaluation cases.
+The context planner stores rolling-summary checkpoints and per-turn plan traces
+separately from durable memories. Every planner strategy version is registered
+with an immutable fingerprint and configuration snapshot. Conversation
+checkpoints retain the strategy version that created them, allowing old and new
+strategies to be replayed against the same evaluation cases.
 
-The active planner validates a checkpoint against the exact summarized message
-prefix before reusing it. It reserves bounded space for conversation summary,
-rules, project summaries, and automatic memories instead of truncating the
-combined context string. Injected entries are explicitly marked as
-user-authored context so saved text cannot silently become a system or developer
-instruction.
+The active v5 planner validates a checkpoint against the exact summarized
+message prefix before reusing it. It reserves bounded space for conversation
+summary, rules, project summaries, and automatic memories instead of truncating
+the combined context string. Injected entries are placed in a separate
+untrusted `user` message immediately before the latest user turn, so saved text
+is not merged into the primary system instruction. The archived v4 strategy
+keeps its original behavior for replay.
+
+Each saved text plan records the strategy, candidate and selected memory ids,
+scores, ranks, counts, scope resolution, character budget, and input/output
+fingerprints. Plan traces do not store message, Rule, Memory, project summary,
+or rolling summary text.
 
 ## Updated Documents
 

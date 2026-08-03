@@ -16,6 +16,8 @@ import {
   type ContextPlannerStrategyVersion,
   LEGACY_CONTEXT_PLANNER_STRATEGY_VERSION,
   PREVIOUS_CONTEXT_PLANNER_STRATEGY_VERSION,
+  SYSTEM_CONTEXT_PLANNER_STRATEGY_VERSION,
+  UNTRUSTED_CONTEXT_PLANNER_STRATEGY_VERSION,
 } from '../src/plugins/copilot/runtime/context-planner';
 
 const BASELINE_VERSION = 'context-baseline/v1';
@@ -294,10 +296,14 @@ function readArgument(name: string) {
   return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
-function git(command: string) {
-  return execFileSync('git', command.split(' '), {
-    encoding: 'utf8',
-  }).trim();
+function git(command: string, fallback = 'unavailable') {
+  try {
+    return execFileSync('git', command.split(' '), {
+      encoding: 'utf8',
+    }).trim();
+  } catch {
+    return fallback;
+  }
 }
 
 function run() {
@@ -314,12 +320,14 @@ function run() {
     readArgument('--strategy') ?? CONTEXT_PLANNER_STRATEGY_VERSION;
   if (
     strategyArgument !== CONTEXT_PLANNER_STRATEGY_VERSION &&
+    strategyArgument !== UNTRUSTED_CONTEXT_PLANNER_STRATEGY_VERSION &&
     strategyArgument !== CANDIDATE_CONTEXT_PLANNER_STRATEGY_VERSION &&
+    strategyArgument !== SYSTEM_CONTEXT_PLANNER_STRATEGY_VERSION &&
     strategyArgument !== PREVIOUS_CONTEXT_PLANNER_STRATEGY_VERSION &&
     strategyArgument !== LEGACY_CONTEXT_PLANNER_STRATEGY_VERSION
   ) {
     throw new Error(
-      `--strategy must be ${CONTEXT_PLANNER_STRATEGY_VERSION}, ${CANDIDATE_CONTEXT_PLANNER_STRATEGY_VERSION}, ${PREVIOUS_CONTEXT_PLANNER_STRATEGY_VERSION}, or ${LEGACY_CONTEXT_PLANNER_STRATEGY_VERSION}.`
+      `--strategy must be ${CONTEXT_PLANNER_STRATEGY_VERSION}, ${UNTRUSTED_CONTEXT_PLANNER_STRATEGY_VERSION}, ${SYSTEM_CONTEXT_PLANNER_STRATEGY_VERSION}, ${CANDIDATE_CONTEXT_PLANNER_STRATEGY_VERSION}, ${PREVIOUS_CONTEXT_PLANNER_STRATEGY_VERSION}, or ${LEGACY_CONTEXT_PLANNER_STRATEGY_VERSION}.`
     );
   }
   const strategyVersion = strategyArgument as ContextPlannerStrategyVersion;
@@ -336,7 +344,7 @@ function run() {
     source: {
       commit: git('rev-parse HEAD'),
       branch: git('branch --show-current'),
-      dirty: git('status --porcelain').length > 0,
+      dirty: git('status --porcelain', '').length > 0,
     },
     environment: {
       node: process.version,

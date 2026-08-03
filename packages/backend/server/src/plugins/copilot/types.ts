@@ -91,6 +91,7 @@ export const ChatHistorySchema = z
     sessionId: z.string(),
     workspaceId: z.string(),
     docId: z.string().nullable(),
+    selectedContextProjectId: z.string().nullable(),
     parentSessionId: z.string().nullable(),
     pinned: z.boolean(),
     title: z.string().nullable(),

@@ -214,6 +214,53 @@ export const createInputRow = style({
   gap: 8,
 });
 
+export const directiveControls = style({
+  display: 'grid',
+  gridTemplateColumns: 'minmax(140px, 1fr) 132px 132px 96px',
+  alignItems: 'center',
+  gap: 8,
+  '@media': {
+    'screen and (max-width: 900px)': {
+      gridTemplateColumns: '1fr 1fr',
+    },
+    'screen and (max-width: 560px)': {
+      gridTemplateColumns: '1fr',
+    },
+  },
+});
+
+export const directiveConditionControls = style({
+  display: 'grid',
+  gridTemplateColumns:
+    'minmax(160px, 1fr) minmax(160px, 1fr) 148px 112px 112px',
+  alignItems: 'center',
+  gap: 8,
+  minWidth: 0,
+  '@media': {
+    'screen and (max-width: 1000px)': {
+      gridTemplateColumns: '1fr 1fr',
+    },
+    'screen and (max-width: 560px)': {
+      gridTemplateColumns: '1fr',
+    },
+  },
+});
+
+export const compactInput = style({
+  width: '100%',
+  minWidth: 0,
+  height: 32,
+  boxSizing: 'border-box',
+  padding: '4px 8px',
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  borderRadius: 4,
+  outline: 'none',
+  color: cssVarV2('text/primary'),
+  background: cssVarV2('layer/background/primary'),
+  fontFamily: 'inherit',
+  fontSize: cssVar('fontSm'),
+});
+
 export const kindButton = style({
   width: '100%',
   overflow: 'hidden',
@@ -345,6 +392,24 @@ export const actions = style({
   gridTemplateColumns: '40px 20px 20px',
   alignItems: 'center',
   gap: 8,
+});
+
+export const directiveActions = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  flexWrap: 'wrap',
+  gap: 8,
+});
+
+export const eventRow = style({
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) auto',
+  alignItems: 'center',
+  gap: 12,
+  minHeight: 52,
+  padding: '8px 0',
+  borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
 });
 
 export const loading = style({

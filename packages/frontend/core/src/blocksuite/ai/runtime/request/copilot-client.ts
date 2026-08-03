@@ -8,6 +8,7 @@ import {
   addContextDocMutation,
   addContextFileMutation,
   cleanupCopilotSessionMutation,
+  copilotContextSessionScopeQuery,
   createCopilotContextMutation,
   createCopilotMessageMutation,
   createCopilotSessionMutation,
@@ -192,6 +193,18 @@ export class CopilotClient {
         variables: { sessionId, workspaceId },
       });
       return res.currentUser?.copilot?.chats?.edges?.[0]?.node;
+    } catch (err) {
+      throw resolveError(err);
+    }
+  }
+
+  async getContextSessionScope(workspaceId: string, sessionId: string) {
+    try {
+      const res = await this.gql({
+        query: copilotContextSessionScopeQuery,
+        variables: { workspaceId, sessionId },
+      });
+      return res.currentUser?.copilot?.contextSessionScope;
     } catch (err) {
       throw resolveError(err);
     }

@@ -1248,6 +1248,32 @@ The latest DB-history hardening slices are now implemented:
   preserved through workspace deletion, and disposable Postgres smoke verifies
   direct-delete rejection plus cascade compatibility.
 
+The Context Memory scope, trust-boundary, and planning trace slice is now
+implemented:
+
+- the session scope resolver combines the primary conversation document with AI
+  Context attached documents and revalidates `Doc.Read` before using any
+  document or project scope;
+- project scope is enabled only when all readable documents resolve to the same
+  active context project; mixed and multi-project sets fail closed without
+  loading project memories;
+- recall and Automatic Memory capture use the same resolved scope, and capture
+  writes to one unique project, one readable document, or workspace only when
+  no document is in scope;
+- ambiguous multi-document capture is skipped instead of copying into multiple
+  projects or widening to workspace scope;
+- active `context-planner/v5` renders Rule, Automatic Memory, project summary,
+  and rolling summary text in a bounded untrusted `user` message rather than
+  merging it into the primary system message;
+- immutable v1-v4 strategy registrations remain archived and replayable with
+  their original fingerprints and rendering behavior;
+- `ai_context_plan_traces` appends the strategy, counts, selected ids/scores,
+  character budget, resolved scope, and source/output fingerprints for every
+  saved text plan without persisting Rule, Memory, summary, or message text;
+- AI Context strategy diagnostics expose aggregate trace count and latest trace
+  time, and focused scope/planner/session/DB tests plus host and Docker smoke
+  cover the new contract.
+
 The latest compatibility and verification repair is now implemented:
 
 - automatic memory extraction treats English durable-memory directives
@@ -1291,6 +1317,16 @@ The completed diagnostics do not yet provide the intended durable architecture.
 
 Still missing:
 
+- a structured Automatic Memory writer with broader DLP,
+  `ADD/UPDATE/DELETE/NOOP`, fact keys, confidence, temporal validity,
+  supersession, undo, and conflict handling;
+- embedding plus keyword hybrid context retrieval, reranking, lifecycle
+  management, feedback signals, and full retrieval/answer quality evaluation;
+- an independent Rule engine with application modes, conditions, priority,
+  revisions, rollback, hit history, and a separate workspace-enforced Policy
+  layer;
+- explicit project selection for mixed or multi-project attached-document
+  context;
 - mutating repair executors beyond the constrained Prompt Registry, Task Route
   Policy, Model Registry, and Provider Registry workspace revision publishers;
 - rollback behavior written by a real runtime;

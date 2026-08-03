@@ -59,6 +59,26 @@ Report whether the image was rebuilt and which fixed tag was used.
 
 ## Latest Validation Record
 
+The 2026-07-31 Context Memory hardening slice was validated with:
+
+- isolated TypeScript checking of 26 Copilot test files;
+- focused planner/scope/session/DB coverage checked by the isolated test
+  typecheck;
+- GraphQL schema and client generation, Prisma Client generation, Prettier,
+  oxlint, and `git diff --check`;
+- host and ephemeral Docker scope smoke covering v5 user-role context, v4
+  replay, permission filtering, ambiguous project resolution, and trace
+  redaction;
+- native-renderer v5 and v4 baselines with full short, early, recent, and
+  cross-session marker recall plus automatic summary creation;
+- the `ai_context_plan_traces` migration applied to a disposable PostgreSQL
+  instance.
+
+The fixed `localmind-affine:local` image was reused without rebuilding it.
+Current source was mounted read-only and the required Linux ARM64 native/SWC
+addons were extracted from that image. No existing Docker volume or persisted
+service data was changed.
+
 The 2026-07-29 compatibility repair was validated with:
 
 - 56 Copilot resolver/session/runtime tests;

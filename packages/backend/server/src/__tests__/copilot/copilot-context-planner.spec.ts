@@ -1,11 +1,18 @@
 import test from 'ava';
 
+import type { PermissionService } from '../../core/permission';
 import type { Models } from '../../models';
 import { buildContextMemoryVisibilityWhere } from '../../models/copilot-context-memory';
 import {
+  classifyContextMemoryDlp,
   ContextMemoryService,
+  deriveContextMemoryFactKey,
   extractDurableMemories,
+  extractExplicitMemoryDecisions,
+  sanitizeContextMemoryWriterDecision,
 } from '../../plugins/copilot/context-memory-service';
+import { ContextRuleService } from '../../plugins/copilot/context-rule-service';
+import { ContextScopeResolver } from '../../plugins/copilot/context-scope-resolver';
 import { renderBuiltInPromptSessionNative } from '../../plugins/copilot/prompt/native-contract';
 import type { PromptMessage } from '../../plugins/copilot/providers/types';
 import {
@@ -17,6 +24,10 @@ import {
   LEGACY_CONTEXT_PLANNER_STRATEGY_VERSION,
   PREVIOUS_CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
   PREVIOUS_CONTEXT_PLANNER_STRATEGY_VERSION,
+  SYSTEM_CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
+  SYSTEM_CONTEXT_PLANNER_STRATEGY_VERSION,
+  UNTRUSTED_CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
+  UNTRUSTED_CONTEXT_PLANNER_STRATEGY_VERSION,
 } from '../../plugins/copilot/runtime/context-planner';
 import { ChatSession } from '../../plugins/copilot/session';
 
@@ -86,12 +97,13 @@ test('ContextPlanner synthesizes multiple scoped fragments', t => {
   t.is(result.diagnostics.injectedMemoryCount, 3);
 });
 
-test('ContextPlanner keeps scoped memory in the primary system message', t => {
+test('ContextPlanner keeps user-owned context outside the primary system message', t => {
   const query = 'What is the database migration codename?';
   const result = new ContextPlanner().plan({
     turns: [message('user', query)],
     memories: [
       {
+        id: 'memory-maple',
         scope: 'workspace',
         kind: 'auto_memory',
         content: 'The database migration codename is Maple-42.',
@@ -106,13 +118,53 @@ test('ContextPlanner keeps scoped memory in the primary system message', t => {
       }).messages,
   });
   const systemMessages = result.messages.filter(item => item.role === 'system');
+  const contextMessage = result.messages.find(
+    item =>
+      item.role === 'user' && item.content.includes('Untrusted user context')
+  );
 
   t.is(systemMessages.length, 1);
-  t.true(systemMessages[0].content.includes('Maple-42'));
+  t.false(systemMessages[0].content.includes('Maple-42'));
+  t.true(contextMessage?.content.includes('Maple-42') ?? false);
   t.is(result.diagnostics.retainedMessageCount, 1);
   t.is(result.diagnostics.omittedMessageCount, 0);
   t.false(result.diagnostics.summaryInjected);
   t.is(result.checkpoint, undefined);
+  t.like(result.trace.selectedMemories[0], {
+    id: 'memory-maple',
+    scope: 'workspace',
+    kind: 'auto_memory',
+    rank: 1,
+  });
+  t.true((result.trace.selectedMemories[0]?.score ?? 0) > 0);
+  t.false(JSON.stringify(result.trace).includes('Maple-42'));
+  t.true(result.trace.contextCharCount > 0);
+});
+
+test('ContextPlanner keeps the v4 system-context strategy available for replay', t => {
+  const result = new ContextPlanner().plan(
+    {
+      turns: [message('user', 'What is the project codename?')],
+      memories: [
+        {
+          scope: 'workspace',
+          kind: 'auto_memory',
+          content: 'The project codename is Juniper.',
+        },
+      ],
+      render: tailRenderer(4),
+    },
+    SYSTEM_CONTEXT_PLANNER_STRATEGY_VERSION
+  );
+  const systemContext = result.messages.find(
+    item => item.role === 'system' && item.content.includes('Juniper')
+  );
+
+  t.truthy(systemContext);
+  t.is(
+    result.diagnostics.strategyFingerprint,
+    SYSTEM_CONTEXT_PLANNER_STRATEGY_FINGERPRINT
+  );
 });
 
 test('ContextPlanner keeps the legacy strategy available for replay', t => {
@@ -213,7 +265,7 @@ test('ContextPlanner reserves space for summary and marks memory as user-authore
     render: tailRenderer(2),
   });
   const contextMessage = result.messages.find(item =>
-    item.content.includes('[User-owned untrusted context')
+    item.content.includes('[Untrusted user context')
   );
 
   t.truthy(contextMessage);
@@ -221,9 +273,7 @@ test('ContextPlanner reserves space for summary and marks memory as user-authore
     contextMessage?.content.includes('EARLY_REQUIRED_FACT') ?? false,
     'summary should not be displaced by large rules'
   );
-  t.true(
-    contextMessage?.content.includes('User-owned untrusted context') ?? false
-  );
+  t.true(contextMessage?.content.includes('Untrusted user context') ?? false);
   t.true((contextMessage?.content.length ?? Infinity) <= 4_800);
 });
 
@@ -302,15 +352,284 @@ test('durable memory extraction rejects questions and secrets', t => {
   );
 });
 
+test('structured memory writer classifies explicit operations and DLP', t => {
+  const add = extractExplicitMemoryDecisions(
+    'Remember that the deployment region is eu-west-1.'
+  );
+  const update = extractExplicitMemoryDecisions(
+    'Instead, answer in English from now on.'
+  );
+  const remove = extractExplicitMemoryDecisions(
+    'Forget the deployment region.'
+  );
+
+  t.like(add[0], {
+    operation: 'ADD',
+    factKey: 'project:deployment_region',
+  });
+  t.like(update[0], {
+    operation: 'UPDATE',
+    factKey: 'preference:response_language',
+  });
+  t.like(remove[0], {
+    operation: 'DELETE',
+    factKey: 'project:deployment_region',
+    content: null,
+  });
+  t.is(extractExplicitMemoryDecisions('I always run tests.').length, 0);
+  t.is(deriveContextMemoryFactKey('中文回答'), 'preference:response_language');
+  t.true(classifyContextMemoryDlp('api_key=secret-value').blocked);
+  t.true(classifyContextMemoryDlp('Contact me at user@example.com').blocked);
+  t.true(classifyContextMemoryDlp('Customer ID: ACME-123').blocked);
+  t.false(classifyContextMemoryDlp('Use PostgreSQL for persistence').blocked);
+  const emailSource = 'Remember my email is person@example.com.';
+  const emailDecision = extractExplicitMemoryDecisions(emailSource)[0];
+  t.is(emailDecision?.content, 'my email is person@example.com');
+  t.like(sanitizeContextMemoryWriterDecision(emailDecision!, emailSource), {
+    operation: 'NOOP',
+    factKey: null,
+    reasonCode: 'dlp_personal_data',
+  });
+});
+
+test('ContextPlanner layers workspace policy above private user context', t => {
+  const result = new ContextPlanner().plan({
+    turns: [message('user', 'Prepare the release plan.')],
+    memories: [
+      {
+        id: 'policy-a',
+        scope: 'workspace',
+        kind: 'rule',
+        sourceType: 'policy',
+        sourceRevisionId: 'policy-revision-a',
+        matchReason: 'always',
+        priority: 100,
+        relevanceScore: 21,
+        content: 'Never disclose restricted workspace data.',
+      },
+      {
+        id: 'rule-a',
+        scope: 'user',
+        kind: 'rule',
+        sourceType: 'rule',
+        sourceRevisionId: 'rule-revision-a',
+        matchReason: 'always',
+        priority: 10,
+        relevanceScore: 10,
+        content: 'Start with the conclusion.',
+      },
+    ],
+    render: tailRenderer(8),
+  });
+  const system = result.messages.filter(item => item.role === 'system');
+  const userContext = result.messages.find(
+    item =>
+      item.role === 'user' && item.content.includes('Start with the conclusion')
+  );
+
+  t.is(system.length, 1);
+  t.true(system[0].content.includes('[Workspace policy]'));
+  t.true(
+    system[0].content.includes('Never disclose restricted workspace data')
+  );
+  t.false(system[0].content.includes('Start with the conclusion'));
+  t.truthy(userContext);
+  t.deepEqual(
+    result.trace.selectedMemories.map(item => item.sourceType),
+    ['policy', 'rule']
+  );
+});
+
+test('ContextPlanner keeps the v5 trust boundary immutable for replay', t => {
+  const result = new ContextPlanner().plan(
+    {
+      turns: [message('user', 'What is the codename?')],
+      memories: [
+        {
+          scope: 'workspace',
+          kind: 'auto_memory',
+          content: 'The codename is Juniper.',
+        },
+      ],
+      render: tailRenderer(4),
+    },
+    UNTRUSTED_CONTEXT_PLANNER_STRATEGY_VERSION
+  );
+
+  t.is(
+    result.diagnostics.strategyFingerprint,
+    UNTRUSTED_CONTEXT_PLANNER_STRATEGY_FINGERPRINT
+  );
+  t.true(
+    result.messages.some(
+      item =>
+        item.role === 'user' &&
+        item.content.includes('Untrusted user context') &&
+        item.content.includes('Juniper')
+    )
+  );
+  t.false(
+    result.messages.some(
+      item => item.role === 'system' && item.content.includes('Juniper')
+    )
+  );
+});
+
+test('ContextRuleService applies modes, conditions, priority, and manual references', async t => {
+  const now = new Date();
+  const directive = (
+    id: string,
+    applicationMode: string,
+    conditions: Record<string, unknown>,
+    priority: number
+  ) => ({
+    id,
+    ownerUserId: 'user-a',
+    workspaceId: 'workspace-a',
+    projectId: null,
+    scope: 'workspace',
+    name: id,
+    description: '',
+    applicationMode,
+    priority,
+    conditions,
+    status: 'active',
+    activeRevision: 1,
+    createdAt: now,
+    updatedAt: now,
+    revisions: [
+      {
+        id: `${id}-revision`,
+        revision: 1,
+        content: `${id} instruction`,
+      },
+    ],
+    hits: [],
+  });
+  const service = new ContextRuleService({
+    copilotContextRule: {
+      listRules: async () => [
+        directive('always-rule', 'always', {}, 5),
+        directive('deployment-rule', 'relevant', { keywords: ['deploy'] }, 20),
+        directive('manual-rule', 'manual', {}, 50),
+        directive('wrong-doc-rule', 'always', { docIds: ['doc-b'] }, 100),
+      ],
+      listPolicies: async () => [
+        directive('workspace-policy', 'always', {}, 10),
+      ],
+    },
+  } as unknown as Models);
+
+  const result = await service.retrieveApplicable({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    scope: {
+      userId: 'user-a',
+      workspaceId: 'workspace-a',
+      sessionId: 'session-a',
+      primaryDocId: 'doc-a',
+      readableDocIds: ['doc-a'],
+      candidateProjectIds: [],
+      projectIds: [],
+      selectedProjectId: null,
+      projectResolution: 'none',
+    },
+    query: 'Please deploy now using @rule:manual-rule.',
+  });
+
+  t.deepEqual(
+    result.map(item => item.id),
+    ['workspace-policy', 'manual-rule', 'deployment-rule', 'always-rule']
+  );
+  t.false(result.some(item => item.id === 'wrong-doc-rule'));
+  t.is(result.find(item => item.id === 'manual-rule')?.matchReason, 'manual');
+});
+
+test('hybrid retrieval sends only authorized memory ids to vector and rerank', async t => {
+  const vectorIds: string[][] = [];
+  const rerankIds: string[][] = [];
+  const now = new Date();
+  const memories = ['allowed-a', 'allowed-b'].map((id, index) => ({
+    id,
+    ownerUserId: 'user-a',
+    workspaceId: 'workspace-a',
+    docId: null,
+    projectId: null,
+    sourceSessionId: null,
+    scope: 'workspace',
+    kind: 'auto_memory',
+    visibility: 'private',
+    status: 'active',
+    content: index ? 'Use PostgreSQL.' : 'Deployment region is eu-west-1.',
+    fingerprint: id,
+    factKey: `fact:${id}`,
+    confidence: 1,
+    importance: 0.8,
+    sensitivity: 'private',
+    captureMode: 'explicit',
+    writerVersion: 'structured-memory-writer/v1',
+    validFrom: now,
+    validUntil: null,
+    expiresAt: null,
+    supersedesId: null,
+    lastUsedAt: null,
+    useCount: 0,
+    embedding: null,
+    metadata: {},
+    createdAt: now,
+    updatedAt: now,
+  }));
+  const service = new ContextMemoryService(
+    {
+      copilotContextMemory: {
+        expireDueMemories: async () => ({ count: 0 }),
+        listVisible: async () => memories,
+        matchAuthorizedEmbeddings: async (ids: string[]) => {
+          vectorIds.push(ids);
+          return ids.map((id, index) => ({ id, distance: index / 10 }));
+        },
+      },
+    } as unknown as Models,
+    undefined,
+    {
+      getClient: () => ({
+        getEmbedding: async () => [1, 0],
+        reRank: async (
+          _query: string,
+          candidates: Array<{ docId: string }>
+        ) => {
+          rerankIds.push(candidates.map(candidate => candidate.docId));
+          return candidates.toReversed();
+        },
+      }),
+    } as never
+  );
+
+  const result = await service.retrieveVisible({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    docIds: [],
+    projectIds: [],
+    query: 'Which deployment region and database?',
+  });
+
+  t.deepEqual(vectorIds, [['allowed-a', 'allowed-b']]);
+  t.deepEqual(rerankIds, [['allowed-a', 'allowed-b']]);
+  t.deepEqual(result.map(memory => memory.id).toSorted(), [
+    'allowed-a',
+    'allowed-b',
+  ]);
+});
+
 test('automatic memory follows its owner into the active project', async t => {
   const stored: Array<Record<string, unknown>> = [];
   const service = new ContextMemoryService({
     copilotContextMemory: {
-      getPreference: async () => null,
+      getPreference: async () => ({ autoMemoryEnabled: false }),
       listProjectIdsForDoc: async () => ['project-a'],
-      put: async (input: Record<string, unknown>) => {
+      applyWriterDecision: async (input: Record<string, unknown>) => {
         stored.push(input);
-        return input;
+        return { operation: 'ADD', memoryId: null };
       },
     },
   } as unknown as Models);
@@ -333,9 +652,222 @@ test('automatic memory follows its owner into the active project', async t => {
     docId: null,
     projectId: 'project-a',
     scope: 'project',
-    kind: 'auto_memory',
-    visibility: 'private',
   });
+  t.like(stored[0].decision as Record<string, unknown>, {
+    operation: 'ADD',
+    factKey: 'project:codename',
+  });
+});
+
+test('automatic memory setting disables implicit extraction but not explicit commands', async t => {
+  let writes = 0;
+  const service = new ContextMemoryService({
+    copilotContextMemory: {
+      getPreference: async () => ({ autoMemoryEnabled: false }),
+      applyWriterDecision: async () => {
+        writes += 1;
+        return { operation: 'ADD', memoryId: null };
+      },
+    },
+  } as unknown as Models);
+
+  await service.captureDurableTurn({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    sessionId: 'session-a',
+    turn: {
+      role: 'user',
+      content: 'Our deployment region is eu-west-1.',
+    } as never,
+  });
+  await service.captureDurableTurn({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    sessionId: 'session-a',
+    turn: {
+      role: 'user',
+      content: 'Remember that our deployment region is eu-west-1.',
+    } as never,
+  });
+
+  t.is(writes, 1);
+});
+
+test('automatic memory uses workspace scope when no document is in scope', async t => {
+  const stored: Array<Record<string, unknown>> = [];
+  const service = new ContextMemoryService({
+    copilotContextMemory: {
+      getPreference: async () => null,
+      applyWriterDecision: async (input: Record<string, unknown>) => {
+        stored.push(input);
+        return { operation: 'ADD', memoryId: null };
+      },
+    },
+  } as unknown as Models);
+
+  await service.captureDurableTurn({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    sessionId: 'session-a',
+    turn: {
+      role: 'user',
+      content: 'Remember that the deployment codename is Juniper.',
+    } as never,
+    scope: {
+      userId: 'user-a',
+      workspaceId: 'workspace-a',
+      sessionId: 'session-a',
+      primaryDocId: null,
+      readableDocIds: [],
+      candidateProjectIds: [],
+      projectIds: [],
+      projectResolution: 'none',
+      selectedProjectId: null,
+    },
+  });
+
+  t.is(stored.length, 1);
+  t.like(stored[0], {
+    workspaceId: 'workspace-a',
+    docId: null,
+    projectId: null,
+    scope: 'workspace',
+  });
+});
+
+test('automatic memory fails closed across ambiguous projects', async t => {
+  const stored: Array<Record<string, unknown>> = [];
+  const service = new ContextMemoryService({
+    copilotContextMemory: {
+      getPreference: async () => null,
+      applyWriterDecision: async (input: Record<string, unknown>) => {
+        stored.push(input);
+        return { operation: 'ADD', memoryId: null };
+      },
+    },
+  } as unknown as Models);
+
+  await service.captureDurableTurn({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    sessionId: 'session-a',
+    turn: {
+      role: 'user',
+      content: 'Remember that the deployment codename is Juniper.',
+    } as never,
+    scope: {
+      userId: 'user-a',
+      workspaceId: 'workspace-a',
+      sessionId: 'session-a',
+      primaryDocId: null,
+      readableDocIds: ['doc-a', 'doc-b'],
+      candidateProjectIds: ['project-a', 'project-b'],
+      projectIds: [],
+      projectResolution: 'ambiguous',
+      selectedProjectId: null,
+    },
+  });
+
+  t.is(stored.length, 0);
+});
+
+test('ContextScopeResolver recognizes one attached project after permission filtering', async t => {
+  const resolver = new ContextScopeResolver(
+    {
+      copilotContext: {
+        listSessionDocIds: async () => ['doc-a', 'doc-denied'],
+      },
+      copilotContextMemory: {
+        listProjectMembershipsForDocs: async () => [
+          { docId: 'doc-a', projectId: 'project-a' },
+        ],
+      },
+    } as unknown as Models,
+    {
+      filterReadableDocs: async (input: { docs: Array<{ docId: string }> }) =>
+        input.docs.filter(doc => doc.docId === 'doc-a'),
+    } as unknown as PermissionService
+  );
+
+  const scope = await resolver.resolve({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    sessionId: 'session-a',
+  });
+
+  t.deepEqual(scope.readableDocIds, ['doc-a']);
+  t.deepEqual(scope.projectIds, ['project-a']);
+  t.is(scope.projectResolution, 'single');
+});
+
+test('ContextScopeResolver fails closed when attached docs span projects', async t => {
+  const resolver = new ContextScopeResolver(
+    {
+      copilotContext: {
+        listSessionDocIds: async () => ['doc-a', 'doc-b'],
+      },
+      copilotContextMemory: {
+        listProjectMembershipsForDocs: async () => [
+          { docId: 'doc-a', projectId: 'project-a' },
+          { docId: 'doc-b', projectId: 'project-b' },
+        ],
+      },
+    } as unknown as Models,
+    {
+      filterReadableDocs: async (input: { docs: Array<{ docId: string }> }) =>
+        input.docs,
+    } as unknown as PermissionService
+  );
+
+  const scope = await resolver.resolve({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    sessionId: 'session-a',
+  });
+
+  t.deepEqual(scope.candidateProjectIds, ['project-a', 'project-b']);
+  t.deepEqual(scope.projectIds, []);
+  t.is(scope.projectResolution, 'ambiguous');
+});
+
+test('ContextScopeResolver accepts only an authorized project candidate selection', async t => {
+  const resolver = new ContextScopeResolver(
+    {
+      copilotContext: {
+        listSessionDocIds: async () => ['doc-a', 'doc-b'],
+      },
+      copilotContextMemory: {
+        listProjectMembershipsForDocs: async () => [
+          { docId: 'doc-a', projectId: 'project-a' },
+          { docId: 'doc-b', projectId: 'project-b' },
+        ],
+      },
+    } as unknown as Models,
+    {
+      filterReadableDocs: async (input: { docs: Array<{ docId: string }> }) =>
+        input.docs,
+    } as unknown as PermissionService
+  );
+
+  const selected = await resolver.resolve({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    sessionId: 'session-a',
+    selectedProjectId: 'project-b',
+  });
+  const stale = await resolver.resolve({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    sessionId: 'session-a',
+    selectedProjectId: 'project-revoked',
+  });
+
+  t.is(selected.projectResolution, 'selected');
+  t.deepEqual(selected.projectIds, ['project-b']);
+  t.is(selected.selectedProjectId, 'project-b');
+  t.is(stale.projectResolution, 'invalid_selection');
+  t.deepEqual(stale.projectIds, []);
+  t.is(stale.selectedProjectId, null);
 });
 
 test('memory visibility query is isolated by owner, workspace, and project', t => {
@@ -355,6 +887,10 @@ test('memory visibility query is isolated by owner, workspace, and project', t =
       alternative =>
         alternative.workspaceId === 'workspace-b' ||
         alternative.docId === 'doc-b' ||
+        (typeof alternative.docId === 'object' &&
+          alternative.docId !== null &&
+          Array.isArray((alternative.docId as { in?: unknown }).in) &&
+          (alternative.docId as { in: unknown[] }).in.includes('doc-b')) ||
         alternative.ownerUserId !== 'user-a'
     )
   );
@@ -364,7 +900,10 @@ test('memory visibility query is isolated by owner, workspace, and project', t =
         alternative.ownerUserId === 'user-a' &&
         alternative.workspaceId === 'workspace-a' &&
         alternative.scope === 'document' &&
-        alternative.docId === 'doc-a'
+        typeof alternative.docId === 'object' &&
+        alternative.docId !== null &&
+        Array.isArray((alternative.docId as { in?: unknown }).in) &&
+        (alternative.docId as { in: unknown[] }).in.includes('doc-a')
     )
   );
   t.true(
@@ -379,6 +918,7 @@ test('memory visibility query is isolated by owner, workspace, and project', t =
 
 test('ChatSession persists the planner checkpoint on save', async t => {
   const checkpoints: string[] = [];
+  const traces: Array<Record<string, unknown>> = [];
   const session = new ChatSession(
     {
       userId: 'user-a',
@@ -438,9 +978,24 @@ test('ChatSession persists the planner checkpoint on save', async t => {
       planner: new ContextPlanner(),
       memories: [],
       checkpoint: null,
+      scope: {
+        userId: 'user-a',
+        workspaceId: 'workspace-a',
+        sessionId: 'session-a',
+        primaryDocId: 'doc-a',
+        readableDocIds: ['doc-a'],
+        candidateProjectIds: [],
+        projectIds: [],
+        projectResolution: 'none',
+        selectedProjectId: null,
+      },
       saveCheckpoint: async checkpoint => {
         checkpoints.push(checkpoint.summary);
       },
+      savePlanTrace: async trace => {
+        traces.push(trace);
+      },
+      retrieveMemories: async () => [],
     }
   );
 
@@ -449,4 +1004,13 @@ test('ChatSession persists the planner checkpoint on save', async t => {
 
   t.is(checkpoints.length, 1);
   t.true(checkpoints[0].includes('EARLY_REQUIRED_FACT'));
+  t.is(traces.length, 1);
+  t.like(traces[0], {
+    sessionId: 'session-a',
+    strategyVersion: CONTEXT_PLANNER_STRATEGY_VERSION,
+    candidateMemoryCount: 0,
+  });
+  t.deepEqual((traces[0].scope as Record<string, unknown>).readableDocIds, [
+    'doc-a',
+  ]);
 });
