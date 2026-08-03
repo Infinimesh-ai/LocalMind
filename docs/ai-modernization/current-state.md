@@ -1377,6 +1377,14 @@ The GitHub issues #2-#8 stabilization pass is now implemented:
 - context refresh polling uses independent request sequencing, pauses while the
   page is hidden, applies bounded exponential backoff, and reauthorizes cached
   MCP/keyword-search results before returning them;
+- the workspace MCP endpoint now advertises the stable
+  `localmind-workspace` server identity, client-visible safety annotations for
+  read and write tools, a generated LocalMind-named Streamable HTTP
+  configuration, protocol-version validation, post-2025-03 batch rejection,
+  notification response semantics, strict tool argument validation, redacted
+  unexpected tool failures, and a vendor-neutral integration/self-test guide
+  while preserving workspace-bound credential, permission, rotation, and
+  revocation behavior;
 - AI Context, Help, sidebar, and document-update alert copy is localized; the
   alert uses theme tokens, bounded TTL/count storage, and covered light/dark
   contrast behavior;

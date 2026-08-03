@@ -28,6 +28,7 @@ export const CORS_ALLOWED_HEADERS = [
   'accept',
   'authorization',
   'content-type',
+  'mcp-protocol-version',
   'x-affine-version',
   'x-affine-client-kind',
   'x-operation-name',

@@ -45,6 +45,11 @@ const SUPPORTED_PROTOCOL_VERSIONS = new Set([
   '2024-11-05',
   '2024-10-07',
 ]);
+const BATCH_PROTOCOL_VERSIONS = new Set([
+  '2025-03-26',
+  '2024-11-05',
+  '2024-10-07',
+]);
 
 @Controller('/api/workspaces/:workspaceId/mcp')
 export class WorkspaceMcpController {
@@ -89,11 +94,38 @@ export class WorkspaceMcpController {
       const body = req.body as unknown;
       const isBatch = Array.isArray(body);
       const messages = isBatch ? body : [body];
+      const requestProtocolVersion =
+        req.get('mcp-protocol-version') ?? DEFAULT_PROTOCOL_VERSION;
+
+      if (!SUPPORTED_PROTOCOL_VERSIONS.has(requestProtocolVersion)) {
+        res
+          .status(HttpStatus.BAD_REQUEST)
+          .json(
+            this.errorResponse(
+              null,
+              -32600,
+              `Unsupported MCP protocol version: ${requestProtocolVersion}`
+            )
+          );
+        return;
+      }
 
       if (!messages.length) {
         res
           .status(HttpStatus.BAD_REQUEST)
           .json(this.errorResponse(null, -32600, 'Invalid Request'));
+        return;
+      }
+      if (isBatch && !BATCH_PROTOCOL_VERSIONS.has(requestProtocolVersion)) {
+        res
+          .status(HttpStatus.BAD_REQUEST)
+          .json(
+            this.errorResponse(
+              null,
+              -32600,
+              `JSON-RPC batching is not supported by MCP protocol version ${requestProtocolVersion}.`
+            )
+          );
         return;
       }
       if (messages.length > MAX_BATCH_SIZE) {
@@ -187,8 +219,9 @@ export class WorkspaceMcpController {
 
         return this.successResponse(responseId, {
           protocolVersion,
-          capabilities: { tools: {} },
+          capabilities: { tools: { listChanged: false } },
           serverInfo: { name: server.name, version: server.version },
+          instructions: server.instructions,
         });
       }
 
@@ -210,6 +243,7 @@ export class WorkspaceMcpController {
             title: tool.title,
             description: tool.description,
             inputSchema: tool.inputSchema,
+            annotations: tool.annotations,
           })),
         });
       }
@@ -217,11 +251,13 @@ export class WorkspaceMcpController {
       case 'tools/call': {
         const params = this.asObject(rawRequest.params);
         if (!params || typeof params.name !== 'string') {
+          if (isNotification) return null;
           return this.errorResponse(responseId, -32602, 'Invalid params');
         }
 
         const tool = server.tools.find(item => item.name === params.name);
         if (!tool) {
+          if (isNotification) return null;
           return this.errorResponse(
             responseId,
             -32602,
@@ -243,10 +279,11 @@ export class WorkspaceMcpController {
             `Error executing tool in mcp ${tool.name}`,
             error instanceof Error ? error.stack : String(error)
           );
+          if (isNotification) return null;
           return this.errorResponse(
             responseId,
             -32001,
-            `Error executing tool: ${error instanceof Error ? error.message : String(error)}`
+            `Error executing tool: ${tool.name}`
           );
         }
       }

@@ -80,7 +80,7 @@ export const McpServerSettingPanel = () => {
     return JSON.stringify(
       {
         mcpServers: {
-          [`affine_workspace_${workspaceId}`]: {
+          [`localmind_workspace_${workspaceId}`]: {
             type: 'streamable-http',
             url: `${serverService.server.baseUrl}/api/workspaces/${workspaceId}/mcp`,
             headers: { Authorization: `Bearer ${revealed.token}` },
