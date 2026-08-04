@@ -862,6 +862,42 @@ Remaining follow-up:
 
 See `tracks/registries.md`.
 
+## Cross-cutting: MCP v2
+
+Status: fine-grained workspace user and AI operations exposure implemented in
+source and validated against the rebuilt local runtime.
+
+Implemented outcome:
+
+- eighteen persisted read/write capabilities with write-implies-read, legacy
+  migration, rotation preservation, database constraints, and Workspace
+  Settings selection;
+- 117 scope-filtered/discovery tools using existing permission and lifecycle
+  resolver paths, strict schemas, structured results, and redacted failures;
+- complete structured blocks, Edgeless whiteboards, databases, workspace
+  organization, assets, comments, collaboration, and real history restoration
+  in addition to document Markdown/search and AI surfaces;
+- permission-checked document Resources with cursor pagination;
+- complete English/Chinese integration and tool reference, including
+  SparkClaw and deliberate security exclusions;
+- Workspace Settings forwards all selected capability scopes into credential
+  creation, with a focused mutation-variable regression test;
+- live Codex-client conformance covers MCP initialization, protocol negotiation,
+  18 granted scopes, 117 unique tools, capability discovery, and structured
+  Edgeless whiteboard reads from `localmind-affine:local`.
+
+Remaining follow-up:
+
+- extend live mutation conformance beyond the current discovery/whiteboard read
+  smoke with disposable fixtures for representative document, whiteboard,
+  database, asset, comment, collaboration, history, AI Context, AI Chat, and AI
+  Operations writes; source-only validation should continue to use the fixed
+  `localmind-affine:test` image without rebuilding;
+- add a new scope/tool only when a new externally appropriate LocalMind user
+  capability lands; do not expose password, billing, raw admin, secret writes,
+  MCP credential self-management, or arbitrary GraphQL passthrough as a
+  shortcut.
+
 ## Do Not Prioritize
 
 Do not prioritize:

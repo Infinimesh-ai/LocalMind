@@ -11,6 +11,11 @@ import type { McpAccessMode } from '@prisma/client';
 import { CryptoHelper, EventBus } from '../../../base';
 import { MCP_CREDENTIAL_TOKEN_PREFIX } from '../../../core/auth/token';
 import { Models } from '../../../models';
+import {
+  mcpAccessModeForCapabilities,
+  type McpCapability,
+  normalizeMcpCapabilities,
+} from './capabilities';
 
 const ALLOWED_EXPIRATION_DAYS = new Set([30, 90, 365]);
 const ROTATION_GRACE_MS = 24 * 60 * 60 * 1000;
@@ -42,6 +47,7 @@ type IssueMcpCredential = {
   workspaceId: string;
   name: string;
   accessMode: McpAccessMode;
+  capabilities?: string[];
   expirationDays: number;
 };
 
@@ -113,6 +119,7 @@ export class McpCredentialService {
       workspaceId,
       name: current.name,
       accessMode: current.accessMode,
+      capabilities: current.capabilities,
       expirationDays,
       familyId: current.familyId,
       generation: current.generation + 1,
@@ -200,6 +207,10 @@ export class McpCredentialService {
       throw new BadRequestException('MCP credential name is required');
     }
 
+    const capabilities = normalizeMcpCapabilities(
+      input.capabilities,
+      input.accessMode
+    );
     const id = randomUUID();
     const secret = this.crypto.randomBytes(32).toString('base64url');
     const secretHash = this.crypto.sha256(secret).toString('hex');
@@ -212,7 +223,8 @@ export class McpCredentialService {
       fingerprint: secretHash.slice(0, 12),
       userId: input.userId,
       workspaceId: input.workspaceId,
-      accessMode: input.accessMode,
+      accessMode: mcpAccessModeForCapabilities(capabilities),
+      capabilities,
       expiresAt: new Date(
         Date.now() + input.expirationDays * 24 * 60 * 60 * 1000
       ),
@@ -222,6 +234,13 @@ export class McpCredentialService {
       credential: { ...credential, status: this.status(credential) },
       token: `${MCP_CREDENTIAL_TOKEN_PREFIX}.${id}.${secret}`,
     };
+  }
+
+  capabilities(
+    capabilities: readonly string[] | null | undefined,
+    accessMode: McpAccessMode
+  ): McpCapability[] {
+    return normalizeMcpCapabilities(capabilities, accessMode);
   }
 
   private parse(token: string) {

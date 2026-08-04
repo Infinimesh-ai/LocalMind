@@ -13,6 +13,7 @@ export type CreateMcpCredential = {
   userId: string;
   workspaceId: string;
   accessMode: McpAccessMode;
+  capabilities: string[];
   expiresAt: Date;
   graceEndsAt?: Date | null;
 };

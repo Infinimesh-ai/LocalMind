@@ -2101,4 +2101,10 @@ Implemented behavior:
 
 ## Non-goals For First Slice
 
+Workspace MCP v2 exposes support bundle list/read/create, download
+authorization/acknowledgement, retention cleanup, and dead-letter transfer
+replay through the existing resolver/model path. Raw secret-bearing artifacts,
+storage credentials, and internal/provider webhook ingress remain outside the
+MCP surface.
+
 - cross-workspace bundle federation.

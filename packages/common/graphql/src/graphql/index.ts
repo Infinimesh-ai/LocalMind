@@ -7599,6 +7599,7 @@ export const createMcpCredentialMutation = {
       name
       workspaceId
       accessMode
+      capabilities
       fingerprint
       createdAt
       expiresAt
@@ -7622,6 +7623,7 @@ export const mcpCredentialsQuery = {
     name
     workspaceId
     accessMode
+    capabilities
     fingerprint
     createdAt
     expiresAt
@@ -7655,6 +7657,7 @@ export const rotateMcpCredentialMutation = {
       name
       workspaceId
       accessMode
+      capabilities
       fingerprint
       createdAt
       expiresAt

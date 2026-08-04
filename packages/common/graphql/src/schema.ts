@@ -4167,6 +4167,7 @@ export interface CreateCopilotContextRuleInput {
 
 export interface CreateMcpCredentialInput {
   accessMode?: McpAccessMode;
+  capabilities?: InputMaybe<Array<Scalars['String']['input']>>;
   expirationDays?: Scalars['Int']['input'];
   name: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
@@ -4975,6 +4976,7 @@ export enum McpCredentialStatus {
 export interface McpCredentialType {
   __typename?: 'McpCredentialType';
   accessMode: McpAccessMode;
+  capabilities: Array<Scalars['String']['output']>;
   createdAt: Scalars['DateTime']['output'];
   expiresAt: Scalars['DateTime']['output'];
   fingerprint: Scalars['String']['output'];
@@ -16053,6 +16055,7 @@ export type CreateMcpCredentialMutation = {
       name: string;
       workspaceId: string;
       accessMode: McpAccessMode;
+      capabilities: Array<string>;
       fingerprint: string;
       createdAt: string;
       expiresAt: string;
@@ -16077,6 +16080,7 @@ export type McpCredentialsQuery = {
     name: string;
     workspaceId: string;
     accessMode: McpAccessMode;
+    capabilities: Array<string>;
     fingerprint: string;
     createdAt: string;
     expiresAt: string;
@@ -16114,6 +16118,7 @@ export type RotateMcpCredentialMutation = {
       name: string;
       workspaceId: string;
       accessMode: McpAccessMode;
+      capabilities: Array<string>;
       fingerprint: string;
       createdAt: string;
       expiresAt: string;

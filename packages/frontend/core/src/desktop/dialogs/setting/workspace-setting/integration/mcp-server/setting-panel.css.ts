@@ -85,17 +85,23 @@ export const tag = style({
 export const rowActions = style({ display: 'flex', gap: 8 });
 export const capabilities = style({
   display: 'grid',
-  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  '@media': {
+    '(max-width: 640px)': { gridTemplateColumns: 'minmax(0, 1fr)' },
+  },
 });
 export const capability = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
   padding: '14px 16px',
   fontSize: cssVar('fontXs'),
   color: cssVarV2('text/secondary'),
   borderRight: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
-  selectors: { '&:last-child': { borderRight: 0 } },
+  borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
 });
 export const modal = style({
-  width: 500,
+  width: 560,
   maxWidth: 'calc(100vw - 32px)',
   display: 'flex',
   flexDirection: 'column',
@@ -118,6 +124,45 @@ export const field = style({
   gap: 6,
   fontSize: cssVar('fontXs'),
   color: cssVarV2('text/secondary'),
+});
+export const capabilitySelector = style({
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  borderRadius: 8,
+  maxHeight: 'min(52vh, 440px)',
+  overflowX: 'hidden',
+  overflowY: 'auto',
+});
+export const capabilitySelectorRow = style({
+  minHeight: 44,
+  display: 'grid',
+  gridTemplateColumns: 'minmax(120px, 1fr) auto',
+  alignItems: 'center',
+  gap: 12,
+  padding: '8px 10px',
+  borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  selectors: { '&:last-child': { borderBottom: 0 } },
+  '@media': {
+    '(max-width: 520px)': {
+      gridTemplateColumns: 'minmax(0, 1fr)',
+      alignItems: 'start',
+    },
+  },
+});
+export const capabilitySelectorName = style({
+  color: cssVarV2('text/primary'),
+  fontWeight: 500,
+});
+export const capabilitySelectorChecks = style({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, 82px)',
+  alignItems: 'center',
+  gap: 8,
+  '@media': {
+    '(max-width: 520px)': {
+      width: '100%',
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    },
+  },
 });
 export const fixedValue = style({
   display: 'flex',

@@ -1371,6 +1371,11 @@ still depends on it.
 
 ## Non-goals For First Slice
 
+Workspace MCP v2 exposes repair preflight, persisted request creation,
+approval decisions, lifecycle controls, and filtered history through the same
+resolver/model path. MCP scope does not skip approval, create a new executor,
+or weaken the side-effect/audit/snapshot fences described by this track.
+
 - arbitrary config mutation;
 - automatic provider credential edits;
 - rollback executor;

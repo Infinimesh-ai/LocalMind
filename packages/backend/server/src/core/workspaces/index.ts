@@ -56,7 +56,15 @@ import { WorkspaceStatsJob } from './stats.job';
     AdminWorkspaceResolver,
     WorkspaceStatsJob,
   ],
-  exports: [WorkspaceService],
+  exports: [
+    WorkspaceService,
+    WorkspaceResolver,
+    WorkspaceMemberResolver,
+    WorkspaceDocResolver,
+    DocResolver,
+    DocHistoryResolver,
+    WorkspaceBlobResolver,
+  ],
 })
 export class WorkspaceModule {}
 

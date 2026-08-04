@@ -16,7 +16,7 @@ import { CommentResolver } from './resolver';
     CommentRealtimeModule,
   ],
   providers: [CommentResolver],
-  exports: [CommentRealtimeModule],
+  exports: [CommentRealtimeModule, CommentResolver],
 })
 export class CommentModule {}
 

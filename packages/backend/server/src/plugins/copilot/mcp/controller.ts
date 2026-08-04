@@ -89,7 +89,11 @@ export class WorkspaceMcpController {
       const server = await this.provider.for(
         credential.userId,
         workspaceId,
-        credential.accessMode
+        this.credentials.capabilities(
+          credential.capabilities,
+          credential.accessMode
+        ),
+        req
       );
       const body = req.body as unknown;
       const isBatch = Array.isArray(body);
@@ -219,7 +223,12 @@ export class WorkspaceMcpController {
 
         return this.successResponse(responseId, {
           protocolVersion,
-          capabilities: { tools: { listChanged: false } },
+          capabilities: {
+            tools: { listChanged: false },
+            ...(server.listResources
+              ? { resources: { subscribe: false, listChanged: false } }
+              : {}),
+          },
           serverInfo: { name: server.name, version: server.version },
           instructions: server.instructions,
         });
@@ -243,9 +252,67 @@ export class WorkspaceMcpController {
             title: tool.title,
             description: tool.description,
             inputSchema: tool.inputSchema,
+            ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
             annotations: tool.annotations,
           })),
         });
+      }
+
+      case 'resources/list': {
+        if (isNotification) return null;
+        if (!server.listResources) {
+          return this.errorResponse(
+            responseId,
+            -32601,
+            'Resources are not available for this credential.'
+          );
+        }
+        const params = rawRequest.params ?? {};
+        const parsedParams = this.asObject(params);
+        if (
+          !parsedParams ||
+          (parsedParams.cursor !== undefined &&
+            typeof parsedParams.cursor !== 'string')
+        ) {
+          return this.errorResponse(responseId, -32602, 'Invalid params');
+        }
+        const page = await server.listResources(
+          parsedParams.cursor as string | undefined
+        );
+        if (!page) {
+          return this.errorResponse(responseId, -32602, 'Invalid cursor');
+        }
+        return this.successResponse(responseId, page);
+      }
+
+      case 'resources/templates/list': {
+        if (isNotification) return null;
+        return this.successResponse(responseId, {
+          resourceTemplates: server.resourceTemplates ?? [],
+        });
+      }
+
+      case 'resources/read': {
+        const params = this.asObject(rawRequest.params);
+        if (!params || typeof params.uri !== 'string') {
+          if (isNotification) return null;
+          return this.errorResponse(responseId, -32602, 'Invalid params');
+        }
+        if (!server.readResource) {
+          if (isNotification) return null;
+          return this.errorResponse(
+            responseId,
+            -32601,
+            'Resources are not available for this credential.'
+          );
+        }
+        const contents = await server.readResource(params.uri);
+        if (!contents) {
+          if (isNotification) return null;
+          return this.errorResponse(responseId, -32002, 'Resource not found');
+        }
+        if (isNotification) return null;
+        return this.successResponse(responseId, { contents: [contents] });
       }
 
       case 'tools/call': {

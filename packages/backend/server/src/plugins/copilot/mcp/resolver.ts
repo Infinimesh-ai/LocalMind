@@ -43,6 +43,9 @@ export class McpCredentialType {
   @Field(() => McpAccessMode)
   accessMode!: McpAccessMode;
 
+  @Field(() => [String])
+  capabilities!: string[];
+
   @Field()
   fingerprint!: string;
 
@@ -85,6 +88,9 @@ class CreateMcpCredentialInput {
   @Field(() => McpAccessMode, { defaultValue: McpAccessMode.READ_ONLY })
   accessMode!: McpAccessMode;
 
+  @Field(() => [String], { nullable: true })
+  capabilities?: string[];
+
   @Field(() => Int, { defaultValue: 90 })
   expirationDays!: number;
 }
@@ -107,7 +113,7 @@ export class McpCredentialResolver {
 
   @Query(() => Boolean)
   mcpCredentialReadWriteAvailable() {
-    return env.dev || env.namespaces.canary;
+    return true;
   }
 
   @Mutation(() => RevealedMcpCredentialType)
@@ -115,12 +121,12 @@ export class McpCredentialResolver {
     @CurrentUser() user: CurrentUser,
     @Args('input') input: CreateMcpCredentialInput
   ) {
-    if (
-      input.accessMode === McpAccessMode.READ_WRITE &&
-      !env.dev &&
-      !env.namespaces.canary
-    ) {
-      throw new BadRequestException('MCP write tools are not available');
+    try {
+      this.credentials.capabilities(input.capabilities, input.accessMode);
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'Invalid MCP capabilities'
+      );
     }
     await this.ac
       .user(user.id)

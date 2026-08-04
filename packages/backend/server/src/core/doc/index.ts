@@ -12,6 +12,8 @@ import { DocEventsListener } from './event';
 import { DocStorageCronJob } from './job';
 import { DocStorageOptions } from './options';
 import { DatabaseDocReader, DocReader, DocReaderProvider } from './reader';
+import { StructuredDocService } from './structured';
+import { WorkspaceOrganizationService } from './workspace-organization';
 import { DocWriter } from './writer';
 
 @Module({
@@ -25,11 +27,15 @@ import { DocWriter } from './writer';
     DatabaseDocReader,
     DocEventsListener,
     DocWriter,
+    StructuredDocService,
+    WorkspaceOrganizationService,
   ],
   exports: [
     DatabaseDocReader,
     DocReader,
     DocWriter,
+    StructuredDocService,
+    WorkspaceOrganizationService,
     PgWorkspaceDocStorageAdapter,
     PgUserspaceDocStorageAdapter,
   ],
@@ -42,6 +48,14 @@ export {
   DocWriter,
   PgUserspaceDocStorageAdapter,
   PgWorkspaceDocStorageAdapter,
+  StructuredDocService,
+  WorkspaceOrganizationService,
 };
 
 export { DocStorageAdapter, type Editor } from './storage';
+export {
+  WORKSPACE_DATA_TABLES,
+  type WorkspaceDataOperation,
+  type WorkspaceDataTable,
+  type WorkspaceRootOperation,
+} from './workspace-organization';

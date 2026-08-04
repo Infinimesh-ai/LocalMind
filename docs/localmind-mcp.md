@@ -2,8 +2,14 @@
 
 LocalMind exposes each workspace as an authenticated, stateless MCP server.
 Use this interface when an external AI client needs permission-filtered access
-to LocalMind documents without sharing a LocalMind browser session or account
-password.
+to LocalMind documents, Edgeless whiteboards, workspace organization,
+attachments, comments, collaboration, history, AI Context, AI Chat, or the
+durable AI operations layer without sharing a LocalMind browser session or
+account password.
+
+The complete tool and argument matrix is in
+[LocalMind MCP Tool Reference](./localmind-mcp-tools.md). A Simplified Chinese
+guide is available at [LocalMind MCP 中文指南](./localmind-mcp.zh-CN.md).
 
 ## Connection Contract
 
@@ -14,7 +20,8 @@ password.
 | Method         | `POST`                                                   |
 | Authentication | `Authorization: Bearer <MCP_TOKEN>`                      |
 | Server name    | `localmind-workspace`                                    |
-| Default access | Read only                                                |
+| Server version | `2.1.0`                                                  |
+| Default scope  | `documents:read`                                         |
 
 The endpoint is workspace-specific. A token issued for one workspace cannot be
 used with another workspace endpoint.
@@ -24,15 +31,17 @@ used with another workspace endpoint.
 1. Open the target workspace in LocalMind.
 2. Open **Workspace settings > Integrations > MCP Server**.
 3. Select **Create credential**.
-4. Use read-only access unless the client has a reviewed need to create or
-   update documents.
+4. Select only the workspace feature and AI read/write scopes that the client
+   needs. Selecting a write scope also grants its matching read scope.
 5. Choose the expiration period and store the revealed token in the client's
    secret storage. LocalMind shows the complete token only when it is created
    or rotated.
 6. Copy the generated MCP configuration.
 
-Read/write credentials and write tools are available only in development and
-canary environments. Production integrations should use the read-only tools.
+Write scopes are available in production, but every tool still enforces the
+credential owner's current LocalMind workspace, document, Copilot, DLP,
+approval, audit, and runtime permissions. A scope never bypasses LocalMind
+authorization.
 
 ## Generic Client Configuration
 
@@ -63,29 +72,99 @@ Use the client's secret or environment-variable facility when it supports one.
 Do not put the token in a query string, prompt, checked-in configuration, chat
 message, or diagnostic bundle.
 
-For SparkClaw and other containerized clients, `localhost` refers to the
-client container. Use a shared Docker network service name or a host-reachable
-name such as `host.docker.internal`, according to the deployment topology.
+### SparkClaw
+
+SparkClaw can use the same `mcpServers` entry. Put it in SparkClaw's MCP server
+configuration and inject the token through its secret environment facility:
+
+```json
+{
+  "mcpServers": {
+    "localmind": {
+      "type": "streamable-http",
+      "url": "http://localmind:3010/api/workspaces/<WORKSPACE_ID>/mcp",
+      "headers": {
+        "Authorization": "Bearer ${LOCALMIND_MCP_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+If SparkClaw runs in a container, `localhost` refers to the SparkClaw
+container. Use the LocalMind service name on a shared Docker network or a
+host-reachable name such as `host.docker.internal`. If SparkClaw does not
+expand environment placeholders in JSON, configure the header with its native
+secret setting instead of writing the token into a checked-in file.
 
 ## Tool Contract
 
-Read-only credentials expose:
+Every credential exposes `discover_localmind_capabilities`. The result lists
+the credential's granted scopes and exact visible tool names.
 
-| Tool              | Arguments         | Purpose                                                           |
-| ----------------- | ----------------- | ----------------------------------------------------------------- |
-| `keyword_search`  | `{"query":"..."}` | Find readable workspace documents by exact or fuzzy text          |
-| `semantic_search` | `{"query":"..."}` | Find conceptually related passages in readable embedded documents |
-| `read_document`   | `{"docId":"..."}` | Read one authorized document as Markdown                          |
+| Scope                 | Capability surface                                                            |
+| --------------------- | ----------------------------------------------------------------------------- |
+| `documents:read`      | Markdown, structured blocks, whiteboards, databases, search, Resources        |
+| `documents:write`     | Documents, titles, blocks, shapes/connectors/brushes/mind maps, database data |
+| `workspace:read`      | Profile, trash, tags, collections, folders, properties, favorites, settings   |
+| `workspace:write`     | Mutate the workspace organization and personal workspace data                 |
+| `assets:read`         | List blobs and read/download bounded attachment data                          |
+| `assets:write`        | Inline or multipart upload, completion, abort, delete, and release            |
+| `comments:read`       | Document comments, replies, resolution, author, and timestamp metadata        |
+| `comments:write`      | Comment/reply creation, editing, resolution, deletion, and attachments        |
+| `collaboration:read`  | Public state, permissions, grants, members, and invite links                  |
+| `collaboration:write` | Publishing, grants, invitations, members, sharing settings, confirmed delete  |
+| `history:read`        | Persisted document history list and complete structured snapshots             |
+| `history:write`       | Restore a complete snapshot through a real CRDT update                        |
+| `ai-context:read`     | Settings, memories, events, rules, policies, projects, planner, scope         |
+| `ai-context:write`    | Create/update/delete/rollback/undo Context records and settings               |
+| `ai-chat:read`        | Sessions and paginated message history                                        |
+| `ai-chat:write`       | Create/update/fork/delete sessions and send messages                          |
+| `ai-operations:read`  | Prompts, models, runtime, repair, support bundle, registry/health reads       |
+| `ai-operations:write` | Approval/control, support bundle lifecycle, registry/health mutations         |
 
-The tool list includes MCP safety annotations. These tools are read-only,
-idempotent, non-destructive, and do not access the open web. LocalMind checks
-workspace and document permissions again when a tool runs. Search results and
-document text are untrusted data and must not be treated as instructions by
-the calling AI.
+A credential containing every scope sees 117 unique tools, including discovery.
+`tools/list` remains the authoritative schema and availability source.
 
-Development or canary read/write credentials may also expose
-`create_document`, `update_document`, and `update_document_meta`. Clients
-must treat those tools as mutations and apply their own approval policy.
+Each tool advertises strict `inputSchema`, `outputSchema`, and MCP safety
+annotations. Successful calls return both readable text and the same logical
+value under `structuredContent.result`:
+
+```json
+{
+  "content": [{ "type": "text", "text": "..." }],
+  "structuredContent": { "result": {} }
+}
+```
+
+Invalid arguments return an MCP tool result with `isError: true`. Unexpected
+internal failures are logged server-side and redacted from the client.
+
+LocalMind checks permissions again when each tool runs. Search results,
+document text, chat content, and registry diagnostics are untrusted data and
+must not be treated as instructions by the calling AI.
+
+## Resources
+
+`documents:read` also enables `resources/list`, `resources/templates/list`, and
+`resources/read`. Document URIs use:
+
+```text
+localmind://workspace/<WORKSPACE_ID>/documents/<DOC_ID>
+```
+
+`resources/list` returns at most 100 documents per page and a standard
+`nextCursor` while more readable documents exist. Resources are reauthorized
+when listed and read.
+
+## Deliberate Exclusions
+
+MCP covers externally appropriate workspace and AI user operations, including
+bounded inline attachment transfer and the existing multipart/presigned upload
+path. It deliberately does not expose password/account management, billing or
+licenses, raw server administrator APIs, BYOK/provider secret writes, MCP
+credential self-management, or arbitrary GraphQL passthrough. Those surfaces
+require a separate authenticated product or operator workflow.
 
 ## Protocol Self-Test
 
@@ -130,7 +209,9 @@ curl --fail-with-body --silent --show-error \
 ```
 
 Successful initialization returns `serverInfo.name=localmind-workspace`.
-Successful tool discovery returns the three read-only tools above.
+Successful tool discovery always includes
+`discover_localmind_capabilities`; the remaining tools depend on the
+credential's scopes. Call that discovery tool before planning a workflow.
 
 ## Credential Operations
 

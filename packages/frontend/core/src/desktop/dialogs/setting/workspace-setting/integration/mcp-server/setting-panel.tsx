@@ -19,6 +19,7 @@ import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { IntegrationSettingHeader } from '../setting';
+import { MCP_CAPABILITY_GROUPS } from './capabilities';
 import { McpCredentialModal } from './credential-modal';
 import MCPIcon from './MCP.inline.svg';
 import * as styles from './setting-panel.css';
@@ -38,9 +39,6 @@ export const McpServerSettingPanel = () => {
   const credentials = useLiveData(credentialsService.credentials$);
   const loading = useLiveData(credentialsService.loading$);
   const error = useLiveData(credentialsService.error$);
-  const readWriteAvailable = useLiveData(
-    credentialsService.readWriteAvailable$
-  );
   const workspaceId = workspaceService.workspace.id;
   const workspaceName = useLiveData(workspaceService.workspace.name$);
   const { openConfirmModal } = useConfirmModal();
@@ -93,12 +91,18 @@ export const McpServerSettingPanel = () => {
   }, [revealed, serverService.server.baseUrl, workspaceId]);
 
   const create = useAsyncCallback(
-    async (name: string, accessMode: McpAccessMode, expirationDays: number) => {
+    async (name: string, capabilities: string[], expirationDays: number) => {
       try {
+        const accessMode = capabilities.some(capability =>
+          capability.endsWith(':write')
+        )
+          ? McpAccessMode.READ_WRITE
+          : McpAccessMode.READ_ONLY;
         const result = await credentialsService.create({
           workspaceId,
           name,
           accessMode,
+          capabilities,
           expirationDays,
         });
         setRevealed(result);
@@ -225,14 +229,8 @@ export const McpServerSettingPanel = () => {
                     </span>
                   </div>
                   <div className={styles.description}>
-                    {credential.accessMode === McpAccessMode.READ_WRITE
-                      ? t[
-                          'com.affine.integration.mcp-server.access.read-write'
-                        ]()
-                      : t[
-                          'com.affine.integration.mcp-server.access.read-only'
-                        ]()}{' '}
-                    · •••• {credential.fingerprint} ·{' '}
+                    {credential.capabilities.join(', ')} · ••••{' '}
+                    {credential.fingerprint} ·{' '}
                     {t['com.affine.integration.mcp-server.meta.expires']({
                       date: formatDate(credential.expiresAt),
                     })}
@@ -298,16 +296,18 @@ export const McpServerSettingPanel = () => {
           </div>
         </div>
         <div className={styles.capabilities}>
-          {(['read', 'keyword-search', 'semantic-search'] as const).map(key => (
+          {MCP_CAPABILITY_GROUPS.map(({ key }) => (
             <div className={styles.capability} key={key}>
-              {t[`com.affine.integration.mcp-server.capabilities.${key}`]()}
+              <strong>
+                {t[`com.affine.integration.mcp-server.capability.${key}`]()}
+              </strong>
+              <span>
+                {t[
+                  `com.affine.integration.mcp-server.capability.${key}.description`
+                ]()}
+              </span>
             </div>
           ))}
-          {readWriteAvailable ? (
-            <div className={styles.capability}>
-              {t['com.affine.integration.mcp-server.capabilities.write']()}
-            </div>
-          ) : null}
         </div>
       </section>
 
@@ -316,7 +316,6 @@ export const McpServerSettingPanel = () => {
         revealed={revealed}
         config={config}
         workspaceName={workspaceName}
-        readWriteAvailable={readWriteAvailable}
         onCreate={create}
         onClose={() => {
           setModal(null);

@@ -3,6 +3,7 @@ import './config';
 import { Module } from '@nestjs/common';
 
 import { ServerConfigModule } from '../../core';
+import { CommentModule } from '../../core/comment';
 import { DocStorageModule } from '../../core/doc';
 import { FeatureModule } from '../../core/features';
 import { PermissionModule } from '../../core/permission';
@@ -31,6 +32,7 @@ const COPILOT_SHARED_IMPORTS = [
   StorageModule,
   WorkspaceModule,
   IndexerModule,
+  CommentModule,
 ];
 
 @Module({

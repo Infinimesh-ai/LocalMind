@@ -13,6 +13,7 @@ mutation rotateMcpCredential(
       name
       workspaceId
       accessMode
+      capabilities
       fingerprint
       createdAt
       expiresAt

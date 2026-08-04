@@ -31,6 +31,7 @@ export class McpCredentialStore extends Store {
           workspaceId: input.workspaceId,
           name: input.name,
           accessMode: input.accessMode,
+          capabilities: input.capabilities,
           expirationDays: input.expirationDays,
         },
       },

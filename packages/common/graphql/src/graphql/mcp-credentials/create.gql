@@ -5,6 +5,7 @@ mutation createMcpCredential($input: CreateMcpCredentialInput!) {
       name
       workspaceId
       accessMode
+      capabilities
       fingerprint
       createdAt
       expiresAt

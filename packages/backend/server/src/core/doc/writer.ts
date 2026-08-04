@@ -20,6 +20,10 @@ export interface UpdateDocResult {
   success: boolean;
 }
 
+export interface PushDocUpdateResult extends UpdateDocResult {
+  timestamp: number;
+}
+
 declare global {
   interface Events {
     'doc.updates.pushed': {
@@ -196,6 +200,45 @@ export class DocWriter {
     );
 
     return { success: true };
+  }
+
+  /**
+   * Persists a validated CRDT update produced by a structured document editor.
+   */
+  async pushDocUpdate(
+    workspaceId: string,
+    docId: string,
+    update: Uint8Array,
+    editorId?: string
+  ): Promise<PushDocUpdateResult> {
+    if (this.storage.isEmptyBin(update)) {
+      const current = await this.storage.getDoc(workspaceId, docId);
+      if (!current) {
+        throw new NotFoundException(`Document ${docId} not found`);
+      }
+      return { success: true, timestamp: current.timestamp };
+    }
+
+    const timestamp = await this.storage.pushDocUpdates(
+      workspaceId,
+      docId,
+      [update],
+      editorId
+    );
+    this.emitDocUpdatesPushed({
+      spaceId: workspaceId,
+      docId,
+      updates: [update],
+      timestamp,
+      editor: editorId,
+    });
+    await this.updateDocProperties(
+      workspaceId,
+      docId,
+      { updatedBy: editorId },
+      editorId
+    );
+    return { success: true, timestamp };
   }
 
   /**

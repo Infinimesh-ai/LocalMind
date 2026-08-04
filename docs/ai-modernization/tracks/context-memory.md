@@ -129,6 +129,12 @@ the evaluation suite show that multi-entity or multi-hop relations require it.
 
 ## Validation
 
+MCP v2 now exposes the existing settings, planner strategy, project, session
+scope, memory/event, Rule, and Policy reads and all existing Context management
+mutations behind `ai-context:read`/`ai-context:write`. These tools call this
+track's resolver directly, so DLP, scope authorization, revision, rollback, and
+undo behavior remain the same as GraphQL/Admin behavior.
+
 The focused contract must cover:
 
 - an attached project document resolving project memory outside a

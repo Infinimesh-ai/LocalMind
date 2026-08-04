@@ -5,6 +5,7 @@ query mcpCredentials($workspaceId: String!) {
     name
     workspaceId
     accessMode
+    capabilities
     fingerprint
     createdAt
     expiresAt

@@ -1394,6 +1394,46 @@ The GitHub issues #2-#8 stabilization pass is now implemented:
 - provider/model fixtures and the oversized resolver smoke are aligned with the
   current upstream model registry and isolated typecheck/runtime contracts.
 
+The cross-cutting workspace MCP v2 exposure is now implemented:
+
+- credentials persist eighteen fine-grained document, workspace, asset,
+  comment, collaboration, history, AI Context, AI Chat, and AI Operations
+  read/write capabilities; write implies read, rotation preserves scopes,
+  legacy read-only/read-write rows are migrated, and database checks reject
+  unsupported or access-mode-incoherent scope sets;
+- the scope-filtered server exposes 116 domain tools plus the always-available
+  `discover_localmind_capabilities` tool, with strict input schemas, output
+  schemas, safety annotations, text content, and `structuredContent`;
+- document tools cover list/read/keyword/semantic search, Markdown/title,
+  structured block trees, Edgeless shapes/text/connectors/brushes/groups/mind
+  maps/notes/frames, and database columns/views/rows/cells, with real Yjs
+  deltas persisted through `DocWriter`; MCP Resources expose
+  permission-checked Markdown URIs with cursor pagination;
+- independently scoped workspace tools cover profile, trash, tags,
+  collections, folders, properties, favorites and settings; asset tools cover
+  bounded base64 and direct/multipart upload lifecycles; comment tools preserve
+  mentions, notifications and realtime events; collaboration tools preserve
+  sharing abuse checks and member/grant permissions; history tools list/read
+  durable snapshots and restore them through a real CRDT update;
+- AI Context and AI Chat tools reuse their existing resolvers for settings,
+  memories, rules, policies, projects, planner/scope, sessions, histories,
+  messages, forks, updates, and cleanup;
+- AI Operations tools reuse existing Agent Runtime, repair approval/control,
+  support bundle, Prompt/Model/Provider/Task Route Registry, model/prompt, and
+  Provider Health resolver/model paths, preserving their authorization, DLP,
+  approval, audit, idempotency, worker lease, and side-effect lifecycle;
+- Workspace Settings exposes nine localized read/write capability groups, and
+  English/Chinese integration guides include SparkClaw configuration, scope and
+  tool/argument/response reference, Resources, protocol self-test, and explicit
+  exclusions for account, billing, raw admin, secret-management, MCP credential
+  self-management, and arbitrary GraphQL surfaces;
+- the Workspace Settings credential store now forwards the selected capability
+  array into the create mutation instead of silently falling back to the legacy
+  document access mode; focused frontend coverage asserts the serialized
+  mutation variables, and the rebuilt local runtime has been validated with an
+  18-scope Codex credential, 117 unique tools, capability discovery, and a live
+  structured `read_whiteboard` call.
+
 ## Not Completed
 
 Remaining production gaps include:

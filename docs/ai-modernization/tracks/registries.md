@@ -1947,6 +1947,13 @@ Frontend/Admin if changed:
 
 ## Non-goals For First Slice
 
+Workspace MCP v2 exposes prompt/model diagnostics, publish gates and preflight,
+body-edit preview/publish, constrained Prompt/Model/Provider/Task Route
+revision publishing, and Provider Health read/write/retry through the existing
+resolver/model paths. Provider credentials and BYOK secret writes remain
+excluded, and MCP therefore does not expand this track's secret-management
+boundary.
+
 - full registry editor;
 - bulk migration UI;
 - richer prompt body eval/review UI beyond the backend preview/publish API;

@@ -2438,6 +2438,7 @@ model McpCredential {
   userId       String        @map("user_id") @db.VarChar
   workspaceId  String        @map("workspace_id") @db.VarChar
   accessMode   McpAccessMode @default(READ_ONLY) @map("access_mode")
+  capabilities String[]      @default(["documents:read"])
   createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   expiresAt    DateTime      @map("expires_at") @db.Timestamptz(3)
   lastUsedAt   DateTime?     @map("last_used_at") @db.Timestamptz(3)

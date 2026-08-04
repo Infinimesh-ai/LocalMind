@@ -1,10 +1,10 @@
-import { Button, Input, Modal, notify } from '@affine/component';
+import { Button, Checkbox, Input, Modal, notify } from '@affine/component';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import type { McpCredential } from '@affine/core/modules/cloud/services/mcp-credential';
-import { McpAccessMode } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { useEffect, useState } from 'react';
 
+import { MCP_CAPABILITY_GROUPS, updateMcpCapabilities } from './capabilities';
 import * as styles from './setting-panel.css';
 
 type RevealedCredential = {
@@ -17,7 +17,6 @@ export const McpCredentialModal = ({
   revealed,
   config,
   workspaceName,
-  readWriteAvailable,
   onCreate,
   onClose,
 }: {
@@ -25,10 +24,9 @@ export const McpCredentialModal = ({
   revealed: RevealedCredential | null;
   config: string;
   workspaceName?: string;
-  readWriteAvailable: boolean;
   onCreate: (
     name: string,
-    accessMode: McpAccessMode,
+    capabilities: string[],
     expirationDays: number
   ) => void | Promise<void>;
   onClose: () => void;
@@ -36,14 +34,16 @@ export const McpCredentialModal = ({
   const t = useI18n();
   const [name, setName] = useState('');
   const [expirationDays, setExpirationDays] = useState(90);
-  const [accessMode, setAccessMode] = useState(McpAccessMode.READ_ONLY);
+  const [capabilities, setCapabilities] = useState<Set<string>>(
+    () => new Set(['documents:read'])
+  );
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!mode) {
       setName('');
       setExpirationDays(90);
-      setAccessMode(McpAccessMode.READ_ONLY);
+      setCapabilities(new Set(['documents:read']));
       setSubmitting(false);
     }
   }, [mode]);
@@ -59,11 +59,17 @@ export const McpCredentialModal = ({
   const submit = useAsyncCallback(async () => {
     setSubmitting(true);
     try {
-      await onCreate(name.trim(), accessMode, expirationDays);
+      await onCreate(name.trim(), [...capabilities], expirationDays);
     } finally {
       setSubmitting(false);
     }
-  }, [accessMode, expirationDays, name, onCreate]);
+  }, [capabilities, expirationDays, name, onCreate]);
+
+  const toggleCapability = (capability: string, checked: boolean) => {
+    setCapabilities(current =>
+      updateMcpCapabilities(current, capability, checked)
+    );
+  };
 
   return (
     <Modal
@@ -94,36 +100,42 @@ export const McpCredentialModal = ({
                 autoFocus
               />
             </label>
-            <label className={styles.field}>
+            <div className={styles.field}>
               <span>
                 {t['com.affine.integration.mcp-server.field.access']()}
               </span>
-              {readWriteAvailable ? (
-                <select
-                  className={styles.select}
-                  value={accessMode}
-                  onChange={event =>
-                    setAccessMode(event.currentTarget.value as McpAccessMode)
-                  }
-                >
-                  <option value={McpAccessMode.READ_ONLY}>
-                    {t['com.affine.integration.mcp-server.access.read-only']()}
-                  </option>
-                  <option value={McpAccessMode.READ_WRITE}>
-                    {t['com.affine.integration.mcp-server.access.read-write']()}
-                  </option>
-                </select>
-              ) : (
-                <div className={styles.fixedValue}>
-                  {t['com.affine.integration.mcp-server.access.read-only']()}
-                  <span className={styles.description}>
-                    {t[
-                      'com.affine.integration.mcp-server.access.read-only-desc'
-                    ]()}
-                  </span>
-                </div>
-              )}
-            </label>
+              <div className={styles.capabilitySelector}>
+                {MCP_CAPABILITY_GROUPS.map(group => (
+                  <div className={styles.capabilitySelectorRow} key={group.key}>
+                    <span className={styles.capabilitySelectorName}>
+                      {t[
+                        `com.affine.integration.mcp-server.capability.${group.key}`
+                      ]()}
+                    </span>
+                    <div className={styles.capabilitySelectorChecks}>
+                      <Checkbox
+                        checked={capabilities.has(group.read)}
+                        label={t[
+                          'com.affine.integration.mcp-server.capability.read'
+                        ]()}
+                        onChange={(_, checked) =>
+                          toggleCapability(group.read, checked)
+                        }
+                      />
+                      <Checkbox
+                        checked={capabilities.has(group.write)}
+                        label={t[
+                          'com.affine.integration.mcp-server.capability.write'
+                        ]()}
+                        onChange={(_, checked) =>
+                          toggleCapability(group.write, checked)
+                        }
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
             <label className={styles.field}>
               <span>
                 {t['com.affine.integration.mcp-server.field.expiry']()}
@@ -149,7 +161,7 @@ export const McpCredentialModal = ({
             <Button onClick={onClose}>{t['Cancel']()}</Button>
             <Button
               variant="primary"
-              disabled={!name.trim() || submitting}
+              disabled={!name.trim() || !capabilities.size || submitting}
               loading={submitting}
               onClick={submit}
             >
@@ -167,10 +179,8 @@ export const McpCredentialModal = ({
           </div>
           <div className={styles.summary}>
             {revealed.credential.name} · {workspaceName} ·{' '}
-            {revealed.credential.accessMode === McpAccessMode.READ_WRITE
-              ? t['com.affine.integration.mcp-server.access.read-write']()
-              : t['com.affine.integration.mcp-server.access.read-only']()}{' '}
-            · {new Date(revealed.credential.expiresAt).toLocaleString()}
+            {revealed.credential.capabilities.join(', ')} ·{' '}
+            {new Date(revealed.credential.expiresAt).toLocaleString()}
           </div>
           {revealed.credential.graceEndsAt ? (
             <div className={styles.warning}>

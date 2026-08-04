@@ -1141,6 +1141,13 @@ source_id) DO NOTHING` loses the insert race, the model validates the
 
 ## Non-goals For First Slice
 
+The workspace MCP v2 surface exposes Agent Runtime run/list/adapter reads,
+approval/control, and the approval-gated document-update request through the
+existing resolver/model lifecycle. MCP does not introduce a new executor or
+bypass worker lease, approval, audit, cancellation, or execution-result ledger
+contracts; broader MCP-as-an-Agent-Runtime-executor work remains a separate
+future adapter slice.
+
 - full planner;
 - parallel tool scheduler;
 - Codex adapter execution;

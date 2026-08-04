@@ -3704,6 +3704,7 @@ input CreateCopilotContextRuleInput {
 
 input CreateMcpCredentialInput {
   accessMode: McpAccessMode! = READ_ONLY
+  capabilities: [String!]
   expirationDays: Int! = 90
   name: String!
   workspaceId: String!
@@ -4434,6 +4435,7 @@ enum McpCredentialStatus {
 
 type McpCredentialType {
   accessMode: McpAccessMode!
+  capabilities: [String!]!
   createdAt: DateTime!
   expiresAt: DateTime!
   fingerprint: String!

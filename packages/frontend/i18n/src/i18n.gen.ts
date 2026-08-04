@@ -8891,7 +8891,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.mcp-server.name"](): string;
     /**
-      * `Enable other MCP Client to search and read the doc of AFFiNE.`
+      * `Give external AI clients scoped access to LocalMind documents, whiteboards, workspace data, collaboration, AI context, chats, and operations.`
       */
     ["com.affine.integration.mcp-server.desc"](): string;
     /**
@@ -9015,7 +9015,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.mcp-server.field.label"](): string;
     /**
-      * `Access`
+      * `Capabilities`
       */
     ["com.affine.integration.mcp-server.field.access"](): string;
     /**
@@ -9088,6 +9088,86 @@ export function useAFFiNEI18N(): {
       * `Create and update documents`
       */
     ["com.affine.integration.mcp-server.capabilities.write"](): string;
+    /**
+      * `Read`
+      */
+    ["com.affine.integration.mcp-server.capability.read"](): string;
+    /**
+      * `Write`
+      */
+    ["com.affine.integration.mcp-server.capability.write"](): string;
+    /**
+      * `Documents`
+      */
+    ["com.affine.integration.mcp-server.capability.documents"](): string;
+    /**
+      * `Documents, structured blocks, Edgeless whiteboards, and databases.`
+      */
+    ["com.affine.integration.mcp-server.capability.documents.description"](): string;
+    /**
+      * `Workspace`
+      */
+    ["com.affine.integration.mcp-server.capability.workspace"](): string;
+    /**
+      * `Metadata, trash, tags, collections, folders, properties, favorites, and settings.`
+      */
+    ["com.affine.integration.mcp-server.capability.workspace.description"](): string;
+    /**
+      * `Assets`
+      */
+    ["com.affine.integration.mcp-server.capability.assets"](): string;
+    /**
+      * `Workspace files, blob uploads, multipart transfers, deletion, and release.`
+      */
+    ["com.affine.integration.mcp-server.capability.assets.description"](): string;
+    /**
+      * `Comments`
+      */
+    ["com.affine.integration.mcp-server.capability.comments"](): string;
+    /**
+      * `Document comments, replies, resolution, and attachments.`
+      */
+    ["com.affine.integration.mcp-server.capability.comments.description"](): string;
+    /**
+      * `Collaboration`
+      */
+    ["com.affine.integration.mcp-server.capability.collaboration"](): string;
+    /**
+      * `Publishing, grants, members, invitations, sharing settings, and workspace deletion.`
+      */
+    ["com.affine.integration.mcp-server.capability.collaboration.description"](): string;
+    /**
+      * `History`
+      */
+    ["com.affine.integration.mcp-server.capability.history"](): string;
+    /**
+      * `Durable document snapshots and content restoration.`
+      */
+    ["com.affine.integration.mcp-server.capability.history.description"](): string;
+    /**
+      * `AI Context`
+      */
+    ["com.affine.integration.mcp-server.capability.context"](): string;
+    /**
+      * `Settings, memories, rules, policies, projects, scopes, and planner history.`
+      */
+    ["com.affine.integration.mcp-server.capability.context.description"](): string;
+    /**
+      * `AI Chat`
+      */
+    ["com.affine.integration.mcp-server.capability.chat"](): string;
+    /**
+      * `Sessions, histories, messages, forks, updates, and cleanup.`
+      */
+    ["com.affine.integration.mcp-server.capability.chat.description"](): string;
+    /**
+      * `AI Operations`
+      */
+    ["com.affine.integration.mcp-server.capability.operations"](): string;
+    /**
+      * `Agent Runtime, repair, support bundles, registries, models, and provider health.`
+      */
+    ["com.affine.integration.mcp-server.capability.operations.description"](): string;
     /**
       * `Notes`
       */
