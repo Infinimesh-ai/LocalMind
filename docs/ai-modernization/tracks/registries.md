@@ -1684,6 +1684,34 @@ Implemented behavior:
    history path, so catalog diagnostics resolve the edited workspace revision
    before legacy/config fallback.
 
+## Implemented MCP Search Runtime Compatibility Repair
+
+Public MCP search now preserves its advertised document-search behavior when
+task routes use provider-default model selection or the optional full-text
+indexer is disabled.
+
+Implemented behavior:
+
+1. Serializable embedding and rerank execution-plan requests now materialize
+   the native contract's required `modelId` from the selected prepared provider
+   route when Task Policy leaves provider selection implicit, keeping the plan
+   contract aligned with the route that will execute.
+2. Embedding route context such as `featureKind=embedding` and
+   `featureKind=workspace_indexing` can therefore reach the existing native
+   dispatch path instead of failing execution-plan JSON Schema validation
+   before the provider call.
+3. MCP `keyword_search` catches only the explicit no-search-provider condition
+   and falls back to bounded-batch Markdown matching over the credential
+   actor's permission-filtered readable document ids.
+4. Workspace root/property documents that are readable but do not contain a
+   Markdown block map are skipped during fallback scanning, while unexpected
+   reader failures still fail closed.
+5. The normal indexer path and its block-level ranking/highlights remain
+   unchanged when a search provider is configured; unexpected indexer errors
+   still fail closed.
+6. Focused backend coverage reproduces the provider-default embedding/rerank
+   contract and the no-indexer MCP keyword-search path.
+
 ## Remaining Work
 
 - add Prompt Registry full audit/history views, richer diff/eval, and review

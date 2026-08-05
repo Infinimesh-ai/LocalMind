@@ -4634,12 +4634,12 @@ test('ExecutionPlanBuilder should build native prepared routes for structured, i
         provider,
         execution: { providerId: 'openai-primary', profile: {} as any },
         profile: {} as any,
-        modelId: 'text-embedding-3-small',
+        modelId: 'sparkclaw-embedding',
         preparedEmbedding: {
           route: preparedRoute({
             providerId: 'openai-primary',
             authToken: 'primary-key',
-            model: 'text-embedding-3-small',
+            model: 'sparkclaw-embedding',
           }),
           request: nativeEmbeddingRequest('hello'),
         },
@@ -4649,12 +4649,12 @@ test('ExecutionPlanBuilder should build native prepared routes for structured, i
         provider,
         execution: { providerId: 'openai-fallback', profile: {} as any },
         profile: {} as any,
-        modelId: 'text-embedding-3-small',
+        modelId: 'sparkclaw-embedding',
         preparedEmbedding: {
           route: preparedRoute({
             providerId: 'openai-fallback',
             authToken: 'fallback-key',
-            model: 'text-embedding-3-small',
+            model: 'sparkclaw-embedding',
           }),
           request: nativeEmbeddingRequest('hello'),
         },
@@ -4711,12 +4711,12 @@ test('ExecutionPlanBuilder should build native prepared routes for structured, i
         provider,
         execution: { providerId: 'openai-primary', profile: {} as any },
         profile: {} as any,
-        modelId: 'gpt-4o-mini',
+        modelId: 'sparkclaw-reranker',
         preparedRerank: {
           route: preparedRoute({
             providerId: 'openai-primary',
             authToken: 'primary-key',
-            model: 'gpt-4o-mini',
+            model: 'sparkclaw-reranker',
           }),
           request: nativeRerankRequest('programming', [
             { text: 'React is a UI library.' },
@@ -4728,12 +4728,12 @@ test('ExecutionPlanBuilder should build native prepared routes for structured, i
         provider,
         execution: { providerId: 'openai-fallback', profile: {} as any },
         profile: {} as any,
-        modelId: 'gpt-4o-mini',
+        modelId: 'sparkclaw-reranker',
         preparedRerank: {
           route: preparedRoute({
             providerId: 'openai-fallback',
             authToken: 'fallback-key',
-            model: 'gpt-4o-mini',
+            model: 'sparkclaw-reranker',
           }),
           request: nativeRerankRequest('programming', [
             { text: 'React is a UI library.' },
@@ -4779,12 +4779,12 @@ test('ExecutionPlanBuilder should build native prepared routes for structured, i
     },
   ]);
   const signal = new AbortController().signal;
-  const embeddingPlan = await builder.buildEmbeddingPlan(
-    'text-embedding-3-small',
-    'hello',
-    { signal, dimensions: 256 }
-  );
-  const rerankPlan = await builder.buildRerankPlan('gpt-4o-mini', {
+  const embeddingPlan = await builder.buildEmbeddingPlan(undefined, 'hello', {
+    signal,
+    dimensions: 256,
+    featureKind: 'workspace_indexing',
+  });
+  const rerankPlan = await builder.buildRerankPlan(undefined, {
     query: 'programming',
     candidates: [{ text: 'React is a UI library.' }],
   });
@@ -4878,7 +4878,19 @@ test('ExecutionPlanBuilder should build native prepared routes for structured, i
   const serializable = embeddingPlan.serializable!;
   t.deepEqual(serializable.request.options, {
     dimensions: 256,
+    featureKind: 'workspace_indexing',
   });
+  if (serializable.request.kind !== 'embedding') {
+    t.fail('Expected a serializable embedding request');
+    return;
+  }
+  t.is(serializable.request.modelId, 'sparkclaw-embedding');
+  const serializableRerank = rerankPlan.serializable?.request;
+  if (serializableRerank?.kind !== 'rerank') {
+    t.fail('Expected a serializable rerank request');
+    return;
+  }
+  t.is(serializableRerank.modelId, 'sparkclaw-reranker');
   t.is(serializable.routes.length, 2);
   t.deepEqual(serializable.routePolicy.fallbackOrder, [
     'openai-primary',

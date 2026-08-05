@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import test from 'ava';
 
+import { SearchProviderNotFound } from '../../base';
 import { createAssetMcpTools } from '../../plugins/copilot/mcp/asset-tools';
 import { createCollaborationMcpTools } from '../../plugins/copilot/mcp/collaboration-tools';
 import { createCommentMcpTools } from '../../plugins/copilot/mcp/comment-tools';
@@ -60,6 +61,91 @@ test('MCP document resources paginate every readable document', async t => {
     ]).size,
     205
   );
+});
+
+test('MCP keyword search falls back to readable Markdown without an indexer provider', async t => {
+  const readDocIds: string[] = [];
+  const surface = createDocumentMcpSurface(
+    {
+      ac: {
+        user: () => ({
+          workspace: () => ({
+            doc: () => ({ can: async () => true }),
+            docs: async () => {
+              throw new Error(
+                'Indexer results should not be filtered on fallback'
+              );
+            },
+          }),
+        }),
+      } as never,
+      permission: {
+        listReadableDocIds: async () => [
+          'workspace-root',
+          'doc-new',
+          'doc-old',
+        ],
+      } as never,
+      reader: {
+        getDocMarkdown: async (_workspaceId: string, docId: string) => {
+          readDocIds.push(docId);
+          if (docId === 'workspace-root') {
+            throw new Error('parser_error: blocks map not found');
+          }
+          return docId === 'doc-new'
+            ? {
+                title: 'August Daily Report',
+                markdown: 'Completed the public MCP deployment today.',
+              }
+            : {
+                title: 'Older notes',
+                markdown: 'The MCP deployment was planned last week.',
+              };
+        },
+      } as never,
+      writer: {} as never,
+      structured: {} as never,
+      context: {} as never,
+      indexer: {
+        searchDocsByKeyword: async () => {
+          throw new SearchProviderNotFound();
+        },
+      } as never,
+      models: {
+        doc: {
+          findTimestampsByDocIds: async () => ({
+            'doc-new': 2,
+            'doc-old': 1,
+          }),
+        },
+      } as never,
+      logger: new Logger('McpToolsTest'),
+    },
+    'user-1',
+    'workspace-1'
+  );
+  const tool = surface.readTools.find(tool => tool.name === 'keyword_search')!;
+
+  const result = await tool.execute(
+    { query: 'MCP deployment', limit: 1 },
+    { signal: new AbortController().signal }
+  );
+
+  t.false(result.isError ?? false);
+  t.deepEqual(readDocIds.sort(), ['doc-new', 'doc-old', 'workspace-root']);
+  t.deepEqual(result.structuredContent?.result, {
+    results: [
+      {
+        docId: 'doc-new',
+        blockId: null,
+        title: 'August Daily Report',
+        highlight:
+          'August Daily Report\nCompleted the public <b>MCP deployment</b> today.',
+        createdAt: null,
+        updatedAt: '1970-01-01T00:00:00.002Z',
+      },
+    ],
+  });
 });
 
 test('MCP workspace tool factories expose complete scoped surfaces', t => {

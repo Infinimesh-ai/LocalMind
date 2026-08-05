@@ -704,6 +704,7 @@ function buildSerializableRequest(
     case 'rerank':
       return {
         ...request,
+        modelId: request.modelId ?? 'auto',
         options: stripHostOnlyOptions(request.options),
       };
   }
@@ -1045,12 +1046,14 @@ export class ExecutionPlanBuilder {
     );
     this.executionMetrics.recordPlan('embedding', routes);
     const { nativeDispatch, transport } = buildEmbeddingPlanArtifacts(routes);
+    const resolvedModelId =
+      modelId ?? nativeDispatch?.embedding?.prepared.route.model;
     const plan = {
       transport,
       request: {
         kind: 'embedding',
-        cond: { modelId },
-        modelId,
+        cond: { modelId: resolvedModelId },
+        modelId: resolvedModelId,
         input,
         options,
       },
@@ -1092,12 +1095,14 @@ export class ExecutionPlanBuilder {
     );
     this.executionMetrics.recordPlan('rerank', routes);
     const { nativeDispatch, transport } = buildRerankPlanArtifacts(routes);
+    const resolvedModelId =
+      modelId ?? nativeDispatch?.rerank?.prepared.route.model;
     const plan = {
       transport,
       request: {
         kind: 'rerank',
-        cond: { modelId },
-        modelId,
+        cond: { modelId: resolvedModelId },
+        modelId: resolvedModelId,
         request,
         options,
       },

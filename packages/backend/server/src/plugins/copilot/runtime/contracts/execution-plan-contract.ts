@@ -90,14 +90,14 @@ export type SerializableExecutionPlanRequest =
   | {
       kind: 'embedding';
       cond: ModelConditions;
-      modelId?: string;
+      modelId: string;
       input: string | string[];
       options?: Record<string, unknown>;
     }
   | {
       kind: 'rerank';
       cond: ModelConditions;
-      modelId?: string;
+      modelId: string;
       request: {
         query: string;
         candidates: { id?: string; text: string }[];
