@@ -13,6 +13,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      sparkclaw_adapter:
+        condition: service_healthy
       affine_migration:
         condition: service_completed_successfully
     volumes:
@@ -25,6 +27,30 @@ services:
       - REDIS_SERVER_HOST=redis
       - DATABASE_URL=postgresql://${DB_USERNAME:-affine}:${DB_PASSWORD:-affine}@postgres:5432/${DB_DATABASE:-affine}
       - AFFINE_INDEXER_ENABLED=false
+    restart: unless-stopped
+
+  sparkclaw_adapter:
+    image: ${LOCALMIND_AFFINE_IMAGE:-localmind-affine:local}
+    container_name: localmind_sparkclaw_adapter
+    entrypoint: ['node']
+    command: ['/app/sparkclaw-adapter.mjs']
+    volumes:
+      - ./sparkclaw-adapter.mjs:/app/sparkclaw-adapter.mjs:ro
+    environment:
+      - SPARKCLAW_ADAPTER_PORT=3100
+      - SPARKCLAW_EMBEDDING_ORIGIN=https://sparkclaw.infinimesh.cloud/embedding
+      - SPARKCLAW_RERANK_ORIGIN=https://sparkclaw.infinimesh.cloud/reranker
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3100/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   affine_migration:

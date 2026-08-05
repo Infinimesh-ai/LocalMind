@@ -1709,7 +1709,10 @@ Implemented behavior:
 5. The normal indexer path and its block-level ranking/highlights remain
    unchanged when a search provider is configured; unexpected indexer errors
    still fail closed.
-6. Focused backend coverage reproduces the provider-default embedding/rerank
+6. The self-host Compose stack includes an internal-only Sparkclaw protocol
+   adapter so embedding dimension compatibility and rerank score translation
+   survive container and host restarts without exposing another public port.
+7. Focused backend coverage reproduces the provider-default embedding/rerank
    contract and the no-indexer MCP keyword-search path.
 
 ## Remaining Work
