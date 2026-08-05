@@ -1,11 +1,14 @@
 import { cssVar } from '@toeverything/theme';
 import { cssVarV2 } from '@toeverything/theme/v2';
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 
 export const stack = style({
   display: 'flex',
   flexDirection: 'column',
   gap: 24,
+  '@media': {
+    '(max-width: 520px)': { gap: 16 },
+  },
 });
 export const panel = style({
   border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
@@ -20,6 +23,18 @@ export const panelHeader = style({
   gap: 12,
   padding: '12px 16px',
   borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  '@media': {
+    '(max-width: 520px)': {
+      alignItems: 'stretch',
+      flexDirection: 'column',
+      padding: 12,
+    },
+  },
+});
+globalStyle(`${panelHeader} > button`, {
+  '@media': {
+    '(max-width: 520px)': { width: '100%' },
+  },
 });
 export const title = style({
   fontSize: cssVar('fontSm'),
@@ -30,6 +45,7 @@ export const description = style({
   fontSize: cssVar('fontXs'),
   lineHeight: '20px',
   color: cssVarV2('text/secondary'),
+  overflowWrap: 'anywhere',
 });
 export const empty = style({
   display: 'flex',
@@ -54,6 +70,13 @@ export const row = style({
   padding: '12px 16px',
   borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
   selectors: { '&:last-child': { borderBottom: 0 } },
+  '@media': {
+    '(max-width: 640px)': {
+      gridTemplateColumns: 'minmax(0, 1fr)',
+      alignItems: 'start',
+      padding: 12,
+    },
+  },
 });
 export const rowDisabled = style({
   opacity: 0.55,
@@ -67,11 +90,17 @@ export const rowMain = style({
 });
 export const rowTitle = style({
   display: 'flex',
+  minWidth: 0,
   alignItems: 'center',
+  flexWrap: 'wrap',
   gap: 8,
   fontSize: cssVar('fontSm'),
   fontWeight: 600,
   color: cssVarV2('text/primary'),
+});
+export const rowName = style({
+  minWidth: 0,
+  overflowWrap: 'anywhere',
 });
 export const tag = style({
   borderRadius: 999,
@@ -82,7 +111,19 @@ export const tag = style({
   color: cssVarV2('text/secondary'),
   background: cssVarV2('layer/background/secondary'),
 });
-export const rowActions = style({ display: 'flex', gap: 8 });
+export const rowActions = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 8,
+  '@media': {
+    '(max-width: 640px)': { width: '100%' },
+  },
+});
+globalStyle(`${rowActions} > button`, {
+  '@media': {
+    '(max-width: 640px)': { minWidth: 0, flex: 1 },
+  },
+});
 export const capabilities = style({
   display: 'grid',
   gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
@@ -99,14 +140,30 @@ export const capability = style({
   color: cssVarV2('text/secondary'),
   borderRight: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
   borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  overflowWrap: 'anywhere',
+  '@media': {
+    '(max-width: 640px)': { borderRight: 0 },
+  },
 });
 export const modal = style({
   width: 560,
   maxWidth: 'calc(100vw - 32px)',
+  maxHeight: 'calc(100dvh - 20px)',
   display: 'flex',
   flexDirection: 'column',
   gap: 16,
   padding: 20,
+  overflowX: 'hidden',
+  overflowY: 'auto',
+  overscrollBehavior: 'contain',
+  '@media': {
+    '(max-width: 520px)': {
+      maxWidth: 'calc(100vw - 16px)',
+      gap: 12,
+      padding: '16px 12px',
+      borderRadius: 8,
+    },
+  },
 });
 export const modalTitle = style({
   fontSize: 18,
@@ -151,6 +208,7 @@ export const capabilitySelectorRow = style({
 export const capabilitySelectorName = style({
   color: cssVarV2('text/primary'),
   fontWeight: 500,
+  overflowWrap: 'anywhere',
 });
 export const capabilitySelectorChecks = style({
   display: 'grid',
@@ -174,6 +232,7 @@ export const fixedValue = style({
   color: cssVarV2('text/primary'),
 });
 export const select = style({
+  width: '100%',
   height: 32,
   borderRadius: 8,
   border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
@@ -187,15 +246,19 @@ export const warning = style({
   background: cssVarV2('layer/background/secondary'),
   color: cssVarV2('text/primary'),
   fontSize: cssVar('fontXs'),
+  overflowWrap: 'anywhere',
 });
 export const summary = style({
   fontSize: cssVar('fontXs'),
   color: cssVarV2('text/secondary'),
+  overflowWrap: 'anywhere',
 });
 export const codeHeader = style({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
+  flexWrap: 'wrap',
+  gap: 8,
   fontSize: cssVar('fontSm'),
   fontWeight: 600,
 });
@@ -213,6 +276,12 @@ export const preArea = style({
 });
 export const modalActions = style({
   display: 'flex',
+  flexWrap: 'wrap',
   justifyContent: 'flex-end',
   gap: 8,
+});
+globalStyle(`${modalActions} > button`, {
+  '@media': {
+    '(max-width: 520px)': { minWidth: 0, flex: 1 },
+  },
 });

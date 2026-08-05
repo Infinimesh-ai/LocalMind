@@ -2224,7 +2224,7 @@
   "com.affine.integration.calendar.no-journal": "未找到 {{date}} 的日记页面。请先创建日记页面。",
   "com.affine.integration.calendar.no-calendar": "尚未订阅日历。",
   "com.affine.integration.mcp-server.name": "MCP服务器",
-  "com.affine.integration.mcp-server.desc": "为外部 AI 客户端授予 LocalMind 文档、白板、工作区数据、协作、AI 上下文、聊天和运维能力的细粒度权限。",
+  "com.affine.integration.mcp-server.desc": "通过细粒度工作区权限，将外部 AI 客户端连接到 LocalMind。",
   "com.affine.integration.mcp-server.copy-json.disabled-hint": "MCP token 仅显示一次。请删除并重新创建，以复制 JSON 配置。",
   "com.affine.integration.mcp-server.credentials.title": "凭证",
   "com.affine.integration.mcp-server.credentials.description": "为每个 MCP 客户端使用独立凭证，以便单独吊销。",

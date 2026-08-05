@@ -2226,7 +2226,7 @@
   "com.affine.integration.calendar.no-journal": "No journal page found for {{date}}. Please create a journal page first.",
   "com.affine.integration.calendar.no-calendar": "No subscribed calendars yet.",
   "com.affine.integration.mcp-server.name": "MCP Server",
-  "com.affine.integration.mcp-server.desc": "Give external AI clients scoped access to LocalMind documents, whiteboards, workspace data, collaboration, AI context, chats, and operations.",
+  "com.affine.integration.mcp-server.desc": "Connect external AI clients to LocalMind with fine-grained workspace permissions.",
   "com.affine.integration.mcp-server.copy-json.disabled-hint": "The MCP token is shown only once. Delete and recreate it to copy the JSON configuration.",
   "com.affine.integration.mcp-server.credentials.title": "Credentials",
   "com.affine.integration.mcp-server.credentials.description": "Use a separate credential for each MCP client so it can be revoked independently.",

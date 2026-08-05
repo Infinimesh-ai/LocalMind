@@ -12,4 +12,9 @@ export const list = style({
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(175px, 1fr))',
   gap: '16px',
+  '@media': {
+    'screen and (max-width: 520px)': {
+      gridTemplateColumns: 'minmax(0, 1fr)',
+    },
+  },
 });

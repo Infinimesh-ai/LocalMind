@@ -12,12 +12,51 @@ export const settingSlideBar = style({
   flexDirection: 'column',
   gap: '16px',
   overflowY: 'auto',
+  '@media': {
+    'screen and (max-width: 640px)': {
+      width: '100%',
+      maxWidth: 'none',
+      height: 'auto',
+      padding: '12px 48px 12px 12px',
+      gap: 8,
+      overflow: 'visible',
+      borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+    },
+  },
 });
 export const sidebarTitle = style({
   fontSize: cssVar('fontH6'),
   fontWeight: '600',
   lineHeight: cssVar('lineHeight'),
   padding: '0 8px',
+});
+export const mobileNav = style({
+  display: 'none',
+  '@media': {
+    'screen and (max-width: 640px)': {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8,
+    },
+  },
+});
+export const mobileNavSelect = style({
+  width: '100%',
+  height: 36,
+  padding: '0 10px',
+  borderRadius: 8,
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  background: cssVarV2('layer/background/primary'),
+  color: cssVarV2('text/primary'),
+  fontSize: cssVar('fontSm'),
+});
+export const desktopNav = style({
+  display: 'contents',
+  '@media': {
+    'screen and (max-width: 640px)': {
+      display: 'none',
+    },
+  },
 });
 export const sidebarSubtitle = style({
   fontSize: cssVar('fontSm'),

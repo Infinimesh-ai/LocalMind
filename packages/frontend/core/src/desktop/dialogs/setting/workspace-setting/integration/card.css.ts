@@ -65,6 +65,12 @@ export const cardStatus = style({
 export const cardDesc = style([
   spaceY,
   {
+    minWidth: 0,
+    overflow: 'hidden',
+    display: '-webkit-box',
+    WebkitBoxOrient: 'vertical',
+    WebkitLineClamp: 4,
+    overflowWrap: 'anywhere',
     fontSize: 12,
     lineHeight: '20px',
     fontWeight: 400,

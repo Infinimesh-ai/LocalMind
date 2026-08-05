@@ -70,7 +70,9 @@ export const IntegrationCardContent = ({
 }) => {
   return (
     <div className={clsx(cardContent, className)} {...props}>
-      <div className={cardDesc}>{desc}</div>
+      <div className={cardDesc} title={desc}>
+        {desc}
+      </div>
     </div>
   );
 };

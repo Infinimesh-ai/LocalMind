@@ -223,7 +223,7 @@ export const McpServerSettingPanel = () => {
               >
                 <div className={styles.rowMain}>
                   <div className={styles.rowTitle}>
-                    {credential.name}
+                    <span className={styles.rowName}>{credential.name}</span>
                     <span className={styles.tag}>
                       {statusLabel(credential.status)}
                     </span>

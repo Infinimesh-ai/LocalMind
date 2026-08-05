@@ -282,6 +282,7 @@ export const SettingDialog = ({
       height={920}
       contentOptions={{
         ['data-testid' as string]: 'setting-modal',
+        className: style.settingModal,
         style: {
           maxHeight: '85vh',
           maxWidth: 'calc(100dvw - 100px)',

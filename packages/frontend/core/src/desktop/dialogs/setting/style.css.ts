@@ -1,9 +1,26 @@
 import { cssVar } from '@toeverything/theme';
 import { style } from '@vanilla-extract/css';
+
+export const settingModal = style({
+  '@media': {
+    'screen and (max-width: 640px)': {
+      flexDirection: 'column',
+      borderRadius: 8,
+      maxWidth: 'calc(100dvw - 16px) !important',
+      maxHeight: 'calc(100dvh - 16px) !important',
+    },
+  },
+});
+
 export const wrapper = style({
   height: '100%',
   padding: '40px 15px 20px 15px',
   display: 'flex',
+  '@media': {
+    'screen and (max-width: 640px)': {
+      padding: '20px 12px 16px',
+    },
+  },
 });
 export const centerContainer = style({
   width: '100%',
@@ -18,6 +35,12 @@ export const content = style({
   marginBottom: '24px',
   minHeight: 'calc(var(--setting-modal-height) - 124px)',
   maxWidth: '560px',
+  '@media': {
+    'screen and (max-width: 640px)': {
+      minHeight: 'auto',
+      marginBottom: 16,
+    },
+  },
 });
 export const suggestionLink = style({
   fontSize: cssVar('fontSm'),

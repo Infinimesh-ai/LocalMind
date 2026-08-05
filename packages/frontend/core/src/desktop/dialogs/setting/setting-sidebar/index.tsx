@@ -166,7 +166,8 @@ export const SettingSidebar = ({
   onTabChange: (key: SettingTab) => void;
 }) => {
   const t = useI18n();
-  const loginStatus = useLiveData(useService(AuthService).session.status$);
+  const authService = useService(AuthService);
+  const loginStatus = useLiveData(authService.session.status$);
   const generalList = useGeneralSettingList();
   const workspaceSettingList = useWorkspaceSettingList();
   const gotoTab = useCallback(
@@ -215,29 +216,55 @@ export const SettingSidebar = ({
         {t['com.affine.settingSidebar.title']()}
       </div>
 
-      {loginStatus === 'unauthenticated' ? <SignInButton /> : null}
-      {loginStatus === 'authenticated' ? (
-        <Suspense>
-          <UserInfo
-            onAccountSettingClick={onAccountSettingClick}
-            active={activeTab === 'account'}
-            onTabChange={onTabChange}
-          />
-        </Suspense>
-      ) : null}
-
-      <Scrollable.Root>
-        <Scrollable.Viewport>
+      <div className={style.mobileNav}>
+        <select
+          aria-label={t['com.affine.settingSidebar.title']()}
+          className={style.mobileNavSelect}
+          value={activeTab}
+          onChange={event => gotoTab(event.currentTarget.value as SettingTab)}
+        >
+          {loginStatus === 'authenticated' ? (
+            <option value="account">{t['com.affine.setting.account']()}</option>
+          ) : null}
           {groups.map(group => (
-            <SettingSidebarGroup
-              key={group.key}
-              title={group.title}
-              items={group.items}
-            />
+            <optgroup label={group.title} key={group.key}>
+              {group.items.map(item => (
+                <option value={item.key} key={item.key}>
+                  {item.title}
+                  {item.beta ? ' (Beta)' : ''}
+                </option>
+              ))}
+            </optgroup>
           ))}
-          <Scrollable.Scrollbar />
-        </Scrollable.Viewport>
-      </Scrollable.Root>
+        </select>
+        {loginStatus === 'unauthenticated' ? <SignInButton /> : null}
+      </div>
+
+      <div className={style.desktopNav}>
+        {loginStatus === 'unauthenticated' ? <SignInButton /> : null}
+        {loginStatus === 'authenticated' ? (
+          <Suspense>
+            <UserInfo
+              onAccountSettingClick={onAccountSettingClick}
+              active={activeTab === 'account'}
+              onTabChange={onTabChange}
+            />
+          </Suspense>
+        ) : null}
+
+        <Scrollable.Root>
+          <Scrollable.Viewport>
+            {groups.map(group => (
+              <SettingSidebarGroup
+                key={group.key}
+                title={group.title}
+                items={group.items}
+              />
+            ))}
+            <Scrollable.Scrollbar />
+          </Scrollable.Viewport>
+        </Scrollable.Root>
+      </div>
     </div>
   );
 };
