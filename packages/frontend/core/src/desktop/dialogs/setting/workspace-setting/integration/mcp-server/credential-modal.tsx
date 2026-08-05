@@ -1,6 +1,7 @@
 import { Button, Checkbox, Input, Modal, notify } from '@affine/component';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import type { McpCredential } from '@affine/core/modules/cloud/services/mcp-credential';
+import { copyTextToClipboard } from '@affine/core/utils/clipboard';
 import { useI18n } from '@affine/i18n';
 import { useEffect, useState } from 'react';
 
@@ -50,8 +51,12 @@ export const McpCredentialModal = ({
 
   const copy = useAsyncCallback(
     async (value: string) => {
-      await navigator.clipboard.writeText(value);
-      notify.success({ title: t['Copied to clipboard']() });
+      const copied = await copyTextToClipboard(value);
+      if (copied) {
+        notify.success({ title: t['Copied to clipboard']() });
+      } else {
+        notify.error({ title: 'Copy failed, please try again later' });
+      }
     },
     [t]
   );
