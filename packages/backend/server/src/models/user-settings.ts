@@ -16,6 +16,7 @@ export const UserSettingsSchema = z.object({
   receiveInvitationEmail: z.boolean().default(true),
   receiveMentionEmail: z.boolean().default(true),
   receiveCommentEmail: z.boolean().default(true),
+  receiveSparkClawNotifications: z.boolean().default(true),
 });
 
 export type UserSettingsInput = z.input<typeof UserSettingsSchema>;

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mock } from 'node:test';
 
+import { PrismaClient } from '@prisma/client';
 import test from 'ava';
 
 import { createModule } from '../../__tests__/create-module';
@@ -17,10 +18,25 @@ import {
 
 const module = await createModule();
 const models = module.get(Models);
+const db = module.get(PrismaClient);
 let user: User;
 let createdBy: User;
 let workspace: Workspace;
 let docId: string;
+
+async function createSparkClawEndpoint(status = 'active') {
+  const deviceId = `sparkclaw-${randomUUID()}`;
+  return await db.iscpAgentEndpoint.create({
+    data: {
+      userId: user.id,
+      deviceId,
+      domainId: 'localmind',
+      identity: { device_id: deviceId },
+      thumbprint: `thumbprint-${deviceId}`,
+      status,
+    },
+  });
+}
 
 test.beforeEach(async () => {
   user = await module.create(Mockers.User);
@@ -93,6 +109,157 @@ test('should create a mention notification with custom level', async t => {
   t.is(notification.type, NotificationType.Mention);
   t.is(notification.read, false);
 });
+
+test('should create SparkClaw outbox deliveries with mention notification atomically', async t => {
+  const active = await createSparkClawEndpoint();
+  const offline = await createSparkClawEndpoint('offline');
+  await createSparkClawEndpoint('revoked');
+
+  const notification = await models.notification.createMention({
+    userId: user.id,
+    body: {
+      workspaceId: workspace.id,
+      doc: {
+        id: docId,
+        title: 'doc-title',
+        blockId: 'blockId',
+        mode: DocMode.page,
+      },
+      createdByUserId: createdBy.id,
+    },
+  });
+
+  const deliveries = await db.notificationDelivery.findMany({
+    where: { notificationId: notification.id },
+  });
+  t.deepEqual(
+    deliveries.map(delivery => delivery.endpointId).sort(),
+    [active.id, offline.id].sort()
+  );
+  t.true(deliveries.every(delivery => delivery.status === 'pending'));
+});
+
+test('should not create SparkClaw deliveries when the recipient disabled them', async t => {
+  await createSparkClawEndpoint();
+  await models.userSettings.set(user.id, {
+    receiveSparkClawNotifications: false,
+  });
+
+  const notification = await models.notification.createMention({
+    userId: user.id,
+    body: {
+      workspaceId: workspace.id,
+      doc: {
+        id: docId,
+        title: 'doc-title',
+        blockId: 'blockId',
+        mode: DocMode.page,
+      },
+      createdByUserId: createdBy.id,
+    },
+  });
+
+  t.is(
+    await db.notificationDelivery.count({
+      where: { notificationId: notification.id },
+    }),
+    0
+  );
+});
+
+test.serial(
+  'should claim, retry and complete a SparkClaw delivery',
+  async t => {
+    await createSparkClawEndpoint();
+    const notification = await models.notification.createMention({
+      userId: user.id,
+      body: {
+        workspaceId: workspace.id,
+        doc: {
+          id: docId,
+          title: 'doc-title',
+          blockId: 'blockId',
+          mode: DocMode.page,
+        },
+        createdByUserId: createdBy.id,
+      },
+    });
+    const expected = await db.notificationDelivery.findFirstOrThrow({
+      where: { notificationId: notification.id },
+    });
+
+    const firstClaims = await models.iscp.claimReadyDeliveries('worker-1', {
+      batchSize: 1000,
+      leaseMs: 60_000,
+    });
+    const first = firstClaims.find(delivery => delivery.id === expected.id);
+    t.truthy(first);
+    t.is(first?.attempts, 1);
+
+    await models.iscp.markDeliveryRetry(
+      expected.id,
+      'worker-1',
+      new Date(),
+      'temporary failure'
+    );
+    const secondClaims = await models.iscp.claimReadyDeliveries('worker-2', {
+      batchSize: 1000,
+      leaseMs: 60_000,
+    });
+    const second = secondClaims.find(delivery => delivery.id === expected.id);
+    t.is(second?.attempts, 2);
+
+    await models.iscp.markDeliveryDelivered(
+      expected.id,
+      'worker-2',
+      'operation-1'
+    );
+    const delivered = await db.notificationDelivery.findUniqueOrThrow({
+      where: { id: expected.id },
+    });
+    t.is(delivered.status, 'delivered');
+    t.is(delivered.operationId, 'operation-1');
+    t.truthy(delivered.deliveredAt);
+  }
+);
+
+test.serial(
+  'should reclaim a final-attempt delivery after its worker lease expires',
+  async t => {
+    await createSparkClawEndpoint();
+    const notification = await models.notification.createMention({
+      userId: user.id,
+      body: {
+        workspaceId: workspace.id,
+        doc: {
+          id: docId,
+          title: 'doc-title',
+          mode: DocMode.page,
+        },
+        createdByUserId: createdBy.id,
+      },
+    });
+    const delivery = await db.notificationDelivery.findFirstOrThrow({
+      where: { notificationId: notification.id },
+    });
+    await db.notificationDelivery.update({
+      where: { id: delivery.id },
+      data: {
+        status: 'processing',
+        attempts: delivery.maxAttempts,
+        lockedBy: 'dead-worker',
+        lockedUntil: new Date(Date.now() - 1000),
+      },
+    });
+
+    const claims = await models.iscp.claimReadyDeliveries('recovery-worker', {
+      batchSize: 1000,
+      leaseMs: 60_000,
+    });
+    const reclaimed = claims.find(claim => claim.id === delivery.id);
+    t.is(reclaimed?.attempts, delivery.maxAttempts);
+  }
+);
 
 test('should mark a mention notification as read', async t => {
   const notification = await models.notification.createMention({

@@ -27,6 +27,10 @@ services:
       - REDIS_SERVER_HOST=redis
       - DATABASE_URL=postgresql://${DB_USERNAME:-affine}:${DB_PASSWORD:-affine}@postgres:5432/${DB_DATABASE:-affine}
       - AFFINE_INDEXER_ENABLED=false
+      - ISCP_ENABLED=${ISCP_ENABLED:-false}
+      - ISCP_CONTROLLER_URL=http://iscp_controller:8091
+      - ISCP_CONTROLLER_TOKEN=${ISCP_CONTROLLER_TOKEN:-}
+      - ISCP_DOMAIN_ID=${ISCP_DOMAIN_ID:-localmind}
     restart: unless-stopped
 
   sparkclaw_adapter:
@@ -51,6 +55,65 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+
+  iscp_controller:
+    profiles:
+      - iscp
+    image: ${LOCALMIND_ISCP_IMAGE:-localmind-iscp:local}
+    build:
+      context: ../..
+      dockerfile: services/iscp-controller/Dockerfile
+      target: controller
+    container_name: localmind_iscp_controller
+    ports:
+      - '127.0.0.1:${ISCP_CONTROLLER_PORT:-8091}:8091'
+    environment:
+      - ISCP_DATABASE_URL=postgresql://${DB_USERNAME:-affine}:${DB_PASSWORD:-affine}@postgres:5432/${DB_DATABASE:-affine}
+      - ISCP_CONTROLLER_TOKEN=${ISCP_CONTROLLER_TOKEN:?Set ISCP_CONTROLLER_TOKEN to at least 32 random characters}
+      - ISCP_DOMAIN_ID=${ISCP_DOMAIN_ID:-localmind}
+      - ISCP_RELAY_ID=${ISCP_RELAY_ID:-localmind-relay}
+      - ISCP_RELAY_INTERNAL_BASE_URL=http://iscp_relay:8080
+      - ISCP_RELAY_INTERNAL_WS_URL=ws://iscp_relay:8080/v2/relay/connect
+      - ISCP_RELAY_PUBLIC_BASE_URL=${ISCP_RELAY_PUBLIC_BASE_URL:?Set the public HTTPS ISCP base URL}
+      - ISCP_RELAY_PUBLIC_WS_URL=${ISCP_RELAY_PUBLIC_WS_URL:?Set the public WSS Relay URL}
+      - ISCP_STATE_DIR=/var/lib/localmind-iscp
+    volumes:
+      - iscp_state:/var/lib/localmind-iscp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      iscp_relay:
+        condition: service_started
+    healthcheck:
+      test: ['CMD', '/usr/local/bin/iscp-controller', 'healthcheck']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  iscp_relay:
+    profiles:
+      - iscp
+    image: ${LOCALMIND_ISCP_IMAGE:-localmind-iscp:local}
+    build:
+      context: ../..
+      dockerfile: services/iscp-controller/Dockerfile
+      target: relay
+    container_name: localmind_iscp_relay
+    ports:
+      - '127.0.0.1:${ISCP_RELAY_PORT:-8080}:8080'
+    environment:
+      - ISCP_PROFILE=production
+      - ISCP_DATABASE_URL=postgresql://${DB_USERNAME:-affine}:${DB_PASSWORD:-affine}@postgres:5432/${DB_DATABASE:-affine}
+      - ISCP_DOMAIN_ID=${ISCP_DOMAIN_ID:-localmind}
+      - ISCP_RELAY_ID=${ISCP_RELAY_ID:-localmind-relay}
+      - ISCP_RELAY_BASE_URL=${ISCP_RELAY_PUBLIC_BASE_URL:?Set the public HTTPS ISCP base URL}
+      - ISCP_RELAY_WS_URL=${ISCP_RELAY_PUBLIC_WS_URL:?Set the public WSS Relay URL}
+      - ISCP_ALLOWED_ORIGINS=${ISCP_ALLOWED_ORIGINS:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   affine_migration:
@@ -167,3 +230,6 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+
+volumes:
+  iscp_state:

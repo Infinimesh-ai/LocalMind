@@ -45,6 +45,8 @@ model User {
   createdAiJobs                         AiJobs[]                               @relation("createdAiJobs")
   // receive notifications
   notifications                         Notification[]                         @relation("user_notifications")
+  iscpAgentEndpoints                    IscpAgentEndpoint[]
+  iscpEnrollments                       IscpEnrollment[]
   settings                              UserSettings?
   comments                              Comment[]
   replies                               Reply[]
@@ -2338,11 +2340,77 @@ model Notification {
   type      NotificationType
   body      Json              @db.JsonB
 
-  user User @relation(name: "user_notifications", fields: [userId], references: [id], onDelete: Cascade)
+  user       User                   @relation(name: "user_notifications", fields: [userId], references: [id], onDelete: Cascade)
+  deliveries NotificationDelivery[]
 
   // for user notifications list, including read and unread, ordered by createdAt
   @@index([userId, createdAt, read])
   @@map("notifications")
+}
+
+model IscpAgentEndpoint {
+  id             String    @id @default(uuid()) @db.VarChar
+  userId         String    @map("user_id") @db.VarChar
+  deviceId       String    @unique @map("device_id") @db.VarChar
+  domainId       String    @map("domain_id") @db.VarChar
+  identity       Json      @db.JsonB
+  thumbprint     String    @db.VarChar
+  status         String    @default("active") @db.VarChar
+  sparkSessionId String?   @map("spark_session_id") @db.VarChar
+  lastSeenAt     DateTime? @map("last_seen_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries NotificationDelivery[]
+
+  @@index([userId, status])
+  @@map("iscp_agent_endpoints")
+}
+
+model IscpEnrollment {
+  id                 String    @id @default(uuid()) @db.VarChar
+  userId             String    @map("user_id") @db.VarChar
+  pairingTokenHash   String    @unique @map("pairing_token_hash") @db.VarChar
+  deviceId           String    @unique @map("device_id") @db.VarChar
+  status             String    @default("pending") @db.VarChar
+  request            Json?     @db.JsonB
+  expiresAt          DateTime  @map("expires_at") @db.Timestamptz(3)
+  bundleDownloadedAt DateTime? @map("bundle_downloaded_at") @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([expiresAt])
+  @@map("iscp_enrollments")
+}
+
+model NotificationDelivery {
+  id             String    @id @default(uuid()) @db.VarChar
+  notificationId String    @map("notification_id") @db.VarChar
+  endpointId     String    @map("endpoint_id") @db.VarChar
+  status         String    @default("pending") @db.VarChar
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(8) @map("max_attempts")
+  nextAttemptAt  DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  lockedBy       String?   @map("locked_by") @db.VarChar
+  lockedUntil    DateTime? @map("locked_until") @db.Timestamptz(3)
+  operationId    String?   @map("operation_id") @db.VarChar
+  lastError      String?   @map("last_error") @db.Text
+  deliveredAt    DateTime? @map("delivered_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  notification Notification      @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  endpoint     IscpAgentEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, endpointId])
+  @@index([status, nextAttemptAt, lockedUntil])
+  @@index([endpointId, status])
+  @@map("notification_deliveries")
 }
 
 model UserSettings {

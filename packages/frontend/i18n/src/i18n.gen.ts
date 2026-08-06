@@ -5048,6 +5048,18 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.setting.notifications.email.comments.subtitle"](): string;
     /**
+      * `SparkClaw notifications`
+      */
+    ["com.affine.setting.notifications.sparkclaw.title"](): string;
+    /**
+      * `Mentions`
+      */
+    ["com.affine.setting.notifications.sparkclaw.mention.title"](): string;
+    /**
+      * `Send document and comment mentions to your connected SparkClaw devices.`
+      */
+    ["com.affine.setting.notifications.sparkclaw.mention.subtitle"](): string;
+    /**
       * `Account settings`
       */
     ["com.affine.setting.account"](): string;
@@ -8887,11 +8899,47 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.calendar.no-calendar"](): string;
     /**
+      * `SparkClaw`
+      */
+    ["com.affine.integration.sparkclaw.name"](): string;
+    /**
+      * `Connect`
+      */
+    ["com.affine.integration.sparkclaw.connect"](): string;
+    /**
+      * `Connect SparkClaw`
+      */
+    ["com.affine.integration.sparkclaw.connect-title"](): string;
+    /**
+      * `SparkClaw device`
+      */
+    ["com.affine.integration.sparkclaw.device"](): string;
+    /**
+      * `Disconnect`
+      */
+    ["com.affine.integration.sparkclaw.disconnect"](): string;
+    /**
+      * `No SparkClaw devices connected yet.`
+      */
+    ["com.affine.integration.sparkclaw.empty"](): string;
+    /**
+      * `Failed to load SparkClaw devices`
+      */
+    ["com.affine.integration.sparkclaw.load-error"](): string;
+    /**
+      * `Failed to start SparkClaw pairing`
+      */
+    ["com.affine.integration.sparkclaw.connect-error"](): string;
+    /**
+      * `Failed to disconnect SparkClaw`
+      */
+    ["com.affine.integration.sparkclaw.disconnect-error"](): string;
+    /**
       * `MCP Server`
       */
     ["com.affine.integration.mcp-server.name"](): string;
     /**
-      * `Give external AI clients scoped access to LocalMind documents, whiteboards, workspace data, collaboration, AI context, chats, and operations.`
+      * `Connect external AI clients to LocalMind with fine-grained workspace permissions.`
       */
     ["com.affine.integration.mcp-server.desc"](): string;
     /**

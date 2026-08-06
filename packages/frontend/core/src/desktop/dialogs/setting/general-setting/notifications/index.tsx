@@ -107,6 +107,25 @@ export const NotificationSettings = () => {
           />
         </SettingRow>
       </SettingWrapper>
+      <SettingWrapper
+        title={t['com.affine.setting.notifications.sparkclaw.title']()}
+      >
+        <SettingRow
+          name={t['com.affine.setting.notifications.sparkclaw.mention.title']()}
+          desc={t[
+            'com.affine.setting.notifications.sparkclaw.mention.subtitle'
+          ]()}
+        >
+          <Switch
+            data-testid="notification-sparkclaw-mention-trigger"
+            checked={userSettings?.receiveSparkClawNotifications ?? false}
+            disabled={disable}
+            onChange={checked =>
+              handleUpdate('receiveSparkClawNotifications', checked)
+            }
+          />
+        </SettingRow>
+      </SettingWrapper>
     </>
   );
 };

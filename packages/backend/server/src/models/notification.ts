@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Transactional } from '@nestjs-cls/transactional';
 import {
   Notification,
   NotificationLevel,
@@ -156,6 +157,7 @@ export type UnionNotification =
 export class NotificationModel extends BaseModel {
   // #region mention
 
+  @Transactional()
   async createMention(input: MentionNotificationCreate) {
     const data = MentionNotificationCreateSchema.parse(input);
     const row = await this.create({
@@ -164,6 +166,7 @@ export class NotificationModel extends BaseModel {
       type: NotificationType.Mention,
       body: data.body,
     });
+    await this.createIscpDeliveries(row.id, data.userId);
     this.logger.debug(
       `Created mention notification:${row.id} for user:${data.userId} in workspace:${data.body.workspaceId}`
     );
@@ -227,6 +230,7 @@ export class NotificationModel extends BaseModel {
     return row as CommentNotification;
   }
 
+  @Transactional()
   async createCommentMention(input: CommentNotificationCreate) {
     const data = CommentMentionNotificationCreateSchema.parse(input);
     const type = NotificationType.CommentMention;
@@ -236,6 +240,7 @@ export class NotificationModel extends BaseModel {
       type,
       body: data.body,
     });
+    await this.createIscpDeliveries(row.id, data.userId);
     this.logger.debug(
       `Created ${type} notification ${row.id} to user ${data.userId} in workspace ${data.body.workspaceId}`
     );
@@ -249,6 +254,23 @@ export class NotificationModel extends BaseModel {
   private async create(data: Prisma.NotificationUncheckedCreateInput) {
     return await this.db.notification.create({
       data,
+    });
+  }
+
+  private async createIscpDeliveries(notificationId: string, userId: string) {
+    const settings = await this.models.userSettings.get(userId);
+    if (!settings.receiveSparkClawNotifications) return;
+    const endpoints = await this.db.iscpAgentEndpoint.findMany({
+      where: { userId, status: { not: 'revoked' } },
+      select: { id: true },
+    });
+    if (!endpoints.length) return;
+    await this.db.notificationDelivery.createMany({
+      data: endpoints.map(endpoint => ({
+        notificationId,
+        endpointId: endpoint.id,
+      })),
+      skipDuplicates: true,
     });
   }
 

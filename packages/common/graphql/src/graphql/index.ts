@@ -7222,6 +7222,7 @@ export const getUserSettingsQuery = {
       receiveInvitationEmail
       receiveMentionEmail
       receiveCommentEmail
+      receiveSparkClawNotifications
     }
   }
 }`,
@@ -7480,6 +7481,41 @@ export const invoicesQuery = {
       reason
       lastPaymentError
       link
+      createdAt
+    }
+  }
+}`,
+};
+
+export const createSparkClawPairingMutation = {
+  id: 'createSparkClawPairingMutation' as const,
+  op: 'createSparkClawPairing',
+  query: `mutation createSparkClawPairing {
+  createSparkClawPairing {
+    command
+    expiresAt
+  }
+}`,
+};
+
+export const disconnectSparkClawEndpointMutation = {
+  id: 'disconnectSparkClawEndpointMutation' as const,
+  op: 'disconnectSparkClawEndpoint',
+  query: `mutation disconnectSparkClawEndpoint($endpointId: ID!) {
+  disconnectSparkClawEndpoint(endpointId: $endpointId)
+}`,
+};
+
+export const sparkClawEndpointsQuery = {
+  id: 'sparkClawEndpointsQuery' as const,
+  op: 'sparkClawEndpoints',
+  query: `query sparkClawEndpoints {
+  currentUser {
+    sparkClawEndpoints {
+      id
+      deviceId
+      status
+      lastSeenAt
       createdAt
     }
   }

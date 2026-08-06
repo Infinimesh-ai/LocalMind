@@ -174,6 +174,7 @@ export interface UserSettingsSnapshot {
   receiveInvitationEmail: boolean;
   receiveMentionEmail: boolean;
   receiveCommentEmail: boolean;
+  receiveSparkClawNotifications: boolean;
 }
 
 export type CommentChangeActionSnapshot = 'update' | 'delete';

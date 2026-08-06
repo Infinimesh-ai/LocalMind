@@ -5124,6 +5124,7 @@ export interface Mutation {
   createMcpCredential: RevealedMcpCredentialType;
   createReply: ReplyObjectType;
   createSelfhostWorkspaceCustomerPortal: Scalars['String']['output'];
+  createSparkClawPairing: SparkClawPairingType;
   /** Create a new user */
   createUser: UserType;
   /** Create a new workspace */
@@ -5147,6 +5148,7 @@ export interface Mutation {
   deleteUser: DeleteAccount;
   deleteWorkspace: Scalars['Boolean']['output'];
   deleteWorkspaceByokConfig: Scalars['Boolean']['output'];
+  disconnectSparkClawEndpoint: Scalars['Boolean']['output'];
   /** Reenable an banned user */
   enableUser: UserType;
   /** Create a chat session */
@@ -5522,6 +5524,10 @@ export interface MutationDeleteWorkspaceArgs {
 export interface MutationDeleteWorkspaceByokConfigArgs {
   id: Scalars['ID']['input'];
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationDisconnectSparkClawEndpointArgs {
+  endpointId: Scalars['ID']['input'];
 }
 
 export interface MutationEnableUserArgs {
@@ -6532,6 +6538,21 @@ export interface SpaceShouldHaveOnlyOneOwnerDataType {
   spaceId: Scalars['String']['output'];
 }
 
+export interface SparkClawEndpointType {
+  __typename?: 'SparkClawEndpointType';
+  createdAt: Scalars['DateTime']['output'];
+  deviceId: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  lastSeenAt: Maybe<Scalars['DateTime']['output']>;
+  status: Scalars['String']['output'];
+}
+
+export interface SparkClawPairingType {
+  __typename?: 'SparkClawPairingType';
+  command: Scalars['String']['output'];
+  expiresAt: Scalars['DateTime']['output'];
+}
+
 export interface SsrfBlockedErrorDataType {
   __typename?: 'SsrfBlockedErrorDataType';
   reason: Scalars['String']['output'];
@@ -6844,6 +6865,8 @@ export interface UpdateUserSettingsInput {
   receiveInvitationEmail?: InputMaybe<Scalars['Boolean']['input']>;
   /** Receive mention email */
   receiveMentionEmail?: InputMaybe<Scalars['Boolean']['input']>;
+  /** Receive notifications through SparkClaw */
+  receiveSparkClawNotifications?: InputMaybe<Scalars['Boolean']['input']>;
 }
 
 export interface UpdateWorkspaceCalendarsInput {
@@ -6925,6 +6948,8 @@ export interface UserSettingsType {
   receiveInvitationEmail: Scalars['Boolean']['output'];
   /** Receive mention email */
   receiveMentionEmail: Scalars['Boolean']['output'];
+  /** Receive notifications through SparkClaw */
+  receiveSparkClawNotifications: Scalars['Boolean']['output'];
 }
 
 export interface UserType {
@@ -6960,6 +6985,7 @@ export interface UserType {
   quotaUsage: UserQuotaUsageType;
   /** Get user settings */
   settings: UserSettingsType;
+  sparkClawEndpoints: Array<SparkClawEndpointType>;
   subscriptions: Array<SubscriptionType>;
   /** @deprecated use auth session exchange instead */
   token: TokenType;
@@ -15593,6 +15619,7 @@ export type GetUserSettingsQuery = {
       receiveInvitationEmail: boolean;
       receiveMentionEmail: boolean;
       receiveCommentEmail: boolean;
+      receiveSparkClawNotifications: boolean;
     };
   } | null;
 };
@@ -15892,6 +15919,45 @@ export type InvoicesQuery = {
       reason: string;
       lastPaymentError: string | null;
       link: string | null;
+      createdAt: string;
+    }>;
+  } | null;
+};
+
+export type CreateSparkClawPairingMutationVariables = Exact<{
+  [key: string]: never;
+}>;
+
+export type CreateSparkClawPairingMutation = {
+  __typename?: 'Mutation';
+  createSparkClawPairing: {
+    __typename?: 'SparkClawPairingType';
+    command: string;
+    expiresAt: string;
+  };
+};
+
+export type DisconnectSparkClawEndpointMutationVariables = Exact<{
+  endpointId: Scalars['ID']['input'];
+}>;
+
+export type DisconnectSparkClawEndpointMutation = {
+  __typename?: 'Mutation';
+  disconnectSparkClawEndpoint: boolean;
+};
+
+export type SparkClawEndpointsQueryVariables = Exact<{ [key: string]: never }>;
+
+export type SparkClawEndpointsQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    sparkClawEndpoints: Array<{
+      __typename?: 'SparkClawEndpointType';
+      id: string;
+      deviceId: string;
+      status: string;
+      lastSeenAt: string | null;
       createdAt: string;
     }>;
   } | null;
@@ -17227,6 +17293,11 @@ export type Queries =
       response: InvoicesQuery;
     }
   | {
+      name: 'sparkClawEndpointsQuery';
+      variables: SparkClawEndpointsQueryVariables;
+      response: SparkClawEndpointsQuery;
+    }
+  | {
       name: 'getLicenseQuery';
       variables: GetLicenseQueryVariables;
       response: GetLicenseQuery;
@@ -17742,6 +17813,16 @@ export type Mutations =
       name: 'grantDocUserRolesMutation';
       variables: GrantDocUserRolesMutationVariables;
       response: GrantDocUserRolesMutation;
+    }
+  | {
+      name: 'createSparkClawPairingMutation';
+      variables: CreateSparkClawPairingMutationVariables;
+      response: CreateSparkClawPairingMutation;
+    }
+  | {
+      name: 'disconnectSparkClawEndpointMutation';
+      variables: DisconnectSparkClawEndpointMutationVariables;
+      response: DisconnectSparkClawEndpointMutation;
     }
   | {
       name: 'leaveWorkspaceMutation';

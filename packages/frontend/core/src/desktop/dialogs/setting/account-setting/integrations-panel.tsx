@@ -21,13 +21,22 @@ import {
   type CalendarProvidersQuery,
   calendarProvidersQuery,
   CalendarProviderType,
+  createSparkClawPairingMutation,
+  disconnectSparkClawEndpointMutation,
   type GraphQLQuery,
   linkCalDavAccountMutation,
   linkCalendarAccountMutation,
+  type SparkClawEndpointsQuery,
+  sparkClawEndpointsQuery,
   unlinkCalendarAccountMutation,
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
-import { GoogleIcon, LinkIcon, TodayIcon } from '@blocksuite/icons/rc';
+import {
+  CopyIcon,
+  GoogleIcon,
+  LinkIcon,
+  TodayIcon,
+} from '@blocksuite/icons/rc';
 import { useService } from '@toeverything/infra';
 import {
   type FormEvent,
@@ -52,6 +61,10 @@ type CalendarAccount = NonNullable<
 type CalendarCalDAVProvider = NonNullable<
   CalendarProvidersQuery['serverConfig']
 >['calendarCalDAVProviders'][number];
+
+type SparkClawEndpoint = NonNullable<
+  SparkClawEndpointsQuery['currentUser']
+>['sparkClawEndpoints'][number];
 
 const providerMeta = {
   [CalendarProviderType.Google]: {
@@ -343,6 +356,11 @@ export const IntegrationsPanel = ({
   );
   const [openedExternalWindow, setOpenedExternalWindow] = useState(false);
   const [caldavDialogOpen, setCaldavDialogOpen] = useState(false);
+  const [pairingCommand, setPairingCommand] = useState<string | null>(null);
+  const [linkingSparkClaw, setLinkingSparkClaw] = useState(false);
+  const [disconnectingEndpointId, setDisconnectingEndpointId] = useState<
+    string | null
+  >(null);
   const canOpenCalendarSetting = workspaceService.workspace.flavour !== 'local';
   const makeConfig: <Query extends GraphQLQuery>(
     title: string
@@ -371,6 +389,18 @@ export const IntegrationsPanel = ({
   );
 
   const {
+    data: sparkClawData,
+    isLoading: sparkClawLoading,
+    mutate: mutateSparkClawEndpoints,
+  } = useQuery(
+    { query: sparkClawEndpointsQuery },
+    useMemo(
+      () => makeConfig(t['com.affine.integration.sparkclaw.load-error']()),
+      [makeConfig, t]
+    )
+  );
+
+  const {
     data: providersData,
     isLoading: providersLoading,
     mutate: mutateProviders,
@@ -393,6 +423,8 @@ export const IntegrationsPanel = ({
   const caldavProviders =
     providersData?.serverConfig.calendarCalDAVProviders ?? [];
   const loading = accountsLoading || providersLoading;
+  const sparkClawEndpoints: SparkClawEndpoint[] =
+    sparkClawData?.currentUser?.sparkClawEndpoints ?? [];
 
   const providerOptions = useMemo(() => {
     return providers.map(provider => {
@@ -504,8 +536,81 @@ export const IntegrationsPanel = ({
     [gqlService, mutateAccounts, t]
   );
 
+  const handleConnectSparkClaw = useCallback(async () => {
+    setLinkingSparkClaw(true);
+    try {
+      const result = await gqlService.gql({
+        query: createSparkClawPairingMutation,
+      });
+      setPairingCommand(result.createSparkClawPairing.command);
+    } catch (error) {
+      notify.error({
+        title: t['com.affine.integration.sparkclaw.connect-error'](),
+        message: String(error) || undefined,
+      });
+    } finally {
+      setLinkingSparkClaw(false);
+    }
+  }, [gqlService, t]);
+
+  const handleDisconnectSparkClaw = useCallback(
+    async (endpointId: string) => {
+      setDisconnectingEndpointId(endpointId);
+      try {
+        await gqlService.gql({
+          query: disconnectSparkClawEndpointMutation,
+          variables: { endpointId },
+        });
+        await mutateSparkClawEndpoints();
+      } catch (error) {
+        notify.error({
+          title: t['com.affine.integration.sparkclaw.disconnect-error'](),
+          message: String(error) || undefined,
+        });
+      } finally {
+        setDisconnectingEndpointId(null);
+      }
+    },
+    [gqlService, mutateSparkClawEndpoints, t]
+  );
+
   return (
     <>
+      <Modal
+        open={Boolean(pairingCommand)}
+        width={560}
+        title={t['com.affine.integration.sparkclaw.connect-title']()}
+        onOpenChange={open => {
+          if (!open) setPairingCommand(null);
+        }}
+        contentOptions={{ className: styles.commandDialog }}
+      >
+        <pre className={styles.command}>{pairingCommand}</pre>
+        <div className={styles.commandActions}>
+          <Button
+            tooltip={t['Copy']()}
+            prefix={<CopyIcon />}
+            onClick={() => {
+              if (pairingCommand) {
+                void navigator.clipboard
+                  .writeText(pairingCommand)
+                  .catch(() => undefined);
+              }
+            }}
+          >
+            {t['Copy']()}
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => {
+              setPairingCommand(null);
+              void mutateSparkClawEndpoints().catch(() => undefined);
+            }}
+          >
+            {t['Done']()}
+          </Button>
+        </div>
+      </Modal>
       <CalDAVLinkDialog
         open={caldavDialogOpen}
         providers={caldavProviders}
@@ -626,6 +731,66 @@ export const IntegrationsPanel = ({
           ) : (
             <div className={styles.empty}>
               {t['com.affine.integration.calendar.account.linked-empty']()}
+            </div>
+          )}
+
+          <div className={styles.sectionDivider} />
+
+          <div className={styles.panelHeader}>
+            <div className={styles.panelTitle}>
+              <LinkIcon />
+              <span>{t['com.affine.integration.sparkclaw.name']()}</span>
+            </div>
+            <Button
+              variant="primary"
+              loading={linkingSparkClaw}
+              onClick={() => void handleConnectSparkClaw()}
+            >
+              {t['com.affine.integration.sparkclaw.connect']()}
+            </Button>
+          </div>
+
+          {sparkClawLoading ? (
+            <div className={styles.loading}>
+              <Loading size={20} />
+            </div>
+          ) : sparkClawEndpoints.length ? (
+            <div className={styles.accountList}>
+              {sparkClawEndpoints.map(endpoint => (
+                <div key={endpoint.id} className={styles.accountRow}>
+                  <div className={styles.accountInfo}>
+                    <div className={styles.accountIcon}>
+                      <LinkIcon />
+                    </div>
+                    <div className={styles.accountDetails}>
+                      <div className={styles.accountName}>
+                        {t['com.affine.integration.sparkclaw.device']()}
+                      </div>
+                      <div className={styles.accountMeta}>
+                        <span className={styles.deviceId}>
+                          {endpoint.deviceId}
+                        </span>
+                        <span>{endpoint.status}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className={styles.accountActions}>
+                    <Button
+                      variant="error"
+                      disabled={disconnectingEndpointId === endpoint.id}
+                      onClick={() =>
+                        void handleDisconnectSparkClaw(endpoint.id)
+                      }
+                    >
+                      {t['com.affine.integration.sparkclaw.disconnect']()}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className={styles.empty}>
+              {t['com.affine.integration.sparkclaw.empty']()}
             </div>
           )}
         </div>

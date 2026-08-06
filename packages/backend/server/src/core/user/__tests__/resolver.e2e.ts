@@ -24,6 +24,7 @@ test('should get user settings', async t => {
     receiveInvitationEmail: true,
     receiveMentionEmail: true,
     receiveCommentEmail: true,
+    receiveSparkClawNotifications: true,
   });
 });
 
@@ -33,12 +34,14 @@ test('should update user settings', async t => {
     receiveInvitationEmail: false,
     receiveMentionEmail: false,
     receiveCommentEmail: false,
+    receiveSparkClawNotifications: true,
   });
   const settings = await getUserSettings(app);
   t.deepEqual(settings, {
     receiveInvitationEmail: false,
     receiveMentionEmail: false,
     receiveCommentEmail: false,
+    receiveSparkClawNotifications: true,
   });
 
   await updateUserSettings(app, {
@@ -49,6 +52,7 @@ test('should update user settings', async t => {
     receiveInvitationEmail: false,
     receiveMentionEmail: true,
     receiveCommentEmail: false,
+    receiveSparkClawNotifications: true,
   });
 
   await updateUserSettings(app, {
@@ -59,6 +63,7 @@ test('should update user settings', async t => {
   t.deepEqual(settings3, {
     receiveInvitationEmail: false,
     receiveMentionEmail: true,
+    receiveSparkClawNotifications: true,
     receiveCommentEmail: false,
   });
 });
@@ -75,6 +80,7 @@ test('should update user settings with comment email', async t => {
     receiveCommentEmail: true,
     receiveInvitationEmail: true,
     receiveMentionEmail: true,
+    receiveSparkClawNotifications: true,
   });
 
   await updateUserSettings(app, {
@@ -86,6 +92,7 @@ test('should update user settings with comment email', async t => {
     receiveCommentEmail: false,
     receiveInvitationEmail: true,
     receiveMentionEmail: true,
+    receiveSparkClawNotifications: true,
   });
 });
 

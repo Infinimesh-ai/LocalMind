@@ -1,0 +1,3 @@
+mutation disconnectSparkClawEndpoint($endpointId: ID!) {
+  disconnectSparkClawEndpoint(endpointId: $endpointId)
+}

@@ -17,6 +17,8 @@ const gqlMock = vi.hoisted(() => vi.fn());
 const openExternal = vi.hoisted(() => vi.fn());
 const mutateAccounts = vi.hoisted(() => vi.fn(async () => undefined));
 const mutateProviders = vi.hoisted(() => vi.fn(async () => undefined));
+const mutateSparkClawEndpoints = vi.hoisted(() => vi.fn(async () => undefined));
+const writeClipboard = vi.hoisted(() => vi.fn(async () => undefined));
 const workspaceState = vi.hoisted(() => ({
   flavour: 'cloud',
 }));
@@ -36,6 +38,13 @@ const queryState = vi.hoisted(() => ({
     label: string;
     docsUrl?: string | null;
     requiresAppPassword?: boolean;
+  }[],
+  sparkClawEndpoints: [] as {
+    id: string;
+    deviceId: string;
+    status: string;
+    lastSeenAt: string | null;
+    createdAt: string;
   }[],
 }));
 const GraphQLServiceToken = vi.hoisted(() => class GraphQLService {});
@@ -62,6 +71,15 @@ const unlinkCalendarAccountMutation = vi.hoisted(() =>
 );
 const linkCalDavAccountMutation = vi.hoisted(() =>
   Symbol('linkCalDavAccountMutation')
+);
+const sparkClawEndpointsQuery = vi.hoisted(() =>
+  Symbol('sparkClawEndpointsQuery')
+);
+const createSparkClawPairingMutation = vi.hoisted(() =>
+  Symbol('createSparkClawPairingMutation')
+);
+const disconnectSparkClawEndpointMutation = vi.hoisted(() =>
+  Symbol('disconnectSparkClawEndpointMutation')
 );
 
 vi.mock('@affine/component', () => ({
@@ -114,6 +132,18 @@ vi.mock('@affine/core/components/hooks/use-query', () => ({
       };
     }
 
+    if (query === sparkClawEndpointsQuery) {
+      return {
+        data: {
+          currentUser: {
+            sparkClawEndpoints: queryState.sparkClawEndpoints,
+          },
+        },
+        isLoading: false,
+        mutate: mutateSparkClawEndpoints,
+      };
+    }
+
     return {
       data: {
         serverConfig: {
@@ -146,6 +176,9 @@ vi.mock('@affine/graphql', () => ({
   linkCalendarAccountMutation,
   unlinkCalendarAccountMutation,
   linkCalDavAccountMutation,
+  sparkClawEndpointsQuery,
+  createSparkClawPairingMutation,
+  disconnectSparkClawEndpointMutation,
 }));
 
 vi.mock('@affine/i18n', () => ({
@@ -164,6 +197,7 @@ vi.mock('@affine/i18n', () => ({
 }));
 
 vi.mock('@blocksuite/icons/rc', () => ({
+  CopyIcon: () => <span>copy-icon</span>,
   GoogleIcon: () => <span>google-icon</span>,
   LinkIcon: () => <span>link-icon</span>,
   TodayIcon: () => <span>today-icon</span>,
@@ -215,10 +249,17 @@ describe('IntegrationsPanel', () => {
     openExternal.mockReset();
     mutateAccounts.mockClear();
     mutateProviders.mockClear();
+    mutateSparkClawEndpoints.mockClear();
+    writeClipboard.mockClear();
     workspaceState.flavour = 'cloud';
     queryState.accounts = [];
     queryState.providers = [];
     queryState.caldavProviders = [];
+    queryState.sparkClawEndpoints = [];
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: writeClipboard },
+    });
     window.history.replaceState({}, '', '/workspace/workspace-1/all');
   });
 
@@ -325,6 +366,55 @@ describe('IntegrationsPanel', () => {
           },
         },
       });
+    });
+  });
+
+  test('creates and copies a one-command SparkClaw pairing', async () => {
+    gqlMock.mockResolvedValue({
+      createSparkClawPairing: {
+        command: 'curl https://localmind.example/install.sh | sh',
+      },
+    });
+
+    render(<IntegrationsPanel />);
+    fireEvent.click(
+      screen.getByText('com.affine.integration.sparkclaw.connect')
+    );
+
+    await screen.findByText('curl https://localmind.example/install.sh | sh');
+    expect(gqlMock).toHaveBeenCalledWith({
+      query: createSparkClawPairingMutation,
+    });
+
+    fireEvent.click(screen.getByText('Copy'));
+    expect(writeClipboard).toHaveBeenCalledWith(
+      'curl https://localmind.example/install.sh | sh'
+    );
+  });
+
+  test('disconnects a SparkClaw endpoint and refreshes the list', async () => {
+    queryState.sparkClawEndpoints = [
+      {
+        id: 'endpoint-1',
+        deviceId: 'sparkclaw-device-1',
+        status: 'active',
+        lastSeenAt: null,
+        createdAt: new Date(0).toISOString(),
+      },
+    ];
+    gqlMock.mockResolvedValue({ disconnectSparkClawEndpoint: true });
+
+    render(<IntegrationsPanel />);
+    fireEvent.click(
+      screen.getByText('com.affine.integration.sparkclaw.disconnect')
+    );
+
+    await waitFor(() => {
+      expect(gqlMock).toHaveBeenCalledWith({
+        query: disconnectSparkClawEndpointMutation,
+        variables: { endpointId: 'endpoint-1' },
+      });
+      expect(mutateSparkClawEndpoints).toHaveBeenCalled();
     });
   });
 });

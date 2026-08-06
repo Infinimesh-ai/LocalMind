@@ -768,6 +768,7 @@ test('user realtime provider snapshots private profile settings and access token
         receiveInvitationEmail: true,
         receiveMentionEmail: false,
         receiveCommentEmail: true,
+        receiveSparkClawNotifications: true,
       }),
     },
     userFeature: {
@@ -807,6 +808,7 @@ test('user realtime provider snapshots private profile settings and access token
       receiveInvitationEmail: true,
       receiveMentionEmail: false,
       receiveCommentEmail: true,
+      receiveSparkClawNotifications: true,
     },
   });
 });

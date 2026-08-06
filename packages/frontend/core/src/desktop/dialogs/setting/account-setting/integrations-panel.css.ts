@@ -194,3 +194,43 @@ export const caldavFooter = style({
   gap: 12,
   marginTop: 12,
 });
+
+export const sectionDivider = style({
+  height: 1,
+  background: cssVarV2.layer.insideBorder.border,
+  margin: '4px 0',
+});
+
+export const commandDialog = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 16,
+});
+
+export const command = style({
+  margin: 0,
+  padding: 12,
+  maxHeight: 220,
+  overflow: 'auto',
+  whiteSpace: 'pre-wrap',
+  overflowWrap: 'anywhere',
+  fontSize: 12,
+  lineHeight: '18px',
+  color: cssVarV2.text.primary,
+  background: cssVarV2.layer.background.secondary,
+  border: `1px solid ${cssVarV2.layer.insideBorder.border}`,
+  borderRadius: 6,
+});
+
+export const commandActions = style({
+  display: 'flex',
+  justifyContent: 'flex-end',
+  gap: 8,
+});
+
+export const deviceId = style({
+  maxWidth: 260,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+});

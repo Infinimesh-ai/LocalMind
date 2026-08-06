@@ -1,0 +1,11 @@
+query sparkClawEndpoints {
+  currentUser {
+    sparkClawEndpoints {
+      id
+      deviceId
+      status
+      lastSeenAt
+      createdAt
+    }
+  }
+}

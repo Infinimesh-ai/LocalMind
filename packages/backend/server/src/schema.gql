@@ -4581,6 +4581,8 @@ type Mutation {
   """Create a subscription checkout link of stripe"""
   createCheckoutSession(input: CreateCheckoutSessionInput!): String!
   createComment(input: CommentCreateInput!): CommentObjectType!
+  createSparkClawPairing: SparkClawPairingType!
+  disconnectSparkClawEndpoint(endpointId: ID!): Boolean!
 
   """Create a context session"""
   createCopilotContext(sessionId: String!, workspaceId: String!): String!
@@ -5675,6 +5677,22 @@ input UpdateUserSettingsInput {
 
   """Receive mention email"""
   receiveMentionEmail: Boolean
+
+  """Receive notifications through SparkClaw"""
+  receiveSparkClawNotifications: Boolean
+}
+
+type SparkClawEndpointType {
+  createdAt: DateTime!
+  deviceId: String!
+  id: ID!
+  lastSeenAt: DateTime
+  status: String!
+}
+
+type SparkClawPairingType {
+  command: String!
+  expiresAt: DateTime!
 }
 
 input UpdateWorkspaceCalendarsInput {
@@ -5759,6 +5777,9 @@ type UserSettingsType {
 
   """Receive mention email"""
   receiveMentionEmail: Boolean!
+
+  """Receive notifications through SparkClaw"""
+  receiveSparkClawNotifications: Boolean!
 }
 
 type UserType {
@@ -5795,6 +5816,7 @@ type UserType {
 
   """Get current user notifications"""
   notifications(pagination: PaginationInput!): PaginatedNotificationObjectType!
+  sparkClawEndpoints: [SparkClawEndpointType!]!
   quota: UserQuotaType!
   quotaUsage: UserQuotaUsageType!
 

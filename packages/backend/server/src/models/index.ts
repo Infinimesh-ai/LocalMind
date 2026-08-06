@@ -39,6 +39,7 @@ import { DocModel } from './doc';
 import { DocUserModel } from './doc-user';
 import { FeatureModel } from './feature';
 import { HistoryModel } from './history';
+import { IscpModel } from './iscp';
 import { MagicLinkOtpModel } from './magic-link-otp';
 import { MailDeliveryModel } from './mail-delivery';
 import { McpCredentialModel } from './mcp-credential';
@@ -78,6 +79,7 @@ const MODELS = {
   docUser: DocUserModel,
   history: HistoryModel,
   notification: NotificationModel,
+  iscp: IscpModel,
   workspaceMember: WorkspaceMemberModel,
   workspaceInvitation: WorkspaceInvitationModel,
   workspaceAccessPolicy: WorkspaceAccessPolicyModel,
@@ -196,6 +198,7 @@ export * from './doc';
 export * from './doc-user';
 export * from './feature';
 export * from './history';
+export * from './iscp';
 export * from './magic-link-otp';
 export * from './mail-delivery';
 export * from './notification';

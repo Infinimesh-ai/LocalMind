@@ -35,6 +35,7 @@ import { DocStorageModule } from './core/doc';
 import { DocRendererModule } from './core/doc-renderer';
 import { DocServiceModule } from './core/doc-service';
 import { FeatureModule } from './core/features';
+import { IscpModule } from './core/iscp';
 import { MailModule } from './core/mail';
 import { MonitorModule } from './core/monitor';
 import { NotificationModule } from './core/notification';
@@ -178,6 +179,7 @@ export function buildAppModule(env: Env) {
       QuotaModule,
       DocStorageModule,
       NotificationModule,
+      IscpModule,
       MailModule
     )
     // renderer server and front server

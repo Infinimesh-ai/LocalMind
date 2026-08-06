@@ -1,7 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
-import { NotificationNotFound, PaginationInput, URLHelper } from '../../base';
+import {
+  JobQueue,
+  NotificationNotFound,
+  PaginationInput,
+  URLHelper,
+} from '../../base';
 import {
   CommentNotification,
   CommentNotificationCreate,
@@ -37,7 +42,8 @@ export class NotificationService {
     private readonly mailer: Mailer,
     private readonly url: URLHelper,
     private readonly realtime: RealtimePublisher,
-    private readonly runtime: BackendRuntimeProvider
+    private readonly runtime: BackendRuntimeProvider,
+    private readonly queue: JobQueue
   ) {}
 
   async cleanExpiredNotifications() {
@@ -58,6 +64,7 @@ export class NotificationService {
     const notification = isMention
       ? await this.models.notification.createCommentMention(input)
       : await this.models.notification.createComment(input);
+    if (isMention) await this.signalSparkClawDelivery(notification.id);
     await this.sendCommentEmail(input, isMention, notification.id);
     await this.publishCountChanged(input.userId, 'created');
     return notification;
@@ -125,9 +132,24 @@ export class NotificationService {
 
   async createMention(input: MentionNotificationCreate) {
     const notification = await this.models.notification.createMention(input);
+    await this.signalSparkClawDelivery(notification.id);
     await this.sendMentionEmail(input, notification.id);
     await this.publishCountChanged(input.userId, 'created');
     return notification;
+  }
+
+  private async signalSparkClawDelivery(notificationId: string) {
+    try {
+      await this.queue.add(
+        'notification.deliverSparkClaw',
+        {},
+        { jobId: `sparkclaw-notification-${notificationId}` }
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to signal SparkClaw delivery for notification ${notificationId}; scheduled scan will retry: ${String(error)}`
+      );
+    }
   }
 
   private async sendMentionEmail(

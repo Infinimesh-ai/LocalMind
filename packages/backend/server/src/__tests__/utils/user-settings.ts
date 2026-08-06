@@ -15,6 +15,7 @@ export async function getUserSettings(
           receiveInvitationEmail
           receiveMentionEmail
           receiveCommentEmail
+          receiveSparkClawNotifications
         }
       }
     }

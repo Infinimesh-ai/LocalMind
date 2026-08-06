@@ -4,6 +4,7 @@ query getUserSettings {
       receiveInvitationEmail
       receiveMentionEmail
       receiveCommentEmail
+      receiveSparkClawNotifications
     }
   }
 }

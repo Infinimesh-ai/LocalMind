@@ -124,6 +124,9 @@ export class UserSettingsType implements UserSettings {
 
   @Field({ description: 'Receive comment email' })
   receiveCommentEmail!: boolean;
+
+  @Field({ description: 'Receive notifications through SparkClaw' })
+  receiveSparkClawNotifications!: boolean;
 }
 
 @InputType()
@@ -151,4 +154,10 @@ export class UpdateUserSettingsInput implements UserSettingsInput {
 
   @Field({ description: 'Receive comment email', nullable: true })
   receiveCommentEmail?: boolean;
+
+  @Field({
+    description: 'Receive notifications through SparkClaw',
+    nullable: true,
+  })
+  receiveSparkClawNotifications?: boolean;
 }
