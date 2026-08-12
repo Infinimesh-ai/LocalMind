@@ -16,6 +16,7 @@ import {
   WorkspaceMemberSource,
   WorkspaceMemberStatus as PrismaWorkspaceMemberStatus,
 } from '@prisma/client';
+import type { GraphQLError } from 'graphql';
 
 import { EntitlementService } from '../../../core/entitlement';
 import { WorkspacePolicyService } from '../../../core/permission';
@@ -112,6 +113,49 @@ e2e('should invite a user', async t => {
   });
   t.is(getInviteInfo2.status, WorkspaceMemberStatus.Accepted);
 });
+
+e2e(
+  'should return already in space when accepting an email invite twice',
+  async t => {
+    const { owner, workspace } = await createWorkspace();
+    const member = await app.create(Mockers.User);
+
+    await app.login(owner);
+    const invite = await app.gql({
+      query: inviteByEmailsMutation,
+      variables: {
+        emails: [member.email],
+        workspaceId: workspace.id,
+      },
+    });
+    const inviteId = invite.inviteMembers[0].inviteId!;
+    const notification = await app.models.notification.createInvitation({
+      userId: member.id,
+      body: {
+        workspaceId: workspace.id,
+        createdByUserId: owner.id,
+        inviteId,
+      },
+    });
+
+    await app.login(member);
+    await app.gql({
+      query: acceptInviteByInviteIdMutation,
+      variables: { workspaceId: workspace.id, inviteId },
+    });
+    t.true((await app.models.notification.get(notification.id))!.read);
+
+    const error = (await t.throwsAsync(
+      app.gql({
+        query: acceptInviteByInviteIdMutation,
+        variables: { workspaceId: workspace.id, inviteId },
+      })
+    )) as GraphQLError;
+
+    t.is(error.extensions.name, 'ALREADY_IN_SPACE');
+    t.deepEqual(error.extensions.data, { spaceId: workspace.id });
+  }
+);
 
 e2e('should re-check seat when accepting an email invitation', async t => {
   const { owner, workspace } = await createWorkspace();

@@ -314,6 +314,35 @@ test('should mark an invite notification as read', async t => {
   t.is(updatedNotification!.read, true);
 });
 
+test('should mark an invite notification as read by invite id', async t => {
+  const inviteId = randomUUID();
+  const invitation = await models.notification.createInvitation({
+    userId: user.id,
+    body: {
+      workspaceId: workspace.id,
+      createdByUserId: createdBy.id,
+      inviteId,
+    },
+  });
+  const unrelatedInvitation = await models.notification.createInvitation({
+    userId: user.id,
+    body: {
+      workspaceId: workspace.id,
+      createdByUserId: createdBy.id,
+      inviteId: randomUUID(),
+    },
+  });
+
+  const count = await models.notification.markInvitationAsRead(
+    user.id,
+    inviteId
+  );
+
+  t.is(count, 1);
+  t.true((await models.notification.get(invitation.id))!.read);
+  t.false((await models.notification.get(unrelatedInvitation.id))!.read);
+});
+
 test('should find many notifications by user id, order by createdAt descending', async t => {
   const notification1 = await models.notification.createMention({
     userId: user.id,

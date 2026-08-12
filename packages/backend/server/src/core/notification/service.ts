@@ -573,6 +573,16 @@ export class NotificationService {
     await this.publishCountChanged(userId, 'read');
   }
 
+  async markInvitationAsRead(userId: string, inviteId: string) {
+    const count = await this.models.notification.markInvitationAsRead(
+      userId,
+      inviteId
+    );
+    if (count > 0) {
+      await this.publishCountChanged(userId, 'read');
+    }
+  }
+
   async markAllAsRead(userId: string) {
     await this.models.notification.markAllAsRead(userId);
     await this.publishCountChanged(userId, 'read-all');

@@ -283,6 +283,19 @@ export class NotificationModel extends BaseModel {
     });
   }
 
+  async markInvitationAsRead(userId: string, inviteId: string) {
+    const { count } = await this.db.notification.updateMany({
+      where: {
+        userId,
+        type: NotificationType.Invitation,
+        read: false,
+        body: { path: ['inviteId'], equals: inviteId },
+      },
+      data: { read: true },
+    });
+    return count;
+  }
+
   async markAllAsRead(userId: string) {
     const { count } = await this.db.notification.updateMany({
       where: { userId },

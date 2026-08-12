@@ -41,6 +41,7 @@ import { Models, type WorkspaceUserCompat } from '../../../models';
 import { CurrentUser, Public } from '../../auth';
 import { BackendRuntimeProvider } from '../../backend-runtime';
 import { containsUrlOrDomain } from '../../content-policy';
+import { NotificationService } from '../../notification/service';
 import {
   PermissionAccess,
   WorkspacePolicyService,
@@ -103,6 +104,7 @@ export class WorkspaceMemberResolver {
     private readonly mutex: RequestMutex,
     private readonly policy: WorkspacePolicyService,
     private readonly workspaceService: WorkspaceService,
+    private readonly notificationService: NotificationService,
     private readonly quota: QuotaService,
     private readonly config: Config,
     private readonly inviteQuota: InviteQuotaAssertService,
@@ -704,6 +706,11 @@ export class WorkspaceMemberResolver {
         throw new InvalidInvitation();
       }
 
+      if (role.status === WorkspaceMemberStatus.Accepted) {
+        await this.markInvitationNotificationAsRead(role);
+        throw new AlreadyInSpace({ spaceId: role.workspaceId });
+      }
+
       await this.acceptInvitationByEmail(role);
     } else {
       // invitation by link
@@ -798,6 +805,7 @@ export class WorkspaceMemberResolver {
       role.userId,
       WorkspaceMemberStatus.Accepted
     );
+    await this.markInvitationNotificationAsRead(role);
 
     this.event.emit('workspace.members.updated', {
       workspaceId: role.workspaceId,
@@ -809,6 +817,17 @@ export class WorkspaceMemberResolver {
       role.id
     );
     await this.policy.reconcileWorkspaceQuotaState(role.workspaceId);
+  }
+
+  private async markInvitationNotificationAsRead(role: WorkspaceUserCompat) {
+    try {
+      await this.notificationService.markInvitationAsRead(role.userId, role.id);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to mark invitation notification ${role.id} as read for user ${role.userId}`,
+        error
+      );
+    }
   }
 
   private async acceptInvitationByLink(
