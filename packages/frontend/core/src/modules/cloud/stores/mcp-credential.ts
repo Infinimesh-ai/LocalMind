@@ -33,6 +33,7 @@ export class McpCredentialStore extends Store {
           accessMode: input.accessMode,
           capabilities: input.capabilities,
           expirationDays: input.expirationDays,
+          callbackUrl: input.callbackUrl,
         },
       },
     });

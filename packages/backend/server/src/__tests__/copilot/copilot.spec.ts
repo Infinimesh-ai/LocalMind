@@ -17,14 +17,12 @@ import {
 } from '../../base';
 import { ConfigModule } from '../../base/config';
 import { AuthService } from '../../core/auth';
-import { DocReader } from '../../core/doc';
 import { QuotaModule } from '../../core/quota';
 import { QuotaStateService } from '../../core/quota/state';
 import { StorageModule, WorkspaceBlobStorage } from '../../core/storage';
 import {
   ContextCategories,
   CopilotSessionModel,
-  DocRole,
   EMBEDDING_DIMENSIONS,
   Models,
   WorkspaceMemberStatus,
@@ -86,7 +84,6 @@ import type {
 } from '../../plugins/copilot/tools';
 import { CopilotTranscriptionService } from '../../plugins/copilot/transcript';
 import { CopilotWorkspaceService } from '../../plugins/copilot/workspace';
-import { IndexerService } from '../../plugins/indexer';
 import { PaymentModule } from '../../plugins/payment';
 import { SubscriptionService } from '../../plugins/payment/service';
 import { SubscriptionStatus } from '../../plugins/payment/types';
@@ -599,7 +596,7 @@ test.serial(
       userId,
       workspaceId: ws.id,
       name: 'Claude Desktop',
-      accessMode: McpAccessMode.READ_ONLY,
+      accessMode: McpAccessMode.READ_WRITE,
       expirationDays: 90,
     });
 
@@ -630,15 +627,11 @@ test.serial(
       result: {
         capabilities: {
           tools: { listChanged: false },
-          resources: { subscribe: false, listChanged: false },
         },
-        serverInfo: { name: 'localmind-workspace', version: '2.1.0' },
+        serverInfo: { name: 'localmind-ai', version: '3.2.0' },
       },
     });
-    t.regex(
-      response.body.result.instructions,
-      /discover_localmind_capabilities/
-    );
+    t.regex(response.body.result.instructions, /delegate_to_localmind/);
 
     const toolsResponse = await t.context.module
       .POST(`/api/workspaces/${ws.id}/mcp`)
@@ -653,18 +646,22 @@ test.serial(
     }>;
     t.deepEqual(
       advertisedTools.map(tool => tool.name),
-      [
-        'discover_localmind_capabilities',
-        'read_document_blocks',
-        'read_whiteboard',
-        'read_databases',
-        'list_documents',
-        'read_document',
-        'semantic_search',
-        'keyword_search',
-      ]
+      ['delegate_to_localmind', 'get_localmind_task', 'control_localmind_task']
     );
-    t.true(advertisedTools.every(tool => tool.annotations.readOnlyHint));
+    t.false(
+      advertisedTools.find(tool => tool.name === 'delegate_to_localmind')!
+        .annotations.readOnlyHint
+    );
+    t.true(
+      advertisedTools.find(tool => tool.name === 'get_localmind_task')!
+        .annotations.readOnlyHint
+    );
+    const controlTool = advertisedTools.find(
+      tool => tool.name === 'control_localmind_task'
+    )!;
+    t.false(controlTool.annotations.readOnlyHint);
+    t.true(controlTool.annotations.destructiveHint);
+    t.true(controlTool.annotations.idempotentHint);
     t.true(advertisedTools.every(tool => !!tool.outputSchema));
 
     const invalidVersionResponse = await t.context.module
@@ -702,31 +699,44 @@ test.serial(
     const server = await mcpProvider.for(
       userId,
       ws.id,
-      McpAccessMode.READ_ONLY
+      McpAccessMode.READ_WRITE
     );
-    t.is(server.name, 'localmind-workspace');
+    t.is(server.name, 'localmind-ai');
     t.deepEqual(
       server.tools.map(tool => tool.name),
-      [
-        'discover_localmind_capabilities',
-        'read_document_blocks',
-        'read_whiteboard',
-        'read_databases',
-        'list_documents',
-        'read_document',
-        'semantic_search',
-        'keyword_search',
-      ]
+      ['delegate_to_localmind', 'get_localmind_task', 'control_localmind_task']
     );
-    const readDocument = server.tools.find(
-      tool => tool.name === 'read_document'
+    const delegate = server.tools.find(
+      tool => tool.name === 'delegate_to_localmind'
     );
-    const invalidArguments = await readDocument!.execute(
-      { docId: 'missing-doc', unexpected: true },
+    const invalidArguments = await delegate!.execute(
+      { request: 'answer this', unexpected: true },
       { signal: new AbortController().signal }
     );
     t.true(invalidArguments.isError);
     t.regex(invalidArguments.content[0].text, /^Invalid arguments:/);
+    const getTask = server.tools.find(
+      tool => tool.name === 'get_localmind_task'
+    );
+    const invalidTaskQuery = await getTask!.execute(
+      { taskId: 'task-id', waitMs: 30_001 },
+      { signal: new AbortController().signal }
+    );
+    t.true(invalidTaskQuery.isError);
+    t.regex(invalidTaskQuery.content[0].text, /^Invalid arguments:/);
+    const controlTask = server.tools.find(
+      tool => tool.name === 'control_localmind_task'
+    );
+    const invalidTaskControl = await controlTask!.execute(
+      {
+        taskId: 'task-id',
+        action: 'approve',
+        idempotencyKey: 'invalid-control',
+      },
+      { signal: new AbortController().signal }
+    );
+    t.true(invalidTaskControl.isError);
+    t.regex(invalidTaskControl.content[0].text, /^Invalid arguments:/);
 
     const rotated = await mcpCredentials.rotate(
       issued.credential.id,
@@ -737,7 +747,7 @@ test.serial(
     const listed = await mcpCredentials.list(userId, ws.id);
     t.is(listed.length, 1);
     t.is(listed[0].status, 'ROTATING');
-    t.deepEqual(listed[0].capabilities, ['documents:read']);
+    t.deepEqual(listed[0].capabilities, [...MCP_CAPABILITIES]);
     await mcpCredentials.authenticate(issued.token, ws.id);
     await mcpCredentials.revoke(rotated.credential.id, userId, ws.id);
     await t.throwsAsync(mcpCredentials.authenticate(issued.token, ws.id));
@@ -763,32 +773,34 @@ test.serial(
 );
 
 test.serial(
-  'MCP capability scopes persist, imply read, rotate, and filter tools',
+  'MCP tool capabilities persist, rotate, and filter the advertised tools',
   async t => {
     const { mcpCredentials, mcpProvider, prompt, workspace } = t.context;
     const ws = await workspace.create(userId);
     await prompt.set(promptName, 'test', [
       { role: 'system', content: 'Answer {{query}}' },
     ]);
+    t.throws(
+      () =>
+        mcpCredentials.capabilities(
+          ['documents:read'],
+          McpAccessMode.READ_ONLY
+        ),
+      { message: 'Unsupported MCP capabilities: documents:read' }
+    );
     const issued = await mcpCredentials.create({
       userId,
       workspaceId: ws.id,
       name: 'Scoped AI client',
       accessMode: McpAccessMode.READ_ONLY,
-      capabilities: ['ai-context:write', 'ai-chat:write', 'ai-operations:read'],
+      capabilities: ['delegate_to_localmind', 'get_localmind_task'],
       expirationDays: 90,
     });
 
     t.is(issued.credential.accessMode, McpAccessMode.READ_WRITE);
     t.deepEqual(
       [...issued.credential.capabilities].sort((a, b) => a.localeCompare(b)),
-      [
-        'ai-chat:read',
-        'ai-chat:write',
-        'ai-context:read',
-        'ai-context:write',
-        'ai-operations:read',
-      ]
+      ['delegate_to_localmind', 'get_localmind_task']
     );
 
     const server = await mcpProvider.for(
@@ -797,59 +809,18 @@ test.serial(
       issued.credential.capabilities
     );
     const toolNames = new Set(server.tools.map(tool => tool.name));
-    t.true(toolNames.has('get_ai_context_settings'));
-    t.true(toolNames.has('create_ai_context_memory'));
-    t.true(toolNames.has('create_ai_chat_session'));
-    t.true(toolNames.has('list_ai_prompts'));
-    t.true(toolNames.has('preview_prompt_registry_body_edit'));
-    t.false(toolNames.has('list_documents'));
-    t.false(toolNames.has('publish_prompt_registry_revision'));
+    t.deepEqual(
+      [...toolNames],
+      ['delegate_to_localmind', 'get_localmind_task']
+    );
 
     const workspaceServer = await mcpProvider.for(userId, ws.id, [
-      'workspace:write',
-      'assets:read',
-      'comments:read',
-      'collaboration:read',
-      'history:read',
+      'control_localmind_task',
     ]);
-    const workspaceToolNames = new Set(
-      workspaceServer.tools.map(tool => tool.name)
+    t.deepEqual(
+      workspaceServer.tools.map(tool => tool.name),
+      ['control_localmind_task']
     );
-    t.true(workspaceToolNames.has('read_workspace_organization'));
-    t.true(workspaceToolNames.has('apply_workspace_organization_operations'));
-    t.true(workspaceToolNames.has('list_workspace_blobs'));
-    t.true(workspaceToolNames.has('list_document_comments'));
-    t.true(workspaceToolNames.has('list_document_history'));
-    t.true(workspaceToolNames.has('list_workspace_members'));
-    t.false(workspaceToolNames.has('list_documents'));
-    t.false(workspaceToolNames.has('upload_workspace_blob'));
-    t.false(workspaceToolNames.has('create_document_comment'));
-    t.false(workspaceToolNames.has('publish_document'));
-    t.false(workspaceToolNames.has('restore_document_history'));
-
-    const contextResult = await server.tools
-      .find(tool => tool.name === 'get_ai_context_settings')!
-      .execute({}, { signal: new AbortController().signal });
-    t.truthy(contextResult.structuredContent?.result);
-
-    const chatResult = await server.tools
-      .find(tool => tool.name === 'create_ai_chat_session')!
-      .execute({ promptName }, { signal: new AbortController().signal });
-    t.truthy(chatResult.structuredContent?.result);
-
-    const operationsResult = await server.tools
-      .find(tool => tool.name === 'list_ai_prompts')!
-      .execute({}, { signal: new AbortController().signal });
-    t.true(Array.isArray(operationsResult.structuredContent?.result));
-
-    const invalidFilter = await server.tools
-      .find(tool => tool.name === 'list_agent_runtime_runs')!
-      .execute(
-        { filter: { undocumented: true } },
-        { signal: new AbortController().signal }
-      );
-    t.true(invalidFilter.isError);
-    t.regex(invalidFilter.content[0].text, /^Invalid arguments:/);
 
     const completeServer = await mcpProvider.for(
       userId,
@@ -857,8 +828,11 @@ test.serial(
       MCP_CAPABILITIES
     );
     const completeToolNames = completeServer.tools.map(tool => tool.name);
-    t.is(completeToolNames.length, 117);
-    t.is(new Set(completeToolNames).size, 117);
+    t.deepEqual(completeToolNames, [
+      'delegate_to_localmind',
+      'get_localmind_task',
+      'control_localmind_task',
+    ]);
     t.true(completeServer.tools.every(tool => !!tool.outputSchema));
 
     const rotated = await mcpCredentials.rotate(
@@ -928,125 +902,6 @@ test.serial('MCP redacts unexpected tool failures from clients', async t => {
   });
   t.false(JSON.stringify(response.body).includes(internalFailure));
 });
-
-test.serial(
-  'MCP keyword search excludes hidden documents and contains permission-cache staleness',
-  async t => {
-    const { auth, mcpProvider, models, module, workspace } = t.context;
-    const member = await auth.signUp(
-      `mcp-member-${randomUUID()}@affine.pro`,
-      '123456'
-    );
-    const ws = await workspace.create(userId);
-    await models.workspaceUser.set(
-      ws.id,
-      member.id,
-      WorkspaceRole.Collaborator,
-      {
-        status: WorkspaceMemberStatus.Accepted,
-      }
-    );
-    await models.doc.upsertMeta(ws.id, 'mcp-readable-doc', {
-      title: 'Readable MCP document',
-      defaultRole: DocRole.Reader,
-    });
-    await models.doc.upsertMeta(ws.id, 'mcp-hidden-doc', {
-      title: 'Hidden MCP document',
-      defaultRole: DocRole.None,
-    });
-
-    const searchOptions: Array<{ docIds?: string[] }> = [];
-    Sinon.stub(module.get(IndexerService), 'searchDocsByKeyword').callsFake(
-      async (_workspaceId, _query, options) => {
-        searchOptions.push(options ?? {});
-        return [
-          { docId: 'mcp-readable-doc', title: 'Readable MCP document' },
-          { docId: 'mcp-hidden-doc', title: 'Hidden MCP document' },
-        ] as never;
-      }
-    );
-
-    const server = await mcpProvider.for(
-      member.id,
-      ws.id,
-      McpAccessMode.READ_ONLY
-    );
-    const keywordSearch = server.tools.find(
-      tool => tool.name === 'keyword_search'
-    );
-    t.truthy(keywordSearch);
-    const first = await keywordSearch!.execute(
-      { query: 'MCP document' },
-      { signal: new AbortController().signal }
-    );
-    t.deepEqual(searchOptions[0]?.docIds, ['mcp-readable-doc']);
-    t.like(first.structuredContent, {
-      result: { results: [{ docId: 'mcp-readable-doc' }] },
-    });
-
-    Sinon.stub(module.get(DocReader), 'getDocMarkdown').resolves({
-      title: 'Readable MCP document',
-      markdown: '# Readable MCP document\n\nVisible body.',
-      knownUnsupportedBlocks: [],
-      unknownBlocks: [],
-    });
-    const readResult = await server.tools
-      .find(tool => tool.name === 'read_document')!
-      .execute(
-        { docId: 'mcp-readable-doc' },
-        { signal: new AbortController().signal }
-      );
-    t.deepEqual(readResult.structuredContent, {
-      result: {
-        docId: 'mcp-readable-doc',
-        markdown: '# Readable MCP document\n\nVisible body.',
-      },
-    });
-    t.is(
-      readResult.content[0].text,
-      '# Readable MCP document\n\nVisible body.'
-    );
-    const resource = await server.readResource?.(
-      `localmind://workspace/${encodeURIComponent(ws.id)}/documents/mcp-readable-doc`
-    );
-    t.is(resource?.text, '# Readable MCP document\n\nVisible body.');
-
-    await models.doc.upsertMeta(ws.id, 'mcp-readable-doc', {
-      defaultRole: DocRole.None,
-    });
-    const cached = await keywordSearch!.execute(
-      { query: 'MCP document after revoke' },
-      { signal: new AbortController().signal }
-    );
-    t.deepEqual(
-      searchOptions[1]?.docIds,
-      ['mcp-readable-doc'],
-      'the short-lived candidate cache may be stale inside one MCP instance'
-    );
-    t.deepEqual(cached, {
-      content: [{ type: 'text', text: '[]' }],
-      structuredContent: { result: { results: [] } },
-    });
-
-    const freshServer = await mcpProvider.for(
-      member.id,
-      ws.id,
-      McpAccessMode.READ_ONLY
-    );
-    const freshKeywordSearch = freshServer.tools.find(
-      tool => tool.name === 'keyword_search'
-    );
-    await freshKeywordSearch!.execute(
-      { query: 'MCP document from a fresh instance' },
-      { signal: new AbortController().signal }
-    );
-    t.deepEqual(
-      searchOptions[2]?.docIds,
-      [],
-      'MCP instances must not share readable-document caches'
-    );
-  }
-);
 
 test('should reject context file uploads after workspace write access is revoked', async t => {
   const { auth, context, models, prompt, session, storage, workspace } =

@@ -335,6 +335,7 @@ test('byok service persists encrypted server keys and never returns plaintext', 
     name: 'Primary',
     description: 'Team key',
     apiKey: 'sk-test-primary',
+    modelId: '  gpt-5.6-sol  ',
     sortOrder: 1,
   });
   const backup = await t.context.byok.upsertConfig({
@@ -368,6 +369,7 @@ test('byok service persists encrypted server keys and never returns plaintext', 
   }
   t.not(row.encryptedApiKey, 'sk-test-primary');
   t.is(t.context.crypto.decrypt(row.encryptedApiKey), 'sk-test-primary');
+  t.is(row.modelId, 'gpt-5.6-sol');
 
   const reordered = await t.context.byok.reorderConfigs({
     workspaceId: workspace.id,
@@ -398,6 +400,39 @@ test('byok service persists encrypted server keys and never returns plaintext', 
     profiles.map(profile => profile.source),
     ['byok_server', 'byok_server']
   );
+  t.deepEqual(profiles[1]?.models, ['gpt-5.6-sol']);
+  t.deepEqual(profiles[1]?.modelDefinitions?.[0], {
+    id: 'gpt-5.6-sol',
+    rawModelId: 'gpt-5.6-sol',
+    backendKind: 'openai_responses',
+    capabilities: [
+      {
+        input: ['text'],
+        output: ['text', 'object', 'structured'],
+        defaultForOutputType: true,
+      },
+    ],
+  });
+});
+
+test('byok service rejects blank and overlong model IDs', async t => {
+  const { user, workspace } = await createUserWorkspace(t);
+  await grantUserPlan(t, user.id);
+
+  for (const modelId of ['   ', 'x'.repeat(256)]) {
+    await t.throwsAsync(
+      t.context.byok.upsertConfig({
+        workspaceId: workspace.id,
+        userId: user.id,
+        provider: ByokProvider.openai,
+        storage: ByokKeyStorage.server,
+        name: `Invalid ${modelId.length}`,
+        apiKey: 'sk-test',
+        modelId,
+      }),
+      { instanceOf: Error }
+    );
+  }
 });
 
 test('byok service preserves server key fields during partial updates', async t => {
@@ -412,6 +447,7 @@ test('byok service preserves server key fields during partial updates', async t 
     name: 'Primary',
     description: 'Team key',
     apiKey: 'sk-test-primary',
+    modelId: 'gpt-5.6-sol',
     sortOrder: 3,
     enabled: false,
   });
@@ -433,6 +469,7 @@ test('byok service preserves server key fields during partial updates', async t 
   }
   t.is(updated.name, 'Primary renamed');
   t.is(updated.description, 'Team key');
+  t.is(updated.modelId, 'gpt-5.6-sol');
   t.is(
     t.context.crypto.decrypt(updated.encryptedApiKey),
     'sk-test-primary-next'
@@ -857,6 +894,61 @@ test('test key failure disables a saved key and success restores it', async t =>
     profiles.map(profile => profile.type),
     ['openai']
   );
+});
+
+test('OpenAI key test probes the exact configured model through Responses', async t => {
+  const { user, workspace } = await createUserWorkspace(t);
+  await grantUserPlan(t, user.id);
+  const fetch = Sinon.stub(t.context.byok as any, 'probeFetch').resolves(
+    new Response('{}', { status: 200 })
+  );
+  t.teardown(() => fetch.restore());
+
+  const result = await t.context.byok.testConfig({
+    workspaceId: workspace.id,
+    userId: user.id,
+    provider: ByokProvider.openai,
+    storage: ByokKeyStorage.server,
+    apiKey: 'sk-test',
+    modelId: ' gpt-5.6-sol ',
+  });
+
+  t.true(result.ok);
+  t.is(fetch.firstCall.args[0], 'https://api.openai.com/v1/responses');
+  t.is(fetch.firstCall.args[1]?.method, 'POST');
+  t.deepEqual(JSON.parse(fetch.firstCall.args[1]?.body as string), {
+    model: 'gpt-5.6-sol',
+    input: 'Reply with OK.',
+    max_output_tokens: 64,
+    store: false,
+  });
+  t.deepEqual(fetch.firstCall.args[2]?.allowedHeaders, [
+    'Authorization',
+    'Content-Type',
+  ]);
+});
+
+test('OpenAI exact-model test fails when the model endpoint rejects it', async t => {
+  const { user, workspace } = await createUserWorkspace(t);
+  await grantUserPlan(t, user.id);
+  const fetch = Sinon.stub(t.context.byok as any, 'probeFetch').resolves(
+    new Response('{"error":"unknown model"}', { status: 404 })
+  );
+  t.teardown(() => fetch.restore());
+
+  const result = await t.context.byok.testConfig({
+    workspaceId: workspace.id,
+    userId: user.id,
+    provider: ByokProvider.openai,
+    storage: ByokKeyStorage.server,
+    apiKey: 'sk-test',
+    modelId: 'missing-model',
+  });
+
+  t.false(result.ok);
+  t.is(result.message, 'Provider probe endpoint was not found.');
+  t.is(fetch.callCount, 1);
+  t.is(fetch.firstCall.args[0], 'https://api.openai.com/v1/responses');
 });
 
 test('local key test does not mutate saved server config', async t => {

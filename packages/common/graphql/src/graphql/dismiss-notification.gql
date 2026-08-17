@@ -1,0 +1,3 @@
+mutation dismissNotification($id: String!) {
+  dismissNotification(id: $id)
+}

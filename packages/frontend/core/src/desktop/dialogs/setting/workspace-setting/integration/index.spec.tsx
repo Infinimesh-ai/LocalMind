@@ -43,6 +43,9 @@ vi.mock('@affine/i18n', () => {
     'com.affine.settings.workspace.byok.title': 'AI BYOK',
     'com.affine.settings.workspace.byok.subtitle':
       'Use your own provider keys for this workspace.',
+    'com.affine.integration.external-mcp.name': 'SparkClaw MCP',
+    'com.affine.integration.external-mcp.desc':
+      'Connect LocalMind to SparkClaw.',
   };
   const translate = (key: string) => messages[key] ?? key;
   return {
@@ -95,6 +98,10 @@ vi.mock('./calendar/setting-panel', () => ({
 
 vi.mock('./mcp-server/setting-panel', () => ({
   McpServerSettingPanel: () => null,
+}));
+
+vi.mock('./external-mcp/setting-panel', () => ({
+  ExternalMcpSettingPanel: () => null,
 }));
 
 vi.mock('./readwise/setting-panel', () => ({
@@ -152,4 +159,18 @@ describe('IntegrationSetting', () => {
       }
     });
   }
+
+  test('shows SparkClaw MCP only to workspace owners and admins', () => {
+    render(<IntegrationSetting />);
+    expect(screen.queryByText('SparkClaw MCP')).toBeNull();
+
+    cleanup();
+    workspaceInfoState.info = {
+      isOwner: false,
+      isAdmin: true,
+      isTeam: true,
+    };
+    render(<IntegrationSetting />);
+    expect(screen.getByText('SparkClaw MCP')).not.toBeNull();
+  });
 });

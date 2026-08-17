@@ -254,6 +254,37 @@ Implemented behavior:
 5. The existing provider registry overlay can resolve the new workspace
    provider metadata before global/config fallback.
 
+## Implemented Workspace BYOK Exact-model Binding Slice
+
+Workspace BYOK keys now declare the model they can actually serve instead of
+acting as unrestricted provider-level credentials during route selection.
+
+Implemented behavior:
+
+1. `ai_workspace_byok_configs.model_id` persists one optional normalized model
+   id per server-stored key; Electron-local key storage and short-lived local
+   leases carry the same field without persisting local secrets on the server.
+2. Server and local BYOK profiles expose `models=[modelId]` plus a generated
+   model definition with the provider's runtime backend kind and bounded
+   capabilities.
+3. The existing effective provider split evaluates the BYOK registry before
+   the quota-backed/global registry, so a matching bare model id resolves to
+   the BYOK profile while a non-matching model can use normal fallback.
+4. OpenAI-compatible key validation uses a minimal `POST /responses` call with
+   the exact model id and safe response handling; model id normalization rejects
+   blank or overlong values before persistence or network testing.
+5. Workspace Settings threads the model id through test/save/edit/local-lease
+   flows, displays it on the key row, and invalidates the previous successful
+   test when the model changes.
+6. Focused backend route coverage proves that a bound custom model selects the
+   BYOK profile and shadows the matching global provider route.
+7. Provider lifecycle startup registers built-in drivers independently from
+   static provider profile ids, so a BYOK OpenAI route is executable even when
+   the only configured global provider is OpenAI-compatible.
+8. Native usage recording seeds model evidence from the prepared request or
+   route when a provider response omits it or reports provider selection before
+   stream model metadata.
+
 ## Implemented Provider Health State Persistence Slice
 
 Provider health now has a DB-backed state overlay separate from static provider
@@ -1727,6 +1758,9 @@ Implemented behavior:
   migration from provider profile/native registry defaults where needed;
 - add full editable Task Route Policy workflows and bulk migration from config
   defaults where needed.
+- add multi-model BYOK bindings or selectable OpenAI-compatible protocol
+  families only when real provider contracts require them; the current slice
+  deliberately keeps one tested model per key.
 
 ## Tests
 
@@ -1978,12 +2012,10 @@ Frontend/Admin if changed:
 
 ## Non-goals For First Slice
 
-Workspace MCP v2 exposes prompt/model diagnostics, publish gates and preflight,
-body-edit preview/publish, constrained Prompt/Model/Provider/Task Route
-revision publishing, and Provider Health read/write/retry through the existing
-resolver/model paths. Provider credentials and BYOK secret writes remain
-excluded, and MCP therefore does not expand this track's secret-management
-boundary.
+The inbound MCP surface no longer exposes direct registry tools. A future
+LocalMind AI registry executor must use the existing preview, approval,
+revision, publish-event, and Provider Health model paths; it must not accept raw
+provider credentials, BYOK secret writes, or arbitrary registry mutation.
 
 - full registry editor;
 - bulk migration UI;

@@ -1,56 +1,53 @@
 # LocalMind MCP Integration
 
-LocalMind exposes each workspace as an authenticated, stateless MCP server.
-Use this interface when an external AI client needs permission-filtered access
-to LocalMind documents, Edgeless whiteboards, workspace organization,
-attachments, comments, collaboration, history, AI Context, AI Chat, or the
-durable AI operations layer without sharing a LocalMind browser session or
-account password.
+LocalMind exposes a workspace-bound AI delegation surface to external MCP
+clients. The caller sends a complete natural-language task; the built-in
+LocalMind AI plans it, uses LocalMind's Agent Runtime for supported work, and
+returns or calls back with the result. A read-only tool reconciles persisted
+task state after asynchronous returns or callbacks, and a control tool cancels
+unfinished work.
 
-The complete tool and argument matrix is in
-[LocalMind MCP Tool Reference](./localmind-mcp-tools.md). A Simplified Chinese
-guide is available at [LocalMind MCP 中文指南](./localmind-mcp.zh-CN.md).
+A Simplified Chinese guide is available at
+[LocalMind MCP Chinese Guide](./localmind-mcp.zh-CN.md). The exact tool schema
+and callback contract are in
+[LocalMind MCP Tool Reference](./localmind-mcp-tools.md).
 
 ## Connection Contract
 
 | Setting        | Value                                                    |
 | -------------- | -------------------------------------------------------- |
-| Transport      | Streamable HTTP with JSON responses                      |
+| Transport      | Stateless Streamable HTTP with JSON responses            |
 | Endpoint       | `<LOCALMIND_BASE_URL>/api/workspaces/<WORKSPACE_ID>/mcp` |
 | Method         | `POST`                                                   |
 | Authentication | `Authorization: Bearer <MCP_TOKEN>`                      |
-| Server name    | `localmind-workspace`                                    |
-| Server version | `2.1.0`                                                  |
-| Default scope  | `documents:read`                                         |
+| Server         | `localmind-ai` version `3.2.0`                           |
+| Tools          | Delegation, task query, and cancel-only task control     |
 
-The endpoint is workspace-specific. A token issued for one workspace cannot be
-used with another workspace endpoint.
+The token and endpoint are bound to one workspace. A token issued for one
+workspace cannot be used on another workspace endpoint.
 
 ## Create A Credential
 
-1. Open the target workspace in LocalMind.
-2. Open **Workspace settings > Integrations > MCP Server**.
-3. Select **Create credential**.
-4. Select only the workspace feature and AI read/write scopes that the client
-   needs. Selecting a write scope also grants its matching read scope.
-5. Choose the expiration period and store the revealed token in the client's
-   secret storage. LocalMind shows the complete token only when it is created
-   or rotated.
-6. Copy the generated MCP configuration.
+1. Open **Workspace settings > Integrations > MCP Server**.
+2. Create a credential and select the public AI tools it may call:
+   `delegate_to_localmind`, `get_localmind_task`, and
+   `control_localmind_task`.
+3. Grant all three for a caller that delegates, reconciles, and cancels tasks.
+4. Optionally add the caller's result notification URL for terminal task
+   notifications.
+5. Store the one-time MCP token and, when notifications are configured, the
+   callback signing secret in the caller's secret storage.
 
-Write scopes are available in production, but every tool still enforces the
-credential owner's current LocalMind workspace, document, Copilot, DLP,
-approval, audit, and runtime permissions. A scope never bypasses LocalMind
-authorization.
+Public callbacks must use HTTPS. A deployment may explicitly allowlist an
+exact private or HTTP origin for a trusted local caller such as SparkClaw.
+Redirects are not followed.
 
-## Generic Client Configuration
-
-Clients that accept the common `mcpServers` shape can use:
+## Client Configuration
 
 ```json
 {
   "mcpServers": {
-    "localmind_workspace_<WORKSPACE_ID>": {
+    "localmind": {
       "type": "streamable-http",
       "url": "<LOCALMIND_BASE_URL>/api/workspaces/<WORKSPACE_ID>/mcp",
       "headers": {
@@ -61,176 +58,161 @@ Clients that accept the common `mcpServers` shape can use:
 }
 ```
 
-Client configuration keys differ, but the mapping is always the same:
+When the caller runs in a container, use a LocalMind host or service name that
+is reachable from that container. Do not put either secret in a query string,
+prompt, chat message, checked-in configuration, or diagnostic bundle.
 
-- transport: Streamable HTTP;
-- URL: the workspace MCP endpoint;
-- header name: `Authorization`;
-- header value: `Bearer ` followed by the MCP token.
+## Authority Model
 
-Use the client's secret or environment-variable facility when it supports one.
-Do not put the token in a query string, prompt, checked-in configuration, chat
-message, or diagnostic bundle.
+The MCP credential's three tool permissions are copied onto a task when the
+task is created. That snapshot is the task's fixed maximum authority. Rotating
+the credential preserves the family, permissions, and callback configuration;
+revoking the family or disabling the user prevents queued work from executing.
+Credentials from the legacy resource-capability model are revoked
+during migration and must be recreated.
 
-### SparkClaw
+LocalMind separately checks the delegated user's real ACL at planning and
+execution time. Losing `Workspace.Copilot`, `Workspace.CreateDoc`, `Doc.Read`,
+or `Doc.Update` takes effect immediately for the operation that needs it.
+Missing real ACL is returned as a permission or resource failure; LocalMind
+never sends a request asking the caller to elevate the user.
 
-SparkClaw can use the same `mcpServers` entry. Put it in SparkClaw's MCP server
-configuration and inject the token through its secret environment facility:
+Task queries require the frozen `get_localmind_task` permission, use the same
+credential family that created the task, and recheck family activity plus live
+`Workspace.Copilot` and referenced-document `Doc.Read` access. Rotation retains
+query access. A different credential family receives `task_not_found`, and
+lost ACL does not reveal historical task output.
 
-```json
-{
-  "mcpServers": {
-    "localmind": {
-      "type": "streamable-http",
-      "url": "http://localmind:3010/api/workspaces/<WORKSPACE_ID>/mcp",
-      "headers": {
-        "Authorization": "Bearer ${LOCALMIND_MCP_TOKEN}"
-      }
-    }
-  }
-}
-```
+Task cancellation also requires the creating credential family, family
+activity, the task's frozen `control_localmind_task` permission, and live
+`Workspace.Copilot`. It deliberately does not require `Doc.Update`: losing the
+ability to write a target document must not prevent the caller from stopping
+unfinished work.
 
-If SparkClaw runs in a container, `localhost` refers to the SparkClaw
-container. Use the LocalMind service name on a shared Docker network or a
-host-reachable name such as `host.docker.internal`. If SparkClaw does not
-expand environment placeholders in JSON, configure the header with its native
-secret setting instead of writing the token into a checked-in file.
+## Supported Tasks
 
-## Tool Contract
+The current built-in AI can:
 
-Every credential exposes `discover_localmind_capabilities`. The result lists
-the credential's granted scopes and exact visible tool names.
+- return a read-only answer from the request and explicitly supplied readable
+  document snapshots;
+- use the optimized Agent Runtime path to replace the Markdown body of exactly
+  one supplied document;
+- run LocalMind's normal AI Chat server-side tool set for broader work:
+  document read/create/update/title update, keyword and semantic search, web
+  search/crawl, document composition, section editing, code artifact
+  generation, conversation summarization, and attachment reading when an AI
+  Chat attachment context is available.
 
-| Scope                 | Capability surface                                                            |
-| --------------------- | ----------------------------------------------------------------------------- |
-| `documents:read`      | Markdown, structured blocks, whiteboards, databases, search, Resources        |
-| `documents:write`     | Documents, titles, blocks, shapes/connectors/brushes/mind maps, database data |
-| `workspace:read`      | Profile, trash, tags, collections, folders, properties, favorites, settings   |
-| `workspace:write`     | Mutate the workspace organization and personal workspace data                 |
-| `assets:read`         | List blobs and read/download bounded attachment data                          |
-| `assets:write`        | Inline or multipart upload, completion, abort, delete, and release            |
-| `comments:read`       | Document comments, replies, resolution, author, and timestamp metadata        |
-| `comments:write`      | Comment/reply creation, editing, resolution, deletion, and attachments        |
-| `collaboration:read`  | Public state, permissions, grants, members, and invite links                  |
-| `collaboration:write` | Publishing, grants, invitations, members, sharing settings, confirmed delete  |
-| `history:read`        | Persisted document history list and complete structured snapshots             |
-| `history:write`       | Restore a complete snapshot through a real CRDT update                        |
-| `ai-context:read`     | Settings, memories, events, rules, policies, projects, planner, scope         |
-| `ai-context:write`    | Create/update/delete/rollback/undo Context records and settings               |
-| `ai-chat:read`        | Sessions and paginated message history                                        |
-| `ai-chat:write`       | Create/update/fork/delete sessions and send messages                          |
-| `ai-operations:read`  | Prompts, models, runtime, repair, support bundle, registry/health reads       |
-| `ai-operations:write` | Approval/control, support bundle lifecycle, registry/health mutations         |
+The tool-agent path has a 120-second bound, records at most 20 tool executions,
+polls cancellation and authority while running, and returns sanitized result
+and document-artifact evidence. Delegated document creation is idempotent for
+the same task and title.
 
-A credential containing every scope sees 117 unique tools, including discovery.
-`tools/list` remains the authoritative schema and availability source.
+Whiteboard, document database/table, asset, comment, collaboration, history,
+and external-system operations currently return `unsupported_task`. They must
+not be reported as completed until a real LocalMind executor exists.
 
-Each tool advertises strict `inputSchema`, `outputSchema`, and MCP safety
-annotations. Successful calls return both readable text and the same logical
-value under `structuredContent.result`:
+## Execution And Result Notifications
 
-```json
-{
-  "content": [{ "type": "text", "text": "..." }],
-  "structuredContent": { "result": {} }
-}
-```
+A document update or tool-agent task returns `queued` and immediately queues
+the same AgentRun used by LocalMind's own runtime. It does not create an
+approval step, send an approval request, or wait for a caller decision. The
+task's fixed MCP capability snapshot and the delegated user's live ACL are the
+authorization boundary.
 
-Invalid arguments return an MCP tool result with `isError: true`. Unexpected
-internal failures are logged server-side and redacted from the client.
-
-LocalMind checks permissions again when each tool runs. Search results,
-document text, chat content, and registry diagnostics are untrusted data and
-must not be treated as instructions by the calling AI.
-
-## Resources
-
-`documents:read` also enables `resources/list`, `resources/templates/list`, and
-`resources/read`. Document URIs use:
+The worker repeats credential-family activity, frozen capability, live ACL,
+and cancellation checks during execution; the optimized document-replacement
+path also checks the planned document version immediately before the write. If
+a result notification URL is configured, LocalMind sends exactly terminal
+event types: `task_completed`, `task_failed`, or `task_cancelled`.
+Notifications are signed with the callback secret:
 
 ```text
-localmind://workspace/<WORKSPACE_ID>/documents/<DOC_ID>
+X-LocalMind-Timestamp: <unix milliseconds>
+X-LocalMind-Signature: sha256=<HMAC-SHA256(secret, timestamp + "." + rawBody)>
 ```
 
-`resources/list` returns at most 100 documents per page and a standard
-`nextCursor` while more readable documents exist. Resources are reauthorized
-when listed and read.
+The signature covers `<timestamp>.<exact raw JSON body>`. Callback delivery
+uses a durable outbox with leases and bounded retries. A callback URL is never
+required for execution; without one, use `get_localmind_task` to observe the
+terminal result.
 
-## Deliberate Exclusions
+## Query A Task
 
-MCP covers externally appropriate workspace and AI user operations, including
-bounded inline attachment transfer and the existing multipart/presigned upload
-path. It deliberately does not expose password/account management, billing or
-licenses, raw server administrator APIs, BYOK/provider secret writes, MCP
-credential self-management, or arbitrary GraphQL passthrough. Those surfaces
-require a separate authenticated product or operator workflow.
+`delegate_to_localmind` returns a stable `taskId`; `requestId` remains a
+compatibility alias. Call `get_localmind_task` with that id to read the
+sanitized plan, step state, final result, and artifact references. New MCP
+tasks return `approval=null`. The query never invokes AI or advances the task.
+
+For bounded long polling, pass the previous `stateVersion` as
+`knownStateVersion` and set `waitMs` up to `30000`. When a result notification
+URL is configured, task queries provide recovery and reconciliation if a
+callback is delayed, duplicated, or lost. Without a notification URL, the same
+query is the normal completion channel.
+
+## Cancel A Task
+
+Call `control_localmind_task` with `action=cancel`, the stable `taskId`, and an
+idempotency key. Queued work becomes `cancelled` immediately. Running work
+first returns `cancellation_requested` and appears as
+`cancelling` until the Agent Runtime worker cooperatively records terminal
+`cancelled` state; poll with `get_localmind_task` during that interval.
+
+The control tool accepts only `cancel`; there is no approval or rejection
+operation. Final cancellation emits a signed `task_cancelled` notification when
+a result notification URL is configured.
 
 ## Protocol Self-Test
-
-Set the endpoint and token in the shell used for the test:
 
 ```shell
 export LOCALMIND_MCP_URL='https://localmind.example/api/workspaces/<WORKSPACE_ID>/mcp'
 read -r -s LOCALMIND_MCP_TOKEN
-```
 
-Initialize the connection:
-
-```shell
 curl --fail-with-body --silent --show-error \
   -H "Authorization: Bearer ${LOCALMIND_MCP_TOKEN}" \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"localmind-mcp-check","version":"1.0.0"}}}' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"localmind-check","version":"1.0.0"}}}' \
   "${LOCALMIND_MCP_URL}"
-```
 
-List tools:
-
-```shell
 curl --fail-with-body --silent --show-error \
   -H "Authorization: Bearer ${LOCALMIND_MCP_TOKEN}" \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
   --data '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
   "${LOCALMIND_MCP_URL}"
-```
 
-Call keyword search:
-
-```shell
 curl --fail-with-body --silent --show-error \
   -H "Authorization: Bearer ${LOCALMIND_MCP_TOKEN}" \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  --data '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"keyword_search","arguments":{"query":"quarterly plan"}}}' \
+  --data '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"delegate_to_localmind","arguments":{"request":"Summarize the supplied documents.","documentIds":[],"idempotencyKey":"summary-001"}}}' \
+  "${LOCALMIND_MCP_URL}"
+
+curl --fail-with-body --silent --show-error \
+  -H "Authorization: Bearer ${LOCALMIND_MCP_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_localmind_task","arguments":{"taskId":"<TASK_ID>","waitMs":0}}}' \
+  "${LOCALMIND_MCP_URL}"
+
+curl --fail-with-body --silent --show-error \
+  -H "Authorization: Bearer ${LOCALMIND_MCP_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"control_localmind_task","arguments":{"taskId":"<TASK_ID>","action":"cancel","idempotencyKey":"cancel-001"}}}' \
   "${LOCALMIND_MCP_URL}"
 ```
 
-Successful initialization returns `serverInfo.name=localmind-workspace`.
-Successful tool discovery always includes
-`discover_localmind_capabilities`; the remaining tools depend on the
-credential's scopes. Call that discovery tool before planning a workflow.
-
-## Credential Operations
-
-- **Rotate** when a token may have been exposed or before a planned expiry.
-  The previous generation remains valid only for its bounded rotation grace
-  period.
-- **Revoke** immediately when a client is removed. Revocation applies to the
-  credential family, including a token still in its rotation grace period.
-- Review the credential's fingerprint, expiry, status, and last-used timestamp
-  in the MCP Server settings panel.
+Successful initialization returns `serverInfo.name=localmind-ai`; `tools/list`
+returns `delegate_to_localmind`, `get_localmind_task`, and
+`control_localmind_task`.
 
 ## Troubleshooting
 
-- `401 Authentication failed`: the token is missing, malformed, expired,
-  revoked, for a disabled user, or belongs to another workspace.
-- `403 Access denied`: the credential owner no longer has workspace access.
-- `405 Method not allowed`: the client used `GET` or `DELETE`; this
-  endpoint uses stateless `POST` requests.
-- Empty search results: verify document permissions and embedding readiness.
-  Try `keyword_search` before `semantic_search` for exact terms.
-- Container connection failure: replace `localhost` with a host or service
-  name reachable from the client container.
+- MCP `401`: token missing, malformed, expired, revoked, disabled, or bound to
+  another workspace.
+- `credential_scope_denied`: the task's fixed credential snapshot lacks a
+  required capability.
+- `permission_denied` or `resource_not_accessible`: the delegated user lacks
+  current LocalMind ACL; no elevation request will be sent.
+- Missing callback: execution continues; poll `get_localmind_task` for the
+  terminal result.
+- Missing terminal notification: query the task, then check the receiver's HMAC
+  validation and replay protection plus LocalMind's bounded delivery retries.
+- MCP `405`: the stateless MCP endpoint accepts `POST`, not `GET` or `DELETE`.

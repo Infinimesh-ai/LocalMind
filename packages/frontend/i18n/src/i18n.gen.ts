@@ -6161,6 +6161,10 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.settings.workspace.byok.field.endpoint"](): string;
     /**
+      * `Model ID`
+      */
+    ["com.affine.settings.workspace.byok.field.model-id"](): string;
+    /**
       * `Custom endpoints are disabled by the server administrator. In Self-hosted Admin, enable copilot.byok.allowCustomEndpoint.`
       */
     ["com.affine.settings.workspace.byok.endpoint.custom-disabled"](): string;
@@ -6176,6 +6180,10 @@ export function useAFFiNEI18N(): {
       * `Workspace fallback key`
       */
     ["com.affine.settings.workspace.byok.placeholder.description"](): string;
+    /**
+      * `gpt-5.6-sol`
+      */
+    ["com.affine.settings.workspace.byok.placeholder.model-id"](): string;
     /**
       * `Add key`
       */
@@ -8385,6 +8393,14 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.notification.empty"](): string;
     /**
+      * `No notifications`
+      */
+    ["com.affine.notification.empty.all"](): string;
+    /**
+      * `Notifications you keep will appear here.`
+      */
+    ["com.affine.notification.empty.all.description"](): string;
+    /**
       * `Loading more...`
       */
     ["com.affine.notification.loading-more"](): string;
@@ -8401,9 +8417,29 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.notification.invitation.accept"](): string;
     /**
-      * `Delete all notifications`
+      * `Unread`
       */
-    ["com.affine.notification.delete-all"](): string;
+    ["com.affine.notification.filter.unread"](): string;
+    /**
+      * `All`
+      */
+    ["com.affine.notification.filter.all"](): string;
+    /**
+      * `Mark all as read`
+      */
+    ["com.affine.notification.mark-all-read"](): string;
+    /**
+      * `Delete read notifications`
+      */
+    ["com.affine.notification.delete-read"](): string;
+    /**
+      * `Delete notification`
+      */
+    ["com.affine.notification.delete"](): string;
+    /**
+      * `More notification actions`
+      */
+    ["com.affine.notification.more-actions"](): string;
     /**
       * `Tips`
       */
@@ -8939,7 +8975,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.mcp-server.name"](): string;
     /**
-      * `Connect external AI clients to LocalMind with fine-grained workspace permissions.`
+      * `Delegate workspace tasks from external AI clients to LocalMind's built-in AI.`
       */
     ["com.affine.integration.mcp-server.desc"](): string;
     /**
@@ -8970,6 +9006,10 @@ export function useAFFiNEI18N(): {
       * `Copy token`
       */
     ["com.affine.integration.mcp-server.action.copy-token"](): string;
+    /**
+      * `Copy callback secret`
+      */
+    ["com.affine.integration.mcp-server.action.copy-callback-secret"](): string;
     /**
       * `Copy JSON`
       */
@@ -9031,6 +9071,14 @@ export function useAFFiNEI18N(): {
         readonly date: string;
     }): string;
     /**
+      * `Result notifications configured`
+      */
+    ["com.affine.integration.mcp-server.meta.callback-configured"](): string;
+    /**
+      * `Result notifications not configured`
+      */
+    ["com.affine.integration.mcp-server.meta.callback-not-configured"](): string;
+    /**
       * `Active`
       */
     ["com.affine.integration.mcp-server.status.active"](): string;
@@ -9055,7 +9103,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.mcp-server.create.title"](): string;
     /**
-      * `This credential will only work with this workspace's MCP endpoint.`
+      * `This credential is limited to the selected LocalMind AI tools and this workspace.`
       */
     ["com.affine.integration.mcp-server.create.description"](): string;
     /**
@@ -9063,13 +9111,17 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.mcp-server.field.label"](): string;
     /**
-      * `Capabilities`
+      * `Allowed AI tools`
       */
     ["com.affine.integration.mcp-server.field.access"](): string;
     /**
       * `Expires in`
       */
     ["com.affine.integration.mcp-server.field.expiry"](): string;
+    /**
+      * `Result notification URL`
+      */
+    ["com.affine.integration.mcp-server.field.callback-url"](): string;
     /**
       * `{{days}} days`
       */
@@ -9095,6 +9147,10 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.mcp-server.reveal.token"](): string;
     /**
+      * `Callback signing secret`
+      */
+    ["com.affine.integration.mcp-server.reveal.callback-secret"](): string;
+    /**
       * `MCP configuration`
       */
     ["com.affine.integration.mcp-server.reveal.config"](): string;
@@ -9117,7 +9173,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.mcp-server.revoke.description"](): string;
     /**
-      * `Supported capabilities`
+      * `LocalMind AI tool permissions`
       */
     ["com.affine.integration.mcp-server.capabilities.title"](): string;
     /**
@@ -9137,85 +9193,157 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.mcp-server.capabilities.write"](): string;
     /**
-      * `Read`
+      * `Allow`
       */
-    ["com.affine.integration.mcp-server.capability.read"](): string;
+    ["com.affine.integration.mcp-server.capability.allow"](): string;
     /**
-      * `Write`
+      * `Delegate tasks`
       */
-    ["com.affine.integration.mcp-server.capability.write"](): string;
+    ["com.affine.integration.mcp-server.capability.delegate"](): string;
     /**
-      * `Documents`
+      * `Send complete natural-language tasks to the built-in LocalMind AI.`
       */
-    ["com.affine.integration.mcp-server.capability.documents"](): string;
+    ["com.affine.integration.mcp-server.capability.delegate.description"](): string;
     /**
-      * `Documents, structured blocks, Edgeless whiteboards, and databases.`
+      * `Query task state`
       */
-    ["com.affine.integration.mcp-server.capability.documents.description"](): string;
+    ["com.affine.integration.mcp-server.capability.query"](): string;
     /**
-      * `Workspace`
+      * `Read persisted plans, progress, results, and artifacts.`
       */
-    ["com.affine.integration.mcp-server.capability.workspace"](): string;
+    ["com.affine.integration.mcp-server.capability.query.description"](): string;
     /**
-      * `Metadata, trash, tags, collections, folders, properties, favorites, and settings.`
+      * `Cancel tasks`
       */
-    ["com.affine.integration.mcp-server.capability.workspace.description"](): string;
+    ["com.affine.integration.mcp-server.capability.control"](): string;
     /**
-      * `Assets`
+      * `Cancel unfinished delegated tasks through LocalMind Agent Runtime.`
       */
-    ["com.affine.integration.mcp-server.capability.assets"](): string;
+    ["com.affine.integration.mcp-server.capability.control.description"](): string;
     /**
-      * `Workspace files, blob uploads, multipart transfers, deletion, and release.`
+      * `SparkClaw MCP`
       */
-    ["com.affine.integration.mcp-server.capability.assets.description"](): string;
+    ["com.affine.integration.external-mcp.name"](): string;
     /**
-      * `Comments`
+      * `Connect this workspace to the server-managed SparkClaw MCP endpoint.`
       */
-    ["com.affine.integration.mcp-server.capability.comments"](): string;
+    ["com.affine.integration.external-mcp.desc"](): string;
     /**
-      * `Document comments, replies, resolution, and attachments.`
+      * `Failed to load the SparkClaw MCP connection.`
       */
-    ["com.affine.integration.mcp-server.capability.comments.description"](): string;
+    ["com.affine.integration.external-mcp.load-error"](): string;
     /**
-      * `Collaboration`
+      * `Connection`
       */
-    ["com.affine.integration.mcp-server.capability.collaboration"](): string;
+    ["com.affine.integration.external-mcp.connection.title"](): string;
     /**
-      * `Publishing, grants, members, invitations, sharing settings, and workspace deletion.`
+      * `The access ticket is used only for initialization and is never stored.`
       */
-    ["com.affine.integration.mcp-server.capability.collaboration.description"](): string;
+    ["com.affine.integration.external-mcp.connection.description"](): string;
     /**
-      * `History`
+      * `Name`
       */
-    ["com.affine.integration.mcp-server.capability.history"](): string;
+    ["com.affine.integration.external-mcp.field.name"](): string;
     /**
-      * `Durable document snapshots and content restoration.`
+      * `Protocol`
       */
-    ["com.affine.integration.mcp-server.capability.history.description"](): string;
+    ["com.affine.integration.external-mcp.field.protocol"](): string;
     /**
-      * `AI Context`
+      * `Endpoint`
       */
-    ["com.affine.integration.mcp-server.capability.context"](): string;
+    ["com.affine.integration.external-mcp.field.endpoint"](): string;
     /**
-      * `Settings, memories, rules, policies, projects, scopes, and planner history.`
+      * `One-time access ticket`
       */
-    ["com.affine.integration.mcp-server.capability.context.description"](): string;
+    ["com.affine.integration.external-mcp.field.ticket"](): string;
     /**
-      * `AI Chat`
+      * `Server`
       */
-    ["com.affine.integration.mcp-server.capability.chat"](): string;
+    ["com.affine.integration.external-mcp.meta.server"](): string;
     /**
-      * `Sessions, histories, messages, forks, updates, and cleanup.`
+      * `Session fingerprint`
       */
-    ["com.affine.integration.mcp-server.capability.chat.description"](): string;
+    ["com.affine.integration.external-mcp.meta.session"](): string;
     /**
-      * `AI Operations`
+      * `Last checked`
       */
-    ["com.affine.integration.mcp-server.capability.operations"](): string;
+    ["com.affine.integration.external-mcp.meta.last-checked"](): string;
     /**
-      * `Agent Runtime, repair, support bundles, registries, models, and provider health.`
+      * `Connected`
       */
-    ["com.affine.integration.mcp-server.capability.operations.description"](): string;
+    ["com.affine.integration.external-mcp.status.active"](): string;
+    /**
+      * `Connecting`
+      */
+    ["com.affine.integration.external-mcp.status.connecting"](): string;
+    /**
+      * `Degraded`
+      */
+    ["com.affine.integration.external-mcp.status.degraded"](): string;
+    /**
+      * `Reauthentication required`
+      */
+    ["com.affine.integration.external-mcp.status.reauth-required"](): string;
+    /**
+      * `Disabled`
+      */
+    ["com.affine.integration.external-mcp.status.disabled"](): string;
+    /**
+      * `SparkClaw MCP connected`
+      */
+    ["com.affine.integration.external-mcp.connected"](): string;
+    /**
+      * `Connect and test`
+      */
+    ["com.affine.integration.external-mcp.action.connect"](): string;
+    /**
+      * `Use new ticket`
+      */
+    ["com.affine.integration.external-mcp.action.reauthenticate"](): string;
+    /**
+      * `Disable`
+      */
+    ["com.affine.integration.external-mcp.action.disable"](): string;
+    /**
+      * `Refresh tools`
+      */
+    ["com.affine.integration.external-mcp.action.refresh"](): string;
+    /**
+      * `Run test`
+      */
+    ["com.affine.integration.external-mcp.action.test"](): string;
+    /**
+      * `Tools`
+      */
+    ["com.affine.integration.external-mcp.tools.title"](): string;
+    /**
+      * `Only enabled tools can be called by LocalMind.`
+      */
+    ["com.affine.integration.external-mcp.tools.description"](): string;
+    /**
+      * `No tools are available from this server.`
+      */
+    ["com.affine.integration.external-mcp.tools.empty"](): string;
+    /**
+      * `Enabled`
+      */
+    ["com.affine.integration.external-mcp.tool.enabled"](): string;
+    /**
+      * `Conversation test`
+      */
+    ["com.affine.integration.external-mcp.test.title"](): string;
+    /**
+      * `Query`
+      */
+    ["com.affine.integration.external-mcp.test.query"](): string;
+    /**
+      * `Remove the SparkClaw MCP connection?`
+      */
+    ["com.affine.integration.external-mcp.delete.title"](): string;
+    /**
+      * `LocalMind will erase the encrypted session. A new SparkClaw ticket will be required to connect again.`
+      */
+    ["com.affine.integration.external-mcp.delete.description"](): string;
     /**
       * `Notes`
       */

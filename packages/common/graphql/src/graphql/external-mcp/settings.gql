@@ -1,0 +1,33 @@
+query externalMcpSettings($workspaceId: String!) {
+  externalMcpSettings(workspaceId: $workspaceId) {
+    endpoint
+    protocolVersion
+    connection {
+      id
+      workspaceId
+      name
+      endpoint
+      protocolVersion
+      status
+      sessionFingerprint
+      serverName
+      serverVersion
+      toolCatalogFingerprint
+      enabledToolNames
+      lastConnectedAt
+      lastCheckedAt
+      lastUsedAt
+      lastErrorCode
+      lastErrorMessage
+      createdAt
+      updatedAt
+      tools {
+        name
+        title
+        description
+        inputSchema
+        enabled
+      }
+    }
+  }
+}

@@ -16,14 +16,25 @@ creation API, standalone cancel/resume control, and a DB-backed worker lease
 path that consumes queued standalone runs. Broader task execution is still not
 covered:
 
-- no generic planner;
+- the inbound MCP planner can now choose a direct answer, optimized document
+  replacement, or the bounded LocalMind AI Chat tool-agent workflow, but there
+  is still no generic planner for non-chat office domains;
 - the first production model adapter
   (`agent_runtime_model_completion`) now executes persisted model steps
   through the DB-routed prompt/provider stack;
-- the first production tool adapter (`agent_runtime_doc_update`) now executes
-  an approval-gated workspace document update with durable side-effect
-  evidence, but broader tool/Codex/MCP/handoff/planner execution remains out
-  of scope.
+- the production document adapter (`agent_runtime_doc_update`) executes an
+  approval-gated workspace document update with durable side-effect evidence,
+  and the new `agent_runtime_localmind_tool_agent` adapter executes the full AI
+  Chat server-side tool set for credential-authorized MCP delegation; broader
+  Codex/MCP/handoff and non-chat-domain planner execution remains out of scope.
+
+The adjacent AI Chat tool loop now preserves `appendMessages` when its runtime
+wrapper adds provider route context. This fixes `doc_compose` losing the user's
+document brief and generating unrelated content. The compose tool remains a
+preview-only prompt tool; saved self-hosted chat writes use the existing
+permission-checked `doc_create`, `doc_update`, and `doc_update_meta` tools. This
+path does not create an AgentRun and must not be treated as durable Agent Runtime
+execution evidence.
 
 ## First Vertical Slice
 
@@ -1007,6 +1018,51 @@ Implemented behavior:
    execution, workspace document mutation, step/timeline/ledger side-effect
    evidence, and markdown readback of the updated document.
 
+## LocalMind MCP Tool Agent Adapter Slice
+
+Status: implemented.
+
+Inbound MCP delegation now has a durable production adapter that lets the
+built-in LocalMind AI execute the same server-side tool categories as AI Chat
+instead of stopping at read-only answers and one-document replacement.
+
+Implemented behavior:
+
+1. The delegation planner accepts `tool_agent` as an immutable plan kind and
+   creates one queued `agent_runtime_localmind_tool_agent` AgentRun with one
+   persisted tool step.
+2. The step snapshots the complete AI Chat tool-category allowlist:
+   `blobRead`, `codeArtifact`, `conversationSummary`, `docRead`, `docCreate`,
+   `docUpdate`, `docUpdateMeta`, `docKeywordSearch`, `docSemanticSearch`,
+   `webSearch`, `docCompose`, and `sectionEdit`.
+3. Execution reuses `CapabilityRuntime.streamObject` and the existing
+   `ToolRuntime`, so provider routing and each tool's current permission,
+   self-hosting, indexer, web-provider, and context checks remain authoritative.
+4. The adapter checks credential-family activity, the frozen
+   `delegate_to_localmind` capability, live `Workspace.Copilot`, and readable
+   caller-supplied documents before the loop. It polls cancellation and base
+   authority every second while running and propagates one AbortSignal into the
+   tool loop.
+5. Execution is bounded to 120 seconds and 20 recorded tool results. Native
+   tool-result `is_error` survives the runtime projection, and an already
+   aborted callback fails before a tool executor is invoked.
+6. Completion persists the terminal AgentRun execution result and MCP
+   delegation result in one transaction before optional callback delivery is
+   queued.
+7. Persisted/public evidence contains only a bounded final answer, tool names,
+   success/failure status, argument fingerprints, referenced document ids, and
+   created/updated document artifacts; raw tool arguments and generated
+   document bodies are not returned by `get_localmind_task`.
+8. Task queries recheck `Doc.Read` for caller-supplied, targeted, created,
+   updated, searched, and read document references before returning historical
+   task state.
+9. Delegated `doc_create` derives a stable requested document id from task id
+   and title. `DocWriter.createDoc` recognizes an existing requested id,
+   repairs missing root registration, and returns idempotent replay evidence.
+10. Focused E2E covers the full tool allowlist, document creation/readback,
+    same-task replay, sanitized artifact projection, failed-tool projection,
+    credential revocation before execution, and execution without a callback.
+
 ## Agent Run Source Conflict Evidence Fence Slice
 
 Status: implemented.
@@ -1049,9 +1105,11 @@ source_id) DO NOTHING` loses the insert race, the model validates the
   `agent_runtime_model_completion` adapter now performs real model execution
   through the DB-routed prompt/provider stack, and
   `agent_runtime_doc_update` now performs one approval-gated workspace document
-  update side effect. Broader tool, Codex, MCP, handoff, and planner executors
-  are still not implemented, and model output evidence remains bounded summary
-  text rather than a richer executor-specific persisted result schema.
+  update side effect. `agent_runtime_localmind_tool_agent` now performs the
+  bounded AI Chat tool loop for inbound MCP tasks. Specialized non-chat tool,
+  Codex, outbound MCP, handoff, and generic planner executors are still not
+  implemented, and model output evidence remains bounded summary text rather
+  than a richer executor-specific persisted result schema.
 - generic standalone run creation and worker/control metadata are now bounded
   at the model persistence and hydration boundary, and timeline status
   vocabulary, worker attempt counters, worker lease pair and lease-id string
@@ -1069,8 +1127,8 @@ source_id) DO NOTHING` loses the insert race, the model validates the
   still exist, and execution-result delete restriction
   for failure evidence including registered adapter capability snapshots are
   DB-constrained, but full external executor payload schemas will still need
-  executor-specific validation when real tool/Codex/MCP/model adapters are
-  added.
+  executor-specific validation when specialized tool/Codex/MCP/model adapters
+  are added.
 - Agent Runtime failure diagnostics now also reject present-but-blank failure
   code/message strings at the DB boundary, without requiring every generic
   `failed` row to carry diagnostics.
@@ -1100,8 +1158,8 @@ source_id) DO NOTHING` loses the insert race, the model validates the
   still requeue a failed prior attempt and preserve its result history before
   the next worker lease increments the attempt, and run lifecycle transitions
   now require matching run-level timeline evidence by commit time, but direct
-  same-attempt running bypasses are rejected. Tool/Codex/MCP/model adapters
-  still need executor-specific result schemas and implementations.
+  same-attempt running bypasses are rejected. Specialized tool/Codex/MCP/model
+  adapters still need executor-specific result schemas and implementations.
 - registered standalone workflow adapter capabilities now surface through
   GraphQL/common/Admin from the same allow-listed registry snapshot used by
   worker failure diagnostics, but this remains registry observability rather
@@ -1134,19 +1192,91 @@ source_id) DO NOTHING` loses the insert race, the model validates the
   external work.
 - broader step status transitions outside the current worker/control paths
   still need executor-specific user-facing summary contracts as additional
-  tool/Codex/MCP/model adapters are added.
+  specialized tool/Codex/MCP/model adapters are added.
 - Agent Runtime display strings are now DB-constrained for blank/title/summary
   drift, but production adapters still need domain-specific user-facing
   summary contracts and redaction policies.
 
+## Inbound MCP Delegation
+
+The inbound workspace MCP surface now exposes `delegate_to_localmind`, the
+read-only `get_localmind_task`, and cancel-only `control_localmind_task`. An
+optimized delegated document replacement creates a queued
+`agent_runtime_doc_update` run, while broader AI Chat work creates a queued
+`agent_runtime_localmind_tool_agent` run with the complete server-side AI Chat
+tool-category snapshot. Both use one durable `mcp_ai_delegation` request. The
+credential's fixed capability snapshot and the delegated user's live ACL
+authorize execution; no approval step, approval callback, or caller decision
+is required. An optional result notification URL receives only terminal
+completion, failure, or cancellation events. The normal Agent Runtime worker
+lease, cancellation, completion, execution-result, and side-effect evidence
+paths remain authoritative.
+
+The planner's OpenAI-compatible structured-output wire contract is a single
+strict object with a `kind` discriminator and fixed fields, rather than a nested
+object union. The service normalizes that wire result into the narrower answer,
+document-update, tool-agent, or unsupported domain schemas before persisting a
+plan. This avoids provider constrained-decoding drift where the generated
+reason describes a valid read-only answer but the decoder selects the
+unsupported union branch.
+
+The task query uses the delegation request id as stable `taskId` and projects a
+bounded `localmind.task.v1` view over delegation, AgentRun, AgentStep, and
+execution-result state. Plans are stored separately from mutable task results as
+schema-validated fingerprinted snapshots and become immutable after first
+write. Query projection allowlists step/result fields instead of returning raw
+step output, supports version-based waits up to 30 seconds, and does not invoke
+AI or mutate runtime state.
+
+The delegated task's credential capability snapshot is fixed when the task is
+created. Execution cannot gain capability through a later credential change,
+while credential-family activity and the actor's real workspace/document ACL
+are checked live. Permission loss is a direct failure, not a request for
+elevation.
+
+Task query access is restricted to the creating credential family, survives
+rotation, and rechecks family activity, frozen `get_localmind_task`, live
+`Workspace.Copilot`, and `Doc.Read` for every referenced document. A different
+family receives `task_not_found`; lost ACL receives no historical task output.
+
+Task control persists a fingerprinted idempotency record per task, credential
+family, and key. It uses the task creation-time `control_localmind_task` permission
+and live `Workspace.Copilot`; it does not require `Doc.Update`, because losing
+side-effect permission must not prevent cancellation. Queued runs become
+terminal immediately. A leased running run receives the existing
+cooperative Agent Runtime cancellation request and projects `cancelling` until
+the worker owns the terminal write. Final reconciliation queues a signed
+`task_cancelled` notification when an endpoint is configured.
+
+Document version is checked while planning and immediately before `DocWriter`,
+but the current CRDT writer has no expected-version compare-and-write operation.
+There remains a narrow race where a concurrent edit can arrive after the final
+check and before the update is persisted. Close this with a storage-level CAS
+before treating the preview/version fence as atomic.
+
+The tool-agent path has its own bounded execution contract: 120 seconds, 20
+recorded tool results, one AbortSignal, one-second cancellation/authority
+polling, transactional AgentRun/delegation completion, and sanitized tool plus
+artifact evidence. Tool-level ACL remains inside the existing AI Chat tools.
+Delegated document creation is stable by task id and title so worker retries do
+not create duplicate documents.
+
 ## Non-goals For First Slice
 
-The workspace MCP v2 surface exposes Agent Runtime run/list/adapter reads,
-approval/control, and the approval-gated document-update request through the
-existing resolver/model lifecycle. MCP does not introduce a new executor or
-bypass worker lease, approval, audit, cancellation, or execution-result ledger
-contracts; broader MCP-as-an-Agent-Runtime-executor work remains a separate
-future adapter slice.
+Whiteboard, document database/table, asset, comment, collaboration, history,
+external-system, and arbitrary MCP operations remain unsupported until each has
+an executor-specific planner schema, permission map, preview, idempotency,
+side-effect evidence, and tests. Direct legacy workspace tools must not be
+reintroduced to bypass this delegation boundary.
+
+The workspace-managed outbound SparkClaw MCP connection is also separate from
+Agent Runtime execution. It currently initializes and persists an encrypted
+workspace Session, catalogs/allowlists tools, and exposes an explicit
+conversation test call. It does not schedule Agent Runtime MCP steps, bypass
+worker leases or authorization, or turn catalog tools into general runtime
+executors. A future MCP workflow adapter must add executor-specific input,
+result, idempotency, cancellation, redaction, and side-effect contracts before
+using this connection from persisted Agent Runtime steps.
 
 - full planner;
 - parallel tool scheduler;

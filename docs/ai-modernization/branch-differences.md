@@ -21,10 +21,11 @@ an AI operations layer with:
   resolution, trust-separated prompt rendering, rolling summaries, immutable
   planner strategies, and privacy-preserving context plan traces;
 - Admin-facing diagnostics and operator controls for the above durable state;
-- a workspace-bound MCP v2 surface with fine-grained document/whiteboard,
-  workspace organization, asset, comment, collaboration, history, AI Context,
-  AI Chat, and AI Operations scopes that reuses the same permission, approval,
-  audit, DLP, registry, and runtime lifecycle paths as LocalMind itself;
+- a workspace-bound MCP v3 surface that exposes AI delegation, durable task
+  state reconciliation, and cancel-only task control, freezes the credential
+  capability ceiling per delegated task, rechecks the delegated user's live
+  ACL, and routes credential-authorized side effects through the same Agent
+  Runtime lifecycle as LocalMind itself with optional terminal notifications;
 - fixed Docker image roles for validation instead of milestone-specific build
   tags.
 

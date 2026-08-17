@@ -8,7 +8,12 @@ import {
 import { Transactional } from '@nestjs-cls/transactional';
 import type { McpAccessMode } from '@prisma/client';
 
-import { CryptoHelper, EventBus } from '../../../base';
+import {
+  assertSsrFSafeUrl,
+  Config,
+  CryptoHelper,
+  EventBus,
+} from '../../../base';
 import { MCP_CREDENTIAL_TOKEN_PREFIX } from '../../../core/auth/token';
 import { Models } from '../../../models';
 import {
@@ -49,6 +54,7 @@ type IssueMcpCredential = {
   accessMode: McpAccessMode;
   capabilities?: string[];
   expirationDays: number;
+  callbackUrl?: string | null;
 };
 
 @Injectable()
@@ -56,7 +62,8 @@ export class McpCredentialService {
   constructor(
     private readonly models: Models,
     private readonly crypto: CryptoHelper,
-    private readonly event: EventBus
+    private readonly event: EventBus,
+    private readonly config: Config
   ) {}
 
   async list(userId: string, workspaceId: string) {
@@ -64,6 +71,10 @@ export class McpCredentialService {
       userId,
       workspaceId
     );
+    const configuredEndpointFamilyIds =
+      await this.models.copilotMcpDelegation.getConfiguredEndpointFamilyIds(
+        credentials.map(credential => credential.familyId)
+      );
     const latest = new Map<string, (typeof credentials)[number]>();
     for (const credential of credentials) {
       if (!latest.has(credential.familyId)) {
@@ -75,6 +86,9 @@ export class McpCredentialService {
         const status = this.status(credential);
         return {
           ...credential,
+          callbackConfigured: configuredEndpointFamilyIds.has(
+            credential.familyId
+          ),
           graceEndsAt: status === 'ROTATING' ? credential.graceEndsAt : null,
           status,
         };
@@ -82,14 +96,38 @@ export class McpCredentialService {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
+  @Transactional()
   async create(input: IssueMcpCredential) {
+    const callbackUrl = await this.validateCallbackUrl(input.callbackUrl);
     const issued = await this.issue(input);
+    let callbackSecret: string | null = null;
+    if (callbackUrl) {
+      callbackSecret = this.crypto.randomBytes(32).toString('base64url');
+      await this.models.copilotMcpDelegation.upsertEndpoint({
+        credentialFamilyId: issued.credential.familyId,
+        userId: input.userId,
+        workspaceId: input.workspaceId,
+        callbackUrl,
+        encryptedCallbackSecret: this.crypto.encrypt(callbackSecret),
+        callbackSecretFingerprint: this.crypto
+          .sha256(callbackSecret)
+          .toString('hex')
+          .slice(0, 16),
+      });
+    }
     this.event.emit('mcp.credential.created', {
       credentialId: issued.credential.id,
       userId: input.userId,
       workspaceId: input.workspaceId,
     });
-    return issued;
+    return {
+      credential: {
+        ...issued.credential,
+        callbackConfigured: Boolean(callbackUrl),
+      },
+      token: issued.token,
+      callbackSecret,
+    };
   }
 
   @Transactional()
@@ -141,7 +179,14 @@ export class McpCredentialService {
       userId,
       workspaceId,
     });
-    return issued;
+    const callbackConfigured = Boolean(
+      await this.models.copilotMcpDelegation.getEndpoint(current.familyId)
+    );
+    return {
+      ...issued,
+      credential: { ...issued.credential, callbackConfigured },
+      callbackSecret: null,
+    };
   }
 
   async revoke(id: string, userId: string, workspaceId: string) {
@@ -254,6 +299,47 @@ export class McpCredentialService {
       return null;
     }
     return { id: parts[1], secret: parts[2] };
+  }
+
+  private async validateCallbackUrl(value?: string | null) {
+    const callbackUrl = value?.trim() || null;
+    if (!callbackUrl) return null;
+    if (callbackUrl.length > 2048) {
+      throw new BadRequestException('MCP callback URL is too long');
+    }
+
+    let url: URL;
+    try {
+      url = new URL(callbackUrl);
+    } catch {
+      throw new BadRequestException('MCP callback URL is invalid');
+    }
+    if (
+      !['http:', 'https:'].includes(url.protocol) ||
+      !url.hostname ||
+      url.username ||
+      url.password ||
+      url.hash
+    ) {
+      throw new BadRequestException('MCP callback URL is invalid');
+    }
+
+    if (this.callbackAllowedOrigins.has(url.origin)) {
+      return url.toString();
+    }
+    if (url.protocol !== 'https:') {
+      throw new BadRequestException('MCP callback URL must use HTTPS');
+    }
+    await assertSsrFSafeUrl(url);
+    return url.toString();
+  }
+
+  private get callbackAllowedOrigins() {
+    return new Set(
+      this.config.copilot.mcpDelegation.callbackAllowedOrigins.map(
+        value => new URL(value).origin
+      )
+    );
   }
 
   private status(credential: {

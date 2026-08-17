@@ -13,14 +13,16 @@ export async function runProviderProbe(
   provider: ByokProvider,
   apiKey: string,
   endpoint: string | null,
-  allowPrivateEndpoint: boolean
+  allowPrivateEndpoint: boolean,
+  modelId?: string | null
 ) {
-  const request = buildProbeRequest(provider, apiKey, endpoint);
+  const request = buildProbeRequest(provider, apiKey, endpoint, modelId);
   const response = await probeFetch(
     request.url,
     {
       method: request.method,
       headers: request.headers,
+      body: request.body,
     },
     {
       timeoutMs: TEST_TIMEOUT_MS,
@@ -39,14 +41,32 @@ export async function runProviderProbe(
 function buildProbeRequest(
   provider: ByokProvider,
   apiKey: string,
-  endpoint: string | null
+  endpoint: string | null,
+  modelId?: string | null
 ): {
-  method: 'GET';
+  method: 'GET' | 'POST';
   url: string;
   headers: Record<string, string>;
+  body?: string;
 } {
   switch (provider) {
     case ByokProvider.openai:
+      if (modelId) {
+        return {
+          method: 'POST',
+          url: `${endpoint ?? 'https://api.openai.com/v1'}/responses`,
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: modelId,
+            input: 'Reply with OK.',
+            max_output_tokens: 64,
+            store: false,
+          }),
+        };
+      }
       return {
         method: 'GET',
         url: `${endpoint ?? 'https://api.openai.com/v1'}/models`,

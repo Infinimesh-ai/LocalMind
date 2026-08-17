@@ -3704,9 +3704,16 @@ input CreateCopilotContextRuleInput {
 
 input CreateMcpCredentialInput {
   accessMode: McpAccessMode! = READ_ONLY
+  callbackUrl: String
   capabilities: [String!]
   expirationDays: Int! = 90
   name: String!
+  workspaceId: String!
+}
+
+input ConnectExternalMcpInput {
+  accessTicket: String!
+  name: String! = "SparkClaw MCP"
   workspaceId: String!
 }
 
@@ -3726,6 +3733,7 @@ input CreateWorkspaceByokLocalLeaseProviderInput {
   description: String
   enabled: Boolean
   endpoint: String
+  modelId: String
   name: String!
   provider: ByokProvider!
   sortOrder: SafeInt
@@ -4433,8 +4441,58 @@ enum McpCredentialStatus {
   ROTATING
 }
 
+enum ExternalMcpConnectionStatus {
+  ACTIVE
+  CONNECTING
+  DEGRADED
+  DISABLED
+  REAUTH_REQUIRED
+}
+
+type ExternalMcpToolType {
+  description: String
+  enabled: Boolean!
+  inputSchema: JSON!
+  name: String!
+  title: String
+}
+
+type ExternalMcpConnectionType {
+  createdAt: DateTime!
+  enabledToolNames: [String!]!
+  endpoint: String!
+  id: ID!
+  lastCheckedAt: DateTime
+  lastConnectedAt: DateTime
+  lastErrorCode: String
+  lastErrorMessage: String
+  lastUsedAt: DateTime
+  name: String!
+  protocolVersion: String!
+  serverName: String
+  serverVersion: String
+  sessionFingerprint: String
+  status: ExternalMcpConnectionStatus!
+  toolCatalogFingerprint: String
+  tools: [ExternalMcpToolType!]!
+  updatedAt: DateTime!
+  workspaceId: String!
+}
+
+type ExternalMcpSettingsType {
+  connection: ExternalMcpConnectionType
+  endpoint: String!
+  protocolVersion: String!
+}
+
+type ExternalMcpToolCallResultType {
+  result: JSON!
+  toolName: String!
+}
+
 type McpCredentialType {
   accessMode: McpAccessMode!
+  callbackConfigured: Boolean!
   capabilities: [String!]!
   createdAt: DateTime!
   expiresAt: DateTime!
@@ -4553,6 +4611,7 @@ type Mutation {
   cancelSubscription(idempotencyKey: String @deprecated(reason: "use header `Idempotency-Key`"), plan: SubscriptionPlan = Pro, workspaceId: String): SubscriptionType!
   changeEmail(email: String!, token: String!): UserType!
   changePassword(newPassword: String!, token: String!, userId: String): Boolean!
+  connectExternalMcp(input: ConnectExternalMcpInput!): ExternalMcpConnectionType!
 
   """Cleanup sessions"""
   cleanupCopilotSession(options: DeleteSessionInput!): [String!]!
@@ -4634,6 +4693,7 @@ type Mutation {
   deleteCopilotContextPolicy(id: ID!, workspaceId: String!): Boolean!
   deleteCopilotContextProject(id: ID!): Boolean!
   deleteCopilotContextRule(id: ID!): Boolean!
+  deleteExternalMcp(workspaceId: String!): Boolean!
 
   """Delete a reply"""
   deleteReply(id: String!): Boolean!
@@ -4642,6 +4702,13 @@ type Mutation {
   deleteUser(id: String!): DeleteAccount!
   deleteWorkspace(id: String!): Boolean!
   deleteWorkspaceByokConfig(id: ID!, workspaceId: String!): Boolean!
+
+  """delete a notification from the current user inbox"""
+  dismissNotification(id: String!): Boolean!
+
+  """delete all read notifications from the current user inbox"""
+  dismissReadNotifications: Boolean!
+  disableExternalMcp(workspaceId: String!): ExternalMcpConnectionType!
 
   """Reenable an banned user"""
   enableUser(id: String!): UserType!
@@ -4713,6 +4780,7 @@ type Mutation {
 
   """Refresh current user subscriptions and return latest."""
   refreshUserSubscriptions: [SubscriptionType!]!
+  refreshExternalMcpTools(workspaceId: String!): ExternalMcpConnectionType!
   releaseDeletedBlobs(workspaceId: String!): Boolean!
 
   """Remove user avatar"""
@@ -4780,6 +4848,7 @@ type Mutation {
   setBlob(blob: Upload!, workspaceId: String!): String!
   settleTranscriptTask(taskId: String!, workspaceId: String!): TranscriptionResultType
   submitTranscriptTask(blob: Upload, blobId: String!, blobs: [Upload!], input: SubmitAudioTranscriptionInput, workspaceId: String!): TranscriptionResultType
+  testExternalMcpConversation(query: String!, workspaceId: String!): ExternalMcpToolCallResultType!
   testWorkspaceByokConfig(input: TestWorkspaceByokConfigInput!): TestWorkspaceByokConfigResultType!
   undoCopilotContextMemoryEvent(eventId: ID!, workspaceId: String!): CopilotContextMemoryEventType!
   unlinkCalendarAccount(accountId: String!): Boolean!
@@ -4795,6 +4864,7 @@ type Mutation {
   updateCopilotContextProject(input: UpdateCopilotContextProjectInput!): CopilotContextProjectType!
   updateCopilotContextRule(input: UpdateCopilotContextRuleInput!): CopilotContextRuleType!
   updateCopilotContextSettings(input: UpdateCopilotContextSettingsInput!): CopilotContextSettingsType!
+  updateExternalMcpToolAllowlist(enabledToolNames: [String!]!, workspaceId: String!): ExternalMcpConnectionType!
 
   """Update a chat session"""
   updateCopilotSession(options: UpdateChatSessionInput!): String!
@@ -5052,6 +5122,7 @@ type Query {
   """Get current user"""
   currentUser: UserType
   error(name: ErrorNames!): ErrorDataUnion!
+  externalMcpSettings(workspaceId: String!): ExternalMcpSettingsType!
 
   """get workspace invitation info"""
   getInviteInfo(inviteId: String!): InvitationType!
@@ -5199,6 +5270,7 @@ type ResponseTooLargeErrorDataType {
 }
 
 type RevealedMcpCredentialType {
+  callbackSecret: String
   credential: McpCredentialType!
   token: String!
 }
@@ -5487,6 +5559,7 @@ input TestWorkspaceByokConfigInput {
   apiKey: String
   configId: ID
   endpoint: String
+  modelId: String
   provider: ByokProvider!
   storage: ByokKeyStorage!
   workspaceId: String!
@@ -5727,6 +5800,7 @@ input UpsertWorkspaceByokConfigInput {
   enabled: Boolean
   endpoint: String
   id: ID
+  modelId: String
   name: String!
   provider: ByokProvider!
   sortOrder: SafeInt
@@ -5815,7 +5889,7 @@ type UserType {
   name: String!
 
   """Get current user notifications"""
-  notifications(pagination: PaginationInput!): PaginatedNotificationObjectType!
+  notifications(includeRead: Boolean = false, pagination: PaginationInput!): PaginatedNotificationObjectType!
   sparkClawEndpoints: [SparkClawEndpointType!]!
   quota: UserQuotaType!
   quotaUsage: UserQuotaUsageType!
@@ -5855,6 +5929,7 @@ type WorkspaceByokKeyConfigType {
   lastTestError: String
   lastTestedAt: DateTime
   lastUsedAt: DateTime
+  modelId: String
   name: String!
   provider: ByokProvider!
   sortOrder: SafeInt!

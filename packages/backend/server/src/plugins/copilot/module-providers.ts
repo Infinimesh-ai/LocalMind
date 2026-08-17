@@ -1,5 +1,6 @@
 import { CopilotAccessPolicy } from './access';
 import { CopilotAgentRuntimeDocUpdateAdapter } from './agent-runtime-doc-update-adapter';
+import { CopilotAgentRuntimeLocalMindToolAgentAdapter } from './agent-runtime-localmind-tool-agent-adapter';
 import { CopilotAgentRuntimeModelCompletionAdapter } from './agent-runtime-model-adapter';
 import { CopilotAgentRuntimeWorker } from './agent-runtime-worker';
 import { CopilotAgentRuntimeWorkflowRegistry } from './agent-runtime-workflow-registry';
@@ -31,7 +32,10 @@ import {
   CopilotEmbeddingClientService,
   CopilotEmbeddingJob,
 } from './embedding';
+import { McpAiDelegationService } from './mcp/delegation';
 import { WorkspaceMcpProvider } from './mcp/provider';
+import { McpAiTaskControlService } from './mcp/task-control';
+import { McpAiTaskQueryService } from './mcp/task-query';
 import { PromptService } from './prompt';
 import { CopilotProviderHealthWorker } from './provider-health-worker';
 import {
@@ -166,12 +170,18 @@ export const COPILOT_JOB_PROVIDERS = [
   CopilotAgentRuntimeWorkflowRegistry,
   CopilotAgentRuntimeModelCompletionAdapter,
   CopilotAgentRuntimeDocUpdateAdapter,
+  CopilotAgentRuntimeLocalMindToolAgentAdapter,
   CopilotAgentRuntimeWorker,
   CopilotProviderHealthWorker,
   CopilotRepairExecutionWorker,
+  McpAiDelegationService,
+  McpAiTaskControlService,
 ];
 
-export const COPILOT_MCP_PROVIDERS = [WorkspaceMcpProvider];
+export const COPILOT_MCP_PROVIDERS = [
+  McpAiTaskQueryService,
+  WorkspaceMcpProvider,
+];
 
 export const COPILOT_KERNEL_PROVIDERS = [
   ...COPILOT_PROVIDER_PROVIDERS,

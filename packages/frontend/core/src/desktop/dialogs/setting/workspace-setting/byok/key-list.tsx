@@ -64,6 +64,11 @@ export const KeyList = ({
               {rowDescription(t, key)}
             </div>
             <div className={styles.tags}>
+              {key.modelId ? (
+                <span className={styles.tag} title={byokT(t, 'field.model-id')}>
+                  {key.modelId}
+                </span>
+              ) : null}
               {key.capabilities.map(capability => (
                 <span className={styles.tag} key={capability}>
                   {capabilityLabel(t, capability)}

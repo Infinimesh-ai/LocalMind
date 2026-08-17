@@ -1,4 +1,6 @@
 import {
+  dismissNotificationMutation,
+  dismissReadNotificationsMutation,
   type DocMode,
   type ListNotificationsQuery,
   listNotificationsQuery,
@@ -51,11 +53,16 @@ export class NotificationStore extends Store {
     );
   }
 
-  async listNotification(pagination: PaginationInput, signal?: AbortSignal) {
+  async listNotification(
+    pagination: PaginationInput,
+    includeRead: boolean,
+    signal?: AbortSignal
+  ) {
     const result = await this.gqlService.gql({
       query: listNotificationsQuery,
       variables: {
         pagination: pagination,
+        includeRead,
       },
       context: {
         signal,
@@ -77,6 +84,19 @@ export class NotificationStore extends Store {
   readAllNotifications() {
     return this.gqlService.gql({
       query: readAllNotificationsMutation,
+    });
+  }
+
+  dismissNotification(id: string) {
+    return this.gqlService.gql({
+      query: dismissNotificationMutation,
+      variables: { id },
+    });
+  }
+
+  dismissReadNotifications() {
+    return this.gqlService.gql({
+      query: dismissReadNotificationsMutation,
     });
   }
 

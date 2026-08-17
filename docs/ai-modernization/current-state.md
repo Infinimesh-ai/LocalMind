@@ -28,6 +28,19 @@ The AI Chat document snapshot freshness slice is implemented:
 - new drafts and session switches clear stale composer context before the
   selected session reloads its own context.
 
+The self-hosted AI Chat document-tool runtime repair is implemented:
+
+- prompt-backed tool wrappers preserve appended prompt messages while adding
+  workspace/user route context, so `doc_compose` receives the user's actual
+  document brief instead of running the guarded article prompt without input;
+- `doc_compose` is explicitly a generated Markdown preview and directs saved
+  document work to `doc_create` or `doc_update`;
+- self-hosted deployments expose the existing permission-checked
+  `doc_create`, `doc_update`, and `doc_update_meta` tools, while hosted
+  production exposure remains unchanged;
+- focused ToolRuntime coverage verifies both appended-message forwarding and
+  the self-hosted document-write exposure policy.
+
 The original four-step AI modernization vertical plan is now implemented:
 
 - `agent_runtime_model_completion` is registered as a production Agent Runtime
@@ -50,6 +63,29 @@ The original four-step AI modernization vertical plan is now implemented:
   fingerprints, publish requires the matching preview fingerprint, updates the
   underlying prompt message body, and records a DB-backed prompt registry
   revision with editable-body metadata.
+
+The workspace BYOK exact-model binding slice is now implemented:
+
+- server-stored and Electron-local BYOK keys carry one optional persisted
+  `modelId`, including encrypted local lease transport and generated GraphQL
+  types;
+- a configured key contributes only its bound model and a generated runtime
+  model definition, so the existing BYOK-first registry selects that key for a
+  matching bare model id before considering quota-backed/global providers;
+- provider lifecycle startup registers each built-in driver independently from
+  statically configured provider profiles, so a BYOK OpenAI key remains
+  executable when the global route uses only an OpenAI-compatible profile;
+- BYOK usage recording falls back to the prepared route/request model when a
+  provider response omits it or reports provider selection before stream model
+  metadata, preserving the bound model in audit rows;
+- OpenAI-compatible key testing sends a minimal `POST /responses` request with
+  the exact configured model instead of treating a provider-level
+  `GET /models` response as proof that the requested model is usable;
+- Workspace Settings requires the model id before test/save, invalidates a
+  successful test when the model changes, and displays the bound model beside
+  the key without exposing the secret;
+- existing rows remain migration-compatible with a nullable model id, while
+  new UI-managed keys must bind and test a concrete model before use.
 
 The latest confirmed slice is main-plan section 554:
 
@@ -1377,14 +1413,12 @@ The GitHub issues #2-#8 stabilization pass is now implemented:
 - context refresh polling uses independent request sequencing, pauses while the
   page is hidden, applies bounded exponential backoff, and reauthorizes cached
   MCP/keyword-search results before returning them;
-- the workspace MCP endpoint now advertises the stable
-  `localmind-workspace` server identity, client-visible safety annotations for
-  read and write tools, a generated LocalMind-named Streamable HTTP
-  configuration, protocol-version validation, post-2025-03 batch rejection,
-  notification response semantics, strict tool argument validation, redacted
-  unexpected tool failures, and a vendor-neutral integration/self-test guide
-  while preserving workspace-bound credential, permission, rotation, and
-  revocation behavior;
+- the workspace MCP endpoint now advertises the `localmind-ai` v3 identity and
+  the `delegate_to_localmind`, `get_localmind_task`, and
+  `control_localmind_task` tools, with protocol-version validation,
+  post-2025-03 batch rejection, notification response semantics, strict task
+  argument validation, redacted unexpected failures, and workspace-bound
+  credential rotation/revocation behavior;
 - AI Context, Help, sidebar, and document-update alert copy is localized; the
   alert uses theme tokens, bounded TTL/count storage, and covered light/dark
   contrast behavior;
@@ -1394,45 +1428,101 @@ The GitHub issues #2-#8 stabilization pass is now implemented:
 - provider/model fixtures and the oversized resolver smoke are aligned with the
   current upstream model registry and isolated typecheck/runtime contracts.
 
-The cross-cutting workspace MCP v2 exposure is now implemented:
+The inbound workspace MCP AI delegation slice is now implemented:
 
-- credentials persist eighteen fine-grained document, workspace, asset,
-  comment, collaboration, history, AI Context, AI Chat, and AI Operations
-  read/write capabilities; write implies read, rotation preserves scopes,
-  legacy read-only/read-write rows are migrated, and database checks reject
-  unsupported or access-mode-incoherent scope sets;
-- the scope-filtered server exposes 116 domain tools plus the always-available
-  `discover_localmind_capabilities` tool, with strict input schemas, output
-  schemas, safety annotations, text content, and `structuredContent`;
-- document tools cover list/read/keyword/semantic search, Markdown/title,
-  structured block trees, Edgeless shapes/text/connectors/brushes/groups/mind
-  maps/notes/frames, and database columns/views/rows/cells, with real Yjs
-  deltas persisted through `DocWriter`; MCP Resources expose
-  permission-checked Markdown URIs with cursor pagination;
-- independently scoped workspace tools cover profile, trash, tags,
-  collections, folders, properties, favorites and settings; asset tools cover
-  bounded base64 and direct/multipart upload lifecycles; comment tools preserve
-  mentions, notifications and realtime events; collaboration tools preserve
-  sharing abuse checks and member/grant permissions; history tools list/read
-  durable snapshots and restore them through a real CRDT update;
-- AI Context and AI Chat tools reuse their existing resolvers for settings,
-  memories, rules, policies, projects, planner/scope, sessions, histories,
-  messages, forks, updates, and cleanup;
-- AI Operations tools reuse existing Agent Runtime, repair approval/control,
-  support bundle, Prompt/Model/Provider/Task Route Registry, model/prompt, and
-  Provider Health resolver/model paths, preserving their authorization, DLP,
-  approval, audit, idempotency, worker lease, and side-effect lifecycle;
-- Workspace Settings exposes nine localized read/write capability groups, and
-  English/Chinese integration guides include SparkClaw configuration, scope and
-  tool/argument/response reference, Resources, protocol self-test, and explicit
-  exclusions for account, billing, raw admin, secret-management, MCP credential
-  self-management, and arbitrary GraphQL surfaces;
-- the Workspace Settings credential store now forwards the selected capability
-  array into the create mutation instead of silently falling back to the legacy
-  document access mode; focused frontend coverage asserts the serialized
-  mutation variables, and the rebuilt local runtime has been validated with an
-  18-scope Codex credential, 117 unique tools, capability discovery, and a live
-  structured `read_whiteboard` call.
+- the Streamable HTTP server exposes `delegate_to_localmind`, the read-only
+  `get_localmind_task`, and cancel-only `control_localmind_task`; the built-in
+  LocalMind AI can produce a read-only answer, plan one optimized complete
+  Markdown document replacement, or queue a durable tool-agent run with the
+  same server-side tool categories as AI Chat; work outside those executors
+  still returns `unsupported_task`;
+- `agent_runtime_localmind_tool_agent` exposes attachment read, code artifact,
+  conversation summary, document read/create/update/title update, keyword and
+  semantic search, web search/crawl, document composition, and section editing
+  through the existing `ToolRuntime`, preserving each tool's normal permission
+  and deployment checks instead of adding direct MCP resource tools;
+- delegated tool-agent runs have a 120-second timeout, poll durable
+  cancellation and credential/workspace authority during execution, propagate
+  the abort signal into the tool loop, preserve native tool failures in their
+  sanitized execution summaries, and persist only bounded answers, argument
+  fingerprints, referenced document ids, and created/updated artifacts;
+- delegated document creation derives a stable document id from task id and
+  title. `DocWriter.createDoc` accepts that requested id, repairs a missing root
+  registration on replay, and returns the existing document id instead of
+  creating duplicates;
+- each planned task persists a schema-validated plan snapshot and fingerprint;
+  database constraints reject malformed snapshots and prevent a written plan
+  from being replaced, while the query projector never exposes raw AgentStep
+  output that can contain complete document replacement content;
+- `get_localmind_task` uses the delegation request id as stable `taskId`, maps
+  delegation plus AgentRun state into the bounded `localmind.task.v1` contract,
+  supports version-based waits up to 30 seconds, and returns sanitized plans,
+  steps, final results, and artifact references without invoking AI or
+  advancing the task; new MCP tasks have no approval state;
+- task reads are isolated to the creating credential family, survive rotation,
+  recheck family activity and the task's frozen `get_localmind_task`
+  permission, and recheck live `Workspace.Copilot` plus `Doc.Read` for every
+  referenced document. Other
+  credential families receive `task_not_found`, while ACL loss returns a direct
+  query error without historical output;
+- cancel controls are durable and idempotent, remain isolated to the creating
+  credential family, use the task's frozen `control_localmind_task` permission, and
+  recheck live `Workspace.Copilot` without requiring `Doc.Update`. Queued runs
+  cancel immediately; leased running runs expose `cancelling` until
+  the Agent Runtime worker cooperatively records terminal cancellation;
+- credentials persist only the three public AI tool permissions; the migration
+  revokes legacy resource-capability credentials rather than silently widening
+  them, and the normalized permission set is frozen on each delegation request
+  as its maximum authority;
+- real `Workspace.Copilot` plus each tool's `Workspace.CreateDoc`, `Doc.Read`,
+  or `Doc.Update` ACL is checked live at planning and execution boundaries.
+  Missing ACL is returned directly as a terminal permission/resource or tool
+  failure and never creates an elevation request;
+- document and tool-agent side effects create one durable `mcp_ai_delegation`
+  request and one queued `AgentRun`; the task executes without an approval step
+  or caller decision, including when no callback endpoint exists;
+- an optional result notification URL and encrypted per-credential-family HMAC
+  secret are configured when the MCP credential is created. HTTPS is required
+  unless the exact origin is deployment-allowlisted, and terminal notification
+  delivery uses bounded no-redirect SSRF-safe HTTP, durable outbox rows, worker
+  leases, retries, and signed payloads;
+- the Agent Runtime worker rechecks credential-family activity, frozen scope,
+  live ACL, and cancellation during execution; the optimized replacement path
+  also checks document version immediately before `DocWriter`. AgentRun and
+  delegation completion are committed together before optional signed terminal
+  notifications are queued. Focused Docker E2E covers callback URL policy, ACL
+  denial before planning, tool-agent document creation and idempotent replay,
+  tool failure projection, automatic execution, stale ACL, resource-version
+  conflict, execution without a callback, immediate/cooperative cancellation,
+  query state transitions, and terminal notification delivery.
+
+The first workspace-managed outbound SparkClaw MCP connection slice is now
+implemented separately from the inbound LocalMind workspace MCP surface:
+
+- Workspace Settings owners and admins can submit a one-time SparkClaw Access
+  Ticket without supplying an endpoint; the server-controlled endpoint defaults
+  to `http://192.168.20.252:18791/mcp` and protocol `2025-06-18`;
+- Streamable HTTP initialization requires the `sparkclaw-route-mcp` server
+  identity, sends the Ticket only on `initialize`, handles JSON, SSE, and `202`
+  responses, then uses the issued `Mcp-Session-Id` for later requests;
+- the Ticket is never persisted or returned, while the Session is AES-GCM
+  encrypted with the existing server crypto helper and represented to clients
+  only by a short fingerprint; Session rotation is encrypted immediately;
+- persisted endpoint/protocol values are audit snapshots only: every outbound
+  request and GraphQL projection uses the fixed server configuration, so row
+  drift cannot redirect requests to another target;
+- one durable connection per workspace stores bounded sanitized tool catalog,
+  explicit enabled-tool allowlist, connection/error timestamps and soft-delete
+  state; only `sparkclaw.route.conversation.answer` is enabled automatically;
+- `401`, invalid Session, and Session decryption failures move the connection
+  to `REAUTH_REQUIRED`, clear the unusable encrypted Session and fingerprint,
+  and cannot reuse the old Session;
+- reads require `Workspace.Settings.Read`; connect, refresh, allowlist, test,
+  disable, and delete require `Workspace.Settings.Update`; audit events record
+  lifecycle metadata without Ticket, Session, or test query/result contents;
+- focused backend, resolver-permission, frontend-store, integration-visibility,
+  cross-workspace UI isolation, and disposable PostgreSQL migration checks
+  cover the slice.
 
 ## Not Completed
 
@@ -1458,8 +1548,20 @@ Remaining production gaps include:
   durable side-effect ledger and its parent result snapshot, the current
   worker/control repair audit metadata contracts, and the current non-expired
   repair worker lease before applying constrained registry side effects;
-- broader Agent Runtime planner/tool/Codex/MCP execution adapters beyond
-  persisted generic step records and the repair execution workflow;
+- broader Agent Runtime Codex/MCP/handoff adapters and specialized tool
+  executors beyond the LocalMind AI Chat tool loop, model completion, document
+  update, record-only, and repair execution workflows;
+- atomic expected-version compare-and-write for CRDT document replacement. The
+  delegation path checks the saved version at approval and again immediately
+  before `DocWriter.updateDoc`, but the current document storage API has no
+  expected-version CAS, so a concurrent edit can still land between the final
+  check and write;
+- whiteboard, database/table, asset mutation, comment, collaboration, history,
+  and other inbound MCP AI delegation executors beyond the current AI Chat
+  server-side tool set;
+- live LAN conformance against the real SparkClaw host, multi-connection support,
+  and production operational monitoring for the outbound SparkClaw MCP
+  connector beyond the current one-connection-per-workspace slice;
 - provider-specific object-storage signature adapters, alerting, and rollout
   wiring beyond the generic HMAC webhook ingress before every deployment can
   forward `verified_by_upstream` evidence into the durable forwarding queue;

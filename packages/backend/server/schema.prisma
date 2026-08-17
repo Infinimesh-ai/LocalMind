@@ -34,6 +34,10 @@ model User {
   connectedAccounts                     ConnectedAccount[]
   calendarAccounts                      CalendarAccount[]
   mcpCredentials                        McpCredential[]
+  mcpDelegationEndpoints                AiMcpDelegationEndpoint[]              @relation("mcp_delegation_endpoint_user")
+  aiMcpDelegationRequests               AiMcpDelegationRequest[]               @relation("mcp_delegation_request_actor")
+  createdExternalMcpConnections         AiExternalMcpConnection[]              @relation("external_mcp_connection_creator")
+  externalMcpAuditEvents                AiExternalMcpAuditEvent[]              @relation("external_mcp_audit_actor")
   sessions                              UserSession[]
   aiSessions                            AiSession[]
   appConfigs                            AppConfig[]
@@ -253,6 +257,10 @@ model Workspace {
   aiContextRules                        AiContextRule[]                        @relation("context_rule_workspace")
   aiContextPolicies                     AiContextPolicy[]                      @relation("context_policy_workspace")
   mcpCredentials                        McpCredential[]
+  mcpDelegationEndpoints                AiMcpDelegationEndpoint[]              @relation("mcp_delegation_endpoint_workspace")
+  aiMcpDelegationRequests               AiMcpDelegationRequest[]               @relation("mcp_delegation_request_workspace")
+  externalMcpConnections                AiExternalMcpConnection[]              @relation("external_mcp_connection_workspace")
+  externalMcpAuditEvents                AiExternalMcpAuditEvent[]              @relation("external_mcp_audit_workspace")
 
   @@index([lastCheckEmbeddings])
   @@index([createdAt])
@@ -1775,6 +1783,7 @@ model AiAgentRun {
   timelineRunSnapshots           AiAgentTimelineEvent[]          @relation("agent_timeline_event_run_snapshot")
   executionResults               AiAgentRuntimeExecutionResult[] @relation("agent_run_execution_result_snapshot")
   executionResultSourceSnapshots AiAgentRuntimeExecutionResult[] @relation("agent_run_execution_result_source_snapshot")
+  mcpDelegationRequests          AiMcpDelegationRequest[]        @relation("mcp_delegation_request_agent_run")
 
   @@unique([workspaceId, sourceType, sourceId])
   @@unique([id, workspaceId, actorId], map: "ai_agent_runs_execution_result_snapshot_key")
@@ -2035,6 +2044,7 @@ model AiWorkspaceByokConfig {
   description         String?   @db.VarChar
   encryptedApiKey     String    @map("encrypted_api_key") @db.Text
   endpoint            String?   @db.Text
+  modelId             String?   @map("model_id") @db.VarChar(255)
   sortOrder           Int       @default(0) @map("sort_order")
   enabled             Boolean   @default(true)
   disabledReason      String?   @map("disabled_reason") @db.VarChar
@@ -2331,20 +2341,22 @@ enum NotificationLevel {
 }
 
 model Notification {
-  id        String            @id @default(uuid()) @db.VarChar
-  userId    String            @map("user_id") @db.VarChar
-  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  level     NotificationLevel
-  read      Boolean           @default(false)
-  type      NotificationType
-  body      Json              @db.JsonB
+  id          String            @id @default(uuid()) @db.VarChar
+  userId      String            @map("user_id") @db.VarChar
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  dismissedAt DateTime?         @map("dismissed_at") @db.Timestamptz(3)
+  level       NotificationLevel
+  read        Boolean           @default(false)
+  type        NotificationType
+  body        Json              @db.JsonB
 
   user       User                   @relation(name: "user_notifications", fields: [userId], references: [id], onDelete: Cascade)
   deliveries NotificationDelivery[]
 
   // for user notifications list, including read and unread, ordered by createdAt
   @@index([userId, createdAt, read])
+  @@index([userId, dismissedAt, read, createdAt])
   @@map("notifications")
 }
 
@@ -2506,7 +2518,7 @@ model McpCredential {
   userId       String        @map("user_id") @db.VarChar
   workspaceId  String        @map("workspace_id") @db.VarChar
   accessMode   McpAccessMode @default(READ_ONLY) @map("access_mode")
-  capabilities String[]      @default(["documents:read"])
+  capabilities String[]      @default(["get_localmind_task"])
   createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   expiresAt    DateTime      @map("expires_at") @db.Timestamptz(3)
   lastUsedAt   DateTime?     @map("last_used_at") @db.Timestamptz(3)
@@ -2514,13 +2526,184 @@ model McpCredential {
   replacedById String?       @map("replaced_by_id") @db.VarChar
   graceEndsAt  DateTime?     @map("grace_ends_at") @db.Timestamptz(3)
 
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user               User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace          Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  delegationRequests AiMcpDelegationRequest[] @relation("mcp_delegation_request_credential")
 
   @@unique([familyId, generation])
   @@index([userId, workspaceId])
   @@index([expiresAt])
   @@map("mcp_credentials")
+}
+
+model AiMcpDelegationEndpoint {
+  id                        String   @id @default(uuid()) @db.VarChar
+  credentialFamilyId        String   @unique @map("credential_family_id") @db.VarChar
+  userId                    String   @map("user_id") @db.VarChar
+  workspaceId               String   @map("workspace_id") @db.VarChar
+  callbackUrl               String   @map("callback_url") @db.Text
+  encryptedCallbackSecret   String   @map("encrypted_callback_secret") @db.Text
+  callbackSecretFingerprint String   @map("callback_secret_fingerprint") @db.VarChar
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user      User      @relation("mcp_delegation_endpoint_user", fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation("mcp_delegation_endpoint_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([userId, workspaceId])
+  @@map("ai_mcp_delegation_endpoints")
+}
+
+model AiMcpDelegationRequest {
+  id                          String    @id @default(uuid()) @db.VarChar
+  workspaceId                 String    @map("workspace_id") @db.VarChar
+  actorId                     String    @map("actor_id") @db.VarChar
+  credentialId                String    @map("credential_id") @db.VarChar
+  credentialFamilyId          String    @map("credential_family_id") @db.VarChar
+  credentialGeneration        Int       @map("credential_generation")
+  capabilitySnapshot          String[]  @map("capability_snapshot")
+  capabilityFingerprint       String    @map("capability_fingerprint") @db.VarChar
+  idempotencyKey              String    @map("idempotency_key") @db.VarChar
+  requestText                 String    @map("request_text") @db.Text
+  requestedDocumentIds        String[]  @map("requested_document_ids")
+  requestFingerprint          String    @map("request_fingerprint") @db.VarChar
+  contextFingerprint          String?   @map("context_fingerprint") @db.VarChar
+  planSnapshot                Json      @default("{}") @map("plan_snapshot") @db.JsonB
+  planFingerprint             String?   @map("plan_fingerprint") @db.VarChar
+  status                      String    @db.VarChar
+  result                      Json      @default("{}") @db.JsonB
+  agentRunId                  String?   @map("agent_run_id") @db.VarChar
+  targetDocumentId            String?   @map("target_document_id") @db.VarChar
+  targetDocumentVersion       DateTime? @map("target_document_version") @db.Timestamptz(3)
+  approvalId                  String?   @unique @map("approval_id") @db.VarChar
+  approvalPreviewHash         String?   @map("approval_preview_hash") @db.VarChar
+  approvalExpiresAt           DateTime? @map("approval_expires_at") @db.Timestamptz(3)
+  approvalDecision            String?   @map("approval_decision") @db.VarChar
+  approvalDecisionFingerprint String?   @map("approval_decision_fingerprint") @db.VarChar
+  approvalIdempotencyKey      String?   @map("approval_idempotency_key") @db.VarChar
+  approvalResolvedAt          DateTime? @map("approval_resolved_at") @db.Timestamptz(3)
+  createdAt                   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace          Workspace                         @relation("mcp_delegation_request_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor              User                              @relation("mcp_delegation_request_actor", fields: [actorId], references: [id], onDelete: Cascade)
+  credential         McpCredential                     @relation("mcp_delegation_request_credential", fields: [credentialId], references: [id], onDelete: Cascade)
+  agentRun           AiAgentRun?                       @relation("mcp_delegation_request_agent_run", fields: [agentRunId], references: [id], onDelete: SetNull)
+  callbackDeliveries AiMcpDelegationCallbackDelivery[]
+  controls           AiMcpDelegationControl[]
+
+  @@unique([workspaceId, credentialFamilyId, idempotencyKey])
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([status, updatedAt])
+  @@map("ai_mcp_delegation_requests")
+}
+
+model AiMcpDelegationControl {
+  id                 String   @id @default(uuid()) @db.VarChar
+  requestId          String   @map("request_id") @db.VarChar
+  workspaceId        String   @map("workspace_id") @db.VarChar
+  actorId            String   @map("actor_id") @db.VarChar
+  credentialFamilyId String   @map("credential_family_id") @db.VarChar
+  action             String   @db.VarChar
+  idempotencyKey     String   @map("idempotency_key") @db.VarChar
+  requestFingerprint String   @map("request_fingerprint") @db.VarChar
+  status             String   @db.VarChar
+  outcome            Json     @default("{}") @db.JsonB
+  outcomeFingerprint String?  @map("outcome_fingerprint") @db.VarChar
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  request AiMcpDelegationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, credentialFamilyId, idempotencyKey])
+  @@index([requestId, createdAt])
+  @@index([workspaceId, actorId, createdAt])
+  @@map("ai_mcp_delegation_controls")
+}
+
+model AiMcpDelegationCallbackDelivery {
+  id                   String    @id @default(uuid()) @db.VarChar
+  requestId            String    @map("request_id") @db.VarChar
+  eventType            String    @map("event_type") @db.VarChar
+  status               String    @db.VarChar
+  payload              Json      @db.JsonB
+  payloadFingerprint   String    @map("payload_fingerprint") @db.VarChar
+  attemptCount         Int       @default(0) @map("attempt_count")
+  maxAttempts          Int       @default(5) @map("max_attempts")
+  nextAttemptAt        DateTime? @map("next_attempt_at") @db.Timestamptz(3)
+  workerLeaseId        String?   @map("worker_lease_id") @db.VarChar
+  workerLeaseExpiresAt DateTime? @map("worker_lease_expires_at") @db.Timestamptz(3)
+  deliveredAt          DateTime? @map("delivered_at") @db.Timestamptz(3)
+  lastErrorCode        String?   @map("last_error_code") @db.VarChar
+  lastErrorMessage     String?   @map("last_error_message") @db.Text
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  request AiMcpDelegationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, eventType])
+  @@index([status, nextAttemptAt])
+  @@map("ai_mcp_delegation_callback_deliveries")
+}
+
+enum ExternalMcpConnectionStatus {
+  CONNECTING
+  ACTIVE
+  DEGRADED
+  REAUTH_REQUIRED
+  DISABLED
+}
+
+model AiExternalMcpConnection {
+  id                     String                      @id @default(uuid()) @db.VarChar
+  workspaceId            String                      @unique @map("workspace_id") @db.VarChar
+  createdBy              String?                     @map("created_by") @db.VarChar
+  name                   String                      @default("SparkClaw MCP") @db.VarChar
+  endpoint               String                      @db.Text
+  protocolVersion        String                      @default("2025-06-18") @map("protocol_version") @db.VarChar
+  status                 ExternalMcpConnectionStatus @default(CONNECTING)
+  encryptedSessionId     String?                     @map("encrypted_session_id") @db.Text
+  sessionFingerprint     String?                     @map("session_fingerprint") @db.VarChar
+  serverName             String?                     @map("server_name") @db.VarChar
+  serverVersion          String?                     @map("server_version") @db.VarChar
+  toolCatalog            Json                        @default("[]") @map("tool_catalog") @db.JsonB
+  toolCatalogFingerprint String?                     @map("tool_catalog_fingerprint") @db.VarChar
+  enabledToolNames       String[]                    @default([]) @map("enabled_tool_names")
+  lastConnectedAt        DateTime?                   @map("last_connected_at") @db.Timestamptz(3)
+  lastCheckedAt          DateTime?                   @map("last_checked_at") @db.Timestamptz(3)
+  lastUsedAt             DateTime?                   @map("last_used_at") @db.Timestamptz(3)
+  lastErrorCode          String?                     @map("last_error_code") @db.VarChar
+  lastErrorMessage       String?                     @map("last_error_message") @db.Text
+  createdAt              DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime                    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt              DateTime?                   @map("deleted_at") @db.Timestamptz(3)
+
+  workspace Workspace                 @relation("external_mcp_connection_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator   User?                     @relation("external_mcp_connection_creator", fields: [createdBy], references: [id], onDelete: SetNull)
+  audits    AiExternalMcpAuditEvent[]
+
+  @@index([status, updatedAt])
+  @@map("ai_external_mcp_connections")
+}
+
+model AiExternalMcpAuditEvent {
+  id           String   @id @default(uuid()) @db.VarChar
+  connectionId String   @map("connection_id") @db.VarChar
+  workspaceId  String   @map("workspace_id") @db.VarChar
+  actorId      String?  @map("actor_id") @db.VarChar
+  eventType    String   @map("event_type") @db.VarChar
+  status       String   @db.VarChar
+  metadata     Json     @default("{}") @db.JsonB
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  connection AiExternalMcpConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  workspace  Workspace               @relation("external_mcp_audit_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor      User?                   @relation("external_mcp_audit_actor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([connectionId, createdAt])
+  @@index([workspaceId, createdAt])
+  @@map("ai_external_mcp_audit_events")
 }
 
 model CalendarAccount {

@@ -40,7 +40,10 @@ import { ConversationHost } from '../../plugins/copilot/runtime/hosts/conversati
 import { ImageResultHost } from '../../plugins/copilot/runtime/hosts/image-result-host';
 import { ResponsePostprocessor } from '../../plugins/copilot/runtime/hosts/response-postprocessor';
 import { TurnPersistence } from '../../plugins/copilot/runtime/hosts/turn-persistence';
-import { ToolRuntime } from '../../plugins/copilot/runtime/tool-runtime';
+import {
+  canExposeDocumentWriteTools,
+  ToolRuntime,
+} from '../../plugins/copilot/runtime/tool-runtime';
 
 function stubTurnPersistence(
   persistProjectedResult: Sinon.SinonStub = Sinon.stub().resolves(null)
@@ -360,7 +363,7 @@ test('ConversationHost should replay durable tokens without rechecking quota', a
   Sinon.assert.notCalled(resolveTurnRouteAccess);
 });
 
-test('ToolRuntime should pass route context into prompt-backed tools', async t => {
+test('ToolRuntime should pass route context and appended messages into prompt-backed tools', async t => {
   const promptRuntime = {
     runText: Sinon.stub().resolves('<html><body>done</body></html>'),
   };
@@ -378,7 +381,7 @@ test('ToolRuntime should pass route context into prompt-backed tools', async t =
 
   const tools = await runtime.getTools(
     {
-      tools: ['codeArtifact'],
+      tools: ['codeArtifact', 'docCompose'],
       user: 'user-1',
       session: 'session-1',
       workspace: 'workspace-1',
@@ -393,9 +396,20 @@ test('ToolRuntime should pass route context into prompt-backed tools', async t =
     { title: 'Demo', userPrompt: 'build a page' },
     {}
   );
+  const docResult = await tools.doc_compose.execute?.(
+    {
+      title: '8.14 journal',
+      userPrompt: 'Record this conversation in Chinese.',
+    },
+    {}
+  );
 
   t.like(result as object, { title: 'Demo' });
-  Sinon.assert.calledOnceWithMatch(
+  t.like(docResult as object, {
+    title: '8.14 journal',
+    markdown: '<html><body>done</body></html>',
+  });
+  Sinon.assert.calledWithMatch(
     promptRuntime.runText,
     'Code Artifact',
     { content: 'build a page' },
@@ -409,6 +423,42 @@ test('ToolRuntime should pass route context into prompt-backed tools', async t =
         quotaBackedRoutesAllowed: false,
       },
     }
+  );
+  Sinon.assert.calledWithMatch(
+    promptRuntime.runText,
+    'Write an article about this',
+    {},
+    {
+      appendMessages: [
+        { role: 'user', content: 'Record this conversation in Chinese.' },
+      ],
+      providerOptions: {
+        user: 'user-1',
+        session: 'session-1',
+        workspace: 'workspace-1',
+        byokLeaseId: 'lease-1',
+        featureKind: 'chat',
+        quotaBackedRoutesAllowed: false,
+      },
+    }
+  );
+  Sinon.assert.calledTwice(promptRuntime.runText);
+});
+
+test('ToolRuntime should expose document write tools for self-hosted deployments', t => {
+  t.true(
+    canExposeDocumentWriteTools({
+      dev: false,
+      selfhosted: true,
+      canary: false,
+    })
+  );
+  t.false(
+    canExposeDocumentWriteTools({
+      dev: false,
+      selfhosted: false,
+      canary: false,
+    })
   );
 });
 

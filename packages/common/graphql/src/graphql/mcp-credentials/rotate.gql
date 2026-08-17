@@ -21,7 +21,9 @@ mutation rotateMcpCredential(
       revokedAt
       graceEndsAt
       status
+      callbackConfigured
     }
     token
+    callbackSecret
   }
 }

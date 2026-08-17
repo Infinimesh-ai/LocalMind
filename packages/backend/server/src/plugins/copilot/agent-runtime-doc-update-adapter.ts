@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { Injectable, Logger } from '@nestjs/common';
 
+import { JobQueue } from '../../base';
 import { DocWriter } from '../../core/doc';
 import { PermissionAccess } from '../../core/permission';
 import { Models } from '../../models';
@@ -9,10 +10,12 @@ import type {
   CopilotAgentRunRecord,
   CopilotAgentStepRecord,
 } from '../../models/copilot-agent-runtime';
+import type { McpDelegationRequestStatus } from '../../models/copilot-mcp-delegation';
 import {
   type CopilotAgentRuntimeWorkflowAdapterInput,
   CopilotAgentRuntimeWorkflowRegistry,
 } from './agent-runtime-workflow-registry';
+import { MCP_DELEGATE_CAPABILITY } from './mcp/capabilities';
 
 export const AGENT_RUNTIME_DOC_UPDATE_WORKFLOW = 'agent_runtime_doc_update';
 export const AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION =
@@ -25,6 +28,7 @@ type AgentRuntimeDocUpdateRequest = {
   content: string;
   contentFingerprint: string;
   docId: string;
+  expectedDocumentVersion: Date | null;
 };
 
 function agentRuntimeDocUpdateFingerprint(value: unknown) {
@@ -123,6 +127,27 @@ function normalizeDocUpdateRequest(step: CopilotAgentStepRecord) {
     DOC_UPDATE_DOC_ID_MAX_LENGTH
   );
   const content = requireDocUpdateContent(raw.content, step.stepKey);
+  const expectedDocumentVersion =
+    raw.expectedDocumentVersion === undefined ||
+    raw.expectedDocumentVersion === null
+      ? null
+      : new Date(
+          requireDocUpdateString(
+            raw.expectedDocumentVersion,
+            step.stepKey,
+            'expectedDocumentVersion',
+            DOC_UPDATE_DOC_ID_MAX_LENGTH
+          )
+        );
+  if (
+    expectedDocumentVersion &&
+    Number.isNaN(expectedDocumentVersion.getTime())
+  ) {
+    throw docUpdateRequestError(
+      step.stepKey,
+      'expectedDocumentVersion must be an ISO timestamp'
+    );
+  }
   const contentFingerprint = agentRuntimeDocUpdateFingerprint({
     version: 'agent-runtime-doc-update-content/v1',
     content,
@@ -141,7 +166,7 @@ function normalizeDocUpdateRequest(step: CopilotAgentStepRecord) {
       );
     }
   }
-  return { content, contentFingerprint, docId };
+  return { content, contentFingerprint, docId, expectedDocumentVersion };
 }
 
 @Injectable()
@@ -154,6 +179,7 @@ export class CopilotAgentRuntimeDocUpdateAdapter {
     private readonly ac: PermissionAccess,
     private readonly docWriter: DocWriter,
     private readonly models: Models,
+    private readonly jobs: JobQueue,
     private readonly workflowRegistry: CopilotAgentRuntimeWorkflowRegistry
   ) {
     this.workflowRegistry.register({
@@ -163,9 +189,18 @@ export class CopilotAgentRuntimeDocUpdateAdapter {
         supportedStepTypes: ['approval', 'tool'],
         sideEffectMode: 'workspace_write',
         summary:
-          'Applies one approval-gated workspace document update through the Agent Runtime worker and records side-effect evidence.',
+          'Applies one authorization-checked workspace document update through the Agent Runtime worker and records side-effect evidence.',
       },
-      execute: input => this.execute(input),
+      execute: async input => {
+        try {
+          await this.execute(input);
+        } catch (error) {
+          await this.failPendingDelegation(input.run.id, {
+            code: 'agent_runtime_adapter_execution_failed',
+          });
+          throw error;
+        }
+      },
     });
   }
 
@@ -213,9 +248,13 @@ export class CopilotAgentRuntimeDocUpdateAdapter {
   private async execute(input: CopilotAgentRuntimeWorkflowAdapterInput) {
     const { run, workerAttempt, workerLeaseId, checkCancellationRequested } =
       input;
-    this.assertApprovalSatisfied(run);
     const step = this.requireToolStep(run);
     const request = normalizeDocUpdateRequest(step);
+    const delegation =
+      await this.models.copilotMcpDelegation.getRequestByAgentRun(run.id);
+    if (!delegation) {
+      this.assertApprovalSatisfied(run);
+    }
 
     if (await checkCancellationRequested()) {
       this.logger.debug(
@@ -224,17 +263,85 @@ export class CopilotAgentRuntimeDocUpdateAdapter {
       return;
     }
 
-    await this.ac
-      .user(run.actorId)
-      .doc({ workspaceId: run.workspaceId, docId: request.docId })
-      .allowLocal()
-      .assert('Doc.Update');
+    if (delegation) {
+      const credential =
+        await this.models.mcpCredential.findUsableFamilyCredential(
+          delegation.credentialFamilyId,
+          delegation.actorId,
+          delegation.workspaceId
+        );
+      if (!credential) {
+        await this.failDelegation(run.id, 'failed', {
+          code: 'credential_inactive',
+        });
+        throw new Error(
+          `Agent runtime doc update credential is inactive: ${run.id}`
+        );
+      }
+      if (!delegation.capabilitySnapshot.includes(MCP_DELEGATE_CAPABILITY)) {
+        await this.failDelegation(run.id, 'credential_scope_denied', {
+          code: 'credential_scope_denied',
+          requiredCapabilities: [MCP_DELEGATE_CAPABILITY],
+        });
+        throw new Error(
+          `Agent runtime doc update credential scope is insufficient: ${run.id}`
+        );
+      }
+    }
+
+    const [workspaceAllowed, canUpdate] = await Promise.all([
+      this.ac
+        .user(run.actorId)
+        .workspace(run.workspaceId)
+        .allowLocal()
+        .can('Workspace.Copilot'),
+      this.ac
+        .user(run.actorId)
+        .doc({ workspaceId: run.workspaceId, docId: request.docId })
+        .allowLocal()
+        .can('Doc.Update'),
+    ]);
+    if (!workspaceAllowed || !canUpdate) {
+      await this.failDelegation(run.id, 'permission_denied', {
+        code: 'permission_denied',
+        missingPermission: workspaceAllowed
+          ? 'Doc.Update'
+          : 'Workspace.Copilot',
+        documentId: request.docId,
+      });
+      throw new Error(
+        `Agent runtime doc update permission was revoked: ${request.docId}`
+      );
+    }
 
     if (await checkCancellationRequested()) {
       this.logger.debug(
         `Agent runtime doc update cancelled before side effect: ${run.id}`
       );
       return;
+    }
+
+    if (request.expectedDocumentVersion) {
+      const timestamps = await this.models.doc.findTimestampsByDocIds(
+        run.workspaceId,
+        [request.docId]
+      );
+      if (
+        timestamps[request.docId] !== request.expectedDocumentVersion.getTime()
+      ) {
+        await this.failDelegation(run.id, 'failed', {
+          code: 'resource_version_conflict',
+          documentId: request.docId,
+          expectedVersion: request.expectedDocumentVersion.toISOString(),
+          actualVersion:
+            timestamps[request.docId] === undefined
+              ? null
+              : new Date(timestamps[request.docId]).toISOString(),
+        });
+        throw new Error(
+          `Agent runtime doc update document version changed before execution: ${request.docId}`
+        );
+      }
     }
 
     await this.docWriter.updateDoc(
@@ -256,7 +363,9 @@ export class CopilotAgentRuntimeDocUpdateAdapter {
     };
     const summary = [
       `Updated workspace document ${request.docId}`,
-      'through approved Agent Runtime office task.',
+      delegation
+        ? 'through credential-authorized MCP delegation.'
+        : 'through approved Agent Runtime office task.',
     ].join(' ');
 
     await this.models.copilotAgentRuntime.completeStandaloneWorkerExecution({
@@ -274,5 +383,90 @@ export class CopilotAgentRuntimeDocUpdateAdapter {
         AGENT_RUNTIME_DOC_UPDATE_WORKFLOW
       ),
     });
+
+    if (delegation) {
+      const completed = await this.models.copilotMcpDelegation.updateRequest(
+        delegation.id,
+        {
+          status: 'completed',
+          result: {
+            kind: 'document_update',
+            agentRunId: run.id,
+            documentId: request.docId,
+            contentFingerprint: request.contentFingerprint,
+            sideEffectFingerprint,
+            execution: 'completed',
+          },
+        }
+      );
+      const endpoint = await this.models.copilotMcpDelegation.getEndpoint(
+        delegation.credentialFamilyId
+      );
+      if (endpoint) {
+        await this.models.copilotMcpDelegation.enqueueCallback({
+          requestId: delegation.id,
+          eventType: 'task_completed',
+          payload: {
+            version: 'localmind-mcp-callback/v1',
+            event: 'task_completed',
+            requestId: delegation.id,
+            status: completed.status,
+            result: completed.result,
+          },
+        });
+        await this.jobs.add(
+          'copilot.mcpDelegation.deliverCallback',
+          { requestId: delegation.id },
+          { jobId: `copilot-mcp-delegation-completed-${delegation.id}` }
+        );
+      }
+    }
+  }
+
+  private async failDelegation(
+    agentRunId: string,
+    status: Extract<
+      McpDelegationRequestStatus,
+      'failed' | 'permission_denied' | 'credential_scope_denied'
+    >,
+    result: Record<string, unknown>
+  ) {
+    const delegation =
+      await this.models.copilotMcpDelegation.getRequestByAgentRun(agentRunId);
+    if (!delegation) return;
+    const failed = await this.models.copilotMcpDelegation.updateRequest(
+      delegation.id,
+      { status, result }
+    );
+    const endpoint = await this.models.copilotMcpDelegation.getEndpoint(
+      delegation.credentialFamilyId
+    );
+    if (!endpoint) return;
+    await this.models.copilotMcpDelegation.enqueueCallback({
+      requestId: delegation.id,
+      eventType: 'task_failed',
+      payload: {
+        version: 'localmind-mcp-callback/v1',
+        event: 'task_failed',
+        requestId: delegation.id,
+        status: failed.status,
+        result: failed.result,
+      },
+    });
+    await this.jobs.add(
+      'copilot.mcpDelegation.deliverCallback',
+      { requestId: delegation.id },
+      { jobId: `copilot-mcp-delegation-failed-${delegation.id}` }
+    );
+  }
+
+  private async failPendingDelegation(
+    agentRunId: string,
+    result: Record<string, unknown>
+  ) {
+    const delegation =
+      await this.models.copilotMcpDelegation.getRequestByAgentRun(agentRunId);
+    if (delegation?.status !== 'processing') return;
+    await this.failDelegation(agentRunId, 'failed', result);
   }
 }

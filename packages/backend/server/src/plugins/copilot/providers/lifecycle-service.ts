@@ -80,6 +80,7 @@ export class CopilotProviderLifecycleService {
 
   async syncProviders() {
     for (const provider of this.getProviders()) {
+      this.factory.registerRuntime(provider);
       await this.syncProvider(provider);
     }
   }

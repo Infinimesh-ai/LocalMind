@@ -1,0 +1,6 @@
+mutation testExternalMcpConversation($workspaceId: String!, $query: String!) {
+  testExternalMcpConversation(workspaceId: $workspaceId, query: $query) {
+    toolName
+    result
+  }
+}

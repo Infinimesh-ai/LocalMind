@@ -186,7 +186,7 @@ export class NativeProviderAdapter {
     const usageState: {
       model?: string;
       usage?: Extract<LlmToolLoopStreamEvent, { type: 'usage' }>['usage'];
-    } = {};
+    } = { model: request.model };
 
     for await (const event of this.#runtime.streamEvents(
       request,
@@ -316,7 +316,7 @@ export class NativeProviderAdapter {
     const usageState: {
       model?: string;
       usage?: Extract<LlmToolLoopStreamEvent, { type: 'usage' }>['usage'];
-    } = {};
+    } = { model: request.model };
 
     for await (const event of this.#runtime.streamEvents(
       request,

@@ -18,6 +18,7 @@ export type ByokKey = {
   configured: boolean;
   enabled: boolean;
   endpoint?: string | null;
+  modelId?: string | null;
   endpointEditable: boolean;
   sortOrder: number;
   capabilities: string[];
@@ -37,6 +38,7 @@ export type LocalByokKeyInput = Pick<
   | 'name'
   | 'description'
   | 'endpoint'
+  | 'modelId'
   | 'sortOrder'
   | 'enabled'
 > & {
@@ -84,6 +86,7 @@ export type LocalByokPublicKey = {
   name: string;
   description?: string | null;
   endpoint?: string | null;
+  modelId?: string | null;
   endpointEditable?: boolean;
   sortOrder?: number | null;
   enabled?: boolean | null;

@@ -1,0 +1,10 @@
+mutation connectExternalMcp($input: ConnectExternalMcpInput!) {
+  connectExternalMcp(input: $input) {
+    id
+    status
+    sessionFingerprint
+    serverName
+    serverVersion
+    lastConnectedAt
+  }
+}

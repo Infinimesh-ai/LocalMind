@@ -6,6 +6,7 @@ import {
   MenuItem,
   notify,
   observeIntersection,
+  RadioGroup,
   Scrollable,
   Skeleton,
 } from '@affine/component';
@@ -59,6 +60,7 @@ export const NotificationList = () => {
   const globalDialogService = useService(GlobalDialogService);
   const authStatus = useLiveData(authService.session.status$);
   const notifications = useLiveData(notificationListService.notifications$);
+  const mode = useLiveData(notificationListService.mode$);
   const isLoading = useLiveData(notificationListService.isLoading$);
   const error = useLiveData(notificationListService.error$);
   const hasMore = useLiveData(notificationListService.hasMore$);
@@ -100,11 +102,24 @@ export const NotificationList = () => {
     globalDialogService.open('sign-in', {});
   }, [globalDialogService]);
 
-  const handleDeleteAll = useCallback(() => {
+  const handleReadAll = useCallback(() => {
     notificationListService.readAllNotifications().catch(err => {
       notify.error(UserFriendlyError.fromAny(err));
     });
   }, [notificationListService]);
+
+  const handleDismissRead = useCallback(() => {
+    notificationListService.dismissReadNotifications().catch(err => {
+      notify.error(UserFriendlyError.fromAny(err));
+    });
+  }, [notificationListService]);
+
+  const handleModeChange = useCallback(
+    (value: string) => {
+      notificationListService.setMode(value === 'all' ? 'all' : 'unread');
+    },
+    [notificationListService]
+  );
 
   return (
     <div
@@ -113,17 +128,52 @@ export const NotificationList = () => {
     >
       <div className={styles.header}>
         <span>{t['com.affine.rootAppSidebar.notifications']()}</span>
-        {notifications.length > 0 && (
-          <Menu
-            items={
-              <MenuItem prefixIcon={<DeleteIcon />} onClick={handleDeleteAll}>
-                <span>{t['com.affine.notification.delete-all']()}</span>
-              </MenuItem>
-            }
-          >
-            <IconButton icon={<MoreHorizontalIcon />} />
-          </Menu>
-        )}
+        <div className={styles.headerActions}>
+          <RadioGroup
+            width={128}
+            itemHeight={24}
+            padding={2}
+            gap={2}
+            borderRadius={4}
+            value={mode}
+            onChange={handleModeChange}
+            items={[
+              {
+                value: 'unread',
+                label: t['com.affine.notification.filter.unread'](),
+              },
+              {
+                value: 'all',
+                label: t['com.affine.notification.filter.all'](),
+              },
+            ]}
+          />
+          {notifications.length > 0 && (
+            <Menu
+              items={
+                <>
+                  <MenuItem onClick={handleReadAll}>
+                    <span>{t['com.affine.notification.mark-all-read']()}</span>
+                  </MenuItem>
+                  {mode === 'all' && (
+                    <MenuItem
+                      prefixIcon={<DeleteIcon />}
+                      onClick={handleDismissRead}
+                    >
+                      <span>{t['com.affine.notification.delete-read']()}</span>
+                    </MenuItem>
+                  )}
+                </>
+              }
+            >
+              <IconButton
+                icon={<MoreHorizontalIcon />}
+                aria-label={t['com.affine.notification.more-actions']()}
+                title={t['com.affine.notification.more-actions']()}
+              />
+            </Menu>
+          )}
+        </div>
       </div>
       <Scrollable.Root className={styles.scrollRoot}>
         <Scrollable.Viewport className={styles.scrollViewport}>
@@ -132,7 +182,11 @@ export const NotificationList = () => {
           ) : notifications.length > 0 ? (
             <ul className={styles.itemList}>
               {notifications.map(notification => (
-                <li key={notification.id}>
+                <li
+                  key={notification.id}
+                  className={styles.notificationListItem}
+                  data-read={notification.read}
+                >
                   <NotificationItem notification={notification} />
                 </li>
               ))}
@@ -153,7 +207,7 @@ export const NotificationList = () => {
               onRetry={() => notificationListService.retry()}
             />
           ) : (
-            <NotificationListEmpty />
+            <NotificationListEmpty includeRead={mode === 'all'} />
           )}
 
           <div
@@ -226,7 +280,7 @@ const NotificationError = ({
   );
 };
 
-const NotificationListEmpty = () => {
+const NotificationListEmpty = ({ includeRead }: { includeRead: boolean }) => {
   const t = useI18n();
   return (
     <div className={styles.listEmpty}>
@@ -234,10 +288,14 @@ const NotificationListEmpty = () => {
         <NotificationIcon width={24} height={24} />
       </div>
       <div className={styles.listEmptyTitle}>
-        {t['com.affine.notification.empty']()}
+        {includeRead
+          ? t['com.affine.notification.empty.all']()
+          : t['com.affine.notification.empty']()}
       </div>
       <div className={styles.listEmptyDescription}>
-        {t['com.affine.notification.empty.description']()}
+        {includeRead
+          ? t['com.affine.notification.empty.all.description']()
+          : t['com.affine.notification.empty.description']()}
       </div>
     </div>
   );
@@ -806,6 +864,7 @@ const DeleteButton = ({
   onClick?: () => void;
 }) => {
   const notificationListService = useService(NotificationListService);
+  const t = useI18n();
 
   const handleDelete = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -816,9 +875,11 @@ const DeleteButton = ({
         item: 'dismiss',
       });
 
-      notificationListService.readNotification(notification.id).catch(err => {
-        console.error(err);
-      });
+      notificationListService
+        .dismissNotification(notification.id)
+        .catch(err => {
+          console.error(err);
+        });
       onClick?.();
     },
     [notificationListService, notification, onClick]
@@ -829,6 +890,8 @@ const DeleteButton = ({
       size={16}
       className={styles.itemDeleteButton}
       icon={<DeleteIcon />}
+      aria-label={t['com.affine.notification.delete']()}
+      title={t['com.affine.notification.delete']()}
       onClick={handleDelete}
     />
   );

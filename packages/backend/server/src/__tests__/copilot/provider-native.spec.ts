@@ -62,6 +62,7 @@ import { NativeExecutionEngine } from '../../plugins/copilot/runtime/native-exec
 import { buildNativeRequest } from '../../plugins/copilot/runtime/native-request-runtime';
 import { getProviderRuntimeHost } from '../../plugins/copilot/runtime/provider-runtime-context';
 import { TaskPolicy } from '../../plugins/copilot/runtime/task-policy';
+import { NativeProviderAdapter } from '../../plugins/copilot/runtime/tool/native-adapter';
 import { defineTool } from '../../plugins/copilot/tools/tool';
 import {
   nativeMessages,
@@ -1098,6 +1099,28 @@ test.serial(
     });
   }
 );
+
+test('NativeProviderAdapter should retain the requested model when provider selection arrives first', async t => {
+  const onUsage = Sinon.stub().resolves();
+  const providerId = 'byok-aaaaaaaaaaaa-openai-server-key1';
+  const adapter = new NativeProviderAdapter(
+    async function* () {
+      yield { type: 'provider_selected', provider_id: providerId };
+    },
+    { onUsage, nodeTextMiddleware: [] }
+  );
+
+  await collectAsync(
+    adapter.streamObject(nativeTextRequest('hello', 'gpt-5.6-sol'))
+  );
+
+  t.true(
+    onUsage.calledOnceWithMatch({
+      providerId,
+      model: 'gpt-5.6-sol',
+    })
+  );
+});
 
 test.serial(
   'NativeExecutionEngine should record plain text BYOK usage as chat by default',
@@ -2195,6 +2218,131 @@ test('CopilotProviderFactory should use matching BYOK routes before quota-backed
   t.deepEqual(
     routes.map(route => route.providerId),
     ['byok-aaaaaaaaaaaa-openai-server-key1']
+  );
+});
+
+test('CopilotProviderFactory should route a bound custom model through BYOK before the global provider', async t => {
+  const modelId = 'gpt-5.6-sol';
+  const { factory } = createProviderFactoryWithByokRoutes({
+    byokProfiles: [
+      {
+        ...BYOK_OPENAI_PROFILE,
+        models: [modelId],
+        modelDefinitions: [
+          {
+            id: modelId,
+            rawModelId: modelId,
+            backendKind: 'openai_responses',
+            capabilities: [
+              {
+                input: [ModelInputType.Text],
+                output: [
+                  ModelOutputType.Text,
+                  ModelOutputType.Object,
+                  ModelOutputType.Structured,
+                ],
+                defaultForOutputType: true,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  const routes = await factory.resolveRoutes(
+    { modelId, outputType: ModelOutputType.Text },
+    {},
+    { userId: 'user-1', workspaceId: 'workspace-1' }
+  );
+
+  t.deepEqual(
+    routes.map(route => ({
+      providerId: route.providerId,
+      modelId: route.modelId,
+      registryKind: route.registryKind,
+    })),
+    [
+      {
+        providerId: BYOK_OPENAI_PROFILE.id,
+        modelId,
+        registryKind: 'byok',
+      },
+    ]
+  );
+});
+
+test('CopilotProviderFactory should execute BYOK with a runtime that has no static profile', async t => {
+  const modelId = 'gpt-5.6-sol';
+  const provider = createProvider();
+  const registryService = {
+    getRegistry: () =>
+      buildProviderRegistry({
+        profiles: [
+          {
+            id: 'infinimesh',
+            type: CopilotProviderType.OpenAICompatible,
+            models: [modelId],
+            config: { baseURL: 'https://global.example/v1' },
+          },
+        ],
+        defaults: { text: 'infinimesh' },
+      }),
+  };
+  const access = {
+    resolveRouteAccess: Sinon.stub().resolves({
+      byokProfiles: [
+        {
+          ...BYOK_OPENAI_PROFILE,
+          models: [modelId],
+          modelDefinitions: [
+            {
+              id: modelId,
+              rawModelId: modelId,
+              backendKind: 'openai_responses',
+              capabilities: [
+                {
+                  input: [ModelInputType.Text],
+                  output: [ModelOutputType.Text],
+                  defaultForOutputType: true,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      quotaBackedRoutesAvailable: true,
+    }),
+  };
+  const factory = new CopilotProviderFactory(
+    {
+      enableFeature: Sinon.stub(),
+      disableFeature: Sinon.stub(),
+    } as never,
+    withModelRevisionRegistry(registryService) as never,
+    access as never
+  );
+  factory.registerRuntime(provider);
+
+  const routes = await factory.resolveRoutes(
+    { modelId, outputType: ModelOutputType.Text },
+    {},
+    { userId: 'user-1', workspaceId: 'workspace-1' }
+  );
+
+  t.deepEqual(
+    routes.map(route => ({
+      providerId: route.providerId,
+      modelId: route.modelId,
+      registryKind: route.registryKind,
+    })),
+    [
+      {
+        providerId: BYOK_OPENAI_PROFILE.id,
+        modelId,
+        registryKind: 'byok',
+      },
+    ]
   );
 });
 
@@ -4901,7 +5049,11 @@ test('ExecutionPlanBuilder should build native prepared routes for structured, i
 test.serial(
   'NativeExecutionEngine should dispatch structured prepared routes through native execution',
   async t => {
-    const engine = createNativeExecutionEngine();
+    const byok = {
+      recordUsage: Sinon.stub().resolves(),
+      recordProviderFailure: Sinon.stub().resolves(),
+    };
+    const engine = new NativeExecutionEngine(byok as never);
     let capturedRoutes: unknown;
     let called = false;
 
@@ -4915,7 +5067,7 @@ test.serial(
         provider_id: 'openai-fallback',
         response: {
           id: 'structured_1',
-          model: 'gpt-5-mini',
+          model: null,
           output_text: '{"ok":true}',
           output_json: { ok: true },
           usage: {
@@ -4985,6 +5137,12 @@ test.serial(
 
     t.is(result, '{"ok":true}');
     t.true(called);
+    t.true(
+      byok.recordUsage.calledOnceWithMatch({
+        providerId: 'openai-fallback',
+        model: 'gpt-5-mini',
+      })
+    );
     t.snapshot(summarizePreparedDispatchRoutes(capturedRoutes));
   }
 );

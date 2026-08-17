@@ -1,0 +1,3 @@
+mutation dismissReadNotifications {
+  dismissReadNotifications
+}

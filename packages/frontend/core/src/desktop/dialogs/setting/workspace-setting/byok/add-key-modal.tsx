@@ -62,13 +62,14 @@ export const AddKeyModal = ({
   const [storage, setStorage] = useState<ByokStorage>(ByokKeyStorage.server);
   const [apiKey, setApiKey] = useState('');
   const [endpoint, setEndpoint] = useState('');
+  const [modelId, setModelId] = useState('');
   const [testResult, setTestResult] = useState<ByokTestResult | null>(null);
   const [testing, setTesting] = useState(false);
   const canTestStoredConfig =
     storage === ByokKeyStorage.server &&
     editingKey?.storage === ByokKeyStorage.server &&
     editingKey.provider === provider;
-  const canTest = !!apiKey || canTestStoredConfig;
+  const canTest = !!modelId.trim() && (!!apiKey || canTestStoredConfig);
   const endpointHint = endpointHintKey(
     settings.customEndpointSupported,
     settings.privateEndpointSupported
@@ -87,6 +88,7 @@ export const AddKeyModal = ({
     );
     setApiKey('');
     setEndpoint(editingKey?.endpoint ?? '');
+    setModelId(editingKey?.modelId ?? '');
     setTestResult(null);
   }, [canAddServerKey, editingKey, open]);
 
@@ -105,6 +107,7 @@ export const AddKeyModal = ({
             storage,
             apiKey: apiKey || null,
             endpoint: endpoint || null,
+            modelId: modelId.trim(),
             configId: canTestStoredConfig ? editingKey.id : null,
           },
         },
@@ -128,6 +131,7 @@ export const AddKeyModal = ({
     editingKey,
     endpoint,
     gql,
+    modelId,
     provider,
     storage,
     t,
@@ -149,6 +153,7 @@ export const AddKeyModal = ({
         description,
         apiKey,
         endpoint: endpoint || null,
+        modelId: modelId.trim(),
         sortOrder:
           editingKey?.storage === ByokKeyStorage.local
             ? editingKey.sortOrder
@@ -179,6 +184,7 @@ export const AddKeyModal = ({
             storage,
             apiKey: apiKey || null,
             endpoint: endpoint || null,
+            modelId: modelId.trim(),
             enabled: true,
           },
         },
@@ -195,6 +201,7 @@ export const AddKeyModal = ({
     endpoint,
     gql,
     localKeys,
+    modelId,
     name,
     onOpenChange,
     onSaved,
@@ -277,6 +284,18 @@ export const AddKeyModal = ({
           </select>
         </label>
         <label className={styles.field}>
+          <span className={styles.label}>{byokT(t, 'field.model-id')}</span>
+          <input
+            className={styles.input}
+            value={modelId}
+            onChange={event => {
+              setModelId(event.target.value);
+              setTestResult(null);
+            }}
+            placeholder={byokT(t, 'placeholder.model-id')}
+          />
+        </label>
+        <label className={styles.field}>
           <span className={styles.label}>{byokT(t, 'field.api-key')}</span>
           <input
             className={styles.input}
@@ -342,7 +361,7 @@ export const AddKeyModal = ({
           </Button>
           <Button
             variant="primary"
-            disabled={!testResult?.ok || !name}
+            disabled={!testResult?.ok || !name || !modelId.trim()}
             onClick={() => {
               save().catch(error => {
                 logByokError('Failed to save BYOK key', error);

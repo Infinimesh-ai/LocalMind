@@ -27,6 +27,7 @@ const electronApis = vi.hoisted(() => ({
             apiKey: string;
             description?: string | null;
             endpoint?: string | null;
+            modelId?: string | null;
             sortOrder?: number | null;
             enabled?: boolean | null;
           }>
@@ -119,6 +120,7 @@ describe('runtime request transport BYOK local lease handling', () => {
           provider: 'openai',
           name: 'OpenAI',
           apiKey: 'sk-local',
+          modelId: 'gpt-5.6-sol',
         },
       ]),
     };
@@ -138,6 +140,15 @@ describe('runtime request transport BYOK local lease handling', () => {
 
     await expect(result).rejects.toThrow('mutation failed');
     await expect(result).rejects.toBeInstanceOf(UserFriendlyError);
+    expect(client.gql).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variables: expect.objectContaining({
+          input: expect.objectContaining({
+            providers: [expect.objectContaining({ modelId: 'gpt-5.6-sol' })],
+          }),
+        }),
+      })
+    );
     expect(client.chatTextStream).not.toHaveBeenCalled();
   });
 

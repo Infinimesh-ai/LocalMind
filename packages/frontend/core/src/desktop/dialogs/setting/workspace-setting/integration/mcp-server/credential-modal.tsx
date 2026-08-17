@@ -5,12 +5,17 @@ import { copyTextToClipboard } from '@affine/core/utils/clipboard';
 import { useI18n } from '@affine/i18n';
 import { useEffect, useState } from 'react';
 
-import { MCP_CAPABILITY_GROUPS, updateMcpCapabilities } from './capabilities';
+import {
+  DEFAULT_MCP_CAPABILITIES,
+  MCP_CAPABILITY_OPTIONS,
+  updateMcpCapabilities,
+} from './capabilities';
 import * as styles from './setting-panel.css';
 
 type RevealedCredential = {
   credential: McpCredential;
   token: string;
+  callbackSecret: string | null;
 };
 
 export const McpCredentialModal = ({
@@ -28,7 +33,8 @@ export const McpCredentialModal = ({
   onCreate: (
     name: string,
     capabilities: string[],
-    expirationDays: number
+    expirationDays: number,
+    callbackUrl: string | null
   ) => void | Promise<void>;
   onClose: () => void;
 }) => {
@@ -36,15 +42,17 @@ export const McpCredentialModal = ({
   const [name, setName] = useState('');
   const [expirationDays, setExpirationDays] = useState(90);
   const [capabilities, setCapabilities] = useState<Set<string>>(
-    () => new Set(['documents:read'])
+    () => new Set(DEFAULT_MCP_CAPABILITIES)
   );
+  const [callbackUrl, setCallbackUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!mode) {
       setName('');
       setExpirationDays(90);
-      setCapabilities(new Set(['documents:read']));
+      setCapabilities(new Set(DEFAULT_MCP_CAPABILITIES));
+      setCallbackUrl('');
       setSubmitting(false);
     }
   }, [mode]);
@@ -64,11 +72,26 @@ export const McpCredentialModal = ({
   const submit = useAsyncCallback(async () => {
     setSubmitting(true);
     try {
-      await onCreate(name.trim(), [...capabilities], expirationDays);
+      await onCreate(
+        name.trim(),
+        [...capabilities],
+        expirationDays,
+        callbackUrl.trim() || null
+      );
     } finally {
       setSubmitting(false);
     }
-  }, [capabilities, expirationDays, name, onCreate]);
+  }, [callbackUrl, capabilities, expirationDays, name, onCreate]);
+
+  const callbackUrlValid = (() => {
+    if (!callbackUrl.trim()) return true;
+    try {
+      return ['http:', 'https:'].includes(new URL(callbackUrl.trim()).protocol);
+    } catch {
+      return false;
+    }
+  })();
+  const callbackSecret = revealed?.callbackSecret ?? null;
 
   const toggleCapability = (capability: string, checked: boolean) => {
     setCapabilities(current =>
@@ -110,30 +133,24 @@ export const McpCredentialModal = ({
                 {t['com.affine.integration.mcp-server.field.access']()}
               </span>
               <div className={styles.capabilitySelector}>
-                {MCP_CAPABILITY_GROUPS.map(group => (
-                  <div className={styles.capabilitySelectorRow} key={group.key}>
+                {MCP_CAPABILITY_OPTIONS.map(option => (
+                  <div
+                    className={styles.capabilitySelectorRow}
+                    key={option.key}
+                  >
                     <span className={styles.capabilitySelectorName}>
                       {t[
-                        `com.affine.integration.mcp-server.capability.${group.key}`
+                        `com.affine.integration.mcp-server.capability.${option.key}`
                       ]()}
                     </span>
                     <div className={styles.capabilitySelectorChecks}>
                       <Checkbox
-                        checked={capabilities.has(group.read)}
+                        checked={capabilities.has(option.capability)}
                         label={t[
-                          'com.affine.integration.mcp-server.capability.read'
+                          'com.affine.integration.mcp-server.capability.allow'
                         ]()}
                         onChange={(_, checked) =>
-                          toggleCapability(group.read, checked)
-                        }
-                      />
-                      <Checkbox
-                        checked={capabilities.has(group.write)}
-                        label={t[
-                          'com.affine.integration.mcp-server.capability.write'
-                        ]()}
-                        onChange={(_, checked) =>
-                          toggleCapability(group.write, checked)
+                          toggleCapability(option.capability, checked)
                         }
                       />
                     </div>
@@ -161,12 +178,30 @@ export const McpCredentialModal = ({
                 ))}
               </select>
             </label>
+            <label className={styles.field}>
+              <span>
+                {t['com.affine.integration.mcp-server.field.callback-url']()}
+              </span>
+              <Input
+                type="url"
+                value={callbackUrl}
+                maxLength={2048}
+                placeholder="https://sparkclaw.example/localmind/results"
+                status={callbackUrlValid ? 'default' : 'error'}
+                onChange={setCallbackUrl}
+              />
+            </label>
           </div>
           <div className={styles.modalActions}>
             <Button onClick={onClose}>{t['Cancel']()}</Button>
             <Button
               variant="primary"
-              disabled={!name.trim() || !capabilities.size || submitting}
+              disabled={
+                !name.trim() ||
+                !capabilities.size ||
+                !callbackUrlValid ||
+                submitting
+              }
               loading={submitting}
               onClick={submit}
             >
@@ -203,6 +238,23 @@ export const McpCredentialModal = ({
             </Button>
           </div>
           <pre className={styles.preArea}>{revealed.token}</pre>
+          {callbackSecret ? (
+            <>
+              <div className={styles.codeHeader}>
+                <span>
+                  {t[
+                    'com.affine.integration.mcp-server.reveal.callback-secret'
+                  ]()}
+                </span>
+                <Button onClick={() => copy(callbackSecret)}>
+                  {t[
+                    'com.affine.integration.mcp-server.action.copy-callback-secret'
+                  ]()}
+                </Button>
+              </div>
+              <pre className={styles.preArea}>{callbackSecret}</pre>
+            </>
+          ) : null}
           <div className={styles.codeHeader}>
             <span>
               {t['com.affine.integration.mcp-server.reveal.config']()}

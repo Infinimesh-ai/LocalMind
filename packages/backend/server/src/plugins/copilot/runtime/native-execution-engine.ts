@@ -268,7 +268,7 @@ async function* runChatStreamPlan(
     onUsage: async usage => {
       await recordByokUsage(byok, plan, {
         providerId: usage.providerId,
-        model: usage.model,
+        model: usage.model ?? dispatch.prepared.route.model,
         usage: usage.usage,
       });
     },
@@ -368,7 +368,7 @@ async function executePreparedPlan(
           });
           await recordByokUsage(byok, plan, {
             providerId: result.provider_id,
-            model: result.response.model,
+            model: result.response.model ?? dispatch.prepared.route.model,
             usage: result.response.usage,
           });
           const parsed = parseNativeStructuredOutput(result.response);

@@ -13,7 +13,9 @@ mutation createMcpCredential($input: CreateMcpCredentialInput!) {
       revokedAt
       graceEndsAt
       status
+      callbackConfigured
     }
     token
+    callbackSecret
   }
 }

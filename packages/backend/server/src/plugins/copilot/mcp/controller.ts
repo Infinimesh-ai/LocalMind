@@ -17,6 +17,7 @@ import { ActionForbidden, Throttle } from '../../../base';
 import { Public } from '../../../core/auth';
 import { extractTokenFromHeader } from '../../../core/auth/input';
 import { McpCredentialService } from './credential';
+import { McpAiDelegationService } from './delegation';
 import { WorkspaceMcpProvider, type WorkspaceMcpServer } from './provider';
 
 type JsonRpcId = string | number | null;
@@ -57,7 +58,8 @@ export class WorkspaceMcpController {
 
   constructor(
     private readonly provider: WorkspaceMcpProvider,
-    private readonly credentials: McpCredentialService
+    private readonly credentials: McpCredentialService,
+    private readonly delegation: McpAiDelegationService
   ) {}
 
   @Get('/')
@@ -93,7 +95,8 @@ export class WorkspaceMcpController {
           credential.capabilities,
           credential.accessMode
         ),
-        req
+        req,
+        credential
       );
       const body = req.body as unknown;
       const isBatch = Array.isArray(body);
@@ -180,6 +183,72 @@ export class WorkspaceMcpController {
       res
         .status(HttpStatus.INTERNAL_SERVER_ERROR)
         .json(this.errorResponse(null, -32603, 'Internal error'));
+    }
+  }
+
+  @Throttle('default')
+  @Public()
+  @Post('/approvals/:approvalId/decision')
+  async resolveDelegationApproval(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Param('workspaceId') workspaceId: string,
+    @Param('approvalId') approvalId: string
+  ) {
+    try {
+      const body = this.asObject(req.body);
+      const idempotencyKey = req.get('idempotency-key')?.trim() ?? '';
+      const timestamp = req.get('x-localmind-timestamp')?.trim() ?? '';
+      const signature = req.get('x-localmind-signature')?.trim() ?? '';
+      const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+      if (
+        !body ||
+        typeof body.previewHash !== 'string' ||
+        body.expectedState !== 'pending' ||
+        (body.decision !== 'approved' && body.decision !== 'rejected') ||
+        !idempotencyKey ||
+        idempotencyKey.length > 300 ||
+        !timestamp ||
+        !signature ||
+        !rawBody?.length
+      ) {
+        res.status(HttpStatus.BAD_REQUEST).json({
+          status: 'invalid_request',
+        });
+        return;
+      }
+      const result = await this.delegation.resolveApproval({
+        workspaceId,
+        approvalId,
+        previewHash: body.previewHash,
+        expectedState: body.expectedState,
+        decision: body.decision,
+        idempotencyKey,
+        timestamp,
+        signature,
+        rawBody,
+      });
+      const statusCode =
+        result.status === 'unauthenticated'
+          ? HttpStatus.UNAUTHORIZED
+          : result.status === 'credential_inactive' ||
+              result.status === 'approval_expired'
+            ? HttpStatus.GONE
+            : result.status === 'permission_denied' ||
+                result.status === 'credential_scope_denied'
+              ? HttpStatus.FORBIDDEN
+              : result.status === 'not_found'
+                ? HttpStatus.NOT_FOUND
+                : result.status === 'stale_state' ||
+                    result.status === 'resource_version_conflict'
+                  ? HttpStatus.CONFLICT
+                  : HttpStatus.OK;
+      res.status(statusCode).json(result);
+    } catch (error) {
+      this.logger.error('Failed to resolve MCP delegation approval', error);
+      res
+        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .json({ status: 'internal_error' });
     }
   }
 

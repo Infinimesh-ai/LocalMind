@@ -21,6 +21,7 @@ export { CaptchaService } from './services/captcha';
 export { DefaultServerService } from './services/default-server';
 export { DocCreatedByUpdatedBySyncService } from './services/doc-created-by-updated-by-sync';
 export { EventSourceService } from './services/eventsource';
+export { ExternalMcpService } from './services/external-mcp';
 export { FetchService } from './services/fetch';
 export { GraphQLService } from './services/graphql';
 export { InvitationService } from './services/invitation';
@@ -76,6 +77,7 @@ import { CaptchaService } from './services/captcha';
 import { CloudDocMetaService } from './services/cloud-doc-meta';
 import { DefaultServerService } from './services/default-server';
 import { EventSourceService } from './services/eventsource';
+import { ExternalMcpService } from './services/external-mcp';
 import { FetchService } from './services/fetch';
 import { GraphQLService } from './services/graphql';
 import { InvoicesService } from './services/invoices';
@@ -97,6 +99,7 @@ import { AcceptInviteStore } from './stores/accept-invite';
 import { AuthStore } from './stores/auth';
 import { CloudDocMetaStore } from './stores/cloud-doc-meta';
 import { InviteInfoStore } from './stores/invite-info';
+import { ExternalMcpStore } from './stores/external-mcp';
 import { InvoicesStore } from './stores/invoices';
 import { PublicUserStore } from './stores/public-user';
 import { SelfhostGenerateLicenseStore } from './stores/selfhost-generate-license';
@@ -195,7 +198,9 @@ export function configureCloudModule(framework: Framework) {
     .service(UserSettingsService, [UserSettingsStore])
     .store(UserSettingsStore, [GraphQLService, NbstoreService])
     .service(McpCredentialService, [McpCredentialStore])
-    .store(McpCredentialStore, [GraphQLService]);
+    .store(McpCredentialStore, [GraphQLService])
+    .service(ExternalMcpService, [ExternalMcpStore])
+    .store(ExternalMcpStore, [GraphQLService]);
 
   framework
     .scope(WorkspaceScope)

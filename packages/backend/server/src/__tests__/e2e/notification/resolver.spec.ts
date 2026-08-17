@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  dismissNotificationMutation,
+  dismissReadNotificationsMutation,
   DocMode,
   listNotificationsQuery,
   MentionNotificationBodyType,
@@ -716,3 +718,107 @@ e2e('should mark all notifications as read', async t => {
   });
   t.is(result.currentUser!.notifications.totalCount, 0);
 });
+
+e2e(
+  'should list read notifications and dismiss only the current user inbox',
+  async t => {
+    const { member, owner, workspace } = await init();
+    await app.login(owner);
+    const first = await app.gql({
+      query: mentionUserMutation,
+      variables: {
+        input: {
+          userId: member.id,
+          workspaceId: workspace.id,
+          doc: {
+            id: 'doc-id-1',
+            title: 'doc-title-1',
+            mode: DocMode.page,
+          },
+        },
+      },
+    });
+    const second = await app.gql({
+      query: mentionUserMutation,
+      variables: {
+        input: {
+          userId: member.id,
+          workspaceId: workspace.id,
+          doc: {
+            id: 'doc-id-2',
+            title: 'doc-title-2',
+            mode: DocMode.page,
+          },
+        },
+      },
+    });
+
+    await app.login(member);
+    await app.gql({
+      query: readNotificationMutation,
+      variables: { id: first.mentionUser },
+    });
+
+    const unread = await app.gql({
+      query: listNotificationsQuery,
+      variables: { pagination: { first: 10 } },
+    });
+    t.is(unread.currentUser!.notifications.totalCount, 1);
+    t.is(
+      unread.currentUser!.notifications.edges[0].node.id,
+      second.mentionUser
+    );
+
+    const all = await app.gql({
+      query: listNotificationsQuery,
+      variables: { pagination: { first: 10 }, includeRead: true },
+    });
+    t.is(all.currentUser!.notifications.totalCount, 2);
+    t.true(
+      all.currentUser!.notifications.edges.some(
+        edge => edge.node.id === first.mentionUser && edge.node.read
+      )
+    );
+
+    await app.login(owner);
+    await t.throwsAsync(
+      app.gql({
+        query: dismissNotificationMutation,
+        variables: { id: first.mentionUser },
+      }),
+      { message: 'Notification not found.' }
+    );
+
+    await app.login(member);
+    await app.gql({
+      query: dismissNotificationMutation,
+      variables: { id: first.mentionUser },
+    });
+    let remaining = await app.gql({
+      query: listNotificationsQuery,
+      variables: { pagination: { first: 10 }, includeRead: true },
+    });
+    t.deepEqual(
+      remaining.currentUser!.notifications.edges.map(edge => edge.node.id),
+      [second.mentionUser]
+    );
+
+    await app.gql({ query: dismissReadNotificationsMutation });
+    remaining = await app.gql({
+      query: listNotificationsQuery,
+      variables: { pagination: { first: 10 }, includeRead: true },
+    });
+    t.is(remaining.currentUser!.notifications.totalCount, 1);
+
+    await app.gql({
+      query: readNotificationMutation,
+      variables: { id: second.mentionUser },
+    });
+    await app.gql({ query: dismissReadNotificationsMutation });
+    remaining = await app.gql({
+      query: listNotificationsQuery,
+      variables: { pagination: { first: 10 }, includeRead: true },
+    });
+    t.is(remaining.currentUser!.notifications.totalCount, 0);
+  }
+);

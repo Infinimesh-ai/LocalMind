@@ -576,6 +576,61 @@ test('should count notifications by user id, include read notifications', async 
   t.is(count, 2);
 });
 
+test('should dismiss notifications without treating unread items as read', async t => {
+  const unread = await models.notification.createMention({
+    userId: user.id,
+    body: {
+      workspaceId: workspace.id,
+      doc: {
+        id: docId,
+        title: 'doc-title',
+        mode: DocMode.page,
+      },
+      createdByUserId: createdBy.id,
+    },
+  });
+  const read = await models.notification.createInvitation({
+    userId: user.id,
+    body: {
+      workspaceId: workspace.id,
+      createdByUserId: createdBy.id,
+      inviteId: randomUUID(),
+    },
+  });
+  await models.notification.markAsRead(read.id, user.id);
+
+  t.is(
+    (
+      await models.notification.findManyByUserId(user.id, {
+        first: 10,
+        offset: 0,
+        includeRead: true,
+      })
+    ).length,
+    2
+  );
+
+  t.is(await models.notification.dismissRead(user.id), 1);
+  t.deepEqual(
+    (
+      await models.notification.findManyByUserId(user.id, {
+        first: 10,
+        offset: 0,
+        includeRead: true,
+      })
+    ).map(notification => notification.id),
+    [unread.id]
+  );
+  t.is(await models.notification.countByUserId(user.id), 1);
+
+  await models.notification.dismiss(unread.id, user.id);
+  t.is(await models.notification.countByUserId(user.id), 0);
+  t.false((await models.notification.get(unread.id))!.read);
+  t.truthy(
+    await db.notification.findUniqueOrThrow({ where: { id: unread.id } })
+  );
+});
+
 test('should create a comment notification', async t => {
   const commentId = randomUUID();
 

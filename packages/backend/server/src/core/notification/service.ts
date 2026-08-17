@@ -588,10 +588,36 @@ export class NotificationService {
     await this.publishCountChanged(userId, 'read-all');
   }
 
+  async dismiss(userId: string, notificationId: string) {
+    try {
+      await this.models.notification.dismiss(notificationId, userId);
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2025'
+      ) {
+        throw new NotificationNotFound();
+      }
+      throw err;
+    }
+    await this.publishCountChanged(userId, 'deleted');
+  }
+
+  async dismissRead(userId: string) {
+    const count = await this.models.notification.dismissRead(userId);
+    if (count > 0) {
+      await this.publishCountChanged(userId, 'deleted');
+    }
+    return count;
+  }
+
   /**
    * Find notifications by user id, order by createdAt desc
    */
-  async findManyByUserId(userId: string, options?: PaginationInput) {
+  async findManyByUserId(
+    userId: string,
+    options?: PaginationInput & { includeRead?: boolean }
+  ) {
     const notifications = await this.models.notification.findManyByUserId(
       userId,
       options
@@ -644,13 +670,13 @@ export class NotificationService {
     }));
   }
 
-  async countByUserId(userId: string) {
-    return await this.models.notification.countByUserId(userId);
+  async countByUserId(userId: string, options?: { includeRead?: boolean }) {
+    return await this.models.notification.countByUserId(userId, options);
   }
 
   private async publishCountChanged(
     userId: string,
-    reason: 'created' | 'read' | 'read-all' | 'expired-cleanup'
+    reason: 'created' | 'read' | 'read-all' | 'deleted' | 'expired-cleanup'
   ) {
     if (!this.realtime) return;
     try {

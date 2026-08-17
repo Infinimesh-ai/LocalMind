@@ -25,6 +25,12 @@ export const header = style({
   borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
 });
 
+export const headerActions = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '4px',
+});
+
 export const scrollRoot = style({
   flex: 1,
   display: 'flex',
@@ -40,6 +46,14 @@ export const itemList = style({
   display: 'flex',
   flexDirection: 'column',
   gap: '8px',
+});
+
+export const notificationListItem = style({
+  selectors: {
+    '&[data-read="true"]': {
+      opacity: 0.68,
+    },
+  },
 });
 
 export const listEmpty = style({
@@ -131,6 +145,11 @@ export const itemDeleteButton = style({
   opacity: 0,
   selectors: {
     [`${itemContainer}:hover &`]: {
+      opacity: 1,
+    },
+  },
+  '@media': {
+    '(hover: none)': {
       opacity: 1,
     },
   },

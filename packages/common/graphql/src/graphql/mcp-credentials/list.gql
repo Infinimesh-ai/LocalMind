@@ -13,5 +13,6 @@ query mcpCredentials($workspaceId: String!) {
     revokedAt
     graceEndsAt
     status
+    callbackConfigured
   }
 }

@@ -574,6 +574,10 @@ export class CopilotProviderFactory {
 
   readonly #providers = new Map<string, CopilotProvider>();
   readonly #providerIdsByType = new Map<CopilotProviderType, Set<string>>();
+  readonly #runtimeProvidersByType = new Map<
+    CopilotProviderType,
+    CopilotProvider
+  >();
 
   private getRegistry() {
     return this.registries.getRegistry();
@@ -585,6 +589,7 @@ export class CopilotProviderFactory {
   ) {
     return (
       this.#providers.get(providerId) ??
+      this.#runtimeProvidersByType.get(profile.type) ??
       Array.from(this.#providerIdsByType.get(profile.type) ?? [])
         .map(id => this.#providers.get(id))
         .find((provider): provider is CopilotProvider => !!provider)
@@ -2041,6 +2046,10 @@ export class CopilotProviderFactory {
       `Copilot provider [${provider.type}] registered as [${providerId}].`
     );
     this.server.enableFeature(ServerFeature.Copilot);
+  }
+
+  registerRuntime(provider: CopilotProvider) {
+    this.#runtimeProvidersByType.set(provider.type, provider);
   }
 
   unregister(providerId: string, provider: CopilotProvider) {

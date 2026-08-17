@@ -9,6 +9,7 @@ import {
   type CopilotAgentRuntimeWorkflowAdapter,
   CopilotAgentRuntimeWorkflowRegistry,
 } from './agent-runtime-workflow-registry';
+import { McpAiTaskControlService } from './mcp/task-control';
 
 const AGENT_RUNTIME_WORKER_LEASE_MS = 5 * 60 * 1000;
 const AGENT_RUNTIME_ADAPTER_RESOLUTION_VERSION =
@@ -38,7 +39,8 @@ export class CopilotAgentRuntimeWorker {
 
   constructor(
     private readonly models: Models,
-    private readonly workflowRegistry: CopilotAgentRuntimeWorkflowRegistry
+    private readonly workflowRegistry: CopilotAgentRuntimeWorkflowRegistry,
+    private readonly taskControl: McpAiTaskControlService
   ) {}
 
   @OnJob('copilot.agentRuntime.run')
@@ -71,6 +73,7 @@ export class CopilotAgentRuntimeWorker {
         }
       );
     if (cancelled) {
+      await this.taskControl.reconcileCancelledAgentRun(cancelled);
       return params.runId ? JOB_SIGNAL.Done : JOB_SIGNAL.Repeat;
     }
 
@@ -145,6 +148,13 @@ export class CopilotAgentRuntimeWorker {
           workerId,
           error
         );
+        const afterFailure = await this.models.copilotAgentRuntime.get(
+          current.workspaceId,
+          current.id
+        );
+        if (afterFailure) {
+          await this.taskControl.reconcileCancelledAgentRun(afterFailure);
+        }
         return params.runId ? JOB_SIGNAL.Done : JOB_SIGNAL.Repeat;
       }
       const cancelledAfterAdapter =
@@ -200,6 +210,10 @@ export class CopilotAgentRuntimeWorker {
       run.workspaceId,
       run.id
     );
+    if (current?.status === 'cancelled') {
+      await this.taskControl.reconcileCancelledAgentRun(current);
+      return current;
+    }
     if (
       current?.status !== 'running' ||
       current.workerLeaseId !== workerId ||
@@ -218,6 +232,7 @@ export class CopilotAgentRuntimeWorker {
         }
       );
     if (cancelled) {
+      await this.taskControl.reconcileCancelledAgentRun(cancelled);
       this.logger.debug(
         `Agent runtime adapter ${adapter.workflow} yielded to cancellation for run ${run.id}`
       );

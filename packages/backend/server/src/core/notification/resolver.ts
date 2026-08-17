@@ -29,11 +29,17 @@ export class UserNotificationResolver {
   })
   async notifications(
     @CurrentUser() me: UserType,
-    @Args('pagination', PaginationInput.decode) pagination: PaginationInput
+    @Args('pagination', PaginationInput.decode) pagination: PaginationInput,
+    @Args('includeRead', {
+      type: () => Boolean,
+      nullable: true,
+      defaultValue: false,
+    })
+    includeRead: boolean
   ): Promise<PaginatedNotificationObjectType> {
     const [notifications, totalCount] = await Promise.all([
-      this.service.findManyByUserId(me.id, pagination),
-      this.service.countByUserId(me.id),
+      this.service.findManyByUserId(me.id, { ...pagination, includeRead }),
+      this.service.countByUserId(me.id, { includeRead }),
     ]);
     return paginate(notifications, 'createdAt', pagination, totalCount);
   }
@@ -92,6 +98,25 @@ export class UserNotificationResolver {
   })
   async readAllNotifications(@CurrentUser() me: UserType) {
     await this.service.markAllAsRead(me.id);
+    return true;
+  }
+
+  @Mutation(() => Boolean, {
+    description: 'delete a notification from the current user inbox',
+  })
+  async dismissNotification(
+    @CurrentUser() me: UserType,
+    @Args('id') notificationId: string
+  ) {
+    await this.service.dismiss(me.id, notificationId);
+    return true;
+  }
+
+  @Mutation(() => Boolean, {
+    description: 'delete all read notifications from the current user inbox',
+  })
+  async dismissReadNotifications(@CurrentUser() me: UserType) {
+    await this.service.dismissRead(me.id);
     return true;
   }
 }

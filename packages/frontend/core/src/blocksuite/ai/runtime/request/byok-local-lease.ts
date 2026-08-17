@@ -69,6 +69,7 @@ export async function createWorkspaceByokLocalLease(
               description: provider.description ?? null,
               apiKey: provider.apiKey,
               endpoint: provider.endpoint ?? null,
+              modelId: provider.modelId ?? null,
               sortOrder: provider.sortOrder ?? 0,
               enabled: provider.enabled ?? true,
             },

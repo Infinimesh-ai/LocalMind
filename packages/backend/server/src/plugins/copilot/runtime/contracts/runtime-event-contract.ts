@@ -38,6 +38,7 @@ export const ToolResultStreamObjectSchema = z
     toolName: NonEmptyStringSchema,
     args: z.record(z.unknown()),
     result: z.unknown(),
+    isError: z.boolean().optional(),
     rawArgumentsText: z.string().optional(),
     argumentParseError: z.string().optional(),
   })
@@ -71,6 +72,7 @@ export const ToolResultEventSchema = z
     toolName: NonEmptyStringSchema,
     args: z.record(z.unknown()),
     result: z.unknown(),
+    isError: z.boolean().optional(),
     rawArgumentsText: z.string().optional(),
     argumentParseError: z.string().optional(),
   })
@@ -113,6 +115,7 @@ export function projectRuntimeEventToStreamObject(
         toolName: event.name,
         args: event.arguments,
         result: event.output,
+        isError: event.is_error,
         rawArgumentsText: event.arguments_text,
         argumentParseError: event.arguments_error,
       };
@@ -143,6 +146,7 @@ export function streamObjectToToolEvent(
         toolName: streamObject.toolName,
         args: streamObject.args,
         result: streamObject.result,
+        isError: streamObject.isError,
         rawArgumentsText: streamObject.rawArgumentsText,
         argumentParseError: streamObject.argumentParseError,
       };
@@ -168,6 +172,7 @@ export function toolEventToStreamObject(event: ToolEvent): StreamObject {
         toolName: event.toolName,
         args: event.args,
         result: event.result,
+        isError: event.isError,
         rawArgumentsText: event.rawArgumentsText,
         argumentParseError: event.argumentParseError,
       };

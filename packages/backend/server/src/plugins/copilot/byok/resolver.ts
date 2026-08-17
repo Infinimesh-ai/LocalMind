@@ -45,6 +45,9 @@ export class WorkspaceByokKeyConfigType implements ByokKeyConfig {
   @Field(() => String, { nullable: true })
   endpoint!: string | null;
 
+  @Field(() => String, { nullable: true })
+  modelId!: string | null;
+
   @Field(() => Boolean)
   endpointEditable!: boolean;
 
@@ -186,6 +189,9 @@ class UpsertWorkspaceByokConfigInput {
   @Field(() => String, { nullable: true })
   endpoint?: string | null;
 
+  @Field(() => String, { nullable: true })
+  modelId?: string | null;
+
   @Field(() => SafeIntResolver, { nullable: true })
   sortOrder?: number | null;
 
@@ -209,6 +215,9 @@ class TestWorkspaceByokConfigInput {
 
   @Field(() => String, { nullable: true })
   endpoint?: string | null;
+
+  @Field(() => String, { nullable: true })
+  modelId?: string | null;
 
   @Field(() => ID, { nullable: true })
   configId?: string | null;
@@ -242,6 +251,9 @@ class CreateWorkspaceByokLocalLeaseProviderInput implements ByokLocalLeaseProvid
 
   @Field(() => String, { nullable: true })
   endpoint?: string | null;
+
+  @Field(() => String, { nullable: true })
+  modelId?: string | null;
 
   @Field(() => SafeIntResolver, { nullable: true })
   sortOrder?: number | null;

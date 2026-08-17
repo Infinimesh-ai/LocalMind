@@ -1371,10 +1371,10 @@ still depends on it.
 
 ## Non-goals For First Slice
 
-Workspace MCP v2 exposes repair preflight, persisted request creation,
-approval decisions, lifecycle controls, and filtered history through the same
-resolver/model path. MCP scope does not skip approval, create a new executor,
-or weaken the side-effect/audit/snapshot fences described by this track.
+The inbound MCP surface no longer exposes direct repair tools. A future
+LocalMind AI repair executor must use this track's preflight, persisted request,
+approval, worker, side-effect, audit, and snapshot fences; MCP delegation must
+not skip approval or create a parallel repair lifecycle.
 
 - arbitrary config mutation;
 - automatic provider credential edits;

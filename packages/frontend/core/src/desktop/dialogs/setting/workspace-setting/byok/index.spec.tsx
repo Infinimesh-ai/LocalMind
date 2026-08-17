@@ -153,8 +153,10 @@ vi.mock('@affine/i18n', () => {
     'com.affine.settings.workspace.byok.action.clear-all':
       'Clear all BYOK keys',
     'com.affine.settings.workspace.byok.field.api-key': 'API key',
+    'com.affine.settings.workspace.byok.field.model-id': 'Model ID',
     'com.affine.settings.workspace.byok.field.storage': 'Key storage',
     'com.affine.settings.workspace.byok.placeholder.key-name': 'Primary',
+    'com.affine.settings.workspace.byok.placeholder.model-id': 'gpt-5.6-sol',
     'com.affine.settings.workspace.byok.status.key-verified': 'Key verified',
     'com.affine.settings.workspace.byok.status.disabled-after-failure':
       'Disabled after failure',
@@ -271,6 +273,7 @@ function byokKey(overrides: Record<string, unknown> = {}) {
     configured: true,
     enabled: true,
     endpoint: null,
+    modelId: 'gpt-5.6-sol',
     endpointEditable: false,
     sortOrder: 0,
     capabilities: ['Text', 'Image input', 'Actions', 'Image generate'],
@@ -360,6 +363,9 @@ describe('WorkspaceByokSetting', () => {
     fireEvent.change(screen.getByPlaceholderText('Primary'), {
       target: { value: 'Primary' },
     });
+    fireEvent.change(screen.getByLabelText('Model ID'), {
+      target: { value: 'gpt-5.6-sol' },
+    });
     fireEvent.change(screen.getByLabelText('API key'), {
       target: { value: 'sk-test' },
     });
@@ -374,7 +380,20 @@ describe('WorkspaceByokSetting', () => {
     await waitFor(() => {
       expect(gqlMock).toHaveBeenCalledWith(
         expect.objectContaining({
+          query: testWorkspaceByokConfigMutation,
+          variables: expect.objectContaining({
+            input: expect.objectContaining({ modelId: 'gpt-5.6-sol' }),
+          }),
+        })
+      );
+    });
+    await waitFor(() => {
+      expect(gqlMock).toHaveBeenCalledWith(
+        expect.objectContaining({
           query: upsertWorkspaceByokConfigMutation,
+          variables: expect.objectContaining({
+            input: expect.objectContaining({ modelId: 'gpt-5.6-sol' }),
+          }),
         })
       );
     });
@@ -617,6 +636,7 @@ describe('WorkspaceByokSetting', () => {
     render(<WorkspaceByokSetting />);
 
     await screen.findByText('OpenAI / Primary');
+    expect(screen.getByText('gpt-5.6-sol')).not.toBeNull();
     fireEvent.click(screen.getByText('Edit'));
     expect(screen.getByText<HTMLButtonElement>('Test key').disabled).toBe(
       false
@@ -631,6 +651,7 @@ describe('WorkspaceByokSetting', () => {
             input: expect.objectContaining({
               apiKey: null,
               configId: 'server-key',
+              modelId: 'gpt-5.6-sol',
             }),
           }),
         })
@@ -648,11 +669,46 @@ describe('WorkspaceByokSetting', () => {
             input: expect.objectContaining({
               apiKey: null,
               id: 'server-key',
+              modelId: 'gpt-5.6-sol',
             }),
           }),
         })
       );
     });
+  });
+
+  test('changing the model invalidates a successful key test', async () => {
+    gqlMock.mockImplementation(async ({ query }) => {
+      if (query === workspaceByokSettingsQuery) {
+        return settingsResponse({ keys: [byokKey()] });
+      }
+      if (query === testWorkspaceByokConfigMutation) {
+        return {
+          testWorkspaceByokConfig: {
+            ok: true,
+            status: 'passed',
+            message: null,
+          },
+        };
+      }
+      throw new Error('Unexpected GraphQL operation');
+    });
+
+    render(<WorkspaceByokSetting />);
+
+    await screen.findByText('OpenAI / Primary');
+    fireEvent.click(screen.getByText('Edit'));
+    fireEvent.click(screen.getByText('Test key'));
+    await screen.findByText('Key verified');
+    expect(screen.getByText<HTMLButtonElement>('Save key').disabled).toBe(
+      false
+    );
+
+    fireEvent.change(screen.getByLabelText('Model ID'), {
+      target: { value: 'gpt-5.6-sol-next' },
+    });
+
+    expect(screen.getByText<HTMLButtonElement>('Save key').disabled).toBe(true);
   });
 });
 

@@ -232,6 +232,7 @@ export type NotificationCountChangedReason =
   | 'created'
   | 'read'
   | 'read-all'
+  | 'deleted'
   | 'expired-cleanup'
   | 'resync';
 

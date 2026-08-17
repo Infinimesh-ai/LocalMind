@@ -695,6 +695,7 @@ test('CopilotProviderLifecycleService should register current profiles and unreg
       },
     } as any,
     {
+      registerRuntime() {},
       register(providerId: string) {
         calls.push(`register:${providerId}`);
       },
@@ -762,6 +763,7 @@ test('CopilotProviderLifecycleService should unregister down profiles', async t 
       },
     } as any,
     {
+      registerRuntime() {},
       register(providerId: string) {
         calls.push(`register:${providerId}`);
       },
@@ -822,6 +824,7 @@ test('CopilotProviderLifecycleService should register OpenAI-compatible profiles
       },
     } as any,
     {
+      registerRuntime() {},
       register(providerId: string) {
         calls.push(`register:${providerId}`);
       },
@@ -839,4 +842,37 @@ test('CopilotProviderLifecycleService should register OpenAI-compatible profiles
   await service.syncProviders();
 
   t.deepEqual(calls, ['register:ollama-main']);
+});
+
+test('CopilotProviderLifecycleService should register provider runtimes without static profiles', async t => {
+  const runtimes: CopilotProviderType[] = [];
+  const provider = {
+    type: CopilotProviderType.OpenAI,
+    configured() {
+      return true;
+    },
+  };
+  const service = new CopilotProviderLifecycleService(
+    {
+      get(token: unknown) {
+        return token === OpenAIProvider ? provider : undefined;
+      },
+    } as any,
+    {
+      registerRuntime(runtime: { type: CopilotProviderType }) {
+        runtimes.push(runtime.type);
+      },
+      register() {},
+      unregister() {},
+    } as any,
+    {
+      getRegistry() {
+        return buildProviderRegistry({ profiles: [] });
+      },
+    } as any
+  );
+
+  await service.syncProviders();
+
+  t.deepEqual(runtimes, [CopilotProviderType.OpenAI]);
 });

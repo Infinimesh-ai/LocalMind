@@ -21,10 +21,9 @@ describe('McpCredentialStore', () => {
     const gql = vi.fn().mockResolvedValue({ createMcpCredential: created });
     const store = createStore(gql);
     const capabilities = [
-      'documents:read',
-      'documents:write',
-      'workspace:read',
-      'workspace:write',
+      'delegate_to_localmind',
+      'get_localmind_task',
+      'control_localmind_task',
     ];
 
     await expect(
@@ -34,6 +33,7 @@ describe('McpCredentialStore', () => {
         accessMode: McpAccessMode.READ_WRITE,
         capabilities,
         expirationDays: 90,
+        callbackUrl: 'https://sparkclaw.example/approvals',
       })
     ).resolves.toBe(created);
     expect(gql).toHaveBeenCalledWith({
@@ -45,6 +45,7 @@ describe('McpCredentialStore', () => {
           accessMode: McpAccessMode.READ_WRITE,
           capabilities,
           expirationDays: 90,
+          callbackUrl: 'https://sparkclaw.example/approvals',
         },
       },
     });

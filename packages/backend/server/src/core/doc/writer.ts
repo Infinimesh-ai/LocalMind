@@ -5,6 +5,7 @@ import { EventBus } from '../../base';
 import {
   addDocToRootDoc,
   createDocWithMarkdown,
+  readAllDocIdsFromRootDoc,
   updateDocProperties,
   updateDocTitle,
   updateDocWithMarkdown,
@@ -14,6 +15,7 @@ import { PgWorkspaceDocStorageAdapter } from './adapters/workspace';
 
 export interface CreateDocResult {
   docId: string;
+  idempotentReplay?: boolean;
 }
 
 export interface UpdateDocResult {
@@ -59,7 +61,8 @@ export class DocWriter {
     workspaceId: string,
     title: string,
     markdown: string,
-    editorId?: string
+    editorId?: string,
+    requestedDocId?: string
   ): Promise<CreateDocResult> {
     // Fetch workspace root doc first - reject if not found
     // The root doc (docId = workspaceId) contains meta.pages array
@@ -78,7 +81,45 @@ export class DocWriter {
           rootDoc.bin.byteLength
         );
 
-    const docId = nanoid();
+    const docId = requestedDocId ?? nanoid();
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(docId)) {
+      throw new Error('Requested document ID is invalid');
+    }
+    let registeredDocIds = new Set<string>();
+    try {
+      registeredDocIds = new Set(readAllDocIdsFromRootDoc(rootDocBin));
+    } catch {
+      // Legacy/bootstrap roots can be placeholders until their first update.
+    }
+    const existingDoc = requestedDocId
+      ? await this.storage.getDoc(workspaceId, docId)
+      : null;
+
+    if (existingDoc?.bin) {
+      if (!registeredDocIds.has(docId)) {
+        const rootDocUpdate = addDocToRootDoc(rootDocBin, docId, title);
+        const rootTimestamp = await this.storage.pushDocUpdates(
+          workspaceId,
+          workspaceId,
+          [rootDocUpdate],
+          editorId
+        );
+        this.emitDocUpdatesPushed({
+          spaceId: workspaceId,
+          docId: workspaceId,
+          updates: [rootDocUpdate],
+          timestamp: rootTimestamp,
+          editor: editorId,
+        });
+      }
+      await this.updateDocProperties(
+        workspaceId,
+        docId,
+        { updatedBy: editorId },
+        editorId
+      );
+      return { docId, idempotentReplay: true };
+    }
 
     this.logger.debug(
       `Creating doc ${docId} in workspace ${workspaceId} from markdown`
@@ -88,22 +129,24 @@ export class DocWriter {
     const binary = createDocWithMarkdown(title, markdown, docId);
 
     // Prepare root doc update to register the new document
-    const rootDocUpdate = addDocToRootDoc(rootDocBin, docId, title);
-
-    // Push both updates together - root doc first, then the new doc
-    const rootTimestamp = await this.storage.pushDocUpdates(
-      workspaceId,
-      workspaceId,
-      [rootDocUpdate],
-      editorId
-    );
-    this.emitDocUpdatesPushed({
-      spaceId: workspaceId,
-      docId: workspaceId,
-      updates: [rootDocUpdate],
-      timestamp: rootTimestamp,
-      editor: editorId,
-    });
+    // A retry can observe the root registration after a previous attempt
+    // stopped before writing the document body.
+    if (!registeredDocIds.has(docId)) {
+      const rootDocUpdate = addDocToRootDoc(rootDocBin, docId, title);
+      const rootTimestamp = await this.storage.pushDocUpdates(
+        workspaceId,
+        workspaceId,
+        [rootDocUpdate],
+        editorId
+      );
+      this.emitDocUpdatesPushed({
+        spaceId: workspaceId,
+        docId: workspaceId,
+        updates: [rootDocUpdate],
+        timestamp: rootTimestamp,
+        editor: editorId,
+      });
+    }
 
     const docTimestamp = await this.storage.pushDocUpdates(
       workspaceId,

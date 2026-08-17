@@ -575,6 +575,62 @@ const CopilotSupportBundleObjectStorageWebhookShape = z
   })
   .strict();
 
+const ExternalMcpEndpointShape = z.string().superRefine((value, context) => {
+  try {
+    const endpoint = new URL(value);
+    if (
+      !['http:', 'https:'].includes(endpoint.protocol) ||
+      !endpoint.hostname ||
+      endpoint.username ||
+      endpoint.password ||
+      endpoint.search ||
+      endpoint.hash ||
+      endpoint.pathname !== '/mcp'
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'External MCP endpoint must be an exact HTTP(S) /mcp URL',
+      });
+    }
+  } catch {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'External MCP endpoint must be a valid URL',
+    });
+  }
+});
+
+const McpDelegationCallbackOriginShape = z
+  .string()
+  .max(2048)
+  .superRefine((value, context) => {
+    try {
+      const origin = new URL(value);
+      if (
+        !['http:', 'https:'].includes(origin.protocol) ||
+        !origin.hostname ||
+        origin.username ||
+        origin.password ||
+        origin.pathname !== '/' ||
+        origin.search ||
+        origin.hash ||
+        origin.origin !== value.replace(/\/$/, '')
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'MCP delegation callback allowlist entries must be exact HTTP(S) origins',
+        });
+      }
+    } catch {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'MCP delegation callback allowlist entries must be valid origins',
+      });
+    }
+  });
+
 declare global {
   interface AppConfigSchema {
     copilot: {
@@ -605,6 +661,12 @@ declare global {
         objectStorageWebhooks: ConfigItem<
           CopilotSupportBundleObjectStorageWebhookConfig[]
         >;
+      };
+      externalMcp: {
+        endpoint: ConfigItem<string>;
+      };
+      mcpDelegation: {
+        callbackAllowedOrigins: ConfigItem<string[]>;
       };
       providers: {
         profiles: ConfigItem<CopilotProviderProfile[]>;
@@ -682,6 +744,17 @@ defineModuleConfig('copilot', {
     desc: 'Production object-storage webhooks for support bundle direct-download completion notifications. Each entry verifies raw webhook bodies with HMAC-SHA256 before forwarding provider event evidence into the durable transfer queue.',
     default: [],
     shape: z.array(CopilotSupportBundleObjectStorageWebhookShape),
+  },
+  'externalMcp.endpoint': {
+    desc: 'The exact server-controlled SparkClaw Streamable HTTP MCP endpoint. Workspace clients can view but cannot change this URL.',
+    default: 'http://192.168.20.252:18791/mcp',
+    env: 'LOCALMIND_SPARKCLAW_MCP_ENDPOINT',
+    shape: ExternalMcpEndpointShape,
+  },
+  'mcpDelegation.callbackAllowedOrigins': {
+    desc: 'Exact callback origins that may use HTTP or private network targets for LocalMind MCP delegation events. Keep empty unless a trusted local caller such as SparkClaw requires it.',
+    default: [],
+    shape: z.array(McpDelegationCallbackOriginShape).max(32),
   },
   'providers.openai': {
     desc: 'The config for the openai provider.',

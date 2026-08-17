@@ -66,6 +66,9 @@ export class McpCredentialType {
 
   @Field(() => McpCredentialStatus)
   status!: McpCredentialStatus;
+
+  @Field()
+  callbackConfigured!: boolean;
 }
 
 @ObjectType()
@@ -75,6 +78,9 @@ class RevealedMcpCredentialType {
 
   @Field()
   token!: string;
+
+  @Field(() => String, { nullable: true })
+  callbackSecret!: string | null;
 }
 
 @InputType()
@@ -93,6 +99,9 @@ class CreateMcpCredentialInput {
 
   @Field(() => Int, { defaultValue: 90 })
   expirationDays!: number;
+
+  @Field({ nullable: true })
+  callbackUrl?: string;
 }
 
 @Resolver()

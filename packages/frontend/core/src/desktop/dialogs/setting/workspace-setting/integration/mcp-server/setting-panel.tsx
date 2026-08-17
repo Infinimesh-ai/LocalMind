@@ -19,7 +19,7 @@ import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { IntegrationSettingHeader } from '../setting';
-import { MCP_CAPABILITY_GROUPS } from './capabilities';
+import { MCP_CAPABILITY_OPTIONS } from './capabilities';
 import { McpCredentialModal } from './credential-modal';
 import MCPIcon from './MCP.inline.svg';
 import * as styles from './setting-panel.css';
@@ -27,6 +27,7 @@ import * as styles from './setting-panel.css';
 type RevealedCredential = {
   credential: McpCredential;
   token: string;
+  callbackSecret: string | null;
 };
 
 const formatDate = (value: string) => new Date(value).toLocaleString();
@@ -91,10 +92,15 @@ export const McpServerSettingPanel = () => {
   }, [revealed, serverService.server.baseUrl, workspaceId]);
 
   const create = useAsyncCallback(
-    async (name: string, capabilities: string[], expirationDays: number) => {
+    async (
+      name: string,
+      capabilities: string[],
+      expirationDays: number,
+      callbackUrl: string | null
+    ) => {
       try {
-        const accessMode = capabilities.some(capability =>
-          capability.endsWith(':write')
+        const accessMode = capabilities.some(
+          capability => capability !== 'get_localmind_task'
         )
           ? McpAccessMode.READ_WRITE
           : McpAccessMode.READ_ONLY;
@@ -104,6 +110,7 @@ export const McpServerSettingPanel = () => {
           accessMode,
           capabilities,
           expirationDays,
+          callbackUrl,
         });
         setRevealed(result);
         setModal('reveal');
@@ -236,6 +243,15 @@ export const McpServerSettingPanel = () => {
                     })}
                   </div>
                   <div className={styles.description}>
+                    {credential.callbackConfigured
+                      ? t[
+                          'com.affine.integration.mcp-server.meta.callback-configured'
+                        ]()
+                      : t[
+                          'com.affine.integration.mcp-server.meta.callback-not-configured'
+                        ]()}
+                  </div>
+                  <div className={styles.description}>
                     {t['com.affine.integration.mcp-server.meta.created']({
                       date: formatDate(credential.createdAt),
                     })}{' '}
@@ -296,7 +312,7 @@ export const McpServerSettingPanel = () => {
           </div>
         </div>
         <div className={styles.capabilities}>
-          {MCP_CAPABILITY_GROUPS.map(({ key }) => (
+          {MCP_CAPABILITY_OPTIONS.map(({ key }) => (
             <div className={styles.capability} key={key}>
               <strong>
                 {t[`com.affine.integration.mcp-server.capability.${key}`]()}

@@ -575,6 +575,12 @@ export interface CommentUpdateInput {
   id: Scalars['ID']['input'];
 }
 
+export interface ConnectExternalMcpInput {
+  accessTicket: Scalars['String']['input'];
+  name?: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
 export enum ContextCategories {
   Collection = 'Collection',
   Tag = 'Tag',
@@ -4167,6 +4173,7 @@ export interface CreateCopilotContextRuleInput {
 
 export interface CreateMcpCredentialInput {
   accessMode?: McpAccessMode;
+  callbackUrl?: InputMaybe<Scalars['String']['input']>;
   capabilities?: InputMaybe<Array<Scalars['String']['input']>>;
   expirationDays?: Scalars['Int']['input'];
   name: Scalars['String']['input'];
@@ -4189,6 +4196,7 @@ export interface CreateWorkspaceByokLocalLeaseProviderInput {
   description?: InputMaybe<Scalars['String']['input']>;
   enabled?: InputMaybe<Scalars['Boolean']['input']>;
   endpoint?: InputMaybe<Scalars['String']['input']>;
+  modelId?: InputMaybe<Scalars['String']['input']>;
   name: Scalars['String']['input'];
   provider: ByokProvider;
   sortOrder?: InputMaybe<Scalars['SafeInt']['input']>;
@@ -4624,6 +4632,59 @@ export interface ExpectToUpdateDocUserRoleDataType {
   spaceId: Scalars['String']['output'];
 }
 
+export enum ExternalMcpConnectionStatus {
+  ACTIVE = 'ACTIVE',
+  CONNECTING = 'CONNECTING',
+  DEGRADED = 'DEGRADED',
+  DISABLED = 'DISABLED',
+  REAUTH_REQUIRED = 'REAUTH_REQUIRED',
+}
+
+export interface ExternalMcpConnectionType {
+  __typename?: 'ExternalMcpConnectionType';
+  createdAt: Scalars['DateTime']['output'];
+  enabledToolNames: Array<Scalars['String']['output']>;
+  endpoint: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  lastCheckedAt: Maybe<Scalars['DateTime']['output']>;
+  lastConnectedAt: Maybe<Scalars['DateTime']['output']>;
+  lastErrorCode: Maybe<Scalars['String']['output']>;
+  lastErrorMessage: Maybe<Scalars['String']['output']>;
+  lastUsedAt: Maybe<Scalars['DateTime']['output']>;
+  name: Scalars['String']['output'];
+  protocolVersion: Scalars['String']['output'];
+  serverName: Maybe<Scalars['String']['output']>;
+  serverVersion: Maybe<Scalars['String']['output']>;
+  sessionFingerprint: Maybe<Scalars['String']['output']>;
+  status: ExternalMcpConnectionStatus;
+  toolCatalogFingerprint: Maybe<Scalars['String']['output']>;
+  tools: Array<ExternalMcpToolType>;
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface ExternalMcpSettingsType {
+  __typename?: 'ExternalMcpSettingsType';
+  connection: Maybe<ExternalMcpConnectionType>;
+  endpoint: Scalars['String']['output'];
+  protocolVersion: Scalars['String']['output'];
+}
+
+export interface ExternalMcpToolCallResultType {
+  __typename?: 'ExternalMcpToolCallResultType';
+  result: Scalars['JSON']['output'];
+  toolName: Scalars['String']['output'];
+}
+
+export interface ExternalMcpToolType {
+  __typename?: 'ExternalMcpToolType';
+  description: Maybe<Scalars['String']['output']>;
+  enabled: Scalars['Boolean']['output'];
+  inputSchema: Scalars['JSON']['output'];
+  name: Scalars['String']['output'];
+  title: Maybe<Scalars['String']['output']>;
+}
+
 export enum FeatureType {
   Admin = 'Admin',
 }
@@ -4976,6 +5037,7 @@ export enum McpCredentialStatus {
 export interface McpCredentialType {
   __typename?: 'McpCredentialType';
   accessMode: McpAccessMode;
+  callbackConfigured: Scalars['Boolean']['output'];
   capabilities: Array<Scalars['String']['output']>;
   createdAt: Scalars['DateTime']['output'];
   expiresAt: Scalars['DateTime']['output'];
@@ -5091,6 +5153,7 @@ export interface Mutation {
   cleanupCopilotSupportBundleRetention: CopilotSupportBundleRetentionCleanupType;
   clearWorkspaceByokConfigs: Scalars['Boolean']['output'];
   completeBlobUpload: Scalars['String']['output'];
+  connectExternalMcp: ExternalMcpConnectionType;
   /** Control a standalone persisted Agent Runtime run outside repair execution. */
   controlCopilotAgentRuntimeRun: CopilotAgentRunType;
   /** Cancel, retry, or recover a stale persisted repair execution request after workspace permission checks. */
@@ -5142,13 +5205,19 @@ export interface Mutation {
   deleteCopilotContextPolicy: Scalars['Boolean']['output'];
   deleteCopilotContextProject: Scalars['Boolean']['output'];
   deleteCopilotContextRule: Scalars['Boolean']['output'];
+  deleteExternalMcp: Scalars['Boolean']['output'];
   /** Delete a reply */
   deleteReply: Scalars['Boolean']['output'];
   /** Delete a user account */
   deleteUser: DeleteAccount;
   deleteWorkspace: Scalars['Boolean']['output'];
   deleteWorkspaceByokConfig: Scalars['Boolean']['output'];
+  disableExternalMcp: ExternalMcpConnectionType;
   disconnectSparkClawEndpoint: Scalars['Boolean']['output'];
+  /** delete a notification from the current user inbox */
+  dismissNotification: Scalars['Boolean']['output'];
+  /** delete all read notifications from the current user inbox */
+  dismissReadNotifications: Scalars['Boolean']['output'];
   /** Reenable an banned user */
   enableUser: UserType;
   /** Create a chat session */
@@ -5189,6 +5258,7 @@ export interface Mutation {
   /** Persist a workspace-scoped provider health state for an existing configured provider. */
   recordCopilotProviderHealthState: CopilotProviderHealthStateType;
   recoverDoc: Scalars['DateTime']['output'];
+  refreshExternalMcpTools: ExternalMcpConnectionType;
   /** Refresh current user subscriptions and return latest. */
   refreshUserSubscriptions: Array<SubscriptionType>;
   releaseDeletedBlobs: Scalars['Boolean']['output'];
@@ -5238,6 +5308,7 @@ export interface Mutation {
   setBlob: Scalars['String']['output'];
   settleTranscriptTask: Maybe<TranscriptionResultType>;
   submitTranscriptTask: Maybe<TranscriptionResultType>;
+  testExternalMcpConversation: ExternalMcpToolCallResultType;
   testWorkspaceByokConfig: TestWorkspaceByokConfigResultType;
   undoCopilotContextMemoryEvent: CopilotContextMemoryEventType;
   unlinkCalendarAccount: Scalars['Boolean']['output'];
@@ -5255,6 +5326,7 @@ export interface Mutation {
   updateCopilotSession: Scalars['String']['output'];
   updateDocDefaultRole: Scalars['Boolean']['output'];
   updateDocUserRole: Scalars['Boolean']['output'];
+  updateExternalMcpToolAllowlist: ExternalMcpConnectionType;
   updateProfile: UserType;
   /** Update a reply content */
   updateReply: Scalars['Boolean']['output'];
@@ -5373,6 +5445,10 @@ export interface MutationCompleteBlobUploadArgs {
   parts?: InputMaybe<Array<BlobUploadPartInput>>;
   uploadId?: InputMaybe<Scalars['String']['input']>;
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationConnectExternalMcpArgs {
+  input: ConnectExternalMcpInput;
 }
 
 export interface MutationControlCopilotAgentRuntimeRunArgs {
@@ -5509,6 +5585,10 @@ export interface MutationDeleteCopilotContextRuleArgs {
   id: Scalars['ID']['input'];
 }
 
+export interface MutationDeleteExternalMcpArgs {
+  workspaceId: Scalars['String']['input'];
+}
+
 export interface MutationDeleteReplyArgs {
   id: Scalars['String']['input'];
 }
@@ -5526,8 +5606,16 @@ export interface MutationDeleteWorkspaceByokConfigArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationDisableExternalMcpArgs {
+  workspaceId: Scalars['String']['input'];
+}
+
 export interface MutationDisconnectSparkClawEndpointArgs {
   endpointId: Scalars['ID']['input'];
+}
+
+export interface MutationDismissNotificationArgs {
+  id: Scalars['String']['input'];
 }
 
 export interface MutationEnableUserArgs {
@@ -5641,6 +5729,10 @@ export interface MutationRecordCopilotProviderHealthStateArgs {
 export interface MutationRecoverDocArgs {
   guid: Scalars['String']['input'];
   timestamp: Scalars['DateTime']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationRefreshExternalMcpToolsArgs {
   workspaceId: Scalars['String']['input'];
 }
 
@@ -5803,6 +5895,11 @@ export interface MutationSubmitTranscriptTaskArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationTestExternalMcpConversationArgs {
+  query: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
 export interface MutationTestWorkspaceByokConfigArgs {
   input: TestWorkspaceByokConfigInput;
 }
@@ -5859,6 +5956,11 @@ export interface MutationUpdateDocDefaultRoleArgs {
 
 export interface MutationUpdateDocUserRoleArgs {
   input: UpdateDocUserRoleInput;
+}
+
+export interface MutationUpdateExternalMcpToolAllowlistArgs {
+  enabledToolNames: Array<Scalars['String']['input']>;
+  workspaceId: Scalars['String']['input'];
 }
 
 export interface MutationUpdateProfileArgs {
@@ -6146,6 +6248,7 @@ export interface Query {
   /** Get current user */
   currentUser: Maybe<UserType>;
   error: ErrorDataUnion;
+  externalMcpSettings: ExternalMcpSettingsType;
   /** get workspace invitation info */
   getInviteInfo: InvitationType;
   mcpCredentialReadWriteAvailable: Scalars['Boolean']['output'];
@@ -6210,6 +6313,10 @@ export interface QueryAdminWorkspacesCountArgs {
 
 export interface QueryErrorArgs {
   name: ErrorNames;
+}
+
+export interface QueryExternalMcpSettingsArgs {
+  workspaceId: Scalars['String']['input'];
 }
 
 export interface QueryGetInviteInfoArgs {
@@ -6362,6 +6469,7 @@ export interface ResponseTooLargeErrorDataType {
 
 export interface RevealedMcpCredentialType {
   __typename?: 'RevealedMcpCredentialType';
+  callbackSecret: Maybe<Scalars['String']['output']>;
   credential: McpCredentialType;
   token: Scalars['String']['output'];
 }
@@ -6662,6 +6770,7 @@ export interface TestWorkspaceByokConfigInput {
   apiKey?: InputMaybe<Scalars['String']['input']>;
   configId?: InputMaybe<Scalars['ID']['input']>;
   endpoint?: InputMaybe<Scalars['String']['input']>;
+  modelId?: InputMaybe<Scalars['String']['input']>;
   provider: ByokProvider;
   storage: ByokKeyStorage;
   workspaceId: Scalars['String']['input'];
@@ -6894,6 +7003,7 @@ export interface UpsertWorkspaceByokConfigInput {
   enabled?: InputMaybe<Scalars['Boolean']['input']>;
   endpoint?: InputMaybe<Scalars['String']['input']>;
   id?: InputMaybe<Scalars['ID']['input']>;
+  modelId?: InputMaybe<Scalars['String']['input']>;
   name: Scalars['String']['input'];
   provider: ByokProvider;
   sortOrder?: InputMaybe<Scalars['SafeInt']['input']>;
@@ -7001,6 +7111,7 @@ export interface UserTypeInvoicesArgs {
 }
 
 export interface UserTypeNotificationsArgs {
+  includeRead?: InputMaybe<Scalars['Boolean']['input']>;
   pagination: PaginationInput;
 }
 
@@ -7037,6 +7148,7 @@ export interface WorkspaceByokKeyConfigType {
   lastTestError: Maybe<Scalars['String']['output']>;
   lastTestedAt: Maybe<Scalars['DateTime']['output']>;
   lastUsedAt: Maybe<Scalars['DateTime']['output']>;
+  modelId: Maybe<Scalars['String']['output']>;
   name: Scalars['String']['output'];
   provider: ByokProvider;
   sortOrder: Scalars['SafeInt']['output'];
@@ -15194,6 +15306,24 @@ export type DeleteWorkspaceMutation = {
   deleteWorkspace: boolean;
 };
 
+export type DismissNotificationMutationVariables = Exact<{
+  id: Scalars['String']['input'];
+}>;
+
+export type DismissNotificationMutation = {
+  __typename?: 'Mutation';
+  dismissNotification: boolean;
+};
+
+export type DismissReadNotificationsMutationVariables = Exact<{
+  [key: string]: never;
+}>;
+
+export type DismissReadNotificationsMutation = {
+  __typename?: 'Mutation';
+  dismissReadNotifications: boolean;
+};
+
 export type GetDocRolePermissionsQueryVariables = Exact<{
   workspaceId: Scalars['String']['input'];
   docId: Scalars['String']['input'];
@@ -15226,6 +15356,133 @@ export type GetDocRolePermissionsQuery = {
         Doc_Comments_Resolve: boolean;
       };
     };
+  };
+};
+
+export type ConnectExternalMcpMutationVariables = Exact<{
+  input: ConnectExternalMcpInput;
+}>;
+
+export type ConnectExternalMcpMutation = {
+  __typename?: 'Mutation';
+  connectExternalMcp: {
+    __typename?: 'ExternalMcpConnectionType';
+    id: string;
+    status: ExternalMcpConnectionStatus;
+    sessionFingerprint: string | null;
+    serverName: string | null;
+    serverVersion: string | null;
+    lastConnectedAt: string | null;
+  };
+};
+
+export type DeleteExternalMcpMutationVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+}>;
+
+export type DeleteExternalMcpMutation = {
+  __typename?: 'Mutation';
+  deleteExternalMcp: boolean;
+};
+
+export type DisableExternalMcpMutationVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+}>;
+
+export type DisableExternalMcpMutation = {
+  __typename?: 'Mutation';
+  disableExternalMcp: {
+    __typename?: 'ExternalMcpConnectionType';
+    id: string;
+    status: ExternalMcpConnectionStatus;
+  };
+};
+
+export type RefreshExternalMcpToolsMutationVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+}>;
+
+export type RefreshExternalMcpToolsMutation = {
+  __typename?: 'Mutation';
+  refreshExternalMcpTools: {
+    __typename?: 'ExternalMcpConnectionType';
+    id: string;
+    status: ExternalMcpConnectionStatus;
+    toolCatalogFingerprint: string | null;
+    lastCheckedAt: string | null;
+  };
+};
+
+export type ExternalMcpSettingsQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+}>;
+
+export type ExternalMcpSettingsQuery = {
+  __typename?: 'Query';
+  externalMcpSettings: {
+    __typename?: 'ExternalMcpSettingsType';
+    endpoint: string;
+    protocolVersion: string;
+    connection: {
+      __typename?: 'ExternalMcpConnectionType';
+      id: string;
+      workspaceId: string;
+      name: string;
+      endpoint: string;
+      protocolVersion: string;
+      status: ExternalMcpConnectionStatus;
+      sessionFingerprint: string | null;
+      serverName: string | null;
+      serverVersion: string | null;
+      toolCatalogFingerprint: string | null;
+      enabledToolNames: Array<string>;
+      lastConnectedAt: string | null;
+      lastCheckedAt: string | null;
+      lastUsedAt: string | null;
+      lastErrorCode: string | null;
+      lastErrorMessage: string | null;
+      createdAt: string;
+      updatedAt: string;
+      tools: Array<{
+        __typename?: 'ExternalMcpToolType';
+        name: string;
+        title: string | null;
+        description: string | null;
+        inputSchema: unknown;
+        enabled: boolean;
+      }>;
+    } | null;
+  };
+};
+
+export type TestExternalMcpConversationMutationVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  query: Scalars['String']['input'];
+}>;
+
+export type TestExternalMcpConversationMutation = {
+  __typename?: 'Mutation';
+  testExternalMcpConversation: {
+    __typename?: 'ExternalMcpToolCallResultType';
+    toolName: string;
+    result: unknown;
+  };
+};
+
+export type UpdateExternalMcpToolAllowlistMutationVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  enabledToolNames:
+    | Array<Scalars['String']['input']>
+    | Scalars['String']['input'];
+}>;
+
+export type UpdateExternalMcpToolAllowlistMutation = {
+  __typename?: 'Mutation';
+  updateExternalMcpToolAllowlist: {
+    __typename?: 'ExternalMcpConnectionType';
+    id: string;
+    status: ExternalMcpConnectionStatus;
+    enabledToolNames: Array<string>;
   };
 };
 
@@ -16072,6 +16329,7 @@ export type PreviewLicenseMutation = {
 
 export type ListNotificationsQueryVariables = Exact<{
   pagination: PaginationInput;
+  includeRead?: InputMaybe<Scalars['Boolean']['input']>;
 }>;
 
 export type ListNotificationsQuery = {
@@ -16115,6 +16373,7 @@ export type CreateMcpCredentialMutation = {
   createMcpCredential: {
     __typename?: 'RevealedMcpCredentialType';
     token: string;
+    callbackSecret: string | null;
     credential: {
       __typename?: 'McpCredentialType';
       id: string;
@@ -16129,6 +16388,7 @@ export type CreateMcpCredentialMutation = {
       revokedAt: string | null;
       graceEndsAt: string | null;
       status: McpCredentialStatus;
+      callbackConfigured: boolean;
     };
   };
 };
@@ -16154,6 +16414,7 @@ export type McpCredentialsQuery = {
     revokedAt: string | null;
     graceEndsAt: string | null;
     status: McpCredentialStatus;
+    callbackConfigured: boolean;
   }>;
 };
 
@@ -16178,6 +16439,7 @@ export type RotateMcpCredentialMutation = {
   rotateMcpCredential: {
     __typename?: 'RevealedMcpCredentialType';
     token: string;
+    callbackSecret: string | null;
     credential: {
       __typename?: 'McpCredentialType';
       id: string;
@@ -16192,6 +16454,7 @@ export type RotateMcpCredentialMutation = {
       revokedAt: string | null;
       graceEndsAt: string | null;
       status: McpCredentialStatus;
+      callbackConfigured: boolean;
     };
   };
 };
@@ -16688,6 +16951,7 @@ export type WorkspaceByokSettingsQuery = {
         configured: boolean;
         enabled: boolean;
         endpoint: string | null;
+        modelId: string | null;
         endpointEditable: boolean;
         sortOrder: number;
         capabilities: Array<string>;
@@ -17156,6 +17420,11 @@ export type Queries =
       name: 'getDocRolePermissionsQuery';
       variables: GetDocRolePermissionsQueryVariables;
       response: GetDocRolePermissionsQuery;
+    }
+  | {
+      name: 'externalMcpSettingsQuery';
+      variables: ExternalMcpSettingsQueryVariables;
+      response: ExternalMcpSettingsQuery;
     }
   | {
       name: 'getCurrentUserFeaturesQuery';
@@ -17803,6 +18072,46 @@ export type Mutations =
       name: 'deleteWorkspaceMutation';
       variables: DeleteWorkspaceMutationVariables;
       response: DeleteWorkspaceMutation;
+    }
+  | {
+      name: 'dismissNotificationMutation';
+      variables: DismissNotificationMutationVariables;
+      response: DismissNotificationMutation;
+    }
+  | {
+      name: 'dismissReadNotificationsMutation';
+      variables: DismissReadNotificationsMutationVariables;
+      response: DismissReadNotificationsMutation;
+    }
+  | {
+      name: 'connectExternalMcpMutation';
+      variables: ConnectExternalMcpMutationVariables;
+      response: ConnectExternalMcpMutation;
+    }
+  | {
+      name: 'deleteExternalMcpMutation';
+      variables: DeleteExternalMcpMutationVariables;
+      response: DeleteExternalMcpMutation;
+    }
+  | {
+      name: 'disableExternalMcpMutation';
+      variables: DisableExternalMcpMutationVariables;
+      response: DisableExternalMcpMutation;
+    }
+  | {
+      name: 'refreshExternalMcpToolsMutation';
+      variables: RefreshExternalMcpToolsMutationVariables;
+      response: RefreshExternalMcpToolsMutation;
+    }
+  | {
+      name: 'testExternalMcpConversationMutation';
+      variables: TestExternalMcpConversationMutationVariables;
+      response: TestExternalMcpConversationMutation;
+    }
+  | {
+      name: 'updateExternalMcpToolAllowlistMutation';
+      variables: UpdateExternalMcpToolAllowlistMutationVariables;
+      response: UpdateExternalMcpToolAllowlistMutation;
     }
   | {
       name: 'generateLicenseKeyMutation';

@@ -1,44 +1,44 @@
 # LocalMind MCP 中文指南
 
-LocalMind 把每个工作区作为独立、无状态、带凭据的 Streamable HTTP MCP
-服务。第三方 AI 可以在不取得账号密码或浏览器会话的情况下，调用文档、
-Edgeless 白板、工作区组织、附件、评论、协作、历史记录、AI Context、AI Chat
-和持久化 AI 运维能力。
+LocalMind 对外暴露绑定工作区的 AI 委托接口。调用方把完整的自然语言任务交给
+`delegate_to_localmind`，LocalMind 内置 AI 负责规划，并通过 LocalMind 自己的
+Agent Runtime 执行已支持的操作。一个只读工具用于在异步返回或回调后核对持久化
+任务状态，另一个控制工具用于取消尚未结束的任务。
 
-完整工具参数见 [LocalMind MCP 工具参考](./localmind-mcp-tools.md)。
+精确参数与回调协议见 [LocalMind MCP 工具参考](./localmind-mcp-tools.md)。
 
 ## 连接信息
 
-| 配置项      | 值                                                       |
-| ----------- | -------------------------------------------------------- |
-| 地址        | `<LOCALMIND_BASE_URL>/api/workspaces/<WORKSPACE_ID>/mcp` |
-| 方法        | `POST`                                                   |
-| 传输        | Streamable HTTP，JSON 响应                               |
-| 鉴权        | `Authorization: Bearer <MCP_TOKEN>`                      |
-| 服务名/版本 | `localmind-workspace` / `2.1.0`                          |
-| 默认 scope  | `documents:read`                                         |
+| 配置项 | 值                                                       |
+| ------ | -------------------------------------------------------- |
+| 地址   | `<LOCALMIND_BASE_URL>/api/workspaces/<WORKSPACE_ID>/mcp` |
+| 方法   | `POST`                                                   |
+| 传输   | 无状态 Streamable HTTP，JSON 响应                        |
+| 鉴权   | `Authorization: Bearer <MCP_TOKEN>`                      |
+| 服务   | `localmind-ai` / `3.2.0`                                 |
+| 工具   | 委托、任务查询和仅取消任务的控制工具                     |
 
-Token 与工作区绑定，不能拿到另一个工作区的 MCP 地址使用。Token 继承签发者
-当前权限；权限被收回、用户被禁用、Token 到期或撤销后，调用立即失效。
+Token 和地址绑定一个工作区，不能跨工作区使用。
 
 ## 创建凭据
 
-1. 打开目标工作区。
-2. 进入“工作区设置 > 集成 > MCP Server”。
-3. 创建凭据，选择所需的工作区功能和 AI 读写权限。
-4. 勾选写权限时，系统会自动加入对应读权限。
-5. 选择 30、90 或 365 天有效期。
-6. 立即保存只显示一次的 Token，或复制界面生成的 MCP 配置。
+1. 进入“工作区设置 > 集成 > MCP Server”。
+2. 创建凭据并选择允许调用的三个 AI 工具：`delegate_to_localmind`、
+   `get_localmind_task` 和 `control_localmind_task`。
+3. 需要委托、核对和取消完整流程时，授予全部三个工具权限。
+4. 可选填写调用方的结果通知地址，用于接收任务终态通知。
+5. 把只显示一次的 MCP Token，以及配置通知时生成的回调签名密钥放进调用方的
+   secret 存储。
 
-遵循最小权限原则。生产环境可以使用写工具，但 scope 只决定工具是否可见，
-不会绕过工作区、文档、Copilot、DLP、审批、审计或 Agent Runtime 检查。
+公网回调必须使用 HTTPS。部署可以为受信任的本地 SparkClaw 精确允许一个私网或
+HTTP origin；LocalMind 不跟随回调重定向。
 
 ## 通用配置
 
 ```json
 {
   "mcpServers": {
-    "localmind_workspace_<WORKSPACE_ID>": {
+    "localmind": {
       "type": "streamable-http",
       "url": "<LOCALMIND_BASE_URL>/api/workspaces/<WORKSPACE_ID>/mcp",
       "headers": {
@@ -49,95 +49,84 @@ Token 与工作区绑定，不能拿到另一个工作区的 MCP 地址使用。
 }
 ```
 
-不要把 Token 放进 URL、Prompt、聊天消息、Git 仓库或诊断包。优先使用客户端
-自己的 secret 或环境变量功能。
+调用方在容器中运行时，应使用容器可访问的 LocalMind 服务名或主机名。不要把 Token
+或回调密钥写进 URL、Prompt、聊天消息、Git 仓库或诊断包。
 
-## SparkClaw
+## 权限模型
 
-SparkClaw 可直接使用同一份 `mcpServers` 配置：
+任务创建时会保存 MCP 凭据的三个工具权限快照。这个快照是任务固定的最大权限。轮换
+会保留凭据家族、工具权限和回调配置；吊销整个家族、禁用用户或到期都会阻止已排队的
+任务执行。旧资源 capability 模型签发的凭据会在迁移时统一吊销，必须重新创建。
 
-```json
-{
-  "mcpServers": {
-    "localmind": {
-      "type": "streamable-http",
-      "url": "http://localmind:3010/api/workspaces/<WORKSPACE_ID>/mcp",
-      "headers": {
-        "Authorization": "Bearer ${LOCALMIND_MCP_TOKEN}"
-      }
-    }
-  }
-}
-```
+LocalMind 还会在规划和执行时实时检查被委托用户的真实 ACL。用户失去
+`Workspace.Copilot`、`Workspace.CreateDoc`、`Doc.Read` 或 `Doc.Update` 后，对应操作
+会立即失效。缺少真实 ACL 时只返回权限或资源错误，不会向调用方发起提权请求。
 
-SparkClaw 在容器内运行时，`localhost` 指 SparkClaw 容器，不是 LocalMind。
-应使用共享 Docker 网络里的 LocalMind 服务名，或
-`host.docker.internal` 等宿主机可达地址。若 SparkClaw 不展开 JSON 中的
-环境变量占位符，应使用它自己的 secret 配置写入请求头。
+查询任务要求任务冻结的 `get_localmind_task` 权限，只能使用创建任务的同一个凭据
+家族，并重新检查家族有效性、`Workspace.Copilot` 和所有引用文档的 `Doc.Read`。
+轮换后仍可查询；其他凭据家族只会得到 `task_not_found`。实时 ACL 已丢失时不会返回
+历史任务内容。
 
-## Scope
+取消任务还会检查是否为创建任务的凭据家族、家族是否有效、任务冻结的
+`control_localmind_task` 权限以及实时 `Workspace.Copilot`。取消不要求
+`Doc.Update`，因此用户失去目标文档写权限后，调用方仍能停止尚未完成的任务。
 
-| Scope                 | 功能                                                      |
-| --------------------- | --------------------------------------------------------- |
-| `documents:read`      | Markdown、结构化块、白板、数据库、搜索和 MCP Resources    |
-| `documents:write`     | 文档、标题、块、图形/连线/画笔/思维导图和数据库内容       |
-| `workspace:read`      | 工作区资料、回收站、标签、集合、文件夹、属性、收藏和设置  |
-| `workspace:write`     | 修改工作区组织和当前用户的工作区数据                      |
-| `assets:read`         | 列出 Blob，读取或下载有大小限制的附件                     |
-| `assets:write`        | 内联/分片上传、完成、终止、删除和释放                     |
-| `comments:read`       | 文档评论、回复、解决状态、作者和时间                      |
-| `comments:write`      | 创建、编辑、解决、删除评论/回复和上传附件                 |
-| `collaboration:read`  | 公开状态、权限、授权用户、成员和邀请链接                  |
-| `collaboration:write` | 发布、授权、邀请、成员、共享设置和二次确认的工作区删除    |
-| `history:read`        | 持久化历史列表和完整结构化快照                            |
-| `history:write`       | 通过真实 CRDT 更新恢复完整快照                            |
-| `ai-context:read`     | 设置、记忆、事件、规则、策略、项目、Planner 和会话作用域  |
-| `ai-context:write`    | Context 创建、更新、删除、回滚、撤销和设置                |
-| `ai-chat:read`        | 会话和分页消息历史                                        |
-| `ai-chat:write`       | 创建、更新、分支、删除会话和发送消息                      |
-| `ai-operations:read`  | Prompt、模型、Runtime、修复、支持包、注册表和健康状态读取 |
-| `ai-operations:write` | 审批/控制、支持包生命周期、注册表发布和健康状态写入       |
+## 当前支持范围
 
-授予全部 scope 时可见 117 个不重名工具（含发现工具）。实际可用工具和参数始终以
-`tools/list` 为准。
+内置 AI 目前可以：
 
-每个凭据都能调用 `discover_localmind_capabilities`，返回已授权 scope、服务支持的
-scope 和当前可见工具。外部 AI 应先调用它，再规划后续步骤。
+- 根据请求和显式提供且可读的文档快照返回只读答案；
+- 通过优化的 Agent Runtime 路径完整替换一个已提供文档的 Markdown 正文；
+- 对更复杂的任务调用与网页 AI Chat 相同的服务端工具集合，包括文档读取、新建、
+  更新、改名、关键词/语义搜索、网页搜索/抓取、文档组合、章节编辑、代码产物生成、
+  对话总结，以及存在 AI Chat 附件上下文时的附件读取。
 
-## 返回格式
+工具 Agent 最长运行 120 秒，最多记录 20 次工具执行，在运行中持续检查取消、凭据和
+工作区权限，只持久化脱敏结果与文档产物证据。同一个委托任务用相同标题重试新建文档
+时会复用稳定文档 ID，不会生成重复文档。
 
-所有工具都有严格的 `inputSchema`、`outputSchema` 和安全注解。成功结果同时提供
-文本和结构化内容：
+白板、文档数据库/表格、附件、评论、协作、历史记录和外部系统操作目前返回
+`unsupported_task`，在真实执行器落地前不得宣称已完成。
 
-```json
-{
-  "content": [{ "type": "text", "text": "..." }],
-  "structuredContent": { "result": {} }
-}
-```
+## 执行与结果通知
 
-参数错误返回 `isError: true`。意外内部错误只在服务端记录，客户端不会收到数据库
-地址、堆栈或密钥。文档、搜索、聊天和诊断内容一律是不可信数据，调用方不能把它们
-当成系统指令。
+文档修改或工具 Agent 任务会返回 `queued`，并立即把同一个 AgentRun 交给 LocalMind
+Agent Runtime。它不会创建审批步骤、发送审批请求或等待调用方决定。任务创建时冻结的
+MCP capability 快照与被委托用户的实时 ACL 就是授权边界。
 
-## MCP Resources
-
-`documents:read` 会启用 `resources/list`、`resources/templates/list` 和
-`resources/read`。URI 格式为：
+Worker 在执行期间会重复检查凭据家族状态、任务冻结的 capability、实时 ACL 和取消
+状态；优化的单文档替换路径还会在写入前检查计划中的文档版本。若配置了结果通知地址，
+LocalMind 只发送三种终态事件：`task_completed`、`task_failed` 或
+`task_cancelled`。通知签名格式：
 
 ```text
-localmind://workspace/<WORKSPACE_ID>/documents/<DOC_ID>
+X-LocalMind-Timestamp: <Unix 毫秒>
+X-LocalMind-Signature: sha256=<HMAC-SHA256(secret, timestamp + "." + rawBody)>
 ```
 
-列表每页最多 100 个文档，有更多内容时返回 `nextCursor`。列出和读取时都会重新
-检查文档权限。
+签名覆盖 `<timestamp>.<原始 JSON body>`。通知通过持久化 outbox、worker lease 和
+有限重试投递。执行不要求配置回调；没有结果通知地址时，通过
+`get_localmind_task` 查询终态结果。
 
-## 不开放的能力
+## 查询任务
 
-MCP 的“全量”范围是适合第三方 AI 的工作区和 AI 用户功能，包含有大小限制的
-内联附件传输以及已有的分片/预签名上传流程。密码/账号管理、计费/许可证、原始
-服务端管理员接口、BYOK/Provider 密钥写入、MCP 凭据自管理和任意 GraphQL 透传
-不开放，必须继续使用产品或管理员专用流程。
+`delegate_to_localmind` 返回稳定的 `taskId`，并暂时保留 `requestId` 作为兼容别名。
+调用 `get_localmind_task` 可以读取脱敏后的计划、当前步骤、最终结果和产物引用；新建
+MCP 任务的 `approval` 为 `null`。这个查询不会调用 AI，也不会推进任务。
+
+需要有限长轮询时，把上一次返回的 `stateVersion` 作为 `knownStateVersion`，并把
+`waitMs` 设为不超过 `30000`。配置结果通知地址后，查询工具可用于处理回调延迟、重复
+或丢失并核对状态；未配置通知地址时，这个查询就是常规的完成状态通道。
+
+## 取消任务
+
+调用 `control_localmind_task` 时传入稳定的 `taskId`、`action=cancel` 和幂等 key。
+排队中的任务会立即进入 `cancelled`。正在运行的任务先返回
+`cancellation_requested`，查询时显示为 `cancelling`；Agent Runtime worker 协作完成
+取消后才进入最终 `cancelled`，期间使用 `get_localmind_task` 轮询即可。
+
+这个控制工具只接受 `cancel`，没有审批或拒绝操作。任务最终取消时，若配置了结果通知
+地址，会发送签名 `task_cancelled` 通知。
 
 ## 自检
 
@@ -154,16 +143,37 @@ curl --fail-with-body --silent --show-error \
 curl --fail-with-body --silent --show-error \
   -H "Authorization: Bearer ${LOCALMIND_MCP_TOKEN}" \
   -H 'Content-Type: application/json' \
-  --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"discover_localmind_capabilities","arguments":{}}}' \
+  --data '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+  "${LOCALMIND_MCP_URL}"
+
+curl --fail-with-body --silent --show-error \
+  -H "Authorization: Bearer ${LOCALMIND_MCP_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"delegate_to_localmind","arguments":{"request":"总结已提供的文档。","documentIds":[],"idempotencyKey":"summary-001"}}}' \
+  "${LOCALMIND_MCP_URL}"
+
+curl --fail-with-body --silent --show-error \
+  -H "Authorization: Bearer ${LOCALMIND_MCP_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_localmind_task","arguments":{"taskId":"<TASK_ID>","waitMs":0}}}' \
+  "${LOCALMIND_MCP_URL}"
+
+curl --fail-with-body --silent --show-error \
+  -H "Authorization: Bearer ${LOCALMIND_MCP_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"control_localmind_task","arguments":{"taskId":"<TASK_ID>","action":"cancel","idempotencyKey":"cancel-001"}}}' \
   "${LOCALMIND_MCP_URL}"
 ```
 
-## 凭据维护与排错
+初始化结果应为 `serverInfo.name=localmind-ai`，`tools/list` 包含
+`delegate_to_localmind`、`get_localmind_task` 和 `control_localmind_task`。
 
-- 轮换后旧 Token 只在有限宽限期内有效；撤销会撤销整个凭据家族。
-- `401`：Token 缺失、格式错误、到期、撤销、用户禁用或工作区不匹配。
-- `403`：签发者已经没有工作区访问权限，或 AI scope 缺少 Copilot 权限。
-- `405`：使用了 `GET`/`DELETE`；无状态端点只接受 `POST`。
-- 搜索为空：检查文档权限和 embedding 状态，精确词优先使用
-  `keyword_search`。
-- 容器连接失败：不要使用指向客户端容器自身的 `localhost`。
+## 状态与排错
+
+- MCP `401`：Token 缺失、格式错误、过期、吊销、用户禁用或工作区不匹配。
+- `credential_scope_denied`：任务固定 capability 快照不够。
+- `permission_denied` / `resource_not_accessible`：用户实时 ACL 不够，不会请求提权。
+- 未配置回调：任务仍会执行；通过 `get_localmind_task` 查询终态结果。
+- 未收到终态通知：先查询任务，再检查接收端 HMAC 校验、重放防护和 LocalMind 的有限
+  重试记录。
+- MCP `405`：无状态 MCP 地址只接受 `POST`。

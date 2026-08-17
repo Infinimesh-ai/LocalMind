@@ -22,6 +22,7 @@ type WorkspaceByokKey = {
   description?: string | null;
   apiKey: string;
   endpoint?: string | null;
+  modelId?: string | null;
   sortOrder?: number | null;
   enabled?: boolean | null;
 };
@@ -66,6 +67,9 @@ function normalizeKey(
     endpoint: hasOwnField(key, 'endpoint')
       ? (key.endpoint ?? null)
       : (existing?.endpoint ?? null),
+    modelId: hasOwnField(key, 'modelId')
+      ? (key.modelId ?? null)
+      : (existing?.modelId ?? null),
     sortOrder: hasOwnField(key, 'sortOrder')
       ? (key.sortOrder ?? defaultSortOrder)
       : (existing?.sortOrder ?? defaultSortOrder),

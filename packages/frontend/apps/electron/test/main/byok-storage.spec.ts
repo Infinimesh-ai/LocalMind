@@ -86,6 +86,7 @@ describe('byok storage handlers', () => {
       provider: 'openai',
       name: 'OpenAI',
       apiKey: 'sk-openai',
+      modelId: 'gpt-5.6-sol',
       sortOrder: 1,
     });
     await byokStorageHandlers.upsertWorkspaceKey(ipcEvent, 'workspace-1', {
@@ -102,6 +103,9 @@ describe('byok storage handlers', () => {
     );
     expect(list.map(key => key.id)).toEqual(['local-gemini', 'local-openai']);
     expect(JSON.stringify(list)).not.toContain('sk-openai');
+    expect(list.find(key => key.id === 'local-openai')?.modelId).toBe(
+      'gpt-5.6-sol'
+    );
 
     const reordered = await byokStorageHandlers.reorderWorkspaceKeys(
       ipcEvent,
@@ -121,6 +125,7 @@ describe('byok storage handlers', () => {
       'sk-openai',
       'sk-gemini',
     ]);
+    expect(leaseProviders[0]?.modelId).toBe('gpt-5.6-sol');
 
     await byokStorageHandlers.clearWorkspaceKeys(ipcEvent, 'workspace-1');
     await expect(
@@ -161,6 +166,7 @@ describe('byok storage handlers', () => {
       description: 'Primary key',
       apiKey: 'sk-openai',
       endpoint: 'https://api.openai.example/v1',
+      modelId: 'gpt-5.6-sol',
       sortOrder: 4,
       enabled: false,
     });
@@ -181,6 +187,7 @@ describe('byok storage handlers', () => {
       name: 'OpenAI renamed',
       description: 'Primary key',
       endpoint: 'https://api.openai.example/v1',
+      modelId: 'gpt-5.6-sol',
       sortOrder: 4,
       enabled: false,
     });
@@ -208,6 +215,7 @@ describe('byok storage handlers', () => {
       name: 'OpenAI renamed again',
       apiKey: 'sk-openai-next',
       endpoint: 'https://api.openai.example/v1',
+      modelId: 'gpt-5.6-sol',
       sortOrder: 4,
       enabled: true,
     });

@@ -3,44 +3,35 @@ import { describe, expect, test } from 'vitest';
 import { updateMcpCapabilities } from './capabilities';
 
 describe('MCP capability selection', () => {
-  test('selecting write also grants the matching read capability', () => {
-    expect(
-      [...updateMcpCapabilities(new Set(), 'ai-chat:write', true)].sort()
-    ).toEqual(['ai-chat:read', 'ai-chat:write']);
+  test('selects one public AI tool capability', () => {
+    expect([
+      ...updateMcpCapabilities(new Set(), 'delegate_to_localmind', true),
+    ]).toEqual(['delegate_to_localmind']);
   });
 
-  test('removing read also removes the dependent write capability', () => {
+  test('removes only the selected public AI tool capability', () => {
     expect([
       ...updateMcpCapabilities(
-        new Set(['ai-context:read', 'ai-context:write']),
-        'ai-context:read',
+        new Set(['get_localmind_task', 'control_localmind_task']),
+        'get_localmind_task',
         false
       ),
-    ]).toEqual([]);
+    ]).toEqual(['control_localmind_task']);
   });
 
-  test('keeps unrelated capability groups unchanged', () => {
+  test('keeps unrelated tool capabilities unchanged', () => {
     expect(
       [
         ...updateMcpCapabilities(
-          new Set(['documents:read', 'ai-operations:read']),
-          'documents:write',
+          new Set(['delegate_to_localmind', 'get_localmind_task']),
+          'control_localmind_task',
           true
         ),
       ].sort()
-    ).toEqual(['ai-operations:read', 'documents:read', 'documents:write']);
-  });
-
-  test('applies read and write dependency to workspace feature scopes', () => {
-    expect(
-      [...updateMcpCapabilities(new Set(), 'collaboration:write', true)].sort()
-    ).toEqual(['collaboration:read', 'collaboration:write']);
-    expect([
-      ...updateMcpCapabilities(
-        new Set(['assets:read', 'assets:write']),
-        'assets:read',
-        false
-      ),
-    ]).toEqual([]);
+    ).toEqual([
+      'control_localmind_task',
+      'delegate_to_localmind',
+      'get_localmind_task',
+    ]);
   });
 });

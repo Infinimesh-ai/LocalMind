@@ -72,6 +72,18 @@ export async function executeToolCall(
 ): Promise<LlmToolCallbackResponse> {
   const tool = tools[request.name] as CopilotTool | undefined;
 
+  if (options.signal?.aborted) {
+    return {
+      callId: request.callId,
+      name: request.name,
+      args: request.args,
+      rawArgumentsText: request.rawArgumentsText,
+      argumentParseError: request.argumentParseError,
+      isError: true,
+      output: { message: 'Tool execution was cancelled' },
+    };
+  }
+
   if (!tool?.execute) {
     return {
       callId: request.callId,

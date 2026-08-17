@@ -10,6 +10,7 @@ import { CopilotContextService } from '../context/service';
 import {
   type CopilotChatOptions,
   type CopilotChatTools,
+  type PromptMessage,
 } from '../providers/types';
 import {
   buildBlobContentGetter,
@@ -44,6 +45,14 @@ export type ProviderSpecificToolResolver = (
   model: string
 ) => [string, CopilotTool?] | undefined;
 
+export function canExposeDocumentWriteTools(environment: {
+  dev: boolean;
+  selfhosted: boolean;
+  canary: boolean;
+}) {
+  return environment.dev || environment.selfhosted || environment.canary;
+}
+
 @Injectable()
 export class ToolRuntime {
   constructor(
@@ -69,9 +78,11 @@ export class ToolRuntime {
     }
     const runPromptText = (
       promptName: string,
-      params: Record<string, unknown>
+      params: Record<string, unknown>,
+      promptOptions?: { appendMessages?: PromptMessage[] }
     ) =>
       this.promptRuntime.runText(promptName, params, {
+        ...promptOptions,
         providerOptions: {
           user: options.user,
           session: options.session,
@@ -82,6 +93,11 @@ export class ToolRuntime {
           featureKind: options.featureKind,
         },
       });
+    const documentWriteToolsEnabled = canExposeDocumentWriteTools({
+      dev: env.dev,
+      selfhosted: env.selfhosted,
+      canary: env.namespaces.canary,
+    });
 
     for (const tool of options.tools) {
       const toolDef = resolveProviderSpecificTool?.(tool, model);
@@ -93,7 +109,7 @@ export class ToolRuntime {
       }
 
       if (
-        !(env.dev || env.namespaces.canary) &&
+        !documentWriteToolsEnabled &&
         ['docCreate', 'docUpdate', 'docUpdateMeta'].includes(tool)
       ) {
         continue;

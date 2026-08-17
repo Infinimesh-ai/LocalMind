@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { Logger } from '@nestjs/common';
 import { z } from 'zod';
 
@@ -13,6 +15,15 @@ const stripLeadingH1 = (content: string) =>
   content.replace(/^[ \t]{0,3}#\s+[^\n]*#*\s*\n*/, '');
 
 const sanitizeTitle = (title: string) => title.replace(/[\r\n]+/g, ' ').trim();
+
+const delegatedDocumentId = (taskId: string, title: string) =>
+  createHash('sha256')
+    .update('localmind-delegated-doc-create/v1\0')
+    .update(taskId)
+    .update('\0')
+    .update(title)
+    .digest('base64url')
+    .slice(0, 21);
 
 export const buildDocCreateHandler = (
   ac: PermissionAccess,
@@ -41,16 +52,21 @@ export const buildDocCreateHandler = (
     }
 
     const strippedContent = stripLeadingH1(content);
+    const requestedDocId = options.taskId
+      ? delegatedDocumentId(options.taskId, sanitizedTitle)
+      : undefined;
     const result = await writer.createDoc(
       options.workspace,
       sanitizedTitle,
       strippedContent,
-      options.user
+      options.user,
+      requestedDocId
     );
 
     return {
       success: true,
       docId: result.docId,
+      idempotentReplay: result.idempotentReplay ?? false,
       message: `Document "${sanitizedTitle}" created successfully`,
     };
   };

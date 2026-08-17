@@ -276,7 +276,7 @@ export class NotificationModel extends BaseModel {
 
   async markAsRead(notificationId: string, userId: string) {
     await this.db.notification.update({
-      where: { id: notificationId, userId },
+      where: { id: notificationId, userId, dismissedAt: null },
       data: {
         read: true,
       },
@@ -289,6 +289,7 @@ export class NotificationModel extends BaseModel {
         userId,
         type: NotificationType.Invitation,
         read: false,
+        dismissedAt: null,
         body: { path: ['inviteId'], equals: inviteId },
       },
       data: { read: true },
@@ -298,7 +299,7 @@ export class NotificationModel extends BaseModel {
 
   async markAllAsRead(userId: string) {
     const { count } = await this.db.notification.updateMany({
-      where: { userId },
+      where: { userId, dismissedAt: null },
       data: {
         read: true,
       },
@@ -306,6 +307,21 @@ export class NotificationModel extends BaseModel {
     this.logger.log(
       `Marked all notifications as read for user ${userId}, count: ${count}`
     );
+  }
+
+  async dismiss(notificationId: string, userId: string) {
+    await this.db.notification.update({
+      where: { id: notificationId, userId },
+      data: { dismissedAt: new Date() },
+    });
+  }
+
+  async dismissRead(userId: string) {
+    const { count } = await this.db.notification.updateMany({
+      where: { userId, read: true, dismissedAt: null },
+      data: { dismissedAt: new Date() },
+    });
+    return count;
   }
 
   /**
@@ -320,6 +336,7 @@ export class NotificationModel extends BaseModel {
     const rows = await this.db.notification.findMany({
       where: {
         userId,
+        dismissedAt: null,
         ...(options?.includeRead ? {} : { read: false }),
         ...(options?.after ? { createdAt: { lt: options.after } } : {}),
       },
@@ -334,6 +351,7 @@ export class NotificationModel extends BaseModel {
     return this.db.notification.count({
       where: {
         userId,
+        dismissedAt: null,
         ...(options.includeRead ? {} : { read: false }),
       },
     });

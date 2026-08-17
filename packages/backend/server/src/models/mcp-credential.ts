@@ -75,6 +75,24 @@ export class McpCredentialModel extends BaseModel {
     });
   }
 
+  async findUsableFamilyCredential(
+    familyId: string,
+    userId: string,
+    workspaceId: string
+  ) {
+    return await this.db.mcpCredential.findFirst({
+      where: {
+        familyId,
+        userId,
+        workspaceId,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+        user: { disabled: false },
+      },
+      orderBy: { generation: 'desc' },
+    });
+  }
+
   async touch(id: string, before: Date, now: Date) {
     await this.db.mcpCredential.updateMany({
       where: {

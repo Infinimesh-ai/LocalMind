@@ -1,0 +1,6 @@
+mutation disableExternalMcp($workspaceId: String!) {
+  disableExternalMcp(workspaceId: $workspaceId) {
+    id
+    status
+  }
+}

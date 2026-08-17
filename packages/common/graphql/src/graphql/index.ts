@@ -6944,6 +6944,22 @@ export const deleteWorkspaceMutation = {
 }`,
 };
 
+export const dismissNotificationMutation = {
+  id: 'dismissNotificationMutation' as const,
+  op: 'dismissNotification',
+  query: `mutation dismissNotification($id: String!) {
+  dismissNotification(id: $id)
+}`,
+};
+
+export const dismissReadNotificationsMutation = {
+  id: 'dismissReadNotificationsMutation' as const,
+  op: 'dismissReadNotifications',
+  query: `mutation dismissReadNotifications {
+  dismissReadNotifications
+}`,
+};
+
 export const getDocRolePermissionsQuery = {
   id: 'getDocRolePermissionsQuery' as const,
   op: 'getDocRolePermissions',
@@ -6970,6 +6986,117 @@ export const getDocRolePermissionsQuery = {
         Doc_Comments_Resolve
       }
     }
+  }
+}`,
+};
+
+export const connectExternalMcpMutation = {
+  id: 'connectExternalMcpMutation' as const,
+  op: 'connectExternalMcp',
+  query: `mutation connectExternalMcp($input: ConnectExternalMcpInput!) {
+  connectExternalMcp(input: $input) {
+    id
+    status
+    sessionFingerprint
+    serverName
+    serverVersion
+    lastConnectedAt
+  }
+}`,
+};
+
+export const deleteExternalMcpMutation = {
+  id: 'deleteExternalMcpMutation' as const,
+  op: 'deleteExternalMcp',
+  query: `mutation deleteExternalMcp($workspaceId: String!) {
+  deleteExternalMcp(workspaceId: $workspaceId)
+}`,
+};
+
+export const disableExternalMcpMutation = {
+  id: 'disableExternalMcpMutation' as const,
+  op: 'disableExternalMcp',
+  query: `mutation disableExternalMcp($workspaceId: String!) {
+  disableExternalMcp(workspaceId: $workspaceId) {
+    id
+    status
+  }
+}`,
+};
+
+export const refreshExternalMcpToolsMutation = {
+  id: 'refreshExternalMcpToolsMutation' as const,
+  op: 'refreshExternalMcpTools',
+  query: `mutation refreshExternalMcpTools($workspaceId: String!) {
+  refreshExternalMcpTools(workspaceId: $workspaceId) {
+    id
+    status
+    toolCatalogFingerprint
+    lastCheckedAt
+  }
+}`,
+};
+
+export const externalMcpSettingsQuery = {
+  id: 'externalMcpSettingsQuery' as const,
+  op: 'externalMcpSettings',
+  query: `query externalMcpSettings($workspaceId: String!) {
+  externalMcpSettings(workspaceId: $workspaceId) {
+    endpoint
+    protocolVersion
+    connection {
+      id
+      workspaceId
+      name
+      endpoint
+      protocolVersion
+      status
+      sessionFingerprint
+      serverName
+      serverVersion
+      toolCatalogFingerprint
+      enabledToolNames
+      lastConnectedAt
+      lastCheckedAt
+      lastUsedAt
+      lastErrorCode
+      lastErrorMessage
+      createdAt
+      updatedAt
+      tools {
+        name
+        title
+        description
+        inputSchema
+        enabled
+      }
+    }
+  }
+}`,
+};
+
+export const testExternalMcpConversationMutation = {
+  id: 'testExternalMcpConversationMutation' as const,
+  op: 'testExternalMcpConversation',
+  query: `mutation testExternalMcpConversation($workspaceId: String!, $query: String!) {
+  testExternalMcpConversation(workspaceId: $workspaceId, query: $query) {
+    toolName
+    result
+  }
+}`,
+};
+
+export const updateExternalMcpToolAllowlistMutation = {
+  id: 'updateExternalMcpToolAllowlistMutation' as const,
+  op: 'updateExternalMcpToolAllowlist',
+  query: `mutation updateExternalMcpToolAllowlist($workspaceId: String!, $enabledToolNames: [String!]!) {
+  updateExternalMcpToolAllowlist(
+    workspaceId: $workspaceId
+    enabledToolNames: $enabledToolNames
+  ) {
+    id
+    status
+    enabledToolNames
   }
 }`,
 };
@@ -7598,9 +7725,9 @@ export const previewLicenseMutation = {
 export const listNotificationsQuery = {
   id: 'listNotificationsQuery' as const,
   op: 'listNotifications',
-  query: `query listNotifications($pagination: PaginationInput!) {
+  query: `query listNotifications($pagination: PaginationInput!, $includeRead: Boolean = false) {
   currentUser {
-    notifications(pagination: $pagination) {
+    notifications(pagination: $pagination, includeRead: $includeRead) {
       totalCount
       edges {
         cursor
@@ -7643,8 +7770,10 @@ export const createMcpCredentialMutation = {
       revokedAt
       graceEndsAt
       status
+      callbackConfigured
     }
     token
+    callbackSecret
   }
 }`,
 };
@@ -7667,6 +7796,7 @@ export const mcpCredentialsQuery = {
     revokedAt
     graceEndsAt
     status
+    callbackConfigured
   }
 }`,
 };
@@ -7701,8 +7831,10 @@ export const rotateMcpCredentialMutation = {
       revokedAt
       graceEndsAt
       status
+      callbackConfigured
     }
     token
+    callbackSecret
   }
 }`,
 };
@@ -8153,6 +8285,7 @@ export const workspaceByokSettingsQuery = {
         configured
         enabled
         endpoint
+        modelId
         endpointEditable
         sortOrder
         capabilities

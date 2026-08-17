@@ -1,0 +1,3 @@
+mutation deleteExternalMcp($workspaceId: String!) {
+  deleteExternalMcp(workspaceId: $workspaceId)
+}

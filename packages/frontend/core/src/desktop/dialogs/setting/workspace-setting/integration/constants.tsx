@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 
 import { WorkspaceByokSetting } from '../byok';
 import { CalendarSettingPanel } from './calendar/setting-panel';
+import { ExternalMcpSettingPanel } from './external-mcp/setting-panel';
 import MCPIcon from './mcp-server/MCP.inline.svg';
 import { McpServerSettingPanel } from './mcp-server/setting-panel';
 import { ReadwiseSettingPanel } from './readwise/setting-panel';
@@ -16,6 +17,7 @@ type IntegrationCard = {
   icon: ReactNode;
   cloud?: boolean;
   byok?: boolean;
+  admin?: boolean;
 } & ({ setting: ReactNode } | { link: string });
 
 const INTEGRATION_LIST = [
@@ -41,6 +43,15 @@ const INTEGRATION_LIST = [
     icon: <img src={MCPIcon} />,
     setting: <McpServerSettingPanel />,
     cloud: true,
+  },
+  {
+    id: 'external-mcp' as const,
+    name: 'com.affine.integration.external-mcp.name',
+    desc: 'com.affine.integration.external-mcp.desc',
+    icon: <img src={MCPIcon} />,
+    setting: <ExternalMcpSettingPanel />,
+    cloud: true,
+    admin: true,
   },
   {
     id: 'web-clipper' as const,
@@ -70,11 +81,13 @@ export type IntegrationItem = Exclude<IntegrationCard, 'id'> & {
 
 export function getAllowedIntegrationList(
   isCloudWorkspace: boolean,
-  showByok: boolean
+  showByok: boolean,
+  showAdminIntegrations = showByok
 ) {
   return INTEGRATION_LIST.filter(item => {
     if (!item) return false;
     if ('byok' in item && item.byok && !showByok) return false;
+    if ('admin' in item && item.admin && !showAdminIntegrations) return false;
     const requiredCloud = 'cloud' in item && item.cloud;
     if (requiredCloud && !isCloudWorkspace) return false;
     return true;

@@ -1,0 +1,13 @@
+mutation updateExternalMcpToolAllowlist(
+  $workspaceId: String!
+  $enabledToolNames: [String!]!
+) {
+  updateExternalMcpToolAllowlist(
+    workspaceId: $workspaceId
+    enabledToolNames: $enabledToolNames
+  ) {
+    id
+    status
+    enabledToolNames
+  }
+}

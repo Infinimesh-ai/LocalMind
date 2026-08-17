@@ -1,0 +1,8 @@
+mutation refreshExternalMcpTools($workspaceId: String!) {
+  refreshExternalMcpTools(workspaceId: $workspaceId) {
+    id
+    status
+    toolCatalogFingerprint
+    lastCheckedAt
+  }
+}

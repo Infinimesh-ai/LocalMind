@@ -97,8 +97,7 @@ export class CopilotCronJobs {
         limit: CLEANUP_SUPPORT_BUNDLE_DOWNLOAD_AUTHORIZATION_JOB_BATCH_SIZE,
       },
       {
-        jobId:
-          'daily-copilot-support-bundle-download-authorization-cleanup',
+        jobId: 'daily-copilot-support-bundle-download-authorization-cleanup',
       }
     );
 
@@ -161,6 +160,11 @@ export class CopilotCronJobs {
       { jobId: 'minute-copilot-agent-runtime-enqueue-queued' }
     );
     await this.jobs.add('copilot.agentRuntime.run', {});
+    await this.jobs.add(
+      'copilot.mcpDelegation.deliverCallback',
+      {},
+      { jobId: 'minute-copilot-mcp-delegation-deliver-callback' }
+    );
     await this.jobs.add(
       'copilot.repairExecution.recoverExpiredLeases',
       {
@@ -325,7 +329,9 @@ export class CopilotCronJobs {
       `Processed ${processing.processedCount} support bundle transfer forwarding events, forwarded ${processing.forwardedCount}, scheduled ${processing.retryScheduledCount} retries, dead-lettered ${processing.deadLetteredCount}, and failed ${processing.failedCount}`
     );
 
-    return processing.processedCount >= limit ? JOB_SIGNAL.Repeat : JOB_SIGNAL.Done;
+    return processing.processedCount >= limit
+      ? JOB_SIGNAL.Repeat
+      : JOB_SIGNAL.Done;
   }
 
   @OnJob('copilot.repairExecution.recoverExpiredLeases')
@@ -436,10 +442,7 @@ export class CopilotCronJobs {
     params: Jobs['copilot.agentRuntime.enqueueQueued']
   ) {
     const limit = Math.min(
-      Math.max(
-        params.limit ?? ENQUEUE_QUEUED_AGENT_RUNTIME_JOB_BATCH_SIZE,
-        1
-      ),
+      Math.max(params.limit ?? ENQUEUE_QUEUED_AGENT_RUNTIME_JOB_BATCH_SIZE, 1),
       100
     );
     const queued =
