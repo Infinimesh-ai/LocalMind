@@ -37,11 +37,18 @@ RUN NPM_TOKEN=NONE yarn install --immutable
 
 FROM deps AS native-build
 
-RUN yarn affine @affine/server-native build \
+ARG LOCALMIND_CARGO_PROFILE_RELEASE_LTO=false
+ARG LOCALMIND_CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16
+
+RUN CARGO_PROFILE_RELEASE_LTO="${LOCALMIND_CARGO_PROFILE_RELEASE_LTO}" \
+    CARGO_PROFILE_RELEASE_CODEGEN_UNITS="${LOCALMIND_CARGO_PROFILE_RELEASE_CODEGEN_UNITS}" \
+    yarn affine @affine/server-native build \
   && native_file="$(find packages/backend/native -maxdepth 1 -name 'server-native*.node' | head -n 1)" \
   && for native_alias in server-native.node server-native.x64.node server-native.arm64.node server-native.armv7.node; do \
       native_target="packages/backend/native/${native_alias}"; \
-      if [ "${native_file}" != "${native_target}" ]; then cp "${native_file}" "${native_target}"; fi; \
+      if [ "${native_file}" != "${native_target}" ] && [ ! "${native_file}" -ef "${native_target}" ]; then \
+        cp "${native_file}" "${native_target}"; \
+      fi; \
     done
 
 FROM native-build AS test
@@ -116,7 +123,8 @@ RUN rm -rf /app \
   && cp packages/backend/native/server-native.x64.node /app/dist/server-native.x64.node \
   && cp packages/backend/native/server-native.arm64.node /app/dist/server-native.arm64.node \
   && cp packages/backend/native/server-native.armv7.node /app/dist/server-native.armv7.node \
-  && AFFINE_DOCKER_CLEAN=1 APP_ROOT=/app TARGETARCH=${TARGETARCH} TARGETVARIANT=${TARGETVARIANT} node packages/backend/server/scripts/docker-clean.mjs
+  && AFFINE_DOCKER_CLEAN=1 APP_ROOT=/app TARGETARCH=${TARGETARCH} TARGETVARIANT=${TARGETVARIANT} node packages/backend/server/scripts/docker-clean.mjs \
+  && test -f /app/dist/server-native.node
 
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 
