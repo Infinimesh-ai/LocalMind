@@ -1436,6 +1436,12 @@ The inbound workspace MCP AI delegation slice is now implemented:
   Markdown document replacement, or queue a durable tool-agent run with the
   same server-side tool categories as AI Chat; work outside those executors
   still returns `unsupported_task`;
+- the advertised `localmind-ai` v3.2.1 instructions, tool descriptions, and
+  input-schema field descriptions now encode one unambiguous routing contract:
+  every new task starts with `delegate_to_localmind`, task reads require its
+  returned `taskId`, cancellation is the only control action, task ids are not
+  document ids, and callers must not search for LocalMind's internal
+  `doc_create`/`doc_read` tools;
 - `agent_runtime_localmind_tool_agent` exposes attachment read, code artifact,
   conversation summary, document read/create/update/title update, keyword and
   semantic search, web search/crawl, document composition, and section editing

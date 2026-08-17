@@ -66,11 +66,35 @@ export type LocalMindTaskPlan = z.infer<typeof LocalMindTaskPlanSchema>;
 
 const GetLocalMindTaskInput = z
   .object({
-    taskId: z.string().trim().min(1).max(512),
-    knownStateVersion: z.string().trim().min(1).max(128).optional(),
-    waitMs: z.number().int().min(0).max(TASK_WAIT_MAX_MS).default(0),
+    taskId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(512)
+      .describe(
+        'The taskId returned by delegate_to_localmind. This is not a document ID.'
+      ),
+    knownStateVersion: z
+      .string()
+      .trim()
+      .min(1)
+      .max(128)
+      .optional()
+      .describe(
+        'The stateVersion from the previous get_localmind_task result. Omit for the first read.'
+      ),
+    waitMs: z
+      .number()
+      .int()
+      .min(0)
+      .max(TASK_WAIT_MAX_MS)
+      .default(0)
+      .describe(
+        'How long to wait for a change when knownStateVersion still matches, from 0 to 30000 milliseconds. Use 0 for an immediate read.'
+      ),
   })
-  .strict();
+  .strict()
+  .describe('Check one task previously started by delegate_to_localmind.');
 
 type TaskQueryCredential = Pick<
   McpCredential,
@@ -159,9 +183,9 @@ export class McpAiTaskQueryService {
   createTool(credential: TaskQueryCredential): WorkspaceMcpToolDefinition {
     return defineTool({
       name: 'get_localmind_task',
-      title: 'Get LocalMind Task',
+      title: 'Check a LocalMind Task',
       description:
-        'Read one delegated LocalMind task, including its sanitized plan, current steps, final result, and artifact references. This tool never advances or controls the task.',
+        "Use ONLY after delegate_to_localmind has returned a taskId. Read that task's status, sanitized plan, steps, final result, errors, and artifact references. This read-only tool never starts, executes, retries, or cancels work and does not accept a natural-language task. If terminal is false, wait for pollAfterMs and call this tool again, or use knownStateVersion with waitMs for a bounded long poll. Never use this tool for a new user request.",
       parser: GetLocalMindTaskInput,
       outputSchema: RESULT_OUTPUT_SCHEMA,
       annotations: READ_ONLY_TOOL,

@@ -628,10 +628,22 @@ test.serial(
         capabilities: {
           tools: { listChanged: false },
         },
-        serverInfo: { name: 'localmind-ai', version: '3.2.0' },
+        serverInfo: { name: 'localmind-ai', version: '3.2.1' },
       },
     });
-    t.regex(response.body.result.instructions, /delegate_to_localmind/);
+    t.regex(response.body.result.instructions, /TOOL ROUTING/);
+    t.regex(
+      response.body.result.instructions,
+      /every new user request, call delegate_to_localmind/
+    );
+    t.regex(
+      response.body.result.instructions,
+      /internal AI tools such as doc_create or doc_read/
+    );
+    t.regex(
+      response.body.result.instructions,
+      /get_localmind_task only with a taskId returned by delegate_to_localmind/
+    );
 
     const toolsResponse = await t.context.module
       .POST(`/api/workspaces/${ws.id}/mcp`)
@@ -641,6 +653,11 @@ test.serial(
       .expect(200);
     const advertisedTools = toolsResponse.body.result.tools as Array<{
       name: string;
+      title: string;
+      description: string;
+      inputSchema: {
+        properties?: Record<string, { description?: string }>;
+      };
       outputSchema?: Record<string, unknown>;
       annotations: Record<string, boolean>;
     }>;
@@ -648,17 +665,51 @@ test.serial(
       advertisedTools.map(tool => tool.name),
       ['delegate_to_localmind', 'get_localmind_task', 'control_localmind_task']
     );
-    t.false(
-      advertisedTools.find(tool => tool.name === 'delegate_to_localmind')!
-        .annotations.readOnlyHint
+    const delegateTool = advertisedTools.find(
+      tool => tool.name === 'delegate_to_localmind'
+    )!;
+    t.is(delegateTool.title, 'Start a LocalMind Task');
+    t.regex(delegateTool.description, /only public MCP tool that starts/);
+    t.regex(delegateTool.description, /never look for public doc_create/);
+    t.regex(
+      delegateTool.inputSchema.properties?.request?.description ?? '',
+      /complete self-contained user task/
     );
-    t.true(
-      advertisedTools.find(tool => tool.name === 'get_localmind_task')!
-        .annotations.readOnlyHint
+    t.regex(
+      delegateTool.inputSchema.properties?.documentIds?.description ?? '',
+      /Existing document IDs/
     );
+    t.regex(
+      delegateTool.inputSchema.properties?.idempotencyKey?.description ?? '',
+      /Reuse it only to retry identical/
+    );
+    t.false(delegateTool.annotations.readOnlyHint);
+
+    const getTaskTool = advertisedTools.find(
+      tool => tool.name === 'get_localmind_task'
+    )!;
+    t.is(getTaskTool.title, 'Check a LocalMind Task');
+    t.regex(getTaskTool.description, /ONLY after delegate_to_localmind/);
+    t.regex(
+      getTaskTool.description,
+      /Never use this tool for a new user request/
+    );
+    t.regex(
+      getTaskTool.inputSchema.properties?.taskId?.description ?? '',
+      /not a document ID/
+    );
+    t.true(getTaskTool.annotations.readOnlyHint);
+
     const controlTool = advertisedTools.find(
       tool => tool.name === 'control_localmind_task'
     )!;
+    t.is(controlTool.title, 'Cancel a LocalMind Task');
+    t.regex(controlTool.description, /user explicitly asks to stop or cancel/);
+    t.regex(controlTool.description, /only valid action is cancel/);
+    t.regex(
+      controlTool.inputSchema.properties?.action?.description ?? '',
+      /approval, rejection, retry, and resume are not supported/
+    );
     t.false(controlTool.annotations.readOnlyHint);
     t.true(controlTool.annotations.destructiveHint);
     t.true(controlTool.annotations.idempotentHint);

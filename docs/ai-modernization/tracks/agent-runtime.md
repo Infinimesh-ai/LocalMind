@@ -1212,6 +1212,15 @@ completion, failure, or cancellation events. The normal Agent Runtime worker
 lease, cancellation, completion, execution-result, and side-effect evidence
 paths remain authoritative.
 
+The advertised `localmind-ai` v3.2.1 discovery metadata gives external models
+an explicit routing decision table. Every new user request starts with
+`delegate_to_localmind`; `get_localmind_task` only reads a previously returned
+`taskId`; and `control_localmind_task` only cancels unfinished work on explicit
+user request. Field-level JSON Schema descriptions distinguish task ids,
+document ids, document titles, and idempotency keys, and tell callers that
+`doc_create`, `doc_read`, and the other AI Chat tools are internal to the
+delegated LocalMind agent rather than public MCP tools.
+
 The planner's OpenAI-compatible structured-output wire contract is a single
 strict object with a `kind` discriminator and fixed fields, rather than a nested
 object union. The service normalizes that wire result into the narrower answer,

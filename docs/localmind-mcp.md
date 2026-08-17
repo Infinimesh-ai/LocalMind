@@ -20,7 +20,7 @@ and callback contract are in
 | Endpoint       | `<LOCALMIND_BASE_URL>/api/workspaces/<WORKSPACE_ID>/mcp` |
 | Method         | `POST`                                                   |
 | Authentication | `Authorization: Bearer <MCP_TOKEN>`                      |
-| Server         | `localmind-ai` version `3.2.0`                           |
+| Server         | `localmind-ai` version `3.2.1`                           |
 | Tools          | Delegation, task query, and cancel-only task control     |
 
 The token and endpoint are bound to one workspace. A token issued for one
@@ -61,6 +61,24 @@ Redirects are not followed.
 When the caller runs in a container, use a LocalMind host or service name that
 is reachable from that container. Do not put either secret in a query string,
 prompt, chat message, checked-in configuration, or diagnostic bundle.
+
+## Tool Routing
+
+Follow this decision rule exactly:
+
+1. For every new user request, call `delegate_to_localmind` with the complete
+   task. This includes questions, document reads/searches/creates/updates,
+   summaries, web research, and multi-step work.
+2. Call `get_localmind_task` only with a `taskId` returned by
+   `delegate_to_localmind`, to check status or obtain the final result. It does
+   not start or retry work.
+3. Call `control_localmind_task` only when the user explicitly asks to cancel
+   an unfinished task. Its only action is `cancel`.
+
+Do not look for public tools such as `doc_create` or `doc_read`. They are
+internal AI Chat tools selected by LocalMind after delegation. `taskId` values
+are task identifiers, while `documentIds` contains existing document ids, not
+document titles.
 
 ## Authority Model
 

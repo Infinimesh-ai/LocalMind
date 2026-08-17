@@ -181,14 +181,41 @@ function normalizePlannerResult(value: unknown): DelegationPlannerResult {
 
 const DelegationToolInput = z
   .object({
-    request: z.string().trim().min(1).max(DELEGATION_REQUEST_MAX_LENGTH),
+    request: z
+      .string()
+      .trim()
+      .min(1)
+      .max(DELEGATION_REQUEST_MAX_LENGTH)
+      .describe(
+        'The complete self-contained user task for LocalMind AI to perform. Include the desired result and constraints. Use this field for new work, not for task status or cancellation.'
+      ),
     documentIds: z
-      .array(z.string().trim().min(1).max(256))
+      .array(
+        z
+          .string()
+          .trim()
+          .min(1)
+          .max(256)
+          .describe(
+            'An existing LocalMind document ID, not a document title and not a delegated taskId.'
+          )
+      )
       .max(DELEGATION_DOC_MAX_COUNT)
-      .default([]),
-    idempotencyKey: z.string().trim().min(1).max(256),
+      .default([])
+      .describe(
+        'Existing document IDs that LocalMind may read or update. Use [] when there is no known document ID or when the task asks LocalMind to find a document by title.'
+      ),
+    idempotencyKey: z
+      .string()
+      .trim()
+      .min(1)
+      .max(256)
+      .describe(
+        'A caller-generated stable key for this exact logical task. Reuse it only to retry identical request and documentIds input; use a new key for new work.'
+      ),
   })
-  .strict();
+  .strict()
+  .describe('Start one new LocalMind AI task.');
 
 type DelegationCredential = Pick<
   McpCredential,
@@ -261,9 +288,9 @@ export class McpAiDelegationService {
   ): WorkspaceMcpToolDefinition {
     return defineTool({
       name: 'delegate_to_localmind',
-      title: 'Delegate to LocalMind',
+      title: 'Start a LocalMind Task',
       description:
-        'Delegate a natural-language workspace task to the built-in LocalMind AI. LocalMind can answer directly, update an authorized document, or run its workspace AI tools for document creation, metadata changes, search, composition, and other multi-step work.',
+        'START HERE for every new user request. This is the only public MCP tool that starts LocalMind work: answering questions; reading, finding, summarizing, creating, updating, or renaming documents; web research; and multi-step workspace tasks. Pass the complete instruction in request and any known existing document IDs in documentIds. LocalMind AI selects its internal tools, so never look for public doc_create, doc_read, or other low-level tools. The result may be completed immediately or return a queued/running taskId; use get_localmind_task only after that to check progress.',
       parser: DelegationToolInput,
       outputSchema: RESULT_OUTPUT_SCHEMA,
       annotations: WRITE_TOOL,

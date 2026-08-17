@@ -1,13 +1,31 @@
 # LocalMind MCP Tool Reference
 
-This reference describes `localmind-ai` version `3.2.0`. `tools/list` is the
+This reference describes `localmind-ai` version `3.2.1`. `tools/list` is the
 authoritative JSON Schema source.
 
 ## Tools
 
+### Tool selection rules
+
+MCP clients should route calls as follows:
+
+1. Every new user request starts with `delegate_to_localmind`. This includes
+   questions, summaries, document reads/searches/creates/updates/renames, web
+   research, and multi-step workspace work.
+2. `get_localmind_task` is only for a `taskId` already returned by
+   `delegate_to_localmind`. It cannot start or retry work.
+3. `control_localmind_task` is only for an explicit user request to cancel an
+   unfinished delegated task. It supports no other action.
+
+The caller must not search for low-level tools such as `doc_create` or
+`doc_read`. Those tools are internal to LocalMind AI; the public caller submits
+the complete task through `delegate_to_localmind`, and LocalMind chooses the
+internal tools.
+
 ### `delegate_to_localmind`
 
-Delegates one complete natural-language task to LocalMind's built-in AI.
+Starts one complete natural-language task with LocalMind's built-in AI. This is
+the only public MCP tool that starts new work.
 
 Input:
 
@@ -64,8 +82,9 @@ id and remains stable before planning, during execution, and after completion.
 
 ### `get_localmind_task`
 
-Reads one persisted task without invoking the LocalMind AI or changing task
-state.
+Reads one persisted task after `delegate_to_localmind` has returned its
+`taskId`, without invoking the LocalMind AI or changing task state. It must not
+be used for a new user request, and its `taskId` is not a document id.
 
 Input:
 
@@ -104,8 +123,9 @@ returns a direct query error and does not expose historical results.
 
 ### `control_localmind_task`
 
-Cancels one unfinished delegated task. This tool has no approval or rejection
-operation.
+Cancels one unfinished delegated task only when the user explicitly requests
+cancellation. This tool cannot start, approve, reject, retry, resume, query,
+create, or edit work.
 
 Input:
 

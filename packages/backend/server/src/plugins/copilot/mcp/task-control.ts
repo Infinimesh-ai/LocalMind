@@ -18,12 +18,37 @@ import {
 
 const ControlLocalMindTaskInput = z
   .object({
-    taskId: z.string().trim().min(1).max(512),
-    action: z.literal('cancel'),
-    idempotencyKey: z.string().trim().min(1).max(256),
-    reason: z.string().trim().min(1).max(500).optional(),
+    taskId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(512)
+      .describe(
+        'The unfinished taskId returned by delegate_to_localmind. This is not a document ID.'
+      ),
+    action: z
+      .literal('cancel')
+      .describe(
+        'The only supported control action. Must be exactly cancel; approval, rejection, retry, and resume are not supported.'
+      ),
+    idempotencyKey: z
+      .string()
+      .trim()
+      .min(1)
+      .max(256)
+      .describe(
+        'A caller-generated stable key for this exact cancellation request. Reuse it only when retrying the same cancellation.'
+      ),
+    reason: z
+      .string()
+      .trim()
+      .min(1)
+      .max(500)
+      .optional()
+      .describe('An optional short user-provided reason for cancellation.'),
   })
-  .strict();
+  .strict()
+  .describe('Cancel one unfinished task previously started by LocalMind.');
 
 type TaskControlCredential = Pick<
   McpCredential,
@@ -52,9 +77,9 @@ export class McpAiTaskControlService {
   createTool(credential: TaskControlCredential): WorkspaceMcpToolDefinition {
     return defineTool({
       name: 'control_localmind_task',
-      title: 'Control LocalMind Task',
+      title: 'Cancel a LocalMind Task',
       description:
-        'Cancel an unfinished delegated LocalMind task. Queued work is cancelled immediately; running work receives a cooperative cancellation request.',
+        'Use ONLY when the user explicitly asks to stop or cancel an unfinished task previously started by delegate_to_localmind. The only valid action is cancel. This tool cannot start, approve, reject, retry, resume, query, create, or edit anything. Queued work is cancelled immediately; running work receives a cooperative cancellation request, after which get_localmind_task reports progress to terminal cancellation.',
       parser: ControlLocalMindTaskInput,
       outputSchema: RESULT_OUTPUT_SCHEMA,
       annotations: {

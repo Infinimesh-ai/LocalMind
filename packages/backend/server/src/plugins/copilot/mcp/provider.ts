@@ -91,11 +91,15 @@ export class WorkspaceMcpProvider {
     }
     return {
       name: 'localmind-ai',
-      version: '3.2.0',
+      version: '3.2.1',
       instructions: [
-        'Delegate the complete natural-language task through delegate_to_localmind.',
-        'Use get_localmind_task to reconcile persisted task state after an asynchronous return or callback.',
-        'Use control_localmind_task only to cancel unfinished work.',
+        'TOOL ROUTING - follow these rules exactly.',
+        'For every new user request, call delegate_to_localmind with the complete task; this is the only public tool that starts work.',
+        'New work includes answering questions, reading or searching documents, creating or editing documents, web research, and multi-step workspace tasks.',
+        'Do not call or search for internal AI tools such as doc_create or doc_read; they are not public MCP tools, and LocalMind selects them after delegation.',
+        'Use get_localmind_task only with a taskId returned by delegate_to_localmind to check status or obtain the final result; it never starts or retries work.',
+        'Use control_localmind_task only when the user explicitly asks to cancel an unfinished delegated task; its only action is cancel.',
+        'After a queued or running result, poll get_localmind_task using pollAfterMs until terminal is true, unless a terminal callback is configured.',
         'LocalMind applies the credential capability ceiling and the delegated user real-time ACL.',
         'Permission failures are terminal and never request elevated access.',
         'Authorized side effects execute asynchronously; configured callbacks deliver terminal result notifications.',

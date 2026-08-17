@@ -15,7 +15,7 @@ Agent Runtime 执行已支持的操作。一个只读工具用于在异步返回
 | 方法   | `POST`                                                   |
 | 传输   | 无状态 Streamable HTTP，JSON 响应                        |
 | 鉴权   | `Authorization: Bearer <MCP_TOKEN>`                      |
-| 服务   | `localmind-ai` / `3.2.0`                                 |
+| 服务   | `localmind-ai` / `3.2.1`                                 |
 | 工具   | 委托、任务查询和仅取消任务的控制工具                     |
 
 Token 和地址绑定一个工作区，不能跨工作区使用。
@@ -51,6 +51,22 @@ HTTP origin；LocalMind 不跟随回调重定向。
 
 调用方在容器中运行时，应使用容器可访问的 LocalMind 服务名或主机名。不要把 Token
 或回调密钥写进 URL、Prompt、聊天消息、Git 仓库或诊断包。
+
+## 工具路由规则
+
+调用方必须按下面的规则选择工具：
+
+1. 每一个新的用户任务都先调用 `delegate_to_localmind`，并在 `request` 中提供完整
+   任务。问答、文档读取/搜索/新建/更新/改名、总结、网页研究和多步骤工作都属于新
+   任务。
+2. 只有已经从 `delegate_to_localmind` 获得 `taskId` 后，才调用
+   `get_localmind_task` 查询进度或最终结果。它不能启动或重试任务。
+3. 只有用户明确要求取消一个未完成任务时，才调用 `control_localmind_task`；它唯一
+   支持的操作是 `cancel`。
+
+调用方不应寻找 `doc_create`、`doc_read` 等低层公开工具：它们是 LocalMind AI 内部
+使用的 AI Chat 工具。`taskId` 是任务标识，不是文档 ID；`documentIds` 只能填写已知
+的现有文档 ID，不能填写文档标题。
 
 ## 权限模型
 
