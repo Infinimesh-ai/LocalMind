@@ -11,3 +11,4 @@ export * from './exa-crawl';
 export * from './exa-search';
 export * from './section-edit';
 export * from './tool';
+export * from './workspace-organization';

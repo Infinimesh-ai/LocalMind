@@ -55,21 +55,26 @@ document content as untrusted data.
 `tool_agent` can use the same server-side tool categories registered for AI
 Chat: attachment read, code artifact generation, conversation summary,
 document read/create/update/title update, keyword and semantic document search,
-web search/crawl, document composition, and section editing. Each underlying
-tool keeps its normal LocalMind permission and deployment checks. For example,
-document creation requires `Workspace.CreateDoc`, document reads and writes
-require the corresponding live document ACL, keyword search requires the
-indexer, and web tools require their configured provider. The delegation input
-currently supplies document ids but no AI Chat attachment session, so an
-attachment read without such context returns the tool's normal missing-context
-error.
+web search/crawl, document composition, section editing, and workspace folder
+organization. Folder organization includes list/create/rename/move/delete and
+adding or moving readable documents. Lists require `Workspace.Organize.Read`,
+mutations require `Workspace.Sync`, and document placement also requires
+`Doc.Read`. Recursive folder deletion removes folder records and placements,
+not document content. Each underlying tool keeps its normal LocalMind
+permission and deployment checks. For example, document creation requires
+`Workspace.CreateDoc`, keyword search requires the indexer, and web tools
+require their configured provider. The delegation input currently supplies
+document ids but no AI Chat attachment session, so an attachment read without
+such context returns the tool's normal missing-context error.
 
 The tool loop is bounded to 20 recorded executions and 120 seconds. It polls
 durable cancellation and credential/workspace authority while running, and
 persists only sanitized summaries, argument fingerprints, referenced document
-ids, and created/updated document artifacts. A document created by a delegated
-task uses a stable id derived from the task and title, making a same-task replay
-idempotent instead of creating duplicate documents.
+ids, created/updated document artifacts, and allowlisted workspace-folder
+effects. A document created by a delegated task uses a stable id derived from
+the task and title, making a same-task replay idempotent instead of creating
+duplicate documents. Idempotent folder replays are not recorded as new side
+effects.
 
 Successful MCP tool calls contain readable text and the same logical object in
 `structuredContent.result`. A permission or unsupported result is a normal

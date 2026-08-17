@@ -542,6 +542,33 @@ export class McpAiTaskQueryService {
                   .slice(0, 20)
               : [];
             const relation = stringValue(execution.relation);
+            const rawWorkspaceEffect = objectValue(execution.workspaceEffect);
+            const workspaceOperation = stringValue(
+              rawWorkspaceEffect.operation
+            );
+            const workspaceEffect =
+              rawWorkspaceEffect.kind === 'workspace_organization' &&
+              workspaceOperation &&
+              [
+                'create_folder',
+                'rename_folder',
+                'move_folder',
+                'delete_folder',
+                'add_document',
+                'move_document',
+              ].includes(workspaceOperation)
+                ? {
+                    kind: 'workspace_organization',
+                    operation: workspaceOperation,
+                    ...(rawWorkspaceEffect.folderId === null
+                      ? { folderId: null }
+                      : stringValue(rawWorkspaceEffect.folderId)
+                        ? {
+                            folderId: stringValue(rawWorkspaceEffect.folderId),
+                          }
+                        : {}),
+                  }
+                : null;
             return [
               {
                 toolName,
@@ -552,6 +579,7 @@ export class McpAiTaskQueryService {
                 ...(relation && ['created', 'updated'].includes(relation)
                   ? { relation }
                   : {}),
+                ...(workspaceEffect ? { workspaceEffect } : {}),
               },
             ];
           })

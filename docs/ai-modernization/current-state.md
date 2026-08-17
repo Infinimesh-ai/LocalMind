@@ -1445,13 +1445,24 @@ The inbound workspace MCP AI delegation slice is now implemented:
 - `agent_runtime_localmind_tool_agent` exposes attachment read, code artifact,
   conversation summary, document read/create/update/title update, keyword and
   semantic search, web search/crawl, document composition, and section editing
-  through the existing `ToolRuntime`, preserving each tool's normal permission
-  and deployment checks instead of adding direct MCP resource tools;
+  through the existing `ToolRuntime`; it now also exposes semantic workspace
+  folder list/create/rename/move/delete and document placement/move operations
+  from the same canonical tool-category registry used by Web AI, preserving
+  each tool's normal permission and deployment checks instead of adding direct
+  MCP resource tools;
+- workspace folder tools require `Workspace.Organize.Read` for lists,
+  `Workspace.Sync` for mutations, and `Doc.Read` before placing a document;
+  same-name creates and repeated placements/moves/deletes are idempotent,
+  folder cycles are rejected, and recursive deletion removes only the folder
+  subtree and placements, never the documents themselves;
 - delegated tool-agent runs have a 120-second timeout, poll durable
   cancellation and credential/workspace authority during execution, propagate
   the abort signal into the tool loop, preserve native tool failures in their
   sanitized execution summaries, and persist only bounded answers, argument
   fingerprints, referenced document ids, and created/updated artifacts;
+  successful folder mutations additionally persist a sanitized
+  `workspace_organization` effect in Agent Runtime side-effect evidence and
+  task projection, while idempotent replays are not counted as new effects;
 - delegated document creation derives a stable document id from task id and
   title. `DocWriter.createDoc` accepts that requested id, repairs a missing root
   registration on replay, and returns the existing document id instead of

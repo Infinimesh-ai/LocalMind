@@ -11,26 +11,18 @@ import { mcpDelegationFingerprint } from '../../models/copilot-mcp-delegation';
 import type { CopilotAgentRuntimeWorkflowAdapterInput } from './agent-runtime-workflow-registry';
 import { CopilotAgentRuntimeWorkflowRegistry } from './agent-runtime-workflow-registry';
 import { MCP_DELEGATE_CAPABILITY } from './mcp/capabilities';
-import type { CopilotChatTools, StreamObject } from './providers/types';
+import {
+  COPILOT_CHAT_TOOL_CATEGORIES,
+  type CopilotChatTools,
+  type StreamObject,
+} from './providers/types';
 import { CapabilityRuntime } from './runtime/capability-runtime';
 
 export const AGENT_RUNTIME_LOCALMIND_TOOL_AGENT_WORKFLOW =
   'agent_runtime_localmind_tool_agent';
 
-export const LOCALMIND_DELEGATION_AI_TOOLS = [
-  'blobRead',
-  'codeArtifact',
-  'conversationSummary',
-  'docRead',
-  'docCreate',
-  'docUpdate',
-  'docUpdateMeta',
-  'docKeywordSearch',
-  'docSemanticSearch',
-  'webSearch',
-  'docCompose',
-  'sectionEdit',
-] as const satisfies readonly CopilotChatTools[];
+export const LOCALMIND_DELEGATION_AI_TOOLS =
+  COPILOT_CHAT_TOOL_CATEGORIES satisfies readonly CopilotChatTools[];
 
 const LOCALMIND_TOOL_AGENT_REQUEST_VERSION = 'localmind-tool-agent-request/v1';
 const LOCALMIND_TOOL_AGENT_RESULT_VERSION = 'localmind-tool-agent-result/v1';
@@ -42,16 +34,34 @@ const WRITE_TOOL_NAMES = new Set([
   'doc_create',
   'doc_update',
   'doc_update_meta',
+  'workspace_folder_create',
+  'workspace_folder_rename',
+  'workspace_folder_move',
+  'workspace_folder_delete',
+  'workspace_folder_add_document',
+  'workspace_folder_move_document',
 ]);
 
 type ToolExecutionSummary = {
   toolName: string;
   status: 'completed' | 'failed';
   argsFingerprint: string;
+  sideEffectApplied?: boolean;
   documentId?: string;
   relation?: 'created' | 'updated';
   versionFingerprint?: string;
   documentIds?: string[];
+  workspaceEffect?: {
+    kind: 'workspace_organization';
+    operation:
+      | 'create_folder'
+      | 'rename_folder'
+      | 'move_folder'
+      | 'delete_folder'
+      | 'add_document'
+      | 'move_document';
+    folderId?: string | null;
+  };
 };
 
 type DocumentArtifact = {
@@ -83,6 +93,7 @@ function referencedDocumentIds(
     const record = objectValue(value);
     add(record.docId);
     add(record.doc_id);
+    add(record.documentId);
   };
 
   addRecord(event.args);
@@ -157,6 +168,38 @@ function toolExecutionSummary(
     toolName: event.toolName,
     args: event.args,
   });
+  const rawWorkspaceEffect = objectValue(result.workspaceEffect);
+  const workspaceEffectOperations = new Set([
+    'create_folder',
+    'rename_folder',
+    'move_folder',
+    'delete_folder',
+    'add_document',
+    'move_document',
+  ]);
+  const workspaceEffectOperation = nonBlankString(rawWorkspaceEffect.operation);
+  const workspaceEffectFolderId = nonBlankString(rawWorkspaceEffect.folderId);
+  const workspaceEffect =
+    !failed &&
+    rawWorkspaceEffect.kind === 'workspace_organization' &&
+    workspaceEffectOperation &&
+    workspaceEffectOperations.has(workspaceEffectOperation)
+      ? {
+          kind: 'workspace_organization' as const,
+          operation: workspaceEffectOperation as NonNullable<
+            ToolExecutionSummary['workspaceEffect']
+          >['operation'],
+          ...(rawWorkspaceEffect.folderId === null
+            ? { folderId: null }
+            : workspaceEffectFolderId
+              ? { folderId: workspaceEffectFolderId }
+              : {}),
+        }
+      : undefined;
+  const sideEffectApplied =
+    !failed && WRITE_TOOL_NAMES.has(event.toolName)
+      ? result.idempotentReplay !== true
+      : undefined;
   return {
     toolName: event.toolName,
     status: failed ? ('failed' as const) : ('completed' as const),
@@ -164,6 +207,8 @@ function toolExecutionSummary(
     ...(documentId ? { documentId } : {}),
     ...(documentIds.length ? { documentIds } : {}),
     ...(relation ? { relation, versionFingerprint } : {}),
+    ...(sideEffectApplied !== undefined ? { sideEffectApplied } : {}),
+    ...(workspaceEffect ? { workspaceEffect } : {}),
   };
 }
 
@@ -400,7 +445,8 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
     const writeExecutions = toolExecutions.filter(
       execution =>
         execution.status === 'completed' &&
-        WRITE_TOOL_NAMES.has(execution.toolName)
+        WRITE_TOOL_NAMES.has(execution.toolName) &&
+        execution.sideEffectApplied !== false
     );
     const sideEffectsApplied = writeExecutions.length > 0;
     const sideEffectSummary = sideEffectsApplied

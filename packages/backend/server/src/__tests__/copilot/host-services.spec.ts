@@ -64,6 +64,7 @@ function stubConversationSession(latestUserTurn?: unknown) {
     stashTurns: latestUserTurn ? [latestUserTurn] : [],
     latestUserTurn,
     revertLatestMessage: Sinon.stub(),
+    refreshContextMemories: Sinon.stub().resolves(undefined),
   };
 }
 
@@ -375,6 +376,7 @@ test('ToolRuntime should pass route context and appended messages into prompt-ba
     {} as any,
     {} as any,
     {} as any,
+    {} as any,
     promptRuntime as any,
     {} as any
   );
@@ -460,6 +462,40 @@ test('ToolRuntime should expose document write tools for self-hosted deployments
       canary: false,
     })
   );
+});
+
+test('ToolRuntime should expose semantic workspace organization tools', async t => {
+  const runtime = new ToolRuntime(
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any
+  );
+
+  const tools = await runtime.getTools(
+    {
+      tools: ['workspaceOrganization'],
+      user: 'user-1',
+      workspace: 'workspace-1',
+    },
+    'gpt-4o-mini'
+  );
+
+  t.deepEqual(Object.keys(tools).sort(), [
+    'workspace_folder_add_document',
+    'workspace_folder_create',
+    'workspace_folder_delete',
+    'workspace_folder_list',
+    'workspace_folder_move',
+    'workspace_folder_move_document',
+    'workspace_folder_rename',
+  ]);
 });
 
 test('ResponsePostprocessor should build text, object and image assistant turns', t => {

@@ -404,6 +404,14 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
     owner.id,
     'Source content for the delegated summary.'
   );
+  const placedDocument = await t.context
+    .app!.get(DocWriter)
+    .createDoc(
+      workspaceId,
+      'Folder placement source',
+      'Readable folder placement content.',
+      owner.id
+    );
   const issued = await credentials.create({
     userId: owner.id,
     workspaceId,
@@ -475,6 +483,27 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
       };
       yield {
         type: 'tool-result',
+        toolCallId: 'add-folder-document-call',
+        toolName: 'workspace_folder_add_document',
+        args: {
+          folder_id: 'folder-1',
+          document_id: placedDocument.docId,
+        },
+        result: {
+          success: true,
+          folderId: 'folder-1',
+          documentId: placedDocument.docId,
+          placementId: 'placement-1',
+          idempotentReplay: false,
+          workspaceEffect: {
+            kind: 'workspace_organization',
+            operation: 'add_document',
+            folderId: 'folder-1',
+          },
+        },
+      };
+      yield {
+        type: 'tool-result',
         toolCallId: 'failed-web-call',
         toolName: 'web_crawl_exa',
         args: { url: 'https://example.com' },
@@ -539,6 +568,16 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
     relation: 'created',
   });
   t.like(task.result.toolExecutions[1], {
+    toolName: 'workspace_folder_add_document',
+    status: 'completed',
+    documentId: placedDocument.docId,
+    workspaceEffect: {
+      kind: 'workspace_organization',
+      operation: 'add_document',
+      folderId: 'folder-1',
+    },
+  });
+  t.like(task.result.toolExecutions[2], {
     toolName: 'web_crawl_exa',
     status: 'failed',
   });
@@ -553,6 +592,26 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
   const serializedTask = JSON.stringify(task);
   t.false(serializedTask.includes('A concise summary created by'));
   t.false(serializedTask.includes('8.16日志","content'));
+
+  const completedRun = await t.context.models.copilotAgentRuntime.get(
+    workspaceId,
+    String(delegated.agentRunId)
+  );
+  t.true(completedRun?.executionResults[0]?.sideEffectsApplied ?? false);
+  t.like(completedRun?.executionResults[0]?.resultPayload.sideEffectSummary, {
+    toolExecutions: [
+      { toolName: 'doc_create' },
+      {
+        toolName: 'workspace_folder_add_document',
+        documentId: placedDocument.docId,
+        workspaceEffect: {
+          kind: 'workspace_organization',
+          operation: 'add_document',
+          folderId: 'folder-1',
+        },
+      },
+    ],
+  });
 
   const markdown = await t.context
     .app!.get(DocReader)
@@ -1305,9 +1364,14 @@ async function waitForCallbackCount(
   callbacks: CapturedCallback[],
   expectedCount: number
 ) {
-  const deadline = Date.now() + 2_000;
+  const deadline = Date.now() + 10_000;
   while (callbacks.length < expectedCount && Date.now() < deadline) {
     await new Promise(resolve => setTimeout(resolve, 25));
+  }
+  if (callbacks.length < expectedCount) {
+    throw new Error(
+      `Expected ${expectedCount} callbacks, received ${callbacks.length}`
+    );
   }
 }
 

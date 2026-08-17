@@ -74,27 +74,29 @@ export const VertexSchema: JSONSchema = {
 
 // ========== prompt ==========
 
-export const PromptToolsSchema = z
-  .enum([
-    'blobRead',
-    'codeArtifact',
-    'conversationSummary',
-    // work with indexer
-    'docRead',
-    'docCreate',
-    'docUpdate',
-    'docUpdateMeta',
-    'docKeywordSearch',
-    // work with embeddings
-    'docSemanticSearch',
-    // work with exa/model internal tools
-    'webSearch',
-    // artifact tools
-    'docCompose',
-    // section editing
-    'sectionEdit',
-  ])
-  .array();
+export const COPILOT_CHAT_TOOL_CATEGORIES = [
+  'blobRead',
+  'codeArtifact',
+  'conversationSummary',
+  // work with indexer
+  'docRead',
+  'docCreate',
+  'docUpdate',
+  'docUpdateMeta',
+  'docKeywordSearch',
+  // work with embeddings
+  'docSemanticSearch',
+  // work with exa/model internal tools
+  'webSearch',
+  // artifact tools
+  'docCompose',
+  // section editing
+  'sectionEdit',
+  // semantic workspace organization operations
+  'workspaceOrganization',
+] as const;
+
+export const PromptToolsSchema = z.enum(COPILOT_CHAT_TOOL_CATEGORIES).array();
 
 export const PromptConfigStrictSchema = z.object({
   tools: PromptToolsSchema.nullable().optional(),

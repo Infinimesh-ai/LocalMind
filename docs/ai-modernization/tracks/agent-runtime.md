@@ -1034,7 +1034,7 @@ Implemented behavior:
 2. The step snapshots the complete AI Chat tool-category allowlist:
    `blobRead`, `codeArtifact`, `conversationSummary`, `docRead`, `docCreate`,
    `docUpdate`, `docUpdateMeta`, `docKeywordSearch`, `docSemanticSearch`,
-   `webSearch`, `docCompose`, and `sectionEdit`.
+   `webSearch`, `docCompose`, `sectionEdit`, and `workspaceOrganization`.
 3. Execution reuses `CapabilityRuntime.streamObject` and the existing
    `ToolRuntime`, so provider routing and each tool's current permission,
    self-hosting, indexer, web-provider, and context checks remain authoritative.
@@ -1062,6 +1062,13 @@ Implemented behavior:
 10. Focused E2E covers the full tool allowlist, document creation/readback,
     same-task replay, sanitized artifact projection, failed-tool projection,
     credential revocation before execution, and execution without a callback.
+11. `workspaceOrganization` is shared by Web AI and delegation and expands to
+    seven semantic tools for folder listing, creation, rename, move, safe
+    deletion, document placement, and moving a document into one or no folder.
+    The tools enforce organization/write/document ACLs, reject cycles and
+    unsafe non-recursive deletion, preserve document content, and persist only
+    allowlisted folder effect evidence; raw workspace table operations remain
+    outside the AI surface.
 
 ## Agent Run Source Conflict Evidence Fence Slice
 
@@ -1267,8 +1274,10 @@ The tool-agent path has its own bounded execution contract: 120 seconds, 20
 recorded tool results, one AbortSignal, one-second cancellation/authority
 polling, transactional AgentRun/delegation completion, and sanitized tool plus
 artifact evidence. Tool-level ACL remains inside the existing AI Chat tools.
-Delegated document creation is stable by task id and title so worker retries do
-not create duplicate documents.
+The shared workspace-organization category adds safe folder operations and
+records successful non-replay mutations as workspace side effects. Delegated
+document creation is stable by task id and title so worker retries do not
+create duplicate documents.
 
 ## Non-goals For First Slice
 

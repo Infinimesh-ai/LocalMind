@@ -935,10 +935,16 @@ Implemented outcome:
 - missing real ACL returns a direct terminal failure without any permission
   elevation callback;
 - the planner can return a direct answer, queue the optimized one-document
-  replacement path, or queue `agent_runtime_localmind_tool_agent` with all 12
+  replacement path, or queue `agent_runtime_localmind_tool_agent` with all 13
   AI Chat server-side tool categories: attachment read, code artifact,
   conversation summary, document read/create/update/title update, keyword and
-  semantic search, web search/crawl, document composition, and section edit;
+  semantic search, web search/crawl, document composition, section edit, and
+  semantic workspace folder organization;
+- Web AI and inbound delegation share one canonical tool-category registry;
+  folder organization provides list/create/rename/move/delete plus document
+  add/move semantics with `Workspace.Organize.Read`, `Workspace.Sync`, and
+  `Doc.Read` enforcement, safe recursive deletion, idempotency, and sanitized
+  Agent Runtime side-effect evidence;
 - the tool-agent path reuses `ToolRuntime`, carries the delegation task id into
   document creation, bounds execution to 120 seconds and 20 recorded tool
   results, polls cancellation and authority, propagates abort, and persists

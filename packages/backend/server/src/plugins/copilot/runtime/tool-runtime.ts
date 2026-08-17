@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 
 import { Config } from '../../../base';
-import { DocReader, DocWriter } from '../../../core/doc';
+import {
+  DocReader,
+  DocWriter,
+  WorkspaceOrganizationService,
+} from '../../../core/doc';
 import { PermissionAccess, PermissionService } from '../../../core/permission';
 import { Models } from '../../../models';
 import { IndexerService } from '../../indexer';
@@ -35,6 +39,7 @@ import {
   createExaCrawlTool,
   createExaSearchTool,
   createSectionEditTool,
+  createWorkspaceOrganizationTools,
 } from '../tools';
 import { PromptRuntime } from './prompt-runtime';
 import type { ToolLoopBackend } from './tool/bridge';
@@ -62,6 +67,7 @@ export class ToolRuntime {
     private readonly context: CopilotContextService,
     private readonly docReader: DocReader,
     private readonly docWriter: DocWriter,
+    private readonly workspaceOrganization: WorkspaceOrganizationService,
     private readonly models: Models,
     private readonly promptRuntime: PromptRuntime,
     private readonly indexerService: IndexerService
@@ -203,6 +209,18 @@ export class ToolRuntime {
         }
         case 'sectionEdit': {
           tools.section_edit = createSectionEditTool(runPromptText);
+          break;
+        }
+        case 'workspaceOrganization': {
+          Object.assign(
+            tools,
+            createWorkspaceOrganizationTools(
+              this.ac,
+              this.permission,
+              this.workspaceOrganization,
+              options
+            )
+          );
           break;
         }
       }

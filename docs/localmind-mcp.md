@@ -118,13 +118,17 @@ The current built-in AI can:
 - run LocalMind's normal AI Chat server-side tool set for broader work:
   document read/create/update/title update, keyword and semantic search, web
   search/crawl, document composition, section editing, code artifact
-  generation, conversation summarization, and attachment reading when an AI
-  Chat attachment context is available.
+  generation, conversation summarization, workspace folder organization, and
+  attachment reading when an AI Chat attachment context is available. Folder
+  organization supports list/create/rename/move/delete and adding or moving a
+  readable document; recursive deletion never deletes document content.
 
 The tool-agent path has a 120-second bound, records at most 20 tool executions,
 polls cancellation and authority while running, and returns sanitized result
 and document-artifact evidence. Delegated document creation is idempotent for
-the same task and title.
+the same task and title. Folder mutations enforce workspace organization/write
+ACLs, require document read access for placements, and persist sanitized
+side-effect evidence only for non-replay writes.
 
 Whiteboard, document database/table, asset, comment, collaboration, history,
 and external-system operations currently return `unsupported_task`. They must
