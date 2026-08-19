@@ -604,6 +604,122 @@ test('Lark driver preserves official input schema and risk metadata', async t =>
   );
 });
 
+test('Lark driver discovers shortcut commands from Cobra help', async t => {
+  const execute = Sinon.stub().callsFake(
+    async ({ args }: { args: string[] }) => {
+      let output: unknown = '';
+      if (args[0] === 'schema') output = [];
+      if (args[0] === '__complete' && args[1] === '') {
+        output = 'docs\tDocument operations\n:4';
+      }
+      if (args[0] === '__complete' && args[1] === 'docs') {
+        output = '+create\tCreate a Lark document\n:4';
+      }
+      if (args[0] === 'docs' && args[1] === '+create') {
+        output = `Create a Lark document
+
+Risk: write
+
+Flags:
+      --content string        document body (required)
+      --dry-run               print request without executing
+      --format string         output format
+  -h, --help                  help for +create
+      --parent-id string      (required, mutually exclusive with --space-id) parent
+      --record-id stringArray   record ID (repeatable)
+      --retry-count int       retry count
+      --yes                   confirm high-risk operation`;
+      }
+      return {
+        exitCode: 0,
+        stdout: typeof output === 'string' ? output : JSON.stringify(output),
+        stderr: '',
+        durationMs: 1,
+        data: output,
+      };
+    }
+  );
+  const driver = new LarkCliDriver({ execute } as any);
+
+  const tools = await driver.discoverTools('profile-shortcuts');
+
+  t.is(tools.length, 1);
+  t.like(tools[0], {
+    name: 'lark_docs__create',
+    command: ['docs', '+create'],
+    description: 'Create a Lark document',
+    risk: 'write',
+    requiresConfirmation: true,
+    supportsDryRun: true,
+  });
+  t.deepEqual(tools[0].inputSchema, {
+    type: 'object',
+    properties: {
+      content: { type: 'string', description: 'document body (required)' },
+      dryRun: {
+        type: 'boolean',
+        description: 'print request without executing',
+      },
+      parentId: {
+        type: 'string',
+        description: '(required, mutually exclusive with --space-id) parent',
+      },
+      recordId: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'record ID (repeatable)',
+      },
+      retryCount: { type: 'integer', description: 'retry count' },
+    },
+    required: ['content'],
+    additionalProperties: false,
+  });
+});
+
+test('Lark driver repeats shortcut array flags', async t => {
+  const execute = Sinon.stub().resolves({
+    exitCode: 0,
+    stdout: '{}',
+    stderr: '',
+    durationMs: 1,
+    data: {},
+  });
+  const driver = new LarkCliDriver({ execute } as any);
+
+  await driver.execute('profile-shortcut-array', {
+    tool: {
+      name: 'lark_base__record_delete',
+      command: ['base', '+record-delete'],
+      description: 'Delete records',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          recordId: { type: 'array', items: { type: 'string' } },
+        },
+        additionalProperties: false,
+      },
+      risk: 'high',
+      requiresConfirmation: true,
+      supportsDryRun: true,
+    },
+    arguments: { recordId: ['rec-one', 'rec-two'] },
+    idempotencyKey: 'call-shortcut-array',
+    confirmed: true,
+  });
+
+  t.deepEqual(execute.firstCall.args[0].args, [
+    'base',
+    '+record-delete',
+    '--record-id',
+    'rec-one',
+    '--record-id',
+    'rec-two',
+    '--format',
+    'json',
+    '--yes',
+  ]);
+});
+
 test('Lark driver maps schema input buckets to CLI carriers', async t => {
   const execute = Sinon.stub();
   execute.onFirstCall().resolves({
@@ -779,6 +895,191 @@ test('EnterpriseConnectionService rechecks connection state before execution', a
   t.false(getDriver.called);
 });
 
+test('EnterpriseConnectionService keeps an authorized connection active after a tool failure', async t => {
+  const tool = {
+    name: 'lark_calendar_calendars_primary',
+    command: ['calendar', 'calendars', 'primary'],
+    description: 'Get the primary calendar',
+    inputSchema: { type: 'object', properties: {} },
+    risk: 'read',
+    requiresConfirmation: false,
+    supportsDryRun: true,
+  };
+  const connection = {
+    id: 'connection-tool-failed',
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    provider: EnterpriseProvider.LARK,
+    transport: EnterpriseConnectionTransport.CLI,
+    profileKey: 'profile-tool-failed',
+    status: EnterpriseConnectionStatus.ACTIVE,
+    activeAuthorizationSessionId: null,
+    enabledToolNames: [tool.name],
+    toolCatalog: [tool],
+  };
+  const recordFailure = Sinon.stub().resolves();
+  const driver = {
+    execute: Sinon.stub().rejects(new Error('missing calendar scope')),
+    authStatus: Sinon.stub().resolves({ authorized: true, status: 'active' }),
+  };
+  const service = new EnterpriseConnectionService(
+    {
+      copilotEnterpriseConnection: {
+        get: Sinon.stub().resolves(connection),
+        recordFailure,
+        addAudit: Sinon.stub().resolves(),
+      },
+    } as any,
+    { get: Sinon.stub().returns(driver) } as any,
+    {} as any
+  );
+
+  await t.throwsAsync(
+    service.execute({
+      connection: connection as any,
+      actorId: connection.userId,
+      toolName: tool.name,
+      arguments: {},
+      confirmed: false,
+    }),
+    { message: 'missing calendar scope' }
+  );
+  t.true(driver.authStatus.calledOnceWith(connection.profileKey));
+  t.true(
+    recordFailure.calledOnceWith(
+      connection.id,
+      EnterpriseConnectionStatus.ACTIVE,
+      'enterprise_cli_tool_failed',
+      'missing calendar scope'
+    )
+  );
+});
+
+test('EnterpriseConnectionService requires reauthorization when a failed tool has lost authorization', async t => {
+  const tool = {
+    name: 'wecom_doc_search',
+    command: ['doc', 'search'],
+    description: 'Search documents',
+    inputSchema: { type: 'object', properties: {} },
+    risk: 'read',
+    requiresConfirmation: false,
+    supportsDryRun: true,
+  };
+  const connection = {
+    id: 'connection-reauth',
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    provider: EnterpriseProvider.WECOM,
+    transport: EnterpriseConnectionTransport.CLI,
+    profileKey: 'profile-reauth',
+    status: EnterpriseConnectionStatus.ACTIVE,
+    activeAuthorizationSessionId: null,
+    enabledToolNames: [tool.name],
+    toolCatalog: [tool],
+  };
+  const recordFailure = Sinon.stub().resolves();
+  const driver = {
+    execute: Sinon.stub().rejects(new Error('token expired')),
+    authStatus: Sinon.stub().resolves({
+      authorized: false,
+      status: 'reauth_required',
+    }),
+  };
+  const service = new EnterpriseConnectionService(
+    {
+      copilotEnterpriseConnection: {
+        get: Sinon.stub().resolves(connection),
+        recordFailure,
+        addAudit: Sinon.stub().resolves(),
+      },
+    } as any,
+    { get: Sinon.stub().returns(driver) } as any,
+    {} as any
+  );
+
+  await t.throwsAsync(
+    service.execute({
+      connection: connection as any,
+      actorId: connection.userId,
+      toolName: tool.name,
+      arguments: {},
+      confirmed: false,
+    })
+  );
+  t.true(
+    recordFailure.calledOnceWith(
+      connection.id,
+      EnterpriseConnectionStatus.REAUTH_REQUIRED,
+      'enterprise_cli_reauth_required',
+      'token expired'
+    )
+  );
+});
+
+test('EnterpriseConnectionService degrades on CLI infrastructure failure', async t => {
+  const tool = {
+    name: 'dingtalk_calendar_event_list',
+    command: ['calendar', 'event', 'list'],
+    description: 'List events',
+    inputSchema: { type: 'object', properties: {} },
+    risk: 'read',
+    requiresConfirmation: false,
+    supportsDryRun: true,
+  };
+  const connection = {
+    id: 'connection-runtime-failed',
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    provider: EnterpriseProvider.DINGTALK,
+    transport: EnterpriseConnectionTransport.CLI,
+    profileKey: 'profile-runtime-failed',
+    status: EnterpriseConnectionStatus.ACTIVE,
+    activeAuthorizationSessionId: null,
+    enabledToolNames: [tool.name],
+    toolCatalog: [tool],
+  };
+  const recordFailure = Sinon.stub().resolves();
+  const driver = {
+    execute: Sinon.stub().rejects(
+      new EnterpriseCliRuntimeError(
+        'enterprise_cli_timeout',
+        'Enterprise CLI execution timed out'
+      )
+    ),
+    authStatus: Sinon.stub(),
+  };
+  const service = new EnterpriseConnectionService(
+    {
+      copilotEnterpriseConnection: {
+        get: Sinon.stub().resolves(connection),
+        recordFailure,
+        addAudit: Sinon.stub().resolves(),
+      },
+    } as any,
+    { get: Sinon.stub().returns(driver) } as any,
+    {} as any
+  );
+
+  await t.throwsAsync(
+    service.execute({
+      connection: connection as any,
+      actorId: connection.userId,
+      toolName: tool.name,
+      arguments: {},
+      confirmed: false,
+    })
+  );
+  t.false(driver.authStatus.called);
+  t.true(
+    recordFailure.calledOnceWith(
+      connection.id,
+      EnterpriseConnectionStatus.DEGRADED,
+      'enterprise_cli_execution_failed',
+      'Enterprise CLI execution timed out'
+    )
+  );
+});
+
 test('EnterpriseConnectionService rejects a superseded authorization refresh', async t => {
   const getDriver = Sinon.stub();
   const service = new EnterpriseConnectionService(
@@ -905,10 +1206,11 @@ test('EnterpriseConnectionService keeps cleanup failures retryable', async t => 
   );
 });
 
-test('EnterpriseToolRegistry exposes enabled reads and withholds writes', async t => {
+test('EnterpriseToolRegistry searches the full catalog and gates writes on the user request', async t => {
   const connection = {
     id: 'connection-123',
     name: 'My Lark',
+    provider: EnterpriseProvider.LARK,
     enabledToolNames: ['lark_docs_search', 'lark_docs_delete'],
   };
   const readTool = {
@@ -939,18 +1241,80 @@ test('EnterpriseToolRegistry exposes enabled reads and withholds writes', async 
     userId: 'user-1',
   });
 
-  t.deepEqual(Object.keys(tools), ['lark_docs_search_connecti']);
-  await tools.lark_docs_search_connecti.execute?.({}, {});
-  t.true(
-    execute.calledOnceWith(
-      Sinon.match({
-        connection,
-        actorId: 'user-1',
-        toolName: 'lark_docs_search',
-        confirmed: false,
-      })
-    )
+  t.deepEqual(Object.keys(tools), [
+    'enterprise_cli_search',
+    'enterprise_cli_execute',
+  ]);
+  const search = (await tools.enterprise_cli_search.execute?.(
+    { query: 'Lark documents', limit: 10 },
+    {}
+  )) as any;
+  t.deepEqual(
+    search.matches.map((match: any) => [match.toolName, match.risk]),
+    [
+      ['lark_docs_delete', 'high'],
+      ['lark_docs_search', 'read'],
+    ]
   );
+
+  await tools.enterprise_cli_execute.execute?.(
+    {
+      connectionId: connection.id,
+      toolName: readTool.name,
+      arguments: {},
+    },
+    {}
+  );
+  t.is(execute.callCount, 1);
+  t.like(execute.firstCall.args[0], {
+    connection,
+    actorId: 'user-1',
+    toolName: 'lark_docs_search',
+    confirmed: false,
+  });
+
+  await t.throwsAsync(
+    async () =>
+      await tools.enterprise_cli_execute.execute?.(
+        {
+          connectionId: connection.id,
+          toolName: writeTool.name,
+          arguments: {},
+        },
+        {
+          messages: [
+            {
+              role: 'user',
+              content:
+                'Search only: list Lark document delete tools, but do not execute or delete anything.',
+            },
+          ],
+        }
+      ),
+    { message: /requires a direct user request/ }
+  );
+  await tools.enterprise_cli_execute.execute?.(
+    {
+      connectionId: connection.id,
+      toolName: writeTool.name,
+      arguments: {},
+    },
+    {
+      messages: [
+        {
+          role: 'user',
+          content: 'Delete the selected Lark document.',
+        },
+      ],
+    }
+  );
+  t.is(execute.callCount, 2);
+  t.like(execute.secondCall.args[0], {
+    connection,
+    actorId: 'user-1',
+    toolName: 'lark_docs_delete',
+    confirmed: true,
+  });
 });
 
 test('EnterpriseAuthorizationWorker rejects unofficial authorization URLs', async t => {
@@ -1152,80 +1516,83 @@ test('EnterpriseAuthorizationWorker refreshes tools after official authorization
   t.true(markAuthorized.calledOnceWith(session.id, session.connectionId));
 });
 
-test('EnterpriseAuthorizationWorker aborts a cloud CLI when the database session is cancelled', async t => {
-  const clock = Sinon.useFakeTimers();
-  const active = {
-    id: 'authorization-cancelled',
-    connectionId: 'connection-3',
-    workspaceId: 'workspace-1',
-    userId: 'user-1',
-    provider: EnterpriseProvider.WECOM,
-    status: EnterpriseAuthorizationStatus.PENDING,
-    expiresAt: new Date(Date.now() + 60_000),
-    qrCodePath: null,
-    connection: {
-      id: 'connection-3',
-      profileKey: 'profile-3',
-      deletedAt: null,
-    },
-  };
-  const cancelled = {
-    ...active,
-    status: EnterpriseAuthorizationStatus.CANCELLED,
-  };
-  const getWithConnection = Sinon.stub();
-  getWithConnection.onFirstCall().resolves(active);
-  getWithConnection.onSecondCall().resolves(cancelled);
-  getWithConnection.resolves(cancelled);
-  const markFailed = Sinon.stub();
-  let signalAborted = false;
-  const worker = new EnterpriseAuthorizationWorker(
-    {
-      copilotEnterpriseAuthorization: {
-        getWithConnection,
-        markStarting: Sinon.stub().resolves({ count: 1 }),
-        markFailed,
+test.serial(
+  'EnterpriseAuthorizationWorker aborts a cloud CLI when the database session is cancelled',
+  async t => {
+    const clock = Sinon.useFakeTimers();
+    const active = {
+      id: 'authorization-cancelled',
+      connectionId: 'connection-3',
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      provider: EnterpriseProvider.WECOM,
+      status: EnterpriseAuthorizationStatus.PENDING,
+      expiresAt: new Date(Date.now() + 60_000),
+      qrCodePath: null,
+      connection: {
+        id: 'connection-3',
+        profileKey: 'profile-3',
+        deletedAt: null,
       },
-      copilotEnterpriseConnection: { addAudit: Sinon.stub().resolves() },
-    } as any,
-    {
-      isActive: (status: EnterpriseAuthorizationStatus) =>
-        status !== EnterpriseAuthorizationStatus.CANCELLED,
-    } as any,
-    { refresh: Sinon.stub() } as any,
-    {
-      get: Sinon.stub().returns({
-        authorize: async (_profileKey: string, request: any) =>
-          await new Promise((_resolve, reject) => {
-            request.signal.addEventListener(
-              'abort',
-              () => {
-                signalAborted = true;
-                reject(
-                  new EnterpriseCliRuntimeError(
-                    'enterprise_cli_aborted',
-                    'Enterprise CLI execution was cancelled'
-                  )
-                );
-              },
-              { once: true }
-            );
-          }),
-      }),
-    } as any,
-    { removeProfileFile: Sinon.stub().resolves() } as any
-  );
+    };
+    const cancelled = {
+      ...active,
+      status: EnterpriseAuthorizationStatus.CANCELLED,
+    };
+    const getWithConnection = Sinon.stub();
+    getWithConnection.onFirstCall().resolves(active);
+    getWithConnection.onSecondCall().resolves(cancelled);
+    getWithConnection.resolves(cancelled);
+    const markFailed = Sinon.stub();
+    let signalAborted = false;
+    const worker = new EnterpriseAuthorizationWorker(
+      {
+        copilotEnterpriseAuthorization: {
+          getWithConnection,
+          markStarting: Sinon.stub().resolves({ count: 1 }),
+          markFailed,
+        },
+        copilotEnterpriseConnection: { addAudit: Sinon.stub().resolves() },
+      } as any,
+      {
+        isActive: (status: EnterpriseAuthorizationStatus) =>
+          status !== EnterpriseAuthorizationStatus.CANCELLED,
+      } as any,
+      { refresh: Sinon.stub() } as any,
+      {
+        get: Sinon.stub().returns({
+          authorize: async (_profileKey: string, request: any) =>
+            await new Promise((_resolve, reject) => {
+              request.signal.addEventListener(
+                'abort',
+                () => {
+                  signalAborted = true;
+                  reject(
+                    new EnterpriseCliRuntimeError(
+                      'enterprise_cli_aborted',
+                      'Enterprise CLI execution was cancelled'
+                    )
+                  );
+                },
+                { once: true }
+              );
+            }),
+        }),
+      } as any,
+      { removeProfileFile: Sinon.stub().resolves() } as any
+    );
 
-  try {
-    const running = worker.run({ sessionId: active.id });
-    await clock.tickAsync(1_001);
-    await running;
-    t.true(signalAborted);
-    t.false(markFailed.called);
-  } finally {
-    clock.restore();
+    try {
+      const running = worker.run({ sessionId: active.id });
+      await clock.tickAsync(1_001);
+      await running;
+      t.true(signalAborted);
+      t.false(markFailed.called);
+    } finally {
+      clock.restore();
+    }
   }
-});
+);
 
 test('EnterpriseAuthorizationWorker serves only a waiting user PNG challenge', async t => {
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]);

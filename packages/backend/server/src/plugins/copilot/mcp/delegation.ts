@@ -301,6 +301,18 @@ function isReadOnlyAnswerRequest(request: string) {
   return requestsAnswer && !requestsSideEffect && !requestsToolLookup;
 }
 
+function requiresEnterpriseToolAgent(request: string) {
+  const namesEnterpriseProvider =
+    /(?:\b(?:wecom|lark|feishu|dingtalk)\b|企业微信|企微|飞书|钉钉)/i.test(
+      request
+    );
+  const requestsEnterpriseData =
+    /(?:\b(?:query|search|find|look up|read|fetch|retrieve|list|check|verify)\b|查(?:询|找|看)?|搜索|检索|读取|获取|列出|查看|检查|验证)/i.test(
+      request
+    );
+  return namesEnterpriseProvider && requestsEnterpriseData;
+}
+
 function normalizePlannerResult(
   output: z.infer<typeof DelegationPlannerWireResultSchema>
 ): DelegationPlannerResult {
@@ -584,6 +596,7 @@ export class McpAiDelegationService {
               'Return document_update only when the user explicitly requests changing exactly one provided document. Content must be the complete replacement Markdown copied exactly once, with no repetition, commentary, or padding.',
               'Selection priority: when exactly one document snapshot is provided and the request explicitly supplies its complete replacement content, you MUST return document_update, never tool_agent.',
               `Return tool_agent when the task requires LocalMind AI tools, including any document creation, document title change, workspace document search/read beyond the provided snapshots, workspace folder list/create/rename/move/delete or document placement, web research, document composition, section editing, code artifact generation, attachment reading, conversation summarization, or multi-step tool work. The tool agent can use: ${LOCALMIND_DELEGATION_AI_TOOLS.join(', ')}.`,
+              'A request to call, query, search, read, fetch, list, check, or verify data in a connected WeCom, Lark/Feishu, or DingTalk account MUST return tool_agent, even when the requested result is read-only.',
               'Return unsupported_task only when neither a direct answer, a one-document replacement, nor the LocalMind tool agent can perform the requested work.',
               'Missing document context is not an unsupported operation; answer honestly that the requested context was not provided.',
               'Mandatory field mapping: answer => non-empty answer; document_update => non-empty docId, content, and summary; tool_agent => non-empty summary; unsupported_task => non-empty reason. Set every field not listed for the selected kind to an empty string.',
@@ -706,8 +719,10 @@ export class McpAiDelegationService {
         });
       };
       const literalMarkdown = requestedLiteralMarkdown(input.request);
+      const enterpriseToolRequired = requiresEnterpriseToolAgent(input.request);
       const needsAnswerRendering =
-        (wireOutput.kind === 'answer' &&
+        !enterpriseToolRequired &&
+        ((wireOutput.kind === 'answer' &&
           (hasPlannerText(
             wireOutput.docId,
             wireOutput.content,
@@ -715,13 +730,13 @@ export class McpAiDelegationService {
             wireOutput.reason
           ) ||
             needsFormattedAnswerRepair(input.request, wireOutput.answer))) ||
-        (wireOutput.kind === 'unsupported_task' &&
-          (needsFormattedAnswerRepair(input.request, '') ||
-            isMissingContextUnsupportedReason(wireOutput.reason) ||
-            isReadOnlyAnswerRequest(input.request))) ||
-        (wireOutput.kind === 'tool_agent' &&
-          documents.length > 0 &&
-          isReadOnlyAnswerRequest(input.request));
+          (wireOutput.kind === 'unsupported_task' &&
+            (needsFormattedAnswerRepair(input.request, '') ||
+              isMissingContextUnsupportedReason(wireOutput.reason) ||
+              isReadOnlyAnswerRequest(input.request))) ||
+          (wireOutput.kind === 'tool_agent' &&
+            documents.length > 0 &&
+            isReadOnlyAnswerRequest(input.request)));
       let answerRendered = false;
       try {
         output = normalizePlannerResult(wireOutput);
@@ -736,6 +751,11 @@ export class McpAiDelegationService {
         } else if (needsAnswerRendering) {
           output = await renderFinalAnswer();
           answerRendered = true;
+        } else if (enterpriseToolRequired) {
+          output = {
+            kind: 'tool_agent',
+            summary: 'Use the connected enterprise tools to complete the task.',
+          };
         } else {
           throw error;
         }
@@ -750,6 +770,12 @@ export class McpAiDelegationService {
       }
       if (needsAnswerRendering && !answerRendered && literalMarkdown === null) {
         output = await renderFinalAnswer();
+      }
+      if (enterpriseToolRequired && output.kind !== 'document_update') {
+        output = {
+          kind: 'tool_agent',
+          summary: 'Use the connected enterprise tools to complete the task.',
+        };
       }
     } catch (error) {
       this.logger.error('LocalMind MCP AI delegation planning failed', error);

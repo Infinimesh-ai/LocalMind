@@ -9225,7 +9225,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.enterprise.name"](): string;
     /**
-      * `Let LocalMind AI retrieve authorized content from WeCom, Lark, and DingTalk.`
+      * `Let LocalMind AI use authorized WeCom, Lark, and DingTalk CLI capabilities.`
       */
     ["com.affine.integration.enterprise.desc"](): string;
     /**
@@ -9392,6 +9392,18 @@ export function useAFFiNEI18N(): {
       * `Available to AI`
       */
     ["com.affine.integration.enterprise.tool.enabled"](): string;
+    /**
+      * `Read`
+      */
+    ["com.affine.integration.enterprise.tool.risk.read"](): string;
+    /**
+      * `Write`
+      */
+    ["com.affine.integration.enterprise.tool.risk.write"](): string;
+    /**
+      * `High risk`
+      */
+    ["com.affine.integration.enterprise.tool.risk.high"](): string;
     /**
       * `Remove “{{name}}”?`
       */

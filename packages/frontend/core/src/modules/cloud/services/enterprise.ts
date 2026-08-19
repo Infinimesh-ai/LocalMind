@@ -125,12 +125,10 @@ export class EnterpriseService extends Service {
     const connection = this.connections$.value?.find(
       item => item.id === connectionId
     );
-    const readTools = new Set(
-      connection?.tools
-        .filter(tool => tool.risk === 'read')
-        .map(tool => tool.name) ?? []
+    const availableTools = new Set(
+      connection?.tools.map(tool => tool.name) ?? []
     );
-    const filtered = enabledToolNames.filter(name => readTools.has(name));
+    const filtered = enabledToolNames.filter(name => availableTools.has(name));
     const result = await this.store.updateToolAllowlist(
       workspaceId,
       connectionId,

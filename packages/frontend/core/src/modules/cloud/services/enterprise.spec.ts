@@ -97,7 +97,7 @@ describe('EnterpriseService', () => {
     expect(store.cancelAuthorization).not.toHaveBeenCalled();
   });
 
-  test('sends only read tools to the enterprise allowlist', async () => {
+  test('sends read and write tools to the enterprise allowlist', async () => {
     const { service, store } = createService();
     const connection = {
       id: 'connection-1',
@@ -112,7 +112,7 @@ describe('EnterpriseService', () => {
     });
     store.updateToolAllowlist.mockResolvedValue({
       id: connection.id,
-      enabledToolNames: ['wecom_doc_search'],
+      enabledToolNames: ['wecom_doc_search', 'wecom_doc_delete'],
     });
     await service.revalidate('workspace-1');
 
@@ -124,7 +124,7 @@ describe('EnterpriseService', () => {
     expect(store.updateToolAllowlist).toHaveBeenCalledWith(
       'workspace-1',
       connection.id,
-      ['wecom_doc_search']
+      ['wecom_doc_search', 'wecom_doc_delete']
     );
   });
 });

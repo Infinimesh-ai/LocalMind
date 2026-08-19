@@ -523,7 +523,6 @@ const ConnectionPanel = ({
 }) => {
   const t = useI18n();
   const enabled = new Set(connection.enabledToolNames);
-  const readTools = connection.tools.filter(tool => tool.risk === 'read');
   const disabled = connection.status === 'DISABLED';
   return (
     <section className={styles.panel}>
@@ -583,13 +582,22 @@ const ConnectionPanel = ({
           </Button>
         </div>
       </div>
-      {readTools.length ? (
+      {connection.tools.length ? (
         <div className={styles.tools}>
-          {readTools.map(tool => (
+          {connection.tools.map(tool => (
             <div className={styles.tool} key={tool.name}>
               <div>
                 <div className={styles.title}>{tool.name}</div>
-                <div className={styles.description}>{tool.description}</div>
+                <div className={styles.description}>
+                  {t[
+                    `com.affine.integration.enterprise.tool.risk.${tool.risk}` as
+                      | 'com.affine.integration.enterprise.tool.risk.read'
+                      | 'com.affine.integration.enterprise.tool.risk.write'
+                      | 'com.affine.integration.enterprise.tool.risk.high'
+                  ]()}
+                  {' · '}
+                  {tool.description}
+                </div>
               </div>
               <Checkbox
                 checked={enabled.has(tool.name)}

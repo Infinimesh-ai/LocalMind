@@ -27,6 +27,7 @@ import {
   getProfileModelIds,
   isProviderRouteHealthy,
   type NormalizedCopilotProviderProfile,
+  parseModelPrefix,
   providerProfileConfigPathHint,
   resolveModel,
   stripProviderPrefix,
@@ -1352,9 +1353,14 @@ export class CopilotProviderFactory {
   ) {
     const { byokRegistry, quotaBackedRegistry, quotaBackedRoutesAvailable } =
       await this.getEffectiveRegistry(context);
+    const byokCond = this.normalizeByokCond(
+      byokRegistry,
+      quotaBackedRegistry,
+      cond
+    );
     const byokCandidates = await this.describeRouteCandidatesFromRegistry(
       byokRegistry,
-      cond,
+      byokCond,
       filter,
       context,
       {
@@ -1441,6 +1447,26 @@ export class CopilotProviderFactory {
   ): ModelFullConditions {
     const modelId = stripProviderPrefix(registry, providerId, cond.modelId);
     return { ...cond, modelId };
+  }
+
+  private normalizeByokCond(
+    byokRegistry: CopilotProviderRegistry,
+    quotaBackedRegistry: CopilotProviderRegistry,
+    cond: ModelFullConditions
+  ): ModelFullConditions {
+    if (!cond.modelId || parseModelPrefix(byokRegistry, cond.modelId)) {
+      return cond;
+    }
+
+    const quotaBackedRoute = parseModelPrefix(
+      quotaBackedRegistry,
+      cond.modelId
+    );
+    if (!quotaBackedRoute?.modelId) {
+      return cond;
+    }
+
+    return { ...cond, modelId: quotaBackedRoute.modelId };
   }
 
   private async getEffectiveRegistry(
@@ -1634,9 +1660,14 @@ export class CopilotProviderFactory {
     );
     const { byokRegistry, quotaBackedRegistry, quotaBackedRoutesAvailable } =
       await this.getEffectiveRegistry(context);
+    const byokCond = this.normalizeByokCond(
+      byokRegistry,
+      quotaBackedRegistry,
+      cond
+    );
     const byokRoutes = await this.resolveRoutesFromRegistry(
       byokRegistry,
-      cond,
+      byokCond,
       filter,
       context,
       {
@@ -1644,9 +1675,13 @@ export class CopilotProviderFactory {
         registryAvailable: byokRegistry.order.length > 0,
       }
     );
-    const byokSelected = byokRoutes.length > 0;
-    const resolved = byokRoutes.length
-      ? byokRoutes
+    const normalizedByokRoutes =
+      byokCond === cond
+        ? byokRoutes
+        : byokRoutes.map(route => ({ ...route, rawModelId: cond.modelId }));
+    const byokSelected = normalizedByokRoutes.length > 0;
+    const resolved = normalizedByokRoutes.length
+      ? normalizedByokRoutes
       : quotaBackedRoutesAvailable
         ? await this.resolveRoutesFromRegistry(
             quotaBackedRegistry,

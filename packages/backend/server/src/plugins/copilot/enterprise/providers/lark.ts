@@ -24,6 +24,14 @@ import {
   toolName,
 } from './shared';
 
+const SHORTCUT_DISCOVERY_CONCURRENCY = 8;
+const SHORTCUT_FLAG_EXCLUSIONS = new Set(['format', 'help', 'jq', 'yes']);
+
+type LarkCompletionEntry = {
+  value: string;
+  description?: string;
+};
+
 @Injectable()
 export class LarkCliDriver implements EnterpriseCliDriver {
   readonly provider = EnterpriseProvider.LARK;
@@ -191,7 +199,10 @@ export class LarkCliDriver implements EnterpriseCliDriver {
         supportsDryRun: true,
       });
     }
-    return tools;
+    const shortcuts = await this.discoverShortcutTools(profileKey, signal);
+    const merged = new Map(tools.map(tool => [tool.name, tool]));
+    for (const shortcut of shortcuts) merged.set(shortcut.name, shortcut);
+    return [...merged.values()];
   }
 
   async execute(profileKey: string, call: EnterpriseToolCall) {
@@ -200,7 +211,7 @@ export class LarkCliDriver implements EnterpriseCliDriver {
     delete input.yes;
     const args = [
       ...call.tool.command,
-      ...this.argumentsToFlags(input),
+      ...this.argumentsToFlags(input, call.tool.inputSchema),
       '--format',
       'json',
     ];
@@ -229,10 +240,201 @@ export class LarkCliDriver implements EnterpriseCliDriver {
     };
   }
 
-  private argumentsToFlags(input: Record<string, unknown>) {
+  private async discoverShortcutTools(
+    profileKey: string,
+    signal?: AbortSignal
+  ): Promise<EnterpriseToolDefinition[]> {
+    const root = await this.complete(profileKey, [], signal);
+    const domains = root.filter(entry => !entry.value.startsWith('+'));
+    const shortcutGroups = await this.mapConcurrent(
+      domains,
+      SHORTCUT_DISCOVERY_CONCURRENCY,
+      async domain => {
+        const entries = await this.complete(profileKey, [domain.value], signal);
+        return entries
+          .filter(entry => entry.value.startsWith('+'))
+          .map(entry => ({ domain: domain.value, ...entry }));
+      }
+    );
+    const shortcuts = shortcutGroups.flat();
+    const definitions = await this.mapConcurrent(
+      shortcuts,
+      SHORTCUT_DISCOVERY_CONCURRENCY,
+      async shortcut => {
+        const command = [shortcut.domain, shortcut.value];
+        const result = await this.runtime.execute({
+          provider: this.provider,
+          profileKey,
+          args: [...command, '--help'],
+          outputMode: 'text',
+          timeoutMs: 15_000,
+          maxOutputBytes: 256 * 1024,
+          signal,
+        });
+        if (result.exitCode !== 0) return null;
+        const help = this.textOutput(result);
+        const inputSchema = this.shortcutInputSchema(help);
+        const declaredRisk = help.match(/^Risk:\s*([^\r\n]+)/im)?.[1];
+        const risk = classifyCommandRisk(command, declaredRisk);
+        return {
+          name: toolName('lark', command),
+          command,
+          description:
+            this.helpSummary(help) ??
+            shortcut.description ??
+            `Run the Lark ${command.join(' ')} command`,
+          inputSchema,
+          risk,
+          requiresConfirmation: risk !== 'read',
+          supportsDryRun: 'dryRun' in (asRecord(inputSchema.properties) ?? {}),
+        } satisfies EnterpriseToolDefinition;
+      }
+    );
+    return definitions.filter(
+      (tool): tool is EnterpriseToolDefinition => tool !== null
+    );
+  }
+
+  private async complete(
+    profileKey: string,
+    command: string[],
+    signal?: AbortSignal
+  ): Promise<LarkCompletionEntry[]> {
+    const result = await this.runtime.execute({
+      provider: this.provider,
+      profileKey,
+      args: ['__complete', ...command, ''],
+      outputMode: 'text',
+      timeoutMs: 15_000,
+      maxOutputBytes: 256 * 1024,
+      signal,
+    });
+    if (result.exitCode !== 0) return [];
+    return this.textOutput(result)
+      .split(/\r?\n/)
+      .map(line => {
+        const [value, description] = line.split('\t', 2);
+        return { value: value?.trim(), description: asString(description) };
+      })
+      .filter(
+        (entry): entry is LarkCompletionEntry =>
+          Boolean(entry.value) &&
+          /^[+a-zA-Z0-9][a-zA-Z0-9._+-]{0,127}$/.test(entry.value)
+      );
+  }
+
+  private shortcutInputSchema(help: string): Record<string, unknown> {
+    const properties: Record<string, unknown> = {};
+    const required: string[] = [];
+    for (const line of help.split(/\r?\n/)) {
+      const match = line
+        .trim()
+        .match(
+          /^(?:-\S+,\s+)?--([a-z0-9][a-z0-9-]*)(?:[ =]([^\s]+))?\s{2,}(.+)$/i
+        );
+      if (!match) continue;
+      const [, flag, cliType, rawDescription] = match;
+      if (
+        SHORTCUT_FLAG_EXCLUSIONS.has(flag) ||
+        (flag === 'json' &&
+          !cliType &&
+          /shorthand for --format json/i.test(rawDescription))
+      ) {
+        continue;
+      }
+      const name = flag.replace(/-([a-z0-9])/g, (_, value: string) =>
+        value.toUpperCase()
+      );
+      properties[name] = {
+        ...this.shortcutFlagSchema(cliType),
+        description: rawDescription.trim(),
+      };
+      if (
+        /\(required\)/i.test(rawDescription) &&
+        !/(mutually exclusive|one of|when using|required when)/i.test(
+          rawDescription
+        )
+      ) {
+        required.push(name);
+      }
+    }
+    return {
+      type: 'object',
+      properties,
+      ...(required.length ? { required } : {}),
+      additionalProperties: false,
+    };
+  }
+
+  private shortcutFlagSchema(cliType?: string): Record<string, unknown> {
+    const normalized = cliType?.toLowerCase();
+    if (!normalized) return { type: 'boolean' };
+    if (normalized.includes('array') || normalized.includes('slice')) {
+      return { type: 'array', items: { type: 'string' } };
+    }
+    if (/^(u?int)(8|16|32|64)?$/.test(normalized)) {
+      return { type: 'integer' };
+    }
+    if (/^(float)(32|64)?$/.test(normalized)) return { type: 'number' };
+    return { type: 'string' };
+  }
+
+  private helpSummary(help: string) {
+    return asString(
+      help
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .find(Boolean)
+    );
+  }
+
+  private textOutput(result: EnterpriseCliProcessResult) {
+    return typeof result.data === 'string' ? result.data : result.stdout;
+  }
+
+  private async mapConcurrent<T, R>(
+    values: T[],
+    concurrency: number,
+    callback: (value: T) => Promise<R>
+  ): Promise<R[]> {
+    const results: R[] = [];
+    results.length = values.length;
+    let next = 0;
+    const workers = Array.from(
+      { length: Math.min(concurrency, values.length) },
+      async () => {
+        while (next < values.length) {
+          const index = next++;
+          results[index] = await callback(values[index]);
+        }
+      }
+    );
+    await Promise.all(workers);
+    return results;
+  }
+
+  private argumentsToFlags(
+    input: Record<string, unknown>,
+    inputSchema: Record<string, unknown>
+  ) {
     const file = input.file;
     delete input.file;
-    const args = objectToFlags(input);
+    const properties = asRecord(inputSchema.properties) ?? {};
+    const repeated: string[] = [];
+    const regular: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(input)) {
+      const property = asRecord(properties[key]);
+      if (property?.type === 'array' && Array.isArray(value)) {
+        for (const item of value) {
+          repeated.push(
+            ...objectToFlags({ [key]: item as string | number | boolean })
+          );
+        }
+      } else {
+        regular[key] = value;
+      }
+    }
+    const args = [...objectToFlags(regular), ...repeated];
     const files = asRecord(file);
     if (files) {
       for (const [field, value] of Object.entries(files)) {

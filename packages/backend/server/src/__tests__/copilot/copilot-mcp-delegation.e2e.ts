@@ -1012,6 +1012,49 @@ test('LocalMind tool agent accepts a summary emitted in the reason field', async
   });
 });
 
+test('enterprise data requests use the tool agent when the planner returns an answer', async t => {
+  const { credentials, models, owner, runtime } = t.context;
+  const workspace = await models.workspace.create(owner.id);
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId: workspace.id,
+    name: 'Enterprise tool routing',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'answer',
+        answer: 'No DingTalk tools are available.',
+      }),
+    },
+  } as any);
+
+  const delegated = await delegate(t.context, issued.token, {
+    request: '查询我今天的钉钉日程，并只返回结果条数。',
+    documentIds: [],
+    idempotencyKey: 'route-dingtalk-query-to-tool-agent',
+  });
+
+  t.like(delegated, {
+    status: 'queued',
+    kind: 'tool_agent',
+    execution: 'queued',
+  });
+  const queued = await getTask(t.context, issued.token, {
+    taskId: String(delegated.taskId),
+    waitMs: 0,
+  });
+  t.like(queued, {
+    plan: {
+      kind: 'tool_agent',
+      summary: 'Use the connected enterprise tools to complete the task.',
+    },
+  });
+});
+
 test('LocalMind tool agent rechecks credential activity before starting its tool loop', async t => {
   const { credentials, db, owner, runtime, worker } = t.context;
   const { docId, workspaceId } = await createDocument(

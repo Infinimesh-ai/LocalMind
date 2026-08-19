@@ -685,7 +685,7 @@ export function describeProviderRoutePolicyCandidates(
     });
 }
 
-function parseModelPrefix(
+export function parseModelPrefix(
   registry: CopilotProviderRegistry,
   modelId: string
 ): { providerId: string; modelId?: string } | null {

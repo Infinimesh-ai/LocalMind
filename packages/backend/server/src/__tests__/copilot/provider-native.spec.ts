@@ -1114,8 +1114,9 @@ test('NativeProviderAdapter should retain the requested model when provider sele
     adapter.streamObject(nativeTextRequest('hello', 'gpt-5.6-sol'))
   );
 
+  t.true(onUsage.calledOnce);
   t.true(
-    onUsage.calledOnceWithMatch({
+    onUsage.calledWithMatch({
       providerId,
       model: 'gpt-5.6-sol',
     })
@@ -2218,6 +2219,36 @@ test('CopilotProviderFactory should use matching BYOK routes before quota-backed
   t.deepEqual(
     routes.map(route => route.providerId),
     ['byok-aaaaaaaaaaaa-openai-server-key1']
+  );
+});
+
+test('CopilotProviderFactory should let BYOK handle a quota-backed prefixed model ID', async t => {
+  const { factory } = createProviderFactoryWithByokRoutes({ hasQuota: false });
+
+  const routes = await factory.resolveRoutes(
+    {
+      modelId: 'openai-main/gpt-5-mini',
+      outputType: ModelOutputType.Text,
+    },
+    {},
+    { userId: 'user-1', workspaceId: 'workspace-1' }
+  );
+
+  t.deepEqual(
+    routes.map(route => ({
+      providerId: route.providerId,
+      modelId: route.modelId,
+      rawModelId: route.rawModelId,
+      registryKind: route.registryKind,
+    })),
+    [
+      {
+        providerId: BYOK_OPENAI_PROFILE.id,
+        modelId: 'gpt-5-mini',
+        rawModelId: 'openai-main/gpt-5-mini',
+        registryKind: 'byok',
+      },
+    ]
   );
 });
 
@@ -5137,8 +5168,9 @@ test.serial(
 
     t.is(result, '{"ok":true}');
     t.true(called);
+    t.true(byok.recordUsage.calledOnce);
     t.true(
-      byok.recordUsage.calledOnceWithMatch({
+      byok.recordUsage.calledWithMatch({
         providerId: 'openai-fallback',
         model: 'gpt-5-mini',
       })

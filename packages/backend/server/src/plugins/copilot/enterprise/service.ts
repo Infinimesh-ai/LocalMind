@@ -18,9 +18,9 @@ import { EnterpriseCliRuntime, EnterpriseCliRuntimeError } from './cli/runtime';
 import { EnterpriseCliDriverRegistry } from './driver-registry';
 import type { EnterpriseToolResult } from './types';
 
-const MAX_CATALOG_TOOLS = 512;
-const MAX_CATALOG_BYTES = 2 * 1024 * 1024;
-const MAX_ENABLED_TOOLS = 64;
+const MAX_CATALOG_TOOLS = 2048;
+const MAX_CATALOG_BYTES = 8 * 1024 * 1024;
+const MAX_ENABLED_TOOLS = MAX_CATALOG_TOOLS;
 const MAX_ARGUMENT_BYTES = 256 * 1024;
 const TOOL_NAME_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
 const COMMAND_SEGMENT_PATTERN = /^[+a-zA-Z0-9][a-zA-Z0-9._+-]{0,127}$/;
@@ -123,12 +123,7 @@ export class EnterpriseConnectionService {
         );
       }
       const fingerprint = this.fingerprint(this.stableJson(catalog));
-      const knownToolNames = new Set(
-        catalog.filter(tool => tool.risk === 'read').map(tool => tool.name)
-      );
-      const enabledToolNames = connection.enabledToolNames.filter(name =>
-        knownToolNames.has(name)
-      );
+      const enabledToolNames = catalog.map(tool => tool.name);
       const updated = await this.models.copilotEnterpriseConnection.saveCatalog(
         {
           id: connection.id,
@@ -185,9 +180,7 @@ export class EnterpriseConnectionService {
       throw new BadRequestException('Enterprise connection is not active');
     }
     const catalog = this.catalog(connection);
-    const available = new Set(
-      catalog.filter(tool => tool.risk === 'read').map(tool => tool.name)
-    );
+    const available = new Set(catalog.map(tool => tool.name));
     const names = [...new Set(input.toolNames.map(name => name.trim()))].filter(
       Boolean
     );
@@ -196,7 +189,7 @@ export class EnterpriseConnectionService {
       names.some(name => !available.has(name))
     ) {
       throw new BadRequestException(
-        'Enabled enterprise tools must be read-only tools in the current catalog'
+        'Enabled enterprise tools must exist in the current catalog'
       );
     }
     const updated =
@@ -295,20 +288,81 @@ export class EnterpriseConnectionService {
       );
       return result;
     } catch (error) {
-      await this.models.copilotEnterpriseConnection.recordFailure(
-        connection.id,
-        EnterpriseConnectionStatus.DEGRADED,
-        'enterprise_cli_execution_failed',
-        this.publicErrorMessage(error)
+      const failure = await this.executionFailureState(
+        connection.profileKey,
+        this.drivers.get(connection.provider),
+        error,
+        input.signal
       );
-      await this.audit(connection, input.actorId, 'tool_failed', 'FAILED', {
-        toolName: tool.name,
-        risk: tool.risk,
-        idempotencyKey,
-        argumentsFingerprint,
-        error: this.publicErrorMessage(error),
-      });
+      if (failure) {
+        await this.models.copilotEnterpriseConnection.recordFailure(
+          connection.id,
+          failure.status,
+          failure.code,
+          this.publicErrorMessage(error)
+        );
+      }
+      await this.audit(
+        connection,
+        input.actorId,
+        'tool_failed',
+        failure ? 'FAILED' : 'CANCELLED',
+        {
+          toolName: tool.name,
+          risk: tool.risk,
+          idempotencyKey,
+          argumentsFingerprint,
+          error: this.publicErrorMessage(error),
+          ...(failure ? { connectionStatus: failure.status } : {}),
+        }
+      );
       throw error;
+    }
+  }
+
+  private async executionFailureState(
+    profileKey: string,
+    driver: ReturnType<EnterpriseCliDriverRegistry['get']>,
+    error: unknown,
+    signal?: AbortSignal
+  ): Promise<{
+    status: EnterpriseConnectionStatus;
+    code: string;
+  } | null> {
+    if (
+      signal?.aborted ||
+      (error instanceof EnterpriseCliRuntimeError &&
+        error.code === 'enterprise_cli_aborted')
+    ) {
+      return null;
+    }
+    if (
+      error instanceof EnterpriseCliRuntimeError &&
+      error.code !== 'enterprise_cli_invalid_arguments'
+    ) {
+      return {
+        status: EnterpriseConnectionStatus.DEGRADED,
+        code: 'enterprise_cli_execution_failed',
+      };
+    }
+    try {
+      const auth = await driver.authStatus(profileKey, signal);
+      if (signal?.aborted) return null;
+      return auth.authorized
+        ? {
+            status: EnterpriseConnectionStatus.ACTIVE,
+            code: 'enterprise_cli_tool_failed',
+          }
+        : {
+            status: EnterpriseConnectionStatus.REAUTH_REQUIRED,
+            code: 'enterprise_cli_reauth_required',
+          };
+    } catch {
+      if (signal?.aborted) return null;
+      return {
+        status: EnterpriseConnectionStatus.DEGRADED,
+        code: 'enterprise_cli_execution_failed',
+      };
     }
   }
 
