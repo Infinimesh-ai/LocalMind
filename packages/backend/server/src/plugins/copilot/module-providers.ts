@@ -32,6 +32,18 @@ import {
   CopilotEmbeddingClientService,
   CopilotEmbeddingJob,
 } from './embedding';
+import {
+  DingTalkCliDriver,
+  EnterpriseAuthorizationService,
+  EnterpriseAuthorizationWorker,
+  EnterpriseCliDriverRegistry,
+  EnterpriseCliRuntime,
+  EnterpriseConnectionResolver,
+  EnterpriseConnectionService,
+  EnterpriseToolRegistry,
+  LarkCliDriver,
+  WeComCliDriver,
+} from './enterprise';
 import { McpAiDelegationService } from './mcp/delegation';
 import { WorkspaceMcpProvider } from './mcp/provider';
 import { McpAiTaskControlService } from './mcp/task-control';
@@ -108,6 +120,14 @@ export const COPILOT_RUNTIME_PROVIDERS = [
   CopilotContextService,
   CopilotEmbeddingClientService,
   PromptService,
+  EnterpriseCliRuntime,
+  WeComCliDriver,
+  LarkCliDriver,
+  DingTalkCliDriver,
+  EnterpriseCliDriverRegistry,
+  EnterpriseConnectionService,
+  EnterpriseAuthorizationService,
+  EnterpriseToolRegistry,
   ModelSelectionPolicy,
   ActionRuntimeBridge,
   CopilotExecutionMetrics,
@@ -159,6 +179,7 @@ export const COPILOT_WORKSPACE_PROVIDERS = [
 export const COPILOT_RESOLVER_PROVIDERS = [
   CopilotResolver,
   CopilotContextMemoryResolver,
+  EnterpriseConnectionResolver,
   UserCopilotResolver,
   CopilotContextRootResolver,
   WorkspaceByokResolver,
@@ -176,6 +197,7 @@ export const COPILOT_JOB_PROVIDERS = [
   CopilotRepairExecutionWorker,
   McpAiDelegationService,
   McpAiTaskControlService,
+  EnterpriseAuthorizationWorker,
 ];
 
 export const COPILOT_MCP_PROVIDERS = [

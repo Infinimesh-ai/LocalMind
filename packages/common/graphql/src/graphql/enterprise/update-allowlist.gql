@@ -1,0 +1,16 @@
+mutation updateEnterpriseToolAllowlist(
+  $workspaceId: String!
+  $connectionId: String!
+  $enabledToolNames: [String!]!
+) {
+  updateEnterpriseToolAllowlist(
+    workspaceId: $workspaceId
+    connectionId: $connectionId
+    enabledToolNames: $enabledToolNames
+  ) {
+    id
+    status
+    enabledToolNames
+    updatedAt
+  }
+}

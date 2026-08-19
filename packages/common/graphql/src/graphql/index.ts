@@ -6990,6 +6990,217 @@ export const getDocRolePermissionsQuery = {
 }`,
 };
 
+export const beginEnterpriseAuthorizationMutation = {
+  id: 'beginEnterpriseAuthorizationMutation' as const,
+  op: 'beginEnterpriseAuthorization',
+  query: `mutation beginEnterpriseAuthorization($workspaceId: String!, $connectionId: ID!) {
+  beginEnterpriseAuthorization(
+    workspaceId: $workspaceId
+    connectionId: $connectionId
+  ) {
+    id
+    connectionId
+    workspaceId
+    provider
+    status
+    authorizationUrl
+    userCode
+    qrCodeUrl
+    expiresAt
+    startedAt
+    completedAt
+    lastErrorCode
+    lastErrorMessage
+    createdAt
+    updatedAt
+  }
+}`,
+};
+
+export const cancelEnterpriseAuthorizationMutation = {
+  id: 'cancelEnterpriseAuthorizationMutation' as const,
+  op: 'cancelEnterpriseAuthorization',
+  query: `mutation cancelEnterpriseAuthorization($workspaceId: String!, $sessionId: ID!) {
+  cancelEnterpriseAuthorization(workspaceId: $workspaceId, sessionId: $sessionId) {
+    id
+    connectionId
+    provider
+    status
+    expiresAt
+    completedAt
+    lastErrorCode
+    lastErrorMessage
+  }
+}`,
+};
+
+export const latestEnterpriseAuthorizationSessionQuery = {
+  id: 'latestEnterpriseAuthorizationSessionQuery' as const,
+  op: 'latestEnterpriseAuthorizationSession',
+  query: `query latestEnterpriseAuthorizationSession($workspaceId: String!, $connectionId: ID!) {
+  latestEnterpriseAuthorizationSession(
+    workspaceId: $workspaceId
+    connectionId: $connectionId
+  ) {
+    id
+    connectionId
+    workspaceId
+    provider
+    status
+    authorizationUrl
+    userCode
+    qrCodeUrl
+    expiresAt
+    startedAt
+    completedAt
+    lastErrorCode
+    lastErrorMessage
+    createdAt
+    updatedAt
+  }
+}`,
+};
+
+export const enterpriseAuthorizationSessionQuery = {
+  id: 'enterpriseAuthorizationSessionQuery' as const,
+  op: 'enterpriseAuthorizationSession',
+  query: `query enterpriseAuthorizationSession($workspaceId: String!, $sessionId: ID!) {
+  enterpriseAuthorizationSession(workspaceId: $workspaceId, sessionId: $sessionId) {
+    id
+    connectionId
+    workspaceId
+    provider
+    status
+    authorizationUrl
+    userCode
+    qrCodeUrl
+    expiresAt
+    startedAt
+    completedAt
+    lastErrorCode
+    lastErrorMessage
+    createdAt
+    updatedAt
+  }
+}`,
+};
+
+export const enterpriseConnectionsQuery = {
+  id: 'enterpriseConnectionsQuery' as const,
+  op: 'enterpriseConnections',
+  query: `query enterpriseConnections($workspaceId: String!) {
+  enterpriseConnections(workspaceId: $workspaceId) {
+    id
+    workspaceId
+    provider
+    transport
+    name
+    status
+    externalTenantId
+    externalUserId
+    identityType
+    enabledToolNames
+    expiresAt
+    lastConnectedAt
+    lastCheckedAt
+    lastUsedAt
+    lastErrorCode
+    lastErrorMessage
+    createdAt
+    updatedAt
+    tools {
+      name
+      description
+      inputSchema
+      risk
+      requiresConfirmation
+      supportsDryRun
+      enabled
+    }
+  }
+}`,
+};
+
+export const createEnterpriseConnectionMutation = {
+  id: 'createEnterpriseConnectionMutation' as const,
+  op: 'createEnterpriseConnection',
+  query: `mutation createEnterpriseConnection($input: CreateEnterpriseConnectionInput!) {
+  createEnterpriseConnection(input: $input) {
+    id
+    workspaceId
+    provider
+    transport
+    name
+    status
+    createdAt
+    updatedAt
+  }
+}`,
+};
+
+export const deleteEnterpriseConnectionMutation = {
+  id: 'deleteEnterpriseConnectionMutation' as const,
+  op: 'deleteEnterpriseConnection',
+  query: `mutation deleteEnterpriseConnection($workspaceId: String!, $connectionId: String!) {
+  deleteEnterpriseConnection(
+    workspaceId: $workspaceId
+    connectionId: $connectionId
+  )
+}`,
+};
+
+export const disableEnterpriseConnectionMutation = {
+  id: 'disableEnterpriseConnectionMutation' as const,
+  op: 'disableEnterpriseConnection',
+  query: `mutation disableEnterpriseConnection($workspaceId: String!, $connectionId: String!) {
+  disableEnterpriseConnection(
+    workspaceId: $workspaceId
+    connectionId: $connectionId
+  ) {
+    id
+    status
+    enabledToolNames
+    updatedAt
+  }
+}`,
+};
+
+export const refreshEnterpriseConnectionMutation = {
+  id: 'refreshEnterpriseConnectionMutation' as const,
+  op: 'refreshEnterpriseConnection',
+  query: `mutation refreshEnterpriseConnection($workspaceId: String!, $connectionId: String!) {
+  refreshEnterpriseConnection(
+    workspaceId: $workspaceId
+    connectionId: $connectionId
+  ) {
+    id
+    status
+    enabledToolNames
+    lastConnectedAt
+    lastCheckedAt
+    lastErrorCode
+    lastErrorMessage
+  }
+}`,
+};
+
+export const updateEnterpriseToolAllowlistMutation = {
+  id: 'updateEnterpriseToolAllowlistMutation' as const,
+  op: 'updateEnterpriseToolAllowlist',
+  query: `mutation updateEnterpriseToolAllowlist($workspaceId: String!, $connectionId: String!, $enabledToolNames: [String!]!) {
+  updateEnterpriseToolAllowlist(
+    workspaceId: $workspaceId
+    connectionId: $connectionId
+    enabledToolNames: $enabledToolNames
+  ) {
+    id
+    status
+    enabledToolNames
+    updatedAt
+  }
+}`,
+};
+
 export const connectExternalMcpMutation = {
   id: 'connectExternalMcpMutation' as const,
   op: 'connectExternalMcp',

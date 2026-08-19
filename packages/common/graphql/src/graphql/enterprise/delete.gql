@@ -1,0 +1,9 @@
+mutation deleteEnterpriseConnection(
+  $workspaceId: String!
+  $connectionId: String!
+) {
+  deleteEnterpriseConnection(
+    workspaceId: $workspaceId
+    connectionId: $connectionId
+  )
+}

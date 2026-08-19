@@ -513,6 +513,12 @@ input CommentUpdateInput {
   id: ID!
 }
 
+input ConnectExternalMcpInput {
+  accessTicket: String!
+  name: String! = "SparkClaw MCP"
+  workspaceId: String!
+}
+
 enum ContextCategories {
   Collection
   Tag
@@ -3702,18 +3708,18 @@ input CreateCopilotContextRuleInput {
   workspaceId: String
 }
 
+input CreateEnterpriseConnectionInput {
+  name: String
+  provider: EnterpriseProvider!
+  workspaceId: String!
+}
+
 input CreateMcpCredentialInput {
   accessMode: McpAccessMode! = READ_ONLY
   callbackUrl: String
   capabilities: [String!]
   expirationDays: Int! = 90
   name: String!
-  workspaceId: String!
-}
-
-input ConnectExternalMcpInput {
-  accessTicket: String!
-  name: String! = "SparkClaw MCP"
   workspaceId: String!
 }
 
@@ -3909,6 +3915,85 @@ type EditorType {
   name: String!
 }
 
+type EnterpriseAuthorizationSessionType {
+  authorizationUrl: String
+  completedAt: DateTime
+  connectionId: ID!
+  createdAt: DateTime!
+  expiresAt: DateTime!
+  id: ID!
+  lastErrorCode: String
+  lastErrorMessage: String
+  provider: EnterpriseProvider!
+  qrCodeUrl: String
+  startedAt: DateTime
+  status: EnterpriseAuthorizationStatus!
+  updatedAt: DateTime!
+  userCode: String
+  workspaceId: String!
+}
+
+enum EnterpriseAuthorizationStatus {
+  AUTHORIZED
+  CANCELLED
+  EXPIRED
+  FAILED
+  PENDING
+  STARTING
+  WAITING
+}
+
+enum EnterpriseConnectionStatus {
+  ACTIVE
+  CONNECTING
+  DEGRADED
+  DISABLED
+  REAUTH_REQUIRED
+}
+
+enum EnterpriseConnectionTransport {
+  CLI
+  MCP
+}
+
+type EnterpriseConnectionType {
+  createdAt: DateTime!
+  enabledToolNames: [String!]!
+  expiresAt: DateTime
+  externalTenantId: String
+  externalUserId: String
+  id: ID!
+  identityType: String
+  lastCheckedAt: DateTime
+  lastConnectedAt: DateTime
+  lastErrorCode: String
+  lastErrorMessage: String
+  lastUsedAt: DateTime
+  name: String!
+  provider: EnterpriseProvider!
+  status: EnterpriseConnectionStatus!
+  tools: [EnterpriseToolType!]!
+  transport: EnterpriseConnectionTransport!
+  updatedAt: DateTime!
+  workspaceId: String!
+}
+
+enum EnterpriseProvider {
+  DINGTALK
+  LARK
+  WECOM
+}
+
+type EnterpriseToolType {
+  description: String!
+  enabled: Boolean!
+  inputSchema: JSON!
+  name: String!
+  requiresConfirmation: Boolean!
+  risk: String!
+  supportsDryRun: Boolean!
+}
+
 union ErrorDataUnion = AlreadyInSpaceDataType | BlobNotFoundDataType | CalendarProviderRequestErrorDataType | CopilotContextFileNotSupportedDataType | CopilotDocNotFoundDataType | CopilotFailedToAddWorkspaceFileEmbeddingDataType | CopilotFailedToGenerateEmbeddingDataType | CopilotFailedToMatchContextDataType | CopilotFailedToMatchGlobalContextDataType | CopilotFailedToModifyContextDataType | CopilotInvalidContextDataType | CopilotMessageNotFoundDataType | CopilotPromptNotFoundDataType | CopilotProviderNotSupportedDataType | CopilotProviderSideErrorDataType | DocActionDeniedDataType | DocHistoryNotFoundDataType | DocNotFoundDataType | DocUpdateBlockedDataType | ExpectToGrantDocUserRolesDataType | ExpectToRevokeDocUserRolesDataType | ExpectToUpdateDocUserRoleDataType | GraphqlBadRequestDataType | HttpRequestErrorDataType | ImageFormatNotSupportedDataType | InvalidAppConfigDataType | InvalidAppConfigInputDataType | InvalidEmailDataType | InvalidHistoryTimestampDataType | InvalidIndexerInputDataType | InvalidLicenseToActivateDataType | InvalidLicenseUpdateParamsDataType | InvalidOauthCallbackCodeDataType | InvalidOauthResponseDataType | InvalidPasswordLengthDataType | InvalidRuntimeConfigTypeDataType | InvalidSearchProviderRequestDataType | MemberNotFoundInSpaceDataType | MentionUserDocAccessDeniedDataType | MissingOauthQueryParameterDataType | NoCopilotProviderAvailableDataType | NoMoreSeatDataType | NotInSpaceDataType | QueryTooLongDataType | ResponseTooLargeErrorDataType | RuntimeConfigNotFoundDataType | SameSubscriptionRecurringDataType | SpaceAccessDeniedDataType | SpaceNotFoundDataType | SpaceOwnerNotFoundDataType | SpaceShouldHaveOnlyOneOwnerDataType | SsrfBlockedErrorDataType | SubscriptionAlreadyExistsDataType | SubscriptionNotExistsDataType | SubscriptionPlanNotFoundDataType | UnknownOauthProviderDataType | UnsupportedClientVersionDataType | UnsupportedServerVersionDataType | UnsupportedSubscriptionPlanDataType | ValidationErrorDataType | VersionRejectedDataType | WorkspacePermissionNotFoundDataType | WrongSignInCredentialsDataType
 
 enum ErrorNames {
@@ -4080,6 +4165,55 @@ type ExpectToRevokeDocUserRolesDataType {
 type ExpectToUpdateDocUserRoleDataType {
   docId: String!
   spaceId: String!
+}
+
+enum ExternalMcpConnectionStatus {
+  ACTIVE
+  CONNECTING
+  DEGRADED
+  DISABLED
+  REAUTH_REQUIRED
+}
+
+type ExternalMcpConnectionType {
+  createdAt: DateTime!
+  enabledToolNames: [String!]!
+  endpoint: String!
+  id: ID!
+  lastCheckedAt: DateTime
+  lastConnectedAt: DateTime
+  lastErrorCode: String
+  lastErrorMessage: String
+  lastUsedAt: DateTime
+  name: String!
+  protocolVersion: String!
+  serverName: String
+  serverVersion: String
+  sessionFingerprint: String
+  status: ExternalMcpConnectionStatus!
+  toolCatalogFingerprint: String
+  tools: [ExternalMcpToolType!]!
+  updatedAt: DateTime!
+  workspaceId: String!
+}
+
+type ExternalMcpSettingsType {
+  connection: ExternalMcpConnectionType
+  endpoint: String!
+  protocolVersion: String!
+}
+
+type ExternalMcpToolCallResultType {
+  result: JSON!
+  toolName: String!
+}
+
+type ExternalMcpToolType {
+  description: String
+  enabled: Boolean!
+  inputSchema: JSON!
+  name: String!
+  title: String
 }
 
 enum FeatureType {
@@ -4441,55 +4575,6 @@ enum McpCredentialStatus {
   ROTATING
 }
 
-enum ExternalMcpConnectionStatus {
-  ACTIVE
-  CONNECTING
-  DEGRADED
-  DISABLED
-  REAUTH_REQUIRED
-}
-
-type ExternalMcpToolType {
-  description: String
-  enabled: Boolean!
-  inputSchema: JSON!
-  name: String!
-  title: String
-}
-
-type ExternalMcpConnectionType {
-  createdAt: DateTime!
-  enabledToolNames: [String!]!
-  endpoint: String!
-  id: ID!
-  lastCheckedAt: DateTime
-  lastConnectedAt: DateTime
-  lastErrorCode: String
-  lastErrorMessage: String
-  lastUsedAt: DateTime
-  name: String!
-  protocolVersion: String!
-  serverName: String
-  serverVersion: String
-  sessionFingerprint: String
-  status: ExternalMcpConnectionStatus!
-  toolCatalogFingerprint: String
-  tools: [ExternalMcpToolType!]!
-  updatedAt: DateTime!
-  workspaceId: String!
-}
-
-type ExternalMcpSettingsType {
-  connection: ExternalMcpConnectionType
-  endpoint: String!
-  protocolVersion: String!
-}
-
-type ExternalMcpToolCallResultType {
-  result: JSON!
-  toolName: String!
-}
-
 type McpCredentialType {
   accessMode: McpAccessMode!
   callbackConfigured: Boolean!
@@ -4608,10 +4693,11 @@ type Mutation {
 
   """Ban an user"""
   banUser(id: String!): UserType!
+  beginEnterpriseAuthorization(connectionId: ID!, workspaceId: String!): EnterpriseAuthorizationSessionType!
+  cancelEnterpriseAuthorization(sessionId: ID!, workspaceId: String!): EnterpriseAuthorizationSessionType!
   cancelSubscription(idempotencyKey: String @deprecated(reason: "use header `Idempotency-Key`"), plan: SubscriptionPlan = Pro, workspaceId: String): SubscriptionType!
   changeEmail(email: String!, token: String!): UserType!
   changePassword(newPassword: String!, token: String!, userId: String): Boolean!
-  connectExternalMcp(input: ConnectExternalMcpInput!): ExternalMcpConnectionType!
 
   """Cleanup sessions"""
   cleanupCopilotSession(options: DeleteSessionInput!): [String!]!
@@ -4622,6 +4708,7 @@ type Mutation {
   cleanupCopilotSupportBundleRetention(input: CopilotSupportBundleRetentionCleanupInput!): CopilotSupportBundleRetentionCleanupType!
   clearWorkspaceByokConfigs(provider: ByokProvider, workspaceId: String!): Boolean!
   completeBlobUpload(key: String!, parts: [BlobUploadPartInput!], uploadId: String, workspaceId: String!): String!
+  connectExternalMcp(input: ConnectExternalMcpInput!): ExternalMcpConnectionType!
 
   """
   Control a standalone persisted Agent Runtime run outside repair execution.
@@ -4640,8 +4727,6 @@ type Mutation {
   """Create a subscription checkout link of stripe"""
   createCheckoutSession(input: CreateCheckoutSessionInput!): String!
   createComment(input: CommentCreateInput!): CommentObjectType!
-  createSparkClawPairing: SparkClawPairingType!
-  disconnectSparkClawEndpoint(endpointId: ID!): Boolean!
 
   """Create a context session"""
   createCopilotContext(sessionId: String!, workspaceId: String!): String!
@@ -4666,10 +4751,12 @@ type Mutation {
 
   """Create a stripe customer portal to manage payment methods"""
   createCustomerPortal: String!
+  createEnterpriseConnection(input: CreateEnterpriseConnectionInput!): EnterpriseConnectionType!
   createInviteLink(expireTime: WorkspaceInviteLinkExpireTime!, workspaceId: String!): InviteLink!
   createMcpCredential(input: CreateMcpCredentialInput!): RevealedMcpCredentialType!
   createReply(input: ReplyCreateInput!): ReplyObjectType!
   createSelfhostWorkspaceCustomerPortal(workspaceId: String!): String!
+  createSparkClawPairing: SparkClawPairingType!
 
   """Create a new user"""
   createUser(input: CreateUserInput!): UserType!
@@ -4693,6 +4780,7 @@ type Mutation {
   deleteCopilotContextPolicy(id: ID!, workspaceId: String!): Boolean!
   deleteCopilotContextProject(id: ID!): Boolean!
   deleteCopilotContextRule(id: ID!): Boolean!
+  deleteEnterpriseConnection(connectionId: String!, workspaceId: String!): Boolean!
   deleteExternalMcp(workspaceId: String!): Boolean!
 
   """Delete a reply"""
@@ -4702,13 +4790,15 @@ type Mutation {
   deleteUser(id: String!): DeleteAccount!
   deleteWorkspace(id: String!): Boolean!
   deleteWorkspaceByokConfig(id: ID!, workspaceId: String!): Boolean!
+  disableEnterpriseConnection(connectionId: String!, workspaceId: String!): EnterpriseConnectionType!
+  disableExternalMcp(workspaceId: String!): ExternalMcpConnectionType!
+  disconnectSparkClawEndpoint(endpointId: ID!): Boolean!
 
   """delete a notification from the current user inbox"""
   dismissNotification(id: String!): Boolean!
 
   """delete all read notifications from the current user inbox"""
   dismissReadNotifications: Boolean!
-  disableExternalMcp(workspaceId: String!): ExternalMcpConnectionType!
 
   """Reenable an banned user"""
   enableUser(id: String!): UserType!
@@ -4777,10 +4867,11 @@ type Mutation {
   """
   recordCopilotProviderHealthState(input: CopilotProviderHealthStateRecordInput!): CopilotProviderHealthStateType!
   recoverDoc(guid: String!, timestamp: DateTime!, workspaceId: String!): DateTime!
+  refreshEnterpriseConnection(connectionId: String!, workspaceId: String!): EnterpriseConnectionType!
+  refreshExternalMcpTools(workspaceId: String!): ExternalMcpConnectionType!
 
   """Refresh current user subscriptions and return latest."""
   refreshUserSubscriptions: [SubscriptionType!]!
-  refreshExternalMcpTools(workspaceId: String!): ExternalMcpConnectionType!
   releaseDeletedBlobs(workspaceId: String!): Boolean!
 
   """Remove user avatar"""
@@ -4864,12 +4955,13 @@ type Mutation {
   updateCopilotContextProject(input: UpdateCopilotContextProjectInput!): CopilotContextProjectType!
   updateCopilotContextRule(input: UpdateCopilotContextRuleInput!): CopilotContextRuleType!
   updateCopilotContextSettings(input: UpdateCopilotContextSettingsInput!): CopilotContextSettingsType!
-  updateExternalMcpToolAllowlist(enabledToolNames: [String!]!, workspaceId: String!): ExternalMcpConnectionType!
 
   """Update a chat session"""
   updateCopilotSession(options: UpdateChatSessionInput!): String!
   updateDocDefaultRole(input: UpdateDocDefaultRoleInput!): Boolean!
   updateDocUserRole(input: UpdateDocUserRoleInput!): Boolean!
+  updateEnterpriseToolAllowlist(connectionId: String!, enabledToolNames: [String!]!, workspaceId: String!): EnterpriseConnectionType!
+  updateExternalMcpToolAllowlist(enabledToolNames: [String!]!, workspaceId: String!): ExternalMcpConnectionType!
   updateProfile(input: UpdateUserInput!): UserType!
 
   """Update a reply content"""
@@ -5121,11 +5213,14 @@ type Query {
 
   """Get current user"""
   currentUser: UserType
+  enterpriseAuthorizationSession(sessionId: ID!, workspaceId: String!): EnterpriseAuthorizationSessionType!
+  enterpriseConnections(workspaceId: String!): [EnterpriseConnectionType!]!
   error(name: ErrorNames!): ErrorDataUnion!
   externalMcpSettings(workspaceId: String!): ExternalMcpSettingsType!
 
   """get workspace invitation info"""
   getInviteInfo(inviteId: String!): InvitationType!
+  latestEnterpriseAuthorizationSession(connectionId: ID!, workspaceId: String!): EnterpriseAuthorizationSessionType
   mcpCredentialReadWriteAvailable: Boolean!
   mcpCredentials(workspaceId: String!): [McpCredentialType!]!
   prices: [SubscriptionPrice!]!
@@ -5451,6 +5546,19 @@ type SpaceShouldHaveOnlyOneOwnerDataType {
   spaceId: String!
 }
 
+type SparkClawEndpointType {
+  createdAt: DateTime!
+  deviceId: String!
+  id: ID!
+  lastSeenAt: DateTime
+  status: String!
+}
+
+type SparkClawPairingType {
+  command: String!
+  expiresAt: DateTime!
+}
+
 type SsrfBlockedErrorDataType {
   reason: String!
 }
@@ -5755,19 +5863,6 @@ input UpdateUserSettingsInput {
   receiveSparkClawNotifications: Boolean
 }
 
-type SparkClawEndpointType {
-  createdAt: DateTime!
-  deviceId: String!
-  id: ID!
-  lastSeenAt: DateTime
-  status: String!
-}
-
-type SparkClawPairingType {
-  command: String!
-  expiresAt: DateTime!
-}
-
 input UpdateWorkspaceCalendarsInput {
   items: [WorkspaceCalendarItemInput!]!
   workspaceId: String!
@@ -5890,12 +5985,12 @@ type UserType {
 
   """Get current user notifications"""
   notifications(includeRead: Boolean = false, pagination: PaginationInput!): PaginatedNotificationObjectType!
-  sparkClawEndpoints: [SparkClawEndpointType!]!
   quota: UserQuotaType!
   quotaUsage: UserQuotaUsageType!
 
   """Get user settings"""
   settings: UserSettingsType!
+  sparkClawEndpoints: [SparkClawEndpointType!]!
   subscriptions: [SubscriptionType!]!
   token: tokenType! @deprecated(reason: "use auth session exchange instead")
 }

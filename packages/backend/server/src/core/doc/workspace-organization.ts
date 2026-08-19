@@ -68,29 +68,47 @@ type TableDescriptor = {
 };
 
 const TABLES: Record<WorkspaceDataTable, TableDescriptor> = {
-  folders: { docId: () => 'db$folders', keyField: 'id' },
+  // The server reads persisted docs directly, so use the physical IDs emitted
+  // by the frontend nbstore id converter rather than its logical table IDs.
+  folders: {
+    docId: workspaceId => `db$${workspaceId}$folders`,
+    keyField: 'id',
+  },
   document_properties: {
-    docId: () => 'db$docProperties',
+    docId: workspaceId => `db$${workspaceId}$docProperties`,
     keyField: 'id',
   },
   workspace_properties: {
-    docId: () => 'db$docCustomPropertyInfo',
+    docId: workspaceId => `db$${workspaceId}$docCustomPropertyInfo`,
     keyField: 'id',
   },
   pinned_collections: {
-    docId: () => 'db$pinnedCollections',
+    docId: workspaceId => `db$${workspaceId}$pinnedCollections`,
     keyField: 'collectionId',
   },
-  explorer_icons: { docId: () => 'db$explorerIcon', keyField: 'id' },
+  explorer_icons: {
+    docId: workspaceId => `db$${workspaceId}$explorerIcon`,
+    keyField: 'id',
+  },
   favorites: {
-    docId: (_workspaceId, userId) => `userdata$${userId}$favorite`,
+    docId: (workspaceId, userId) =>
+      `userdata$${userId}$${workspaceId}$favorite`,
     keyField: 'key',
   },
   user_settings: {
-    docId: (_workspaceId, userId) => `userdata$${userId}$settings`,
+    docId: (workspaceId, userId) =>
+      `userdata$${userId}$${workspaceId}$settings`,
     keyField: 'key',
   },
 };
+
+export function resolveWorkspaceDataDocId(
+  table: WorkspaceDataTable,
+  workspaceId: string,
+  userId: string
+) {
+  return TABLES[table].docId(workspaceId, userId);
+}
 
 type LoadedDoc = {
   doc: Y.Doc;
@@ -386,7 +404,7 @@ export class WorkspaceOrganizationService {
     table: WorkspaceDataTable
   ) {
     const descriptor = TABLES[table];
-    const docId = descriptor.docId(workspaceId, userId);
+    const docId = resolveWorkspaceDataDocId(table, workspaceId, userId);
     const loaded = await this.load(workspaceId, docId, true);
     try {
       const records: JsonObject[] = [];
@@ -630,7 +648,7 @@ export class WorkspaceOrganizationService {
   ) {
     assertOperations(operations);
     const descriptor = TABLES[table];
-    const docId = descriptor.docId(workspaceId, userId);
+    const docId = resolveWorkspaceDataDocId(table, workspaceId, userId);
     const loaded = await this.load(workspaceId, docId, true);
     try {
       loaded.doc.transact(() => {

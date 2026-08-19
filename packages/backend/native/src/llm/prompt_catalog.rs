@@ -384,5 +384,13 @@ mod tests {
         .and_then(Value::as_array)
         .is_some_and(|tools| tools.contains(&Value::String("workspaceOrganization".to_string())))
     );
+    assert!(
+      chat
+        .config
+        .as_ref()
+        .and_then(|config| config.get("tools"))
+        .and_then(Value::as_array)
+        .is_some_and(|tools| tools.contains(&Value::String("enterprise".to_string())))
+    );
   }
 }

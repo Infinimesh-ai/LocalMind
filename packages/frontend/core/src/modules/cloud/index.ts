@@ -20,6 +20,7 @@ export { AuthService, type DeviceAuthSession } from './services/auth';
 export { CaptchaService } from './services/captcha';
 export { DefaultServerService } from './services/default-server';
 export { DocCreatedByUpdatedBySyncService } from './services/doc-created-by-updated-by-sync';
+export { EnterpriseService } from './services/enterprise';
 export { EventSourceService } from './services/eventsource';
 export { ExternalMcpService } from './services/external-mcp';
 export { FetchService } from './services/fetch';
@@ -77,6 +78,7 @@ import { CaptchaService } from './services/captcha';
 import { CloudDocMetaService } from './services/cloud-doc-meta';
 import { DefaultServerService } from './services/default-server';
 import { EventSourceService } from './services/eventsource';
+import { EnterpriseService } from './services/enterprise';
 import { ExternalMcpService } from './services/external-mcp';
 import { FetchService } from './services/fetch';
 import { GraphQLService } from './services/graphql';
@@ -99,6 +101,7 @@ import { AcceptInviteStore } from './stores/accept-invite';
 import { AuthStore } from './stores/auth';
 import { CloudDocMetaStore } from './stores/cloud-doc-meta';
 import { InviteInfoStore } from './stores/invite-info';
+import { EnterpriseStore } from './stores/enterprise';
 import { ExternalMcpStore } from './stores/external-mcp';
 import { InvoicesStore } from './stores/invoices';
 import { PublicUserStore } from './stores/public-user';
@@ -199,6 +202,8 @@ export function configureCloudModule(framework: Framework) {
     .store(UserSettingsStore, [GraphQLService, NbstoreService])
     .service(McpCredentialService, [McpCredentialStore])
     .store(McpCredentialStore, [GraphQLService])
+    .service(EnterpriseService, [EnterpriseStore])
+    .store(EnterpriseStore, [GraphQLService])
     .service(ExternalMcpService, [ExternalMcpStore])
     .store(ExternalMcpStore, [GraphQLService]);
 

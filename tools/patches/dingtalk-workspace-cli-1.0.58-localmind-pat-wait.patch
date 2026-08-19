@@ -1,0 +1,51 @@
+diff --git a/internal/app/auth_command.go b/internal/app/auth_command.go
+index e887341..51279d9 100644
+--- a/internal/app/auth_command.go
++++ b/internal/app/auth_command.go
+@@ -226,6 +226,12 @@ func newAuthLoginCommand(patCaller edition.ToolCaller) *cobra.Command {
+ 					}
+ 				}
+ 				retryFormat := format
++				if os.Getenv("DWS_CLI_AUTH_AUTO_APPLY") == "1" {
++					// LocalMind owns the browser handoff but leaves DingTalk's PAT
++					// polling in this process. Structured PAT mode would return the
++					// pending challenge as an error instead of waiting for approval.
++					retryFormat = "table"
++				}
+ 				if humanAuthMode {
+ 					retryFormat = "table"
+ 				}
+diff --git a/internal/app/auth_command_full_coverage_test.go b/internal/app/auth_command_full_coverage_test.go
+index b572a37..441a857 100644
+--- a/internal/app/auth_command_full_coverage_test.go
++++ b/internal/app/auth_command_full_coverage_test.go
+@@ -305,13 +305,28 @@ func TestCrossPlatformCoverageAuthCoverageLoginFlows(t *testing.T) {
+ 		return &apperrors.PATError{RawJSON: `{"code":"PAT_SCOPE_AUTH_REQUIRED"}`}
+ 	}
+ 	waited := false
+-	authRunDirectPATWait = func(context.Context, *GlobalFlags, *apperrors.PATError, io.Writer) error {
++	waitFormat := ""
++	authRunDirectPATWait = func(_ context.Context, flags *GlobalFlags, _ *apperrors.PATError, _ io.Writer) error {
+ 		waited = true
++		waitFormat = flags.Format
+ 		return nil
+ 	}
+ 	if _, _, err := authCoverageRunLogin(t, nil, "json", true, map[string]string{"token": "x", "recommend": "true"}); err != nil || !waited {
+ 		t.Fatalf("PAT wait = %v, waited=%v", err, waited)
+ 	}
++	if waitFormat != "json" {
++		t.Fatalf("ordinary JSON PAT wait format = %q, want json", waitFormat)
++	}
++	t.Setenv("DWS_CLI_AUTH_AUTO_APPLY", "1")
++	waited = false
++	waitFormat = ""
++	if _, _, err := authCoverageRunLogin(t, nil, "json", true, map[string]string{"token": "x", "recommend": "true"}); err != nil || !waited {
++		t.Fatalf("LocalMind PAT wait = %v, waited=%v", err, waited)
++	}
++	if waitFormat != "table" {
++		t.Fatalf("LocalMind PAT wait format = %q, want table", waitFormat)
++	}
++	t.Setenv("DWS_CLI_AUTH_AUTO_APPLY", "")
+ 
+ 	authLoginInteractiveTerminal = func() bool { return true }
+ 	authPlanLoginRecommend = func(context.Context, edition.ToolCaller) (*pat.LoginRecommendPlan, error) {

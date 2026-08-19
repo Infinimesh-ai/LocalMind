@@ -1,0 +1,25 @@
+query latestEnterpriseAuthorizationSession(
+  $workspaceId: String!
+  $connectionId: ID!
+) {
+  latestEnterpriseAuthorizationSession(
+    workspaceId: $workspaceId
+    connectionId: $connectionId
+  ) {
+    id
+    connectionId
+    workspaceId
+    provider
+    status
+    authorizationUrl
+    userCode
+    qrCodeUrl
+    expiresAt
+    startedAt
+    completedAt
+    lastErrorCode
+    lastErrorMessage
+    createdAt
+    updatedAt
+  }
+}

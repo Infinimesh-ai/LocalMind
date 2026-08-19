@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 
 import { Config } from '../../../base';
 import {
@@ -11,6 +11,7 @@ import { Models } from '../../../models';
 import { IndexerService } from '../../indexer';
 import type { NodeTextMiddleware } from '../config';
 import { CopilotContextService } from '../context/service';
+import { EnterpriseToolRegistry } from '../enterprise';
 import {
   type CopilotChatOptions,
   type CopilotChatTools,
@@ -70,7 +71,8 @@ export class ToolRuntime {
     private readonly workspaceOrganization: WorkspaceOrganizationService,
     private readonly models: Models,
     private readonly promptRuntime: PromptRuntime,
-    private readonly indexerService: IndexerService
+    private readonly indexerService: IndexerService,
+    @Optional() private readonly enterpriseTools?: EnterpriseToolRegistry
   ) {}
 
   async getTools(
@@ -221,6 +223,23 @@ export class ToolRuntime {
               options
             )
           );
+          break;
+        }
+        case 'enterprise': {
+          if (
+            this.config.copilot.enterpriseCli.enabled &&
+            this.enterpriseTools &&
+            options.workspace &&
+            options.user
+          ) {
+            Object.assign(
+              tools,
+              await this.enterpriseTools.getTools({
+                workspaceId: options.workspace,
+                userId: options.user,
+              })
+            );
+          }
           break;
         }
       }

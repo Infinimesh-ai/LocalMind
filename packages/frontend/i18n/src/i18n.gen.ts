@@ -9221,6 +9221,188 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.mcp-server.capability.control.description"](): string;
     /**
+      * `Enterprise collaboration`
+      */
+    ["com.affine.integration.enterprise.name"](): string;
+    /**
+      * `Let LocalMind AI retrieve authorized content from WeCom, Lark, and DingTalk.`
+      */
+    ["com.affine.integration.enterprise.desc"](): string;
+    /**
+      * `Failed to load enterprise connections.`
+      */
+    ["com.affine.integration.enterprise.load-error"](): string;
+    /**
+      * `No enterprise accounts connected.`
+      */
+    ["com.affine.integration.enterprise.empty"](): string;
+    /**
+      * `Add connection`
+      */
+    ["com.affine.integration.enterprise.connect.title"](): string;
+    /**
+      * `Authorization and CLI credentials stay in the LocalMind cloud.`
+      */
+    ["com.affine.integration.enterprise.connect.description"](): string;
+    /**
+      * `WeCom`
+      */
+    ["com.affine.integration.enterprise.provider.wecom"](): string;
+    /**
+      * `Lark`
+      */
+    ["com.affine.integration.enterprise.provider.lark"](): string;
+    /**
+      * `DingTalk`
+      */
+    ["com.affine.integration.enterprise.provider.dingtalk"](): string;
+    /**
+      * `Connection name (optional)`
+      */
+    ["com.affine.integration.enterprise.field.name"](): string;
+    /**
+      * `Connect`
+      */
+    ["com.affine.integration.enterprise.action.connect"](): string;
+    /**
+      * `Authorize`
+      */
+    ["com.affine.integration.enterprise.action.authorize"](): string;
+    /**
+      * `Refresh tools`
+      */
+    ["com.affine.integration.enterprise.action.refresh"](): string;
+    /**
+      * `Disable`
+      */
+    ["com.affine.integration.enterprise.action.disable"](): string;
+    /**
+      * `Official account authorization`
+      */
+    ["com.affine.integration.enterprise.authorization.description"](): string;
+    /**
+      * `Waiting for the official authorization challenge...`
+      */
+    ["com.affine.integration.enterprise.authorization.waiting"](): string;
+    /**
+      * `The CLI data access request was sent to a DingTalk organization super admin. Waiting for approval...`
+      */
+    ["com.affine.integration.enterprise.authorization.admin-approval-pending"](): string;
+    /**
+      * `Open official page`
+      */
+    ["com.affine.integration.enterprise.authorization.open"](): string;
+    /**
+      * `Step 1 of 2: Configure or select a Lark CLI app.`
+      */
+    ["com.affine.integration.enterprise.authorization.lark.configure-ready"](): string;
+    /**
+      * `Step 2 of 2: Authorize the Lark CLI app.`
+      */
+    ["com.affine.integration.enterprise.authorization.lark.authorize-ready"](): string;
+    /**
+      * `Configure Lark CLI app`
+      */
+    ["com.affine.integration.enterprise.authorization.lark.configure-action"](): string;
+    /**
+      * `Authorize Lark CLI`
+      */
+    ["com.affine.integration.enterprise.authorization.lark.authorize-action"](): string;
+    /**
+      * `Step 3 of 3: Authorize DingTalk CLI permissions for this account.`
+      */
+    ["com.affine.integration.enterprise.authorization.dingtalk.authorize-ready"](): string;
+    /**
+      * `Authorize DingTalk CLI`
+      */
+    ["com.affine.integration.enterprise.authorization.dingtalk.authorize-action"](): string;
+    /**
+      * `Copy authorization code`
+      */
+    ["com.affine.integration.enterprise.authorization.copy-code"](): string;
+    /**
+      * `Authorization code copied`
+      */
+    ["com.affine.integration.enterprise.authorization.code-copied"](): string;
+    /**
+      * `Official authorization QR code`
+      */
+    ["com.affine.integration.enterprise.authorization.qrcode"](): string;
+    /**
+      * `Enterprise account connected`
+      */
+    ["com.affine.integration.enterprise.authorization.success"](): string;
+    /**
+      * `Queued`
+      */
+    ["com.affine.integration.enterprise.authorization.status.pending"](): string;
+    /**
+      * `Starting`
+      */
+    ["com.affine.integration.enterprise.authorization.status.starting"](): string;
+    /**
+      * `Waiting`
+      */
+    ["com.affine.integration.enterprise.authorization.status.waiting"](): string;
+    /**
+      * `Authorized`
+      */
+    ["com.affine.integration.enterprise.authorization.status.authorized"](): string;
+    /**
+      * `Failed`
+      */
+    ["com.affine.integration.enterprise.authorization.status.failed"](): string;
+    /**
+      * `Expired`
+      */
+    ["com.affine.integration.enterprise.authorization.status.expired"](): string;
+    /**
+      * `Cancelled`
+      */
+    ["com.affine.integration.enterprise.authorization.status.cancelled"](): string;
+    /**
+      * `Connected`
+      */
+    ["com.affine.integration.enterprise.status.active"](): string;
+    /**
+      * `Connecting`
+      */
+    ["com.affine.integration.enterprise.status.connecting"](): string;
+    /**
+      * `Degraded`
+      */
+    ["com.affine.integration.enterprise.status.degraded"](): string;
+    /**
+      * `Authorization required`
+      */
+    ["com.affine.integration.enterprise.status.reauth-required"](): string;
+    /**
+      * `Disabled`
+      */
+    ["com.affine.integration.enterprise.status.disabled"](): string;
+    /**
+      * `Authorized identity`
+      */
+    ["com.affine.integration.enterprise.meta.identity"](): string;
+    /**
+      * `Last checked`
+      */
+    ["com.affine.integration.enterprise.meta.last-checked"](): string;
+    /**
+      * `Available to AI`
+      */
+    ["com.affine.integration.enterprise.tool.enabled"](): string;
+    /**
+      * `Remove “{{name}}”?`
+      */
+    ["com.affine.integration.enterprise.delete.title"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `LocalMind will erase this cloud CLI profile and its authorization credentials.`
+      */
+    ["com.affine.integration.enterprise.delete.description"](): string;
+    /**
       * `SparkClaw MCP`
       */
     ["com.affine.integration.external-mcp.name"](): string;

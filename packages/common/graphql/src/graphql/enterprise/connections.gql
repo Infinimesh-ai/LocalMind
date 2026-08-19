@@ -1,0 +1,31 @@
+query enterpriseConnections($workspaceId: String!) {
+  enterpriseConnections(workspaceId: $workspaceId) {
+    id
+    workspaceId
+    provider
+    transport
+    name
+    status
+    externalTenantId
+    externalUserId
+    identityType
+    enabledToolNames
+    expiresAt
+    lastConnectedAt
+    lastCheckedAt
+    lastUsedAt
+    lastErrorCode
+    lastErrorMessage
+    createdAt
+    updatedAt
+    tools {
+      name
+      description
+      inputSchema
+      risk
+      requiresConfirmation
+      supportsDryRun
+      enabled
+    }
+  }
+}

@@ -22,6 +22,8 @@ import { CopilotWorkspaceByokConfigModel } from './copilot-byok';
 import { CopilotContextModel } from './copilot-context';
 import { CopilotContextMemoryModel } from './copilot-context-memory';
 import { CopilotContextRuleModel } from './copilot-context-rule';
+import { CopilotEnterpriseAuthorizationModel } from './copilot-enterprise-authorization';
+import { CopilotEnterpriseConnectionModel } from './copilot-enterprise-connection';
 import { CopilotExternalMcpModel } from './copilot-external-mcp';
 import { CopilotJobModel } from './copilot-job';
 import { CopilotMcpDelegationModel } from './copilot-mcp-delegation';
@@ -96,6 +98,8 @@ const MODELS = {
   copilotContext: CopilotContextModel,
   copilotContextMemory: CopilotContextMemoryModel,
   copilotContextRule: CopilotContextRuleModel,
+  copilotEnterpriseAuthorization: CopilotEnterpriseAuthorizationModel,
+  copilotEnterpriseConnection: CopilotEnterpriseConnectionModel,
   copilotExternalMcp: CopilotExternalMcpModel,
   copilotWorkspace: CopilotWorkspaceConfigModel,
   copilotWorkspaceByokConfig: CopilotWorkspaceByokConfigModel,
@@ -185,6 +189,8 @@ export * from './copilot-byok';
 export * from './copilot-context';
 export * from './copilot-context-memory';
 export * from './copilot-context-rule';
+export * from './copilot-enterprise-authorization';
+export * from './copilot-enterprise-connection';
 export * from './copilot-job';
 export * from './copilot-model-registry-revision';
 export * from './copilot-prompt';

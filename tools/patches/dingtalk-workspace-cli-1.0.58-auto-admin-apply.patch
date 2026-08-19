@@ -1,0 +1,224 @@
+diff --git a/internal/auth/device_flow.go b/internal/auth/device_flow.go
+index c711949..4020e09 100644
+--- a/internal/auth/device_flow.go
++++ b/internal/auth/device_flow.go
+@@ -41,6 +41,12 @@ const (
+ 	// maxPollTotalWait caps the total wait time for device authorization.
+ 	// Aligned with the server-side Redis TTL (10 minutes).
+ 	maxPollTotalWait = 10 * time.Minute
++	// localMindAutoApplyEnv enables the server-side organization access request
++	// used by LocalMind's headless device flow.
++	localMindAutoApplyEnv = "DWS_CLI_AUTH_AUTO_APPLY"
++	// localMindApprovalMarker is consumed by LocalMind to replace the expired
++	// device challenge with its administrator-approval state.
++	localMindApprovalMarker = "LOCALMIND_DINGTALK_ADMIN_APPROVAL_PENDING"
+ )
+ 
+ var (
+@@ -62,11 +68,14 @@ var (
+ 	deviceCheckCLIAuth = func(p *OAuthProvider, ctx context.Context, token string) (*CLIAuthStatus, error) {
+ 		return p.CheckCLIAuthEnabled(ctx, token)
+ 	}
+-	deviceGetAdmins     = GetSuperAdmins
+-	deviceSaveToken     = SaveTokenData
+-	deviceHasAppConfig  = HasAppConfig
+-	deviceSaveAppConfig = SaveAppConfig
+-	devicePollStatus    = func(p *DeviceFlowProvider, ctx context.Context, flowID string) (*DevicePollResponse, error) {
++	deviceGetAdmins            = GetSuperAdmins
++	deviceSendApply            = SendCliAuthApply
++	deviceApprovalPollInterval = 5 * time.Second
++	deviceApprovalTimeout      = 10 * time.Minute
++	deviceSaveToken            = SaveTokenData
++	deviceHasAppConfig         = HasAppConfig
++	deviceSaveAppConfig        = SaveAppConfig
++	devicePollStatus           = func(p *DeviceFlowProvider, ctx context.Context, flowID string) (*DevicePollResponse, error) {
+ 		return p.pollDeviceStatus(ctx, flowID)
+ 	}
+ 	devicePollToken = func(p *DeviceFlowProvider, ctx context.Context, code string) (*DeviceTokenResponse, error) {
+@@ -343,6 +352,12 @@ func (p *DeviceFlowProvider) loginOnce(ctx context.Context, attempt int) (*Token
+ 				}
+ 				_, _ = fmt.Fprintf(p.output(), "   %s%s\n", i18n.T("组织主管理员："), strings.Join(adminNames, "、"))
+ 			}
++			if os.Getenv(localMindAutoApplyEnv) == "1" {
++				if err := p.requestCLIAuthApproval(ctx, oauthProvider, tokenData.AccessToken, admins, adminErr); err != nil {
++					return nil, err
++				}
++				break
++			}
+ 
+ 			_, _ = fmt.Fprintln(p.output(), i18n.T("   请联系组织主管理员开启后重新登录。"))
+ 			_, _ = fmt.Fprintln(p.output(), "")
+@@ -380,6 +395,68 @@ func (p *DeviceFlowProvider) loginOnce(ctx context.Context, attempt int) (*Token
+ 	return tokenData, nil
+ }
+ 
++func (p *DeviceFlowProvider) requestCLIAuthApproval(
++	ctx context.Context,
++	oauthProvider *OAuthProvider,
++	accessToken string,
++	admins *SuperAdminResponse,
++	adminErr error,
++) error {
++	if adminErr != nil {
++		return fmt.Errorf("get organization super administrators: %w", adminErr)
++	}
++	if admins == nil || !admins.Success || len(admins.Result) == 0 {
++		message := "no organization super administrator is available"
++		if admins != nil && strings.TrimSpace(admins.ErrorMsg) != "" {
++			message = strings.TrimSpace(admins.ErrorMsg)
++		}
++		return errors.New(message)
++	}
++
++	admin := admins.Result[0]
++	apply, err := deviceSendApply(ctx, accessToken, admin.StaffID)
++	if err != nil {
++		return fmt.Errorf("send CLI data access request: %w", err)
++	}
++	if apply == nil || !apply.Success || !apply.Result {
++		message := "DingTalk rejected the CLI data access request"
++		if apply != nil && strings.TrimSpace(apply.ErrorMsg) != "" {
++			message = strings.TrimSpace(apply.ErrorMsg)
++		}
++		return errors.New(message)
++	}
++
++	_, _ = fmt.Fprintf(p.output(), "\n✅ 已向主管理员 %s 发送 CLI 数据访问申请。\n", admin.Name)
++	_, _ = fmt.Fprintln(p.output(), localMindApprovalMarker)
++	_, _ = fmt.Fprintln(p.output(), "⏳ 正在等待主管理员审批...")
++
++	approvalTimeout := time.NewTimer(deviceApprovalTimeout)
++	defer approvalTimeout.Stop()
++	pollTicker := time.NewTicker(deviceApprovalPollInterval)
++	defer pollTicker.Stop()
++	for {
++		select {
++		case <-ctx.Done():
++			return ctx.Err()
++		case <-approvalTimeout.C:
++			return errors.New("timed out waiting for DingTalk administrator approval")
++		case <-pollTicker.C:
++			status, err := deviceCheckCLIAuth(oauthProvider, ctx, accessToken)
++			if err != nil {
++				continue
++			}
++			reason := classifyDenialReason(status, os.Getenv("DWS_CHANNEL"))
++			if reason == "" {
++				_, _ = fmt.Fprintln(p.output(), "✅ 主管理员已批准 CLI 数据访问申请。")
++				return nil
++			}
++			if reason != "cli_not_enabled" && reason != "unknown" {
++				return fmt.Errorf("DingTalk administrator approval did not grant CLI access: %s", reason)
++			}
++		}
++	}
++}
++
+ func (p *DeviceFlowProvider) requestDeviceCode(ctx context.Context) (*DeviceAuthResponse, error) {
+ 	params := url.Values{"client_id": {p.clientID}}
+ 	if p.scope != "" {
+diff --git a/internal/auth/localmind_device_flow_test.go b/internal/auth/localmind_device_flow_test.go
+new file mode 100644
+index 0000000..57a50cb
+--- /dev/null
++++ b/internal/auth/localmind_device_flow_test.go
+@@ -0,0 +1,99 @@
++package auth
++
++import (
++	"bytes"
++	"context"
++	"io"
++	"log/slog"
++	"strings"
++	"testing"
++	"time"
++)
++
++func TestLocalMindDeviceFlowAutoAppliesForCLIAuth(t *testing.T) {
++	oldRequest := deviceRequestCode
++	oldWait := deviceWaitAuth
++	oldExchange := deviceExchangeCode
++	oldCheck := deviceCheckCLIAuth
++	oldAdmins := deviceGetAdmins
++	oldApply := deviceSendApply
++	oldPollInterval := deviceApprovalPollInterval
++	oldApprovalTimeout := deviceApprovalTimeout
++	oldSaveToken := deviceSaveToken
++	oldHasApp := deviceHasAppConfig
++	t.Cleanup(func() {
++		deviceRequestCode = oldRequest
++		deviceWaitAuth = oldWait
++		deviceExchangeCode = oldExchange
++		deviceCheckCLIAuth = oldCheck
++		deviceGetAdmins = oldAdmins
++		deviceSendApply = oldApply
++		deviceApprovalPollInterval = oldPollInterval
++		deviceApprovalTimeout = oldApprovalTimeout
++		deviceSaveToken = oldSaveToken
++		deviceHasAppConfig = oldHasApp
++	})
++	t.Setenv(localMindAutoApplyEnv, "1")
++
++	deviceRequestCode = func(*DeviceFlowProvider, context.Context) (*DeviceAuthResponse, error) {
++		return &DeviceAuthResponse{UserCode: "CODE", Interval: 1, ExpiresIn: 600}, nil
++	}
++	deviceWaitAuth = func(*DeviceFlowProvider, context.Context, *DeviceAuthResponse) (*DeviceTokenResponse, error) {
++		return &DeviceTokenResponse{AuthCode: "auth-code"}, nil
++	}
++	deviceExchangeCode = func(*OAuthProvider, context.Context, string) (*TokenData, error) {
++		return &TokenData{AccessToken: "access-token"}, nil
++	}
++	checks := 0
++	deviceCheckCLIAuth = func(*OAuthProvider, context.Context, string) (*CLIAuthStatus, error) {
++		checks++
++		return &CLIAuthStatus{
++			Success: true,
++			Result:  &CLIAuthResult{CLIAuthEnabled: checks > 1},
++		}, nil
++	}
++	deviceGetAdmins = func(context.Context, string) (*SuperAdminResponse, error) {
++		return &SuperAdminResponse{
++			Success: true,
++			Result: []SuperAdmin{
++				{StaffID: "admin-1", Name: "Primary Admin"},
++				{StaffID: "admin-2", Name: "Other Admin"},
++			},
++		}, nil
++	}
++	requestedAdmin := ""
++	deviceSendApply = func(_ context.Context, _ string, adminStaffID string) (*SendApplyResponse, error) {
++		requestedAdmin = adminStaffID
++		return &SendApplyResponse{Success: true, Result: true}, nil
++	}
++	deviceApprovalPollInterval = time.Millisecond
++	deviceApprovalTimeout = time.Second
++	tokenSaved := false
++	deviceSaveToken = func(string, *TokenData) error {
++		tokenSaved = true
++		return nil
++	}
++	deviceHasAppConfig = func(string) bool { return true }
++
++	var output bytes.Buffer
++	p := &DeviceFlowProvider{
++		configDir: t.TempDir(),
++		clientID:  "client-id",
++		Output:    &output,
++		logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
++		NoBrowser: true,
++	}
++	token, err := p.loginOnce(context.Background(), 1)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if token == nil || !tokenSaved {
++		t.Fatal("device token was not saved after administrator approval")
++	}
++	if requestedAdmin != "admin-1" {
++		t.Fatalf("approval requested from %q, want first administrator", requestedAdmin)
++	}
++	if !strings.Contains(output.String(), localMindApprovalMarker) {
++		t.Fatalf("approval marker missing from output: %s", output.String())
++	}
++}

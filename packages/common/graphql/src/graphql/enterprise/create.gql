@@ -1,0 +1,12 @@
+mutation createEnterpriseConnection($input: CreateEnterpriseConnectionInput!) {
+  createEnterpriseConnection(input: $input) {
+    id
+    workspaceId
+    provider
+    transport
+    name
+    status
+    createdAt
+    updatedAt
+  }
+}

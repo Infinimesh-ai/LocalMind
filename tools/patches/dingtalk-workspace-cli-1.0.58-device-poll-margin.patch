@@ -1,0 +1,28 @@
+diff --git a/internal/auth/device_flow.go b/internal/auth/device_flow.go
+index c711949..178eec9 100644
+--- a/internal/auth/device_flow.go
++++ b/internal/auth/device_flow.go
+@@ -478,7 +478,10 @@ func (p *DeviceFlowProvider) waitForAuthorization(ctx context.Context, auth *Dev
+ 
+ func (p *DeviceFlowProvider) waitForAuthorizationByFlowID(ctx context.Context, auth *DeviceAuthResponse) (*DeviceTokenResponse, error) {
+ 	startTime := time.Now()
+-	interval := time.Duration(auth.Interval) * time.Second
++	// The DingTalk endpoint enforces the advertised interval as a strict
++	// lower bound. Add a small margin so scheduler jitter does not turn an
++	// otherwise valid client into a permanent slow_down loop.
++	interval := time.Duration(auth.Interval)*time.Second + 250*time.Millisecond
+ 	deadline := time.Duration(auth.ExpiresIn) * time.Second
+ 	pollCount := 0
+ 
+@@ -529,7 +532,10 @@ func (p *DeviceFlowProvider) waitForAuthorizationByFlowID(ctx context.Context, a
+ 
+ func (p *DeviceFlowProvider) waitForAuthorizationByDeviceCode(ctx context.Context, auth *DeviceAuthResponse) (*DeviceTokenResponse, error) {
+ 	startTime := time.Now()
+-	interval := time.Duration(auth.Interval) * time.Second
++	// The DingTalk endpoint enforces the advertised interval as a strict
++	// lower bound. Add a small margin so scheduler jitter does not turn an
++	// otherwise valid client into a permanent slow_down loop.
++	interval := time.Duration(auth.Interval)*time.Second + 250*time.Millisecond
+ 	deadline := time.Duration(auth.ExpiresIn) * time.Second
+ 	pollCount := 0
+ 

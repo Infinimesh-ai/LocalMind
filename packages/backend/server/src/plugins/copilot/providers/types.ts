@@ -94,6 +94,8 @@ export const COPILOT_CHAT_TOOL_CATEGORIES = [
   'sectionEdit',
   // semantic workspace organization operations
   'workspaceOrganization',
+  // user-scoped enterprise collaboration connections
+  'enterprise',
 ] as const;
 
 export const PromptToolsSchema = z.enum(COPILOT_CHAT_TOOL_CATEGORIES).array();

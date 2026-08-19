@@ -38,6 +38,9 @@ model User {
   aiMcpDelegationRequests               AiMcpDelegationRequest[]               @relation("mcp_delegation_request_actor")
   createdExternalMcpConnections         AiExternalMcpConnection[]              @relation("external_mcp_connection_creator")
   externalMcpAuditEvents                AiExternalMcpAuditEvent[]              @relation("external_mcp_audit_actor")
+  enterpriseConnections                 AiEnterpriseConnection[]               @relation("enterprise_connection_user")
+  enterpriseAuditEvents                 AiEnterpriseAuditEvent[]               @relation("enterprise_audit_actor")
+  enterpriseAuthorizationSessions       AiEnterpriseAuthorizationSession[]     @relation("enterprise_authorization_user")
   sessions                              UserSession[]
   aiSessions                            AiSession[]
   appConfigs                            AppConfig[]
@@ -261,6 +264,9 @@ model Workspace {
   aiMcpDelegationRequests               AiMcpDelegationRequest[]               @relation("mcp_delegation_request_workspace")
   externalMcpConnections                AiExternalMcpConnection[]              @relation("external_mcp_connection_workspace")
   externalMcpAuditEvents                AiExternalMcpAuditEvent[]              @relation("external_mcp_audit_workspace")
+  enterpriseConnections                 AiEnterpriseConnection[]               @relation("enterprise_connection_workspace")
+  enterpriseAuditEvents                 AiEnterpriseAuditEvent[]               @relation("enterprise_audit_workspace")
+  enterpriseAuthorizationSessions       AiEnterpriseAuthorizationSession[]     @relation("enterprise_authorization_workspace")
 
   @@index([lastCheckEmbeddings])
   @@index([createdAt])
@@ -2704,6 +2710,124 @@ model AiExternalMcpAuditEvent {
   @@index([connectionId, createdAt])
   @@index([workspaceId, createdAt])
   @@map("ai_external_mcp_audit_events")
+}
+
+enum EnterpriseProvider {
+  WECOM
+  LARK
+  DINGTALK
+}
+
+enum EnterpriseConnectionTransport {
+  CLI
+  MCP
+}
+
+enum EnterpriseConnectionStatus {
+  CONNECTING
+  ACTIVE
+  DEGRADED
+  REAUTH_REQUIRED
+  DISABLED
+}
+
+enum EnterpriseAuthorizationStatus {
+  PENDING
+  STARTING
+  WAITING
+  AUTHORIZED
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+model AiEnterpriseConnection {
+  id                           String                        @id @default(uuid()) @db.VarChar
+  workspaceId                  String                        @map("workspace_id") @db.VarChar
+  userId                       String                        @map("user_id") @db.VarChar
+  provider                     EnterpriseProvider
+  transport                    EnterpriseConnectionTransport @default(CLI)
+  name                         String                        @db.VarChar
+  profileKey                   String                        @map("profile_key") @db.VarChar
+  status                       EnterpriseConnectionStatus    @default(CONNECTING)
+  activeAuthorizationSessionId String?                       @map("active_authorization_session_id") @db.VarChar
+  externalTenantId             String?                       @map("external_tenant_id") @db.VarChar
+  externalUserId               String?                       @map("external_user_id") @db.VarChar
+  identityType                 String?                       @map("identity_type") @db.VarChar
+  toolCatalog                  Json                          @default("[]") @map("tool_catalog") @db.JsonB
+  toolCatalogFingerprint       String?                       @map("tool_catalog_fingerprint") @db.VarChar
+  enabledToolNames             String[]                      @default([]) @map("enabled_tool_names")
+  expiresAt                    DateTime?                     @map("expires_at") @db.Timestamptz(3)
+  lastConnectedAt              DateTime?                     @map("last_connected_at") @db.Timestamptz(3)
+  lastCheckedAt                DateTime?                     @map("last_checked_at") @db.Timestamptz(3)
+  lastUsedAt                   DateTime?                     @map("last_used_at") @db.Timestamptz(3)
+  lastErrorCode                String?                       @map("last_error_code") @db.VarChar
+  lastErrorMessage             String?                       @map("last_error_message") @db.Text
+  createdAt                    DateTime                      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                    DateTime                      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt                    DateTime?                     @map("deleted_at") @db.Timestamptz(3)
+
+  workspace             Workspace                          @relation("enterprise_connection_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  user                  User                               @relation("enterprise_connection_user", fields: [userId], references: [id], onDelete: Cascade)
+  audits                AiEnterpriseAuditEvent[]
+  authorizationSessions AiEnterpriseAuthorizationSession[]
+
+  @@unique([workspaceId, userId, provider, profileKey])
+  @@index([workspaceId, userId, status])
+  @@index([provider, status, updatedAt])
+  @@index([activeAuthorizationSessionId])
+  @@map("ai_enterprise_connections")
+}
+
+model AiEnterpriseAuthorizationSession {
+  id               String                        @id @default(uuid()) @db.VarChar
+  connectionId     String                        @map("connection_id") @db.VarChar
+  workspaceId      String                        @map("workspace_id") @db.VarChar
+  userId           String                        @map("user_id") @db.VarChar
+  provider         EnterpriseProvider
+  status           EnterpriseAuthorizationStatus @default(PENDING)
+  authorizationUrl String?                       @map("authorization_url") @db.Text
+  userCode         String?                       @map("user_code") @db.VarChar
+  qrCodePath       String?                       @map("qr_code_path") @db.VarChar
+  expiresAt        DateTime                      @map("expires_at") @db.Timestamptz(3)
+  startedAt        DateTime?                     @map("started_at") @db.Timestamptz(3)
+  completedAt      DateTime?                     @map("completed_at") @db.Timestamptz(3)
+  lastErrorCode    String?                       @map("last_error_code") @db.VarChar
+  lastErrorMessage String?                       @map("last_error_message") @db.Text
+  createdAt        DateTime                      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime                      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  connection AiEnterpriseConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  workspace  Workspace              @relation("enterprise_authorization_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  user       User                   @relation("enterprise_authorization_user", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId, createdAt])
+  @@index([workspaceId, userId, status])
+  @@index([status, expiresAt])
+  @@map("ai_enterprise_authorization_sessions")
+}
+
+model AiEnterpriseAuditEvent {
+  id             String   @id @default(uuid()) @db.VarChar
+  connectionId   String   @map("connection_id") @db.VarChar
+  workspaceId    String   @map("workspace_id") @db.VarChar
+  actorId        String?  @map("actor_id") @db.VarChar
+  eventType      String   @map("event_type") @db.VarChar
+  status         String   @db.VarChar
+  toolName       String?  @map("tool_name") @db.VarChar
+  risk           String?  @db.VarChar
+  idempotencyKey String?  @map("idempotency_key") @db.VarChar
+  metadata       Json     @default("{}") @db.JsonB
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  connection AiEnterpriseConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  workspace  Workspace              @relation("enterprise_audit_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor      User?                  @relation("enterprise_audit_actor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([connectionId, createdAt])
+  @@index([workspaceId, actorId, createdAt])
+  @@index([idempotencyKey])
+  @@map("ai_enterprise_audit_events")
 }
 
 model CalendarAccount {

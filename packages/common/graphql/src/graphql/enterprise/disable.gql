@@ -1,0 +1,14 @@
+mutation disableEnterpriseConnection(
+  $workspaceId: String!
+  $connectionId: String!
+) {
+  disableEnterpriseConnection(
+    workspaceId: $workspaceId
+    connectionId: $connectionId
+  ) {
+    id
+    status
+    enabledToolNames
+    updatedAt
+  }
+}

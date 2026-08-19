@@ -242,6 +242,7 @@ test('credential-authorized document task runs without approval and sends a sign
     idempotencyKey: 'automatic-complete-flow',
   });
   t.like(planner.firstCall.args[3], {
+    maxTokens: 8_192,
     responseSchemaJson: {
       type: 'object',
       required: ['result'],
@@ -256,6 +257,26 @@ test('credential-authorized document task runs without approval and sends a sign
     planner.firstCall.args[1][0].content,
     /Missing document context is not an unsupported operation/
   );
+  t.regex(
+    planner.firstCall.args[1][0].content,
+    /text is fictional, the snapshot list is empty/
+  );
+  t.regex(
+    planner.firstCall.args[1][0].content,
+    /tool_agent => non-empty summary/
+  );
+  t.regex(
+    planner.firstCall.args[1][0].content,
+    /Preserve every requested section, table, list, exact value/
+  );
+  t.regex(
+    planner.firstCall.args[1][0].content,
+    /complete replacement Markdown copied exactly once/
+  );
+  t.regex(
+    planner.firstCall.args[1][0].content,
+    /you MUST return document_update, never tool_agent/
+  );
   const plannerSchema = JSON.stringify(
     planner.firstCall.args[3]!.responseSchemaJson
   );
@@ -264,6 +285,9 @@ test('credential-authorized document task runs without approval and sends a sign
     plannerSchema,
     /Never use unsupported_task for a read-only response or missing document context/
   );
+  t.regex(plannerSchema, /Never put this summary in reason/);
+  t.regex(plannerSchema, /never shorten it to a planning summary/);
+  t.regex(plannerSchema, /copied exactly once without repetition or padding/);
   t.false(plannerSchema.includes('anyOf'));
   t.is(delegated.status, 'queued');
   t.is(delegated.taskId, delegated.requestId);
@@ -618,6 +642,374 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
     .getDocMarkdown(workspaceId, createdDocumentId, true);
   t.true(markdown?.markdown.includes('A concise summary created by'));
   t.is(await db.aiMcpDelegationCallbackDelivery.count(), 0);
+});
+
+test('planner renders an answer again when branch fields contain answer text', async t => {
+  const { credentials, models, owner, runtime } = t.context;
+  const workspace = await models.workspace.create(owner.id);
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId: workspace.id,
+    name: 'LocalMind answer field repair',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'answer',
+        answer: 'Short conclusion.',
+        content: '| Risk | Evidence |',
+        summary: '- [Owner] Action',
+      }),
+    },
+  } as any);
+  const renderer = Sinon.stub(runtime, 'text').resolves(
+    'Complete conclusion.\n\n| Risk | Evidence |\n| --- | --- |\n| A | B |\n\n- [Owner] Action'
+  );
+
+  const delegated = await delegate(t.context, issued.token, {
+    request: 'Return a conclusion, a Markdown table, and one action.',
+    documentIds: [],
+    idempotencyKey: 'repair-answer-branch-fields',
+  });
+
+  t.like(delegated, {
+    status: 'completed',
+    kind: 'answer',
+    answer:
+      'Complete conclusion.\n\n| Risk | Evidence |\n| --- | --- |\n| A | B |\n\n- [Owner] Action',
+  });
+  t.true(renderer.calledOnce);
+  t.regex(renderer.firstCall.args[1][0].content, /final answer generator/);
+  t.regex(
+    renderer.firstCall.args[1][0].content,
+    /literal newline characters between sections, Markdown table rows, and list items/
+  );
+  t.regex(
+    renderer.firstCall.args[1][0].content,
+    /Never compress Markdown into one line/
+  );
+  t.regex(
+    renderer.firstCall.args[1][0].content,
+    /every requested output component is present/
+  );
+  t.like(renderer.firstCall.args[2], {
+    maxTokens: 6_000,
+    temperature: 0,
+  });
+});
+
+test('planner renders document content again when update fields are empty', async t => {
+  const { credentials, owner, runtime, worker } = t.context;
+  const { docId, workspaceId } = await createDocument(
+    t.context,
+    owner.id,
+    'Original Qwen-compatible body.'
+  );
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId,
+    name: 'LocalMind update field repair',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({ kind: 'document_update' }),
+    },
+  } as any);
+  const renderer = Sinon.stub(runtime, 'text').resolves(
+    '# Repaired\n\nComplete replacement body.'
+  );
+
+  const delegated = await delegate(t.context, issued.token, {
+    request: 'Replace the document with the supplied Markdown.',
+    documentIds: [docId],
+    idempotencyKey: 'repair-document-update-fields',
+  });
+
+  t.like(delegated, {
+    status: 'queued',
+    kind: 'document_update',
+    execution: 'queued',
+  });
+  t.true(renderer.calledOnce);
+  t.regex(renderer.firstCall.args[1][0].content, /replacement renderer/);
+  await worker.runStandaloneAgentRuntime({
+    workspaceId,
+    runId: String(delegated.agentRunId),
+  });
+  const markdown = await t.context
+    .app!.get(DocReader)
+    .getDocMarkdown(workspaceId, docId, true);
+  t.true(markdown?.markdown.includes('Complete replacement body.'));
+});
+
+test('planner repairs a formatted answer when the answer field omits sections', async t => {
+  const { credentials, models, owner, runtime } = t.context;
+  const workspace = await models.workspace.create(owner.id);
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId: workspace.id,
+    name: 'LocalMind formatted answer repair',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: {
+        kind: 'answer',
+        answer: 'Conclusion only.',
+        extraSection: 'Qwen emitted an undeclared field.',
+      },
+    },
+  } as any);
+  const renderer = Sinon.stub(runtime, 'text');
+  renderer
+    .onFirstCall()
+    .resolves(
+      'Conclusion.\n\n| Risk ｜ Evidence |\n| A ｜ B |\n\n- [Owner] Action'
+    );
+  renderer
+    .onSecondCall()
+    .resolves(
+      'Conclusion.\n\n| Risk ｜ Evidence |\n| A ｜ B |\n\n- Owner｜Date Action'
+    );
+
+  const delegated = await delegate(t.context, issued.token, {
+    request:
+      'Strict output:\n1. A conclusion.\n2. A Markdown table.\n3. One action item in "- [Owner｜Date] Action" format.',
+    documentIds: [],
+    idempotencyKey: 'repair-formatted-answer-sections',
+  });
+
+  t.like(delegated, {
+    status: 'completed',
+    kind: 'answer',
+    answer:
+      'Conclusion.\n\n| Risk | Evidence |\n| --- | --- |\n| A | B |\n\n- [Owner｜Date] Action',
+  });
+  t.true(renderer.calledTwice);
+  t.regex(renderer.secondCall.args[1][0].content, /format repairer/);
+});
+
+test('planner repairs an unsupported result as a read-only answer', async t => {
+  const { credentials, models, owner, runtime } = t.context;
+  const workspace = await models.workspace.create(owner.id);
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId: workspace.id,
+    name: 'LocalMind read-only unsupported repair',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'unsupported_task',
+        reason: 'UPDATED-MARKER',
+      }),
+    },
+  } as any);
+  const renderer = Sinon.stub(runtime, 'text').resolves('UPDATED-MARKER');
+
+  const delegated = await delegate(t.context, issued.token, {
+    request: 'Return only the Marker value from the supplied snapshot.',
+    documentIds: [],
+    idempotencyKey: 'repair-read-only-unsupported',
+  });
+
+  t.like(delegated, {
+    status: 'completed',
+    kind: 'answer',
+    answer: 'UPDATED-MARKER',
+  });
+  t.true(renderer.calledOnce);
+});
+
+test('planner repairs a tool-agent result when provided snapshots answer the request', async t => {
+  const { credentials, owner, runtime } = t.context;
+  const { docId, workspaceId } = await createDocument(
+    t.context,
+    owner.id,
+    'Marker: SNAPSHOT-MARKER'
+  );
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId,
+    name: 'LocalMind snapshot answer repair',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'tool_agent',
+        summary: 'Read the provided snapshot with a tool',
+      }),
+    },
+  } as any);
+  const renderer = Sinon.stub(runtime, 'text').resolves('SNAPSHOT-MARKER');
+
+  const delegated = await delegate(t.context, issued.token, {
+    request: 'Return only the Marker value from the provided snapshot.',
+    documentIds: [docId],
+    idempotencyKey: 'repair-snapshot-tool-agent',
+  });
+
+  t.like(delegated, {
+    status: 'completed',
+    kind: 'answer',
+    answer: 'SNAPSHOT-MARKER',
+  });
+  t.true(renderer.calledOnce);
+});
+
+test('planner renders document content again when literal Markdown differs', async t => {
+  const { credentials, owner, runtime, worker } = t.context;
+  const { docId, workspaceId } = await createDocument(
+    t.context,
+    owner.id,
+    'Original literal replacement body.'
+  );
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId,
+    name: 'LocalMind literal update repair',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'document_update',
+        docId,
+        content: '# Incomplete',
+        summary: 'Replace the document',
+      }),
+    },
+  } as any);
+  const renderer = Sinon.stub(runtime, 'text').resolves(
+    '# Complete\n\nMarker: UPDATED-MARKER'
+  );
+
+  const delegated = await delegate(t.context, issued.token, {
+    request:
+      'Replace the document with exactly this Markdown:\n\n# Complete\n\nMarker: UPDATED-MARKER',
+    documentIds: [docId],
+    idempotencyKey: 'repair-literal-document-update',
+  });
+
+  t.like(delegated, {
+    status: 'queued',
+    kind: 'document_update',
+  });
+  t.true(renderer.calledOnce);
+  t.regex(
+    renderer.firstCall.args[1][0].content,
+    /no requested content is missing, added, repeated, or rewritten/
+  );
+  await worker.runStandaloneAgentRuntime({
+    workspaceId,
+    runId: String(delegated.agentRunId),
+  });
+  const markdown = await t.context
+    .app!.get(DocReader)
+    .getDocMarkdown(workspaceId, docId, true);
+  t.true(markdown?.markdown.includes('Marker: UPDATED-MARKER'));
+});
+
+test('literal one-document replacement overrides an answer plan', async t => {
+  const { credentials, owner, runtime } = t.context;
+  const { docId, workspaceId } = await createDocument(
+    t.context,
+    owner.id,
+    'Original tool-agent override body.'
+  );
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId,
+    name: 'LocalMind update kind override',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'answer',
+        answer: 'The replacement is ready.',
+        content: '# Incorrect replacement',
+      }),
+    },
+  } as any);
+  const renderer = Sinon.stub(runtime, 'text').resolves(
+    '# Complete\n\nMarker: OVERRIDDEN-KIND'
+  );
+
+  const delegated = await delegate(t.context, issued.token, {
+    request:
+      'Replace the document with exactly this Markdown:\n\n# Complete\n\nMarker: OVERRIDDEN-KIND',
+    documentIds: [docId],
+    idempotencyKey: 'override-tool-agent-document-update',
+  });
+
+  t.like(delegated, {
+    status: 'queued',
+    kind: 'document_update',
+    operation: { kind: 'document_update', documentId: docId },
+  });
+  t.true(renderer.calledOnce);
+});
+
+test('LocalMind tool agent accepts a summary emitted in the reason field', async t => {
+  const { credentials, models, owner, runtime } = t.context;
+  const workspace = await models.workspace.create(owner.id);
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId: workspace.id,
+    name: 'LocalMind planner field normalization',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'tool_agent',
+        reason: 'Create the requested workspace document',
+      }),
+    },
+  } as any);
+
+  const delegated = await delegate(t.context, issued.token, {
+    request: 'Create one workspace document.',
+    documentIds: [],
+    idempotencyKey: 'normalize-tool-agent-reason',
+  });
+
+  t.like(delegated, {
+    status: 'queued',
+    kind: 'tool_agent',
+    execution: 'queued',
+  });
+  const queued = await getTask(t.context, issued.token, {
+    taskId: String(delegated.taskId),
+    waitMs: 0,
+  });
+  t.like(queued, {
+    plan: {
+      kind: 'tool_agent',
+      summary: 'Create the requested workspace document',
+    },
+  });
 });
 
 test('LocalMind tool agent rechecks credential activity before starting its tool loop', async t => {

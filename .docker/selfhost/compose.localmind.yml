@@ -20,6 +20,7 @@ services:
     volumes:
       - ${UPLOAD_LOCATION:-./data/localmind/storage}:/root/.affine/storage
       - ${CONFIG_LOCATION:-./data/localmind/config}:/root/.affine/config
+      - ${ENTERPRISE_CLI_DATA_LOCATION:-./data/localmind/enterprise-cli}:/var/lib/localmind/enterprise-cli
     env_file:
       - path: .env
         required: false
@@ -27,6 +28,7 @@ services:
       - REDIS_SERVER_HOST=redis
       - DATABASE_URL=postgresql://${DB_USERNAME:-affine}:${DB_PASSWORD:-affine}@postgres:5432/${DB_DATABASE:-affine}
       - AFFINE_INDEXER_ENABLED=false
+      - LOCALMIND_ENTERPRISE_CLI_ROOT_DIR=/var/lib/localmind/enterprise-cli
       - ISCP_ENABLED=${ISCP_ENABLED:-false}
       - ISCP_CONTROLLER_URL=http://iscp_controller:8091
       - ISCP_CONTROLLER_TOKEN=${ISCP_CONTROLLER_TOKEN:-}
@@ -42,8 +44,8 @@ services:
       - ./sparkclaw-adapter.mjs:/app/sparkclaw-adapter.mjs:ro
     environment:
       - SPARKCLAW_ADAPTER_PORT=3100
-      - SPARKCLAW_EMBEDDING_ORIGIN=https://sparkclaw.infinimesh.cloud/embedding
-      - SPARKCLAW_RERANK_ORIGIN=https://sparkclaw.infinimesh.cloud/reranker
+      - SPARKCLAW_EMBEDDING_ORIGIN=${SPARKCLAW_EMBEDDING_ORIGIN:-http://192.168.20.207:8001}
+      - SPARKCLAW_RERANK_ORIGIN=${SPARKCLAW_RERANK_ORIGIN:-http://192.168.20.207:8002}
     healthcheck:
       test:
         [
@@ -125,6 +127,7 @@ services:
     volumes:
       - ${UPLOAD_LOCATION:-./data/localmind/storage}:/root/.affine/storage
       - ${CONFIG_LOCATION:-./data/localmind/config}:/root/.affine/config
+      - ${ENTERPRISE_CLI_DATA_LOCATION:-./data/localmind/enterprise-cli}:/var/lib/localmind/enterprise-cli
     command: ['sh', '-c', 'node ./scripts/self-host-predeploy.js']
     env_file:
       - path: .env
@@ -133,6 +136,7 @@ services:
       - REDIS_SERVER_HOST=redis
       - DATABASE_URL=postgresql://${DB_USERNAME:-affine}:${DB_PASSWORD:-affine}@postgres:5432/${DB_DATABASE:-affine}
       - AFFINE_INDEXER_ENABLED=false
+      - LOCALMIND_ENTERPRISE_CLI_ROOT_DIR=/var/lib/localmind/enterprise-cli
     depends_on:
       postgres:
         condition: service_healthy

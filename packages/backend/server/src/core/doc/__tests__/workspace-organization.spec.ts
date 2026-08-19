@@ -1,7 +1,10 @@
 import test from 'ava';
 import * as Y from 'yjs';
 
-import { WorkspaceOrganizationService } from '../workspace-organization';
+import {
+  resolveWorkspaceDataDocId,
+  WorkspaceOrganizationService,
+} from '../workspace-organization';
 
 function rootFixture() {
   const doc = new Y.Doc({ guid: 'workspace-1' });
@@ -61,6 +64,52 @@ function createService() {
   };
   return new WorkspaceOrganizationService(reader as never, writer as never);
 }
+
+test('workspace organization resolves browser-compatible storage doc IDs', t => {
+  const workspaceId = 'workspace-1';
+  const userId = 'user-1';
+
+  t.deepEqual(
+    {
+      folders: resolveWorkspaceDataDocId('folders', workspaceId, userId),
+      documentProperties: resolveWorkspaceDataDocId(
+        'document_properties',
+        workspaceId,
+        userId
+      ),
+      workspaceProperties: resolveWorkspaceDataDocId(
+        'workspace_properties',
+        workspaceId,
+        userId
+      ),
+      pinnedCollections: resolveWorkspaceDataDocId(
+        'pinned_collections',
+        workspaceId,
+        userId
+      ),
+      explorerIcons: resolveWorkspaceDataDocId(
+        'explorer_icons',
+        workspaceId,
+        userId
+      ),
+      favorites: resolveWorkspaceDataDocId('favorites', workspaceId, userId),
+      userSettings: resolveWorkspaceDataDocId(
+        'user_settings',
+        workspaceId,
+        userId
+      ),
+    },
+    {
+      folders: 'db$workspace-1$folders',
+      documentProperties: 'db$workspace-1$docProperties',
+      workspaceProperties: 'db$workspace-1$docCustomPropertyInfo',
+      pinnedCollections: 'db$workspace-1$pinnedCollections',
+      explorerIcons: 'db$workspace-1$explorerIcon',
+      favorites: 'userdata$user-1$workspace-1$favorite',
+      userSettings: 'userdata$user-1$workspace-1$settings',
+    }
+  );
+});
 
 test('workspace organization service round-trips root metadata operations', async t => {
   const service = createService();

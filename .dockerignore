@@ -17,6 +17,7 @@
 /playwright-report
 /coverage
 /.coverage
+/.docker/selfhost/data
 
 # OS noise
 .DS_Store

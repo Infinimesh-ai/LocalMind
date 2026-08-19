@@ -1,6 +1,35 @@
 ARG NODE_VERSION=22.22.3
 ARG RUST_VERSION=1.96.0
 ARG GITHUB_SHA=localmind
+ARG WECOM_CLI_VERSION=1.1.0
+ARG LARK_CLI_VERSION=1.0.87
+ARG DINGTALK_CLI_VERSION=1.0.58
+
+FROM golang:1.25.9-bookworm AS dingtalk-cli-build
+
+ARG DINGTALK_CLI_VERSION
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates git \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace/dingtalk-workspace-cli
+
+RUN git clone --depth 1 --branch "v${DINGTALK_CLI_VERSION}" \
+    https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli.git .
+
+COPY tools/patches/dingtalk-workspace-cli-1.0.58-device-poll-margin.patch /tmp/dingtalk-device-poll.patch
+COPY tools/patches/dingtalk-workspace-cli-1.0.58-auto-admin-apply.patch /tmp/dingtalk-auto-admin-apply.patch
+COPY tools/patches/dingtalk-workspace-cli-1.0.58-localmind-pat-wait.patch /tmp/dingtalk-localmind-pat-wait.patch
+
+RUN git apply /tmp/dingtalk-device-poll.patch \
+  && git apply /tmp/dingtalk-auto-admin-apply.patch \
+  && git apply /tmp/dingtalk-localmind-pat-wait.patch \
+  && go test ./internal/auth -run 'Test.*Device.*Flow|Test.*Authorization' -count=1 \
+  && go test ./internal/app -run 'TestCrossPlatformCoverageAuthCoverageLoginFlows' -count=1 \
+  && CGO_ENABLED=0 go build -buildmode=pie -trimpath \
+    -ldflags="-s -w -X github.com/DingTalk-Real-AI/dingtalk-workspace-cli/internal/app.version=${DINGTALK_CLI_VERSION}-localmind.3" \
+    -o /out/dws ./cmd
 
 FROM rust:${RUST_VERSION}-bookworm AS dev-base
 
@@ -128,16 +157,44 @@ RUN rm -rf /app \
 
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 
+ARG WECOM_CLI_VERSION
+ARG LARK_CLI_VERSION
+ARG DINGTALK_CLI_VERSION
+
 ENV NODE_ENV=production \
-    AFFINE_INDEXER_ENABLED=false
+    AFFINE_INDEXER_ENABLED=false \
+    LOCALMIND_ENTERPRISE_CLI_ENABLED=false \
+    LOCALMIND_ENTERPRISE_CLI_ROOT_DIR=/var/lib/localmind/enterprise-cli
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates libssl3 \
+  && apt-get install -y --no-install-recommends ca-certificates curl libssl3 unzip \
   && rm -rf /var/lib/apt/lists/*
+
+RUN npm install --global --omit=dev --no-audit --no-fund \
+    "@wecom/cli@${WECOM_CLI_VERSION}" \
+    "@larksuite/cli@${LARK_CLI_VERSION}" \
+    "dingtalk-workspace-cli@${DINGTALK_CLI_VERSION}" \
+  && wecom-cli --version \
+  && lark-cli --version \
+  && dws --version \
+  && cli_modules="$(npm root --global)" \
+  && rm -rf \
+    "${cli_modules}/dingtalk-workspace-cli/assets" \
+    "${cli_modules}/dingtalk-workspace-cli/share" \
+    /root/.agents \
+    /root/.dws \
+  && npm cache clean --force \
+  && install -d -m 0700 "${LOCALMIND_ENTERPRISE_CLI_ROOT_DIR}"
+
+COPY --from=dingtalk-cli-build /out/dws /usr/local/lib/node_modules/dingtalk-workspace-cli/vendor/dws
+
+RUN dws --version
 
 WORKDIR /app
 
 COPY --from=package /app /app
+
+VOLUME ["/var/lib/localmind/enterprise-cli"]
 
 EXPOSE 3010
 

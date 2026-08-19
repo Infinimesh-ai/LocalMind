@@ -12,6 +12,7 @@ import { StorageModule } from '../../core/storage';
 import { WorkspaceModule } from '../../core/workspaces';
 import { IndexerModule } from '../indexer';
 import { CopilotController } from './controller';
+import { EnterpriseAuthorizationController } from './enterprise';
 import { ExternalMcpConnectionResolver } from './external-mcp/resolver';
 import { ExternalMcpConnectionService } from './external-mcp/service';
 import { ExternalMcpTransport } from './external-mcp/transport';
@@ -89,6 +90,10 @@ export class CopilotApiModule {}
     ExternalMcpConnectionService,
     ExternalMcpConnectionResolver,
   ],
-  controllers: [CopilotController, WorkspaceMcpController],
+  controllers: [
+    CopilotController,
+    WorkspaceMcpController,
+    EnterpriseAuthorizationController,
+  ],
 })
 export class CopilotModule {}

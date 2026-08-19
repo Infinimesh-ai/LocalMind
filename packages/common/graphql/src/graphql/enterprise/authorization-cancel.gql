@@ -1,0 +1,18 @@
+mutation cancelEnterpriseAuthorization(
+  $workspaceId: String!
+  $sessionId: ID!
+) {
+  cancelEnterpriseAuthorization(
+    workspaceId: $workspaceId
+    sessionId: $sessionId
+  ) {
+    id
+    connectionId
+    provider
+    status
+    expiresAt
+    completedAt
+    lastErrorCode
+    lastErrorMessage
+  }
+}

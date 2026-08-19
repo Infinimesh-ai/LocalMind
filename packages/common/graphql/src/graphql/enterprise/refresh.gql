@@ -1,0 +1,17 @@
+mutation refreshEnterpriseConnection(
+  $workspaceId: String!
+  $connectionId: String!
+) {
+  refreshEnterpriseConnection(
+    workspaceId: $workspaceId
+    connectionId: $connectionId
+  ) {
+    id
+    status
+    enabledToolNames
+    lastConnectedAt
+    lastCheckedAt
+    lastErrorCode
+    lastErrorMessage
+  }
+}

@@ -1,0 +1,25 @@
+mutation beginEnterpriseAuthorization(
+  $workspaceId: String!
+  $connectionId: ID!
+) {
+  beginEnterpriseAuthorization(
+    workspaceId: $workspaceId
+    connectionId: $connectionId
+  ) {
+    id
+    connectionId
+    workspaceId
+    provider
+    status
+    authorizationUrl
+    userCode
+    qrCodeUrl
+    expiresAt
+    startedAt
+    completedAt
+    lastErrorCode
+    lastErrorMessage
+    createdAt
+    updatedAt
+  }
+}

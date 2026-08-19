@@ -665,6 +665,15 @@ declare global {
       externalMcp: {
         endpoint: ConfigItem<string>;
       };
+      enterpriseCli: {
+        enabled: ConfigItem<boolean>;
+        rootDir: ConfigItem<string>;
+        binaries: {
+          wecom: ConfigItem<string>;
+          lark: ConfigItem<string>;
+          dingtalk: ConfigItem<string>;
+        };
+      };
       mcpDelegation: {
         callbackAllowedOrigins: ConfigItem<string[]>;
       };
@@ -750,6 +759,36 @@ defineModuleConfig('copilot', {
     default: 'http://192.168.20.252:18791/mcp',
     env: 'LOCALMIND_SPARKCLAW_MCP_ENDPOINT',
     shape: ExternalMcpEndpointShape,
+  },
+  'enterpriseCli.enabled': {
+    desc: 'Enable user-scoped enterprise CLI connectors for WeCom, Lark, and DingTalk.',
+    default: false,
+    env: ['LOCALMIND_ENTERPRISE_CLI_ENABLED', 'boolean'],
+    shape: z.boolean(),
+  },
+  'enterpriseCli.rootDir': {
+    desc: 'Server-controlled root directory for isolated enterprise CLI profiles.',
+    default: '.localmind/enterprise-cli',
+    env: 'LOCALMIND_ENTERPRISE_CLI_ROOT_DIR',
+    shape: z.string().trim().min(1).max(2048),
+  },
+  'enterpriseCli.binaries.wecom': {
+    desc: 'Server-controlled WeCom CLI binary path or executable name.',
+    default: 'wecom-cli',
+    env: 'LOCALMIND_WECOM_CLI_BINARY',
+    shape: z.string().trim().min(1).max(2048),
+  },
+  'enterpriseCli.binaries.lark': {
+    desc: 'Server-controlled Lark CLI binary path or executable name.',
+    default: 'lark-cli',
+    env: 'LOCALMIND_LARK_CLI_BINARY',
+    shape: z.string().trim().min(1).max(2048),
+  },
+  'enterpriseCli.binaries.dingtalk': {
+    desc: 'Server-controlled DingTalk Workspace CLI binary path or executable name.',
+    default: 'dws',
+    env: 'LOCALMIND_DINGTALK_CLI_BINARY',
+    shape: z.string().trim().min(1).max(2048),
   },
   'mcpDelegation.callbackAllowedOrigins': {
     desc: 'Exact callback origins that may use HTTP or private network targets for LocalMind MCP delegation events. Keep empty unless a trusted local caller such as SparkClaw requires it.',

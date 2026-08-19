@@ -1,10 +1,16 @@
 import { IntegrationTypeIcon } from '@affine/core/modules/integration';
 import type { I18nString } from '@affine/i18n';
-import { AiIcon, Logo1Icon, TodayIcon } from '@blocksuite/icons/rc';
+import {
+  AiIcon,
+  CollaborationIcon,
+  Logo1Icon,
+  TodayIcon,
+} from '@blocksuite/icons/rc';
 import type { ReactNode } from 'react';
 
 import { WorkspaceByokSetting } from '../byok';
 import { CalendarSettingPanel } from './calendar/setting-panel';
+import { EnterpriseSettingPanel } from './enterprise/setting-panel';
 import { ExternalMcpSettingPanel } from './external-mcp/setting-panel';
 import MCPIcon from './mcp-server/MCP.inline.svg';
 import { McpServerSettingPanel } from './mcp-server/setting-panel';
@@ -34,6 +40,14 @@ const INTEGRATION_LIST = [
     desc: 'com.affine.integration.calendar.desc',
     icon: <TodayIcon />,
     setting: <CalendarSettingPanel />,
+    cloud: true,
+  },
+  {
+    id: 'enterprise' as const,
+    name: 'com.affine.integration.enterprise.name',
+    desc: 'com.affine.integration.enterprise.desc',
+    icon: <CollaborationIcon />,
+    setting: <EnterpriseSettingPanel />,
     cloud: true,
   },
   {

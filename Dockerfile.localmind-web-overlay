@@ -1,0 +1,4 @@
+ARG LOCALMIND_RUNTIME_BASE=localmind-affine:runtime-base
+FROM ${LOCALMIND_RUNTIME_BASE}
+
+COPY packages/frontend/apps/web/dist /app/static

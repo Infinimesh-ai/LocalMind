@@ -4171,6 +4171,12 @@ export interface CreateCopilotContextRuleInput {
   workspaceId?: InputMaybe<Scalars['String']['input']>;
 }
 
+export interface CreateEnterpriseConnectionInput {
+  name?: InputMaybe<Scalars['String']['input']>;
+  provider: EnterpriseProvider;
+  workspaceId: Scalars['String']['input'];
+}
+
 export interface CreateMcpCredentialInput {
   accessMode?: McpAccessMode;
   callbackUrl?: InputMaybe<Scalars['String']['input']>;
@@ -4391,6 +4397,88 @@ export interface EditorType {
   __typename?: 'EditorType';
   avatarUrl: Maybe<Scalars['String']['output']>;
   name: Scalars['String']['output'];
+}
+
+export interface EnterpriseAuthorizationSessionType {
+  __typename?: 'EnterpriseAuthorizationSessionType';
+  authorizationUrl: Maybe<Scalars['String']['output']>;
+  completedAt: Maybe<Scalars['DateTime']['output']>;
+  connectionId: Scalars['ID']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  expiresAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  lastErrorCode: Maybe<Scalars['String']['output']>;
+  lastErrorMessage: Maybe<Scalars['String']['output']>;
+  provider: EnterpriseProvider;
+  qrCodeUrl: Maybe<Scalars['String']['output']>;
+  startedAt: Maybe<Scalars['DateTime']['output']>;
+  status: EnterpriseAuthorizationStatus;
+  updatedAt: Scalars['DateTime']['output'];
+  userCode: Maybe<Scalars['String']['output']>;
+  workspaceId: Scalars['String']['output'];
+}
+
+export enum EnterpriseAuthorizationStatus {
+  AUTHORIZED = 'AUTHORIZED',
+  CANCELLED = 'CANCELLED',
+  EXPIRED = 'EXPIRED',
+  FAILED = 'FAILED',
+  PENDING = 'PENDING',
+  STARTING = 'STARTING',
+  WAITING = 'WAITING',
+}
+
+export enum EnterpriseConnectionStatus {
+  ACTIVE = 'ACTIVE',
+  CONNECTING = 'CONNECTING',
+  DEGRADED = 'DEGRADED',
+  DISABLED = 'DISABLED',
+  REAUTH_REQUIRED = 'REAUTH_REQUIRED',
+}
+
+export enum EnterpriseConnectionTransport {
+  CLI = 'CLI',
+  MCP = 'MCP',
+}
+
+export interface EnterpriseConnectionType {
+  __typename?: 'EnterpriseConnectionType';
+  createdAt: Scalars['DateTime']['output'];
+  enabledToolNames: Array<Scalars['String']['output']>;
+  expiresAt: Maybe<Scalars['DateTime']['output']>;
+  externalTenantId: Maybe<Scalars['String']['output']>;
+  externalUserId: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  identityType: Maybe<Scalars['String']['output']>;
+  lastCheckedAt: Maybe<Scalars['DateTime']['output']>;
+  lastConnectedAt: Maybe<Scalars['DateTime']['output']>;
+  lastErrorCode: Maybe<Scalars['String']['output']>;
+  lastErrorMessage: Maybe<Scalars['String']['output']>;
+  lastUsedAt: Maybe<Scalars['DateTime']['output']>;
+  name: Scalars['String']['output'];
+  provider: EnterpriseProvider;
+  status: EnterpriseConnectionStatus;
+  tools: Array<EnterpriseToolType>;
+  transport: EnterpriseConnectionTransport;
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
+export enum EnterpriseProvider {
+  DINGTALK = 'DINGTALK',
+  LARK = 'LARK',
+  WECOM = 'WECOM',
+}
+
+export interface EnterpriseToolType {
+  __typename?: 'EnterpriseToolType';
+  description: Scalars['String']['output'];
+  enabled: Scalars['Boolean']['output'];
+  inputSchema: Scalars['JSON']['output'];
+  name: Scalars['String']['output'];
+  requiresConfirmation: Scalars['Boolean']['output'];
+  risk: Scalars['String']['output'];
+  supportsDryRun: Scalars['Boolean']['output'];
 }
 
 export type ErrorDataUnion =
@@ -5144,6 +5232,8 @@ export interface Mutation {
   authorizeCopilotSupportBundleDownload: CopilotSupportBundleDownloadAuthorizationType;
   /** Ban an user */
   banUser: UserType;
+  beginEnterpriseAuthorization: EnterpriseAuthorizationSessionType;
+  cancelEnterpriseAuthorization: EnterpriseAuthorizationSessionType;
   cancelSubscription: SubscriptionType;
   changeEmail: UserType;
   changePassword: Scalars['Boolean']['output'];
@@ -5183,6 +5273,7 @@ export interface Mutation {
   createCopilotSupportBundle: CopilotSupportBundleType;
   /** Create a stripe customer portal to manage payment methods */
   createCustomerPortal: Scalars['String']['output'];
+  createEnterpriseConnection: EnterpriseConnectionType;
   createInviteLink: InviteLink;
   createMcpCredential: RevealedMcpCredentialType;
   createReply: ReplyObjectType;
@@ -5205,6 +5296,7 @@ export interface Mutation {
   deleteCopilotContextPolicy: Scalars['Boolean']['output'];
   deleteCopilotContextProject: Scalars['Boolean']['output'];
   deleteCopilotContextRule: Scalars['Boolean']['output'];
+  deleteEnterpriseConnection: Scalars['Boolean']['output'];
   deleteExternalMcp: Scalars['Boolean']['output'];
   /** Delete a reply */
   deleteReply: Scalars['Boolean']['output'];
@@ -5212,6 +5304,7 @@ export interface Mutation {
   deleteUser: DeleteAccount;
   deleteWorkspace: Scalars['Boolean']['output'];
   deleteWorkspaceByokConfig: Scalars['Boolean']['output'];
+  disableEnterpriseConnection: EnterpriseConnectionType;
   disableExternalMcp: ExternalMcpConnectionType;
   disconnectSparkClawEndpoint: Scalars['Boolean']['output'];
   /** delete a notification from the current user inbox */
@@ -5258,6 +5351,7 @@ export interface Mutation {
   /** Persist a workspace-scoped provider health state for an existing configured provider. */
   recordCopilotProviderHealthState: CopilotProviderHealthStateType;
   recoverDoc: Scalars['DateTime']['output'];
+  refreshEnterpriseConnection: EnterpriseConnectionType;
   refreshExternalMcpTools: ExternalMcpConnectionType;
   /** Refresh current user subscriptions and return latest. */
   refreshUserSubscriptions: Array<SubscriptionType>;
@@ -5326,6 +5420,7 @@ export interface Mutation {
   updateCopilotSession: Scalars['String']['output'];
   updateDocDefaultRole: Scalars['Boolean']['output'];
   updateDocUserRole: Scalars['Boolean']['output'];
+  updateEnterpriseToolAllowlist: EnterpriseConnectionType;
   updateExternalMcpToolAllowlist: ExternalMcpConnectionType;
   updateProfile: UserType;
   /** Update a reply content */
@@ -5408,6 +5503,16 @@ export interface MutationAuthorizeCopilotSupportBundleDownloadArgs {
 
 export interface MutationBanUserArgs {
   id: Scalars['String']['input'];
+}
+
+export interface MutationBeginEnterpriseAuthorizationArgs {
+  connectionId: Scalars['ID']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationCancelEnterpriseAuthorizationArgs {
+  sessionId: Scalars['ID']['input'];
+  workspaceId: Scalars['String']['input'];
 }
 
 export interface MutationCancelSubscriptionArgs {
@@ -5516,6 +5621,10 @@ export interface MutationCreateCopilotSupportBundleArgs {
   input: CopilotSupportBundleCreateInput;
 }
 
+export interface MutationCreateEnterpriseConnectionArgs {
+  input: CreateEnterpriseConnectionInput;
+}
+
 export interface MutationCreateInviteLinkArgs {
   expireTime: WorkspaceInviteLinkExpireTime;
   workspaceId: Scalars['String']['input'];
@@ -5585,6 +5694,11 @@ export interface MutationDeleteCopilotContextRuleArgs {
   id: Scalars['ID']['input'];
 }
 
+export interface MutationDeleteEnterpriseConnectionArgs {
+  connectionId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
 export interface MutationDeleteExternalMcpArgs {
   workspaceId: Scalars['String']['input'];
 }
@@ -5603,6 +5717,11 @@ export interface MutationDeleteWorkspaceArgs {
 
 export interface MutationDeleteWorkspaceByokConfigArgs {
   id: Scalars['ID']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationDisableEnterpriseConnectionArgs {
+  connectionId: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
 }
 
@@ -5729,6 +5848,11 @@ export interface MutationRecordCopilotProviderHealthStateArgs {
 export interface MutationRecoverDocArgs {
   guid: Scalars['String']['input'];
   timestamp: Scalars['DateTime']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationRefreshEnterpriseConnectionArgs {
+  connectionId: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
 }
 
@@ -5956,6 +6080,12 @@ export interface MutationUpdateDocDefaultRoleArgs {
 
 export interface MutationUpdateDocUserRoleArgs {
   input: UpdateDocUserRoleInput;
+}
+
+export interface MutationUpdateEnterpriseToolAllowlistArgs {
+  connectionId: Scalars['String']['input'];
+  enabledToolNames: Array<Scalars['String']['input']>;
+  workspaceId: Scalars['String']['input'];
 }
 
 export interface MutationUpdateExternalMcpToolAllowlistArgs {
@@ -6247,10 +6377,13 @@ export interface Query {
   authSigningKeys: Array<AuthSigningKeyType>;
   /** Get current user */
   currentUser: Maybe<UserType>;
+  enterpriseAuthorizationSession: EnterpriseAuthorizationSessionType;
+  enterpriseConnections: Array<EnterpriseConnectionType>;
   error: ErrorDataUnion;
   externalMcpSettings: ExternalMcpSettingsType;
   /** get workspace invitation info */
   getInviteInfo: InvitationType;
+  latestEnterpriseAuthorizationSession: Maybe<EnterpriseAuthorizationSessionType>;
   mcpCredentialReadWriteAvailable: Scalars['Boolean']['output'];
   mcpCredentials: Array<McpCredentialType>;
   prices: Array<SubscriptionPrice>;
@@ -6311,6 +6444,15 @@ export interface QueryAdminWorkspacesCountArgs {
   filter: ListWorkspaceInput;
 }
 
+export interface QueryEnterpriseAuthorizationSessionArgs {
+  sessionId: Scalars['ID']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryEnterpriseConnectionsArgs {
+  workspaceId: Scalars['String']['input'];
+}
+
 export interface QueryErrorArgs {
   name: ErrorNames;
 }
@@ -6321,6 +6463,11 @@ export interface QueryExternalMcpSettingsArgs {
 
 export interface QueryGetInviteInfoArgs {
   inviteId: Scalars['String']['input'];
+}
+
+export interface QueryLatestEnterpriseAuthorizationSessionArgs {
+  connectionId: Scalars['ID']['input'];
+  workspaceId: Scalars['String']['input'];
 }
 
 export interface QueryMcpCredentialsArgs {
@@ -15359,6 +15506,229 @@ export type GetDocRolePermissionsQuery = {
   };
 };
 
+export type BeginEnterpriseAuthorizationMutationVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  connectionId: Scalars['ID']['input'];
+}>;
+
+export type BeginEnterpriseAuthorizationMutation = {
+  __typename?: 'Mutation';
+  beginEnterpriseAuthorization: {
+    __typename?: 'EnterpriseAuthorizationSessionType';
+    id: string;
+    connectionId: string;
+    workspaceId: string;
+    provider: EnterpriseProvider;
+    status: EnterpriseAuthorizationStatus;
+    authorizationUrl: string | null;
+    userCode: string | null;
+    qrCodeUrl: string | null;
+    expiresAt: string;
+    startedAt: string | null;
+    completedAt: string | null;
+    lastErrorCode: string | null;
+    lastErrorMessage: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type CancelEnterpriseAuthorizationMutationVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  sessionId: Scalars['ID']['input'];
+}>;
+
+export type CancelEnterpriseAuthorizationMutation = {
+  __typename?: 'Mutation';
+  cancelEnterpriseAuthorization: {
+    __typename?: 'EnterpriseAuthorizationSessionType';
+    id: string;
+    connectionId: string;
+    provider: EnterpriseProvider;
+    status: EnterpriseAuthorizationStatus;
+    expiresAt: string;
+    completedAt: string | null;
+    lastErrorCode: string | null;
+    lastErrorMessage: string | null;
+  };
+};
+
+export type LatestEnterpriseAuthorizationSessionQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  connectionId: Scalars['ID']['input'];
+}>;
+
+export type LatestEnterpriseAuthorizationSessionQuery = {
+  __typename?: 'Query';
+  latestEnterpriseAuthorizationSession: {
+    __typename?: 'EnterpriseAuthorizationSessionType';
+    id: string;
+    connectionId: string;
+    workspaceId: string;
+    provider: EnterpriseProvider;
+    status: EnterpriseAuthorizationStatus;
+    authorizationUrl: string | null;
+    userCode: string | null;
+    qrCodeUrl: string | null;
+    expiresAt: string;
+    startedAt: string | null;
+    completedAt: string | null;
+    lastErrorCode: string | null;
+    lastErrorMessage: string | null;
+    createdAt: string;
+    updatedAt: string;
+  } | null;
+};
+
+export type EnterpriseAuthorizationSessionQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  sessionId: Scalars['ID']['input'];
+}>;
+
+export type EnterpriseAuthorizationSessionQuery = {
+  __typename?: 'Query';
+  enterpriseAuthorizationSession: {
+    __typename?: 'EnterpriseAuthorizationSessionType';
+    id: string;
+    connectionId: string;
+    workspaceId: string;
+    provider: EnterpriseProvider;
+    status: EnterpriseAuthorizationStatus;
+    authorizationUrl: string | null;
+    userCode: string | null;
+    qrCodeUrl: string | null;
+    expiresAt: string;
+    startedAt: string | null;
+    completedAt: string | null;
+    lastErrorCode: string | null;
+    lastErrorMessage: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type EnterpriseConnectionsQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+}>;
+
+export type EnterpriseConnectionsQuery = {
+  __typename?: 'Query';
+  enterpriseConnections: Array<{
+    __typename?: 'EnterpriseConnectionType';
+    id: string;
+    workspaceId: string;
+    provider: EnterpriseProvider;
+    transport: EnterpriseConnectionTransport;
+    name: string;
+    status: EnterpriseConnectionStatus;
+    externalTenantId: string | null;
+    externalUserId: string | null;
+    identityType: string | null;
+    enabledToolNames: Array<string>;
+    expiresAt: string | null;
+    lastConnectedAt: string | null;
+    lastCheckedAt: string | null;
+    lastUsedAt: string | null;
+    lastErrorCode: string | null;
+    lastErrorMessage: string | null;
+    createdAt: string;
+    updatedAt: string;
+    tools: Array<{
+      __typename?: 'EnterpriseToolType';
+      name: string;
+      description: string;
+      inputSchema: unknown;
+      risk: string;
+      requiresConfirmation: boolean;
+      supportsDryRun: boolean;
+      enabled: boolean;
+    }>;
+  }>;
+};
+
+export type CreateEnterpriseConnectionMutationVariables = Exact<{
+  input: CreateEnterpriseConnectionInput;
+}>;
+
+export type CreateEnterpriseConnectionMutation = {
+  __typename?: 'Mutation';
+  createEnterpriseConnection: {
+    __typename?: 'EnterpriseConnectionType';
+    id: string;
+    workspaceId: string;
+    provider: EnterpriseProvider;
+    transport: EnterpriseConnectionTransport;
+    name: string;
+    status: EnterpriseConnectionStatus;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type DeleteEnterpriseConnectionMutationVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  connectionId: Scalars['String']['input'];
+}>;
+
+export type DeleteEnterpriseConnectionMutation = {
+  __typename?: 'Mutation';
+  deleteEnterpriseConnection: boolean;
+};
+
+export type DisableEnterpriseConnectionMutationVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  connectionId: Scalars['String']['input'];
+}>;
+
+export type DisableEnterpriseConnectionMutation = {
+  __typename?: 'Mutation';
+  disableEnterpriseConnection: {
+    __typename?: 'EnterpriseConnectionType';
+    id: string;
+    status: EnterpriseConnectionStatus;
+    enabledToolNames: Array<string>;
+    updatedAt: string;
+  };
+};
+
+export type RefreshEnterpriseConnectionMutationVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  connectionId: Scalars['String']['input'];
+}>;
+
+export type RefreshEnterpriseConnectionMutation = {
+  __typename?: 'Mutation';
+  refreshEnterpriseConnection: {
+    __typename?: 'EnterpriseConnectionType';
+    id: string;
+    status: EnterpriseConnectionStatus;
+    enabledToolNames: Array<string>;
+    lastConnectedAt: string | null;
+    lastCheckedAt: string | null;
+    lastErrorCode: string | null;
+    lastErrorMessage: string | null;
+  };
+};
+
+export type UpdateEnterpriseToolAllowlistMutationVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  connectionId: Scalars['String']['input'];
+  enabledToolNames:
+    | Array<Scalars['String']['input']>
+    | Scalars['String']['input'];
+}>;
+
+export type UpdateEnterpriseToolAllowlistMutation = {
+  __typename?: 'Mutation';
+  updateEnterpriseToolAllowlist: {
+    __typename?: 'EnterpriseConnectionType';
+    id: string;
+    status: EnterpriseConnectionStatus;
+    enabledToolNames: Array<string>;
+    updatedAt: string;
+  };
+};
+
 export type ConnectExternalMcpMutationVariables = Exact<{
   input: ConnectExternalMcpInput;
 }>;
@@ -17422,6 +17792,21 @@ export type Queries =
       response: GetDocRolePermissionsQuery;
     }
   | {
+      name: 'latestEnterpriseAuthorizationSessionQuery';
+      variables: LatestEnterpriseAuthorizationSessionQueryVariables;
+      response: LatestEnterpriseAuthorizationSessionQuery;
+    }
+  | {
+      name: 'enterpriseAuthorizationSessionQuery';
+      variables: EnterpriseAuthorizationSessionQueryVariables;
+      response: EnterpriseAuthorizationSessionQuery;
+    }
+  | {
+      name: 'enterpriseConnectionsQuery';
+      variables: EnterpriseConnectionsQueryVariables;
+      response: EnterpriseConnectionsQuery;
+    }
+  | {
       name: 'externalMcpSettingsQuery';
       variables: ExternalMcpSettingsQueryVariables;
       response: ExternalMcpSettingsQuery;
@@ -18082,6 +18467,41 @@ export type Mutations =
       name: 'dismissReadNotificationsMutation';
       variables: DismissReadNotificationsMutationVariables;
       response: DismissReadNotificationsMutation;
+    }
+  | {
+      name: 'beginEnterpriseAuthorizationMutation';
+      variables: BeginEnterpriseAuthorizationMutationVariables;
+      response: BeginEnterpriseAuthorizationMutation;
+    }
+  | {
+      name: 'cancelEnterpriseAuthorizationMutation';
+      variables: CancelEnterpriseAuthorizationMutationVariables;
+      response: CancelEnterpriseAuthorizationMutation;
+    }
+  | {
+      name: 'createEnterpriseConnectionMutation';
+      variables: CreateEnterpriseConnectionMutationVariables;
+      response: CreateEnterpriseConnectionMutation;
+    }
+  | {
+      name: 'deleteEnterpriseConnectionMutation';
+      variables: DeleteEnterpriseConnectionMutationVariables;
+      response: DeleteEnterpriseConnectionMutation;
+    }
+  | {
+      name: 'disableEnterpriseConnectionMutation';
+      variables: DisableEnterpriseConnectionMutationVariables;
+      response: DisableEnterpriseConnectionMutation;
+    }
+  | {
+      name: 'refreshEnterpriseConnectionMutation';
+      variables: RefreshEnterpriseConnectionMutationVariables;
+      response: RefreshEnterpriseConnectionMutation;
+    }
+  | {
+      name: 'updateEnterpriseToolAllowlistMutation';
+      variables: UpdateEnterpriseToolAllowlistMutationVariables;
+      response: UpdateEnterpriseToolAllowlistMutation;
     }
   | {
       name: 'connectExternalMcpMutation';

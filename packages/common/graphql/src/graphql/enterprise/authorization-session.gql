@@ -1,0 +1,25 @@
+query enterpriseAuthorizationSession(
+  $workspaceId: String!
+  $sessionId: ID!
+) {
+  enterpriseAuthorizationSession(
+    workspaceId: $workspaceId
+    sessionId: $sessionId
+  ) {
+    id
+    connectionId
+    workspaceId
+    provider
+    status
+    authorizationUrl
+    userCode
+    qrCodeUrl
+    expiresAt
+    startedAt
+    completedAt
+    lastErrorCode
+    lastErrorMessage
+    createdAt
+    updatedAt
+  }
+}
