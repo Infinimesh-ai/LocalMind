@@ -10,16 +10,27 @@ import type {
   CopilotAgentRunRecord,
   CopilotAgentStepRecord,
 } from '../../models/copilot-agent-runtime';
+import { agentRuntimeFingerprint } from '../../models/copilot-agent-runtime';
 import type { McpDelegationRequestStatus } from '../../models/copilot-mcp-delegation';
 import {
   type CopilotAgentRuntimeWorkflowAdapterInput,
   CopilotAgentRuntimeWorkflowRegistry,
 } from './agent-runtime-workflow-registry';
 import { MCP_DELEGATE_CAPABILITY } from './mcp/capabilities';
+import {
+  getModelAdapter,
+  type ModelAdapterExecutionMode,
+  type ModelAdapterSnapshot,
+  modelAdapterSnapshot,
+  type ModelRouteLock,
+  parseModelRouteLock,
+} from './model-adapters';
 
 export const AGENT_RUNTIME_DOC_UPDATE_WORKFLOW = 'agent_runtime_doc_update';
 export const AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION =
   'agent-runtime-doc-update-request/v1';
+export const AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION_V2 =
+  'agent-runtime-doc-update-request/v2';
 
 const DOC_UPDATE_DOC_ID_MAX_LENGTH = 256;
 const DOC_UPDATE_CONTENT_MAX_LENGTH = 6_000;
@@ -29,6 +40,12 @@ type AgentRuntimeDocUpdateRequest = {
   contentFingerprint: string;
   docId: string;
   expectedDocumentVersion: Date | null;
+  modelAdapter?: ModelAdapterSnapshot;
+  modelRouteLock?: ModelRouteLock;
+  requestFingerprint?: string;
+  version:
+    | typeof AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION
+    | typeof AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION_V2;
 };
 
 function agentRuntimeDocUpdateFingerprint(value: unknown) {
@@ -99,7 +116,76 @@ function requireDocUpdateContent(value: unknown, stepKey: string) {
   return value;
 }
 
-function normalizeDocUpdateRequest(step: CopilotAgentStepRecord) {
+function normalizeDocUpdateModelSnapshot(
+  raw: Record<string, unknown>,
+  stepKey: string
+) {
+  let modelRouteLock: ModelRouteLock | undefined;
+  if (raw.modelRouteLock !== undefined && raw.modelRouteLock !== null) {
+    try {
+      modelRouteLock = parseModelRouteLock(raw.modelRouteLock);
+    } catch {
+      throw docUpdateRequestError(stepKey, 'modelRouteLock is invalid');
+    }
+  }
+  if (raw.modelAdapter === undefined || raw.modelAdapter === null) {
+    if (modelRouteLock) {
+      throw docUpdateRequestError(
+        stepKey,
+        'modelAdapter must accompany modelRouteLock'
+      );
+    }
+    return {};
+  }
+  if (!modelRouteLock) {
+    throw docUpdateRequestError(
+      stepKey,
+      'modelRouteLock must accompany modelAdapter'
+    );
+  }
+  if (
+    typeof raw.modelAdapter !== 'object' ||
+    Array.isArray(raw.modelAdapter) ||
+    !raw.modelAdapter
+  ) {
+    throw docUpdateRequestError(stepKey, 'modelAdapter must be an object');
+  }
+  const snapshot = raw.modelAdapter as Record<string, unknown>;
+  const id = requireDocUpdateString(
+    snapshot.id,
+    stepKey,
+    'modelAdapter.id',
+    DOC_UPDATE_DOC_ID_MAX_LENGTH
+  );
+  const adapterVersion = requireDocUpdateString(
+    snapshot.version,
+    stepKey,
+    'modelAdapter.version',
+    DOC_UPDATE_DOC_ID_MAX_LENGTH
+  );
+  const mode: ModelAdapterExecutionMode | undefined =
+    snapshot.mode === 'production' || snapshot.mode === 'evaluation'
+      ? snapshot.mode
+      : undefined;
+  const adapter = getModelAdapter(id);
+  if (
+    !mode ||
+    !adapter ||
+    adapter.version !== adapterVersion ||
+    !adapter.matches(modelRouteLock) ||
+    Object.keys(snapshot).some(key => !['id', 'version', 'mode'].includes(key))
+  ) {
+    throw docUpdateRequestError(stepKey, 'modelAdapter snapshot is invalid');
+  }
+  return {
+    modelRouteLock,
+    modelAdapter: modelAdapterSnapshot(adapter, mode),
+  };
+}
+
+function normalizeDocUpdateRequest(
+  step: CopilotAgentStepRecord
+): AgentRuntimeDocUpdateRequest {
   const request = step.outputSummary.docUpdateRequest;
   if (!request || typeof request !== 'object' || Array.isArray(request)) {
     throw docUpdateRequestError(
@@ -114,10 +200,13 @@ function normalizeDocUpdateRequest(step: CopilotAgentStepRecord) {
     'version',
     DOC_UPDATE_DOC_ID_MAX_LENGTH
   );
-  if (version !== AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION) {
+  if (
+    version !== AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION &&
+    version !== AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION_V2
+  ) {
     throw docUpdateRequestError(
       step.stepKey,
-      `version must be ${AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION}`
+      `version must be ${AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION} or ${AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION_V2}`
     );
   }
   const docId = requireDocUpdateString(
@@ -166,7 +255,46 @@ function normalizeDocUpdateRequest(step: CopilotAgentStepRecord) {
       );
     }
   }
-  return { content, contentFingerprint, docId, expectedDocumentVersion };
+  if (version === AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION) {
+    if (
+      raw.requestFingerprint !== undefined ||
+      raw.modelRouteLock !== undefined ||
+      raw.modelAdapter !== undefined
+    ) {
+      throw docUpdateRequestError(
+        step.stepKey,
+        'v1 requests cannot contain delegation model snapshots'
+      );
+    }
+    return {
+      content,
+      contentFingerprint,
+      docId,
+      expectedDocumentVersion,
+      version,
+    };
+  }
+  const requestFingerprint = requireDocUpdateString(
+    raw.requestFingerprint,
+    step.stepKey,
+    'requestFingerprint',
+    DOC_UPDATE_DOC_ID_MAX_LENGTH
+  );
+  if (!/^[a-f0-9]{64}$/.test(requestFingerprint)) {
+    throw docUpdateRequestError(
+      step.stepKey,
+      'requestFingerprint must be a SHA-256 fingerprint'
+    );
+  }
+  return {
+    content,
+    contentFingerprint,
+    docId,
+    expectedDocumentVersion,
+    requestFingerprint,
+    version,
+    ...normalizeDocUpdateModelSnapshot(raw, step.stepKey),
+  };
 }
 
 @Injectable()
@@ -237,6 +365,109 @@ export class CopilotAgentRuntimeDocUpdateAdapter {
     }
   }
 
+  private requireDelegationSnapshot(
+    run: CopilotAgentRunRecord,
+    step: CopilotAgentStepRecord,
+    request: AgentRuntimeDocUpdateRequest,
+    delegation: {
+      actorId: string;
+      capabilityFingerprint: string;
+      contextFingerprint: string | null;
+      credentialFamilyId: string;
+      credentialGeneration: number;
+      credentialId: string;
+      id: string;
+      requestFingerprint: string;
+      status: string;
+      targetDocumentId: string | null;
+      targetDocumentVersion: Date | null;
+      workspaceId: string;
+    }
+  ) {
+    if (
+      delegation.status !== 'processing' ||
+      run.workspaceId !== delegation.workspaceId ||
+      run.actorId !== delegation.actorId ||
+      run.sourceType !== 'mcp_ai_delegation' ||
+      run.sourceId !== delegation.id ||
+      delegation.targetDocumentId !== request.docId ||
+      !request.expectedDocumentVersion ||
+      delegation.targetDocumentVersion?.getTime() !==
+        request.expectedDocumentVersion.getTime()
+    ) {
+      throw new Error(
+        `Agent runtime doc update delegation identity does not match: ${run.id}`
+      );
+    }
+    if (
+      request.version === AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION_V2 &&
+      request.requestFingerprint !== delegation.requestFingerprint
+    ) {
+      throw new Error(
+        `Agent runtime doc update request fingerprint does not match: ${run.id}`
+      );
+    }
+    const contextFingerprint = delegation.contextFingerprint?.trim();
+    if (!contextFingerprint) {
+      throw new Error(
+        `Agent runtime doc update context fingerprint is invalid: ${run.id}`
+      );
+    }
+    const target = {
+      version: 'mcp-ai-delegation-doc-update-target/v1',
+      docId: request.docId,
+      documentVersion: request.expectedDocumentVersion.toISOString(),
+      contentFingerprint: request.contentFingerprint,
+      ...(request.modelRouteLock
+        ? { modelRouteLock: request.modelRouteLock }
+        : {}),
+      ...(request.modelAdapter ? { modelAdapter: request.modelAdapter } : {}),
+    };
+    const evidence = {
+      version: 'mcp-ai-delegation-evidence/v1',
+      requestFingerprint: delegation.requestFingerprint,
+      capabilityFingerprint: delegation.capabilityFingerprint,
+      contextFingerprint,
+      credentialId: delegation.credentialId,
+      credentialFamilyId: delegation.credentialFamilyId,
+      credentialGeneration: delegation.credentialGeneration,
+      ...(request.modelRouteLock
+        ? { modelRouteLock: request.modelRouteLock }
+        : {}),
+      ...(request.modelAdapter ? { modelAdapter: request.modelAdapter } : {}),
+    };
+    const expectedTargetFingerprint = agentRuntimeFingerprint({
+      version: 'agent-runtime-generic-target/v1',
+      workflow: run.workflow,
+      sourceType: run.sourceType,
+      sourceId: run.sourceId,
+      target,
+    });
+    const expectedEvidenceFingerprint = agentRuntimeFingerprint({
+      version: 'agent-runtime-generic-evidence/v1',
+      workflow: run.workflow,
+      sourceType: run.sourceType,
+      sourceId: run.sourceId,
+      evidence,
+    });
+    const expectedStepEvidenceFingerprint = agentRuntimeFingerprint({
+      version: 'agent-runtime-step-evidence/v1',
+      runId: run.id,
+      stepKey: step.stepKey,
+      stepType: step.stepType,
+      evidenceFingerprint: run.evidenceFingerprint,
+    });
+    if (
+      run.targetFingerprint !== expectedTargetFingerprint ||
+      run.evidenceFingerprint !== expectedEvidenceFingerprint ||
+      step.evidenceFingerprint !== expectedStepEvidenceFingerprint
+    ) {
+      throw new Error(
+        `Agent runtime doc update persisted snapshot integrity check failed: ${run.id}`
+      );
+    }
+  }
+
   private sideEffectFingerprint(request: AgentRuntimeDocUpdateRequest) {
     return agentRuntimeDocUpdateFingerprint({
       version: 'agent-runtime-doc-update-side-effect/v1',
@@ -254,6 +485,8 @@ export class CopilotAgentRuntimeDocUpdateAdapter {
       await this.models.copilotMcpDelegation.getRequestByAgentRun(run.id);
     if (!delegation) {
       this.assertApprovalSatisfied(run);
+    } else {
+      this.requireDelegationSnapshot(run, step, request, delegation);
     }
 
     if (await checkCancellationRequested()) {

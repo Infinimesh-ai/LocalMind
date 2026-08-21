@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 
 import type { LlmRequest, LlmToolLoopStreamEvent } from '../../../../native';
 import type { NodeTextMiddleware } from '../../config';
+import type { ModelAdapterToolPolicy } from '../../model-adapters';
 import type { PromptMessage, StreamObject } from '../../providers/types';
 import {
   CitationFootnoteFormatter,
@@ -30,6 +31,7 @@ export type NativeProviderAdapterOptions = {
     model?: string;
     usage?: Extract<LlmToolLoopStreamEvent, { type: 'usage' }>['usage'];
   }) => void | Promise<void>;
+  toolPolicy?: ModelAdapterToolPolicy;
 };
 
 type NativeStreamDispatch = ConstructorParameters<
@@ -432,7 +434,7 @@ export function createNativeToolLoopAdapter(
   options: NativeProviderAdapterOptions = {}
 ) {
   return new NativeProviderAdapter(
-    createToolLoopBridge(backend, tools, options.maxSteps),
+    createToolLoopBridge(backend, tools, options.maxSteps, options.toolPolicy),
     options
   );
 }

@@ -78,7 +78,8 @@ export class ToolRuntime {
   async getTools(
     options: CopilotChatOptions,
     model: string,
-    resolveProviderSpecificTool?: ProviderSpecificToolResolver
+    resolveProviderSpecificTool?: ProviderSpecificToolResolver,
+    providerId?: string
   ): Promise<CopilotToolSet> {
     const tools: CopilotToolSet = {};
     if (!options?.tools?.length) {
@@ -91,6 +92,7 @@ export class ToolRuntime {
     ) =>
       this.promptRuntime.runText(promptName, params, {
         ...promptOptions,
+        modelId: providerId ? `${providerId}/${model}` : model,
         providerOptions: {
           user: options.user,
           session: options.session,

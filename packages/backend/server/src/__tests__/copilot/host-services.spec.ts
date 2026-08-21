@@ -391,7 +391,9 @@ test('ToolRuntime should pass route context and appended messages into prompt-ba
       featureKind: 'chat',
       quotaBackedRoutesAllowed: false,
     },
-    'gpt-4o-mini'
+    'gpt-4o-mini',
+    undefined,
+    'local-main'
   );
 
   const result = await tools.code_artifact.execute?.(
@@ -416,6 +418,7 @@ test('ToolRuntime should pass route context and appended messages into prompt-ba
     'Code Artifact',
     { content: 'build a page' },
     {
+      modelId: 'local-main/gpt-4o-mini',
       providerOptions: {
         user: 'user-1',
         session: 'session-1',
@@ -434,6 +437,7 @@ test('ToolRuntime should pass route context and appended messages into prompt-ba
       appendMessages: [
         { role: 'user', content: 'Record this conversation in Chinese.' },
       ],
+      modelId: 'local-main/gpt-4o-mini',
       providerOptions: {
         user: 'user-1',
         session: 'session-1',
@@ -494,6 +498,7 @@ test('ToolRuntime should expose semantic workspace organization tools', async t 
     'workspace_folder_list',
     'workspace_folder_move',
     'workspace_folder_move_document',
+    'workspace_folder_remove_document',
     'workspace_folder_rename',
   ]);
 });

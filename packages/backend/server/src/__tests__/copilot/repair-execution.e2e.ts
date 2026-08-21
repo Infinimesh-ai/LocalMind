@@ -10664,6 +10664,91 @@ test('standalone Agent Runtime cancel fails closed when step state changes befor
   ]);
 });
 
+test('standalone Agent Runtime running cancel stays coherent when the database clock is ahead', async t => {
+  const { app, db, owner } = t.context;
+  const models = app.get(Models);
+  const workspace = await createWorkspace(app);
+  const run = await models.copilotAgentRuntime.createRun({
+    workspaceId: workspace.id,
+    actorId: owner.id,
+    workflow: 'agent_runtime_local_completion',
+    sourceType: 'agent_runtime_test',
+    sourceId: 'future-timestamp-cooperative-cancel-runtime-run',
+    status: 'queued',
+    steps: [
+      {
+        stepKey: 'tool_lookup',
+        stepType: 'tool',
+        status: 'pending',
+      },
+    ],
+  });
+  const leased = await models.copilotAgentRuntime.acquireStandaloneWorkerLease({
+    workspaceId: workspace.id,
+    id: run.id,
+    workerId: 'future-timestamp-cooperative-cancel-worker',
+    leaseMs: 60_000,
+  });
+  t.truthy(leased?.workerLeaseId);
+
+  const databaseTimestamp = new Date(Date.now() + 5_000);
+  const drifted = await db.$executeRaw`
+    UPDATE ai_agent_runs
+    SET
+      started_at = ${databaseTimestamp},
+      updated_at = ${databaseTimestamp}
+    WHERE id = ${run.id}
+      AND status = ${'running'}
+      AND worker_lease_id = ${leased?.workerLeaseId}
+  `;
+  t.is(drifted, 1);
+
+  const requested = await models.copilotAgentRuntime.controlRun({
+    workspaceId: workspace.id,
+    actorId: owner.id,
+    id: run.id,
+    action: 'cancel',
+    reason: 'cancel despite database timestamp precision and clock drift',
+  });
+  t.is(requested.status, 'running');
+  t.true(requested.updatedAt.getTime() > databaseTimestamp.getTime());
+
+  const cancelled =
+    await models.copilotAgentRuntime.cancelLeasedStandaloneRunIfCancellationRequested(
+      {
+        workspaceId: workspace.id,
+        id: run.id,
+        workerLeaseId: leased!.workerLeaseId!,
+        workerAttempt: leased!.workerAttempt,
+      }
+    );
+  t.is(cancelled?.status, 'cancelled');
+  t.is(cancelled?.steps[0]?.status, 'skipped');
+
+  const rows = await db.$queryRaw<
+    Array<{
+      completedAfterStarted: boolean;
+      stepCompletedAfterStarted: boolean;
+      updatedAfterCreated: boolean;
+    }>
+  >`
+    SELECT
+      r.updated_at >= r.created_at AS "updatedAfterCreated",
+      r.completed_at >= r.started_at AS "completedAfterStarted",
+      step.completed_at >= step.started_at AS "stepCompletedAfterStarted"
+    FROM ai_agent_runs r
+    JOIN ai_agent_steps step ON step.run_id = r.id
+    WHERE r.id = ${run.id}
+  `;
+  t.deepEqual(rows, [
+    {
+      completedAfterStarted: true,
+      stepCompletedAfterStarted: true,
+      updatedAfterCreated: true,
+    },
+  ]);
+});
+
 test('standalone Agent Runtime running cancel is cooperative before adapter execution', async t => {
   const { app, db, owner, agentRuntimeWorker } = t.context;
   const models = app.get(Models);

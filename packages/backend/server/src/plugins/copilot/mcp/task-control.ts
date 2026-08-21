@@ -224,13 +224,7 @@ export class McpAiTaskControlService {
         true
       );
     } else {
-      const controlled = await this.models.copilotAgentRuntime.controlRun({
-        workspaceId: record.workspaceId,
-        actorId: record.actorId,
-        id: run.id,
-        action: 'cancel',
-        reason,
-      });
+      const controlled = await this.cancelAgentRun(record, run, reason);
       if (controlled.status === 'cancelled') {
         const finalized = await this.finalizeCancellation(
           record,
@@ -251,6 +245,17 @@ export class McpAiTaskControlService {
           true
         );
         callbackRequestId = record.id;
+      } else if (
+        controlled.status === 'completed' ||
+        controlled.status === 'failed'
+      ) {
+        outcome = this.outcome(
+          claimed.record.id,
+          record.id,
+          'not_cancellable',
+          this.taskStatus(record, controlled),
+          true
+        );
       } else {
         outcome = this.outcome(
           claimed.record.id,
@@ -269,6 +274,53 @@ export class McpAiTaskControlService {
       outcomeFingerprint: mcpDelegationFingerprint(outcome),
     });
     return { response: outcome, callbackRequestId };
+  }
+
+  private async cancelAgentRun(
+    record: AiMcpDelegationRequest,
+    initial: CopilotAgentRunRecord,
+    reason: string | null
+  ) {
+    let current = initial;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await this.models.copilotAgentRuntime.controlRun({
+          workspaceId: record.workspaceId,
+          actorId: record.actorId,
+          id: current.id,
+          action: 'cancel',
+          reason,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!/cannot be cancelled from status|state changed/i.test(message)) {
+          throw error;
+        }
+        const refreshed = await this.models.copilotAgentRuntime.get(
+          record.workspaceId,
+          current.id
+        );
+        if (
+          !refreshed ||
+          refreshed.actorId !== record.actorId ||
+          refreshed.sourceType !== 'mcp_ai_delegation' ||
+          refreshed.sourceId !== record.id
+        ) {
+          throw error;
+        }
+        if (
+          refreshed.status === 'cancelled' ||
+          refreshed.status === 'completed' ||
+          refreshed.status === 'failed'
+        ) {
+          return refreshed;
+        }
+        current = refreshed;
+      }
+    }
+    throw new Error(
+      `LocalMind task cancellation kept racing with task state changes: ${record.id}`
+    );
   }
 
   @Transactional()

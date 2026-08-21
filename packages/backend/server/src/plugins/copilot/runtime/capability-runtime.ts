@@ -1,7 +1,14 @@
 import { Injectable } from '@nestjs/common';
 
-import { CopilotPromptInvalid } from '../../../base';
-import { ValidatedStructuredValueSchema } from '../core';
+import {
+  CopilotPromptInvalid,
+  NoCopilotProviderAvailable,
+} from '../../../base';
+import {
+  type ValidatedStructuredValue,
+  ValidatedStructuredValueSchema,
+} from '../core';
+import { createModelRouteLock, type ModelRouteLock } from '../model-adapters';
 import {
   type CopilotChatOptions,
   type CopilotEmbeddingOptions,
@@ -24,6 +31,7 @@ import {
 import {
   NativeExecutionEngine,
   type NativeImageArtifact,
+  type NativeStructuredExecutionPolicy,
 } from './native-execution-engine';
 
 type ProviderFilter = {
@@ -79,8 +87,6 @@ type PreparedTaskRouteExecution = {
   providerSource?: string;
   providerType?: string;
 };
-
-const providerModelId = (modelId?: string) => modelId ?? 'auto';
 
 const routeDiagnosticErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -175,6 +181,27 @@ export class CapabilityRuntime {
     kind: 'embedding' | 'rerank'
   ) {
     return !!plan.nativeDispatch?.[kind];
+  }
+
+  private structuredRouteLock(
+    plan: ExecutionPlanForKind<'structured'>,
+    route: { providerId: string; modelId: string; responseModelId?: string },
+    requestedModelId?: string
+  ) {
+    const routeDiagnostics = plan.routeDiagnostics?.find(
+      candidate =>
+        candidate.providerId === route.providerId &&
+        candidate.model === route.modelId
+    );
+    return createModelRouteLock({
+      providerId: route.providerId,
+      providerProfileId: routeDiagnostics?.providerProfileId,
+      providerSource: routeDiagnostics?.providerSource,
+      providerType: routeDiagnostics?.providerType,
+      modelId: route.modelId,
+      responseModelId: route.responseModelId,
+      requestedModelId,
+    });
   }
 
   private describePreparedTaskRoutes(
@@ -305,29 +332,71 @@ export class CapabilityRuntime {
     messages: PromptMessage[],
     options: CopilotStructuredOptions,
     responseContract?: RequiredStructuredOutputContract,
-    filter?: ProviderFilter
-  ) {
+    filter?: ProviderFilter,
+    executionPolicy: NativeStructuredExecutionPolicy = {}
+  ): Promise<ValidatedStructuredValue & { route?: ModelRouteLock }> {
     const validatedResponseContract =
       requireStructuredOutputContract(responseContract);
     if (!options || !validatedResponseContract) {
       throw new CopilotPromptInvalid('Structured schema contract is required');
     }
 
-    const output = await this.generateStructured(
+    const plan = await this.plans.buildStructuredPlan(
       cond,
       messages,
       options,
       filter,
       validatedResponseContract
     );
-    const value = JSON.parse(output);
-    return ValidatedStructuredValueSchema.parse({
+    const execution = await this.engine.executeStructuredWithRoute(
+      plan,
+      executionPolicy
+    );
+    const value = JSON.parse(execution.output);
+    const route = this.structuredRouteLock(plan, execution.route, cond.modelId);
+    const result = ValidatedStructuredValueSchema.parse({
       value,
       schemaHash: validatedResponseContract.schemaHash,
       schemaValidationVersion: 'json-schema-v1',
-      provider: filter?.prefer ?? 'auto',
-      model: providerModelId(cond.modelId),
+      provider: route.providerId,
+      model: route.modelId,
     });
+    return { ...result, route };
+  }
+
+  async resolveStructuredRoute(
+    cond: ModelConditions,
+    messages: PromptMessage[],
+    options: CopilotStructuredOptions,
+    responseContract?: RequiredStructuredOutputContract,
+    filter?: ProviderFilter
+  ): Promise<ModelRouteLock> {
+    const validatedResponseContract =
+      requireStructuredOutputContract(responseContract);
+    if (!options || !validatedResponseContract) {
+      throw new CopilotPromptInvalid('Structured schema contract is required');
+    }
+    const plan = await this.plans.buildStructuredPlan(
+      cond,
+      messages,
+      options,
+      filter,
+      validatedResponseContract
+    );
+    const preparedRoute = plan.nativeDispatch?.structured?.prepared.route;
+    if (!preparedRoute) {
+      throw new NoCopilotProviderAvailable({
+        modelId: cond.modelId ?? 'auto',
+      });
+    }
+    return this.structuredRouteLock(
+      plan,
+      {
+        providerId: preparedRoute.providerId,
+        modelId: preparedRoute.model,
+      },
+      cond.modelId
+    );
   }
 
   async embeddingConfigured(

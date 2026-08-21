@@ -236,13 +236,15 @@ export abstract class CopilotProvider<C = any> {
   // use for tool use, shared between providers
   async getTools(
     options: CopilotChatOptions,
-    model: string
+    model: string,
+    providerId?: string
   ): Promise<CopilotToolSet> {
     this.logger.debug(`getTools: ${JSON.stringify(options?.tools ?? [])}`);
     return await this.toolExecutorHost.getTools(
       options,
       model,
-      this.getProviderSpecificTools.bind(this)
+      this.getProviderSpecificTools.bind(this),
+      providerId ?? `${this.type}-default`
     );
   }
 

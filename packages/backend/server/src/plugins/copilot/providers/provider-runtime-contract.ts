@@ -191,7 +191,8 @@ export type ProviderRuntimeHostSeed = {
   ) => ProviderMiddlewareConfig;
   getTools: (
     options: CopilotChatOptions,
-    model: string
+    model: string,
+    providerId?: string
   ) => Promise<CopilotToolSet>;
   metricLabels: (
     model: string,
@@ -247,7 +248,8 @@ type NativeChatDriverBase = NativeProviderDriverBase & {
   ) => CopilotProviderModel;
   getTools?: (
     options: CopilotChatOptions,
-    model: string
+    model: string,
+    providerId?: string
   ) => Promise<CopilotToolSet>;
   getActiveProviderMiddleware?: (
     execution?: CopilotProviderExecution
@@ -406,7 +408,13 @@ function compileProviderChatDriver(
         ? await spec.resolveTooling(context)
         : {
             ...(base.getTools
-              ? { tools: await base.getTools(options, model.id) }
+              ? {
+                  tools: await base.getTools(
+                    options,
+                    model.id,
+                    input.execution?.providerId
+                  ),
+                }
               : {}),
             ...(base.getActiveProviderMiddleware
               ? {

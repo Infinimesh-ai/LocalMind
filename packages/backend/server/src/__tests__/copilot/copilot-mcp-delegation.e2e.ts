@@ -11,7 +11,6 @@ import { AuthService } from '../../core/auth';
 import { DocReader, DocWriter } from '../../core/doc';
 import { PermissionAccess } from '../../core/permission';
 import { Models, WorkspaceMemberStatus, WorkspaceRole } from '../../models';
-import { LOCALMIND_DELEGATION_AI_TOOLS } from '../../plugins/copilot/agent-runtime-localmind-tool-agent-adapter';
 import { CopilotAgentRuntimeWorker } from '../../plugins/copilot/agent-runtime-worker';
 import {
   MCP_CAPABILITIES,
@@ -22,6 +21,14 @@ import { McpCredentialService } from '../../plugins/copilot/mcp/credential';
 import { McpAiDelegationService } from '../../plugins/copilot/mcp/delegation';
 import { McpAiTaskControlService } from '../../plugins/copilot/mcp/task-control';
 import { McpAiTaskQueryService } from '../../plugins/copilot/mcp/task-query';
+import {
+  createModelRouteLock,
+  createQwen36CompletionContract,
+  QWEN36_COMPLETION_CONTRACT_VERSION,
+  QWEN36_FINAL_ANSWER_REPAIR_MAX_TOKENS,
+  QWEN36_MODEL_ADAPTER_VERSION,
+  resolveModelAdapter,
+} from '../../plugins/copilot/model-adapters';
 import { CapabilityRuntime } from '../../plugins/copilot/runtime/capability-runtime';
 import { buildDocCreateHandler } from '../../plugins/copilot/tools/doc-write';
 import { createTestingApp, TestingApp, TestUser } from '../utils';
@@ -86,6 +93,7 @@ test.before(async t => {
       imports: [
         ConfigModule.override({
           copilot: {
+            localModelAdapters: { evaluationMode: true },
             mcpDelegation: { callbackAllowedOrigins: [callbackOrigin] },
             providers: { openai: { apiKey: '1' } },
           },
@@ -241,7 +249,7 @@ test('credential-authorized document task runs without approval and sends a sign
     documentIds: [docId],
     idempotencyKey: 'automatic-complete-flow',
   });
-  t.like(planner.firstCall.args[3], {
+  t.like(planner.firstCall.args[2], {
     maxTokens: 8_192,
     responseSchemaJson: {
       type: 'object',
@@ -249,6 +257,7 @@ test('credential-authorized document task runs without approval and sends a sign
       additionalProperties: false,
     },
   });
+  t.deepEqual(planner.firstCall.args[5], { allowModelFallback: false });
   t.regex(
     planner.firstCall.args[1][0].content,
     /ordinary read-only questions, summaries, explanations, or confirmations/
@@ -283,7 +292,7 @@ test('credential-authorized document task runs without approval and sends a sign
   t.regex(plannerSchema, /Use answer for every read-only question/);
   t.regex(
     plannerSchema,
-    /Never use unsupported_task for a read-only response or missing document context/
+    /Never use unsupported_task for a read-only response.*missing document context/
   );
   t.regex(plannerSchema, /Never put this summary in reason/);
   t.regex(plannerSchema, /never shorten it to a planning summary/);
@@ -444,6 +453,16 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
     capabilities: [...MCP_CAPABILITIES],
     expirationDays: 30,
   });
+  const modelRouteLock = createModelRouteLock({
+    providerId: 'local-qwen',
+    providerProfileId: 'local-qwen',
+    providerSource: 'configured',
+    providerType: 'openaiCompatible',
+    modelId: 'qwen3.6-35b-a3b',
+  });
+  const qwenAllowedTools = [
+    ...resolveModelAdapter(modelRouteLock).profile.evaluationToolCategories,
+  ];
   Sinon.stub(runtime, 'generateStructuredValue').resolves({
     value: {
       result: plannerResult({
@@ -451,19 +470,23 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
         summary: 'Summarize the source and create a new document',
       }),
     },
+    route: modelRouteLock,
   } as any);
 
   let createdDocumentId = '';
   const toolLoop = Sinon.stub(runtime, 'streamObject').callsFake(((
-    _conditions: unknown,
+    conditions: any,
     _messages: unknown,
     options: any
   ) => {
     return (async function* () {
+      t.deepEqual(conditions, {
+        modelId: 'local-qwen/qwen3.6-35b-a3b',
+      });
       t.is(options.user, owner.id);
       t.is(options.workspace, workspaceId);
       t.truthy(options.signal);
-      t.deepEqual(options.tools, [...LOCALMIND_DELEGATION_AI_TOOLS]);
+      t.deepEqual(options.tools, qwenAllowedTools);
       const createDoc = buildDocCreateHandler(
         t.context.app!.get(PermissionAccess),
         t.context.app!.get(DocWriter)
@@ -482,6 +505,17 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
       t.false(created.idempotentReplay);
       t.true(replayed.idempotentReplay);
       createdDocumentId = created.docId;
+      yield {
+        type: 'tool-result',
+        toolCallId: 'read-source-call',
+        toolName: 'doc_read',
+        args: { doc_id: sourceDocId },
+        result: {
+          success: true,
+          docId: sourceDocId,
+          content: 'Source content for the delegated summary.',
+        },
+      };
       yield {
         type: 'tool-call',
         toolCallId: 'create-doc-call',
@@ -528,10 +562,10 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
       };
       yield {
         type: 'tool-result',
-        toolCallId: 'failed-web-call',
-        toolName: 'web_crawl_exa',
-        args: { url: 'https://example.com' },
-        result: { message: 'Simulated crawl failure' },
+        toolCallId: 'failed-read-call',
+        toolName: 'doc_read',
+        args: { docId: 'missing-doc' },
+        result: { message: 'Simulated read failure' },
         isError: true,
       };
       yield {
@@ -567,6 +601,31 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
     },
   });
 
+  const queuedRun = await t.context.models.copilotAgentRuntime.get(
+    workspaceId,
+    String(delegated.agentRunId)
+  );
+  t.like(
+    queuedRun?.steps[0].outputSummary.localMindToolAgentRequest as object,
+    {
+      version: 'localmind-tool-agent-request/v2',
+      allowedTools: qwenAllowedTools,
+      modelRouteLock: {
+        providerId: 'local-qwen',
+        modelId: 'qwen3.6-35b-a3b',
+        lockedModelId: 'local-qwen/qwen3.6-35b-a3b',
+      },
+      modelAdapter: {
+        id: 'qwen36-35b-a3b',
+        version: QWEN36_MODEL_ADAPTER_VERSION,
+        mode: 'evaluation',
+      },
+      completionContract: {
+        version: QWEN36_COMPLETION_CONTRACT_VERSION,
+      },
+    }
+  );
+
   await worker.runStandaloneAgentRuntime({
     workspaceId,
     runId: String(delegated.agentRunId),
@@ -586,14 +645,27 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
     },
   });
   t.like(task.result.toolExecutions[0], {
+    invocationId: 'read-source-call',
+    toolName: 'doc_read',
+    status: 'completed',
+    documentId: sourceDocId,
+  });
+  t.like(task.result.toolExecutions[1], {
+    invocationId: 'create-doc-call',
     toolName: 'doc_create',
     status: 'completed',
+    sideEffectApplied: true,
+    effectSatisfied: true,
     documentId: createdDocumentId,
     relation: 'created',
   });
-  t.like(task.result.toolExecutions[1], {
+  t.like(task.result.toolExecutions[2], {
+    invocationId: 'add-folder-document-call',
     toolName: 'workspace_folder_add_document',
     status: 'completed',
+    sideEffectApplied: true,
+    effectSatisfied: true,
+    idempotentReplay: false,
     documentId: placedDocument.docId,
     workspaceEffect: {
       kind: 'workspace_organization',
@@ -601,8 +673,8 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
       folderId: 'folder-1',
     },
   });
-  t.like(task.result.toolExecutions[2], {
-    toolName: 'web_crawl_exa',
+  t.like(task.result.toolExecutions[3], {
+    toolName: 'doc_read',
     status: 'failed',
   });
   t.like(task.artifacts[0], {
@@ -644,6 +716,422 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
   t.is(await db.aiMcpDelegationCallbackDelivery.count(), 0);
 });
 
+test('Qwen3.6 tool task rejects a claimed write without tool evidence', async t => {
+  const { credentials, db, models, owner, runtime, worker } = t.context;
+  const workspace = await models.workspace.create(owner.id);
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId: workspace.id,
+    name: 'Qwen completion evidence gate',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  const route = createModelRouteLock({
+    providerId: 'local-qwen',
+    providerProfileId: 'local-qwen',
+    providerSource: 'configured',
+    providerType: 'openaiCompatible',
+    modelId: 'qwen3.6-35b-a3b',
+  });
+  Sinon.stub(runtime, 'resolveStructuredRoute').resolves(route);
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'tool_agent',
+        summary: 'Create the requested document',
+      }),
+    },
+    route,
+  } as any);
+  Sinon.stub(runtime, 'streamObject').callsFake((() => {
+    return (async function* () {
+      yield {
+        type: 'text-delta',
+        textDelta: 'The requested document was created.',
+      };
+    })();
+  }) as any);
+
+  const delegated = await delegate(t.context, issued.token, {
+    request: 'Create a workspace document titled Evidence Required.',
+    documentIds: [],
+    idempotencyKey: 'qwen-reject-write-without-evidence',
+  });
+  await worker.runStandaloneAgentRuntime({
+    workspaceId: workspace.id,
+    runId: String(delegated.agentRunId),
+  });
+
+  const failed = await db.aiMcpDelegationRequest.findUniqueOrThrow({
+    where: { id: delegated.requestId },
+  });
+  t.is(failed.status, 'failed');
+  t.like(failed.result as object, {
+    code: 'completion_evidence_rejected',
+    verificationCode: 'missing_tool_evidence',
+    modelAdapter: {
+      id: 'qwen36-35b-a3b',
+      version: QWEN36_MODEL_ADAPTER_VERSION,
+      mode: 'evaluation',
+    },
+  });
+});
+
+test('Qwen3.6 tool task repairs an empty strict answer from doc_read evidence', async t => {
+  const { credentials, db, owner, runtime, worker } = t.context;
+  const { docId, workspaceId } = await createDocument(
+    t.context,
+    owner.id,
+    'Marker: CURRENT-MARKER-1'
+  );
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId,
+    name: 'Qwen doc read evidence repair',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  const route = createModelRouteLock({
+    providerId: 'local-qwen',
+    providerProfileId: 'local-qwen',
+    providerSource: 'configured',
+    providerType: 'openaiCompatible',
+    modelId: 'qwen3.6-35b-a3b',
+  });
+  Sinon.stub(runtime, 'resolveStructuredRoute').resolves(route);
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'tool_agent',
+        summary: 'Search and read the current document marker',
+      }),
+    },
+    route,
+  } as any);
+  Sinon.stub(runtime, 'streamObject').callsFake((() => {
+    return (async function* () {
+      yield {
+        type: 'tool-result',
+        toolCallId: 'search-call',
+        toolName: 'doc_semantic_search',
+        args: { query: 'HISTORICAL-MARKER' },
+        result: {
+          results: [{ docId, markdown: 'Marker: HISTORICAL-MARKER' }],
+        },
+      };
+      yield {
+        type: 'tool-result',
+        toolCallId: 'read-call',
+        toolName: 'doc_read',
+        args: { doc_id: docId },
+        result: {
+          docId,
+          title: 'Current marker document',
+          markdown: 'Marker: CURRENT-MARKER-1',
+        },
+      };
+    })();
+  }) as any);
+  const renderer = Sinon.stub(runtime, 'text').resolves('CURRENT-MARKER-1');
+
+  const delegated = await delegate(t.context, issued.token, {
+    request:
+      '搜索工作区并读取命中的文档，只返回当前Marker完整值，不要其他文字。',
+    documentIds: [],
+    idempotencyKey: 'qwen-repair-empty-answer-from-doc-read',
+  });
+  await worker.runStandaloneAgentRuntime({
+    workspaceId,
+    runId: String(delegated.agentRunId),
+  });
+
+  const completed = await db.aiMcpDelegationRequest.findUniqueOrThrow({
+    where: { id: delegated.requestId },
+  });
+  t.is(completed.status, 'completed');
+  t.like(completed.result as object, {
+    answer: 'CURRENT-MARKER-1',
+  });
+  t.false(renderer.called);
+});
+
+test('Qwen3.6 tool answer repair keeps its draft when a 6000-token repair is empty', async t => {
+  const { credentials, db, models, owner, runtime, worker } = t.context;
+  const workspace = await models.workspace.create(owner.id);
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId: workspace.id,
+    name: 'Qwen empty final answer repair',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  const route = createModelRouteLock({
+    providerId: 'local-qwen',
+    providerProfileId: 'local-qwen',
+    providerSource: 'configured',
+    providerType: 'openaiCompatible',
+    modelId: 'qwen3.6-35b-a3b',
+  });
+  Sinon.stub(runtime, 'resolveStructuredRoute').resolves(route);
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'tool_agent',
+        summary: 'Search for the requested document',
+      }),
+    },
+    route,
+  } as any);
+  Sinon.stub(runtime, 'streamObject').callsFake((() => {
+    return (async function* () {
+      yield {
+        type: 'tool-result',
+        toolCallId: 'search-call',
+        toolName: 'doc_keyword_search',
+        args: { query: 'Project Atlas' },
+        result: {
+          results: [{ docId: 'doc-atlas', title: 'Project Atlas' }],
+        },
+      };
+      yield { type: 'text-delta', textDelta: '1' };
+    })();
+  }) as any);
+  const renderer = Sinon.stub(runtime, 'text').resolves('');
+
+  const delegated = await delegate(t.context, issued.token, {
+    request:
+      '搜索工作区中标题为“Project Atlas”的文档，只返回匹配数量，不要其他文字。',
+    documentIds: [],
+    idempotencyKey: 'qwen-preserve-draft-after-empty-repair',
+  });
+  await worker.runStandaloneAgentRuntime({
+    workspaceId: workspace.id,
+    runId: String(delegated.agentRunId),
+  });
+
+  const completed = await db.aiMcpDelegationRequest.findUniqueOrThrow({
+    where: { id: delegated.requestId },
+  });
+  t.is(completed.status, 'completed');
+  t.is((completed.result as any).answer, '1');
+  t.true(renderer.calledOnce);
+  t.like(renderer.firstCall.args[2], {
+    maxTokens: QWEN36_FINAL_ANSWER_REPAIR_MAX_TOKENS,
+    temperature: 0,
+  });
+});
+
+test('Qwen3.6 host read recovery keeps a unique match from an earlier search', async t => {
+  const { credentials, db, owner, runtime, worker } = t.context;
+  const { docId, workspaceId } = await createDocument(
+    t.context,
+    owner.id,
+    'Marker: RECOVERED-FROM-EARLY-SEARCH'
+  );
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId,
+    name: 'Qwen accumulated search evidence',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  const route = createModelRouteLock({
+    providerId: 'local-qwen',
+    providerProfileId: 'local-qwen',
+    providerSource: 'configured',
+    providerType: 'openaiCompatible',
+    modelId: 'qwen3.6-35b-a3b',
+  });
+  Sinon.stub(runtime, 'resolveStructuredRoute').resolves(route);
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'tool_agent',
+        summary: 'Search and read the unique document',
+      }),
+    },
+    route,
+  } as any);
+  Sinon.stub(runtime, 'streamObject').callsFake((() => {
+    return (async function* () {
+      yield {
+        type: 'tool-result',
+        toolCallId: 'first-search-call',
+        toolName: 'doc_semantic_search',
+        args: { query: 'EARLY-UNIQUE-TARGET' },
+        result: {
+          results: [{ docId, title: 'EARLY-UNIQUE-TARGET' }],
+        },
+      };
+      yield {
+        type: 'tool-result',
+        toolCallId: 'last-search-call',
+        toolName: 'doc_keyword_search',
+        args: { query: 'irrelevant retry' },
+        result: { results: [] },
+      };
+    })();
+  }) as any);
+  const renderer = Sinon.stub(runtime, 'text');
+
+  const delegated = await delegate(t.context, issued.token, {
+    request:
+      '搜索标题为“EARLY-UNIQUE-TARGET”的文档并读取，只返回当前Marker完整值，不要其他文字。',
+    documentIds: [],
+    idempotencyKey: 'qwen-recover-read-from-earlier-search',
+  });
+  await worker.runStandaloneAgentRuntime({
+    workspaceId,
+    runId: String(delegated.agentRunId),
+  });
+
+  const completed = await db.aiMcpDelegationRequest.findUniqueOrThrow({
+    where: { id: delegated.requestId },
+  });
+  t.is(completed.status, 'completed');
+  t.is((completed.result as any).answer, 'RECOVERED-FROM-EARLY-SEARCH');
+  t.true(
+    (completed.result as any).toolExecutions.some(
+      (execution: any) =>
+        execution.toolName === 'doc_read' && execution.documentId === docId
+    )
+  );
+  t.false(renderer.called);
+});
+
+test('Qwen3.6 tool task rejects persisted execution snapshot tampering before model execution', async t => {
+  const { credentials, db, models, owner, runtime, worker } = t.context;
+  const workspace = await models.workspace.create(owner.id);
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId: workspace.id,
+    name: 'Qwen persisted snapshot integrity gate',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  const route = createModelRouteLock({
+    providerId: 'local-qwen',
+    providerProfileId: 'local-qwen',
+    providerSource: 'configured',
+    providerType: 'openaiCompatible',
+    modelId: 'qwen3.6-35b-a3b',
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'tool_agent',
+        summary: 'Create the requested document',
+      }),
+    },
+    route,
+  } as any);
+  const toolLoop = Sinon.stub(runtime, 'streamObject').callsFake((() => {
+    return (async function* () {
+      yield {
+        type: 'text-delta',
+        textDelta: 'This model execution must never start.',
+      };
+    })();
+  }) as any);
+  const alternateRoute = createModelRouteLock({
+    providerId: 'tampered-local-qwen',
+    providerProfileId: 'tampered-local-qwen',
+    providerSource: 'configured',
+    providerType: 'openaiCompatible',
+    modelId: 'qwen3.6-35b-a3b',
+  });
+  const alternateContract = createQwen36CompletionContract(
+    'Create a workspace folder named Tampered Folder.'
+  );
+  t.truthy(alternateContract);
+
+  const cases: Array<{
+    name: string;
+    tamper: (request: Record<string, any>) => void;
+  }> = [
+    {
+      name: 'model-route',
+      tamper: request => {
+        request.modelRouteLock = alternateRoute;
+      },
+    },
+    {
+      name: 'adapter-version',
+      tamper: request => {
+        request.modelAdapter = {
+          ...(request.modelAdapter as object),
+          version: 'tampered-version',
+        };
+      },
+    },
+    {
+      name: 'completion-contract',
+      tamper: request => {
+        request.completionContract = alternateContract;
+      },
+    },
+    {
+      name: 'request-fingerprint',
+      tamper: request => {
+        request.requestFingerprint = 'a'.repeat(64);
+      },
+    },
+  ];
+
+  for (const testCase of cases) {
+    const delegated = await delegate(t.context, issued.token, {
+      request: 'Create a workspace document titled Snapshot Integrity.',
+      documentIds: [],
+      idempotencyKey: `qwen-snapshot-tamper-${testCase.name}`,
+    });
+    const queuedRun = await models.copilotAgentRuntime.get(
+      workspace.id,
+      String(delegated.agentRunId)
+    );
+    const outputSummary = structuredClone(
+      queuedRun?.steps[0].outputSummary ?? {}
+    ) as Record<string, any>;
+    const persistedRequest = outputSummary.localMindToolAgentRequest as Record<
+      string,
+      any
+    >;
+    testCase.tamper(persistedRequest);
+    await db.$executeRaw`
+      UPDATE ai_agent_steps
+      SET output_summary = ${JSON.stringify(outputSummary)}::jsonb
+      WHERE run_id = ${String(delegated.agentRunId)}
+    `;
+
+    await worker.runStandaloneAgentRuntime({
+      workspaceId: workspace.id,
+      runId: String(delegated.agentRunId),
+    });
+
+    const [failedDelegation, failedRun] = await Promise.all([
+      db.aiMcpDelegationRequest.findUniqueOrThrow({
+        where: { id: delegated.requestId },
+      }),
+      models.copilotAgentRuntime.get(
+        workspace.id,
+        String(delegated.agentRunId)
+      ),
+    ]);
+    t.is(failedDelegation.status, 'failed', testCase.name);
+    t.like(
+      failedDelegation.result as object,
+      { code: 'agent_runtime_adapter_execution_failed' },
+      testCase.name
+    );
+    t.is(failedRun?.status, 'failed', testCase.name);
+  }
+  t.is(toolLoop.callCount, 0);
+});
+
 test('planner renders an answer again when branch fields contain answer text', async t => {
   const { credentials, models, owner, runtime } = t.context;
   const workspace = await models.workspace.create(owner.id);
@@ -655,6 +1143,13 @@ test('planner renders an answer again when branch fields contain answer text', a
     capabilities: [...MCP_CAPABILITIES],
     expirationDays: 30,
   });
+  const route = createModelRouteLock({
+    providerId: 'local-qwen',
+    providerProfileId: 'local-qwen',
+    providerSource: 'configured',
+    providerType: 'openaiCompatible',
+    modelId: 'qwen3.6-35b-a3b',
+  });
   Sinon.stub(runtime, 'generateStructuredValue').resolves({
     value: {
       result: plannerResult({
@@ -664,6 +1159,7 @@ test('planner renders an answer again when branch fields contain answer text', a
         summary: '- [Owner] Action',
       }),
     },
+    route,
   } as any);
   const renderer = Sinon.stub(runtime, 'text').resolves(
     'Complete conclusion.\n\n| Risk | Evidence |\n| --- | --- |\n| A | B |\n\n- [Owner] Action'
@@ -682,6 +1178,9 @@ test('planner renders an answer again when branch fields contain answer text', a
       'Complete conclusion.\n\n| Risk | Evidence |\n| --- | --- |\n| A | B |\n\n- [Owner] Action',
   });
   t.true(renderer.calledOnce);
+  t.deepEqual(renderer.firstCall.args[0], {
+    modelId: 'local-qwen/qwen3.6-35b-a3b',
+  });
   t.regex(renderer.firstCall.args[1][0].content, /final answer generator/);
   t.regex(
     renderer.firstCall.args[1][0].content,
@@ -716,10 +1215,18 @@ test('planner renders document content again when update fields are empty', asyn
     capabilities: [...MCP_CAPABILITIES],
     expirationDays: 30,
   });
+  const route = createModelRouteLock({
+    providerId: 'local-qwen',
+    providerProfileId: 'local-qwen',
+    providerSource: 'configured',
+    providerType: 'openaiCompatible',
+    modelId: 'qwen3.6-35b-a3b',
+  });
   Sinon.stub(runtime, 'generateStructuredValue').resolves({
     value: {
       result: plannerResult({ kind: 'document_update' }),
     },
+    route,
   } as any);
   const renderer = Sinon.stub(runtime, 'text').resolves(
     '# Repaired\n\nComplete replacement body.'
@@ -737,7 +1244,26 @@ test('planner renders document content again when update fields are empty', asyn
     execution: 'queued',
   });
   t.true(renderer.calledOnce);
+  t.deepEqual(renderer.firstCall.args[0], {
+    modelId: 'local-qwen/qwen3.6-35b-a3b',
+  });
   t.regex(renderer.firstCall.args[1][0].content, /replacement renderer/);
+  const queuedRun = await t.context.models.copilotAgentRuntime.get(
+    workspaceId,
+    String(delegated.agentRunId)
+  );
+  t.like(queuedRun?.steps[0].outputSummary.docUpdateRequest as object, {
+    version: 'agent-runtime-doc-update-request/v2',
+    modelRouteLock: {
+      providerId: 'local-qwen',
+      lockedModelId: 'local-qwen/qwen3.6-35b-a3b',
+    },
+    modelAdapter: {
+      id: 'qwen36-35b-a3b',
+      version: QWEN36_MODEL_ADAPTER_VERSION,
+      mode: 'evaluation',
+    },
+  });
   await worker.runStandaloneAgentRuntime({
     workspaceId,
     runId: String(delegated.agentRunId),
@@ -746,6 +1272,88 @@ test('planner renders document content again when update fields are empty', asyn
     .app!.get(DocReader)
     .getDocMarkdown(workspaceId, docId, true);
   t.true(markdown?.markdown.includes('Complete replacement body.'));
+});
+
+test('Qwen document update worker rejects a tampered persisted route before writing', async t => {
+  const { credentials, db, models, owner, runtime, worker } = t.context;
+  const originalBody = 'Original body must remain unchanged.';
+  const { docId, workspaceId } = await createDocument(
+    t.context,
+    owner.id,
+    originalBody
+  );
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId,
+    name: 'Qwen document route integrity',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  const route = createModelRouteLock({
+    providerId: 'local-qwen',
+    providerProfileId: 'local-qwen',
+    providerSource: 'configured',
+    providerType: 'openaiCompatible',
+    modelId: 'qwen3.6-35b-a3b',
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'document_update',
+        docId,
+        content: 'This tampered task must never be written.',
+        summary: 'Update the document',
+      }),
+    },
+    route,
+  } as any);
+
+  const delegated = await delegate(t.context, issued.token, {
+    request: 'Update this document body.',
+    documentIds: [docId],
+    idempotencyKey: 'qwen-document-route-tamper',
+  });
+  const queuedRun = await models.copilotAgentRuntime.get(
+    workspaceId,
+    String(delegated.agentRunId)
+  );
+  const outputSummary = structuredClone(
+    queuedRun?.steps[0].outputSummary ?? {}
+  ) as Record<string, any>;
+  const request = outputSummary.docUpdateRequest as Record<string, any>;
+  request.modelRouteLock = createModelRouteLock({
+    providerId: 'tampered-local-qwen',
+    providerProfileId: 'tampered-local-qwen',
+    providerSource: 'configured',
+    providerType: 'openaiCompatible',
+    modelId: 'qwen3.6-35b-a3b',
+  });
+  await db.$executeRaw`
+    UPDATE ai_agent_steps
+    SET output_summary = ${JSON.stringify(outputSummary)}::jsonb
+    WHERE run_id = ${String(delegated.agentRunId)}
+  `;
+
+  await worker.runStandaloneAgentRuntime({
+    workspaceId,
+    runId: String(delegated.agentRunId),
+  });
+
+  const [failedDelegation, failedRun, markdown] = await Promise.all([
+    db.aiMcpDelegationRequest.findUniqueOrThrow({
+      where: { id: delegated.requestId },
+    }),
+    models.copilotAgentRuntime.get(workspaceId, String(delegated.agentRunId)),
+    t.context.app!.get(DocReader).getDocMarkdown(workspaceId, docId, true),
+  ]);
+  t.is(failedDelegation.status, 'failed');
+  t.like(failedDelegation.result as object, {
+    code: 'agent_runtime_adapter_execution_failed',
+  });
+  t.is(failedRun?.status, 'failed');
+  t.true(markdown?.markdown.includes(originalBody));
+  t.false(markdown?.markdown.includes('tampered task'));
 });
 
 test('planner repairs a formatted answer when the answer field omits sections', async t => {

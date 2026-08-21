@@ -368,6 +368,29 @@ export class CopilotContextModel extends BaseModel {
     });
   }
 
+  async findWorkspaceEmbeddingExactMatches(
+    workspaceId: string,
+    query: string,
+    limit: number
+  ): Promise<DocChunkSimilarity[]> {
+    const content = query.trim();
+    if (!content) return [];
+    const matches = await this.db.aiWorkspaceEmbedding.findMany({
+      where: {
+        workspaceId,
+        content: { contains: content },
+      },
+      orderBy: [{ docId: 'asc' }, { chunk: 'asc' }],
+      take: limit,
+      select: {
+        docId: true,
+        chunk: true,
+        content: true,
+      },
+    });
+    return matches.map(match => ({ ...match, distance: 0 }));
+  }
+
   async matchWorkspaceEmbedding(
     embedding: number[],
     workspaceId: string,

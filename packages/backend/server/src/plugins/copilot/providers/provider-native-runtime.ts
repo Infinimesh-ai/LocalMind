@@ -51,7 +51,8 @@ export type CreatePreparedExecutionRuntimeInput = {
   resolveProviderId: (execution?: CopilotProviderExecution) => string;
   getTools: (
     options: CopilotChatOptions,
-    model: string
+    model: string,
+    providerId?: string
   ) => Promise<CopilotToolSet>;
   getActiveProviderMiddleware: (
     execution?: CopilotProviderExecution
@@ -206,7 +207,8 @@ export async function buildPreparedNativeExecution(
   providerId: string,
   getTools: (
     options: CopilotChatOptions,
-    model: string
+    model: string,
+    providerId?: string
   ) => Promise<CopilotToolSet>,
   getActiveProviderMiddleware: (
     execution?: CopilotProviderExecution
@@ -227,7 +229,7 @@ export async function buildPreparedNativeExecution(
     middleware,
   }: PreparedNativeRequestOptions
 ): Promise<PreparedNativeExecution> {
-  const resolvedTools = tools ?? (await getTools(options, model));
+  const resolvedTools = tools ?? (await getTools(options, model, providerId));
   const resolvedMiddleware =
     middleware ?? getActiveProviderMiddleware(execution);
   const { request } = await buildNativeRequest({

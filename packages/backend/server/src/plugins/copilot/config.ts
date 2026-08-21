@@ -657,6 +657,9 @@ declare global {
       tasks: {
         models: ConfigItem<CopilotTaskModelDefaults>;
       };
+      localModelAdapters: {
+        evaluationMode: ConfigItem<boolean>;
+      };
       supportBundles: {
         objectStorageWebhooks: ConfigItem<
           CopilotSupportBundleObjectStorageWebhookConfig[]
@@ -748,6 +751,12 @@ defineModuleConfig('copilot', {
     desc: 'Optional task model aliases for embedding, workspace indexing, and rerank. Leave empty to let provider defaults and modelDefinitions choose task routes.',
     default: {},
     shape: CopilotTaskModelDefaultsShape,
+  },
+  'localModelAdapters.evaluationMode': {
+    desc: 'Expose testing capabilities from model-specific local adapters. Keep disabled in production; enable only while running the adapter certification suite.',
+    default: false,
+    env: ['LOCALMIND_LOCAL_MODEL_ADAPTER_EVALUATION', 'boolean'],
+    shape: z.boolean(),
   },
   'supportBundles.objectStorageWebhooks': {
     desc: 'Production object-storage webhooks for support bundle direct-download completion notifications. Each entry verifies raw webhook bodies with HMAC-SHA256 before forwarding provider event evidence into the durable transfer queue.',

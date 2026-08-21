@@ -49,16 +49,11 @@ export const buildDocSearchGetter = (
         'You do not have permission to access this workspace.'
       );
     const routeContext = getEmbeddingRouteContext(options);
-    const [chunks, contextChunks] = await Promise.all([
-      context.matchWorkspaceAll(
+    const [exactChunks, contextChunks] = await Promise.all([
+      models.copilotContext.findWorkspaceEmbeddingExactMatches(
         options.workspace,
         query,
-        10,
-        signal,
-        0.8,
-        undefined,
-        0.85,
-        routeContext
+        10
       ),
       sessionId
         ? context
@@ -76,6 +71,18 @@ export const buildDocSearchGetter = (
             )
         : [],
     ]);
+    const chunks = exactChunks.length
+      ? exactChunks
+      : await context.matchWorkspaceAll(
+          options.workspace,
+          query,
+          10,
+          signal,
+          0.8,
+          undefined,
+          0.85,
+          routeContext
+        );
 
     const docChunks = await ac
       .user(options.user)

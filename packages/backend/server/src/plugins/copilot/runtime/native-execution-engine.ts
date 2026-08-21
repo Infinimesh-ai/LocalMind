@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { NoCopilotProviderAvailable } from '../../../base';
 import {
+  isInvalidStructuredOutputError,
   llmDispatchPlan,
   llmDispatchPlanStream,
   type LlmDispatchResponse,
@@ -14,6 +15,7 @@ import {
   parseNativeStructuredOutput,
 } from '../../../native';
 import { type ByokFeatureKind, ByokService } from '../byok';
+import { createModelRouteLock, resolveModelAdapter } from '../model-adapters';
 import { type StreamObject } from '../providers/types';
 import { CopilotExecutionMetrics } from './execution-metrics';
 import {
@@ -45,6 +47,30 @@ type StreamExecutionKind = Extract<
   'streamText' | 'streamObject'
 >;
 export type NativeImageArtifact = LlmImageResponse['images'][number];
+
+export type NativeStructuredExecutionRoute = {
+  providerId: string;
+  modelId: string;
+  responseModelId?: string;
+};
+
+export type NativeStructuredExecutionResult = {
+  output: string;
+  route: NativeStructuredExecutionRoute;
+};
+
+export type NativeStructuredExecutionPolicy = {
+  allowModelFallback?: boolean;
+  maxSameRouteAttempts?: number;
+};
+
+function isRecoverableStructuredOutputError(error: unknown) {
+  if (isInvalidStructuredOutputError(error)) return true;
+  const message = error instanceof Error ? error.message : String(error);
+  return /invalid_structured_output|structured response|message\.content|json schema|schema validation/i.test(
+    message
+  );
+}
 
 function resolveAbortSignal(
   signalOrOptions?: AbortSignal | { signal?: AbortSignal }
@@ -160,6 +186,15 @@ function createNativeChatAdapter(
   }
 ) {
   if (dispatch.hasTools) {
+    const toolPolicy =
+      dispatch.routes.length === 1
+        ? resolveModelAdapter(
+            createModelRouteLock({
+              providerId: dispatch.prepared.route.providerId,
+              modelId: dispatch.prepared.route.model,
+            })
+          ).toolPolicy
+        : undefined;
     return createNativeToolLoopAdapter(
       { preparedRoutes: dispatch.routes },
       dispatch.prepared.tools,
@@ -167,6 +202,7 @@ function createNativeChatAdapter(
         maxSteps: dispatch.prepared.maxSteps,
         nodeTextMiddleware: dispatch.prepared.postprocess?.nodeTextMiddleware,
         onUsage: options?.onUsage,
+        toolPolicy,
       }
     );
   }
@@ -437,6 +473,86 @@ async function executePreparedPlan(
   }
 }
 
+async function executePreparedStructuredPlanWithRoute(
+  plan: ExecutionPlanForKind<'structured'>,
+  executionMetrics: CopilotExecutionMetrics | undefined,
+  byok: ByokService,
+  policy: NativeStructuredExecutionPolicy
+): Promise<NativeStructuredExecutionResult | null> {
+  const dispatch = plan.nativeDispatch?.structured;
+  if (!dispatch) {
+    return null;
+  }
+  const routes =
+    policy.allowModelFallback === false
+      ? dispatch.routes.slice(0, 1)
+      : dispatch.routes;
+  const executionPlan =
+    routes.length === dispatch.routes.length
+      ? plan
+      : {
+          ...plan,
+          routePolicy: {
+            fallbackOrder: routes.map(route => route.provider_id),
+          },
+        };
+
+  return await runPreparedValuePlan(
+    executionPlan,
+    routes.length,
+    executionMetrics,
+    async () => {
+      const maxAttempts = Math.min(
+        Math.max(policy.maxSameRouteAttempts ?? 1, 1),
+        3
+      );
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          const result = await llmStructuredDispatchPlan({
+            preparedRoutes: routes,
+          });
+          const executedRoute = routes.find(
+            route => route.provider_id === result.provider_id
+          );
+          if (!executedRoute) {
+            throw new Error(
+              `Structured dispatch returned an unknown provider route: ${result.provider_id}`
+            );
+          }
+          await recordByokUsage(byok, plan, {
+            providerId: result.provider_id,
+            model: result.response.model ?? executedRoute.model,
+            usage: result.response.usage,
+          });
+          const parsed = parseNativeStructuredOutput(result.response);
+          const validated = llmValidateJsonSchema(
+            dispatch.prepared.request.schema,
+            parsed
+          );
+          return {
+            output: JSON.stringify(validated),
+            route: {
+              providerId: result.provider_id,
+              modelId: executedRoute.model,
+              ...(result.response.model
+                ? { responseModelId: result.response.model }
+                : {}),
+            },
+          };
+        } catch (error) {
+          if (
+            attempt >= maxAttempts ||
+            !isRecoverableStructuredOutputError(error)
+          ) {
+            throw error;
+          }
+        }
+      }
+    },
+    byok
+  );
+}
+
 function executePreparedStreamPlan(
   plan: ExecutionPlan,
   executionMetrics: CopilotExecutionMetrics | undefined,
@@ -494,6 +610,22 @@ export class NativeExecutionEngine {
       return this.noRoute(plan);
     }
 
+    return result;
+  }
+
+  async executeStructuredWithRoute(
+    plan: ExecutionPlanForKind<'structured'>,
+    policy: NativeStructuredExecutionPolicy = {}
+  ): Promise<NativeStructuredExecutionResult> {
+    const result = await executePreparedStructuredPlanWithRoute(
+      plan,
+      this.executionMetrics,
+      this.byok,
+      policy
+    );
+    if (!result) {
+      return this.noRoute(plan);
+    }
     return result;
   }
 

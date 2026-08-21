@@ -1035,6 +1035,26 @@ function timelineFingerprintWithEvents(
   });
 }
 
+function nextCoherentControlTimestamp(run: CopilotAgentRunRecord) {
+  const persistedTimestamps = [
+    run.createdAt,
+    run.updatedAt,
+    run.startedAt,
+    run.completedAt,
+    run.lastAttemptAt,
+    ...run.steps.flatMap(step => [
+      step.createdAt,
+      step.updatedAt,
+      step.startedAt,
+      step.completedAt,
+    ]),
+    ...run.timelineEvents.map(event => event.createdAt),
+  ].flatMap(value => (value ? [value.getTime()] : []));
+
+  // PostgreSQL keeps microseconds while JavaScript Date only keeps milliseconds.
+  return new Date(Math.max(Date.now(), ...persistedTimestamps) + 1);
+}
+
 function controlledRunTimeline(input: {
   action: CopilotAgentRuntimeControlAction | AgentRuntimeCancelControlAction;
   actorId: string;
@@ -2830,6 +2850,8 @@ export class CopilotAgentRuntimeModel extends BaseModel {
     code: string;
     message: string;
     adapterResolution?: Record<string, unknown>;
+    sideEffectsApplied?: boolean;
+    sideEffectSummary?: Record<string, unknown> | null;
   }): Promise<CopilotAgentRunRecord> {
     const existing = await this.get(input.workspaceId, input.id);
     if (!existing) {
@@ -2869,6 +2891,26 @@ export class CopilotAgentRuntimeModel extends BaseModel {
         );
       }
     }
+    const sideEffectMode = sideEffectModeFromResolution(adapterResolution);
+    const sideEffectsApplied = input.sideEffectsApplied === true;
+    const sideEffectSummary = normalizeWorkerSideEffectSummary(
+      input.sideEffectSummary
+    );
+    if (sideEffectsApplied && sideEffectMode === 'none') {
+      throw new Error(
+        'Agent runtime failure cannot apply side effects in none mode'
+      );
+    }
+    if (sideEffectsApplied && !sideEffectSummary) {
+      throw new Error(
+        'Agent runtime failure applied side effects require a side-effect summary'
+      );
+    }
+    if (sideEffectSummary && !sideEffectsApplied) {
+      throw new Error(
+        'Agent runtime failure side-effect summary requires applied side effects'
+      );
+    }
     const nextOrdinal =
       Math.max(-1, ...existing.timelineEvents.map(item => item.ordinal)) + 1;
     const failedSteps = existing.steps.filter(step =>
@@ -2890,6 +2932,9 @@ export class CopilotAgentRuntimeModel extends BaseModel {
           stepType: step.stepType,
           workerAttempt: existing.workerAttempt,
           workerLeaseId: input.workerLeaseId,
+          sideEffectMode,
+          sideEffectsApplied,
+          ...(sideEffectSummary ? { sideEffectSummary } : {}),
           ...(adapterResolution ? { adapterResolution } : {}),
         },
       })
@@ -2911,6 +2956,9 @@ export class CopilotAgentRuntimeModel extends BaseModel {
         workflow: existing.workflow,
         sourceType: existing.sourceType,
         sourceId: existing.sourceId,
+        sideEffectMode,
+        sideEffectsApplied,
+        ...(sideEffectSummary ? { sideEffectSummary } : {}),
         ...(adapterResolution ? { adapterResolution } : {}),
       },
     };
@@ -2973,8 +3021,9 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       failureMessage,
       resultStatus: 'failed',
       run: existing,
-      sideEffectMode: sideEffectModeFromResolution(adapterResolution),
-      sideEffectsApplied: false,
+      sideEffectMode,
+      sideEffectsApplied,
+      sideEffectSummary,
       summary: failureMessage,
       terminalRunSnapshot: {
         completedAt: failedAt,
@@ -3008,6 +3057,9 @@ export class CopilotAgentRuntimeModel extends BaseModel {
               failureMessage,
               workerAttempt: existing.workerAttempt,
               workerLeaseId: input.workerLeaseId,
+              sideEffectMode,
+              sideEffectsApplied,
+              ...(sideEffectSummary ? { sideEffectSummary } : {}),
               ...(adapterResolution ? { adapterResolution } : {}),
             },
           })}::jsonb,
@@ -3954,7 +4006,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       return await this.requestRunningStandaloneCancellation(input, existing);
     }
 
-    const now = new Date();
+    const now = nextCoherentControlTimestamp(existing);
     const reason = normalizeControlReason(input.reason);
     const event = controlledRunTimeline({
       action: 'cancel',
@@ -4105,7 +4157,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       );
     }
 
-    const now = new Date();
+    const now = nextCoherentControlTimestamp(existing);
     const reason = normalizeControlReason(input.reason);
     const event = controlledRunTimeline({
       action: 'cancel_requested',

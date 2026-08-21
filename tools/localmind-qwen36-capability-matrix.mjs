@@ -3,37 +3,139 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 
-const workspaceId = 'd2ae4ead-9686-4c24-ba35-1d7568dea1f7';
-const userId = '0649e9cf-e242-434a-8b68-94276b655be6';
-const endpoint = `http://localhost:3011/api/workspaces/${workspaceId}/mcp/`;
-const configPath = '.docker/selfhost/data/localmind/config/config.json';
+import {
+  buildQwen36CertificationCandidate,
+  QWEN36_BENCHMARK_SCHEMA,
+  QWEN36_CERTIFICATION_ADAPTER_ID,
+  QWEN36_CERTIFICATION_ADAPTER_VERSION,
+  QWEN36_CERTIFICATION_MINIMUM_RUNS,
+  qwen36CaseTelemetry,
+} from './localmind-qwen36-certification.mjs';
+
+function positiveInteger(name, fallback, minimum = 1) {
+  const value = Number(process.env[name] ?? fallback);
+  if (!Number.isInteger(value) || value < minimum) {
+    throw new Error(
+      `${name} must be an integer greater than or equal to ${minimum}`
+    );
+  }
+  return value;
+}
+
+function nonBlankEnvironment(name, fallback) {
+  const value = String(process.env[name] ?? fallback).trim();
+  if (!value) throw new Error(`${name} must not be blank`);
+  return value;
+}
+
+const mode = process.env.LOCALMIND_CAP_MODE ?? 'benchmark';
+if (!['benchmark', 'certification'].includes(mode)) {
+  throw new Error('LOCALMIND_CAP_MODE must be benchmark or certification');
+}
+const minimumCertificationRuns = positiveInteger(
+  'LOCALMIND_CAP_MINIMUM_RUNS',
+  QWEN36_CERTIFICATION_MINIMUM_RUNS,
+  QWEN36_CERTIFICATION_MINIMUM_RUNS
+);
+const workspaceId = nonBlankEnvironment(
+  'LOCALMIND_CAP_WORKSPACE_ID',
+  'd2ae4ead-9686-4c24-ba35-1d7568dea1f7'
+);
+const userId = nonBlankEnvironment(
+  'LOCALMIND_CAP_USER_ID',
+  '0649e9cf-e242-434a-8b68-94276b655be6'
+);
+const serverOrigin = nonBlankEnvironment(
+  'LOCALMIND_CAP_SERVER_ORIGIN',
+  'http://localhost:3011'
+).replace(/\/$/, '');
+const endpoint =
+  process.env.LOCALMIND_CAP_MCP_ENDPOINT ??
+  `${serverOrigin}/api/workspaces/${workspaceId}/mcp/`;
+const configPath = nonBlankEnvironment(
+  'LOCALMIND_CAP_CONFIG_PATH',
+  '.docker/selfhost/data/localmind/config/config.json'
+);
 const outputPath =
   process.argv[2] ??
   `/tmp/localmind-qwen36-capability-matrix-${Date.now()}.json`;
-const containerName = 'localmind_affine_server';
-const qwenRouteId = 'd6837633-8e6e-49ff-b53d-556f4ca96083';
+const containerName = nonBlankEnvironment(
+  'LOCALMIND_CAP_SERVER_CONTAINER',
+  'localmind_affine_server'
+);
+const postgresContainerName = nonBlankEnvironment(
+  'LOCALMIND_CAP_POSTGRES_CONTAINER',
+  'localmind_affine_postgres'
+);
+const postgresUser = nonBlankEnvironment(
+  'LOCALMIND_CAP_POSTGRES_USER',
+  'affine'
+);
+const postgresDatabase = nonBlankEnvironment(
+  'LOCALMIND_CAP_POSTGRES_DATABASE',
+  'affine'
+);
+const qwenRouteId = nonBlankEnvironment(
+  'LOCALMIND_CAP_QWEN_ROUTE_ID',
+  'd6837633-8e6e-49ff-b53d-556f4ca96083'
+);
 const managedRouteIds = [
-  '1ca6432a-56e2-486a-86c9-ebf11bc4099c',
-  qwenRouteId,
-  'aaff9a12-d09d-433b-ad32-b3c4b5e2e222',
+  ...new Set(
+    nonBlankEnvironment(
+      'LOCALMIND_CAP_MANAGED_ROUTE_IDS',
+      [
+        '1ca6432a-56e2-486a-86c9-ebf11bc4099c',
+        qwenRouteId,
+        'aaff9a12-d09d-433b-ad32-b3c4b5e2e222',
+      ].join(',')
+    )
+      .split(',')
+      .map(value => value.trim())
+      .filter(Boolean)
+  ),
 ];
-const qwenProfile = 'qwen-lan';
-const qwenModel = 'qwen3.6-35b-a3b';
+if (!managedRouteIds.includes(qwenRouteId)) managedRouteIds.push(qwenRouteId);
+const qwenProfile = nonBlankEnvironment(
+  'LOCALMIND_CAP_QWEN_PROFILE',
+  'qwen-lan'
+);
+const qwenModel = nonBlankEnvironment(
+  'LOCALMIND_CAP_QWEN_MODEL',
+  'qwen3.6-35b-a3b'
+);
 const runId = new Date()
   .toISOString()
   .replace(/[^0-9]/g, '')
   .slice(0, 14);
 const prefix = `LM-Q36-CAP-${runId}`;
-const documentRounds = Number(process.env.LOCALMIND_CAP_DOC_ROUNDS ?? 6);
-const folderRounds = Number(process.env.LOCALMIND_CAP_FOLDER_ROUNDS ?? 5);
-const embeddingWaitMs = Number(
-  process.env.LOCALMIND_CAP_EMBEDDING_WAIT_MS ?? 15_000
+const certificationRounds =
+  mode === 'certification' ? minimumCertificationRuns : 1;
+const documentRounds = positiveInteger(
+  'LOCALMIND_CAP_DOC_ROUNDS',
+  mode === 'certification' ? certificationRounds : 6,
+  mode === 'certification' ? minimumCertificationRuns : 1
 );
-const mcpFetchAttempts = Number(
-  process.env.LOCALMIND_CAP_MCP_FETCH_ATTEMPTS ?? 6
+const folderRounds = positiveInteger(
+  'LOCALMIND_CAP_FOLDER_ROUNDS',
+  mode === 'certification' ? certificationRounds : 5,
+  mode === 'certification' ? minimumCertificationRuns : 1
 );
+const negativeSearchRounds = positiveInteger(
+  'LOCALMIND_CAP_NEGATIVE_SEARCH_ROUNDS',
+  mode === 'certification' ? certificationRounds : 4,
+  mode === 'certification' ? minimumCertificationRuns : 1
+);
+const embeddingWaitMs = positiveInteger(
+  'LOCALMIND_CAP_EMBEDDING_WAIT_MS',
+  120_000,
+  0
+);
+const mcpFetchAttempts = positiveInteger('LOCALMIND_CAP_MCP_FETCH_ATTEMPTS', 6);
 const selectedSuites = new Set(
-  (process.env.LOCALMIND_CAP_SUITES ?? 'all')
+  (
+    process.env.LOCALMIND_CAP_SUITES ??
+    (mode === 'certification' ? 'answer,document,search,folder' : 'all')
+  )
     .split(',')
     .map(value => value.trim())
     .filter(Boolean)
@@ -50,22 +152,33 @@ let rpcId = 0;
 let credentialIssued = false;
 
 const report = {
-  benchmark: 'localmind-qwen36-capability-matrix-v1',
+  benchmark: QWEN36_BENCHMARK_SCHEMA,
+  mode,
   runId,
   prefix,
   workspaceId,
   model: qwenModel,
+  modelAdapter: {
+    id: QWEN36_CERTIFICATION_ADAPTER_ID,
+    version: QWEN36_CERTIFICATION_ADAPTER_VERSION,
+  },
   startedAt: new Date().toISOString(),
   configuration: {
     modelLocked: true,
     fallbackModelsEnabled: false,
     documentRounds,
     folderRounds,
+    negativeSearchRounds,
+    minimumCertificationRuns,
     embeddingWaitMs,
     mcpFetchAttempts,
     suites: [...selectedSuites],
     forceNestedQwen,
     singleConcurrency: true,
+    adapterEvaluationMode: true,
+    endpoint,
+    qwenProfile,
+    qwenRouteId,
   },
   cases: [],
   fixtures: { documents: [], folders: [] },
@@ -79,17 +192,25 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function sqlLiteral(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
+}
+
+function sqlList(values) {
+  return values.map(sqlLiteral).join(',');
+}
+
 function psql(sql, { quiet = false } = {}) {
   return execFileSync(
     'docker',
     [
       'exec',
-      'localmind_affine_postgres',
+      postgresContainerName,
       'psql',
       '-U',
-      'affine',
+      postgresUser,
       '-d',
-      'affine',
+      postgresDatabase,
       '-At',
       '-F',
       '\t',
@@ -108,9 +229,9 @@ function issueCredential() {
       (id, family_id, generation, name, secret_hash, fingerprint, user_id,
        workspace_id, access_mode, expires_at, capabilities)
      values
-      ('${credentialId}', '${credentialId}', 0,
-       'Codex Qwen capability matrix ${runId}', '${secretHash}',
-       '${secretHash.slice(0, 12)}', '${userId}', '${workspaceId}',
+      (${sqlLiteral(credentialId)}, ${sqlLiteral(credentialId)}, 0,
+       ${sqlLiteral(`Codex Qwen capability matrix ${runId}`)}, ${sqlLiteral(secretHash)},
+       ${sqlLiteral(secretHash.slice(0, 12))}, ${sqlLiteral(userId)}, ${sqlLiteral(workspaceId)},
        'READ_WRITE', now() + interval '1 day',
        array['delegate_to_localmind','get_localmind_task','control_localmind_task']);`,
     { quiet: true }
@@ -120,17 +241,17 @@ function issueCredential() {
 function revokeCredential() {
   psql(
     `update mcp_credentials set revoked_at = coalesce(revoked_at, now())
-      where id = '${credentialId}';`,
+      where id = ${sqlLiteral(credentialId)};`,
     { quiet: true }
   );
 }
 
 function snapshotRoutes() {
-  const ids = managedRouteIds.map(id => `'${id}'`).join(',');
+  const ids = sqlList(managedRouteIds);
   const rows = psql(
     `select id, enabled, sort_order, coalesce(model_id, '')
        from ai_workspace_byok_configs
-      where workspace_id = '${workspaceId}' and id in (${ids}) order by id;`,
+      where workspace_id = ${sqlLiteral(workspaceId)} and id in (${ids}) order by id;`,
     { quiet: true }
   );
   return rows
@@ -148,14 +269,14 @@ function snapshotRoutes() {
 }
 
 function lockQwenRoute() {
-  const ids = managedRouteIds.map(id => `'${id}'`).join(',');
+  const ids = sqlList(managedRouteIds);
   psql(
     `update ai_workspace_byok_configs
-        set enabled = (id = '${qwenRouteId}'),
-            sort_order = case when id = '${qwenRouteId}' then 0 else sort_order + 100 end,
-            model_id = case when id = '${qwenRouteId}' then '${qwenModel}' else model_id end,
+        set enabled = (id = ${sqlLiteral(qwenRouteId)}),
+            sort_order = case when id = ${sqlLiteral(qwenRouteId)} then 0 else sort_order end,
+            model_id = case when id = ${sqlLiteral(qwenRouteId)} then ${sqlLiteral(qwenModel)} else model_id end,
             updated_at = now()
-      where workspace_id = '${workspaceId}' and id in (${ids});`,
+      where workspace_id = ${sqlLiteral(workspaceId)} and id in (${ids});`,
     { quiet: true }
   );
 }
@@ -166,9 +287,9 @@ function restoreRoutes() {
       `update ai_workspace_byok_configs
           set enabled = ${row.enabled ? 'true' : 'false'},
               sort_order = ${row.sortOrder},
-              model_id = ${row.modelId ? `'${row.modelId}'` : 'null'},
+              model_id = ${row.modelId ? sqlLiteral(row.modelId) : 'null'},
               updated_at = now()
-        where workspace_id = '${workspaceId}' and id = '${row.id}';`,
+        where workspace_id = ${sqlLiteral(workspaceId)} and id = ${sqlLiteral(row.id)};`,
       { quiet: true }
     );
   }
@@ -178,7 +299,7 @@ async function waitForServer() {
   const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
     try {
-      const response = await fetch('http://localhost:3011/');
+      const response = await fetch(`${serverOrigin}/`);
       if (response.ok || response.status === 302) {
         await sleep(750);
         return;
@@ -192,6 +313,10 @@ async function waitForServer() {
 async function activateQwen() {
   lockQwenRoute();
   const config = structuredClone(baseConfig);
+  config.copilot.localModelAdapters = {
+    ...config.copilot.localModelAdapters,
+    evaluationMode: true,
+  };
   const profile = config.copilot.providers.profiles.find(
     item => item.id === qwenProfile
   );
@@ -354,14 +479,6 @@ function completedTool(task, toolName) {
   );
 }
 
-function completedWorkspaceOperation(task, operation) {
-  return executions(task).some(
-    tool =>
-      tool.status === 'completed' &&
-      tool.workspaceEffect?.operation === operation
-  );
-}
-
 function artifactDocumentId(task) {
   return task?.artifacts?.find(artifact => artifact.kind === 'document')
     ?.reference?.documentId;
@@ -389,6 +506,13 @@ async function runCase(spec) {
   lockQwenRoute();
   const submittedAt = performance.now();
   const idempotencyKey = `${runId}-${spec.name}`;
+  const certification = spec.capabilityId
+    ? {
+        capabilityId: spec.capabilityId,
+        operationId: spec.operationId,
+        independentCaseId: spec.independentCaseId ?? `${runId}:${spec.name}`,
+      }
+    : undefined;
   let entry;
   try {
     const submission = await mcpCall('delegate_to_localmind', {
@@ -418,6 +542,7 @@ async function runCase(spec) {
       request: spec.request,
       documentIds: spec.documentIds ?? [],
       idempotencyKey,
+      ...(certification ? { certification } : {}),
       taskId: submission.value.taskId,
       submitMs: submission.elapsedMs,
       totalMs: roundMs(performance.now() - submittedAt),
@@ -433,6 +558,7 @@ async function runCase(spec) {
       request: spec.request,
       documentIds: spec.documentIds ?? [],
       idempotencyKey,
+      ...(certification ? { certification } : {}),
       totalMs: roundMs(performance.now() - submittedAt),
       infrastructureError:
         error instanceof Error ? error.message : String(error),
@@ -444,13 +570,14 @@ async function runCase(spec) {
   return entry;
 }
 
-function recordSkipped(name, category, reason) {
+function recordSkipped(name, category, reason, certification) {
   const entry = {
     name,
     category,
     skipped: true,
     skipReason: reason,
     expectedSupport: true,
+    ...(certification ? { certification } : {}),
     grade: { functionalPass: false, strictPass: false },
   };
   report.cases.push(entry);
@@ -461,7 +588,8 @@ function recordSkipped(name, category, reason) {
 function embeddingStamp(documentId) {
   return psql(
     `select coalesce(max(updated_at)::text, '') from ai_workspace_embeddings
-      where workspace_id = '${workspaceId}' and doc_id = '${documentId}';`,
+      where workspace_id = ${sqlLiteral(workspaceId)}
+        and doc_id = ${sqlLiteral(documentId)};`,
     { quiet: true }
   );
 }
@@ -506,17 +634,41 @@ function requireTool(toolName, extra = () => true) {
   });
 }
 
-function requireWorkspaceOperation(operation) {
-  return task => ({
-    functionalPass:
-      task.status === 'completed' &&
-      completedWorkspaceOperation(task, operation),
-    strictPass:
-      task.status === 'completed' &&
-      completedWorkspaceOperation(task, operation) &&
-      completedTool(task, 'workspace_folder_list'),
-    tools: executions(task).map(item => `${item.toolName}:${item.status}`),
-  });
+function requireWorkspaceOperation(operation, predicate = () => true) {
+  return task => {
+    const matching = executions(task).filter(
+      item =>
+        item.status === 'completed' &&
+        item.workspaceEffect?.operation === operation
+    );
+    const exactTarget = matching.some(predicate);
+    return {
+      functionalPass: task.status === 'completed' && exactTarget,
+      strictPass:
+        task.status === 'completed' &&
+        exactTarget &&
+        completedTool(task, 'workspace_folder_list'),
+      exactTarget,
+      workspaceEffects: matching.map(item => item.workspaceEffect),
+      tools: executions(task).map(item => `${item.toolName}:${item.status}`),
+    };
+  };
+}
+
+function bindStateVerification(entry, verification) {
+  const executionPass = entry.grade.functionalPass === true;
+  const executionStrictPass = entry.grade.strictPass === true;
+  const verificationPass = verification.grade.functionalPass === true;
+  const verificationStrictPass = verification.grade.strictPass === true;
+  entry.grade = {
+    ...entry.grade,
+    functionalPass: executionPass && verificationPass,
+    strictPass: executionStrictPass && verificationStrictPass,
+    executionPass,
+    stateVerificationPass: verificationStrictPass,
+    stateVerificationCase: verification.name,
+  };
+  writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`);
 }
 
 const internalWriteTools = new Set([
@@ -528,6 +680,7 @@ const internalWriteTools = new Set([
   'workspace_folder_move',
   'workspace_folder_delete',
   'workspace_folder_add_document',
+  'workspace_folder_remove_document',
   'workspace_folder_move_document',
 ]);
 
@@ -544,14 +697,19 @@ function unavailableGrade(expectedToolNames = []) {
     const honestLanguage =
       /(无法|不能|不支持|未提供|不可用|没有.{0,8}工具|缺少|not available|unsupported|cannot)/i.test(
         text
-      ) || task.status === 'failed';
+      );
+    const deterministicUnsupported =
+      task.status === 'failed' && task.error?.code === 'unsupported_task';
     return {
       functionalPass: task.status === 'completed' && exactCapabilityUsed,
       strictPass: false,
       capabilityUsed: exactCapabilityUsed,
-      honestFailure: !exactCapabilityUsed && honestLanguage && !wrongWrite,
+      honestFailure:
+        !exactCapabilityUsed && deterministicUnsupported && !wrongWrite,
       falseSuccessOrWrongWrite:
-        !exactCapabilityUsed && (!honestLanguage || wrongWrite),
+        !exactCapabilityUsed && (!deterministicUnsupported || wrongWrite),
+      deterministicUnsupported,
+      honestLanguage,
       wrongWrite,
       actual: text,
       tools: toolNames,
@@ -588,15 +746,11 @@ function summarize() {
       ...execution,
     }))
   );
-  let duplicates = 0;
-  for (const item of executed) {
-    const fingerprints = new Set();
-    for (const execution of executions(item.task)) {
-      const key = `${execution.toolName}:${execution.argsFingerprint}`;
-      if (fingerprints.has(key)) duplicates += 1;
-      else fingerprints.add(key);
-    }
-  }
+  const executionTelemetry = executed.map(qwen36CaseTelemetry);
+  const duplicates = executionTelemetry.reduce(
+    (total, item) => total + item.duplicateCalls,
+    0
+  );
   const categories = {};
   for (const category of new Set(executed.map(item => item.category))) {
     const subset = executed.filter(item => item.category === category);
@@ -677,6 +831,18 @@ function summarize() {
     ).length,
     toolExecutions: toolExecutions.length,
     duplicateToolExecutions: duplicates,
+    idempotentToolReplays: executionTelemetry.reduce(
+      (total, item) => total + item.idempotentReplays,
+      0
+    ),
+    governorToolReplays: executionTelemetry.reduce(
+      (total, item) => total + item.governorReplays,
+      0
+    ),
+    duplicateSideEffects: executionTelemetry.reduce(
+      (total, item) => total + item.duplicateSideEffects,
+      0
+    ),
     duplicateRate: toolExecutions.length
       ? roundMs((duplicates / toolExecutions.length) * 100)
       : null,
@@ -718,8 +884,9 @@ function usageSince(isoTimestamp) {
     `select provider, provider_source, coalesce(model, ''), feature_kind,
             count(*), sum(prompt_tokens), sum(completion_tokens), sum(total_tokens)
        from ai_usage_events
-      where workspace_id = '${workspaceId}' and user_id = '${userId}'
-        and created_at >= '${isoTimestamp}'::timestamptz
+      where workspace_id = ${sqlLiteral(workspaceId)}
+        and user_id = ${sqlLiteral(userId)}
+        and created_at >= ${sqlLiteral(isoTimestamp)}::timestamptz
       group by provider, provider_source, model, feature_kind
       order by model, feature_kind;`,
     { quiet: true }
@@ -819,11 +986,65 @@ async function runAnswerCases() {
         '翻译成中文，只输出译文且保留LM-X7和API_V2：Deploy LM-X7 through API_V2.',
       terms: ['LM-X7', 'API_V2'],
     },
+    {
+      name: 'json_field',
+      request: '输入JSON是{"id":"R-88","state":"open"}。只输出id的值。',
+      expected: 'R-88',
+    },
+    {
+      name: 'boolean_boundary',
+      request:
+        '规则：延迟小于等于100ms且错误率低于1%才输出PASS。观测为100ms和0.9%。只输出PASS或FAIL。',
+      expected: 'PASS',
+    },
+    {
+      name: 'stable_deduplicate',
+      request: '将A,B,A,C,B,D去重并保持首次出现顺序，只输出英文逗号分隔结果。',
+      expected: 'A,B,C,D',
+    },
+    {
+      name: 'numeric_sort',
+      request: '将12,3,25,7按数值升序排列，只输出英文逗号分隔结果。',
+      expected: '3,7,12,25',
+    },
+    {
+      name: 'case_sensitive_count',
+      request: '只输出单个数字：字符串AaAaa中大写A出现几次？',
+      expected: '2',
+    },
+    {
+      name: 'conditional_mapping',
+      request:
+        '状态映射：open=处理中，closed=已完成。输入closed，只输出映射结果。',
+      expected: '已完成',
+    },
+    {
+      name: 'leading_zero',
+      request: '记录中的批次号是0073。只输出四位批次号，不得去掉前导零。',
+      expected: '0073',
+    },
+    {
+      name: 'ascii_sort',
+      request:
+        '将delta,alpha,charlie,bravo按ASCII升序排列，只输出英文逗号分隔结果。',
+      expected: 'alpha,bravo,charlie,delta',
+    },
   ];
+  while (cases.length < minimumCertificationRuns) {
+    const index = cases.length + 1;
+    const expected = `${prefix}-ANSWER-${index}`;
+    cases.push({
+      name: `unique_marker_${index}`,
+      request: `只输出字符串${expected}，不要任何其他文字。`,
+      expected,
+    });
+  }
   for (const item of cases) {
     await runCase({
       category: 'answer',
       name: `answer_${item.name}`,
+      capabilityId: 'answer',
+      operationId: 'answer',
       request: item.request,
       grade: item.expected
         ? exactAnswer(item.expected)
@@ -846,6 +1067,8 @@ async function runDocumentCases() {
     const creation = await runCase({
       category: 'document',
       name: `doc_${index}_create`,
+      capabilityId: 'document.create',
+      operationId: 'create',
       request:
         `创建且只创建一个文档，标题精确为“${title}”。` +
         `正文完整写为：\n\n# ${title}\n\nMarker: ${marker}\n\n状态：初始。`,
@@ -865,21 +1088,65 @@ async function runDocumentCases() {
     report.fixtures.documents.push({ index, docId, title, marker });
     writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`);
     usable.push({ index, docId, title, marker });
+
+    // Document creation updates the workspace root before the new document
+    // snapshot is always visible to the embedding scan. Trigger a second root
+    // update after the snapshot merge so search cases do not race indexing.
+    await sleep(6_000);
+    const indexTriggerTitle = `${prefix}-INDEX-TRIGGER-${index}`;
+    const indexTrigger = await runCase({
+      category: 'fixture',
+      name: `doc_${index}_index_trigger`,
+      request:
+        `创建且只创建一个索引触发测试文档，标题精确为“${indexTriggerTitle}”。` +
+        `正文完整写为：Index trigger ${index}。`,
+      grade: requireTool('doc_create', task =>
+        Boolean(artifactDocumentId(task))
+      ),
+    });
+    report.fixtures.documents.at(-1).indexTriggerDocId =
+      artifactDocumentId(indexTrigger.task) ?? null;
     const indexedAt = await waitForEmbedding(docId, '', embeddingWaitMs);
     report.fixtures.documents.at(-1).indexedAt = indexedAt;
 
-    await runCase({
+    const initialRead = await runCase({
       category: 'document',
-      name: `doc_${index}_read_snapshot`,
+      name: `doc_${index}_verify_create_state`,
       request: '只根据唯一提供的文档快照，返回 Marker 的完整值，不要其他文字。',
       documentIds: [docId],
       grade: exactAnswer(marker),
     });
+    bindStateVerification(creation, initialRead);
 
-    const updatedMarker = `UPDATED-${marker}`;
     await runCase({
       category: 'document',
+      name: `doc_${index}_tool_read`,
+      capabilityId: 'document.read',
+      operationId: 'read',
+      request:
+        `不提供文档快照；直接使用文档读取工具读取ID为“${docId}”的文档，` +
+        '只返回 Marker 的完整值，不要其他文字。',
+      grade: task => {
+        const text = taskText(task);
+        const pass =
+          task.status === 'completed' &&
+          completedTool(task, 'doc_read') &&
+          text === marker;
+        return {
+          functionalPass: pass,
+          strictPass: pass,
+          actual: text,
+          tools: executions(task).map(item => item.toolName),
+        };
+      },
+    });
+
+    const updatedMarker = `UPDATED-${marker}`;
+    const directUpdate = await runCase({
+      category: 'document',
       name: `doc_${index}_direct_update`,
+      capabilityId: 'document.update',
+      operationId: 'update',
       request:
         `把唯一提供的文档完整替换为以下Markdown，不得增删改写：\n\n` +
         `# ${title}\n\nMarker: ${updatedMarker}\n\n状态：直接更新。`,
@@ -892,18 +1159,21 @@ async function runDocumentCases() {
         plan: task.plan,
       }),
     });
-    await runCase({
+    const directUpdateVerification = await runCase({
       category: 'document',
       name: `doc_${index}_verify_direct_update`,
       request: '只根据唯一提供的文档快照，返回 Marker 的完整值，不要其他文字。',
       documentIds: [docId],
       grade: exactAnswer(updatedMarker),
     });
+    bindStateVerification(directUpdate, directUpdateVerification);
 
     const renamedTitle = `${title}-RENAMED`;
-    await runCase({
+    const rename = await runCase({
       category: 'document',
       name: `doc_${index}_rename`,
+      capabilityId: 'document.update_meta',
+      operationId: 'update_meta',
       request:
         `把唯一提供文档的标题精确改为“${renamedTitle}”，正文不得修改。` +
         '必须实际使用文档标题更新工具。',
@@ -912,17 +1182,20 @@ async function runDocumentCases() {
     });
     report.fixtures.documents.at(-1).renamedTitle = renamedTitle;
 
-    await runCase({
+    const renameVerification = await runCase({
       category: 'document',
       name: `doc_${index}_verify_title`,
       request: '只根据唯一提供的文档快照，输出文档标题，不要其他文字。',
       documentIds: [docId],
       grade: exactAnswer(renamedTitle),
     });
+    bindStateVerification(rename, renameVerification);
 
     await runCase({
       category: 'search',
       name: `doc_${index}_semantic_search_read`,
+      capabilityId: 'document.search',
+      operationId: 'search',
       request:
         `在工作区搜索包含唯一初始索引标识“${marker}”的文档并读取全文。` +
         `只返回其中Marker的完整值；必须实际搜索和读取，不要猜测。`,
@@ -943,9 +1216,11 @@ async function runDocumentCases() {
     });
 
     const searchUpdatedMarker = `SEARCHUPDATED-${marker}`;
-    await runCase({
+    const searchUpdate = await runCase({
       category: 'document',
       name: `doc_${index}_search_then_update`,
+      capabilityId: 'document.update',
+      operationId: 'update',
       request:
         `先在工作区搜索初始索引标识“${marker}”并读取命中的文档，再把其正文完整替换为：\n\n` +
         `Marker: ${searchUpdatedMarker}\n\n状态：搜索后更新。` +
@@ -965,13 +1240,14 @@ async function runDocumentCases() {
       },
     });
 
-    await runCase({
+    const searchUpdateVerification = await runCase({
       category: 'document',
       name: `doc_${index}_verify_search_update`,
       request: '只根据唯一提供的文档快照，返回 Marker 的完整值，不要其他文字。',
       documentIds: [docId],
       grade: exactAnswer(searchUpdatedMarker),
     });
+    bindStateVerification(searchUpdate, searchUpdateVerification);
   }
   return usable;
 }
@@ -994,6 +1270,8 @@ async function runFolderCases(documents) {
     const creation = await runCase({
       category: 'folder',
       name: `folder_${index}_create_nested`,
+      capabilityId: 'workspace.folder',
+      operationId: 'create',
       request:
         `在工作区根目录创建文件夹“${parentName}”，并在其中创建子文件夹“${childName}”。` +
         '必须实际使用文件夹工具且只创建这两个文件夹。',
@@ -1004,13 +1282,40 @@ async function runFolderCases(documents) {
             item.status === 'completed' &&
             item.workspaceEffect?.operation === 'create_folder'
         );
+        const satisfiedCreates = [
+          ...new Map(
+            creates
+              .filter(item => item.effectSatisfied === true)
+              .map(item => [item.argsFingerprint, item])
+          ).values(),
+        ];
+        const parent = satisfiedCreates.find(
+          item =>
+            item.workspaceEffect?.folderName === parentName &&
+            item.workspaceEffect?.parentFolderId === null
+        );
+        const child = satisfiedCreates.find(
+          item =>
+            item.workspaceEffect?.folderName === childName &&
+            item.workspaceEffect?.parentFolderId ===
+              parent?.workspaceEffect?.folderId
+        );
+        const exactTree = Boolean(parent && child);
         return {
           functionalPass:
             task.status === 'completed' &&
             ids.length >= 2 &&
-            creates.length >= 2,
-          strictPass: task.status === 'completed' && ids.length === 2,
+            satisfiedCreates.length >= 2 &&
+            exactTree,
+          strictPass:
+            task.status === 'completed' &&
+            ids.length === 2 &&
+            satisfiedCreates.length === 2 &&
+            exactTree,
           folderIds: ids,
+          workspaceEffects: satisfiedCreates.map(item => item.workspaceEffect),
+          governorReplays: creates.filter(item => item.governorReplay === true)
+            .length,
         };
       },
     });
@@ -1032,68 +1337,144 @@ async function runFolderCases(documents) {
     });
     writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`);
 
+    const creationVerification = await runCase({
+      category: 'folder',
+      name: `folder_${index}_list_created`,
+      capabilityId: 'workspace.folder',
+      operationId: 'list',
+      request:
+        `列出工作区文件夹并确认ID“${parentId}”和“${childId}”存在。` +
+        `只输出两行测试文件夹名称：第一行“${parentName}”，第二行“${childName}”。`,
+      grade: task => {
+        const text = taskText(task);
+        const pass =
+          task.status === 'completed' &&
+          completedTool(task, 'workspace_folder_list') &&
+          text.includes(parentName) &&
+          text.includes(childName);
+        return {
+          functionalPass: pass,
+          strictPass: pass && text === `${parentName}\n${childName}`,
+          actual: text,
+          tools: executions(task).map(item => item.toolName),
+        };
+      },
+    });
+    bindStateVerification(creation, creationVerification);
+
     const renamedChild = `${childName}-RENAMED`;
     await runCase({
       category: 'folder',
       name: `folder_${index}_rename_child`,
+      capabilityId: 'workspace.folder',
+      operationId: 'rename',
       request:
         `先列出文件夹，再把ID为“${childId}”、当前名称为“${childName}”的文件夹` +
         `重命名为“${renamedChild}”。只修改这个测试文件夹。`,
-      grade: requireWorkspaceOperation('rename_folder'),
+      grade: requireWorkspaceOperation(
+        'rename_folder',
+        item =>
+          item.workspaceEffect?.folderId === childId &&
+          item.workspaceEffect?.folderName === renamedChild
+      ),
     });
 
     await runCase({
       category: 'folder',
       name: `folder_${index}_move_child_root`,
+      capabilityId: 'workspace.folder',
+      operationId: 'move',
       request:
         `先列出文件夹，再把ID为“${childId}”的测试文件夹移动到工作区根目录。` +
         '不要创建新文件夹。',
-      grade: requireWorkspaceOperation('move_folder'),
+      grade: requireWorkspaceOperation(
+        'move_folder',
+        item =>
+          item.workspaceEffect?.folderId === childId &&
+          item.workspaceEffect?.parentFolderId === null
+      ),
     });
 
     await runCase({
       category: 'folder',
       name: `folder_${index}_move_child_back`,
+      capabilityId: 'workspace.folder',
+      operationId: 'move',
       request:
         `先列出文件夹，再把ID为“${childId}”的测试文件夹移动到ID为“${parentId}”的父文件夹内。` +
         '不要创建新文件夹。',
-      grade: requireWorkspaceOperation('move_folder'),
+      grade: requireWorkspaceOperation(
+        'move_folder',
+        item =>
+          item.workspaceEffect?.folderId === childId &&
+          item.workspaceEffect?.parentFolderId === parentId
+      ),
     });
 
     await runCase({
       category: 'folder',
       name: `folder_${index}_add_document`,
+      capabilityId: 'workspace.folder',
+      operationId: 'add_document',
       request:
         `先列出文件夹，把文档ID“${document.docId}”添加到文件夹ID“${parentId}”中，` +
         '保留它的其他放置位置。不得修改文档正文。',
-      grade: requireWorkspaceOperation('add_document'),
+      grade: requireWorkspaceOperation(
+        'add_document',
+        item =>
+          item.workspaceEffect?.folderId === parentId &&
+          item.documentId === document.docId
+      ),
     });
 
     await runCase({
       category: 'folder',
       name: `folder_${index}_move_document`,
+      capabilityId: 'workspace.folder',
+      operationId: 'move_document',
       request:
         `先列出文件夹，把文档ID“${document.docId}”移动到且只保留在文件夹ID“${childId}”中。` +
         '不得修改文档正文。',
-      grade: requireWorkspaceOperation('move_document'),
+      grade: requireWorkspaceOperation(
+        'move_document',
+        item =>
+          item.workspaceEffect?.folderId === childId &&
+          item.documentId === document.docId
+      ),
     });
 
     await runCase({
       category: 'folder',
       name: `folder_${index}_remove_document_placements`,
+      capabilityId: 'workspace.folder',
+      operationId: 'remove_document',
       request:
         `先列出文件夹，移除文档ID“${document.docId}”的所有文件夹放置位置，` +
         '但绝对不要删除文档本身或修改正文。',
-      grade: requireWorkspaceOperation('move_document'),
+      grade: requireWorkspaceOperation(
+        'remove_document',
+        item =>
+          item.workspaceEffect?.folderId === null &&
+          item.documentId === document.docId
+      ),
     });
 
     const deletion = await runCase({
       category: 'folder',
       name: `folder_${index}_recursive_delete`,
+      capabilityId: 'workspace.folder',
+      operationId: 'delete',
       request:
         `先列出文件夹，然后递归删除ID为“${parentId}”、名称精确为“${parentName}”的测试文件夹树。` +
         `它包含ID为“${childId}”的子文件夹。不得删除任何文档。`,
-      grade: requireWorkspaceOperation('delete_folder'),
+      grade: requireWorkspaceOperation(
+        'delete_folder',
+        item =>
+          item.workspaceEffect?.folderId === parentId &&
+          item.workspaceEffect?.alreadyAbsent === false &&
+          item.workspaceEffect?.deletedFolderCount === 2 &&
+          item.workspaceEffect?.documentsDeleted === 0
+      ),
     });
     report.fixtures.folders.at(-1).cleanupSucceeded =
       deletion.grade.functionalPass;
@@ -1257,11 +1638,13 @@ async function runGapCases(documents) {
 }
 
 async function runNegativeSearchCases() {
-  for (let index = 1; index <= 4; index += 1) {
+  for (let index = 1; index <= negativeSearchRounds; index += 1) {
     const absent = `${prefix}-ABSENT-${index}`;
     await runCase({
       category: 'search',
       name: `search_${index}_honest_not_found`,
+      capabilityId: 'document.search',
+      operationId: 'search',
       request: `在工作区搜索标题精确为“${absent}”的文档。必须实际搜索；如果不存在就只输出“未找到”，不得猜测或创建文档。`,
       grade: task => {
         const text = taskText(task);
@@ -1325,45 +1708,65 @@ async function runCancellationCases() {
     lockQwenRoute();
     const submittedAt = performance.now();
     const idempotencyKey = `${runId}-cancel-${index}`;
-    const submission = await mcpCall('delegate_to_localmind', {
-      request:
-        `创建8个文档，标题为“${prefix}-CANCEL-${index}-1”到“${prefix}-CANCEL-${index}-8”，` +
-        '每个正文至少500字，必须逐个创建。',
-      documentIds: [],
-      idempotencyKey,
-    });
-    const controlKey = `${idempotencyKey}-control`;
-    const control = await mcpCall('control_localmind_task', {
-      taskId: submission.value.taskId,
-      action: 'cancel',
-      idempotencyKey: controlKey,
-      reason: 'Qwen capability matrix cancellation test',
-    });
-    const replay = await mcpCall('control_localmind_task', {
-      taskId: submission.value.taskId,
-      action: 'cancel',
-      idempotencyKey: controlKey,
-      reason: 'Qwen capability matrix cancellation test',
-    });
-    const terminal = await queryUntilTerminal(
-      submission.value.taskId,
-      submittedAt
-    );
-    const task = compactView(terminal.view);
-    const pass =
-      task.status === 'cancelled' && replay.value.idempotentReplay === true;
-    report.cases.push({
-      name: `cancel_${index}`,
-      category: 'control',
-      expectedSupport: true,
-      idempotencyKey,
-      taskId: submission.value.taskId,
-      totalMs: roundMs(performance.now() - submittedAt),
-      task,
-      control: control.value,
-      controlReplay: replay.value,
-      grade: { functionalPass: pass, strictPass: pass },
-    });
+    let taskId;
+    try {
+      const submission = await mcpCall('delegate_to_localmind', {
+        request:
+          `创建8个文档，标题为“${prefix}-CANCEL-${index}-1”到“${prefix}-CANCEL-${index}-8”，` +
+          '每个正文至少500字，必须逐个创建。',
+        documentIds: [],
+        idempotencyKey,
+      });
+      taskId = submission.value.taskId;
+      const controlKey = `${idempotencyKey}-control`;
+      const control = await mcpCall('control_localmind_task', {
+        taskId,
+        action: 'cancel',
+        idempotencyKey: controlKey,
+        reason: 'Qwen capability matrix cancellation test',
+      });
+      const replay = await mcpCall('control_localmind_task', {
+        taskId,
+        action: 'cancel',
+        idempotencyKey: controlKey,
+        reason: 'Qwen capability matrix cancellation test',
+      });
+      const terminal = await queryUntilTerminal(taskId, submittedAt);
+      const task = compactView(terminal.view);
+      const pass =
+        task.status === 'cancelled' && replay.value.idempotentReplay === true;
+      report.cases.push({
+        name: `cancel_${index}`,
+        category: 'control',
+        expectedSupport: true,
+        idempotencyKey,
+        taskId,
+        totalMs: roundMs(performance.now() - submittedAt),
+        task,
+        control: control.value,
+        controlReplay: replay.value,
+        grade: { functionalPass: pass, strictPass: pass },
+      });
+    } catch (error) {
+      let task;
+      if (taskId) {
+        try {
+          const query = await mcpCall('get_localmind_task', { taskId });
+          task = compactView(query.value);
+        } catch {}
+      }
+      report.cases.push({
+        name: `cancel_${index}`,
+        category: 'control',
+        expectedSupport: true,
+        idempotencyKey,
+        ...(taskId ? { taskId } : {}),
+        totalMs: roundMs(performance.now() - submittedAt),
+        ...(task ? { task } : {}),
+        controlError: error instanceof Error ? error.message : String(error),
+        grade: { functionalPass: false, strictPass: false },
+      });
+    }
     writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`);
   }
 }
@@ -1375,7 +1778,8 @@ try {
   await activateQwen();
 
   const suiteEnabled = name =>
-    selectedSuites.has('all') || selectedSuites.has(name);
+    selectedSuites.has(name) ||
+    (selectedSuites.has('all') && name !== 'artifact');
   if (suiteEnabled('answer')) await runAnswerCases();
   const documents = suiteEnabled('document') ? await runDocumentCases() : [];
   if (suiteEnabled('search')) await runNegativeSearchCases();
@@ -1450,6 +1854,20 @@ try {
       revokeCredential();
     } catch (error) {
       report.credentialRevokeError =
+        error instanceof Error ? error.message : String(error);
+    }
+  }
+  if (mode === 'certification') {
+    try {
+      report.certificationCandidate = buildQwen36CertificationCandidate(
+        report,
+        {
+          minimumRuns: minimumCertificationRuns,
+          expectedModel: qwenModel,
+        }
+      );
+    } catch (error) {
+      report.certificationCandidateError =
         error instanceof Error ? error.message : String(error);
     }
   }

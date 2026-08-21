@@ -160,7 +160,7 @@ test('should insert embedding by doc id', async t => {
       [
         {
           index: 0,
-          content: 'content',
+          content: 'content with DOCMARK-EXACT-77 identifier',
           embedding: Array.from({ length: 1024 }, () => 1),
         },
       ]
@@ -175,6 +175,23 @@ test('should insert embedding by doc id', async t => {
         ret.includes(docId),
         'should return doc id when embedding is inserted'
       );
+    }
+
+    {
+      const ret =
+        await t.context.copilotContext.findWorkspaceEmbeddingExactMatches(
+          workspace.id,
+          'DOCMARK-EXACT-77',
+          10
+        );
+      t.deepEqual(ret, [
+        {
+          docId,
+          chunk: 0,
+          content: 'content with DOCMARK-EXACT-77 identifier',
+          distance: 0,
+        },
+      ]);
     }
 
     {

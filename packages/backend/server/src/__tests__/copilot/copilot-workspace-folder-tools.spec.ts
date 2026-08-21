@@ -200,19 +200,23 @@ test('workspace folder tools manage folder trees and document placements safely'
     { document_id: 'doc-1', folder_id: archive.folderId }
   );
   t.true(movedDocumentReplay.idempotentReplay);
-  const removedDocument = await run(toolSet, 'workspace_folder_move_document', {
-    document_id: 'doc-1',
-    folder_id: null,
-  });
+  const removedDocument = await run(
+    toolSet,
+    'workspace_folder_remove_document',
+    {
+      document_id: 'doc-1',
+    }
+  );
   t.like(removedDocument, {
     folderId: null,
     removedPlacementCount: 1,
+    documentsDeleted: 0,
     idempotentReplay: false,
   });
   const removedDocumentReplay = await run(
     toolSet,
-    'workspace_folder_move_document',
-    { document_id: 'doc-1', folder_id: null }
+    'workspace_folder_remove_document',
+    { document_id: 'doc-1' }
   );
   t.true(removedDocumentReplay.idempotentReplay);
   await run(toolSet, 'workspace_folder_add_document', {

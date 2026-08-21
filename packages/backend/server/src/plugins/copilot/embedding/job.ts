@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 
 import {
   BlobNotFound,
@@ -37,7 +38,8 @@ export class CopilotEmbeddingJob {
     private readonly models: Models,
     private readonly queue: JobQueue,
     private readonly storage: CopilotStorage,
-    private readonly workspaceStorage: WorkspaceBlobStorage
+    private readonly workspaceStorage: WorkspaceBlobStorage,
+    private readonly database: PrismaClient
   ) {}
 
   @OnEvent('config.init')
@@ -145,10 +147,14 @@ export class CopilotEmbeddingJob {
         return;
       }
       // filter out trashed docs
-      const rootSnapshot = await this.models.doc.getSnapshot(
-        workspaceId,
-        workspaceId
-      );
+      // Detached workspace events can retain a CLS transaction that has
+      // already committed. Use the root Prisma client for this queue scan.
+      const rootSnapshot = await this.database.snapshot.findUnique({
+        where: {
+          workspaceId_id: { workspaceId, id: workspaceId },
+        },
+        select: { blob: true },
+      });
       if (!rootSnapshot) {
         this.logger.warn(
           `Root snapshot for workspace ${workspaceId} not found, skipping embedding.`

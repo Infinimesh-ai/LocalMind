@@ -180,6 +180,24 @@ export class CopilotAgentRuntimeWorkflowRegistry {
     };
   }
 
+  failedAdapterResolution(run: CopilotAgentRunRecord, workflow: string) {
+    const registeredAdapters = this.adapterCapabilitySnapshots();
+    const adapter = registeredAdapters.find(item => item.workflow === workflow);
+    if (!adapter) {
+      throw new Error(
+        `Agent Runtime workflow adapter disappeared: ${workflow}`
+      );
+    }
+    return {
+      version: AGENT_RUNTIME_WORKER_ADAPTER_RESOLUTION_VERSION,
+      status: 'execution_failed',
+      workflow: run.workflow,
+      requestedStepTypes: this.requestedStepTypes(run),
+      adapter,
+      registeredAdapters,
+    };
+  }
+
   register(adapter: CopilotAgentRuntimeWorkflowAdapter) {
     if (!adapter || typeof adapter !== 'object') {
       throw new Error('Agent Runtime workflow adapter requires adapter');

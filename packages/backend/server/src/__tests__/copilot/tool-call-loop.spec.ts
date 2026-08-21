@@ -524,6 +524,9 @@ test('doc_semantic_search should return empty array when nothing matches', async
     workspace: {
       get: async () => ({ id: 'workspace-1' }),
     },
+    copilotContext: {
+      findWorkspaceEmbeddingExactMatches: async () => [],
+    },
   } as unknown as Models;
 
   const contextService = {
@@ -542,6 +545,72 @@ test('doc_semantic_search should return empty array when nothing matches', async
   t.deepEqual(result, []);
 });
 
+test('doc_semantic_search prefers exact embedded content for identifiers', async t => {
+  const ac = {
+    user: () => ({
+      workspace: () => ({
+        can: async () => true,
+        docs: async (docs: Array<{ docId: string }>) => docs,
+      }),
+    }),
+  } as unknown as PermissionAccess;
+  let semanticSearchCalled = false;
+  const contextService = {
+    matchWorkspaceAll: async () => {
+      semanticSearchCalled = true;
+      return [];
+    },
+  } as unknown as Parameters<typeof buildDocSearchGetter>[1];
+  const models = {
+    workspace: {
+      get: async () => ({ id: 'workspace-1' }),
+    },
+    copilotContext: {
+      findWorkspaceEmbeddingExactMatches: async () => [
+        {
+          docId: 'doc-exact',
+          chunk: 0,
+          content: 'Marker: DOCMARK-EXACT-77',
+          distance: 0,
+        },
+      ],
+    },
+    doc: {
+      findAuthors: async () => [],
+      findMetas: async () => [
+        {
+          workspaceId: 'workspace-1',
+          docId: 'doc-exact',
+          title: 'Exact target',
+        },
+      ],
+    },
+  } as unknown as Models;
+  const semanticTool = createDocSemanticSearchTool(
+    buildDocSearchGetter(ac, contextService, undefined, models).bind(null, {
+      user: 'user-1',
+      workspace: 'workspace-1',
+    })
+  );
+
+  const result = await semanticTool.execute?.(
+    { query: 'DOCMARK-EXACT-77' },
+    {}
+  );
+
+  t.false(semanticSearchCalled);
+  t.deepEqual(result, [
+    {
+      workspaceId: 'workspace-1',
+      docId: 'doc-exact',
+      title: 'Exact target',
+      chunk: 0,
+      content: 'Marker: DOCMARK-EXACT-77',
+      distance: 0,
+    },
+  ]);
+});
+
 test('doc_semantic_search should pass BYOK route context into embedding matches', async t => {
   const ac = {
     user: () => ({
@@ -555,6 +624,9 @@ test('doc_semantic_search should pass BYOK route context into embedding matches'
   const models = {
     workspace: {
       get: async () => ({ id: 'workspace-1' }),
+    },
+    copilotContext: {
+      findWorkspaceEmbeddingExactMatches: async () => [],
     },
   } as unknown as Models;
 

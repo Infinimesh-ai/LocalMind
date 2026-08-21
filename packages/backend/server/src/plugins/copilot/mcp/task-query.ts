@@ -527,6 +527,7 @@ export class McpAiTaskQueryService {
             const toolName = stringValue(execution.toolName);
             const executionStatus = stringValue(execution.status);
             const argsFingerprint = stringValue(execution.argsFingerprint);
+            const invocationId = stringValue(execution.invocationId);
             if (
               !toolName ||
               !['completed', 'failed'].includes(executionStatus ?? '') ||
@@ -555,6 +556,7 @@ export class McpAiTaskQueryService {
                 'move_folder',
                 'delete_folder',
                 'add_document',
+                'remove_document',
                 'move_document',
               ].includes(workspaceOperation)
                 ? {
@@ -567,6 +569,53 @@ export class McpAiTaskQueryService {
                             folderId: stringValue(rawWorkspaceEffect.folderId),
                           }
                         : {}),
+                    ...(stringValue(rawWorkspaceEffect.folderName)
+                      ? {
+                          folderName: stringValue(
+                            rawWorkspaceEffect.folderName
+                          ),
+                        }
+                      : {}),
+                    ...(rawWorkspaceEffect.parentFolderId === null
+                      ? { parentFolderId: null }
+                      : stringValue(rawWorkspaceEffect.parentFolderId)
+                        ? {
+                            parentFolderId: stringValue(
+                              rawWorkspaceEffect.parentFolderId
+                            ),
+                          }
+                        : {}),
+                    ...(Number.isInteger(
+                      rawWorkspaceEffect.deletedFolderCount
+                    ) && Number(rawWorkspaceEffect.deletedFolderCount) >= 0
+                      ? {
+                          deletedFolderCount: Number(
+                            rawWorkspaceEffect.deletedFolderCount
+                          ),
+                        }
+                      : {}),
+                    ...(Number.isInteger(
+                      rawWorkspaceEffect.removedPlacementCount
+                    ) && Number(rawWorkspaceEffect.removedPlacementCount) >= 0
+                      ? {
+                          removedPlacementCount: Number(
+                            rawWorkspaceEffect.removedPlacementCount
+                          ),
+                        }
+                      : {}),
+                    ...(Number.isInteger(rawWorkspaceEffect.documentsDeleted) &&
+                    Number(rawWorkspaceEffect.documentsDeleted) >= 0
+                      ? {
+                          documentsDeleted: Number(
+                            rawWorkspaceEffect.documentsDeleted
+                          ),
+                        }
+                      : {}),
+                    ...(typeof rawWorkspaceEffect.alreadyAbsent === 'boolean'
+                      ? {
+                          alreadyAbsent: rawWorkspaceEffect.alreadyAbsent,
+                        }
+                      : {}),
                   }
                 : null;
             return [
@@ -574,6 +623,19 @@ export class McpAiTaskQueryService {
                 toolName,
                 status: executionStatus,
                 argsFingerprint,
+                ...(invocationId ? { invocationId } : {}),
+                ...(typeof execution.sideEffectApplied === 'boolean'
+                  ? { sideEffectApplied: execution.sideEffectApplied }
+                  : {}),
+                ...(typeof execution.effectSatisfied === 'boolean'
+                  ? { effectSatisfied: execution.effectSatisfied }
+                  : {}),
+                ...(typeof execution.idempotentReplay === 'boolean'
+                  ? { idempotentReplay: execution.idempotentReplay }
+                  : {}),
+                ...(execution.governorReplay === true
+                  ? { governorReplay: true }
+                  : {}),
                 ...(documentId ? { documentId } : {}),
                 ...(documentIds.length ? { documentIds } : {}),
                 ...(relation && ['created', 'updated'].includes(relation)

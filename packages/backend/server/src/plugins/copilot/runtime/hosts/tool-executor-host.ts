@@ -21,12 +21,14 @@ export class ToolExecutorHost {
   async getTools(
     options: CopilotChatOptions,
     model: string,
-    resolveProviderSpecificTool?: ProviderSpecificToolResolver
+    resolveProviderSpecificTool?: ProviderSpecificToolResolver,
+    providerId?: string
   ): Promise<CopilotToolSet> {
     return await this.runtime.getTools(
       options,
       model,
-      resolveProviderSpecificTool
+      resolveProviderSpecificTool,
+      providerId
     );
   }
 

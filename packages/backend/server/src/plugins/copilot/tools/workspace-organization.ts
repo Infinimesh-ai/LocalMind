@@ -31,6 +31,7 @@ type WorkspaceEffectOperation =
   | 'move_folder'
   | 'delete_folder'
   | 'add_document'
+  | 'remove_document'
   | 'move_document';
 
 function asFolderNodes(value: unknown): FolderNode[] {
@@ -506,6 +507,46 @@ export function createWorkspaceOrganizationTools(
             folderId: folder_id,
             idempotentReplay: false,
             workspaceEffect: workspaceEffect('add_document', folder_id),
+          };
+        }),
+    }),
+
+    workspace_folder_remove_document: defineTool({
+      description:
+        'Remove every folder placement for one readable document. This never deletes the document or changes its title or body. Use this tool only when the request says to remove, unfile, or detach a document from folders.',
+      inputSchema: z
+        .object({
+          document_id: z.string().trim().min(1),
+        })
+        .strict(),
+      execute: async ({ document_id }) =>
+        execute('remove document placements', async () => {
+          await assertWrite();
+          await assertReadableDocument(document_id);
+          const { nodes } = await readOrganization();
+          const placements = nodes.filter(
+            node => node.type === 'doc' && node.data === document_id
+          );
+          if (!placements.length) {
+            return {
+              success: true,
+              documentId: document_id,
+              folderId: null,
+              removedPlacementCount: 0,
+              documentsDeleted: 0,
+              idempotentReplay: true,
+              workspaceEffect: workspaceEffect('remove_document', null),
+            };
+          }
+          await apply(placements.map(node => ({ op: 'delete', key: node.id })));
+          return {
+            success: true,
+            documentId: document_id,
+            folderId: null,
+            removedPlacementCount: placements.length,
+            documentsDeleted: 0,
+            idempotentReplay: false,
+            workspaceEffect: workspaceEffect('remove_document', null),
           };
         }),
     }),

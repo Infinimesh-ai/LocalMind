@@ -5085,17 +5085,26 @@ test.serial(
       recordProviderFailure: Sinon.stub().resolves(),
     };
     const engine = new NativeExecutionEngine(byok as never);
-    let capturedRoutes: unknown;
+    const capturedRoutes: unknown[] = [];
     let called = false;
+    let failNextStructuredOutput = false;
 
     const original = (serverNativeModule as any).llmStructuredDispatchPrepared;
     (serverNativeModule as any).llmStructuredDispatchPrepared = (
       routesJson: string
     ) => {
       called = true;
-      capturedRoutes = JSON.parse(routesJson);
+      const routes = JSON.parse(routesJson) as Array<{ provider_id: string }>;
+      capturedRoutes.push(routes);
+      if (failNextStructuredOutput) {
+        failNextStructuredOutput = false;
+        throw new Error(
+          'invalid_structured_output: structured response did not contain valid JSON'
+        );
+      }
       return JSON.stringify({
-        provider_id: 'openai-fallback',
+        provider_id:
+          routes.length === 1 ? routes[0].provider_id : 'openai-fallback',
         response: {
           id: 'structured_1',
           model: null,
@@ -5114,7 +5123,7 @@ test.serial(
       (serverNativeModule as any).llmStructuredDispatchPrepared = original;
     });
 
-    const result = await engine.execute({
+    const plan = {
       nativeDispatch: {
         structured: {
           routes: [
@@ -5164,18 +5173,49 @@ test.serial(
       responsePostprocess: { mode: 'structured' },
       hostPersistence: { persistAssistantTurn: true, outputKind: 'structured' },
       hostContext: {},
+    } satisfies Parameters<
+      NativeExecutionEngine['executeStructuredWithRoute']
+    >[0];
+    const result = await engine.executeStructuredWithRoute(plan);
+    const lockedResult = await engine.executeStructuredWithRoute(plan, {
+      allowModelFallback: false,
+    });
+    failNextStructuredOutput = true;
+    const repairedResult = await engine.executeStructuredWithRoute(plan, {
+      allowModelFallback: false,
+      maxSameRouteAttempts: 2,
     });
 
-    t.is(result, '{"ok":true}');
+    t.is(result.output, '{"ok":true}');
+    t.deepEqual(result.route, {
+      providerId: 'openai-fallback',
+      modelId: 'gpt-5-mini',
+    });
+    t.deepEqual(lockedResult.route, {
+      providerId: 'openai-primary',
+      modelId: 'gpt-5-mini',
+    });
+    t.deepEqual(repairedResult.route, lockedResult.route);
     t.true(called);
-    t.true(byok.recordUsage.calledOnce);
+    t.is(capturedRoutes.length, 4);
+    t.is((capturedRoutes[0] as unknown[]).length, 2);
+    t.is((capturedRoutes[1] as unknown[]).length, 1);
+    t.is((capturedRoutes[2] as unknown[]).length, 1);
+    t.is((capturedRoutes[3] as unknown[]).length, 1);
+    t.is(byok.recordUsage.callCount, 3);
     t.true(
       byok.recordUsage.calledWithMatch({
         providerId: 'openai-fallback',
         model: 'gpt-5-mini',
       })
     );
-    t.snapshot(summarizePreparedDispatchRoutes(capturedRoutes));
+    t.true(
+      byok.recordUsage.calledWithMatch({
+        providerId: 'openai-primary',
+        model: 'gpt-5-mini',
+      })
+    );
+    t.snapshot(summarizePreparedDispatchRoutes(capturedRoutes[0]));
   }
 );
 

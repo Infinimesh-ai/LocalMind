@@ -104,7 +104,8 @@ type ProviderRuntimeContextInput = {
   ) => ProviderMiddlewareConfig;
   getTools: (
     options: CopilotChatOptions,
-    model: string
+    model: string,
+    providerId?: string
   ) => Promise<CopilotToolSet>;
   buildPreparedNativeExecution: (
     options: PreparedNativeRequestOptions
