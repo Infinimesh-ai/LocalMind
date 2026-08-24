@@ -291,7 +291,8 @@ export class LarkCliDriver implements EnterpriseCliDriver {
       }
     );
     return definitions.filter(
-      (tool): tool is EnterpriseToolDefinition => tool !== null
+      (tool): tool is Exclude<(typeof definitions)[number], null> =>
+        tool !== null
     );
   }
 
@@ -317,7 +318,7 @@ export class LarkCliDriver implements EnterpriseCliDriver {
         return { value: value?.trim(), description: asString(description) };
       })
       .filter(
-        (entry): entry is LarkCompletionEntry =>
+        (entry): entry is { value: string; description: string | undefined } =>
           Boolean(entry.value) &&
           /^[+a-zA-Z0-9][a-zA-Z0-9._+-]{0,127}$/.test(entry.value)
       );

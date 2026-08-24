@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 
 import { JOB_SIGNAL, JobQueue, OneDay, OnJob } from '../../base';
 import { Models } from '../../models';
+import { CopilotTranscriptionService } from './transcript';
 
 const CLEANUP_EMBEDDING_JOB_BATCH_SIZE = 100;
 const CLEANUP_SUPPORT_BUNDLE_RETENTION_JOB_BATCH_SIZE = 50;
@@ -60,8 +61,14 @@ export class CopilotCronJobs {
 
   constructor(
     private readonly models: Models,
-    private readonly jobs: JobQueue
+    private readonly jobs: JobQueue,
+    private readonly transcript: CopilotTranscriptionService
   ) {}
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  async reconcileTranscriptDispatches() {
+    await this.transcript.reconcileDispatches();
+  }
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async dailyCleanupJob() {

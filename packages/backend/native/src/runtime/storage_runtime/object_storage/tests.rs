@@ -76,6 +76,18 @@ fn resolves_r2_endpoint_cases_from_config_json_shape() {
       Some("https://account.r2.cloudflarestorage.com"),
     ),
     (
+      "explicit default jurisdiction",
+      serde_json::json!({
+        "accountId": "account",
+        "jurisdiction": "default",
+        "credentials": {
+          "accessKeyId": "key",
+          "secretAccessKey": "secret"
+        }
+      }),
+      Some("https://account.r2.cloudflarestorage.com"),
+    ),
+    (
       "eu jurisdiction",
       serde_json::json!({
         "accountId": "account",
@@ -103,6 +115,16 @@ fn resolves_r2_endpoint_cases_from_config_json_shape() {
           "accessKeyId": "key",
           "secretAccessKey": "secret"
         }
+      })
+    ))
+    .is_err()
+  );
+  assert!(
+    ObjectStorageConfig::from_r2_config(storage_config(
+      "cloudflare-r2",
+      serde_json::json!({
+        "accountId": "account",
+        "jurisdiction": "unknown"
       })
     ))
     .is_err()
@@ -155,6 +177,42 @@ fn resolves_r2_proxy_upload_capability_from_config_json_shape() {
 
   assert!(config.use_presigned_url);
   assert!(config.proxy_upload);
+}
+
+#[test]
+fn resolves_r2_custom_get_signature_from_config_json_shape() {
+  let storage = StorageProviderConfig {
+    provider: "cloudflare-r2".to_string(),
+    bucket: "workspace-blobs".to_string(),
+    config: serde_json::json!({
+      "accountId": "account",
+      "credentials": {
+        "accessKeyId": "key",
+        "secretAccessKey": "secret"
+      },
+      "usePresignedURL": {
+        "enabled": true,
+        "urlPrefix": "https://cdn.example.com/storage/",
+        "signKey": "secret"
+      }
+    }),
+  };
+
+  let config = ObjectStorageConfig::from_r2_config(storage).unwrap().unwrap();
+  let request = config
+    .custom_presign_get_at("workspace/blob.m4a", 1_700_000_000)
+    .unwrap()
+    .unwrap();
+  let url = url::Url::parse(&request.url).unwrap();
+
+  assert!(config.use_presigned_url);
+  assert!(config.proxy_upload);
+  assert_eq!(url.origin().ascii_serialization(), "https://cdn.example.com");
+  assert_eq!(url.path(), "/storage/workspace/blob.m4a");
+  assert_eq!(
+    url.query_pairs().find(|(key, _)| key == "sign").unwrap().1,
+    "1700000000-01IngHvoE2trslxVyYUzfWkhgdlYdpcRXcpSYqZ9gkc="
+  );
 }
 
 #[test]

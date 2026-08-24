@@ -25,7 +25,10 @@ import {
   type PromptMessage,
   type StreamObject,
 } from '../../plugins/copilot/providers/types';
-import { getVertexGoogleBaseUrl } from '../../plugins/copilot/providers/utils';
+import {
+  getVertexAnthropicBaseUrl,
+  getVertexGoogleBaseUrl,
+} from '../../plugins/copilot/providers/utils';
 import {
   buildPromptStructuredResponseFromFields,
   buildStructuredResponseContract,
@@ -1832,6 +1835,35 @@ test('GeminiVertexProvider should build project scoped Vertex base URL', t => {
       googleAuthOptions: {},
     }),
     'https://us-central1-aiplatform.googleapis.com/v1/projects/p1/locations/us-central1/publishers/google'
+  );
+});
+
+test('Vertex providers should use the global API host', t => {
+  const options = {
+    project: 'p1',
+    location: 'global',
+    googleAuthOptions: {},
+  };
+
+  t.is(
+    getVertexGoogleBaseUrl(options),
+    'https://aiplatform.googleapis.com/v1/projects/p1/locations/global/publishers/google'
+  );
+  t.is(
+    getVertexAnthropicBaseUrl(options),
+    'https://aiplatform.googleapis.com/v1/projects/p1/locations/global/publishers/anthropic'
+  );
+});
+
+test('Vertex providers should preserve a custom base URL', t => {
+  t.is(
+    getVertexGoogleBaseUrl({
+      project: 'p1',
+      location: 'global',
+      baseURL: 'https://vertex.example.test/',
+      googleAuthOptions: {},
+    }),
+    'https://vertex.example.test'
   );
 });
 

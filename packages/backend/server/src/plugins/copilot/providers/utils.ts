@@ -395,12 +395,18 @@ function normalizeUrl(baseURL?: string) {
   }
 }
 
+function getVertexHost(location: string) {
+  return location === 'global'
+    ? 'aiplatform.googleapis.com'
+    : `${location}-aiplatform.googleapis.com`;
+}
+
 export function getVertexAnthropicBaseUrl(options: VertexProviderConfig) {
   const normalizedBaseUrl = normalizeUrl(options.baseURL);
   if (normalizedBaseUrl) return normalizedBaseUrl;
   const { location, project } = options;
   if (!location || !project) return undefined;
-  return `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/anthropic`;
+  return `https://${getVertexHost(location)}/v1/projects/${project}/locations/${location}/publishers/anthropic`;
 }
 
 export function getVertexGoogleBaseUrl(options: VertexProviderConfig) {
@@ -408,7 +414,7 @@ export function getVertexGoogleBaseUrl(options: VertexProviderConfig) {
   if (normalizedBaseUrl) return normalizedBaseUrl;
   const { location, project } = options;
   if (!location || !project) return undefined;
-  return `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google`;
+  return `https://${getVertexHost(location)}/v1/projects/${project}/locations/${location}/publishers/google`;
 }
 
 export async function getGoogleAuth(

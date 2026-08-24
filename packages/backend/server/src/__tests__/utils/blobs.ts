@@ -131,6 +131,7 @@ export async function createBlobUpload(
         createBlobUpload(workspaceId: $workspaceId, key: $key, size: $size, mime: $mime) {
           method
           blobKey
+          alreadyUploaded
           uploadUrl
           uploadId
           partSize

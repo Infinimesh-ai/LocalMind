@@ -244,7 +244,7 @@ export class ByokService {
         : (existing?.endpoint ?? null);
     const modelId =
       input.modelId !== undefined
-        ? this.normalizeModelId(input.modelId)
+        ? (this.normalizeModelId(input.modelId) ?? null)
         : (existing?.modelId ?? null);
     const sortOrder = input.sortOrder ?? existing?.sortOrder ?? 0;
     const enabled = input.enabled ?? existing?.enabled ?? true;

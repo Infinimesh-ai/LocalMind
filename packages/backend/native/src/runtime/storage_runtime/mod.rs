@@ -601,14 +601,19 @@ impl StorageRuntime {
   pub async fn presign_get(&self, _scope: String, key: String) -> napi::Result<Option<RuntimePresignedObjectRequest>> {
     match self.backend_for_scope(&_scope)? {
       StorageBackendConfig::Fs(_) | StorageBackendConfig::Assetpack(_) => Ok(None),
-      StorageBackendConfig::S3(config) => Ok(Some(
-        config
-          .build_client()?
-          .presign_get(&key)
-          .await
-          .map_err(napi::Error::from)?
-          .try_into()?,
-      )),
+      StorageBackendConfig::S3(config) => {
+        if let Some(request) = config.custom_presign_get(&key)? {
+          return Ok(Some(request.try_into()?));
+        }
+        Ok(Some(
+          config
+            .build_client()?
+            .presign_get(&key)
+            .await
+            .map_err(napi::Error::from)?
+            .try_into()?,
+        ))
+      }
     }
   }
 
@@ -1641,6 +1646,8 @@ mod tests {
       presign_sign_content_type_for_put: Some(true),
       use_presigned_url: true,
       proxy_upload: false,
+      custom_get_url_prefix: None,
+      custom_get_sign_key: None,
     })
     .capabilities();
 
@@ -1667,6 +1674,8 @@ mod tests {
       presign_sign_content_type_for_put: Some(true),
       use_presigned_url: true,
       proxy_upload: true,
+      custom_get_url_prefix: None,
+      custom_get_sign_key: None,
     })
     .capabilities();
 
