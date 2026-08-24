@@ -150,13 +150,16 @@ export const WorkspaceSideEffects = () => {
 
   useEffect(() => {
     if (!realtimeConnectionError) return;
-    notify.warning(
+    const id = notify.warning(
       {
         title: t['com.affine.realtime.connection-error.title'](),
         message: t['com.affine.realtime.connection-error.message'](),
       },
       { id: `realtime-connection-error:${realtimeConnectionError.endpoint}` }
     );
+    return () => {
+      notify.dismiss(id);
+    };
   }, [realtimeConnectionError, t]);
 
   useEffect(() => {
