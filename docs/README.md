@@ -19,6 +19,8 @@ Start here for LocalMind-specific work:
 
 - [LocalMind 用户使用指南](./localmind-user-guide.zh-CN.md)
 - [LocalMind 使用提示](./localmind-usage-tips.zh-CN.md)
+- [LocalMind `main` 人工部署指南](./localmind-deployment.zh-CN.md)
+- [LocalMind `main` AI 部署协议](./localmind-deployment-ai.zh-CN.md)
 - [AI Chat context and memory](./ai-chat-context-and-memory.md)
 - [LocalMind MCP integration](./localmind-mcp.md)
 - [AI modernization entrypoint](./ai-modernization/README.md)

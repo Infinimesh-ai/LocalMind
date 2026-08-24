@@ -54,6 +54,8 @@ Start with these documents before working on LocalMind AI features:
 
 - [LocalMind 用户使用指南](./docs/localmind-user-guide.zh-CN.md)
 - [LocalMind 使用提示](./docs/localmind-usage-tips.zh-CN.md)
+- [LocalMind `main` 人工部署指南](./docs/localmind-deployment.zh-CN.md)
+- [LocalMind `main` AI 部署协议](./docs/localmind-deployment-ai.zh-CN.md)
 - [LocalMind documentation index](./docs/README.md)
 - [LocalMind MCP integration](./docs/localmind-mcp.md)
 - [AI modernization entrypoint](./docs/ai-modernization/README.md)
