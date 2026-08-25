@@ -120,6 +120,32 @@ test('can validate callbackUrl allowlist', t => {
   );
 });
 
+test('can allow an explicit origin with a different protocol', t => {
+  const url = new URLHelper({
+    server: {
+      externalUrl: 'https://app.affine.local',
+      host: 'app.affine.local',
+      hosts: ['http://app2.affine.local:3011'],
+      port: 3010,
+      https: true,
+      path: '',
+    },
+  } as any);
+
+  t.true(
+    isCorsOriginAllowed(
+      'http://app2.affine.local:3011',
+      buildCorsAllowedOrigins(url)
+    )
+  );
+  t.false(
+    isCorsOriginAllowed(
+      'https://app2.affine.local:3011',
+      buildCorsAllowedOrigins(url)
+    )
+  );
+});
+
 test('can validate redirect_uri allowlist', t => {
   t.true(t.context.url.isAllowedRedirectUri('/redirect-proxy'));
   t.true(t.context.url.isAllowedRedirectUri('https://github.com'));
