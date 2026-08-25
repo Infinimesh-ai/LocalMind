@@ -203,8 +203,6 @@ function hasValidModelCatalog(provider: ByokProvider, payload: unknown) {
       return hasModelEntries(payload.data, ['id']);
     case ByokProvider.gemini:
       return hasModelEntries(payload.models, ['name']);
-    case ByokProvider.fal:
-      return false;
   }
 }
 
