@@ -9,6 +9,7 @@ import { usePageHelper } from '@affine/core/blocksuite/block-suite-page-list/uti
 import { Guard } from '@affine/core/components/guard';
 import { useAppSettingHelper } from '@affine/core/components/hooks/affine/use-app-setting-helper';
 import { useBlockSuiteMetaHelper } from '@affine/core/components/hooks/affine/use-block-suite-meta-helper';
+import { useRemoveLinkedDoc } from '@affine/core/components/hooks/affine/use-remove-linked-doc';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import { IsFavoriteIcon } from '@affine/core/components/pure/icons';
 import { DocsService } from '@affine/core/modules/doc';
@@ -26,6 +27,7 @@ import {
   OpenInNewIcon,
   PlusIcon,
   SplitViewIcon,
+  UnlinkIcon,
 } from '@blocksuite/icons/rc';
 import { useLiveData, useServices } from '@toeverything/infra';
 import { useCallback, useMemo, useState } from 'react';
@@ -37,6 +39,7 @@ export const useNavigationPanelDocNodeOperations = (
   options: {
     openInfoModal: () => void;
     openNodeCollapsed: () => void;
+    linkedFromDocId?: string;
   }
 ): NodeOperation[] => {
   const t = useI18n();
@@ -132,11 +135,24 @@ export const useNavigationPanelDocNodeOperations = (
         return;
       }
       const newDoc = createPage();
-      // TODO: handle timeout & error
-      await docsService.addLinkedDoc(docId, newDoc.id);
+      const result = await docsService.addLinkedDoc(docId, newDoc.id);
+      if (result !== 'added') {
+        toast(
+          t[
+            result === 'self-link'
+              ? 'com.affine.toastMessage.linkedPageSelfLink'
+              : 'com.affine.toastMessage.linkedPageAlreadyExists'
+          ]()
+        );
+        return;
+      }
+      toast(t['com.affine.toastMessage.addLinkedPage']());
       track.$.navigationPanel.docs.createDoc({ control: 'linkDoc' });
       track.$.navigationPanel.docs.linkDoc({ control: 'createDoc' });
       options.openNodeCollapsed();
+    } catch (error) {
+      console.error('[navigation-panel] Failed to add linked doc', error);
+      toast(t['com.affine.toastMessage.addLinkedPageFailed']());
     } finally {
       setAddLinkedPageLoading(false);
     }
@@ -148,6 +164,11 @@ export const useNavigationPanelDocNodeOperations = (
       type: 'doc',
     });
   }, [docId, compatibleFavoriteItemsAdapter]);
+
+  const handleRemoveLinkedDoc = useRemoveLinkedDoc(
+    options.linkedFromDocId,
+    docId
+  );
 
   return useMemo(
     () => [
@@ -248,7 +269,19 @@ export const useNavigationPanelDocNodeOperations = (
       },
       {
         index: 10000,
-        view: (
+        view: options.linkedFromDocId ? (
+          <Guard docId={options.linkedFromDocId} permission="Doc_Update">
+            {canEdit => (
+              <MenuItem
+                prefixIcon={<UnlinkIcon />}
+                onClick={handleRemoveLinkedDoc}
+                disabled={!canEdit}
+              >
+                {t['com.affine.rootAppSidebar.doc.remove-link']()}
+              </MenuItem>
+            )}
+          </Guard>
+        ) : (
           <Guard docId={docId} permission="Doc_Trash">
             {canMoveToTrash => (
               <MenuItem
@@ -275,7 +308,9 @@ export const useNavigationPanelDocNodeOperations = (
       handleOpenInNewTab,
       handleOpenInSplitView,
       handleOpenInfoModal,
+      handleRemoveLinkedDoc,
       handleToggleFavoriteDoc,
+      options.linkedFromDocId,
       t,
     ]
   );

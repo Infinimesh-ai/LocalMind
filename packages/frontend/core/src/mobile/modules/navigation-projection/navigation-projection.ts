@@ -11,6 +11,7 @@ export type MobileNavigationNode = {
   kind: Exclude<MobileNavigationKind, 'section' | 'placeholder'>;
   entityId: string;
   relationId?: string;
+  sourceDocId?: string;
   children?: readonly MobileNavigationNode[];
   expandable?: boolean;
   linked?: boolean;
@@ -37,6 +38,7 @@ export type MobileNavigationRow = {
   expandable?: boolean;
   linked?: boolean;
   relationId?: string;
+  sourceDocId?: string;
   blocked?: 'loading' | 'denied';
   action?: MobileNavigationNode['action'];
 };
@@ -124,6 +126,7 @@ export class MobileNavigationProjection {
         expandable,
         linked: node.linked,
         relationId: node.relationId,
+        sourceDocId: node.sourceDocId,
         action: node.action,
       });
       if (isExpanded && node.children?.length) {

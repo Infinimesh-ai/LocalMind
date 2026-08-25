@@ -201,6 +201,7 @@ const DocRow = ({
       <NavigationPanelDocNodeMenu
         docId={entry.id}
         handleAddLinkedPage={handleAddLinkedPage}
+        linkedFromDocId={row.sourceDocId}
         additionalOperations={
           row.relationId
             ? [
@@ -215,7 +216,7 @@ const DocRow = ({
         }
       />
     ),
-    [entry.id, handleAddLinkedPage, row.relationId]
+    [entry.id, handleAddLinkedPage, row.relationId, row.sourceDocId]
   );
   return (
     <EntityRowShell

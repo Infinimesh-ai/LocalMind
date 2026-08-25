@@ -8,11 +8,13 @@ import {
 import { usePageHelper } from '@affine/core/blocksuite/block-suite-page-list/utils';
 import { Guard } from '@affine/core/components/guard';
 import { useBlockSuiteMetaHelper } from '@affine/core/components/hooks/affine/use-block-suite-meta-helper';
+import { useRemoveLinkedDoc } from '@affine/core/components/hooks/affine/use-remove-linked-doc';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import { IsFavoriteIcon } from '@affine/core/components/pure/icons';
 import type { NodeOperation } from '@affine/core/desktop/components/navigation-panel';
 import { DocsService } from '@affine/core/modules/doc';
 import { CompatibleFavoriteItemsAdapter } from '@affine/core/modules/favorite';
+import { GuardService } from '@affine/core/modules/permissions';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
 import { preventDefault } from '@affine/core/utils';
@@ -24,6 +26,7 @@ import {
   InformationIcon,
   LinkedPageIcon,
   OpenInNewIcon,
+  UnlinkIcon,
 } from '@blocksuite/icons/rc';
 import { useLiveData, useService, useServices } from '@toeverything/infra';
 import { useCallback, useMemo } from 'react';
@@ -36,20 +39,43 @@ export const useNavigationPanelDocNodeAddLinkedPage = (
   docId: string,
   openNodeCollapsed: () => void
 ) => {
-  const { docsService, workspaceService } = useServices({
+  const t = useI18n();
+  const { docsService, guardService, workspaceService } = useServices({
     DocsService,
+    GuardService,
     WorkspaceService,
   });
   const { createPage } = usePageHelper(
     workspaceService.workspace.docCollection
   );
   return useAsyncCallback(async () => {
-    const newDoc = createPage();
-    await docsService.addLinkedDoc(docId, newDoc.id);
-    track.$.navigationPanel.docs.createDoc({ control: 'linkDoc' });
-    track.$.navigationPanel.docs.linkDoc({ control: 'createDoc' });
-    openNodeCollapsed();
-  }, [createPage, docId, docsService, openNodeCollapsed]);
+    try {
+      const canEdit = await guardService.can('Doc_Update', docId);
+      if (!canEdit) {
+        toast(t['com.affine.no-permission']());
+        return;
+      }
+      const newDoc = createPage();
+      const result = await docsService.addLinkedDoc(docId, newDoc.id);
+      if (result !== 'added') {
+        toast(
+          t[
+            result === 'self-link'
+              ? 'com.affine.toastMessage.linkedPageSelfLink'
+              : 'com.affine.toastMessage.linkedPageAlreadyExists'
+          ]()
+        );
+        return;
+      }
+      toast(t['com.affine.toastMessage.addLinkedPage']());
+      track.$.navigationPanel.docs.createDoc({ control: 'linkDoc' });
+      track.$.navigationPanel.docs.linkDoc({ control: 'createDoc' });
+      openNodeCollapsed();
+    } catch (error) {
+      console.error('[navigation-panel] Failed to add linked doc', error);
+      toast(t['com.affine.toastMessage.addLinkedPageFailed']());
+    }
+  }, [createPage, docId, docsService, guardService, openNodeCollapsed, t]);
 };
 
 export const useNavigationPanelDocNodeOperations = (docId: string) => {
@@ -160,6 +186,7 @@ export const useNavigationPanelDocNodeOperationsMenu = (
   docId: string,
   options: {
     handleAddLinkedPage: () => void;
+    linkedFromDocId?: string;
   }
 ): {
   operations: NodeOperation[];
@@ -179,6 +206,10 @@ export const useNavigationPanelDocNodeOperationsMenu = (
   const docService = useService(DocsService);
   const docRecord = useLiveData(docService.list.doc$(docId));
   const title = useLiveData(docRecord?.title$);
+  const handleRemoveLinkedDoc = useRemoveLinkedDoc(
+    options.linkedFromDocId,
+    docId
+  );
 
   const operations = useMemo(
     () => [
@@ -270,7 +301,19 @@ export const useNavigationPanelDocNodeOperationsMenu = (
       },
       {
         index: 10000,
-        view: (
+        view: options.linkedFromDocId ? (
+          <Guard docId={options.linkedFromDocId} permission="Doc_Update">
+            {canEdit => (
+              <MenuItem
+                prefixIcon={<UnlinkIcon />}
+                onClick={handleRemoveLinkedDoc}
+                disabled={!canEdit}
+              >
+                {t['com.affine.rootAppSidebar.doc.remove-link']()}
+              </MenuItem>
+            )}
+          </Guard>
+        ) : (
           <Guard docId={docId} permission="Doc_Trash">
             {canMoveToTrash => (
               <MenuItem
@@ -293,8 +336,10 @@ export const useNavigationPanelDocNodeOperationsMenu = (
       handleDuplicate,
       handleMoveToTrash,
       handleOpenInNewTab,
+      handleRemoveLinkedDoc,
       handleRename,
       handleToggleFavoriteDoc,
+      options.linkedFromDocId,
       t,
       title,
     ]
@@ -309,14 +354,17 @@ export const useNavigationPanelDocNodeOperationsMenu = (
 export const NavigationPanelDocNodeMenu = ({
   docId,
   handleAddLinkedPage,
+  linkedFromDocId,
   additionalOperations,
 }: {
   docId: string;
   handleAddLinkedPage: () => void;
+  linkedFromDocId?: string;
   additionalOperations?: NodeOperation[];
 }) => {
   const { operations } = useNavigationPanelDocNodeOperationsMenu(docId, {
     handleAddLinkedPage,
+    linkedFromDocId,
   });
   const allOperations = useMemo(
     () => [...operations, ...(additionalOperations ?? [])],
