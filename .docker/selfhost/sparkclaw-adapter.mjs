@@ -7,6 +7,14 @@ const embeddingOrigin =
 const rerankOrigin =
   process.env.SPARKCLAW_RERANK_ORIGIN ??
   'https://sparkclaw.infinimesh.cloud/reranker';
+const upstreamTimeoutMs = Number.parseInt(
+  process.env.SPARKCLAW_UPSTREAM_TIMEOUT_MS ?? '5000',
+  10
+);
+
+function upstreamSignal() {
+  return AbortSignal.timeout(upstreamTimeoutMs);
+}
 
 function jsonResponse(response, status, body) {
   response.writeHead(status, { 'content-type': 'application/json' });
@@ -31,6 +39,7 @@ async function forward(response, target, request, body) {
   const upstream = await fetch(target, {
     method: request.method,
     headers: forwardedHeaders(request),
+    signal: upstreamSignal(),
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   response.writeHead(upstream.status, {
@@ -96,6 +105,7 @@ async function handleRerank(request, response, suffix) {
     const upstream = await fetch(`${rerankOrigin}/v1/rerank`, {
       method: 'POST',
       headers: forwardedHeaders(request),
+      signal: upstreamSignal(),
       body: JSON.stringify({
         model: body.model,
         query: pair.query,
