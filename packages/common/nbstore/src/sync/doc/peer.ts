@@ -268,6 +268,13 @@ export class DocSyncPeer {
 
       throwIfAborted(signal);
       if (
+        this.remote.isReadonly &&
+        (this.prioritySettings.get(docId) ?? 0) > 0
+      ) {
+        // Readonly remotes can bootstrap the active document before the
+        // realtime peer has finished connecting and enumerating its clocks.
+        await this.jobs.pull(docId, signal);
+      } else if (
         !this.remote.isReadonly &&
         clock &&
         (pushedClock === null ||
@@ -521,6 +528,12 @@ export class DocSyncPeer {
       update: Uint8Array;
       clock: Date;
     }) => {
+      if (
+        this.remote.syncPriorityOnly &&
+        (this.prioritySettings.get(docId) ?? 0) <= 0
+      ) {
+        return;
+      }
       if (this.status.docErrors.has(docId)) {
         return;
       }
@@ -716,42 +729,44 @@ export class DocSyncPeer {
         })
       );
 
-      // add all docs from local
-      const localDocs = Object.keys(await this.local.getDocTimestamps());
-      throwIfAborted(signal);
-      for (const docId of localDocs) {
-        this.actions.addDoc(docId);
-      }
+      if (!this.remote.syncPriorityOnly) {
+        // add all docs from local
+        const localDocs = Object.keys(await this.local.getDocTimestamps());
+        throwIfAborted(signal);
+        for (const docId of localDocs) {
+          this.actions.addDoc(docId);
+        }
 
-      // get cached clocks from metadata
-      const cachedClocks = await this.syncMetadata.getPeerRemoteClocks(
-        this.peerId
-      );
-      this.status.remoteClocks.clear();
-      throwIfAborted(signal);
-      for (const [id, v] of Object.entries(cachedClocks)) {
-        this.status.remoteClocks.set(id, v);
-      }
-      this.statusUpdatedSubject$.next(true);
+        // get cached clocks from metadata
+        const cachedClocks = await this.syncMetadata.getPeerRemoteClocks(
+          this.peerId
+        );
+        this.status.remoteClocks.clear();
+        throwIfAborted(signal);
+        for (const [id, v] of Object.entries(cachedClocks)) {
+          this.status.remoteClocks.set(id, v);
+        }
+        this.statusUpdatedSubject$.next(true);
 
-      // get new clocks from server
-      const maxClockValue = this.status.remoteClocks.max;
-      const newClocks = await this.remote.getDocTimestamps(maxClockValue);
-      for (const [id, v] of Object.entries(newClocks)) {
-        this.status.remoteClocks.set(id, v);
-      }
-      this.statusUpdatedSubject$.next(true);
+        // get new clocks from server
+        const maxClockValue = this.status.remoteClocks.max;
+        const newClocks = await this.remote.getDocTimestamps(maxClockValue);
+        for (const [id, v] of Object.entries(newClocks)) {
+          this.status.remoteClocks.set(id, v);
+        }
+        this.statusUpdatedSubject$.next(true);
 
-      for (const [id, v] of Object.entries(newClocks)) {
-        await this.syncMetadata.setPeerRemoteClock(this.peerId, {
-          docId: id,
-          timestamp: v,
-        });
-      }
+        for (const [id, v] of Object.entries(newClocks)) {
+          await this.syncMetadata.setPeerRemoteClock(this.peerId, {
+            docId: id,
+            timestamp: v,
+          });
+        }
 
-      // add all docs from remote
-      for (const docId of this.status.remoteClocks.keys()) {
-        this.actions.addDoc(docId);
+        // add all docs from remote
+        for (const docId of this.status.remoteClocks.keys()) {
+          this.actions.addDoc(docId);
+        }
       }
 
       // begin to process jobs
@@ -889,6 +904,9 @@ export class DocSyncPeer {
     const oldPriority = this.prioritySettings.get(id) ?? 0;
     this.prioritySettings.set(id, priority);
     this.status.jobDocQueue.setPriority(id, oldPriority + priority);
+    if (priority > 0) {
+      this.actions.addDoc(id);
+    }
 
     return () => {
       const currentPriority = this.prioritySettings.get(id) ?? 0;

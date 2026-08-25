@@ -54,7 +54,7 @@ function deferred<T = void>() {
 class TestDocStorage implements DocStorage {
   readonly storageType = 'doc' as const;
   readonly connection = new DummyConnection();
-  readonly isReadonly = false;
+  readonly isReadonly: boolean = false;
   private readonly subscribers = new Set<
     (update: DocRecord, origin?: string) => void
   >();
@@ -169,6 +169,36 @@ class PermissionDeniedConnection extends DummyConnection {
 
 class PermissionDeniedConnectionDocStorage extends PermissionDeniedRemoteDocStorage {
   override readonly connection = new PermissionDeniedConnection();
+}
+
+class PriorityReadonlyDocStorage extends TestDocStorage {
+  override readonly isReadonly = true;
+  readonly syncPriorityOnly = true;
+  readonly pulls: string[] = [];
+
+  constructor(
+    spaceId: string,
+    private readonly docs: Map<string, DocRecord>
+  ) {
+    super(spaceId, new Map(), async () => null);
+  }
+
+  override async getDocDiff(
+    docId: string,
+    _state?: Uint8Array
+  ): Promise<DocDiff | null> {
+    this.pulls.push(docId);
+    const doc = this.docs.get(docId);
+    if (!doc) {
+      return null;
+    }
+    return {
+      docId,
+      missing: doc.bin,
+      state: new Uint8Array(),
+      timestamp: doc.timestamp,
+    };
+  }
 }
 
 class TrackingIndexerStorage extends IndexerStorageBase {
@@ -561,6 +591,72 @@ test('doc sync peer stops retrying a doc when remote denies permission', async (
     await new Promise(resolve => setTimeout(resolve, 1200));
     expect(remote.pushCount).toBe(1);
   } finally {
+    abort.abort();
+    local.connection.disconnect();
+    syncMetadata.connection.disconnect();
+  }
+});
+
+test('doc sync peer bootstraps a priority doc from a readonly remote', async () => {
+  const workspaceId = 'ws-priority-readonly';
+  const docId = 'doc-priority-readonly';
+  const local = new IndexedDBDocStorage({
+    id: workspaceId,
+    flavour: 'local-priority-readonly',
+    type: 'workspace',
+  });
+  const syncMetadata = new IndexedDBDocSyncStorage({
+    id: workspaceId,
+    flavour: 'local-priority-readonly',
+    type: 'workspace',
+  });
+  const source = new YDoc();
+  source.getMap('test').set('loaded', true);
+  const remote = new PriorityReadonlyDocStorage(
+    workspaceId,
+    new Map([
+      [
+        docId,
+        {
+          docId,
+          bin: encodeStateAsUpdate(source),
+          timestamp: new Date(),
+        },
+      ],
+    ])
+  );
+  const peer = new DocSyncPeer(
+    'remote-priority-readonly',
+    local,
+    syncMetadata,
+    remote
+  );
+  const abort = new AbortController();
+
+  local.connection.connect();
+  syncMetadata.connection.connect();
+  await local.connection.waitForConnected();
+  await syncMetadata.connection.waitForConnected();
+
+  const cachedDoc = new YDoc();
+  cachedDoc.getMap('test').set('cached', true);
+  await local.pushDocUpdate({
+    docId: 'doc-cached-without-priority',
+    bin: encodeStateAsUpdate(cachedDoc),
+  });
+
+  const disposePriority = peer.addPriority(docId, 100);
+  try {
+    void peer.mainLoop(abort.signal);
+
+    await vi.waitFor(async () => {
+      const doc = await local.getDoc(docId);
+      expect(doc).not.toBeNull();
+      expectYjsEqual(doc!.bin, { test: { loaded: true } });
+    });
+    expect(remote.pulls).toEqual([docId]);
+  } finally {
+    disposePriority();
     abort.abort();
     local.connection.disconnect();
     syncMetadata.connection.disconnect();

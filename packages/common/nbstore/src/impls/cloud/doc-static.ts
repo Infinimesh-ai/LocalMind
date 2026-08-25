@@ -19,6 +19,8 @@ const isShareModePrivateSystemDoc = (docId: string) =>
 export class StaticCloudDocStorage extends DocStorageBase<CloudDocStorageOptions> {
   static readonly identifier = 'StaticCloudDocStorage';
 
+  readonly syncPriorityOnly = true;
+
   constructor(options: CloudDocStorageOptions) {
     super({ ...options, readonlyMode: true });
   }
