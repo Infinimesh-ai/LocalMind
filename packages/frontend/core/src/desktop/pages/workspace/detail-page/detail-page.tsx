@@ -1,4 +1,4 @@
-import { Scrollable } from '@affine/component';
+import { Loading, Scrollable } from '@affine/component';
 import { PageDetailLoading } from '@affine/component/page-detail-skeleton';
 import { AIAppEvents, type AIChatParams } from '@affine/core/blocksuite/ai';
 import type { AffineEditorContainer } from '@affine/core/blocksuite/block-suite-editor';
@@ -58,7 +58,15 @@ import {
 } from '@toeverything/infra';
 import clsx from 'clsx';
 import { nanoid } from 'nanoid';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  lazy,
+  memo,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useParams } from 'react-router-dom';
 import type { Subscription } from 'rxjs';
 
@@ -67,11 +75,16 @@ import * as styles from './detail-page.css';
 import { DetailPageHeader } from './detail-page-header';
 import { DetailPageWrapper } from './detail-page-wrapper';
 import { EditorAdapterPanel } from './tabs/adapter';
-import { EditorAnalyticsPanel } from './tabs/analytics';
 import { EditorChatPanel } from './tabs/chat';
 import { EditorFramePanel } from './tabs/frame';
 import { EditorJournalPanel } from './tabs/journal';
 import { EditorOutlinePanel } from './tabs/outline';
+
+const EditorAnalyticsPanel = lazy(() =>
+  import('./tabs/analytics').then(module => ({
+    default: module.EditorAnalyticsPanel,
+  }))
+);
 
 const DetailPageImpl = memo(function DetailPageImpl() {
   const {
@@ -438,7 +451,14 @@ const DetailPageImpl = memo(function DetailPageImpl() {
         <ViewSidebarTab tabId="analytics" icon={<ChartPanelIcon />}>
           <Scrollable.Root className={styles.sidebarScrollArea}>
             <Scrollable.Viewport>
-              <EditorAnalyticsPanel workspaceId={workspace.id} docId={doc.id} />
+              {activeSidebarTab?.id === 'analytics' ? (
+                <Suspense fallback={<Loading />}>
+                  <EditorAnalyticsPanel
+                    workspaceId={workspace.id}
+                    docId={doc.id}
+                  />
+                </Suspense>
+              ) : null}
             </Scrollable.Viewport>
             <Scrollable.Scrollbar />
           </Scrollable.Root>

@@ -11,7 +11,7 @@ import { InlineManagerExtension } from '@blocksuite/std/inline';
 import { effect, type Signal, signal } from '@preact/signals-core';
 import { css, html } from 'lit';
 import { property } from 'lit/decorators.js';
-import { codeToTokensBase, type ThemedToken } from 'shiki';
+import type { ThemedToken } from 'shiki';
 import * as Y from 'yjs';
 
 import { LatexEditorUnitSpecExtension } from '../inline-spec';
@@ -108,10 +108,13 @@ export class LatexEditorMenu extends SignalWatcher(
     const editorTheme = this.std.get(ThemeProvider).theme;
     const theme = editorTheme === ColorScheme.Dark ? 'dark-plus' : 'light-plus';
 
-    codeToTokensBase(text, {
-      lang: 'latex',
-      theme,
-    })
+    import('shiki')
+      .then(({ codeToTokensBase }) =>
+        codeToTokensBase(text, {
+          lang: 'latex',
+          theme,
+        })
+      )
       .then(token => {
         this.highlightTokens$.value = token;
       })

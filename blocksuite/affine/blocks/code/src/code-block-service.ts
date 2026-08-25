@@ -2,13 +2,7 @@ import { ColorScheme } from '@blocksuite/affine-model';
 import { ThemeProvider } from '@blocksuite/affine-shared/services';
 import { LifeCycleWatcher } from '@blocksuite/std';
 import { type Signal, signal } from '@preact/signals-core';
-import {
-  createHighlighterCore,
-  createOnigurumaEngine,
-  type HighlighterCore,
-  type MaybeGetter,
-} from 'shiki';
-import getWasm from 'shiki/wasm';
+import type { BundledLanguageInfo, HighlighterCore, MaybeGetter } from 'shiki';
 
 import { CodeBlockConfigExtension } from './code-block-config.js';
 import {
@@ -22,12 +16,15 @@ export class CodeBlockHighlighter extends LifeCycleWatcher {
   // Singleton highlighter instance
   private static _sharedHighlighter: HighlighterCore | null = null;
   private static _highlighterPromise: Promise<HighlighterCore> | null = null;
+  private static _bundledLanguagesInfo: BundledLanguageInfo[] = [];
   private static _refCount = 0;
 
   private _darkThemeKey: string | undefined;
   private _lightThemeKey: string | undefined;
+  private _loadPromise: Promise<void> | null = null;
 
   highlighter$: Signal<HighlighterCore | null> = signal(null);
+  langs$: Signal<BundledLanguageInfo[]> = signal([]);
 
   get themeKey() {
     const theme = this.std.get(ThemeProvider).theme$.value;
@@ -68,25 +65,47 @@ export class CodeBlockHighlighter extends LifeCycleWatcher {
     }
 
     if (!CodeBlockHighlighter._highlighterPromise) {
-      CodeBlockHighlighter._highlighterPromise = createHighlighterCore({
-        engine: createOnigurumaEngine(() => getWasm),
-      }).then(highlighter => {
-        CodeBlockHighlighter._sharedHighlighter = highlighter;
-        return highlighter;
+      CodeBlockHighlighter._highlighterPromise = Promise.all([
+        import('shiki'),
+        import('shiki/wasm'),
+      ]).then(([shiki, wasm]) => {
+        CodeBlockHighlighter._bundledLanguagesInfo = shiki.bundledLanguagesInfo;
+        return shiki
+          .createHighlighterCore({
+            engine: shiki.createOnigurumaEngine(() => wasm.default),
+          })
+          .then(highlighter => {
+            CodeBlockHighlighter._sharedHighlighter = highlighter;
+            return highlighter;
+          });
       });
     }
 
     return CodeBlockHighlighter._highlighterPromise;
   }
 
+  load(): Promise<void> {
+    if (!this._loadPromise) {
+      const loadPromise = CodeBlockHighlighter._getOrCreateHighlighter().then(
+        highlighter => {
+          this.langs$.value = CodeBlockHighlighter._bundledLanguagesInfo;
+          return this._loadTheme(highlighter);
+        }
+      );
+      this._loadPromise = loadPromise;
+      loadPromise.catch(() => {
+        if (this._loadPromise === loadPromise) {
+          this._loadPromise = null;
+        }
+      });
+    }
+    return this._loadPromise;
+  }
+
   override mounted(): void {
     super.mounted();
 
     CodeBlockHighlighter._refCount++;
-
-    CodeBlockHighlighter._getOrCreateHighlighter()
-      .then(this._loadTheme)
-      .catch(console.error);
   }
 
   override unmounted(): void {
@@ -94,7 +113,9 @@ export class CodeBlockHighlighter extends LifeCycleWatcher {
       0,
       CodeBlockHighlighter._refCount - 1
     );
+    this._loadPromise = null;
     this.highlighter$.value = null;
+    this.langs$.value = [];
   }
 
   private static _isHighlighterInUse(highlighter: HighlighterCore) {
