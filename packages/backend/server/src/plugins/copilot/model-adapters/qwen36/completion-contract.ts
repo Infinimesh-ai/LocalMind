@@ -5,7 +5,7 @@ import { z } from 'zod';
 import type { ModelAdapterCapabilityId } from '../types';
 
 export const QWEN36_COMPLETION_CONTRACT_VERSION =
-  'qwen36-completion-contract/v4';
+  'qwen36-completion-contract/v5';
 export const QWEN36_COMPLETION_MAX_EXECUTIONS = 16;
 
 const REQUIREMENT_IDS = [
@@ -66,6 +66,7 @@ export type Qwen36CompletionContract = z.infer<
 >;
 
 const DOCUMENT = /\b(?:documents?|docs?)\b|文档|笔记|页面/i;
+const ATTACHMENT = /\battachments?\b|附件/i;
 const FOLDER = /\bfolders?\b|文件夹|目录/i;
 const CREATE = /\b(?:create|make|add|new)\b|创建|新建|新增/i;
 const UPDATE =
@@ -321,11 +322,13 @@ function requirementIdsForClause(
   request: string
 ): Qwen36CompletionRequirement['id'][] {
   const hasDocument = DOCUMENT.test(clause);
+  const hasAttachment = ATTACHMENT.test(clause);
   const hasFolder = FOLDER.test(clause);
   const globalDocument = DOCUMENT.test(request);
   const globalFolder = FOLDER.test(request);
   const inferredDocument =
-    hasDocument || (!hasFolder && globalDocument && !globalFolder);
+    hasDocument ||
+    (!hasAttachment && !hasFolder && globalDocument && !globalFolder);
   const inferredFolder =
     hasFolder || (!hasDocument && globalFolder && !globalDocument);
   const create = qwen36OperationRequested(clause, CREATE);

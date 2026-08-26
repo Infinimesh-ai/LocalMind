@@ -167,6 +167,18 @@ async fn has_other_ref(pool: &PgPool, workspace_id: &str, key: &str) -> RuntimeR
   {
     return Ok(true);
   }
+  if table_exists(pool, "ai_mcp_attachments").await?
+    && sqlx::query_scalar::<_, bool>(
+      "SELECT EXISTS(SELECT 1 FROM ai_mcp_attachments WHERE workspace_id = $1 AND blob_key = $2)",
+    )
+    .bind(workspace_id)
+    .bind(key)
+    .fetch_one(pool)
+    .await
+    .map_err(|err| RuntimeError::database("Blob cleanup MCP attachment ref check failed", err))?
+  {
+    return Ok(true);
+  }
   Ok(false)
 }
 

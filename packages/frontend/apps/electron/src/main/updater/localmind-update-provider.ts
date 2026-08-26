@@ -33,6 +33,7 @@ interface GithubRelease {
   assets: Array<{
     name: string;
     url: string;
+    browser_download_url?: string;
     size: number;
   }>;
 }
@@ -42,12 +43,15 @@ interface UpdateProviderOptions {
   channel: typeof buildType;
 }
 
-export class AFFiNEUpdateProvider extends Provider<GithubUpdateInfo> {
+const LOCALMIND_RELEASES_URL =
+  'https://api.github.com/repos/Infinimesh-ai/LocalMind/releases';
+
+export class LocalMindUpdateProvider extends Provider<GithubUpdateInfo> {
   static configFeed(options: UpdateProviderOptions): CustomPublishOptions {
     return {
       provider: 'custom',
-      feedUrl: 'https://affine.pro/api/worker/releases',
-      updateProvider: AFFiNEUpdateProvider,
+      feedUrl: LOCALMIND_RELEASES_URL,
+      updateProvider: LocalMindUpdateProvider,
       ...options,
     };
   }
@@ -62,8 +66,7 @@ export class AFFiNEUpdateProvider extends Provider<GithubUpdateInfo> {
 
   get feedUrl(): URL {
     const url = new URL(this.options.feedUrl);
-    url.searchParams.set('channel', this.options.channel);
-    url.searchParams.set('minimal', 'true');
+    url.searchParams.set('per_page', '100');
 
     return url;
   }
@@ -76,6 +79,7 @@ export class AFFiNEUpdateProvider extends Provider<GithubUpdateInfo> {
       {
         accept: 'application/json',
         'cache-control': 'no-cache',
+        'user-agent': 'LocalMind Desktop',
       },
       cancellationToken
     );
@@ -86,15 +90,22 @@ export class AFFiNEUpdateProvider extends Provider<GithubUpdateInfo> {
       );
     }
 
-    const releases = JSON.parse(releasesJsonStr);
+    const parsedReleases = JSON.parse(releasesJsonStr) as unknown;
+    if (!Array.isArray(parsedReleases)) {
+      throw new Error('LocalMind release feed returned an invalid response');
+    }
+    const releases = parsedReleases as GithubRelease[];
 
-    if (releases.length === 0) {
+    const latestRelease = releases.find(release =>
+      matchesReleaseChannel(release, this.options.channel)
+    );
+
+    if (!latestRelease) {
       throw new Error(
         `No published versions in channel ${this.options.channel}`
       );
     }
 
-    const latestRelease = releases[0] as GithubRelease;
     const tag = latestRelease.tag_name;
 
     const channelFileName = 'latest.yml';
@@ -113,7 +124,7 @@ export class AFFiNEUpdateProvider extends Provider<GithubUpdateInfo> {
       );
     }
 
-    const channelFileUrl = new URL(channelFileAsset.url);
+    const channelFileUrl = new URL(getReleaseAssetUrl(channelFileAsset));
     const channelFileContent = await this.httpRequest(channelFileUrl);
 
     const result = parseUpdateInfo(
@@ -132,11 +143,12 @@ export class AFFiNEUpdateProvider extends Provider<GithubUpdateInfo> {
         )
       )
       .forEach(file => {
+        const fileName = file.url.split('/').pop();
         const asset = latestRelease.assets.find(
-          ({ name }) => name === file.url
+          ({ name }) => name === fileName
         );
         if (asset) {
-          file.url = asset.url;
+          file.url = getReleaseAssetUrl(asset);
         }
       });
 
@@ -173,13 +185,36 @@ export class AFFiNEUpdateProvider extends Provider<GithubUpdateInfo> {
   }
 }
 
+function getReleaseAssetUrl(asset: GithubRelease['assets'][number]) {
+  return asset.browser_download_url ?? asset.url;
+}
+
+export function matchesReleaseChannel(
+  release: GithubRelease,
+  channel: UpdateProviderOptions['channel']
+) {
+  if (release.draft) {
+    return false;
+  }
+
+  if (channel === 'stable') {
+    return !release.prerelease;
+  }
+
+  return (
+    release.prerelease &&
+    new RegExp(`-${channel}(?:\\.|-|$)`, 'i').test(release.tag_name)
+  );
+}
+
+type VersionProduct = 'localmind' | 'affine';
 type VersionDistribution = 'canary' | 'beta' | 'stable';
 type VersionPlatform = 'windows' | 'macos' | 'linux';
 type VersionArch = 'x64' | 'arm64';
 type FileParts =
-  | ['affine', string, VersionDistribution, VersionPlatform, VersionArch]
+  | [VersionProduct, string, VersionDistribution, VersionPlatform, VersionArch]
   | [
-      'affine',
+      VersionProduct,
       string,
       `${'canary' | 'beta'}.${number}`,
       VersionDistribution,
@@ -201,8 +236,8 @@ export function availableForMyPlatformAndInstaller(
   const imLinux = platform === 'linux';
 
   //  in form of:
-  //   affine-${build}-${buildSuffix}-${distribution}-${platform}-${arch}.${installer}
-  //          ^ 1.0.0    ^canary.1    ^ canary        ^windows    ^ x64  ^.nsis.exe
+  //   localmind-${build}-${buildSuffix}-${distribution}-${platform}-${arch}.${installer}
+  //             ^ 1.0.0    ^canary.1    ^ canary        ^windows    ^ x64  ^.nsis.exe
   const filename = file.split('/').pop();
 
   if (!filename) {
@@ -210,6 +245,10 @@ export function availableForMyPlatformAndInstaller(
   }
 
   const parts = filename.split('-') as FileParts;
+
+  if (parts[0] !== 'localmind' && parts[0] !== 'affine') {
+    return false;
+  }
 
   // fix -${arch}.${installer}
   const archDotInstaller = parts[parts.length - 1];

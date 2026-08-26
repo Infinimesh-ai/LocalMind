@@ -1,4 +1,5 @@
 export const MCP_CAPABILITY_OPTIONS = [
+  { key: 'attachment', capability: 'upload_localmind_attachment' },
   { key: 'delegate', capability: 'delegate_to_localmind' },
   { key: 'query', capability: 'get_localmind_task' },
   { key: 'control', capability: 'control_localmind_task' },

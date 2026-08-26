@@ -906,9 +906,10 @@ optional terminal notification slices implemented.
 
 Implemented outcome:
 
-- the inbound server advertises `delegate_to_localmind`,
-  `get_localmind_task`, and `control_localmind_task` under the `localmind-ai`
-  v3 identity; direct document, whiteboard, database, workspace, asset,
+- the inbound server advertises `upload_localmind_attachment`,
+  `delegate_to_localmind`, `get_localmind_task`, and
+  `control_localmind_task` under the `localmind-ai` v3 identity; direct
+  document, whiteboard, database, workspace, asset,
   comment, collaboration, history, AI Context, AI Chat, and AI Operations tools
   are no longer exposed;
 - capability questions remain ordinary natural-language requests through
@@ -922,18 +923,25 @@ Implemented outcome:
   `stateVersion` long polling, stay isolated to the creating credential family,
   survive family rotation, and recheck family activity, frozen
   `get_localmind_task` permission, live `Workspace.Copilot`, and
-  referenced-document `Doc.Read`;
+  referenced-document `Doc.Read`; attachment-backed tasks additionally recheck
+  live `Workspace.Blobs.Read` and actor/workspace/credential-family binding;
 - persisted cancel controls enforce idempotency and credential-family
   isolation, use the task's frozen `control_localmind_task` permission, and recheck live
   `Workspace.Copilot` without requiring target-document write permission;
 - queued AgentRuns cancel immediately, while leased running work
   records cooperative cancellation and projects `cancelling` until the worker
   reconciles the delegation to terminal `cancelled` state;
-- each request persists the MCP credential's three public tool permissions as a
+- each request persists the MCP credential's selected subset of four public
+  tool permissions as a
   fixed authority ceiling, while credential-family activity and the delegated user's
   workspace/document ACL are rechecked live at planning and execution;
 - missing real ACL returns a direct terminal failure without any permission
   elevation callback;
+- `upload_localmind_attachment` accepts strict base64 through workspace Blob
+  quota enforcement, persists immutable size/SHA-256 evidence, and returns a
+  credential-family-bound id; delegation accepts at most eight ids and 20 MiB
+  combined, then planning and worker execution independently rematerialize and
+  verify bounded text/byte model context;
 - the planner can return a direct answer, queue the optimized one-document
   replacement path, or queue `agent_runtime_localmind_tool_agent` with all 13
   AI Chat server-side tool categories: attachment read, code artifact,
@@ -965,8 +973,9 @@ Implemented outcome:
 - Workspace Settings can optionally configure the result notification URL and
   reveals its HMAC secret once when the credential family is created; rotation
   retains the endpoint and secret, while family revocation blocks queued work;
-- focused Docker E2E covers callback policy, ACL, stale-version, tool-agent
-  document creation and replay, failed-tool projection, direct execution
+- focused Docker E2E covers callback policy, ACL, stale-version, attachment
+  upload/family isolation/immutable evidence, tool-agent document creation and
+  replay, failed-tool projection, direct execution
   without a callback, immediate cancellation, cooperative cancellation, and
   terminal notifications.
 

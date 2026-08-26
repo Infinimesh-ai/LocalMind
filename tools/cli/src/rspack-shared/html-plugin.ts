@@ -61,7 +61,7 @@ export const getPublicPath = (BUILD_CONFIG: BUILD_CONFIG_TYPE) => {
   }
 };
 
-const DESCRIPTION = `There can be more than Notion and Miro. AFFiNE is a next-gen knowledge base that brings planning, sorting and creating all together.`;
+const DESCRIPTION = `LocalMind is a local-first workspace for documents, whiteboards, databases, and auditable AI workflows.`;
 
 const gitShortHash = once(() => {
   const { GITHUB_SHA } = process.env;

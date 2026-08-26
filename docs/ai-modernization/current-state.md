@@ -1414,8 +1414,9 @@ The GitHub issues #2-#8 stabilization pass is now implemented:
   page is hidden, applies bounded exponential backoff, and reauthorizes cached
   MCP/keyword-search results before returning them;
 - the workspace MCP endpoint now advertises the `localmind-ai` v3 identity and
-  the `delegate_to_localmind`, `get_localmind_task`, and
-  `control_localmind_task` tools, with protocol-version validation,
+  the `upload_localmind_attachment`, `delegate_to_localmind`,
+  `get_localmind_task`, and `control_localmind_task` tools, with
+  protocol-version validation,
   post-2025-03 batch rejection, notification response semantics, strict task
   argument validation, redacted unexpected failures, and workspace-bound
   credential rotation/revocation behavior;
@@ -1430,18 +1431,25 @@ The GitHub issues #2-#8 stabilization pass is now implemented:
 
 The inbound workspace MCP AI delegation slice is now implemented:
 
-- the Streamable HTTP server exposes `delegate_to_localmind`, the read-only
-  `get_localmind_task`, and cancel-only `control_localmind_task`; the built-in
+- the Streamable HTTP server exposes task-bound `upload_localmind_attachment`,
+  `delegate_to_localmind`, the read-only `get_localmind_task`, and cancel-only
+  `control_localmind_task`; the built-in
   LocalMind AI can produce a read-only answer, plan one optimized complete
   Markdown document replacement, or queue a durable tool-agent run with the
   same server-side tool categories as AI Chat; work outside those executors
   still returns `unsupported_task`;
-- the advertised `localmind-ai` v3.2.1 instructions, tool descriptions, and
+- the advertised `localmind-ai` v3.3.0 instructions, tool descriptions, and
   input-schema field descriptions now encode one unambiguous routing contract:
   every new task starts with `delegate_to_localmind`, task reads require its
   returned `taskId`, cancellation is the only control action, task ids are not
   document ids, and callers must not search for LocalMind's internal
   `doc_create`/`doc_read` tools;
+- uploads are immutable workspace Blobs bound to the delegated actor and
+  credential family, limited to 10 MiB each, eight per task, and 20 MiB
+  combined; planning and worker execution reread them under live Blob ACL and
+  verify persisted size/SHA-256 evidence before providing bounded extracted
+  text or bytes to the model, while storage reconciliation treats active MCP
+  attachment rows as Blob references rather than cleanup candidates;
 - `agent_runtime_localmind_tool_agent` exposes attachment read, code artifact,
   conversation summary, document read/create/update/title update, keyword and
   semantic search, web search/crawl, document composition, and section editing
@@ -1487,7 +1495,8 @@ The inbound workspace MCP AI delegation slice is now implemented:
   recheck live `Workspace.Copilot` without requiring `Doc.Update`. Queued runs
   cancel immediately; leased running runs expose `cancelling` until
   the Agent Runtime worker cooperatively records terminal cancellation;
-- credentials persist only the three public AI tool permissions; the migration
+- credentials persist only a selected subset of the four public AI tool
+  permissions; the migration
   revokes legacy resource-capability credentials rather than silently widening
   them, and the normalized permission set is frozen on each delegation request
   as its maximum authority;
@@ -1508,7 +1517,8 @@ The inbound workspace MCP AI delegation slice is now implemented:
   also checks document version immediately before `DocWriter`. AgentRun and
   delegation completion are committed together before optional signed terminal
   notifications are queued. Focused Docker E2E covers callback URL policy, ACL
-  denial before planning, tool-agent document creation and idempotent replay,
+  denial before planning, task-bound attachment upload/isolation/evidence,
+  tool-agent document creation and idempotent replay,
   tool failure projection, automatic execution, stale ACL, resource-version
   conflict, execution without a callback, immediate/cooperative cancellation,
   query state transitions, and terminal notification delivery.

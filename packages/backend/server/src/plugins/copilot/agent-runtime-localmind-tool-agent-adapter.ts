@@ -14,6 +14,10 @@ import {
 import { mcpDelegationFingerprint } from '../../models/copilot-mcp-delegation';
 import type { CopilotAgentRuntimeWorkflowAdapterInput } from './agent-runtime-workflow-registry';
 import { CopilotAgentRuntimeWorkflowRegistry } from './agent-runtime-workflow-registry';
+import {
+  McpAttachmentReferenceError,
+  McpAttachmentService,
+} from './mcp/attachments';
 import { MCP_DELEGATE_CAPABILITY } from './mcp/capabilities';
 import {
   createQwen36CompletionContract,
@@ -32,6 +36,7 @@ import {
   type Qwen36DocumentReadEvidence,
   qwen36DocumentReadEvidence,
   qwen36NeedsToolAnswerRepair,
+  qwen36ProductionAttachmentRejection,
   type Qwen36ReadToolEvidence,
   qwen36ReadToolEvidence,
   qwen36SearchResultDocumentId,
@@ -567,6 +572,7 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
   constructor(
     private readonly ac: PermissionAccess,
     private readonly docReader: DocReader,
+    private readonly attachments: McpAttachmentService,
     private readonly runtime: CapabilityRuntime,
     private readonly models: Models,
     private readonly jobs: JobQueue,
@@ -644,6 +650,41 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
       throw new Error(initialAuthorityFailure.message);
     }
 
+    let materializedAttachments;
+    try {
+      materializedAttachments = await this.attachments.materialize({
+        workspaceId: delegation.workspaceId,
+        actorId: delegation.actorId,
+        credentialFamilyId: delegation.credentialFamilyId,
+        attachmentIds: delegation.requestedAttachmentIds,
+      });
+    } catch (error) {
+      if (error instanceof McpAttachmentReferenceError) {
+        await this.failDelegation(run.id, error.status, error.result);
+        throw new Error(error.message);
+      }
+      await this.failDelegation(run.id, 'failed', {
+        code: 'attachment_materialization_failed',
+      });
+      throw error;
+    }
+    const productionAttachmentRejection =
+      executionContext.adapter?.id === QWEN36_MODEL_ADAPTER_ID &&
+      executionContext.adapterMode === 'production'
+        ? qwen36ProductionAttachmentRejection(materializedAttachments.context)
+        : undefined;
+    if (productionAttachmentRejection) {
+      await this.failDelegation(run.id, 'failed', {
+        code: 'attachment_type_not_certified',
+        attachmentId: productionAttachmentRejection.attachmentId,
+        mimeType: productionAttachmentRejection.mimeType,
+        productionPolicyReason: productionAttachmentRejection.reason,
+      });
+      throw new Error(
+        `LocalMind Qwen production attachment policy rejected ${productionAttachmentRejection.attachmentId}`
+      );
+    }
+
     for (const documentId of delegation.requestedDocumentIds) {
       const readable = await this.ac
         .user(run.actorId)
@@ -669,6 +710,9 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
     let answer = '';
     const authorizedDocumentIds = delegation.requestedDocumentIds.length
       ? delegation.requestedDocumentIds.join(', ')
+      : '(none supplied)';
+    const authorizedAttachments = materializedAttachments.context.length
+      ? JSON.stringify(materializedAttachments.context)
       : '(none supplied)';
     const abortController = new AbortController();
     const pollerStopController = new AbortController();
@@ -730,7 +774,10 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
           },
           {
             role: 'user',
-            content: `Delegated request:\n${delegation.requestText}\n\nCaller-supplied document IDs:\n${authorizedDocumentIds}`,
+            content: `Delegated request:\n${delegation.requestText}\n\nCaller-supplied document IDs:\n${authorizedDocumentIds}\n\nAuthorized task attachments:\n${authorizedAttachments}`,
+            ...(materializedAttachments.promptAttachments.length
+              ? { attachments: materializedAttachments.promptAttachments }
+              : {}),
           },
         ],
         {
@@ -1028,6 +1075,7 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
       actorId: string;
       capabilitySnapshot: string[];
       credentialFamilyId: string;
+      requestedAttachmentIds: string[];
       workspaceId: string;
     }
   ): Promise<{
@@ -1063,16 +1111,34 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
       .workspace(run.workspaceId)
       .allowLocal()
       .can('Workspace.Copilot');
-    return workspaceAllowed
-      ? null
-      : {
+    if (!workspaceAllowed) {
+      return {
+        status: 'permission_denied',
+        result: {
+          code: 'permission_denied',
+          missingPermission: 'Workspace.Copilot',
+        },
+        message: `LocalMind tool agent workspace permission was revoked: ${run.id}`,
+      };
+    }
+    if (delegation.requestedAttachmentIds.length) {
+      const attachmentsReadable = await this.ac
+        .user(run.actorId)
+        .workspace(run.workspaceId)
+        .allowLocal()
+        .can('Workspace.Blobs.Read');
+      if (!attachmentsReadable) {
+        return {
           status: 'permission_denied',
           result: {
             code: 'permission_denied',
-            missingPermission: 'Workspace.Copilot',
+            missingPermission: 'Workspace.Blobs.Read',
           },
-          message: `LocalMind tool agent workspace permission was revoked: ${run.id}`,
+          message: `LocalMind tool agent attachment permission was revoked: ${run.id}`,
         };
+      }
+    }
+    return null;
   }
 
   @Transactional()

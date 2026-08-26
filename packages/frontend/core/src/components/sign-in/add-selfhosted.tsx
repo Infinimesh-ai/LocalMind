@@ -156,7 +156,7 @@ export const AddSelfhostedStep = ({
             components={{
               1: (
                 <a
-                  href="https://docs.affine.pro/docs/self-host-affine"
+                  href={`${BUILD_CONFIG.githubUrl}/blob/main/docs/localmind-deployment.zh-CN.md`}
                   target="_blank"
                   rel="noreferrer"
                 />

@@ -268,7 +268,7 @@ export const RootAppSidebar = memo((): ReactElement => {
           <InviteMembersButton />
           <TemplateDocEntrance />
           <ExternalMenuLinkItem
-            href="https://affine.pro/blog?tag=Release+Note"
+            href={`${BUILD_CONFIG.githubUrl}/releases`}
             icon={<JournalIcon />}
             label={t['com.affine.app-sidebar.learn-more']()}
           />

@@ -17,7 +17,7 @@ public enum SKUnitCategory: Int, CaseIterable, Equatable, Identifiable, Sendable
 public extension SKUnitCategory {
   var title: String {
     switch self {
-    case .pro: "AFFINE.Pro"
+    case .pro: "LocalMind Pro"
     case .ai: "AI"
     }
   }

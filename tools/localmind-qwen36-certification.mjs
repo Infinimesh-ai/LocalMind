@@ -4,7 +4,7 @@ export const QWEN36_CERTIFICATION_SCHEMA =
   'localmind-qwen36-certification-candidate/v1';
 export const QWEN36_BENCHMARK_SCHEMA = 'localmind-qwen36-capability-matrix-v2';
 export const QWEN36_CERTIFICATION_ADAPTER_ID = 'qwen36-35b-a3b';
-export const QWEN36_CERTIFICATION_ADAPTER_VERSION = '7';
+export const QWEN36_CERTIFICATION_ADAPTER_VERSION = '9';
 export const QWEN36_CERTIFICATION_MINIMUM_RUNS = 20;
 
 export const QWEN36_CERTIFIABLE_CAPABILITIES = {
@@ -24,7 +24,23 @@ export const QWEN36_CERTIFIABLE_CAPABILITIES = {
     'remove_document',
     'move_document',
   ],
+  attachment: ['read_text_plain'],
 };
+
+const QWEN36_ATTACHMENT_CERTIFICATION_EVIDENCE_VERSION =
+  'qwen36-attachment-certification-evidence/v1';
+
+function attachmentCertificationEvidenceValid(entry) {
+  const evidence = entry?.certification?.evidence;
+  return (
+    evidence?.version === QWEN36_ATTACHMENT_CERTIFICATION_EVIDENCE_VERSION &&
+    evidence?.materialization === 'extracted_text' &&
+    evidence?.attachmentCount === 1 &&
+    Array.isArray(evidence?.mimeTypes) &&
+    evidence.mimeTypes.length === 1 &&
+    evidence.mimeTypes[0] === 'text/plain'
+  );
+}
 
 function executions(entry) {
   return Array.isArray(entry?.task?.result?.toolExecutions)
@@ -188,6 +204,12 @@ function capabilityCandidate({
   if (!routeVerification.actionUsageEvents) {
     blockers.push('missing_action_usage_evidence');
   }
+  if (
+    capabilityId === 'attachment' &&
+    entries.some(entry => !attachmentCertificationEvidenceValid(entry))
+  ) {
+    blockers.push('attachment_certification_evidence_invalid');
+  }
   for (const [operationId, coverage] of Object.entries(operationCoverage)) {
     if (coverage.totalRuns < minimumRuns) {
       blockers.push(`operation_${operationId}_below_${minimumRuns}`);
@@ -202,6 +224,17 @@ function capabilityCandidate({
     blockers,
     releaseGate,
     operationCoverage,
+    ...(capabilityId === 'attachment'
+      ? {
+          attachmentCoverage: {
+            mimeTypes: ['text/plain'],
+            materialization: 'extracted_text',
+            invalidEvidenceCases: entries
+              .filter(entry => !attachmentCertificationEvidenceValid(entry))
+              .map(entry => entry.certification.independentCaseId),
+          },
+        }
+      : {}),
     telemetry: {
       toolCalls: telemetry.reduce((total, item) => total + item.toolCalls, 0),
       duplicateCalls: telemetry.reduce(

@@ -203,13 +203,15 @@ export const SignInStep = ({
 
         {!isSelfhosted && (
           <>
-            <div className={style.authMessage}>
-              {/*prettier-ignore*/}
-              <Trans i18nKey="com.affine.auth.sign.message">
-                By clicking &quot;Continue with Google/Email&quot; above, you acknowledge that
-                you agree to AFFiNE&apos;s <a href="https://affine.pro/terms" target="_blank" rel="noreferrer">Terms of Conditions</a> and <a href="https://affine.pro/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>.
-            </Trans>
-            </div>
+            {BUILD_CONFIG.termsUrl && BUILD_CONFIG.privacyUrl ? (
+              <div className={style.authMessage}>
+                {/*prettier-ignore*/}
+                <Trans i18nKey="com.affine.auth.sign.message">
+                  By clicking &quot;Continue with Google/Email&quot; above, you acknowledge that
+                  you agree to LocalMind&apos;s <a href={BUILD_CONFIG.termsUrl} target="_blank" rel="noreferrer">Terms of Conditions</a> and <a href={BUILD_CONFIG.privacyUrl} target="_blank" rel="noreferrer">Privacy Policy</a>.
+                </Trans>
+              </div>
+            ) : null}
             <div className={style.skipDivider}>
               <div className={style.skipDividerLine} />
               <span className={style.skipDividerText}>or</span>

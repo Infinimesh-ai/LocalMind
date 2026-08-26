@@ -1,7 +1,7 @@
 # Qwen3.6 35B-A3B adapter certification
 
 This document describes the release process for the model-specific
-`qwen36-35b-a3b` LocalMind adapter. The adapter is bound to version `7` and is
+`qwen36-35b-a3b` LocalMind adapter. The adapter is bound to version `9` and is
 closed by default in production. Evaluation mode exposes only the capabilities
 that are currently testable; it does not release them to users.
 
@@ -25,6 +25,11 @@ The adapter enforces four boundaries:
 Production tools remain unavailable until a capability has a flawless,
 same-version certification record in
 `packages/backend/server/src/plugins/copilot/model-adapters/qwen36/certification.ts`.
+Credential-bound attachment context remains fail-closed in production until
+its version `9` release gate passes. The production boundary is deliberately
+limited to complete text extracted from `text/plain`; images, audio, PDF,
+binary/provider-native bytes, empty files, and truncated extracted text remain
+unavailable. The planner and worker independently enforce that boundary.
 
 ## Certification coverage
 
@@ -44,6 +49,11 @@ capability:
 
 Document mutation grades are amended only after the follow-up state read. A
 completed task with failed state verification is counted as a false success.
+Certification mode also runs at least 20 exact-marker `text/plain` attachment
+cases. Each case records the admitted MIME and `extracted_text` materialization
+contract. They exercise upload, credential-family binding, planner context,
+route lock, worker rematerialization, and model output. Any missing or broader
+MIME/materialization evidence blocks the attachment release gate.
 
 ## Running the suite
 
@@ -67,20 +77,20 @@ node tools/localmind-qwen36-capability-matrix.mjs \
 
 Deployment-specific settings are configurable:
 
-| Environment variable                   | Default                                               |
-| -------------------------------------- | ----------------------------------------------------- |
-| `LOCALMIND_CAP_SERVER_ORIGIN`          | `http://localhost:3011`                               |
-| `LOCALMIND_CAP_MCP_ENDPOINT`           | Derived from origin and workspace ID                  |
-| `LOCALMIND_CAP_CONFIG_PATH`            | `.docker/selfhost/data/localmind/config/config.json`  |
-| `LOCALMIND_CAP_SERVER_CONTAINER`       | `localmind_affine_server`                             |
-| `LOCALMIND_CAP_POSTGRES_CONTAINER`     | `localmind_affine_postgres`                           |
-| `LOCALMIND_CAP_POSTGRES_USER`          | `affine`                                              |
-| `LOCALMIND_CAP_POSTGRES_DATABASE`      | `affine`                                              |
-| `LOCALMIND_CAP_MINIMUM_RUNS`           | `20`                                                  |
-| `LOCALMIND_CAP_DOC_ROUNDS`             | Certification minimum                                 |
-| `LOCALMIND_CAP_FOLDER_ROUNDS`          | Certification minimum                                 |
-| `LOCALMIND_CAP_NEGATIVE_SEARCH_ROUNDS` | Certification minimum                                 |
-| `LOCALMIND_CAP_SUITES`                 | `answer,document,search,folder` in certification mode |
+| Environment variable                   | Default                                                          |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| `LOCALMIND_CAP_SERVER_ORIGIN`          | `http://localhost:3011`                                          |
+| `LOCALMIND_CAP_MCP_ENDPOINT`           | Derived from origin and workspace ID                             |
+| `LOCALMIND_CAP_CONFIG_PATH`            | `.docker/selfhost/data/localmind/config/config.json`             |
+| `LOCALMIND_CAP_SERVER_CONTAINER`       | `localmind_affine_server`                                        |
+| `LOCALMIND_CAP_POSTGRES_CONTAINER`     | `localmind_affine_postgres`                                      |
+| `LOCALMIND_CAP_POSTGRES_USER`          | `affine`                                                         |
+| `LOCALMIND_CAP_POSTGRES_DATABASE`      | `affine`                                                         |
+| `LOCALMIND_CAP_MINIMUM_RUNS`           | `20`                                                             |
+| `LOCALMIND_CAP_DOC_ROUNDS`             | Certification minimum                                            |
+| `LOCALMIND_CAP_FOLDER_ROUNDS`          | Certification minimum                                            |
+| `LOCALMIND_CAP_NEGATIVE_SEARCH_ROUNDS` | Certification minimum                                            |
+| `LOCALMIND_CAP_SUITES`                 | `answer,document,search,folder,attachment` in certification mode |
 
 The runner writes `copilot.localModelAdapters.evaluationMode=true` only to its
 temporary configuration and restores the original file afterward.
@@ -94,7 +104,7 @@ The output contains `certificationCandidate`. A capability passes only when:
 - false successes are zero;
 - duplicate real side effects are zero;
 - all action usage records name the locked Qwen model;
-- the adapter version is `7`;
+- the adapter version is `9`;
 - route, configuration, credential cleanup, and usage collection succeed.
 
 Repeated calls and idempotent replays are reported as telemetry but are not

@@ -2,7 +2,11 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
-import { type AiMcpDelegationRequest, Prisma } from '@prisma/client';
+import {
+  type AiMcpAttachment,
+  type AiMcpDelegationRequest,
+  Prisma,
+} from '@prisma/client';
 
 import { BaseModel } from './base';
 
@@ -53,11 +57,80 @@ export type CreateMcpDelegationRequestInput = {
   idempotencyKey: string;
   requestText: string;
   requestedDocumentIds: string[];
+  requestedAttachmentIds: string[];
   requestFingerprint: string;
+};
+
+export type CreateMcpAttachmentInput = {
+  id: string;
+  workspaceId: string;
+  actorId: string;
+  credentialId: string;
+  credentialFamilyId: string;
+  credentialGeneration: number;
+  idempotencyKey: string;
+  fileName: string;
+  mimeType: string;
+  blobKey: string;
+  byteSize: number;
+  contentFingerprint: string;
 };
 
 @Injectable()
 export class CopilotMcpDelegationModel extends BaseModel {
+  async createOrReuseAttachment(input: CreateMcpAttachmentInput) {
+    const findExisting = () =>
+      this.db.aiMcpAttachment.findUnique({
+        where: {
+          workspaceId_credentialFamilyId_idempotencyKey: {
+            workspaceId: input.workspaceId,
+            credentialFamilyId: input.credentialFamilyId,
+            idempotencyKey: input.idempotencyKey,
+          },
+        },
+      });
+    const existing = await findExisting();
+    if (existing) {
+      this.assertAttachmentMatches(existing, input);
+      return { record: existing, reused: true };
+    }
+
+    try {
+      return {
+        record: await this.db.aiMcpAttachment.create({ data: input }),
+        reused: false,
+      };
+    } catch (error) {
+      if (
+        !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+        error.code !== 'P2002'
+      ) {
+        throw error;
+      }
+      const reused = await findExisting();
+      if (!reused) throw error;
+      this.assertAttachmentMatches(reused, input);
+      return { record: reused, reused: true };
+    }
+  }
+
+  getAttachmentsForCredentialFamily(input: {
+    ids: string[];
+    workspaceId: string;
+    actorId: string;
+    credentialFamilyId: string;
+  }) {
+    if (!input.ids.length) return Promise.resolve([]);
+    return this.db.aiMcpAttachment.findMany({
+      where: {
+        id: { in: input.ids },
+        workspaceId: input.workspaceId,
+        actorId: input.actorId,
+        credentialFamilyId: input.credentialFamilyId,
+      },
+    });
+  }
+
   upsertEndpoint(input: {
     credentialFamilyId: string;
     userId: string;
@@ -623,10 +696,32 @@ export class CopilotMcpDelegationModel extends BaseModel {
       existing.requestFingerprint === input.requestFingerprint &&
       existing.requestText === input.requestText &&
       stableStringify(existing.requestedDocumentIds) ===
-        stableStringify(input.requestedDocumentIds);
+        stableStringify(input.requestedDocumentIds) &&
+      stableStringify(existing.requestedAttachmentIds) ===
+        stableStringify(input.requestedAttachmentIds);
     if (!matches) {
       throw new Error(
         'MCP delegation idempotency key was already used with different request evidence'
+      );
+    }
+  }
+
+  private assertAttachmentMatches(
+    existing: AiMcpAttachment,
+    input: CreateMcpAttachmentInput
+  ) {
+    const matches =
+      existing.workspaceId === input.workspaceId &&
+      existing.actorId === input.actorId &&
+      existing.credentialFamilyId === input.credentialFamilyId &&
+      existing.fileName === input.fileName &&
+      existing.mimeType === input.mimeType &&
+      existing.blobKey === input.blobKey &&
+      existing.byteSize === input.byteSize &&
+      existing.contentFingerprint === input.contentFingerprint;
+    if (!matches) {
+      throw new Error(
+        'MCP attachment idempotency key was already used with different file evidence'
       );
     }
   }

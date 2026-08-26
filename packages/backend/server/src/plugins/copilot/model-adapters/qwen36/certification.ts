@@ -5,8 +5,60 @@ import {
   modelAdapterReleaseGatePassed,
 } from '../types';
 
-export const QWEN36_MODEL_ADAPTER_VERSION = '7';
+export const QWEN36_MODEL_ADAPTER_VERSION = '9';
 export const QWEN36_MINIMUM_CERTIFICATION_RUNS = 20;
+export const QWEN36_PRODUCTION_ATTACHMENT_MIME_TYPES = ['text/plain'] as const;
+
+type Qwen36AttachmentContext = {
+  attachmentId: string;
+  mimeType: string;
+  extractedText?: string;
+  extractedTextTruncated?: boolean;
+  suppliedToModel?: boolean;
+};
+
+export type Qwen36ProductionAttachmentRejection = {
+  attachmentId: string;
+  mimeType: string;
+  reason:
+    | 'mime_not_certified'
+    | 'provider_native_bytes_not_certified'
+    | 'extracted_text_truncated';
+};
+
+export function qwen36ProductionAttachmentRejection(
+  attachments: readonly Qwen36AttachmentContext[]
+): Qwen36ProductionAttachmentRejection | undefined {
+  for (const attachment of attachments) {
+    const mimeType = attachment.mimeType.trim().toLowerCase();
+    if (
+      !QWEN36_PRODUCTION_ATTACHMENT_MIME_TYPES.includes(
+        mimeType as (typeof QWEN36_PRODUCTION_ATTACHMENT_MIME_TYPES)[number]
+      )
+    ) {
+      return {
+        attachmentId: attachment.attachmentId,
+        mimeType,
+        reason: 'mime_not_certified',
+      };
+    }
+    if (attachment.suppliedToModel || !attachment.extractedText?.trim()) {
+      return {
+        attachmentId: attachment.attachmentId,
+        mimeType,
+        reason: 'provider_native_bytes_not_certified',
+      };
+    }
+    if (attachment.extractedTextTruncated) {
+      return {
+        attachmentId: attachment.attachmentId,
+        mimeType,
+        reason: 'extracted_text_truncated',
+      };
+    }
+  }
+  return undefined;
+}
 
 export function pendingQwen36ReleaseGate() {
   return {

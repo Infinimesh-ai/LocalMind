@@ -43,7 +43,6 @@ const UNAVAILABLE_CAPABILITIES: ReadonlyArray<{
     pattern:
       /code artifact|代码产物|可运行的?(?:网页|html)|不要保存为(?:工作区)?文档/i,
   },
-  { id: 'attachment', pattern: /\battachments?\b|附件/i },
   {
     id: 'web',
     pattern: /web search|internet search|browse the web|网页搜索|联网|上网/i,

@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <component type="desktop-application">
   <id>affine</id>
-  <name>AFFiNE</name>
+  <name>LocalMind</name>
   <summary>Productivity and note-taking app</summary>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>MIT AND LicenseRef-proprietary=https://github.com/toeverything/AFFiNE/blob/canary/LICENSE</project_license>
-  <url type="homepage">https://affine.pro</url>
-  <url type="bugtracker">https://github.com/toeverything/AFFiNE/issues</url>
-  <url type="help">https://docs.affine.pro/</url>
-  <url type="vcs-browser">https://github.com/toeverything/AFFiNE</url>
-  <url type="contribute">https://docs.affine.pro/contributing</url>
+  <project_license>MIT AND LicenseRef-proprietary=https://github.com/Infinimesh-ai/LocalMind/blob/main/LICENSE</project_license>
+  <url type="homepage">https://github.com/Infinimesh-ai/LocalMind</url>
+  <url type="bugtracker">https://github.com/Infinimesh-ai/LocalMind/issues</url>
+  <url type="help">https://github.com/Infinimesh-ai/LocalMind/tree/main/docs</url>
+  <url type="vcs-browser">https://github.com/Infinimesh-ai/LocalMind</url>
+  <url type="contribute">https://github.com/Infinimesh-ai/LocalMind/blob/main/docs/CONTRIBUTING.md</url>
   <developer id="pro.affine.app">
-    <name>affine</name>
+    <name>LocalMind</name>
   </developer>
   <content_rating type="oars-1.1"/>
   <categories>
@@ -29,6 +29,7 @@
     <internet>always</internet>
   </recommends>
   <provides>
+    <mediatype>x-scheme-handler/localmind</mediatype>
     <mediatype>x-scheme-handler/affine</mediatype>
   </provides>
   <supports>
@@ -39,7 +40,7 @@
   </supports>
   <description>
     <p>Write, Draw, Plan, All at Once. With AI.</p>
-    <p>AFFiNE is a workspace with fully merged docs, whiteboards and databases. Get more things done, your creativity isn’t monotone.</p>
+    <p>LocalMind is a local-first workspace for documents, whiteboards, databases, and auditable AI workflows.</p>
     <p>Features</p>
     <ul>
       <li>Write your way to better productivity. Build up your content like blocks and let your ideas run wild.</li>
@@ -49,23 +50,9 @@
     </ul>
   </description>
   <launchable type="desktop-id">affine.desktop</launchable>
-  <screenshots>
-    <screenshot type="default">
-      <image>https://affine.pro/overview/Write.jpg</image>
-      <caption>Document writing interface with block-based editing</caption>
-    </screenshot>
-    <screenshot>
-      <image>https://affine.pro/overview/Draw.jpg</image>
-      <caption>Whiteboard drawing and visualization capabilities</caption>
-    </screenshot>
-    <screenshot>
-      <image>https://affine.pro/overview/Plan.jpg</image>
-      <caption>Project planning and task management view</caption>
-    </screenshot>
-  </screenshots>
   <releases>
     <release version="0.27.0" date="2026-07-14">
-      <url>https://github.com/toeverything/AFFiNE/releases/tag/v0.27.0</url>
+      <url>https://github.com/Infinimesh-ai/LocalMind/releases/tag/v0.27.0</url>
     </release>
   </releases>
 </component>

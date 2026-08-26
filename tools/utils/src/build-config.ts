@@ -12,6 +12,12 @@ export function getBuildConfig(
   buildFlags: BuildFlags
 ): BUILD_CONFIG_TYPE {
   const distribution = PackageToDistribution.get(pkg.name);
+  const githubUrl =
+    process.env.LOCALMIND_GITHUB_URL?.trim() ||
+    'https://github.com/Infinimesh-ai/LocalMind';
+  const licenseRequestUrl =
+    `${githubUrl}/issues/new?template=FEATURE-REQUEST.yml` +
+    '&title=%5BLicense%5D%20LocalMind%20license%20request';
 
   if (!distribution) {
     throw new Error(`Distribution for ${pkg.name} is not found`);
@@ -43,12 +49,20 @@ export function getBuildConfig(
         appVersion: pkg.version,
         // editorVersion: pkg.dependencies['@blocksuite/affine'],
         editorVersion: pkg.version,
-        githubUrl: 'https://github.com/toeverything/AFFiNE',
-        changelogUrl: 'https://affine.pro/what-is-new',
-        downloadUrl: 'https://affine.pro/download',
-        pricingUrl: 'https://affine.pro/pricing',
-        discordUrl: 'https://affine.pro/redirect/discord',
-        requestLicenseUrl: 'https://affine.pro/redirect/license',
+        githubUrl,
+        changelogUrl:
+          process.env.LOCALMIND_CHANGELOG_URL?.trim() ||
+          `${githubUrl}/releases`,
+        downloadUrl:
+          process.env.LOCALMIND_DOWNLOAD_URL?.trim() || `${githubUrl}/releases`,
+        pricingUrl:
+          process.env.LOCALMIND_PRICING_URL?.trim() || licenseRequestUrl,
+        discordUrl: `${githubUrl}/issues`,
+        requestLicenseUrl:
+          process.env.LOCALMIND_LICENSE_REQUEST_URL?.trim() ||
+          licenseRequestUrl,
+        privacyUrl: process.env.LOCALMIND_PRIVACY_URL?.trim() || '',
+        termsUrl: process.env.LOCALMIND_TERMS_URL?.trim() || '',
         imageProxyUrl: '/api/worker/image-proxy',
         linkPreviewUrl: '/api/worker/link-preview',
         SENTRY_DSN: process.env.SENTRY_DSN ?? '',
@@ -58,14 +72,12 @@ export function getBuildConfig(
       return {
         ...this.stable,
         appBuildType: 'beta' as const,
-        changelogUrl: 'https://github.com/toeverything/AFFiNE/releases',
       };
     },
     get internal() {
       return {
         ...this.stable,
         appBuildType: 'internal' as const,
-        changelogUrl: 'https://github.com/toeverything/AFFiNE/releases',
       };
     },
     // canary will be aggressive and enable all features
@@ -73,7 +85,6 @@ export function getBuildConfig(
       return {
         ...this.stable,
         appBuildType: 'canary' as const,
-        changelogUrl: 'https://github.com/toeverything/AFFiNE/releases',
       };
     },
   };

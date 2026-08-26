@@ -134,7 +134,9 @@ const mcpFetchAttempts = positiveInteger('LOCALMIND_CAP_MCP_FETCH_ATTEMPTS', 6);
 const selectedSuites = new Set(
   (
     process.env.LOCALMIND_CAP_SUITES ??
-    (mode === 'certification' ? 'answer,document,search,folder' : 'all')
+    (mode === 'certification'
+      ? 'answer,document,search,folder,attachment'
+      : 'all')
   )
     .split(',')
     .map(value => value.trim())
@@ -233,7 +235,7 @@ function issueCredential() {
        ${sqlLiteral(`Codex Qwen capability matrix ${runId}`)}, ${sqlLiteral(secretHash)},
        ${sqlLiteral(secretHash.slice(0, 12))}, ${sqlLiteral(userId)}, ${sqlLiteral(workspaceId)},
        'READ_WRITE', now() + interval '1 day',
-       array['delegate_to_localmind','get_localmind_task','control_localmind_task']);`,
+       array['upload_localmind_attachment','delegate_to_localmind','get_localmind_task','control_localmind_task']);`,
     { quiet: true }
   );
 }
@@ -511,6 +513,9 @@ async function runCase(spec) {
         capabilityId: spec.capabilityId,
         operationId: spec.operationId,
         independentCaseId: spec.independentCaseId ?? `${runId}:${spec.name}`,
+        ...(spec.certificationEvidence
+          ? { evidence: spec.certificationEvidence }
+          : {}),
       }
     : undefined;
   let entry;
@@ -518,6 +523,7 @@ async function runCase(spec) {
     const submission = await mcpCall('delegate_to_localmind', {
       request: spec.request,
       documentIds: spec.documentIds ?? [],
+      attachmentIds: spec.attachmentIds ?? [],
       idempotencyKey,
     });
     const terminal = await queryUntilTerminal(
@@ -541,6 +547,7 @@ async function runCase(spec) {
       expectedSupport: spec.expectedSupport !== false,
       request: spec.request,
       documentIds: spec.documentIds ?? [],
+      attachmentCount: spec.attachmentIds?.length ?? 0,
       idempotencyKey,
       ...(certification ? { certification } : {}),
       taskId: submission.value.taskId,
@@ -557,6 +564,7 @@ async function runCase(spec) {
       expectedSupport: spec.expectedSupport !== false,
       request: spec.request,
       documentIds: spec.documentIds ?? [],
+      attachmentCount: spec.attachmentIds?.length ?? 0,
       idempotencyKey,
       ...(certification ? { certification } : {}),
       totalMs: roundMs(performance.now() - submittedAt),
@@ -1525,6 +1533,47 @@ async function runArtifactCases() {
   }
 }
 
+async function runAttachmentCases() {
+  const rounds =
+    mode === 'certification'
+      ? minimumCertificationRuns
+      : Math.min(5, documentRounds);
+  for (let index = 1; index <= rounds; index += 1) {
+    const marker = `${prefix}-ATTACHMENT-${index}`;
+    const upload = await mcpCall('upload_localmind_attachment', {
+      fileName: `qwen-attachment-${index}.txt`,
+      mimeType: 'text/plain',
+      base64: Buffer.from(marker).toString('base64'),
+      idempotencyKey: `${runId}-attachment-upload-${index}`,
+    });
+    const attachmentId = String(upload.value.attachmentId ?? '');
+    if (!attachmentId) {
+      throw new Error(`Attachment upload ${index} returned no attachmentId`);
+    }
+    if (upload.value.mimeType !== 'text/plain') {
+      throw new Error(
+        `Attachment upload ${index} resolved to unsupported MIME ${upload.value.mimeType}`
+      );
+    }
+    await runCase({
+      category: 'attachment',
+      name: `attachment_${index}_exact_marker`,
+      capabilityId: 'attachment',
+      operationId: 'read_text_plain',
+      certificationEvidence: {
+        version: 'qwen36-attachment-certification-evidence/v1',
+        mimeTypes: ['text/plain'],
+        materialization: 'extracted_text',
+        attachmentCount: 1,
+      },
+      request:
+        'Read the supplied attachment and return only its complete marker. Do not add any other text.',
+      attachmentIds: [attachmentId],
+      grade: exactAnswer(marker),
+    });
+  }
+}
+
 async function runGapCases(documents) {
   const doc = documents[0];
   if (!doc) {
@@ -1595,14 +1644,6 @@ async function runGapCases(documents) {
         'read_workspace_blob',
         'delete_workspace_blob',
       ],
-    })),
-    ...Array.from({ length: 2 }, (_, index) => ({
-      name: `gap_attachment_context_${index + 1}`,
-      request:
-        `读取当前会话附件blob-${runId}-${index + 1}并只返回其内容。` +
-        '如果附件上下文不存在，必须明确说明，不得猜测。',
-      expectedTools: ['blob_read'],
-      infrastructureDependent: true,
     })),
     ...Array.from({ length: 3 }, (_, index) => ({
       name: `gap_web_search_${index + 1}`,
@@ -1784,6 +1825,7 @@ try {
   const documents = suiteEnabled('document') ? await runDocumentCases() : [];
   if (suiteEnabled('search')) await runNegativeSearchCases();
   if (suiteEnabled('folder')) await runFolderCases(documents);
+  if (suiteEnabled('attachment')) await runAttachmentCases();
   if (suiteEnabled('artifact')) await runArtifactCases();
   if (suiteEnabled('control')) {
     await runIdempotencyCases(documents);

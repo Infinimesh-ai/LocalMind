@@ -207,11 +207,11 @@ fun MarkdownPreview() {
         
         ---
         
-        ![示例图片](https://affine.pro/_next/static/media/logo.1e7b6b7e.svg)
+        ![示例图片](https://raw.githubusercontent.com/Infinimesh-ai/LocalMind/main/packages/frontend/core/public/favicon-192.png)
         
         ---
         
-        [这是一个链接，点我访问 AFFiNE 官网](https://affine.pro)
+        [这是一个链接，点我访问 LocalMind 项目主页](https://github.com/Infinimesh-ai/LocalMind)
         
         ---
         

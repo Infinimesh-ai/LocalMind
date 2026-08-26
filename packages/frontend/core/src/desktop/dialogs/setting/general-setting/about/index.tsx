@@ -119,7 +119,7 @@ export const AboutAffine = () => {
         <a
           className={styles.link}
           rel="noreferrer"
-          href="https://affine.pro"
+          href={BUILD_CONFIG.githubUrl}
           target="_blank"
         >
           {t['com.affine.aboutAFFiNE.contact.website']()}
@@ -128,7 +128,7 @@ export const AboutAffine = () => {
         <a
           className={styles.link}
           rel="noreferrer"
-          href="https://affine.pro/redirect/discord"
+          href={`${BUILD_CONFIG.githubUrl}/issues`}
           target="_blank"
         >
           {t['com.affine.aboutAFFiNE.contact.community']()}
@@ -153,26 +153,32 @@ export const AboutAffine = () => {
           })}
         </div>
       </SettingWrapper>
-      <SettingWrapper title={t['com.affine.aboutAFFiNE.legal.title']()}>
-        <a
-          className={styles.link}
-          rel="noreferrer"
-          href="https://affine.pro/privacy"
-          target="_blank"
-        >
-          {t['com.affine.aboutAFFiNE.legal.privacy']()}
-          <OpenInNewIcon className="icon" />
-        </a>
-        <a
-          className={styles.link}
-          rel="noreferrer"
-          href="https://affine.pro/terms"
-          target="_blank"
-        >
-          {t['com.affine.aboutAFFiNE.legal.tos']()}
-          <OpenInNewIcon className="icon" />
-        </a>
-      </SettingWrapper>
+      {BUILD_CONFIG.privacyUrl || BUILD_CONFIG.termsUrl ? (
+        <SettingWrapper title={t['com.affine.aboutAFFiNE.legal.title']()}>
+          {BUILD_CONFIG.privacyUrl ? (
+            <a
+              className={styles.link}
+              rel="noreferrer"
+              href={BUILD_CONFIG.privacyUrl}
+              target="_blank"
+            >
+              {t['com.affine.aboutAFFiNE.legal.privacy']()}
+              <OpenInNewIcon className="icon" />
+            </a>
+          ) : null}
+          {BUILD_CONFIG.termsUrl ? (
+            <a
+              className={styles.link}
+              rel="noreferrer"
+              href={BUILD_CONFIG.termsUrl}
+              target="_blank"
+            >
+              {t['com.affine.aboutAFFiNE.legal.tos']()}
+              <OpenInNewIcon className="icon" />
+            </a>
+          ) : null}
+        </SettingWrapper>
+      ) : null}
     </>
   );
 };

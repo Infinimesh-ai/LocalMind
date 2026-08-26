@@ -2,8 +2,9 @@
 
 LocalMind 对外暴露绑定工作区的 AI 委托接口。调用方把完整的自然语言任务交给
 `delegate_to_localmind`，LocalMind 内置 AI 负责规划，并通过 LocalMind 自己的
-Agent Runtime 执行已支持的操作。一个只读工具用于在异步返回或回调后核对持久化
-任务状态，另一个控制工具用于取消尚未结束的任务。
+Agent Runtime 执行已支持的操作。一个任务附件上传工具把本地文件交给内置 AI，一个
+只读工具用于在异步返回或回调后核对持久化任务状态，另一个控制工具用于取消尚未结束
+的任务。
 
 精确参数与回调协议见 [LocalMind MCP 工具参考](./localmind-mcp-tools.md)。
 
@@ -15,17 +16,17 @@ Agent Runtime 执行已支持的操作。一个只读工具用于在异步返回
 | 方法   | `POST`                                                   |
 | 传输   | 无状态 Streamable HTTP，JSON 响应                        |
 | 鉴权   | `Authorization: Bearer <MCP_TOKEN>`                      |
-| 服务   | `localmind-ai` / `3.2.1`                                 |
-| 工具   | 委托、任务查询和仅取消任务的控制工具                     |
+| 服务   | `localmind-ai` / `3.3.0`                                 |
+| 工具   | 附件上传、委托、任务查询和仅取消任务的控制工具           |
 
 Token 和地址绑定一个工作区，不能跨工作区使用。
 
 ## 创建凭据
 
 1. 进入“工作区设置 > 集成 > MCP Server”。
-2. 创建凭据并选择允许调用的三个 AI 工具：`delegate_to_localmind`、
-   `get_localmind_task` 和 `control_localmind_task`。
-3. 需要委托、核对和取消完整流程时，授予全部三个工具权限。
+2. 创建凭据并选择允许调用的四个 AI 工具：`upload_localmind_attachment`、
+   `delegate_to_localmind`、`get_localmind_task` 和 `control_localmind_task`。
+3. 需要上传、委托、核对和取消完整流程时，授予全部四个工具权限。
 4. 可选填写调用方的结果通知地址，用于接收任务终态通知。
 5. 把只显示一次的 MCP Token，以及配置通知时生成的回调签名密钥放进调用方的
    secret 存储。
@@ -56,12 +57,14 @@ HTTP origin；LocalMind 不跟随回调重定向。
 
 调用方必须按下面的规则选择工具：
 
-1. 每一个新的用户任务都先调用 `delegate_to_localmind`，并在 `request` 中提供完整
+1. 新任务包含本地文件时，先为每个文件调用一次 `upload_localmind_attachment`，保留
+   返回的 `attachmentId`。
+2. 每一个新的用户任务都调用 `delegate_to_localmind`，并在 `request` 中提供完整
    任务。问答、文档读取/搜索/新建/更新/改名、总结、网页研究和多步骤工作都属于新
-   任务。
-2. 只有已经从 `delegate_to_localmind` 获得 `taskId` 后，才调用
+   任务；把上传结果放入 `attachmentIds`。
+3. 只有已经从 `delegate_to_localmind` 获得 `taskId` 后，才调用
    `get_localmind_task` 查询进度或最终结果。它不能启动或重试任务。
-3. 只有用户明确要求取消一个未完成任务时，才调用 `control_localmind_task`；它唯一
+4. 只有用户明确要求取消一个未完成任务时，才调用 `control_localmind_task`；它唯一
    支持的操作是 `cancel`。
 
 调用方不应寻找 `doc_create`、`doc_read` 等低层公开工具：它们是 LocalMind AI 内部
@@ -70,16 +73,18 @@ HTTP origin；LocalMind 不跟随回调重定向。
 
 ## 权限模型
 
-任务创建时会保存 MCP 凭据的三个工具权限快照。这个快照是任务固定的最大权限。轮换
+任务创建时会保存 MCP 凭据所选公开工具权限的快照。这个快照是任务固定的最大权限。轮换
 会保留凭据家族、工具权限和回调配置；吊销整个家族、禁用用户或到期都会阻止已排队的
 任务执行。旧资源 capability 模型签发的凭据会在迁移时统一吊销，必须重新创建。
 
-LocalMind 还会在规划和执行时实时检查被委托用户的真实 ACL。用户失去
-`Workspace.Copilot`、`Workspace.CreateDoc`、`Doc.Read` 或 `Doc.Update` 后，对应操作
-会立即失效。缺少真实 ACL 时只返回权限或资源错误，不会向调用方发起提权请求。
+附件上传要求实时 `Workspace.Copilot` 和 `Workspace.Blobs.Write`。LocalMind 还会在
+规划和执行时实时检查被委托用户的真实 ACL。用户失去 `Workspace.Copilot`、
+`Workspace.Blobs.Read`、`Workspace.CreateDoc`、`Doc.Read` 或 `Doc.Update` 后，对应
+操作会立即失效。缺少真实 ACL 时只返回权限或资源错误，不会向调用方发起提权请求。
 
 查询任务要求任务冻结的 `get_localmind_task` 权限，只能使用创建任务的同一个凭据
-家族，并重新检查家族有效性、`Workspace.Copilot` 和所有引用文档的 `Doc.Read`。
+家族，并重新检查家族有效性、`Workspace.Copilot`、所有引用文档的 `Doc.Read` 和任务
+附件的 `Workspace.Blobs.Read`。
 轮换后仍可查询；其他凭据家族只会得到 `task_not_found`。实时 ACL 已丢失时不会返回
 历史任务内容。
 
@@ -93,9 +98,10 @@ LocalMind 还会在规划和执行时实时检查被委托用户的真实 ACL。
 
 - 根据请求和显式提供且可读的文档快照返回只读答案；
 - 通过优化的 Agent Runtime 路径完整替换一个已提供文档的 Markdown 正文；
+- 读取最多八个任务绑定附件，并据此回答、整理或新建 LocalMind 文档；
 - 对更复杂的任务调用与网页 AI Chat 相同的服务端工具集合，包括文档读取、新建、
   更新、改名、关键词/语义搜索、网页搜索/抓取、文档组合、章节编辑、代码产物生成、
-  对话总结、工作区目录管理，以及存在 AI Chat 附件上下文时的附件读取。目录管理支持
+  对话总结、工作区目录管理，以及委托任务上下文中的附件读取。目录管理支持
   列出、新建、改名、移动和删除目录，也支持把可读文档加入或移动到目录；递归删除目录
   只删除目录结构和文档放置关系，不会删除文档正文。
 
@@ -104,7 +110,13 @@ LocalMind 还会在规划和执行时实时检查被委托用户的真实 ACL。
 时会复用稳定文档 ID，不会生成重复文档。目录读取、写入和文档放置分别检查对应的
 工作区组织读取、同步与文档读取权限，只有非幂等重放的真实目录写入才记录为副作用。
 
-白板、文档数据库/表格、附件、评论、协作、历史记录和外部系统操作目前返回
+单个附件上限为 10 MiB；一个任务最多绑定八个附件，合计不超过 20 MiB。上传记录不可
+修改，并绑定工作区、被委托用户和凭据家族。规划与 worker 执行都会重新读取 Blob，
+校验大小和 SHA-256 证据。可解析文档以有界文本提供给模型，模型原生支持的媒体以有界
+字节提供。原始上传仍是任务资源；工作区中的生成结果通过正常文档工具创建或更新，并在
+任务产物中返回 `localmind_document` 引用。
+
+白板、文档数据库/表格、任意工作区二进制资产写入、评论、协作、历史记录和外部系统操作目前返回
 `unsupported_task`，在真实执行器落地前不得宣称已完成。
 
 ## 执行与结果通知
@@ -113,8 +125,8 @@ LocalMind 还会在规划和执行时实时检查被委托用户的真实 ACL。
 Agent Runtime。它不会创建审批步骤、发送审批请求或等待调用方决定。任务创建时冻结的
 MCP capability 快照与被委托用户的实时 ACL 就是授权边界。
 
-Worker 在执行期间会重复检查凭据家族状态、任务冻结的 capability、实时 ACL 和取消
-状态；优化的单文档替换路径还会在写入前检查计划中的文档版本。若配置了结果通知地址，
+Worker 在执行期间会重复检查凭据家族状态、任务冻结的 capability、实时 ACL、附件
+Blob/证据和取消状态；优化的单文档替换路径还会在写入前检查计划中的文档版本。若配置了结果通知地址，
 LocalMind 只发送三种终态事件：`task_completed`、`task_failed` 或
 `task_cancelled`。通知签名格式：
 
@@ -168,30 +180,38 @@ curl --fail-with-body --silent --show-error \
 curl --fail-with-body --silent --show-error \
   -H "Authorization: Bearer ${LOCALMIND_MCP_TOKEN}" \
   -H 'Content-Type: application/json' \
-  --data '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"delegate_to_localmind","arguments":{"request":"总结已提供的文档。","documentIds":[],"idempotencyKey":"summary-001"}}}' \
+  --data '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"upload_localmind_attachment","arguments":{"fileName":"notes.txt","mimeType":"text/plain","base64":"Tm90ZXMgdG8gc3VtbWFyaXplLg==","idempotencyKey":"upload-001"}}}' \
   "${LOCALMIND_MCP_URL}"
 
 curl --fail-with-body --silent --show-error \
   -H "Authorization: Bearer ${LOCALMIND_MCP_TOKEN}" \
   -H 'Content-Type: application/json' \
-  --data '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_localmind_task","arguments":{"taskId":"<TASK_ID>","waitMs":0}}}' \
+  --data '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"delegate_to_localmind","arguments":{"request":"总结附件并新建一篇 LocalMind 文档。","documentIds":[],"attachmentIds":["<ATTACHMENT_ID>"],"idempotencyKey":"summary-001"}}}' \
   "${LOCALMIND_MCP_URL}"
 
 curl --fail-with-body --silent --show-error \
   -H "Authorization: Bearer ${LOCALMIND_MCP_TOKEN}" \
   -H 'Content-Type: application/json' \
-  --data '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"control_localmind_task","arguments":{"taskId":"<TASK_ID>","action":"cancel","idempotencyKey":"cancel-001"}}}' \
+  --data '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"get_localmind_task","arguments":{"taskId":"<TASK_ID>","waitMs":0}}}' \
+  "${LOCALMIND_MCP_URL}"
+
+curl --fail-with-body --silent --show-error \
+  -H "Authorization: Bearer ${LOCALMIND_MCP_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"control_localmind_task","arguments":{"taskId":"<TASK_ID>","action":"cancel","idempotencyKey":"cancel-001"}}}' \
   "${LOCALMIND_MCP_URL}"
 ```
 
 初始化结果应为 `serverInfo.name=localmind-ai`，`tools/list` 包含
-`delegate_to_localmind`、`get_localmind_task` 和 `control_localmind_task`。
+`upload_localmind_attachment`、`delegate_to_localmind`、`get_localmind_task` 和
+`control_localmind_task`。
 
 ## 状态与排错
 
 - MCP `401`：Token 缺失、格式错误、过期、吊销、用户禁用或工作区不匹配。
 - `credential_scope_denied`：任务固定 capability 快照不够。
 - `permission_denied` / `resource_not_accessible`：用户实时 ACL 不够，不会请求提权。
+- `attachment_evidence_mismatch`：保存的附件与不可变上传证据不一致，执行会失败关闭。
 - 未配置回调：任务仍会执行；通过 `get_localmind_task` 查询终态结果。
 - 未收到终态通知：先查询任务，再检查接收端 HMAC 校验、重放防护和 LocalMind 的有限
   重试记录。

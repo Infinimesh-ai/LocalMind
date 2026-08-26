@@ -7,6 +7,10 @@ import { Models } from '../../../models';
 import type { CopilotAgentRunRecord } from '../../../models/copilot-agent-runtime';
 import { mcpDelegationFingerprint } from '../../../models/copilot-mcp-delegation';
 import {
+  McpAttachmentReferenceError,
+  McpAttachmentService,
+} from './attachments';
+import {
   MCP_TASK_CONTROL_CAPABILITY,
   MCP_TASK_QUERY_CAPABILITY,
 } from './capabilities';
@@ -177,6 +181,7 @@ function stateVersion(marker: TaskStateMarker, now = Date.now()) {
 export class McpAiTaskQueryService {
   constructor(
     private readonly ac: PermissionAccess,
+    private readonly attachments: McpAttachmentService,
     private readonly models: Models
   ) {}
 
@@ -359,6 +364,20 @@ export class McpAiTaskQueryService {
           missingPermission: 'Workspace.Copilot',
         },
       };
+    }
+
+    try {
+      await this.attachments.authorizeReferences({
+        workspaceId: record.workspaceId,
+        actorId: record.actorId,
+        credentialFamilyId: record.credentialFamilyId,
+        attachmentIds: record.requestedAttachmentIds,
+      });
+    } catch (error) {
+      if (error instanceof McpAttachmentReferenceError) {
+        return { error: error.result };
+      }
+      return { error: { code: 'resource_not_accessible' } };
     }
 
     const documentAccess = await Promise.all(
@@ -692,8 +711,10 @@ export class McpAiTaskQueryService {
     const details: Record<string, unknown> = {};
     const missingPermission = stringValue(result.missingPermission);
     const documentId = stringValue(result.documentId);
+    const attachmentId = stringValue(result.attachmentId);
     if (missingPermission) details.missingPermission = missingPermission;
     if (documentId) details.documentId = documentId;
+    if (attachmentId) details.attachmentId = attachmentId;
     if (Array.isArray(result.requiredCapabilities)) {
       details.requiredCapabilities = result.requiredCapabilities.filter(
         capability => typeof capability === 'string'
@@ -712,6 +733,11 @@ export class McpAiTaskQueryService {
       'agent_runtime_adapter_execution_failed',
       'approval_callback_not_configured',
       'ai_planning_failed',
+      'attachment_evidence_mismatch',
+      'attachment_limit_exceeded',
+      'attachment_materialization_failed',
+      'attachment_type_not_certified',
+      'attachment_total_size_exceeded',
       'context_too_large',
       'credential_inactive',
       'credential_scope_denied',
@@ -734,6 +760,15 @@ export class McpAiTaskQueryService {
       approval_expired: 'The task approval expired before a decision.',
       approval_rejected: 'The task approval was rejected.',
       ai_planning_failed: 'LocalMind could not plan the task.',
+      attachment_evidence_mismatch:
+        'A task attachment changed after it was uploaded.',
+      attachment_limit_exceeded: 'The task contains too many attachments.',
+      attachment_materialization_failed:
+        'LocalMind could not read a task attachment.',
+      attachment_type_not_certified:
+        'The selected model has not certified this attachment type for production use.',
+      attachment_total_size_exceeded:
+        'The task attachments exceed the combined size limit.',
       context_too_large: 'The authorized task context was too large.',
       credential_inactive: 'The delegated credential family is inactive.',
       credential_scope_denied:

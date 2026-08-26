@@ -13,7 +13,7 @@ import { UserFriendlyError } from '@affine/error';
 import { Trans, useI18n } from '@affine/i18n';
 import { CopyIcon, FileIcon } from '@blocksuite/icons/rc';
 import { useService } from '@toeverything/infra';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import * as styles from './upload-license-modal.css';
 
@@ -33,6 +33,12 @@ export const UploadLicenseModal = ({
   const permission = useService(WorkspacePermissionService).permission;
   const { openConfirmModal } = useConfirmModal();
   const [isInstalling, setIsInstalling] = useState(false);
+  const requestLicenseUrl = useMemo(() => {
+    const url = new URL(BUILD_CONFIG.requestLicenseUrl);
+    url.searchParams.set('title', '[License] LocalMind license request');
+    url.searchParams.set('body', `Workspace ID: ${workspace.id}`);
+    return url.toString();
+  }, [workspace.id]);
 
   const revalidate = useCallback(() => {
     permission.revalidate();
@@ -148,7 +154,7 @@ export const UploadLicenseModal = ({
               components={{
                 1: (
                   <a
-                    href={`${BUILD_CONFIG.requestLicenseUrl}?usp=pp_url&entry.1000023=${workspace.id}`}
+                    href={requestLicenseUrl}
                     target="_blank"
                     rel="noreferrer"
                     className={styles.textLink}

@@ -17,6 +17,16 @@ function certificationCase(capabilityId, operationId, index, overrides = {}) {
       capabilityId,
       operationId,
       independentCaseId: `${capabilityId}:${operationId}:${index}`,
+      ...(capabilityId === 'attachment'
+        ? {
+            evidence: {
+              version: 'qwen36-attachment-certification-evidence/v1',
+              mimeTypes: ['text/plain'],
+              materialization: 'extracted_text',
+              attachmentCount: 1,
+            },
+          }
+        : {}),
     },
     task: {
       status: 'completed',
@@ -169,4 +179,24 @@ test('candidate rejects stale adapter and benchmark metadata', () => {
   assert.equal(candidate.passed, false);
   assert.ok(candidate.blockers.includes('benchmark_schema_mismatch'));
   assert.ok(candidate.blockers.includes('adapter_version_mismatch'));
+});
+
+test('attachment gate rejects incomplete MIME and materialization evidence', () => {
+  const report = flawlessReport();
+  const attachment = report.cases.find(
+    entry => entry.certification.capabilityId === 'attachment'
+  );
+  attachment.certification.evidence.mimeTypes = ['application/pdf'];
+  attachment.certification.evidence.materialization = 'provider_native_bytes';
+
+  const candidate = buildQwen36CertificationCandidate(report);
+  const capability = candidate.capabilities.attachment;
+
+  assert.equal(capability.passed, false);
+  assert.ok(
+    capability.blockers.includes('attachment_certification_evidence_invalid')
+  );
+  assert.deepEqual(capability.attachmentCoverage.invalidEvidenceCases, [
+    attachment.certification.independentCaseId,
+  ]);
 });

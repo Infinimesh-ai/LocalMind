@@ -7,6 +7,7 @@ import { ipcRenderer, webUtils } from 'electron';
 import { Subject } from 'rxjs';
 import { z } from 'zod';
 
+import { getDeepLinkSchemes } from '../shared/deep-link';
 import type {
   CreateImportSessionFromSourceOptions,
   NativeImportBrowserSource,
@@ -20,21 +21,12 @@ import {
   type RendererToHelper,
 } from '../shared/type';
 
-type Schema =
-  | 'affine'
-  | 'affine-canary'
-  | 'affine-beta'
-  | 'affine-internal'
-  | 'affine-dev';
-
 // todo: remove duplicated codes
 const ReleaseTypeSchema = z.enum(['stable', 'beta', 'canary', 'internal']);
 const envBuildType = (process.env.BUILD_TYPE || 'canary').trim().toLowerCase();
 const buildType = ReleaseTypeSchema.parse(envBuildType);
 const isDev = process.env.NODE_ENV === 'development';
-let scheme =
-  buildType === 'stable' ? 'affine' : (`affine-${envBuildType}` as Schema);
-scheme = isDev ? 'affine-dev' : scheme;
+const { primary: scheme } = getDeepLinkSchemes(buildType, isDev);
 
 export const appInfo = {
   electron: true,

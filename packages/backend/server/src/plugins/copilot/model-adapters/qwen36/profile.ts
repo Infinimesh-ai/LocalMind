@@ -55,8 +55,10 @@ export const qwen36Capabilities: readonly ModelAdapterCapability[] = [
   },
   {
     id: 'attachment',
-    status: 'unavailable',
-    reason: 'Delegated attachment context has not been wired and verified.',
+    status: 'testing',
+    reason:
+      'Credential-bound text/plain attachment context is wired; production certification is still pending.',
+    releaseGate: pendingQwen36ReleaseGate(),
   },
   {
     id: 'web',

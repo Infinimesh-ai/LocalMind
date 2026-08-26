@@ -20,6 +20,7 @@ import {
   qwen36DocumentReadEvidence,
   qwen36NeedsExplicitLineRepair,
   qwen36NeedsToolAnswerRepair,
+  qwen36ProductionAttachmentRejection,
   qwen36ReadToolEvidence,
   qwen36SearchResultDocumentId,
   resolveModelAdapter,
@@ -71,6 +72,15 @@ test('Qwen3.6 35B-A3B route resolves its dedicated adapter', t => {
     )
   );
   t.false(modelAdapterCapabilityReleased(adapter, 'document.create'));
+  t.like(
+    adapter.profile.capabilities.find(
+      capability => capability.id === 'attachment'
+    ),
+    {
+      status: 'testing',
+      releaseGate: { adapterVersion: QWEN36_MODEL_ADAPTER_VERSION },
+    }
+  );
 });
 
 test('LocalMind tool evidence keeps distinct calls when a provider reuses invocation IDs', t => {
@@ -135,6 +145,50 @@ test('model adapter production gate requires 20 flawless same-version runs', t =
     modelAdapterReleaseGatePassed({ ...gate, crossModelFallbacks: 1 }, '2')
   );
   t.false(modelAdapterReleaseGatePassed(gate, '3'));
+});
+
+test('Qwen3.6 production attachments are limited to complete extracted text/plain', t => {
+  t.is(
+    qwen36ProductionAttachmentRejection([
+      {
+        attachmentId: 'attachment-1',
+        mimeType: 'text/plain',
+        extractedText: 'certified text',
+      },
+    ]),
+    undefined
+  );
+  t.like(
+    qwen36ProductionAttachmentRejection([
+      {
+        attachmentId: 'attachment-2',
+        mimeType: 'application/pdf',
+        extractedText: 'parsed text',
+      },
+    ]),
+    { reason: 'mime_not_certified' }
+  );
+  t.like(
+    qwen36ProductionAttachmentRejection([
+      {
+        attachmentId: 'attachment-3',
+        mimeType: 'text/plain',
+        suppliedToModel: true,
+      },
+    ]),
+    { reason: 'provider_native_bytes_not_certified' }
+  );
+  t.like(
+    qwen36ProductionAttachmentRejection([
+      {
+        attachmentId: 'attachment-4',
+        mimeType: 'text/plain',
+        extractedText: 'partial text',
+        extractedTextTruncated: true,
+      },
+    ]),
+    { reason: 'extracted_text_truncated' }
+  );
 });
 
 for (const modelId of [
@@ -274,6 +328,12 @@ test('Qwen3.6 planner preflight routes verifiable work without a model plan', t 
       summary:
         'Use the available LocalMind document and workspace tools to complete the request.',
     }
+  );
+  t.is(
+    preflightQwen36PlannerPolicy(
+      'Read the supplied attachment and return only its marker.'
+    ),
+    undefined
   );
 });
 
@@ -512,6 +572,12 @@ test('Qwen3.6 completion contract captures every verifiable compound action', t 
   t.deepEqual(
     contract?.requirements.map(requirement => requirement.id),
     ['document.create', 'document.read']
+  );
+  t.deepEqual(
+    createQwen36CompletionContract(
+      'Summarize the attachment and create a LocalMind document.'
+    )?.requirements.map(requirement => requirement.id),
+    ['document.create']
   );
   t.is(
     createQwen36CompletionContract('Delete the document permanently.'),
