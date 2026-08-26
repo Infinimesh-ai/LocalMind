@@ -202,6 +202,7 @@ const DocRow = ({
         docId={entry.id}
         handleAddLinkedPage={handleAddLinkedPage}
         linkedFromDocId={row.sourceDocId}
+        isInFolder={!!row.relationId}
         additionalOperations={
           row.relationId
             ? [

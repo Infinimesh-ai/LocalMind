@@ -187,6 +187,7 @@ export const useNavigationPanelDocNodeOperationsMenu = (
   options: {
     handleAddLinkedPage: () => void;
     linkedFromDocId?: string;
+    isInFolder?: boolean;
   }
 ): {
   operations: NodeOperation[];
@@ -295,39 +296,43 @@ export const useNavigationPanelDocNodeOperationsMenu = (
           </MenuItem>
         ),
       },
-      {
-        index: 9999,
-        view: <MenuSeparator key="menu-separator" />,
-      },
-      {
-        index: 10000,
-        view: options.linkedFromDocId ? (
-          <Guard docId={options.linkedFromDocId} permission="Doc_Update">
-            {canEdit => (
-              <MenuItem
-                prefixIcon={<UnlinkIcon />}
-                onClick={handleRemoveLinkedDoc}
-                disabled={!canEdit}
-              >
-                {t['com.affine.rootAppSidebar.doc.remove-link']()}
-              </MenuItem>
-            )}
-          </Guard>
-        ) : (
-          <Guard docId={docId} permission="Doc_Trash">
-            {canMoveToTrash => (
-              <MenuItem
-                type={'danger'}
-                prefixIcon={<DeleteIcon />}
-                onClick={handleMoveToTrash}
-                disabled={!canMoveToTrash}
-              >
-                {t['com.affine.moveToTrash.title']()}
-              </MenuItem>
-            )}
-          </Guard>
-        ),
-      },
+      ...(!options.isInFolder
+        ? [
+            {
+              index: 9999,
+              view: <MenuSeparator key="menu-separator" />,
+            },
+            {
+              index: 10000,
+              view: options.linkedFromDocId ? (
+                <Guard docId={options.linkedFromDocId} permission="Doc_Update">
+                  {canEdit => (
+                    <MenuItem
+                      prefixIcon={<UnlinkIcon />}
+                      onClick={handleRemoveLinkedDoc}
+                      disabled={!canEdit}
+                    >
+                      {t['com.affine.rootAppSidebar.doc.remove-link']()}
+                    </MenuItem>
+                  )}
+                </Guard>
+              ) : (
+                <Guard docId={docId} permission="Doc_Trash">
+                  {canMoveToTrash => (
+                    <MenuItem
+                      type={'danger'}
+                      prefixIcon={<DeleteIcon />}
+                      onClick={handleMoveToTrash}
+                      disabled={!canMoveToTrash}
+                    >
+                      {t['com.affine.moveToTrash.title']()}
+                    </MenuItem>
+                  )}
+                </Guard>
+              ),
+            },
+          ]
+        : []),
     ],
     [
       docId,
@@ -340,6 +345,7 @@ export const useNavigationPanelDocNodeOperationsMenu = (
       handleRename,
       handleToggleFavoriteDoc,
       options.linkedFromDocId,
+      options.isInFolder,
       t,
       title,
     ]
@@ -355,16 +361,19 @@ export const NavigationPanelDocNodeMenu = ({
   docId,
   handleAddLinkedPage,
   linkedFromDocId,
+  isInFolder,
   additionalOperations,
 }: {
   docId: string;
   handleAddLinkedPage: () => void;
   linkedFromDocId?: string;
+  isInFolder?: boolean;
   additionalOperations?: NodeOperation[];
 }) => {
   const { operations } = useNavigationPanelDocNodeOperationsMenu(docId, {
     handleAddLinkedPage,
     linkedFromDocId,
+    isInFolder,
   });
   const allOperations = useMemo(
     () => [...operations, ...(additionalOperations ?? [])],

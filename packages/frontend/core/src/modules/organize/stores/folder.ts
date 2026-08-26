@@ -55,12 +55,21 @@ export class FolderStore extends Store {
       throw new Error('Parent folder not found');
     }
 
-    this.dbService.db.folders.create({
+    const existing = this.dbService.db.folders.find({
+      parentId,
+      type,
+      data: nodeId,
+    })[0];
+    if (existing) {
+      return existing.id;
+    }
+
+    return this.dbService.db.folders.create({
       parentId,
       type,
       data: nodeId,
       index: index,
-    });
+    }).id;
   }
 
   renameNode(nodeId: string, name: string) {
@@ -145,9 +154,25 @@ export class FolderStore extends Store {
         throw new Error('Root node can only have folders');
       }
     }
+
+    if (parentId && node.type !== 'folder') {
+      const existing = this.dbService.db.folders
+        .find({
+          parentId,
+          type: node.type,
+          data: node.data,
+        })
+        .find(candidate => candidate.id !== nodeId);
+      if (existing) {
+        this.dbService.db.folders.delete(nodeId);
+        return existing.id;
+      }
+    }
+
     this.dbService.db.folders.update(nodeId, {
       parentId,
       index,
     });
+    return nodeId;
   }
 }

@@ -19,11 +19,13 @@ import * as styles from './styles.css';
 export const NavigationPanelDocNode = ({
   docId,
   linkedFromDocId,
+  isInFolder,
   operations: additionalOperations,
   parentPath,
 }: {
   docId: string;
   linkedFromDocId?: string;
+  isInFolder?: boolean;
   operations?: NodeOperation[];
   parentPath: string[];
 }) => {
@@ -49,7 +51,7 @@ export const NavigationPanelDocNode = ({
 
   const DocIcon = useLiveData(
     docDisplayMetaService.icon$(docId, {
-      reference: !!linkedFromDocId,
+      reference: !!linkedFromDocId || !!isInFolder,
     })
   );
 
@@ -86,10 +88,17 @@ export const NavigationPanelDocNode = ({
         docId={docId}
         handleAddLinkedPage={handleAddLinkedPage}
         linkedFromDocId={linkedFromDocId}
+        isInFolder={isInFolder}
         additionalOperations={additionalOperations}
       />
     ),
-    [additionalOperations, docId, handleAddLinkedPage, linkedFromDocId]
+    [
+      additionalOperations,
+      docId,
+      handleAddLinkedPage,
+      isInFolder,
+      linkedFromDocId,
+    ]
   );
 
   if (entry?.trash !== false) {

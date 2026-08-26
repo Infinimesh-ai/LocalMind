@@ -45,6 +45,7 @@ export const NavigationPanelDocNode = ({
   location,
   reorderable,
   linkedFromDocId,
+  isInFolder,
   canDrop,
   operations: additionalOperations,
   dropEffect,
@@ -52,6 +53,7 @@ export const NavigationPanelDocNode = ({
 }: {
   docId: string;
   linkedFromDocId?: string;
+  isInFolder?: boolean;
   forwardKey?: string;
 } & GenericNavigationPanelNode) => {
   const t = useI18n();
@@ -93,7 +95,7 @@ export const NavigationPanelDocNode = ({
   const docRecord = useLiveData(docsService.list.doc$(docId));
   const DocIcon = useLiveData(
     docDisplayMetaService.icon$(docId, {
-      reference: !!linkedFromDocId,
+      reference: !!linkedFromDocId || !!isInFolder,
     })
   );
   const docTitle = useLiveData(docDisplayMetaService.title$(docId));
@@ -286,8 +288,9 @@ export const NavigationPanelDocNode = ({
         openInfoModal: () => workspaceDialogService.open('doc-info', { docId }),
         openNodeCollapsed: () => setCollapsed(false),
         linkedFromDocId,
+        isInFolder,
       }),
-      [docId, linkedFromDocId, setCollapsed, workspaceDialogService]
+      [docId, isInFolder, linkedFromDocId, setCollapsed, workspaceDialogService]
     )
   );
 
