@@ -18,11 +18,14 @@ import {
   icoPath,
   platform,
   productName,
+  protocolSchemes,
 } from './scripts/make-env.js';
 
 const fromBuildIdentifier = utils.fromBuildIdentifier;
 
-const linuxMimeTypes = [`x-scheme-handler/${productName.toLowerCase()}`];
+const linuxMimeTypes = protocolSchemes.map(
+  scheme => `x-scheme-handler/${scheme}`
+);
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -170,7 +173,7 @@ const makers = [
       config: {
         format: 'ULMO',
         icon: icnsPath,
-        name: 'AFFiNE',
+        name: 'LocalMind',
         'icon-size': 128,
         background: path.join(
           __dirname,
@@ -204,7 +207,7 @@ const makers = [
   {
     name: '@electron-forge/maker-zip',
     config: {
-      name: 'affine',
+      name: 'localmind',
       iconUrl: icoPath,
       setupIcon: icoPath,
       platforms: ['darwin', 'linux', 'win32'],
@@ -349,7 +352,7 @@ export default {
     protocols: [
       {
         name: productName,
-        schemes: [productName.toLowerCase()],
+        schemes: protocolSchemes,
       },
     ],
     executableName: productName,
@@ -377,7 +380,7 @@ export default {
     asar: true,
     extendInfo: {
       NSAudioCaptureUsageDescription:
-        'Please allow access in order to capture audio from other apps by AFFiNE.',
+        'Please allow LocalMind to capture audio from other apps.',
     },
   },
   makers,

@@ -14,11 +14,11 @@ export const SeeAllLink = () => {
   return (
     <a
       className={styles.allPlansLink}
-      href="https://affine.pro/pricing"
+      href={BUILD_CONFIG.pricingUrl}
       target="_blank"
       rel="noopener noreferrer"
     >
-      {t['com.affine.payment.see-all-plans']()}
+      {t['com.affine.aboutAFFiNE.contact.title']()}
       {<ArrowRightBigIcon width="16" height="16" />}
     </a>
   );
@@ -61,7 +61,7 @@ export interface PlanCardProps {
   scrollRef?: React.RefObject<HTMLDivElement>;
 }
 export const CloudPlanLayout = ({
-  title = 'AFFiNE Cloud',
+  title = 'LocalMind Cloud',
   caption,
   select,
   toggle,

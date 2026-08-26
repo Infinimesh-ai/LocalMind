@@ -3833,7 +3833,7 @@ describe('AIModelService model registry helpers', () => {
     ).toBe(
       [
         'Candidate ollama-main/office-chat-fast',
-        'Prompt Chat With AFFiNE AI / Built-in / Prompt default gemini-2.5-flash / Default source Fallback Route / Fallback Prompt default unavailable / Source chain Fallback Route -> Registry / Category Text / Text default',
+        'Prompt LocalMind AI / Built-in / Prompt default gemini-2.5-flash / Default source Fallback Route / Fallback Prompt default unavailable / Source chain Fallback Route -> Registry / Category Text / Text default',
         'Provider Local Ollama (ollama-main) / BYOK local / Local / Healthy',
         'Provider profile Profile ollama-main / BYOK local / config workspace.byok.local / 3 configured models / models office-chat-fast, office-chat, qwen-office',
         'Provider health Checked 2026-06-15T10:00:00.000Z / Last error previous timeout',

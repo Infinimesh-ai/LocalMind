@@ -1,4 +1,4 @@
-import { channelToScheme } from '@affine/core/utils';
+import { appSchemes } from '@affine/core/utils';
 import type { ReferenceParams } from '@blocksuite/affine/model';
 import { isNil, pick, pickBy } from 'lodash-es';
 import type { ParsedQuery, ParseOptions } from 'query-string';
@@ -19,11 +19,17 @@ export const resolveRouteLinkMeta = (
   baseUrl = location.origin
 ) => {
   try {
-    // if href is started with affine protocol, we need to convert it to http protocol to may URL happy
-    const affineProtocol = channelToScheme[BUILD_CONFIG.appBuildType] + '://';
-
-    if (href.startsWith(affineProtocol)) {
-      href = href.replace(affineProtocol, 'http://');
+    const appUrl = new URL(href, baseUrl);
+    const appScheme = appUrl.protocol.slice(0, -1);
+    if (appSchemes.safeParse(appScheme).success) {
+      const pathname =
+        appUrl.hostname === 'workspace'
+          ? `/workspace${appUrl.pathname}`
+          : appUrl.pathname;
+      href = new URL(
+        `${pathname}${appUrl.search}${appUrl.hash}`,
+        baseUrl
+      ).toString();
     }
 
     const url = new URL(href, baseUrl);

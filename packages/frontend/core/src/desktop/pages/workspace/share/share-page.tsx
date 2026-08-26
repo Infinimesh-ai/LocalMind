@@ -403,7 +403,7 @@ const SharePageFooter = () => {
   }
   return (
     <a
-      href="https://affine.pro"
+      href={BUILD_CONFIG.githubUrl}
       target="_blank"
       className={styles.link}
       rel="noreferrer"

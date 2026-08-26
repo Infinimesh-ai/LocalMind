@@ -49,6 +49,7 @@ import {
   formatAIModelDiagnosticsLabel,
   formatAIModelFallbackLabel,
   formatAIModelLimitsLabel,
+  formatAIModelPromptDisplayName,
   formatAIModelPromptSourcesLabel,
   formatAIModelProviderLabel,
   formatAIModelProviderProfileLabel,
@@ -99,6 +100,16 @@ import { toast } from 'sonner';
 import { Header } from '../header';
 
 const ADMIN_AI_DEFAULT_PROMPT_NAME = 'Chat With AFFiNE AI';
+const ADMIN_AI_DEFAULT_PROMPT_DISPLAY_NAME = formatAIModelPromptDisplayName(
+  ADMIN_AI_DEFAULT_PROMPT_NAME
+);
+
+function resolvePromptNameInput(value: string) {
+  return value.trim() === ADMIN_AI_DEFAULT_PROMPT_DISPLAY_NAME
+    ? ADMIN_AI_DEFAULT_PROMPT_NAME
+    : value;
+}
+
 const PROMPT_CATALOG_ALL_CATEGORIES = '__all__';
 const WORKSPACE_SCOPE_GLOBAL = '__global__';
 const WORKSPACE_SCOPE_MANUAL = '__manual__';
@@ -997,6 +1008,7 @@ function matchesPromptCatalogSearch(prompt: PromptCatalogItem, search: string) {
     prompt.modelSource,
     prompt.modelStrategyFingerprint,
     prompt.name,
+    formatAIModelPromptDisplayName(prompt.name),
     prompt.optionalModelsConfigPath,
     prompt.optionalModelsSource,
     prompt.proModelsConfigPath,
@@ -2632,7 +2644,9 @@ function ModelTable({
     <Card className="min-w-0 border-border/60 bg-card shadow-1">
       <CardHeader>
         <CardTitle className="text-base">Prompt model candidates</CardTitle>
-        <CardDescription>Models returned for {promptName}</CardDescription>
+        <CardDescription>
+          Models returned for {formatAIModelPromptDisplayName(promptName)}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {models.length ? (
@@ -2761,7 +2775,7 @@ function buildModelCandidateDiagnosticsText(
   promptName: string
 ) {
   return [
-    `Prompt ${promptName}`,
+    `Prompt ${formatAIModelPromptDisplayName(promptName)}`,
     `Candidate count ${models.length}`,
     '',
     ...models.flatMap((model, index) => {
@@ -3362,7 +3376,8 @@ function PromptRegistryPublishGateResult({
           ) : null}
         </div>
         <div className="mt-2 text-sm text-muted-foreground">
-          No publish gate verdict returned for {promptName}.
+          No publish gate verdict returned for{' '}
+          {formatAIModelPromptDisplayName(promptName)}.
         </div>
       </div>
     );
@@ -3882,7 +3897,7 @@ function buildPromptRegistryPublishGateDiagnosticsText(
     );
 
   return [
-    `Prompt ${verdict.name}`,
+    `Prompt ${formatAIModelPromptDisplayName(verdict.name)}`,
     `Gate ${verdict.allowed ? 'Allowed' : 'Blocked'}`,
     `Status ${formatFeatureKind(verdict.status)}`,
     `Publish ${formatFeatureKind(verdict.publishStatus)}`,
@@ -6793,7 +6808,7 @@ function formatPromptRegistryPublishGateModelRoute(
 
 function buildPromptCatalogDiagnosticsText(prompt: PromptCatalogItem) {
   return [
-    `Prompt ${prompt.name}`,
+    `Prompt ${formatAIModelPromptDisplayName(prompt.name)}`,
     `Action ${prompt.action || 'None'}`,
     `Category ${formatFeatureKind(prompt.category)}`,
     `Source ${formatFeatureKind(prompt.source)}`,
@@ -9842,7 +9857,7 @@ function RepairExecutionList({
             <TableRow key={record.id}>
               <TableCell className="min-w-0 align-top">
                 <div className="break-words font-medium">
-                  {record.promptName}
+                  {formatAIModelPromptDisplayName(record.promptName)}
                 </div>
                 <div className="mt-1 break-all text-xs text-muted-foreground">
                   {record.id}
@@ -11442,7 +11457,7 @@ function AiRuntimePageContent() {
                         <SelectContent>
                           {filteredPromptCatalog.map(prompt => (
                             <SelectItem key={prompt.name} value={prompt.name}>
-                              {prompt.name}
+                              {formatAIModelPromptDisplayName(prompt.name)}
                             </SelectItem>
                           ))}
                           {!filteredPromptCatalog.length ? (
@@ -11500,9 +11515,11 @@ function AiRuntimePageContent() {
                       </span>
                       <Input
                         className="mt-1"
-                        value={promptNameInput}
+                        value={formatAIModelPromptDisplayName(promptNameInput)}
                         onChange={event => {
-                          setPromptNameInput(event.target.value);
+                          setPromptNameInput(
+                            resolvePromptNameInput(event.target.value)
+                          );
                         }}
                       />
                     </label>
@@ -11589,7 +11606,7 @@ function AiRuntimePageContent() {
                       Active prompt
                     </div>
                     <div className="mt-1 break-words font-medium">
-                      {promptName}
+                      {formatAIModelPromptDisplayName(promptName)}
                     </div>
                   </div>
                   <div>

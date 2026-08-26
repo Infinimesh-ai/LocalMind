@@ -44,6 +44,7 @@ import {
   LarkCliDriver,
   WeComCliDriver,
 } from './enterprise';
+import { McpAttachmentService } from './mcp/attachments';
 import { McpAiDelegationService } from './mcp/delegation';
 import { WorkspaceMcpProvider } from './mcp/provider';
 import { McpAiTaskControlService } from './mcp/task-control';
@@ -195,6 +196,7 @@ export const COPILOT_JOB_PROVIDERS = [
   CopilotAgentRuntimeWorker,
   CopilotProviderHealthWorker,
   CopilotRepairExecutionWorker,
+  McpAttachmentService,
   McpAiDelegationService,
   McpAiTaskControlService,
   EnterpriseAuthorizationWorker,

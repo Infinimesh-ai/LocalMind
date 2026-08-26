@@ -241,7 +241,7 @@ test('credential-authorized document task runs without approval and sends a sign
     documentIds: [docId],
     idempotencyKey: 'automatic-complete-flow',
   });
-  t.like(planner.firstCall.args[3], {
+  t.like(planner.firstCall.args[2], {
     maxTokens: 8_192,
     responseSchemaJson: {
       type: 'object',
@@ -283,7 +283,7 @@ test('credential-authorized document task runs without approval and sends a sign
   t.regex(plannerSchema, /Use answer for every read-only question/);
   t.regex(
     plannerSchema,
-    /Never use unsupported_task for a read-only response or missing document context/
+    /Never use unsupported_task for a read-only response.*missing document context/
   );
   t.regex(plannerSchema, /Never put this summary in reason/);
   t.regex(plannerSchema, /never shorten it to a planning summary/);
@@ -642,6 +642,196 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
     .getDocMarkdown(workspaceId, createdDocumentId, true);
   t.true(markdown?.markdown.includes('A concise summary created by'));
   t.is(await db.aiMcpDelegationCallbackDelivery.count(), 0);
+});
+
+test('uploaded attachment is bound to one credential family and becomes a LocalMind document artifact', async t => {
+  const { credentials, db, owner, runtime, worker } = t.context;
+  const { workspaceId } = await createDocument(
+    t.context,
+    owner.id,
+    'Attachment processing workspace.'
+  );
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId,
+    name: 'LocalMind attachment processing',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  const attachmentText =
+    'Quarterly revenue is 42 million. Create a concise finance note.';
+  const uploaded = await uploadAttachmentThroughMcp(t.context, issued.token, {
+    fileName: 'finance-note.txt',
+    mimeType: 'text/plain',
+    base64: Buffer.from(attachmentText).toString('base64'),
+    idempotencyKey: 'finance-note-upload',
+  });
+  t.like(uploaded, {
+    fileName: 'finance-note.txt',
+    mimeType: 'text/plain',
+    size: Buffer.byteLength(attachmentText),
+    idempotentReplay: false,
+  });
+  const attachmentId = String(uploaded.attachmentId);
+
+  const replayed = await uploadAttachmentThroughMcp(t.context, issued.token, {
+    fileName: 'finance-note.txt',
+    mimeType: 'text/plain',
+    base64: Buffer.from(attachmentText).toString('base64'),
+    idempotencyKey: 'finance-note-upload',
+  });
+  t.is(replayed.attachmentId, attachmentId);
+  t.true(replayed.idempotentReplay);
+  const attachmentRecord = await db.aiMcpAttachment.findUniqueOrThrow({
+    where: { id: attachmentId },
+  });
+  await db.blob.update({
+    where: {
+      workspaceId_key: {
+        workspaceId,
+        key: attachmentRecord.blobKey,
+      },
+    },
+    data: { deletedAt: new Date() },
+  });
+  const restored = await uploadAttachmentThroughMcp(t.context, issued.token, {
+    fileName: 'finance-note.txt',
+    mimeType: 'text/plain',
+    base64: Buffer.from(attachmentText).toString('base64'),
+    idempotencyKey: 'finance-note-upload',
+  });
+  t.is(restored.attachmentId, attachmentId);
+  t.true(restored.idempotentReplay);
+  t.is(
+    (
+      await db.blob.findUniqueOrThrow({
+        where: {
+          workspaceId_key: { workspaceId, key: attachmentRecord.blobKey },
+        },
+      })
+    ).deletedAt,
+    null
+  );
+  t.deepEqual(
+    await uploadAttachmentThroughMcp(t.context, issued.token, {
+      fileName: 'different.txt',
+      mimeType: 'text/plain',
+      base64: Buffer.from('Different file evidence.').toString('base64'),
+      idempotencyKey: 'finance-note-upload',
+    }),
+    { code: 'idempotency_conflict' }
+  );
+
+  const otherFamily = await credentials.create({
+    userId: owner.id,
+    workspaceId,
+    name: 'Other attachment credential family',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  const inaccessible = await delegate(t.context, otherFamily.token, {
+    request: 'Read the uploaded attachment.',
+    documentIds: [],
+    attachmentIds: [attachmentId],
+    idempotencyKey: 'cross-family-attachment',
+  });
+  t.like(inaccessible, {
+    status: 'resource_not_accessible',
+    code: 'resource_not_accessible',
+    attachmentId,
+  });
+
+  const planner = Sinon.stub(runtime, 'generateStructuredValue').callsFake(((
+    _conditions: unknown,
+    messages: any[]
+  ) => {
+    t.regex(messages[1].content, /Quarterly revenue is 42 million/);
+    return Promise.resolve({
+      value: {
+        result: plannerResult({
+          kind: 'tool_agent',
+          summary: 'Create a finance note from the uploaded attachment',
+        }),
+      },
+    } as any);
+  }) as any);
+  let createdDocumentId = '';
+  const toolLoop = Sinon.stub(runtime, 'streamObject').callsFake(((
+    _conditions: unknown,
+    messages: any[],
+    options: any
+  ) => {
+    return (async function* () {
+      t.regex(messages[1].content, /Quarterly revenue is 42 million/);
+      const createDoc = buildDocCreateHandler(
+        t.context.app!.get(PermissionAccess),
+        t.context.app!.get(DocWriter)
+      );
+      const created = (await createDoc(
+        options,
+        'Finance note',
+        'Quarterly revenue: 42 million.'
+      )) as { docId: string };
+      createdDocumentId = created.docId;
+      yield {
+        type: 'tool-result',
+        toolCallId: 'create-finance-note',
+        toolName: 'doc_create',
+        args: {
+          title: 'Finance note',
+          content: 'Quarterly revenue: 42 million.',
+        },
+        result: { success: true, docId: created.docId },
+      };
+      yield {
+        type: 'text-delta',
+        textDelta: 'Created Finance note from finance-note.txt.',
+      };
+    })();
+  }) as any);
+
+  const delegated = await delegate(t.context, issued.token, {
+    request: 'Summarize the attachment and create a LocalMind document.',
+    documentIds: [],
+    attachmentIds: [attachmentId],
+    idempotencyKey: 'attachment-create-document',
+  });
+  t.is(delegated.status, 'queued');
+  t.true(planner.calledOnce);
+  await worker.runStandaloneAgentRuntime({
+    workspaceId,
+    runId: String(delegated.agentRunId),
+  });
+  t.true(toolLoop.calledOnce);
+
+  const task = await getTaskThroughMcp(t.context, issued.token, {
+    taskId: String(delegated.taskId),
+    waitMs: 0,
+  });
+  t.like(task, {
+    status: 'completed',
+    result: {
+      kind: 'tool_agent',
+      summary: 'Created Finance note from finance-note.txt.',
+    },
+  });
+  t.like(task.artifacts[0], {
+    kind: 'document',
+    relation: 'created',
+    reference: {
+      type: 'localmind_document',
+      documentId: createdDocumentId,
+    },
+  });
+  await t.throwsAsync(
+    db.aiMcpAttachment.update({
+      where: { id: attachmentId },
+      data: { fileName: 'rewritten.txt' },
+    }),
+    { message: /ai_mcp_attachment_update_restrict_check/ }
+  );
 });
 
 test('planner renders an answer again when branch fields contain answer text', async t => {
@@ -1676,6 +1866,7 @@ async function delegate(
   input: {
     request: string;
     documentIds: string[];
+    attachmentIds?: string[];
     idempotencyKey: string;
   }
 ) {
@@ -1687,9 +1878,34 @@ async function delegate(
       credential.capabilities,
       credential.accessMode
     ),
-    input,
+    { ...input, attachmentIds: input.attachmentIds ?? [] },
     new AbortController().signal
   );
+}
+
+async function uploadAttachmentThroughMcp(
+  context: Context,
+  token: string,
+  input: {
+    fileName: string;
+    mimeType: string;
+    base64: string;
+    idempotencyKey: string;
+  }
+) {
+  const workspaceId = await tokenWorkspaceId(context, token);
+  const response = await context
+    .app!.POST(`/api/workspaces/${workspaceId}/mcp`)
+    .set('Authorization', `Bearer ${token}`)
+    .set('MCP-Protocol-Version', '2025-06-18')
+    .send({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'upload_localmind_attachment', arguments: input },
+    })
+    .expect(200);
+  return response.body.result.structuredContent.result as any;
 }
 
 async function getTask(

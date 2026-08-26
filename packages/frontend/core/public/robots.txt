@@ -1,4 +1,4 @@
-# If you would like to crawl AFFiNE public workspace contact us via developer@toeverything.info
+# Contact the LocalMind maintainers before crawling public workspaces.
 
 User-agent: *
 Allow: /

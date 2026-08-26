@@ -142,7 +142,7 @@ export function ContactUS() {
         1: (
           <a
             style={{ color: 'var(--affine-primary-color)' }}
-            href="https://affine.pro/redirect/discord"
+            href={`${BUILD_CONFIG.githubUrl}/issues`}
             target="__blank"
           />
         ),

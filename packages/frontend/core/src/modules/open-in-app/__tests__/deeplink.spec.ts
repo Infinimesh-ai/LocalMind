@@ -1,3 +1,4 @@
+import { appSchemaUrl, channelToScheme } from '@affine/core/utils/channel';
 import { expect, test } from 'vitest';
 
 import {
@@ -9,7 +10,7 @@ import {
 test('buildAuthenticationDeepLink', () => {
   const payload = { code: '1', next: '/workspace/123' };
   const url = buildAuthenticationDeepLink({
-    scheme: 'affine',
+    scheme: 'localmind',
     method: 'open-app-signin',
     payload,
     server: 'https://app.affine.local',
@@ -17,7 +18,7 @@ test('buildAuthenticationDeepLink', () => {
 
   const parsed = new URL(url);
 
-  expect(parsed.protocol).toBe('affine:');
+  expect(parsed.protocol).toBe('localmind:');
   expect(parsed.hostname).toBe('authentication');
   expect(parsed.searchParams.get('method')).toBe('open-app-signin');
   expect(parsed.searchParams.get('payload')).toBe(JSON.stringify(payload));
@@ -25,12 +26,21 @@ test('buildAuthenticationDeepLink', () => {
 });
 
 test('buildOpenAppUrlRoute', () => {
-  const urlToOpen = 'affine://authentication?method=oauth&payload=%7B%7D';
+  const urlToOpen = 'localmind://authentication?method=oauth&payload=%7B%7D';
   const route = buildOpenAppUrlRoute(urlToOpen);
 
   const parsed = new URL(route, 'https://app.affine.local');
   expect(parsed.pathname).toBe('/open-app/url');
   expect(parsed.searchParams.get('url')).toBe(urlToOpen);
+});
+
+test('uses LocalMind schemes and accepts legacy app links', () => {
+  expect(channelToScheme.stable).toBe('localmind');
+  expect(channelToScheme.beta).toBe('localmind-beta');
+  expect(appSchemaUrl.safeParse('localmind://authentication').success).toBe(
+    true
+  );
+  expect(appSchemaUrl.safeParse('affine://authentication').success).toBe(true);
 });
 
 test('normalizeOpenAppSignInNextParam', () => {

@@ -1206,8 +1206,9 @@ source_id) DO NOTHING` loses the insert race, the model validates the
 
 ## Inbound MCP Delegation
 
-The inbound workspace MCP surface now exposes `delegate_to_localmind`, the
-read-only `get_localmind_task`, and cancel-only `control_localmind_task`. An
+The inbound workspace MCP surface now exposes task-bound
+`upload_localmind_attachment`, `delegate_to_localmind`, the read-only
+`get_localmind_task`, and cancel-only `control_localmind_task`. An
 optimized delegated document replacement creates a queued
 `agent_runtime_doc_update` run, while broader AI Chat work creates a queued
 `agent_runtime_localmind_tool_agent` run with the complete server-side AI Chat
@@ -1219,7 +1220,7 @@ completion, failure, or cancellation events. The normal Agent Runtime worker
 lease, cancellation, completion, execution-result, and side-effect evidence
 paths remain authoritative.
 
-The advertised `localmind-ai` v3.2.1 discovery metadata gives external models
+The advertised `localmind-ai` v3.3.0 discovery metadata gives external models
 an explicit routing decision table. Every new user request starts with
 `delegate_to_localmind`; `get_localmind_task` only reads a previously returned
 `taskId`; and `control_localmind_task` only cancels unfinished work on explicit
@@ -1250,10 +1251,20 @@ while credential-family activity and the actor's real workspace/document ACL
 are checked live. Permission loss is a direct failure, not a request for
 elevation.
 
+Uploaded MCP attachments are immutable workspace Blob references bound to the
+actor and credential family. One file is limited to 10 MiB; delegation accepts
+at most eight and 20 MiB combined. Planning and tool-agent worker execution
+independently recheck live `Workspace.Blobs.Read`, reread the Blob, and verify
+persisted size/SHA-256 evidence before providing bounded extracted text or
+provider attachment bytes. Storage reconciliation also treats the immutable
+attachment row as a live Blob reference. This task context does not create or
+depend on an AI Chat session.
+
 Task query access is restricted to the creating credential family, survives
 rotation, and rechecks family activity, frozen `get_localmind_task`, live
-`Workspace.Copilot`, and `Doc.Read` for every referenced document. A different
-family receives `task_not_found`; lost ACL receives no historical task output.
+`Workspace.Copilot`, `Doc.Read` for every referenced document, and Blob read
+access plus attachment binding for attachment-backed tasks. A different family
+receives `task_not_found`; lost ACL receives no historical task output.
 
 Task control persists a fingerprinted idempotency record per task, credential
 family, and key. It uses the task creation-time `control_localmind_task` permission

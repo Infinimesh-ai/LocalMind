@@ -31,6 +31,8 @@ declare interface BUILD_CONFIG_TYPE {
   downloadUrl: string;
   discordUrl: string;
   requestLicenseUrl: string;
+  privacyUrl: string;
+  termsUrl: string;
   // see: tools/workers
   imageProxyUrl: string;
   linkPreviewUrl: string;

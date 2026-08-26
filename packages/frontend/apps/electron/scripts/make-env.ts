@@ -17,7 +17,9 @@ const ROOT = path.resolve(__dirname, '..');
 const envBuildType = (process.env.BUILD_TYPE || 'canary').trim().toLowerCase();
 const buildType = ReleaseTypeSchema.parse(envBuildType);
 const stableBuild = buildType === 'stable';
-const productName = !stableBuild ? `AFFiNE-${buildType}` : 'AFFiNE';
+const productName = !stableBuild ? `LocalMind-${buildType}` : 'LocalMind';
+const legacyProtocol = stableBuild ? 'affine' : `affine-${buildType}`;
+const protocolSchemes = [productName.toLowerCase(), legacyProtocol];
 const icoPath = path.join(
   ROOT,
   !stableBuild
@@ -88,6 +90,7 @@ export {
   icoPath,
   platform,
   productName,
+  protocolSchemes,
   REPO_ROOT,
   ROOT,
   stableBuild,

@@ -63,7 +63,11 @@ export const AIPlan = () => {
                 className={styles.purchaseButton}
                 displayedFrequency="monthly"
               />
-              <a href="https://ai.affine.pro" target="_blank" rel="noreferrer">
+              <a
+                href={`${BUILD_CONFIG.githubUrl}/blob/main/docs/localmind-user-guide.zh-CN.md`}
+                target="_blank"
+                rel="noreferrer"
+              >
                 <Button className={styles.learnAIButton}>
                   {t['com.affine.payment.ai.pricing-plan.learn']()}
                 </Button>

@@ -18,8 +18,7 @@ interface OpenAppProps {
   mode?: 'auth' | 'open-doc'; // default to 'auth'
 }
 const channel = BUILD_CONFIG.appBuildType;
-const url =
-  'https://affine.pro/download' + (channel !== 'stable' ? '/beta-canary' : '');
+const url = BUILD_CONFIG.downloadUrl;
 
 export const OpenInAppPage = ({
   urlToOpen,
@@ -66,7 +65,7 @@ export const OpenInAppPage = ({
 
         <div className={styles.topNavLinks}>
           <a
-            href="https://affine.pro"
+            href={BUILD_CONFIG.githubUrl}
             target="_blank"
             rel="noreferrer"
             className={styles.topNavLink}
@@ -74,7 +73,7 @@ export const OpenInAppPage = ({
             Official Website
           </a>
           <a
-            href="https://affine.pro/blog"
+            href={`${BUILD_CONFIG.githubUrl}/blob/main/docs/localmind-user-guide.zh-CN.md`}
             target="_blank"
             rel="noreferrer"
             className={styles.topNavLink}
@@ -82,7 +81,7 @@ export const OpenInAppPage = ({
             Blog
           </a>
           <a
-            href="https://affine.pro/about-us"
+            href={`${BUILD_CONFIG.githubUrl}/issues`}
             target="_blank"
             rel="noreferrer"
             className={styles.topNavLink}

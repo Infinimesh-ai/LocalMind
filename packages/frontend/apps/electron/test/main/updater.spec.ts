@@ -4,7 +4,6 @@ import { fileURLToPath } from 'node:url';
 import type { UpdateCheckResult } from 'electron-updater';
 import { parseUpdateInfo } from 'electron-updater/out/providers/Provider';
 import fs from 'fs-extra';
-import { flatten } from 'lodash-es';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import {
@@ -18,9 +17,9 @@ import {
 } from 'vitest';
 
 import {
-  AFFiNEUpdateProvider,
   availableForMyPlatformAndInstaller,
-} from '../../src/main/updater/affine-update-provider';
+  LocalMindUpdateProvider,
+} from '../../src/main/updater/localmind-update-provider';
 import { MockedAppAdapter, MockedUpdater } from './mocks';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -31,6 +30,15 @@ vi.mock('electron', () => ({
   },
 }));
 
+type FixtureAsset = {
+  name: string;
+  url: string;
+} & Record<string, unknown>;
+
+type FixtureRelease = {
+  assets: FixtureAsset[];
+} & Record<string, unknown>;
+
 describe('testing for client update', () => {
   const expectReleaseList = [
     { buildType: 'beta', version: '0.16.3-beta.2' },
@@ -39,40 +47,60 @@ describe('testing for client update', () => {
   ];
 
   const basicRequestHandlers = [
-    http.get('https://affine.pro/api/worker/releases', async ({ request }) => {
-      const url = new URL(request.url);
-      const buffer = await fs.readFile(
-        path.join(
-          __dirname,
-          'fixtures',
-          'candidates',
-          `${url.searchParams.get('channel')}.json`
-        )
-      );
-      const content = buffer.toString();
-      return HttpResponse.text(content);
-    }),
-    ...flatten(
-      expectReleaseList.map(({ version }) => {
-        return [
-          http.get(
-            `https://github.com/toeverything/AFFiNE/releases/download/v${version}/latest.yml`,
-            async req => {
-              const buffer = await fs.readFile(
+    http.get(
+      'https://api.github.com/repos/Infinimesh-ai/LocalMind/releases',
+      async () => {
+        const releases = (
+          await Promise.all(
+            expectReleaseList.map(async ({ buildType, version }) => {
+              const content = await fs.readFile(
                 path.join(
                   __dirname,
                   'fixtures',
-                  'releases',
-                  version,
-                  path.parse(req.request.url).base
-                )
+                  'candidates',
+                  `${buildType}.json`
+                ),
+                'utf8'
               );
-              const content = buffer.toString();
-              return HttpResponse.text(content);
-            }
-          ),
-        ];
-      })
+
+              return (JSON.parse(content) as FixtureRelease[]).map(release => ({
+                ...release,
+                draft: false,
+                prerelease: buildType !== 'stable',
+                assets: release.assets.map((asset, index) => ({
+                  ...asset,
+                  name: asset.name.replace(/^affine-/, 'localmind-'),
+                  url: `https://api.github.com/repos/Infinimesh-ai/LocalMind/releases/assets/${version}-${index}`,
+                  browser_download_url: asset.url
+                    .replace('toeverything/AFFiNE', 'Infinimesh-ai/LocalMind')
+                    .replace(/\/affine-/g, '/localmind-'),
+                })),
+              }));
+            })
+          )
+        ).flat();
+
+        return HttpResponse.json(releases);
+      }
+    ),
+    ...expectReleaseList.map(({ version }) =>
+      http.get(
+        `https://github.com/Infinimesh-ai/LocalMind/releases/download/v${version}/latest.yml`,
+        async req => {
+          const buffer = await fs.readFile(
+            path.join(
+              __dirname,
+              'fixtures',
+              'releases',
+              version,
+              path.parse(req.request.url).base
+            )
+          );
+          return HttpResponse.text(
+            buffer.toString().replaceAll('affine-', 'localmind-')
+          );
+        }
+      )
     ),
   ];
 
@@ -88,7 +116,7 @@ describe('testing for client update', () => {
         const updater = new MockedUpdater(null, app);
 
         updater.setFeedURL(
-          AFFiNEUpdateProvider.configFeed({
+          LocalMindUpdateProvider.configFeed({
             channel: buildType as any,
           })
         );
@@ -112,15 +140,23 @@ describe('testing for client update', () => {
           // not support arm64 on linux yet
           continue;
         }
-        const data = await fs.readFile(
-          path.join(__dirname, 'fixtures', 'releases', '0.18.0', `latest.yml`),
-          'utf-8'
-        );
+        const data = (
+          await fs.readFile(
+            path.join(
+              __dirname,
+              'fixtures',
+              'releases',
+              '0.18.0',
+              `latest.yml`
+            ),
+            'utf-8'
+          )
+        ).replaceAll('affine-', 'localmind-');
 
         const files = parseUpdateInfo(
           data,
           '',
-          new URL('https://affine.pro')
+          new URL('https://github.com/Infinimesh-ai/LocalMind')
         ).files.map(file => file.url);
 
         it(`filter for platform [${platform}] arch [${arch}]`, () => {
@@ -142,5 +178,24 @@ describe('testing for client update', () => {
         }
       }
     }
+
+    it('accepts legacy AFFiNE installers during the transition', () => {
+      expect(
+        availableForMyPlatformAndInstaller(
+          'affine-0.27.0-stable-macos-arm64.dmg',
+          'darwin',
+          'arm64',
+          false
+        )
+      ).toBe(true);
+      expect(
+        availableForMyPlatformAndInstaller(
+          'other-0.27.0-stable-macos-arm64.dmg',
+          'darwin',
+          'arm64',
+          false
+        )
+      ).toBe(false);
+    });
   });
 });

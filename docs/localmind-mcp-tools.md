@@ -1,6 +1,6 @@
 # LocalMind MCP Tool Reference
 
-This reference describes `localmind-ai` version `3.2.1`. `tools/list` is the
+This reference describes `localmind-ai` version `3.3.0`. `tools/list` is the
 authoritative JSON Schema source.
 
 ## Tools
@@ -9,18 +9,43 @@ authoritative JSON Schema source.
 
 MCP clients should route calls as follows:
 
-1. Every new user request starts with `delegate_to_localmind`. This includes
+1. When a new request includes local files, call
+   `upload_localmind_attachment` once for each file.
+2. Every new user request starts with `delegate_to_localmind`. This includes
    questions, summaries, document reads/searches/creates/updates/renames, web
-   research, and multi-step workspace work.
-2. `get_localmind_task` is only for a `taskId` already returned by
+   research, attachment processing, and multi-step workspace work. Pass the
+   uploaded ids in `attachmentIds`.
+3. `get_localmind_task` is only for a `taskId` already returned by
    `delegate_to_localmind`. It cannot start or retry work.
-3. `control_localmind_task` is only for an explicit user request to cancel an
+4. `control_localmind_task` is only for an explicit user request to cancel an
    unfinished delegated task. It supports no other action.
 
 The caller must not search for low-level tools such as `doc_create` or
 `doc_read`. Those tools are internal to LocalMind AI; the public caller submits
 the complete task through `delegate_to_localmind`, and LocalMind chooses the
 internal tools.
+
+### `upload_localmind_attachment`
+
+Uploads one immutable, task-bound file before delegation. The returned
+`attachmentId` can be used only by the same workspace, delegated user, and MCP
+credential family.
+
+Input:
+
+| Field            | Type   | Required | Constraint                                 |
+| ---------------- | ------ | -------- | ------------------------------------------ |
+| `fileName`       | string | yes      | Trimmed, 1 to 512 characters               |
+| `mimeType`       | string | no       | 1 to 256 characters; octet-stream default  |
+| `base64`         | string | yes      | Strict base64; decoded size at most 10 MiB |
+| `idempotencyKey` | string | yes      | Trimmed, 1 to 256 characters               |
+
+The tool requires the frozen `upload_localmind_attachment` capability plus
+live `Workspace.Copilot` and `Workspace.Blobs.Write`. It stores the bytes
+through workspace Blob quota enforcement and persists immutable filename, MIME,
+size, Blob key, and SHA-256 evidence. Replaying the same key with identical
+evidence returns the same `attachmentId` and `idempotentReplay=true`; different
+evidence returns `idempotency_conflict`.
 
 ### `delegate_to_localmind`
 
@@ -33,6 +58,7 @@ Input:
 | ---------------- | -------- | -------- | ----------------------------------------------- |
 | `request`        | string   | yes      | Trimmed, 1 to 12,000 characters                 |
 | `documentIds`    | string[] | no       | At most 20 workspace document ids; default `[]` |
+| `attachmentIds`  | string[] | no       | At most 8 uploaded attachment ids; default `[]` |
 | `idempotencyKey` | string   | yes      | Trimmed, 1 to 256 characters                    |
 
 The same idempotency key in one workspace and credential family returns the
@@ -63,9 +89,12 @@ mutations require `Workspace.Sync`, and document placement also requires
 not document content. Each underlying tool keeps its normal LocalMind
 permission and deployment checks. For example, document creation requires
 `Workspace.CreateDoc`, keyword search requires the indexer, and web tools
-require their configured provider. The delegation input currently supplies
-document ids but no AI Chat attachment session, so an attachment read without
-such context returns the tool's normal missing-context error.
+require their configured provider. Task attachments are materialized without
+creating an AI Chat session. Parseable documents contribute at most 24,000
+extracted characters across the task; provider-native media and unsupported
+parser formats are supplied as bounded bytes. A task accepts at most eight
+attachments and 20 MiB combined. Planning and worker execution both reread the
+Blob and verify its size and SHA-256 evidence before use.
 
 The tool loop is bounded to 20 recorded executions and 120 seconds. It polls
 durable cancellation and credential/workspace authority while running, and
@@ -123,8 +152,10 @@ accept a new cancellation request.
 Only the credential family that created a task can query it. Rotation preserves
 family access; another family receives `task_not_found`. LocalMind rechecks
 credential-family activity, the task's frozen `get_localmind_task` permission,
-`Workspace.Copilot`, and `Doc.Read` for every referenced document. Lost ACL
-returns a direct query error and does not expose historical results.
+`Workspace.Copilot`, `Doc.Read` for every referenced document, and
+`Workspace.Blobs.Read` plus family/actor/workspace binding for every task
+attachment. Lost ACL returns a direct query error and does not expose historical
+results.
 
 ### `control_localmind_task`
 
@@ -187,12 +218,12 @@ notification URL, callers use `get_localmind_task` to observe completion.
 
 ## Protocol Methods
 
-| Method       | Result                                    |
-| ------------ | ----------------------------------------- |
-| `initialize` | Protocol version and tools capability     |
-| `ping`       | Empty success object                      |
-| `tools/list` | The three AI delegation/task tool schemas |
-| `tools/call` | Text plus the structured tool result      |
+| Method       | Result                                      |
+| ------------ | ------------------------------------------- |
+| `initialize` | Protocol version and tools capability       |
+| `ping`       | Empty success object                        |
+| `tools/list` | The four attachment/delegation/task schemas |
+| `tools/call` | Text plus the structured tool result        |
 
 MCP Resources are not advertised. Protocol versions `2024-10-07`,
 `2024-11-05`, `2025-03-26`, `2025-06-18`, and `2025-11-25` are accepted.

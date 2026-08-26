@@ -3,8 +3,8 @@ import { autoUpdater as defaultAutoUpdater } from 'electron-updater';
 
 import { buildType } from '../config';
 import { logger } from '../logger';
-import { AFFiNEUpdateProvider } from './affine-update-provider';
 import { updaterSubjects } from './event';
+import { LocalMindUpdateProvider } from './localmind-update-provider';
 import { WindowsUpdater } from './windows-updater';
 
 const mode = process.env.NODE_ENV;
@@ -93,7 +93,7 @@ export const registerUpdater = async () => {
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.autoRunAppAfterInstall = true;
 
-  const feedUrl = AFFiNEUpdateProvider.configFeed({
+  const feedUrl = LocalMindUpdateProvider.configFeed({
     channel: buildType,
   });
 

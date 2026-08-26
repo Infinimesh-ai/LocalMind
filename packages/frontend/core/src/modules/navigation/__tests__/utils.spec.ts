@@ -45,6 +45,30 @@ const testCases: [string, ReturnType<typeof resolveLinkToDoc>][] = [
       blockIds: ['xxxx'],
     },
   ],
+  [
+    'localmind:///workspace/48__RTCSwASvWZxyAk3Jw/-Uge-K6SYcAbcNYfQ5U-j?blockIds=xxxx',
+    {
+      workspaceId: '48__RTCSwASvWZxyAk3Jw',
+      docId: '-Uge-K6SYcAbcNYfQ5U-j',
+      blockIds: ['xxxx'],
+    },
+  ],
+  [
+    'localmind://workspace/48__RTCSwASvWZxyAk3Jw/-Uge-K6SYcAbcNYfQ5U-j?blockIds=xxxx',
+    {
+      workspaceId: '48__RTCSwASvWZxyAk3Jw',
+      docId: '-Uge-K6SYcAbcNYfQ5U-j',
+      blockIds: ['xxxx'],
+    },
+  ],
+  [
+    'affine:///workspace/48__RTCSwASvWZxyAk3Jw/-Uge-K6SYcAbcNYfQ5U-j?blockIds=xxxx',
+    {
+      workspaceId: '48__RTCSwASvWZxyAk3Jw',
+      docId: '-Uge-K6SYcAbcNYfQ5U-j',
+      blockIds: ['xxxx'],
+    },
+  ],
   ['http://affine.pro/workspace/48__RTCSwASvWZxyAk3Jw/all', null],
   ['http://affine.pro/workspace/48__RTCSwASvWZxyAk3Jw/collection', null],
   ['http://affine.pro/workspace/48__RTCSwASvWZxyAk3Jw/tag', null],

@@ -45,12 +45,12 @@ const getPlayList = (t: Translate): Array<PlayListItem> => [
     desc: (
       <Trans
         i18nKey="com.affine.ai-onboarding.general.5.description"
-        values={{ link: 'ai.affine.pro' }}
+        values={{ link: 'LocalMind AI guide' }}
         components={{
           a: (
             <a
               className={styles.link}
-              href="https://ai.affine.pro"
+              href={`${BUILD_CONFIG.githubUrl}/blob/main/docs/localmind-user-guide.zh-CN.md`}
               target="_blank"
               rel="noreferrer"
             />
@@ -213,22 +213,26 @@ export const AIOnboardingGeneral = () => {
           />
         </main>
 
-        <section
-          className={styles.privacy}
-          aria-hidden={!isLast || !!aiSubscription}
-        >
-          <Trans
-            i18nKey="com.affine.ai-onboarding.general.privacy"
-            components={{
-              a: (
-                <a
-                  className={styles.privacyLink}
-                  href="https://affine.pro/terms#ai"
-                />
-              ),
-            }}
-          />
-        </section>
+        {BUILD_CONFIG.privacyUrl ? (
+          <section
+            className={styles.privacy}
+            aria-hidden={!isLast || !!aiSubscription}
+          >
+            <Trans
+              i18nKey="com.affine.ai-onboarding.general.privacy"
+              components={{
+                a: (
+                  <a
+                    className={styles.privacyLink}
+                    href={BUILD_CONFIG.privacyUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  />
+                ),
+              }}
+            />
+          </section>
+        ) : null}
 
         <footer
           className={styles.footer}

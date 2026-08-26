@@ -335,21 +335,21 @@ jobs:
       - name: Save artifacts
         run: |
           mkdir -p builds
-          mv packages/frontend/apps/electron/out/*/make/zip/win32/${{ matrix.spec.arch }}/AFFiNE*-win32-${{ matrix.spec.arch }}-*.zip ./builds/affine-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.zip
-          mv packages/frontend/apps/electron/out/*/make/squirrel.windows/${{ matrix.spec.arch }}/*.exe ./builds/affine-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.exe
-          mv packages/frontend/apps/electron/out/*/make/nsis.windows/${{ matrix.spec.arch }}/*.exe ./builds/affine-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.nsis.exe
+          mv packages/frontend/apps/electron/out/*/make/zip/win32/${{ matrix.spec.arch }}/LocalMind*-win32-${{ matrix.spec.arch }}-*.zip ./builds/localmind-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.zip
+          mv packages/frontend/apps/electron/out/*/make/squirrel.windows/${{ matrix.spec.arch }}/*.exe ./builds/localmind-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.exe
+          mv packages/frontend/apps/electron/out/*/make/nsis.windows/${{ matrix.spec.arch }}/*.exe ./builds/localmind-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.nsis.exe
 
       - uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
-            ./builds/affine-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.zip
-            ./builds/affine-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.exe
-            ./builds/affine-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.nsis.exe
+            ./builds/localmind-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.zip
+            ./builds/localmind-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.exe
+            ./builds/localmind-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.nsis.exe
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: affine-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}-builds
+          name: localmind-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}-builds
           path: builds
 
   release:
@@ -381,31 +381,31 @@ jobs:
         if: ${{ inputs.desktop_macos }}
         uses: actions/download-artifact@v4
         with:
-          name: affine-darwin-x64-builds
+          name: localmind-darwin-x64-builds
           path: ./release
       - name: Download Artifacts (macos-arm64)
         if: ${{ inputs.desktop_macos }}
         uses: actions/download-artifact@v4
         with:
-          name: affine-darwin-arm64-builds
+          name: localmind-darwin-arm64-builds
           path: ./release
       - name: Download Artifacts (windows-x64)
         if: ${{ inputs.desktop_windows && needs.build-and-sign-windows.result == 'success' }}
         uses: actions/download-artifact@v4
         with:
-          name: affine-win32-x64-builds
+          name: localmind-win32-x64-builds
           path: ./release
       - name: Download Artifacts (windows-arm64)
         if: ${{ inputs.desktop_windows && needs.build-and-sign-windows.result == 'success' }}
         uses: actions/download-artifact@v4
         with:
-          name: affine-win32-arm64-builds
+          name: localmind-win32-arm64-builds
           path: ./release
       - name: Download Artifacts (linux-x64)
         if: ${{ inputs.desktop_linux }}
         uses: actions/download-artifact@v4
         with:
-          name: affine-linux-x64-builds
+          name: localmind-linux-x64-builds
           path: ./release
       - uses: actions/setup-node@v7
         with:

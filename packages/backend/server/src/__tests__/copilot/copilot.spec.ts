@@ -628,13 +628,17 @@ test.serial(
         capabilities: {
           tools: { listChanged: false },
         },
-        serverInfo: { name: 'localmind-ai', version: '3.2.1' },
+        serverInfo: { name: 'localmind-ai', version: '3.3.0' },
       },
     });
     t.regex(response.body.result.instructions, /TOOL ROUTING/);
     t.regex(
       response.body.result.instructions,
       /every new user request, call delegate_to_localmind/
+    );
+    t.regex(
+      response.body.result.instructions,
+      /call upload_localmind_attachment once per file first/
     );
     t.regex(
       response.body.result.instructions,
@@ -663,8 +667,20 @@ test.serial(
     }>;
     t.deepEqual(
       advertisedTools.map(tool => tool.name),
-      ['delegate_to_localmind', 'get_localmind_task', 'control_localmind_task']
+      [
+        'upload_localmind_attachment',
+        'delegate_to_localmind',
+        'get_localmind_task',
+        'control_localmind_task',
+      ]
     );
+    const attachmentTool = advertisedTools.find(
+      tool => tool.name === 'upload_localmind_attachment'
+    )!;
+    t.is(attachmentTool.title, 'Upload a LocalMind Attachment');
+    t.regex(attachmentTool.description, /10 MiB each/);
+    t.false(attachmentTool.annotations.readOnlyHint);
+    t.true(attachmentTool.annotations.idempotentHint);
     const delegateTool = advertisedTools.find(
       tool => tool.name === 'delegate_to_localmind'
     )!;
@@ -755,7 +771,12 @@ test.serial(
     t.is(server.name, 'localmind-ai');
     t.deepEqual(
       server.tools.map(tool => tool.name),
-      ['delegate_to_localmind', 'get_localmind_task', 'control_localmind_task']
+      [
+        'upload_localmind_attachment',
+        'delegate_to_localmind',
+        'get_localmind_task',
+        'control_localmind_task',
+      ]
     );
     const delegate = server.tools.find(
       tool => tool.name === 'delegate_to_localmind'
@@ -880,6 +901,7 @@ test.serial(
     );
     const completeToolNames = completeServer.tools.map(tool => tool.name);
     t.deepEqual(completeToolNames, [
+      'upload_localmind_attachment',
       'delegate_to_localmind',
       'get_localmind_task',
       'control_localmind_task',

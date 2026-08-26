@@ -75,6 +75,17 @@ export class BlobModel extends BaseModel {
     });
   }
 
+  async restore(workspaceId: string, key: string) {
+    const restored = await this.db.blob.updateMany({
+      where: { workspaceId, key, deletedAt: { not: null } },
+      data: { deletedAt: null },
+    });
+    if (restored.count) {
+      await this.markQuotaStateStale(workspaceId);
+    }
+    return restored.count > 0;
+  }
+
   async list(
     workspaceId: string,
     options?: { where: Prisma.BlobWhereInput; select?: Prisma.BlobSelect }

@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
 export const appSchemes = z.enum([
+  'localmind',
+  'localmind-canary',
+  'localmind-beta',
+  'localmind-internal',
+  'localmind-dev',
   'affine',
   'affine-canary',
   'affine-beta',
@@ -12,6 +17,11 @@ export type Scheme = z.infer<typeof appSchemes>;
 export type Channel = 'stable' | 'canary' | 'beta' | 'internal';
 
 export const schemeToChannel = {
+  localmind: 'stable',
+  'localmind-canary': 'canary',
+  'localmind-beta': 'beta',
+  'localmind-internal': 'internal',
+  'localmind-dev': 'canary',
   affine: 'stable',
   'affine-canary': 'canary',
   'affine-beta': 'beta',
@@ -20,10 +30,10 @@ export const schemeToChannel = {
 } as Record<Scheme, Channel>;
 
 export const channelToScheme = {
-  stable: 'affine',
-  canary: BUILD_CONFIG.debug ? 'affine-dev' : 'affine-canary',
-  beta: 'affine-beta',
-  internal: 'affine-internal',
+  stable: 'localmind',
+  canary: BUILD_CONFIG.debug ? 'localmind-dev' : 'localmind-canary',
+  beta: 'localmind-beta',
+  internal: 'localmind-internal',
 } as Record<Channel, Scheme>;
 
 export const appIconMap = {
@@ -34,10 +44,10 @@ export const appIconMap = {
 } satisfies Record<Channel, string>;
 
 export const appNames = {
-  stable: 'AFFiNE',
-  canary: 'AFFiNE Canary',
-  beta: 'AFFiNE Beta',
-  internal: 'AFFiNE Internal',
+  stable: 'LocalMind',
+  canary: 'LocalMind Canary',
+  beta: 'LocalMind Beta',
+  internal: 'LocalMind Internal',
 } satisfies Record<Channel, string>;
 
 export const appSchemaUrl = z.custom<string>(

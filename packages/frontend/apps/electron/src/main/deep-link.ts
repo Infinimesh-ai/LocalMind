@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import type { App } from 'electron';
 
+import { getDeepLinkSchemes, isSupportedDeepLink } from '../shared/deep-link';
 import { buildType, isDev } from './config';
 import { logger } from './logger';
 import { uiSubjects } from './ui';
@@ -12,10 +13,7 @@ import {
   showMainWindow,
 } from './windows-manager';
 
-let protocol = buildType === 'stable' ? 'affine' : `affine-${buildType}`;
-if (isDev) {
-  protocol = 'affine-dev';
-}
+const { supported: protocols } = getDeepLinkSchemes(buildType, isDev);
 
 const authMethods = new Set(['magic-link', 'oauth', 'open-app-signin']);
 
@@ -42,29 +40,31 @@ function summarizeDeepLink(rawUrl: string) {
 }
 
 function logDeepLinkFailure(rawUrl: string, error: unknown) {
-  logger.error('failed to handle affine url', summarizeDeepLink(rawUrl), {
+  logger.error('failed to handle LocalMind URL', summarizeDeepLink(rawUrl), {
     error: error instanceof Error ? error.name : typeof error,
   });
 }
 
 export function setupDeepLink(app: App) {
-  if (process.defaultApp) {
-    if (process.argv.length >= 2) {
-      app.setAsDefaultProtocolClient(protocol, process.execPath, [
-        path.resolve(process.argv[1]),
-      ]);
+  for (const protocol of protocols) {
+    if (process.defaultApp) {
+      if (process.argv.length >= 2) {
+        app.setAsDefaultProtocolClient(protocol, process.execPath, [
+          path.resolve(process.argv[1]),
+        ]);
+      }
+    } else {
+      app.setAsDefaultProtocolClient(protocol);
     }
-  } else {
-    app.setAsDefaultProtocolClient(protocol);
   }
 
   app.on('open-url', (event, url) => {
     logger.log('open-url', summarizeDeepLink(url));
-    if (url.startsWith(`${protocol}://`)) {
+    if (isSupportedDeepLink(url, protocols)) {
       event.preventDefault();
       app
         .whenReady()
-        .then(() => handleAffineUrl(url))
+        .then(() => handleDeepLink(url))
         .catch(e => {
           logDeepLinkFailure(url, e);
         });
@@ -76,9 +76,9 @@ export function setupDeepLink(app: App) {
     showMainWindow()
       .then(() => {
         const url = commandLine.pop();
-        if (url?.startsWith(`${protocol}://`)) {
+        if (url && isSupportedDeepLink(url, protocols)) {
           event.preventDefault();
-          handleAffineUrl(url).catch(e => {
+          handleDeepLink(url).catch(e => {
             logDeepLinkFailure(url, e);
           });
         }
@@ -92,22 +92,22 @@ export function setupDeepLink(app: App) {
     const url = process.argv.at(-1);
     logger.log(
       'url from argv',
-      url?.startsWith(`${protocol}://`)
+      url && isSupportedDeepLink(url, protocols)
         ? summarizeDeepLink(url)
         : { deepLink: false, argumentCount: process.argv.length }
     );
-    if (url?.startsWith(`${protocol}://`)) {
-      handleAffineUrl(url).catch(e => {
+    if (url && isSupportedDeepLink(url, protocols)) {
+      handleDeepLink(url).catch(e => {
         logDeepLinkFailure(url, e);
       });
     }
   });
 }
 
-async function handleAffineUrl(url: string) {
+async function handleDeepLink(url: string) {
   await showMainWindow();
 
-  logger.info('open affine url', summarizeDeepLink(url));
+  logger.info('open LocalMind URL', summarizeDeepLink(url));
   const urlObj = new URL(url);
 
   if (urlObj.hostname === 'authentication') {

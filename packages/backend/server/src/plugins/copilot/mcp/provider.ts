@@ -2,7 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { McpAccessMode, type McpCredential } from '@prisma/client';
 import type { Request } from 'express';
 
+import { McpAttachmentService } from './attachments';
 import {
+  MCP_ATTACHMENT_UPLOAD_CAPABILITY,
   MCP_DELEGATE_CAPABILITY,
   MCP_TASK_CONTROL_CAPABILITY,
   MCP_TASK_QUERY_CAPABILITY,
@@ -38,6 +40,7 @@ type McpDelegationCredential = Pick<
 @Injectable()
 export class WorkspaceMcpProvider {
   constructor(
+    private readonly attachments: McpAttachmentService,
     private readonly delegation: McpAiDelegationService,
     private readonly taskControl: McpAiTaskControlService,
     private readonly taskQuery: McpAiTaskQueryService
@@ -80,6 +83,9 @@ export class WorkspaceMcpProvider {
     capabilities: readonly McpCapability[]
   ): WorkspaceMcpServer {
     const tools: WorkspaceMcpServer['tools'] = [];
+    if (capabilities.includes(MCP_ATTACHMENT_UPLOAD_CAPABILITY)) {
+      tools.push(this.attachments.createTool(credential, capabilities));
+    }
     if (capabilities.includes(MCP_DELEGATE_CAPABILITY)) {
       tools.push(this.delegation.createTool(credential, capabilities));
     }
@@ -91,9 +97,10 @@ export class WorkspaceMcpProvider {
     }
     return {
       name: 'localmind-ai',
-      version: '3.2.1',
+      version: '3.3.0',
       instructions: [
         'TOOL ROUTING - follow these rules exactly.',
+        'When a new task includes local files, call upload_localmind_attachment once per file first and pass every returned attachmentId in delegate_to_localmind attachmentIds.',
         'For every new user request, call delegate_to_localmind with the complete task; this is the only public tool that starts work.',
         'New work includes answering questions, reading or searching documents, creating or editing documents, web research, and multi-step workspace tasks.',
         'Do not call or search for internal AI tools such as doc_create or doc_read; they are not public MCP tools, and LocalMind selects them after delegation.',

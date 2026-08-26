@@ -10899,7 +10899,7 @@ describe('AiPage', () => {
     expect(hasQueryCall(getCopilotPromptRegistryPublishGateQuery)).toBe(false);
     expect(
       (screen.getByLabelText('Prompt name') as HTMLInputElement).value
-    ).toBe('Chat With AFFiNE AI');
+    ).toBe('LocalMind AI');
     expect(screen.getByText('Catalog category')).not.toBeNull();
     expect(screen.getByText('Catalog source')).not.toBeNull();
     expect(screen.getByText('Override')).not.toBeNull();
@@ -12731,7 +12731,7 @@ describe('AiPage', () => {
     const promptCatalogDiagnostics = screen.getByTestId(
       'prompt-catalog-diagnostics-Chat With AFFiNE AI'
     ).textContent;
-    expect(promptCatalogDiagnostics).toContain('Prompt Chat With AFFiNE AI');
+    expect(promptCatalogDiagnostics).toContain('Prompt LocalMind AI');
     expect(promptCatalogDiagnostics).toContain('Action chat');
     expect(promptCatalogDiagnostics).toContain('Category Text');
     expect(promptCatalogDiagnostics).toContain('Source Built In');
@@ -13718,9 +13718,7 @@ describe('AiPage', () => {
     );
 
     expect(screen.getByRole('option', { name: 'Make it real' })).not.toBeNull();
-    expect(
-      screen.queryByRole('option', { name: 'Chat With AFFiNE AI' })
-    ).toBeNull();
+    expect(screen.queryByRole('option', { name: 'LocalMind AI' })).toBeNull();
     expect(screen.queryByRole('option', { name: 'Generate image' })).toBeNull();
     expect(
       screen.queryByRole('option', { name: 'Legacy empty registry prompt' })
@@ -13747,9 +13745,7 @@ describe('AiPage', () => {
     expect(
       screen.getByRole('option', { name: 'Generate image' })
     ).not.toBeNull();
-    expect(
-      screen.queryByRole('option', { name: 'Chat With AFFiNE AI' })
-    ).toBeNull();
+    expect(screen.queryByRole('option', { name: 'LocalMind AI' })).toBeNull();
     expect(screen.queryByRole('option', { name: 'Make it real' })).toBeNull();
     expect(
       screen.queryByRole('option', { name: 'Legacy empty registry prompt' })
@@ -13776,9 +13772,7 @@ describe('AiPage', () => {
     expect(
       screen.getByRole('option', { name: 'Generate image' })
     ).not.toBeNull();
-    expect(
-      screen.queryByRole('option', { name: 'Chat With AFFiNE AI' })
-    ).toBeNull();
+    expect(screen.queryByRole('option', { name: 'LocalMind AI' })).toBeNull();
     expect(screen.queryByRole('option', { name: 'Make it real' })).toBeNull();
     expect(
       screen.queryByRole('option', { name: 'Legacy empty registry prompt' })
@@ -13805,9 +13799,7 @@ describe('AiPage', () => {
     expect(
       screen.getByRole('option', { name: 'Generate image' })
     ).not.toBeNull();
-    expect(
-      screen.queryByRole('option', { name: 'Chat With AFFiNE AI' })
-    ).toBeNull();
+    expect(screen.queryByRole('option', { name: 'LocalMind AI' })).toBeNull();
     expect(screen.queryByRole('option', { name: 'Make it real' })).toBeNull();
     expect(
       screen.queryByRole('option', { name: 'Legacy empty registry prompt' })
@@ -13835,9 +13827,7 @@ describe('AiPage', () => {
     expect(
       screen.getByRole('option', { name: 'Generate image' })
     ).not.toBeNull();
-    expect(
-      screen.queryByRole('option', { name: 'Chat With AFFiNE AI' })
-    ).toBeNull();
+    expect(screen.queryByRole('option', { name: 'LocalMind AI' })).toBeNull();
     expect(screen.queryByRole('option', { name: 'Make it real' })).toBeNull();
     expect(
       screen.queryByRole('option', { name: 'Legacy empty registry prompt' })
@@ -13862,9 +13852,7 @@ describe('AiPage', () => {
     );
 
     expect(screen.getByRole('option', { name: 'Make it real' })).not.toBeNull();
-    expect(
-      screen.queryByRole('option', { name: 'Chat With AFFiNE AI' })
-    ).toBeNull();
+    expect(screen.queryByRole('option', { name: 'LocalMind AI' })).toBeNull();
     expect(screen.queryByRole('option', { name: 'Generate image' })).toBeNull();
     expect(
       screen.queryByRole('option', { name: 'Legacy empty registry prompt' })
@@ -13889,9 +13877,7 @@ describe('AiPage', () => {
     );
 
     expect(screen.getByRole('option', { name: 'Make it real' })).not.toBeNull();
-    expect(
-      screen.queryByRole('option', { name: 'Chat With AFFiNE AI' })
-    ).toBeNull();
+    expect(screen.queryByRole('option', { name: 'LocalMind AI' })).toBeNull();
     expect(screen.queryByRole('option', { name: 'Generate image' })).toBeNull();
     expect(
       screen.queryByRole('option', { name: 'Legacy empty registry prompt' })
@@ -13920,9 +13906,7 @@ describe('AiPage', () => {
     expect(
       screen.getByRole('option', { name: 'Generate image' })
     ).not.toBeNull();
-    expect(
-      screen.queryByRole('option', { name: 'Chat With AFFiNE AI' })
-    ).toBeNull();
+    expect(screen.queryByRole('option', { name: 'LocalMind AI' })).toBeNull();
     expect(screen.queryByRole('option', { name: 'Make it real' })).toBeNull();
     expect(
       screen.queryByRole('option', { name: 'Legacy empty registry prompt' })
@@ -15241,7 +15225,7 @@ describe('AiPage', () => {
     const modelCandidatesDiagnostics = screen.getByTestId(
       'model-candidates-diagnostics'
     ).textContent;
-    expect(modelCandidatesDiagnostics).toContain('Prompt Chat With AFFiNE AI');
+    expect(modelCandidatesDiagnostics).toContain('Prompt LocalMind AI');
     expect(modelCandidatesDiagnostics).toContain('Candidate count 1');
     expect(modelCandidatesDiagnostics).toContain('Candidate gpt-4o-mini');
     expect(modelCandidatesDiagnostics).toContain(
@@ -15257,7 +15241,7 @@ describe('AiPage', () => {
       'model-candidate-diagnostics-gpt-4o-mini'
     ).textContent;
     expect(modelCandidateDiagnostics).toContain('Candidate gpt-4o-mini');
-    expect(modelCandidateDiagnostics).toContain('Prompt Chat With AFFiNE AI');
+    expect(modelCandidateDiagnostics).toContain('Prompt LocalMind AI');
     expect(modelCandidateDiagnostics).toContain('Action chat');
     expect(modelCandidateDiagnostics).toContain('Built-in');
     expect(modelCandidateDiagnostics).toContain(

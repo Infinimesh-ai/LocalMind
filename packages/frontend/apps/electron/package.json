@@ -5,11 +5,11 @@
   "main": "./dist/main.js",
   "author": "toeverything",
   "repository": {
-    "url": "https://github.com/toeverything/AFFiNE",
+    "url": "https://github.com/Infinimesh-ai/LocalMind",
     "type": "git"
   },
-  "description": "AFFiNE Desktop App",
-  "homepage": "https://github.com/toeverything/AFFiNE",
+  "description": "LocalMind Desktop App",
+  "homepage": "https://github.com/Infinimesh-ai/LocalMind",
   "exports": {
     "./helper/exposed": "./src/helper/exposed.ts",
     "./main/exposed": "./src/main/exposed.ts",
@@ -85,8 +85,9 @@
   "build": {
     "protocols": [
       {
-        "name": "affine",
+        "name": "LocalMind",
         "schemes": [
+          "localmind",
           "affine"
         ]
       }
