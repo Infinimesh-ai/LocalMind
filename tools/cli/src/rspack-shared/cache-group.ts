@@ -3,6 +3,19 @@ function testPackageName(regexp: RegExp): (module: any) => boolean {
     module.nameForCondition && regexp.test(module.nameForCondition());
 }
 
+export function getAsyncVendorChunkName(modulePath: string) {
+  const shikiAsset = modulePath.match(
+    /[\\/]node_modules[\\/]@shikijs[\\/](langs|themes)[\\/]dist[\\/]([^\\/]+)\.mjs$/
+  );
+  if (shikiAsset) {
+    return `npm-async-shiki-${shikiAsset[1]}-${shikiAsset[2]}`;
+  }
+
+  // Keep the existing package-level grouping for other async dependencies.
+  const name = modulePath.match(/[\\/]node_modules[\\/](.*?)([\\/]|$)/)?.[1];
+  return name ? `npm-async-${name}` : 'app-async';
+}
+
 // https://hackernoon.com/the-100-correct-way-to-split-your-chunks-with-webpack-f8a9df5b7758
 export const productionCacheGroups = {
   i18n: {
@@ -32,10 +45,7 @@ export const productionCacheGroups = {
       if (!modulePath.includes('node_modules')) {
         return `app-async`;
       }
-      const name = modulePath.match(
-        /[\\/]node_modules[\\/](.*?)([\\/]|$)/
-      )?.[1];
-      return `npm-async-${name}`;
+      return getAsyncVendorChunkName(modulePath);
     },
     priority: Number.MAX_SAFE_INTEGER,
     chunks: 'async' as const,

@@ -44,14 +44,16 @@ export const NavigationPanelDocNode = ({
   onDrop,
   location,
   reorderable,
-  isLinked,
+  linkedFromDocId,
+  isInFolder,
   canDrop,
   operations: additionalOperations,
   dropEffect,
   parentPath,
 }: {
   docId: string;
-  isLinked?: boolean;
+  linkedFromDocId?: string;
+  isInFolder?: boolean;
   forwardKey?: string;
 } & GenericNavigationPanelNode) => {
   const t = useI18n();
@@ -93,7 +95,7 @@ export const NavigationPanelDocNode = ({
   const docRecord = useLiveData(docsService.list.doc$(docId));
   const DocIcon = useLiveData(
     docDisplayMetaService.icon$(docId, {
-      reference: isLinked,
+      reference: !!linkedFromDocId || !!isInFolder,
     })
   );
   const docTitle = useLiveData(docDisplayMetaService.title$(docId));
@@ -172,6 +174,30 @@ export const NavigationPanelDocNode = ({
     [docId, docsService]
   );
 
+  const addLinkedDocWithFeedback = useCallback(
+    async (linkedDocId: string) => {
+      try {
+        const result = await docsService.addLinkedDoc(docId, linkedDocId);
+        if (result === 'added') {
+          toast(t['com.affine.toastMessage.addLinkedPage']());
+          return true;
+        }
+        toast(
+          t[
+            result === 'self-link'
+              ? 'com.affine.toastMessage.linkedPageSelfLink'
+              : 'com.affine.toastMessage.linkedPageAlreadyExists'
+          ]()
+        );
+      } catch (error) {
+        console.error('[navigation-panel] Failed to add linked doc', error);
+        toast(t['com.affine.toastMessage.addLinkedPageFailed']());
+      }
+      return false;
+    },
+    [docId, docsService, t]
+  );
+
   const handleDropOnDoc = useAsyncCallback(
     async (data: DropTargetDropEvent<AffineDNDData>) => {
       if (data.treeInstruction?.type === 'make-child') {
@@ -181,7 +207,12 @@ export const NavigationPanelDocNode = ({
             toast(t['com.affine.no-permission']());
             return;
           }
-          await docsService.addLinkedDoc(docId, data.source.data.entity.id);
+          const added = await addLinkedDocWithFeedback(
+            data.source.data.entity.id
+          );
+          if (!added) {
+            return;
+          }
           track.$.navigationPanel.docs.linkDoc({
             control: 'drag',
           });
@@ -195,7 +226,7 @@ export const NavigationPanelDocNode = ({
         onDrop?.(data);
       }
     },
-    [docId, docsService, guardService, onDrop, t]
+    [addLinkedDocWithFeedback, docId, guardService, onDrop, t]
   );
 
   const handleDropEffectOnDoc = useCallback<NavigationPanelTreeNodeDropEffect>(
@@ -220,8 +251,12 @@ export const NavigationPanelDocNode = ({
           toast(t['com.affine.no-permission']());
           return;
         }
-        // TODO(eyhn): timeout&error handling
-        await docsService.addLinkedDoc(docId, data.source.data.entity.id);
+        const added = await addLinkedDocWithFeedback(
+          data.source.data.entity.id
+        );
+        if (!added) {
+          return;
+        }
         track.$.navigationPanel.docs.linkDoc({
           control: 'drag',
         });
@@ -232,15 +267,15 @@ export const NavigationPanelDocNode = ({
         toast(t['com.affine.rootAppSidebar.doc.link-doc-only']());
       }
     },
-    [docId, docsService, guardService, t]
+    [addLinkedDocWithFeedback, docId, guardService, t]
   );
 
   const handleCanDrop = useMemo<DropTargetOptions<AffineDNDData>['canDrop']>(
     () => args => {
-      const entityType = args.source.data.entity?.type;
+      const entity = args.source.data.entity;
       return args.treeInstruction?.type !== 'make-child'
         ? ((typeof canDrop === 'function' ? canDrop(args) : canDrop) ?? true)
-        : entityType === 'doc';
+        : entity?.type === 'doc';
     },
     [canDrop]
   );
@@ -252,8 +287,10 @@ export const NavigationPanelDocNode = ({
       () => ({
         openInfoModal: () => workspaceDialogService.open('doc-info', { docId }),
         openNodeCollapsed: () => setCollapsed(false),
+        linkedFromDocId,
+        isInFolder,
       }),
-      [docId, setCollapsed, workspaceDialogService]
+      [docId, isInFolder, linkedFromDocId, setCollapsed, workspaceDialogService]
     )
   );
 
@@ -333,7 +370,7 @@ export const NavigationPanelDocNode = ({
                       docId,
                     }}
                     parentPath={path}
-                    isLinked
+                    linkedFromDocId={docId}
                   />
                 ))
               : null

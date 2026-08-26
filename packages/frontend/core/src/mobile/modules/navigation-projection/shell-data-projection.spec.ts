@@ -182,6 +182,13 @@ describe('MobileShellDataProjection', () => {
       projection.navigationSections$.value[0].children[0].children
     ).toHaveLength(2);
     expect(
+      projection.navigationSections$.value[0].children[0].children?.[0]
+    ).toMatchObject({
+      kind: 'doc',
+      entityId: 'b',
+      sourceDocId: 'a',
+    });
+    expect(
       projection.navigationSections$.value[0].children[0].children?.at(-1)
     ).toMatchObject({ kind: 'action', action: 'doc-new-linked' });
     permissionA$.next(false);

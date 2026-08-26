@@ -237,11 +237,15 @@ export class URLHelper {
   }
 
   private convertHostToOrigin(host: string) {
-    return [
-      this.config.server.https ? 'https' : 'http',
-      '://',
-      host,
-      host === 'localhost' || isIP(host) ? `:${this.config.server.port}` : '',
-    ].join('');
+    try {
+      return new URL(host).origin;
+    } catch {
+      return [
+        this.config.server.https ? 'https' : 'http',
+        '://',
+        host,
+        host === 'localhost' || isIP(host) ? `:${this.config.server.port}` : '',
+      ].join('');
+    }
   }
 }

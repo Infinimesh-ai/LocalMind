@@ -4770,6 +4770,25 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.rootAppSidebar.doc.link-doc-only"](): string;
     /**
+      * `Remove link`
+      */
+    ["com.affine.rootAppSidebar.doc.remove-link"](): string;
+    /**
+      * `Remove link?`
+      */
+    ["com.affine.rootAppSidebar.doc.remove-link.confirm.title"](): string;
+    /**
+      * `This removes all links to "{{title}}" from "{{parentTitle}}". The original document and its contents will be kept.`
+      */
+    ["com.affine.rootAppSidebar.doc.remove-link.confirm.description"](options: Readonly<{
+        title: string;
+        parentTitle: string;
+    }>): string;
+    /**
+      * `Remove link`
+      */
+    ["com.affine.rootAppSidebar.doc.remove-link.confirm.confirm"](): string;
+    /**
       * `No linked docs`
       */
     ["com.affine.rootAppSidebar.docs.no-subdoc"](): string;
@@ -7500,6 +7519,26 @@ export function useAFFiNEI18N(): {
       * `Successfully added linked doc`
       */
     ["com.affine.toastMessage.addLinkedPage"](): string;
+    /**
+      * `Couldn't add the linked doc. Please try again.`
+      */
+    ["com.affine.toastMessage.addLinkedPageFailed"](): string;
+    /**
+      * `This document is already linked here`
+      */
+    ["com.affine.toastMessage.linkedPageAlreadyExists"](): string;
+    /**
+      * `A document can't be linked to itself`
+      */
+    ["com.affine.toastMessage.linkedPageSelfLink"](): string;
+    /**
+      * `Link removed. The original document was kept.`
+      */
+    ["com.affine.toastMessage.removeLinkedPage"](): string;
+    /**
+      * `Couldn't remove the link. Please try again.`
+      */
+    ["com.affine.toastMessage.removeLinkedPageFailed"](): string;
     /**
       * `Added to favorites`
       */

@@ -88,6 +88,7 @@ export const NavigationPanelFolderNode = ({
     return (
       <NavigationPanelDocNode
         docId={data}
+        isInFolder
         operations={additionalOperations}
         parentPath={parentPath}
       />

@@ -18,7 +18,7 @@ describe('MobileNavigationProjection', () => {
           {
             kind: 'folder',
             entityId: 'folder',
-            children: [{ kind: 'doc', entityId: 'b' }],
+            children: [{ kind: 'doc', entityId: 'b', sourceDocId: 'parent' }],
           },
         ],
       },
@@ -36,6 +36,7 @@ describe('MobileNavigationProjection', () => {
       ['doc', 2, 'b'],
     ]);
     expect(rows[1].id).not.toBe(rows[2].id);
+    expect(rows.at(-1)).toMatchObject({ sourceDocId: 'parent' });
   });
 
   it('stops cycles at the current item boundary', () => {

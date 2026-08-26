@@ -556,6 +556,19 @@ class CloudWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
               }
             : undefined,
         },
+        ...(BUILD_CONFIG.isWeb || BUILD_CONFIG.isMobileWeb
+          ? {
+              [`cloud:${this.flavour}:http-bootstrap`]: {
+                doc: {
+                  name: StaticCloudDocStorage.identifier,
+                  opts: {
+                    id: workspaceId,
+                    serverBaseUrl: this.server.serverMetadata.baseUrl,
+                  },
+                },
+              },
+            }
+          : {}),
         v1: {
           doc: this.DocStorageV1Type
             ? {

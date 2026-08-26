@@ -843,7 +843,9 @@ test('test key failure disables a saved key and success restores it', async t =>
     .resolves(
       new Response('{"error":"invalid sk-test-primary"}', { status: 401 })
     );
-  fetch.onSecondCall().resolves(new Response('{}', { status: 200 }));
+  fetch
+    .onSecondCall()
+    .resolves(new Response('{"data":[{"id":"gpt-test"}]}', { status: 200 }));
   t.teardown(() => fetch.restore());
 
   const failed = await t.context.byok.testConfig({
@@ -900,7 +902,10 @@ test('OpenAI key test probes the exact configured model through Responses', asyn
   const { user, workspace } = await createUserWorkspace(t);
   await grantUserPlan(t, user.id);
   const fetch = Sinon.stub(t.context.byok as any, 'probeFetch').resolves(
-    new Response('{}', { status: 200 })
+    new Response(
+      '{"output":[{"type":"message","content":[{"type":"output_text","text":"OK"}]}]}',
+      { status: 200 }
+    )
   );
   t.teardown(() => fetch.restore());
 
@@ -1031,7 +1036,9 @@ test('FAL key test uses read-only platform API probe endpoint', async t => {
   await grantUserPlan(t, user.id);
 
   const fetch = Sinon.stub(t.context.byok as any, 'probeFetch').resolves(
-    new Response('{}', { status: 200 })
+    new Response('{"models":[{"endpoint_id":"fal-ai/fast-sdxl"}]}', {
+      status: 200,
+    })
   );
   t.teardown(() => fetch.restore());
 

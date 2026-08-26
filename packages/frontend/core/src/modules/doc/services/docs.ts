@@ -19,8 +19,11 @@ import type { DocsStore } from '../stores/docs';
 import type { DocCreateOptions } from '../types';
 import { DocService } from './doc';
 import { getDuplicatedDocTitle } from './duplicate-title';
+import { hasLinkedDocReference, removeLinkedDocReferences } from './linked-doc';
 
 const logger = new DebugLogger('DocsService');
+
+export type AddLinkedDocResult = 'added' | 'already-linked' | 'self-link';
 
 export class DocsService extends Service {
   list = this.framework.createEntity(DocRecordList);
@@ -177,30 +180,64 @@ export class DocsService extends Service {
     return docRecord;
   }
 
-  async addLinkedDoc(targetDocId: string, linkedDocId: string) {
+  async addLinkedDoc(
+    targetDocId: string,
+    linkedDocId: string
+  ): Promise<AddLinkedDocResult> {
+    if (targetDocId === linkedDocId) {
+      return 'self-link';
+    }
+
     const { doc, release } = this.open(targetDocId);
     const disposePriorityLoad = doc.addPriorityLoad(10);
-    await doc.waitForSyncReady();
-    disposePriorityLoad();
-    const text = new Text([
-      {
-        insert: ' ',
-        attributes: {
-          reference: {
-            type: 'LinkedPage',
-            pageId: linkedDocId,
+    try {
+      await doc.waitForSyncReady();
+      if (hasLinkedDocReference(doc.blockSuiteDoc, linkedDocId)) {
+        return 'already-linked';
+      }
+
+      const [frame] = doc.blockSuiteDoc.getBlocksByFlavour('affine:note');
+      if (!frame) {
+        throw new Error('Target doc note not found');
+      }
+
+      const text = new Text([
+        {
+          insert: ' ',
+          attributes: {
+            reference: {
+              type: 'LinkedPage',
+              pageId: linkedDocId,
+            },
           },
         },
-      },
-    ] as DeltaInsert<AffineTextAttributes>[]);
-    const [frame] = doc.blockSuiteDoc.getBlocksByFlavour('affine:note');
-    frame &&
+      ] as DeltaInsert<AffineTextAttributes>[]);
       doc.blockSuiteDoc.addBlock(
         'affine:paragraph' as never, // TODO(eyhn): fix type
         { text },
         frame.id
       );
-    release();
+      return 'added';
+    } finally {
+      disposePriorityLoad();
+      release();
+    }
+  }
+
+  async removeLinkedDoc(sourceDocId: string, linkedDocId: string) {
+    if (sourceDocId === linkedDocId) {
+      return false;
+    }
+
+    const { doc, release } = this.open(sourceDocId);
+    const disposePriorityLoad = doc.addPriorityLoad(10);
+    try {
+      await doc.waitForSyncReady();
+      return removeLinkedDocReferences(doc.blockSuiteDoc, linkedDocId) > 0;
+    } finally {
+      disposePriorityLoad();
+      release();
+    }
   }
 
   async changeDocTitle(docId: string, newTitle: string) {

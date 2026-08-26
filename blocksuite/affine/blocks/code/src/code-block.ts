@@ -29,7 +29,7 @@ import { html, nothing, type TemplateResult } from 'lit';
 import { query } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { styleMap } from 'lit/directives/style-map.js';
-import { bundledLanguagesInfo, type ThemedToken } from 'shiki';
+import type { BundledLanguageInfo, ThemedToken } from 'shiki';
 
 import { CodeBlockConfigExtension } from './code-block-config.js';
 import { CodeBlockInlineManagerExtension } from './code-block-inline.js';
@@ -87,10 +87,10 @@ export class CodeBlockComponent extends CaptionedBlockComponent<CodeBlockModel> 
     return this.store.readonly;
   }
 
-  get langs() {
+  get langs(): BundledLanguageInfo[] {
     return (
       this.std.getOptional(CodeBlockConfigExtension.identifier)?.langs ??
-      bundledLanguagesInfo
+      this.highlighter.langs$.value
     );
   }
 
@@ -180,6 +180,8 @@ export class CodeBlockComponent extends CaptionedBlockComponent<CodeBlockModel> 
 
   override connectedCallback() {
     super.connectedCallback();
+
+    this.highlighter.load().catch(console.error);
 
     // Reactively sync the global line-number preference from EditorSettingProvider
     // into the stable _showLineNumbersGlobal$ signal. Using effect() keeps the

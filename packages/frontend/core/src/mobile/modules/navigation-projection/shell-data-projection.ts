@@ -248,7 +248,8 @@ export class MobileShellDataProjection extends Service {
     const docNode = (
       id: string,
       linked = false,
-      ancestors: ReadonlySet<string> = new Set()
+      ancestors: ReadonlySet<string> = new Set(),
+      sourceDocId?: string
     ): MobileNavigationNode | undefined => {
       if (!nonTrashDocIds.has(id)) return undefined;
       const nextAncestors = new Set(ancestors);
@@ -257,12 +258,13 @@ export class MobileShellDataProjection extends Service {
         kind: 'doc',
         entityId: id,
         linked,
+        sourceDocId,
         expandable: true,
         children: ancestors.has(id)
           ? []
           : [
               ...(refsByDoc.get(id)?.flatMap(reference => {
-                const child = docNode(reference.docId, true, nextAncestors);
+                const child = docNode(reference.docId, true, nextAncestors, id);
                 return child ? [child] : [];
               }) ?? []),
               { kind: 'action', entityId: id, action: 'doc-new-linked' },

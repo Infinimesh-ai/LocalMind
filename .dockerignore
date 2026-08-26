@@ -18,6 +18,7 @@
 /coverage
 /.coverage
 /.docker/selfhost/data
+/.docker/selfhost/.env
 
 # OS noise
 .DS_Store

@@ -65,6 +65,7 @@ export interface DocStorageOptions {
 export interface DocStorage extends Storage {
   readonly storageType: 'doc';
   readonly isReadonly: boolean;
+  readonly syncPriorityOnly?: boolean;
   readonly spaceId: string;
   /**
    * Get a doc record with latest binary.

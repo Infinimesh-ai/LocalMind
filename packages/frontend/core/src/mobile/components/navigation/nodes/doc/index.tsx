@@ -18,12 +18,14 @@ import * as styles from './styles.css';
 
 export const NavigationPanelDocNode = ({
   docId,
-  isLinked,
+  linkedFromDocId,
+  isInFolder,
   operations: additionalOperations,
   parentPath,
 }: {
   docId: string;
-  isLinked?: boolean;
+  linkedFromDocId?: string;
+  isInFolder?: boolean;
   operations?: NodeOperation[];
   parentPath: string[];
 }) => {
@@ -49,7 +51,7 @@ export const NavigationPanelDocNode = ({
 
   const DocIcon = useLiveData(
     docDisplayMetaService.icon$(docId, {
-      reference: isLinked,
+      reference: !!linkedFromDocId || !!isInFolder,
     })
   );
 
@@ -85,10 +87,18 @@ export const NavigationPanelDocNode = ({
       <NavigationPanelDocNodeMenu
         docId={docId}
         handleAddLinkedPage={handleAddLinkedPage}
+        linkedFromDocId={linkedFromDocId}
+        isInFolder={isInFolder}
         additionalOperations={additionalOperations}
       />
     ),
-    [additionalOperations, docId, handleAddLinkedPage]
+    [
+      additionalOperations,
+      docId,
+      handleAddLinkedPage,
+      isInFolder,
+      linkedFromDocId,
+    ]
   );
 
   if (entry?.trash !== false) {
@@ -120,7 +130,7 @@ export const NavigationPanelDocNode = ({
             <NavigationPanelDocNode
               key={`${child.docId}-${index}`}
               docId={child.docId}
-              isLinked
+              linkedFromDocId={docId}
               parentPath={path}
             />
           ))

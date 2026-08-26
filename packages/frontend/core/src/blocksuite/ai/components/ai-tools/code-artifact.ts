@@ -22,7 +22,7 @@ import { effect, signal } from '@preact/signals-core';
 import { css, html, LitElement, nothing } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
-import { bundledLanguagesInfo, type ThemedToken } from 'shiki';
+import type { ThemedToken } from 'shiki';
 
 import { preprocessHtml } from '../../utils/html';
 import { ArtifactTool } from './artifact-tool';
@@ -123,6 +123,7 @@ export class CodeHighlighter extends SignalWatcher(WithDisposable(LitElement)) {
     super.connectedCallback();
 
     this.highlighter.mounted();
+    this.highlighter.load().catch(console.error);
 
     // recompute highlight when code / language changes
     this.disposables.add(
@@ -156,7 +157,7 @@ export class CodeHighlighter extends SignalWatcher(WithDisposable(LitElement)) {
 
     const loadedLanguages = highlighter.getLoadedLanguages();
     if (!loadedLanguages.includes(language)) {
-      const matchedInfo = bundledLanguagesInfo.find(
+      const matchedInfo = this.highlighter.langs$.value.find(
         info =>
           info.id === language ||
           info.name === language ||

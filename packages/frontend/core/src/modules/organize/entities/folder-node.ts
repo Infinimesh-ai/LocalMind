@@ -103,7 +103,7 @@ export class FolderNode extends Entity<{
     if (this.type$.value !== 'folder') {
       throw new Error('Cannot create link on non-folder node');
     }
-    this.store.createLink(this.id, type, targetId, index);
+    return this.store.createLink(this.id, type, targetId, index);
   }
 
   delete() {
@@ -118,7 +118,7 @@ export class FolderNode extends Entity<{
   }
 
   moveHere(childId: string, index: string) {
-    this.store.moveNode(childId, this.id, index);
+    return this.store.moveNode(childId, this.id, index);
   }
 
   rename(name: string) {

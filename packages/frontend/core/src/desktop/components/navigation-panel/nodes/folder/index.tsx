@@ -114,6 +114,7 @@ export const NavigationPanelFolderNode = ({
       data && (
         <NavigationPanelDocNode
           docId={data}
+          isInFolder
           location={location}
           onDrop={handleDrop}
           reorderable={reorderable}

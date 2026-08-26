@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile.localmind
     container_name: localmind_affine_server
     ports:
-      - '${PORT:-3011}:3010'
+      - '${BIND_ADDRESS:-0.0.0.0}:${PORT:-3011}:3010'
     depends_on:
       redis:
         condition: service_healthy
@@ -46,6 +46,7 @@ services:
       - SPARKCLAW_ADAPTER_PORT=3100
       - SPARKCLAW_EMBEDDING_ORIGIN=${SPARKCLAW_EMBEDDING_ORIGIN:-http://192.168.20.207:8001}
       - SPARKCLAW_RERANK_ORIGIN=${SPARKCLAW_RERANK_ORIGIN:-http://192.168.20.207:8002}
+      - SPARKCLAW_UPSTREAM_TIMEOUT_MS=${SPARKCLAW_UPSTREAM_TIMEOUT_MS:-5000}
     healthcheck:
       test:
         [
@@ -72,13 +73,13 @@ services:
       - '127.0.0.1:${ISCP_CONTROLLER_PORT:-8091}:8091'
     environment:
       - ISCP_DATABASE_URL=postgresql://${DB_USERNAME:-affine}:${DB_PASSWORD:-affine}@postgres:5432/${DB_DATABASE:-affine}
-      - ISCP_CONTROLLER_TOKEN=${ISCP_CONTROLLER_TOKEN:?Set ISCP_CONTROLLER_TOKEN to at least 32 random characters}
+      - ISCP_CONTROLLER_TOKEN=${ISCP_CONTROLLER_TOKEN:-}
       - ISCP_DOMAIN_ID=${ISCP_DOMAIN_ID:-localmind}
       - ISCP_RELAY_ID=${ISCP_RELAY_ID:-localmind-relay}
       - ISCP_RELAY_INTERNAL_BASE_URL=http://iscp_relay:8080
       - ISCP_RELAY_INTERNAL_WS_URL=ws://iscp_relay:8080/v2/relay/connect
-      - ISCP_RELAY_PUBLIC_BASE_URL=${ISCP_RELAY_PUBLIC_BASE_URL:?Set the public HTTPS ISCP base URL}
-      - ISCP_RELAY_PUBLIC_WS_URL=${ISCP_RELAY_PUBLIC_WS_URL:?Set the public WSS Relay URL}
+      - ISCP_RELAY_PUBLIC_BASE_URL=${ISCP_RELAY_PUBLIC_BASE_URL:-}
+      - ISCP_RELAY_PUBLIC_WS_URL=${ISCP_RELAY_PUBLIC_WS_URL:-}
       - ISCP_STATE_DIR=/var/lib/localmind-iscp
     volumes:
       - iscp_state:/var/lib/localmind-iscp
@@ -110,8 +111,8 @@ services:
       - ISCP_DATABASE_URL=postgresql://${DB_USERNAME:-affine}:${DB_PASSWORD:-affine}@postgres:5432/${DB_DATABASE:-affine}
       - ISCP_DOMAIN_ID=${ISCP_DOMAIN_ID:-localmind}
       - ISCP_RELAY_ID=${ISCP_RELAY_ID:-localmind-relay}
-      - ISCP_RELAY_BASE_URL=${ISCP_RELAY_PUBLIC_BASE_URL:?Set the public HTTPS ISCP base URL}
-      - ISCP_RELAY_WS_URL=${ISCP_RELAY_PUBLIC_WS_URL:?Set the public WSS Relay URL}
+      - ISCP_RELAY_BASE_URL=${ISCP_RELAY_PUBLIC_BASE_URL:-}
+      - ISCP_RELAY_WS_URL=${ISCP_RELAY_PUBLIC_WS_URL:-}
       - ISCP_ALLOWED_ORIGINS=${ISCP_ALLOWED_ORIGINS:-}
     depends_on:
       postgres:

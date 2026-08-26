@@ -1,7 +1,6 @@
 import {
   docLinkBaseURLMiddleware,
   embedSyncedDocMiddleware,
-  PdfAdapter,
   titleMiddleware,
 } from '@blocksuite/affine-shared/adapters';
 import type { Store } from '@blocksuite/store';
@@ -9,6 +8,7 @@ import type { Store } from '@blocksuite/store';
 import { download } from './utils.js';
 
 async function exportDoc(doc: Store) {
+  const { PdfAdapter } = await import('@blocksuite/affine-shared/adapters/pdf');
   const provider = doc.provider;
   const job = doc.getTransformer([
     docLinkBaseURLMiddleware(doc.workspace.id),
