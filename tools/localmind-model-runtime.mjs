@@ -126,6 +126,8 @@ Runtime options:
 LocalMind options:
   --config-path <path>         Override LocalMind config.json
   --compose-file <path>        Override Compose file
+  --container-model-endpoint <url>
+                               Model base URL reachable from LocalMind container
   --localmind-url <url>        Host-side readiness URL
   --build | --no-build         Force or disable image build (default: auto)
   --make-default | --no-make-default
@@ -154,6 +156,25 @@ function fraction(name, value) {
     throw new CliError(`${name} must be greater than 0 and at most 1`, 2);
   }
   return parsed;
+}
+
+function httpEndpoint(name, value) {
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new CliError(`${name} must be an absolute HTTP(S) URL`, 2);
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new CliError(`${name} must use http or https`, 2);
+  }
+  if (parsed.username || parsed.password) {
+    throw new CliError(`${name} must not contain credentials`, 2);
+  }
+  if (parsed.search || parsed.hash) {
+    throw new CliError(`${name} must not contain a query or fragment`, 2);
+  }
+  return parsed.toString().replace(/\/+$/, '');
 }
 
 export function parseCli(argv) {
@@ -194,6 +215,7 @@ export function parseCli(argv) {
     ['--timeout', 'timeout'],
     ['--config-path', 'configPath'],
     ['--compose-file', 'composeFile'],
+    ['--container-model-endpoint', 'containerModelEndpoint'],
     ['--localmind-url', 'localmindUrl'],
     ['--max-model-len', 'maxModelLen'],
     ['--gpu-memory-utilization', 'gpuMemoryUtilization'],
@@ -278,6 +300,12 @@ export function parseCli(argv) {
     throw new CliError(
       '--model-dir and --download-dir cannot be used together',
       2
+    );
+  }
+  if (options.containerModelEndpoint) {
+    options.containerModelEndpoint = httpEndpoint(
+      '--container-model-endpoint',
+      options.containerModelEndpoint
     );
   }
   options.composeFile = resolve(options.composeFile);
@@ -1184,7 +1212,9 @@ async function configureLocalMind(
     );
     original = JSON.parse(await readFile(templatePath, 'utf8'));
   }
-  const endpoint = `http://host.docker.internal:${options.port}/v1`;
+  const endpoint =
+    options.containerModelEndpoint ??
+    `http://host.docker.internal:${options.port}/v1`;
   const merged = mergeLocalMindConfig(original, {
     endpoint,
     makeDefault: options.makeDefault,
@@ -1278,11 +1308,11 @@ function localMindUrl(options, env) {
   return `http://127.0.0.1:${port}`;
 }
 
-async function verifyContainerVllm(compose, servedModelName) {
-  const endpoint = `http://host.docker.internal:${compose.modelPort}/v1/models`;
+async function verifyContainerVllm(compose, endpoint, servedModelName) {
+  const modelsEndpoint = `${endpoint.replace(/\/$/, '')}/models`;
   const source = `
 const model = ${JSON.stringify(servedModelName)};
-const response = await fetch(${JSON.stringify(endpoint)});
+const response = await fetch(${JSON.stringify(modelsEndpoint)});
 if (!response.ok) throw new Error('HTTP ' + response.status);
 const body = await response.json();
 if (!body.data?.some(item => item.id === model)) throw new Error('model not found');
@@ -1344,10 +1374,7 @@ async function verifyDeployment(
       servedModelName,
       options.makeDefault
     );
-    await verifyContainerVllm(
-      { ...compose, modelPort: options.port },
-      servedModelName
-    );
+    await verifyContainerVllm(compose, configuration.endpoint, servedModelName);
   } catch (error) {
     const logs = await runCaptured('docker', [
       ...compose.prefix,

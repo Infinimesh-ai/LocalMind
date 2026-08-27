@@ -93,6 +93,32 @@ test('parseCli resolves a selected download directory and rejects an existing sn
   );
 });
 
+test('parseCli validates and normalizes the container model endpoint', () => {
+  const parsed = parseCli([
+    'up',
+    '--model-dir',
+    '/models/qwen',
+    '--container-model-endpoint',
+    'http://localmind_qwen36_vllm:8000/v1/',
+  ]);
+
+  assert.equal(
+    parsed.containerModelEndpoint,
+    'http://localmind_qwen36_vllm:8000/v1'
+  );
+  assert.throws(
+    () =>
+      parseCli([
+        'up',
+        '--model-dir',
+        '/models/qwen',
+        '--container-model-endpoint',
+        'http://user:secret@model:8000/v1',
+      ]),
+    /must not contain credentials/
+  );
+});
+
 test('Qwen profiles include tool parsing but no aggressive GX10 memory defaults', () => {
   const options = parseCli(['up', '--model-dir', '/models/Qwen3.6-35B-A3B']);
   const profile = inferProfile(options, options.modelDir);

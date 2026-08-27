@@ -14,6 +14,7 @@ DOWNLOAD_DIR=${LOCALMIND_MODEL_DOWNLOAD_DIR:-}
 MODEL_ROOT=${LOCALMIND_MODEL_ROOT:-"${HOME:?HOME must be set}/Documents/data"}
 RUNTIME_ROOT=${LOCALMIND_RUNTIME_ROOT:-"$HOME/.local/share/localmind/qwen36-runtime"}
 MODEL_PORT=${LOCALMIND_MODEL_PORT:-8000}
+CONTAINER_MODEL_ENDPOINT=${LOCALMIND_CONTAINER_MODEL_ENDPOINT:-}
 MODEL_TIMEOUT=${LOCALMIND_MODEL_TIMEOUT:-900}
 
 usage() {
@@ -41,6 +42,7 @@ Optional environment variables:
   LOCALMIND_RUNTIME_ROOT               Managed Python/vLLM environment
                                        (default: $HOME/.local/share/localmind/qwen36-runtime)
   LOCALMIND_MODEL_PORT                 vLLM port (default: 8000)
+  LOCALMIND_CONTAINER_MODEL_ENDPOINT   Model URL reachable from LocalMind container
   LOCALMIND_MODEL_TIMEOUT              Readiness timeout in seconds
   LOCALMIND_PYTHON_BIN                 Override managed Python executable
   LOCALMIND_VLLM_BIN                   Override managed vLLM executable
@@ -184,6 +186,9 @@ set -- \
   --vllm-bin "$VLLM_BIN" \
   --build
 
+if [ -n "$CONTAINER_MODEL_ENDPOINT" ]; then
+  set -- "$@" --container-model-endpoint "$CONTAINER_MODEL_ENDPOINT"
+fi
 if [ -n "${LOCALMIND_MAX_MODEL_LEN:-}" ]; then
   set -- "$@" --max-model-len "$LOCALMIND_MAX_MODEL_LEN"
 fi

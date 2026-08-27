@@ -83,6 +83,8 @@ void test('bootstrap clones the fixed branch and forwards the fixed Qwen3.6 runt
       LOCALMIND_GPU_MEMORY_UTILIZATION: '0.8',
       LOCALMIND_INSTALL_DIR: installDir,
       LOCALMIND_MAX_MODEL_LEN: '65536',
+      LOCALMIND_CONTAINER_MODEL_ENDPOINT:
+        'http://localmind_qwen36_vllm:8000/v1',
       LOCALMIND_MODEL_PORT: '8123',
       LOCALMIND_REPOSITORY_URL: 'https://example.invalid/LocalMind.git',
       LOCALMIND_RUNTIME_ROOT: runtimeRoot,
@@ -133,6 +135,8 @@ void test('bootstrap clones the fixed branch and forwards the fixed Qwen3.6 runt
     '--vllm-bin',
     join(runtimeRoot, 'venv/bin/vllm'),
     '--build',
+    '--container-model-endpoint',
+    'http://localmind_qwen36_vllm:8000/v1',
     '--max-model-len',
     '65536',
     '--gpu-memory-utilization',

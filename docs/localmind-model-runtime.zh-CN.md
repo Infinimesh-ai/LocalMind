@@ -79,6 +79,20 @@ LOCALMIND_GPU_MEMORY_UTILIZATION=0.8 \
 sh localmind-qwen36-bootstrap.sh
 ```
 
+已有 vLLM 运行在 Docker 容器中，且宿主机端口仅绑定到 `127.0.0.1` 时，LocalMind
+容器无法通过 host gateway 访问该端口。两个容器位于同一 Docker 网络时，应同时指定
+容器侧 endpoint，例如：
+
+```sh
+LOCALMIND_MODEL_PORT=8008 \
+LOCALMIND_CONTAINER_MODEL_ENDPOINT=http://localmind_qwen36_vllm:8000/v1 \
+sh localmind-qwen36-bootstrap.sh \
+  --model-dir /absolute/path/to/Qwen3.6-35B-A3B-FP8
+```
+
+宿主机仍使用 `LOCALMIND_MODEL_PORT` 检查和复用 vLLM；只有 LocalMind provider 配置与
+容器连通性验证使用 `LOCALMIND_CONTAINER_MODEL_ENDPOINT`。不要在 URL 中放入凭据。
+
 `LOCALMIND_REPOSITORY_URL` 可指向内部 Git 镜像，但分支、模型 ID、revision、profile 和
 served model 名不会被环境变量改变。安装目录已存在时，只有它是
 `codex/local-model-runtime` checkout 才会被复用；其他目录会被拒绝，避免覆盖现有数据。
@@ -248,6 +262,8 @@ http://host.docker.internal:<port>/v1
 
 Compose 为 `affine` service 映射 `host.docker.internal:host-gateway`。端口已由目标 vLLM
 占用时脚本复用它；端口由未知服务或其他模型占用时脚本停止并报告，不会杀掉该进程。
+如果复用仅发布到宿主机 loopback 的 vLLM 容器，使用上述
+`LOCALMIND_CONTAINER_MODEL_ENDPOINT` 指向同一 Docker 网络内的模型容器。
 由于 vLLM 默认未启用 API key，服务器防火墙不应把该端口暴露到不受信任网络。
 
 状态和日志位于 Git 忽略的部署数据目录：
