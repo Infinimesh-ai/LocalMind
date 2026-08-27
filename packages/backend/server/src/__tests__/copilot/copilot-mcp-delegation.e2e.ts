@@ -383,7 +383,14 @@ test('credential-authorized document task runs without approval and sends a sign
     markdown?.markdown.includes('Credential-authorized replacement body.')
   );
 
-  const completedTask = await changedTaskPromise;
+  let completedTask = await changedTaskPromise;
+  if (!completedTask.terminal) {
+    completedTask = await getTask(t.context, issued.token, {
+      taskId: String(delegated.taskId),
+      knownStateVersion: String(completedTask.stateVersion),
+      waitMs: 3_000,
+    });
+  }
   t.like(completedTask, {
     status: 'completed',
     terminal: true,
@@ -1243,6 +1250,58 @@ test('enterprise data requests use the tool agent when the planner returns an an
       summary: 'Use the connected enterprise tools to complete the task.',
     },
   });
+});
+
+test('SparkClaw requests use the tool agent when the planner returns an answer', async t => {
+  const { credentials, models, owner, runtime } = t.context;
+  const workspace = await models.workspace.create(owner.id);
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId: workspace.id,
+    name: 'SparkClaw tool routing',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'answer',
+        answer: 'No SparkClaw tools are available.',
+      }),
+    },
+  } as any);
+
+  const delegated = await delegate(t.context, issued.token, {
+    request: '可以向 SparkClaw 要当前排队任务的信息吗？只返回任务数量。',
+    documentIds: [],
+    idempotencyKey: 'route-sparkclaw-query-to-tool-agent',
+  });
+
+  t.like(delegated, {
+    status: 'queued',
+    kind: 'tool_agent',
+    execution: 'queued',
+  });
+  const queued = await getTask(t.context, issued.token, {
+    taskId: String(delegated.taskId),
+    waitMs: 0,
+  });
+  t.like(queued, {
+    plan: {
+      kind: 'tool_agent',
+      summary: 'Use the connected SparkClaw tools to complete the task.',
+    },
+  });
+  const run = await models.copilotAgentRuntime.get(
+    workspace.id,
+    String(delegated.agentRunId)
+  );
+  const toolRequest = run?.steps[0]?.outputSummary
+    .localMindToolAgentRequest as Record<string, unknown>;
+  t.is(toolRequest.version, 'localmind-tool-agent-request/v2');
+  t.deepEqual(toolRequest.sparkClawToolNames, []);
+  t.is(typeof toolRequest.sparkClawToolSnapshotFingerprint, 'string');
 });
 
 test('LocalMind tool agent rechecks credential activity before starting its tool loop', async t => {

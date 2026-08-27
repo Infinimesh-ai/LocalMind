@@ -3,6 +3,7 @@ import Sinon from 'sinon';
 
 import { EMBEDDING_DIMENSIONS, type Models } from '../../models';
 import { CopilotAccessPolicy } from '../../plugins/copilot/access';
+import { CopilotAgentRuntimeLocalMindToolAgentAdapter } from '../../plugins/copilot/agent-runtime-localmind-tool-agent-adapter';
 import type { ByokFeatureKind } from '../../plugins/copilot/byok/types';
 import { HistoryAttachmentUrlProjector } from '../../plugins/copilot/compat/history-attachment-url-projector';
 import { CompatHistoryProjector } from '../../plugins/copilot/compat/history-projector';
@@ -445,6 +446,106 @@ test('ToolRuntime should pass route context and appended messages into prompt-ba
     }
   );
   Sinon.assert.calledTwice(promptRuntime.runText);
+});
+
+test('ToolRuntime should expose SparkClaw tools with a stable task invocation', async t => {
+  const sparkClawTools = {
+    sparkclaw_mcp_search: { description: 'search' },
+    sparkclaw_mcp_execute: { description: 'execute' },
+  };
+  const getTools = Sinon.stub().resolves(sparkClawTools);
+  const runtime = new ToolRuntime(
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    undefined,
+    { getTools } as any
+  );
+
+  const tools = await runtime.getTools(
+    {
+      tools: ['sparkClaw'],
+      user: 'user-1',
+      workspace: 'workspace-1',
+      taskId: 'agent-run-1',
+      sparkClawToolNames: ['sparkclaw.conversation.send'],
+    },
+    'gpt-4o-mini'
+  );
+
+  t.deepEqual(tools, sparkClawTools);
+  Sinon.assert.calledOnceWithExactly(getTools, {
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    invocationId: 'agent-run-1',
+    allowedToolNames: ['sparkclaw.conversation.send'],
+  });
+});
+
+test('LocalMind tool agent accepts the frozen v1 tool snapshot after SparkClaw upgrade', async t => {
+  const getRequestByAgentRun = Sinon.stub().resolves({ status: 'processing' });
+  const adapter = new CopilotAgentRuntimeLocalMindToolAgentAdapter(
+    {} as any,
+    {} as any,
+    {} as any,
+    { copilotMcpDelegation: { getRequestByAgentRun } } as any,
+    {} as any,
+    { register: Sinon.stub() } as any
+  );
+  const execute = (
+    adapter as unknown as {
+      execute(input: Record<string, unknown>): Promise<void>;
+    }
+  ).execute.bind(adapter);
+
+  await t.notThrowsAsync(
+    execute({
+      run: {
+        id: 'legacy-tool-agent-run',
+        steps: [
+          {
+            stepType: 'tool',
+            status: 'pending',
+            outputSummary: {
+              localMindToolAgentRequest: {
+                version: 'localmind-tool-agent-request/v1',
+                allowedTools: [
+                  'blobRead',
+                  'codeArtifact',
+                  'conversationSummary',
+                  'docRead',
+                  'docCreate',
+                  'docUpdate',
+                  'docUpdateMeta',
+                  'docKeywordSearch',
+                  'docSemanticSearch',
+                  'webSearch',
+                  'docCompose',
+                  'sectionEdit',
+                  'workspaceOrganization',
+                  'enterprise',
+                ],
+              },
+            },
+          },
+        ],
+      },
+      workerAttempt: 1,
+      workerLeaseId: 'lease-1',
+      checkCancellationRequested: Sinon.stub().resolves(true),
+    })
+  );
+  Sinon.assert.calledOnceWithExactly(
+    getRequestByAgentRun,
+    'legacy-tool-agent-run'
+  );
 });
 
 test('ToolRuntime should expose document write tools for self-hosted deployments', t => {

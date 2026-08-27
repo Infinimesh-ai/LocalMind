@@ -109,6 +109,10 @@ embedding、索引和 rerank 请求会失败。
 模型 API key 和 workspace BYOK 配置应在 LocalMind 启动后通过管理界面完成，不要写进
 Compose 文件。
 
+计划在 Spark GX10 上通过魔搭下载或发现本地模型、用 vLLM 启动并自动配置 LocalMind
+时，先参考 [LocalMind 本地模型一键启动方案记录](./localmind-modelscope-vllm-bootstrap.zh-CN.md)。
+该方案目前是实现设计，不代表仓库已经提供可运行的一键脚本。
+
 ## 4. 检查配置
 
 以下命令只解析配置，不启动服务：

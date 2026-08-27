@@ -756,7 +756,7 @@ defineModuleConfig('copilot', {
   },
   'externalMcp.endpoint': {
     desc: 'The exact server-controlled SparkClaw Streamable HTTP MCP endpoint. Workspace clients can view but cannot change this URL.',
-    default: 'http://192.168.20.252:18791/mcp',
+    default: 'http://192.168.20.252:18790/mcp',
     env: 'LOCALMIND_SPARKCLAW_MCP_ENDPOINT',
     shape: ExternalMcpEndpointShape,
   },

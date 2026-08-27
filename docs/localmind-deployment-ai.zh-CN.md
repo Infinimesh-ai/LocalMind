@@ -272,6 +272,11 @@ ISCP 部署在 `-f` 参数后加入 `--profile iscp`。Compose 会先运行
 - AI 配置后至少执行 provider probe 和一次最小文本请求；涉及索引时再测试 embedding 和
   rerank。
 
+魔搭模型下载、本机模型目录发现、vLLM 生命周期和 OpenAI-compatible profile 自动配置
+的计划边界见
+[LocalMind 本地模型一键启动方案记录](./localmind-modelscope-vllm-bootstrap.zh-CN.md)。
+该文档当前只记录需求、风险和分阶段实现建议，执行部署时不得假设相关脚本已经存在。
+
 ## 回退规则
 
 - `up -d` 前构建失败：不影响旧 runtime，修复构建问题即可。

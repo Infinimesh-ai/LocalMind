@@ -1,7 +1,7 @@
-import { Logo1Icon } from '@blocksuite/icons/rc';
 import clsx from 'clsx';
 import type { FC } from 'react';
 
+import { LocalMindLogo } from '../localmind-logo';
 import { authHeaderWrapper } from './share.css';
 
 export const AuthHeader: FC<{
@@ -12,7 +12,7 @@ export const AuthHeader: FC<{
   return (
     <div className={clsx(authHeaderWrapper, className)}>
       <p>
-        <Logo1Icon className="logo" />
+        <LocalMindLogo size={20} className="logo" />
         {title}
       </p>
       <p>{subTitle}</p>

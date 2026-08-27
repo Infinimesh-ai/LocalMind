@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 10_000;
-const EXPECTED_SERVER_NAME = 'sparkclaw-route-mcp';
+const TOOL_CALL_TIMEOUT_MS = 25_000;
+const EXPECTED_SERVER_NAME = 'sparkclaw-conversation-mcp';
 
 type JsonRpcRequest = {
   jsonrpc: '2.0';
@@ -131,12 +132,14 @@ export class ExternalMcpTransport {
     name: string;
     arguments: Record<string, unknown>;
     idempotencyKey: string;
+    requestId?: number;
+    signal?: AbortSignal;
   }) {
     const response = await this.request(
       input.endpoint,
       {
         jsonrpc: '2.0',
-        id: 3,
+        id: input.requestId ?? 3,
         method: 'tools/call',
         params: { name: input.name, arguments: input.arguments },
       },
@@ -144,6 +147,8 @@ export class ExternalMcpTransport {
         sessionId: input.sessionId,
         protocolVersion: input.protocolVersion,
         idempotencyKey: input.idempotencyKey,
+        timeoutMs: TOOL_CALL_TIMEOUT_MS,
+        signal: input.signal,
       }
     );
     return {
@@ -160,6 +165,8 @@ export class ExternalMcpTransport {
       sessionId?: string;
       protocolVersion?: string;
       idempotencyKey?: string;
+      timeoutMs?: number;
+      signal?: AbortSignal;
     }
   ) {
     const headers: Record<string, string> = {
@@ -175,14 +182,25 @@ export class ExternalMcpTransport {
 
     let response: Response;
     try {
+      const timeoutSignal = AbortSignal.timeout(
+        options.timeoutMs ?? REQUEST_TIMEOUT_MS
+      );
       response = await fetch(endpoint, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload),
         redirect: 'error',
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        signal: options.signal
+          ? AbortSignal.any([options.signal, timeoutSignal])
+          : timeoutSignal,
       });
     } catch (error) {
+      if (options.signal?.aborted) {
+        throw new ExternalMcpTransportError(
+          'mcp_request_cancelled',
+          'SparkClaw MCP request was cancelled'
+        );
+      }
       const timedOut =
         error instanceof Error &&
         (error.name === 'TimeoutError' || error.name === 'AbortError');

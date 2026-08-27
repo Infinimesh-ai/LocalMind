@@ -33,7 +33,7 @@ describe('ExternalMcpService', () => {
     store.get
       .mockResolvedValueOnce({
         externalMcpSettings: {
-          endpoint: 'http://192.168.20.252:18791/mcp',
+          endpoint: 'http://192.168.20.252:18790/mcp',
           protocolVersion: '2025-06-18',
           connection: { id: 'connection-a', workspaceId: 'workspace-a' },
         },
@@ -53,7 +53,7 @@ describe('ExternalMcpService', () => {
 
     resolveNext?.({
       externalMcpSettings: {
-        endpoint: 'http://192.168.20.252:18791/mcp',
+        endpoint: 'http://192.168.20.252:18790/mcp',
         protocolVersion: '2025-06-18',
         connection: { id: 'connection-b', workspaceId: 'workspace-b' },
       },
@@ -70,14 +70,14 @@ describe('ExternalMcpService', () => {
     store.get
       .mockResolvedValueOnce({
         externalMcpSettings: {
-          endpoint: 'http://192.168.20.252:18791/mcp',
+          endpoint: 'http://192.168.20.252:18790/mcp',
           protocolVersion: '2025-06-18',
           connection: { id: 'connection-a', workspaceId: 'workspace-a' },
         },
       })
       .mockResolvedValueOnce({
         externalMcpSettings: {
-          endpoint: 'http://192.168.20.252:18791/mcp',
+          endpoint: 'http://192.168.20.252:18790/mcp',
           protocolVersion: '2025-06-18',
           connection: { id: 'connection-b', workspaceId: 'workspace-b' },
         },

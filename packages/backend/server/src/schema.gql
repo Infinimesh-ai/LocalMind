@@ -4213,6 +4213,8 @@ type ExternalMcpToolType {
   enabled: Boolean!
   inputSchema: JSON!
   name: String!
+  requiresExplicitUserRequest: Boolean!
+  risk: String!
   title: String
 }
 

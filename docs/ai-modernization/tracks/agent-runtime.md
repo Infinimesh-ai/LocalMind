@@ -1031,10 +1031,13 @@ Implemented behavior:
 1. The delegation planner accepts `tool_agent` as an immutable plan kind and
    creates one queued `agent_runtime_localmind_tool_agent` AgentRun with one
    persisted tool step.
-2. The step snapshots the complete AI Chat tool-category allowlist:
+2. New v2 steps snapshot the complete AI Chat tool-category allowlist:
    `blobRead`, `codeArtifact`, `conversationSummary`, `docRead`, `docCreate`,
    `docUpdate`, `docUpdateMeta`, `docKeywordSearch`, `docSemanticSearch`,
-   `webSearch`, `docCompose`, `sectionEdit`, and `workspaceOrganization`.
+   `webSearch`, `docCompose`, `sectionEdit`, `workspaceOrganization`,
+   `enterprise`, and `sparkClaw`. Upgrade-time v1 validation uses its frozen
+   historical list ending at `enterprise` rather than the mutable current
+   category list, and gives legacy tasks an empty SparkClaw snapshot.
 3. Execution reuses `CapabilityRuntime.streamObject` and the existing
    `ToolRuntime`, so provider routing and each tool's current permission,
    self-hosting, indexer, web-provider, and context checks remain authoritative.
@@ -1069,6 +1072,18 @@ Implemented behavior:
     unsafe non-recursive deletion, preserve document content, and persist only
     allowlisted folder effect evidence; raw workspace table operations remain
     outside the AI surface.
+12. `sparkClaw` expands to only `sparkclaw_mcp_search` and
+    `sparkclaw_mcp_execute`. Delegation creation freezes enabled tool names and
+    a fingerprint in `localmind-tool-agent-request/v2`; execution intersects
+    that maximum with the current live admin allowlist and user ACL.
+13. The public SparkClaw surface contains only
+    `sparkclaw.conversation.send`; operation get/result/cancel remain internal.
+    Direct and pending results persist in an encrypted idempotency ledger with
+    fenced initial/poll leases, live delegated-user ACL rechecks, bounded
+    retries and remote deadlines. Binary result bodies are removed before
+    persistence. Agent Runtime records only tool name, risk, replay state,
+    argument/result fingerprints, and side-effect state; raw arguments and
+    external results are not copied into runtime evidence.
 
 ## Agent Run Source Conflict Evidence Fence Slice
 
@@ -1298,14 +1313,17 @@ an executor-specific planner schema, permission map, preview, idempotency,
 side-effect evidence, and tests. Direct legacy workspace tools must not be
 reintroduced to bypass this delegation boundary.
 
-The workspace-managed outbound SparkClaw MCP connection is also separate from
-Agent Runtime execution. It currently initializes and persists an encrypted
-workspace Session, catalogs/allowlists tools, and exposes an explicit
-conversation test call. It does not schedule Agent Runtime MCP steps, bypass
-worker leases or authorization, or turn catalog tools into general runtime
-executors. A future MCP workflow adapter must add executor-specific input,
-result, idempotency, cancellation, redaction, and side-effect contracts before
-using this connection from persisted Agent Runtime steps.
+The workspace-managed outbound SparkClaw MCP connection remains separate from
+inbound MCP credential authority, but its allowlisted tools are now available
+inside this durable tool-agent workflow. New requests freeze tool names and a
+fingerprint in `localmind-tool-agent-request/v2`; workers use only the
+intersection with the live allowlist and recheck the delegated user ACL. The
+tool execution ledger provides encrypted replay, stable task idempotency,
+fenced initial and remote-poll leases, cancellation/failure terminals, live ACL
+rechecks, binary-result redaction, and bounded audit evidence.
+This does not create arbitrary MCP steps or bypass Agent Runtime worker leases;
+any future generic MCP-step adapter still requires its own versioned input,
+result, authorization, cancellation, redaction, and side-effect contracts.
 
 - full planner;
 - parallel tool scheduler;

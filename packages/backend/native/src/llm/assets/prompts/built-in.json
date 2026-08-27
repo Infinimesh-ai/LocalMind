@@ -709,7 +709,8 @@
         "codeArtifact",
         "blobRead",
         "workspaceOrganization",
-        "enterprise"
+        "enterprise",
+        "sparkClaw"
       ],
       "proModels": ["gpt-5.6-terra", "gemini-3.6-flash", "claude-sonnet-4-6"]
     },

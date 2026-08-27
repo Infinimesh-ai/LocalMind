@@ -9466,7 +9466,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.external-mcp.name"](): string;
     /**
-      * `Connect this workspace to the server-managed SparkClaw MCP endpoint.`
+      * `Connect this workspace to SparkClaw and make allowlisted capabilities available to LocalMind AI.`
       */
     ["com.affine.integration.external-mcp.desc"](): string;
     /**
@@ -9558,7 +9558,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.external-mcp.tools.title"](): string;
     /**
-      * `Only enabled tools can be called by LocalMind.`
+      * `Enabled tools are available in LocalMind AI Chat and delegated tasks. Write access still requires a direct user request.`
       */
     ["com.affine.integration.external-mcp.tools.description"](): string;
     /**
@@ -9566,9 +9566,37 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.external-mcp.tools.empty"](): string;
     /**
-      * `Enabled`
+      * `Available to AI`
       */
     ["com.affine.integration.external-mcp.tool.enabled"](): string;
+    /**
+      * `Read`
+      */
+    ["com.affine.integration.external-mcp.tool.risk.read"](): string;
+    /**
+      * `Write`
+      */
+    ["com.affine.integration.external-mcp.tool.risk.write"](): string;
+    /**
+      * `High risk`
+      */
+    ["com.affine.integration.external-mcp.tool.risk.high"](): string;
+    /**
+      * `Explicit user request required`
+      */
+    ["com.affine.integration.external-mcp.tool.explicit-request"](): string;
+    /**
+      * `Enable “{{name}}” for LocalMind AI?`
+      */
+    ["com.affine.integration.external-mcp.tool.enable-risk.title"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `This is a {{risk}} SparkClaw capability. LocalMind will require a direct user request before execution and will record an auditable, idempotent result.`
+      */
+    ["com.affine.integration.external-mcp.tool.enable-risk.description"](options: {
+        readonly risk: string;
+    }): string;
     /**
       * `Conversation test`
       */

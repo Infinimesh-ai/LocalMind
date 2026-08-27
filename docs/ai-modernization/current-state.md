@@ -1528,8 +1528,9 @@ implemented separately from the inbound LocalMind workspace MCP surface:
 
 - Workspace Settings owners and admins can submit a one-time SparkClaw Access
   Ticket without supplying an endpoint; the server-controlled endpoint defaults
-  to `http://192.168.20.252:18791/mcp` and protocol `2025-06-18`;
-- Streamable HTTP initialization requires the `sparkclaw-route-mcp` server
+  to `http://192.168.20.252:18790/mcp` and protocol `2025-06-18`;
+- Streamable HTTP initialization requires the `sparkclaw-conversation-mcp`
+  server
   identity, sends the Ticket only on `initialize`, handles JSON, SSE, and `202`
   responses, then uses the issued `Mcp-Session-Id` for later requests;
 - the Ticket is never persisted or returned, while the Session is AES-GCM
@@ -1540,16 +1541,43 @@ implemented separately from the inbound LocalMind workspace MCP surface:
   drift cannot redirect requests to another target;
 - one durable connection per workspace stores bounded sanitized tool catalog,
   explicit enabled-tool allowlist, connection/error timestamps and soft-delete
-  state; only `sparkclaw.route.conversation.answer` is enabled automatically;
+  state. It requires the fixed conversation-v2 business/control catalog, but
+  only `sparkclaw.conversation.send` is exposed and enabled automatically;
+- enabled tools are exposed to both normal LocalMind AI Chat and the durable
+  inbound MCP tool-agent workflow through two bounded aggregate tools,
+  `sparkclaw_mcp_search` and `sparkclaw_mcp_execute`; raw catalog entries never
+  become unconstrained model-visible tools;
+- `sparkclaw.conversation.send` is treated as a write operation. Execution
+  requires the latest user message to directly name SparkClaw, reject a
+  negative request, and contain every forwarded text or workspace-media locator;
+  `sparkclaw.operation.get`, `.result`, and `.cancel` remain internal controls
+  and never enter the model/UI allowlist;
+- SparkClaw tool calls use stable task-scoped idempotency keys, one encrypted
+  durable result ledger, a 45-second initial fenced lease, bounded three-attempt
+  initial recovery, cancellation/failure terminal states, and workspace Redis
+  serialization. Remote `running` and `approval_required` operations persist
+  their operation ID, state, deadline, next poll, and poll-attempt count;
+  a minute cron claims 30-second poll leases, calls the internal result tool at
+  15-second intervals, rechecks live delegated-user ACL, and converges remote
+  success/failure/cancel/revoke, deadline, and 20-attempt exhaustion. Binary
+  `data`/`blob` payloads are removed before encrypted result persistence;
+- the execution ledger has database-enforced status/lease/result coherence and
+  a composite connection/workspace foreign key, preventing cross-workspace
+  evidence drift;
+- MCP delegation freezes the enabled SparkClaw tool-name set and fingerprint in
+  `localmind-tool-agent-request/v2`; workers intersect that frozen maximum with
+  the current live allowlist and recheck delegated-user ACL. Existing v1 queued
+  tasks retain their historical tool snapshot and receive an empty SparkClaw
+  set, so an upgrade cannot widen their authority;
 - `401`, invalid Session, and Session decryption failures move the connection
   to `REAUTH_REQUIRED`, clear the unusable encrypted Session and fingerprint,
   and cannot reuse the old Session;
 - reads require `Workspace.Settings.Read`; connect, refresh, allowlist, test,
   disable, and delete require `Workspace.Settings.Update`; audit events record
   lifecycle metadata without Ticket, Session, or test query/result contents;
-- focused backend, resolver-permission, frontend-store, integration-visibility,
-  cross-workspace UI isolation, and disposable PostgreSQL migration checks
-  cover the slice.
+- focused backend model/service/runtime, resolver-permission, frontend-store,
+  integration-visibility, cross-workspace UI isolation, MCP delegation E2E, and
+  disposable PostgreSQL full-migration checks cover the slice.
 
 ## Not Completed
 

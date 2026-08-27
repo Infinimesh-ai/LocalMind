@@ -45,7 +45,10 @@ async function make() {
     outputDirectory: outPath,
     iconUrl: iconUrl,
     setupIcon: icoPath,
-    loadingGif: path.resolve(ROOT, './resources/icons/affine_installing.gif'),
+    loadingGif: path.resolve(
+      ROOT,
+      './resources/icons/localmind_installing.gif'
+    ),
   };
 
   await createWindowsInstaller(winstallerConfig);

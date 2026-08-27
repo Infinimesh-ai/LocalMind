@@ -34,11 +34,12 @@ model User {
   connectedAccounts                     ConnectedAccount[]
   calendarAccounts                      CalendarAccount[]
   mcpCredentials                        McpCredential[]
-  aiMcpAttachments                     AiMcpAttachment[]                      @relation("mcp_attachment_actor")
+  aiMcpAttachments                      AiMcpAttachment[]                      @relation("mcp_attachment_actor")
   mcpDelegationEndpoints                AiMcpDelegationEndpoint[]              @relation("mcp_delegation_endpoint_user")
   aiMcpDelegationRequests               AiMcpDelegationRequest[]               @relation("mcp_delegation_request_actor")
   createdExternalMcpConnections         AiExternalMcpConnection[]              @relation("external_mcp_connection_creator")
   externalMcpAuditEvents                AiExternalMcpAuditEvent[]              @relation("external_mcp_audit_actor")
+  externalMcpToolExecutions             AiExternalMcpToolExecution[]           @relation("external_mcp_tool_execution_actor")
   enterpriseConnections                 AiEnterpriseConnection[]               @relation("enterprise_connection_user")
   enterpriseAuditEvents                 AiEnterpriseAuditEvent[]               @relation("enterprise_audit_actor")
   enterpriseAuthorizationSessions       AiEnterpriseAuthorizationSession[]     @relation("enterprise_authorization_user")
@@ -261,11 +262,12 @@ model Workspace {
   aiContextRules                        AiContextRule[]                        @relation("context_rule_workspace")
   aiContextPolicies                     AiContextPolicy[]                      @relation("context_policy_workspace")
   mcpCredentials                        McpCredential[]
-  aiMcpAttachments                     AiMcpAttachment[]                      @relation("mcp_attachment_workspace")
+  aiMcpAttachments                      AiMcpAttachment[]                      @relation("mcp_attachment_workspace")
   mcpDelegationEndpoints                AiMcpDelegationEndpoint[]              @relation("mcp_delegation_endpoint_workspace")
   aiMcpDelegationRequests               AiMcpDelegationRequest[]               @relation("mcp_delegation_request_workspace")
   externalMcpConnections                AiExternalMcpConnection[]              @relation("external_mcp_connection_workspace")
   externalMcpAuditEvents                AiExternalMcpAuditEvent[]              @relation("external_mcp_audit_workspace")
+  externalMcpToolExecutions             AiExternalMcpToolExecution[]           @relation("external_mcp_tool_execution_workspace")
   enterpriseConnections                 AiEnterpriseConnection[]               @relation("enterprise_connection_workspace")
   enterpriseAuditEvents                 AiEnterpriseAuditEvent[]               @relation("enterprise_audit_workspace")
   enterpriseAuthorizationSessions       AiEnterpriseAuthorizationSession[]     @relation("enterprise_authorization_workspace")
@@ -2691,6 +2693,15 @@ enum ExternalMcpConnectionStatus {
   DISABLED
 }
 
+enum ExternalMcpToolExecutionStatus {
+  RUNNING
+  PENDING
+  APPROVAL_REQUIRED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
 model AiExternalMcpConnection {
   id                     String                      @id @default(uuid()) @db.VarChar
   workspaceId            String                      @unique @map("workspace_id") @db.VarChar
@@ -2715,12 +2726,51 @@ model AiExternalMcpConnection {
   updatedAt              DateTime                    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt              DateTime?                   @map("deleted_at") @db.Timestamptz(3)
 
-  workspace Workspace                 @relation("external_mcp_connection_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
-  creator   User?                     @relation("external_mcp_connection_creator", fields: [createdBy], references: [id], onDelete: SetNull)
-  audits    AiExternalMcpAuditEvent[]
+  workspace  Workspace                    @relation("external_mcp_connection_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator    User?                        @relation("external_mcp_connection_creator", fields: [createdBy], references: [id], onDelete: SetNull)
+  audits     AiExternalMcpAuditEvent[]
+  executions AiExternalMcpToolExecution[] @relation("external_mcp_tool_execution_connection_snapshot")
 
+  @@unique([id, workspaceId], map: "ai_external_mcp_connections_id_workspace_id_key")
   @@index([status, updatedAt])
   @@map("ai_external_mcp_connections")
+}
+
+model AiExternalMcpToolExecution {
+  id                   String                         @id @default(uuid()) @db.VarChar
+  connectionId         String                         @map("connection_id") @db.VarChar
+  workspaceId          String                         @map("workspace_id") @db.VarChar
+  actorId              String?                        @map("actor_id") @db.VarChar
+  toolName             String                         @map("tool_name") @db.VarChar
+  risk                 String                         @db.VarChar
+  status               ExternalMcpToolExecutionStatus @default(RUNNING)
+  idempotencyKey       String                         @map("idempotency_key") @db.VarChar
+  argumentsFingerprint String                         @map("arguments_fingerprint") @db.VarChar
+  resultFingerprint    String?                        @map("result_fingerprint") @db.VarChar
+  encryptedResult      String?                        @map("encrypted_result") @db.Text
+  errorCode            String?                        @map("error_code") @db.VarChar
+  attemptCount         Int                            @default(1) @map("attempt_count")
+  remoteOperationId    String?                        @map("remote_operation_id") @db.VarChar
+  remoteState          String?                        @map("remote_state") @db.VarChar
+  remoteDeadlineAt     DateTime?                      @map("remote_deadline_at") @db.Timestamptz(3)
+  nextPollAt           DateTime?                      @map("next_poll_at") @db.Timestamptz(3)
+  pollAttemptCount     Int                            @default(0) @map("poll_attempt_count")
+  leaseId              String?                        @map("lease_id") @db.VarChar
+  leaseExpiresAt       DateTime?                      @map("lease_expires_at") @db.Timestamptz(3)
+  startedAt            DateTime                       @default(now()) @map("started_at") @db.Timestamptz(3)
+  completedAt          DateTime?                      @map("completed_at") @db.Timestamptz(3)
+  createdAt            DateTime                       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime                       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  connection AiExternalMcpConnection @relation("external_mcp_tool_execution_connection_snapshot", fields: [connectionId, workspaceId], references: [id, workspaceId], onDelete: Cascade, onUpdate: Restrict, map: "ai_external_mcp_tool_executions_connection_workspace_fkey")
+  workspace  Workspace               @relation("external_mcp_tool_execution_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor      User?                   @relation("external_mcp_tool_execution_actor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@unique([connectionId, idempotencyKey])
+  @@index([workspaceId, createdAt])
+  @@index([status, leaseExpiresAt])
+  @@index([status, nextPollAt])
+  @@map("ai_external_mcp_tool_executions")
 }
 
 model AiExternalMcpAuditEvent {

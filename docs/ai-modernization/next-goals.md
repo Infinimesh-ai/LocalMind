@@ -995,7 +995,8 @@ Remaining follow-up:
 
 ## Cross-cutting: Outbound SparkClaw MCP
 
-Status: first workspace-managed connection slice implemented.
+Status: workspace-managed connection, AI Chat tools, and durable MCP delegation
+execution implemented.
 
 Implemented outcome:
 
@@ -1012,21 +1013,38 @@ Implemented outcome:
   deletion are enforced;
 - Workspace Settings provides connect/reauthenticate, refresh, allowlist, test,
   disable, and delete controls for owners/admins while clearing stale
-  connection state immediately when the active workspace changes.
+  connection state immediately when the active workspace changes;
+- LocalMind AI Chat receives only the `sparkclaw_mcp_search` and
+  `sparkclaw_mcp_execute` aggregate tools, backed by the current admin
+  allowlist and live `Workspace.Copilot` authorization;
+- the only public business tool is `sparkclaw.conversation.send`; its text and
+  media locators must come from a non-negative latest-user request that names
+  SparkClaw, while all `sparkclaw.operation.*` controls remain internal;
+- tool calls persist encrypted replay results and fenced execution state with
+  stable task idempotency, bounded retry/cancellation, composite workspace
+  scope, atomic terminal/audit updates, and fingerprint-only audit evidence.
+  Remote pending/approval states are polled with fenced leases, live ACL
+  rechecks, deadline and attempt budgets, and binary result redaction;
+- inbound MCP delegation freezes a v2 SparkClaw allowlist snapshot and runs the
+  live intersection through the existing tool-agent worker; legacy v1 tasks
+  keep an empty SparkClaw snapshot and cannot gain authority after upgrade;
+- Agent Runtime execution evidence records SparkClaw tool name, normalized risk,
+  replay state, and bounded side-effect state without raw arguments or results.
 
 Remaining follow-up:
 
 - run live LAN conformance with a newly issued disposable Ticket against
-  `http://192.168.20.252:18791/mcp`, including Session rotation and real
-  `sparkclaw.route.conversation.answer` output; no Ticket should be committed to
-  fixtures or documentation;
+  `http://192.168.20.252:18790/mcp`, including Session rotation, direct and
+  pending `sparkclaw.conversation.send` output, and internal operation polling;
+  no Ticket should be committed to fixtures or documentation;
 - add multiple named outbound MCP connections only when a real workspace use
   case requires it; keep endpoint selection server-owned or use a strict
   deployment allowlist rather than accepting arbitrary private URLs;
 - add connector health metrics/alerts and scheduled bounded catalog refresh if
   deployment operations require background monitoring;
 - keep outbound SparkClaw connection management separate from inbound LocalMind
-  MCP credentials, ISCP pairing, and future Agent Runtime MCP executors.
+  MCP credentials and ISCP pairing; add any future generic MCP-step adapter as
+  a separately versioned executor rather than widening this tool-agent contract.
 
 ## Do Not Prioritize
 

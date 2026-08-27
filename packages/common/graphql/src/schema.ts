@@ -4770,6 +4770,8 @@ export interface ExternalMcpToolType {
   enabled: Scalars['Boolean']['output'];
   inputSchema: Scalars['JSON']['output'];
   name: Scalars['String']['output'];
+  requiresExplicitUserRequest: Scalars['Boolean']['output'];
+  risk: Scalars['String']['output'];
   title: Maybe<Scalars['String']['output']>;
 }
 
@@ -15820,6 +15822,8 @@ export type ExternalMcpSettingsQuery = {
         description: string | null;
         inputSchema: unknown;
         enabled: boolean;
+        risk: string;
+        requiresExplicitUserRequest: boolean;
       }>;
     } | null;
   };

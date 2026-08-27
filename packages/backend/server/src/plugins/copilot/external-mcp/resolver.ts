@@ -41,6 +41,12 @@ class ExternalMcpToolType {
 
   @Field()
   enabled!: boolean;
+
+  @Field()
+  risk!: string;
+
+  @Field()
+  requiresExplicitUserRequest!: boolean;
 }
 
 @ObjectType()
@@ -264,10 +270,12 @@ export class ExternalMcpConnectionResolver {
       ...connection,
       endpoint: this.connections.endpoint,
       protocolVersion: '2025-06-18',
-      tools: this.connections.catalog(connection).map(tool => ({
-        ...tool,
-        enabled: enabled.has(tool.name),
-      })),
+      tools: this.connections
+        .businessCatalog(this.connections.catalog(connection))
+        .map(tool => ({
+          ...tool,
+          enabled: enabled.has(tool.name),
+        })),
     };
   }
 }

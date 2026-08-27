@@ -44,6 +44,14 @@ export const description = style({
   overflowWrap: 'anywhere',
 });
 
+export const toolMeta = style({
+  marginTop: 2,
+  fontSize: cssVar('fontXs'),
+  lineHeight: '20px',
+  color: cssVarV2('text/secondary'),
+  overflowWrap: 'anywhere',
+});
+
 export const body = style({
   display: 'flex',
   flexDirection: 'column',

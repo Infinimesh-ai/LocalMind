@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { Injectable, Optional } from '@nestjs/common';
 
 import { Config } from '../../../base';
@@ -12,6 +14,7 @@ import { IndexerService } from '../../indexer';
 import type { NodeTextMiddleware } from '../config';
 import { CopilotContextService } from '../context/service';
 import { EnterpriseToolRegistry } from '../enterprise';
+import { ExternalMcpToolRegistry } from '../external-mcp';
 import {
   type CopilotChatOptions,
   type CopilotChatTools,
@@ -72,7 +75,8 @@ export class ToolRuntime {
     private readonly models: Models,
     private readonly promptRuntime: PromptRuntime,
     private readonly indexerService: IndexerService,
-    @Optional() private readonly enterpriseTools?: EnterpriseToolRegistry
+    @Optional() private readonly enterpriseTools?: EnterpriseToolRegistry,
+    @Optional() private readonly externalMcpTools?: ExternalMcpToolRegistry
   ) {}
 
   async getTools(
@@ -237,6 +241,23 @@ export class ToolRuntime {
               await this.enterpriseTools.getTools({
                 workspaceId: options.workspace,
                 userId: options.user,
+              })
+            );
+          }
+          break;
+        }
+        case 'sparkClaw': {
+          if (this.externalMcpTools && options.workspace && options.user) {
+            Object.assign(
+              tools,
+              await this.externalMcpTools.getTools({
+                workspaceId: options.workspace,
+                userId: options.user,
+                invocationId:
+                  options.taskId ?? options.actionId ?? randomUUID(),
+                ...(options.sparkClawToolNames
+                  ? { allowedToolNames: options.sparkClawToolNames }
+                  : {}),
               })
             );
           }

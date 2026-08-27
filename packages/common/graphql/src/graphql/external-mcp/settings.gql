@@ -27,6 +27,8 @@ query externalMcpSettings($workspaceId: String!) {
         description
         inputSchema
         enabled
+        risk
+        requiresExplicitUserRequest
       }
     }
   }

@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 
 import { JOB_SIGNAL, JobQueue, OneDay, OnJob } from '../../base';
 import { Models } from '../../models';
+import { ExternalMcpConnectionService } from './external-mcp/service';
 import { CopilotTranscriptionService } from './transcript';
 
 const CLEANUP_EMBEDDING_JOB_BATCH_SIZE = 100;
@@ -15,6 +16,7 @@ const RECOVER_REPAIR_EXECUTION_LEASE_JOB_BATCH_SIZE = 50;
 const ENQUEUE_QUEUED_REPAIR_EXECUTION_JOB_BATCH_SIZE = 50;
 const ENQUEUE_PROVIDER_HEALTH_PROBE_JOB_BATCH_SIZE = 100;
 const PROCESS_PROVIDER_HEALTH_PROBE_JOB_BATCH_SIZE = 50;
+const PROCESS_EXTERNAL_MCP_REMOTE_OPERATION_JOB_BATCH_SIZE = 25;
 
 declare global {
   interface Jobs {
@@ -52,6 +54,9 @@ declare global {
       limit?: number;
       attemptId?: string;
     };
+    'copilot.externalMcp.processPendingOperations': {
+      limit?: number;
+    };
   }
 }
 
@@ -62,7 +67,8 @@ export class CopilotCronJobs {
   constructor(
     private readonly models: Models,
     private readonly jobs: JobQueue,
-    private readonly transcript: CopilotTranscriptionService
+    private readonly transcript: CopilotTranscriptionService,
+    private readonly externalMcp: ExternalMcpConnectionService
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -194,6 +200,31 @@ export class CopilotCronJobs {
       },
       { jobId: 'minute-copilot-provider-health-probe-process' }
     );
+    await this.jobs.add(
+      'copilot.externalMcp.processPendingOperations',
+      {
+        limit: PROCESS_EXTERNAL_MCP_REMOTE_OPERATION_JOB_BATCH_SIZE,
+      },
+      { jobId: 'minute-copilot-external-mcp-process-pending-operations' }
+    );
+  }
+
+  @OnJob('copilot.externalMcp.processPendingOperations')
+  async processExternalMcpPendingOperations(
+    params: Jobs['copilot.externalMcp.processPendingOperations']
+  ) {
+    const limit = Math.min(
+      Math.max(
+        params.limit ?? PROCESS_EXTERNAL_MCP_REMOTE_OPERATION_JOB_BATCH_SIZE,
+        1
+      ),
+      100
+    );
+    const result = await this.externalMcp.processPendingOperations({ limit });
+    this.logger.log(
+      `Processed ${result.processedCount} SparkClaw remote operations: completed ${result.completedCount}, rescheduled ${result.rescheduledCount}, failed ${result.failedCount}, and cancelled ${result.cancelledCount}`
+    );
+    return result.processedCount >= limit ? JOB_SIGNAL.Repeat : JOB_SIGNAL.Done;
   }
 
   async triggerGenerateMissingTitles() {

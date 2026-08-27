@@ -7280,6 +7280,8 @@ export const externalMcpSettingsQuery = {
         description
         inputSchema
         enabled
+        risk
+        requiresExplicitUserRequest
       }
     }
   }

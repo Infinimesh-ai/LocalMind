@@ -219,7 +219,7 @@ const makers = [
       name: productName,
       setupIcon: icoPath,
       iconUrl: iconUrl,
-      loadingGif: './resources/icons/affine_installing.gif',
+      loadingGif: './resources/icons/localmind_installing.gif',
     },
   },
   !process.env.SKIP_BUNDLE && {

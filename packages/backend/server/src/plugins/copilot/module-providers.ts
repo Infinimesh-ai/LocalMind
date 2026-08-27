@@ -44,6 +44,12 @@ import {
   LarkCliDriver,
   WeComCliDriver,
 } from './enterprise';
+import {
+  ExternalMcpConnectionResolver,
+  ExternalMcpConnectionService,
+  ExternalMcpToolRegistry,
+  ExternalMcpTransport,
+} from './external-mcp';
 import { McpAttachmentService } from './mcp/attachments';
 import { McpAiDelegationService } from './mcp/delegation';
 import { WorkspaceMcpProvider } from './mcp/provider';
@@ -129,6 +135,9 @@ export const COPILOT_RUNTIME_PROVIDERS = [
   EnterpriseConnectionService,
   EnterpriseAuthorizationService,
   EnterpriseToolRegistry,
+  ExternalMcpTransport,
+  ExternalMcpConnectionService,
+  ExternalMcpToolRegistry,
   ModelSelectionPolicy,
   ActionRuntimeBridge,
   CopilotExecutionMetrics,
@@ -181,6 +190,7 @@ export const COPILOT_RESOLVER_PROVIDERS = [
   CopilotResolver,
   CopilotContextMemoryResolver,
   EnterpriseConnectionResolver,
+  ExternalMcpConnectionResolver,
   UserCopilotResolver,
   CopilotContextRootResolver,
   WorkspaceByokResolver,

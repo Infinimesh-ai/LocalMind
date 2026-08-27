@@ -25,6 +25,7 @@ import {
   AGENT_RUNTIME_LOCALMIND_TOOL_AGENT_WORKFLOW,
   LOCALMIND_DELEGATION_AI_TOOLS,
 } from '../agent-runtime-localmind-tool-agent-adapter';
+import { ExternalMcpConnectionService } from '../external-mcp';
 import type { PromptMessage } from '../providers/types';
 import { CapabilityRuntime } from '../runtime/capability-runtime';
 import { buildStructuredResponseContract } from '../runtime/contracts';
@@ -319,6 +320,15 @@ function requiresEnterpriseToolAgent(request: string) {
   return namesEnterpriseProvider && requestsEnterpriseData;
 }
 
+function requiresSparkClawToolAgent(request: string) {
+  const namesSparkClaw = /(?:\bspark[ -]?claw\b|火花爪)/i.test(request);
+  const requestsSparkClawCapability =
+    /(?:\b(?:ask|call|get|query|search|find|look up|read|fetch|retrieve|list|check|verify|create|update|send|run|execute)\b|询问|调用|查(?:询|找|看)?|搜索|检索|读取|获取|列出|查看|检查|验证|创建|更新|发送|运行|执行|(?:向|从).{0,48}要.{0,24}(?:信息|数据|内容|结果|答案))/i.test(
+      request
+    );
+  return namesSparkClaw && requestsSparkClawCapability;
+}
+
 function normalizePlannerResult(
   output: z.infer<typeof DelegationPlannerWireResultSchema>
 ): DelegationPlannerResult {
@@ -465,7 +475,8 @@ export class McpAiDelegationService {
     private readonly models: Models,
     private readonly jobs: JobQueue,
     private readonly crypto: CryptoHelper,
-    private readonly config: Config
+    private readonly config: Config,
+    private readonly externalMcp: ExternalMcpConnectionService
   ) {}
 
   createTool(
@@ -557,6 +568,27 @@ export class McpAiDelegationService {
         missingPermission: 'Workspace.Copilot',
       });
     }
+
+    let sparkClawToolNames: string[];
+    try {
+      sparkClawToolNames = (
+        await this.externalMcp.enabledTools({
+          workspaceId: credential.workspaceId,
+          actorId: credential.userId,
+        })
+      )
+        .map(tool => tool.name)
+        .sort();
+    } catch (error) {
+      this.logger.error('SparkClaw tool snapshot failed', error);
+      return await this.finish(created.record.id, 'failed', {
+        code: 'sparkclaw_tool_snapshot_failed',
+      });
+    }
+    const sparkClawToolSnapshotFingerprint = mcpDelegationFingerprint({
+      version: 'mcp-ai-delegation-sparkclaw-tools/v1',
+      toolNames: sparkClawToolNames,
+    });
 
     let materializedAttachments;
     try {
@@ -670,6 +702,7 @@ export class McpAiDelegationService {
               'Selection priority: when exactly one document snapshot is provided and the request explicitly supplies its complete replacement content, you MUST return document_update, never tool_agent.',
               `Return tool_agent when the task requires LocalMind AI tools, including any document creation, document title change, workspace document search/read beyond the provided snapshots, workspace folder list/create/rename/move/delete or document placement, web research, document composition, section editing, code artifact generation, attachment reading, conversation summarization, or multi-step tool work. The tool agent can use: ${LOCALMIND_DELEGATION_AI_TOOLS.join(', ')}.`,
               'A request to call, query, search, read, fetch, list, check, or verify data in a connected WeCom, Lark/Feishu, or DingTalk account MUST return tool_agent, even when the requested result is read-only.',
+              'A request to ask, call, query, search, read, fetch, list, check, verify, or execute a capability in the connected SparkClaw MUST return tool_agent, even when the requested result is read-only.',
               'Return unsupported_task only when neither a direct answer, a one-document replacement, nor the LocalMind tool agent can perform the requested work.',
               'Missing document context is not an unsupported operation; answer honestly that the requested context was not provided.',
               'Mandatory field mapping: answer => non-empty answer; document_update => non-empty docId, content, and summary; tool_agent => non-empty summary; unsupported_task => non-empty reason. Set every field not listed for the selected kind to an empty string.',
@@ -790,8 +823,11 @@ export class McpAiDelegationService {
       };
       const literalMarkdown = requestedLiteralMarkdown(input.request);
       const enterpriseToolRequired = requiresEnterpriseToolAgent(input.request);
+      const sparkClawToolRequired = requiresSparkClawToolAgent(input.request);
+      const externalToolRequired =
+        enterpriseToolRequired || sparkClawToolRequired;
       const needsAnswerRendering =
-        !enterpriseToolRequired &&
+        !externalToolRequired &&
         ((wireOutput.kind === 'answer' &&
           (hasPlannerText(
             wireOutput.docId,
@@ -821,10 +857,12 @@ export class McpAiDelegationService {
         } else if (needsAnswerRendering) {
           output = await renderFinalAnswer();
           answerRendered = true;
-        } else if (enterpriseToolRequired) {
+        } else if (externalToolRequired) {
           output = {
             kind: 'tool_agent',
-            summary: 'Use the connected enterprise tools to complete the task.',
+            summary: sparkClawToolRequired
+              ? 'Use the connected SparkClaw tools to complete the task.'
+              : 'Use the connected enterprise tools to complete the task.',
           };
         } else {
           throw error;
@@ -841,10 +879,12 @@ export class McpAiDelegationService {
       if (needsAnswerRendering && !answerRendered && literalMarkdown === null) {
         output = await renderFinalAnswer();
       }
-      if (enterpriseToolRequired && output.kind !== 'document_update') {
+      if (externalToolRequired && output.kind !== 'document_update') {
         output = {
           kind: 'tool_agent',
-          summary: 'Use the connected enterprise tools to complete the task.',
+          summary: sparkClawToolRequired
+            ? 'Use the connected SparkClaw tools to complete the task.'
+            : 'Use the connected enterprise tools to complete the task.',
         };
       }
     } catch (error) {
@@ -946,6 +986,7 @@ export class McpAiDelegationService {
           credentialId: credential.id,
           credentialFamilyId: credential.familyId,
           credentialGeneration: credential.generation,
+          sparkClawToolSnapshotFingerprint,
         },
         steps: [
           {
@@ -956,9 +997,11 @@ export class McpAiDelegationService {
             order: 0,
             outputSummary: {
               localMindToolAgentRequest: {
-                version: 'localmind-tool-agent-request/v1',
+                version: 'localmind-tool-agent-request/v2',
                 requestFingerprint,
                 allowedTools: [...LOCALMIND_DELEGATION_AI_TOOLS],
+                sparkClawToolNames,
+                sparkClawToolSnapshotFingerprint,
               },
             },
           },

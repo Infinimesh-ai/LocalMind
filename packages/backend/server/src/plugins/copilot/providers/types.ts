@@ -96,6 +96,8 @@ export const COPILOT_CHAT_TOOL_CATEGORIES = [
   'workspaceOrganization',
   // user-scoped enterprise collaboration connections
   'enterprise',
+  // workspace-managed outbound SparkClaw MCP connection
+  'sparkClaw',
 ] as const;
 
 export const PromptToolsSchema = z.enum(COPILOT_CHAT_TOOL_CATEGORIES).array();
@@ -273,6 +275,7 @@ const CopilotProviderOptionsSchema = z.object({
   billingUnitId: z.string().optional(),
   taskId: z.string().optional(),
   actionId: z.string().optional(),
+  sparkClawToolNames: z.array(z.string().min(1).max(256)).max(128).optional(),
   quotaBackedRoutesAllowed: z.boolean().optional(),
   featureKind: z
     .enum([

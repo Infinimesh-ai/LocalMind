@@ -20,7 +20,13 @@ import MCPIcon from '../mcp-server/MCP.inline.svg';
 import { IntegrationSettingHeader } from '../setting';
 import * as styles from './setting-panel.css';
 
-const CONVERSATION_TOOL = 'sparkclaw.route.conversation.answer';
+const CONVERSATION_TOOL = 'sparkclaw.conversation.send';
+
+type ExternalMcpTool = ExternalMcpConnection['tools'][number];
+type ExternalMcpToolRisk = 'read' | 'write' | 'high';
+
+const normalizeToolRisk = (risk: string): ExternalMcpToolRisk =>
+  risk === 'read' || risk === 'write' ? risk : 'high';
 
 const formatDate = (value: string | null) =>
   value ? new Date(value).toLocaleString() : '-';
@@ -121,7 +127,7 @@ export const ExternalMcpSettingPanel = () => {
     }
   }, [service, workspaceId]);
 
-  const toggleTool = useAsyncCallback(
+  const applyToolToggle = useAsyncCallback(
     async (toolName: string, checked: boolean) => {
       setMutating(`tool:${toolName}`);
       const next = new Set(enabledTools);
@@ -136,6 +142,42 @@ export const ExternalMcpSettingPanel = () => {
       }
     },
     [enabledTools, service, workspaceId]
+  );
+
+  const toolRiskLabel = useCallback(
+    (risk: string) => {
+      const normalized = normalizeToolRisk(risk);
+      return t[
+        `com.affine.integration.external-mcp.tool.risk.${normalized}` as
+          | 'com.affine.integration.external-mcp.tool.risk.read'
+          | 'com.affine.integration.external-mcp.tool.risk.write'
+          | 'com.affine.integration.external-mcp.tool.risk.high'
+      ]();
+    },
+    [t]
+  );
+
+  const toggleTool = useCallback(
+    (tool: ExternalMcpTool, checked: boolean) => {
+      const risk = normalizeToolRisk(tool.risk);
+      if (checked && risk !== 'read') {
+        openConfirmModal({
+          title: t[
+            'com.affine.integration.external-mcp.tool.enable-risk.title'
+          ]({ name: tool.title || tool.name }),
+          description: t[
+            'com.affine.integration.external-mcp.tool.enable-risk.description'
+          ]({ risk: toolRiskLabel(risk) }),
+          confirmText: t['Confirm'](),
+          cancelText: t['Cancel'](),
+          confirmButtonOptions: { variant: 'primary' },
+          onConfirm: () => applyToolToggle(tool.name, true),
+        });
+        return;
+      }
+      void applyToolToggle(tool.name, checked);
+    },
+    [applyToolToggle, openConfirmModal, t, toolRiskLabel]
   );
 
   const testConversation = useAsyncCallback(async () => {
@@ -399,6 +441,14 @@ export const ExternalMcpSettingPanel = () => {
                             {tool.title || tool.name}
                           </div>
                           <div className={styles.description}>{tool.name}</div>
+                          <div className={styles.toolMeta}>
+                            {toolRiskLabel(tool.risk)}
+                            {tool.requiresExplicitUserRequest
+                              ? ` · ${t[
+                                  'com.affine.integration.external-mcp.tool.explicit-request'
+                                ]()}`
+                              : null}
+                          </div>
                           {tool.description ? (
                             <div className={styles.description}>
                               {tool.description}
@@ -413,9 +463,7 @@ export const ExternalMcpSettingPanel = () => {
                           label={t[
                             'com.affine.integration.external-mcp.tool.enabled'
                           ]()}
-                          onChange={(_, checked) =>
-                            toggleTool(tool.name, checked)
-                          }
+                          onChange={(_, checked) => toggleTool(tool, checked)}
                         />
                       </div>
                     ))}

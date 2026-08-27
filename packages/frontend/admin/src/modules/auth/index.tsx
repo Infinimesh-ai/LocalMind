@@ -1,6 +1,7 @@
 import { Button } from '@affine/admin/components/ui/button';
 import { Input } from '@affine/admin/components/ui/input';
 import { Label } from '@affine/admin/components/ui/label';
+import { LocalMindLogo } from '@affine/component/localmind-logo';
 import { FeatureType, getUserFeaturesQuery } from '@affine/graphql';
 import type { FormEvent } from 'react';
 import { useCallback, useRef } from 'react';
@@ -9,7 +10,6 @@ import { toast } from 'sonner';
 
 import { affineFetch } from '../../fetch-utils';
 import { isAdmin, useCurrentUser, useRevalidateCurrentUser } from '../common';
-import logo from './logo.svg';
 
 export function Auth() {
   const currentUser = useCurrentUser();
@@ -120,10 +120,9 @@ export function Auth() {
         </div>
       </div>
       <div className="hidden bg-muted lg:flex lg:justify-center">
-        <img
-          src={logo}
-          alt="Image"
-          className="h-1/2 object-cover dark:brightness-[0.2] dark:grayscale relative top-1/4 "
+        <LocalMindLogo
+          alt="LocalMind"
+          className="h-1/2 w-auto object-contain relative top-1/4"
         />
       </div>
     </div>
