@@ -277,7 +277,10 @@ ISCP 部署在 `-f` 参数后加入 `--profile iscp`。Compose 会先运行
 固定 Qwen3.6 时使用 `scripts/localmind-qwen36-bootstrap.sh`；它只 clone
 `codex/local-model-runtime`，并在受支持的 Ubuntu/Debian 主机上检测和补齐 Docker、
 Node、NVIDIA 驱动及隔离的 ModelScope/vLLM 环境。仓库内运行器不执行 Git 操作，两个
-入口均不直接改写 Admin/DB-backed registry。
+入口均不直接改写 Admin/DB-backed registry。已有完整模型 snapshot 时，可向 bootstrap
+传入 `--model-dir <绝对路径>`，跳过 ModelScope 下载；选择 ModelScope 缓存根目录则使用
+`--model-root <绝对路径>`；希望把新模型直接安装到指定最终目录时，使用
+`--download-dir <绝对路径>`。
 
 ## 回退规则
 

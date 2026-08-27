@@ -5,6 +5,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  realpath,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -74,7 +75,7 @@ void test('bootstrap clones the fixed branch and forwards the fixed Qwen3.6 runt
     ].join('\n')
   );
 
-  const result = spawnSync('sh', [bootstrap], {
+  const result = spawnSync('sh', [bootstrap, '--model-root', modelRoot], {
     cwd: join(directory, 'empty'),
     encoding: 'utf8',
     env: {
@@ -83,7 +84,6 @@ void test('bootstrap clones the fixed branch and forwards the fixed Qwen3.6 runt
       LOCALMIND_INSTALL_DIR: installDir,
       LOCALMIND_MAX_MODEL_LEN: '65536',
       LOCALMIND_MODEL_PORT: '8123',
-      LOCALMIND_MODEL_ROOT: modelRoot,
       LOCALMIND_REPOSITORY_URL: 'https://example.invalid/LocalMind.git',
       LOCALMIND_RUNTIME_ROOT: runtimeRoot,
       LOCALMIND_TENSOR_PARALLEL_SIZE: '2',
@@ -140,6 +140,188 @@ void test('bootstrap clones the fixed branch and forwards the fixed Qwen3.6 runt
     '--tensor-parallel-size',
     '2',
   ]);
+});
+
+void test('bootstrap accepts a user-selected local model snapshot and skips ModelScope selection', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'localmind-local-model-'));
+  const binDir = join(directory, 'bin');
+  const installDir = join(directory, 'LocalMind');
+  const modelDir = join(directory, 'Qwen snapshot with spaces');
+  const runtimeRoot = join(directory, 'runtime');
+  const traceDir = join(directory, 'trace');
+  await mkdir(binDir);
+  await mkdir(join(installDir, '.git'), { recursive: true });
+  await mkdir(join(installDir, 'tools/localmind-model-runtime'), {
+    recursive: true,
+  });
+  await mkdir(modelDir);
+  await mkdir(traceDir);
+  await writeFile(join(installDir, 'tools/localmind-model-runtime.mjs'), '');
+  t.after(async () => await rm(directory, { force: true, recursive: true }));
+
+  await writeExecutable(
+    join(binDir, 'git'),
+    [
+      '#!/bin/sh',
+      'if [ "${1:-}" = -C ]; then',
+      "  printf 'codex/local-model-runtime\\n'",
+      '  exit 0',
+      'fi',
+      'exit 1',
+      '',
+    ].join('\n')
+  );
+  await writeExecutable(
+    join(installDir, 'tools/localmind-model-runtime/provision-host.sh'),
+    [
+      '#!/bin/sh',
+      'mkdir -p "$LOCALMIND_RUNTIME_ROOT/venv/bin"',
+      'for executable in python vllm; do',
+      '  path="$LOCALMIND_RUNTIME_ROOT/venv/bin/$executable"',
+      '  printf \'#!/bin/sh\\nexit 0\\n\' > "$path"',
+      '  chmod +x "$path"',
+      'done',
+      '',
+    ].join('\n')
+  );
+  await writeExecutable(
+    join(binDir, 'node'),
+    ['#!/bin/sh', 'printf \'%s\\n\' "$@" > "$TRACE_DIR/node-args"', ''].join(
+      '\n'
+    )
+  );
+
+  const result = spawnSync('sh', [bootstrap, '--model-dir', modelDir], {
+    cwd: directory,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      LOCALMIND_INSTALL_DIR: installDir,
+      LOCALMIND_RUNTIME_ROOT: runtimeRoot,
+      PATH: `${binDir}:${process.env.PATH}`,
+      TRACE_DIR: traceDir,
+    },
+  });
+
+  assert.equal(result.status, 0, result.error?.message ?? result.stderr);
+  assert.match(result.stdout, /Reusing existing codex\/local-model-runtime/);
+  const resolvedModelDir = await realpath(modelDir);
+  const nodeArgs = (await readFile(join(traceDir, 'node-args'), 'utf8'))
+    .trim()
+    .split('\n');
+  assert.deepEqual(nodeArgs, [
+    join(installDir, 'tools/localmind-model-runtime.mjs'),
+    'up',
+    '--model-dir',
+    resolvedModelDir,
+    '--profile',
+    'qwen36',
+    '--served-model-name',
+    'qwen3.6-35b-a3b',
+    '--port',
+    '8000',
+    '--timeout',
+    '900',
+    '--python-bin',
+    join(runtimeRoot, 'venv/bin/python'),
+    '--vllm-bin',
+    join(runtimeRoot, 'venv/bin/vllm'),
+    '--build',
+  ]);
+  assert.equal(nodeArgs.includes('--model'), false);
+  assert.equal(nodeArgs.includes('--revision'), false);
+  assert.equal(nodeArgs.includes('--model-root'), false);
+});
+
+void test('bootstrap downloads the fixed model into a user-selected final directory', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'localmind-download-model-'));
+  const binDir = join(directory, 'bin');
+  const downloadDir = join(directory, 'downloaded model with spaces');
+  const installDir = join(directory, 'LocalMind');
+  const runtimeRoot = join(directory, 'runtime');
+  const traceDir = join(directory, 'trace');
+  await mkdir(binDir);
+  await mkdir(join(installDir, '.git'), { recursive: true });
+  await mkdir(join(installDir, 'tools/localmind-model-runtime'), {
+    recursive: true,
+  });
+  await mkdir(traceDir);
+  await writeFile(join(installDir, 'tools/localmind-model-runtime.mjs'), '');
+  t.after(async () => await rm(directory, { force: true, recursive: true }));
+
+  await writeExecutable(
+    join(binDir, 'git'),
+    [
+      '#!/bin/sh',
+      'if [ "${1:-}" = -C ]; then',
+      "  printf 'codex/local-model-runtime\\n'",
+      '  exit 0',
+      'fi',
+      'exit 1',
+      '',
+    ].join('\n')
+  );
+  await writeExecutable(
+    join(installDir, 'tools/localmind-model-runtime/provision-host.sh'),
+    [
+      '#!/bin/sh',
+      'mkdir -p "$LOCALMIND_RUNTIME_ROOT/venv/bin"',
+      'for executable in python vllm; do',
+      '  path="$LOCALMIND_RUNTIME_ROOT/venv/bin/$executable"',
+      '  printf \'#!/bin/sh\\nexit 0\\n\' > "$path"',
+      '  chmod +x "$path"',
+      'done',
+      '',
+    ].join('\n')
+  );
+  await writeExecutable(
+    join(binDir, 'node'),
+    ['#!/bin/sh', 'printf \'%s\\n\' "$@" > "$TRACE_DIR/node-args"', ''].join(
+      '\n'
+    )
+  );
+
+  const result = spawnSync('sh', [bootstrap, '--download-dir', downloadDir], {
+    cwd: directory,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      LOCALMIND_INSTALL_DIR: installDir,
+      LOCALMIND_RUNTIME_ROOT: runtimeRoot,
+      PATH: `${binDir}:${process.env.PATH}`,
+      TRACE_DIR: traceDir,
+    },
+  });
+
+  assert.equal(result.status, 0, result.error?.message ?? result.stderr);
+  const nodeArgs = (await readFile(join(traceDir, 'node-args'), 'utf8'))
+    .trim()
+    .split('\n');
+  assert.deepEqual(nodeArgs, [
+    join(installDir, 'tools/localmind-model-runtime.mjs'),
+    'up',
+    '--model',
+    'Qwen/Qwen3.6-35B-A3B-FP8',
+    '--revision',
+    '62836cf634afbb2a90f3e0558ded9112afbf4660',
+    '--download-dir',
+    downloadDir,
+    '--profile',
+    'qwen36',
+    '--served-model-name',
+    'qwen3.6-35b-a3b',
+    '--port',
+    '8000',
+    '--timeout',
+    '900',
+    '--python-bin',
+    join(runtimeRoot, 'venv/bin/python'),
+    '--vllm-bin',
+    join(runtimeRoot, 'venv/bin/vllm'),
+    '--build',
+  ]);
+  assert.equal(nodeArgs.includes('--model-root'), false);
+  assert.equal(nodeArgs.includes('--model-dir'), false);
 });
 
 void test('bootstrap refuses to overwrite an existing non-Git install path', async t => {

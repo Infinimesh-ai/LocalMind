@@ -50,6 +50,7 @@ def main() -> int:
     parser.add_argument("--model", required=True)
     parser.add_argument("--revision", required=True)
     parser.add_argument("--cache-dir")
+    parser.add_argument("--local-dir")
     parser.add_argument("--download", action="store_true")
     args = parser.parse_args()
 
@@ -81,6 +82,8 @@ def main() -> int:
     }
     if args.cache_dir:
         kwargs["cache_dir"] = str(Path(args.cache_dir).expanduser().resolve())
+    if args.local_dir:
+        kwargs["local_dir"] = str(Path(args.local_dir).expanduser().resolve())
 
     try:
         # Keep stdout machine-readable even when an SDK version prints progress.

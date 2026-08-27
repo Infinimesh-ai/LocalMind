@@ -4,6 +4,7 @@ import {
   chmod,
   mkdir,
   mkdtemp,
+  readFile,
   realpath,
   rm,
   writeFile,
@@ -65,6 +66,31 @@ test('parseCli accepts explicit safe runtime sizing without inventing defaults',
   assert.deepEqual(parsed.vllmArgs, ['--kv-cache-dtype', 'auto']);
   assert.equal(parsed.build, false);
   assert.equal(parsed.makeDefault, true);
+});
+
+test('parseCli resolves a selected download directory and rejects an existing snapshot conflict', () => {
+  const parsed = parseCli([
+    'up',
+    '--model',
+    'Qwen/Qwen3.6-35B-A3B-FP8',
+    '--revision',
+    'fixed',
+    '--download-dir',
+    'models/Qwen3.6-35B-A3B-FP8',
+  ]);
+
+  assert.equal(parsed.downloadDir, resolve('models/Qwen3.6-35B-A3B-FP8'));
+  assert.throws(
+    () =>
+      parseCli([
+        'up',
+        '--model-dir',
+        '/models/existing',
+        '--download-dir',
+        '/models/new',
+      ]),
+    /--model-dir and --download-dir cannot be used together/
+  );
 });
 
 test('Qwen profiles include tool parsing but no aggressive GX10 memory defaults', () => {
@@ -322,6 +348,67 @@ test('ModelScope helper keeps SDK output off its JSON stdout contract', async t 
     path: await realpath(fixture.modelDir),
     revision: 'fixed',
     status: 'found',
+  });
+});
+
+test('ModelScope helper passes an absolute selected directory to local_dir', async t => {
+  const fixture = await modelFixture('fake-downloaded-snapshot');
+  const pythonRoot = join(fixture.directory, 'python');
+  const moduleDir = join(pythonRoot, 'modelscope');
+  const tracePath = join(fixture.directory, 'modelscope-kwargs.json');
+  await mkdir(moduleDir, { recursive: true });
+  await writeFile(
+    join(moduleDir, '__init__.py'),
+    [
+      'import json',
+      'import os',
+      'def snapshot_download(*args, **kwargs):',
+      "    with open(os.environ['FAKE_MODELSCOPE_TRACE'], 'w', encoding='utf-8') as trace:",
+      '        json.dump({"args": args, "kwargs": kwargs}, trace)',
+      "    return os.environ['FAKE_MODELSCOPE_SNAPSHOT']",
+      '',
+    ].join('\n')
+  );
+  t.after(
+    async () => await rm(fixture.directory, { force: true, recursive: true })
+  );
+
+  const relativeDownloadDir = 'selected model directory';
+  const stdout = execFileSync(
+    'python3',
+    [
+      helperPath,
+      '--model',
+      'fake/model',
+      '--revision',
+      'fixed',
+      '--local-dir',
+      relativeDownloadDir,
+      '--download',
+    ],
+    {
+      cwd: fixture.directory,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        FAKE_MODELSCOPE_SNAPSHOT: fixture.modelDir,
+        FAKE_MODELSCOPE_TRACE: tracePath,
+        PYTHONPATH: pythonRoot,
+        PYTHONDONTWRITEBYTECODE: '1',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }
+  );
+
+  assert.equal(JSON.parse(stdout).status, 'downloaded');
+  const resolvedFixtureDirectory = await realpath(fixture.directory);
+  assert.deepEqual(JSON.parse(await readFile(tracePath, 'utf8')), {
+    args: ['fake/model'],
+    kwargs: {
+      local_files_only: false,
+      local_dir: resolve(resolvedFixtureDirectory, relativeDownloadDir),
+      revision: 'fixed',
+    },
   });
 });
 

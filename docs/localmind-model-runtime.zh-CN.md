@@ -14,12 +14,53 @@ curl -fsSLO \
 sh localmind-qwen36-bootstrap.sh
 ```
 
+已有完整本地 snapshot 时，用户可以直接选择目录，跳过 ModelScope 缓存查询和下载：
+
+```sh
+sh localmind-qwen36-bootstrap.sh \
+  --model-dir /absolute/path/to/Qwen3.6-35B-A3B-FP8
+```
+
+也可以通过环境变量选择：
+
+```sh
+LOCALMIND_MODEL_DIR=/absolute/path/to/Qwen3.6-35B-A3B-FP8 \
+sh localmind-qwen36-bootstrap.sh
+```
+
+`--model-dir` 必须指向实际 snapshot，而不是 Hugging Face/ModelScope 缓存根目录。目录中
+必须能直接看到 `config.json`、tokenizer 和权重或权重索引。脚本会把它解析为物理绝对
+路径并由仓库内运行器校验完整性。
+
+需要下载固定 Qwen3.6，但希望模型直接安装到自己指定的最终目录时：
+
+```sh
+sh localmind-qwen36-bootstrap.sh \
+  --download-dir /data/models/Qwen3.6-35B-A3B-FP8
+```
+
+也可以通过环境变量指定：
+
+```sh
+LOCALMIND_MODEL_DOWNLOAD_DIR=/data/models/Qwen3.6-35B-A3B-FP8 \
+sh localmind-qwen36-bootstrap.sh
+```
+
+`--model-dir` 与 `--download-dir` 互斥：前者表示“已有完整模型，直接复用”，后者表示
+“缺失时下载到这个最终目录”。相对路径会按执行脚本时的当前目录转换为绝对路径。
+
+希望选择另一个 ModelScope `cache_dir`，但仍按固定模型 ID 和 revision 查找或下载时：
+
+```sh
+sh localmind-qwen36-bootstrap.sh --model-root /absolute/modelscope/cache
+```
+
 默认完整流程为：
 
 1. clone `https://github.com/Infinimesh-ai/LocalMind.git` 的
    `codex/local-model-runtime` 单一分支到当前目录的 `LocalMind/`；
 2. 检测并补齐 Node.js 22、Docker Engine/Compose、NVIDIA 驱动和隔离 Python 环境；
-3. 在 `${HOME}/Documents/data` 检查固定 ModelScope snapshot；
+3. 在 `${HOME}/Documents/data` 检查固定 ModelScope snapshot，或按参数检查用户指定目录；
 4. 缓存不存在时下载
    `Qwen/Qwen3.6-35B-A3B-FP8@62836cf634afbb2a90f3e0558ded9112afbf4660`；
 5. 用 served model `qwen3.6-35b-a3b` 启动或复用 `8000` 端口的 vLLM；
@@ -76,9 +117,11 @@ yarn localmind:model preflight
 脚本按以下顺序定位模型：
 
 1. 使用 `--model-dir` 时，直接校验该目录；
-2. 否则调用 ModelScope SDK，并以 `local_files_only=true` 查询默认缓存；
-3. 使用 `--model-root` 时，将它作为 ModelScope `cache_dir`；
-4. 只有 `up` 确认缓存缺失后才联网下载；`discover` 永远不下载。
+2. 使用 `--download-dir` 时，将它作为 ModelScope `local_dir`，模型缺失时直接下载到该
+   最终目录；
+3. 否则调用 ModelScope SDK，并以 `local_files_only=true` 查询默认缓存；
+4. 使用 `--model-root` 时，将它作为 ModelScope `cache_dir`；
+5. 只有 `up` 确认模型缺失后才联网下载；`discover` 永远不下载。
 
 ModelScope 模式要求同时提供模型 ID 和 revision：
 
@@ -103,6 +146,16 @@ yarn localmind:model up \
   --model Qwen/Qwen3.5-35B-A3B-FP8 \
   --revision <固定-revision> \
   --profile qwen35
+```
+
+下载到用户选择的最终模型目录：
+
+```sh
+yarn localmind:model up \
+  --model Qwen/Qwen3.6-35B-A3B-FP8 \
+  --revision <固定-revision> \
+  --download-dir /data/models/Qwen3.6-35B-A3B-FP8 \
+  --profile qwen36
 ```
 
 Spark GX10 已有模型位于 `Documents/data` 时：

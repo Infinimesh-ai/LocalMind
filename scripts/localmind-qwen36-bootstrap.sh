@@ -9,6 +9,8 @@ MODEL_REVISION=62836cf634afbb2a90f3e0558ded9112afbf4660
 SERVED_MODEL_NAME=qwen3.6-35b-a3b
 
 INSTALL_DIR=${LOCALMIND_INSTALL_DIR:-"$(pwd)/LocalMind"}
+MODEL_DIR=${LOCALMIND_MODEL_DIR:-}
+DOWNLOAD_DIR=${LOCALMIND_MODEL_DOWNLOAD_DIR:-}
 MODEL_ROOT=${LOCALMIND_MODEL_ROOT:-"${HOME:?HOME must be set}/Documents/data"}
 RUNTIME_ROOT=${LOCALMIND_RUNTIME_ROOT:-"$HOME/.local/share/localmind/qwen36-runtime"}
 MODEL_PORT=${LOCALMIND_MODEL_PORT:-8000}
@@ -19,7 +21,12 @@ usage() {
 Bootstrap LocalMind with the fixed Qwen3.6 ModelScope snapshot.
 
 Usage:
-  sh localmind-qwen36-bootstrap.sh
+  sh localmind-qwen36-bootstrap.sh [model location option]
+
+Model location options:
+  --model-dir <path>       Use an existing complete snapshot; no download
+  --download-dir <path>    Download the fixed model directly into this directory
+  --model-root <path>      Use this ModelScope cache_dir
 
 The script clones only codex/local-model-runtime, downloads or reuses the
 fixed Qwen3.6 model, starts vLLM, builds LocalMind, configures the provider,
@@ -27,6 +34,8 @@ and starts LocalMind Compose.
 
 Optional environment variables:
   LOCALMIND_INSTALL_DIR                Checkout path (default: ./LocalMind)
+  LOCALMIND_MODEL_DIR                  Complete local model snapshot; skips download
+  LOCALMIND_MODEL_DOWNLOAD_DIR         Final directory for a new model download
   LOCALMIND_MODEL_ROOT                 ModelScope cache_dir
                                        (default: $HOME/Documents/data)
   LOCALMIND_RUNTIME_ROOT               Managed Python/vLLM environment
@@ -75,17 +84,42 @@ ensure_git() {
   run_root env DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates git
 }
 
-case ${1:-} in
-  '') ;;
-  -h|--help)
-    usage
-    exit 0
-    ;;
-  *)
-    usage >&2
-    die "unknown argument: $1"
-    ;;
-esac
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --model-dir)
+      [ "$#" -ge 2 ] || die "missing value for --model-dir"
+      shift
+      MODEL_DIR=$1
+      ;;
+    --model-root)
+      [ "$#" -ge 2 ] || die "missing value for --model-root"
+      shift
+      MODEL_ROOT=$1
+      ;;
+    --download-dir)
+      [ "$#" -ge 2 ] || die "missing value for --download-dir"
+      shift
+      DOWNLOAD_DIR=$1
+      ;;
+    *)
+      usage >&2
+      die "unknown argument: $1"
+      ;;
+  esac
+  shift
+done
+
+if [ -n "$MODEL_DIR" ]; then
+  [ -d "$MODEL_DIR" ] || die "local model directory does not exist: $MODEL_DIR"
+  MODEL_DIR=$(cd "$MODEL_DIR" && pwd -P)
+fi
+if [ -n "$MODEL_DIR" ] && [ -n "$DOWNLOAD_DIR" ]; then
+  die "--model-dir and --download-dir cannot be used together"
+fi
 
 ensure_git
 
@@ -126,11 +160,22 @@ require_command node
 [ -x "$PYTHON_BIN" ] || die "Python executable is missing after provisioning: $PYTHON_BIN"
 [ -x "$VLLM_BIN" ] || die "vLLM executable is missing after provisioning: $VLLM_BIN"
 
+if [ -n "$MODEL_DIR" ]; then
+  set -- "$runtime" up --model-dir "$MODEL_DIR"
+else
+  set -- \
+    "$runtime" up \
+    --model "$MODEL" \
+    --revision "$MODEL_REVISION"
+  if [ -n "$DOWNLOAD_DIR" ]; then
+    set -- "$@" --download-dir "$DOWNLOAD_DIR"
+  else
+    set -- "$@" --model-root "$MODEL_ROOT"
+  fi
+fi
+
 set -- \
-  "$runtime" up \
-  --model "$MODEL" \
-  --revision "$MODEL_REVISION" \
-  --model-root "$MODEL_ROOT" \
+  "$@" \
   --profile qwen36 \
   --served-model-name "$SERVED_MODEL_NAME" \
   --port "$MODEL_PORT" \

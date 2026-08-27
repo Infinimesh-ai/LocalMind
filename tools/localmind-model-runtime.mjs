@@ -107,6 +107,7 @@ Model options:
   --model <id>                 ModelScope model id
   --revision <revision>        Required ModelScope revision
   --model-root <path>          Optional ModelScope cache_dir override
+  --download-dir <path>        Download directly into this snapshot directory
   --model-dir <path>           Existing local snapshot; skips ModelScope
   --served-model-name <id>     Stable vLLM model id (must not contain /)
   --profile <auto|qwen36|qwen35|generic>
@@ -182,6 +183,7 @@ export function parseCli(argv) {
     ['--model', 'model'],
     ['--revision', 'revision'],
     ['--model-root', 'modelRoot'],
+    ['--download-dir', 'downloadDir'],
     ['--model-dir', 'modelDir'],
     ['--served-model-name', 'servedModelName'],
     ['--profile', 'profile'],
@@ -272,7 +274,14 @@ export function parseCli(argv) {
   if (!['auto', ...Object.keys(profileDefinitions)].includes(options.profile)) {
     throw new CliError(`Unsupported profile: ${options.profile}`, 2);
   }
+  if (options.modelDir && options.downloadDir) {
+    throw new CliError(
+      '--model-dir and --download-dir cannot be used together',
+      2
+    );
+  }
   options.composeFile = resolve(options.composeFile);
+  if (options.downloadDir) options.downloadDir = resolve(options.downloadDir);
   if (options.vllmBin.includes('/')) options.vllmBin = resolve(options.vllmBin);
   if (options.pythonBin.includes('/')) {
     options.pythonBin = resolve(options.pythonBin);
@@ -557,6 +566,7 @@ async function callModelScope(options, download) {
     options.revision,
   ];
   if (options.modelRoot) args.push('--cache-dir', resolve(options.modelRoot));
+  if (options.downloadDir) args.push('--local-dir', options.downloadDir);
   if (download) args.push('--download');
   const result = await runCaptured(options.pythonBin, args, {
     forwardStderr: download,
