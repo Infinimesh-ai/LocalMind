@@ -31,6 +31,7 @@
     "localmind:sync:backend": "node ./tools/localmind-dev-sync.mjs backend",
     "localmind:sync:web": "node ./tools/localmind-dev-sync.mjs web",
     "localmind:sync:all": "node ./tools/localmind-dev-sync.mjs all",
+    "localmind:model": "node ./tools/localmind-model-runtime.mjs",
     "lint": "yarn lint:ox && yarn lint:eslint && yarn lint:prettier",
     "lint:fix": "yarn lint:ox:fix && yarn lint:eslint:fix && yarn lint:prettier:fix",
     "test": "vitest --run",

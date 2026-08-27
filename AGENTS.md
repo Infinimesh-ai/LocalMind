@@ -256,9 +256,16 @@ yarn test
 yarn localmind:sync:backend
 yarn localmind:sync:web
 yarn localmind:sync:all
+yarn localmind:model --help
+sh scripts/localmind-qwen36-bootstrap.sh --help
+sh tools/localmind-model-runtime/provision-host.sh --help
 ```
 
 只有任务确实涉及运行中的 LocalMind 环境时才执行同步脚本，并在交付中说明影响。
+仓库内 ModelScope/vLLM 运行器只在已有 checkout 中工作，不执行 Git 操作；独立 Qwen3.6
+bootstrap 只 clone 固定的 `codex/local-model-runtime` 分支，并在受支持 Linux 发行版上
+补齐运行环境。具体约定见
+`docs/localmind-model-runtime.zh-CN.md`。
 
 ---
 

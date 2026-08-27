@@ -272,6 +272,13 @@ ISCP 部署在 `-f` 参数后加入 `--profile iscp`。Compose 会先运行
 - AI 配置后至少执行 provider probe 和一次最小文本请求；涉及索引时再测试 embedding 和
   rerank。
 
+在 `codex/local-model-runtime` 分支部署 ModelScope/vLLM 时，使用
+`yarn localmind:model` 及其[专用运行文档](./localmind-model-runtime.zh-CN.md)。从空目录部署
+固定 Qwen3.6 时使用 `scripts/localmind-qwen36-bootstrap.sh`；它只 clone
+`codex/local-model-runtime`，并在受支持的 Ubuntu/Debian 主机上检测和补齐 Docker、
+Node、NVIDIA 驱动及隔离的 ModelScope/vLLM 环境。仓库内运行器不执行 Git 操作，两个
+入口均不直接改写 Admin/DB-backed registry。
+
 ## 回退规则
 
 - `up -d` 前构建失败：不影响旧 runtime，修复构建问题即可。

@@ -109,6 +109,10 @@ embedding、索引和 rerank 请求会失败。
 模型 API key 和 workspace BYOK 配置应在 LocalMind 启动后通过管理界面完成，不要写进
 Compose 文件。
 
+`codex/local-model-runtime` 分支还提供 ModelScope 缓存发现、下载、vLLM 和 LocalMind
+provider 配置的一键入口。仓库内运行器不执行 Git 操作；从空目录部署固定 Qwen3.6 时
+使用独立 bootstrap 获取该分支。使用前阅读[本地模型运行脚本](./localmind-model-runtime.zh-CN.md)。
+
 ## 4. 检查配置
 
 以下命令只解析配置，不启动服务：
