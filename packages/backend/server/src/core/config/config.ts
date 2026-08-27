@@ -4,6 +4,7 @@ import { defineModuleConfig } from '../../base';
 
 export interface ServerFlags {
   allowGuestDemoWorkspace: boolean;
+  unlimitedCopilot: boolean;
 }
 
 declare global {
@@ -80,5 +81,10 @@ defineModuleConfig('flags', {
   allowGuestDemoWorkspace: {
     desc: 'Whether allow guest users to create demo workspaces.',
     default: true,
+  },
+  unlimitedCopilot: {
+    desc: 'Whether self-hosted users have unlimited LocalMind AI usage. This is intended for deployments whose AI provider runs on operator-owned infrastructure.',
+    default: false,
+    shape: z.boolean(),
   },
 });

@@ -65,7 +65,8 @@ sh localmind-qwen36-bootstrap.sh --model-root /absolute/modelscope/cache
    `Qwen/Qwen3.6-35B-A3B-FP8@62836cf634afbb2a90f3e0558ded9112afbf4660`；
 5. 用 served model `qwen3.6-35b-a3b` 启动或复用 `8000` 端口的 vLLM；
 6. 强制构建固定镜像 `localmind-affine:local`，合并 provider 配置并启动 Compose；
-7. 验证模型、最小对话、LocalMind HTTP 和容器到 vLLM 的连通性后才返回成功。
+7. 设置 `flags.unlimitedCopilot=true`，让自托管本地模型不受默认 10 次 AI 使用额度限制；
+8. 验证模型、最小对话、LocalMind HTTP 和容器到 vLLM 的连通性后才返回成功。
 
 常用覆盖参数：
 
@@ -197,6 +198,8 @@ yarn localmind:model up \
 - LocalMind provider 为 Qwen profile 的 `qwen-lan`，通用模型为 `local-vllm`；
 - 新模型成为 text/object/structured 默认路由，已有全局 fallback 保持不变；
 - embedding、workspace indexing、rerank、image、其他 provider 和 BYOK 配置保持不变；
+- 自托管额度状态使用 `flags.unlimitedCopilot=true`，现有用户和以后创建的用户都不会因
+  默认 10 次 AI 使用额度而被阻断；
 - 已有 `localmind-affine:local` 镜像时复用，没有时才构建；
 - 首次创建 `.docker/selfhost/.env` 时生成随机 `DB_PASSWORD`，且不输出密码；
 - 文件配置写入前备份为 `config.json.bak.<timestamp>`，再原子替换。
@@ -297,6 +300,7 @@ yarn localmind:model stop
 4. Compose 配置可解析，migration 和 LocalMind 能启动；
 5. `localmind_affine_server` 容器内可以访问宿主机 vLLM；
 6. 文件配置包含目标 provider 和 model。
+7. 文件配置已启用自托管无限本地 AI 使用额度。
 
 Admin 发布的 DB-backed provider/model/task route revision 可能覆盖文件配置。脚本不会绕过
 Admin 授权直接改数据库，因此第一版面向新部署或明确由文件配置管理 provider 的专用部署。

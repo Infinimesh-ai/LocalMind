@@ -176,6 +176,9 @@ test('vLLM identity and secret flags cannot bypass script ownership', () => {
 
 test('mergeLocalMindConfig preserves non-chat routes and unrelated providers', () => {
   const original = {
+    flags: {
+      allowGuestDemoWorkspace: false,
+    },
     copilot: {
       providers: {
         defaults: {
@@ -220,6 +223,10 @@ test('mergeLocalMindConfig preserves non-chat routes and unrelated providers', (
   });
 
   assert.deepEqual(merged.copilot.tasks, original.copilot.tasks);
+  assert.deepEqual(merged.flags, {
+    allowGuestDemoWorkspace: false,
+    unlimitedCopilot: true,
+  });
   assert.equal(merged.copilot.providers.defaults.embedding, 'embedding-lan');
   assert.equal(merged.copilot.providers.defaults.fallback, 'gpt-cloud');
   assert.equal(merged.copilot.providers.defaults.rerank, 'rerank-lan');
@@ -259,6 +266,20 @@ test('mergeLocalMindConfig can register a model without changing defaults', () =
 });
 
 test('mergeLocalMindConfig rejects malformed owned configuration paths', () => {
+  assert.throws(
+    () =>
+      mergeLocalMindConfig(
+        { flags: 'not-an-object' },
+        {
+          endpoint: 'http://host.docker.internal:8000/v1',
+          makeDefault: true,
+          profile: 'generic',
+          providerId: 'local-vllm',
+          servedModelName: 'model',
+        }
+      ),
+    /flags must be a JSON object/
+  );
   assert.throws(
     () =>
       mergeLocalMindConfig(

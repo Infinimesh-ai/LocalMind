@@ -5,7 +5,7 @@ import {
   PrismaClient,
 } from '@prisma/client';
 
-import { EventBus, OnEvent } from '../../base';
+import { Config, EventBus, OnEvent } from '../../base';
 import { EntitlementService } from '../entitlement';
 
 type Quota = Awaited<
@@ -39,7 +39,8 @@ export class QuotaStateService {
   constructor(
     private readonly db: PrismaClient,
     private readonly entitlement: EntitlementService,
-    private readonly event: EventBus
+    private readonly event: EventBus,
+    private readonly config: Config
   ) {}
 
   async getWorkspaceQuotaState(workspaceId: string) {
@@ -72,9 +73,9 @@ export class QuotaStateService {
       ]);
     const flags = {
       ...resolved.flags,
-      unlimitedCopilot: entitlements.some(
-        entitlement => entitlement.plan === 'ai'
-      ),
+      unlimitedCopilot:
+        (env.selfhosted && this.config.flags.unlimitedCopilot) ||
+        entitlements.some(entitlement => entitlement.plan === 'ai'),
     };
     const now = new Date();
 

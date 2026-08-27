@@ -1081,6 +1081,8 @@ export function mergeLocalMindConfig(
   if (!isPlainObject(config)) {
     throw new CliError('LocalMind config root must be a JSON object');
   }
+  config.flags = configObject(config.flags, 'flags');
+  config.flags.unlimitedCopilot = true;
   config.copilot = configObject(config.copilot, 'copilot');
   config.copilot.enabled = true;
   config.copilot.providers = configObject(
@@ -1336,6 +1338,11 @@ function assertEffectiveConfig(
   servedModelName,
   makeDefault
 ) {
+  if (config.flags?.unlimitedCopilot !== true) {
+    throw new CliError(
+      'Effective file configuration does not grant unlimited local AI usage'
+    );
+  }
   const profile = config.copilot?.providers?.profiles?.find(
     candidate => candidate.id === providerId
   );

@@ -8,7 +8,7 @@ import {
   createTestingModule,
   type TestingModule,
 } from '../../../__tests__/utils';
-import { EventBus } from '../../../base';
+import { Config, EventBus } from '../../../base';
 import {
   Models,
   Workspace,
@@ -26,6 +26,7 @@ import { QuotaStateService } from '../state';
 
 interface Context {
   module: TestingModule;
+  config: Config;
   db: PrismaClient;
   models: Models;
   entitlement: EntitlementService;
@@ -46,6 +47,7 @@ test.before(async t => {
     imports: [EntitlementModule, QuotaServiceModule],
   });
   t.context.module = module;
+  t.context.config = module.get(Config);
   t.context.db = module.get(PrismaClient);
   t.context.models = module.get(Models);
   t.context.entitlement = module.get(EntitlementService);
@@ -304,13 +306,37 @@ test('selfhosted builtin free has cloud pro quota rights', async t => {
     );
 
     t.is(userState.plan, 'selfhost_free');
+    t.deepEqual(userState.flags, { unlimitedCopilot: false });
     t.is(userState.storageQuota, BigInt(100 * ONE_GB));
     t.is(userQuota.name, 'Pro');
     t.is(userQuota.memberLimit, 10);
+    t.is(userQuota.copilotActionLimit, 10);
     t.is(workspaceState.plan, 'selfhost_free');
     t.is(workspaceQuota.name, 'Pro');
     t.is(workspaceQuota.memberLimit, 10);
   } finally {
+    // @ts-expect-error restore mutable test env singleton
+    globalThis.env.DEPLOYMENT_TYPE = previousDeploymentType;
+  }
+});
+
+test('selfhosted unlimited copilot config overrides the default action limit', async t => {
+  const previousDeploymentType = globalThis.env.DEPLOYMENT_TYPE;
+  const previousUnlimitedCopilot = t.context.config.flags.unlimitedCopilot;
+  // @ts-expect-error test mutates env singleton for deployment-specific quota semantics
+  globalThis.env.DEPLOYMENT_TYPE = 'selfhosted';
+  t.context.config.flags.unlimitedCopilot = true;
+  try {
+    const { owner } = await createWorkspace(t);
+
+    const state = await t.context.state.reconcileUserQuotaState(owner.id);
+    const quota = await t.context.quota.getUserQuota(owner.id);
+
+    t.is(state.plan, 'selfhost_free');
+    t.deepEqual(state.flags, { unlimitedCopilot: true });
+    t.is(quota.copilotActionLimit, undefined);
+  } finally {
+    t.context.config.flags.unlimitedCopilot = previousUnlimitedCopilot;
     // @ts-expect-error restore mutable test env singleton
     globalThis.env.DEPLOYMENT_TYPE = previousDeploymentType;
   }
