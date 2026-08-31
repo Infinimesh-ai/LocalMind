@@ -52,16 +52,16 @@ import {
 
 pdfMake.fonts = {
   Inter: {
-    normal: 'https://cdn.affine.pro/fonts/Inter-Regular.woff',
-    bold: 'https://cdn.affine.pro/fonts/Inter-SemiBold.woff',
-    italics: 'https://cdn.affine.pro/fonts/Inter-Italic.woff',
-    bolditalics: 'https://cdn.affine.pro/fonts/Inter-SemiBoldItalic.woff',
+    normal: '/fonts/Inter-Regular.woff2',
+    bold: '/fonts/Inter-SemiBold.woff2',
+    italics: '/fonts/Inter-Italic.woff2',
+    bolditalics: '/fonts/Inter-SemiBoldItalic.woff2',
   },
   SarasaGothicCL: {
-    normal: 'https://cdn.affine.pro/fonts/SarasaGothicCL-Regular.ttf',
-    bold: 'https://cdn.affine.pro/fonts/SarasaGothicCL-Regular.ttf',
-    italics: 'https://cdn.affine.pro/fonts/SarasaGothicCL-Regular.ttf',
-    bolditalics: 'https://cdn.affine.pro/fonts/SarasaGothicCL-Regular.ttf',
+    normal: '/fonts/Inter-Regular.woff2',
+    bold: '/fonts/Inter-SemiBold.woff2',
+    italics: '/fonts/Inter-Italic.woff2',
+    bolditalics: '/fonts/Inter-SemiBoldItalic.woff2',
   },
 };
 

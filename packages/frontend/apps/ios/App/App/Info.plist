@@ -10,6 +10,10 @@
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>LocalMindRevenueCatAPIKey</key>
+	<string>$(LOCALMIND_REVENUECAT_API_KEY)</string>
+	<key>LocalMindRevenueCatProxyURL</key>
+	<string>$(LOCALMIND_REVENUECAT_PROXY_URL)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -24,9 +28,10 @@
 			<key>CFBundleTypeRole</key>
 			<string>None</string>
 			<key>CFBundleURLName</key>
-			<string>affine</string>
+			<string>LocalMind</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>localmind</string>
 				<string>affine</string>
 			</array>
 		</dict>

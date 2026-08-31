@@ -112,7 +112,7 @@ test('ContextPlanner keeps user-owned context outside the primary system message
     ],
     render: turns =>
       renderBuiltInPromptSessionNative({
-        name: 'Chat With AFFiNE AI',
+        name: 'Chat With LocalMind AI',
         turns,
         renderParams: { content: query },
         maxTokenSize: 128 * 1024,

@@ -199,8 +199,12 @@ export class AIPanelError extends WithDisposable(LitElement) {
           <div class="error-info">
             ${error}. Please try again later. If this issue persists, please let
             us know at
-            <a href="mailto:support@toeverything.info">
-              support@toeverything.info
+            <a
+              href="https://github.com/Infinimesh-ai/LocalMind/issues"
+              target="_blank"
+              rel="noreferrer"
+            >
+              LocalMind support
             </a>
           </div>
         `;

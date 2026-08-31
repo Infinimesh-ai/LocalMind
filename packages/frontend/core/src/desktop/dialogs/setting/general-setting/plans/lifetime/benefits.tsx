@@ -1,5 +1,6 @@
+import { LocalMindLogo } from '@affine/component/localmind-logo';
 import { useI18n } from '@affine/i18n';
-import { AfFiNeIcon, DoneIcon } from '@blocksuite/icons/rc';
+import { DoneIcon } from '@blocksuite/icons/rc';
 import clsx from 'clsx';
 import type { HTMLAttributes } from 'react';
 
@@ -14,7 +15,7 @@ export const BelieverBenefits = ({
   return (
     <ul className={clsx(benefits, className)} {...attrs}>
       <li className={li}>
-        <AfFiNeIcon />
+        <LocalMindLogo size={16} />
         <span>{t['com.affine.payment.lifetime.benefit-1']()}</span>
       </li>
 

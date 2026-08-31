@@ -1,8 +1,8 @@
 import { Switch } from '@affine/component';
+import { LocalMindLogo } from '@affine/component/localmind-logo';
 import { AuthService, SubscriptionService } from '@affine/core/modules/cloud';
 import { SubscriptionPlan, SubscriptionRecurring } from '@affine/graphql';
 import { Trans, useI18n } from '@affine/i18n';
-import { AfFiNeIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useServices } from '@toeverything/infra';
 import {
   type ReactNode,
@@ -72,7 +72,7 @@ const proBenefits: BenefitsGetter = t => ({
   [t['com.affine.payment.cloud.pro.benefit.g1']()]: [
     {
       title: t['com.affine.payment.cloud.pro.benefit.g1-1'](),
-      icon: <AfFiNeIcon />,
+      icon: <LocalMindLogo size={16} />,
     },
     ...([2, 3, 4, 5, 7, 8] as const).map(i => ({
       title: t[`com.affine.payment.cloud.pro.benefit.g1-${i}`](),
@@ -84,7 +84,7 @@ const teamBenefits: BenefitsGetter = t => ({
   [t['com.affine.payment.cloud.team-workspace.benefit.g1']()]: [
     {
       title: t['com.affine.payment.cloud.team-workspace.benefit.g1-1'](),
-      icon: <AfFiNeIcon />,
+      icon: <LocalMindLogo size={16} />,
     },
     ...([2, 3, 4, 5, 6] as const).map(i => ({
       title: t[`com.affine.payment.cloud.team-workspace.benefit.g1-${i}`](),
@@ -284,7 +284,9 @@ export const CloudPlans = () => {
           You are currently on the {{ currentPlan }} plan. If you have any
           questions, please contact our&nbsp;
           <a
-            href="mailto:support@toeverything.info"
+            href="https://github.com/Infinimesh-ai/LocalMind/issues"
+            target="_blank"
+            rel="noreferrer"
             style={{ color: 'var(--affine-link-color)' }}
           >
             customer support

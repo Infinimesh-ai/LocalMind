@@ -131,7 +131,7 @@ describe('AIChatContent open with chat prompt scope', () => {
     const content = Object.create(AIChatContent.prototype) as AIChatContent;
     Object.defineProperty(content, 'session', {
       configurable: true,
-      value: { promptName: 'Chat With AFFiNE AI' },
+      value: { promptName: 'Chat With LocalMind AI' },
     });
     Object.defineProperty(content, 'promptName', {
       configurable: true,
@@ -139,7 +139,7 @@ describe('AIChatContent open with chat prompt scope', () => {
       value: 'Make it real',
     });
 
-    expect((content as any).activePromptName).toBe('Chat With AFFiNE AI');
+    expect((content as any).activePromptName).toBe('Chat With LocalMind AI');
   });
 
   test('ignores promptName from a different host', () => {

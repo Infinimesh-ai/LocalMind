@@ -45,7 +45,7 @@ const providerRegistryQuery = {
     query providerRegistryRevision($workspaceId: String) {
       currentUser {
         copilot(workspaceId: $workspaceId) {
-          models(promptName: "Chat With AFFiNE AI") {
+          models(promptName: "Chat With LocalMind AI") {
             optionalModels {
               id
               name
@@ -6244,7 +6244,7 @@ test('registry revision publish events persist direct publish and reuse history 
     await models.copilotPromptRegistryRevision.publishWorkspaceRevision({
       workspaceId: workspace.id,
       actorId: owner.id,
-      promptName: 'Chat With AFFiNE AI',
+      promptName: 'Chat With LocalMind AI',
       registryFingerprint: 'registry-event-prompt-fingerprint',
       registryId: 42,
       registryUpdatedAt: new Date('2026-06-23T01:00:00.000Z').toISOString(),
@@ -6262,7 +6262,7 @@ test('registry revision publish events persist direct publish and reuse history 
     await models.copilotPromptRegistryRevision.publishWorkspaceRevision({
       workspaceId: workspace.id,
       actorId: owner.id,
-      promptName: 'Chat With AFFiNE AI',
+      promptName: 'Chat With LocalMind AI',
       registryFingerprint: 'registry-event-prompt-fingerprint',
       registryId: 42,
       registryUpdatedAt: new Date('2026-06-23T01:00:00.000Z').toISOString(),
@@ -6418,12 +6418,12 @@ test('registry revision publish events persist direct publish and reuse history 
   assertPublishHistory(promptRevision, {
     eventTypes: ['revision_published'],
     registryFamily: 'prompt_registry',
-    registryKey: 'Chat With AFFiNE AI',
+    registryKey: 'Chat With LocalMind AI',
   });
   assertPublishHistory(promptReuse, {
     eventTypes: ['revision_reused', 'revision_published'],
     registryFamily: 'prompt_registry',
-    registryKey: 'Chat With AFFiNE AI',
+    registryKey: 'Chat With LocalMind AI',
   });
   assertPublishHistory(taskRevision, {
     eventTypes: ['revision_published'],
@@ -6543,7 +6543,7 @@ test('registry revision publish events persist direct publish and reuse history 
       )
       VALUES (
         ${'prompt-publish-history-orphan'},
-        ${'Chat With AFFiNE AI'},
+        ${'Chat With LocalMind AI'},
         ${'workspace'},
         ${workspace.id},
         ${owner.id},
@@ -6586,7 +6586,7 @@ test('registry revision publish events persist direct publish and reuse history 
       )
       VALUES (
         ${validPublishRevisionId},
-        ${'Chat With AFFiNE AI'},
+        ${'Chat With LocalMind AI'},
         ${'workspace'},
         ${workspace.id},
         ${owner.id},
@@ -6639,7 +6639,7 @@ test('registry revision publish events persist direct publish and reuse history 
         ${workspace.id},
         ${owner.id},
         ${'workspace'},
-        ${'Chat With AFFiNE AI'},
+        ${'Chat With LocalMind AI'},
         ${validPublishRevision},
         ${validPublishFingerprint},
         ${'active'},
@@ -6652,13 +6652,13 @@ test('registry revision publish events persist direct publish and reuse history 
           eventType: 'revision_published',
           publishSource: 'graphql_mutation',
           revisionId: validPublishRevisionId,
-          registryKey: 'Chat With AFFiNE AI',
+          registryKey: 'Chat With LocalMind AI',
           revision: validPublishRevision,
           revisionFingerprint: validPublishFingerprint,
           revisionStatus: 'active',
           workspaceId: workspace.id,
           actorId: owner.id,
-          promptName: 'Chat With AFFiNE AI',
+          promptName: 'Chat With LocalMind AI',
         })}::jsonb,
         ${new Date('2026-06-23T01:46:01.000Z')}
       )
@@ -6686,7 +6686,7 @@ test('registry revision publish events persist direct publish and reuse history 
     await models.copilotPromptRegistryRevision.publishWorkspaceRevision({
       workspaceId: cascadeWorkspace.id,
       actorId: owner.id,
-      promptName: 'Chat With AFFiNE AI',
+      promptName: 'Chat With LocalMind AI',
       registryFingerprint: 'registry-event-cascade-prompt-fingerprint',
       registryId: 42,
       registryUpdatedAt: new Date('2026-06-23T01:46:30.000Z').toISOString(),
@@ -6738,7 +6738,7 @@ test('registry revision publish events persist direct publish and reuse history 
     )
     VALUES (
       ${reuseOnlyRevisionId},
-      ${'Chat With AFFiNE AI'},
+      ${'Chat With LocalMind AI'},
       ${'workspace'},
       ${workspace.id},
       ${owner.id},
@@ -6791,7 +6791,7 @@ test('registry revision publish events persist direct publish and reuse history 
         ${workspace.id},
         ${owner.id},
         ${'workspace'},
-        ${'Chat With AFFiNE AI'},
+        ${'Chat With LocalMind AI'},
         ${reuseOnlyRevision},
         ${reuseOnlyFingerprint},
         ${'active'},
@@ -6804,13 +6804,13 @@ test('registry revision publish events persist direct publish and reuse history 
           eventType: 'revision_reused',
           publishSource: 'graphql_mutation',
           revisionId: reuseOnlyRevisionId,
-          registryKey: 'Chat With AFFiNE AI',
+          registryKey: 'Chat With LocalMind AI',
           revision: reuseOnlyRevision,
           revisionFingerprint: reuseOnlyFingerprint,
           revisionStatus: 'active',
           workspaceId: workspace.id,
           actorId: owner.id,
-          promptName: 'Chat With AFFiNE AI',
+          promptName: 'Chat With LocalMind AI',
         })}::jsonb,
         ${new Date('2026-06-23T01:47:01.000Z')}
       )
@@ -6880,7 +6880,7 @@ test('registry revision publish events persist direct publish and reuse history 
   t.like(promptEventRows[0].metadata, {
     actorId: owner.id,
     eventType: 'revision_published',
-    promptName: 'Chat With AFFiNE AI',
+    promptName: 'Chat With LocalMind AI',
     publishSource: 'graphql_mutation',
     registryFamily: 'prompt_registry',
     revisionId: promptRevision.id,
@@ -7055,7 +7055,7 @@ test('registry revision publish events persist direct publish and reuse history 
     )
     VALUES (
       ${unpublishedPromptRevisionId},
-      ${'Chat With AFFiNE AI'},
+      ${'Chat With LocalMind AI'},
       ${'workspace'},
       ${workspace.id},
       ${owner.id},
@@ -7305,7 +7305,7 @@ test('registry revision publish events persist direct publish and reuse history 
   const globalPromptRevisionId = 'prompt-global-publish-event-snapshot';
   const globalPromptRevision = 'global-publish-event-r1';
   const globalPromptFingerprint = 'globalpubsnap001';
-  const globalPromptName = 'Chat With AFFiNE AI';
+  const globalPromptName = 'Chat With LocalMind AI';
   await db.$executeRaw`
     INSERT INTO ai_prompt_registry_revisions (
       id,

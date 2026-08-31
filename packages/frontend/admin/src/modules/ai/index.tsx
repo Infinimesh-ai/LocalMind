@@ -99,7 +99,7 @@ import { toast } from 'sonner';
 
 import { Header } from '../header';
 
-const ADMIN_AI_DEFAULT_PROMPT_NAME = 'Chat With AFFiNE AI';
+const ADMIN_AI_DEFAULT_PROMPT_NAME = 'Chat With LocalMind AI';
 const ADMIN_AI_DEFAULT_PROMPT_DISPLAY_NAME = formatAIModelPromptDisplayName(
   ADMIN_AI_DEFAULT_PROMPT_NAME
 );

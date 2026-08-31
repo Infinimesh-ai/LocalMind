@@ -49,10 +49,18 @@ describe('redirect allowlist', () => {
     ).toBe(true);
 
     expect(
-      isAllowedRedirectTarget('https://affine.pro./', {
+      isAllowedRedirectTarget('https://github.com./', {
         currentHostname: 'self.example.com',
       })
     ).toBe(true);
+  });
+
+  test('blocks legacy AFFiNE cloud domains', () => {
+    expect(
+      isAllowedRedirectTarget('https://app.affine.pro/pricing', {
+        currentHostname: 'localmind.infinimesh.cloud',
+      })
+    ).toBe(false);
   });
 
   test('blocks punycode homograph', () => {

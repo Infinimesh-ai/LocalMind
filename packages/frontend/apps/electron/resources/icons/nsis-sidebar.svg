@@ -1,0 +1,17 @@
+<svg width="328" height="628" viewBox="0 0 328 628" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="dots" width="16" height="16" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="1" fill="#E8E9EC" />
+    </pattern>
+  </defs>
+  <rect width="328" height="628" fill="#FAFAFB" />
+  <rect width="328" height="628" fill="url(#dots)" />
+  <g transform="translate(100 112) scale(0.125)" stroke="#F43D32" stroke-width="64" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M710 211L548 118Q512 97 476 118L180 289Q144 310 144 352V692Q144 734 180 755L476 926Q512 947 548 926L844 755Q880 734 880 692V350Q880 308 844 287L787 254" />
+    <path d="M244 490V382Q244 340 280 319L476 206Q512 185 548 206L744 319Q780 340 780 382V550Q780 592 744 613L640 673" />
+    <path d="M574 703L548 718Q512 739 476 718L380 663Q344 642 344 600V452Q344 410 380 389L476 334Q512 313 548 334L644 389Q680 410 680 452V562Q680 604 644 625L610 645" />
+  </g>
+  <text x="164" y="286" fill="#1B1D21" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="34" font-weight="700" text-anchor="middle">LocalMind</text>
+  <text x="164" y="322" fill="#64676E" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14" text-anchor="middle">Local-first. AI-ready.</text>
+  <rect x="64" y="561" width="200" height="2" rx="1" fill="#F43D32" opacity="0.22" />
+</svg>

@@ -460,7 +460,7 @@ export class LicenseService {
   private remoteLicense(response: LicenseResponse) {
     this.throwRemoteLicenseError(response.error);
     if (!response.license) {
-      throw new InternalServerError('Invalid AFFiNE Pro license response.');
+      throw new InternalServerError('Invalid LocalMind license response.');
     }
     return response.license;
   }
@@ -472,7 +472,9 @@ export class LicenseService {
   private remotePortal(response: PortalResponse) {
     this.throwRemoteLicenseError(response.error);
     if (!response.url) {
-      throw new InternalServerError('Invalid AFFiNE Pro portal response.');
+      throw new InternalServerError(
+        'Invalid LocalMind license portal response.'
+      );
     }
     return { url: response.url };
   }
@@ -487,9 +489,7 @@ export class LicenseService {
       if (e instanceof UserFriendlyError) {
         throw e;
       }
-      throw new InternalServerError(
-        'Failed to contact with https://app.affine.pro'
-      );
+      throw new InternalServerError('Failed to contact the license service.');
     }
   }
 
@@ -555,13 +555,13 @@ export class LicenseService {
   private resolveWorkspaceTeamLicense(workspaceId: string | null, buf: Buffer) {
     if (!this.crypto.AFFiNEProPublicKey) {
       throw new InternalServerError(
-        'License public key is not loaded. Please contact with Affine support.'
+        'License public key is not loaded. Please contact LocalMind support.'
       );
     }
 
     if (!this.crypto.AFFiNEProLicenseAESKey) {
       throw new InternalServerError(
-        'License AES key is not loaded. Please contact with Affine support.'
+        'License AES key is not loaded. Please contact LocalMind support.'
       );
     }
 
@@ -588,7 +588,7 @@ export class LicenseService {
     if (!resolved.valid && resolved.status === 'expired') {
       throw new InvalidLicenseToActivate({
         reason:
-          'License file has expired. Please contact with Affine support to fetch a latest one.',
+          'License file has expired. Please contact LocalMind support to get a new one.',
       });
     }
 

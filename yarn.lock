@@ -152,6 +152,7 @@ __metadata:
     lodash-es: "npm:^4.17.23"
     prettier: "npm:^3.7.4"
     typescript: "npm:^5.9.3"
+    vitest: "npm:^4.1.10"
   languageName: unknown
   linkType: soft
 

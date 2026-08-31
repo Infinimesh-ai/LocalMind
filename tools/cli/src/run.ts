@@ -36,19 +36,19 @@ export class RunCommand extends PackageCommand {
   static override paths = [[], ['run'], ['r']];
 
   static override usage = PackageCommand.Usage({
-    description: 'AFFiNE Monorepo scripts',
+    description: 'LocalMind Monorepo scripts',
     details: `
-      \`affine web <script>\`    Run any script defined in package's package.json
+      \`localmind web <script>\` Run any script defined in package's package.json
 
-      \`affine init\`            Generate the required files if there are any package added or removed
+      \`localmind init\`         Generate required files after packages are added or removed
 
-      \`affine clean\`           Clean the output files of ts, cargo, bundler outputs, etc.
+      \`localmind clean\`        Clean TypeScript, Cargo, and bundler outputs
 
-      \`affine bundle\`          Bundle the packages
+      \`localmind bundle\`       Bundle the packages
 
-      \`affine build\`           A proxy for <-p package>'s \`build\` script
+      \`localmind build\`        Proxy to a package's \`build\` script
 
-      \`affine dev\`             A proxy for <-p package>'s \`dev\` script
+      \`localmind dev\`          Proxy to a package's \`dev\` script
     `,
     examples: [
       [`See detail of each command`, '$0 -h'],
@@ -148,9 +148,9 @@ export class RunCommand extends PackageCommand {
       }
     }
 
-    const isAFFiNECommand = args[0] === 'affine';
-    if (isAFFiNECommand) {
-      // remove 'affine' from 'affine xxx' command
+    const isMonorepoCommand = ['affine', 'localmind'].includes(args[0]);
+    if (isMonorepoCommand) {
+      // Remove the CLI name from a nested monorepo command.
       args.shift();
       args.push('-p', pkg.name);
 

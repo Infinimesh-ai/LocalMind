@@ -101,7 +101,7 @@ const FeedbackIcon = ({ type }: { type: Flag['feedbackType'] }) => {
 
 const feedbackLink: Record<NonNullable<Flag['feedbackType']>, string> = {
   discord: BUILD_CONFIG.discordUrl,
-  email: 'mailto:support@toeverything.info',
+  email: 'https://github.com/Infinimesh-ai/LocalMind/issues',
   github: 'https://github.com/Infinimesh-ai/LocalMind/issues',
 };
 

@@ -2098,7 +2098,7 @@ describe('AIModelService model registry helpers', () => {
         {
           id: 'ollama-main/office-chat-fast',
           name: 'Local Qwen 3 32B',
-          promptName: 'Chat With AFFiNE AI',
+          promptName: 'Chat With LocalMind AI',
           promptAction: null,
           promptSource: 'built_in',
           promptCategory: 'text',
@@ -2174,7 +2174,7 @@ describe('AIModelService model registry helpers', () => {
         {
           id: 'openai-default/gpt-5',
           name: 'OpenAI GPT-5',
-          promptName: 'Chat With AFFiNE AI',
+          promptName: 'Chat With LocalMind AI',
           promptAction: null,
           promptSource: 'built_in',
           promptCategory: 'text',
@@ -2224,7 +2224,7 @@ describe('AIModelService model registry helpers', () => {
         {
           id: 'openai-default/gpt-5',
           name: 'OpenAI GPT-5',
-          promptName: 'Chat With AFFiNE AI',
+          promptName: 'Chat With LocalMind AI',
           promptAction: null,
           promptSource: 'built_in',
           promptCategory: 'text',
@@ -2337,7 +2337,7 @@ describe('AIModelService model registry helpers', () => {
         version: 'Qwen 3 32B',
         defaultModelFallbackReason: 'prompt_default_unavailable',
         defaultModelSource: 'fallback_route',
-        promptName: 'Chat With AFFiNE AI',
+        promptName: 'Chat With LocalMind AI',
         promptAction: null,
         promptSource: 'built_in',
         promptCategory: 'text',
@@ -2567,7 +2567,7 @@ describe('AIModelService model registry helpers', () => {
         version: 'GPT-5',
         defaultModelFallbackReason: 'prompt_default_unavailable',
         defaultModelSource: 'fallback_route',
-        promptName: 'Chat With AFFiNE AI',
+        promptName: 'Chat With LocalMind AI',
         promptAction: null,
         promptSource: 'built_in',
         promptCategory: 'text',
@@ -3629,7 +3629,7 @@ describe('AIModelService model registry helpers', () => {
     expect(
       formatAIModelDiagnosticsLabel({
         id: 'ollama-main/office-chat-fast',
-        promptName: 'Chat With AFFiNE AI',
+        promptName: 'Chat With LocalMind AI',
         promptAction: null,
         promptSource: 'built_in',
         promptCategory: 'text',
@@ -3853,17 +3853,17 @@ describe('AIModelService model registry helpers', () => {
   });
 
   test('builds workspace-scoped model registry query variables', () => {
-    expect(buildGetPromptModelsVariables('Chat With AFFiNE AI')).toEqual({
-      promptName: 'Chat With AFFiNE AI',
+    expect(buildGetPromptModelsVariables('Chat With LocalMind AI')).toEqual({
+      promptName: 'Chat With LocalMind AI',
       workspaceId: undefined,
     });
     expect(
       buildGetPromptModelsVariables(
-        'Chat With AFFiNE AI',
+        'Chat With LocalMind AI',
         'workspace-local-only'
       )
     ).toEqual({
-      promptName: 'Chat With AFFiNE AI',
+      promptName: 'Chat With LocalMind AI',
       workspaceId: 'workspace-local-only',
     });
   });
@@ -3888,10 +3888,12 @@ describe('AIModelService model registry helpers', () => {
     expect(getAIModelIdKey('workspace-local-only')).toBe(
       'AIModelId:workspace-local-only'
     );
-    expect(getAIModelIdKey(undefined, 'Chat With AFFiNE AI')).toBe('AIModelId');
-    expect(getAIModelIdKey('workspace-local-only', 'Chat With AFFiNE AI')).toBe(
-      'AIModelId:workspace-local-only'
+    expect(getAIModelIdKey(undefined, 'Chat With LocalMind AI')).toBe(
+      'AIModelId'
     );
+    expect(
+      getAIModelIdKey('workspace-local-only', 'Chat With LocalMind AI')
+    ).toBe('AIModelId:workspace-local-only');
     expect(getAIModelIdKey(undefined, 'Generate image')).toBe(
       'AIModelId:prompt:Generate%20image'
     );
@@ -4042,7 +4044,7 @@ describe('AIModelService model registry helpers', () => {
     Object.defineProperty(service, 'loadedModelsScope', {
       configurable: true,
       value: {
-        promptName: 'Chat With AFFiNE AI',
+        promptName: 'Chat With LocalMind AI',
         workspaceId: 'workspace-local-only',
       },
     });
@@ -4128,7 +4130,7 @@ describe('AIModelService model registry helpers', () => {
     Object.defineProperty(service, 'loadedModelsScope', {
       configurable: true,
       value: {
-        promptName: 'Chat With AFFiNE AI',
+        promptName: 'Chat With LocalMind AI',
         workspaceId: 'workspace-local-only',
       },
     });
@@ -4209,7 +4211,7 @@ describe('AIModelService model registry helpers', () => {
     Object.defineProperty(service, 'loadedModelsScope', {
       configurable: true,
       value: {
-        promptName: 'Chat With AFFiNE AI',
+        promptName: 'Chat With LocalMind AI',
         workspaceId: 'workspace-local-only',
       },
     });
@@ -4246,7 +4248,7 @@ describe('AIModelService model registry helpers', () => {
   });
 
   test('resolves active model prompt scope from explicit prompt or session', () => {
-    expect(resolveAIModelPromptName()).toBe('Chat With AFFiNE AI');
+    expect(resolveAIModelPromptName()).toBe('Chat With LocalMind AI');
     expect(resolveAIModelPromptName(undefined, ' Generate image ')).toBe(
       'Generate image'
     );
@@ -4256,7 +4258,9 @@ describe('AIModelService model registry helpers', () => {
     expect(resolveAIModelPromptName('   ', 'mindmap.generate')).toBe(
       'mindmap.generate'
     );
-    expect(resolveAIModelPromptName('   ', '   ')).toBe('Chat With AFFiNE AI');
+    expect(resolveAIModelPromptName('   ', '   ')).toBe(
+      'Chat With LocalMind AI'
+    );
   });
 
   test('resolves prompt model seed from workspace default before global default', () => {
@@ -4276,7 +4280,7 @@ describe('AIModelService model registry helpers', () => {
     ).toBe('global-default-model');
     expect(
       resolveDefaultPromptAIModelSeedId(
-        'Chat With AFFiNE AI',
+        'Chat With LocalMind AI',
         'workspace-default-model',
         'global-default-model'
       )

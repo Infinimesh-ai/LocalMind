@@ -151,6 +151,7 @@ test('can validate redirect_uri allowlist', t => {
   t.true(t.context.url.isAllowedRedirectUri('https://github.com'));
   t.false(t.context.url.isAllowedRedirectUri('javascript:alert(1)'));
   t.false(t.context.url.isAllowedRedirectUri('https://evilgithub.com'));
+  t.false(t.context.url.isAllowedRedirectUri('https://app.affine.pro/pricing'));
 });
 
 test('can create safe link', t => {

@@ -395,6 +395,7 @@ function getAllApps(): TappableAppInfo[] {
     (value): value is TappableAppInfo =>
       value !== null &&
       !value.bundleIdentifier.startsWith('com.apple') &&
+      !value.bundleIdentifier.startsWith('ai.infinimesh.localmind') &&
       !value.bundleIdentifier.startsWith('pro.affine') &&
       value.processId !== process.pid
   );

@@ -59,6 +59,9 @@ export const ScrollableLayout = ({
   headerItems?: React.ReactNode;
   children: React.ReactNode;
 }) => {
+  const termsUrl = BUILD_CONFIG.termsUrl;
+  const privacyUrl = BUILD_CONFIG.privacyUrl;
+
   return (
     <div className={styles.layout} data-is-macos-electron={isMacosDesktop}>
       <header
@@ -70,27 +73,33 @@ export const ScrollableLayout = ({
       <ScrollableContainer className={styles.scrollableContainer}>
         <div className={styles.onboardingContainer}>{children}</div>
       </ScrollableContainer>
-      <footer className={styles.footer}>
-        <div className={styles.linkGroup}>
-          <a
-            className={styles.link}
-            href="https://affine.pro/terms"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Terms of Conditions
-          </a>
-          <Divider orientation="vertical" />
-          <a
-            className={styles.link}
-            href="https://affine.pro/privacy"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Privacy Policy
-          </a>
-        </div>
-      </footer>
+      {termsUrl || privacyUrl ? (
+        <footer className={styles.footer}>
+          <div className={styles.linkGroup}>
+            {termsUrl ? (
+              <a
+                className={styles.link}
+                href={termsUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Terms of Conditions
+              </a>
+            ) : null}
+            {termsUrl && privacyUrl ? <Divider orientation="vertical" /> : null}
+            {privacyUrl ? (
+              <a
+                className={styles.link}
+                href={privacyUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Privacy Policy
+              </a>
+            ) : null}
+          </div>
+        </footer>
+      ) : null}
     </div>
   );
 };

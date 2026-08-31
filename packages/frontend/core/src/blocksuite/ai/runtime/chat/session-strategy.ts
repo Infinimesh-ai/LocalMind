@@ -3,7 +3,7 @@ import type { CopilotChatHistoryFragment } from '@affine/graphql';
 import type { AIRequestService } from '../request';
 import { type AIChatScope, type AIChatTab, createDraftTab } from './state';
 
-const DEFAULT_CHAT_PROMPT_NAME = 'Chat With AFFiNE AI';
+const DEFAULT_CHAT_PROMPT_NAME = 'Chat With LocalMind AI';
 
 export type AIChatCreateSessionOptions = {
   pinned?: boolean;

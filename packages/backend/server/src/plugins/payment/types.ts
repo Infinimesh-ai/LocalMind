@@ -181,48 +181,48 @@ export const DEFAULT_PRICES = new Map([
   [
     `${SubscriptionPlan.Pro}_${SubscriptionRecurring.Monthly}`,
     {
-      product: 'AFFiNE Pro',
+      product: 'LocalMind Pro',
       price: 799,
     },
   ],
   [
     `${SubscriptionPlan.Pro}_${SubscriptionRecurring.Yearly}`,
     {
-      product: 'AFFiNE Pro',
+      product: 'LocalMind Pro',
       price: 8100,
     },
   ],
   [
     `${SubscriptionPlan.Pro}_${SubscriptionRecurring.Lifetime}`,
     {
-      product: 'AFFiNE Pro Believer',
+      product: 'LocalMind Pro Believer',
       price: 49900,
     },
   ],
   // ai
   [
     `${SubscriptionPlan.AI}_${SubscriptionRecurring.Yearly}`,
-    { product: 'AFFiNE AI', price: 10680 },
+    { product: 'LocalMind AI', price: 10680 },
   ],
 
   // team
   [
     `${SubscriptionPlan.Team}_${SubscriptionRecurring.Monthly}`,
-    { product: 'AFFiNE Team(per seat)', price: 1200 },
+    { product: 'LocalMind Team(per seat)', price: 1200 },
   ],
   [
     `${SubscriptionPlan.Team}_${SubscriptionRecurring.Yearly}`,
-    { product: 'AFFiNE Team(per seat)', price: 12000 },
+    { product: 'LocalMind Team(per seat)', price: 12000 },
   ],
 
   // selfhost team
   [
     `${SubscriptionPlan.SelfHostedTeam}_${SubscriptionRecurring.Monthly}`,
-    { product: 'AFFiNE Self-hosted Team(per seat)', price: 1200 },
+    { product: 'LocalMind Self-hosted Team(per seat)', price: 1200 },
   ],
   [
     `${SubscriptionPlan.SelfHostedTeam}_${SubscriptionRecurring.Yearly}`,
-    { product: 'AFFiNE Self-hosted Team(per seat)', price: 12000 },
+    { product: 'LocalMind Self-hosted Team(per seat)', price: 12000 },
   ],
 ]);
 

@@ -1,7 +1,7 @@
 {
-  "$schema": "https://github.com/toeverything/affine/releases/latest/download/config.schema.json",
+  "$schema": "./schema.json",
   "server": {
-    "name": "AFFiNE Self-hosted",
+    "name": "LocalMind Self-hosted",
     "externalUrl": "http://localhost:3010"
   },
   "copilot": {

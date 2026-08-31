@@ -4,14 +4,8 @@ import { isNil, pick, pickBy } from 'lodash-es';
 import type { ParsedQuery, ParseOptions } from 'query-string';
 import queryString from 'query-string';
 
-function maybeAffineOrigin(origin: string, baseUrl: string) {
-  return (
-    origin.startsWith('assets://') ||
-    origin.endsWith('affine.pro') || // stable/beta
-    origin.endsWith('apple.getaffineapp.com') || // stable/beta
-    origin.endsWith('affine.fail') || // canary
-    origin === baseUrl // localhost or self-hosted
-  );
+function maybeLocalMindOrigin(origin: string, baseUrl: string) {
+  return origin.startsWith('assets://') || origin === baseUrl;
 }
 
 export const resolveRouteLinkMeta = (
@@ -34,10 +28,7 @@ export const resolveRouteLinkMeta = (
 
     const url = new URL(href, baseUrl);
 
-    // check if origin is one of affine's origins
-    // check if origin is localhost or self-hosted
-
-    if (!maybeAffineOrigin(url.origin, baseUrl)) {
+    if (!maybeLocalMindOrigin(url.origin, baseUrl)) {
       return null;
     }
 

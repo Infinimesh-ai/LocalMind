@@ -5,6 +5,7 @@
   "private": true,
   "bin": {
     "affine": "./bin/cli.js",
+    "localmind": "./bin/cli.js",
     "r": "./bin/runner.js"
   },
   "exports": {
@@ -12,7 +13,8 @@
     "./bundle": "./src/bundle.ts"
   },
   "scripts": {
-    "affine": "r ./src/affine.ts"
+    "affine": "r ./src/affine.ts",
+    "localmind": "r ./src/affine.ts"
   },
   "dependencies": {
     "@affine-tools/utils": "workspace:*",

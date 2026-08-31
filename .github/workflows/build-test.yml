@@ -216,7 +216,7 @@ jobs:
                 "client_info": {
                   "mobilesdk_app_id": "1:1:android:0000000000000000",
                   "android_client_info": {
-                    "package_name": "app.affine.pro"
+                    "package_name": "ai.infinimesh.localmind"
                   }
                 },
                 "oauth_client": [],
@@ -296,7 +296,7 @@ jobs:
                 "client_info": {
                   "mobilesdk_app_id": "1:1:android:0000000000000000",
                   "android_client_info": {
-                    "package_name": "app.affine.pro"
+                    "package_name": "ai.infinimesh.localmind"
                   }
                 },
                 "oauth_client": [],

@@ -87,7 +87,9 @@ const Success = ({ licenseKey }: { licenseKey: string | null }) => {
           components={{
             1: (
               <a
-                href="mailto:support@toeverything.info"
+                href="https://github.com/Infinimesh-ai/LocalMind/issues"
+                target="_blank"
+                rel="noreferrer"
                 className={styles.mail}
               />
             ),

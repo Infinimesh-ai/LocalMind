@@ -44,15 +44,15 @@ describe('redirect proxy allowlist', () => {
       await import('../../src/main/security/redirect-proxy');
     expect(
       validateRedirectProxyUrl(
-        'assets://./redirect-proxy?redirect_uri=https%3A%2F%2Fgithub.com%2Ftoeverything%2FAFFiNE'
+        'assets://./redirect-proxy?redirect_uri=https%3A%2F%2Fgithub.com%2FInfinimesh-ai%2FLocalMind'
       )
     ).toEqual({
       allow: true,
-      redirectTarget: 'https://github.com/toeverything/AFFiNE',
+      redirectTarget: 'https://github.com/Infinimesh-ai/LocalMind',
     });
   });
 
-  it('allows current hostname (canary)', async () => {
+  it('allows the configured LocalMind cloud hostname', async () => {
     vi.resetModules();
     process.env.BUILD_TYPE = 'canary';
     process.env.NODE_ENV = 'production';
@@ -62,11 +62,30 @@ describe('redirect proxy allowlist', () => {
       await import('../../src/main/security/redirect-proxy');
     expect(
       validateRedirectProxyUrl(
-        'assets://./redirect-proxy?redirect_uri=https%3A%2F%2Faffine.fail%2Fpricing'
+        'assets://./redirect-proxy?redirect_uri=https%3A%2F%2Flocalmind.infinimesh.cloud%2Fpricing'
       )
     ).toEqual({
       allow: true,
-      redirectTarget: 'https://affine.fail/pricing',
+      redirectTarget: 'https://localmind.infinimesh.cloud/pricing',
+    });
+  });
+
+  it('blocks legacy AFFiNE cloud redirects', async () => {
+    vi.resetModules();
+    process.env.BUILD_TYPE = 'stable';
+    process.env.NODE_ENV = 'production';
+    delete process.env.DEV_SERVER_URL;
+
+    const { validateRedirectProxyUrl } =
+      await import('../../src/main/security/redirect-proxy');
+    expect(
+      validateRedirectProxyUrl(
+        'assets://./redirect-proxy?redirect_uri=https%3A%2F%2Fapp.affine.pro%2Fpricing'
+      )
+    ).toEqual({
+      allow: false,
+      reason: 'untrusted_redirect_target',
+      redirectTarget: 'https://app.affine.pro/pricing',
     });
   });
 

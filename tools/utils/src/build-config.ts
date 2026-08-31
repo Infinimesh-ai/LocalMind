@@ -7,6 +7,33 @@ export interface BuildFlags {
   mode: 'development' | 'production';
 }
 
+const DEFAULT_LOCALMIND_CLOUD_URL = 'https://localmind.infinimesh.cloud';
+
+function normalizeCloudUrl(value: string) {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(
+      `LOCALMIND_CLOUD_URL must be a valid URL, received [${value}]`
+    );
+  }
+
+  if (
+    (url.protocol !== 'http:' && url.protocol !== 'https:') ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error(
+      'LOCALMIND_CLOUD_URL must be an HTTP(S) base URL without credentials, query parameters, or a fragment'
+    );
+  }
+
+  return url.toString().replace(/\/+$/, '');
+}
+
 export function getBuildConfig(
   pkg: Package,
   buildFlags: BuildFlags
@@ -18,6 +45,13 @@ export function getBuildConfig(
   const licenseRequestUrl =
     `${githubUrl}/issues/new?template=FEATURE-REQUEST.yml` +
     '&title=%5BLicense%5D%20LocalMind%20license%20request';
+  const cloudUrl = normalizeCloudUrl(
+    process.env.LOCALMIND_CLOUD_URL?.trim() ||
+      (buildFlags.mode === 'development'
+        ? process.env.DEV_SERVER_URL?.trim()
+        : '') ||
+      DEFAULT_LOCALMIND_CLOUD_URL
+  );
 
   if (!distribution) {
     throw new Error(`Distribution for ${pkg.name} is not found`);
@@ -49,6 +83,7 @@ export function getBuildConfig(
         appVersion: pkg.version,
         // editorVersion: pkg.dependencies['@blocksuite/affine'],
         editorVersion: pkg.version,
+        cloudUrl,
         githubUrl,
         changelogUrl:
           process.env.LOCALMIND_CHANGELOG_URL?.trim() ||

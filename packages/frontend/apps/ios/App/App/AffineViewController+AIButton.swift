@@ -9,10 +9,18 @@ import Intelligents
 import UIKit
 
 extension AFFiNEViewController: IntelligentsButtonDelegate {
-  private static let aiConsentKey = "com.affine.intelligents.userConsented"
+  private static let aiConsentKey = "ai.infinimesh.localmind.intelligents.userConsented"
+  private static let legacyAIConsentKey = "com.affine.intelligents.userConsented"
 
   private var hasUserConsented: Bool {
-    UserDefaults.standard.bool(forKey: Self.aiConsentKey)
+    if UserDefaults.standard.bool(forKey: Self.aiConsentKey) {
+      return true
+    }
+    if UserDefaults.standard.bool(forKey: Self.legacyAIConsentKey) {
+      UserDefaults.standard.set(true, forKey: Self.aiConsentKey)
+      return true
+    }
+    return false
   }
 
   func onIntelligentsButtonTapped(_: IntelligentsButton) {

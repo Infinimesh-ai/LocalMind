@@ -164,8 +164,13 @@ nonisolated extension ViewModel {
           ])
         }
         print("[*] using user identifier:", userIdentifier)
+        guard let revenueCatToken = Paywall.revenueCatToken else {
+          throw NSError(domain: "LocalMindPaywall", code: -1, userInfo: [
+            NSLocalizedDescriptionKey: String(localized: "In-app purchases are not configured"),
+          ])
+        }
         let configuration = Configuration
-          .builder(withAPIKey: Paywall.revenueCatToken)
+          .builder(withAPIKey: revenueCatToken)
           .with(appUserID: userIdentifier)
           .with(showStoreMessagesAutomatically: false)
           .build()

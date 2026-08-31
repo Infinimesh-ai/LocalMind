@@ -72,12 +72,9 @@ export const EMBED_BLOCK_MODEL_LIST = [
   EmbedLoomModel,
 ] as const;
 
-export const DEFAULT_IMAGE_PROXY_ENDPOINT =
-  'https://affine-worker.toeverything.workers.dev/api/worker/image-proxy';
+export const DEFAULT_IMAGE_PROXY_ENDPOINT = '/api/worker/image-proxy';
 
-// https://github.com/toeverything/affine-workers/tree/main/packages/link-preview
-export const DEFAULT_LINK_PREVIEW_ENDPOINT =
-  'https://affine-worker.toeverything.workers.dev/api/worker/link-preview';
+export const DEFAULT_LINK_PREVIEW_ENDPOINT = '/api/worker/link-preview';
 
 // This constant is used to ignore tags when exporting using html2canvas
 export const CANVAS_EXPORT_IGNORE_TAGS = [

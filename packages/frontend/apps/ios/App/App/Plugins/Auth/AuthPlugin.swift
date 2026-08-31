@@ -67,7 +67,8 @@ private struct AuthRefreshOperation {
 }
 
 private actor AuthSessionBroker {
-  private let tokenService = "app.affine.pro.auth-token"
+  private let tokenService = "ai.infinimesh.localmind.auth-token"
+  private let legacyTokenService = "app.affine.pro.auth-token"
   private var refreshTasks: [String: AuthRefreshOperation] = [:]
   private var mutationEpochs: [String: UInt] = [:]
 
@@ -208,16 +209,28 @@ private actor AuthSessionBroker {
     return "\(normalizedScheme)://\(host.lowercased())\(port)"
   }
 
-  private func query(_ endpoint: String) -> [String: Any] {
+  private func query(_ endpoint: String, service: String) -> [String: Any] {
     [
       kSecClass as String: kSecClassGenericPassword,
-      kSecAttrService as String: tokenService,
+      kSecAttrService as String: service,
       kSecAttrAccount as String: canonicalEndpoint(endpoint),
     ]
   }
 
   private func read(_ endpoint: String) throws -> StoredAuthTokenPair? {
-    var query = query(endpoint)
+    if let pair = try read(endpoint, service: tokenService) {
+      return pair
+    }
+    guard let pair = try read(endpoint, service: legacyTokenService) else {
+      return nil
+    }
+    try write(endpoint, pair)
+    try delete(endpoint, service: legacyTokenService)
+    return pair
+  }
+
+  private func read(_ endpoint: String, service: String) throws -> StoredAuthTokenPair? {
+    var query = query(endpoint, service: service)
     query[kSecReturnData as String] = true
     query[kSecMatchLimit as String] = kSecMatchLimitOne
     var item: CFTypeRef?
@@ -235,7 +248,7 @@ private actor AuthSessionBroker {
       parseAuthISO8601Date(pair.refreshExpiresAt) != nil,
       parseAuthISO8601Date(pair.session.absoluteExpiresAt) != nil
     else {
-      try delete(endpoint)
+      try delete(endpoint, service: service)
       return nil
     }
     return pair
@@ -243,11 +256,12 @@ private actor AuthSessionBroker {
 
   private func write(_ endpoint: String, _ pair: StoredAuthTokenPair) throws {
     let data = try JSONEncoder().encode(pair)
-    var add = query(endpoint)
+    let itemQuery = query(endpoint, service: tokenService)
+    var add = itemQuery
     add[kSecValueData as String] = data
     add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
     let update = [kSecValueData as String: data]
-    let status = SecItemUpdate(query(endpoint) as CFDictionary, update as CFDictionary)
+    let status = SecItemUpdate(itemQuery as CFDictionary, update as CFDictionary)
     if status == errSecItemNotFound {
       guard SecItemAdd(add as CFDictionary, nil) == errSecSuccess else {
         throw AuthError.internalError
@@ -258,7 +272,12 @@ private actor AuthSessionBroker {
   }
 
   private func delete(_ endpoint: String) throws {
-    let status = SecItemDelete(query(endpoint) as CFDictionary)
+    try delete(endpoint, service: tokenService)
+    try delete(endpoint, service: legacyTokenService)
+  }
+
+  private func delete(_ endpoint: String, service: String) throws {
+    let status = SecItemDelete(query(endpoint, service: service) as CFDictionary)
     guard status == errSecSuccess || status == errSecItemNotFound else {
       throw AuthError.internalError
     }
@@ -489,8 +508,13 @@ public class AuthPlugin: CAPPlugin, CAPBridgedPlugin {
   }
 
   private func installationId() -> String {
-    let key = "app.affine.pro.auth-installation-id"
+    let key = "ai.infinimesh.localmind.auth-installation-id"
+    let legacyKey = "app.affine.pro.auth-installation-id"
     if let value = UserDefaults.standard.string(forKey: key) { return value }
+    if let value = UserDefaults.standard.string(forKey: legacyKey) {
+      UserDefaults.standard.set(value, forKey: key)
+      return value
+    }
     let value = UUID().uuidString
     UserDefaults.standard.set(value, forKey: key)
     return value

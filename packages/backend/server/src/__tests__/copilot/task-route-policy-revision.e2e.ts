@@ -34,7 +34,7 @@ const taskRoutePolicyQuery = {
     query taskRoutePolicyRevision($workspaceId: String) {
       currentUser {
         copilot(workspaceId: $workspaceId) {
-          models(promptName: "Chat With AFFiNE AI") {
+          models(promptName: "Chat With LocalMind AI") {
             embeddingRoute {
               configured
               effectiveSourceFingerprint

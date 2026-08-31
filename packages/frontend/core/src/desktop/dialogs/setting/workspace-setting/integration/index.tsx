@@ -68,13 +68,7 @@ export const IntegrationSetting = ({
     <>
       <SettingHeader
         title={t['com.affine.integration.integrations']()}
-        subtitle={
-          <>
-            {t['com.affine.integration.setting.description']()}
-            {/* <br /> */}
-            {/* <a>{t['Learn how to develop a integration for AFFiNE']()}</a> */}
-          </>
-        }
+        subtitle={<>{t['com.affine.integration.setting.description']()}</>}
       />
       <ul className={list}>
         {integrationList.map(item => {

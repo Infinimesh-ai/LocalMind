@@ -33,7 +33,12 @@ import { promptAttachmentMimeType, promptAttachmentToUrl } from '../utils';
 
 export const DEFAULT_DIMENSIONS = 256;
 const GEMINI_REMOTE_ATTACHMENT_MAX_BYTES = 64 * OneMB;
-const TRUSTED_ATTACHMENT_HOST_SUFFIXES = ['cdn.affine.pro'];
+const TRUSTED_ATTACHMENT_HOST_SUFFIXES = (
+  process.env.LOCALMIND_TRUSTED_ATTACHMENT_HOST_SUFFIXES ?? ''
+)
+  .split(',')
+  .map(host => host.trim().toLowerCase().replace(/^\./, ''))
+  .filter(Boolean);
 const GEMINI_RETRY_INITIAL_DELAY_MS = 2_000;
 
 function normalizeMimeType(mediaType?: string) {

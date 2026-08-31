@@ -57,11 +57,12 @@ jobs:
       BUILD_TYPE: ${{ inputs.build_type }}
       RELEASE_VERSION: ${{ inputs.app_version }}
       DEBUG: 'affine:*,napi:*'
-      APP_NAME: affine
+      APP_NAME: LocalMind
       MACOSX_DEPLOYMENT_TARGET: '12.0'
       SKIP_GENERATE_ASSETS: 1
       APPLE_ID: ${{ secrets.APPLE_ID }}
       APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_SIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
       SENTRY_PROJECT: 'affine'
@@ -160,7 +161,7 @@ jobs:
       - name: signing DMG
         if: ${{ inputs.platform == 'darwin' && inputs.apple_codesign }}
         run: |
-          codesign --force --sign "Developer ID Application: TOEVERYTHING PTE. LTD." packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/make/*.dmg
+          codesign --force --sign "$APPLE_SIGN_IDENTITY" packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/make/*.dmg
 
       - name: Save artifacts (mac)
         if: ${{ inputs.platform == 'darwin' }}

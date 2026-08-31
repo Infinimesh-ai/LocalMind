@@ -40,7 +40,7 @@ export const EditorLoading = ({
                   1: (
                     <a
                       style={{ color: 'var(--affine-primary-color)' }}
-                      href="https://affine.pro/redirect/discord"
+                      href={`${BUILD_CONFIG.githubUrl}/issues/new/choose`}
                       target="__blank"
                     />
                   ),

@@ -1,25 +1,12 @@
 import { cssVar } from '@toeverything/theme';
-import { createVar, globalStyle, style } from '@vanilla-extract/css';
-
-export const affineIconGradientStart = createVar();
-export const affineIconGradientStop = createVar();
+import { style } from '@vanilla-extract/css';
 
 const colorSchemes = {
   light: {
     dot: '#E0E0E0',
-    affine: {
-      start: '#fff',
-      stop: '#fff',
-    },
-    icon: 'rgba(0,0,0,0.1)',
   },
   dark: {
     dot: 'rgba(255,255,255,0.1)',
-    affine: {
-      start: '#8C8C8C',
-      stop: '#262626',
-    },
-    icon: 'transparent',
   },
 };
 
@@ -79,56 +66,21 @@ export const bg = style({
     zIndex: 1,
   },
 });
-globalStyle(`.${bg} > svg.affine-svg`, {
-  vars: {
-    [affineIconGradientStart]: colorSchemes.light.affine.start,
-    [affineIconGradientStop]: colorSchemes.light.affine.stop,
-  },
+
+export const brandMark = style({
   position: 'absolute',
   zIndex: 0,
-});
-globalStyle(`[data-theme='dark'] .${bg} > svg.affine-svg`, {
-  vars: {
-    [affineIconGradientStart]: colorSchemes.dark.affine.start,
-    [affineIconGradientStop]: colorSchemes.dark.affine.stop,
+  width: 240,
+  height: 240,
+  opacity: 0.1,
+  selectors: {
+    [`${card}[data-type='1'] &`]: {
+      right: -64,
+      top: -72,
+    },
+    [`${card}[data-type='2'] &`]: {
+      right: -72,
+      bottom: -88,
+    },
   },
-});
-globalStyle(` .${bg} > svg.icons-svg`, {
-  color: colorSchemes.light.icon,
-  position: 'absolute',
-  zIndex: 2,
-});
-globalStyle(`[data-theme='dark'] .${bg} > svg.icons-svg`, {
-  color: colorSchemes.dark.icon,
-});
-
-// --------- style1 ---------
-globalStyle(`.${card}[data-type="1"] .${bg} > svg.affine-svg`, {
-  right: -150,
-  top: -100,
-});
-
-globalStyle(`.${card}[data-type="1"] .${bg} > svg.icons-svg`, {
-  right: -20,
-  top: 130,
-  opacity: 0.5,
-});
-
-// --------- style2 ---------
-globalStyle(`.${card}[data-type="2"] .${bg} > svg.affine-svg`, {
-  position: 'absolute',
-  right: -140,
-  bottom: -130,
-  transform: 'scale(0.58)',
-});
-
-globalStyle(`.${card}[data-type="2"] .${bg} > svg.icons-svg`, {
-  position: 'absolute',
-  right: 148,
-  bottom: 16,
-  opacity: 0.5,
-});
-
-globalStyle(`.${card}[data-type="2"] .${bg} > svg.icons-svg .star`, {
-  display: 'none',
 });

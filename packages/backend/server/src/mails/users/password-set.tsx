@@ -7,18 +7,18 @@ export type SetPasswordProps = {
 export default function SetPassword(props: SetPasswordProps) {
   return (
     <Template>
-      <Title>Set your AFFiNE password</Title>
+      <Title>Set your LocalMind password</Title>
       <Content>
         <P>
           Click the button below to set your password. The magic link will
           expire in <Bold>30 minutes</Bold>.
         </P>
-        <Button href={props.url}>Sign in to AFFiNE</Button>
+        <Button href={props.url}>Sign in to LocalMind</Button>
       </Content>
     </Template>
   );
 }
 
 SetPassword.PreviewProps = {
-  url: 'https://app.affine.pro',
+  url: 'https://localmind.example',
 };

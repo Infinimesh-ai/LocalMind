@@ -2109,7 +2109,7 @@ test('should be able to update chat session prompt', async t => {
   // Update the session
   const updatedSessionId = await session.update({
     sessionId,
-    promptName: 'Chat With AFFiNE AI',
+    promptName: 'Chat With LocalMind AI',
     userId,
   });
   t.is(updatedSessionId, sessionId, 'should update session with same id');
@@ -2119,7 +2119,7 @@ test('should be able to update chat session prompt', async t => {
   t.truthy(updatedSession, 'should retrieve updated session');
   t.is(
     updatedSession?.config.promptName,
-    'Chat With AFFiNE AI',
+    'Chat With LocalMind AI',
     'should have updated prompt name'
   );
 });
@@ -4874,7 +4874,7 @@ test('resolver prompts should expose safe prompt catalog metadata', async t => {
   const resolver = module.get(CopilotResolver);
 
   const prompts = await resolver.prompts({ workspaceId: null });
-  const chat = prompts.find(prompt => prompt.name === 'Chat With AFFiNE AI');
+  const chat = prompts.find(prompt => prompt.name === 'Chat With LocalMind AI');
 
   t.true(prompts.length > 0);
   t.truthy(chat);

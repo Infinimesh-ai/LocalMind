@@ -5,11 +5,14 @@
 
 set -e  # Exit immediately if a command exits with a non-zero status
 
-# Define target values
-TARGET_IDENTITY="Apple Distribution: TOEVERYTHING PTE. LTD. (73YMMDVT2M)"
-TARGET_SIGN_STYLE="Manual"
-TARGET_TEAM="73YMMDVT2M"
-TARGET_PROVISIONING_PROFILE="AppStore app.affine.pro"
+# Signing values must be supplied by the LocalMind release environment.
+: "${LOCALMIND_APPLE_SIGN_IDENTITY:?LOCALMIND_APPLE_SIGN_IDENTITY is required}"
+: "${APPLE_TEAM_ID:?APPLE_TEAM_ID is required}"
+: "${LOCALMIND_PROVISIONING_PROFILE:?LOCALMIND_PROVISIONING_PROFILE is required}"
+TARGET_IDENTITY="$LOCALMIND_APPLE_SIGN_IDENTITY"
+TARGET_SIGN_STYLE="${LOCALMIND_CODE_SIGN_STYLE:-Manual}"
+TARGET_TEAM="$APPLE_TEAM_ID"
+TARGET_PROVISIONING_PROFILE="$LOCALMIND_PROVISIONING_PROFILE"
 
 # Get script directory and build absolute path to project file
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

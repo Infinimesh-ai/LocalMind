@@ -209,6 +209,19 @@ BIND_ADDRESS=127.0.0.1
 修改后重新执行配置检查和 `docker compose up -d`。不要把 PostgreSQL、Redis、ISCP
 Controller 或 Relay 的内部端口直接暴露到公网。
 
+### 7.1 原生客户端云端地址
+
+LocalMind 桌面端和移动端的正式构建默认连接
+`https://localmind.infinimesh.cloud`，不会回退到 AFFiNE 的云端。为私有部署构建原生
+客户端时，通过构建环境变量覆盖默认地址：
+
+```sh
+LOCALMIND_CLOUD_URL=https://localmind.example.com yarn build
+```
+
+该值必须是没有凭据、查询参数和 URL fragment 的 HTTP(S) 基础地址。Web 与自托管 Web
+构建仍使用当前页面的 origin，不受此变量影响。
+
 ## 8. 更新 `main`
 
 更新前先备份数据库：

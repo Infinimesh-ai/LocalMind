@@ -9,7 +9,7 @@ export default function ChangeEmailNotification(
 ) {
   return (
     <Template>
-      <Title>Verify your current email for AFFiNE</Title>
+      <Title>Your LocalMind email address was changed</Title>
       <Content>
         <P>
           As per your request, we have changed your email. Please make sure
@@ -21,5 +21,5 @@ export default function ChangeEmailNotification(
 }
 
 ChangeEmailNotification.PreviewProps = {
-  to: 'test@affine.pro',
+  to: 'test@localmind.example',
 };

@@ -214,7 +214,11 @@ const generalErrorText =
 
 const GeneralErrorRenderer = (props: ErrorProps = {}) => {
   const onClick = () => {
-    window.open('mailto:support@toeverything.info', '_blank');
+    window.open(
+      'https://github.com/Infinimesh-ai/LocalMind/issues',
+      '_blank',
+      'noopener,noreferrer'
+    );
   };
 
   return html`<ai-error-wrapper
@@ -222,7 +226,7 @@ const GeneralErrorRenderer = (props: ErrorProps = {}) => {
     .errorMessage=${props.errorMessage ?? ''}
     .showDetailPanel=${!!props.errorMessage}
     .actionText=${props.actionText ?? 'Contact us'}
-    .actionTooltip=${props.actionTooltip ?? 'support@toeverything.info'}
+    .actionTooltip=${props.actionTooltip ?? 'LocalMind support'}
     .onClick=${onClick}
   ></ai-error-wrapper>`;
 };

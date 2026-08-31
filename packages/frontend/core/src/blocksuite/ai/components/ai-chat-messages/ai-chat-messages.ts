@@ -18,7 +18,7 @@ import { classMap } from 'lit/directives/class-map.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { debounce, throttle } from 'lodash-es';
 
-import { AffineIcon } from '../../_common/icons';
+import { LocalMindIcon } from '../../_common/icons';
 import {
   AIAppEvents,
   type AIError,
@@ -342,11 +342,7 @@ export class AIChatMessages extends WithDisposable(ShadowlessElement) {
               class="messages-placeholder"
               data-testid="chat-panel-messages-placeholder"
             >
-              ${AffineIcon(
-                isHistoryLoading
-                  ? 'var(--affine-icon-secondary)'
-                  : 'var(--affine-primary-color)'
-              )}
+              ${LocalMindIcon}
               <div
                 class="messages-placeholder-title"
                 data-loading=${isHistoryLoading}

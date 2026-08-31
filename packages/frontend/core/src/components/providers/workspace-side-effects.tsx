@@ -31,6 +31,7 @@ import {
   getAFFiNEWorkspaceSchema,
   WorkspaceService,
 } from '@affine/core/modules/workspace';
+import { migrateLegacyShowcaseWorkspace } from '@affine/core/utils/showcase-migration';
 import { useI18n } from '@affine/i18n';
 import track from '@affine/track';
 import type { DocMode } from '@blocksuite/affine/model';
@@ -62,6 +63,18 @@ export const WorkspaceSideEffects = () => {
   });
   const currentWorkspace = workspaceService.workspace;
   const docsList = docsService.list;
+  const docsListReady = useLiveData(docsList.isReady$);
+
+  useEffect(() => {
+    if (!docsListReady) {
+      return;
+    }
+    migrateLegacyShowcaseWorkspace(currentWorkspace, docsService).catch(
+      error => {
+        console.error('Failed to migrate the legacy showcase workspace', error);
+      }
+    );
+  }, [currentWorkspace, docsListReady, docsService]);
 
   const workbench = useService(WorkbenchService).workbench;
   useEffect(() => {

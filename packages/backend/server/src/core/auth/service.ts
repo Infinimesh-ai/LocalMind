@@ -59,7 +59,7 @@ export class AuthService implements OnApplicationBootstrap {
   private getServerName() {
     return (
       this.config.server.name ??
-      (env.selfhosted ? 'AFFiNE Self-hosted' : 'AFFiNE Cloud')
+      (env.selfhosted ? 'LocalMind Self-hosted' : 'LocalMind Cloud')
     );
   }
 

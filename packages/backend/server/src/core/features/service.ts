@@ -2,7 +2,21 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { Models } from '../../models';
 
-const STAFF = ['@toeverything.info', '@affine.pro'];
+export function parseStaffEmailDomains(value: string) {
+  return value
+    .split(',')
+    .map(domain => domain.trim().toLowerCase().replace(/^@/, ''))
+    .filter(Boolean);
+}
+
+export function isStaffEmail(email: string, domains: readonly string[]) {
+  const normalizedEmail = email.trim().toLowerCase();
+  return domains.some(domain => normalizedEmail.endsWith(`@${domain}`));
+}
+
+const STAFF_EMAIL_DOMAINS = parseStaffEmailDomains(
+  process.env.LOCALMIND_STAFF_EMAIL_DOMAINS ?? ''
+);
 
 @Injectable()
 export class FeatureService {
@@ -12,12 +26,7 @@ export class FeatureService {
 
   // ======== Admin ========
   isStaff(email: string) {
-    for (const domain of STAFF) {
-      if (email.endsWith(domain)) {
-        return true;
-      }
-    }
-    return false;
+    return isStaffEmail(email, STAFF_EMAIL_DOMAINS);
   }
 
   isAdmin(userId: string) {

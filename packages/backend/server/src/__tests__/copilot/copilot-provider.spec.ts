@@ -324,7 +324,7 @@ test('should validate markdown list', t => {
 const actions = [
   {
     name: 'Should chat with histories',
-    promptName: ['Chat With AFFiNE AI'],
+    promptName: ['Chat With LocalMind AI'],
     messages: promptMessages(
       userPrompt(
         `
@@ -376,8 +376,8 @@ The term **“CRDT”** was first introduced by Marc Shapiro, Nuno Preguiça, Ca
   },
   {
     name: 'Should not have citation',
-    promptName: ['Chat With AFFiNE AI'],
-    messages: singleUserPromptMessages('what is AFFiNE AI?', {
+    promptName: ['Chat With LocalMind AI'],
+    messages: singleUserPromptMessages('what is LocalMind AI?', {
       params: {
         files: [
           {
@@ -407,7 +407,7 @@ The term **“CRDT”** was first introduced by Marc Shapiro, Nuno Preguiça, Ca
   },
   {
     name: 'Should have citation',
-    promptName: ['Chat With AFFiNE AI'],
+    promptName: ['Chat With LocalMind AI'],
     messages: singleUserPromptMessages('what is ssot', {
       params: {
         docs: [
@@ -428,8 +428,8 @@ The term **“CRDT”** was first introduced by Marc Shapiro, Nuno Preguiça, Ca
   },
   {
     name: 'stream objects',
-    promptName: ['Chat With AFFiNE AI'],
-    messages: singleUserPromptMessages('what is AFFiNE AI'),
+    promptName: ['Chat With LocalMind AI'],
+    messages: singleUserPromptMessages('what is LocalMind AI'),
     verifier: (t: ExecutionContext<Tester>, result: string) => {
       t.truthy(checkStreamObjects(result), 'should be valid stream objects');
     },
@@ -437,9 +437,9 @@ The term **“CRDT”** was first introduced by Marc Shapiro, Nuno Preguiça, Ca
   },
   {
     name: 'Gemini native text',
-    promptName: ['Chat With AFFiNE AI'],
+    promptName: ['Chat With LocalMind AI'],
     messages: singleUserPromptMessages(
-      'In one short sentence, explain what AFFiNE AI is and mention AFFiNE by name.'
+      'In one short sentence, explain what LocalMind AI is and mention LocalMind by name.'
     ),
     config: { model: 'gemini-3.6-flash' },
     verifier: (t: ExecutionContext<Tester>, result: string) => {
@@ -454,9 +454,9 @@ The term **“CRDT”** was first introduced by Marc Shapiro, Nuno Preguiça, Ca
   },
   {
     name: 'Gemini native stream objects',
-    promptName: ['Chat With AFFiNE AI'],
+    promptName: ['Chat With LocalMind AI'],
     messages: singleUserPromptMessages(
-      'Respond with one short sentence about AFFiNE AI and mention AFFiNE by name.'
+      'Respond with one short sentence about LocalMind AI and mention LocalMind by name.'
     ),
     config: { model: 'gemini-3.6-flash' },
     verifier: (t: ExecutionContext<Tester>, result: string) => {
@@ -512,7 +512,7 @@ The term **“CRDT”** was first introduced by Marc Shapiro, Nuno Preguiça, Ca
       'Make it longer',
       'Make it shorter',
       'Section Edit',
-      'Chat With AFFiNE AI',
+      'Chat With LocalMind AI',
     ],
     messages: singleUserPromptMessages(TestAssets.SSOT),
     verifier: (t: ExecutionContext<Tester>, result: string) => {

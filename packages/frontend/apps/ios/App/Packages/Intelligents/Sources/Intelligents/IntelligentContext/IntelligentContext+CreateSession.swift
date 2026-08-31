@@ -13,7 +13,7 @@ import Foundation
 public extension IntelligentContext {
   func createSession(
     workspaceId: String,
-    promptName: PromptName = .chatWithAffineAI,
+    promptName: PromptName = .chatWithLocalMindAI,
     docId: String? = nil,
     pinned: Bool = false,
     completion: @escaping (Result<ChatSessionObject, Error>) -> Void

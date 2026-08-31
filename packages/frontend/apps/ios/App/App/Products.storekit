@@ -60,7 +60,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "app.affine.pro.ai.Annual",
+          "productID" : "ai.infinimesh.localmind.ai.annual",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "AI Yearly Subscription",
           "subscriptionGroupID" : "21781265",
@@ -97,7 +97,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "app.affine.pro.Monthly",
+          "productID" : "ai.infinimesh.localmind.pro.monthly",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Pro Monthly Subscription",
           "subscriptionGroupID" : "21781263",
@@ -125,7 +125,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "app.affine.pro.Annual",
+          "productID" : "ai.infinimesh.localmind.pro.annual",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Pro Yearly Subscription",
           "subscriptionGroupID" : "21781263",

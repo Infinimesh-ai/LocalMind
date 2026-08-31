@@ -36,29 +36,12 @@ function createRawSource(compiler: CompilerLike, source: string) {
   return new RawSource(source);
 }
 
-export const getPublicPath = (BUILD_CONFIG: BUILD_CONFIG_TYPE) => {
-  const { BUILD_TYPE } = process.env;
+export const getPublicPath = (_BUILD_CONFIG: BUILD_CONFIG_TYPE) => {
   if (typeof process.env.PUBLIC_PATH === 'string') {
     return process.env.PUBLIC_PATH;
   }
 
-  if (
-    BUILD_CONFIG.debug ||
-    BUILD_CONFIG.distribution === 'desktop' ||
-    BUILD_CONFIG.distribution === 'ios' ||
-    BUILD_CONFIG.distribution === 'android'
-  ) {
-    return '/';
-  }
-
-  switch (BUILD_TYPE) {
-    case 'stable':
-      return 'https://prod.affineassets.com/';
-    case 'beta':
-      return 'https://beta.affineassets.com/';
-    default:
-      return 'https://dev.affineassets.com/';
-  }
+  return '/';
 };
 
 const DESCRIPTION = `LocalMind is a local-first workspace for documents, whiteboards, databases, and auditable AI workflows.`;

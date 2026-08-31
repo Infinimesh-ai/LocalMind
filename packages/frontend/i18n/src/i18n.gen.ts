@@ -2535,11 +2535,11 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.import.snapshot.tooltip"](): string;
     /**
-      * `.affine file`
+      * `LocalMind backup`
       */
     ["com.affine.import.dotaffinefile"](): string;
     /**
-      * `Import your LocalMind db file (.affine)`
+      * `Import your LocalMind backup file`
       */
     ["com.affine.import.dotaffinefile.tooltip"](): string;
     /**
@@ -6746,7 +6746,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.settings.workspace.license.self-host-team.upload-license-file.success.description"](): string;
     /**
-      * `If you encounter any issues, contact support@toeverything.info.`
+      * `If you encounter any issues, contact LocalMind support.`
       */
     ["com.affine.settings.workspace.license.self-host-team.upload-license-file.help"](): string;
     /**
@@ -11900,7 +11900,7 @@ export const TypedTrans: {
         strong: JSX.Element;
     }>>;
     /**
-      * `<strong>Where AI meets your meetings - affine your collaboration.</strong>
+      * `<strong>Where AI meets your meetings - refine your collaboration.</strong>
     <ul><li>Extract Action Items & Key Insights Instantly</li><li>Smart Auto-Capture Starts With Your Meeting</li><li>Seamless Integration Across All Meeting Platforms</li><li>One Unified Space for All Your Meeting's Context</li><li>Your AI Assistant with Every Meeting Context Preserved</li></ul>`
       */
     ["com.affine.settings.meetings.setting.welcome.hints"]: ComponentType<TypedTransProps<Readonly<{}>, {
@@ -11915,7 +11915,7 @@ export const TypedTrans: {
         ["1"]: JSX.Element;
     }>>;
     /**
-      * `Activate using the local key from <1>Toeverything.Inc</1>`
+      * `Activate using the local key from <1>Infinimesh</1>`
       */
     ["com.affine.settings.workspace.license.self-host-team.team.license"]: ComponentType<TypedTransProps<Readonly<{}>, {
         ["1"]: JSX.Element;
@@ -11927,7 +11927,7 @@ export const TypedTrans: {
         ["1"]: JSX.Element;
     }>>;
     /**
-      * `If you encounter any issues, contact support@toeverything.info. No license yet? <1>Click to purchase</1>.`
+      * `If you encounter any issues, contact LocalMind support. No license yet? <1>Click to purchase</1>.`
       */
     ["com.affine.settings.workspace.license.activate-modal.tips"]: ComponentType<TypedTransProps<Readonly<{}>, {
         ["1"]: JSX.Element;

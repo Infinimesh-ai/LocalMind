@@ -92,6 +92,10 @@ jobs:
       - name: 'Update Code Sign Identity'
         shell: bash
         run: ./packages/frontend/apps/ios/update_code_sign_identity.sh
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          LOCALMIND_APPLE_SIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
+          LOCALMIND_PROVISIONING_PROFILE: ${{ secrets.LOCALMIND_PROVISIONING_PROFILE }}
       - name: Download mobile artifact
         uses: actions/download-artifact@v4
         with:
@@ -220,7 +224,7 @@ jobs:
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJson: ${{ steps.auth.outputs.credentials_file_path }}
-          packageName: app.affine.pro
+          packageName: ai.infinimesh.localmind
           releaseName: ${{ inputs.app-version }}
           releaseFiles: packages/frontend/apps/android/App/app/build/outputs/bundle/${{ env.BUILD_TYPE }}Release/app-${{ env.BUILD_TYPE }}-release-signed.aab
           track: internal

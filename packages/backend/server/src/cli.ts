@@ -33,7 +33,7 @@ function buildProgram(logger: Logger) {
 
   program
     .name(getProgramName())
-    .description('AFFiNE server CLI')
+    .description('LocalMind server CLI')
     .showHelpAfterError()
     .showSuggestionAfterError();
 

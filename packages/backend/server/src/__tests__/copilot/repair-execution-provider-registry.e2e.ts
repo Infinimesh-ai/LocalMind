@@ -68,7 +68,7 @@ const providerRegistryQuery = {
     query repairExecutionProviderRegistryModels($workspaceId: String!) {
       currentUser {
         copilot(workspaceId: $workspaceId) {
-          models(promptName: "Chat With AFFiNE AI") {
+          models(promptName: "Chat With LocalMind AI") {
             optionalModels {
               id
               name

@@ -9,23 +9,23 @@ import Foundation
 
 enum PricingConfiguration {
   static let proMonthly = ProductConfiguration(
-    productIdentifier: "app.affine.pro.Monthly",
-    revenueCatIdentifier: "app.affine.pro.Monthly",
+    productIdentifier: "ai.infinimesh.localmind.pro.monthly",
+    revenueCatIdentifier: "ai.infinimesh.localmind.pro.monthly",
     description: "Monthly",
     isDefaultSelected: false
   )
 
   static let proAnnual = ProductConfiguration(
-    productIdentifier: "app.affine.pro.Annual",
-    revenueCatIdentifier: "app.affine.pro.Annual",
+    productIdentifier: "ai.infinimesh.localmind.pro.annual",
+    revenueCatIdentifier: "ai.infinimesh.localmind.pro.annual",
     description: "Annual",
     badge: "Save 15%",
     isDefaultSelected: true
   )
 
   static let aiAnnual = ProductConfiguration(
-    productIdentifier: "app.affine.pro.ai.Annual",
-    revenueCatIdentifier: "app.affine.pro.ai.Annual",
+    productIdentifier: "ai.infinimesh.localmind.ai.annual",
+    revenueCatIdentifier: "ai.infinimesh.localmind.ai.annual",
     description: "",
     isDefaultSelected: true
   )

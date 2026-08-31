@@ -12,17 +12,22 @@ import type { GraphQLService, SubscriptionService } from '../../cloud';
 import type { GlobalStateService } from '../../storage';
 
 const AI_MODEL_ID_KEY = 'AIModelId';
-const AI_MODEL_DEFAULT_PROMPT_NAME = 'Chat With AFFiNE AI';
+const AI_MODEL_DEFAULT_PROMPT_NAME = 'Chat With LocalMind AI';
+const AI_MODEL_LEGACY_DEFAULT_PROMPT_NAME = 'Chat With AFFiNE AI';
 const AI_MODEL_DEFAULT_PROMPT_DISPLAY_NAME = 'LocalMind AI';
 
 export function formatAIModelPromptDisplayName(promptName: string) {
-  return promptName === AI_MODEL_DEFAULT_PROMPT_NAME
+  return promptName === AI_MODEL_DEFAULT_PROMPT_NAME ||
+    promptName === AI_MODEL_LEGACY_DEFAULT_PROMPT_NAME
     ? AI_MODEL_DEFAULT_PROMPT_DISPLAY_NAME
     : promptName;
 }
 
 function normalizeAIModelPromptName(promptName?: string | null) {
   const nextPromptName = promptName?.trim();
+  if (nextPromptName === AI_MODEL_LEGACY_DEFAULT_PROMPT_NAME) {
+    return AI_MODEL_DEFAULT_PROMPT_NAME;
+  }
   return nextPromptName || AI_MODEL_DEFAULT_PROMPT_NAME;
 }
 

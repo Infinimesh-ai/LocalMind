@@ -20,8 +20,8 @@ extension SKUnit {
           isDefaultSelected: true,
           primaryTitle: "...", // Will be populated from App Store
           secondaryTitle: "",
-          productIdentifier: "app.affine.pro.ai.Annual",
-          revenueCatIdentifier: "app.affine.pro.ai.Annual"
+          productIdentifier: PricingConfiguration.aiAnnual.productIdentifier,
+          revenueCatIdentifier: PricingConfiguration.aiAnnual.revenueCatIdentifier
         ),
       ]
     ),

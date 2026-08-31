@@ -7,7 +7,7 @@ export type ChangePasswordProps = {
 export default function ChangePassword(props: ChangePasswordProps) {
   return (
     <Template>
-      <Title>Modify your AFFiNE password</Title>
+      <Title>Modify your LocalMind password</Title>
       <Content>
         <P>
           Click the button below to reset your password. The magic link will
@@ -20,5 +20,5 @@ export default function ChangePassword(props: ChangePasswordProps) {
 }
 
 ChangePassword.PreviewProps = {
-  url: 'https://app.affine.pro',
+  url: 'https://localmind.example',
 };

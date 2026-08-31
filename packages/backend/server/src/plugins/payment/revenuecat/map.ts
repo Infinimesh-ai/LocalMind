@@ -8,6 +8,19 @@ export interface ProductMapping {
 
 // default whitelist mapping per PRD
 export const DEFAULT_PRODUCT_MAP: Record<string, ProductMapping> = {
+  'ai.infinimesh.localmind.pro.monthly': {
+    plan: SubscriptionPlan.Pro,
+    recurring: SubscriptionRecurring.Monthly,
+  },
+  'ai.infinimesh.localmind.pro.annual': {
+    plan: SubscriptionPlan.Pro,
+    recurring: SubscriptionRecurring.Yearly,
+  },
+  'ai.infinimesh.localmind.ai.annual': {
+    plan: SubscriptionPlan.AI,
+    recurring: SubscriptionRecurring.Yearly,
+  },
+  // Legacy AFFiNE identifiers remain accepted for existing purchases.
   'app.affine.pro.Monthly': {
     plan: SubscriptionPlan.Pro,
     recurring: SubscriptionRecurring.Monthly,

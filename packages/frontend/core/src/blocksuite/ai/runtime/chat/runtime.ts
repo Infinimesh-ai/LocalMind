@@ -51,7 +51,7 @@ type EmbeddingStatus = {
   total: number;
 };
 
-const DEFAULT_CHAT_PROMPT_NAME = 'Chat With AFFiNE AI';
+const DEFAULT_CHAT_PROMPT_NAME = 'Chat With LocalMind AI';
 const CONTEXT_POLLING_MIN_INTERVAL = 10_000;
 const CONTEXT_POLLING_MAX_INTERVAL = 5 * 60_000;
 

@@ -55,7 +55,7 @@
 		5027D4762E7C5FB700ADD25A /* AffinePaywall */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = AffinePaywall; sourceTree = "<group>"; };
 		5027D47F2E7C611900ADD25A /* Tools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tools.swift; sourceTree = "<group>"; };
 		5039CC962D1D42C700874F32 /* AffineGraphQL */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = AffineGraphQL; sourceTree = "<group>"; };
-		504EC3041FED79650016851F /* AFFiNE.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AFFiNE.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		504EC3041FED79650016851F /* LocalMind.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LocalMind.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		507513692D1924C600AD60C0 /* RootViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootViewController.swift; sourceTree = "<group>"; };
 		50802D5E2D112F7D00694021 /* Intelligents */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = Intelligents; sourceTree = "<group>"; };
 		50A285D52D112A5E000D5A6D /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
@@ -154,7 +154,7 @@
 		504EC3051FED79650016851F /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				504EC3041FED79650016851F /* AFFiNE.app */,
+				504EC3041FED79650016851F /* LocalMind.app */,
 				AA0000030000000000000000 /* AFFiNETests.xctest */,
 			);
 			name = Products;
@@ -252,7 +252,7 @@
 			);
 			name = AFFiNE;
 			productName = App;
-			productReference = 504EC3041FED79650016851F /* AFFiNE.app */;
+			productReference = 504EC3041FED79650016851F /* LocalMind.app */;
 			productType = "com.apple.product-type.application";
 		};
 		AA0000090000000000000000 /* AFFiNETests */ = {
@@ -464,11 +464,11 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGN_IDENTITY = "Apple Distribution: TOEVERYTHING PTE. LTD. (73YMMDVT2M)";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 73YMMDVT2M;
+				DEVELOPMENT_TEAM = "$(APPLE_TEAM_ID)";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -530,12 +530,12 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGN_IDENTITY = "Apple Distribution: TOEVERYTHING PTE. LTD. (73YMMDVT2M)";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
-				DEVELOPMENT_TEAM = 73YMMDVT2M;
+				DEVELOPMENT_TEAM = "$(APPLE_TEAM_ID)";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -567,7 +567,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 17;
-				DEVELOPMENT_TEAM = 73YMMDVT2M;
+				DEVELOPMENT_TEAM = "$(APPLE_TEAM_ID)";
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.5;
@@ -581,8 +581,8 @@
 				);
 				MARKETING_VERSION = 2026.7.14;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
-				PRODUCT_BUNDLE_IDENTIFIER = app.affine.pro;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = ai.infinimesh.localmind;
+				PRODUCT_NAME = LocalMind;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -603,7 +603,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 17;
-				DEVELOPMENT_TEAM = 73YMMDVT2M;
+				DEVELOPMENT_TEAM = "$(APPLE_TEAM_ID)";
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.5;
@@ -617,8 +617,8 @@
 				);
 				MARKETING_VERSION = 2026.7.14;
 				ONLY_ACTIVE_ARCH = NO;
-				PRODUCT_BUNDLE_IDENTIFIER = app.affine.pro;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = ai.infinimesh.localmind;
+				PRODUCT_NAME = LocalMind;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -637,8 +637,8 @@
 				CODE_SIGNING_ALLOWED = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.5;
-				PRODUCT_BUNDLE_IDENTIFIER = app.affine.pro.tests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = ai.infinimesh.localmind.tests;
+				PRODUCT_NAME = LocalMind;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -654,8 +654,8 @@
 				CODE_SIGNING_ALLOWED = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.5;
-				PRODUCT_BUNDLE_IDENTIFIER = app.affine.pro.tests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = ai.infinimesh.localmind.tests;
+				PRODUCT_NAME = LocalMind;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;

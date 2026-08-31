@@ -41,6 +41,21 @@ type PromptDefaultPolicyResult = {
 
 type MaybePromise<T> = T | Promise<T>;
 
+const DEFAULT_CHAT_PROMPT_NAME = 'Chat With LocalMind AI';
+const LEGACY_CHAT_PROMPT_NAME = 'Chat With AFFiNE AI';
+
+function canonicalPromptName(name: string) {
+  return name === LEGACY_CHAT_PROMPT_NAME ? DEFAULT_CHAT_PROMPT_NAME : name;
+}
+
+function orderLegacyChatPromptFirst<T extends { name: string }>(items: T[]) {
+  return [...items].sort((left, right) => {
+    const leftPriority = left.name === LEGACY_CHAT_PROMPT_NAME ? 0 : 1;
+    const rightPriority = right.name === LEGACY_CHAT_PROMPT_NAME ? 0 : 1;
+    return leftPriority - rightPriority;
+  });
+}
+
 type PromptCatalogDraft = Omit<
   PromptCatalogItem,
   | 'fingerprint'
@@ -61,14 +76,21 @@ export class PromptService {
   }
 
   async get(name: string): Promise<ResolvedPrompt | null> {
-    const compatPrompt = await this.lookupCompatPrompt(name);
+    const canonicalName = canonicalPromptName(name);
+    const compatPrompt =
+      (await this.lookupCompatPrompt(canonicalName)) ??
+      (canonicalName === DEFAULT_CHAT_PROMPT_NAME
+        ? await this.lookupCompatPrompt(LEGACY_CHAT_PROMPT_NAME)
+        : null);
     if (compatPrompt) {
       return this.applyConfiguredOverride(
-        this.describeCompatPrompt(this.clonePrompt(compatPrompt))
+        this.describeCompatPrompt(
+          this.canonicalizeCompatPrompt(this.clonePrompt(compatPrompt))
+        )
       );
     }
 
-    const builtInPromptSpec = this.lookupBuiltInPromptSpec(name);
+    const builtInPromptSpec = this.lookupBuiltInPromptSpec(canonicalName);
     if (!builtInPromptSpec) return null;
 
     return this.applyConfiguredOverride(
@@ -80,10 +102,19 @@ export class PromptService {
     const builtInPrompts = this.listBuiltInPromptSpecs().map(spec =>
       this.describeBuiltInPromptSpec(spec)
     );
-    const compatPrompts = (await this.listCompatPrompts()).map(prompt =>
-      this.describeCompatPrompt(this.clonePrompt(prompt))
+    const compatPrompts = orderLegacyChatPromptFirst(
+      await this.listCompatPrompts()
+    ).map(prompt =>
+      this.describeCompatPrompt(
+        this.canonicalizeCompatPrompt(this.clonePrompt(prompt))
+      )
     );
-    const registryDiagnostics = await this.listRegistryDiagnostics();
+    const registryDiagnostics = orderLegacyChatPromptFirst(
+      await this.listRegistryDiagnostics()
+    ).map(diagnostic => ({
+      ...diagnostic,
+      name: canonicalPromptName(diagnostic.name),
+    }));
     const promptByName = new Map<string, PromptCatalogItem>();
 
     for (const prompt of [...builtInPrompts, ...compatPrompts]) {
@@ -123,7 +154,12 @@ export class PromptService {
     const revisions =
       await registryRevisionModel.listLatestActiveWithPublishEventsByPromptNames(
         {
-          names: catalog.map(prompt => prompt.name),
+          names: Array.from(
+            new Set([
+              ...catalog.map(prompt => prompt.name),
+              LEGACY_CHAT_PROMPT_NAME,
+            ])
+          ),
           workspaceId,
         }
       );
@@ -131,7 +167,10 @@ export class PromptService {
     return catalog.map(prompt =>
       this.applyPromptRegistryRevision(
         this.applyPromptRegistryFallbackSourceChain(prompt),
-        revisions.get(prompt.name)
+        revisions.get(prompt.name) ??
+          (prompt.name === DEFAULT_CHAT_PROMPT_NAME
+            ? revisions.get(LEGACY_CHAT_PROMPT_NAME)
+            : undefined)
       )
     );
   }
@@ -143,10 +182,7 @@ export class PromptService {
   ): PromptMessage[] {
     const rendered =
       prompt.source === 'built_in'
-        ? renderBuiltInPromptNative({
-            name: prompt.name,
-            renderParams: params,
-          })
+        ? this.renderBuiltInPrompt(prompt.name, params)
         : renderPromptNative({
             messages: this.requireTemplateMessages(prompt),
             templateParams: prompt.params,
@@ -166,12 +202,12 @@ export class PromptService {
   ): PromptMessage[] {
     const rendered =
       prompt.source === 'built_in'
-        ? renderBuiltInPromptSessionNative({
-            name: prompt.name,
+        ? this.renderBuiltInPromptSession(
+            prompt.name,
             turns,
-            renderParams: params,
-            maxTokenSize,
-          })
+            params,
+            maxTokenSize
+          )
         : renderPromptSessionNative({
             prompt: {
               action: prompt.action,
@@ -204,14 +240,60 @@ export class PromptService {
   }
 
   protected lookupBuiltInPromptSpec(name: string): PromptSpec | null {
-    const spec = getBuiltInPromptSpecNative(name);
-    return spec ? this.clonePromptSpec(spec) : null;
+    const canonicalName = canonicalPromptName(name);
+    const spec =
+      getBuiltInPromptSpecNative(canonicalName) ??
+      (canonicalName === DEFAULT_CHAT_PROMPT_NAME
+        ? getBuiltInPromptSpecNative(LEGACY_CHAT_PROMPT_NAME)
+        : null);
+    return spec ? this.clonePromptSpec({ ...spec, name: canonicalName }) : null;
   }
 
   protected listBuiltInPromptSpecs(): PromptSpec[] {
-    return listBuiltInPromptSpecsNative().map(spec =>
-      this.clonePromptSpec(spec)
-    );
+    const promptByName = new Map<string, PromptSpec>();
+    for (const spec of orderLegacyChatPromptFirst(
+      listBuiltInPromptSpecsNative()
+    )) {
+      const name = canonicalPromptName(spec.name);
+      promptByName.set(name, this.clonePromptSpec({ ...spec, name }));
+    }
+    return Array.from(promptByName.values());
+  }
+
+  private renderBuiltInPrompt(name: string, params: PromptParams) {
+    try {
+      return renderBuiltInPromptNative({ name, renderParams: params });
+    } catch (error) {
+      if (name !== DEFAULT_CHAT_PROMPT_NAME) throw error;
+      return renderBuiltInPromptNative({
+        name: LEGACY_CHAT_PROMPT_NAME,
+        renderParams: params,
+      });
+    }
+  }
+
+  private renderBuiltInPromptSession(
+    name: string,
+    turns: PromptMessage[],
+    params: PromptParams,
+    maxTokenSize: number
+  ) {
+    try {
+      return renderBuiltInPromptSessionNative({
+        name,
+        turns,
+        renderParams: params,
+        maxTokenSize,
+      });
+    } catch (error) {
+      if (name !== DEFAULT_CHAT_PROMPT_NAME) throw error;
+      return renderBuiltInPromptSessionNative({
+        name: LEGACY_CHAT_PROMPT_NAME,
+        turns,
+        renderParams: params,
+        maxTokenSize,
+      });
+    }
   }
 
   protected cloneMessages(messages: PromptMessage[]) {
@@ -234,6 +316,12 @@ export class PromptService {
       config: prompt.config ? structuredClone(prompt.config) : undefined,
       messages: this.cloneMessages(prompt.messages),
     };
+  }
+
+  private canonicalizeCompatPrompt(prompt: Prompt): Prompt {
+    return prompt.name === LEGACY_CHAT_PROMPT_NAME
+      ? { ...prompt, name: DEFAULT_CHAT_PROMPT_NAME }
+      : prompt;
   }
 
   protected clonePromptSpec(spec: PromptSpec): PromptSpec {

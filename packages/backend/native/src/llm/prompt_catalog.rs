@@ -10,6 +10,8 @@ use serde_json::{Map, Value};
 
 static PROMPT_PARTIALS_SOURCE: &str = include_str!("assets/partials/common.json");
 static PROMPT_SPECS_SOURCE: &str = include_str!("assets/prompts/built-in.json");
+const DEFAULT_CHAT_PROMPT_NAME: &str = "Chat With LocalMind AI";
+const LEGACY_CHAT_PROMPT_NAME: &str = "Chat With AFFiNE AI";
 
 static BUILTIN_PROMPT_CATALOG: LazyLock<PromptCatalog> = LazyLock::new(|| {
   PromptCatalog::load().unwrap_or_else(|error| panic!("Failed to load built-in prompt catalog: {error}"))
@@ -101,15 +103,23 @@ pub(crate) fn built_in_prompt_specs() -> &'static [BuiltInPromptSpec] {
 pub(crate) fn built_in_prompt_spec(name: &str) -> Option<&'static BuiltInPromptSpec> {
   BUILTIN_PROMPT_CATALOG
     .specs_by_name
-    .get(name)
+    .get(canonical_prompt_name(name))
     .and_then(|index| BUILTIN_PROMPT_CATALOG.specs.get(*index))
 }
 
 pub(crate) fn built_in_prompt(name: &str) -> Option<&'static BuiltInPrompt> {
   BUILTIN_PROMPT_CATALOG
     .prompts_by_name
-    .get(name)
+    .get(canonical_prompt_name(name))
     .and_then(|index| BUILTIN_PROMPT_CATALOG.prompts.get(*index))
+}
+
+fn canonical_prompt_name(name: &str) -> &str {
+  if name == LEGACY_CHAT_PROMPT_NAME {
+    DEFAULT_CHAT_PROMPT_NAME
+  } else {
+    name
+  }
 }
 
 impl PromptCatalog {
@@ -354,8 +364,20 @@ mod tests {
       Some(11)
     );
 
-    let chat = built_in_prompt("Chat With AFFiNE AI").expect("chat prompt");
+    let chat = built_in_prompt(DEFAULT_CHAT_PROMPT_NAME).expect("chat prompt");
     assert_eq!(chat.model, "gpt-5.6-luna");
+    assert!(
+      chat
+        .messages
+        .iter()
+        .any(|message| message.content.contains("LocalMind AI"))
+    );
+    assert!(
+      chat
+        .messages
+        .iter()
+        .any(|message| message.content.contains("Infinimesh"))
+    );
     assert_eq!(
       chat
         .optional_models
@@ -368,6 +390,10 @@ mod tests {
         "claude-sonnet-4-6"
       ])
     );
+    assert!(std::ptr::eq(
+      chat,
+      built_in_prompt(LEGACY_CHAT_PROMPT_NAME).expect("legacy chat prompt alias")
+    ));
     assert_eq!(
       chat.config.as_ref().and_then(|config| config.get("proModels")),
       Some(&serde_json::json!([

@@ -367,7 +367,7 @@
   "copilot": {
     "enabled": {
       "type": "Boolean",
-      "desc": "Enable AI features. Workspace owners configure provider keys in Workspace Settings → Integrations → AI BYOK."
+      "desc": "Whether to enable LocalMind AI. <br> Documentation: <a href=\"https://github.com/Infinimesh-ai/LocalMind/blob/main/docs/localmind-deployment-ai.zh-CN.md\" target=\"_blank\">LocalMind AI deployment guide</a>"
     },
     "byok.enabled": {
       "type": "Boolean",

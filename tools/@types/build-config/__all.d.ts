@@ -25,6 +25,7 @@ declare interface BUILD_CONFIG_TYPE {
   editorVersion: string;
   appBuildType: 'stable' | 'beta' | 'internal' | 'canary';
 
+  cloudUrl: string;
   githubUrl: string;
   changelogUrl: string;
   pricingUrl: string;

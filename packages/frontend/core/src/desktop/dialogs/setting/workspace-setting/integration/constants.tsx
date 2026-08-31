@@ -1,4 +1,3 @@
-import { LocalMindLogo } from '@affine/component/localmind-logo';
 import { IntegrationTypeIcon } from '@affine/core/modules/integration';
 import type { I18nString } from '@affine/i18n';
 import { AiIcon, CollaborationIcon, TodayIcon } from '@blocksuite/icons/rc';
@@ -62,13 +61,6 @@ const INTEGRATION_LIST = [
     setting: <ExternalMcpSettingPanel />,
     cloud: true,
     admin: true,
-  },
-  {
-    id: 'web-clipper' as const,
-    name: 'com.affine.integration.web-clipper.name',
-    desc: 'com.affine.integration.web-clipper.desc',
-    icon: <LocalMindLogo size={20} />,
-    link: 'https://chromewebstore.google.com/detail/affine-web-clipper/mpbbkmbdpleomiogkbkkpfoljjpahmoi',
   },
   {
     id: 'byok' as const,

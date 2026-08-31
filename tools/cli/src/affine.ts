@@ -11,9 +11,9 @@ import { InitCommand } from './init';
 import { RunCommand } from './run';
 
 const cli = new Cli<CliContext>({
-  binaryName: 'affine',
+  binaryName: 'localmind',
   binaryVersion: '0.0.0',
-  binaryLabel: 'AFFiNE Monorepo Tools',
+  binaryLabel: 'LocalMind Monorepo Tools',
   enableColors: true,
   enableCapture: true,
 });

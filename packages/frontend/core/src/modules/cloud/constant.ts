@@ -34,8 +34,8 @@ export const BUILD_IN_SERVERS: (ServerMetadata & { config: ServerConfig })[] =
       ? [
           {
             id: 'affine-cloud',
-            baseUrl: BUILD_CONFIG.isElectron
-              ? 'http://localhost:8080'
+            baseUrl: BUILD_CONFIG.isNative
+              ? BUILD_CONFIG.cloudUrl
               : location.origin,
             config: {
               serverName: 'LocalMind Cloud',
@@ -66,9 +66,7 @@ export const BUILD_IN_SERVERS: (ServerMetadata & { config: ServerConfig })[] =
             {
               id: 'affine-cloud',
               baseUrl: BUILD_CONFIG.isNative
-                ? BUILD_CONFIG.isIOS
-                  ? 'https://apple.getaffineapp.com'
-                  : 'https://app.affine.pro'
+                ? BUILD_CONFIG.cloudUrl
                 : location.origin,
               config: {
                 serverName: 'LocalMind Cloud',
@@ -99,9 +97,7 @@ export const BUILD_IN_SERVERS: (ServerMetadata & { config: ServerConfig })[] =
               {
                 id: 'affine-cloud',
                 baseUrl: BUILD_CONFIG.isNative
-                  ? BUILD_CONFIG.isIOS
-                    ? 'https://apple.getaffineapp.com'
-                    : 'https://insider.affine.pro'
+                  ? BUILD_CONFIG.cloudUrl
                   : location.origin,
                 config: {
                   serverName: 'LocalMind Cloud',
@@ -131,7 +127,9 @@ export const BUILD_IN_SERVERS: (ServerMetadata & { config: ServerConfig })[] =
             ? [
                 {
                   id: 'affine-cloud',
-                  baseUrl: 'https://insider.affine.pro',
+                  baseUrl: BUILD_CONFIG.isNative
+                    ? BUILD_CONFIG.cloudUrl
+                    : location.origin,
                   config: {
                     serverName: 'LocalMind Cloud',
                     features: [
@@ -161,7 +159,7 @@ export const BUILD_IN_SERVERS: (ServerMetadata & { config: ServerConfig })[] =
                   {
                     id: 'affine-cloud',
                     baseUrl: BUILD_CONFIG.isNative
-                      ? 'https://affine.fail'
+                      ? BUILD_CONFIG.cloudUrl
                       : location.origin,
                     config: {
                       serverName: 'LocalMind Cloud',
@@ -197,11 +195,11 @@ export type TelemetryChannel =
   | 'local';
 
 const OFFICIAL_TELEMETRY_ENDPOINTS: Record<TelemetryChannel, string> = {
-  stable: 'https://app.affine.pro',
-  beta: 'https://insider.affine.pro',
-  internal: 'https://insider.affine.pro',
-  canary: 'https://affine.fail',
-  local: 'http://localhost:8080',
+  stable: BUILD_CONFIG.cloudUrl,
+  beta: BUILD_CONFIG.cloudUrl,
+  internal: BUILD_CONFIG.cloudUrl,
+  canary: BUILD_CONFIG.cloudUrl,
+  local: BUILD_CONFIG.cloudUrl,
 };
 
 export function getOfficialTelemetryEndpoint(

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.27.0",
   "main": "./dist/main.js",
-  "author": "toeverything",
+  "author": "Infinimesh",
   "repository": {
     "url": "https://github.com/Infinimesh-ai/LocalMind",
     "type": "git"

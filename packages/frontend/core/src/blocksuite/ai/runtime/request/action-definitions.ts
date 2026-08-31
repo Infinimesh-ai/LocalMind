@@ -59,7 +59,7 @@ const textAction = (
 export const actionDefinitions = {
   chat: {
     id: 'chat',
-    promptName: 'Chat With AFFiNE AI',
+    promptName: 'Chat With LocalMind AI',
     responseType: 'text',
     timeout: 5 * 60 * 1000,
     endpoint: Endpoint.StreamObject,

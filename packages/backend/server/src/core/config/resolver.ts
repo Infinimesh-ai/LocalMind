@@ -56,6 +56,33 @@ const RELEASE_CHANNEL_MAP = new Map<Namespace, string>([
   [Namespace.Production, 'stable'],
 ]);
 
+const LOCALMIND_RELEASES_URL =
+  'https://api.github.com/repos/Infinimesh-ai/LocalMind/releases?per_page=100';
+
+interface LocalMindRelease {
+  tag_name: string;
+  html_url: string;
+  body: string | null;
+  published_at: string;
+  draft: boolean;
+  prerelease: boolean;
+}
+
+function matchesReleaseChannel(release: LocalMindRelease, channel: string) {
+  if (release.draft) {
+    return false;
+  }
+
+  if (channel === 'stable') {
+    return !release.prerelease;
+  }
+
+  return (
+    release.prerelease &&
+    new RegExp(`-${channel}(?:\\.|-|$)`, 'i').test(release.tag_name)
+  );
+}
+
 @Resolver(() => ServerConfigType)
 export class ServerConfigResolver {
   private readonly logger = new Logger(ServerConfigResolver.name);
@@ -75,12 +102,12 @@ export class ServerConfigResolver {
       name:
         this.config.server.name ??
         (env.selfhosted
-          ? 'AFFiNE Self-hosted'
+          ? 'LocalMind Self-hosted'
           : env.namespaces.canary
-            ? 'AFFiNE Canary Cloud'
+            ? 'LocalMind Canary Cloud'
             : env.namespaces.beta
-              ? 'AFFiNE Beta Cloud'
-              : 'AFFiNE Cloud'),
+              ? 'LocalMind Beta Cloud'
+              : 'LocalMind Cloud'),
       version: env.version,
       baseUrl: this.url.requestBaseUrl,
       type: env.DEPLOYMENT_TYPE,
@@ -117,44 +144,41 @@ export class ServerConfigResolver {
     }
 
     const channel = RELEASE_CHANNEL_MAP.get(env.NAMESPACE) ?? 'stable';
-    const url = `https://affine.pro/api/worker/releases?channel=${channel}`;
 
     try {
-      const response = await fetch(url, {
+      const response = await fetch(LOCALMIND_RELEASES_URL, {
         method: 'GET',
         headers: {
           Accept: 'application/json',
           'Cache-Control': 'no-cache',
+          'User-Agent': 'LocalMind Server',
         },
       });
 
       if (!response.ok) {
         this.logger.error(
-          'failed to fetch affine releases',
+          'failed to fetch LocalMind releases',
           await response.text()
         );
         return null;
       }
-      const releases = (await response.json()) as Array<{
-        name: string;
-        url: string;
-        body: string | null;
-        published_at: string;
-      }>;
+      const releases = (await response.json()) as LocalMindRelease[];
 
-      const latest = releases.at(0);
-      if (!latest || !hasNewerVersion(env.version, latest.name)) {
+      const latest = releases.find(release =>
+        matchesReleaseChannel(release, channel)
+      );
+      if (!latest || !hasNewerVersion(env.version, latest.tag_name)) {
         return null;
       }
 
       return {
-        version: latest.name,
-        url: latest.url,
+        version: latest.tag_name,
+        url: latest.html_url,
         changelog: latest.body ?? '',
         publishedAt: new Date(latest.published_at),
       };
     } catch (e) {
-      this.logger.error('failed to fetch affine releases', e);
+      this.logger.error('failed to fetch LocalMind releases', e);
       return null;
     }
   }

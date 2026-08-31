@@ -41,6 +41,10 @@
                 <data
                     android:host="authentication"
                     android:pathPattern=".*"
+                    android:scheme="localmind" />
+                <data
+                    android:host="authentication"
+                    android:pathPattern=".*"
                     android:scheme="affine" />
             </intent-filter>
         </activity>

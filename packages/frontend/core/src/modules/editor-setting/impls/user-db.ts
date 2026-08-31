@@ -21,7 +21,7 @@ export class CurrentUserDBEditorSettingProvider
 
     const affineCloudServer = this.serversService.server$('affine-cloud').value; // TODO: support multiple servers
     if (!affineCloudServer) {
-      throw new Error('affine-cloud server not found');
+      throw new Error('LocalMind Cloud server not found');
     }
     const userDBService = affineCloudServer.scope.get(UserDBService);
     this.currentUserDB$ = userDBService.currentUserDB.db$;

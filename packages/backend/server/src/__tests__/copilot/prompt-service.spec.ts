@@ -841,7 +841,7 @@ test('PromptService should apply config-driven metadata overrides to built-in pr
           prompts: {
             overrides: [
               {
-                name: 'Chat With AFFiNE AI',
+                name: 'Chat With LocalMind AI',
                 model: 'openai-default/gpt-5-mini',
                 optionalModels: [
                   'openai-default/gpt-5-mini',
@@ -862,7 +862,7 @@ test('PromptService should apply config-driven metadata overrides to built-in pr
 
   try {
     const prompts = module.get(PromptService);
-    const prompt = await prompts.get('Chat With AFFiNE AI');
+    const prompt = await prompts.get('Chat With LocalMind AI');
 
     t.truthy(prompt);
     t.is(prompt?.source, 'built_in');
@@ -891,7 +891,8 @@ test('PromptService should apply config-driven metadata overrides to built-in pr
     t.true(prompt?.config?.tools?.includes('docRead') ?? false);
 
     const messages = prompts.finish(prompt!, {});
-    t.true(messages.some(message => message.content.includes('AFFiNE AI')));
+    t.true(messages.some(message => message.content.includes('LocalMind AI')));
+    t.true(messages.some(message => message.content.includes('Infinimesh')));
   } finally {
     await module.close();
   }
@@ -923,7 +924,7 @@ test('PromptService should apply global text model defaults before prompt overri
 
   try {
     const prompts = module.get(PromptService);
-    const prompt = await prompts.get('Chat With AFFiNE AI');
+    const prompt = await prompts.get('Chat With LocalMind AI');
 
     t.truthy(prompt);
     t.is(prompt?.category, 'text');
@@ -969,7 +970,7 @@ test('PromptService should let prompt overrides win over global text defaults', 
             },
             overrides: [
               {
-                name: 'Chat With AFFiNE AI',
+                name: 'Chat With LocalMind AI',
                 model: 'openai-default/gpt-5-mini',
                 optionalModels: ['openai-default/gpt-5-mini'],
                 config: {
@@ -986,7 +987,7 @@ test('PromptService should let prompt overrides win over global text defaults', 
 
   try {
     const prompts = module.get(PromptService);
-    const prompt = await prompts.get('Chat With AFFiNE AI');
+    const prompt = await prompts.get('Chat With LocalMind AI');
 
     t.truthy(prompt);
     t.is(prompt?.defaultPolicy, 'text');
@@ -1039,7 +1040,7 @@ test('PromptService should apply explicit structured defaults before text defaul
   try {
     const prompts = module.get(PromptService);
     const structured = await prompts.get('Summarize the meeting structured');
-    const chat = await prompts.get('Chat With AFFiNE AI');
+    const chat = await prompts.get('Chat With LocalMind AI');
 
     t.truthy(structured);
     t.is(structured?.category, 'text');
@@ -1114,7 +1115,7 @@ test('PromptService should apply image defaults to image prompt categories', asy
     const prompts = module.get(PromptService);
     const image = await prompts.get('Generate image');
     const imageWorkflow = await prompts.get('workflow:image-sketch');
-    const chat = await prompts.get('Chat With AFFiNE AI');
+    const chat = await prompts.get('Chat With LocalMind AI');
 
     t.truthy(image);
     t.is(image?.category, 'image');
@@ -1162,7 +1163,7 @@ test('PromptService should apply transcript defaults before text defaults', asyn
     const transcriptStructured = await prompts.get(
       'Transcript audio structured'
     );
-    const chat = await prompts.get('Chat With AFFiNE AI');
+    const chat = await prompts.get('Chat With LocalMind AI');
 
     t.truthy(transcript);
     t.is(transcript?.category, 'transcript');
@@ -1267,7 +1268,7 @@ test('PromptService should ignore disabled prompt overrides', async t => {
           prompts: {
             overrides: [
               {
-                name: 'Chat With AFFiNE AI',
+                name: 'Chat With LocalMind AI',
                 enabled: false,
                 model: 'openai-default/gpt-5-mini',
               },
@@ -1281,7 +1282,7 @@ test('PromptService should ignore disabled prompt overrides', async t => {
 
   try {
     const prompts = module.get(PromptService);
-    const prompt = await prompts.get('Chat With AFFiNE AI');
+    const prompt = await prompts.get('Chat With LocalMind AI');
 
     t.truthy(prompt);
     t.is(prompt?.model, 'gemini-2.5-flash');
@@ -1308,7 +1309,7 @@ test('PromptService should list safe prompt catalog metadata with defaults and o
             },
             overrides: [
               {
-                name: 'Chat With AFFiNE AI',
+                name: 'Chat With LocalMind AI',
                 model: 'openai-default/gpt-5-mini',
                 optionalModels: ['openai-default/gpt-5-mini'],
                 config: {
@@ -1326,7 +1327,9 @@ test('PromptService should list safe prompt catalog metadata with defaults and o
   try {
     const prompts = module.get(PromptService);
     const catalog = await prompts.listCatalog();
-    const chat = catalog.find(prompt => prompt.name === 'Chat With AFFiNE AI');
+    const chat = catalog.find(
+      prompt => prompt.name === 'Chat With LocalMind AI'
+    );
     const transcript = catalog.find(
       prompt => prompt.name === 'Transcript audio'
     );
@@ -1419,12 +1422,14 @@ test('PromptService should produce stable prompt catalog revisions for model str
     const catalog = await prompts.listCatalog();
     const nextCatalog = await prompts.listCatalog();
     const changedCatalog = await changedPrompts.listCatalog();
-    const chat = catalog.find(prompt => prompt.name === 'Chat With AFFiNE AI');
+    const chat = catalog.find(
+      prompt => prompt.name === 'Chat With LocalMind AI'
+    );
     const nextChat = nextCatalog.find(
-      prompt => prompt.name === 'Chat With AFFiNE AI'
+      prompt => prompt.name === 'Chat With LocalMind AI'
     );
     const changedChat = changedCatalog.find(
-      prompt => prompt.name === 'Chat With AFFiNE AI'
+      prompt => prompt.name === 'Chat With LocalMind AI'
     );
 
     t.truthy(chat);
@@ -1533,7 +1538,7 @@ test('PromptService should use DB registry prompts as compat catalog seeds', asy
     const registryFingerprint = 'facefeedcafebeef';
     const prompts = new TestingRegistryPromptService(config, [
       {
-        name: 'Chat With AFFiNE AI',
+        name: 'Chat With LocalMind AI',
         model: 'registry/office-chat',
         optionalModels: ['registry/office-chat', 'registry/office-chat-pro'],
         registryFingerprint,
@@ -1570,10 +1575,10 @@ test('PromptService should use DB registry prompts as compat catalog seeds', asy
         source: 'registry',
       },
     ]);
-    const prompt = await prompts.get('Chat With AFFiNE AI');
+    const prompt = await prompts.get('Chat With LocalMind AI');
     const catalog = await prompts.listCatalog();
     const catalogPrompt = catalog.find(
-      item => item.name === 'Chat With AFFiNE AI'
+      item => item.name === 'Chat With LocalMind AI'
     );
 
     t.truthy(prompt);
@@ -1671,6 +1676,64 @@ test('PromptService should use DB registry prompts as compat catalog seeds', asy
   }
 });
 
+test('PromptService should keep the legacy chat name as a hidden compatibility alias', async t => {
+  const module = await Test.createTestingModule({
+    imports: [
+      ConfigModule,
+      ConfigModule.override({
+        copilot: {
+          prompts: {
+            defaults: {},
+            overrides: [],
+          },
+        },
+      }),
+    ],
+  }).compile();
+
+  try {
+    const config = module.get(Config);
+    const prompts = new TestingRegistryPromptService(config, [
+      {
+        name: 'Chat With LocalMind AI',
+        model: 'registry/localmind-chat',
+        messages: [
+          { role: 'system', content: 'Use the LocalMind registry prompt.' },
+        ],
+        source: 'registry',
+      },
+      {
+        name: 'Chat With AFFiNE AI',
+        model: 'registry/legacy-chat',
+        messages: [
+          { role: 'system', content: 'Use the legacy registry prompt.' },
+        ],
+        source: 'registry',
+      },
+    ]);
+
+    const legacyLookup = await prompts.get('Chat With AFFiNE AI');
+    const catalog = await prompts.listCatalog();
+    const chatPrompts = catalog.filter(prompt =>
+      prompt.name.includes('Chat With')
+    );
+
+    t.is(legacyLookup?.name, 'Chat With LocalMind AI');
+    t.is(legacyLookup?.model, 'registry/localmind-chat');
+    t.deepEqual(
+      chatPrompts.map(prompt => ({ name: prompt.name, model: prompt.model })),
+      [
+        {
+          name: 'Chat With LocalMind AI',
+          model: 'registry/localmind-chat',
+        },
+      ]
+    );
+  } finally {
+    await module.close();
+  }
+});
+
 test('PromptService should expose ignored DB registry seed diagnostics in catalog', async t => {
   const module = await Test.createTestingModule({
     imports: [ConfigModule],
@@ -1687,7 +1750,7 @@ test('PromptService should expose ignored DB registry seed diagnostics in catalo
         {
           action: 'chat',
           model: 'registry/empty-chat',
-          name: 'Chat With AFFiNE AI',
+          name: 'Chat With LocalMind AI',
           optionalModels: ['registry/empty-chat'],
           registryFingerprint,
           registryId: 84,
@@ -1743,9 +1806,9 @@ test('PromptService should expose ignored DB registry seed diagnostics in catalo
         },
       ]
     );
-    const prompt = await prompts.get('Chat With AFFiNE AI');
+    const prompt = await prompts.get('Chat With LocalMind AI');
     const catalogPrompt = (await prompts.listCatalog()).find(
-      item => item.name === 'Chat With AFFiNE AI'
+      item => item.name === 'Chat With LocalMind AI'
     );
 
     t.truthy(prompt);

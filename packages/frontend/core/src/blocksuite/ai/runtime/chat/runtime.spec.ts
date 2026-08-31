@@ -32,7 +32,7 @@ function session(
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     parentSessionId: null,
-    promptName: 'Chat With AFFiNE AI',
+    promptName: 'Chat With LocalMind AI',
     action: null,
     optionalModels: null,
     tokens: 0,
@@ -216,7 +216,7 @@ describe('AIChatRuntime', () => {
 
     expect(request.createSessionWithHistory).toHaveBeenCalledWith(
       expect.objectContaining({
-        promptName: 'Chat With AFFiNE AI',
+        promptName: 'Chat With LocalMind AI',
       })
     );
   });
@@ -230,7 +230,7 @@ describe('AIChatRuntime', () => {
 
     expect(request.createSessionWithHistory).toHaveBeenCalledWith(
       expect.objectContaining({
-        promptName: 'Chat With AFFiNE AI',
+        promptName: 'Chat With LocalMind AI',
       })
     );
   });

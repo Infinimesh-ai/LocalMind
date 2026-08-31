@@ -19,5 +19,8 @@
     "lodash-es": "^4.17.23",
     "prettier": "^3.7.4",
     "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
   }
 }

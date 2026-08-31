@@ -1,6 +1,6 @@
 {
-  "$schema": "https://github.com/toeverything/affine/releases/latest/download/config.schema.json",
+  "$schema": "./schema.json",
   "server": {
-    "name": "AFFiNE Self Hosted Server"
+    "name": "LocalMind Self-hosted Server"
   }
 }

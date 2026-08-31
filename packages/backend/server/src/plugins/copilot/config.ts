@@ -696,7 +696,7 @@ declare global {
 
 defineModuleConfig('copilot', {
   enabled: {
-    desc: 'Whether to enable the copilot plugin. <br> Document: <a href="https://docs.affine.pro/self-host-affine/administer/ai" target="_blank">https://docs.affine.pro/self-host-affine/administer/ai</a>',
+    desc: 'Whether to enable LocalMind AI. <br> Documentation: <a href="https://github.com/Infinimesh-ai/LocalMind/blob/main/docs/localmind-deployment-ai.zh-CN.md" target="_blank">LocalMind AI deployment guide</a>',
     default: true,
   },
   'byok.enabled': {

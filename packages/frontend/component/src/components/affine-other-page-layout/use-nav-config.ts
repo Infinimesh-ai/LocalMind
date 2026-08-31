@@ -7,15 +7,15 @@ export const useNavConfig = () => {
     () => [
       {
         title: t['com.affine.other-page.nav.official-website'](),
-        path: 'https://affine.pro',
+        path: BUILD_CONFIG.githubUrl,
       },
       {
         title: t['com.affine.other-page.nav.blog'](),
-        path: 'https://affine.pro/blog',
+        path: `${BUILD_CONFIG.githubUrl}/tree/main/docs`,
       },
       {
         title: t['com.affine.other-page.nav.contact-us'](),
-        path: 'https://affine.pro/about-us',
+        path: `${BUILD_CONFIG.githubUrl}/issues`,
       },
     ],
     [t]

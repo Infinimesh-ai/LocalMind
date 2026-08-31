@@ -16,5 +16,5 @@ enum class Prompt(val value: String) {
     MakeItLonger("Make it longer"),
     MakeItShorter("Make it shorter"),
     ContinueWriting("Continue writing"),
-    ChatWithAFFiNEAI("Chat With AFFiNE AI"),
+    ChatWithLocalMindAI("Chat With LocalMind AI"),
 }

@@ -17,7 +17,7 @@ import {
   initializeAuthSessions,
   isManagedAuthEndpoint,
 } from './auth/auth-session';
-import { buildType, isDev } from './config';
+import { isDev } from './config';
 import { logger } from './logger';
 
 const webStaticDir = join(resourcesPath, 'web-static');
@@ -50,19 +50,12 @@ async function resolveWhitelistedLocalPath(filepath: string) {
   throw new Error('Invalid filepath');
 }
 
-const apiBaseByBuildType: Record<typeof buildType, string> = {
-  stable: 'https://app.affine.pro',
-  beta: 'https://insider.affine.pro',
-  internal: 'https://insider.affine.pro',
-  canary: 'https://affine.fail',
-};
-
 function resolveApiBaseUrl() {
   if (isDev && devServerBase) {
     return devServerBase;
   }
 
-  return apiBaseByBuildType[buildType] ?? apiBaseByBuildType.stable;
+  return BUILD_CONFIG.cloudUrl;
 }
 
 function buildTargetUrl(base: string, urlObject: URL) {
@@ -153,8 +146,8 @@ const needRefererDomains = [
   /^(?:[a-zA-Z0-9-]+\.)*youtube-nocookie\.com$/,
   /^(?:[a-zA-Z0-9-]+\.)*googlevideo\.com$/,
 ];
-const defaultReferer = 'https://client.affine.local/';
-const affineDomains = [
+const defaultReferer = 'https://client.localmind.local/';
+const legacyUpstreamAssetDomains = [
   /^(?:[a-z0-9-]+\.)*usercontent\.affine\.pro$/i,
   /^(?:[a-z0-9-]+\.)*affine\.pro$/i,
   /^(?:[a-z0-9-]+\.)*affine\.fail$/i,
@@ -203,7 +196,7 @@ function allowCors(
   headers: Record<string, string[]>,
   origin: string = 'assets://.'
 ) {
-  // Signed blob URLs redirect to *.usercontent.affine.pro without CORS headers.
+  // Legacy signed blob URLs can redirect without CORS headers.
   setHeader(headers, 'Access-Control-Allow-Origin', origin);
   setHeader(headers, 'Access-Control-Allow-Credentials', 'true');
   setHeader(headers, 'Access-Control-Allow-Methods', 'GET, HEAD, PUT, OPTIONS');
@@ -228,7 +221,7 @@ export async function registerProtocol() {
         if (responseHeaders) {
           const { protocol, hostname } = new URL(url);
 
-          // Adjust CORS for assets responses and allow blob redirects on affine domains
+          // Adjust CORS for local assets and legacy upstream blob redirects.
           if (protocol === 'assets:') {
             delete responseHeaders['access-control-allow-origin'];
             delete responseHeaders['access-control-allow-headers'];
@@ -238,7 +231,7 @@ export async function registerProtocol() {
             ensureFrameAncestors(responseHeaders, "'self'");
           } else if (
             (protocol === 'http:' || protocol === 'https:') &&
-            affineDomains.some(regex => regex.test(hostname))
+            legacyUpstreamAssetDomains.some(regex => regex.test(hostname))
           ) {
             allowCors(responseHeaders);
           }

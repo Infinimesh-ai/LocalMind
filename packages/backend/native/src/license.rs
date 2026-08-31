@@ -1,8 +1,4 @@
-use std::{
-  collections::HashMap,
-  sync::{Mutex, OnceLock},
-  time::{Duration, SystemTime},
-};
+use std::{collections::HashMap, env, time::SystemTime};
 
 use anyhow::{Context, Result as AnyResult, bail};
 use napi::{Env, Error, Result, Status, Task, bindgen_prelude::AsyncTask};
@@ -10,13 +6,10 @@ use napi_derive::napi;
 use serde::de::DeserializeOwned;
 use url::Url;
 
-const AFFINE_PRO_ENDPOINT: &str = "https://app.affine.pro";
-const AFFINE_PRO_HOST: &str = "app.affine.pro";
-const AFFINE_PRO_REQUEST_TIMEOUT_MS: u32 = 10_000;
-const AFFINE_PRO_MAX_BYTES: u32 = 1024 * 1024;
-const ECH_DNS_QUERY_TIMEOUT_MS: u32 = 5_000;
-
-static AFFINE_PRO_ECH_CONFIG: OnceLock<Mutex<Option<Vec<u8>>>> = OnceLock::new();
+const DEFAULT_LOCALMIND_LICENSE_ENDPOINT: &str = "https://localmind.infinimesh.cloud";
+const LOCALMIND_LICENSE_ENDPOINT_ENV: &str = "LOCALMIND_LICENSE_ENDPOINT";
+const LICENSE_REQUEST_TIMEOUT_MS: u32 = 10_000;
+const LICENSE_RESPONSE_MAX_BYTES: u32 = 1024 * 1024;
 
 #[napi(object)]
 pub struct LicenseKeyRequest {
@@ -239,7 +232,7 @@ impl Task for AsyncCreateCustomerPortalTask {
   type JsValue = PortalResponse;
 
   fn compute(&mut self) -> Result<Self::Output> {
-    let response = match affine_pro_request(
+    let response = match license_service_request(
       &format!("/api/team/licenses/{}/create-customer-portal", self.request.license_key),
       safefetch::SafeFetchMethod::Post,
       None,
@@ -249,11 +242,11 @@ impl Task for AsyncCreateCustomerPortalTask {
       Err(_) => {
         return Ok(PortalResponse {
           url: None,
-          error: Some(internal_affine_pro_error()),
+          error: Some(internal_license_service_error()),
         });
       }
     };
-    if let Some(error) = affine_pro_error(&response) {
+    if let Some(error) = license_service_error(&response) {
       return Ok(PortalResponse {
         url: None,
         error: Some(error),
@@ -264,14 +257,14 @@ impl Task for AsyncCreateCustomerPortalTask {
       Err(_) => {
         return Ok(PortalResponse {
           url: None,
-          error: Some(internal_affine_pro_error()),
+          error: Some(internal_license_service_error()),
         });
       }
     };
     if body.url.is_empty() {
       return Ok(PortalResponse {
         url: None,
-        error: Some(internal_affine_pro_error()),
+        error: Some(internal_license_service_error()),
       });
     }
     Ok(PortalResponse {
@@ -296,16 +289,16 @@ fn license_info(
   headers: Option<HashMap<String, String>>,
   body: Option<Vec<u8>>,
 ) -> AnyResult<LicenseResponse> {
-  let response = match affine_pro_request(path, method, headers, body) {
+  let response = match license_service_request(path, method, headers, body) {
     Ok(response) => response,
     Err(_) => {
       return Ok(LicenseResponse {
         license: None,
-        error: Some(internal_affine_pro_error()),
+        error: Some(internal_license_service_error()),
       });
     }
   };
-  if let Some(error) = affine_pro_error(&response) {
+  if let Some(error) = license_service_error(&response) {
     return Ok(LicenseResponse {
       license: None,
       error: Some(error),
@@ -322,7 +315,7 @@ fn license_info(
     Err(_) => {
       return Ok(LicenseResponse {
         license: None,
-        error: Some(internal_affine_pro_error()),
+        error: Some(internal_license_service_error()),
       });
     }
   };
@@ -338,29 +331,32 @@ fn command(
   headers: Option<HashMap<String, String>>,
   body: Option<Vec<u8>>,
 ) -> AnyResult<CommandResponse> {
-  let response = match affine_pro_request(path, method, headers, body) {
+  let response = match license_service_request(path, method, headers, body) {
     Ok(response) => response,
     Err(_) => {
       return Ok(CommandResponse {
-        error: Some(internal_affine_pro_error()),
+        error: Some(internal_license_service_error()),
       });
     }
   };
   Ok(CommandResponse {
-    error: affine_pro_error(&response),
+    error: license_service_error(&response),
   })
 }
 
-fn affine_pro_request(
+fn license_service_request(
   path: &str,
   method: safefetch::SafeFetchMethod,
   headers: Option<HashMap<String, String>>,
   body: Option<Vec<u8>>,
 ) -> AnyResult<safefetch::SafeFetchResponse> {
-  let url = Url::parse(AFFINE_PRO_ENDPOINT)
-    .context("invalid affine pro endpoint")?
-    .join(path)
-    .context("invalid affine pro path")?;
+  let endpoint =
+    env::var(LOCALMIND_LICENSE_ENDPOINT_ENV).unwrap_or_else(|_| DEFAULT_LOCALMIND_LICENSE_ENDPOINT.to_string());
+  let endpoint = parse_license_service_endpoint(&endpoint)?;
+  let host = endpoint
+    .host_str()
+    .context("LocalMind license endpoint is missing a host")?;
+  let url = endpoint.join(path).context("invalid LocalMind license path")?;
   let mut headers = headers.unwrap_or_default();
   headers.insert("Content-Type".to_string(), "application/json".to_string());
 
@@ -369,19 +365,34 @@ fn affine_pro_request(
     method: Some(method),
     headers: Some(headers),
     body,
-    timeout_ms: Some(AFFINE_PRO_REQUEST_TIMEOUT_MS),
+    timeout_ms: Some(LICENSE_REQUEST_TIMEOUT_MS),
     max_redirects: Some(3),
-    max_bytes: Some(AFFINE_PRO_MAX_BYTES),
+    max_bytes: Some(LICENSE_RESPONSE_MAX_BYTES),
     allowed_headers: Some(vec![
       "authorization".to_string(),
       "content-type".to_string(),
       "x-validate-key".to_string(),
     ]),
-    allowed_hosts: Some(vec![AFFINE_PRO_HOST.to_string()]),
+    allowed_hosts: Some(vec![host.to_string()]),
     allow_http: Some(false),
     allow_private_target_origin: None,
-    ech_config_list: Some(affine_pro_ech_config()?),
+    ech_config_list: None,
   })
+}
+
+fn parse_license_service_endpoint(value: &str) -> AnyResult<Url> {
+  let endpoint = Url::parse(value).context("invalid LocalMind license endpoint")?;
+  if endpoint.scheme() != "https"
+    || endpoint.host_str().is_none()
+    || !endpoint.username().is_empty()
+    || endpoint.password().is_some()
+    || endpoint.query().is_some()
+    || endpoint.fragment().is_some()
+    || endpoint.path() != "/"
+  {
+    bail!("LocalMind license endpoint must be an HTTPS origin without credentials, path, query, or fragment");
+  }
+  Ok(endpoint)
 }
 
 fn parse_license_info(response: &safefetch::SafeFetchResponse) -> AnyResult<LicenseInfo> {
@@ -396,13 +407,13 @@ fn parse_license_info(response: &safefetch::SafeFetchResponse) -> AnyResult<Lice
   })
 }
 
-fn affine_pro_error(response: &safefetch::SafeFetchResponse) -> Option<LicenseError> {
+fn license_service_error(response: &safefetch::SafeFetchResponse) -> Option<LicenseError> {
   if (200..300).contains(&response.status) {
     return None;
   }
   let body = String::from_utf8_lossy(&response.body).to_string();
   if serde_json::from_str::<serde_json::Value>(&body).is_err() {
-    return Some(internal_affine_pro_error());
+    return Some(internal_license_service_error());
   }
   Some(LicenseError {
     status: response.status,
@@ -410,14 +421,14 @@ fn affine_pro_error(response: &safefetch::SafeFetchResponse) -> Option<LicenseEr
   })
 }
 
-fn internal_affine_pro_error() -> LicenseError {
+fn internal_license_service_error() -> LicenseError {
   LicenseError {
     status: 500,
     body: serde_json::json!({
       "status": 500,
       "type": "internal_server_error",
       "name": "internal_server_error",
-      "message": "Failed to contact with https://app.affine.pro",
+      "message": "Failed to contact the LocalMind license service",
       "data": null,
     })
     .to_string(),
@@ -439,7 +450,7 @@ fn license_expired_error() -> LicenseError {
 }
 
 fn parse_body<T: DeserializeOwned>(response: &safefetch::SafeFetchResponse) -> AnyResult<T> {
-  serde_json::from_slice(&response.body).context("invalid affine pro response")
+  serde_json::from_slice(&response.body).context("invalid LocalMind license response")
 }
 
 fn parse_future_end_at(value: &serde_json::Value) -> AnyResult<f64> {
@@ -461,24 +472,6 @@ fn now_millis() -> f64 {
   crate::utils::system_time_millis(SystemTime::now()).unwrap_or_default() as f64
 }
 
-fn affine_pro_ech_config() -> AnyResult<Vec<u8>> {
-  let cache = AFFINE_PRO_ECH_CONFIG.get_or_init(|| Mutex::new(None));
-  {
-    let cached = cache.lock().map_err(|_| anyhow::anyhow!("ech cache poisoned"))?;
-    if let Some(config) = cached.as_ref() {
-      return Ok(config.clone());
-    }
-  }
-
-  let config = safefetch::ech::cloudflare_https_ech_config_list(
-    AFFINE_PRO_HOST,
-    Duration::from_millis(ECH_DNS_QUERY_TIMEOUT_MS as u64),
-  )?;
-  let mut cached = cache.lock().map_err(|_| anyhow::anyhow!("ech cache poisoned"))?;
-  *cached = Some(config.clone());
-  Ok(config)
-}
-
 fn invalid_arg(error: impl ToString) -> Error {
   Error::new(Status::InvalidArg, error.to_string())
 }
@@ -495,4 +488,28 @@ struct LicensePayload {
 #[derive(serde::Deserialize)]
 struct PortalPayload {
   url: String,
+}
+
+#[cfg(test)]
+mod tests {
+  use super::parse_license_service_endpoint;
+
+  #[test]
+  fn accepts_https_license_origins() {
+    let endpoint = parse_license_service_endpoint("https://license.localmind.example:8443").unwrap();
+    assert_eq!(endpoint.as_str(), "https://license.localmind.example:8443/");
+  }
+
+  #[test]
+  fn rejects_non_origin_license_endpoints() {
+    for endpoint in [
+      "http://license.localmind.example",
+      "https://user:pass@license.localmind.example",
+      "https://license.localmind.example/api",
+      "https://license.localmind.example?token=secret",
+      "https://license.localmind.example/#fragment",
+    ] {
+      assert!(parse_license_service_endpoint(endpoint).is_err(), "{endpoint}");
+    }
+  }
 }

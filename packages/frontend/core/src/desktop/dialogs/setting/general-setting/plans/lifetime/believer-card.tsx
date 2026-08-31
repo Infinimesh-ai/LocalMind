@@ -1,8 +1,8 @@
+import { LocalMindLogo } from '@affine/component/localmind-logo';
 import clsx from 'clsx';
 import type { HTMLAttributes } from 'react';
 
-import { bgAFFiNERaw, bgIconsRaw } from './assets';
-import { bg, card, content } from './believer-card.css';
+import { bg, brandMark, card, content } from './believer-card.css';
 
 export const BelieverCard = ({
   children,
@@ -14,10 +14,9 @@ export const BelieverCard = ({
 }) => {
   return (
     <div className={clsx(card, className)} data-type={type} {...attrs}>
-      <div
-        className={bg}
-        dangerouslySetInnerHTML={{ __html: `${bgAFFiNERaw}${bgIconsRaw}` }}
-      />
+      <div className={bg} aria-hidden="true">
+        <LocalMindLogo className={brandMark} />
+      </div>
       <div className={content}>{children}</div>
     </div>
   );

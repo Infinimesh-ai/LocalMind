@@ -3,11 +3,10 @@ import { $typst, type BeforeBuildFn, loadFonts } from '@myriaddreamin/typst.ts';
 import type { TypstRenderOptions } from './types';
 
 export const DEFAULT_TYPST_FONT_URLS = [
-  'https://cdn.affine.pro/fonts/Inter-Regular.woff',
-  'https://cdn.affine.pro/fonts/Inter-SemiBold.woff',
-  'https://cdn.affine.pro/fonts/Inter-Italic.woff',
-  'https://cdn.affine.pro/fonts/Inter-SemiBoldItalic.woff',
-  'https://cdn.affine.pro/fonts/SarasaGothicCL-Regular.ttf',
+  '/fonts/Inter-Regular.woff2',
+  '/fonts/Inter-SemiBold.woff2',
+  '/fonts/Inter-Italic.woff2',
+  '/fonts/Inter-SemiBoldItalic.woff2',
 ] as const;
 
 export const DEFAULT_TYPST_RENDER_OPTIONS: TypstRenderOptions = {
@@ -15,11 +14,6 @@ export const DEFAULT_TYPST_RENDER_OPTIONS: TypstRenderOptions = {
 };
 
 const DEFAULT_FONT_FALLBACKS: Record<string, string> = {
-  'Inter-Regular.woff': 'Inter-Regular.woff2',
-  'Inter-SemiBold.woff': 'Inter-SemiBold.woff2',
-  'Inter-Italic.woff': 'Inter-Italic.woff2',
-  'Inter-SemiBoldItalic.woff': 'Inter-SemiBoldItalic.woff2',
-  'SarasaGothicCL-Regular.ttf': 'Inter-Regular.woff2',
   'Inter-Regular.woff2': 'Inter-Regular.woff2',
   'Inter-SemiBold.woff2': 'Inter-SemiBold.woff2',
   'Inter-Italic.woff2': 'Inter-Italic.woff2',

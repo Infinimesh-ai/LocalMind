@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "AFFiNE Application Configuration",
+  "title": "LocalMind Application Configuration",
   "type": "object",
   "properties": {
     "metrics": {
@@ -303,8 +303,8 @@
         },
         "SMTP.sender": {
           "type": "string",
-          "description": "Sender of all the emails (e.g. \"AFFiNE Self Hosted &lt;noreply@example.com&gt;\")\n@default \"AFFiNE Self Hosted <noreply@example.com>\"\n@environment `MAILER_SENDER`",
-          "default": "AFFiNE Self Hosted <noreply@example.com>"
+          "description": "Sender of all the emails (e.g. \"LocalMind Self Hosted &lt;noreply@example.com&gt;\")\n@default \"LocalMind Self Hosted <noreply@example.com>\"\n@environment `MAILER_SENDER`",
+          "default": "LocalMind Self Hosted <noreply@example.com>"
         },
         "SMTP.ignoreTLS": {
           "type": "boolean",
@@ -358,7 +358,7 @@
         },
         "fallbackSMTP.sender": {
           "type": "string",
-          "description": "Sender of all the emails (e.g. \"AFFiNE Self Hosted &lt;noreply@example.com&gt;\")\n@default \"\"",
+          "description": "Sender of all the emails (e.g. \"LocalMind Self Hosted &lt;noreply@example.com&gt;\")\n@default \"\"",
           "default": ""
         },
         "fallbackSMTP.ignoreTLS": {
@@ -921,11 +921,11 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "A recognizable name for the server. Will be shown when connected with AFFiNE Desktop.\n@default undefined"
+          "description": "A recognizable name for the server. It will be shown when connected with LocalMind Desktop.\n@default undefined"
         },
         "externalUrl": {
           "type": "string",
-          "description": "Base url of AFFiNE server, used for generating external urls.\nDefault to be `[server.protocol]://[server.host][:server.port]` if not specified.\n    \n@default \"\"\n@environment `AFFINE_SERVER_EXTERNAL_URL`",
+          "description": "Base URL of the LocalMind server, used for generating external URLs.\nDefaults to `[server.protocol]://[server.host][:server.port]` if not specified.\n    \n@default \"\"\n@environment `AFFINE_SERVER_EXTERNAL_URL`",
           "default": ""
         },
         "https": {
@@ -1176,8 +1176,8 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Enable AI features. Workspace owners configure provider keys in Workspace Settings → Integrations → AI BYOK.\n@default false",
-          "default": false
+          "description": "Whether to enable LocalMind AI. <br> Documentation: <a href=\"https://github.com/Infinimesh-ai/LocalMind/blob/main/docs/localmind-deployment-ai.zh-CN.md\" target=\"_blank\">LocalMind AI deployment guide</a>\n@default true",
+          "default": true
         },
         "byok.enabled": {
           "type": "boolean",

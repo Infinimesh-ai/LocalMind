@@ -2739,7 +2739,7 @@ const modelsPayload = {
           candidateSource: 'registry',
         },
       ],
-      promptName: 'Chat With AFFiNE AI',
+      promptName: 'Chat With LocalMind AI',
       promptOverrideApplied: false,
       promptSource: 'built_in',
       providerId: 'openai-main',
@@ -2933,7 +2933,7 @@ const promptCatalogPayload = [
     modelConfigPath: 'copilot.prompts.overrides[].model',
     modelSource: 'override',
     modelStrategyFingerprint: '9999aaaabbbbcccc',
-    name: 'Chat With AFFiNE AI',
+    name: 'Chat With LocalMind AI',
     optionalModelsConfigPath: 'copilot.prompts.overrides[].optionalModels',
     optionalModelCount: 2,
     optionalModels: ['gpt-4o-mini', 'gpt-4o'],
@@ -10174,7 +10174,7 @@ describe('AiPage', () => {
                   },
                   overrides: [
                     {
-                      name: 'Chat With AFFiNE AI',
+                      name: 'Chat With LocalMind AI',
                       model: 'gpt-4o-mini',
                     },
                   ],
@@ -10825,7 +10825,7 @@ describe('AiPage', () => {
       expect.objectContaining({
         query: getPromptModelsQuery,
         variables: {
-          promptName: 'Chat With AFFiNE AI',
+          promptName: 'Chat With LocalMind AI',
           workspaceId: undefined,
         },
       })
@@ -12729,7 +12729,7 @@ describe('AiPage', () => {
     expect(screen.getByText('Optional models')).not.toBeNull();
     expect(screen.getByText('Pro models')).not.toBeNull();
     const promptCatalogDiagnostics = screen.getByTestId(
-      'prompt-catalog-diagnostics-Chat With AFFiNE AI'
+      'prompt-catalog-diagnostics-Chat With LocalMind AI'
     ).textContent;
     expect(promptCatalogDiagnostics).toContain('Prompt LocalMind AI');
     expect(promptCatalogDiagnostics).toContain('Action chat');
@@ -12781,8 +12781,9 @@ describe('AiPage', () => {
     );
     expect(screen.getAllByText('Template 1111222233334444').length).toBe(1);
     expect(
-      screen.getByTestId('prompt-catalog-version-evidence-Chat With AFFiNE AI')
-        .textContent
+      screen.getByTestId(
+        'prompt-catalog-version-evidence-Chat With LocalMind AI'
+      ).textContent
     ).toContain(
       'revision built_in:text:override:a1b2c3d4e5f60708 / fingerprint a1b2c3d4e5f60708 / model 9999aaaabbbbcccc / template 1111222233334444 / policy Text / override yes / model config copilot.prompts.overrides[].model / optional config copilot.prompts.overrides[].optionalModels / pro config copilot.prompts.overrides[].config.proModels'
     );
@@ -14210,7 +14211,7 @@ describe('AiPage', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Test route' }));
     expectQueryCall(getPromptModelsQuery, {
-      promptName: 'Chat With AFFiNE AI',
+      promptName: 'Chat With LocalMind AI',
       workspaceId: 'workspace-1',
     });
 
@@ -14221,7 +14222,7 @@ describe('AiPage', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Test route' }));
     expectQueryCall(getPromptModelsQuery, {
-      promptName: 'Chat With AFFiNE AI',
+      promptName: 'Chat With LocalMind AI',
       workspaceId: undefined,
     });
   });
@@ -14247,7 +14248,7 @@ describe('AiPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Test route' }));
 
     expectQueryCall(getPromptModelsQuery, {
-      promptName: 'Chat With AFFiNE AI',
+      promptName: 'Chat With LocalMind AI',
       workspaceId: 'workspace-1',
     });
     expect(
@@ -14279,7 +14280,7 @@ describe('AiPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Test route' }));
 
     expectQueryCall(getPromptModelsQuery, {
-      promptName: 'Chat With AFFiNE AI',
+      promptName: 'Chat With LocalMind AI',
       workspaceId: undefined,
     });
   });
@@ -14309,7 +14310,7 @@ describe('AiPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Test route' }));
 
     expectQueryCall(getPromptModelsQuery, {
-      promptName: 'Chat With AFFiNE AI',
+      promptName: 'Chat With LocalMind AI',
       workspaceId: 'workspace-manual',
     });
   });

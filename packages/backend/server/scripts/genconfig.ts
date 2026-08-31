@@ -1,13 +1,14 @@
-/* eslint-disable */
 import '../src/prelude';
 import '../src/app.module';
 
 import fs from 'node:fs';
+
 import { ProjectRoot } from '@affine-tools/utils/path';
 import { Package } from '@affine-tools/utils/workspace';
+
 import {
-  getDescriptors as getAllDescriptors,
   ConfigDescriptor,
+  getDescriptors as getAllDescriptors,
 } from '../src/base/config/register';
 
 const IGNORED_MODULES = new Set(['db', 'redis', 'graphql']);
@@ -41,7 +42,7 @@ function convertDescriptorToSchemaProperty(descriptor: ConfigDescriptor<any>) {
 function generateJsonSchema(outputPath: string) {
   const schema = {
     $schema: 'http://json-schema.org/draft-07/schema#',
-    title: 'AFFiNE Application Configuration',
+    title: 'LocalMind Application Configuration',
     type: 'object',
     properties: {},
   };

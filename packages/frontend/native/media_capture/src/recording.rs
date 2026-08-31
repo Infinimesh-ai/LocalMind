@@ -484,7 +484,7 @@ fn write_opus_headers(
     .write_packet(opus_head, stream_serial, PacketWriteEndInfo::EndPage, 0)
     .map_err(|e| RecordingError::Encoding(format!("failed to write OpusHead: {e}")))?;
 
-  let vendor = b"AFFiNE Native";
+  let vendor = b"LocalMind Native";
   let mut opus_tags = Vec::new();
   opus_tags.extend_from_slice(b"OpusTags");
   opus_tags.extend_from_slice(&(vendor.len() as u32).to_le_bytes());

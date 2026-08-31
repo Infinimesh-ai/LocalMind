@@ -438,24 +438,24 @@ import stickerCover216 from './stickers/Paper/Cover/+1.svg';
 import stickerContent216 from './stickers/Paper/Content/+1.svg';
 import stickerCover217 from './stickers/Paper/Cover/A lot of question.svg';
 import stickerContent217 from './stickers/Paper/Content/A lot of question.svg';
-import stickerCover218 from './stickers/Paper/Cover/AFFiNE AI.svg';
-import stickerContent218 from './stickers/Paper/Content/AFFiNE AI.svg';
-import stickerCover219 from './stickers/Paper/Cover/Arrow.svg';
-import stickerContent219 from './stickers/Paper/Content/Arrow.svg';
-import stickerCover220 from './stickers/Paper/Cover/Atention.svg';
-import stickerContent220 from './stickers/Paper/Content/Atention.svg';
-import stickerCover221 from './stickers/Paper/Cover/Blue Screen.svg';
-import stickerContent221 from './stickers/Paper/Content/Blue Screen.svg';
-import stickerCover222 from './stickers/Paper/Cover/Boom.svg';
-import stickerContent222 from './stickers/Paper/Content/Boom.svg';
-import stickerCover223 from './stickers/Paper/Cover/Cool.svg';
-import stickerContent223 from './stickers/Paper/Content/Cool.svg';
-import stickerCover224 from './stickers/Paper/Cover/Dino.svg';
-import stickerContent224 from './stickers/Paper/Content/Dino.svg';
-import stickerCover225 from './stickers/Paper/Cover/Histogram.svg';
-import stickerContent225 from './stickers/Paper/Content/Histogram.svg';
-import stickerCover226 from './stickers/Paper/Cover/Local First.svg';
-import stickerContent226 from './stickers/Paper/Content/Local First.svg';
+import stickerCover218 from './stickers/Paper/Cover/Arrow.svg';
+import stickerContent218 from './stickers/Paper/Content/Arrow.svg';
+import stickerCover219 from './stickers/Paper/Cover/Atention.svg';
+import stickerContent219 from './stickers/Paper/Content/Atention.svg';
+import stickerCover220 from './stickers/Paper/Cover/Blue Screen.svg';
+import stickerContent220 from './stickers/Paper/Content/Blue Screen.svg';
+import stickerCover221 from './stickers/Paper/Cover/Boom.svg';
+import stickerContent221 from './stickers/Paper/Content/Boom.svg';
+import stickerCover222 from './stickers/Paper/Cover/Cool.svg';
+import stickerContent222 from './stickers/Paper/Content/Cool.svg';
+import stickerCover223 from './stickers/Paper/Cover/Dino.svg';
+import stickerContent223 from './stickers/Paper/Content/Dino.svg';
+import stickerCover224 from './stickers/Paper/Cover/Histogram.svg';
+import stickerContent224 from './stickers/Paper/Content/Histogram.svg';
+import stickerCover225 from './stickers/Paper/Cover/Local First.svg';
+import stickerContent225 from './stickers/Paper/Content/Local First.svg';
+import stickerCover226 from './stickers/Paper/Cover/LocalMind AI.svg';
+import stickerContent226 from './stickers/Paper/Content/LocalMind AI.svg';
 import stickerCover227 from './stickers/Paper/Cover/Medal.svg';
 import stickerContent227 from './stickers/Paper/Content/Medal.svg';
 import stickerCover228 from './stickers/Paper/Cover/Notice.svg';
@@ -1855,58 +1855,58 @@ const templates = {
         hash: "yKPa7vqOxC6rh-e0SVdlp0RwMWQ9mzDKTtE5g2UnHGk=",
       }),
      buildStickerTemplate({
-        name: "AFFiNE AI",
+        name: "Arrow",
         cover: stickerCover218,
         content: stickerContent218,
-        hash: "FwBs2WApEGkiFmu1XR4fHZ_7fOlSsSBdYEyGs2lDeLk=",
-      }),
-     buildStickerTemplate({
-        name: "Arrow",
-        cover: stickerCover219,
-        content: stickerContent219,
         hash: "evuSkommPr7PBAWCioYDRQpKPZGoY6izIGev2C8Xdt0=",
       }),
      buildStickerTemplate({
         name: "Atention",
-        cover: stickerCover220,
-        content: stickerContent220,
+        cover: stickerCover219,
+        content: stickerContent219,
         hash: "Lmvftjmkw5oQEyZ2VP6eTohbXgQyEtNWKkrg9AbDknI=",
       }),
      buildStickerTemplate({
         name: "Blue Screen",
-        cover: stickerCover221,
-        content: stickerContent221,
+        cover: stickerCover220,
+        content: stickerContent220,
         hash: "30OHymd5x-3zr_5KxQm3DzVfxyWWAf0QnmfHpIOoLzQ=",
       }),
      buildStickerTemplate({
         name: "Boom",
-        cover: stickerCover222,
-        content: stickerContent222,
+        cover: stickerCover221,
+        content: stickerContent221,
         hash: "mpTlbN8fJWJUMlHcCCrQuzKTK844-F9YuebgR0kgJa8=",
       }),
      buildStickerTemplate({
         name: "Cool",
-        cover: stickerCover223,
-        content: stickerContent223,
+        cover: stickerCover222,
+        content: stickerContent222,
         hash: "3OujPx_YOY1MTqmgrbWaNDJlJeoLNvTWw96gW22rxps=",
       }),
      buildStickerTemplate({
         name: "Dino",
-        cover: stickerCover224,
-        content: stickerContent224,
+        cover: stickerCover223,
+        content: stickerContent223,
         hash: "j13ZqHGUnVdGW3_1uWw_sFYeHj1SFoNsi5JwrTvpC-k=",
       }),
      buildStickerTemplate({
         name: "Histogram",
-        cover: stickerCover225,
-        content: stickerContent225,
+        cover: stickerCover224,
+        content: stickerContent224,
         hash: "A1oGPUmv-Ypb-W7_jPgpSsVGA71J8njyr9f-97UnJQg=",
       }),
      buildStickerTemplate({
         name: "Local First",
+        cover: stickerCover225,
+        content: stickerContent225,
+        hash: "LFIRZK4TswzJvThRO2Vch_aqfY2UZ6kjAyAEsQS-hHM=",
+      }),
+     buildStickerTemplate({
+        name: "LocalMind AI",
         cover: stickerCover226,
         content: stickerContent226,
-        hash: "LFIRZK4TswzJvThRO2Vch_aqfY2UZ6kjAyAEsQS-hHM=",
+        hash: "FwBs2WApEGkiFmu1XR4fHZ_7fOlSsSBdYEyGs2lDeLk=",
       }),
      buildStickerTemplate({
         name: "Medal",

@@ -44,7 +44,7 @@ class GraphQLService @Inject constructor() {
     suspend fun createCopilotSession(
         workspaceId: String,
         docId: String,
-        prompt: Prompt = Prompt.ChatWithAFFiNEAI
+        prompt: Prompt = Prompt.ChatWithLocalMindAI
     ) = mutation(
         CreateCopilotSessionMutation(
             CreateChatSessionInput(

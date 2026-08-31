@@ -46,7 +46,11 @@ const icnsPath = path.join(
 
 const iconPngPath = path.join(ROOT, './resources/icons/icon.png');
 
-const iconUrl = `https://cdn.affine.pro/app-icons/icon_${buildType}.ico`;
+const iconRevision = process.env.GITHUB_SHA?.trim() || 'main';
+const iconFileName = stableBuild ? 'icon.ico' : `icon_${buildType}.ico`;
+const iconUrl =
+  `https://raw.githubusercontent.com/Infinimesh-ai/LocalMind/${iconRevision}` +
+  `/packages/frontend/apps/electron/resources/icons/${iconFileName}`;
 
 log(`buildType=${buildType}, productName=${productName}, icoPath=${icoPath}`);
 
@@ -72,10 +76,10 @@ const {
 log(`parsed args: arch=${arch}, platform=${platform}`);
 
 const appIdMap = {
-  internal: 'pro.affine.internal',
-  canary: 'pro.affine.canary',
-  beta: 'pro.affine.beta',
-  stable: 'pro.affine.app',
+  internal: 'ai.infinimesh.localmind.internal',
+  canary: 'ai.infinimesh.localmind.canary',
+  beta: 'ai.infinimesh.localmind.beta',
+  stable: 'ai.infinimesh.localmind',
 };
 
 export {

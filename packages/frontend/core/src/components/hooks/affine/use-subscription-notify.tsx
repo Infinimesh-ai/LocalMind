@@ -5,9 +5,6 @@ import { type AuthAccountInfo } from '../../../modules/cloud';
 
 const separator = '::';
 const recoverSeparator = nanoid();
-const typeFormUrl = 'https://6dxre9ihosp.typeform.com/to';
-const typeFormUpgradeId = 'mUMGGQS8';
-const typeFormDowngradeId = 'RvD9AoRg';
 
 type TypeFormInfo = {
   id: string;
@@ -33,12 +30,26 @@ const getTypeFormLink = (id: string, info: TypeFormInfo) => {
       : info.recurring === SubscriptionRecurring.Lifetime
         ? 'lifeTime'
         : 'annually';
-  return `${typeFormUrl}/${id}#email=${info.email ?? ''}&name=${info.name ?? 'Unknown'}&user_id=${info.id}&product_id=${product_id}&product_price=${product_price}`;
+  const url = new URL(
+    `${BUILD_CONFIG.githubUrl.replace(/\/$/, '')}/issues/new`
+  );
+  url.searchParams.set('title', `[Billing] ${id} feedback`);
+  url.searchParams.set('labels', 'billing,feedback');
+  url.searchParams.set(
+    'body',
+    [
+      `Product: ${product_id}`,
+      `Billing period: ${product_price}`,
+      '',
+      'Feedback:',
+    ].join('\n')
+  );
+  return url.toString();
 };
 export const getUpgradeQuestionnaireLink = (info: TypeFormInfo) =>
-  getTypeFormLink(typeFormUpgradeId, info);
+  getTypeFormLink('upgrade', info);
 export const getDowngradeQuestionnaireLink = (info: TypeFormInfo) =>
-  getTypeFormLink(typeFormDowngradeId, info);
+  getTypeFormLink('cancellation', info);
 
 /**
  * Generate subscription callback link with account info
