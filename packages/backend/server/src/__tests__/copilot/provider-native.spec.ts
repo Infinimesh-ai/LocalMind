@@ -2207,6 +2207,31 @@ function createProviderFactoryWithByokRoutes({
   return { factory, byok };
 }
 
+function createBoundOpenAIByokProfile(modelId: string): CopilotProviderProfile {
+  return {
+    ...BYOK_OPENAI_PROFILE,
+    models: [modelId],
+    modelDefinitions: [
+      {
+        id: modelId,
+        rawModelId: modelId,
+        backendKind: 'openai_responses',
+        capabilities: [
+          {
+            input: [ModelInputType.Text],
+            output: [
+              ModelOutputType.Text,
+              ModelOutputType.Object,
+              ModelOutputType.Structured,
+            ],
+            defaultForOutputType: true,
+          },
+        ],
+      },
+    ],
+  };
+}
+
 test('CopilotProviderFactory should use matching BYOK routes before quota-backed routes', async t => {
   const { factory } = createProviderFactoryWithByokRoutes();
 
@@ -2223,7 +2248,10 @@ test('CopilotProviderFactory should use matching BYOK routes before quota-backed
 });
 
 test('CopilotProviderFactory should let BYOK handle a quota-backed prefixed model ID', async t => {
-  const { factory } = createProviderFactoryWithByokRoutes({ hasQuota: false });
+  const { factory } = createProviderFactoryWithByokRoutes({
+    hasQuota: false,
+    byokProfiles: [createBoundOpenAIByokProfile('gpt-5-mini')],
+  });
 
   const routes = await factory.resolveRoutes(
     {
@@ -2247,6 +2275,90 @@ test('CopilotProviderFactory should let BYOK handle a quota-backed prefixed mode
         modelId: 'gpt-5-mini',
         rawModelId: 'openai-main/gpt-5-mini',
         registryKind: 'byok',
+      },
+    ]
+  );
+});
+
+test('CopilotProviderFactory should fall back to a bound BYOK model when quota is exhausted', async t => {
+  const modelId = 'qwen3.8-flash';
+  const { factory } = createProviderFactoryWithByokRoutes({
+    hasQuota: false,
+    byokProfiles: [createBoundOpenAIByokProfile(modelId)],
+  });
+  const cond = {
+    modelId: 'openai-main/gpt-5-mini',
+    outputType: ModelOutputType.Text,
+  };
+  const context = { userId: 'user-1', workspaceId: 'workspace-1' };
+
+  const routes = await factory.resolveRoutes(cond, {}, context);
+  const candidates = await factory.describeRouteCandidates(cond, {}, context);
+
+  t.deepEqual(
+    routes.map(route => ({
+      providerId: route.providerId,
+      modelId: route.modelId,
+      rawModelId: route.rawModelId,
+      registryKind: route.registryKind,
+    })),
+    [
+      {
+        providerId: BYOK_OPENAI_PROFILE.id,
+        modelId,
+        rawModelId: 'openai-main/gpt-5-mini',
+        registryKind: 'byok',
+      },
+    ]
+  );
+  t.deepEqual(
+    candidates
+      .filter(candidate => candidate.registryKind === 'byok')
+      .map(candidate => ({
+        providerId: candidate.providerId,
+        modelId: candidate.modelId,
+        matched: candidate.matched,
+        registrySelected: candidate.registrySelected,
+      })),
+    [
+      {
+        providerId: BYOK_OPENAI_PROFILE.id,
+        modelId,
+        matched: true,
+        registrySelected: true,
+      },
+    ]
+  );
+});
+
+test('CopilotProviderFactory should preserve a quota-backed model while quota is available', async t => {
+  const { factory } = createProviderFactoryWithByokRoutes({
+    hasQuota: true,
+    byokProfiles: [createBoundOpenAIByokProfile('qwen3.8-flash')],
+  });
+
+  const routes = await factory.resolveRoutes(
+    {
+      modelId: 'openai-main/gpt-5-mini',
+      outputType: ModelOutputType.Text,
+    },
+    {},
+    { userId: 'user-1', workspaceId: 'workspace-1' }
+  );
+
+  t.deepEqual(
+    routes.map(route => ({
+      providerId: route.providerId,
+      modelId: route.modelId,
+      rawModelId: route.rawModelId,
+      registryKind: route.registryKind,
+    })),
+    [
+      {
+        providerId: 'openai-main',
+        modelId: 'gpt-5-mini',
+        rawModelId: 'openai-main/gpt-5-mini',
+        registryKind: 'quota_backed',
       },
     ]
   );

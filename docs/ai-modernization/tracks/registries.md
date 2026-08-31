@@ -284,6 +284,11 @@ Implemented behavior:
 8. Native usage recording seeds model evidence from the prepared request or
    route when a provider response omits it or reports provider selection before
    stream model metadata.
+9. Quota-backed prefixed model requests keep an exact matching BYOK binding;
+   when quota-backed routes are unavailable and the requested model is not
+   bound to BYOK, provider selection clears the model constraint and falls back
+   to the workspace's bound BYOK model without changing the requested-model
+   audit evidence.
 
 ## Implemented Provider Health State Persistence Slice
 

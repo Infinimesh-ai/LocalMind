@@ -1356,6 +1356,7 @@ export class CopilotProviderFactory {
     const byokCond = this.normalizeByokCond(
       byokRegistry,
       quotaBackedRegistry,
+      quotaBackedRoutesAvailable,
       cond
     );
     const byokCandidates = await this.describeRouteCandidatesFromRegistry(
@@ -1452,6 +1453,7 @@ export class CopilotProviderFactory {
   private normalizeByokCond(
     byokRegistry: CopilotProviderRegistry,
     quotaBackedRegistry: CopilotProviderRegistry,
+    quotaBackedRoutesAvailable: boolean,
     cond: ModelFullConditions
   ): ModelFullConditions {
     if (!cond.modelId || parseModelPrefix(byokRegistry, cond.modelId)) {
@@ -1466,7 +1468,17 @@ export class CopilotProviderFactory {
       return cond;
     }
 
-    return { ...cond, modelId: quotaBackedRoute.modelId };
+    const modelId = quotaBackedRoute.modelId;
+    if (
+      quotaBackedRoutesAvailable ||
+      Array.from(byokRegistry.profiles.values()).some(profile =>
+        this.profileAllowsModel(profile, modelId)
+      )
+    ) {
+      return { ...cond, modelId };
+    }
+
+    return { ...cond, modelId: undefined };
   }
 
   private async getEffectiveRegistry(
@@ -1663,6 +1675,7 @@ export class CopilotProviderFactory {
     const byokCond = this.normalizeByokCond(
       byokRegistry,
       quotaBackedRegistry,
+      quotaBackedRoutesAvailable,
       cond
     );
     const byokRoutes = await this.resolveRoutesFromRegistry(

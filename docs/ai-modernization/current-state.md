@@ -81,6 +81,10 @@ The workspace BYOK exact-model binding slice is now implemented:
 - OpenAI-compatible key testing sends a minimal `POST /responses` request with
   the exact configured model instead of treating a provider-level
   `GET /models` response as proof that the requested model is usable;
+- quota-backed prefixed model requests preserve an exact matching BYOK binding,
+  but when quota-backed routes are unavailable and no BYOK profile supports the
+  requested model, route selection removes that model constraint and falls back
+  to the workspace's bound BYOK model;
 - Workspace Settings requires the model id before test/save, invalidates a
   successful test when the model changes, and displays the bound model beside
   the key without exposing the secret;
