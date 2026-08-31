@@ -138,6 +138,47 @@ const FileTypes: NonNullable<OpenFilePickerOptions['types']> = [
     },
   },
   {
+    description: 'Pdf',
+    accept: {
+      'application/pdf': ['.pdf'],
+    },
+  },
+  {
+    description: 'Excel',
+    accept: {
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [
+        '.xlsx',
+      ],
+    },
+  },
+  {
+    description: 'PowerPoint',
+    accept: {
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+        ['.pptx'],
+    },
+  },
+  {
+    description: 'Documents',
+    accept: {
+      'application/pdf': ['.pdf'],
+      'application/msword': ['.doc'],
+      'application/vnd.ms-excel': ['.xls'],
+      'application/vnd.ms-powerpoint': ['.ppt'],
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+        ['.pptx'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [
+        '.xlsx',
+      ],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+        ['.docx'],
+      'text/csv': ['.csv'],
+      'text/html': ['.html', '.htm'],
+      'text/markdown': ['.md', '.markdown'],
+      'text/plain': ['.txt'],
+    },
+  },
+  {
     description: 'OneNote',
     accept: {
       'application/onenote': ['.one', '.onetoc2', '.onepkg'],
@@ -163,6 +204,10 @@ type AcceptTypes =
   | 'Html'
   | 'Zip'
   | 'Docx'
+  | 'Pdf'
+  | 'Excel'
+  | 'PowerPoint'
+  | 'Documents'
   | 'OneNote'
   | 'MindMap';
 

@@ -6,6 +6,7 @@ import {
   ExportIcon,
   ExportToHtmlIcon,
   ExportToMarkdownIcon,
+  ExportToPdfIcon,
   ExportToPngIcon,
   PageIcon,
   PrinterIcon,
@@ -69,8 +70,8 @@ export const PrintMenuItems = ({
       onSelect={() => exportHandler('pdf')}
       className={className}
       type="pdf"
-      icon={<PrinterIcon />}
-      label={t['com.affine.export.print']()}
+      icon={<ExportToPdfIcon />}
+      label={t['Export to PDF']()}
     />
   );
 };

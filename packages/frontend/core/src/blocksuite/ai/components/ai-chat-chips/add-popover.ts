@@ -168,7 +168,7 @@ export class ChatPanelAddPopover extends SignalWatcher(
   };
 
   private readonly _addFileChip = async () => {
-    const files = await openFilesWith();
+    const files = await openFilesWith('Documents');
     if (!files || files.length === 0) return;
 
     this.abortController.abort();
@@ -198,7 +198,7 @@ export class ChatPanelAddPopover extends SignalWatcher(
       },
       {
         key: 'files',
-        name: 'Upload files (pdf, txt, csv)',
+        name: 'Upload documents (PDF, Office, text)',
         testId: 'ai-chat-with-files',
         icon: UploadIcon(),
         action: this._addFileChip,

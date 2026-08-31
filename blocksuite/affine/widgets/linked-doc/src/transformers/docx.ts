@@ -3,6 +3,7 @@ import type { ExtensionType, Schema, Workspace } from '@blocksuite/store';
 import { convertToHtml } from 'mammoth/mammoth.browser';
 
 import { HtmlTransformer } from './html';
+import { officeFileName } from './office.js';
 
 type ImportDocxOptions = {
   collection: Workspace;
@@ -26,20 +27,16 @@ async function importDocx({
   imported,
   extensions,
 }: ImportDocxOptions) {
-  try {
-    const { value } = await convertToHtml({
-      arrayBuffer: await imported.arrayBuffer(),
-    });
-    return await HtmlTransformer.importHTMLToDoc({
-      collection,
-      schema,
-      html: value,
-      extensions,
-    });
-  } catch (e) {
-    console.error('Failed to import .docx file:', e);
-    return undefined;
-  }
+  const { value } = await convertToHtml({
+    arrayBuffer: await imported.arrayBuffer(),
+  });
+  return HtmlTransformer.importHTMLToDoc({
+    collection,
+    schema,
+    html: value,
+    fileName: officeFileName(imported, /\.docx$/i),
+    extensions,
+  });
 }
 
 export const DocxTransformer = {

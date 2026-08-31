@@ -32,16 +32,22 @@ import {
   HtmlTransformer,
   type ImportWarning,
   MarkdownTransformer,
+  PdfTransformer,
+  PptxTransformer,
+  XlsxTransformer,
   ZipTransformer,
 } from '@blocksuite/affine/widgets/linked-doc';
 import {
   ExportToHtmlIcon,
   ExportToMarkdownIcon,
+  ExportToPdfIcon,
   FileIcon,
   HelpIcon,
   NotionIcon,
   PageIcon,
+  PresentationIcon,
   SaveIcon,
+  TableIcon,
   ZipIcon,
 } from '@blocksuite/icons/rc';
 import { useService } from '@toeverything/infra';
@@ -75,12 +81,18 @@ type ImportType =
   | 'snapshot'
   | 'html'
   | 'docx'
+  | 'pdf'
+  | 'xlsx'
+  | 'pptx'
   | 'dotaffinefile';
 type AcceptType =
   | 'Markdown'
   | 'Zip'
   | 'Html'
   | 'Docx'
+  | 'Pdf'
+  | 'Excel'
+  | 'PowerPoint'
   | 'OneNote'
   | 'Directory'
   | 'Skip'; // Skip is used for dotaffinefile
@@ -259,6 +271,53 @@ const importOptions = [
     type: 'docx' as ImportType,
   },
   {
+    key: 'pdf',
+    label: 'com.affine.import.pdf',
+    prefixIcon: (
+      <ExportToPdfIcon
+        color={cssVarV2('icon/primary')}
+        width={20}
+        height={20}
+      />
+    ),
+    suffixIcon: (
+      <HelpIcon color={cssVarV2('icon/primary')} width={20} height={20} />
+    ),
+    suffixTooltip: 'com.affine.import.pdf.tooltip',
+    testId: 'editor-option-menu-import-pdf',
+    type: 'pdf' as ImportType,
+  },
+  {
+    key: 'xlsx',
+    label: 'com.affine.import.xlsx',
+    prefixIcon: (
+      <TableIcon color={cssVarV2('icon/primary')} width={20} height={20} />
+    ),
+    suffixIcon: (
+      <HelpIcon color={cssVarV2('icon/primary')} width={20} height={20} />
+    ),
+    suffixTooltip: 'com.affine.import.xlsx.tooltip',
+    testId: 'editor-option-menu-import-xlsx',
+    type: 'xlsx' as ImportType,
+  },
+  {
+    key: 'pptx',
+    label: 'com.affine.import.pptx',
+    prefixIcon: (
+      <PresentationIcon
+        color={cssVarV2('icon/primary')}
+        width={20}
+        height={20}
+      />
+    ),
+    suffixIcon: (
+      <HelpIcon color={cssVarV2('icon/primary')} width={20} height={20} />
+    ),
+    suffixTooltip: 'com.affine.import.pptx.tooltip',
+    testId: 'editor-option-menu-import-pptx',
+    type: 'pptx' as ImportType,
+  },
+  {
     key: 'snapshot',
     label: 'com.affine.import.snapshot',
     prefixIcon: (
@@ -401,6 +460,77 @@ const importConfigs: Record<ImportType, ImportConfig> = {
         if (docId) docIds.push(docId);
       }
       return { docIds };
+    },
+  },
+  pdf: {
+    fileOptions: { acceptType: 'Pdf', multiple: false },
+    importFunction: async ({ docCollection, files }) => {
+      const file = files.length === 1 ? files[0] : null;
+      if (!file) {
+        throw new Error('Expected a single .pdf file');
+      }
+      const { docId, emptyPageNumbers } = await PdfTransformer.importPdf({
+        collection: docCollection,
+        schema: getAFFiNEWorkspaceSchema(),
+        imported: file,
+        extensions: getStoreManager().config.init().value.get('store'),
+      });
+      if (!docId) {
+        throw new Error('The PDF did not contain importable content.');
+      }
+      return {
+        docIds: [docId],
+        warnings: emptyPageNumbers.length
+          ? [
+              {
+                code: 'pdf-pages-require-ocr',
+                message: emptyPageNumbers.join(', '),
+              },
+            ]
+          : undefined,
+      };
+    },
+  },
+  xlsx: {
+    fileOptions: { acceptType: 'Excel', multiple: false },
+    importFunction: async ({ docCollection, files }) => {
+      const file = files.length === 1 ? files[0] : null;
+      if (!file) {
+        throw new Error('Expected a single .xlsx file');
+      }
+      const docId = await XlsxTransformer.importXlsx({
+        collection: docCollection,
+        schema: getAFFiNEWorkspaceSchema(),
+        imported: file,
+        extensions: getStoreManager().config.init().value.get('store'),
+      });
+      if (!docId) {
+        throw new Error(
+          'The Excel workbook did not contain importable content.'
+        );
+      }
+      return { docIds: [docId] };
+    },
+  },
+  pptx: {
+    fileOptions: { acceptType: 'PowerPoint', multiple: false },
+    importFunction: async ({ docCollection, files }) => {
+      const file = files.length === 1 ? files[0] : null;
+      if (!file) {
+        throw new Error('Expected a single .pptx file');
+      }
+      const docId = await PptxTransformer.importPptx({
+        collection: docCollection,
+        schema: getAFFiNEWorkspaceSchema(),
+        imported: file,
+        extensions: getStoreManager().config.init().value.get('store'),
+      });
+      if (!docId) {
+        throw new Error(
+          'The PowerPoint presentation did not contain importable content.'
+        );
+      }
+      return { docIds: [docId] };
     },
   },
   snapshot: {
@@ -570,7 +700,7 @@ const SuccessStatus = ({
   warnings,
   onComplete,
 }: {
-  warnings: string[];
+  warnings: ImportWarning[];
   onComplete: () => void;
 }) => {
   const t = useI18n();
@@ -593,9 +723,15 @@ const SuccessStatus = ({
       </p>
       {warnings.length ? (
         <div className={style.importWarnings}>
-          {warnings.map((warning, index) => (
-            <div key={`${warning}-${index}`}>{warning}</div>
-          ))}
+          {warnings.map((warning, index) => {
+            const message =
+              warning.code === 'pdf-pages-require-ocr'
+                ? t['com.affine.import.pdf.ocr-pages-warning']({
+                    pages: warning.message,
+                  })
+                : warning.message;
+            return <div key={`${warning.code}-${index}`}>{message}</div>;
+          })}
         </div>
       ) : null}
       <div className={style.importModalButtonContainer}>
@@ -616,14 +752,16 @@ const ErrorStatus = ({
 }) => {
   const t = useI18n();
   const urlService = useService(UrlService);
+  const message =
+    error?.code === 'PdfOcrRequiredError'
+      ? t['com.affine.import.pdf.ocr-required']()
+      : error?.message || 'Unknown error occurred';
   return (
     <>
       <div className={style.importModalTitle}>
         {t['com.affine.import.status.failed.title']()}
       </div>
-      <p className={style.importStatusContent}>
-        {error?.message || 'Unknown error occurred'}
-      </p>
+      <p className={style.importStatusContent}>{message}</p>
       {error?.sourcePath ? (
         <div className={style.importErrorDetail}>{error.sourcePath}</div>
       ) : null}
@@ -834,9 +972,7 @@ export const ImportDialog = ({
     ),
     success: (
       <SuccessStatus
-        warnings={(importResult?.warnings ?? []).map(warning =>
-          typeof warning === 'string' ? warning : warning.message
-        )}
+        warnings={importResult?.warnings ?? []}
         onComplete={handleComplete}
       />
     ),

@@ -2471,7 +2471,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.import.docx"](): string;
     /**
-      * `Import your .docx file.`
+      * `Convert a .docx file into an editable LocalMind page. Complex Word layout may not be preserved.`
       */
     ["com.affine.import.docx.tooltip"](): string;
     /**
@@ -2519,6 +2519,32 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.import.onenote.desktop-only"](): string;
     /**
+      * `PDF document (.pdf)`
+      */
+    ["com.affine.import.pdf"](): string;
+    /**
+      * `Pages {{pages}} had no extractable text and were skipped. OCR is required to convert those pages.`
+      */
+    ["com.affine.import.pdf.ocr-pages-warning"](options: {
+        readonly pages: string;
+    }): string;
+    /**
+      * `This PDF has no extractable text layer. OCR is required before it can be converted into an editable LocalMind page.`
+      */
+    ["com.affine.import.pdf.ocr-required"](): string;
+    /**
+      * `Convert a text-based PDF into an editable LocalMind page. Page layout may change; scanned PDFs require OCR.`
+      */
+    ["com.affine.import.pdf.tooltip"](): string;
+    /**
+      * `Microsoft PowerPoint (.pptx)`
+      */
+    ["com.affine.import.pptx"](): string;
+    /**
+      * `Convert slide text and tables into an editable LocalMind page. Themes, animation, and media may not be preserved.`
+      */
+    ["com.affine.import.pptx.tooltip"](): string;
+    /**
       * `Obsidian Vault (Experimental)`
       */
     ["com.affine.import.obsidian"](): string;
@@ -2534,6 +2560,14 @@ export function useAFFiNEI18N(): {
       * `Import your LocalMind workspace and page snapshot file.`
       */
     ["com.affine.import.snapshot.tooltip"](): string;
+    /**
+      * `Microsoft Excel (.xlsx)`
+      */
+    ["com.affine.import.xlsx"](): string;
+    /**
+      * `Convert worksheets into editable LocalMind tables. Charts, macros, and formula behavior may not be preserved.`
+      */
+    ["com.affine.import.xlsx.tooltip"](): string;
     /**
       * `LocalMind backup`
       */

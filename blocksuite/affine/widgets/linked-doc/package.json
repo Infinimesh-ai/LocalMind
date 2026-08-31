@@ -29,6 +29,7 @@
     "lit": "^3.2.0",
     "lodash-es": "^4.17.23",
     "mammoth": "^1.11.0",
+    "pdfjs-dist": "5.4.624",
     "zod": "^3.25.76"
   },
   "devDependencies": {

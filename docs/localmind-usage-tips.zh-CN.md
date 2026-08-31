@@ -7,10 +7,18 @@
 
 1. 登录账号并打开已同步的工作区。
 2. 从左侧 `AI Chat` 进入对话。
-3. 使用输入区旁的 `+` 选择文档、标签、集合，或上传文件。
+3. 使用输入区旁的 `+` 选择文档、标签、集合，或上传 PDF、Office 和文本文件。
 4. 在 `Workspace settings > AI context` 管理 Rule、Automatic Memory 和
    Context Project。
 5. 从左侧栏 `Others > Help & guide` 打开应用内帮助页面。
+
+## 转换 PDF 和 Office 文件
+
+- 在工作区 `Import` 中选择文本型 PDF、`.docx`、`.xlsx` 或 `.pptx`，可转换为
+  普通可编辑页面；转换不会覆盖源文件。
+- 扫描版 PDF 没有文本层时会提示需要 OCR；当前版本不执行 OCR。
+- 编辑转换后的页面后，从页面导出菜单选择 `Export to PDF`，并在浏览器打印窗口
+  中保存为 PDF。
 
 > [!IMPORTANT]
 > 对话读取文档后会保留快照。源文档被修改时，当前对话不会自动读取新版。
