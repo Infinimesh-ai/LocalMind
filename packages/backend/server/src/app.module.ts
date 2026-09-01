@@ -34,6 +34,7 @@ import { ServerConfigModule, ServerConfigResolverModule } from './core/config';
 import { DocStorageModule } from './core/doc';
 import { DocRendererModule } from './core/doc-renderer';
 import { DocServiceModule } from './core/doc-service';
+import { DocumentOcrModule } from './core/document-ocr';
 import { FeatureModule } from './core/features';
 import { IscpModule } from './core/iscp';
 import { MailModule } from './core/mail';
@@ -202,6 +203,7 @@ export function buildAppModule(env: Env) {
       StorageModule,
       ServerConfigResolverModule,
       WorkspaceModule,
+      DocumentOcrModule,
       LicenseModule,
       PaymentModule,
       CopilotModule,

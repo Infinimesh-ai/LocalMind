@@ -28,6 +28,18 @@ The AI Chat document snapshot freshness slice is implemented:
 - new drafts and session switches clear stale composer context before the
   selected session reloads its own context.
 
+The scanned PDF OCR import extension is implemented:
+
+- PDF.js continues to extract native text in the browser and rasterizes only
+  pages without a text layer;
+- a permission-checked, rate-limited LocalMind REST endpoint forwards bounded
+  JPEG/PNG page images to an exact allowlisted HTTPS SparkClaw OCR base URL;
+- the server keeps the optional OCR credential private, disables the feature
+  by default, rejects redirects, bounds request/response sizes, and returns
+  sanitized error codes without logging page images or recognized text;
+- native text and OCR Markdown are merged into an editable LocalMind page,
+  with a 100 scanned-page import cap and user-visible review/failure warnings.
+
 The self-hosted AI Chat document-tool runtime repair is implemented:
 
 - prompt-backed tool wrappers preserve appended prompt messages while adding

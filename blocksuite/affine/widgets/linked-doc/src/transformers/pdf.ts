@@ -10,11 +10,12 @@ import type {
   Workspace,
 } from '@blocksuite/store';
 import type {
+  PDFPageProxy,
   TextItem,
   TextMarkedContent,
 } from 'pdfjs-dist/types/src/display/api';
 
-import { HtmlTransformer } from './html.js';
+import { MarkdownTransformer } from './markdown.js';
 import { download } from './utils.js';
 
 type ImportPdfOptions = {
@@ -22,6 +23,9 @@ type ImportPdfOptions = {
   schema: Schema;
   imported: Blob;
   extensions: ExtensionType[];
+  ocrPage?: PdfOcrPageHandler;
+  signal?: AbortSignal;
+  onProgress?: (progress: { completed: number; total: number }) => void;
 };
 
 type PdfTextSegment = {
@@ -46,14 +50,48 @@ type PdfHtmlResult = {
 
 type PdfImportResult = {
   docId: string | undefined;
-  emptyPageNumbers: number[];
+  ocrPageNumbers: number[];
+  failedOcrPageNumbers: number[];
+};
+
+type PdfPageContent = {
+  lines: PdfTextLine[];
+  ocrMarkdown?: string;
+};
+
+type PdfOcrPageHandler = (input: {
+  pageNumber: number;
+  image: Blob;
+}) => Promise<string>;
+
+type PdfMarkdownOptions = {
+  ocrPage?: PdfOcrPageHandler;
+  renderOcrPage?: (input: {
+    page: PDFPageProxy;
+    pageNumber: number;
+  }) => Promise<Blob>;
+  signal?: AbortSignal;
+  onProgress?: (progress: { completed: number; total: number }) => void;
+};
+
+type PdfMarkdownResult = {
+  markdown: string;
+  fileName: string;
+  pageCount: number;
+  ocrPageNumbers: number[];
+  failedOcrPageNumbers: number[];
 };
 
 const MAX_PDF_BYTES = 50 * 1024 * 1024;
 const MAX_PDF_PAGES = 500;
 const MAX_PDF_TEXT_ITEMS = 250_000;
 const MAX_PDF_TEXT_CHARACTERS = 2_000_000;
+const MAX_PDF_OCR_PAGES = 100;
 const PDF_HEADER_SCAN_BYTES = 1024;
+const OCR_RENDER_MAX_SCALE = 3;
+const OCR_RENDER_MAX_DIMENSION = 2880;
+const OCR_RENDER_MAX_PIXELS = 6_500_000;
+const OCR_JPEG_QUALITY = 0.9;
 
 const CJK_CHARACTER =
   /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff]/u;
@@ -68,6 +106,24 @@ export class PdfOcrRequiredError extends Error {
     super(
       'This PDF has no extractable text layer. OCR is required before it can be converted into an editable LocalMind page.'
     );
+  }
+}
+
+export class PdfOcrPageLimitError extends Error {
+  override name = 'PdfOcrPageLimitError';
+
+  constructor() {
+    super(
+      `This PDF has more than ${MAX_PDF_OCR_PAGES} scanned pages. Split it into smaller files before importing.`
+    );
+  }
+}
+
+export class PdfOcrEmptyResultError extends Error {
+  override name = 'OCR_EMPTY_RESULT';
+
+  constructor() {
+    super('OCR did not detect readable text on this PDF page.');
   }
 }
 
@@ -250,16 +306,17 @@ function joinWrappedLines(previous: string, next: string) {
   return `${previous}${separator}${next}`;
 }
 
-function appendPageLines(
-  output: Document,
-  lines: PdfTextLine[],
-  median: number
-) {
+type PdfTextBlock = {
+  text: string;
+  heading: number;
+};
+
+function pageBlocksFromLines(lines: PdfTextLine[], median: number) {
+  const blocks: Array<{ block: PdfTextBlock; line: PdfTextLine }> = [];
   let current:
     | {
-        element: HTMLElement;
+        block: PdfTextBlock;
         line: PdfTextLine;
-        heading: number;
       }
     | undefined;
 
@@ -276,23 +333,39 @@ function appendPageLines(
       verticalGap > 0 &&
       verticalGap <= Math.max(current.line.fontSize, line.fontSize) * 1.85 &&
       indentDifference <= Math.max(24, line.fontSize * 2.5);
-    const canMerge = Boolean(closeEnough && current?.heading === heading);
+    const canMerge = Boolean(closeEnough && current?.block.heading === heading);
 
     if (canMerge && current) {
-      current.element.textContent = joinWrappedLines(
-        current.element.textContent ?? '',
-        line.text
-      );
+      current.block.text = joinWrappedLines(current.block.text, line.text);
       current.line = line;
       continue;
     }
 
+    const block = { text: line.text, heading };
+    blocks.push({ block, line });
+    current = { block, line };
+  }
+
+  return blocks.map(({ block }) => block);
+}
+
+function appendPageLines(
+  output: Document,
+  lines: PdfTextLine[],
+  median: number
+) {
+  for (const block of pageBlocksFromLines(lines, median)) {
     const tagName =
-      heading === 1 ? 'h1' : heading === 2 ? 'h2' : heading === 3 ? 'h3' : 'p';
+      block.heading === 1
+        ? 'h1'
+        : block.heading === 2
+          ? 'h2'
+          : block.heading === 3
+            ? 'h3'
+            : 'p';
     const element = output.createElement(tagName);
-    element.textContent = line.text;
+    element.textContent = block.text;
     output.body.append(element);
-    current = { element, line, heading };
   }
 }
 
@@ -323,20 +396,30 @@ async function createPdfLoadingTask(data: Uint8Array) {
   return pdfJs.getDocument(options);
 }
 
-export async function parsePdfToHtml(imported: Blob): Promise<PdfHtmlResult> {
+function validatePdfSize(imported: Blob) {
   if (imported.size > MAX_PDF_BYTES) {
     throw new Error(
       `The PDF exceeds the ${MAX_PDF_BYTES / 1024 / 1024} MiB import limit.`
     );
   }
+}
 
-  const data = new Uint8Array(await imported.arrayBuffer());
+function validatePdfHeader(data: Uint8Array) {
   const header = new TextDecoder('latin1').decode(
     data.subarray(0, PDF_HEADER_SCAN_BYTES)
   );
   if (!header.includes('%PDF-')) {
     throw new Error('The selected file is not a valid PDF document.');
   }
+}
+
+async function extractPdfTextPages(
+  imported: Blob,
+  options: Pick<PdfMarkdownOptions, 'signal' | 'onProgress'> = {}
+) {
+  validatePdfSize(imported);
+  const data = new Uint8Array(await imported.arrayBuffer());
+  validatePdfHeader(data);
 
   const loadingTask = await createPdfLoadingTask(data);
   const pages: PdfTextLine[][] = [];
@@ -353,62 +436,233 @@ export async function parsePdfToHtml(imported: Blob): Promise<PdfHtmlResult> {
     }
 
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+      options.signal?.throwIfAborted();
       const page = await pdf.getPage(pageNumber);
-      const textContent = await page.getTextContent();
-      const items = textContent.items.filter(isPdfTextItem);
-      textItemCount += items.length;
-      characterCount += items.reduce((sum, item) => sum + item.str.length, 0);
-      if (textItemCount > MAX_PDF_TEXT_ITEMS) {
-        throw new Error(
-          `The PDF exceeds the ${MAX_PDF_TEXT_ITEMS}-text-item import limit.`
-        );
-      }
-      if (characterCount > MAX_PDF_TEXT_CHARACTERS) {
-        throw new Error(
-          `The PDF exceeds the ${MAX_PDF_TEXT_CHARACTERS}-character import limit.`
-        );
-      }
+      try {
+        const textContent = await page.getTextContent();
+        const items = textContent.items.filter(isPdfTextItem);
+        textItemCount += items.length;
+        characterCount += items.reduce((sum, item) => sum + item.str.length, 0);
+        if (textItemCount > MAX_PDF_TEXT_ITEMS) {
+          throw new Error(
+            `The PDF exceeds the ${MAX_PDF_TEXT_ITEMS}-text-item import limit.`
+          );
+        }
+        if (characterCount > MAX_PDF_TEXT_CHARACTERS) {
+          throw new Error(
+            `The PDF exceeds the ${MAX_PDF_TEXT_CHARACTERS}-character import limit.`
+          );
+        }
 
-      const lines = textLinesFromItems(items, pageNumber);
-      pages.push(lines);
-      if (!lines.length) emptyPageNumbers.push(pageNumber);
-      page.cleanup();
+        const lines = textLinesFromItems(items, pageNumber);
+        pages.push(lines);
+        if (!lines.length) emptyPageNumbers.push(pageNumber);
+        options.onProgress?.({ completed: pageNumber, total: pdf.numPages });
+      } finally {
+        page.cleanup();
+      }
     }
+
+    return {
+      pdf,
+      pages,
+      emptyPageNumbers,
+      destroy: () => loadingTask.destroy().catch(() => undefined),
+    };
   } catch (error) {
+    await loadingTask.destroy().catch(() => undefined);
     if (error instanceof Error && error.name === 'PasswordException') {
       throw new Error(
         'Password-protected PDFs must be unlocked before they can be imported.'
       );
     }
     throw error;
+  }
+}
+
+export async function parsePdfToHtml(imported: Blob): Promise<PdfHtmlResult> {
+  const { pages, emptyPageNumbers, destroy } =
+    await extractPdfTextPages(imported);
+
+  try {
+    const allLines = pages.flat();
+    if (!allLines.length) {
+      throw new PdfOcrRequiredError();
+    }
+
+    const output = new DOMParser().parseFromString(
+      '<!doctype html><html><body></body></html>',
+      'text/html'
+    );
+    const median = medianFontSize(allLines);
+    let hasContent = false;
+    for (const lines of pages) {
+      if (!lines.length) continue;
+      if (hasContent) output.body.append(output.createElement('hr'));
+      appendPageLines(output, lines, median);
+      hasContent = true;
+    }
+
+    return {
+      html: output.documentElement.outerHTML,
+      fileName: pdfFileName(imported),
+      pageCount: pages.length,
+      emptyPageNumbers,
+    };
   } finally {
-    await loadingTask.destroy().catch(() => undefined);
+    await destroy();
   }
+}
 
-  const allLines = pages.flat();
-  if (!allLines.length) {
-    throw new PdfOcrRequiredError();
+function markdownText(value: string) {
+  return value
+    .replace(/([\\`*_[\]<>])/gu, '\\$1')
+    .replace(/^(\s*)([#>+-]|\d+[.)])\s/gu, '$1\\$2 ');
+}
+
+function pageLinesToMarkdown(lines: PdfTextLine[], median: number) {
+  return pageBlocksFromLines(lines, median)
+    .map(block => {
+      const prefix = block.heading ? `${'#'.repeat(block.heading)} ` : '';
+      return `${prefix}${markdownText(block.text)}`;
+    })
+    .join('\n\n');
+}
+
+function canvasToJpeg(canvas: HTMLCanvasElement) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      blob => {
+        if (blob) resolve(blob);
+        else reject(new Error('Failed to rasterize the PDF page for OCR.'));
+      },
+      'image/jpeg',
+      OCR_JPEG_QUALITY
+    );
+  });
+}
+
+async function renderPdfPageForOcr({ page }: { page: PDFPageProxy }) {
+  if (typeof document === 'undefined') {
+    throw new Error('PDF OCR page rendering requires a browser canvas.');
   }
-
-  const output = new DOMParser().parseFromString(
-    '<!doctype html><html><body></body></html>',
-    'text/html'
+  const baseViewport = page.getViewport({ scale: 1 });
+  const scale = Math.min(
+    OCR_RENDER_MAX_SCALE,
+    OCR_RENDER_MAX_DIMENSION /
+      Math.max(baseViewport.width, baseViewport.height),
+    Math.sqrt(
+      OCR_RENDER_MAX_PIXELS / (baseViewport.width * baseViewport.height)
+    )
   );
-  const median = medianFontSize(allLines);
-  let hasContent = false;
-  for (const lines of pages) {
-    if (!lines.length) continue;
-    if (hasContent) output.body.append(output.createElement('hr'));
-    appendPageLines(output, lines, median);
-    hasContent = true;
+  const viewport = page.getViewport({ scale: Math.max(scale, 0.1) });
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(viewport.width));
+  canvas.height = Math.max(1, Math.round(viewport.height));
+  const canvasContext = canvas.getContext('2d', { alpha: false });
+  if (!canvasContext) {
+    throw new Error('PDF OCR page rendering is unavailable.');
   }
+  canvasContext.fillStyle = '#ffffff';
+  canvasContext.fillRect(0, 0, canvas.width, canvas.height);
+  await page.render({
+    canvas,
+    canvasContext,
+    viewport,
+    background: '#ffffff',
+  }).promise;
+  return await canvasToJpeg(canvas);
+}
 
-  return {
-    html: output.documentElement.outerHTML,
-    fileName: pdfFileName(imported),
-    pageCount: pages.length,
-    emptyPageNumbers,
-  };
+function errorCode(error: unknown) {
+  if (typeof error !== 'object' || error === null) return '';
+  if ('code' in error && typeof error.code === 'string') return error.code;
+  if ('name' in error && typeof error.name === 'string') return error.name;
+  return '';
+}
+
+export async function parsePdfToMarkdown(
+  imported: Blob,
+  options: PdfMarkdownOptions = {}
+): Promise<PdfMarkdownResult> {
+  const { pdf, pages, emptyPageNumbers, destroy } = await extractPdfTextPages(
+    imported,
+    options
+  );
+  const pageContents: PdfPageContent[] = pages.map(lines => ({ lines }));
+  const ocrPageNumbers: number[] = [];
+  const failedOcrPageNumbers: number[] = [];
+  let firstOcrError: unknown;
+  let stoppedOcrError: unknown;
+
+  try {
+    if (options.ocrPage && emptyPageNumbers.length > MAX_PDF_OCR_PAGES) {
+      throw new PdfOcrPageLimitError();
+    }
+
+    const renderOcrPage = options.renderOcrPage ?? renderPdfPageForOcr;
+    const totalProgress = pages.length + emptyPageNumbers.length;
+    for (const [index, pageNumber] of emptyPageNumbers.entries()) {
+      options.signal?.throwIfAborted();
+      if (!options.ocrPage) continue;
+      if (stoppedOcrError) {
+        failedOcrPageNumbers.push(pageNumber);
+        continue;
+      }
+
+      const page = await pdf.getPage(pageNumber);
+      try {
+        const image = await renderOcrPage({ page, pageNumber });
+        options.signal?.throwIfAborted();
+        const markdown = (await options.ocrPage({ pageNumber, image })).trim();
+        if (!markdown) throw new PdfOcrEmptyResultError();
+        const content = pageContents[pageNumber - 1];
+        if (!content) {
+          throw new Error('PDF page content is unavailable.');
+        }
+        content.ocrMarkdown = markdown;
+        ocrPageNumbers.push(pageNumber);
+      } catch (error) {
+        firstOcrError ??= error;
+        failedOcrPageNumbers.push(pageNumber);
+        if (errorCode(error) !== 'OCR_EMPTY_RESULT') {
+          stoppedOcrError = error;
+        }
+      } finally {
+        page.cleanup();
+        options.onProgress?.({
+          completed: pages.length + index + 1,
+          total: totalProgress,
+        });
+      }
+    }
+
+    const allLines = pages.flat();
+    const median = medianFontSize(allLines);
+    const markdownPages = pageContents
+      .map(page =>
+        page.ocrMarkdown
+          ? page.ocrMarkdown
+          : page.lines.length
+            ? pageLinesToMarkdown(page.lines, median)
+            : ''
+      )
+      .filter(Boolean);
+    if (!markdownPages.length) {
+      if (firstOcrError) throw firstOcrError;
+      throw new PdfOcrRequiredError();
+    }
+
+    return {
+      markdown: markdownPages.join('\n\n---\n\n'),
+      fileName: pdfFileName(imported),
+      pageCount: pages.length,
+      ocrPageNumbers,
+      failedOcrPageNumbers,
+    };
+  } finally {
+    await destroy();
+  }
 }
 
 async function importPdf({
@@ -416,16 +670,24 @@ async function importPdf({
   schema,
   imported,
   extensions,
+  ocrPage,
+  signal,
+  onProgress,
 }: ImportPdfOptions): Promise<PdfImportResult> {
-  const { html, fileName, emptyPageNumbers } = await parsePdfToHtml(imported);
-  const docId = await HtmlTransformer.importHTMLToDoc({
+  const { markdown, fileName, ocrPageNumbers, failedOcrPageNumbers } =
+    await parsePdfToMarkdown(imported, {
+      ocrPage,
+      signal,
+      onProgress,
+    });
+  const docId = await MarkdownTransformer.importMarkdownToDoc({
     collection,
     schema,
-    html,
+    markdown,
     fileName,
     extensions,
   });
-  return { docId, emptyPageNumbers };
+  return { docId, ocrPageNumbers, failedOcrPageNumbers };
 }
 
 async function exportDoc(doc: Store) {
@@ -452,4 +714,5 @@ export const PdfTransformer = {
   exportDoc,
   importPdf,
   parsePdfToHtml,
+  parsePdfToMarkdown,
 };

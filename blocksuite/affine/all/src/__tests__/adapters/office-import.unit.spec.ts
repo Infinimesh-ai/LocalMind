@@ -7,7 +7,7 @@ import {
   XlsxTransformer,
 } from '@blocksuite/affine/widgets/linked-doc';
 import * as fflate from 'fflate';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 
 function officeFile(
   name: string,
@@ -209,6 +209,37 @@ describe('Office and PDF import transformers', () => {
     await expect(PdfTransformer.parsePdfToHtml(blankPdfFile())).rejects.toThrow(
       'OCR is required'
     );
+  });
+
+  test('converts a scanned PDF page through an injected OCR service', async () => {
+    const ocrPage = vi.fn(async () => '# Scanned receipt\n\nTotal: 42');
+    const renderOcrPage = vi.fn(
+      async () => new Blob(['jpeg'], { type: 'image/jpeg' })
+    );
+
+    const result = await PdfTransformer.parsePdfToMarkdown(blankPdfFile(), {
+      ocrPage,
+      renderOcrPage,
+    });
+
+    expect(result.markdown).toContain('# Scanned receipt');
+    expect(result.markdown).toContain('Total: 42');
+    expect(result.ocrPageNumbers).toEqual([1]);
+    expect(result.failedOcrPageNumbers).toEqual([]);
+    expect(renderOcrPage).toHaveBeenCalledOnce();
+    expect(ocrPage).toHaveBeenCalledWith({
+      pageNumber: 1,
+      image: expect.objectContaining({ type: 'image/jpeg' }),
+    });
+  });
+
+  test('rejects a scanned PDF when OCR returns no readable text', async () => {
+    await expect(
+      PdfTransformer.parsePdfToMarkdown(blankPdfFile(), {
+        ocrPage: async () => '',
+        renderOcrPage: async () => new Blob(['jpeg'], { type: 'image/jpeg' }),
+      })
+    ).rejects.toThrow('OCR did not detect readable text');
   });
 
   test('rejects a file without a PDF header', async () => {

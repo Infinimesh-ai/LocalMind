@@ -109,6 +109,21 @@ embedding、索引和 rerank 请求会失败。
 模型 API key 和 workspace BYOK 配置应在 LocalMind 启动后通过管理界面完成，不要写进
 Compose 文件。
 
+扫描版 PDF OCR 是独立的服务端集成，默认关闭。启用前应确认部署方允许把扫描页
+图片发送到指定服务，然后在 `.env` 中设置：
+
+```sh
+LOCALMIND_OCR_ENABLED=true
+LOCALMIND_OCR_BASE_URL=https://sparkclaw.infinimesh.cloud/ocr/v1
+LOCALMIND_OCR_ALLOWED_HOST=sparkclaw.infinimesh.cloud
+LOCALMIND_OCR_MODEL=sparkclaw-ocr
+```
+
+OCR 基础地址必须使用 HTTPS，且主机名必须与 `LOCALMIND_OCR_ALLOWED_HOST` 完全
+一致。服务需要鉴权时只在服务端设置 `LOCALMIND_OCR_API_KEY`，不要写入前端、文档
+或提交到 Git。可按容量调整 `LOCALMIND_OCR_TIMEOUT_MS`、上传/输出上限、token 上限
+和并发数；默认分别为 120 秒、12 MiB、1 MiB、16384 tokens 和 2 个并发请求。
+
 计划在 Spark GX10 上通过魔搭下载或发现本地模型、用 vLLM 启动并自动配置 LocalMind
 时，先参考 [LocalMind 本地模型一键启动方案记录](./localmind-modelscope-vllm-bootstrap.zh-CN.md)。
 该方案目前是实现设计，不代表仓库已经提供可运行的一键脚本。

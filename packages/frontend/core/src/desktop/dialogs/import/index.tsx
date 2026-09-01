@@ -7,6 +7,7 @@ import {
 import { getStoreManager } from '@affine/core/blocksuite/manager/store';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import { useNavigateHelper } from '@affine/core/components/hooks/use-navigate-helper';
+import { FetchService } from '@affine/core/modules/cloud';
 import {
   type DialogComponentProps,
   GlobalDialogService,
@@ -62,6 +63,7 @@ import {
   useState,
 } from 'react';
 
+import { requestPdfPageOcr } from './pdf-ocr';
 import * as style from './styles.css';
 
 const logger = new DebugLogger('import');
@@ -118,6 +120,7 @@ type ImportedWorkspacePayload = {
 type ImportFunctionArgs = {
   docCollection: Workspace;
   files: File[];
+  fetchService: FetchService;
   importAffineFile: () => Promise<WorkspaceMetadata | undefined>;
   importService?: ImportService;
   context: ImportRunContext;
@@ -464,30 +467,50 @@ const importConfigs: Record<ImportType, ImportConfig> = {
   },
   pdf: {
     fileOptions: { acceptType: 'Pdf', multiple: false },
-    importFunction: async ({ docCollection, files }) => {
+    importFunction: async ({ docCollection, fetchService, files, context }) => {
       const file = files.length === 1 ? files[0] : null;
       if (!file) {
         throw new Error('Expected a single .pdf file');
       }
-      const { docId, emptyPageNumbers } = await PdfTransformer.importPdf({
-        collection: docCollection,
-        schema: getAFFiNEWorkspaceSchema(),
-        imported: file,
-        extensions: getStoreManager().config.init().value.get('store'),
-      });
+      const { docId, ocrPageNumbers, failedOcrPageNumbers } =
+        await PdfTransformer.importPdf({
+          collection: docCollection,
+          schema: getAFFiNEWorkspaceSchema(),
+          imported: file,
+          extensions: getStoreManager().config.init().value.get('store'),
+          ocrPage: ({ image }) =>
+            requestPdfPageOcr(
+              fetchService,
+              docCollection.id,
+              image,
+              context.signal
+            ),
+          signal: context.signal,
+          onProgress: context.onProgress,
+        });
       if (!docId) {
         throw new Error('The PDF did not contain importable content.');
       }
       return {
         docIds: [docId],
-        warnings: emptyPageNumbers.length
-          ? [
-              {
-                code: 'pdf-pages-require-ocr',
-                message: emptyPageNumbers.join(', '),
-              },
-            ]
-          : undefined,
+        warnings: [
+          ...(ocrPageNumbers.length
+            ? [
+                {
+                  code: 'pdf-pages-ocr-converted',
+                  message: ocrPageNumbers.join(', '),
+                },
+              ]
+            : []),
+          ...(failedOcrPageNumbers.length
+            ? [
+                {
+                  code: 'pdf-pages-ocr-failed',
+                  message: failedOcrPageNumbers.join(', '),
+                },
+              ]
+            : []),
+        ],
       };
     },
   },
@@ -725,11 +748,15 @@ const SuccessStatus = ({
         <div className={style.importWarnings}>
           {warnings.map((warning, index) => {
             const message =
-              warning.code === 'pdf-pages-require-ocr'
-                ? t['com.affine.import.pdf.ocr-pages-warning']({
+              warning.code === 'pdf-pages-ocr-converted'
+                ? t['com.affine.import.pdf.ocr-pages-converted']({
                     pages: warning.message,
                   })
-                : warning.message;
+                : warning.code === 'pdf-pages-ocr-failed'
+                  ? t['com.affine.import.pdf.ocr-pages-failed']({
+                      pages: warning.message,
+                    })
+                  : warning.message;
             return <div key={`${warning.code}-${index}`}>{message}</div>;
           })}
         </div>
@@ -752,10 +779,24 @@ const ErrorStatus = ({
 }) => {
   const t = useI18n();
   const urlService = useService(UrlService);
+  const ocrMessages: Record<string, string> = {
+    PdfOcrRequiredError: t['com.affine.import.pdf.ocr-required'](),
+    PdfOcrPageLimitError: t['com.affine.import.pdf.ocr-page-limit'](),
+    OCR_DISABLED: t['com.affine.import.pdf.ocr-disabled'](),
+    OCR_INVALID_CONFIG: t['com.affine.import.pdf.ocr-invalid-config'](),
+    OCR_INVALID_IMAGE: t['com.affine.import.pdf.ocr-invalid-image'](),
+    OCR_IMAGE_TOO_LARGE: t['com.affine.import.pdf.ocr-image-too-large'](),
+    OCR_BUSY: t['com.affine.import.pdf.ocr-busy'](),
+    OCR_TIMEOUT: t['com.affine.import.pdf.ocr-timeout'](),
+    OCR_UPSTREAM_UNAVAILABLE: t['com.affine.import.pdf.ocr-unavailable'](),
+    OCR_UPSTREAM_REJECTED: t['com.affine.import.pdf.ocr-rejected'](),
+    OCR_INVALID_RESPONSE: t['com.affine.import.pdf.ocr-invalid-response'](),
+    OCR_EMPTY_RESULT: t['com.affine.import.pdf.ocr-empty-result'](),
+  };
   const message =
-    error?.code === 'PdfOcrRequiredError'
-      ? t['com.affine.import.pdf.ocr-required']()
-      : error?.message || 'Unknown error occurred';
+    (error?.code ? ocrMessages[error.code] : undefined) ??
+    error?.message ??
+    'Unknown error occurred';
   return (
     <>
       <div className={style.importModalTitle}>
@@ -797,6 +838,7 @@ export const ImportDialog = ({
   const workspace = useService(WorkspaceService).workspace;
   const docCollection = workspace.docCollection;
   const importService = useService(ImportService);
+  const fetchService = useService(FetchService);
 
   const globalDialogService = useService(GlobalDialogService);
 
@@ -891,6 +933,7 @@ export const ImportDialog = ({
         } = await importConfig.importFunction({
           docCollection,
           files,
+          fetchService,
           importAffineFile: handleImportAffineFile,
           importService,
           context: {
@@ -934,7 +977,7 @@ export const ImportDialog = ({
         logger.error('Failed to import', error);
       }
     },
-    [docCollection, handleImportAffineFile, importService, t]
+    [docCollection, fetchService, handleImportAffineFile, importService, t]
   );
 
   const finishImport = useCallback(() => {

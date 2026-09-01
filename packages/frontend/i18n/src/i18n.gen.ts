@@ -2527,17 +2527,67 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.import.pdf"](): string;
     /**
-      * `Pages {{pages}} had no extractable text and were skipped. OCR is required to convert those pages.`
+      * `The OCR service is busy. Wait a moment and retry the import.`
       */
-    ["com.affine.import.pdf.ocr-pages-warning"](options: {
+    ["com.affine.import.pdf.ocr-busy"](): string;
+    /**
+      * `Scanned PDF OCR is not enabled on this LocalMind server. Ask an administrator to enable the server-controlled OCR integration.`
+      */
+    ["com.affine.import.pdf.ocr-disabled"](): string;
+    /**
+      * `OCR did not detect readable text in this PDF.`
+      */
+    ["com.affine.import.pdf.ocr-empty-result"](): string;
+    /**
+      * `A scanned PDF page was too large for the configured OCR service.`
+      */
+    ["com.affine.import.pdf.ocr-image-too-large"](): string;
+    /**
+      * `The LocalMind OCR integration is misconfigured. Ask an administrator to check the OCR URL and allowed host.`
+      */
+    ["com.affine.import.pdf.ocr-invalid-config"](): string;
+    /**
+      * `A scanned PDF page could not be converted into a supported OCR image.`
+      */
+    ["com.affine.import.pdf.ocr-invalid-image"](): string;
+    /**
+      * `The OCR service returned an invalid or oversized result. Retry, or ask an administrator to inspect the service.`
+      */
+    ["com.affine.import.pdf.ocr-invalid-response"](): string;
+    /**
+      * `This PDF contains too many scanned pages for one import. Split it into files of 100 scanned pages or fewer.`
+      */
+    ["com.affine.import.pdf.ocr-page-limit"](): string;
+    /**
+      * `OCR converted pages {{pages}}. Review the imported text, tables, and formulas for recognition errors.`
+      */
+    ["com.affine.import.pdf.ocr-pages-converted"](options: {
         readonly pages: string;
     }): string;
+    /**
+      * `Pages {{pages}} could not be recognized and were omitted from the imported page.`
+      */
+    ["com.affine.import.pdf.ocr-pages-failed"](options: {
+        readonly pages: string;
+    }): string;
+    /**
+      * `The configured OCR service rejected the request. Retry, or ask an administrator to check its credentials and model.`
+      */
+    ["com.affine.import.pdf.ocr-rejected"](): string;
     /**
       * `This PDF has no extractable text layer. OCR is required before it can be converted into an editable LocalMind page.`
       */
     ["com.affine.import.pdf.ocr-required"](): string;
     /**
-      * `Convert a text-based PDF into an editable LocalMind page. Page layout may change; scanned PDFs require OCR.`
+      * `OCR took too long to process a scanned page. Retry the import.`
+      */
+    ["com.affine.import.pdf.ocr-timeout"](): string;
+    /**
+      * `The configured OCR service could not be reached. Check the network or ask an administrator to verify the integration.`
+      */
+    ["com.affine.import.pdf.ocr-unavailable"](): string;
+    /**
+      * `Convert PDF content into an editable LocalMind page. Scanned pages are sent to the administrator-configured OCR service; layout may change.`
       */
     ["com.affine.import.pdf.tooltip"](): string;
     /**
