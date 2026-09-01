@@ -258,14 +258,12 @@ export const WorkspaceByokSetting = () => {
       />
       <SettingWrapper>
         <div className={styles.stack}>
-          {settings.hasAiPlan ? (
-            <div className={styles.notice}>
-              <div className={styles.title}>{byokT(t, 'notice.title')}</div>
-              <div className={styles.description}>
-                {byokT(t, 'notice.description')}
-              </div>
+          <div className={styles.notice}>
+            <div className={styles.title}>{byokT(t, 'notice.title')}</div>
+            <div className={styles.description}>
+              {byokT(t, 'notice.description')}
             </div>
-          ) : null}
+          </div>
 
           <div className={styles.panel} data-testid="workspace-byok-keys">
             <div className={styles.panelHeader}>

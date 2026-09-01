@@ -878,9 +878,12 @@ Implemented outcome:
   of the same type;
 - usage audit rows retain the prepared request/route model when native provider
   responses omit model metadata or emit provider selection first;
-- the existing BYOK-first provider registry handles a matching bare model id
-  before the quota-backed/global registry, while unrelated model ids retain
-  normal fallback behavior;
+- runtime provider selection is BYOK-only: matching bare model ids use the
+  bound key, legacy platform-prefixed requests fall back to an eligible BYOK
+  binding, and quota-backed/global providers are never dispatched;
+- requests without eligible BYOK coverage fail with
+  `COPILOT_BYOK_NOT_CONFIGURED`; the compatibility quota API reports unlimited
+  and does not participate in route selection;
 - OpenAI-compatible key tests execute the configured model through the
   Responses endpoint, so a key cannot pass solely because provider-level model
   listing succeeds;
@@ -893,8 +896,7 @@ Remaining follow-up:
   only when a concrete provider requirement justifies expanding the current
   one-key/one-model Responses contract;
 - keep deployment prompt/default model ids aligned with the bare model id that
-  a BYOK key advertises, because provider-prefixed global ids intentionally do
-  not match a workspace BYOK model binding.
+  a BYOK key advertises to avoid unnecessary legacy-prefix normalization.
 
 See `tracks/registries.md`.
 

@@ -70,8 +70,8 @@ The workspace BYOK exact-model binding slice is now implemented:
   `modelId`, including encrypted local lease transport and generated GraphQL
   types;
 - a configured key contributes only its bound model and a generated runtime
-  model definition, so the existing BYOK-first registry selects that key for a
-  matching bare model id before considering quota-backed/global providers;
+  model definition; runtime selection is BYOK-only and never dispatches through
+  quota-backed/global providers;
 - provider lifecycle startup registers each built-in driver independently from
   statically configured provider profiles, so a BYOK OpenAI key remains
   executable when the global route uses only an OpenAI-compatible profile;
@@ -81,10 +81,15 @@ The workspace BYOK exact-model binding slice is now implemented:
 - OpenAI-compatible key testing sends a minimal `POST /responses` request with
   the exact configured model instead of treating a provider-level
   `GET /models` response as proof that the requested model is usable;
-- quota-backed prefixed model requests preserve an exact matching BYOK binding,
-  but when quota-backed routes are unavailable and no BYOK profile supports the
-  requested model, route selection removes that model constraint and falls back
-  to the workspace's bound BYOK model;
+- legacy quota-backed prefixed model requests preserve an exact matching BYOK
+  binding; when no BYOK profile supports the requested model, route selection
+  removes that model constraint and falls back to the workspace's bound BYOK
+  model without enabling the legacy platform route;
+- every AI execution requires an eligible BYOK profile for the requested
+  workspace and feature; missing coverage raises
+  `COPILOT_BYOK_NOT_CONFIGURED`, while the compatibility quota API reports an
+  unlimited limit and is not consulted by routing; the AI error state exposes
+  a localized action that opens the current workspace's BYOK settings directly;
 - Workspace Settings requires the model id before test/save, invalidates a
   successful test when the model changes, and displays the bound model beside
   the key without exposing the secret;

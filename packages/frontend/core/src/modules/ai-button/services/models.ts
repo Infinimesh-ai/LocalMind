@@ -920,14 +920,13 @@ const TASK_ROUTE_REASON_METADATA: Record<
     actionKind: 'none',
   },
   registry_shadowed_by_byok: {
-    label: 'Shadowed by BYOK',
+    label: 'Legacy platform route disabled',
     description:
-      'A BYOK route was selected before this quota-backed candidate.',
+      'This legacy platform candidate is not eligible for BYOK-only execution.',
     phase: 'resolution',
     severity: 'info',
     actionKind: 'check_registry',
-    remediation:
-      'Adjust BYOK profiles or provider priority if the quota-backed registry should be used instead.',
+    remediation: 'Configure an eligible BYOK provider and model for this task.',
   },
   registry_unavailable: {
     label: 'Registry unavailable',
@@ -936,16 +935,16 @@ const TASK_ROUTE_REASON_METADATA: Record<
     severity: 'warning',
     actionKind: 'check_registry',
     remediation:
-      'Check whether the registry branch is disabled, lacks profiles, or is blocked by current quota and access settings.',
+      'Check whether the BYOK registry has an eligible, enabled provider profile for this request.',
   },
   quota_exceeded_fallback_candidate: {
-    label: 'Quota fallback candidate',
-    description: 'A quota-backed route could match, but quota is unavailable.',
+    label: 'Legacy quota candidate',
+    description:
+      'An older diagnostic identified a platform route that is disabled under BYOK-only execution.',
     phase: 'resolution',
     severity: 'warning',
     actionKind: 'check_quota',
-    remediation:
-      'Restore quota or configure a BYOK/local fallback route for this task.',
+    remediation: 'Configure an eligible BYOK provider and model for this task.',
   },
   profile_model_matched: {
     label: 'Profile model matched',
@@ -1232,15 +1231,15 @@ const TASK_ROUTE_REMEDIATION_TARGETS: Record<
   },
   check_quota: {
     kind: 'quota',
-    label: 'Quota',
+    label: 'Legacy quota diagnostics',
     description:
-      'Quota-backed route availability, BYOK fallback, and quota exhaustion state.',
+      'Compatibility quota evidence; runtime provider execution is BYOK-only and does not enforce platform quota.',
   },
   check_registry: {
     kind: 'provider_registry',
     label: 'Provider registry',
     description:
-      'BYOK versus quota-backed registry branch selection, provider priority, and fallback order.',
+      'BYOK route selection, provider priority, model binding, and disabled legacy platform branches.',
   },
   configure_provider: {
     kind: 'provider_profiles',

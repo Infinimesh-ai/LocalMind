@@ -1,11 +1,35 @@
 /**
  * @vitest-environment happy-dom
  */
+import { UserFriendlyError } from '@affine/error';
 import { describe, expect, test, vi } from 'vitest';
 
-import { CopilotClient, Endpoint } from './copilot-client';
+import { ByokNotConfiguredError } from '../../provider';
+
+vi.mock('@affine/i18n', () => ({
+  I18n: {
+    'error.COPILOT_BYOK_NOT_CONFIGURED': () => 'Configure BYOK first.',
+  },
+}));
+
+import { CopilotClient, Endpoint, resolveError } from './copilot-client';
 
 describe('CopilotClient action streams', () => {
+  test('uses the localized BYOK configuration error', () => {
+    const error = new UserFriendlyError({
+      status: 403,
+      code: 'FORBIDDEN',
+      type: 'ACTION_FORBIDDEN',
+      name: 'COPILOT_BYOK_NOT_CONFIGURED',
+      message: 'Raw server message',
+    });
+
+    const resolved = resolveError(error);
+
+    expect(resolved).toBeInstanceOf(ByokNotConfiguredError);
+    expect(resolved.message).toBe('Configure BYOK first.');
+  });
+
   test('routes action endpoint outside the deprecated workflow path', () => {
     const eventSource = vi.fn(
       () =>

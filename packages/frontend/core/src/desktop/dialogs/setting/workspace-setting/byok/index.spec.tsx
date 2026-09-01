@@ -152,6 +152,12 @@ vi.mock('@affine/i18n', () => {
     'com.affine.settings.workspace.byok.action.cancel': 'Cancel',
     'com.affine.settings.workspace.byok.action.clear-all':
       'Clear all BYOK keys',
+    'com.affine.settings.workspace.byok.header':
+      'Use workspace provider keys for all LocalMind AI requests.',
+    'com.affine.settings.workspace.byok.notice.title':
+      'BYOK is required for AI',
+    'com.affine.settings.workspace.byok.notice.description':
+      'AI requests are unavailable when no eligible BYOK key is configured.',
     'com.affine.settings.workspace.byok.field.api-key': 'API key',
     'com.affine.settings.workspace.byok.field.model-id': 'Model ID',
     'com.affine.settings.workspace.byok.field.storage': 'Key storage',
@@ -357,6 +363,12 @@ describe('WorkspaceByokSetting', () => {
     render(<WorkspaceByokSetting />);
 
     await screen.findByTestId('workspace-byok-empty');
+    expect(screen.getByText('BYOK is required for AI')).not.toBeNull();
+    expect(
+      screen.getByText(
+        'AI requests are unavailable when no eligible BYOK key is configured.'
+      )
+    ).not.toBeNull();
     fireEvent.click(screen.getAllByText('Add key')[0]);
     expect(screen.getByText<HTMLButtonElement>('Save key').disabled).toBe(true);
 

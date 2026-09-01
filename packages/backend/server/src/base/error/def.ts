@@ -846,6 +846,11 @@ export const USER_FRIENDLY_ERRORS = {
     message: ({ message }) =>
       `Failed to add workspace file embedding: ${message}`,
   },
+  copilot_byok_not_configured: {
+    type: 'action_forbidden',
+    message:
+      'No available BYOK provider is configured for this workspace. Configure BYOK in Workspace Settings before using AI.',
+  },
 
   // Quota & Limit errors
   blob_quota_exceeded: {

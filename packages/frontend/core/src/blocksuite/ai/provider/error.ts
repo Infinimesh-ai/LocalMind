@@ -3,10 +3,19 @@ abstract class BaseAIError extends Error {
 }
 
 export enum AIErrorType {
+  ByokNotConfigured = 'ByokNotConfigured',
   GeneralNetworkError = 'GeneralNetworkError',
   PaymentRequired = 'PaymentRequired',
   Unauthorized = 'Unauthorized',
   RequestTimeout = 'RequestTimeout',
+}
+
+export class ByokNotConfiguredError extends BaseAIError {
+  readonly type = AIErrorType.ByokNotConfigured;
+
+  constructor(message: string) {
+    super(message);
+  }
 }
 
 export class UnauthorizedError extends BaseAIError {
@@ -45,6 +54,7 @@ export class RequestTimeoutError extends BaseAIError {
 }
 
 export type AIError =
+  | ByokNotConfiguredError
   | UnauthorizedError
   | PaymentRequiredError
   | GeneralNetworkError

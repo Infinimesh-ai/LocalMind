@@ -153,6 +153,17 @@ export const WorkspaceSideEffects = () => {
     };
   }, [workspaceDialogService]);
 
+  useEffect(() => {
+    const disposable = AIAppEvents.requestConfigureByok.subscribe(() => {
+      workspaceDialogService.open('setting', {
+        activeTab: 'workspace:byok',
+      });
+    });
+    return () => {
+      disposable.unsubscribe();
+    };
+  }, [workspaceDialogService]);
+
   const graphqlService = useService(GraphQLService);
   const eventSourceService = useService(EventSourceService);
   const authService = useService(AuthService);

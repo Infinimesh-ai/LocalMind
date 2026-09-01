@@ -21,6 +21,7 @@ import { useMemo } from 'react';
 import type { SettingSidebarItem, SettingState } from '../types';
 import { AIContextSettings } from './ai-context';
 import { WorkspaceSettingBilling } from './billing';
+import { WorkspaceByokSetting } from './byok';
 import { IntegrationSetting } from './integration';
 import { WorkspaceSettingLicense } from './license';
 import { MembersPanel } from './members';
@@ -53,6 +54,8 @@ export const WorkspaceSetting = ({
       );
     case 'workspace:billing':
       return <WorkspaceSettingBilling />;
+    case 'workspace:byok':
+      return <WorkspaceByokSetting />;
     case 'workspace:storage':
       return <WorkspaceSettingStorage onCloseSetting={onCloseSetting} />;
     case 'workspace:license':

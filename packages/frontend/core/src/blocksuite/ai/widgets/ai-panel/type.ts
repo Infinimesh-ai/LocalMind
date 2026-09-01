@@ -15,6 +15,7 @@ export interface AIPanelAnswerConfig {
 }
 
 export interface AIPanelErrorConfig {
+  configureByok: () => void;
   login: () => void;
   upgrade: () => void;
   cancel: () => void;

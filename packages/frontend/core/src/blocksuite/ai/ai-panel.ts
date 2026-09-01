@@ -274,6 +274,10 @@ export function buildFinishConfig<T extends keyof BlockSuitePresets.AIActions>(
 
 export function buildErrorConfig(panel: AffineAIPanelWidget) {
   return {
+    configureByok: () => {
+      AIAppEvents.requestConfigureByok.next({ host: panel.host });
+      panel.hide();
+    },
     upgrade: () => {
       AIAppEvents.requestUpgradePlan.next({ host: panel.host });
       panel.hide();

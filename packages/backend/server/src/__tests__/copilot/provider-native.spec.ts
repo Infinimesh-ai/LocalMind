@@ -4,8 +4,8 @@ import Sinon from 'sinon';
 import { z } from 'zod';
 
 import {
+  CopilotByokNotConfigured,
   CopilotPromptInvalid,
-  CopilotQuotaExceeded,
   NoCopilotProviderAvailable,
 } from '../../base';
 import {
@@ -2164,10 +2164,10 @@ const BYOK_FAL_PROFILE: CopilotProviderProfile = {
 
 function createProviderFactoryWithByokRoutes({
   byokProfiles = [BYOK_OPENAI_PROFILE],
-  hasQuota = true,
+  quotaBackedRoutesAvailable = true,
 }: {
   byokProfiles?: CopilotProviderProfile[];
-  hasQuota?: boolean;
+  quotaBackedRoutesAvailable?: boolean;
 } = {}) {
   const provider = createProvider();
   const registryService = {
@@ -2194,7 +2194,8 @@ function createProviderFactoryWithByokRoutes({
   const access = {
     resolveRouteAccess: Sinon.stub().callsFake(async context => ({
       byokProfiles: await byok.getProfiles(context),
-      quotaBackedRoutesAvailable: context.quotaBackedRoutesAllowed ?? hasQuota,
+      quotaBackedRoutesAvailable:
+        context.quotaBackedRoutesAllowed ?? quotaBackedRoutesAvailable,
     })),
   };
   const factory = new CopilotProviderFactory(
@@ -2249,7 +2250,7 @@ test('CopilotProviderFactory should use matching BYOK routes before quota-backed
 
 test('CopilotProviderFactory should let BYOK handle a quota-backed prefixed model ID', async t => {
   const { factory } = createProviderFactoryWithByokRoutes({
-    hasQuota: false,
+    quotaBackedRoutesAvailable: false,
     byokProfiles: [createBoundOpenAIByokProfile('gpt-5-mini')],
   });
 
@@ -2280,10 +2281,10 @@ test('CopilotProviderFactory should let BYOK handle a quota-backed prefixed mode
   );
 });
 
-test('CopilotProviderFactory should fall back to a bound BYOK model when quota is exhausted', async t => {
+test('CopilotProviderFactory should fall back to a bound BYOK model for a legacy platform-prefixed request', async t => {
   const modelId = 'qwen3.8-flash';
   const { factory } = createProviderFactoryWithByokRoutes({
-    hasQuota: false,
+    quotaBackedRoutesAvailable: true,
     byokProfiles: [createBoundOpenAIByokProfile(modelId)],
   });
   const cond = {
@@ -2331,9 +2332,9 @@ test('CopilotProviderFactory should fall back to a bound BYOK model when quota i
   );
 });
 
-test('CopilotProviderFactory should preserve a quota-backed model while quota is available', async t => {
+test('CopilotProviderFactory should ignore stale quota availability and use the bound BYOK model', async t => {
   const { factory } = createProviderFactoryWithByokRoutes({
-    hasQuota: true,
+    quotaBackedRoutesAvailable: true,
     byokProfiles: [createBoundOpenAIByokProfile('qwen3.8-flash')],
   });
 
@@ -2355,10 +2356,10 @@ test('CopilotProviderFactory should preserve a quota-backed model while quota is
     })),
     [
       {
-        providerId: 'openai-main',
-        modelId: 'gpt-5-mini',
+        providerId: BYOK_OPENAI_PROFILE.id,
+        modelId: 'qwen3.8-flash',
         rawModelId: 'openai-main/gpt-5-mini',
-        registryKind: 'quota_backed',
+        registryKind: 'byok',
       },
     ]
   );
@@ -2489,7 +2490,7 @@ test('CopilotProviderFactory should execute BYOK with a runtime that has no stat
   );
 });
 
-test('CopilotProviderFactory should skip unsupported BYOK profiles and use quota-backed fallback', async t => {
+test('CopilotProviderFactory should not use quota-backed fallback for an unsupported BYOK profile', async t => {
   const { factory } = createProviderFactoryWithByokRoutes({
     byokProfiles: [BYOK_FAL_PROFILE],
   });
@@ -2500,10 +2501,7 @@ test('CopilotProviderFactory should skip unsupported BYOK profiles and use quota
     { userId: 'user-1', workspaceId: 'workspace-1' }
   );
 
-  t.deepEqual(
-    routes.map(route => route.providerId),
-    ['openai-main']
-  );
+  t.deepEqual(routes, []);
 });
 
 test('CopilotProviderFactory should resolve BYOK embedding routes with workspace context', async t => {
@@ -2589,8 +2587,10 @@ test('CopilotProviderFactory should treat image preparation as image feature by 
   });
 });
 
-test('CopilotProviderFactory should omit quota-backed routes when quota is exhausted', async t => {
-  const { factory } = createProviderFactoryWithByokRoutes({ hasQuota: false });
+test('CopilotProviderFactory should use BYOK regardless of quota availability', async t => {
+  const { factory } = createProviderFactoryWithByokRoutes({
+    quotaBackedRoutesAvailable: false,
+  });
 
   const routes = await factory.resolveRoutes(
     { modelId: 'gpt-5-mini', outputType: ModelOutputType.Text },
@@ -2604,10 +2604,10 @@ test('CopilotProviderFactory should omit quota-backed routes when quota is exhau
   );
 });
 
-test('CopilotProviderFactory should raise quota exceeded when only quota-backed routes match', async t => {
+test('CopilotProviderFactory should require BYOK when only quota-backed routes match', async t => {
   const { factory } = createProviderFactoryWithByokRoutes({
     byokProfiles: [],
-    hasQuota: false,
+    quotaBackedRoutesAvailable: true,
   });
 
   await t.throwsAsync(
@@ -2616,27 +2616,28 @@ test('CopilotProviderFactory should raise quota exceeded when only quota-backed 
       {},
       { userId: 'user-1', workspaceId: 'workspace-1' }
     ),
-    { instanceOf: CopilotQuotaExceeded }
+    { instanceOf: CopilotByokNotConfigured }
   );
 });
 
-test('CopilotProviderFactory should not report quota exhausted when quota-backed routes are disabled', async t => {
+test('CopilotProviderFactory should not allow an explicit quota-backed route override without BYOK', async t => {
   const { factory } = createProviderFactoryWithByokRoutes({
     byokProfiles: [],
-    hasQuota: true,
+    quotaBackedRoutesAvailable: true,
   });
 
-  const routes = await factory.resolveRoutes(
-    { modelId: 'gpt-5-mini', outputType: ModelOutputType.Text },
-    {},
-    {
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-      quotaBackedRoutesAllowed: false,
-    }
+  await t.throwsAsync(
+    factory.resolveRoutes(
+      { modelId: 'gpt-5-mini', outputType: ModelOutputType.Text },
+      {},
+      {
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+        quotaBackedRoutesAllowed: true,
+      }
+    ),
+    { instanceOf: CopilotByokNotConfigured }
   );
-
-  t.deepEqual(routes, []);
 });
 
 test('selectModel should reject unknown models without online fallback', t => {
@@ -3433,8 +3434,8 @@ test('CopilotProviderFactory should describe route candidates after policy filte
     [
       {
         registryKind: 'quota_backed',
-        registryAvailable: true,
-        registrySelected: true,
+        registryAvailable: false,
+        registrySelected: false,
         providerId: 'embed-main',
         providerSource: 'configured',
         providerProfileId: 'embed-main',
@@ -3459,12 +3460,12 @@ test('CopilotProviderFactory should describe route candidates after policy filte
         reasons: [
           'profile_model_matched',
           'capability_matched',
-          'registry_selected',
+          'registry_unavailable',
         ],
       },
       {
         registryKind: 'quota_backed',
-        registryAvailable: true,
+        registryAvailable: false,
         registrySelected: false,
         providerId: 'chat-only',
         providerSource: 'configured',
@@ -3483,11 +3484,12 @@ test('CopilotProviderFactory should describe route candidates after policy filte
           'no_profile_model_match',
           'capability_mismatch',
           'output_not_supported',
+          'registry_unavailable',
         ],
       },
       {
         registryKind: 'quota_backed',
-        registryAvailable: true,
+        registryAvailable: false,
         registrySelected: false,
         providerId: 'restricted',
         providerSource: 'configured',
@@ -3502,7 +3504,11 @@ test('CopilotProviderFactory should describe route candidates after policy filte
         health: 'unknown',
         candidateModelIds: ['another-embedding'],
         matched: false,
-        reasons: ['no_profile_model_match', 'capability_mismatch'],
+        reasons: [
+          'no_profile_model_match',
+          'capability_mismatch',
+          'registry_unavailable',
+        ],
       },
     ]
   );
@@ -3521,7 +3527,7 @@ test('CopilotProviderFactory should describe route candidates after policy filte
     [
       {
         registryKind: 'quota_backed',
-        registryAvailable: true,
+        registryAvailable: false,
         registrySelected: false,
         providerId: 'restricted',
         providerSource: 'configured',
@@ -3537,7 +3543,7 @@ test('CopilotProviderFactory should describe route candidates after policy filte
         requestedModelId: 'workspace-embedding',
         candidateModelIds: ['another-embedding'],
         matched: false,
-        reasons: ['profile_model_not_allowed'],
+        reasons: ['profile_model_not_allowed', 'registry_unavailable'],
       },
     ]
   );
@@ -3628,7 +3634,7 @@ test('CopilotProviderFactory should describe route candidate attachment mismatch
     [
       {
         registryKind: 'quota_backed',
-        registryAvailable: true,
+        registryAvailable: false,
         registrySelected: false,
         providerId: 'local-file',
         providerSource: 'configured',
@@ -3648,13 +3654,14 @@ test('CopilotProviderFactory should describe route candidate attachment mismatch
           'capability_mismatch',
           'attachment_source_not_supported',
           'remote_attachment_not_supported',
+          'registry_unavailable',
         ],
       },
     ]
   );
 });
 
-test('CopilotProviderFactory should describe BYOK and quota-backed route branches', async t => {
+test('CopilotProviderFactory should describe BYOK and disabled platform route branches', async t => {
   const { factory } = createProviderFactoryWithByokRoutes();
 
   t.deepEqual(
@@ -3700,7 +3707,7 @@ test('CopilotProviderFactory should describe BYOK and quota-backed route branche
       },
       {
         registryKind: 'quota_backed',
-        registryAvailable: true,
+        registryAvailable: false,
         registrySelected: false,
         providerId: 'openai-main',
         providerSource: 'configured',
@@ -3728,7 +3735,7 @@ test('CopilotProviderFactory should describe BYOK and quota-backed route branche
         routeStructuredAttachmentSourceKinds: ['url', 'data'],
         routeStructuredAttachmentAllowRemoteUrls: true,
         matched: true,
-        reasons: ['capability_matched', 'registry_shadowed_by_byok'],
+        reasons: ['capability_matched', 'registry_unavailable'],
       },
     ]
   );
@@ -3737,7 +3744,7 @@ test('CopilotProviderFactory should describe BYOK and quota-backed route branche
 test('CopilotProviderFactory should describe unavailable quota-backed route branch', async t => {
   const { factory } = createProviderFactoryWithByokRoutes({
     byokProfiles: [],
-    hasQuota: false,
+    quotaBackedRoutesAvailable: false,
   });
 
   t.deepEqual(
@@ -3777,11 +3784,7 @@ test('CopilotProviderFactory should describe unavailable quota-backed route bran
         routeStructuredAttachmentSourceKinds: ['url', 'data'],
         routeStructuredAttachmentAllowRemoteUrls: true,
         matched: true,
-        reasons: [
-          'capability_matched',
-          'registry_unavailable',
-          'quota_exceeded_fallback_candidate',
-        ],
+        reasons: ['capability_matched', 'registry_unavailable'],
       },
     ]
   );

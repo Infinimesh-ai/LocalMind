@@ -965,6 +965,12 @@ export class CopilotFailedToAddWorkspaceFileEmbedding extends UserFriendlyError 
   }
 }
 
+export class CopilotByokNotConfigured extends UserFriendlyError {
+  constructor(message?: string) {
+    super('action_forbidden', 'copilot_byok_not_configured', message);
+  }
+}
+
 export class BlobQuotaExceeded extends UserFriendlyError {
   constructor(message?: string) {
     super('quota_exceeded', 'blob_quota_exceeded', message);
@@ -1328,6 +1334,7 @@ export enum ErrorNames {
   COPILOT_TRANSCRIPTION_JOB_NOT_FOUND,
   COPILOT_TRANSCRIPTION_AUDIO_NOT_PROVIDED,
   COPILOT_FAILED_TO_ADD_WORKSPACE_FILE_EMBEDDING,
+  COPILOT_BYOK_NOT_CONFIGURED,
   BLOB_QUOTA_EXCEEDED,
   STORAGE_QUOTA_EXCEEDED,
   MEMBER_QUOTA_EXCEEDED,

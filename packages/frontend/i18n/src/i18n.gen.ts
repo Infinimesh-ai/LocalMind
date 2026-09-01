@@ -895,6 +895,10 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.ai.chat-panel.session.delete.toast.failed"](): string;
     /**
+      * `Configure BYOK`
+      */
+    ["com.affine.ai.error.configure-byok"](): string;
+    /**
       * `All docs`
       */
     ["com.affine.all-pages.header"](): string;
@@ -6004,7 +6008,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.settings.workspace.byok.subtitle"](): string;
     /**
-      * `Use workspace provider keys before LocalMind AI plan routes.`
+      * `Use workspace provider keys for all LocalMind AI requests.`
       */
     ["com.affine.settings.workspace.byok.header"](): string;
     /**
@@ -6016,11 +6020,11 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.settings.workspace.byok.locked.description"](): string;
     /**
-      * `AI plan stays available`
+      * `BYOK is required for AI`
       */
     ["com.affine.settings.workspace.byok.notice.title"](): string;
     /**
-      * `Local keys on this device are tried first. Workspace server keys follow, then LocalMind AI plan routes when quota is available.`
+      * `Local keys on this device are tried first, followed by workspace server keys. AI requests are unavailable when no eligible BYOK key is configured.`
       */
     ["com.affine.settings.workspace.byok.notice.description"](): string;
     /**
@@ -6156,11 +6160,11 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.settings.workspace.byok.feature.workspace-indexing.fallback"](): string;
     /**
-      * `Transcript and workspace indexing require a server Gemini BYOK key or LocalMind AI plan fallback.`
+      * `Transcript and workspace indexing require an enabled server Gemini BYOK key.`
       */
     ["com.affine.settings.workspace.byok.warning.transcript"](): string;
     /**
-      * `Workspace indexing requires a server Gemini BYOK key or LocalMind AI plan fallback.`
+      * `Workspace indexing requires an enabled server Gemini BYOK key.`
       */
     ["com.affine.settings.workspace.byok.warning.workspace-indexing"](): string;
     /**
@@ -11432,6 +11436,10 @@ export function useAFFiNEI18N(): {
     ["error.COPILOT_FAILED_TO_ADD_WORKSPACE_FILE_EMBEDDING"](options: {
         readonly message: string;
     }): string;
+    /**
+      * `No available BYOK provider is configured for this workspace. Configure BYOK in Workspace Settings before using AI.`
+      */
+    ["error.COPILOT_BYOK_NOT_CONFIGURED"](): string;
     /**
       * `You have exceeded your blob size quota.`
       */

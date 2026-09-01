@@ -267,9 +267,9 @@ Implemented behavior:
 2. Server and local BYOK profiles expose `models=[modelId]` plus a generated
    model definition with the provider's runtime backend kind and bounded
    capabilities.
-3. The existing effective provider split evaluates the BYOK registry before
-   the quota-backed/global registry, so a matching bare model id resolves to
-   the BYOK profile while a non-matching model can use normal fallback.
+3. The effective provider split is BYOK-only at runtime. Matching bare model
+   ids resolve to BYOK profiles, while quota-backed/global profiles remain
+   visible only as unavailable compatibility diagnostics and prefix metadata.
 4. OpenAI-compatible key validation uses a minimal `POST /responses` call with
    the exact model id and safe response handling; model id normalization rejects
    blank or overlong values before persistence or network testing.
@@ -277,18 +277,24 @@ Implemented behavior:
    flows, displays it on the key row, and invalidates the previous successful
    test when the model changes.
 6. Focused backend route coverage proves that a bound custom model selects the
-   BYOK profile and shadows the matching global provider route.
+   BYOK profile and that stale quota-route enablement signals cannot re-enable
+   a global provider route.
 7. Provider lifecycle startup registers built-in drivers independently from
    static provider profile ids, so a BYOK OpenAI route is executable even when
    the only configured global provider is OpenAI-compatible.
 8. Native usage recording seeds model evidence from the prepared request or
    route when a provider response omits it or reports provider selection before
    stream model metadata.
-9. Quota-backed prefixed model requests keep an exact matching BYOK binding;
-   when quota-backed routes are unavailable and the requested model is not
-   bound to BYOK, provider selection clears the model constraint and falls back
-   to the workspace's bound BYOK model without changing the requested-model
-   audit evidence.
+9. Legacy quota-backed prefixed model requests keep an exact matching BYOK
+   binding; when the requested model is not bound to BYOK, provider selection
+   clears the model constraint and falls back to the workspace's bound BYOK
+   model without changing the requested-model audit evidence.
+10. AI execution requires an eligible BYOK profile for the requested workspace
+    and feature. Missing coverage raises `COPILOT_BYOK_NOT_CONFIGURED`; platform
+    quota is not checked, the compatibility quota API reports unlimited, and
+    replayed turns cannot opt back into quota-backed routing. Chat and action
+    error states provide a localized button that opens the current workspace's
+    BYOK settings directly.
 
 ## Implemented Provider Health State Persistence Slice
 

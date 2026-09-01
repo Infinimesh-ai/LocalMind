@@ -2214,6 +2214,16 @@ async function main() {
             models: ['byok-chat'],
             modelDefinitions: [
               {
+                id: 'byok-chat',
+                capabilities: [
+                  {
+                    input: [ModelInputType.Text],
+                    output: [ModelOutputType.Text],
+                    defaultForOutputType: true,
+                  },
+                ],
+              },
+              {
                 id: 'byok-structured',
                 aliases: ['byok-structured-alias'],
                 capabilities: [
@@ -2238,13 +2248,11 @@ async function main() {
     });
   assert.deepEqual(effectiveSelectionScope.providerIds, [
     'byok-workspace-openai',
-    'quota-cloud',
   ]);
   assert.deepEqual(effectiveSelectionScope.configuredModelIds, [
     'byok-workspace-openai/byok-chat',
     'byok-workspace-openai/byok-structured',
     'byok-workspace-openai/byok-structured-alias',
-    'quota-cloud/quota-chat',
   ]);
   assert.deepEqual(
     routeScopedModelSelection.resolveRequestedModel({
@@ -2262,6 +2270,67 @@ async function main() {
       matchedOptionalModel: true,
     },
     'model selection should match provider-prefixed BYOK requests from effective provider scope'
+  );
+  const legacyPrefixedRoutes = await effectiveSelectionFactory.resolveRoutes(
+    {
+      modelId: 'quota-cloud/quota-chat',
+      outputType: ModelOutputType.Text,
+    },
+    {},
+    {
+      workspaceId: 'workspace-smoke',
+      featureKind: 'chat',
+      quotaBackedRoutesAllowed: true,
+    }
+  );
+  assert.deepEqual(
+    legacyPrefixedRoutes.map(route => ({
+      providerId: route.providerId,
+      modelId: route.modelId,
+      rawModelId: route.rawModelId,
+      registryKind: route.registryKind,
+    })),
+    [
+      {
+        providerId: 'byok-workspace-openai',
+        modelId: 'byok-chat',
+        rawModelId: 'quota-cloud/quota-chat',
+        registryKind: 'byok',
+      },
+    ],
+    'legacy platform-prefixed requests should fall back to the bound BYOK model even when a stale caller enables quota-backed routes'
+  );
+  const noByokFactory = new CopilotProviderFactory(
+    { enableFeature() {}, disableFeature() {} } as any,
+    {
+      getRegistry: () => effectiveSelectionQuotaRegistry,
+      getRegistryWithModelRevisions: async () =>
+        effectiveSelectionQuotaRegistry,
+    } as any,
+    {
+      resolveRouteAccess: async () => ({
+        byokProfiles: [],
+        quotaBackedRoutesAvailable: true,
+      }),
+    } as any
+  );
+  noByokFactory.register('quota-cloud', effectiveSelectionProvider);
+  await assert.rejects(
+    noByokFactory.resolveRoutes(
+      {
+        modelId: 'quota-cloud/quota-chat',
+        outputType: ModelOutputType.Text,
+      },
+      {},
+      {
+        workspaceId: 'workspace-smoke',
+        featureKind: 'chat',
+        quotaBackedRoutesAllowed: true,
+      }
+    ),
+    (error: unknown) =>
+      error instanceof Error && error.name === 'copilot_byok_not_configured',
+    'requests without an eligible BYOK profile should fail with the dedicated configuration error'
   );
   const hostRouteContext = {
     userId: 'user-smoke',

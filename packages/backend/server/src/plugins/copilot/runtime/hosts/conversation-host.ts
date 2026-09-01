@@ -146,7 +146,7 @@ export class ConversationHost {
       retry
     );
     if (acceptedTurn) {
-      return { turn: acceptedTurn, quotaBackedRoutesAllowed: true };
+      return { turn: acceptedTurn, quotaBackedRoutesAllowed: false };
     }
 
     await using lock = await this.mutex.acquire(
@@ -163,7 +163,7 @@ export class ConversationHost {
       retry
     );
     if (acceptedAfterLock) {
-      return { turn: acceptedAfterLock, quotaBackedRoutesAllowed: true };
+      return { turn: acceptedAfterLock, quotaBackedRoutesAllowed: false };
     }
 
     const durableTurn = await this.loadDurableTurn(
@@ -175,7 +175,7 @@ export class ConversationHost {
     if (durableTurn) {
       return {
         turn: durableTurn,
-        quotaBackedRoutesAllowed: true,
+        quotaBackedRoutesAllowed: false,
       };
     }
 

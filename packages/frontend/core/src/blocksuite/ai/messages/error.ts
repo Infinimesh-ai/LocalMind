@@ -1,3 +1,4 @@
+import { I18n } from '@affine/i18n';
 import { SignalWatcher, WithDisposable } from '@blocksuite/affine/global/lit';
 import { scrollbarStyle } from '@blocksuite/affine/shared/styles';
 import { unsafeCSSVarV2 } from '@blocksuite/affine/shared/theme';
@@ -11,6 +12,7 @@ import { property } from 'lit/decorators.js';
 import {
   AIAppEvents,
   type AIError,
+  ByokNotConfiguredError,
   PaymentRequiredError,
   UnauthorizedError,
 } from '../provider';
@@ -94,6 +96,7 @@ export class AIErrorWrapper extends SignalWatcher(WithDisposable(LitElement)) {
         width: 100%;
       }
       .action-button {
+        appearance: none;
         cursor: pointer;
         color: ${unsafeCSSVarV2('text/primary')};
         background: ${unsafeCSSVarV2('button/secondary')};
@@ -103,6 +106,7 @@ export class AIErrorWrapper extends SignalWatcher(WithDisposable(LitElement)) {
         font-size: var(--affine-font-xs);
         font-style: normal;
         font-weight: 500;
+        font-family: inherit;
         line-height: 20px;
       }
       .action-button:hover {
@@ -148,7 +152,8 @@ export class AIErrorWrapper extends SignalWatcher(WithDisposable(LitElement)) {
         </div>
       </div>
       <div class="action">
-        <span
+        <button
+          type="button"
           class="action-button"
           @click=${this.onClick}
           data-testid="ai-error-action-button"
@@ -159,7 +164,7 @@ export class AIErrorWrapper extends SignalWatcher(WithDisposable(LitElement)) {
                 ${this.actionTooltip}
               </affine-tooltip>`
             : nothing}
-        </span>
+        </button>
       </div>
     </div>`;
   }
@@ -202,6 +207,17 @@ const LoginRequiredErrorRenderer = (host?: EditorHost | null) => html`
   ></ai-error-wrapper>
 `;
 
+const ByokNotConfiguredErrorRenderer = (
+  error: ByokNotConfiguredError,
+  host?: EditorHost | null
+) => html`
+  <ai-error-wrapper
+    .text=${error.message}
+    .actionText=${I18n['com.affine.ai.error.configure-byok']()}
+    .onClick=${() => AIAppEvents.requestConfigureByok.next({ host })}
+  ></ai-error-wrapper>
+`;
+
 type ErrorProps = {
   text?: string;
   errorMessage?: string;
@@ -232,7 +248,9 @@ const GeneralErrorRenderer = (props: ErrorProps = {}) => {
 };
 
 export function AIChatErrorRenderer(error: AIError, host?: EditorHost | null) {
-  if (error instanceof PaymentRequiredError) {
+  if (error instanceof ByokNotConfiguredError) {
+    return ByokNotConfiguredErrorRenderer(error, host);
+  } else if (error instanceof PaymentRequiredError) {
     return PaymentRequiredErrorRenderer(host);
   } else if (error instanceof UnauthorizedError) {
     return LoginRequiredErrorRenderer(host);

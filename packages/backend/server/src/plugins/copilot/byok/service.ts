@@ -778,13 +778,13 @@ export class ByokService {
       {
         featureKind: 'transcript',
         reason:
-          'Transcript and workspace indexing require a server Gemini BYOK key or a configured LocalMind AI fallback.',
+          'Transcript and workspace indexing require an enabled server Gemini BYOK key.',
         requiredProviders: [ByokProvider.gemini],
       },
       {
         featureKind: 'workspace_indexing',
         reason:
-          'Workspace indexing requires a server Gemini BYOK key or a configured LocalMind AI fallback.',
+          'Workspace indexing requires an enabled server Gemini BYOK key.',
         requiredProviders: [ByokProvider.gemini],
       },
     ];

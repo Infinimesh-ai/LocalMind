@@ -1,36 +1,24 @@
 import { Injectable } from '@nestjs/common';
 
-import { CopilotQuotaExceeded } from '../../../base';
-import { QuotaService } from '../../../core/quota/service';
 import { Models } from '../../../models';
 import type { Turn } from '../core';
 import type { ResolvedPrompt } from '../prompt';
 
 @Injectable()
 export class ConversationPolicy {
-  constructor(
-    private readonly models: Models,
-    private readonly quota: QuotaService
-  ) {}
+  constructor(private readonly models: Models) {}
 
   async getQuota(userId: string) {
-    const quota = await this.quota.getUserQuota(userId);
-    const limit = quota.copilotActionLimit;
-
     const used = await this.models.copilotSession.countUserMessages(userId);
-
-    return { limit, used };
+    return { limit: undefined, used };
   }
 
-  async checkQuota(userId: string) {
-    if (!(await this.hasQuota(userId))) {
-      throw new CopilotQuotaExceeded();
-    }
+  checkQuota(_userId: string) {
+    return Promise.resolve();
   }
 
-  async hasQuota(userId: string) {
-    const { limit, used } = await this.getQuota(userId);
-    return !(limit !== undefined && Number.isFinite(limit) && used >= limit);
+  hasQuota(_userId: string) {
+    return Promise.resolve(true);
   }
 
   shouldScheduleTitle(prompt: Pick<ResolvedPrompt, 'action'>) {

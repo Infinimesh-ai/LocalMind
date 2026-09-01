@@ -1,3 +1,4 @@
+import { I18n } from '@affine/i18n';
 import { WithDisposable } from '@blocksuite/affine/global/lit';
 import type { EditorHost } from '@blocksuite/affine/std';
 import { baseTheme } from '@toeverything/theme';
@@ -9,6 +10,25 @@ import { type AIItemGroupConfig } from '../../../../components/ai-item/types.js'
 import { AIErrorType } from '../../../../provider';
 import type { AIPanelErrorConfig, CopyConfig } from '../../type.js';
 import { filterAIItemGroup } from '../../utils.js';
+
+export function renderByokNotConfiguredError(
+  config: Pick<AIPanelErrorConfig, 'cancel' | 'configureByok' | 'error'>
+) {
+  return html` <div class="error-info">${config.error?.message}</div>
+    <div class="action-button-group">
+      <button type="button" @click=${config.cancel} class="action-button">
+        <span>${I18n['Cancel']()}</span>
+      </button>
+      <button
+        type="button"
+        @click=${config.configureByok}
+        class="action-button primary"
+        data-testid="ai-configure-byok-button"
+      >
+        <span>${I18n['com.affine.ai.error.configure-byok']()}</span>
+      </button>
+    </div>`;
+}
 
 export class AIPanelError extends WithDisposable(LitElement) {
   static override styles = css`
@@ -71,6 +91,7 @@ export class AIPanelError extends WithDisposable(LitElement) {
         margin-top: 4px;
       }
       .action-button {
+        appearance: none;
         display: flex;
         box-sizing: border-box;
         padding: 4px 12px;
@@ -85,6 +106,7 @@ export class AIPanelError extends WithDisposable(LitElement) {
         font-size: var(--affine-font-xs);
         font-style: normal;
         font-weight: 500;
+        font-family: inherit;
         line-height: 20px; /* 166.667% */
       }
       .action-button:hover {
@@ -142,6 +164,10 @@ export class AIPanelError extends WithDisposable(LitElement) {
     const errorTemplate = choose(
       this.config.error?.type,
       [
+        [
+          AIErrorType.ByokNotConfigured,
+          () => renderByokNotConfiguredError(this.config),
+        ],
         [
           AIErrorType.Unauthorized,
           () =>

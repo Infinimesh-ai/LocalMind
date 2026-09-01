@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { CopilotQuotaExceeded } from '../../../base';
+import { CopilotByokNotConfigured } from '../../../base';
 import { ServerFeature, ServerService } from '../../../core';
 import type { RegistryRevisionPublishEventRecord } from '../../../models/copilot-registry-revision-publish-event';
 import { type CopilotAccessContext, CopilotAccessPolicy } from '../access';
@@ -1138,25 +1138,20 @@ export class CopilotProviderFactory {
         ]),
       };
     });
-    const byokSelected = byokCandidates.some(candidate => candidate.allowed);
     const quotaBackedCandidates = describeProviderRoutePolicyCandidates(
       quotaBackedRegistry,
       quotaBackedRegistry.order,
       routePolicyContext,
       this.getAvailableProviderIds(quotaBackedRegistry)
     ).map(candidate => {
-      const registrySelected =
-        !byokSelected && quotaBackedRoutesAvailable && candidate.allowed;
       return {
         ...candidate,
         registryKind: 'quota_backed' as const,
         registryAvailable: quotaBackedRoutesAvailable,
-        registrySelected,
+        registrySelected: false,
         reasons: unique([
           ...candidate.reasons,
           ...(!quotaBackedRoutesAvailable ? ['registry_unavailable'] : []),
-          ...(byokSelected ? ['registry_shadowed_by_byok'] : []),
-          ...(registrySelected ? ['registry_selected'] : []),
         ]),
       };
     });
@@ -1356,7 +1351,6 @@ export class CopilotProviderFactory {
     const byokCond = this.normalizeByokCond(
       byokRegistry,
       quotaBackedRegistry,
-      quotaBackedRoutesAvailable,
       cond
     );
     const byokCandidates = await this.describeRouteCandidatesFromRegistry(
@@ -1381,11 +1375,6 @@ export class CopilotProviderFactory {
           registryAvailable: quotaBackedRoutesAvailable,
         }
       );
-    const quotaBackedSelected =
-      !byokSelected &&
-      quotaBackedRoutesAvailable &&
-      quotaBackedCandidates.some(candidate => candidate.matched);
-
     const annotateByokCandidate = (
       candidate: CopilotProviderRouteCandidateDiagnostics
     ) =>
@@ -1405,19 +1394,11 @@ export class CopilotProviderFactory {
       appendReasons(
         {
           ...candidate,
-          registrySelected: quotaBackedSelected && candidate.matched,
+          registrySelected: false,
         },
-        [
-          quotaBackedSelected && candidate.matched ? 'registry_selected' : null,
-          !quotaBackedRoutesAvailable ? 'registry_unavailable' : null,
-          byokSelected ? 'registry_shadowed_by_byok' : null,
-          !quotaBackedSelected &&
-          !quotaBackedRoutesAvailable &&
-          context.quotaBackedRoutesAllowed !== false &&
-          candidate.matched
-            ? 'quota_exceeded_fallback_candidate'
-            : null,
-        ].filter((reason): reason is string => !!reason)
+        [!quotaBackedRoutesAvailable ? 'registry_unavailable' : null].filter(
+          (reason): reason is string => !!reason
+        )
       );
 
     return [
@@ -1453,7 +1434,6 @@ export class CopilotProviderFactory {
   private normalizeByokCond(
     byokRegistry: CopilotProviderRegistry,
     quotaBackedRegistry: CopilotProviderRegistry,
-    quotaBackedRoutesAvailable: boolean,
     cond: ModelFullConditions
   ): ModelFullConditions {
     if (!cond.modelId || parseModelPrefix(byokRegistry, cond.modelId)) {
@@ -1470,7 +1450,6 @@ export class CopilotProviderFactory {
 
     const modelId = quotaBackedRoute.modelId;
     if (
-      quotaBackedRoutesAvailable ||
       Array.from(byokRegistry.profiles.values()).some(profile =>
         this.profileAllowsModel(profile, modelId)
       )
@@ -1486,15 +1465,15 @@ export class CopilotProviderFactory {
   ): Promise<EffectiveProviderRegistry> {
     const quotaBackedRegistry =
       await this.registries.getRegistryWithModelRevisions(context.workspaceId);
-    const routeAccess = await this.access.resolveRouteAccess(context);
+    const { byokProfiles } = await this.access.resolveRouteAccess(context);
 
     return {
       byokRegistry: buildProviderRegistry({
-        profiles: routeAccess.byokProfiles,
+        profiles: byokProfiles,
         defaults: {},
       }),
       quotaBackedRegistry,
-      quotaBackedRoutesAvailable: routeAccess.quotaBackedRoutesAvailable,
+      quotaBackedRoutesAvailable: false,
     };
   }
 
@@ -1670,12 +1649,11 @@ export class CopilotProviderFactory {
     this.logger.debug(
       `Resolving copilot provider for output type: ${cond.outputType}`
     );
-    const { byokRegistry, quotaBackedRegistry, quotaBackedRoutesAvailable } =
+    const { byokRegistry, quotaBackedRegistry } =
       await this.getEffectiveRegistry(context);
     const byokCond = this.normalizeByokCond(
       byokRegistry,
       quotaBackedRegistry,
-      quotaBackedRoutesAvailable,
       cond
     );
     const byokRoutes = await this.resolveRoutesFromRegistry(
@@ -1692,57 +1670,21 @@ export class CopilotProviderFactory {
       byokCond === cond
         ? byokRoutes
         : byokRoutes.map(route => ({ ...route, rawModelId: cond.modelId }));
-    const byokSelected = normalizedByokRoutes.length > 0;
-    const resolved = normalizedByokRoutes.length
-      ? normalizedByokRoutes
-      : quotaBackedRoutesAvailable
-        ? await this.resolveRoutesFromRegistry(
-            quotaBackedRegistry,
-            cond,
-            filter,
-            context,
-            {
-              registryKind: 'quota_backed',
-              registryAvailable: quotaBackedRoutesAvailable,
-            }
-          )
-        : [];
+    if (!byokRegistry.order.length) {
+      throw new CopilotByokNotConfigured();
+    }
+    const resolved = normalizedByokRoutes;
     for (const route of resolved) {
       this.logger.debug(
         `Copilot provider candidate found: ${route.provider.type} (${route.providerId})`
       );
     }
 
-    if (
-      !resolved.length &&
-      !quotaBackedRoutesAvailable &&
-      context.quotaBackedRoutesAllowed !== false
-    ) {
-      const quotaBackedRoutes = await this.resolveRoutesFromRegistry(
-        quotaBackedRegistry,
-        cond,
-        filter,
-        context,
-        {
-          registryKind: 'quota_backed',
-          registryAvailable: quotaBackedRoutesAvailable,
-        }
-      );
-      if (quotaBackedRoutes.length) {
-        throw new CopilotQuotaExceeded();
-      }
-    }
-
     const fallbackProviderIds = resolved.map(route => route.providerId);
     return resolved.map(route => ({
       ...route,
       fallbackProviderIds,
-      registrySelected:
-        route.registryKind === 'byok'
-          ? byokSelected
-          : route.registryKind === 'quota_backed'
-            ? !byokSelected && quotaBackedRoutesAvailable
-            : undefined,
+      registrySelected: route.registryKind === 'byok' ? true : undefined,
     }));
   }
 

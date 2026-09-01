@@ -33,9 +33,11 @@ import {
   type RequestOptions,
   updateCopilotSessionMutation,
 } from '@affine/graphql';
+import { I18n } from '@affine/i18n';
 import { getCurrentStore } from '@toeverything/infra';
 
 import {
+  ByokNotConfiguredError,
   GeneralNetworkError,
   PaymentRequiredError,
   UnauthorizedError,
@@ -66,6 +68,11 @@ function isAbortError(error: UserFriendlyError) {
 }
 
 function codeToError(error: UserFriendlyError) {
+  if (error.is('COPILOT_BYOK_NOT_CONFIGURED')) {
+    return new ByokNotConfiguredError(
+      I18n['error.COPILOT_BYOK_NOT_CONFIGURED']()
+    );
+  }
   switch (error.status) {
     case 401:
       return new UnauthorizedError();
