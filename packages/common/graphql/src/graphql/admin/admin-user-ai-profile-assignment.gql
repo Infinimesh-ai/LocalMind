@@ -1,0 +1,27 @@
+query adminUserAiProfileAssignment($userId: ID!) {
+  adminUserAiProfileAssignment(userId: $userId) {
+    userId
+    workspaceId
+    profile {
+      id
+      workspaceId
+      workspaceName
+      name
+      description
+      enabled
+      isDefault
+      credentialIds
+      credentials {
+        id
+        provider
+        name
+        modelId
+        enabled
+      }
+      createdAt
+      updatedAt
+    }
+    createdAt
+    updatedAt
+  }
+}

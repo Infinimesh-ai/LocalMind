@@ -58,6 +58,8 @@ export const RightPanelHeader = ({
           size="icon"
           className="h-7 w-7 text-muted-foreground hover:text-foreground"
           variant="ghost"
+          aria-label={`Close ${title}`}
+          title={`Close ${title}`}
           onClick={handleClose}
         >
           <XIcon size={18} />
@@ -68,6 +70,8 @@ export const RightPanelHeader = ({
           size="icon"
           className="h-7 w-7 text-primary hover:text-primary"
           variant="ghost"
+          aria-label={`Save ${title}`}
+          title={`Save ${title}`}
           onClick={handleConfirm}
           disabled={!canSave}
         >

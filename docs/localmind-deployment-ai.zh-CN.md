@@ -120,7 +120,10 @@ cp .docker/selfhost/.env.example .docker/selfhost/.env
 - 基础部署保持 `ISCP_ENABLED=false`；
 - 扫描版 PDF OCR 仅在确认允许向配置的外部服务发送扫描页后设置
   `LOCALMIND_OCR_ENABLED=true`，并核对 HTTPS 地址与允许主机完全一致；
-- 启用企业 CLI 只设置功能开关，凭据在部署后通过产品流程写入受保护数据目录。
+- 启用企业 CLI 只设置运行能力开关，凭据在部署后由用户通过产品授权流程写入
+  受保护数据目录；实例管理员还必须在 Admin AI 页面配置允许的平台和工具。
+  `allowedToolsByProvider` 默认不允许任何工具，只有显式工具名或管理员明确填写的
+  `*` 才会进入用户连接、目录刷新和执行路径。
 
 不要把完整 `.env` 打印到日志。允许只输出 key 名：
 

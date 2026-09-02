@@ -48,6 +48,7 @@ interface UnregisteredGraphQLQueryOptions {
 export type TestUser = Omit<User, 'password'> & { password: string };
 
 const OneMB = 1024 * 1024;
+const JsonBodyLimit = 32 * OneMB;
 
 export async function createTestingApp(
   moduleDef: TestingAppMetadata = {}
@@ -58,11 +59,13 @@ export async function createTestingApp(
 
   const app = module.createNestApplication<NestExpressApplication>({
     cors: true,
-    bodyParser: true,
+    bodyParser: false,
     rawBody: true,
     logger,
   });
 
+  app.useBodyParser('json', { limit: JsonBodyLimit });
+  app.useBodyParser('urlencoded', { extended: true });
   app.useBodyParser('raw', { limit: 1 * OneMB });
   app.useGlobalFilters(new GlobalExceptionFilter(app.getHttpAdapter()));
   app.use(

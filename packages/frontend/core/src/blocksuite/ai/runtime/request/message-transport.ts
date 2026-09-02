@@ -2,7 +2,6 @@ import type { AIToolsConfig } from '@affine/core/modules/ai-button';
 import { partition } from 'lodash-es';
 
 import { toTextStream } from '../../provider/event-source';
-import { createWorkspaceByokLocalLease } from './byok-local-lease';
 import { type CopilotClient, Endpoint } from './copilot-client';
 import type { AIActionModelSelectionSource } from './model-selection';
 
@@ -116,7 +115,6 @@ async function createMessage({
 export function textToText({
   client,
   sessionId,
-  workspaceId,
   content,
   attachments,
   params,
@@ -152,13 +150,6 @@ export function textToText({
         if (signal?.aborted) {
           return;
         }
-        const byokLeaseId = await createWorkspaceByokLocalLease(
-          client,
-          workspaceId
-        );
-        if (signal?.aborted) {
-          return;
-        }
         const eventSource = client.chatTextStream(
           {
             sessionId,
@@ -171,7 +162,6 @@ export function textToText({
             actionVersion,
             runId,
             retry,
-            byokLeaseId,
           },
           endpoint
         );
@@ -221,13 +211,6 @@ export function textToText({
       if (signal?.aborted) {
         return '';
       }
-      const byokLeaseId = await createWorkspaceByokLocalLease(
-        client,
-        workspaceId
-      );
-      if (signal?.aborted) {
-        return '';
-      }
       const eventSource = client.chatTextStream(
         {
           sessionId,
@@ -240,7 +223,6 @@ export function textToText({
           actionVersion,
           runId,
           retry,
-          byokLeaseId,
         },
         endpoint
       );
@@ -282,7 +264,6 @@ export function textToText({
 export function toImage({
   content,
   sessionId,
-  workspaceId,
   attachments,
   params,
   seed,
@@ -314,13 +295,6 @@ export function toImage({
       if (signal?.aborted) {
         return;
       }
-      const byokLeaseId = await createWorkspaceByokLocalLease(
-        client,
-        workspaceId
-      );
-      if (signal?.aborted) {
-        return;
-      }
       const eventSource =
         endpoint === Endpoint.Action
           ? client.chatTextStream(
@@ -333,7 +307,6 @@ export function toImage({
                 modelId,
                 modelSelectionSource,
                 retry,
-                byokLeaseId,
               },
               Endpoint.Action
             )
@@ -342,7 +315,7 @@ export function toImage({
               messageId,
               seed,
               endpoint,
-              byokLeaseId,
+              undefined,
               modelId
             );
 

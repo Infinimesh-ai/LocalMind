@@ -760,6 +760,30 @@ class CopilotAgentRunListFilterInput implements CopilotAgentRunListFilter {
 }
 
 @InputType()
+class CopilotTaskListFilterInput {
+  @Field(() => String, { nullable: true })
+  query?: string;
+
+  @Field(() => String, { nullable: true })
+  status?: CopilotAgentRunListFilter['status'];
+}
+
+@InputType()
+class CopilotTaskControlInput {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  taskId!: string;
+
+  @Field(() => String)
+  action!: 'approve' | 'cancel' | 'reject' | 'resume';
+
+  @Field(() => String, { nullable: true })
+  reason?: string;
+}
+
+@InputType()
 class CreateChatMessageInput implements Omit<SubmittedMessage, 'content'> {
   @Field(() => String)
   sessionId!: string;
@@ -5144,6 +5168,207 @@ class CopilotAgentRunType implements CopilotAgentRunRecord {
 
   @Field(() => [CopilotAgentRuntimeExecutionResultType])
   executionResults!: CopilotAgentRuntimeExecutionResultRecord[];
+}
+
+@ObjectType()
+class CopilotTaskStepType {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  key!: string;
+
+  @Field(() => String)
+  type!: CopilotAgentStepRecord['stepType'];
+
+  @Field(() => String)
+  status!: CopilotAgentStepRecord['status'];
+
+  @Field(() => String, { nullable: true })
+  title!: string | null;
+
+  @Field(() => SafeIntResolver)
+  order!: number;
+
+  @Field(() => Date, { nullable: true })
+  startedAt!: Date | null;
+
+  @Field(() => Date, { nullable: true })
+  completedAt!: Date | null;
+}
+
+@ObjectType()
+class CopilotTaskApprovalType {
+  @Field(() => String)
+  stepId!: string;
+
+  @Field(() => String)
+  status!: 'approved' | 'cancelled' | 'rejected' | 'waiting';
+
+  @Field(() => String, { nullable: true })
+  title!: string | null;
+
+  @Field(() => Date, { nullable: true })
+  decidedAt!: Date | null;
+}
+
+@ObjectType()
+class CopilotTaskArtifactType {
+  @Field(() => String)
+  kind!: 'document';
+
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String, { nullable: true })
+  title!: string | null;
+}
+
+@ObjectType()
+class CopilotTaskType {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String, { nullable: true })
+  title!: string | null;
+
+  @Field(() => String)
+  workflow!: string;
+
+  @Field(() => String)
+  status!: CopilotAgentRunRecord['status'];
+
+  @Field(() => Date)
+  createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
+
+  @Field(() => Date, { nullable: true })
+  startedAt!: Date | null;
+
+  @Field(() => Date, { nullable: true })
+  completedAt!: Date | null;
+
+  @Field(() => String, { nullable: true })
+  failureCode!: string | null;
+
+  @Field(() => String, { nullable: true })
+  failureMessage!: string | null;
+
+  @Field(() => String, { nullable: true })
+  resultSummary!: string | null;
+
+  @Field(() => [String])
+  availableActions!: Array<'approve' | 'cancel' | 'reject' | 'resume'>;
+
+  @Field(() => [CopilotTaskStepType])
+  steps!: CopilotTaskStepType[];
+
+  @Field(() => CopilotTaskApprovalType, { nullable: true })
+  approval!: CopilotTaskApprovalType | null;
+
+  @Field(() => [CopilotTaskArtifactType])
+  artifacts!: CopilotTaskArtifactType[];
+}
+
+function copilotTaskPayloadRecord(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function copilotTaskControlAction(
+  run: CopilotAgentRunRecord
+): 'cancel' | 'reject' | null {
+  for (let index = run.timelineEvents.length - 1; index >= 0; index--) {
+    const payload = copilotTaskPayloadRecord(run.timelineEvents[index].payload);
+    if (payload?.action === 'reject') return 'reject';
+    if (payload?.action === 'cancel') return 'cancel';
+  }
+  return null;
+}
+
+function copilotTaskDocumentId(run: CopilotAgentRunRecord) {
+  for (const step of run.steps) {
+    const output = copilotTaskPayloadRecord(step.outputSummary);
+    const approvalRequest = copilotTaskPayloadRecord(output?.approvalRequest);
+    const docUpdateRequest = copilotTaskPayloadRecord(output?.docUpdateRequest);
+    const docId = approvalRequest?.docId ?? docUpdateRequest?.docId;
+    if (typeof docId === 'string' && docId) return docId;
+  }
+  for (const result of run.executionResults) {
+    const payload = copilotTaskPayloadRecord(result.resultPayload);
+    const sideEffectSummary = copilotTaskPayloadRecord(
+      payload?.sideEffectSummary
+    );
+    if (typeof sideEffectSummary?.docId === 'string') {
+      return sideEffectSummary.docId;
+    }
+  }
+  return null;
+}
+
+function projectCopilotTask(run: CopilotAgentRunRecord): CopilotTaskType {
+  const approvalStep = run.steps.find(step => step.stepType === 'approval');
+  const controlAction = copilotTaskControlAction(run);
+  const documentId = copilotTaskDocumentId(run);
+  const latestResult = run.executionResults[0];
+  const availableActions: CopilotTaskType['availableActions'] =
+    run.status === 'waiting_approval'
+      ? ['approve', 'reject']
+      : run.status === 'queued' || run.status === 'running'
+        ? ['cancel']
+        : run.status === 'failed' ||
+            (run.status === 'cancelled' && controlAction !== 'reject')
+          ? ['resume']
+          : [];
+
+  return {
+    id: run.id,
+    title: run.title,
+    workflow: run.workflow,
+    status: run.status,
+    createdAt: run.createdAt,
+    updatedAt: run.updatedAt,
+    startedAt: run.startedAt,
+    completedAt: run.completedAt,
+    failureCode: run.failureCode,
+    failureMessage: run.failureMessage,
+    resultSummary: latestResult?.summary ?? null,
+    availableActions,
+    steps: run.steps.map(step => ({
+      id: step.id,
+      key: step.stepKey,
+      type: step.stepType,
+      status: step.status,
+      title: step.title,
+      order: step.order,
+      startedAt: step.startedAt,
+      completedAt: step.completedAt,
+    })),
+    approval: approvalStep
+      ? {
+          stepId: approvalStep.id,
+          status:
+            approvalStep.status === 'waiting_approval'
+              ? 'waiting'
+              : approvalStep.status === 'completed'
+                ? 'approved'
+                : controlAction === 'reject'
+                  ? 'rejected'
+                  : 'cancelled',
+          title: approvalStep.title,
+          decidedAt:
+            approvalStep.status === 'waiting_approval'
+              ? null
+              : approvalStep.completedAt,
+        }
+      : null,
+    artifacts: documentId
+      ? [{ kind: 'document', id: documentId, title: run.title }]
+      : [],
+  };
 }
 
 @ObjectType()
@@ -24616,6 +24841,67 @@ export class CopilotResolver {
     return record;
   }
 
+  @Mutation(() => CopilotTaskType, {
+    description:
+      'Control a current-user Copilot task after workspace and actor ownership checks.',
+  })
+  @CallMetric('ai', 'copilot_task_control')
+  async controlCopilotTask(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotTaskControlInput,
+    })
+    input: CopilotTaskControlInput
+  ): Promise<CopilotTaskType> {
+    if (
+      input.action !== 'approve' &&
+      input.action !== 'cancel' &&
+      input.action !== 'reject' &&
+      input.action !== 'resume'
+    ) {
+      throw new BadRequest('Unsupported Copilot task control action');
+    }
+
+    const { workspaceId } = await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+    });
+
+    let record;
+    try {
+      record = await this.modelsStore.copilotAgentRuntime.controlRunForActor({
+        workspaceId,
+        actorId: user.id,
+        id: input.taskId,
+        action: input.action,
+        reason: input.reason,
+      });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message.startsWith('Agent runtime') ||
+          error.message.startsWith('Copilot task'))
+      ) {
+        throw new BadRequest(error.message);
+      }
+      throw error;
+    }
+
+    if (input.action === 'approve' || input.action === 'resume') {
+      await this.jobs.add(
+        'copilot.agentRuntime.run',
+        {
+          workspaceId,
+          runId: record.id,
+        },
+        {
+          jobId: `copilot-agent-runtime-run-${record.id}-${input.action}-${record.workerAttempt}-${record.workerMaxAttempts}`,
+        }
+      );
+    }
+
+    return projectCopilotTask(record);
+  }
+
   @Mutation(() => CopilotSupportBundleType, {
     description:
       'Create a DB-backed support bundle request with a minimal persisted manifest.',
@@ -25163,6 +25449,34 @@ export class CopilotResolver {
     });
   }
 
+  @ResolveField(() => [CopilotTaskType], {
+    description:
+      'List standalone Copilot tasks owned by the current user in the current workspace.',
+    complexity: 2,
+  })
+  async copilotTasks(
+    @CurrentUser() user: CurrentUser,
+    @Parent() copilot: CopilotType,
+    @Args('limit', { type: () => SafeIntResolver, nullable: true })
+    limit?: number,
+    @Args('filter', {
+      type: () => CopilotTaskListFilterInput,
+      nullable: true,
+    })
+    filter?: CopilotTaskListFilterInput
+  ): Promise<CopilotTaskType[]> {
+    const { workspaceId } = await this.assertPermission(user, copilot);
+    const runs = await this.modelsStore.copilotAgentRuntime.listForActor(
+      workspaceId,
+      user.id,
+      {
+        filter,
+        limit,
+      }
+    );
+    return runs.map(projectCopilotTask);
+  }
+
   @ResolveField(() => [CopilotRepairExecutionRecordType], {
     description:
       'List recent persisted repair execution requests for the current workspace',
@@ -25258,6 +25572,26 @@ export class CopilotResolver {
     const { workspaceId } = await this.assertPermission(user, copilot);
 
     return await this.modelsStore.copilotAgentRuntime.get(workspaceId, id);
+  }
+
+  @ResolveField(() => CopilotTaskType, {
+    nullable: true,
+    description:
+      'Get one standalone Copilot task owned by the current user in the current workspace.',
+    complexity: 2,
+  })
+  async copilotTask(
+    @CurrentUser() user: CurrentUser,
+    @Parent() copilot: CopilotType,
+    @Args('id') id: string
+  ): Promise<CopilotTaskType | null> {
+    const { workspaceId } = await this.assertPermission(user, copilot);
+    const run = await this.modelsStore.copilotAgentRuntime.getForActor(
+      workspaceId,
+      user.id,
+      id
+    );
+    return run ? projectCopilotTask(run) : null;
   }
 
   @ResolveField(() => CopilotModelsType, {

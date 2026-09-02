@@ -3,9 +3,9 @@
 LocalMind exposes a workspace-bound AI delegation surface to external MCP
 clients. The caller sends a complete natural-language task; the built-in
 LocalMind AI plans it, uses LocalMind's Agent Runtime for supported work, and
-returns or calls back with the result. A task-bound upload tool supplies local
-attachments to that AI, a read-only tool reconciles persisted task state after
-asynchronous returns or callbacks, and a control tool cancels unfinished work.
+returns or calls back with the result. Local files travel in the same delegation
+call, a read-only tool reconciles persisted task state after asynchronous
+returns or callbacks, and a control tool cancels unfinished work.
 
 A Simplified Chinese guide is available at
 [LocalMind MCP Chinese Guide](./localmind-mcp.zh-CN.md). The exact tool schema
@@ -20,8 +20,8 @@ and callback contract are in
 | Endpoint       | `<LOCALMIND_BASE_URL>/api/workspaces/<WORKSPACE_ID>/mcp` |
 | Method         | `POST`                                                   |
 | Authentication | `Authorization: Bearer <MCP_TOKEN>`                      |
-| Server         | `localmind-ai` version `3.3.0`                           |
-| Tools          | Attachment upload, delegation, query, and cancel control |
+| Server         | `localmind-ai` version `3.4.0`                           |
+| Tools          | Delegation, task query, and cancel control               |
 
 The token and endpoint are bound to one workspace. A token issued for one
 workspace cannot be used on another workspace endpoint.
@@ -30,10 +30,9 @@ workspace cannot be used on another workspace endpoint.
 
 1. Open **Workspace settings > Integrations > MCP Server**.
 2. Create a credential and select the public AI tools it may call:
-   `upload_localmind_attachment`, `delegate_to_localmind`,
-   `get_localmind_task`, and `control_localmind_task`.
-3. Grant all four for a caller that uploads files, delegates, reconciles, and
-   cancels tasks.
+   `delegate_to_localmind`, `get_localmind_task`, and
+   `control_localmind_task`.
+3. Grant all three for a caller that delegates, reconciles, and cancels tasks.
 4. Optionally add the caller's result notification URL for terminal task
    notifications.
 5. Store the one-time MCP token and, when notifications are configured, the
@@ -65,20 +64,34 @@ prompt, chat message, checked-in configuration, or diagnostic bundle.
 
 ## Tool Routing
 
-Follow this decision rule exactly:
+These tools are scoped to requests directed to LocalMind; they are not a global
+request router. A request is directed to LocalMind when the user explicitly
+asks LocalMind to answer or act, or when the operation requires
+LocalMind-managed documents, attachments, workspace resources, tasks,
+connected data, or another LocalMind-specific capability. Merely mentioning,
+discussing, configuring, or troubleshooting LocalMind does not trigger a tool
+call unless the user asks LocalMind to execute work.
 
-1. When a new task includes local files, call
-   `upload_localmind_attachment` once per file and retain each returned
-   `attachmentId`.
-2. For every new user request, call `delegate_to_localmind` with the complete
-   task. This includes questions, document reads/searches/creates/updates,
-   attachment processing, summaries, web research, and multi-step work. Pass
-   uploaded ids in `attachmentIds`.
-3. Call `get_localmind_task` only with a `taskId` returned by
-   `delegate_to_localmind`, to check status or obtain the final result. It does
-   not start or retry work.
-4. Call `control_localmind_task` only when the user explicitly asks to cancel
-   an unfinished task. Its only action is `cancel`.
+The tools must not intercept, reroute, delay, or otherwise affect ordinary
+conversations or native workflows in host agents such as Codex, Claude, or
+other MCP clients. For requests directed to LocalMind, follow this decision
+rule in order and apply the most specific matching intent first:
+
+1. If the user only asks for the status, progress, or final result of an
+   existing task and its `taskId` is known from `delegate_to_localmind`, call
+   `get_localmind_task` directly. Do not delegate first or create/guess an id.
+2. If the user explicitly asks to stop or cancel an unfinished existing task,
+   call `control_localmind_task` directly with its known `taskId`. Do not
+   delegate first.
+3. Treat every other request that asks LocalMind to answer or act as a
+   delegation, including follow-ups that request additional work, revisions,
+   continuations, and retries. LocalMind requests can include questions, document
+   reads/searches/creates/updates, attachment processing, summaries, web
+   research, and multi-step work.
+4. If that delegated request includes local files, include them directly in
+   `delegate_to_localmind.attachments`. Use `attachmentIds` only to reuse files
+   returned by an earlier delegation in the same credential family.
+5. Submit the complete request through `delegate_to_localmind`.
 
 Do not look for public tools such as `doc_create` or `doc_read`. They are
 internal AI Chat tools selected by LocalMind after delegation. `taskId` values
@@ -94,7 +107,7 @@ revoking the family or disabling the user prevents queued work from executing.
 Credentials from the legacy resource-capability model are revoked
 during migration and must be recreated.
 
-Attachment upload requires live `Workspace.Copilot` and
+Inline attachment persistence requires live `Workspace.Copilot` and
 `Workspace.Blobs.Write`. LocalMind separately checks the delegated user's real
 ACL at planning and execution time. Losing `Workspace.Copilot`,
 `Workspace.Blobs.Read`, `Workspace.CreateDoc`, `Doc.Read`, or `Doc.Update`
@@ -225,31 +238,25 @@ curl --fail-with-body --silent --show-error \
 curl --fail-with-body --silent --show-error \
   -H "Authorization: Bearer ${LOCALMIND_MCP_TOKEN}" \
   -H 'Content-Type: application/json' \
-  --data '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"upload_localmind_attachment","arguments":{"fileName":"notes.txt","mimeType":"text/plain","base64":"Tm90ZXMgdG8gc3VtbWFyaXplLg==","idempotencyKey":"upload-001"}}}' \
+  --data '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"delegate_to_localmind","arguments":{"request":"Summarize the attachment and create a LocalMind document.","documentIds":[],"attachments":[{"fileName":"notes.txt","mimeType":"text/plain","base64":"Tm90ZXMgdG8gc3VtbWFyaXplLg=="}],"idempotencyKey":"summary-001"}}}' \
   "${LOCALMIND_MCP_URL}"
 
 curl --fail-with-body --silent --show-error \
   -H "Authorization: Bearer ${LOCALMIND_MCP_TOKEN}" \
   -H 'Content-Type: application/json' \
-  --data '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"delegate_to_localmind","arguments":{"request":"Summarize the attachment and create a LocalMind document.","documentIds":[],"attachmentIds":["<ATTACHMENT_ID>"],"idempotencyKey":"summary-001"}}}' \
+  --data '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_localmind_task","arguments":{"taskId":"<TASK_ID>","waitMs":0}}}' \
   "${LOCALMIND_MCP_URL}"
 
 curl --fail-with-body --silent --show-error \
   -H "Authorization: Bearer ${LOCALMIND_MCP_TOKEN}" \
   -H 'Content-Type: application/json' \
-  --data '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"get_localmind_task","arguments":{"taskId":"<TASK_ID>","waitMs":0}}}' \
-  "${LOCALMIND_MCP_URL}"
-
-curl --fail-with-body --silent --show-error \
-  -H "Authorization: Bearer ${LOCALMIND_MCP_TOKEN}" \
-  -H 'Content-Type: application/json' \
-  --data '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"control_localmind_task","arguments":{"taskId":"<TASK_ID>","action":"cancel","idempotencyKey":"cancel-001"}}}' \
+  --data '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"control_localmind_task","arguments":{"taskId":"<TASK_ID>","action":"cancel","idempotencyKey":"cancel-001"}}}' \
   "${LOCALMIND_MCP_URL}"
 ```
 
 Successful initialization returns `serverInfo.name=localmind-ai`; `tools/list`
-returns `upload_localmind_attachment`, `delegate_to_localmind`,
-`get_localmind_task`, and `control_localmind_task`.
+returns `delegate_to_localmind`, `get_localmind_task`, and
+`control_localmind_task`.
 
 ## Troubleshooting
 

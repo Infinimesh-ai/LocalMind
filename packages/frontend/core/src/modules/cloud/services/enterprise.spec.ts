@@ -12,7 +12,6 @@ class TestEnterpriseStore extends Store {
   getLatestAuthorization = vi.fn();
   cancelAuthorization = vi.fn();
   refreshConnection = vi.fn();
-  updateToolAllowlist = vi.fn();
   disableConnection = vi.fn();
   deleteConnection = vi.fn();
 }
@@ -61,7 +60,13 @@ describe('EnterpriseService', () => {
 
   test('polls cloud authorization to a terminal state and refreshes tools', async () => {
     const { service, store } = createService();
-    store.getConnections.mockResolvedValue({ enterpriseConnections: [] });
+    store.getConnections.mockResolvedValue({
+      enterpriseConnectionPolicy: {
+        enabled: true,
+        allowedProviders: ['WECOM'],
+      },
+      enterpriseConnections: [],
+    });
     store.beginAuthorization.mockResolvedValue(authorization('PENDING'));
     store.getAuthorization
       .mockResolvedValueOnce(authorization('WAITING'))
@@ -97,34 +102,21 @@ describe('EnterpriseService', () => {
     expect(store.cancelAuthorization).not.toHaveBeenCalled();
   });
 
-  test('sends read and write tools to the enterprise allowlist', async () => {
+  test('publishes the administrator connection policy with connections', async () => {
     const { service, store } = createService();
-    const connection = {
-      id: 'connection-1',
-      enabledToolNames: [],
-      tools: [
-        { name: 'wecom_doc_search', risk: 'read' },
-        { name: 'wecom_doc_delete', risk: 'high' },
-      ],
-    };
     store.getConnections.mockResolvedValue({
-      enterpriseConnections: [connection],
+      enterpriseConnectionPolicy: {
+        enabled: true,
+        allowedProviders: ['WECOM', 'LARK'],
+      },
+      enterpriseConnections: [],
     });
-    store.updateToolAllowlist.mockResolvedValue({
-      id: connection.id,
-      enabledToolNames: ['wecom_doc_search', 'wecom_doc_delete'],
-    });
+
     await service.revalidate('workspace-1');
 
-    await service.updateToolAllowlist('workspace-1', connection.id, [
-      'wecom_doc_search',
-      'wecom_doc_delete',
-    ]);
-
-    expect(store.updateToolAllowlist).toHaveBeenCalledWith(
-      'workspace-1',
-      connection.id,
-      ['wecom_doc_search', 'wecom_doc_delete']
-    );
+    expect(service.policy$.value).toEqual({
+      enabled: true,
+      allowedProviders: ['WECOM', 'LARK'],
+    });
   });
 });

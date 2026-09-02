@@ -13,6 +13,7 @@ import {
   EnterpriseProvider,
 } from '@prisma/client';
 
+import { Config } from '../../../base';
 import { type EnterpriseToolCatalogRecord, Models } from '../../../models';
 import { EnterpriseCliRuntime, EnterpriseCliRuntimeError } from './cli/runtime';
 import { EnterpriseCliDriverRegistry } from './driver-registry';
@@ -31,8 +32,19 @@ export class EnterpriseConnectionService {
   constructor(
     private readonly models: Models,
     private readonly drivers: EnterpriseCliDriverRegistry,
-    private readonly runtime: EnterpriseCliRuntime
+    private readonly runtime: EnterpriseCliRuntime,
+    private readonly config: Config
   ) {}
+
+  policy() {
+    const enterpriseCli = this.config.copilot.enterpriseCli;
+    return {
+      enabled: enterpriseCli.enabled,
+      allowedProviders: enterpriseCli.enabled
+        ? [...new Set(enterpriseCli.allowedProviders)]
+        : [],
+    };
+  }
 
   list(workspaceId: string, userId: string) {
     return this.models.copilotEnterpriseConnection.listForUser(
@@ -47,6 +59,7 @@ export class EnterpriseConnectionService {
     provider: EnterpriseProvider;
     name?: string;
   }) {
+    this.assertProviderAllowed(input.provider);
     const name =
       input.name?.trim() || this.defaultConnectionName(input.provider);
     if (name.length > 128) {
@@ -74,6 +87,7 @@ export class EnterpriseConnectionService {
   }) {
     const connection = await this.requireConnection(input);
     this.assertCliConnection(connection);
+    this.assertProviderAllowed(connection.provider);
     if (
       input.authorizationSessionId &&
       connection.activeAuthorizationSessionId !== input.authorizationSessionId
@@ -113,8 +127,12 @@ export class EnterpriseConnectionService {
           'Enterprise connection requires authorization'
         );
       }
-      const catalog = this.normalizeCatalog(
+      const discoveredCatalog = this.normalizeCatalog(
         await driver.discoverTools(connection.profileKey, input.signal)
+      );
+      const catalog = this.filterAllowedCatalog(
+        connection.provider,
+        discoveredCatalog
       );
       if (input.signal?.aborted) {
         throw new EnterpriseCliRuntimeError(
@@ -143,6 +161,7 @@ export class EnterpriseConnectionService {
         'catalog_refreshed',
         updated.status,
         {
+          discoveredToolCount: discoveredCatalog.length,
           toolCount: catalog.length,
           catalogFingerprint: fingerprint,
           enabledToolNames,
@@ -224,6 +243,8 @@ export class EnterpriseConnectionService {
       throw new BadRequestException('Enterprise connection is unavailable');
     }
     this.assertCliConnection(connection);
+    this.assertProviderAllowed(connection.provider);
+    this.assertToolAllowed(connection.provider, input.toolName);
     if (
       connection.status !== EnterpriseConnectionStatus.ACTIVE ||
       connection.activeAuthorizationSessionId ||
@@ -421,20 +442,33 @@ export class EnterpriseConnectionService {
   catalog(connection: AiEnterpriseConnection): EnterpriseToolCatalogRecord[] {
     if (!Array.isArray(connection.toolCatalog)) return [];
     const values: unknown[] = connection.toolCatalog;
-    return values.filter((tool): tool is EnterpriseToolCatalogRecord => {
-      if (!tool || typeof tool !== 'object' || Array.isArray(tool)) {
-        return false;
-      }
-      const record = tool as Record<string, unknown>;
-      return (
-        typeof record.name === 'string' &&
-        Array.isArray(record.command) &&
-        record.command.every(item => typeof item === 'string') &&
-        !!record.inputSchema &&
-        typeof record.inputSchema === 'object' &&
-        ['read', 'write', 'high'].includes(String(record.risk))
-      );
-    });
+    return this.filterAllowedCatalog(
+      connection.provider,
+      values.filter((tool): tool is EnterpriseToolCatalogRecord => {
+        if (!tool || typeof tool !== 'object' || Array.isArray(tool)) {
+          return false;
+        }
+        const record = tool as Record<string, unknown>;
+        return (
+          typeof record.name === 'string' &&
+          Array.isArray(record.command) &&
+          record.command.every(item => typeof item === 'string') &&
+          !!record.inputSchema &&
+          typeof record.inputSchema === 'object' &&
+          ['read', 'write', 'high'].includes(String(record.risk))
+        );
+      })
+    );
+  }
+
+  async assertConnectionAllowed(input: {
+    connectionId: string;
+    workspaceId: string;
+    userId: string;
+  }) {
+    const connection = await this.requireConnection(input);
+    this.assertProviderAllowed(connection.provider);
+    return connection;
   }
 
   private async requireConnection(input: {
@@ -457,6 +491,53 @@ export class EnterpriseConnectionService {
       throw new BadRequestException(
         'Enterprise connection is not configured for CLI transport'
       );
+    }
+  }
+
+  private assertProviderAllowed(provider: EnterpriseProvider) {
+    const policy = this.policy();
+    if (!policy.enabled) {
+      throw new BadRequestException(
+        'Enterprise CLI integrations are disabled by the instance administrator'
+      );
+    }
+    if (!policy.allowedProviders.includes(provider)) {
+      throw new BadRequestException(
+        'Enterprise CLI provider is not allowed by the instance administrator'
+      );
+    }
+  }
+
+  private assertToolAllowed(provider: EnterpriseProvider, toolName: string) {
+    if (!this.isToolAllowed(provider, toolName)) {
+      throw new BadRequestException(
+        'Enterprise CLI tool is not allowed by the instance administrator'
+      );
+    }
+  }
+
+  private filterAllowedCatalog(
+    provider: EnterpriseProvider,
+    catalog: EnterpriseToolCatalogRecord[]
+  ) {
+    if (!this.policy().allowedProviders.includes(provider)) return [];
+    return catalog.filter(tool => this.isToolAllowed(provider, tool.name));
+  }
+
+  private isToolAllowed(provider: EnterpriseProvider, toolName: string) {
+    const allowed = this.allowedToolNames(provider);
+    return allowed.includes('*') || allowed.includes(toolName);
+  }
+
+  private allowedToolNames(provider: EnterpriseProvider) {
+    const policy = this.config.copilot.enterpriseCli.allowedToolsByProvider;
+    switch (provider) {
+      case EnterpriseProvider.WECOM:
+        return policy.wecom;
+      case EnterpriseProvider.LARK:
+        return policy.lark;
+      case EnterpriseProvider.DINGTALK:
+        return policy.dingtalk;
     }
   }
 

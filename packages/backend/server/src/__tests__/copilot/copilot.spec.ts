@@ -628,26 +628,36 @@ test.serial(
         capabilities: {
           tools: { listChanged: false },
         },
-        serverInfo: { name: 'localmind-ai', version: '3.3.0' },
+        serverInfo: { name: 'localmind-ai', version: '3.4.0' },
       },
     });
-    t.regex(response.body.result.instructions, /TOOL ROUTING/);
+    const instructions = response.body.result.instructions as string;
+    t.regex(instructions, /LOCALMIND-SCOPED TOOL ROUTING/);
     t.regex(
-      response.body.result.instructions,
-      /every new user request, call delegate_to_localmind/
+      instructions,
+      /For every other request directed to LocalMind that asks for an answer or action/
     );
+    t.regex(instructions, /follow-ups that request additional work/);
+    t.regex(instructions, /Do not use this server as a global request router/);
+    t.regex(instructions, /Codex, Claude, or other MCP clients/);
+    t.regex(instructions, /use get_localmind_task directly/);
+    t.regex(instructions, /use control_localmind_task directly/);
+    t.true(
+      instructions.indexOf('use get_localmind_task directly') <
+        instructions.indexOf('For every other request directed to LocalMind')
+    );
+    t.true(
+      instructions.indexOf('use control_localmind_task directly') <
+        instructions.indexOf('For every other request directed to LocalMind')
+    );
+    t.notRegex(instructions, /every new user request/i);
     t.regex(
-      response.body.result.instructions,
-      /call upload_localmind_attachment once per file first/
+      instructions,
+      /include them directly in delegate_to_localmind\.attachments/
     );
-    t.regex(
-      response.body.result.instructions,
-      /internal AI tools such as doc_create or doc_read/
-    );
-    t.regex(
-      response.body.result.instructions,
-      /get_localmind_task only with a taskId returned by delegate_to_localmind/
-    );
+    t.notRegex(instructions, /upload_localmind_attachment/);
+    t.regex(instructions, /internal AI tools such as doc_create or doc_read/);
+    t.regex(instructions, /taskId is known from delegate_to_localmind/);
 
     const toolsResponse = await t.context.module
       .POST(`/api/workspaces/${ws.id}/mcp`)
@@ -667,33 +677,50 @@ test.serial(
     }>;
     t.deepEqual(
       advertisedTools.map(tool => tool.name),
-      [
-        'upload_localmind_attachment',
-        'delegate_to_localmind',
-        'get_localmind_task',
-        'control_localmind_task',
-      ]
+      ['delegate_to_localmind', 'get_localmind_task', 'control_localmind_task']
     );
-    const attachmentTool = advertisedTools.find(
-      tool => tool.name === 'upload_localmind_attachment'
-    )!;
-    t.is(attachmentTool.title, 'Upload a LocalMind Attachment');
-    t.regex(attachmentTool.description, /10 MiB each/);
-    t.false(attachmentTool.annotations.readOnlyHint);
-    t.true(attachmentTool.annotations.idempotentHint);
     const delegateTool = advertisedTools.find(
       tool => tool.name === 'delegate_to_localmind'
     )!;
     t.is(delegateTool.title, 'Start a LocalMind Task');
-    t.regex(delegateTool.description, /only public MCP tool that starts/);
+    t.regex(
+      delegateTool.description,
+      /after excluding existing-task status and cancellation intents/
+    );
+    t.regex(delegateTool.description, /use get_localmind_task instead/);
+    t.regex(delegateTool.description, /use control_localmind_task instead/);
+    t.regex(
+      delegateTool.description,
+      /follow-ups that request additional work/
+    );
+    t.regex(delegateTool.description, /not a global router/);
+    t.regex(delegateTool.description, /Codex, Claude, or other host agents/);
+    t.regex(delegateTool.description, /Merely mentioning/);
+    t.notRegex(delegateTool.description, /every new user request/i);
+    t.regex(
+      delegateTool.description,
+      /For every other request directed to LocalMind/
+    );
     t.regex(delegateTool.description, /never look for public doc_create/);
     t.regex(
       delegateTool.inputSchema.properties?.request?.description ?? '',
-      /complete self-contained user task/
+      /complete self-contained request/
+    );
+    t.regex(
+      delegateTool.inputSchema.properties?.request?.description ?? '',
+      /follow-up, revision, continuation, or retry/
     );
     t.regex(
       delegateTool.inputSchema.properties?.documentIds?.description ?? '',
       /Existing document IDs/
+    );
+    t.regex(
+      delegateTool.inputSchema.properties?.attachments?.description ?? '',
+      /same tool call/
+    );
+    t.regex(
+      delegateTool.inputSchema.properties?.attachmentIds?.description ?? '',
+      /Previously delegated attachments/
     );
     t.regex(
       delegateTool.inputSchema.properties?.idempotencyKey?.description ?? '',
@@ -705,11 +732,9 @@ test.serial(
       tool => tool.name === 'get_localmind_task'
     )!;
     t.is(getTaskTool.title, 'Check a LocalMind Task');
-    t.regex(getTaskTool.description, /ONLY after delegate_to_localmind/);
-    t.regex(
-      getTaskTool.description,
-      /Never use this tool for a new user request/
-    );
+    t.regex(getTaskTool.description, /status, progress, or final result/);
+    t.regex(getTaskTool.description, /Never create or guess a taskId/);
+    t.regex(getTaskTool.description, /additional work, revisions/);
     t.regex(
       getTaskTool.inputSchema.properties?.taskId?.description ?? '',
       /not a document ID/
@@ -771,12 +796,7 @@ test.serial(
     t.is(server.name, 'localmind-ai');
     t.deepEqual(
       server.tools.map(tool => tool.name),
-      [
-        'upload_localmind_attachment',
-        'delegate_to_localmind',
-        'get_localmind_task',
-        'control_localmind_task',
-      ]
+      ['delegate_to_localmind', 'get_localmind_task', 'control_localmind_task']
     );
     const delegate = server.tools.find(
       tool => tool.name === 'delegate_to_localmind'
@@ -860,6 +880,14 @@ test.serial(
         ),
       { message: 'Unsupported MCP capabilities: documents:read' }
     );
+    t.throws(
+      () =>
+        mcpCredentials.capabilities(
+          ['upload_localmind_attachment'],
+          McpAccessMode.READ_WRITE
+        ),
+      { message: 'Unsupported MCP capabilities: upload_localmind_attachment' }
+    );
     const issued = await mcpCredentials.create({
       userId,
       workspaceId: ws.id,
@@ -901,7 +929,6 @@ test.serial(
     );
     const completeToolNames = completeServer.tools.map(tool => tool.name);
     t.deepEqual(completeToolNames, [
-      'upload_localmind_attachment',
       'delegate_to_localmind',
       'get_localmind_task',
       'control_localmind_task',

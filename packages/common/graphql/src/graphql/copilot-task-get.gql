@@ -1,0 +1,41 @@
+query copilotTaskGet($workspaceId: String!, $taskId: String!) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      copilotTask(id: $taskId) {
+        id
+        title
+        workflow
+        status
+        createdAt
+        updatedAt
+        startedAt
+        completedAt
+        failureCode
+        failureMessage
+        resultSummary
+        availableActions
+        approval {
+          stepId
+          status
+          title
+          decidedAt
+        }
+        artifacts {
+          kind
+          id
+          title
+        }
+        steps {
+          id
+          key
+          type
+          status
+          title
+          order
+          startedAt
+          completedAt
+        }
+      }
+    }
+  }
+}

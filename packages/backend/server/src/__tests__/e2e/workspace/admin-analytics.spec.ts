@@ -264,6 +264,38 @@ e2e(
 );
 
 e2e(
+  'adminDashboard should remain available for self-hosted administrators',
+  async t => {
+    const admin = await app.create(Mockers.User, {
+      feature: 'administrator',
+    });
+    await app.login(admin);
+
+    const previousDeploymentType = globalThis.env.DEPLOYMENT_TYPE;
+    Object.assign(globalThis.env, { DEPLOYMENT_TYPE: 'selfhosted' });
+
+    try {
+      const result = await gql(`
+        query AdminDashboardSelfHosted {
+          adminDashboard {
+            generatedAt
+            syncActiveUsers
+          }
+        }
+      `);
+
+      t.falsy(result.errors);
+      t.truthy(result.data?.adminDashboard.generatedAt);
+      t.is(typeof result.data?.adminDashboard.syncActiveUsers, 'number');
+    } finally {
+      Object.assign(globalThis.env, {
+        DEPLOYMENT_TYPE: previousDeploymentType,
+      });
+    }
+  }
+);
+
+e2e(
   'adminDashboard should clamp window inputs and return expected buckets',
   async t => {
     const admin = await app.create(Mockers.User, {

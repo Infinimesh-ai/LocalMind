@@ -1,14 +1,27 @@
 import { Button } from '@affine/admin/components/ui/button';
 import { Input } from '@affine/admin/components/ui/input';
 import { Label } from '@affine/admin/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@affine/admin/components/ui/select';
 import { Separator } from '@affine/admin/components/ui/separator';
-import type { FeatureType } from '@affine/graphql';
+import { useQuery } from '@affine/admin/use-query';
+import {
+  adminAiProfilesQuery,
+  adminUserAiProfileAssignmentQuery,
+  type FeatureType,
+} from '@affine/graphql';
 import { ChevronRightIcon } from 'lucide-react';
-import type { ChangeEvent } from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { ChangeEvent, HTMLInputTypeAttribute } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { FeatureToggleList } from '../../../components/shared/feature-toggle-list';
+import { cn } from '../../../utils';
 import { useServerConfig } from '../../common';
 import { RightPanelHeader } from '../../header';
 import type { UserInput, UserType } from '../schema';
@@ -23,8 +36,11 @@ type UserFormProps = {
   onValidate: (user: Partial<UserInput>) => boolean;
   actions?: React.ReactNode;
   showOption?: boolean;
+  submitting?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
 };
+
+const WORKSPACE_DEFAULT_AI_PROFILE = '__workspace_default__';
 
 function UserForm({
   title,
@@ -34,9 +50,11 @@ function UserForm({
   onValidate,
   actions,
   showOption,
+  submitting = false,
   onDirtyChange,
 }: UserFormProps) {
   const serverConfig = useServerConfig();
+  const passwordLimits = serverConfig.credentialsRequirement.password;
 
   const defaultUser: Partial<UserInput> = useMemo(
     () => ({
@@ -44,6 +62,7 @@ function UserForm({
       email: defaultValue?.email ?? '',
       password: defaultValue?.password ?? '',
       features: defaultValue?.features ?? [],
+      aiProfileId: defaultValue?.aiProfileId ?? null,
     }),
     [defaultValue]
   );
@@ -64,9 +83,14 @@ function UserForm({
     []
   );
 
+  const passwordValidation = useMemo(
+    () => validatePassword(changes.password, passwordLimits),
+    [changes.password, passwordLimits]
+  );
+
   const canSave = useMemo(() => {
-    return onValidate(changes);
-  }, [onValidate, changes]);
+    return !submitting && onValidate(changes) && passwordValidation.valid;
+  }, [onValidate, changes, passwordValidation.valid, submitting]);
 
   useEffect(() => {
     const normalize = (value: Partial<UserInput>) => ({
@@ -74,6 +98,7 @@ function UserForm({
       email: value.email ?? '',
       password: value.password ?? '',
       features: [...(value.features ?? [])].sort(),
+      aiProfileId: value.aiProfileId ?? null,
     });
     const current = normalize(changes);
     const baseline = normalize(defaultUser);
@@ -81,7 +106,8 @@ function UserForm({
       (current.name !== baseline.name ||
         current.email !== baseline.email ||
         current.password !== baseline.password ||
-        current.features.join(',') !== baseline.features.join(',')) &&
+        current.features.join(',') !== baseline.features.join(',') ||
+        current.aiProfileId !== baseline.aiProfileId) &&
       !!onDirtyChange;
     onDirtyChange?.(dirty);
   }, [changes, defaultUser, onDirtyChange]);
@@ -147,6 +173,16 @@ function UserForm({
                 onChange={setField}
                 optional
                 placeholder="Enter password"
+                type="password"
+                autoComplete="new-password"
+                minLength={passwordLimits.minLength}
+                maxLength={passwordLimits.maxLength}
+                description={
+                  passwordValidation.valid
+                    ? `Use ${passwordLimits.minLength}–${passwordLimits.maxLength} characters, or leave blank.`
+                    : passwordValidation.error
+                }
+                invalid={!passwordValidation.valid}
               />
             </>
           )}
@@ -161,8 +197,77 @@ function UserForm({
           controlPosition="right"
           showSeparators={true}
         />
+        <AiProfileSelect
+          value={changes.aiProfileId ?? null}
+          onChange={aiProfileId => setField('aiProfileId', aiProfileId)}
+        />
         {actions}
       </div>
+    </div>
+  );
+}
+
+function AiProfileSelect({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (value: string | null) => void;
+}) {
+  const { data, error, isValidating } = useQuery({
+    query: adminAiProfilesQuery,
+    variables: {},
+  });
+  const profiles = data.adminAiProfiles;
+
+  return (
+    <div className="space-y-2 rounded-xl border border-border bg-card p-3 shadow-sm">
+      <Label
+        htmlFor="admin-user-ai-profile"
+        className="text-xs font-medium text-muted-foreground uppercase tracking-wide"
+      >
+        Default AI Profile
+      </Label>
+      <Select
+        value={value ?? WORKSPACE_DEFAULT_AI_PROFILE}
+        onValueChange={profileId =>
+          onChange(
+            profileId === WORKSPACE_DEFAULT_AI_PROFILE ? null : profileId
+          )
+        }
+        disabled={isValidating && !profiles.length}
+      >
+        <SelectTrigger
+          id="admin-user-ai-profile"
+          aria-label="Default AI Profile"
+        >
+          <SelectValue placeholder="Use workspace default" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={WORKSPACE_DEFAULT_AI_PROFILE}>
+            Use workspace default
+          </SelectItem>
+          {profiles.map(profile => (
+            <SelectItem
+              key={profile.id}
+              value={profile.id}
+              disabled={!profile.enabled}
+            >
+              {profile.name} / {profile.workspaceName || 'Untitled workspace'}
+              {!profile.enabled ? ' / disabled' : ''}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs leading-5 text-muted-foreground">
+        The explicit profile applies in its workspace. Other workspaces use
+        their enabled default profile.
+      </p>
+      {error ? (
+        <p className="text-xs leading-5 text-destructive" role="alert">
+          AI Profiles could not be loaded. Account details can still be edited.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -174,6 +279,12 @@ function InputItem({
   value,
   onChange,
   placeholder,
+  type = 'text',
+  autoComplete,
+  minLength,
+  maxLength,
+  description,
+  invalid = false,
 }: {
   label: string;
   field: keyof UserInput;
@@ -181,7 +292,15 @@ function InputItem({
   value?: string;
   onChange: (field: keyof UserInput, value: string) => void;
   placeholder?: string;
+  type?: HTMLInputTypeAttribute;
+  autoComplete?: string;
+  minLength?: number;
+  maxLength?: number;
+  description?: string;
+  invalid?: boolean;
 }) {
+  const inputId = useId();
+  const descriptionId = description ? `${inputId}-description` : undefined;
   const onValueChange = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
       onChange(field, e.target.value);
@@ -191,7 +310,10 @@ function InputItem({
 
   return (
     <div className="flex flex-col gap-2 p-3">
-      <Label className="flex flex-wrap text-xs font-medium leading-5 text-muted-foreground uppercase tracking-wide">
+      <Label
+        htmlFor={inputId}
+        className="flex flex-wrap text-xs font-medium leading-5 text-muted-foreground uppercase tracking-wide"
+      >
         {label}
         {optional && (
           <span className="ml-1 font-normal text-muted-foreground">
@@ -200,12 +322,34 @@ function InputItem({
         )}
       </Label>
       <Input
-        type="text"
-        className="py-2 px-3 text-sm font-normal h-9"
+        id={inputId}
+        type={type}
+        autoComplete={autoComplete}
+        minLength={minLength}
+        maxLength={maxLength}
+        aria-describedby={descriptionId}
+        aria-invalid={invalid || undefined}
+        className={cn(
+          'py-2 px-3 text-sm font-normal h-9',
+          invalid &&
+            'border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20'
+        )}
         value={value}
         onChange={onValueChange}
         placeholder={placeholder}
       />
+      {description ? (
+        <p
+          id={descriptionId}
+          className={cn(
+            'text-xs leading-5 text-muted-foreground',
+            invalid && 'text-destructive'
+          )}
+          role={invalid ? 'alert' : undefined}
+        >
+          {description}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -228,15 +372,6 @@ export function CreateUserForm({
   const { create, creating } = useCreateUser();
   const serverConfig = useServerConfig();
   const passwordLimits = serverConfig.credentialsRequirement.password;
-  useEffect(() => {
-    if (creating) {
-      return () => {
-        onComplete();
-      };
-    }
-
-    return;
-  }, [creating, onComplete]);
 
   const handleCreateUser = useCallback(
     (user: UserInput) => {
@@ -249,9 +384,15 @@ export function CreateUserForm({
         toast.error(passwordValidation.error || emailValidation[0].error);
         return;
       }
-      create(user);
+      void create(user)
+        .then(created => {
+          if (created) onComplete();
+        })
+        .catch(error => {
+          console.error(error);
+        });
     },
-    [create, passwordLimits]
+    [create, onComplete, passwordLimits]
   );
 
   return (
@@ -261,6 +402,7 @@ export function CreateUserForm({
       onConfirm={handleCreateUser}
       onValidate={validateCreateUser}
       showOption={true}
+      submitting={creating}
       onDirtyChange={onDirtyChange}
     />
   );
@@ -280,33 +422,38 @@ export function UpdateUserForm({
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   const { update, updating } = useUpdateUser();
+  const { data } = useQuery({
+    query: adminUserAiProfileAssignmentQuery,
+    variables: { userId: user.id },
+  });
 
   const onUpdateUser = useCallback(
     (updates: UserInput) => {
-      update({
+      void update({
         ...updates,
         userId: user.id,
-      });
+      })
+        .then(updated => {
+          if (updated) onComplete();
+        })
+        .catch(error => {
+          console.error(error);
+        });
     },
-    [user, update]
+    [onComplete, update, user.id]
   );
-
-  useEffect(() => {
-    if (updating) {
-      return () => {
-        onComplete();
-      };
-    }
-    return;
-  }, [updating, onComplete]);
 
   return (
     <UserForm
       title="Update User"
-      defaultValue={user}
+      defaultValue={{
+        ...user,
+        aiProfileId: data.adminUserAiProfileAssignment?.profile.id ?? null,
+      }}
       onClose={onComplete}
       onConfirm={onUpdateUser}
       onValidate={validateUpdateUser}
+      submitting={updating}
       onDirtyChange={onDirtyChange}
       actions={
         <div className="space-y-2">

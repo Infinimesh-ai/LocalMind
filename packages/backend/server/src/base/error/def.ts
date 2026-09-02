@@ -849,7 +849,7 @@ export const USER_FRIENDLY_ERRORS = {
   copilot_byok_not_configured: {
     type: 'action_forbidden',
     message:
-      'No available BYOK provider is configured for this workspace. Configure BYOK in Workspace Settings before using AI.',
+      'No available AI provider is configured for this workspace. Contact your LocalMind instance administrator.',
   },
 
   // Quota & Limit errors

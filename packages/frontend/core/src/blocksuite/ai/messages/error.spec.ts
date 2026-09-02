@@ -2,32 +2,19 @@
  * @vitest-environment happy-dom
  */
 
-import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, test } from 'vitest';
 
-vi.mock('@affine/i18n', () => ({
-  I18n: {
-    'com.affine.ai.error.configure-byok': () => 'Configure BYOK',
-  },
-}));
-
-import { AIAppEvents, ByokNotConfiguredError } from '../provider';
+import { ByokNotConfiguredError } from '../provider';
 import { AIChatErrorRenderer } from './error';
 
 describe('AIChatErrorRenderer', () => {
-  test('offers a direct BYOK configuration action', () => {
-    const requestConfigureByok = vi.fn();
-    const subscription =
-      AIAppEvents.requestConfigureByok.subscribe(requestConfigureByok);
+  test('directs users to their administrator without a credential action', () => {
     const template = AIChatErrorRenderer(
-      new ByokNotConfiguredError('Configure a provider before using AI.')
+      new ByokNotConfiguredError('Contact your administrator.')
     );
-    const [text, actionText, onClick] = template.values;
+    const [text, showAction] = template.values;
 
-    expect(text).toBe('Configure a provider before using AI.');
-    expect(actionText).toBe('Configure BYOK');
-
-    (onClick as () => void)();
-    expect(requestConfigureByok).toHaveBeenCalledOnce();
-    subscription.unsubscribe();
+    expect(text).toBe('Contact your administrator.');
+    expect(showAction).toBe(false);
   });
 });

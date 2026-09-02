@@ -8,7 +8,6 @@ import {
 describe('MCP capability selection', () => {
   test('defaults to the complete public LocalMind workflow', () => {
     expect(DEFAULT_MCP_CAPABILITIES).toEqual([
-      'upload_localmind_attachment',
       'delegate_to_localmind',
       'get_localmind_task',
       'control_localmind_task',

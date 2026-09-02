@@ -738,10 +738,6 @@ export function actionToErrorResponse<
   >
 ): ErrorConfig {
   return {
-    configureByok: () => {
-      AIAppEvents.requestConfigureByok.next({ host: panel.host });
-      panel.hide();
-    },
     upgrade: () => {
       AIAppEvents.requestUpgradePlan.next({ host: panel.host });
       panel.hide();

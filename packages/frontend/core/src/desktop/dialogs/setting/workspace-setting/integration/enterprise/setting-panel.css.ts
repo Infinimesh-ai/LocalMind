@@ -55,14 +55,14 @@ export const body = style({
 });
 
 export const providerSelector = style({
-  display: 'grid',
-  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+  display: 'flex',
   padding: 3,
   borderRadius: 8,
   background: cssVarV2('layer/background/secondary'),
 });
 
 export const providerOption = style({
+  flex: 1,
   minWidth: 0,
   minHeight: 34,
   border: 0,
@@ -214,6 +214,19 @@ export const tool = style({
     '(max-width: 600px)': {
       gridTemplateColumns: 'minmax(0, 1fr)',
       padding: 12,
+    },
+  },
+});
+
+export const toolPolicy = style({
+  flexShrink: 0,
+  color: cssVarV2('text/secondary'),
+  fontSize: cssVar('fontXs'),
+  textAlign: 'end',
+  overflowWrap: 'anywhere',
+  '@media': {
+    '(max-width: 600px)': {
+      textAlign: 'start',
     },
   },
 });

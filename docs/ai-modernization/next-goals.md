@@ -887,8 +887,8 @@ Implemented outcome:
 - OpenAI-compatible key tests execute the configured model through the
   Responses endpoint, so a key cannot pass solely because provider-level model
   listing succeeds;
-- Workspace Settings requires a model id for test/save and makes any model
-  change require a fresh test.
+- the Admin AI credential form requires a model id for test/save and makes any
+  model change require a fresh test.
 
 Remaining follow-up:
 
@@ -908,15 +908,16 @@ optional terminal notification slices implemented.
 
 Implemented outcome:
 
-- the inbound server advertises `upload_localmind_attachment`,
-  `delegate_to_localmind`, `get_localmind_task`, and
+- the inbound server advertises `delegate_to_localmind`,
+  `get_localmind_task`, and
   `control_localmind_task` under the `localmind-ai` v3 identity; direct
   document, whiteboard, database, workspace, asset,
   comment, collaboration, history, AI Context, AI Chat, and AI Operations tools
   are no longer exposed;
-- capability questions remain ordinary natural-language requests through
-  `delegate_to_localmind`; no separate AI capability-discovery MCP tool is
-  planned;
+- capability questions explicitly directed to LocalMind remain ordinary
+  natural-language requests through `delegate_to_localmind`; merely discussing
+  LocalMind in a host agent does not trigger delegation, and no separate AI
+  capability-discovery MCP tool is planned;
 - planned tasks persist immutable schema-validated sanitized plan snapshots;
   the query tool projects stable lifecycle state, current step summaries,
   allowlisted final results, and artifact
@@ -933,17 +934,18 @@ Implemented outcome:
 - queued AgentRuns cancel immediately, while leased running work
   records cooperative cancellation and projects `cancelling` until the worker
   reconciles the delegation to terminal `cancelled` state;
-- each request persists the MCP credential's selected subset of four public
+- each request persists the MCP credential's selected subset of three public
   tool permissions as a
   fixed authority ceiling, while credential-family activity and the delegated user's
   workspace/document ACL are rechecked live at planning and execution;
 - missing real ACL returns a direct terminal failure without any permission
   elevation callback;
-- `upload_localmind_attachment` accepts strict base64 through workspace Blob
-  quota enforcement, persists immutable size/SHA-256 evidence, and returns a
-  credential-family-bound id; delegation accepts at most eight ids and 20 MiB
-  combined, then planning and worker execution independently rematerialize and
-  verify bounded text/byte model context;
+- `delegate_to_localmind` accepts strict base64 attachments in the same call,
+  persists them through workspace Blob quota enforcement with immutable
+  size/SHA-256 evidence, and returns credential-family-bound ids for later
+  reuse; delegation accepts at most eight attachments and 20 MiB combined,
+  then planning and worker execution independently rematerialize and verify
+  bounded text/byte model context;
 - the planner can return a direct answer, queue the optimized one-document
   replacement path, or queue `agent_runtime_localmind_tool_agent` with all 13
   AI Chat server-side tool categories: attachment read, code artifact,

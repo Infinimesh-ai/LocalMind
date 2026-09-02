@@ -100,11 +100,11 @@ The workspace BYOK exact-model binding slice is now implemented:
 - every AI execution requires an eligible BYOK profile for the requested
   workspace and feature; missing coverage raises
   `COPILOT_BYOK_NOT_CONFIGURED`, while the compatibility quota API reports an
-  unlimited limit and is not consulted by routing; the AI error state exposes
-  a localized action that opens the current workspace's BYOK settings directly;
-- Workspace Settings requires the model id before test/save, invalidates a
-  successful test when the model changes, and displays the bound model beside
-  the key without exposing the secret;
+  unlimited limit and is not consulted by routing; the AI error state tells
+  members to contact the LocalMind instance administrator;
+- the Admin AI credential form requires the model id before test/save,
+  invalidates a successful test when the model changes, and displays the bound
+  model beside the key without exposing the secret;
 - existing rows remain migration-compatible with a nullable model id, while
   new UI-managed keys must bind and test a concrete model before use.
 
@@ -830,6 +830,21 @@ The first durable Agent Runtime slice is now implemented:
 - GraphQL can independently list recent workspace-scoped AgentRun records and
   read AgentRun detail by id with steps and timeline events, outside the repair
   execution mutation response;
+- user-facing `copilotTasks` and `copilotTask` GraphQL fields now project only
+  the authenticated actor's standalone AgentRun records, exclude
+  `repair_execution_request` runs, and return bounded task status, approval,
+  step, result, artifact, failure, and available-action data instead of raw
+  runtime payloads;
+- `controlCopilotTask` applies the existing approve, reject, cancel, and resume
+  transitions only after workspace permission and actor ownership checks, so a
+  member cannot read or control another member's task even inside the same
+  workspace;
+- the shared frontend core now provides a workspace Tasks page for both Web and
+  Electron renderer, including active/approval/completed filters, five-second
+  refresh, loading/empty/error states, task detail, steps, results, document
+  artifacts, responsive narrow layouts, and guarded control actions; Electron
+  adds only the `tasks` sidebar icon contract and does not maintain a second
+  task UI implementation;
 - Admin can view recent persisted AgentRun, AgentStep, timeline state, and
   registered workflow adapter capabilities in a standalone Agent Runtime status
   card, while still showing the linked run in repair execution results;
@@ -1435,8 +1450,8 @@ The GitHub issues #2-#8 stabilization pass is now implemented:
   page is hidden, applies bounded exponential backoff, and reauthorizes cached
   MCP/keyword-search results before returning them;
 - the workspace MCP endpoint now advertises the `localmind-ai` v3 identity and
-  the `upload_localmind_attachment`, `delegate_to_localmind`,
-  `get_localmind_task`, and `control_localmind_task` tools, with
+  the `delegate_to_localmind`, `get_localmind_task`, and
+  `control_localmind_task` tools, with
   protocol-version validation,
   post-2025-03 batch rejection, notification response semantics, strict task
   argument validation, redacted unexpected failures, and workspace-bound
@@ -1452,22 +1467,29 @@ The GitHub issues #2-#8 stabilization pass is now implemented:
 
 The inbound workspace MCP AI delegation slice is now implemented:
 
-- the Streamable HTTP server exposes task-bound `upload_localmind_attachment`,
-  `delegate_to_localmind`, the read-only `get_localmind_task`, and cancel-only
+- the Streamable HTTP server exposes `delegate_to_localmind`, the read-only
+  `get_localmind_task`, and cancel-only
   `control_localmind_task`; the built-in
   LocalMind AI can produce a read-only answer, plan one optimized complete
   Markdown document replacement, or queue a durable tool-agent run with the
   same server-side tool categories as AI Chat; work outside those executors
   still returns `unsupported_task`;
-- the advertised `localmind-ai` v3.3.0 instructions, tool descriptions, and
-  input-schema field descriptions now encode one unambiguous routing contract:
-  every new task starts with `delegate_to_localmind`, task reads require its
-  returned `taskId`, cancellation is the only control action, task ids are not
-  document ids, and callers must not search for LocalMind's internal
-  `doc_create`/`doc_read` tools;
-- uploads are immutable workspace Blobs bound to the delegated actor and
-  credential family, limited to 10 MiB each, eight per task, and 20 MiB
-  combined; planning and worker execution reread them under live Blob ACL and
+- the advertised `localmind-ai` v3.4.0 instructions, tool descriptions, and
+  input-schema field descriptions now encode one unambiguous LocalMind-scoped
+  routing contract: only work explicitly directed to LocalMind or requiring
+  LocalMind-managed resources enters the public tool surface; existing-task
+  status/result queries route directly to `get_localmind_task`, explicit
+  cancellation routes directly to `control_localmind_task`, and all remaining
+  requests asking LocalMind to answer or act use `delegate_to_localmind`;
+  ordinary Codex, Claude, and other host-agent conversations remain unaffected;
+  task reads require the returned `taskId`; cancellation is the only control
+  action; task ids are not document ids; and callers must not search for
+  LocalMind's internal `doc_create`/`doc_read` tools;
+- inline delegation attachments are persisted as immutable workspace Blobs
+  bound to the delegated actor and credential family, limited to 10 MiB each,
+  eight per task, and 20 MiB combined; `attachmentIds` remain available only
+  for later same-family reuse, and planning and worker execution reread the
+  bytes under live Blob ACL and
   verify persisted size/SHA-256 evidence before providing bounded extracted
   text or bytes to the model, while storage reconciliation treats active MCP
   attachment rows as Blob references rather than cleanup candidates;
@@ -1516,7 +1538,7 @@ The inbound workspace MCP AI delegation slice is now implemented:
   recheck live `Workspace.Copilot` without requiring `Doc.Update`. Queued runs
   cancel immediately; leased running runs expose `cancelling` until
   the Agent Runtime worker cooperatively records terminal cancellation;
-- credentials persist only a selected subset of the four public AI tool
+- credentials persist only a selected subset of the three public AI tool
   permissions; the migration
   revokes legacy resource-capability credentials rather than silently widening
   them, and the normalized permission set is frozen on each delegation request
@@ -1600,6 +1622,28 @@ implemented separately from the inbound LocalMind workspace MCP surface:
   integration-visibility, cross-workspace UI isolation, MCP delegation E2E, and
   disposable PostgreSQL full-migration checks cover the slice.
 
+## Workspace AI Profile And Enterprise CLI Governance
+
+The company-instance and department-workspace control model now has a durable
+AI Profile and enterprise connector policy path:
+
+- workspace AI Profiles, Profile credential membership, and user assignments
+  are DB-backed with cross-workspace foreign keys, one-default-per-workspace,
+  and cascade cleanup;
+- Admin account create/edit flows set or change a user's Profile assignment;
+- runtime routing resolves explicit active-member assignment, workspace
+  default, then legacy BYOK only when the workspace has no Profile records;
+- Provider Profile API keys are redacted on Admin reads and mutation responses,
+  while same-id updates can preserve the stored secret without returning it;
+- instance administrators configure Enterprise CLI provider and tool
+  allowlists in Admin AI; creation, authorization, refresh, projection, search,
+  and execution use the live policy;
+- Admin AI owns all BYOK policy switches, including private-network endpoint
+  access; the duplicate generic Settings group and unreachable main-product
+  BYOK implementation and translations are removed;
+- users manage their own enterprise account authorization lifecycle, but no
+  longer edit the tool allowlist.
+
 ## Not Completed
 
 Remaining production gaps include:
@@ -1627,6 +1671,9 @@ Remaining production gaps include:
 - broader Agent Runtime Codex/MCP/handoff adapters and specialized tool
   executors beyond the LocalMind AI Chat tool loop, model completion, document
   update, record-only, and repair execution workflows;
+- the user Tasks page currently observes and controls existing standalone
+  AgentRun records; a general user task composer/planner that creates arbitrary
+  office workflows from this page is not implemented;
 - atomic expected-version compare-and-write for CRDT document replacement. The
   delegation path checks the saved version at approval and again immediately
   before `DocWriter.updateDoc`, but the current document storage API has no

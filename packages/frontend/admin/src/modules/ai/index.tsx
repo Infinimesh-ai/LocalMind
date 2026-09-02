@@ -98,6 +98,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { Header } from '../header';
+import { WorkspaceByokAdmin } from './workspace-byok';
 
 const ADMIN_AI_DEFAULT_PROMPT_NAME = 'Chat With LocalMind AI';
 const ADMIN_AI_DEFAULT_PROMPT_DISPLAY_NAME = formatAIModelPromptDisplayName(
@@ -158,6 +159,23 @@ const DEFAULT_OPENAI_COMPATIBLE_API_STYLE = 'chat_completions';
 const DEFAULT_GEMINI_BASE_URL =
   'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1';
+const ENTERPRISE_CLI_PROVIDERS = [
+  {
+    id: 'WECOM',
+    label: 'WeCom',
+    toolsKey: 'enterpriseCliWecomAllowedTools',
+  },
+  {
+    id: 'LARK',
+    label: 'Lark',
+    toolsKey: 'enterpriseCliLarkAllowedTools',
+  },
+  {
+    id: 'DINGTALK',
+    label: 'DingTalk',
+    toolsKey: 'enterpriseCliDingTalkAllowedTools',
+  },
+] as const;
 const AI_RUNTIME_PATH = '/admin/ai/runtime';
 const AI_CONFIG_PATH = '/admin/ai';
 
@@ -179,6 +197,16 @@ type AppConfigData = {
     byok?: {
       allowedProviders?: string[];
       allowCustomEndpoint?: boolean;
+      allowPrivateEndpoint?: boolean;
+      enabled?: boolean;
+    };
+    enterpriseCli?: {
+      allowedProviders?: string[];
+      allowedToolsByProvider?: {
+        dingtalk?: string[];
+        lark?: string[];
+        wecom?: string[];
+      };
       enabled?: boolean;
     };
     exa?: {
@@ -244,12 +272,18 @@ type AiConfigDraft = {
   anthropicBaseURL: string;
   anthropicVertexJson: string;
   byokAllowCustomEndpoint: boolean;
+  byokAllowPrivateEndpoint: boolean;
   byokAllowedProviders: string;
   byokEnabled: boolean;
   cloudflareWorkersAiAccountId: string;
   cloudflareWorkersAiApiToken: string;
   cloudflareWorkersAiBaseURL: string;
   enabled: boolean;
+  enterpriseCliAllowedProviders: string;
+  enterpriseCliDingTalkAllowedTools: string;
+  enterpriseCliEnabled: boolean;
+  enterpriseCliLarkAllowedTools: string;
+  enterpriseCliWecomAllowedTools: string;
   exaKey: string;
   falApiKey: string;
   geminiApiKey: string;
@@ -335,6 +369,7 @@ function buildAiConfigDraft(
       providers?.anthropic?.baseURL ?? DEFAULT_ANTHROPIC_BASE_URL,
     anthropicVertexJson: formatJsonConfig(providers?.anthropicVertex, {}),
     byokAllowCustomEndpoint: copilot?.byok?.allowCustomEndpoint ?? false,
+    byokAllowPrivateEndpoint: copilot?.byok?.allowPrivateEndpoint ?? false,
     byokAllowedProviders: (
       copilot?.byok?.allowedProviders ?? [
         'openai',
@@ -349,6 +384,19 @@ function buildAiConfigDraft(
     cloudflareWorkersAiApiToken: providers?.cloudflareWorkersAi?.apiToken ?? '',
     cloudflareWorkersAiBaseURL: providers?.cloudflareWorkersAi?.baseURL ?? '',
     enabled: appConfig?.copilot?.enabled !== false,
+    enterpriseCliAllowedProviders: (
+      copilot?.enterpriseCli?.allowedProviders ?? ['WECOM', 'LARK', 'DINGTALK']
+    ).join(', '),
+    enterpriseCliDingTalkAllowedTools: (
+      copilot?.enterpriseCli?.allowedToolsByProvider?.dingtalk ?? []
+    ).join(', '),
+    enterpriseCliEnabled: copilot?.enterpriseCli?.enabled === true,
+    enterpriseCliLarkAllowedTools: (
+      copilot?.enterpriseCli?.allowedToolsByProvider?.lark ?? []
+    ).join(', '),
+    enterpriseCliWecomAllowedTools: (
+      copilot?.enterpriseCli?.allowedToolsByProvider?.wecom ?? []
+    ).join(', '),
     exaKey: copilot?.exa?.key ?? '',
     falApiKey: providers?.fal?.apiKey ?? '',
     geminiApiKey: providers?.gemini?.apiKey ?? '',
@@ -10540,6 +10588,9 @@ function AiConfigPage({
   const gemini = providers?.gemini ?? {};
   const anthropic = providers?.anthropic ?? {};
   const fal = providers?.fal ?? {};
+  const enterpriseAllowedProviders = new Set(
+    parseCsvList(draft.enterpriseCliAllowedProviders)
+  );
   const isDirty = !isSameAiConfigDraft(savedDraft, draft);
   const openaiBaseURL = draft.openaiBaseURL.trim() || DEFAULT_OPENAI_BASE_URL;
   const openaiCompatibleBaseURL = draft.openaiCompatibleBaseURL.trim();
@@ -10663,6 +10714,30 @@ function AiConfigPage({
           module: 'copilot',
           key: 'byok.allowCustomEndpoint',
           value: draft.byokAllowCustomEndpoint,
+        },
+        {
+          module: 'copilot',
+          key: 'byok.allowPrivateEndpoint',
+          value: draft.byokAllowPrivateEndpoint,
+        },
+        {
+          module: 'copilot',
+          key: 'enterpriseCli.enabled',
+          value: draft.enterpriseCliEnabled,
+        },
+        {
+          module: 'copilot',
+          key: 'enterpriseCli.allowedProviders',
+          value: parseCsvList(draft.enterpriseCliAllowedProviders),
+        },
+        {
+          module: 'copilot',
+          key: 'enterpriseCli.allowedToolsByProvider',
+          value: {
+            wecom: parseCsvList(draft.enterpriseCliWecomAllowedTools),
+            lark: parseCsvList(draft.enterpriseCliLarkAllowedTools),
+            dingtalk: parseCsvList(draft.enterpriseCliDingTalkAllowedTools),
+          },
         },
         {
           module: 'copilot',
@@ -10813,7 +10888,7 @@ function AiConfigPage({
         title="AI capability switches"
         description="Global AI enablement and workspace BYOK policy."
       >
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
           <div className="flex items-center justify-between gap-4 rounded-md border border-border/70 bg-muted/20 p-3">
             <div className="min-w-0">
               <div className="text-sm font-medium">Server AI</div>
@@ -10832,7 +10907,8 @@ function AiConfigPage({
             <div className="min-w-0">
               <div className="text-sm font-medium">Workspace BYOK</div>
               <div className="text-xs text-muted-foreground">
-                Allows workspace-owned OpenAI, Anthropic, Gemini, and FAL keys.
+                Lets instance administrators assign approved server credentials
+                to department workspaces.
               </div>
             </div>
             <Switch
@@ -10856,10 +10932,41 @@ function AiConfigPage({
               aria-label="Allow BYOK custom endpoint"
             />
           </div>
+          <div className="flex items-center justify-between gap-4 rounded-md border border-border/70 bg-muted/20 p-3">
+            <div className="min-w-0">
+              <div className="text-sm font-medium">BYOK private endpoints</div>
+              <div className="text-xs text-muted-foreground">
+                Allows trusted private-network targets. Takes effect only when
+                custom endpoints are enabled.
+              </div>
+            </div>
+            <Switch
+              checked={draft.byokAllowPrivateEndpoint}
+              onCheckedChange={checked =>
+                updateDraft('byokAllowPrivateEndpoint', checked)
+              }
+              aria-label="Allow BYOK private endpoint"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4 rounded-md border border-border/70 bg-muted/20 p-3">
+            <div className="min-w-0">
+              <div className="text-sm font-medium">Enterprise CLI</div>
+              <div className="text-xs text-muted-foreground">
+                Enables governed user connections for enterprise platforms.
+              </div>
+            </div>
+            <Switch
+              checked={draft.enterpriseCliEnabled}
+              onCheckedChange={checked =>
+                updateDraft('enterpriseCliEnabled', checked)
+              }
+              aria-label="Enable Enterprise CLI"
+            />
+          </div>
         </div>
         <AiConfigField
           label="BYOK allowed providers"
-          description="Comma-separated provider ids accepted by workspace BYOK."
+          description="Comma-separated provider ids available for per-workspace BYOK routing."
         >
           <Input
             value={draft.byokAllowedProviders}
@@ -10868,6 +10975,66 @@ function AiConfigPage({
             }}
           />
         </AiConfigField>
+      </AiConfigSection>
+
+      <AiConfigSection
+        title="Enterprise CLI governance"
+        description="Instance policy is the maximum capability. Users authorize and manage only their own platform connections."
+      >
+        <div className="overflow-hidden rounded-md border border-border/70">
+          {ENTERPRISE_CLI_PROVIDERS.map((provider, index) => {
+            const allowed = enterpriseAllowedProviders.has(provider.id);
+            return (
+              <div
+                className={cn(
+                  'grid min-w-0 gap-3 p-4 md:grid-cols-[180px_minmax(0,1fr)] md:items-center',
+                  index ? 'border-t border-border/70' : null
+                )}
+                key={provider.id}
+              >
+                <div className="flex min-w-0 items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium">{provider.label}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {allowed ? 'Provider allowed' : 'Provider blocked'}
+                    </div>
+                  </div>
+                  <Switch
+                    checked={allowed}
+                    disabled={!draft.enterpriseCliEnabled}
+                    aria-label={`Allow ${provider.label} connections`}
+                    onCheckedChange={checked => {
+                      const next = new Set(enterpriseAllowedProviders);
+                      if (checked) next.add(provider.id);
+                      else next.delete(provider.id);
+                      updateDraft(
+                        'enterpriseCliAllowedProviders',
+                        ENTERPRISE_CLI_PROVIDERS.filter(item =>
+                          next.has(item.id)
+                        )
+                          .map(item => item.id)
+                          .join(', ')
+                      );
+                    }}
+                  />
+                </div>
+                <AiConfigField
+                  label="Allowed tool names"
+                  description="Comma-separated exact tool names. Use * only to allow the full discovered catalog for this provider."
+                >
+                  <Input
+                    disabled={!draft.enterpriseCliEnabled || !allowed}
+                    placeholder="tool_name, another_tool"
+                    value={draft[provider.toolsKey]}
+                    onChange={event => {
+                      updateDraft(provider.toolsKey, event.target.value);
+                    }}
+                  />
+                </AiConfigField>
+              </div>
+            );
+          })}
+        </div>
       </AiConfigSection>
 
       <AiConfigSection
@@ -11266,6 +11433,7 @@ function AiConfigPageContent() {
               await mutateAppConfig();
             }}
           />
+          <WorkspaceByokAdmin />
         </div>
       </ScrollArea>
     </div>

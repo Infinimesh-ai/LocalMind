@@ -68,6 +68,32 @@ export const licenseBodyFragment = `fragment licenseBody on License {
   validatedAt
   variant
 }`;
+export const adminAiProfilesQuery = {
+  id: 'adminAiProfilesQuery' as const,
+  op: 'adminAiProfiles',
+  query: `query adminAiProfiles($workspaceId: ID) {
+  adminAiProfiles(workspaceId: $workspaceId) {
+    id
+    workspaceId
+    workspaceName
+    name
+    description
+    enabled
+    isDefault
+    credentialIds
+    credentials {
+      id
+      provider
+      name
+      modelId
+      enabled
+    }
+    createdAt
+    updatedAt
+  }
+}`,
+};
+
 export const adminAllSharedLinksQuery = {
   id: 'adminAllSharedLinksQuery' as const,
   op: 'adminAllSharedLinks',
@@ -290,6 +316,92 @@ export const adminUpdateWorkspaceMutation = {
 }`,
 };
 
+export const adminUserAiProfileAssignmentQuery = {
+  id: 'adminUserAiProfileAssignmentQuery' as const,
+  op: 'adminUserAiProfileAssignment',
+  query: `query adminUserAiProfileAssignment($userId: ID!) {
+  adminUserAiProfileAssignment(userId: $userId) {
+    userId
+    workspaceId
+    profile {
+      id
+      workspaceId
+      workspaceName
+      name
+      description
+      enabled
+      isDefault
+      credentialIds
+      credentials {
+        id
+        provider
+        name
+        modelId
+        enabled
+      }
+      createdAt
+      updatedAt
+    }
+    createdAt
+    updatedAt
+  }
+}`,
+};
+
+export const adminWorkspaceByokScopesQuery = {
+  id: 'adminWorkspaceByokScopesQuery' as const,
+  op: 'adminWorkspaceByokScopes',
+  query: `query adminWorkspaceByokScopes($keyword: String, $first: SafeInt) {
+  adminWorkspaceByokScopes(keyword: $keyword, first: $first) {
+    id
+    name
+    enableAi
+    memberCount
+  }
+}`,
+};
+
+export const adminWorkspaceByokSettingsQuery = {
+  id: 'adminWorkspaceByokSettingsQuery' as const,
+  op: 'adminWorkspaceByokSettings',
+  query: `query adminWorkspaceByokSettings($workspaceId: String!) {
+  adminWorkspaceByokSettings(workspaceId: $workspaceId) {
+    workspaceId
+    entitled
+    serverEntitled
+    allowedProviders
+    customEndpointSupported
+    privateEndpointSupported
+    keys {
+      id
+      provider
+      name
+      description
+      storage
+      configured
+      enabled
+      endpoint
+      modelId
+      endpointEditable
+      sortOrder
+      capabilities
+      testStatus
+      disabledReason
+      lastTestedAt
+      lastTestError
+      lastUsedAt
+      lastErrorAt
+      lastError
+    }
+    warnings {
+      featureKind
+      reason
+      requiredProviders
+    }
+  }
+}`,
+};
+
 export const adminWorkspaceQuery = {
   id: 'adminWorkspaceQuery' as const,
   op: 'adminWorkspace',
@@ -410,6 +522,14 @@ export const createUserMutation = {
   createUser(input: $input) {
     id
   }
+}`,
+};
+
+export const deleteAdminAiProfileMutation = {
+  id: 'deleteAdminAiProfileMutation' as const,
+  op: 'deleteAdminAiProfile',
+  query: `mutation deleteAdminAiProfile($workspaceId: ID!, $id: ID!) {
+  deleteAdminAiProfile(workspaceId: $workspaceId, id: $id)
 }`,
 };
 
@@ -541,6 +661,27 @@ export const sendTestEmailMutation = {
 }`,
 };
 
+export const setAdminUserAiProfileAssignmentMutation = {
+  id: 'setAdminUserAiProfileAssignmentMutation' as const,
+  op: 'setAdminUserAiProfileAssignment',
+  query: `mutation setAdminUserAiProfileAssignment($userId: ID!, $profileId: ID) {
+  setAdminUserAiProfileAssignment(userId: $userId, profileId: $profileId) {
+    userId
+    workspaceId
+    profile {
+      id
+      workspaceId
+      workspaceName
+      name
+      enabled
+      isDefault
+    }
+    createdAt
+    updatedAt
+  }
+}`,
+};
+
 export const updateAccountFeaturesMutation = {
   id: 'updateAccountFeaturesMutation' as const,
   op: 'updateAccountFeatures',
@@ -566,6 +707,32 @@ export const updateAppConfigMutation = {
   op: 'updateAppConfig',
   query: `mutation updateAppConfig($updates: [UpdateAppConfigInput!]!) {
   updateAppConfig(updates: $updates)
+}`,
+};
+
+export const upsertAdminAiProfileMutation = {
+  id: 'upsertAdminAiProfileMutation' as const,
+  op: 'upsertAdminAiProfile',
+  query: `mutation upsertAdminAiProfile($input: UpsertAdminAiProfileInput!) {
+  upsertAdminAiProfile(input: $input) {
+    id
+    workspaceId
+    workspaceName
+    name
+    description
+    enabled
+    isDefault
+    credentialIds
+    credentials {
+      id
+      provider
+      name
+      modelId
+      enabled
+    }
+    createdAt
+    updatedAt
+  }
 }`,
 };
 
@@ -6620,6 +6787,140 @@ export const getCopilotSupportBundlesQuery = {
 }`,
 };
 
+export const controlCopilotTaskMutation = {
+  id: 'controlCopilotTaskMutation' as const,
+  op: 'controlCopilotTask',
+  query: `mutation controlCopilotTask($input: CopilotTaskControlInput!) {
+  controlCopilotTask(input: $input) {
+    id
+    title
+    workflow
+    status
+    createdAt
+    updatedAt
+    startedAt
+    completedAt
+    failureCode
+    failureMessage
+    resultSummary
+    availableActions
+    approval {
+      stepId
+      status
+      title
+      decidedAt
+    }
+    artifacts {
+      kind
+      id
+      title
+    }
+    steps {
+      id
+      key
+      type
+      status
+      title
+      order
+      startedAt
+      completedAt
+    }
+  }
+}`,
+};
+
+export const copilotTaskGetQuery = {
+  id: 'copilotTaskGetQuery' as const,
+  op: 'copilotTaskGet',
+  query: `query copilotTaskGet($workspaceId: String!, $taskId: String!) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      copilotTask(id: $taskId) {
+        id
+        title
+        workflow
+        status
+        createdAt
+        updatedAt
+        startedAt
+        completedAt
+        failureCode
+        failureMessage
+        resultSummary
+        availableActions
+        approval {
+          stepId
+          status
+          title
+          decidedAt
+        }
+        artifacts {
+          kind
+          id
+          title
+        }
+        steps {
+          id
+          key
+          type
+          status
+          title
+          order
+          startedAt
+          completedAt
+        }
+      }
+    }
+  }
+}`,
+};
+
+export const copilotTasksGetQuery = {
+  id: 'copilotTasksGetQuery' as const,
+  op: 'copilotTasksGet',
+  query: `query copilotTasksGet($workspaceId: String!, $limit: SafeInt, $filter: CopilotTaskListFilterInput) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      copilotTasks(filter: $filter, limit: $limit) {
+        id
+        title
+        workflow
+        status
+        createdAt
+        updatedAt
+        startedAt
+        completedAt
+        failureCode
+        failureMessage
+        resultSummary
+        availableActions
+        approval {
+          stepId
+          status
+          title
+          decidedAt
+        }
+        artifacts {
+          kind
+          id
+          title
+        }
+        steps {
+          id
+          key
+          type
+          status
+          title
+          order
+          startedAt
+          completedAt
+        }
+      }
+    }
+  }
+}`,
+};
+
 export const getTranscriptTaskQuery = {
   id: 'getTranscriptTaskQuery' as const,
   op: 'getTranscriptTask',
@@ -7089,6 +7390,10 @@ export const enterpriseConnectionsQuery = {
   id: 'enterpriseConnectionsQuery' as const,
   op: 'enterpriseConnections',
   query: `query enterpriseConnections($workspaceId: String!) {
+  enterpriseConnectionPolicy(workspaceId: $workspaceId) {
+    enabled
+    allowedProviders
+  }
   enterpriseConnections(workspaceId: $workspaceId) {
     id
     workspaceId
@@ -8457,17 +8762,6 @@ export const upsertWorkspaceByokConfigMutation = {
   query: `mutation upsertWorkspaceByokConfig($input: UpsertWorkspaceByokConfigInput!) {
   upsertWorkspaceByokConfig(input: $input) {
     id
-  }
-}`,
-};
-
-export const createWorkspaceByokLocalLeaseMutation = {
-  id: 'createWorkspaceByokLocalLeaseMutation' as const,
-  op: 'createWorkspaceByokLocalLease',
-  query: `mutation createWorkspaceByokLocalLease($input: CreateWorkspaceByokLocalLeaseInput!) {
-  createWorkspaceByokLocalLease(input: $input) {
-    leaseId
-    expiresAt
   }
 }`,
 };

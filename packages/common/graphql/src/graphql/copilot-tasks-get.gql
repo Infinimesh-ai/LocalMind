@@ -1,0 +1,45 @@
+query copilotTasksGet(
+  $workspaceId: String!
+  $limit: SafeInt
+  $filter: CopilotTaskListFilterInput
+) {
+  currentUser {
+    copilot(workspaceId: $workspaceId) {
+      copilotTasks(filter: $filter, limit: $limit) {
+        id
+        title
+        workflow
+        status
+        createdAt
+        updatedAt
+        startedAt
+        completedAt
+        failureCode
+        failureMessage
+        resultSummary
+        availableActions
+        approval {
+          stepId
+          status
+          title
+          decidedAt
+        }
+        artifacts {
+          kind
+          id
+          title
+        }
+        steps {
+          id
+          key
+          type
+          status
+          title
+          order
+          startedAt
+          completedAt
+        }
+      }
+    }
+  }
+}

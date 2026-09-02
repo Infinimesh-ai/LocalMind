@@ -1,0 +1,16 @@
+mutation setAdminUserAiProfileAssignment($userId: ID!, $profileId: ID) {
+  setAdminUserAiProfileAssignment(userId: $userId, profileId: $profileId) {
+    userId
+    workspaceId
+    profile {
+      id
+      workspaceId
+      workspaceName
+      name
+      enabled
+      isDefault
+    }
+    createdAt
+    updatedAt
+  }
+}

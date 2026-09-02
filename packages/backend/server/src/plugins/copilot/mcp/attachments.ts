@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 
 import { Injectable, Logger } from '@nestjs/common';
@@ -13,17 +13,6 @@ import { Models } from '../../../models';
 import { parseDoc } from '../../../native';
 import type { PromptAttachment } from '../providers/types';
 import { readStream } from '../utils';
-import {
-  MCP_ATTACHMENT_UPLOAD_CAPABILITY,
-  type McpCapability,
-} from './capabilities';
-import {
-  defineTool,
-  RESULT_OUTPUT_SCHEMA,
-  toolResult,
-  type WorkspaceMcpToolDefinition,
-  WRITE_TOOL,
-} from './types';
 
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const MAX_ATTACHMENT_TOTAL_BYTES = 20 * 1024 * 1024;
@@ -31,9 +20,7 @@ const MAX_ATTACHMENT_COUNT = 8;
 const MAX_ATTACHMENT_CONTEXT_LENGTH = 24_000;
 const MAX_BASE64_LENGTH = Math.ceil((MAX_ATTACHMENT_BYTES * 4) / 3) + 8;
 
-const IDEMPOTENT_WRITE_TOOL = { ...WRITE_TOOL, idempotentHint: true };
-
-const UploadAttachmentInput = z
+export const McpInlineAttachmentInput = z
   .object({
     fileName: z
       .string()
@@ -56,21 +43,26 @@ const UploadAttachmentInput = z
       .describe(
         'The base64-encoded attachment bytes. The decoded file must not exceed 10 MiB.'
       ),
-    idempotencyKey: z
-      .string()
-      .trim()
-      .min(1)
-      .max(256)
-      .describe(
-        'A caller-generated stable key for this exact upload. Reuse it only to retry the same file.'
-      ),
   })
   .strict()
-  .describe('Upload one attachment for a later LocalMind delegation task.');
+  .describe('One file included directly in a LocalMind delegation task.');
+
+export type McpInlineAttachment = z.infer<typeof McpInlineAttachmentInput>;
+
+export type PreparedMcpInlineAttachment = {
+  id: string;
+  idempotencyKey: string;
+  fileName: string;
+  mimeType: string;
+  byteSize: number;
+  contentFingerprint: string;
+  blobKey: string;
+  buffer: Buffer;
+};
 
 type AttachmentCredential = Pick<
   McpCredential,
-  'id' | 'familyId' | 'generation' | 'userId' | 'workspaceId' | 'capabilities'
+  'id' | 'familyId' | 'generation' | 'userId' | 'workspaceId'
 >;
 
 export type MaterializedMcpAttachments = {
@@ -91,6 +83,15 @@ export type MaterializedMcpAttachments = {
 export class McpAttachmentReferenceError extends Error {
   constructor(
     readonly status: 'permission_denied' | 'resource_not_accessible' | 'failed',
+    readonly result: Record<string, unknown>,
+    message: string
+  ) {
+    super(message);
+  }
+}
+
+export class McpInlineAttachmentError extends Error {
+  constructor(
     readonly result: Record<string, unknown>,
     message: string
   ) {
@@ -129,6 +130,29 @@ function blobKey(buffer: Buffer) {
   return createHash('sha256').update(buffer).digest('base64url');
 }
 
+function inlineAttachmentIdentity(
+  credential: AttachmentCredential,
+  delegationIdempotencyKey: string,
+  index: number
+) {
+  const digest = createHash('sha256')
+    .update(
+      JSON.stringify({
+        version: 'localmind-mcp-inline-attachment/v1',
+        workspaceId: credential.workspaceId,
+        actorId: credential.userId,
+        credentialFamilyId: credential.familyId,
+        delegationIdempotencyKey,
+        index,
+      })
+    )
+    .digest('hex');
+  return {
+    id: `mcpatt_${digest}`,
+    idempotencyKey: `delegate-attachment-v1:${digest}`,
+  };
+}
+
 @Injectable()
 export class McpAttachmentService {
   private readonly logger = new Logger(McpAttachmentService.name);
@@ -140,67 +164,92 @@ export class McpAttachmentService {
     private readonly models: Models
   ) {}
 
-  createTool(
+  prepareInlineAttachments(
     credential: AttachmentCredential,
-    capabilities: readonly McpCapability[]
-  ): WorkspaceMcpToolDefinition {
-    return defineTool({
-      name: 'upload_localmind_attachment',
-      title: 'Upload a LocalMind Attachment',
-      description:
-        'Upload one attachment for LocalMind AI. Call this before delegate_to_localmind, then pass the returned attachmentId in attachmentIds. Uploads are limited to 10 MiB each and are bound to this workspace, delegated user, and credential family.',
-      parser: UploadAttachmentInput,
-      outputSchema: RESULT_OUTPUT_SCHEMA,
-      annotations: IDEMPOTENT_WRITE_TOOL,
-      execute: async args =>
-        toolResult(await this.upload(credential, capabilities, args)),
+    attachments: McpInlineAttachment[],
+    delegationIdempotencyKey: string
+  ): PreparedMcpInlineAttachment[] {
+    if (attachments.length > MAX_ATTACHMENT_COUNT) {
+      throw new McpInlineAttachmentError(
+        { code: 'attachment_limit_exceeded' },
+        'Too many inline attachments.'
+      );
+    }
+
+    let totalBytes = 0;
+    const prepared = attachments.map((attachment, index) => {
+      let buffer: Buffer;
+      try {
+        buffer = decodeBase64(attachment.base64);
+      } catch {
+        throw new McpInlineAttachmentError(
+          {
+            code: 'attachment_invalid',
+            attachmentIndex: index,
+            reason: 'invalid_base64_or_size',
+          },
+          `Inline attachment ${index} is invalid.`
+        );
+      }
+      totalBytes += buffer.length;
+      const identity = inlineAttachmentIdentity(
+        credential,
+        delegationIdempotencyKey,
+        index
+      );
+      const fileName = sanitizedFileName(attachment.fileName);
+      const mimeType =
+        sniffMime(buffer, attachment.mimeType)?.toLowerCase() ||
+        attachment.mimeType.toLowerCase();
+      return {
+        ...identity,
+        fileName,
+        mimeType,
+        byteSize: buffer.length,
+        contentFingerprint: contentFingerprint(buffer),
+        blobKey: blobKey(buffer),
+        buffer,
+      };
     });
+    if (totalBytes > MAX_ATTACHMENT_TOTAL_BYTES) {
+      throw new McpInlineAttachmentError(
+        { code: 'attachment_total_size_exceeded' },
+        'Inline attachments exceed the combined size limit.'
+      );
+    }
+    return prepared;
   }
 
-  async upload(
+  async persistInlineAttachments(
     credential: AttachmentCredential,
-    capabilities: readonly McpCapability[],
-    input: z.infer<typeof UploadAttachmentInput>
+    prepared: PreparedMcpInlineAttachment[]
   ) {
-    if (!capabilities.includes(MCP_ATTACHMENT_UPLOAD_CAPABILITY)) {
-      return {
-        code: 'credential_scope_denied',
-        requiredCapabilities: [MCP_ATTACHMENT_UPLOAD_CAPABILITY],
-      };
-    }
+    if (!prepared.length) return [];
     const copilotAllowed = await this.ac
       .user(credential.userId)
       .workspace(credential.workspaceId)
       .allowLocal()
       .can('Workspace.Copilot');
     if (!copilotAllowed) {
-      return {
-        code: 'permission_denied',
-        missingPermission: 'Workspace.Copilot',
-      };
+      throw new McpInlineAttachmentError(
+        {
+          code: 'permission_denied',
+          missingPermission: 'Workspace.Copilot',
+        },
+        'The delegated user cannot persist LocalMind attachments.'
+      );
     }
 
-    let buffer: Buffer;
-    try {
-      buffer = decodeBase64(input.base64);
-    } catch {
-      return { code: 'attachment_invalid', reason: 'invalid_base64_or_size' };
-    }
-    const fileName = sanitizedFileName(input.fileName);
-    const fingerprint = contentFingerprint(buffer);
-    const key = blobKey(buffer);
-    const mimeType =
-      sniffMime(buffer, input.mimeType)?.toLowerCase() ||
-      input.mimeType.toLowerCase();
-
-    try {
+    const records: AiMcpAttachment[] = [];
+    for (const attachment of prepared) {
+      const { buffer } = attachment;
       const existingBlob = await this.models.blob.get(
         credential.workspaceId,
-        key
+        attachment.blobKey
       );
       const existingMetadata =
         existingBlob?.status === 'completed' && !existingBlob.deletedAt
-          ? await this.storage.head(credential.workspaceId, key)
+          ? await this.storage.head(credential.workspaceId, attachment.blobKey)
           : null;
       if (
         !existingMetadata ||
@@ -210,14 +259,17 @@ export class McpAttachmentService {
           { id: credential.userId } as never,
           credential.workspaceId,
           {
-            filename: key,
-            mimetype: mimeType,
+            filename: attachment.blobKey,
+            mimetype: attachment.mimeType,
             encoding: 'base64',
             createReadStream: () => Readable.from(buffer),
           }
         );
         if (existingBlob?.deletedAt) {
-          await this.models.blob.restore(credential.workspaceId, key);
+          await this.models.blob.restore(
+            credential.workspaceId,
+            attachment.blobKey
+          );
         }
       } else {
         await this.ac
@@ -226,43 +278,42 @@ export class McpAttachmentService {
           .assert('Workspace.Blobs.Write');
       }
 
-      const created =
-        await this.models.copilotMcpDelegation.createOrReuseAttachment({
-          id: randomUUID(),
-          workspaceId: credential.workspaceId,
-          actorId: credential.userId,
-          credentialId: credential.id,
-          credentialFamilyId: credential.familyId,
-          credentialGeneration: credential.generation,
-          idempotencyKey: input.idempotencyKey,
-          fileName,
-          mimeType,
-          blobKey: key,
-          byteSize: buffer.length,
-          contentFingerprint: fingerprint,
-        });
-      return {
-        attachmentId: created.record.id,
-        fileName: created.record.fileName,
-        mimeType: created.record.mimeType,
-        size: created.record.byteSize,
-        contentFingerprint: created.record.contentFingerprint,
-        idempotentReplay: created.reused,
-      };
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message.includes('idempotency key was already used')
-      ) {
-        return { code: 'idempotency_conflict' };
+      try {
+        const created =
+          await this.models.copilotMcpDelegation.createOrReuseAttachment({
+            id: attachment.id,
+            workspaceId: credential.workspaceId,
+            actorId: credential.userId,
+            credentialId: credential.id,
+            credentialFamilyId: credential.familyId,
+            credentialGeneration: credential.generation,
+            idempotencyKey: attachment.idempotencyKey,
+            fileName: attachment.fileName,
+            mimeType: attachment.mimeType,
+            blobKey: attachment.blobKey,
+            byteSize: attachment.byteSize,
+            contentFingerprint: attachment.contentFingerprint,
+          });
+        records.push(created.record);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message.includes('idempotency key was already used')
+        ) {
+          throw new McpInlineAttachmentError(
+            { code: 'idempotency_conflict' },
+            'Inline attachment idempotency evidence does not match.'
+          );
+        }
+        this.logger.warn(
+          `MCP inline attachment persistence failed for ${credential.workspaceId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+        throw error;
       }
-      this.logger.warn(
-        `MCP attachment upload failed for ${credential.workspaceId}: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-      throw error;
     }
+    return records;
   }
 
   async authorizeReferences(input: {

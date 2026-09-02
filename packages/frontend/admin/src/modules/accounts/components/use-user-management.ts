@@ -4,6 +4,7 @@ import {
 } from '@affine/admin/use-mutation';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import {
+  adminUserAiProfileAssignmentQuery,
   createChangePasswordUrlMutation,
   createUserMutation,
   deleteUserMutation,
@@ -13,6 +14,7 @@ import {
   type ImportUsersMutation,
   importUsersMutation,
   listUsersQuery,
+  setAdminUserAiProfileAssignmentMutation,
   updateAccountFeaturesMutation,
   updateAccountMutation,
 } from '@affine/graphql';
@@ -30,22 +32,23 @@ export interface ExportField {
 export type UserImportReturnType = ImportUsersMutation['importUsers'];
 
 export const useCreateUser = () => {
-  const {
-    trigger: createAccount,
-    isMutating: creating,
-    error,
-  } = useMutation({
+  const { trigger: createAccount } = useMutation({
     mutation: createUserMutation,
   });
 
   const { trigger: updateAccountFeatures } = useMutation({
     mutation: updateAccountFeaturesMutation,
   });
+  const { trigger: setAiProfileAssignment } = useMutation({
+    mutation: setAdminUserAiProfileAssignmentMutation,
+  });
+  const [creating, setCreating] = useState(false);
 
   const revalidate = useMutateQueryResource();
 
-  const create = useAsyncCallback(
-    async ({ name, email, password, features }: UserInput) => {
+  const create = useCallback(
+    async ({ name, email, password, features, aiProfileId }: UserInput) => {
+      setCreating(true);
       try {
         const account = await createAccount({
           input: {
@@ -59,40 +62,61 @@ export const useCreateUser = () => {
           userId: account.createUser.id,
           features,
         });
+        if (aiProfileId) {
+          try {
+            await setAiProfileAssignment({
+              userId: account.createUser.id,
+              profileId: aiProfileId,
+            });
+          } catch (assignmentError) {
+            await revalidate(listUsersQuery);
+            toast.error(
+              'Account created, but AI Profile assignment failed: ' +
+                (assignmentError as Error).message
+            );
+            return false;
+          }
+        }
         await revalidate(listUsersQuery);
-        toast('Account updated successfully');
+        toast('Account created successfully');
+        return true;
       } catch (e) {
-        toast.error('Failed to update account: ' + (e as Error).message);
+        toast.error('Failed to create account: ' + (e as Error).message);
+        return false;
+      } finally {
+        setCreating(false);
       }
     },
-    [createAccount, revalidate, updateAccountFeatures]
+    [createAccount, revalidate, setAiProfileAssignment, updateAccountFeatures]
   );
 
-  return { creating: creating || !!error, create };
+  return { creating, create };
 };
 
 export const useUpdateUser = () => {
-  const {
-    trigger: updateAccount,
-    isMutating: updating,
-    error,
-  } = useMutation({
+  const { trigger: updateAccount } = useMutation({
     mutation: updateAccountMutation,
   });
 
   const { trigger: updateAccountFeatures } = useMutation({
     mutation: updateAccountFeaturesMutation,
   });
+  const { trigger: setAiProfileAssignment } = useMutation({
+    mutation: setAdminUserAiProfileAssignmentMutation,
+  });
+  const [updating, setUpdating] = useState(false);
 
   const revalidate = useMutateQueryResource();
 
-  const update = useAsyncCallback(
+  const update = useCallback(
     async ({
       userId,
       name,
       email,
       features,
+      aiProfileId,
     }: UserInput & { userId: string }) => {
+      setUpdating(true);
       try {
         await updateAccount({
           id: userId,
@@ -105,16 +129,39 @@ export const useUpdateUser = () => {
           userId,
           features,
         });
-        await revalidate(listUsersQuery);
+        try {
+          await setAiProfileAssignment({
+            userId,
+            profileId: aiProfileId || null,
+          });
+        } catch (assignmentError) {
+          await revalidate(listUsersQuery);
+          toast.error(
+            'Account updated, but AI Profile assignment failed: ' +
+              (assignmentError as Error).message
+          );
+          return false;
+        }
+        await Promise.all([
+          revalidate(listUsersQuery),
+          revalidate(
+            adminUserAiProfileAssignmentQuery,
+            variables => variables.userId === userId
+          ),
+        ]);
         toast('Account updated successfully');
+        return true;
       } catch (e) {
         toast.error('Failed to update account: ' + (e as Error).message);
+        return false;
+      } finally {
+        setUpdating(false);
       }
     },
-    [revalidate, updateAccount, updateAccountFeatures]
+    [revalidate, setAiProfileAssignment, updateAccount, updateAccountFeatures]
   );
 
-  return { updating: updating || !!error, update };
+  return { updating, update };
 };
 
 export const useResetUserPassword = () => {

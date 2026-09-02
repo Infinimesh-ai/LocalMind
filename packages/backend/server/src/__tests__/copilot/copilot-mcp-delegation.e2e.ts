@@ -651,7 +651,7 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
   t.is(await db.aiMcpDelegationCallbackDelivery.count(), 0);
 });
 
-test('uploaded attachment is bound to one credential family and becomes a LocalMind document artifact', async t => {
+test('inline delegated attachment is bound to one credential family and becomes a LocalMind document artifact', async t => {
   const { credentials, db, owner, runtime, worker } = t.context;
   const { workspaceId } = await createDocument(
     t.context,
@@ -667,88 +667,13 @@ test('uploaded attachment is bound to one credential family and becomes a LocalM
     expirationDays: 30,
   });
   const attachmentText =
-    'Quarterly revenue is 42 million. Create a concise finance note.';
-  const uploaded = await uploadAttachmentThroughMcp(t.context, issued.token, {
+    'Quarterly revenue is 42 million. Create a concise finance note.\n' +
+    'Supporting detail.\n'.repeat(8_192);
+  const inlineAttachment = {
     fileName: 'finance-note.txt',
     mimeType: 'text/plain',
     base64: Buffer.from(attachmentText).toString('base64'),
-    idempotencyKey: 'finance-note-upload',
-  });
-  t.like(uploaded, {
-    fileName: 'finance-note.txt',
-    mimeType: 'text/plain',
-    size: Buffer.byteLength(attachmentText),
-    idempotentReplay: false,
-  });
-  const attachmentId = String(uploaded.attachmentId);
-
-  const replayed = await uploadAttachmentThroughMcp(t.context, issued.token, {
-    fileName: 'finance-note.txt',
-    mimeType: 'text/plain',
-    base64: Buffer.from(attachmentText).toString('base64'),
-    idempotencyKey: 'finance-note-upload',
-  });
-  t.is(replayed.attachmentId, attachmentId);
-  t.true(replayed.idempotentReplay);
-  const attachmentRecord = await db.aiMcpAttachment.findUniqueOrThrow({
-    where: { id: attachmentId },
-  });
-  await db.blob.update({
-    where: {
-      workspaceId_key: {
-        workspaceId,
-        key: attachmentRecord.blobKey,
-      },
-    },
-    data: { deletedAt: new Date() },
-  });
-  const restored = await uploadAttachmentThroughMcp(t.context, issued.token, {
-    fileName: 'finance-note.txt',
-    mimeType: 'text/plain',
-    base64: Buffer.from(attachmentText).toString('base64'),
-    idempotencyKey: 'finance-note-upload',
-  });
-  t.is(restored.attachmentId, attachmentId);
-  t.true(restored.idempotentReplay);
-  t.is(
-    (
-      await db.blob.findUniqueOrThrow({
-        where: {
-          workspaceId_key: { workspaceId, key: attachmentRecord.blobKey },
-        },
-      })
-    ).deletedAt,
-    null
-  );
-  t.deepEqual(
-    await uploadAttachmentThroughMcp(t.context, issued.token, {
-      fileName: 'different.txt',
-      mimeType: 'text/plain',
-      base64: Buffer.from('Different file evidence.').toString('base64'),
-      idempotencyKey: 'finance-note-upload',
-    }),
-    { code: 'idempotency_conflict' }
-  );
-
-  const otherFamily = await credentials.create({
-    userId: owner.id,
-    workspaceId,
-    name: 'Other attachment credential family',
-    accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
-    expirationDays: 30,
-  });
-  const inaccessible = await delegate(t.context, otherFamily.token, {
-    request: 'Read the uploaded attachment.',
-    documentIds: [],
-    attachmentIds: [attachmentId],
-    idempotencyKey: 'cross-family-attachment',
-  });
-  t.like(inaccessible, {
-    status: 'resource_not_accessible',
-    code: 'resource_not_accessible',
-    attachmentId,
-  });
+  };
 
   const planner = Sinon.stub(runtime, 'generateStructuredValue').callsFake(((
     _conditions: unknown,
@@ -799,13 +724,87 @@ test('uploaded attachment is bound to one credential family and becomes a LocalM
     })();
   }) as any);
 
-  const delegated = await delegate(t.context, issued.token, {
+  const delegated = await delegateThroughMcp(t.context, issued.token, {
     request: 'Summarize the attachment and create a LocalMind document.',
     documentIds: [],
-    attachmentIds: [attachmentId],
+    attachments: [inlineAttachment],
     idempotencyKey: 'attachment-create-document',
   });
   t.is(delegated.status, 'queued');
+  t.is(delegated.attachmentIds.length, 1);
+  const attachmentId = String(delegated.attachmentIds[0]);
+  const attachmentRecord = await db.aiMcpAttachment.findUniqueOrThrow({
+    where: { id: attachmentId },
+  });
+  t.like(attachmentRecord, {
+    fileName: 'finance-note.txt',
+    mimeType: 'text/plain',
+    byteSize: Buffer.byteLength(attachmentText),
+  });
+  await db.blob.update({
+    where: {
+      workspaceId_key: {
+        workspaceId,
+        key: attachmentRecord.blobKey,
+      },
+    },
+    data: { deletedAt: new Date() },
+  });
+
+  const replayed = await delegateThroughMcp(t.context, issued.token, {
+    request: 'Summarize the attachment and create a LocalMind document.',
+    documentIds: [],
+    attachments: [inlineAttachment],
+    idempotencyKey: 'attachment-create-document',
+  });
+  t.is(replayed.taskId, delegated.taskId);
+  t.deepEqual(replayed.attachmentIds, [attachmentId]);
+  t.is(
+    (
+      await db.blob.findUniqueOrThrow({
+        where: {
+          workspaceId_key: { workspaceId, key: attachmentRecord.blobKey },
+        },
+      })
+    ).deletedAt,
+    null
+  );
+  t.deepEqual(
+    await delegateThroughMcp(t.context, issued.token, {
+      request: 'Summarize the attachment and create a LocalMind document.',
+      documentIds: [],
+      attachments: [
+        {
+          fileName: 'different.txt',
+          mimeType: 'text/plain',
+          base64: Buffer.from('Different file evidence.').toString('base64'),
+        },
+      ],
+      idempotencyKey: 'attachment-create-document',
+    }),
+    { code: 'idempotency_conflict' }
+  );
+
+  const otherFamily = await credentials.create({
+    userId: owner.id,
+    workspaceId,
+    name: 'Other attachment credential family',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  const inaccessible = await delegate(t.context, otherFamily.token, {
+    request: 'Read the delegated attachment.',
+    documentIds: [],
+    attachmentIds: [attachmentId],
+    idempotencyKey: 'cross-family-attachment',
+  });
+  t.like(inaccessible, {
+    status: 'resource_not_accessible',
+    code: 'resource_not_accessible',
+    attachmentId,
+  });
+
   t.true(planner.calledOnce);
   await worker.runStandaloneAgentRuntime({
     workspaceId,
@@ -1925,6 +1924,11 @@ async function delegate(
   input: {
     request: string;
     documentIds: string[];
+    attachments?: Array<{
+      fileName: string;
+      mimeType?: string;
+      base64: string;
+    }>;
     attachmentIds?: string[];
     idempotencyKey: string;
   }
@@ -1937,18 +1941,30 @@ async function delegate(
       credential.capabilities,
       credential.accessMode
     ),
-    { ...input, attachmentIds: input.attachmentIds ?? [] },
+    {
+      ...input,
+      attachments: (input.attachments ?? []).map(attachment => ({
+        ...attachment,
+        mimeType: attachment.mimeType ?? 'application/octet-stream',
+      })),
+      attachmentIds: input.attachmentIds ?? [],
+    },
     new AbortController().signal
   );
 }
 
-async function uploadAttachmentThroughMcp(
+async function delegateThroughMcp(
   context: Context,
   token: string,
   input: {
-    fileName: string;
-    mimeType: string;
-    base64: string;
+    request: string;
+    documentIds: string[];
+    attachments?: Array<{
+      fileName: string;
+      mimeType?: string;
+      base64: string;
+    }>;
+    attachmentIds?: string[];
     idempotencyKey: string;
   }
 ) {
@@ -1961,7 +1977,14 @@ async function uploadAttachmentThroughMcp(
       jsonrpc: '2.0',
       id: 1,
       method: 'tools/call',
-      params: { name: 'upload_localmind_attachment', arguments: input },
+      params: {
+        name: 'delegate_to_localmind',
+        arguments: {
+          ...input,
+          attachments: input.attachments ?? [],
+          attachmentIds: input.attachmentIds ?? [],
+        },
+      },
     })
     .expect(200);
   return response.body.result.structuredContent.result as any;

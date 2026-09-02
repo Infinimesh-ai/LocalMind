@@ -86,6 +86,7 @@ model User {
   createdAiContextRuleRevisions         AiContextRuleRevision[]                @relation("context_rule_revision_creator")
   createdAiContextPolicies              AiContextPolicy[]                      @relation("context_policy_creator")
   createdAiContextPolicyRevisions       AiContextPolicyRevision[]              @relation("context_policy_revision_creator")
+  aiProfileAssignment                   AiUserAiProfileAssignment?             @relation("ai_profile_assignment_user")
 
   @@index([email])
   @@map("users")
@@ -226,6 +227,8 @@ model Workspace {
   ignoredDocs                           AiWorkspaceIgnoredDocs[]
   embedFiles                            AiWorkspaceFiles[]
   byokConfigs                           AiWorkspaceByokConfig[]
+  aiProfiles                            AiWorkspaceProfile[]                   @relation("ai_profile_workspace")
+  aiProfileAssignments                  AiUserAiProfileAssignment[]            @relation("ai_profile_assignment_workspace")
   aiUsageEvents                         AiUsageEvent[]
   comments                              Comment[]
   commentAttachments                    CommentAttachment[]
@@ -2069,12 +2072,68 @@ model AiWorkspaceByokConfig {
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace          Workspace                      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  profileCredentials AiWorkspaceProfileCredential[] @relation("ai_profile_credential_byok")
 
+  @@unique([id, workspaceId])
   @@unique([workspaceId, provider, name])
   @@index([workspaceId])
   @@index([workspaceId, provider, enabled, sortOrder])
   @@map("ai_workspace_byok_configs")
+}
+
+model AiWorkspaceProfile {
+  id          String   @id @default(uuid()) @db.VarChar
+  workspaceId String   @map("workspace_id") @db.VarChar
+  name        String   @db.VarChar(120)
+  description String?  @db.Text
+  enabled     Boolean  @default(true)
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdBy   String?  @map("created_by") @db.VarChar
+  updatedBy   String?  @map("updated_by") @db.VarChar
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace   Workspace                      @relation("ai_profile_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  credentials AiWorkspaceProfileCredential[]
+  assignments AiUserAiProfileAssignment[]
+
+  @@unique([id, workspaceId])
+  @@unique([workspaceId, name])
+  @@index([workspaceId, enabled, isDefault])
+  @@map("ai_workspace_profiles")
+}
+
+model AiWorkspaceProfileCredential {
+  profileId    String   @map("profile_id") @db.VarChar
+  workspaceId  String   @map("workspace_id") @db.VarChar
+  byokConfigId String   @map("byok_config_id") @db.VarChar
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  profile    AiWorkspaceProfile    @relation(fields: [profileId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+  byokConfig AiWorkspaceByokConfig @relation("ai_profile_credential_byok", fields: [byokConfigId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+
+  @@id([profileId, byokConfigId])
+  @@index([workspaceId, byokConfigId])
+  @@map("ai_workspace_profile_credentials")
+}
+
+model AiUserAiProfileAssignment {
+  userId      String   @id @map("user_id") @db.VarChar
+  workspaceId String   @map("workspace_id") @db.VarChar
+  profileId   String   @map("profile_id") @db.VarChar
+  createdBy   String?  @map("created_by") @db.VarChar
+  updatedBy   String?  @map("updated_by") @db.VarChar
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user      User               @relation("ai_profile_assignment_user", fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace          @relation("ai_profile_assignment_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  profile   AiWorkspaceProfile @relation(fields: [profileId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+
+  @@index([workspaceId, profileId])
+  @@map("ai_user_ai_profile_assignments")
 }
 
 model AiUsageEvent {

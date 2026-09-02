@@ -1,0 +1,21 @@
+query adminAiProfiles($workspaceId: ID) {
+  adminAiProfiles(workspaceId: $workspaceId) {
+    id
+    workspaceId
+    workspaceName
+    name
+    description
+    enabled
+    isDefault
+    credentialIds
+    credentials {
+      id
+      provider
+      name
+      modelId
+      enabled
+    }
+    createdAt
+    updatedAt
+  }
+}

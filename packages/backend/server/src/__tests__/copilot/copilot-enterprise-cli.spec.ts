@@ -28,6 +28,12 @@ function runtimeConfig(rootDir: string) {
     copilot: {
       enterpriseCli: {
         enabled: true,
+        allowedProviders: ['WECOM', 'LARK', 'DINGTALK'],
+        allowedToolsByProvider: {
+          wecom: ['*'],
+          lark: ['*'],
+          dingtalk: ['*'],
+        },
         rootDir,
         binaries: {
           wecom: process.execPath,
@@ -131,6 +137,26 @@ test('EnterpriseCliRuntime rejects unsafe profiles and oversized output', async 
       { instanceOf: EnterpriseCliRuntimeError }
     );
     t.is(outputError.code, 'enterprise_cli_output_too_large');
+  } finally {
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('EnterpriseCliRuntime rejects providers blocked after work was queued', async t => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'localmind-cli-policy-'));
+  const config = runtimeConfig(rootDir);
+  config.copilot.enterpriseCli.allowedProviders = [EnterpriseProvider.LARK];
+  const runtime = new EnterpriseCliRuntime(config);
+  try {
+    const error = await t.throwsAsync(
+      runtime.execute({
+        provider: EnterpriseProvider.WECOM,
+        profileKey: 'blocked-provider',
+        args: ['-e', 'console.log("{}")'],
+      }),
+      { instanceOf: EnterpriseCliRuntimeError }
+    );
+    t.is(error.code, 'enterprise_cli_provider_disabled');
   } finally {
     await rm(rootDir, { recursive: true, force: true });
   }
@@ -879,7 +905,8 @@ test('EnterpriseConnectionService rechecks connection state before execution', a
       },
     } as any,
     { get: getDriver } as any,
-    {} as any
+    {} as any,
+    runtimeConfig('/tmp') as any
   );
 
   await t.throwsAsync(
@@ -891,6 +918,160 @@ test('EnterpriseConnectionService rechecks connection state before execution', a
       confirmed: false,
     }),
     { message: 'Enterprise tool is not enabled' }
+  );
+  t.false(getDriver.called);
+});
+
+test('EnterpriseConnectionService rejects providers blocked by the instance policy', async t => {
+  const create = Sinon.stub();
+  const config = runtimeConfig('/tmp');
+  config.copilot.enterpriseCli.allowedProviders = [EnterpriseProvider.LARK];
+  const service = new EnterpriseConnectionService(
+    {
+      copilotEnterpriseConnection: { create },
+    } as any,
+    {} as any,
+    {} as any,
+    config
+  );
+
+  await t.throwsAsync(
+    service.create({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      provider: EnterpriseProvider.WECOM,
+    }),
+    {
+      message:
+        'Enterprise CLI provider is not allowed by the instance administrator',
+    }
+  );
+  t.false(create.called);
+});
+
+test('EnterpriseConnectionService persists only administrator-allowed discovered tools', async t => {
+  const allowedTool = {
+    name: 'lark_docs_search',
+    command: ['docs', 'search'],
+    description: 'Search documents',
+    inputSchema: { type: 'object', properties: {} },
+    risk: 'read',
+    requiresConfirmation: false,
+    supportsDryRun: true,
+  };
+  const blockedTool = {
+    ...allowedTool,
+    name: 'lark_docs_delete',
+    command: ['docs', 'delete'],
+    risk: 'high',
+    requiresConfirmation: true,
+  };
+  const connection = {
+    id: 'connection-policy-refresh',
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    provider: EnterpriseProvider.LARK,
+    transport: EnterpriseConnectionTransport.CLI,
+    profileKey: 'profile-policy-refresh',
+    status: EnterpriseConnectionStatus.ACTIVE,
+    activeAuthorizationSessionId: null,
+    enabledToolNames: [],
+    toolCatalog: [],
+  };
+  const saveCatalog = Sinon.stub().callsFake(async input => ({
+    ...connection,
+    enabledToolNames: input.enabledToolNames,
+    toolCatalog: input.catalog,
+  }));
+  const driver = {
+    authStatus: Sinon.stub().resolves({ authorized: true }),
+    discoverTools: Sinon.stub().resolves([allowedTool, blockedTool]),
+  };
+  const config = runtimeConfig('/tmp');
+  config.copilot.enterpriseCli.allowedProviders = [EnterpriseProvider.LARK];
+  config.copilot.enterpriseCli.allowedToolsByProvider.lark = [allowedTool.name];
+  const service = new EnterpriseConnectionService(
+    {
+      copilotEnterpriseConnection: {
+        get: Sinon.stub().resolves(connection),
+        saveCatalog,
+        addAudit: Sinon.stub().resolves(),
+      },
+    } as any,
+    { get: Sinon.stub().returns(driver) } as any,
+    {} as any,
+    config
+  );
+
+  const refreshed = await service.refresh({
+    connectionId: connection.id,
+    workspaceId: connection.workspaceId,
+    userId: connection.userId,
+  });
+
+  t.deepEqual(refreshed.enabledToolNames, [allowedTool.name]);
+  t.deepEqual(refreshed.toolCatalog, [allowedTool]);
+  t.true(
+    saveCatalog.calledOnceWith(
+      Sinon.match({
+        catalog: [allowedTool],
+        enabledToolNames: [allowedTool.name],
+      })
+    )
+  );
+});
+
+test('EnterpriseConnectionService rechecks the administrator tool policy before execution', async t => {
+  const tool = {
+    name: 'lark_docs_delete',
+    command: ['docs', 'delete'],
+    description: 'Delete a document',
+    inputSchema: { type: 'object', properties: {} },
+    risk: 'high',
+    requiresConfirmation: true,
+    supportsDryRun: false,
+  };
+  const connection = {
+    id: 'connection-policy-execute',
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    provider: EnterpriseProvider.LARK,
+    transport: EnterpriseConnectionTransport.CLI,
+    profileKey: 'profile-policy-execute',
+    status: EnterpriseConnectionStatus.ACTIVE,
+    activeAuthorizationSessionId: null,
+    enabledToolNames: [tool.name],
+    toolCatalog: [tool],
+  };
+  const getDriver = Sinon.stub();
+  const config = runtimeConfig('/tmp');
+  config.copilot.enterpriseCli.allowedProviders = [EnterpriseProvider.LARK];
+  config.copilot.enterpriseCli.allowedToolsByProvider.lark = [
+    'lark_docs_search',
+  ];
+  const service = new EnterpriseConnectionService(
+    {
+      copilotEnterpriseConnection: {
+        get: Sinon.stub().resolves(connection),
+      },
+    } as any,
+    { get: getDriver } as any,
+    {} as any,
+    config
+  );
+
+  await t.throwsAsync(
+    service.execute({
+      connection: connection as any,
+      actorId: connection.userId,
+      toolName: tool.name,
+      arguments: {},
+      confirmed: true,
+    }),
+    {
+      message:
+        'Enterprise CLI tool is not allowed by the instance administrator',
+    }
   );
   t.false(getDriver.called);
 });
@@ -931,7 +1112,8 @@ test('EnterpriseConnectionService keeps an authorized connection active after a 
       },
     } as any,
     { get: Sinon.stub().returns(driver) } as any,
-    {} as any
+    {} as any,
+    runtimeConfig('/tmp') as any
   );
 
   await t.throwsAsync(
@@ -994,7 +1176,8 @@ test('EnterpriseConnectionService requires reauthorization when a failed tool ha
       },
     } as any,
     { get: Sinon.stub().returns(driver) } as any,
-    {} as any
+    {} as any,
+    runtimeConfig('/tmp') as any
   );
 
   await t.throwsAsync(
@@ -1057,7 +1240,8 @@ test('EnterpriseConnectionService degrades on CLI infrastructure failure', async
       },
     } as any,
     { get: Sinon.stub().returns(driver) } as any,
-    {} as any
+    {} as any,
+    runtimeConfig('/tmp') as any
   );
 
   await t.throwsAsync(
@@ -1097,7 +1281,8 @@ test('EnterpriseConnectionService rejects a superseded authorization refresh', a
       },
     } as any,
     { get: getDriver } as any,
-    {} as any
+    {} as any,
+    runtimeConfig('/tmp') as any
   );
 
   const error = await t.throwsAsync(
@@ -1139,7 +1324,8 @@ test('EnterpriseConnectionService disables before deleting profile credentials',
       },
     } as any,
     {} as any,
-    { removeProfile } as any
+    { removeProfile } as any,
+    runtimeConfig('/tmp') as any
   );
 
   t.true(
@@ -1187,7 +1373,8 @@ test('EnterpriseConnectionService keeps cleanup failures retryable', async t => 
     {} as any,
     {
       removeProfile: Sinon.stub().rejects(new Error('disk unavailable')),
-    } as any
+    } as any,
+    runtimeConfig('/tmp') as any
   );
 
   await t.throwsAsync(
@@ -1662,4 +1849,33 @@ test('EnterpriseConnectionResolver scopes authorization sessions to the current 
       userId: 'user-a',
     })
   );
+});
+
+test('EnterpriseConnectionResolver rejects user-managed tool allowlists', async t => {
+  const assert = Sinon.stub().resolves();
+  const resolver = new EnterpriseConnectionResolver(
+    {} as any,
+    {} as any,
+    {
+      user: Sinon.stub().returns({
+        workspace: Sinon.stub().returns({
+          allowLocal: Sinon.stub().returns({ assert }),
+        }),
+      }),
+    } as any
+  );
+
+  await t.throwsAsync(
+    resolver.updateEnterpriseToolAllowlist(
+      { id: 'user-a' } as any,
+      'workspace-1',
+      'connection-1',
+      ['lark_docs_search']
+    ),
+    {
+      message:
+        'Enterprise tool availability is managed by the instance administrator',
+    }
+  );
+  t.true(assert.calledOnceWith('Workspace.Read'));
 });

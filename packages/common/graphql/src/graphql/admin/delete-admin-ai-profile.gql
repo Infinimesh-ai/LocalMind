@@ -1,0 +1,3 @@
+mutation deleteAdminAiProfile($workspaceId: ID!, $id: ID!) {
+  deleteAdminAiProfile(workspaceId: $workspaceId, id: $id)
+}

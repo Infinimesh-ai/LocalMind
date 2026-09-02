@@ -32,17 +32,11 @@ export const IntegrationSetting = ({
   const workspaceService = useService(WorkspaceService);
   const info = useWorkspaceInfo(workspaceService.workspace);
   const isCloudWorkspace = workspaceService.workspace.flavour !== 'local';
-  const showByok = isCloudWorkspace && !!(info?.isOwner || info?.isAdmin);
   const showAdminIntegrations = !!(info?.isOwner || info?.isAdmin);
 
   const integrationList = useMemo(
-    () =>
-      getAllowedIntegrationList(
-        isCloudWorkspace,
-        showByok,
-        showAdminIntegrations
-      ),
-    [isCloudWorkspace, showAdminIntegrations, showByok]
+    () => getAllowedIntegrationList(isCloudWorkspace, showAdminIntegrations),
+    [isCloudWorkspace, showAdminIntegrations]
   );
 
   useEffect(() => {

@@ -311,6 +311,18 @@ Implemented behavior:
     originally read running run snapshot before appending `cancel_requested`
     timeline evidence, so same-lease run drift fails closed before a stale
     operator request mutates the timeline fingerprint or history.
+80. Project standalone AgentRun records into an actor-scoped user Tasks API:
+    `copilotTasks` and `copilotTask` derive the actor from the authenticated
+    session, exclude repair-execution-owned runs, and expose bounded status,
+    approval, step, result, artifact, failure, and available-action fields
+    without returning raw runtime payloads.
+81. Add the shared Web/Electron renderer Tasks workspace page with active,
+    approval, and completed filters, five-second refresh, loading/empty/error
+    states, task detail, steps, results, document artifacts, and
+    approve/reject/cancel/resume controls. `controlCopilotTask` reuses the
+    existing Agent Runtime approval/manual-control state transitions after the
+    same workspace and actor checks; Electron adds only the shared-state icon
+    contract and does not fork the product UI.
 
 ## State Model
 
@@ -356,7 +368,14 @@ terminal states. Admin renders the durable run, step, timeline status, and
 Prompt Registry revision side-effect summary. Additional focused coverage now
 verifies independent AgentRun list/detail GraphQL access, workspace isolation,
 authorization rejection, and Admin rendering for the standalone Agent Runtime
-run list. Backend coverage also verifies generic Agent Runtime persistence for
+run list. User Tasks coverage verifies that two members of the same workspace
+see only their own standalone runs, cross-actor detail reads return no task,
+cross-actor controls are rejected, repair-execution runs remain excluded, and
+approval, cancel, and resume actions reuse the persisted runtime state machine.
+Frontend coverage verifies task filtering, control input construction, and
+duplicate-action disabling; Web and Electron renderer builds consume the same
+responsive Tasks page rather than separate client implementations. Backend
+coverage also verifies generic Agent Runtime persistence for
 tool, Codex, and MCP steps plus idempotent source reuse, including
 insert-conflict source reuse after a pre-read miss, standalone run
 cancel/resume control, repair-execution control-boundary rejection,
@@ -1221,9 +1240,10 @@ source_id) DO NOTHING` loses the insert race, the model validates the
 
 ## Inbound MCP Delegation
 
-The inbound workspace MCP surface now exposes task-bound
-`upload_localmind_attachment`, `delegate_to_localmind`, the read-only
-`get_localmind_task`, and cancel-only `control_localmind_task`. An
+The inbound workspace MCP surface now exposes `delegate_to_localmind`, the
+read-only `get_localmind_task`, and cancel-only `control_localmind_task`.
+Local files are submitted directly through the delegation's `attachments`
+field, while returned `attachmentIds` support later same-family reuse. An
 optimized delegated document replacement creates a queued
 `agent_runtime_doc_update` run, while broader AI Chat work creates a queued
 `agent_runtime_localmind_tool_agent` run with the complete server-side AI Chat
@@ -1235,12 +1255,17 @@ completion, failure, or cancellation events. The normal Agent Runtime worker
 lease, cancellation, completion, execution-result, and side-effect evidence
 paths remain authoritative.
 
-The advertised `localmind-ai` v3.3.0 discovery metadata gives external models
-an explicit routing decision table. Every new user request starts with
-`delegate_to_localmind`; `get_localmind_task` only reads a previously returned
-`taskId`; and `control_localmind_task` only cancels unfinished work on explicit
-user request. Field-level JSON Schema descriptions distinguish task ids,
-document ids, document titles, and idempotency keys, and tell callers that
+The advertised `localmind-ai` v3.4.0 discovery metadata gives external models
+an explicit LocalMind-scoped routing decision table. Only work explicitly
+directed to LocalMind or requiring LocalMind-managed resources enters this
+public tool surface; it is not a global router and must not affect ordinary
+Codex, Claude, or other host-agent workflows. Existing-task status/result
+queries route directly to `get_localmind_task`, explicit cancellation routes
+directly to `control_localmind_task`, and every remaining request asking
+LocalMind to answer or act uses `delegate_to_localmind`, including follow-ups
+that request additional work, revisions, continuations, and retries.
+Field-level JSON Schema descriptions distinguish task ids, document ids,
+document titles, and idempotency keys, and tell callers that
 `doc_create`, `doc_read`, and the other AI Chat tools are internal to the
 delegated LocalMind agent rather than public MCP tools.
 

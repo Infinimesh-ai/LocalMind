@@ -32,6 +32,9 @@ import { buildStructuredResponseContract } from '../runtime/contracts';
 import {
   McpAttachmentReferenceError,
   McpAttachmentService,
+  McpInlineAttachmentError,
+  McpInlineAttachmentInput,
+  type PreparedMcpInlineAttachment,
 } from './attachments';
 import { MCP_DELEGATE_CAPABILITY, type McpCapability } from './capabilities';
 import { type LocalMindTaskPlan, LocalMindTaskPlanSchema } from './task-query';
@@ -366,7 +369,7 @@ const DelegationToolInput = z
       .min(1)
       .max(DELEGATION_REQUEST_MAX_LENGTH)
       .describe(
-        'The complete self-contained user task for LocalMind AI to perform. Include the desired result and constraints. Use this field for new work, not for task status or cancellation.'
+        'The complete self-contained request for LocalMind AI to answer or perform. Include the desired result, constraints, and any context needed for a follow-up, revision, continuation, or retry. Do not use this field for task status or cancellation.'
       ),
     documentIds: z
       .array(
@@ -384,6 +387,13 @@ const DelegationToolInput = z
       .describe(
         'Existing document IDs that LocalMind may read or update. Use [] when there is no known document ID or when the task asks LocalMind to find a document by title.'
       ),
+    attachments: z
+      .array(McpInlineAttachmentInput)
+      .max(DELEGATION_ATTACHMENT_MAX_COUNT)
+      .default([])
+      .describe(
+        'Local files to submit with this task in the same tool call. Each decoded file may be at most 10 MiB, and all inline files together may be at most 20 MiB.'
+      ),
     attachmentIds: z
       .array(
         z
@@ -392,13 +402,13 @@ const DelegationToolInput = z
           .min(1)
           .max(256)
           .describe(
-            'An attachmentId returned by upload_localmind_attachment for this credential family.'
+            'An attachmentId returned by an earlier delegate_to_localmind call in this credential family.'
           )
       )
       .max(DELEGATION_ATTACHMENT_MAX_COUNT)
       .default([])
       .describe(
-        'Uploaded attachments LocalMind AI may process. Upload each file first and pass its attachmentId here.'
+        'Previously delegated attachments to reuse. Use attachments for local files supplied with this request.'
       ),
     idempotencyKey: z
       .string()
@@ -406,7 +416,7 @@ const DelegationToolInput = z
       .min(1)
       .max(256)
       .describe(
-        'A caller-generated stable key for this exact logical task. Reuse it only to retry identical request, documentIds, and attachmentIds input; use a new key for new work.'
+        'A caller-generated stable key for this exact logical task. Reuse it only to retry identical request, documentIds, attachments, and attachmentIds input; use a new key for new work.'
       ),
   })
   .strict()
@@ -424,8 +434,8 @@ type DelegationCredential = Pick<
 >;
 
 type DelegationResult = {
-  requestId: string;
-  status: string;
+  requestId?: string;
+  status?: string;
   [key: string]: unknown;
 };
 
@@ -445,6 +455,7 @@ function mapPersistedResult(record: {
   id: string;
   status: string;
   result: unknown;
+  requestedAttachmentIds: string[];
 }) {
   const result =
     record.result &&
@@ -460,6 +471,7 @@ function mapPersistedResult(record: {
         ? 'queued'
         : record.status,
     ...result,
+    attachmentIds: record.requestedAttachmentIds,
   };
 }
 
@@ -487,7 +499,7 @@ export class McpAiDelegationService {
       name: 'delegate_to_localmind',
       title: 'Start a LocalMind Task',
       description:
-        'START HERE for every new user request. This is the only public MCP tool that starts LocalMind work: answering questions; processing attachments; reading, finding, summarizing, creating, updating, or renaming documents; web research; and multi-step workspace tasks. Upload local files with upload_localmind_attachment first, then pass the returned IDs in attachmentIds. Pass any known existing document IDs in documentIds. LocalMind AI selects its internal tools, so never look for public doc_create, doc_read, or other low-level tools. The result may be completed immediately or return a queued/running taskId; use get_localmind_task only after that to check progress.',
+        'Use ONLY for a request directed to LocalMind after excluding existing-task status and cancellation intents. If the user only wants the status, progress, or final result of a task whose taskId was returned by this tool, use get_localmind_task instead. If the user explicitly wants to stop or cancel an unfinished task, use control_localmind_task instead. For every other request directed to LocalMind that asks LocalMind to answer or act, including follow-ups that request additional work, revisions, continuations, and retries, submit the complete request through this tool. This tool is not a global router and must not intercept, reroute, delay, or otherwise affect ordinary conversations or native workflows in Codex, Claude, or other host agents. Merely mentioning, discussing, configuring, or troubleshooting LocalMind does not require this tool unless the user asks LocalMind to execute work. Include local files directly in attachments; use attachmentIds only to reuse files returned by an earlier delegation in the same credential family. Pass any known existing document IDs in documentIds. LocalMind AI selects its internal tools, so never look for public doc_create, doc_read, or other low-level tools. The result may be completed immediately or return a queued/running taskId; use get_localmind_task only after that to check progress.',
       parser: DelegationToolInput,
       outputSchema: RESULT_OUTPUT_SCHEMA,
       annotations: WRITE_TOOL,
@@ -508,29 +520,68 @@ export class McpAiDelegationService {
       capabilitySnapshot,
     });
     const requestedDocumentIds = [...new Set(input.documentIds)];
-    const requestedAttachmentIds = [...new Set(input.attachmentIds)];
+    let preparedInlineAttachments: PreparedMcpInlineAttachment[];
+    try {
+      preparedInlineAttachments = this.attachments.prepareInlineAttachments(
+        credential,
+        input.attachments,
+        input.idempotencyKey
+      );
+    } catch (error) {
+      if (error instanceof McpInlineAttachmentError) {
+        return error.result;
+      }
+      throw error;
+    }
+    const requestedAttachmentIds = [
+      ...new Set([
+        ...input.attachmentIds,
+        ...preparedInlineAttachments.map(attachment => attachment.id),
+      ]),
+    ];
+    if (requestedAttachmentIds.length > DELEGATION_ATTACHMENT_MAX_COUNT) {
+      return { code: 'attachment_limit_exceeded' };
+    }
     const requestFingerprint = mcpDelegationFingerprint(
-      requestedAttachmentIds.length
+      preparedInlineAttachments.length
         ? {
-            version: 'mcp-ai-delegation-request/v2',
+            version: 'mcp-ai-delegation-request/v3',
             workspaceId: credential.workspaceId,
             credentialFamilyId: credential.familyId,
             actorId: credential.userId,
             request: input.request,
             requestedDocumentIds,
             requestedAttachmentIds,
+            inlineAttachments: preparedInlineAttachments.map(attachment => ({
+              attachmentId: attachment.id,
+              fileName: attachment.fileName,
+              mimeType: attachment.mimeType,
+              byteSize: attachment.byteSize,
+              contentFingerprint: attachment.contentFingerprint,
+            })),
           }
-        : {
-            version: 'mcp-ai-delegation-request/v1',
-            workspaceId: credential.workspaceId,
-            credentialFamilyId: credential.familyId,
-            actorId: credential.userId,
-            request: input.request,
-            requestedDocumentIds,
-          }
+        : requestedAttachmentIds.length
+          ? {
+              version: 'mcp-ai-delegation-request/v2',
+              workspaceId: credential.workspaceId,
+              credentialFamilyId: credential.familyId,
+              actorId: credential.userId,
+              request: input.request,
+              requestedDocumentIds,
+              requestedAttachmentIds,
+            }
+          : {
+              version: 'mcp-ai-delegation-request/v1',
+              workspaceId: credential.workspaceId,
+              credentialFamilyId: credential.familyId,
+              actorId: credential.userId,
+              request: input.request,
+              requestedDocumentIds,
+            }
     );
-    const created = await this.models.copilotMcpDelegation.createOrReuseRequest(
-      {
+    let created;
+    try {
+      created = await this.models.copilotMcpDelegation.createOrReuseRequest({
         workspaceId: credential.workspaceId,
         actorId: credential.userId,
         credentialId: credential.id,
@@ -543,9 +594,42 @@ export class McpAiDelegationService {
         requestedDocumentIds,
         requestedAttachmentIds,
         requestFingerprint,
+      });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.includes('idempotency key was already used')
+      ) {
+        return { code: 'idempotency_conflict' };
       }
-    );
+      throw error;
+    }
     if (created.reused || created.record.status !== 'processing') {
+      if (
+        preparedInlineAttachments.length &&
+        capabilitySnapshot.includes(MCP_DELEGATE_CAPABILITY) &&
+        !['credential_scope_denied', 'permission_denied'].includes(
+          created.record.status
+        ) &&
+        (await this.ac
+          .user(credential.userId)
+          .workspace(credential.workspaceId)
+          .allowLocal()
+          .can('Workspace.Copilot'))
+      ) {
+        try {
+          await this.attachments.persistInlineAttachments(
+            credential,
+            preparedInlineAttachments
+          );
+        } catch (error) {
+          this.logger.warn(
+            `LocalMind MCP inline attachment replay reconciliation failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
+        }
+      }
       return mapPersistedResult(created.record);
     }
 
@@ -566,6 +650,24 @@ export class McpAiDelegationService {
       return await this.finish(created.record.id, 'permission_denied', {
         code: 'permission_denied',
         missingPermission: 'Workspace.Copilot',
+      });
+    }
+
+    try {
+      await this.attachments.persistInlineAttachments(
+        credential,
+        preparedInlineAttachments
+      );
+    } catch (error) {
+      if (error instanceof McpInlineAttachmentError) {
+        return await this.finish(created.record.id, 'failed', error.result);
+      }
+      this.logger.error(
+        'LocalMind MCP inline attachment persistence failed',
+        error
+      );
+      return await this.finish(created.record.id, 'failed', {
+        code: 'attachment_persistence_failed',
       });
     }
 

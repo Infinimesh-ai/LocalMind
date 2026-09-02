@@ -23,6 +23,28 @@ input AddContextFileInput {
   contextId: String!
 }
 
+type AdminAiProfileCredentialType {
+  enabled: Boolean!
+  id: ID!
+  modelId: String
+  name: String!
+  provider: String!
+}
+
+type AdminAiProfileType {
+  createdAt: DateTime!
+  credentialIds: [ID!]!
+  credentials: [AdminAiProfileCredentialType!]!
+  description: String
+  enabled: Boolean!
+  id: ID!
+  isDefault: Boolean!
+  name: String!
+  updatedAt: DateTime!
+  workspaceId: ID!
+  workspaceName: String
+}
+
 type AdminAllSharedLink {
   docId: String!
   docUpdatedAt: DateTime
@@ -165,6 +187,14 @@ input AdminUpdateWorkspaceInput {
   public: Boolean
 }
 
+type AdminUserAiProfileAssignmentType {
+  createdAt: DateTime!
+  profile: AdminAiProfileType!
+  updatedAt: DateTime!
+  userId: ID!
+  workspaceId: ID!
+}
+
 type AdminWorkspace {
   avatarKey: String
   blobCount: Int!
@@ -186,6 +216,13 @@ type AdminWorkspace {
   sharedLinks: [AdminWorkspaceSharedLink!]!
   snapshotCount: Int!
   snapshotSize: SafeInt!
+}
+
+type AdminWorkspaceByokScopeType {
+  enableAi: Boolean!
+  id: ID!
+  memberCount: SafeInt!
+  name: String
 }
 
 type AdminWorkspaceMember {
@@ -605,6 +642,16 @@ type Copilot {
 
   """Get the context list of a session"""
   contexts(contextId: String, sessionId: String): [CopilotContext!]!
+
+  """
+  Get one standalone Copilot task owned by the current user in the current workspace.
+  """
+  copilotTask(id: String!): CopilotTaskType
+
+  """
+  List standalone Copilot tasks owned by the current user in the current workspace.
+  """
+  copilotTasks(filter: CopilotTaskListFilterInput, limit: SafeInt): [CopilotTaskType!]!
   histories(docId: String, options: QueryChatHistoriesInput): [CopilotHistories!]! @deprecated(reason: "use `chats` instead")
 
   """List available models for a prompt, with human-readable names"""
@@ -3336,6 +3383,31 @@ type CopilotSupportBundleType {
   workspaceId: String!
 }
 
+type CopilotTaskApprovalType {
+  decidedAt: DateTime
+  status: String!
+  stepId: String!
+  title: String
+}
+
+type CopilotTaskArtifactType {
+  id: String!
+  kind: String!
+  title: String
+}
+
+input CopilotTaskControlInput {
+  action: String!
+  reason: String
+  taskId: String!
+  workspaceId: String!
+}
+
+input CopilotTaskListFilterInput {
+  query: String
+  status: String
+}
+
 type CopilotTaskRouteCandidateDiagnosticsType {
   candidateKey: String
   candidateModelIds: [String!]
@@ -3601,6 +3673,35 @@ type CopilotTaskRouteTracePhaseDiagnosticsType {
   selectedCount: SafeInt
 }
 
+type CopilotTaskStepType {
+  completedAt: DateTime
+  id: String!
+  key: String!
+  order: SafeInt!
+  startedAt: DateTime
+  status: String!
+  title: String
+  type: String!
+}
+
+type CopilotTaskType {
+  approval: CopilotTaskApprovalType
+  artifacts: [CopilotTaskArtifactType!]!
+  availableActions: [String!]!
+  completedAt: DateTime
+  createdAt: DateTime!
+  failureCode: String
+  failureMessage: String
+  id: String!
+  resultSummary: String
+  startedAt: DateTime
+  status: String!
+  steps: [CopilotTaskStepType!]!
+  title: String
+  updatedAt: DateTime!
+  workflow: String!
+}
+
 type CopilotWorkspaceConfig {
   allIgnoredDocs: [CopilotWorkspaceIgnoredDoc!]!
   files(pagination: PaginationInput!): PaginatedCopilotWorkspaceFileType!
@@ -3727,27 +3828,6 @@ input CreateUserInput {
   email: String!
   name: String
   password: String
-}
-
-input CreateWorkspaceByokLocalLeaseInput {
-  providers: [CreateWorkspaceByokLocalLeaseProviderInput!]!
-  workspaceId: String!
-}
-
-input CreateWorkspaceByokLocalLeaseProviderInput {
-  apiKey: String!
-  description: String
-  enabled: Boolean
-  endpoint: String
-  modelId: String
-  name: String!
-  provider: ByokProvider!
-  sortOrder: SafeInt
-}
-
-type CreateWorkspaceByokLocalLeaseResultType {
-  expiresAt: DateTime!
-  leaseId: String!
 }
 
 type CredentialsRequirementType {
@@ -3941,6 +4021,11 @@ enum EnterpriseAuthorizationStatus {
   PENDING
   STARTING
   WAITING
+}
+
+type EnterpriseConnectionPolicyType {
+  allowedProviders: [EnterpriseProvider!]!
+  enabled: Boolean!
 }
 
 enum EnterpriseConnectionStatus {
@@ -4722,6 +4807,11 @@ type Mutation {
   Cancel, retry, or recover a stale persisted repair execution request after workspace permission checks.
   """
   controlCopilotRepairExecution(input: CopilotRepairExecutionControlInput!): CopilotRepairExecutionRecordType!
+
+  """
+  Control a current-user Copilot task after workspace and actor ownership checks.
+  """
+  controlCopilotTask(input: CopilotTaskControlInput!): CopilotTaskType!
   createBlobUpload(key: String!, mime: String!, size: Int!, workspaceId: String!): BlobUploadInit!
 
   """Create change password url"""
@@ -4766,7 +4856,6 @@ type Mutation {
 
   """Create a new workspace"""
   createWorkspace(init: Upload): WorkspaceType!
-  createWorkspaceByokLocalLease(input: CreateWorkspaceByokLocalLeaseInput!): CreateWorkspaceByokLocalLeaseResultType!
   deactivateLicense(workspaceId: String!): Boolean!
 
   """
@@ -4774,6 +4863,7 @@ type Mutation {
   """
   decideCopilotRepairExecutionApproval(input: CopilotRepairExecutionApprovalDecisionInput!): CopilotRepairExecutionRecordType!
   deleteAccount: DeleteAccount!
+  deleteAdminAiProfile(id: ID!, workspaceId: ID!): Boolean!
   deleteAuthSigningKey(id: String!): [AuthSigningKeyType!]!
   deleteBlob(hash: String @deprecated(reason: "use parameter [key]"), key: String, permanently: Boolean! = false, workspaceId: String!): Boolean!
 
@@ -4939,6 +5029,7 @@ type Mutation {
   sendTestEmail(config: JSONObject!): Boolean!
   sendVerifyChangeEmail(callbackUrl: String!, email: String!, token: String!): Boolean!
   sendVerifyEmail(callbackUrl: String!): Boolean!
+  setAdminUserAiProfileAssignment(profileId: ID, userId: ID!): AdminUserAiProfileAssignmentType
   setBlob(blob: Upload!, workspaceId: String!): String!
   settleTranscriptTask(taskId: String!, workspaceId: String!): TranscriptionResultType
   submitTranscriptTask(blob: Upload, blobId: String!, blobs: [Upload!], input: SubmitAudioTranscriptionInput, workspaceId: String!): TranscriptionResultType
@@ -4992,6 +5083,7 @@ type Mutation {
 
   """Upload a comment attachment and return the access url"""
   uploadCommentAttachment(attachment: Upload!, docId: String!, workspaceId: String!): String!
+  upsertAdminAiProfile(input: UpsertAdminAiProfileInput!): AdminAiProfileType!
   upsertWorkspaceByokConfig(input: UpsertWorkspaceByokConfigInput!): WorkspaceByokKeyConfigType!
   verifyEmail(token: String!): Boolean!
 }
@@ -5192,6 +5284,8 @@ type PublicUserType {
 }
 
 type Query {
+  adminAiProfiles(workspaceId: ID): [AdminAiProfileType!]!
+
   """List all shared links across workspaces for admin panel"""
   adminAllSharedLinks(filter: AdminAllSharedLinksFilterInput, pagination: PaginationInput!): PaginatedAdminAllSharedLink!
 
@@ -5200,9 +5294,12 @@ type Query {
 
   """Aggregate mail delivery timeline facts for admin panel"""
   adminMailDeliveries(input: AdminMailDeliveriesInput): AdminMailDeliveryAnalytics!
+  adminUserAiProfileAssignment(userId: ID!): AdminUserAiProfileAssignmentType
 
   """Get workspace detail for admin"""
   adminWorkspace(id: String!): AdminWorkspace
+  adminWorkspaceByokScopes(first: SafeInt = 100, keyword: String): [AdminWorkspaceByokScopeType!]!
+  adminWorkspaceByokSettings(workspaceId: String!): WorkspaceByokSettingsType!
 
   """List workspaces for admin"""
   adminWorkspaces(filter: ListWorkspaceInput!): [AdminWorkspace!]!
@@ -5217,6 +5314,7 @@ type Query {
   """Get current user"""
   currentUser: UserType
   enterpriseAuthorizationSession(sessionId: ID!, workspaceId: String!): EnterpriseAuthorizationSessionType!
+  enterpriseConnectionPolicy(workspaceId: String!): EnterpriseConnectionPolicyType!
   enterpriseConnections(workspaceId: String!): [EnterpriseConnectionType!]!
   error(name: ErrorNames!): ErrorDataUnion!
   externalMcpSettings(workspaceId: String!): ExternalMcpSettingsType!
@@ -5891,6 +5989,16 @@ input UpdateWorkspaceInput {
 
 """The `Upload` scalar type represents a file upload."""
 scalar Upload
+
+input UpsertAdminAiProfileInput {
+  credentialIds: [ID!]!
+  description: String
+  enabled: Boolean!
+  id: ID
+  isDefault: Boolean!
+  name: String!
+  workspaceId: ID!
+}
 
 input UpsertWorkspaceByokConfigInput {
   apiKey: String

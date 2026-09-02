@@ -281,7 +281,7 @@ export async function createApp(
 
   const app = module.createNestApplication<TestingApp>({
     cors: true,
-    bodyParser: true,
+    bodyParser: false,
     rawBody: true,
   });
 
@@ -289,6 +289,8 @@ export async function createApp(
   logger.setLogLevels([TEST_LOG_LEVEL]);
   app.useLogger(logger);
   app.use(cookieParser());
+  app.useBodyParser('json', { limit: 32 * 1024 * 1024 });
+  app.useBodyParser('urlencoded', { extended: true });
   app.useBodyParser('raw', { limit: 1 * OneMB });
   app.use(
     graphqlUploadExpress({

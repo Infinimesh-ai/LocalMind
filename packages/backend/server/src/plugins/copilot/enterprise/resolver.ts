@@ -1,3 +1,4 @@
+import { ForbiddenException } from '@nestjs/common';
 import {
   Args,
   Field,
@@ -169,6 +170,15 @@ class EnterpriseConnectionType {
   updatedAt!: Date;
 }
 
+@ObjectType()
+class EnterpriseConnectionPolicyType {
+  @Field()
+  enabled!: boolean;
+
+  @Field(() => [EnterpriseProvider])
+  allowedProviders!: EnterpriseProvider[];
+}
+
 @InputType()
 class CreateEnterpriseConnectionInput {
   @Field()
@@ -230,6 +240,15 @@ export class EnterpriseConnectionResolver {
     return connections.map(connection => this.project(connection));
   }
 
+  @Query(() => EnterpriseConnectionPolicyType)
+  async enterpriseConnectionPolicy(
+    @CurrentUser() user: CurrentUser,
+    @Args('workspaceId') workspaceId: string
+  ) {
+    await this.assertMember(user.id, workspaceId);
+    return this.connections.policy();
+  }
+
   @Mutation(() => EnterpriseConnectionType)
   @Throttle('strict')
   async createEnterpriseConnection(
@@ -255,6 +274,11 @@ export class EnterpriseConnectionResolver {
     @Args('connectionId', { type: () => ID }) connectionId: string
   ) {
     await this.assertMember(user.id, workspaceId);
+    await this.connections.assertConnectionAllowed({
+      connectionId,
+      workspaceId,
+      userId: user.id,
+    });
     return this.projectAuthorization(
       await this.authorizations.begin({
         connectionId,
@@ -308,13 +332,10 @@ export class EnterpriseConnectionResolver {
     enabledToolNames: string[]
   ) {
     await this.assertMember(user.id, workspaceId);
-    return this.project(
-      await this.connections.updateEnabledTools({
-        connectionId,
-        workspaceId,
-        userId: user.id,
-        toolNames: enabledToolNames,
-      })
+    void connectionId;
+    void enabledToolNames;
+    throw new ForbiddenException(
+      'Enterprise tool availability is managed by the instance administrator'
     );
   }
 
@@ -359,16 +380,19 @@ export class EnterpriseConnectionResolver {
   }
 
   private project(connection: AiEnterpriseConnection) {
-    const enabled = new Set(connection.enabledToolNames);
+    const catalog = this.connections.catalog(connection);
+    const enabledToolNames = catalog
+      .filter(tool => connection.enabledToolNames.includes(tool.name))
+      .map(tool => tool.name);
+    const enabled = new Set(enabledToolNames);
     return {
       ...connection,
-      tools: this.connections
-        .catalog(connection)
-        .map((tool: EnterpriseToolCatalogRecord) => ({
-          ...tool,
-          description: tool.description ?? tool.command.join(' '),
-          enabled: enabled.has(tool.name),
-        })),
+      enabledToolNames,
+      tools: catalog.map((tool: EnterpriseToolCatalogRecord) => ({
+        ...tool,
+        description: tool.description ?? tool.command.join(' '),
+        enabled: enabled.has(tool.name),
+      })),
     };
   }
 

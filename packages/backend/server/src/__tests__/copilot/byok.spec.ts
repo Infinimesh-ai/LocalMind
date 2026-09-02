@@ -8,7 +8,7 @@ import { Cache, ConfigFactory, CryptoHelper } from '../../base';
 import { EntitlementService } from '../../core/entitlement';
 import { Models, WorkspaceRole } from '../../models';
 import { CopilotAccessPolicy } from '../../plugins/copilot/access';
-import { ByokService } from '../../plugins/copilot/byok';
+import { AiProfileService, ByokService } from '../../plugins/copilot/byok';
 import {
   type ByokFeatureKind,
   ByokKeyStorage,
@@ -28,6 +28,7 @@ interface Context {
   db: PrismaClient;
   access: CopilotAccessPolicy;
   byok: ByokService;
+  profiles: AiProfileService;
   crypto: CryptoHelper;
   cache: Cache;
   entitlement: EntitlementService;
@@ -48,6 +49,7 @@ test.before(async t => {
   t.context.db = module.get(PrismaClient);
   t.context.access = module.get(CopilotAccessPolicy);
   t.context.byok = module.get(ByokService);
+  t.context.profiles = module.get(AiProfileService);
   t.context.crypto = module.get(CryptoHelper);
   t.context.cache = module.get(Cache);
   t.context.entitlement = module.get(EntitlementService);
@@ -322,6 +324,262 @@ for (const matrixCase of byokManagementMatrix) {
     }
   });
 }
+
+test('instance admin manages server BYOK without workspace membership', async t => {
+  const { user: owner, workspace } = await createUserWorkspace(t);
+  await grantUserPlan(t, owner.id);
+  const admin = await t.context.models.user.create({
+    email: `${randomUUID()}@affine.pro`,
+  });
+  await t.context.models.userFeature.add(
+    admin.id,
+    'administrator',
+    'BYOK admin test'
+  );
+
+  const scopes = await t.context.byok.listAdminWorkspaceScopes({
+    userId: admin.id,
+    keyword: workspace.id,
+  });
+  t.true(scopes.some(scope => scope.id === workspace.id));
+
+  const key = await t.context.byok.upsertAdminConfig({
+    workspaceId: workspace.id,
+    userId: admin.id,
+    provider: ByokProvider.openai,
+    storage: ByokKeyStorage.server,
+    name: 'Department primary',
+    apiKey: 'sk-instance-admin',
+    modelId: 'gpt-test',
+  });
+  t.is(key.name, 'Department primary');
+
+  const settings = await t.context.byok.getAdminSettings(
+    workspace.id,
+    admin.id
+  );
+  t.deepEqual(
+    settings.keys.map(item => item.id),
+    [key.id]
+  );
+  t.false(JSON.stringify(settings).includes('sk-instance-admin'));
+});
+
+test('workspace owner cannot use instance admin BYOK control path', async t => {
+  const { user, workspace } = await createUserWorkspace(t);
+  await grantUserPlan(t, user.id);
+
+  await t.throwsAsync(
+    t.context.byok.upsertAdminConfig({
+      workspaceId: workspace.id,
+      userId: user.id,
+      provider: ByokProvider.openai,
+      storage: ByokKeyStorage.server,
+      name: 'Rejected owner key',
+      apiKey: 'sk-owner',
+    }),
+    { message: 'BYOK settings require an instance administrator.' }
+  );
+  await t.throwsAsync(t.context.byok.getAdminSettings(workspace.id, user.id), {
+    message: 'BYOK settings require an instance administrator.',
+  });
+});
+
+test('AI Profiles select workspace credentials by user assignment and workspace default', async t => {
+  const { user: owner, workspace } = await createUserWorkspace(t);
+  await grantUserPlan(t, owner.id);
+  const admin = await t.context.models.user.create({
+    email: `${randomUUID()}@affine.pro`,
+  });
+  await t.context.models.userFeature.add(
+    admin.id,
+    'administrator',
+    'AI Profile admin test'
+  );
+  const member = await t.context.models.user.create({
+    email: `${randomUUID()}@affine.pro`,
+  });
+  await t.context.models.workspaceUser.set(
+    workspace.id,
+    member.id,
+    WorkspaceRole.Collaborator,
+    { status: WorkspaceMemberStatus.Accepted }
+  );
+
+  const primary = await t.context.byok.upsertAdminConfig({
+    workspaceId: workspace.id,
+    userId: admin.id,
+    provider: ByokProvider.openai,
+    storage: ByokKeyStorage.server,
+    name: 'Primary',
+    apiKey: 'sk-primary',
+    modelId: 'gpt-primary',
+  });
+  const alternate = await t.context.byok.upsertAdminConfig({
+    workspaceId: workspace.id,
+    userId: admin.id,
+    provider: ByokProvider.gemini,
+    storage: ByokKeyStorage.server,
+    name: 'Alternate',
+    apiKey: 'gemini-alternate',
+    modelId: 'gemini-alternate',
+  });
+  const defaultProfile = await t.context.profiles.upsertAdminProfile({
+    workspaceId: workspace.id,
+    userId: admin.id,
+    name: 'Workspace default',
+    description: null,
+    enabled: true,
+    isDefault: true,
+    credentialIds: [primary.id],
+  });
+  const assignedProfile = await t.context.profiles.upsertAdminProfile({
+    workspaceId: workspace.id,
+    userId: admin.id,
+    name: 'Member route',
+    description: null,
+    enabled: true,
+    isDefault: false,
+    credentialIds: [alternate.id],
+  });
+  const disabledProfile = await t.context.profiles.upsertAdminProfile({
+    workspaceId: workspace.id,
+    userId: admin.id,
+    name: 'Disabled route',
+    description: null,
+    enabled: false,
+    isDefault: false,
+    credentialIds: [primary.id],
+  });
+  await t.context.profiles.setAdminUserAssignment({
+    userId: member.id,
+    profileId: assignedProfile.id,
+    actorId: admin.id,
+  });
+  await t.throwsAsync(
+    t.context.profiles.setAdminUserAssignment({
+      userId: member.id,
+      profileId: disabledProfile.id,
+      actorId: admin.id,
+    }),
+    { message: 'AI Profile is disabled.' }
+  );
+
+  const memberProfiles = await t.context.byok.getProfiles({
+    workspaceId: workspace.id,
+    userId: member.id,
+  });
+  t.deepEqual(
+    memberProfiles.map(profile => profile.models?.[0]),
+    ['gemini-alternate']
+  );
+
+  const backgroundProfiles = await t.context.byok.getProfiles({
+    workspaceId: workspace.id,
+  });
+  t.deepEqual(
+    backgroundProfiles.map(profile => profile.models?.[0]),
+    ['gpt-primary']
+  );
+
+  await t.context.models.workspaceUser.delete(workspace.id, member.id);
+  const inactiveMemberProfiles = await t.context.byok.getProfiles({
+    workspaceId: workspace.id,
+    userId: member.id,
+  });
+  t.deepEqual(
+    inactiveMemberProfiles.map(profile => profile.models?.[0]),
+    ['gpt-primary']
+  );
+
+  t.true(defaultProfile.isDefault);
+  const assignments = await t.context.profiles.getAdminUserAssignment(
+    member.id,
+    admin.id
+  );
+  t.is(assignments?.profile.id, assignedProfile.id);
+});
+
+test('AI Profiles reject credentials from another workspace', async t => {
+  const { user: owner, workspace } = await createUserWorkspace(t);
+  await grantUserPlan(t, owner.id);
+  const otherWorkspace = await t.context.models.workspace.create(owner.id);
+  const admin = await t.context.models.user.create({
+    email: `${randomUUID()}@affine.pro`,
+  });
+  await t.context.models.userFeature.add(
+    admin.id,
+    'administrator',
+    'AI Profile admin test'
+  );
+  const credential = await t.context.byok.upsertAdminConfig({
+    workspaceId: otherWorkspace.id,
+    userId: admin.id,
+    provider: ByokProvider.openai,
+    storage: ByokKeyStorage.server,
+    name: 'Other workspace',
+    apiKey: 'sk-other',
+    modelId: 'gpt-other',
+  });
+
+  await t.throwsAsync(
+    t.context.profiles.upsertAdminProfile({
+      workspaceId: workspace.id,
+      userId: admin.id,
+      name: 'Invalid cross-workspace profile',
+      description: null,
+      enabled: true,
+      isDefault: false,
+      credentialIds: [credential.id],
+    }),
+    {
+      message: 'AI Profile credentials must belong to the selected workspace.',
+    }
+  );
+});
+
+test('AI Profiles fail closed when workspace profiles have no effective route', async t => {
+  const { user: owner, workspace } = await createUserWorkspace(t);
+  await grantUserPlan(t, owner.id);
+  const admin = await t.context.models.user.create({
+    email: `${randomUUID()}@affine.pro`,
+  });
+  await t.context.models.userFeature.add(
+    admin.id,
+    'administrator',
+    'AI Profile fail-closed test'
+  );
+  await t.context.byok.upsertAdminConfig({
+    workspaceId: workspace.id,
+    userId: admin.id,
+    provider: ByokProvider.openai,
+    storage: ByokKeyStorage.server,
+    name: 'Legacy fallback candidate',
+    apiKey: 'sk-legacy-fallback',
+    modelId: 'gpt-legacy-fallback',
+  });
+  await t.context.profiles.upsertAdminProfile({
+    workspaceId: workspace.id,
+    userId: admin.id,
+    name: 'Governed but unrouted',
+    description: null,
+    enabled: true,
+    isDefault: false,
+    credentialIds: [],
+  });
+
+  t.deepEqual(
+    await t.context.profiles.resolveCredentialIds(workspace.id, owner.id),
+    []
+  );
+  t.deepEqual(
+    await t.context.byok.getProfiles({
+      workspaceId: workspace.id,
+      userId: owner.id,
+    }),
+    []
+  );
+});
 
 test('byok service persists encrypted server keys and never returns plaintext', async t => {
   const { user, workspace } = await createUserWorkspace(t);

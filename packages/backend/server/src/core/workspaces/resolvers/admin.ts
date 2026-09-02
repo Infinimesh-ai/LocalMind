@@ -507,7 +507,6 @@ export class AdminWorkspaceResolver {
     input?: AdminDashboardInput,
     @Info() info?: GraphQLResolveInfo
   ) {
-    this.assertCloudOnly();
     const includeTopSharedLinks = Boolean(
       info?.fieldNodes.some(
         node =>

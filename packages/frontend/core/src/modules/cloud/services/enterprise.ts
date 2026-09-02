@@ -16,6 +16,8 @@ const ACTIVE_AUTHORIZATION_STATUSES = new Set([
 
 export type EnterpriseConnection =
   EnterpriseConnectionsQuery['enterpriseConnections'][number];
+export type EnterpriseConnectionPolicy =
+  EnterpriseConnectionsQuery['enterpriseConnectionPolicy'];
 export type EnterpriseAuthorizationSession =
   EnterpriseAuthorizationSessionQuery['enterpriseAuthorizationSession'];
 
@@ -29,6 +31,7 @@ export class EnterpriseService extends Service {
   }
 
   connections$ = new LiveData<EnterpriseConnection[] | null>(null);
+  policy$ = new LiveData<EnterpriseConnectionPolicy | null>(null);
   authorization$ = new LiveData<EnterpriseAuthorizationSession | null>(null);
   loading$ = new LiveData(false);
   error$ = new LiveData<unknown>(null);
@@ -38,6 +41,7 @@ export class EnterpriseService extends Service {
       this.workspaceId = workspaceId;
       this.authorizationPollId++;
       this.connections$.value = null;
+      this.policy$.value = null;
       this.authorization$.value = null;
       this.error$.value = null;
     }
@@ -47,6 +51,7 @@ export class EnterpriseService extends Service {
       const data = await this.store.getConnections(workspaceId);
       if (revalidationId !== this.revalidationId) return;
       this.connections$.value = data.enterpriseConnections;
+      this.policy$.value = data.enterpriseConnectionPolicy;
       this.error$.value = null;
     } catch (error) {
       if (revalidationId !== this.revalidationId) return;
@@ -112,27 +117,6 @@ export class EnterpriseService extends Service {
     const result = await this.store.refreshConnection(
       workspaceId,
       connectionId
-    );
-    await this.revalidateIfCurrent(workspaceId);
-    return result;
-  }
-
-  async updateToolAllowlist(
-    workspaceId: string,
-    connectionId: string,
-    enabledToolNames: string[]
-  ) {
-    const connection = this.connections$.value?.find(
-      item => item.id === connectionId
-    );
-    const availableTools = new Set(
-      connection?.tools.map(tool => tool.name) ?? []
-    );
-    const filtered = enabledToolNames.filter(name => availableTools.has(name));
-    const result = await this.store.updateToolAllowlist(
-      workspaceId,
-      connectionId,
-      filtered
     );
     await this.revalidateIfCurrent(workspaceId);
     return result;

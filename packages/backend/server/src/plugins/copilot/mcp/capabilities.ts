@@ -1,14 +1,11 @@
 import { McpAccessMode } from '@prisma/client';
 
 export const MCP_CAPABILITIES = [
-  'upload_localmind_attachment',
   'delegate_to_localmind',
   'get_localmind_task',
   'control_localmind_task',
 ] as const;
 
-export const MCP_ATTACHMENT_UPLOAD_CAPABILITY =
-  'upload_localmind_attachment' as const;
 export const MCP_DELEGATE_CAPABILITY = 'delegate_to_localmind' as const;
 export const MCP_TASK_QUERY_CAPABILITY = 'get_localmind_task' as const;
 export const MCP_TASK_CONTROL_CAPABILITY = 'control_localmind_task' as const;
@@ -40,7 +37,6 @@ export function mcpAccessModeForCapabilities(
   return capabilities.some(
     capability =>
       capability === MCP_DELEGATE_CAPABILITY ||
-      capability === MCP_ATTACHMENT_UPLOAD_CAPABILITY ||
       capability === MCP_TASK_CONTROL_CAPABILITY
   )
     ? McpAccessMode.READ_WRITE

@@ -5,6 +5,8 @@ import { CopilotAgentRuntimeModelCompletionAdapter } from './agent-runtime-model
 import { CopilotAgentRuntimeWorker } from './agent-runtime-worker';
 import { CopilotAgentRuntimeWorkflowRegistry } from './agent-runtime-workflow-registry';
 import {
+  AiProfileResolver,
+  AiProfileService,
   ByokEntitlementPolicy,
   ByokService,
   WorkspaceByokResolver,
@@ -110,6 +112,7 @@ export const COPILOT_PROVIDER_PROVIDERS = [
 
 export const COPILOT_RUNTIME_PROVIDERS = [
   ByokEntitlementPolicy,
+  AiProfileService,
   ByokService,
   ChatSessionService,
   ConversationStore,
@@ -193,6 +196,7 @@ export const COPILOT_RESOLVER_PROVIDERS = [
   ExternalMcpConnectionResolver,
   UserCopilotResolver,
   CopilotContextRootResolver,
+  AiProfileResolver,
   WorkspaceByokResolver,
 ];
 

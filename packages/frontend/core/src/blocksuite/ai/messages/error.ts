@@ -1,4 +1,3 @@
-import { I18n } from '@affine/i18n';
 import { SignalWatcher, WithDisposable } from '@blocksuite/affine/global/lit';
 import { scrollbarStyle } from '@blocksuite/affine/shared/styles';
 import { unsafeCSSVarV2 } from '@blocksuite/affine/shared/theme';
@@ -151,21 +150,23 @@ export class AIErrorWrapper extends SignalWatcher(WithDisposable(LitElement)) {
             : nothing}
         </div>
       </div>
-      <div class="action">
-        <button
-          type="button"
-          class="action-button"
-          @click=${this.onClick}
-          data-testid="ai-error-action-button"
-        >
-          ${this.actionText}
-          ${this.actionTooltip
-            ? html`<affine-tooltip tip-position="top">
-                ${this.actionTooltip}
-              </affine-tooltip>`
-            : nothing}
-        </button>
-      </div>
+      ${this.showAction
+        ? html`<div class="action">
+            <button
+              type="button"
+              class="action-button"
+              @click=${this.onClick}
+              data-testid="ai-error-action-button"
+            >
+              ${this.actionText}
+              ${this.actionTooltip
+                ? html`<affine-tooltip tip-position="top">
+                    ${this.actionTooltip}
+                  </affine-tooltip>`
+                : nothing}
+            </button>
+          </div>`
+        : nothing}
     </div>`;
   }
 
@@ -187,6 +188,9 @@ export class AIErrorWrapper extends SignalWatcher(WithDisposable(LitElement)) {
   @property({ attribute: false })
   accessor showDetailPanel: boolean = false;
 
+  @property({ attribute: false })
+  accessor showAction: boolean = true;
+
   @property({ attribute: 'data-testid', reflect: true })
   accessor testId = 'ai-error';
 }
@@ -207,14 +211,10 @@ const LoginRequiredErrorRenderer = (host?: EditorHost | null) => html`
   ></ai-error-wrapper>
 `;
 
-const ByokNotConfiguredErrorRenderer = (
-  error: ByokNotConfiguredError,
-  host?: EditorHost | null
-) => html`
+const ByokNotConfiguredErrorRenderer = (error: ByokNotConfiguredError) => html`
   <ai-error-wrapper
     .text=${error.message}
-    .actionText=${I18n['com.affine.ai.error.configure-byok']()}
-    .onClick=${() => AIAppEvents.requestConfigureByok.next({ host })}
+    .showAction=${false}
   ></ai-error-wrapper>
 `;
 
@@ -249,7 +249,7 @@ const GeneralErrorRenderer = (props: ErrorProps = {}) => {
 
 export function AIChatErrorRenderer(error: AIError, host?: EditorHost | null) {
   if (error instanceof ByokNotConfiguredError) {
-    return ByokNotConfiguredErrorRenderer(error, host);
+    return ByokNotConfiguredErrorRenderer(error);
   } else if (error instanceof PaymentRequiredError) {
     return PaymentRequiredErrorRenderer(host);
   } else if (error instanceof UnauthorizedError) {

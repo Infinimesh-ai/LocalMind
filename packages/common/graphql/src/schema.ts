@@ -58,6 +58,30 @@ export interface AddContextFileInput {
   contextId: Scalars['String']['input'];
 }
 
+export interface AdminAiProfileCredentialType {
+  __typename?: 'AdminAiProfileCredentialType';
+  enabled: Scalars['Boolean']['output'];
+  id: Scalars['ID']['output'];
+  modelId: Maybe<Scalars['String']['output']>;
+  name: Scalars['String']['output'];
+  provider: Scalars['String']['output'];
+}
+
+export interface AdminAiProfileType {
+  __typename?: 'AdminAiProfileType';
+  createdAt: Scalars['DateTime']['output'];
+  credentialIds: Array<Scalars['ID']['output']>;
+  credentials: Array<AdminAiProfileCredentialType>;
+  description: Maybe<Scalars['String']['output']>;
+  enabled: Scalars['Boolean']['output'];
+  id: Scalars['ID']['output'];
+  isDefault: Scalars['Boolean']['output'];
+  name: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Scalars['ID']['output'];
+  workspaceName: Maybe<Scalars['String']['output']>;
+}
+
 export interface AdminAllSharedLink {
   __typename?: 'AdminAllSharedLink';
   docId: Scalars['String']['output'];
@@ -211,6 +235,15 @@ export interface AdminUpdateWorkspaceInput {
   public?: InputMaybe<Scalars['Boolean']['input']>;
 }
 
+export interface AdminUserAiProfileAssignmentType {
+  __typename?: 'AdminUserAiProfileAssignmentType';
+  createdAt: Scalars['DateTime']['output'];
+  profile: AdminAiProfileType;
+  updatedAt: Scalars['DateTime']['output'];
+  userId: Scalars['ID']['output'];
+  workspaceId: Scalars['ID']['output'];
+}
+
 export interface AdminWorkspace {
   __typename?: 'AdminWorkspace';
   avatarKey: Maybe<Scalars['String']['output']>;
@@ -238,6 +271,14 @@ export interface AdminWorkspaceMembersArgs {
   query?: InputMaybe<Scalars['String']['input']>;
   skip?: InputMaybe<Scalars['Int']['input']>;
   take?: InputMaybe<Scalars['Int']['input']>;
+}
+
+export interface AdminWorkspaceByokScopeType {
+  __typename?: 'AdminWorkspaceByokScopeType';
+  enableAi: Scalars['Boolean']['output'];
+  id: Scalars['ID']['output'];
+  memberCount: Scalars['SafeInt']['output'];
+  name: Maybe<Scalars['String']['output']>;
 }
 
 export interface AdminWorkspaceMember {
@@ -648,6 +689,10 @@ export interface Copilot {
   contextSettings: CopilotContextSettingsType;
   /** Get the context list of a session */
   contexts: Array<CopilotContext>;
+  /** Get one standalone Copilot task owned by the current user in the current workspace. */
+  copilotTask: Maybe<CopilotTaskType>;
+  /** List standalone Copilot tasks owned by the current user in the current workspace. */
+  copilotTasks: Array<CopilotTaskType>;
   /** @deprecated use `chats` instead */
   histories: Array<CopilotHistories>;
   /** List available models for a prompt, with human-readable names */
@@ -731,6 +776,15 @@ export interface CopilotContextSessionScopeArgs {
 export interface CopilotContextsArgs {
   contextId?: InputMaybe<Scalars['String']['input']>;
   sessionId?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface CopilotCopilotTaskArgs {
+  id: Scalars['String']['input'];
+}
+
+export interface CopilotCopilotTasksArgs {
+  filter?: InputMaybe<CopilotTaskListFilterInput>;
+  limit?: InputMaybe<Scalars['SafeInt']['input']>;
 }
 
 export interface CopilotHistoriesArgs {
@@ -3756,6 +3810,33 @@ export interface CopilotSupportBundleType {
   workspaceId: Scalars['String']['output'];
 }
 
+export interface CopilotTaskApprovalType {
+  __typename?: 'CopilotTaskApprovalType';
+  decidedAt: Maybe<Scalars['DateTime']['output']>;
+  status: Scalars['String']['output'];
+  stepId: Scalars['String']['output'];
+  title: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotTaskArtifactType {
+  __typename?: 'CopilotTaskArtifactType';
+  id: Scalars['String']['output'];
+  kind: Scalars['String']['output'];
+  title: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotTaskControlInput {
+  action: Scalars['String']['input'];
+  reason?: InputMaybe<Scalars['String']['input']>;
+  taskId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotTaskListFilterInput {
+  query?: InputMaybe<Scalars['String']['input']>;
+  status?: InputMaybe<Scalars['String']['input']>;
+}
+
 export interface CopilotTaskRouteCandidateDiagnosticsType {
   __typename?: 'CopilotTaskRouteCandidateDiagnosticsType';
   candidateKey: Maybe<Scalars['String']['output']>;
@@ -4051,6 +4132,37 @@ export interface CopilotTaskRouteTracePhaseDiagnosticsType {
   selectedCount: Maybe<Scalars['SafeInt']['output']>;
 }
 
+export interface CopilotTaskStepType {
+  __typename?: 'CopilotTaskStepType';
+  completedAt: Maybe<Scalars['DateTime']['output']>;
+  id: Scalars['String']['output'];
+  key: Scalars['String']['output'];
+  order: Scalars['SafeInt']['output'];
+  startedAt: Maybe<Scalars['DateTime']['output']>;
+  status: Scalars['String']['output'];
+  title: Maybe<Scalars['String']['output']>;
+  type: Scalars['String']['output'];
+}
+
+export interface CopilotTaskType {
+  __typename?: 'CopilotTaskType';
+  approval: Maybe<CopilotTaskApprovalType>;
+  artifacts: Array<CopilotTaskArtifactType>;
+  availableActions: Array<Scalars['String']['output']>;
+  completedAt: Maybe<Scalars['DateTime']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  failureCode: Maybe<Scalars['String']['output']>;
+  failureMessage: Maybe<Scalars['String']['output']>;
+  id: Scalars['String']['output'];
+  resultSummary: Maybe<Scalars['String']['output']>;
+  startedAt: Maybe<Scalars['DateTime']['output']>;
+  status: Scalars['String']['output'];
+  steps: Array<CopilotTaskStepType>;
+  title: Maybe<Scalars['String']['output']>;
+  updatedAt: Scalars['DateTime']['output'];
+  workflow: Scalars['String']['output'];
+}
+
 export interface CopilotWorkspaceConfig {
   __typename?: 'CopilotWorkspaceConfig';
   allIgnoredDocs: Array<CopilotWorkspaceIgnoredDoc>;
@@ -4190,28 +4302,6 @@ export interface CreateUserInput {
   email: Scalars['String']['input'];
   name?: InputMaybe<Scalars['String']['input']>;
   password?: InputMaybe<Scalars['String']['input']>;
-}
-
-export interface CreateWorkspaceByokLocalLeaseInput {
-  providers: Array<CreateWorkspaceByokLocalLeaseProviderInput>;
-  workspaceId: Scalars['String']['input'];
-}
-
-export interface CreateWorkspaceByokLocalLeaseProviderInput {
-  apiKey: Scalars['String']['input'];
-  description?: InputMaybe<Scalars['String']['input']>;
-  enabled?: InputMaybe<Scalars['Boolean']['input']>;
-  endpoint?: InputMaybe<Scalars['String']['input']>;
-  modelId?: InputMaybe<Scalars['String']['input']>;
-  name: Scalars['String']['input'];
-  provider: ByokProvider;
-  sortOrder?: InputMaybe<Scalars['SafeInt']['input']>;
-}
-
-export interface CreateWorkspaceByokLocalLeaseResultType {
-  __typename?: 'CreateWorkspaceByokLocalLeaseResultType';
-  expiresAt: Scalars['DateTime']['output'];
-  leaseId: Scalars['String']['output'];
 }
 
 export interface CredentialsRequirementType {
@@ -4426,6 +4516,12 @@ export enum EnterpriseAuthorizationStatus {
   PENDING = 'PENDING',
   STARTING = 'STARTING',
   WAITING = 'WAITING',
+}
+
+export interface EnterpriseConnectionPolicyType {
+  __typename?: 'EnterpriseConnectionPolicyType';
+  allowedProviders: Array<EnterpriseProvider>;
+  enabled: Scalars['Boolean']['output'];
 }
 
 export enum EnterpriseConnectionStatus {
@@ -5251,6 +5347,8 @@ export interface Mutation {
   controlCopilotAgentRuntimeRun: CopilotAgentRunType;
   /** Cancel, retry, or recover a stale persisted repair execution request after workspace permission checks. */
   controlCopilotRepairExecution: CopilotRepairExecutionRecordType;
+  /** Control a current-user Copilot task after workspace and actor ownership checks. */
+  controlCopilotTask: CopilotTaskType;
   createBlobUpload: BlobUploadInit;
   /** Create change password url */
   createChangePasswordUrl: Scalars['String']['output'];
@@ -5286,11 +5384,11 @@ export interface Mutation {
   createUser: UserType;
   /** Create a new workspace */
   createWorkspace: WorkspaceType;
-  createWorkspaceByokLocalLease: CreateWorkspaceByokLocalLeaseResultType;
   deactivateLicense: Scalars['Boolean']['output'];
   /** Approve or reject a persisted repair execution request that is waiting for approval. */
   decideCopilotRepairExecutionApproval: CopilotRepairExecutionRecordType;
   deleteAccount: DeleteAccount;
+  deleteAdminAiProfile: Scalars['Boolean']['output'];
   deleteAuthSigningKey: Array<AuthSigningKeyType>;
   deleteBlob: Scalars['Boolean']['output'];
   /** Delete a comment */
@@ -5402,6 +5500,7 @@ export interface Mutation {
   sendTestEmail: Scalars['Boolean']['output'];
   sendVerifyChangeEmail: Scalars['Boolean']['output'];
   sendVerifyEmail: Scalars['Boolean']['output'];
+  setAdminUserAiProfileAssignment: Maybe<AdminUserAiProfileAssignmentType>;
   setBlob: Scalars['String']['output'];
   settleTranscriptTask: Maybe<TranscriptionResultType>;
   submitTranscriptTask: Maybe<TranscriptionResultType>;
@@ -5444,6 +5543,7 @@ export interface Mutation {
   uploadAvatar: UserType;
   /** Upload a comment attachment and return the access url */
   uploadCommentAttachment: Scalars['String']['output'];
+  upsertAdminAiProfile: AdminAiProfileType;
   upsertWorkspaceByokConfig: WorkspaceByokKeyConfigType;
   verifyEmail: Scalars['Boolean']['output'];
 }
@@ -5567,6 +5667,10 @@ export interface MutationControlCopilotRepairExecutionArgs {
   input: CopilotRepairExecutionControlInput;
 }
 
+export interface MutationControlCopilotTaskArgs {
+  input: CopilotTaskControlInput;
+}
+
 export interface MutationCreateBlobUploadArgs {
   key: Scalars['String']['input'];
   mime: Scalars['String']['input'];
@@ -5653,16 +5757,17 @@ export interface MutationCreateWorkspaceArgs {
   init?: InputMaybe<Scalars['Upload']['input']>;
 }
 
-export interface MutationCreateWorkspaceByokLocalLeaseArgs {
-  input: CreateWorkspaceByokLocalLeaseInput;
-}
-
 export interface MutationDeactivateLicenseArgs {
   workspaceId: Scalars['String']['input'];
 }
 
 export interface MutationDecideCopilotRepairExecutionApprovalArgs {
   input: CopilotRepairExecutionApprovalDecisionInput;
+}
+
+export interface MutationDeleteAdminAiProfileArgs {
+  id: Scalars['ID']['input'];
+  workspaceId: Scalars['ID']['input'];
 }
 
 export interface MutationDeleteAuthSigningKeyArgs {
@@ -6004,6 +6109,11 @@ export interface MutationSendVerifyEmailArgs {
   callbackUrl: Scalars['String']['input'];
 }
 
+export interface MutationSetAdminUserAiProfileAssignmentArgs {
+  profileId?: InputMaybe<Scalars['ID']['input']>;
+  userId: Scalars['ID']['input'];
+}
+
 export interface MutationSetBlobArgs {
   blob: Scalars['Upload']['input'];
   workspaceId: Scalars['String']['input'];
@@ -6147,6 +6257,10 @@ export interface MutationUploadCommentAttachmentArgs {
   attachment: Scalars['Upload']['input'];
   docId: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationUpsertAdminAiProfileArgs {
+  input: UpsertAdminAiProfileInput;
 }
 
 export interface MutationUpsertWorkspaceByokConfigArgs {
@@ -6363,14 +6477,18 @@ export interface PublicUserType {
 
 export interface Query {
   __typename?: 'Query';
+  adminAiProfiles: Array<AdminAiProfileType>;
   /** List all shared links across workspaces for admin panel */
   adminAllSharedLinks: PaginatedAdminAllSharedLink;
   /** Get aggregated dashboard metrics for admin panel */
   adminDashboard: AdminDashboard;
   /** Aggregate mail delivery timeline facts for admin panel */
   adminMailDeliveries: AdminMailDeliveryAnalytics;
+  adminUserAiProfileAssignment: Maybe<AdminUserAiProfileAssignmentType>;
   /** Get workspace detail for admin */
   adminWorkspace: Maybe<AdminWorkspace>;
+  adminWorkspaceByokScopes: Array<AdminWorkspaceByokScopeType>;
+  adminWorkspaceByokSettings: WorkspaceByokSettingsType;
   /** List workspaces for admin */
   adminWorkspaces: Array<AdminWorkspace>;
   /** Workspaces count for admin */
@@ -6381,6 +6499,7 @@ export interface Query {
   /** Get current user */
   currentUser: Maybe<UserType>;
   enterpriseAuthorizationSession: EnterpriseAuthorizationSessionType;
+  enterpriseConnectionPolicy: EnterpriseConnectionPolicyType;
   enterpriseConnections: Array<EnterpriseConnectionType>;
   error: ErrorDataUnion;
   externalMcpSettings: ExternalMcpSettingsType;
@@ -6422,6 +6541,10 @@ export interface Query {
   workspaces: Array<WorkspaceType>;
 }
 
+export interface QueryAdminAiProfilesArgs {
+  workspaceId?: InputMaybe<Scalars['ID']['input']>;
+}
+
 export interface QueryAdminAllSharedLinksArgs {
   filter?: InputMaybe<AdminAllSharedLinksFilterInput>;
   pagination: PaginationInput;
@@ -6435,8 +6558,21 @@ export interface QueryAdminMailDeliveriesArgs {
   input?: InputMaybe<AdminMailDeliveriesInput>;
 }
 
+export interface QueryAdminUserAiProfileAssignmentArgs {
+  userId: Scalars['ID']['input'];
+}
+
 export interface QueryAdminWorkspaceArgs {
   id: Scalars['String']['input'];
+}
+
+export interface QueryAdminWorkspaceByokScopesArgs {
+  first?: InputMaybe<Scalars['SafeInt']['input']>;
+  keyword?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface QueryAdminWorkspaceByokSettingsArgs {
+  workspaceId: Scalars['String']['input'];
 }
 
 export interface QueryAdminWorkspacesArgs {
@@ -6449,6 +6585,10 @@ export interface QueryAdminWorkspacesCountArgs {
 
 export interface QueryEnterpriseAuthorizationSessionArgs {
   sessionId: Scalars['ID']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryEnterpriseConnectionPolicyArgs {
   workspaceId: Scalars['String']['input'];
 }
 
@@ -7147,6 +7287,16 @@ export interface UpdateWorkspaceInput {
   public?: InputMaybe<Scalars['Boolean']['input']>;
 }
 
+export interface UpsertAdminAiProfileInput {
+  credentialIds: Array<Scalars['ID']['input']>;
+  description?: InputMaybe<Scalars['String']['input']>;
+  enabled: Scalars['Boolean']['input'];
+  id?: InputMaybe<Scalars['ID']['input']>;
+  isDefault: Scalars['Boolean']['input'];
+  name: Scalars['String']['input'];
+  workspaceId: Scalars['ID']['input'];
+}
+
 export interface UpsertWorkspaceByokConfigInput {
   apiKey?: InputMaybe<Scalars['String']['input']>;
   description?: InputMaybe<Scalars['String']['input']>;
@@ -7608,6 +7758,35 @@ export interface TokenType {
   token: Scalars['String']['output'];
 }
 
+export type AdminAiProfilesQueryVariables = Exact<{
+  workspaceId?: InputMaybe<Scalars['ID']['input']>;
+}>;
+
+export type AdminAiProfilesQuery = {
+  __typename?: 'Query';
+  adminAiProfiles: Array<{
+    __typename?: 'AdminAiProfileType';
+    id: string;
+    workspaceId: string;
+    workspaceName: string | null;
+    name: string;
+    description: string | null;
+    enabled: boolean;
+    isDefault: boolean;
+    credentialIds: Array<string>;
+    createdAt: string;
+    updatedAt: string;
+    credentials: Array<{
+      __typename?: 'AdminAiProfileCredentialType';
+      id: string;
+      provider: string;
+      name: string;
+      modelId: string | null;
+      enabled: boolean;
+    }>;
+  }>;
+};
+
 export type AdminAllSharedLinksQueryVariables = Exact<{
   pagination: PaginationInput;
   filter?: InputMaybe<AdminAllSharedLinksFilterInput>;
@@ -7864,6 +8043,103 @@ export type AdminUpdateWorkspaceMutation = {
   } | null;
 };
 
+export type AdminUserAiProfileAssignmentQueryVariables = Exact<{
+  userId: Scalars['ID']['input'];
+}>;
+
+export type AdminUserAiProfileAssignmentQuery = {
+  __typename?: 'Query';
+  adminUserAiProfileAssignment: {
+    __typename?: 'AdminUserAiProfileAssignmentType';
+    userId: string;
+    workspaceId: string;
+    createdAt: string;
+    updatedAt: string;
+    profile: {
+      __typename?: 'AdminAiProfileType';
+      id: string;
+      workspaceId: string;
+      workspaceName: string | null;
+      name: string;
+      description: string | null;
+      enabled: boolean;
+      isDefault: boolean;
+      credentialIds: Array<string>;
+      createdAt: string;
+      updatedAt: string;
+      credentials: Array<{
+        __typename?: 'AdminAiProfileCredentialType';
+        id: string;
+        provider: string;
+        name: string;
+        modelId: string | null;
+        enabled: boolean;
+      }>;
+    };
+  } | null;
+};
+
+export type AdminWorkspaceByokScopesQueryVariables = Exact<{
+  keyword?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['SafeInt']['input']>;
+}>;
+
+export type AdminWorkspaceByokScopesQuery = {
+  __typename?: 'Query';
+  adminWorkspaceByokScopes: Array<{
+    __typename?: 'AdminWorkspaceByokScopeType';
+    id: string;
+    name: string | null;
+    enableAi: boolean;
+    memberCount: number;
+  }>;
+};
+
+export type AdminWorkspaceByokSettingsQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+}>;
+
+export type AdminWorkspaceByokSettingsQuery = {
+  __typename?: 'Query';
+  adminWorkspaceByokSettings: {
+    __typename?: 'WorkspaceByokSettingsType';
+    workspaceId: string;
+    entitled: boolean;
+    serverEntitled: boolean;
+    allowedProviders: Array<ByokProvider>;
+    customEndpointSupported: boolean;
+    privateEndpointSupported: boolean;
+    keys: Array<{
+      __typename?: 'WorkspaceByokKeyConfigType';
+      id: string;
+      provider: ByokProvider;
+      name: string;
+      description: string | null;
+      storage: ByokKeyStorage;
+      configured: boolean;
+      enabled: boolean;
+      endpoint: string | null;
+      modelId: string | null;
+      endpointEditable: boolean;
+      sortOrder: number;
+      capabilities: Array<string>;
+      testStatus: ByokKeyTestStatus;
+      disabledReason: string | null;
+      lastTestedAt: string | null;
+      lastTestError: string | null;
+      lastUsedAt: string | null;
+      lastErrorAt: string | null;
+      lastError: string | null;
+    }>;
+    warnings: Array<{
+      __typename?: 'WorkspaceByokCapabilityWarningType';
+      featureKind: string;
+      reason: string;
+      requiredProviders: Array<ByokProvider>;
+    }>;
+  };
+};
+
 export type AdminWorkspaceQueryVariables = Exact<{
   id: Scalars['String']['input'];
   memberSkip?: InputMaybe<Scalars['Int']['input']>;
@@ -7996,6 +8272,16 @@ export type CreateUserMutation = {
   createUser: { __typename?: 'UserType'; id: string };
 };
 
+export type DeleteAdminAiProfileMutationVariables = Exact<{
+  workspaceId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+}>;
+
+export type DeleteAdminAiProfileMutation = {
+  __typename?: 'Mutation';
+  deleteAdminAiProfile: boolean;
+};
+
 export type DeleteAuthSigningKeyMutationVariables = Exact<{
   id: Scalars['String']['input'];
 }>;
@@ -8125,6 +8411,31 @@ export type SendTestEmailMutation = {
   sendTestEmail: boolean;
 };
 
+export type SetAdminUserAiProfileAssignmentMutationVariables = Exact<{
+  userId: Scalars['ID']['input'];
+  profileId?: InputMaybe<Scalars['ID']['input']>;
+}>;
+
+export type SetAdminUserAiProfileAssignmentMutation = {
+  __typename?: 'Mutation';
+  setAdminUserAiProfileAssignment: {
+    __typename?: 'AdminUserAiProfileAssignmentType';
+    userId: string;
+    workspaceId: string;
+    createdAt: string;
+    updatedAt: string;
+    profile: {
+      __typename?: 'AdminAiProfileType';
+      id: string;
+      workspaceId: string;
+      workspaceName: string | null;
+      name: string;
+      enabled: boolean;
+      isDefault: boolean;
+    };
+  } | null;
+};
+
 export type UpdateAccountFeaturesMutationVariables = Exact<{
   userId: Scalars['String']['input'];
   features: Array<FeatureType> | FeatureType;
@@ -8157,6 +8468,35 @@ export type UpdateAppConfigMutationVariables = Exact<{
 export type UpdateAppConfigMutation = {
   __typename?: 'Mutation';
   updateAppConfig: any;
+};
+
+export type UpsertAdminAiProfileMutationVariables = Exact<{
+  input: UpsertAdminAiProfileInput;
+}>;
+
+export type UpsertAdminAiProfileMutation = {
+  __typename?: 'Mutation';
+  upsertAdminAiProfile: {
+    __typename?: 'AdminAiProfileType';
+    id: string;
+    workspaceId: string;
+    workspaceName: string | null;
+    name: string;
+    description: string | null;
+    enabled: boolean;
+    isDefault: boolean;
+    credentialIds: Array<string>;
+    createdAt: string;
+    updatedAt: string;
+    credentials: Array<{
+      __typename?: 'AdminAiProfileCredentialType';
+      id: string;
+      provider: string;
+      name: string;
+      modelId: string | null;
+      enabled: boolean;
+    }>;
+  };
 };
 
 export type ValidateConfigQueryVariables = Exact<{
@@ -15077,6 +15417,162 @@ export type GetCopilotSupportBundlesQuery = {
   } | null;
 };
 
+export type ControlCopilotTaskMutationVariables = Exact<{
+  input: CopilotTaskControlInput;
+}>;
+
+export type ControlCopilotTaskMutation = {
+  __typename?: 'Mutation';
+  controlCopilotTask: {
+    __typename?: 'CopilotTaskType';
+    id: string;
+    title: string | null;
+    workflow: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+    startedAt: string | null;
+    completedAt: string | null;
+    failureCode: string | null;
+    failureMessage: string | null;
+    resultSummary: string | null;
+    availableActions: Array<string>;
+    approval: {
+      __typename?: 'CopilotTaskApprovalType';
+      stepId: string;
+      status: string;
+      title: string | null;
+      decidedAt: string | null;
+    } | null;
+    artifacts: Array<{
+      __typename?: 'CopilotTaskArtifactType';
+      kind: string;
+      id: string;
+      title: string | null;
+    }>;
+    steps: Array<{
+      __typename?: 'CopilotTaskStepType';
+      id: string;
+      key: string;
+      type: string;
+      status: string;
+      title: string | null;
+      order: number;
+      startedAt: string | null;
+      completedAt: string | null;
+    }>;
+  };
+};
+
+export type CopilotTaskGetQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  taskId: Scalars['String']['input'];
+}>;
+
+export type CopilotTaskGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      copilotTask: {
+        __typename?: 'CopilotTaskType';
+        id: string;
+        title: string | null;
+        workflow: string;
+        status: string;
+        createdAt: string;
+        updatedAt: string;
+        startedAt: string | null;
+        completedAt: string | null;
+        failureCode: string | null;
+        failureMessage: string | null;
+        resultSummary: string | null;
+        availableActions: Array<string>;
+        approval: {
+          __typename?: 'CopilotTaskApprovalType';
+          stepId: string;
+          status: string;
+          title: string | null;
+          decidedAt: string | null;
+        } | null;
+        artifacts: Array<{
+          __typename?: 'CopilotTaskArtifactType';
+          kind: string;
+          id: string;
+          title: string | null;
+        }>;
+        steps: Array<{
+          __typename?: 'CopilotTaskStepType';
+          id: string;
+          key: string;
+          type: string;
+          status: string;
+          title: string | null;
+          order: number;
+          startedAt: string | null;
+          completedAt: string | null;
+        }>;
+      } | null;
+    };
+  } | null;
+};
+
+export type CopilotTasksGetQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  limit?: InputMaybe<Scalars['SafeInt']['input']>;
+  filter?: InputMaybe<CopilotTaskListFilterInput>;
+}>;
+
+export type CopilotTasksGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      copilotTasks: Array<{
+        __typename?: 'CopilotTaskType';
+        id: string;
+        title: string | null;
+        workflow: string;
+        status: string;
+        createdAt: string;
+        updatedAt: string;
+        startedAt: string | null;
+        completedAt: string | null;
+        failureCode: string | null;
+        failureMessage: string | null;
+        resultSummary: string | null;
+        availableActions: Array<string>;
+        approval: {
+          __typename?: 'CopilotTaskApprovalType';
+          stepId: string;
+          status: string;
+          title: string | null;
+          decidedAt: string | null;
+        } | null;
+        artifacts: Array<{
+          __typename?: 'CopilotTaskArtifactType';
+          kind: string;
+          id: string;
+          title: string | null;
+        }>;
+        steps: Array<{
+          __typename?: 'CopilotTaskStepType';
+          id: string;
+          key: string;
+          type: string;
+          status: string;
+          title: string | null;
+          order: number;
+          startedAt: string | null;
+          completedAt: string | null;
+        }>;
+      }>;
+    };
+  } | null;
+};
+
 export type GetTranscriptTaskQueryVariables = Exact<{
   workspaceId: Scalars['String']['input'];
   taskId?: InputMaybe<Scalars['String']['input']>;
@@ -15616,6 +16112,11 @@ export type EnterpriseConnectionsQueryVariables = Exact<{
 
 export type EnterpriseConnectionsQuery = {
   __typename?: 'Query';
+  enterpriseConnectionPolicy: {
+    __typename?: 'EnterpriseConnectionPolicyType';
+    enabled: boolean;
+    allowedProviders: Array<EnterpriseProvider>;
+  };
   enterpriseConnections: Array<{
     __typename?: 'EnterpriseConnectionType';
     id: string;
@@ -17280,19 +17781,6 @@ export type UpsertWorkspaceByokConfigMutation = {
   };
 };
 
-export type CreateWorkspaceByokLocalLeaseMutationVariables = Exact<{
-  input: CreateWorkspaceByokLocalLeaseInput;
-}>;
-
-export type CreateWorkspaceByokLocalLeaseMutation = {
-  __typename?: 'Mutation';
-  createWorkspaceByokLocalLease: {
-    __typename?: 'CreateWorkspaceByokLocalLeaseResultType';
-    leaseId: string;
-    expiresAt: string;
-  };
-};
-
 export type WorkspaceByokSettingsQueryVariables = Exact<{
   id: Scalars['String']['input'];
   from: Scalars['DateTime']['input'];
@@ -17522,6 +18010,11 @@ export type GrantWorkspaceTeamMemberMutation = {
 
 export type Queries =
   | {
+      name: 'adminAiProfilesQuery';
+      variables: AdminAiProfilesQueryVariables;
+      response: AdminAiProfilesQuery;
+    }
+  | {
       name: 'adminAllSharedLinksQuery';
       variables: AdminAllSharedLinksQueryVariables;
       response: AdminAllSharedLinksQuery;
@@ -17540,6 +18033,21 @@ export type Queries =
       name: 'adminServerConfigQuery';
       variables: AdminServerConfigQueryVariables;
       response: AdminServerConfigQuery;
+    }
+  | {
+      name: 'adminUserAiProfileAssignmentQuery';
+      variables: AdminUserAiProfileAssignmentQueryVariables;
+      response: AdminUserAiProfileAssignmentQuery;
+    }
+  | {
+      name: 'adminWorkspaceByokScopesQuery';
+      variables: AdminWorkspaceByokScopesQueryVariables;
+      response: AdminWorkspaceByokScopesQuery;
+    }
+  | {
+      name: 'adminWorkspaceByokSettingsQuery';
+      variables: AdminWorkspaceByokSettingsQueryVariables;
+      response: AdminWorkspaceByokSettingsQuery;
     }
   | {
       name: 'adminWorkspaceQuery';
@@ -17770,6 +18278,16 @@ export type Queries =
       name: 'getCopilotSupportBundlesQuery';
       variables: GetCopilotSupportBundlesQueryVariables;
       response: GetCopilotSupportBundlesQuery;
+    }
+  | {
+      name: 'copilotTaskGetQuery';
+      variables: CopilotTaskGetQueryVariables;
+      response: CopilotTaskGetQuery;
+    }
+  | {
+      name: 'copilotTasksGetQuery';
+      variables: CopilotTasksGetQueryVariables;
+      response: CopilotTasksGetQuery;
     }
   | {
       name: 'getTranscriptTaskQuery';
@@ -18029,6 +18547,11 @@ export type Mutations =
       response: CreateUserMutation;
     }
   | {
+      name: 'deleteAdminAiProfileMutation';
+      variables: DeleteAdminAiProfileMutationVariables;
+      response: DeleteAdminAiProfileMutation;
+    }
+  | {
       name: 'deleteAuthSigningKeyMutation';
       variables: DeleteAuthSigningKeyMutationVariables;
       response: DeleteAuthSigningKeyMutation;
@@ -18064,6 +18587,11 @@ export type Mutations =
       response: SendTestEmailMutation;
     }
   | {
+      name: 'setAdminUserAiProfileAssignmentMutation';
+      variables: SetAdminUserAiProfileAssignmentMutationVariables;
+      response: SetAdminUserAiProfileAssignmentMutation;
+    }
+  | {
       name: 'updateAccountFeaturesMutation';
       variables: UpdateAccountFeaturesMutationVariables;
       response: UpdateAccountFeaturesMutation;
@@ -18077,6 +18605,11 @@ export type Mutations =
       name: 'updateAppConfigMutation';
       variables: UpdateAppConfigMutationVariables;
       response: UpdateAppConfigMutation;
+    }
+  | {
+      name: 'upsertAdminAiProfileMutation';
+      variables: UpsertAdminAiProfileMutationVariables;
+      response: UpsertAdminAiProfileMutation;
     }
   | {
       name: 'deleteBlobMutation';
@@ -18397,6 +18930,11 @@ export type Mutations =
       name: 'replayCopilotSupportBundleTransferForwardingEventMutation';
       variables: ReplayCopilotSupportBundleTransferForwardingEventMutationVariables;
       response: ReplayCopilotSupportBundleTransferForwardingEventMutation;
+    }
+  | {
+      name: 'controlCopilotTaskMutation';
+      variables: ControlCopilotTaskMutationVariables;
+      response: ControlCopilotTaskMutation;
     }
   | {
       name: 'retryTranscriptTaskMutation';
@@ -18747,11 +19285,6 @@ export type Mutations =
       name: 'upsertWorkspaceByokConfigMutation';
       variables: UpsertWorkspaceByokConfigMutationVariables;
       response: UpsertWorkspaceByokConfigMutation;
-    }
-  | {
-      name: 'createWorkspaceByokLocalLeaseMutation';
-      variables: CreateWorkspaceByokLocalLeaseMutationVariables;
-      response: CreateWorkspaceByokLocalLeaseMutation;
     }
   | {
       name: 'setEnableAiMutation';

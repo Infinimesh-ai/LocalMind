@@ -6,6 +6,7 @@ import {
   Mutation,
   ObjectType,
   Parent,
+  Query,
   ResolveField,
   Resolver,
 } from '@nestjs/graphql';
@@ -13,10 +14,9 @@ import { SafeIntResolver } from 'graphql-scalars';
 
 import { Throttle } from '../../../base';
 import { CurrentUser } from '../../../core/auth';
-import { PermissionAccess } from '../../../core/permission';
+import { Admin } from '../../../core/common';
 import { WorkspaceType } from '../../../core/workspaces';
-import { ByokEntitlementPolicy } from './policy';
-import { ByokKeyConfig, ByokLocalLeaseProvider, ByokService } from './service';
+import { ByokKeyConfig, ByokService } from './service';
 import { ByokKeyStorage, ByokKeyTestStatus, ByokProvider } from './types';
 
 @ObjectType()
@@ -155,12 +155,18 @@ class TestWorkspaceByokConfigResultType {
 }
 
 @ObjectType()
-class CreateWorkspaceByokLocalLeaseResultType {
-  @Field(() => String)
-  leaseId!: string;
+class AdminWorkspaceByokScopeType {
+  @Field(() => ID)
+  id!: string;
 
-  @Field(() => Date)
-  expiresAt!: Date;
+  @Field(() => String, { nullable: true })
+  name!: string | null;
+
+  @Field(() => Boolean)
+  enableAi!: boolean;
+
+  @Field(() => SafeIntResolver)
+  memberCount!: number;
 }
 
 @InputType()
@@ -235,49 +241,37 @@ class ReorderWorkspaceByokConfigsInput {
   ids!: string[];
 }
 
-@InputType()
-class CreateWorkspaceByokLocalLeaseProviderInput implements ByokLocalLeaseProvider {
-  @Field(() => ByokProvider)
-  provider!: ByokProvider;
-
-  @Field(() => String)
-  name!: string;
-
-  @Field(() => String, { nullable: true })
-  description?: string | null;
-
-  @Field(() => String)
-  apiKey!: string;
-
-  @Field(() => String, { nullable: true })
-  endpoint?: string | null;
-
-  @Field(() => String, { nullable: true })
-  modelId?: string | null;
-
-  @Field(() => SafeIntResolver, { nullable: true })
-  sortOrder?: number | null;
-
-  @Field(() => Boolean, { nullable: true })
-  enabled?: boolean | null;
-}
-
-@InputType()
-class CreateWorkspaceByokLocalLeaseInput {
-  @Field(() => String)
-  workspaceId!: string;
-
-  @Field(() => [CreateWorkspaceByokLocalLeaseProviderInput])
-  providers!: CreateWorkspaceByokLocalLeaseProviderInput[];
-}
-
+@Admin()
 @Resolver(() => WorkspaceType)
 export class WorkspaceByokResolver {
-  constructor(
-    private readonly ac: PermissionAccess,
-    private readonly entitlement: ByokEntitlementPolicy,
-    private readonly byok: ByokService
-  ) {}
+  constructor(private readonly byok: ByokService) {}
+
+  @Query(() => [AdminWorkspaceByokScopeType])
+  async adminWorkspaceByokScopes(
+    @CurrentUser() user: CurrentUser,
+    @Args('keyword', { type: () => String, nullable: true })
+    keyword?: string | null,
+    @Args('first', {
+      type: () => SafeIntResolver,
+      nullable: true,
+      defaultValue: 100,
+    })
+    first?: number | null
+  ) {
+    return await this.byok.listAdminWorkspaceScopes({
+      userId: user.id,
+      keyword,
+      first,
+    });
+  }
+
+  @Query(() => WorkspaceByokSettingsType)
+  async adminWorkspaceByokSettings(
+    @CurrentUser() user: CurrentUser,
+    @Args('workspaceId', { type: () => String }) workspaceId: string
+  ) {
+    return await this.byok.getAdminSettings(workspaceId, user.id);
+  }
 
   @ResolveField(() => WorkspaceByokSettingsType, {
     name: 'byokSettings',
@@ -287,13 +281,7 @@ export class WorkspaceByokResolver {
     @CurrentUser() user: CurrentUser,
     @Parent() workspace: WorkspaceType
   ) {
-    await this.ac
-      .user(user.id)
-      .workspace(workspace.id)
-      .allowLocal()
-      .assert('Workspace.Settings.Read');
-    await this.entitlement.assertManagementAccess(workspace.id, user.id);
-    return await this.byok.getSettings(workspace.id, user.id);
+    return await this.byok.getAdminSettings(workspace.id, user.id);
   }
 
   @ResolveField(() => [WorkspaceByokUsagePointType], {
@@ -306,13 +294,7 @@ export class WorkspaceByokResolver {
     @Args('from', { type: () => Date }) from: Date,
     @Args('to', { type: () => Date }) to: Date
   ) {
-    await this.ac
-      .user(user.id)
-      .workspace(workspace.id)
-      .allowLocal()
-      .assert('Workspace.Settings.Read');
-    await this.entitlement.assertManagementAccess(workspace.id, user.id);
-    return await this.byok.getUsage(workspace.id, from, to);
+    return await this.byok.getAdminUsage(workspace.id, from, to, user.id);
   }
 
   @Throttle('strict')
@@ -321,18 +303,7 @@ export class WorkspaceByokResolver {
     @CurrentUser() user: CurrentUser,
     @Args('input') input: TestWorkspaceByokConfigInput
   ) {
-    await this.ac
-      .user(user.id)
-      .workspace(input.workspaceId)
-      .allowLocal()
-      .assert('Workspace.Settings.Update');
-    await this.entitlement.assertManagementAccess(input.workspaceId, user.id);
-    if (input.storage === ByokKeyStorage.server) {
-      await this.entitlement.assertServerEntitled(input.workspaceId);
-    } else {
-      await this.entitlement.assertLocalEntitled(input.workspaceId, user.id);
-    }
-    return await this.byok.testConfig({ ...input, userId: user.id });
+    return await this.byok.testAdminConfig({ ...input, userId: user.id });
   }
 
   @Mutation(() => WorkspaceByokKeyConfigType)
@@ -341,14 +312,7 @@ export class WorkspaceByokResolver {
     @CurrentUser() user: CurrentUser,
     @Args('input') input: UpsertWorkspaceByokConfigInput
   ) {
-    await this.ac
-      .user(user.id)
-      .workspace(input.workspaceId)
-      .allowLocal()
-      .assert('Workspace.Settings.Update');
-    await this.entitlement.assertManagementAccess(input.workspaceId, user.id);
-    await this.entitlement.assertServerEntitled(input.workspaceId);
-    return await this.byok.upsertConfig({ ...input, userId: user.id });
+    return await this.byok.upsertAdminConfig({ ...input, userId: user.id });
   }
 
   @Mutation(() => [WorkspaceByokKeyConfigType])
@@ -357,14 +321,7 @@ export class WorkspaceByokResolver {
     @CurrentUser() user: CurrentUser,
     @Args('input') input: ReorderWorkspaceByokConfigsInput
   ) {
-    await this.ac
-      .user(user.id)
-      .workspace(input.workspaceId)
-      .allowLocal()
-      .assert('Workspace.Settings.Update');
-    await this.entitlement.assertManagementAccess(input.workspaceId, user.id);
-    await this.entitlement.assertServerEntitled(input.workspaceId);
-    return await this.byok.reorderConfigs({ ...input, userId: user.id });
+    return await this.byok.reorderAdminConfigs({ ...input, userId: user.id });
   }
 
   @Mutation(() => Boolean)
@@ -374,14 +331,7 @@ export class WorkspaceByokResolver {
     @Args('id', { type: () => ID }) id: string,
     @Args('workspaceId', { type: () => String }) workspaceId: string
   ) {
-    await this.ac
-      .user(user.id)
-      .workspace(workspaceId)
-      .allowLocal()
-      .assert('Workspace.Settings.Update');
-    await this.entitlement.assertManagementAccess(workspaceId, user.id);
-    await this.entitlement.assertServerEntitled(workspaceId);
-    return await this.byok.deleteConfig(workspaceId, id, user.id);
+    return await this.byok.deleteAdminConfig(workspaceId, id, user.id);
   }
 
   @Mutation(() => Boolean)
@@ -392,29 +342,6 @@ export class WorkspaceByokResolver {
     @Args('provider', { type: () => ByokProvider, nullable: true })
     provider?: ByokProvider | null
   ) {
-    await this.ac
-      .user(user.id)
-      .workspace(workspaceId)
-      .allowLocal()
-      .assert('Workspace.Settings.Update');
-    await this.entitlement.assertManagementAccess(workspaceId, user.id);
-    await this.entitlement.assertServerEntitled(workspaceId);
-    return await this.byok.clearConfigs(workspaceId, provider, user.id);
-  }
-
-  @Mutation(() => CreateWorkspaceByokLocalLeaseResultType)
-  @Throttle('strict')
-  async createWorkspaceByokLocalLease(
-    @CurrentUser() user: CurrentUser,
-    @Args('input') input: CreateWorkspaceByokLocalLeaseInput
-  ) {
-    await this.ac
-      .user(user.id)
-      .workspace(input.workspaceId)
-      .allowLocal()
-      .assert('Workspace.Copilot');
-    await this.entitlement.assertManagementAccess(input.workspaceId, user.id);
-    await this.entitlement.assertLocalEntitled(input.workspaceId, user.id);
-    return await this.byok.createLocalLease({ ...input, userId: user.id });
+    return await this.byok.clearAdminConfigs(workspaceId, provider, user.id);
   }
 }

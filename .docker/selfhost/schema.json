@@ -824,11 +824,11 @@
                         },
                         "urlPrefix": {
                           "type": "string",
-                          "description": "Optional custom origin for browser upload URLs. Provider presigned URLs also use this origin when signKey is not configured."
+                          "description": "Optional base URL for proxied uploads and signed custom GET URLs. Provider presigned uploads require an origin-only value when signKey is not configured."
                         },
                         "signKey": {
                           "type": "string",
-                          "description": "Optional HMAC key for signed upload URLs. Without urlPrefix, upload URLs use the server origin."
+                          "description": "Optional HMAC key for signed upload and custom GET URLs. Custom GET URLs require both signKey and urlPrefix."
                         }
                       }
                     },
@@ -955,7 +955,7 @@
         },
         "path": {
           "type": "string",
-          "description": "Subpath where the server get deployed if there is one.(e.g. /affine)\n@default \"\"\n@environment `AFFINE_SERVER_SUB_PATH`",
+          "description": "Subpath where the server is deployed, if any (e.g. /localmind).\n@default \"\"\n@environment `AFFINE_SERVER_SUB_PATH`",
           "default": ""
         }
       }
@@ -979,6 +979,88 @@
           "type": "string",
           "description": "The endpoint of the doc service.\n@default \"\"\n@environment `DOC_SERVICE_ENDPOINT`",
           "default": ""
+        }
+      }
+    },
+    "documentOcr": {
+      "type": "object",
+      "description": "Configuration for documentOcr module",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable permission-checked scanned PDF OCR through the server-controlled SparkClaw endpoint.\n@default false\n@environment `LOCALMIND_OCR_ENABLED`",
+          "default": false
+        },
+        "baseUrl": {
+          "type": "string",
+          "description": "OpenAI-compatible SparkClaw OCR base URL. The server appends /chat/completions.\n@default \"https://sparkclaw.infinimesh.cloud/ocr/v1\"\n@environment `LOCALMIND_OCR_BASE_URL`",
+          "default": "https://sparkclaw.infinimesh.cloud/ocr/v1"
+        },
+        "allowedHost": {
+          "type": "string",
+          "description": "Exact hostname allowed for outbound OCR requests.\n@default \"sparkclaw.infinimesh.cloud\"\n@environment `LOCALMIND_OCR_ALLOWED_HOST`",
+          "default": "sparkclaw.infinimesh.cloud"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model id sent to the OpenAI-compatible OCR endpoint.\n@default \"sparkclaw-ocr\"\n@environment `LOCALMIND_OCR_MODEL`",
+          "default": "sparkclaw-ocr"
+        },
+        "apiKey": {
+          "type": "string",
+          "description": "Optional server-only bearer token for the OCR endpoint.\n@default \"\"\n@environment `LOCALMIND_OCR_API_KEY`",
+          "default": ""
+        },
+        "timeoutMs": {
+          "type": "number",
+          "description": "Maximum time for one OCR page inference.\n@default 120000\n@environment `LOCALMIND_OCR_TIMEOUT_MS`",
+          "default": 120000
+        },
+        "maxUploadBytes": {
+          "type": "number",
+          "description": "Maximum rasterized page image size accepted by the OCR API.\n@default 12582912\n@environment `LOCALMIND_OCR_MAX_UPLOAD_BYTES`",
+          "default": 12582912
+        },
+        "maxOutputBytes": {
+          "type": "number",
+          "description": "Maximum cleaned Markdown bytes accepted from one OCR completion.\n@default 1048576\n@environment `LOCALMIND_OCR_MAX_OUTPUT_BYTES`",
+          "default": 1048576
+        },
+        "maxTokens": {
+          "type": "number",
+          "description": "Maximum completion tokens requested from the OCR model.\n@default 16384\n@environment `LOCALMIND_OCR_MAX_TOKENS`",
+          "default": 16384
+        },
+        "maxConcurrency": {
+          "type": "number",
+          "description": "Maximum concurrent OCR page requests per LocalMind server process.\n@default 2\n@environment `LOCALMIND_OCR_MAX_CONCURRENCY`",
+          "default": 2
+        }
+      }
+    },
+    "iscp": {
+      "type": "object",
+      "description": "Configuration for iscp module",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the LocalMind SparkClaw ISCP integration\n@default false\n@environment `ISCP_ENABLED`",
+          "default": false
+        },
+        "controllerUrl": {
+          "type": "string",
+          "description": "Internal URL of the LocalMind ISCP controller\n@default \"http://iscp-controller:8091\"\n@environment `ISCP_CONTROLLER_URL`",
+          "default": "http://iscp-controller:8091"
+        },
+        "controllerToken": {
+          "type": "string",
+          "description": "Bearer token used between LocalMind and the ISCP controller\n@default \"\"\n@environment `ISCP_CONTROLLER_TOKEN`",
+          "default": ""
+        },
+        "domainId": {
+          "type": "string",
+          "description": "ISCP domain assigned to LocalMind SparkClaw endpoints\n@default \"localmind\"\n@environment `ISCP_DOMAIN_ID`",
+          "default": "localmind"
         }
       }
     },
@@ -1181,12 +1263,12 @@
         },
         "byok.enabled": {
           "type": "boolean",
-          "description": "Allow workspace owners and admins to configure AI provider keys through AI BYOK.\n@default true",
+          "description": "Allow instance administrators to manage AI provider credentials by workspace through Admin AI.\n@default true",
           "default": true
         },
         "byok.allowedProviders": {
           "type": "array",
-          "description": "AI providers that workspace owners and admins may add through AI BYOK.\n@default [\"openai\",\"anthropic\",\"gemini\",\"fal\"]",
+          "description": "AI providers that instance administrators may assign to workspaces through Admin AI.\n@default [\"openai\",\"anthropic\",\"gemini\",\"fal\"]",
           "default": [
             "openai",
             "anthropic",
@@ -1196,12 +1278,12 @@
         },
         "byok.allowCustomEndpoint": {
           "type": "boolean",
-          "description": "Allow AI BYOK keys to use a custom provider endpoint.\n@default false",
+          "description": "Allow administrator-managed workspace AI credentials to use a custom provider endpoint.\n@default false",
           "default": false
         },
         "byok.allowPrivateEndpoint": {
           "type": "boolean",
-          "description": "Whether workspace BYOK custom endpoints may resolve to private network targets. Enabling this allows workspace owners and admins to send provider probe requests to the private network.\n@default false",
+          "description": "Whether administrator-managed workspace AI custom endpoints may resolve to private network targets. Enable only for trusted provider endpoints.\n@default false",
           "default": false
         },
         "providers.profiles": {
@@ -1214,12 +1296,99 @@
           "description": "The default provider ids for model output types and global fallback.\n@default {}",
           "default": {}
         },
+        "providers.routePolicy": {
+          "type": "object",
+          "description": "Config-driven provider route policy. Supports provider allow/block lists plus cloud/private_cloud/local privacy filters and preferences globally, per feature, or per workspace.\n@default {}",
+          "default": {}
+        },
+        "prompts.overrides": {
+          "type": "array",
+          "description": "Config-driven prompt metadata overrides. Built-in prompt messages remain native fallback unless a later Prompt Registry layer replaces them.\n@default []",
+          "default": []
+        },
+        "prompts.defaults": {
+          "type": "object",
+          "description": "Global prompt model defaults for self-hosted deployments. The text bucket applies to text-like prompts, image/transcript apply to prompt category matches, and structured only applies to explicitly included structured prompts. Prompt overrides remain the more specific policy.\n@default {}",
+          "default": {}
+        },
+        "tasks.models": {
+          "type": "object",
+          "description": "Optional task model aliases for embedding, workspace indexing, and rerank. Leave empty to let provider defaults and modelDefinitions choose task routes.\n@default {}",
+          "default": {}
+        },
+        "supportBundles.objectStorageWebhooks": {
+          "type": "array",
+          "description": "Production object-storage webhooks for support bundle direct-download completion notifications. Each entry verifies raw webhook bodies with HMAC-SHA256 before forwarding provider event evidence into the durable transfer queue.\n@default []",
+          "default": []
+        },
+        "externalMcp.endpoint": {
+          "type": "string",
+          "description": "The exact server-controlled SparkClaw Streamable HTTP MCP endpoint. Workspace clients can view but cannot change this URL.\n@default \"http://192.168.20.252:18790/mcp\"\n@environment `LOCALMIND_SPARKCLAW_MCP_ENDPOINT`",
+          "default": "http://192.168.20.252:18790/mcp"
+        },
+        "enterpriseCli.enabled": {
+          "type": "boolean",
+          "description": "Enable user-scoped enterprise CLI connectors for WeCom, Lark, and DingTalk.\n@default false\n@environment `LOCALMIND_ENTERPRISE_CLI_ENABLED`",
+          "default": false
+        },
+        "enterpriseCli.allowedProviders": {
+          "type": "array",
+          "description": "Enterprise CLI providers that users may connect. Instance administrators own this allowlist.\n@default [\"WECOM\",\"LARK\",\"DINGTALK\"]",
+          "default": [
+            "WECOM",
+            "LARK",
+            "DINGTALK"
+          ]
+        },
+        "enterpriseCli.allowedToolsByProvider": {
+          "type": "object",
+          "description": "Exact Enterprise CLI tool names that LocalMind AI may use for each provider. Use * only when the instance administrator explicitly accepts the full discovered catalog.\n@default {\"wecom\":[],\"lark\":[],\"dingtalk\":[]}",
+          "default": {
+            "wecom": [],
+            "lark": [],
+            "dingtalk": []
+          }
+        },
+        "enterpriseCli.rootDir": {
+          "type": "string",
+          "description": "Server-controlled root directory for isolated enterprise CLI profiles.\n@default \".localmind/enterprise-cli\"\n@environment `LOCALMIND_ENTERPRISE_CLI_ROOT_DIR`",
+          "default": ".localmind/enterprise-cli"
+        },
+        "enterpriseCli.binaries.wecom": {
+          "type": "string",
+          "description": "Server-controlled WeCom CLI binary path or executable name.\n@default \"wecom-cli\"\n@environment `LOCALMIND_WECOM_CLI_BINARY`",
+          "default": "wecom-cli"
+        },
+        "enterpriseCli.binaries.lark": {
+          "type": "string",
+          "description": "Server-controlled Lark CLI binary path or executable name.\n@default \"lark-cli\"\n@environment `LOCALMIND_LARK_CLI_BINARY`",
+          "default": "lark-cli"
+        },
+        "enterpriseCli.binaries.dingtalk": {
+          "type": "string",
+          "description": "Server-controlled DingTalk Workspace CLI binary path or executable name.\n@default \"dws\"\n@environment `LOCALMIND_DINGTALK_CLI_BINARY`",
+          "default": "dws"
+        },
+        "mcpDelegation.callbackAllowedOrigins": {
+          "type": "array",
+          "description": "Exact callback origins that may use HTTP or private network targets for LocalMind MCP delegation events. Keep empty unless a trusted local caller such as SparkClaw requires it.\n@default []",
+          "default": []
+        },
         "providers.openai": {
           "type": "object",
           "description": "The config for the openai provider.\n@default {\"apiKey\":\"\",\"baseURL\":\"https://api.openai.com/v1\"}\n@link https://github.com/openai/openai-node",
           "default": {
             "apiKey": "",
             "baseURL": "https://api.openai.com/v1"
+          }
+        },
+        "providers.openaiCompatible": {
+          "type": "object",
+          "description": "The config for OpenAI-compatible endpoints such as OpenRouter, DeepSeek, Ollama, LM Studio, vLLM and LocalAI.\n@default {\"apiKey\":\"\",\"baseURL\":\"\",\"apiStyle\":\"chat_completions\"}",
+          "default": {
+            "apiKey": "",
+            "baseURL": "",
+            "apiStyle": "chat_completions"
           }
         },
         "providers.cloudflareWorkersAi": {
@@ -1438,11 +1607,11 @@
                         },
                         "urlPrefix": {
                           "type": "string",
-                          "description": "Optional custom origin for browser upload URLs. Provider presigned URLs also use this origin when signKey is not configured."
+                          "description": "Optional base URL for proxied uploads and signed custom GET URLs. Provider presigned uploads require an origin-only value when signKey is not configured."
                         },
                         "signKey": {
                           "type": "string",
-                          "description": "Optional HMAC key for signed upload URLs. Without urlPrefix, upload URLs use the server origin."
+                          "description": "Optional HMAC key for signed upload and custom GET URLs. Custom GET URLs require both signKey and urlPrefix."
                         }
                       }
                     }
@@ -1521,11 +1690,11 @@
                         },
                         "urlPrefix": {
                           "type": "string",
-                          "description": "Optional custom origin for browser upload URLs. Provider presigned URLs also use this origin when signKey is not configured."
+                          "description": "Optional base URL for proxied uploads and signed custom GET URLs. Provider presigned uploads require an origin-only value when signKey is not configured."
                         },
                         "signKey": {
                           "type": "string",
-                          "description": "Optional HMAC key for signed upload URLs. Without urlPrefix, upload URLs use the server origin."
+                          "description": "Optional HMAC key for signed upload and custom GET URLs. Custom GET URLs require both signKey and urlPrefix."
                         }
                       }
                     },

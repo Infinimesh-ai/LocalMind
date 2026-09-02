@@ -9,7 +9,6 @@ import {
   enterpriseConnectionsQuery,
   latestEnterpriseAuthorizationSessionQuery,
   refreshEnterpriseConnectionMutation,
-  updateEnterpriseToolAllowlistMutation,
 } from '@affine/graphql';
 import { Store } from '@toeverything/infra';
 
@@ -86,18 +85,6 @@ export class EnterpriseStore extends Store {
       variables: { workspaceId, connectionId },
     });
     return data.refreshEnterpriseConnection;
-  }
-
-  async updateToolAllowlist(
-    workspaceId: string,
-    connectionId: string,
-    enabledToolNames: string[]
-  ) {
-    const data = await this.gqlService.gql({
-      query: updateEnterpriseToolAllowlistMutation,
-      variables: { workspaceId, connectionId, enabledToolNames },
-    });
-    return data.updateEnterpriseToolAllowlist;
   }
 
   async disableConnection(workspaceId: string, connectionId: string) {

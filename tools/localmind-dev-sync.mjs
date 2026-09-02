@@ -52,10 +52,16 @@ async function syncBackend() {
 
 async function syncWeb() {
   await run('yarn', ['affine', 'bundle', '-p', '@affine/web']);
+  await run('yarn', ['affine', 'bundle', '-p', '@affine/admin']);
   await run('docker', [
     'cp',
     'packages/frontend/apps/web/dist/.',
     `${container}:/app/static`,
+  ]);
+  await run('docker', [
+    'cp',
+    'packages/frontend/admin/dist/.',
+    `${container}:/app/static/admin`,
   ]);
 }
 

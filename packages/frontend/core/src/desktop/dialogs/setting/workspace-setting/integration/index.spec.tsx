@@ -40,9 +40,6 @@ vi.mock('@affine/i18n', () => {
   const messages: Record<string, string> = {
     'com.affine.integration.integrations': 'Integrations',
     'com.affine.integration.setting.description': 'Integration settings',
-    'com.affine.settings.workspace.byok.title': 'AI BYOK',
-    'com.affine.settings.workspace.byok.subtitle':
-      'Use your own provider keys for this workspace.',
     'com.affine.integration.external-mcp.name': 'SparkClaw MCP',
     'com.affine.integration.external-mcp.desc':
       'Connect LocalMind to SparkClaw.',
@@ -67,11 +64,12 @@ vi.mock('@affine/i18n', () => {
 });
 
 vi.mock('@blocksuite/icons/rc', () => ({
-  AiIcon: () => null,
+  CollaborationIcon: () => null,
   TodayIcon: () => null,
 }));
 
 vi.mock('@toeverything/infra', () => ({
+  Service: class Service {},
   useService: (token: unknown) => {
     if (token === WorkspaceServiceToken) {
       return {
@@ -80,10 +78,6 @@ vi.mock('@toeverything/infra', () => ({
     }
     return {};
   },
-}));
-
-vi.mock('../byok', () => ({
-  WorkspaceByokSetting: () => null,
 }));
 
 vi.mock('../../sub-page', () => ({
@@ -123,41 +117,16 @@ describe('IntegrationSetting', () => {
     cleanup();
   });
 
-  const byokVisibilityCases = [
-    {
-      name: 'ordinary members',
-      info: { isOwner: false, isAdmin: false, isTeam: false },
-      visible: false,
-    },
-    {
-      name: 'owners',
-      info: { isOwner: true, isAdmin: false, isTeam: false },
-      visible: true,
-    },
-    {
-      name: 'admins in personal workspaces',
-      info: { isOwner: false, isAdmin: true, isTeam: false },
-      visible: true,
-    },
-    {
-      name: 'admins in team workspaces',
-      info: { isOwner: false, isAdmin: true, isTeam: true },
-      visible: true,
-    },
-  ];
+  test('does not expose BYOK configuration to workspace owners or admins', () => {
+    workspaceInfoState.info = {
+      isOwner: true,
+      isAdmin: true,
+      isTeam: true,
+    };
+    render(<IntegrationSetting />);
 
-  for (const testCase of byokVisibilityCases) {
-    test(`shows BYOK integration for ${testCase.name}`, () => {
-      workspaceInfoState.info = testCase.info;
-      render(<IntegrationSetting />);
-
-      if (testCase.visible) {
-        expect(screen.getByText('AI BYOK')).not.toBeNull();
-      } else {
-        expect(screen.queryByText('AI BYOK')).toBeNull();
-      }
-    });
-  }
+    expect(screen.queryByText('AI BYOK')).toBeNull();
+  });
 
   test('shows SparkClaw MCP only to workspace owners and admins', () => {
     render(<IntegrationSetting />);

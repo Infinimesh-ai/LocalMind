@@ -6,4 +6,5 @@ export type UserInput = {
   email: string;
   password?: string;
   features: FeatureType[];
+  aiProfileId?: string | null;
 };

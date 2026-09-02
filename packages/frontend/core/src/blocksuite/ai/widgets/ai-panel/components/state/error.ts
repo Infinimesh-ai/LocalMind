@@ -12,20 +12,16 @@ import type { AIPanelErrorConfig, CopyConfig } from '../../type.js';
 import { filterAIItemGroup } from '../../utils.js';
 
 export function renderByokNotConfiguredError(
-  config: Pick<AIPanelErrorConfig, 'cancel' | 'configureByok' | 'error'>
+  config: Pick<AIPanelErrorConfig, 'cancel' | 'error'>
 ) {
   return html` <div class="error-info">${config.error?.message}</div>
     <div class="action-button-group">
-      <button type="button" @click=${config.cancel} class="action-button">
-        <span>${I18n['Cancel']()}</span>
-      </button>
       <button
         type="button"
-        @click=${config.configureByok}
+        @click=${config.cancel}
         class="action-button primary"
-        data-testid="ai-configure-byok-button"
       >
-        <span>${I18n['com.affine.ai.error.configure-byok']()}</span>
+        <span>${I18n['Cancel']()}</span>
       </button>
     </div>`;
 }

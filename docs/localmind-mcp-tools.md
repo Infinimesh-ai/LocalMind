@@ -1,69 +1,77 @@
 # LocalMind MCP Tool Reference
 
-This reference describes `localmind-ai` version `3.3.0`. `tools/list` is the
+This reference describes `localmind-ai` version `3.4.0`. `tools/list` is the
 authoritative JSON Schema source.
 
 ## Tools
 
 ### Tool selection rules
 
-MCP clients should route calls as follows:
+The LocalMind tools are scoped to requests directed to LocalMind and must not be
+used as a global request router. A request is directed to LocalMind when the
+user explicitly asks LocalMind to answer or act, or when the operation requires
+LocalMind-managed documents, attachments, workspace resources, tasks,
+connected data, or another LocalMind-specific capability. Merely mentioning,
+discussing, configuring, or troubleshooting LocalMind does not trigger a call
+unless the user asks LocalMind to execute work.
 
-1. When a new request includes local files, call
-   `upload_localmind_attachment` once for each file.
-2. Every new user request starts with `delegate_to_localmind`. This includes
-   questions, summaries, document reads/searches/creates/updates/renames, web
-   research, attachment processing, and multi-step workspace work. Pass the
-   uploaded ids in `attachmentIds`.
-3. `get_localmind_task` is only for a `taskId` already returned by
-   `delegate_to_localmind`. It cannot start or retry work.
-4. `control_localmind_task` is only for an explicit user request to cancel an
-   unfinished delegated task. It supports no other action.
+The tools must not intercept, reroute, delay, or otherwise affect ordinary
+conversations or native workflows in Codex, Claude, or other host agents. For
+requests directed to LocalMind, MCP clients should apply the most specific
+matching intent first:
+
+1. If the user only asks for the status, progress, or final result of an
+   existing task and its `taskId` is known from `delegate_to_localmind`, call
+   `get_localmind_task` directly. Do not delegate first or create/guess an id.
+2. If the user explicitly asks to stop or cancel an unfinished existing task,
+   call `control_localmind_task` directly with its known `taskId`. Do not
+   delegate first.
+3. Treat every other request that asks LocalMind to answer or act as a
+   delegation, including follow-ups that request additional work, revisions,
+   continuations, and retries. LocalMind requests can include questions,
+   summaries, document
+   reads/searches/creates/updates/renames, web research, attachment processing,
+   and multi-step workspace work.
+4. If the delegated request includes local files, include them directly in
+   `attachments`. Use `attachmentIds` only to reuse files returned by an
+   earlier delegation in the same credential family.
+5. Submit the complete request through `delegate_to_localmind`.
 
 The caller must not search for low-level tools such as `doc_create` or
 `doc_read`. Those tools are internal to LocalMind AI; the public caller submits
 the complete task through `delegate_to_localmind`, and LocalMind chooses the
 internal tools.
 
-### `upload_localmind_attachment`
-
-Uploads one immutable, task-bound file before delegation. The returned
-`attachmentId` can be used only by the same workspace, delegated user, and MCP
-credential family.
-
-Input:
-
-| Field            | Type   | Required | Constraint                                 |
-| ---------------- | ------ | -------- | ------------------------------------------ |
-| `fileName`       | string | yes      | Trimmed, 1 to 512 characters               |
-| `mimeType`       | string | no       | 1 to 256 characters; octet-stream default  |
-| `base64`         | string | yes      | Strict base64; decoded size at most 10 MiB |
-| `idempotencyKey` | string | yes      | Trimmed, 1 to 256 characters               |
-
-The tool requires the frozen `upload_localmind_attachment` capability plus
-live `Workspace.Copilot` and `Workspace.Blobs.Write`. It stores the bytes
-through workspace Blob quota enforcement and persists immutable filename, MIME,
-size, Blob key, and SHA-256 evidence. Replaying the same key with identical
-evidence returns the same `attachmentId` and `idempotentReplay=true`; different
-evidence returns `idempotency_conflict`.
-
 ### `delegate_to_localmind`
 
 Starts one complete natural-language task with LocalMind's built-in AI. This is
-the only public MCP tool that starts new work.
+the only public MCP tool that submits requests asking LocalMind to answer or
+act. Use it only for requests directed to LocalMind as defined above, never as
+the host agent's global request router. Do not use it for existing-task status,
+result, or cancellation requests; those route directly to
+`get_localmind_task` or `control_localmind_task`. Follow-ups that request
+additional work, revisions, continuations, and retries are submitted here.
 
 Input:
 
-| Field            | Type     | Required | Constraint                                      |
-| ---------------- | -------- | -------- | ----------------------------------------------- |
-| `request`        | string   | yes      | Trimmed, 1 to 12,000 characters                 |
-| `documentIds`    | string[] | no       | At most 20 workspace document ids; default `[]` |
-| `attachmentIds`  | string[] | no       | At most 8 uploaded attachment ids; default `[]` |
-| `idempotencyKey` | string   | yes      | Trimmed, 1 to 256 characters                    |
+| Field            | Type         | Required | Constraint                                      |
+| ---------------- | ------------ | -------- | ----------------------------------------------- |
+| `request`        | string       | yes      | Trimmed, 1 to 12,000 characters                 |
+| `documentIds`    | string[]     | no       | At most 20 workspace document ids; default `[]` |
+| `attachments`    | attachment[] | no       | At most 8 inline files; default `[]`            |
+| `attachmentIds`  | string[]     | no       | Earlier delegated attachment ids; default `[]`  |
+| `idempotencyKey` | string       | yes      | Trimmed, 1 to 256 characters                    |
+
+Each inline attachment contains `fileName`, optional `mimeType`, and strict
+base64 bytes. One decoded file may be at most 10 MiB, and all attachments used
+by a task may be at most 20 MiB combined. The server stores inline bytes through
+workspace Blob quota enforcement and persists immutable filename, MIME, size,
+Blob key, and SHA-256 evidence before planning.
 
 The same idempotency key in one workspace and credential family returns the
-same persisted request only when the normalized request evidence matches.
-Reusing it for different input fails closed.
+same persisted request and attachment ids only when the normalized request and
+file evidence match. Reusing it for different input returns
+`idempotency_conflict`.
 
 Current planner results:
 
@@ -112,13 +120,17 @@ internal failures are redacted.
 
 Every delegation result includes `taskId`. It is the durable delegation request
 id and remains stable before planning, during execution, and after completion.
-`requestId` remains as a backward-compatible alias.
+`requestId` remains as a backward-compatible alias. `attachmentIds` contains
+the normalized immutable attachment ids and can be passed to a later delegation
+in the same credential family without resending the bytes.
 
 ### `get_localmind_task`
 
 Reads one persisted task after `delegate_to_localmind` has returned its
-`taskId`, without invoking the LocalMind AI or changing task state. It must not
-be used for a new user request, and its `taskId` is not a document id.
+`taskId`, without invoking the LocalMind AI or changing task state. Use it when
+the user asks for that task's status, progress, or final result. It must not be
+used for follow-ups that request additional work, revisions, continuations, or
+retries, and its `taskId` is not a document id. Never create or guess a task id.
 
 Input:
 

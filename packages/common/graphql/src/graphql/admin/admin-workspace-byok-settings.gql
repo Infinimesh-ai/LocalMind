@@ -1,0 +1,36 @@
+query adminWorkspaceByokSettings($workspaceId: String!) {
+  adminWorkspaceByokSettings(workspaceId: $workspaceId) {
+    workspaceId
+    entitled
+    serverEntitled
+    allowedProviders
+    customEndpointSupported
+    privateEndpointSupported
+    keys {
+      id
+      provider
+      name
+      description
+      storage
+      configured
+      enabled
+      endpoint
+      modelId
+      endpointEditable
+      sortOrder
+      capabilities
+      testStatus
+      disabledReason
+      lastTestedAt
+      lastTestError
+      lastUsedAt
+      lastErrorAt
+      lastError
+    }
+    warnings {
+      featureKind
+      reason
+      requiredProviders
+    }
+  }
+}

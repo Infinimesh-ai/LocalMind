@@ -23,6 +23,7 @@ import { TelemetryService } from './core/telemetry/service';
 import { serverTimingAndCache } from './middleware/timing';
 
 const OneMB = 1024 * 1024;
+const JsonBodyLimit = 32 * OneMB;
 
 export async function run() {
   const { AppModule } = await import('./app.module');
@@ -30,10 +31,12 @@ export async function run() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     cors: false,
     rawBody: true,
-    bodyParser: true,
+    bodyParser: false,
     bufferLogs: true,
   });
 
+  app.useBodyParser('json', { limit: JsonBodyLimit });
+  app.useBodyParser('urlencoded', { extended: true });
   app.useBodyParser('raw', { limit: 100 * OneMB });
 
   const logger = app.get(AFFiNELogger);

@@ -2,9 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { McpAccessMode, type McpCredential } from '@prisma/client';
 import type { Request } from 'express';
 
-import { McpAttachmentService } from './attachments';
 import {
-  MCP_ATTACHMENT_UPLOAD_CAPABILITY,
   MCP_DELEGATE_CAPABILITY,
   MCP_TASK_CONTROL_CAPABILITY,
   MCP_TASK_QUERY_CAPABILITY,
@@ -40,7 +38,6 @@ type McpDelegationCredential = Pick<
 @Injectable()
 export class WorkspaceMcpProvider {
   constructor(
-    private readonly attachments: McpAttachmentService,
     private readonly delegation: McpAiDelegationService,
     private readonly taskControl: McpAiTaskControlService,
     private readonly taskQuery: McpAiTaskQueryService
@@ -83,9 +80,6 @@ export class WorkspaceMcpProvider {
     capabilities: readonly McpCapability[]
   ): WorkspaceMcpServer {
     const tools: WorkspaceMcpServer['tools'] = [];
-    if (capabilities.includes(MCP_ATTACHMENT_UPLOAD_CAPABILITY)) {
-      tools.push(this.attachments.createTool(credential, capabilities));
-    }
     if (capabilities.includes(MCP_DELEGATE_CAPABILITY)) {
       tools.push(this.delegation.createTool(credential, capabilities));
     }
@@ -97,15 +91,18 @@ export class WorkspaceMcpProvider {
     }
     return {
       name: 'localmind-ai',
-      version: '3.3.0',
+      version: '3.4.0',
       instructions: [
-        'TOOL ROUTING - follow these rules exactly.',
-        'When a new task includes local files, call upload_localmind_attachment once per file first and pass every returned attachmentId in delegate_to_localmind attachmentIds.',
-        'For every new user request, call delegate_to_localmind with the complete task; this is the only public tool that starts work.',
-        'New work includes answering questions, reading or searching documents, creating or editing documents, web research, and multi-step workspace tasks.',
+        'LOCALMIND-SCOPED TOOL ROUTING - apply the most specific matching rule first.',
+        'Use these tools only for requests directed to LocalMind: the user explicitly asks LocalMind to answer or act, or the request requires LocalMind-managed documents, attachments, workspace resources, tasks, connected data, or other LocalMind-specific capabilities.',
+        'Do not use this server as a global request router. It must not intercept, reroute, delay, or otherwise affect ordinary conversations or native workflows in host agents such as Codex, Claude, or other MCP clients.',
+        'A request that merely mentions, discusses, configures, or troubleshoots LocalMind is not directed to LocalMind unless the user explicitly asks LocalMind to execute work.',
+        'If the user only asks for the status, progress, or final result of an existing task and its taskId is known from delegate_to_localmind, use get_localmind_task directly. Do not call delegate_to_localmind first and never create or guess a taskId.',
+        'If the user explicitly asks to stop or cancel an unfinished existing task and its taskId is known, use control_localmind_task directly. Do not call delegate_to_localmind first.',
+        'For every other request directed to LocalMind that asks for an answer or action, including follow-ups that request additional work, revisions, continuations, and retries, submit the complete request through delegate_to_localmind.',
+        'When a delegated request includes local files, include them directly in delegate_to_localmind.attachments so the request and its files are submitted in one tool call. Use attachmentIds only to reuse attachments returned by an earlier delegation in the same credential family.',
+        'LocalMind work can include answering questions, reading or searching documents, creating or editing documents, web research, and multi-step workspace tasks.',
         'Do not call or search for internal AI tools such as doc_create or doc_read; they are not public MCP tools, and LocalMind selects them after delegation.',
-        'Use get_localmind_task only with a taskId returned by delegate_to_localmind to check status or obtain the final result; it never starts or retries work.',
-        'Use control_localmind_task only when the user explicitly asks to cancel an unfinished delegated task; its only action is cancel.',
         'After a queued or running result, poll get_localmind_task using pollAfterMs until terminal is true, unless a terminal callback is configured.',
         'LocalMind applies the credential capability ceiling and the delegated user real-time ACL.',
         'Permission failures are terminal and never request elevated access.',

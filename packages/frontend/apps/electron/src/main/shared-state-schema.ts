@@ -12,6 +12,7 @@ export const workbenchViewIconNameSchema = z.enum([
   'attachment',
   'pdf',
   'ai',
+  'tasks',
 ]);
 
 export const workbenchViewMetaSchema = z.object({

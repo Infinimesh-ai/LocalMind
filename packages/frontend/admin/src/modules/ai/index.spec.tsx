@@ -1889,6 +1889,10 @@ vi.mock('../header', () => ({
   ),
 }));
 
+vi.mock('./workspace-byok', () => ({
+  WorkspaceByokAdmin: () => <div>Workspace AI credentials</div>,
+}));
+
 import { AiPage } from './index';
 
 function renderAiPage(initialPath = '/admin/ai/runtime') {
@@ -7274,6 +7278,8 @@ describe('AiPage', () => {
     cleanupSupportBundleRetentionMock.mockReset();
     replaySupportBundleTransferForwardingEventMock.mockReset();
     retryProviderHealthProbeAttemptMock.mockReset();
+    updateAppConfigMock.mockReset();
+    updateAppConfigMock.mockResolvedValue({ updateAppConfig: {} });
     createSupportBundleMock.mockResolvedValue({
       createCopilotSupportBundle: {
         ...supportBundlesPayload[0],
@@ -10161,6 +10167,7 @@ describe('AiPage', () => {
                 byok: {
                   allowedProviders: ['openai', 'anthropic', 'gemini', 'fal'],
                   allowCustomEndpoint: true,
+                  allowPrivateEndpoint: false,
                   enabled: true,
                 },
                 exa: {
@@ -10776,6 +10783,8 @@ describe('AiPage', () => {
     expect(screen.getByText('Configuration')).not.toBeNull();
     expect(screen.getByText('Runtime')).not.toBeNull();
     expect(screen.getByText('AI capability switches')).not.toBeNull();
+    expect(screen.getByText('Enterprise CLI governance')).not.toBeNull();
+    expect(screen.getAllByText('Allowed tool names')).toHaveLength(3);
     expect(screen.getByText('Provider credentials')).not.toBeNull();
     expect(screen.getByText('Provider registry and routing')).not.toBeNull();
     expect(screen.getByText('Prompt and task models')).not.toBeNull();
@@ -10783,6 +10792,8 @@ describe('AiPage', () => {
       screen.getByText('Search, assets, storage, and support bundles')
     ).not.toBeNull();
     expect(screen.getByText('Workspace BYOK')).not.toBeNull();
+    expect(screen.getByText('BYOK private endpoints')).not.toBeNull();
+    expect(screen.getByText('Workspace AI credentials')).not.toBeNull();
     expect(screen.getByText('BYOK allowed providers')).not.toBeNull();
     expect(screen.getByText('OpenAI')).not.toBeNull();
     expect(screen.getByText('OpenAI-compatible')).not.toBeNull();
@@ -10808,6 +10819,64 @@ describe('AiPage', () => {
     ).not.toBeNull();
     expect(screen.queryByText('Model route diagnostics')).toBeNull();
     expect(screen.queryByText('Agent runtime runs')).toBeNull();
+  });
+
+  test('saves administrator-owned Enterprise CLI provider and tool policy', async () => {
+    renderAiPage('/admin/ai');
+
+    fireEvent.click(screen.getByLabelText('Enable Enterprise CLI'));
+    const toolInputs = screen.getAllByPlaceholderText(
+      'tool_name, another_tool'
+    );
+    fireEvent.change(toolInputs[1], {
+      target: { value: 'lark_docs_search, lark_calendar_list' },
+    });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]);
+
+    await waitFor(() => {
+      expect(updateAppConfigMock).toHaveBeenCalledWith({
+        updates: expect.arrayContaining([
+          {
+            module: 'copilot',
+            key: 'enterpriseCli.enabled',
+            value: true,
+          },
+          {
+            module: 'copilot',
+            key: 'enterpriseCli.allowedProviders',
+            value: ['WECOM', 'LARK', 'DINGTALK'],
+          },
+          {
+            module: 'copilot',
+            key: 'enterpriseCli.allowedToolsByProvider',
+            value: {
+              wecom: [],
+              lark: ['lark_docs_search', 'lark_calendar_list'],
+              dingtalk: [],
+            },
+          },
+        ]),
+      });
+    });
+  });
+
+  test('saves private endpoint policy from Admin AI configuration', async () => {
+    renderAiPage('/admin/ai');
+
+    fireEvent.click(screen.getByLabelText('Allow BYOK private endpoint'));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]);
+
+    await waitFor(() => {
+      expect(updateAppConfigMock).toHaveBeenCalledWith({
+        updates: expect.arrayContaining([
+          {
+            module: 'copilot',
+            key: 'byok.allowPrivateEndpoint',
+            value: true,
+          },
+        ]),
+      });
+    });
   });
 
   test('queries prompt models for the admin diagnostics page', () => {

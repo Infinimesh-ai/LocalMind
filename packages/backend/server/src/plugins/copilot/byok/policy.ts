@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { ActionForbidden } from '../../../base';
+import { FeatureService } from '../../../core/features';
 import { QuotaStateService } from '../../../core/quota/state';
 import { Models, WorkspaceRole } from '../../../models';
 
@@ -8,8 +9,21 @@ import { Models, WorkspaceRole } from '../../../models';
 export class ByokEntitlementPolicy {
   constructor(
     private readonly models: Models,
-    private readonly quotaState: QuotaStateService
+    private readonly quotaState: QuotaStateService,
+    private readonly features: FeatureService
   ) {}
+
+  async hasInstanceManagementAccess(userId?: string) {
+    return userId ? await this.features.isAdmin(userId) : false;
+  }
+
+  async assertInstanceManagementAccess(userId?: string) {
+    if (!(await this.hasInstanceManagementAccess(userId))) {
+      throw new ActionForbidden(
+        'BYOK settings require an instance administrator.'
+      );
+    }
+  }
 
   async hasAiPlan(userId?: string) {
     if (!userId) return false;

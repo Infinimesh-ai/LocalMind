@@ -21,6 +21,7 @@ import type { Store } from '@blocksuite/affine/store';
 import {
   AiOutlineIcon,
   AllDocsIcon,
+  CheckBoxCheckLinearIcon,
   HelpIcon,
   ImportIcon,
   JournalIcon,
@@ -112,6 +113,34 @@ const AIChatButton = () => {
     <MenuLinkItem icon={<AiOutlineIcon />} active={aiChatActive} to={'/chat'}>
       <span data-testid="ai-chat">
         {t['com.affine.workspaceSubPath.chat']()}
+      </span>
+    </MenuLinkItem>
+  );
+};
+
+const TasksButton = () => {
+  const t = useI18n();
+  const featureFlagService = useService(FeatureFlagService);
+  const serverService = useService(ServerService);
+  const serverFeatures = useLiveData(serverService.server.features$);
+  const enableAI = useLiveData(featureFlagService.flags.enable_ai.$);
+  const workbench = useService(WorkbenchService).workbench;
+  const active = useLiveData(
+    workbench.location$.selector(location => location.pathname === '/tasks')
+  );
+
+  if (!enableAI || !serverFeatures?.copilot) {
+    return null;
+  }
+
+  return (
+    <MenuLinkItem
+      icon={<CheckBoxCheckLinearIcon />}
+      active={active}
+      to="/tasks"
+    >
+      <span data-testid="copilot-tasks">
+        {t['com.affine.workspaceSubPath.tasks']()}
       </span>
     </MenuLinkItem>
   );
@@ -235,6 +264,7 @@ export const RootAppSidebar = memo((): ReactElement => {
         <AppSidebarJournalButton />
         {sessionStatus === 'authenticated' && <NotificationButton />}
         <AIChatButton />
+        <TasksButton />
         <MenuItem
           data-testid="slider-bar-workspace-setting-button"
           icon={<SettingsIcon />}

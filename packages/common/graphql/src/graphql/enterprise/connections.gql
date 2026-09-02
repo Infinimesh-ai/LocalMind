@@ -1,4 +1,8 @@
 query enterpriseConnections($workspaceId: String!) {
+  enterpriseConnectionPolicy(workspaceId: $workspaceId) {
+    enabled
+    allowedProviders
+  }
   enterpriseConnections(workspaceId: $workspaceId) {
     id
     workspaceId

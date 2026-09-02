@@ -600,6 +600,23 @@ const ExternalMcpEndpointShape = z.string().superRefine((value, context) => {
   }
 });
 
+const EnterpriseCliProviderShape = z.enum(['WECOM', 'LARK', 'DINGTALK']);
+const EnterpriseCliToolPolicyNameShape = z
+  .string()
+  .trim()
+  .max(64)
+  .refine(
+    value => value === '*' || /^[a-z][a-z0-9_]{0,63}$/.test(value),
+    'Enterprise CLI tool allowlist entries must be exact tool names or *'
+  );
+const EnterpriseCliAllowedToolsByProviderShape = z
+  .object({
+    wecom: z.array(EnterpriseCliToolPolicyNameShape).max(2048),
+    lark: z.array(EnterpriseCliToolPolicyNameShape).max(2048),
+    dingtalk: z.array(EnterpriseCliToolPolicyNameShape).max(2048),
+  })
+  .strict();
+
 const McpDelegationCallbackOriginShape = z
   .string()
   .max(2048)
@@ -667,6 +684,12 @@ declare global {
       };
       enterpriseCli: {
         enabled: ConfigItem<boolean>;
+        allowedProviders: ConfigItem<Array<'WECOM' | 'LARK' | 'DINGTALK'>>;
+        allowedToolsByProvider: ConfigItem<{
+          wecom: string[];
+          lark: string[];
+          dingtalk: string[];
+        }>;
         rootDir: ConfigItem<string>;
         binaries: {
           wecom: ConfigItem<string>;
@@ -700,22 +723,22 @@ defineModuleConfig('copilot', {
     default: true,
   },
   'byok.enabled': {
-    desc: 'Allow workspace owners and admins to configure AI provider keys through AI BYOK.',
+    desc: 'Allow instance administrators to manage AI provider credentials by workspace through Admin AI.',
     default: true,
     shape: z.boolean(),
   },
   'byok.allowedProviders': {
-    desc: 'AI providers that workspace owners and admins may add through AI BYOK.',
+    desc: 'AI providers that instance administrators may assign to workspaces through Admin AI.',
     default: ['openai', 'anthropic', 'gemini', 'fal'],
     shape: z.array(z.enum(['openai', 'anthropic', 'gemini', 'fal'])),
   },
   'byok.allowCustomEndpoint': {
-    desc: 'Allow AI BYOK keys to use a custom provider endpoint.',
+    desc: 'Allow administrator-managed workspace AI credentials to use a custom provider endpoint.',
     default: false,
     shape: z.boolean(),
   },
   'byok.allowPrivateEndpoint': {
-    desc: 'Whether workspace BYOK custom endpoints may resolve to private network targets. Enabling this allows workspace owners and admins to send provider probe requests to the private network.',
+    desc: 'Whether administrator-managed workspace AI custom endpoints may resolve to private network targets. Enable only for trusted provider endpoints.',
     default: false,
     shape: z.boolean(),
   },
@@ -765,6 +788,16 @@ defineModuleConfig('copilot', {
     default: false,
     env: ['LOCALMIND_ENTERPRISE_CLI_ENABLED', 'boolean'],
     shape: z.boolean(),
+  },
+  'enterpriseCli.allowedProviders': {
+    desc: 'Enterprise CLI providers that users may connect. Instance administrators own this allowlist.',
+    default: ['WECOM', 'LARK', 'DINGTALK'],
+    shape: z.array(EnterpriseCliProviderShape).max(3),
+  },
+  'enterpriseCli.allowedToolsByProvider': {
+    desc: 'Exact Enterprise CLI tool names that LocalMind AI may use for each provider. Use * only when the instance administrator explicitly accepts the full discovered catalog.',
+    default: { wecom: [], lark: [], dingtalk: [] },
+    shape: EnterpriseCliAllowedToolsByProviderShape,
   },
   'enterpriseCli.rootDir': {
     desc: 'Server-controlled root directory for isolated enterprise CLI profiles.',

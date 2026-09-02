@@ -1563,6 +1563,38 @@ export class CopilotAgentRuntimeModel extends BaseModel {
     if (!existing) {
       throw new Error(`Agent runtime run not found: ${input.id}`);
     }
+    return await this.controlExistingRun(input, existing);
+  }
+
+  @Transactional()
+  async controlRunForActor(input: {
+    workspaceId: string;
+    actorId: string;
+    id: string;
+    action: CopilotAgentRuntimeControlAction;
+    reason?: string | null;
+  }): Promise<CopilotAgentRunRecord> {
+    const existing = await this.getForActor(
+      input.workspaceId,
+      input.actorId,
+      input.id
+    );
+    if (!existing) {
+      throw new Error(`Copilot task not found: ${input.id}`);
+    }
+    return await this.controlExistingRun(input, existing);
+  }
+
+  private async controlExistingRun(
+    input: {
+      workspaceId: string;
+      actorId: string;
+      id: string;
+      action: CopilotAgentRuntimeControlAction;
+      reason?: string | null;
+    },
+    existing: CopilotAgentRunRecord
+  ) {
     if (existing.sourceType === 'repair_execution_request') {
       throw new Error(
         'Repair execution Agent Runtime runs must be controlled through repair execution controls'
@@ -2214,6 +2246,19 @@ export class CopilotAgentRuntimeModel extends BaseModel {
     };
   }
 
+  async getForActor(workspaceId: string, actorId: string, id: string) {
+    const rows = await this.db.$queryRaw<Array<{ id: string }>>`
+      SELECT id
+      FROM ai_agent_runs
+      WHERE workspace_id = ${workspaceId}
+        AND actor_id = ${actorId}
+        AND id = ${id}
+        AND source_type <> ${'repair_execution_request'}
+      LIMIT 1
+    `;
+    return rows[0] ? await this.get(workspaceId, id) : null;
+  }
+
   @Transactional()
   async currentLeasedStandaloneRunBeforeAdapterExecution(input: {
     workspaceId: string;
@@ -2322,6 +2367,49 @@ export class CopilotAgentRuntimeModel extends BaseModel {
     `;
     const runs = await Promise.all(
       rows.map(row => this.get(workspaceId, row.id))
+    );
+    return runs.filter((run): run is CopilotAgentRunRecord => !!run);
+  }
+
+  async listForActor(
+    workspaceId: string,
+    actorId: string,
+    options: { filter?: CopilotAgentRunListFilter | null; limit?: number } = {}
+  ) {
+    const limit = normalizeListLimit(options.limit);
+    const filter = normalizeAgentRunListFilter(options.filter);
+    const rows = await this.db.$queryRaw<Array<{ id: string }>>`
+      SELECT id
+      FROM ai_agent_runs
+      WHERE workspace_id = ${workspaceId}
+        AND actor_id = ${actorId}
+        AND source_type <> ${'repair_execution_request'}
+        AND (${filter.status}::varchar IS NULL OR status = ${filter.status})
+        AND (
+          ${filter.workflow}::varchar IS NULL
+          OR workflow = ${filter.workflow}
+        )
+        AND (
+          ${filter.sourceType}::varchar IS NULL
+          OR source_type = ${filter.sourceType}
+        )
+        AND (
+          ${filter.sourceId}::varchar IS NULL
+          OR source_id = ${filter.sourceId}
+        )
+        AND (
+          ${filter.query}::varchar IS NULL
+          OR id = ${filter.query}
+          OR workflow = ${filter.query}
+          OR source_type = ${filter.query}
+          OR source_id = ${filter.query}
+          OR title ILIKE ${filter.query}
+        )
+      ORDER BY created_at DESC, id DESC
+      LIMIT ${limit}
+    `;
+    const runs = await Promise.all(
+      rows.map(row => this.getForActor(workspaceId, actorId, row.id))
     );
     return runs.filter((run): run is CopilotAgentRunRecord => !!run);
   }

@@ -15,6 +15,7 @@ import type { CopilotModelDefinition, CopilotProviderProfile } from '../config';
 import { ModelInputType, ModelOutputType } from '../providers/types';
 import { ByokEntitlementPolicy } from './policy';
 import { runProviderProbe } from './probe';
+import { AiProfileService } from './profile-service';
 import {
   BYOK_ALLOWED_PROVIDERS,
   type ByokFeatureKind,
@@ -82,6 +83,46 @@ export type ByokSettings = {
   }>;
 };
 
+export type AdminByokWorkspaceScope = {
+  id: string;
+  name: string | null;
+  enableAi: boolean;
+  memberCount: number;
+};
+
+type UpsertByokConfigInput = {
+  id?: string | null;
+  workspaceId: string;
+  provider: ByokProvider;
+  name: string;
+  description?: string | null;
+  storage: ByokKeyStorage;
+  apiKey?: string | null;
+  endpoint?: string | null;
+  modelId?: string | null;
+  sortOrder?: number | null;
+  enabled?: boolean | null;
+  userId?: string;
+};
+
+type ReorderByokConfigsInput = {
+  workspaceId: string;
+  storage: ByokKeyStorage;
+  ids: string[];
+  userId?: string;
+};
+
+type TestByokConfigInput = {
+  workspaceId: string;
+  provider: ByokProvider;
+  storage: ByokKeyStorage;
+  apiKey?: string | null;
+  endpoint?: string | null;
+  modelId?: string | null;
+  configId?: string | null;
+  userId?: string;
+};
+
 export type ByokLocalLeaseProvider = {
   provider: ByokProvider;
   name: string;
@@ -121,6 +162,7 @@ export class ByokService {
     private readonly crypto: CryptoHelper,
     private readonly cache: Cache,
     private readonly entitlement: ByokEntitlementPolicy,
+    private readonly profiles: AiProfileService,
     private readonly config: Config
   ) {}
 
@@ -156,6 +198,13 @@ export class ByokService {
       };
     }
 
+    return await this.getAuthorizedSettings(workspaceId, userId);
+  }
+
+  private async getAuthorizedSettings(
+    workspaceId: string,
+    userId?: string
+  ): Promise<ByokSettings> {
     const [serverEntitled, localEntitled] =
       await this.entitlement.hasEntitlement(workspaceId, userId);
     const entitled = serverEntitled || localEntitled;
@@ -197,24 +246,97 @@ export class ByokService {
     };
   }
 
-  async upsertConfig(input: {
-    id?: string | null;
-    workspaceId: string;
-    provider: ByokProvider;
-    name: string;
-    description?: string | null;
-    storage: ByokKeyStorage;
-    apiKey?: string | null;
-    endpoint?: string | null;
-    modelId?: string | null;
-    sortOrder?: number | null;
-    enabled?: boolean | null;
-    userId?: string;
-  }): Promise<ByokKeyConfig> {
+  async listAdminWorkspaceScopes(input: {
+    userId: string;
+    keyword?: string | null;
+    first?: number | null;
+  }): Promise<AdminByokWorkspaceScope[]> {
+    await this.entitlement.assertInstanceManagementAccess(input.userId);
+    const first = Math.min(Math.max(input.first ?? 100, 1), 200);
+    const { rows } = await this.models.workspace.adminListWorkspaces({
+      skip: 0,
+      first,
+      keyword: input.keyword,
+      order: 'createdAt',
+      includeTotal: false,
+    });
+    return rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      enableAi: row.enableAi,
+      memberCount: row.memberCount,
+    }));
+  }
+
+  async getAdminSettings(workspaceId: string, userId: string) {
+    await this.entitlement.assertInstanceManagementAccess(userId);
+    await this.assertWorkspaceExists(workspaceId);
+    return await this.getAuthorizedSettings(workspaceId, userId);
+  }
+
+  async getAdminUsage(
+    workspaceId: string,
+    from: Date,
+    to: Date,
+    userId: string
+  ) {
+    await this.entitlement.assertInstanceManagementAccess(userId);
+    await this.assertWorkspaceExists(workspaceId);
+    return await this.getUsage(workspaceId, from, to);
+  }
+
+  async testAdminConfig(input: TestByokConfigInput & { userId: string }) {
+    await this.entitlement.assertInstanceManagementAccess(input.userId);
+    await this.assertWorkspaceExists(input.workspaceId);
+    if (input.storage !== ByokKeyStorage.server) {
+      throw new BadRequestException(
+        'Instance administrators may only test server BYOK keys.'
+      );
+    }
+    return await this.testAuthorizedConfig(input);
+  }
+
+  async upsertAdminConfig(input: UpsertByokConfigInput & { userId: string }) {
+    await this.entitlement.assertInstanceManagementAccess(input.userId);
+    await this.assertWorkspaceExists(input.workspaceId);
+    return await this.upsertAuthorizedConfig(input);
+  }
+
+  async reorderAdminConfigs(
+    input: ReorderByokConfigsInput & { userId: string }
+  ) {
+    await this.entitlement.assertInstanceManagementAccess(input.userId);
+    await this.assertWorkspaceExists(input.workspaceId);
+    return await this.reorderAuthorizedConfigs(input);
+  }
+
+  async deleteAdminConfig(workspaceId: string, id: string, userId: string) {
+    await this.entitlement.assertInstanceManagementAccess(userId);
+    await this.assertWorkspaceExists(workspaceId);
+    return await this.deleteAuthorizedConfig(workspaceId, id);
+  }
+
+  async clearAdminConfigs(
+    workspaceId: string,
+    provider: ByokProvider | null | undefined,
+    userId: string
+  ) {
+    await this.entitlement.assertInstanceManagementAccess(userId);
+    await this.assertWorkspaceExists(workspaceId);
+    return await this.clearAuthorizedConfigs(workspaceId, provider);
+  }
+
+  async upsertConfig(input: UpsertByokConfigInput): Promise<ByokKeyConfig> {
     await this.entitlement.assertManagementAccess(
       input.workspaceId,
       input.userId
     );
+    return await this.upsertAuthorizedConfig(input);
+  }
+
+  private async upsertAuthorizedConfig(
+    input: UpsertByokConfigInput
+  ): Promise<ByokKeyConfig> {
     await this.entitlement.assertServerEntitled(input.workspaceId);
     this.assertProvider(input.provider);
     if (input.storage !== ByokKeyStorage.server) {
@@ -266,16 +388,15 @@ export class ByokService {
     return this.toKeyConfig(row);
   }
 
-  async reorderConfigs(input: {
-    workspaceId: string;
-    storage: ByokKeyStorage;
-    ids: string[];
-    userId?: string;
-  }) {
+  async reorderConfigs(input: ReorderByokConfigsInput) {
     await this.entitlement.assertManagementAccess(
       input.workspaceId,
       input.userId
     );
+    return await this.reorderAuthorizedConfigs(input);
+  }
+
+  private async reorderAuthorizedConfigs(input: ReorderByokConfigsInput) {
     await this.entitlement.assertServerEntitled(input.workspaceId);
     if (input.storage !== ByokKeyStorage.server) {
       throw new BadRequestException('Only server BYOK keys are persisted.');
@@ -285,11 +406,17 @@ export class ByokService {
       input.ids,
       input.userId
     );
-    return (await this.getSettings(input.workspaceId, input.userId)).keys;
+    return (
+      await this.models.copilotWorkspaceByokConfig.list(input.workspaceId)
+    ).map(row => this.toKeyConfig(row));
   }
 
   async deleteConfig(workspaceId: string, id: string, _userId?: string) {
     await this.entitlement.assertManagementAccess(workspaceId, _userId);
+    return await this.deleteAuthorizedConfig(workspaceId, id);
+  }
+
+  private async deleteAuthorizedConfig(workspaceId: string, id: string) {
     await this.entitlement.assertServerEntitled(workspaceId);
     await this.models.copilotWorkspaceByokConfig.delete(workspaceId, id);
     return true;
@@ -301,25 +428,27 @@ export class ByokService {
     _userId?: string
   ) {
     await this.entitlement.assertManagementAccess(workspaceId, _userId);
+    return await this.clearAuthorizedConfigs(workspaceId, provider);
+  }
+
+  private async clearAuthorizedConfigs(
+    workspaceId: string,
+    provider: ByokProvider | null | undefined
+  ) {
     await this.entitlement.assertServerEntitled(workspaceId);
     await this.models.copilotWorkspaceByokConfig.clear(workspaceId, provider);
     return true;
   }
 
-  async testConfig(input: {
-    workspaceId: string;
-    provider: ByokProvider;
-    storage: ByokKeyStorage;
-    apiKey?: string | null;
-    endpoint?: string | null;
-    modelId?: string | null;
-    configId?: string | null;
-    userId?: string;
-  }) {
+  async testConfig(input: TestByokConfigInput) {
     await this.entitlement.assertManagementAccess(
       input.workspaceId,
       input.userId
     );
+    return await this.testAuthorizedConfig(input);
+  }
+
+  private async testAuthorizedConfig(input: TestByokConfigInput) {
     if (input.storage === ByokKeyStorage.server) {
       await this.entitlement.assertServerEntitled(input.workspaceId);
     } else {
@@ -472,7 +601,7 @@ export class ByokService {
         ? this.getLocalProfiles(context)
         : Promise.resolve([]),
       sources.server && serverEntitled
-        ? this.getServerProfiles(context.workspaceId)
+        ? this.getServerProfiles(context.workspaceId, context.userId)
         : Promise.resolve([]),
     ]);
 
@@ -565,9 +694,14 @@ export class ByokService {
     });
   }
 
-  private async getServerProfiles(workspaceId: string) {
-    const rows =
-      await this.models.copilotWorkspaceByokConfig.listEnabled(workspaceId);
+  private async getServerProfiles(workspaceId: string, userId?: string) {
+    const credentialIds = await this.profiles.resolveCredentialIds(
+      workspaceId,
+      userId
+    );
+    const rows = (
+      await this.models.copilotWorkspaceByokConfig.listEnabled(workspaceId)
+    ).filter(row => credentialIds === null || credentialIds.includes(row.id));
 
     return rows
       .filter(row => isByokProvider(row.provider))
@@ -788,6 +922,12 @@ export class ByokService {
         requiredProviders: [ByokProvider.gemini],
       },
     ];
+  }
+
+  private async assertWorkspaceExists(workspaceId: string) {
+    if (!(await this.models.workspace.get(workspaceId))) {
+      throw new BadRequestException('Workspace not found.');
+    }
   }
 
   private normalizeEndpoint(endpoint?: string | null) {

@@ -1,6 +1,5 @@
 import {
   Button,
-  Checkbox,
   ErrorMessage,
   IconButton,
   Input,
@@ -24,7 +23,7 @@ import {
   OpenInNewIcon,
 } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { IntegrationSettingHeader } from '../setting';
 import {
@@ -54,6 +53,7 @@ export const EnterpriseSettingPanel = () => {
   const workspaceId = useService(WorkspaceService).workspace.id;
   const service = useService(EnterpriseService);
   const connections = useLiveData(service.connections$);
+  const policy = useLiveData(service.policy$);
   const authorization = useLiveData(service.authorization$);
   const loading = useLiveData(service.loading$);
   const error = useLiveData(service.error$);
@@ -63,6 +63,14 @@ export const EnterpriseSettingPanel = () => {
   const [mutating, setMutating] = useState<string | null>(null);
   const completedSessionRef = useRef<string | null>(null);
   const resumedConnectionRef = useRef<string | null>(null);
+  const allowedProviders = useMemo(
+    () => new Set(policy?.allowedProviders ?? []),
+    [policy?.allowedProviders]
+  );
+  const availableProviders = useMemo(
+    () => PROVIDERS.filter(value => allowedProviders.has(value)),
+    [allowedProviders]
+  );
 
   const providerLabel = useCallback(
     (value: EnterpriseProvider) => {
@@ -86,16 +94,23 @@ export const EnterpriseSettingPanel = () => {
   useEffect(() => revalidate(), [revalidate]);
 
   useEffect(() => {
+    if (availableProviders.length && !availableProviders.includes(provider)) {
+      setProvider(availableProviders[0]);
+    }
+  }, [availableProviders, provider]);
+
+  useEffect(() => {
     const candidate = connections?.find(
       connection =>
         connection.status === 'CONNECTING' &&
+        allowedProviders.has(connection.provider) &&
         connection.id !== resumedConnectionRef.current
     );
     if (!candidate || authorization) return;
     resumedConnectionRef.current = candidate.id;
     // oxlint-disable-next-line @typescript-eslint/no-floating-promises
     service.resumeLatestAuthorization(workspaceId, candidate.id);
-  }, [authorization, connections, service, workspaceId]);
+  }, [allowedProviders, authorization, connections, service, workspaceId]);
 
   useEffect(() => {
     if (
@@ -121,6 +136,7 @@ export const EnterpriseSettingPanel = () => {
   );
 
   const connect = useAsyncCallback(async () => {
+    if (!allowedProviders.has(provider)) return;
     setMutating('connect');
     try {
       await service.createAndAuthorize({
@@ -134,7 +150,7 @@ export const EnterpriseSettingPanel = () => {
     } finally {
       setMutating(null);
     }
-  }, [name, provider, service, workspaceId]);
+  }, [allowedProviders, name, provider, service, workspaceId]);
 
   const reauthorize = useAsyncCallback(
     async (connection: EnterpriseConnection) => {
@@ -167,29 +183,6 @@ export const EnterpriseSettingPanel = () => {
       setMutating(`refresh:${connectionId}`);
       try {
         await service.refreshConnection(workspaceId, connectionId);
-      } catch (error) {
-        notify.error({ error: UserFriendlyError.fromAny(error) });
-      } finally {
-        setMutating(null);
-      }
-    },
-    [service, workspaceId]
-  );
-
-  const toggleTool = useAsyncCallback(
-    async (
-      connection: EnterpriseConnection,
-      toolName: string,
-      checked: boolean
-    ) => {
-      setMutating(`tool:${connection.id}:${toolName}`);
-      const enabled = new Set(connection.enabledToolNames);
-      if (checked) enabled.add(toolName);
-      else enabled.delete(toolName);
-      try {
-        await service.updateToolAllowlist(workspaceId, connection.id, [
-          ...enabled,
-        ]);
       } catch (error) {
         notify.error({ error: UserFriendlyError.fromAny(error) });
       } finally {
@@ -260,48 +253,62 @@ export const EnterpriseSettingPanel = () => {
         desc={t['com.affine.integration.enterprise.desc']()}
       />
 
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <div>
-            <div className={styles.title}>
-              {t['com.affine.integration.enterprise.connect.title']()}
+      {policy ? (
+        policy.enabled && availableProviders.length ? (
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <div className={styles.title}>
+                  {t['com.affine.integration.enterprise.connect.title']()}
+                </div>
+                <div className={styles.description}>
+                  {t['com.affine.integration.enterprise.connect.description']()}
+                </div>
+              </div>
             </div>
-            <div className={styles.description}>
-              {t['com.affine.integration.enterprise.connect.description']()}
+            <div className={styles.body}>
+              <div className={styles.providerSelector}>
+                {availableProviders.map(value => (
+                  <button
+                    type="button"
+                    className={styles.providerOption}
+                    data-selected={provider === value}
+                    disabled={!!mutating}
+                    key={value}
+                    onClick={() => setProvider(value)}
+                  >
+                    {providerLabel(value)}
+                  </button>
+                ))}
+              </div>
+              <label className={styles.field}>
+                <span>
+                  {t['com.affine.integration.enterprise.field.name']()}
+                </span>
+                <Input value={name} maxLength={128} onChange={setName} />
+              </label>
+              <div className={styles.actions}>
+                <Button
+                  variant="primary"
+                  loading={mutating === 'connect'}
+                  disabled={!!mutating}
+                  onClick={connect}
+                >
+                  {t['com.affine.integration.enterprise.action.connect']()}
+                </Button>
+              </div>
             </div>
-          </div>
-        </div>
-        <div className={styles.body}>
-          <div className={styles.providerSelector}>
-            {PROVIDERS.map(value => (
-              <button
-                type="button"
-                className={styles.providerOption}
-                data-selected={provider === value}
-                disabled={!!mutating}
-                key={value}
-                onClick={() => setProvider(value)}
-              >
-                {providerLabel(value)}
-              </button>
-            ))}
-          </div>
-          <label className={styles.field}>
-            <span>{t['com.affine.integration.enterprise.field.name']()}</span>
-            <Input value={name} maxLength={128} onChange={setName} />
-          </label>
-          <div className={styles.actions}>
-            <Button
-              variant="primary"
-              loading={mutating === 'connect'}
-              disabled={!!mutating}
-              onClick={connect}
-            >
-              {t['com.affine.integration.enterprise.action.connect']()}
-            </Button>
-          </div>
-        </div>
-      </section>
+          </section>
+        ) : (
+          <section className={styles.panel}>
+            <div className={styles.empty}>
+              {policy.enabled
+                ? t['com.affine.integration.enterprise.policy.no-providers']()
+                : t['com.affine.integration.enterprise.policy.disabled']()}
+            </div>
+          </section>
+        )
+      ) : null}
 
       {authorization ? (
         <AuthorizationPanel
@@ -336,12 +343,12 @@ export const EnterpriseSettingPanel = () => {
               connection={connection}
               key={connection.id}
               mutating={mutating}
+              providerAllowed={allowedProviders.has(connection.provider)}
               providerLabel={providerLabel}
               onAuthorize={reauthorize}
               onDelete={confirmDelete}
               onDisable={disable}
               onRefresh={refresh}
-              onToggleTool={toggleTool}
             />
           ))}
         </div>
@@ -506,7 +513,7 @@ const ConnectionPanel = ({
   onRefresh,
   onDisable,
   onDelete,
-  onToggleTool,
+  providerAllowed,
 }: {
   connection: EnterpriseConnection;
   providerLabel: (provider: EnterpriseProvider) => string;
@@ -515,14 +522,9 @@ const ConnectionPanel = ({
   onRefresh: (connectionId: string) => void;
   onDisable: (connectionId: string) => void;
   onDelete: (connection: EnterpriseConnection) => void;
-  onToggleTool: (
-    connection: EnterpriseConnection,
-    toolName: string,
-    checked: boolean
-  ) => void;
+  providerAllowed: boolean;
 }) => {
   const t = useI18n();
-  const enabled = new Set(connection.enabledToolNames);
   const disabled = connection.status === 'DISABLED';
   return (
     <section className={styles.panel}>
@@ -551,17 +553,22 @@ const ConnectionPanel = ({
         {connection.lastErrorMessage ? (
           <div className={styles.error}>{connection.lastErrorMessage}</div>
         ) : null}
+        {!providerAllowed ? (
+          <div className={styles.error}>
+            {t['com.affine.integration.enterprise.policy.provider-blocked']()}
+          </div>
+        ) : null}
         <div className={styles.actions}>
           <Button
             loading={mutating === `authorize:${connection.id}`}
-            disabled={!!mutating}
+            disabled={!!mutating || !providerAllowed}
             onClick={() => onAuthorize(connection)}
           >
             {t['com.affine.integration.enterprise.action.authorize']()}
           </Button>
           <Button
             loading={mutating === `refresh:${connection.id}`}
-            disabled={!!mutating || disabled}
+            disabled={!!mutating || disabled || !providerAllowed}
             onClick={() => onRefresh(connection.id)}
           >
             {t['com.affine.integration.enterprise.action.refresh']()}
@@ -599,14 +606,13 @@ const ConnectionPanel = ({
                   {tool.description}
                 </div>
               </div>
-              <Checkbox
-                checked={enabled.has(tool.name)}
-                disabled={!!mutating || connection.status !== 'ACTIVE'}
-                label={t['com.affine.integration.enterprise.tool.enabled']()}
-                onChange={(_, checked) =>
-                  onToggleTool(connection, tool.name, checked)
-                }
-              />
+              <span className={styles.toolPolicy}>
+                {tool.enabled
+                  ? t['com.affine.integration.enterprise.tool.admin-managed']()
+                  : t[
+                      'com.affine.integration.enterprise.tool.refresh-required'
+                    ]()}
+              </span>
             </div>
           ))}
         </div>

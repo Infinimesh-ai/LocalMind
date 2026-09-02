@@ -34,7 +34,7 @@ export const validatePassword = (
   ) {
     return {
       valid: false,
-      error: 'Invalid password format',
+      error: `Password must be between ${passwordLimits.minLength} and ${passwordLimits.maxLength} characters.`,
     };
   }
 

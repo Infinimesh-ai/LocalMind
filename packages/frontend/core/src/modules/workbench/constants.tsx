@@ -2,6 +2,7 @@ import {
   AiIcon,
   AllDocsIcon,
   AttachmentIcon,
+  CheckBoxCheckLinearIcon,
   DeleteIcon,
   EdgelessIcon,
   ExportToPdfIcon,
@@ -24,6 +25,7 @@ export const iconNameToIcon = {
   attachment: <AttachmentIcon />,
   pdf: <ExportToPdfIcon />,
   ai: <AiIcon />,
+  tasks: <CheckBoxCheckLinearIcon />,
 } satisfies Record<string, ReactNode>;
 
 export type ViewIconName = keyof typeof iconNameToIcon;

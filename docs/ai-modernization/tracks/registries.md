@@ -273,7 +273,7 @@ Implemented behavior:
 4. OpenAI-compatible key validation uses a minimal `POST /responses` call with
    the exact model id and safe response handling; model id normalization rejects
    blank or overlong values before persistence or network testing.
-5. Workspace Settings threads the model id through test/save/edit/local-lease
+5. The Admin AI credential form threads the model id through test/save/edit
    flows, displays it on the key row, and invalidates the previous successful
    test when the model changes.
 6. Focused backend route coverage proves that a bound custom model selects the
@@ -293,8 +293,68 @@ Implemented behavior:
     and feature. Missing coverage raises `COPILOT_BYOK_NOT_CONFIGURED`; platform
     quota is not checked, the compatibility quota API reports unlimited, and
     replayed turns cannot opt back into quota-backed routing. Chat and action
-    error states provide a localized button that opens the current workspace's
-    BYOK settings directly.
+    error states tell members to contact the LocalMind instance administrator.
+
+## Workspace AI Credential Governance Migration
+
+LocalMind self-hosted deployments use one instance per company and treat
+workspaces as department boundaries. Workspace AI credentials therefore belong
+to instance administration rather than to individual workspace members.
+
+The first migration slice keeps `ai_workspace_byok_configs` as the runtime
+credential source while changing its control plane:
+
+1. Only instance administrators may list workspace AI credential scopes, read
+   credential metadata and usage, test credentials, or create, update, reorder,
+   disable, and delete server-stored BYOK entries.
+2. The Admin AI configuration surface manages those entries by workspace even
+   when the instance administrator is not a member of the target workspace.
+3. The main product removes Workspace BYOK navigation and write flows. Missing
+   AI coverage tells members to contact an instance administrator instead of
+   directing them to a credential form.
+4. Electron no longer creates new local BYOK leases. Previously issued leases
+   remain bounded by their existing short TTL and expire without migration.
+5. Enterprise CLI drivers such as WeCom, Lark, and DingTalk keep a split
+   responsibility model: instance administrators own driver availability and
+   tool admission, while users own authorization, refresh, and revocation for
+   their external account.
+6. `/admin/ai` owns all BYOK policy switches, including private-network
+   endpoints. The duplicate `/admin/settings` group and unreachable main-product
+   BYOK components, tests, and dedicated translations are removed.
+
+The DB-backed AI Profile and assignment slice is now implemented:
+
+1. `ai_workspace_profiles`, `ai_workspace_profile_credentials`, and
+   `ai_user_ai_profile_assignments` persist workspace-owned routing profiles,
+   their approved BYOK credentials, and one explicit user assignment.
+2. Runtime resolution prefers an active member's explicit assignment, then the
+   enabled workspace default. Legacy enabled BYOK credentials remain a
+   compatibility fallback only while the workspace has no Profile records.
+3. Composite foreign keys prevent cross-workspace credential and assignment
+   references, and a partial unique index permits only one default Profile per
+   workspace.
+4. Admin can create, edit, disable, default, and delete Profiles, and can set or
+   change the user's default AI Profile during account creation or later edits.
+5. Assignments reference credentials and never copy API keys into user records.
+
+Provider Profile secret round-tripping is also removed from the Admin JSON
+editor. Admin reads and mutation responses replace `config.apiKey` with a fixed
+redaction sentinel. Updates preserve an existing secret only when the same
+Profile id returns that sentinel; a new Profile cannot use the sentinel as a
+secret.
+
+Enterprise CLI governance now enforces the responsibility split at runtime:
+
+1. Instance configuration owns `enterpriseCli.allowedProviders` and
+   `enterpriseCli.allowedToolsByProvider`; the Admin AI page edits both.
+2. Creating or reauthorizing a connection checks the current provider policy.
+3. Catalog refresh persists only admitted tools, and query/runtime execution
+   recheck the live policy so a later restriction takes effect immediately.
+4. Tool admission defaults to empty. Exact tool names are accepted, while `*`
+   is an explicit administrator decision to allow the full discovered catalog.
+5. Users retain personal authorization, refresh, disable, and delete controls,
+   but the user-facing tool toggles are removed and the old GraphQL mutation is
+   rejected.
 
 ## Implemented Provider Health State Persistence Slice
 

@@ -1,0 +1,37 @@
+mutation controlCopilotTask($input: CopilotTaskControlInput!) {
+  controlCopilotTask(input: $input) {
+    id
+    title
+    workflow
+    status
+    createdAt
+    updatedAt
+    startedAt
+    completedAt
+    failureCode
+    failureMessage
+    resultSummary
+    availableActions
+    approval {
+      stepId
+      status
+      title
+      decidedAt
+    }
+    artifacts {
+      kind
+      id
+      title
+    }
+    steps {
+      id
+      key
+      type
+      status
+      title
+      order
+      startedAt
+      completedAt
+    }
+  }
+}

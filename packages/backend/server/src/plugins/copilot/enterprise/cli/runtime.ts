@@ -68,6 +68,16 @@ export class EnterpriseCliRuntime {
         'Enterprise CLI integrations are disabled'
       );
     }
+    if (
+      !this.config.copilot.enterpriseCli.allowedProviders.includes(
+        input.provider
+      )
+    ) {
+      throw new EnterpriseCliRuntimeError(
+        'enterprise_cli_provider_disabled',
+        'Enterprise CLI provider is disabled by the instance administrator'
+      );
+    }
     this.assertProfileKey(input.profileKey);
     this.assertArgs(input.args);
     if (

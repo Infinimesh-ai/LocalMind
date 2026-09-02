@@ -4,6 +4,7 @@ import { set } from 'lodash-es';
 import {
   ConfigFactory,
   EventBus,
+  InvalidAppConfig,
   InvalidAppConfigInput,
   OnEvent,
 } from '../../base';
@@ -22,6 +23,15 @@ declare global {
       updates: DeepPartial<AppConfig>;
     };
   }
+}
+
+export const APP_CONFIG_SECRET_REDACTED =
+  '__LOCALMIND_SECRET_REDACTED__' as const;
+
+type AppConfigUpdate = { module: string; key: string; value: any };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 @Injectable()
@@ -65,15 +75,69 @@ export class ServerService implements OnApplicationBootstrap {
     return this.configFactory.clone();
   }
 
-  validateConfig(updates: Array<{ module: string; key: string; value: any }>) {
-    return this.configFactory.validate(updates);
+  getAdminConfig() {
+    return this.redactConfig(this.getConfig());
+  }
+
+  redactConfig<T extends DeepPartial<AppConfig>>(config: T): T {
+    const redacted = structuredClone(config);
+    if (!isRecord(redacted)) {
+      return redacted;
+    }
+
+    const redactedRecord = redacted as Record<string, unknown>;
+    const copilot = redactedRecord['copilot'];
+    if (!isRecord(copilot)) {
+      return redacted;
+    }
+
+    const copilotRecord = copilot as Record<string, unknown>;
+    const providers = copilotRecord['providers'];
+    if (!isRecord(providers)) {
+      return redacted;
+    }
+
+    const providersRecord = providers as Record<string, unknown>;
+    const profiles = providersRecord['profiles'];
+    if (!Array.isArray(profiles)) {
+      return redacted;
+    }
+
+    providersRecord['profiles'] = profiles.map(profile => {
+      if (!isRecord(profile)) {
+        return profile;
+      }
+      const profileRecord = profile as Record<string, unknown>;
+      const profileConfig = profileRecord['config'];
+      if (!isRecord(profileConfig)) {
+        return profile;
+      }
+      if (typeof profileConfig['apiKey'] !== 'string') {
+        return profile;
+      }
+      return {
+        ...profile,
+        config: {
+          ...profileConfig,
+          apiKey: APP_CONFIG_SECRET_REDACTED,
+        },
+      };
+    });
+    return redacted;
+  }
+
+  validateConfig(updates: AppConfigUpdate[]) {
+    const prepared = this.prepareConfigUpdates(updates);
+    return prepared.errors ?? this.configFactory.validate(prepared.updates);
   }
 
   async updateConfig(
     user: string,
-    updates: Array<{ module: string; key: string; value: any }>
+    updates: AppConfigUpdate[]
   ): Promise<DeepPartial<AppConfig>> {
-    const errors = this.validateConfig(updates);
+    const prepared = this.prepareConfigUpdates(updates);
+    const errors =
+      prepared.errors ?? this.configFactory.validate(prepared.updates);
 
     if (errors?.length) {
       throw new InvalidAppConfigInput({
@@ -83,7 +147,7 @@ export class ServerService implements OnApplicationBootstrap {
 
     const promises = await this.models.appConfig.save(
       user,
-      updates.map(update => ({
+      prepared.updates.map(update => ({
         key: `${update.module}.${update.key}`,
         value: update.value,
       }))
@@ -102,6 +166,70 @@ export class ServerService implements OnApplicationBootstrap {
     await this.event.emitAsync('config.changed', { updates: overrides });
     this.event.broadcast('config.changed.broadcast', { updates: overrides });
     return overrides;
+  }
+
+  private prepareConfigUpdates(updates: AppConfigUpdate[]): {
+    updates: AppConfigUpdate[];
+    errors: InvalidAppConfig[] | null;
+  } {
+    const currentProfiles = this.configFactory.clone().copilot.providers
+      .profiles as unknown;
+    const currentById = new Map(
+      Array.isArray(currentProfiles)
+        ? currentProfiles
+            .filter(
+              (profile): profile is Record<string, unknown> =>
+                isRecord(profile) && typeof profile.id === 'string'
+            )
+            .map(profile => [profile.id as string, profile])
+        : []
+    );
+    const errors: InvalidAppConfig[] = [];
+
+    const prepared = updates.map(update => {
+      if (
+        update.module !== 'copilot' ||
+        update.key !== 'providers.profiles' ||
+        !Array.isArray(update.value)
+      ) {
+        return update;
+      }
+
+      const value = update.value.map((profile: unknown) => {
+        if (!isRecord(profile) || !isRecord(profile.config)) {
+          return profile;
+        }
+        if (profile.config.apiKey !== APP_CONFIG_SECRET_REDACTED) {
+          return profile;
+        }
+
+        const current =
+          typeof profile.id === 'string' ? currentById.get(profile.id) : null;
+        const currentConfig = current?.config;
+        const apiKey = isRecord(currentConfig) ? currentConfig.apiKey : null;
+        if (typeof apiKey !== 'string') {
+          errors.push(
+            new InvalidAppConfig({
+              module: update.module,
+              key: update.key,
+              hint: 'A redacted Provider Profile API key can only preserve an existing profile secret.',
+            })
+          );
+          return profile;
+        }
+        return {
+          ...profile,
+          config: {
+            ...profile.config,
+            apiKey,
+          },
+        };
+      });
+
+      return { ...update, value };
+    });
+
+    return { updates: prepared, errors: errors.length ? errors : null };
   }
 
   @OnEvent('config.changed.broadcast')

@@ -18,6 +18,7 @@ import { CommentAttachmentModel } from './comment-attachment';
 import { AppConfigModel } from './config';
 import { CopilotActionRunModel } from './copilot-action-run';
 import { CopilotAgentRuntimeModel } from './copilot-agent-runtime';
+import { CopilotAiProfileModel } from './copilot-ai-profile';
 import { CopilotWorkspaceByokConfigModel } from './copilot-byok';
 import { CopilotContextModel } from './copilot-context';
 import { CopilotContextMemoryModel } from './copilot-context-memory';
@@ -95,6 +96,7 @@ const MODELS = {
   copilotTranscriptTask: CopilotTranscriptTaskModel,
   copilotActionRun: CopilotActionRunModel,
   copilotAgentRuntime: CopilotAgentRuntimeModel,
+  copilotAiProfile: CopilotAiProfileModel,
   copilotContext: CopilotContextModel,
   copilotContextMemory: CopilotContextMemoryModel,
   copilotContextRule: CopilotContextRuleModel,
@@ -185,6 +187,7 @@ export * from './comment';
 export * from './comment-attachment';
 export * from './common';
 export * from './copilot-agent-runtime';
+export * from './copilot-ai-profile';
 export * from './copilot-byok';
 export * from './copilot-context';
 export * from './copilot-context-memory';

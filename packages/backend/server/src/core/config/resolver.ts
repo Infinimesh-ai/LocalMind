@@ -233,7 +233,7 @@ export class AppConfigResolver {
     description: 'get the whole app configuration',
   })
   appConfig() {
-    return this.service.getConfig();
+    return this.service.getAdminConfig();
   }
 
   @Mutation(() => GraphQLJSONObject, {
@@ -244,7 +244,9 @@ export class AppConfigResolver {
     @Args('updates', { type: () => [UpdateAppConfigInput] })
     updates: UpdateAppConfigInput[]
   ): Promise<DeepPartial<AppConfig>> {
-    return await this.service.updateConfig(me.id, updates);
+    return this.service.redactConfig(
+      await this.service.updateConfig(me.id, updates)
+    );
   }
 
   @Query(() => [AppConfigValidateResult], {

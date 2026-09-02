@@ -1,0 +1,8 @@
+query adminWorkspaceByokScopes($keyword: String, $first: SafeInt) {
+  adminWorkspaceByokScopes(keyword: $keyword, first: $first) {
+    id
+    name
+    enableAi
+    memberCount
+  }
+}

@@ -7,7 +7,6 @@ import { describe, expect, test, vi } from 'vitest';
 vi.mock('@affine/i18n', () => ({
   I18n: {
     Cancel: () => 'Cancel',
-    'com.affine.ai.error.configure-byok': () => 'Configure BYOK',
   },
 }));
 
@@ -15,21 +14,18 @@ import { ByokNotConfiguredError } from '../../../../provider';
 import { renderByokNotConfiguredError } from './error';
 
 describe('AIPanelError', () => {
-  test('offers a direct BYOK configuration action', () => {
-    const configureByok = vi.fn();
+  test('shows administrator guidance without a credential action', () => {
+    const cancel = vi.fn();
     const template = renderByokNotConfiguredError({
-      cancel: vi.fn(),
-      configureByok,
-      error: new ByokNotConfiguredError(
-        'Configure a provider before using AI.'
-      ),
+      cancel,
+      error: new ByokNotConfiguredError('Contact your administrator.'),
     });
-    const [message, , , onConfigureByok, actionText] = template.values;
+    const [message, onCancel, actionText] = template.values;
 
-    expect(message).toBe('Configure a provider before using AI.');
-    expect(actionText).toBe('Configure BYOK');
+    expect(message).toBe('Contact your administrator.');
+    expect(actionText).toBe('Cancel');
 
-    (onConfigureByok as () => void)();
-    expect(configureByok).toHaveBeenCalledOnce();
+    (onCancel as () => void)();
+    expect(cancel).toHaveBeenCalledOnce();
   });
 });

@@ -1,0 +1,21 @@
+mutation upsertAdminAiProfile($input: UpsertAdminAiProfileInput!) {
+  upsertAdminAiProfile(input: $input) {
+    id
+    workspaceId
+    workspaceName
+    name
+    description
+    enabled
+    isDefault
+    credentialIds
+    credentials {
+      id
+      provider
+      name
+      modelId
+      enabled
+    }
+    createdAt
+    updatedAt
+  }
+}

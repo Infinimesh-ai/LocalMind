@@ -1,8 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
-import { UserFriendlyError } from '@affine/error';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 
 import { resolveActionPromptName } from './action-definitions';
 import { type CopilotClient, Endpoint } from './copilot-client';
@@ -16,46 +15,11 @@ Object.defineProperty(globalThis, 'EventSource', {
   },
 });
 
-const electronApis = vi.hoisted(() => ({
-  byokStorage: undefined as
-    | {
-        isSupported: () => Promise<boolean>;
-        getWorkspaceLeaseProviders: (workspaceId: string) => Promise<
-          Array<{
-            provider: string;
-            name: string;
-            apiKey: string;
-            description?: string | null;
-            endpoint?: string | null;
-            modelId?: string | null;
-            sortOrder?: number | null;
-            enabled?: boolean | null;
-          }>
-        >;
-      }
-    | undefined,
-}));
-
-const createWorkspaceByokLocalLeaseMutation = vi.hoisted(() =>
-  Symbol('createWorkspaceByokLocalLeaseMutation')
-);
-
-vi.mock('@affine/electron-api', () => ({
-  apis: electronApis,
-}));
-
 vi.mock('@affine/graphql', () => ({
-  ByokProvider: {
-    openai: 'openai',
-    anthropic: 'anthropic',
-    gemini: 'gemini',
-    fal: 'fal',
-  },
   ContextCategories: {
     Tag: 'tag',
     Collection: 'collection',
   },
-  createWorkspaceByokLocalLeaseMutation,
 }));
 
 function createClosedEventSource(): EventSource {
@@ -81,9 +45,7 @@ function createClient(
   > = {}
 ) {
   return {
-    gql: vi.fn().mockResolvedValue({
-      createWorkspaceByokLocalLease: { leaseId: 'lease-1' },
-    }),
+    gql: vi.fn().mockResolvedValue({}),
     createSession: vi.fn().mockImplementation(async options => {
       return `session:${options.promptName}`;
     }),
@@ -110,49 +72,8 @@ async function drainActionResult(
   await drain(stream as AsyncIterable<unknown>);
 }
 
-describe('runtime request transport BYOK local lease handling', () => {
-  beforeEach(() => {
-    vi.stubGlobal('BUILD_CONFIG', { isElectron: true });
-    electronApis.byokStorage = {
-      isSupported: vi.fn().mockResolvedValue(true),
-      getWorkspaceLeaseProviders: vi.fn().mockResolvedValue([
-        {
-          provider: 'openai',
-          name: 'OpenAI',
-          apiKey: 'sk-local',
-          modelId: 'gpt-5.6-sol',
-        },
-      ]),
-    };
-  });
-
-  test('fails closed when local BYOK providers exist but lease creation fails', async () => {
-    const client = createClient({
-      gql: vi.fn().mockRejectedValue(new Error('mutation failed')),
-    });
-
-    const result = textToText({
-      client,
-      sessionId: 'session-1',
-      workspaceId: 'workspace-1',
-      content: 'hello',
-    }) as Promise<string>;
-
-    await expect(result).rejects.toThrow('mutation failed');
-    await expect(result).rejects.toBeInstanceOf(UserFriendlyError);
-    expect(client.gql).toHaveBeenCalledWith(
-      expect.objectContaining({
-        variables: expect.objectContaining({
-          input: expect.objectContaining({
-            providers: [expect.objectContaining({ modelId: 'gpt-5.6-sol' })],
-          }),
-        }),
-      })
-    );
-    expect(client.chatTextStream).not.toHaveBeenCalled();
-  });
-
-  test('does not create stream local BYOK lease after cancellation', async () => {
+describe('runtime request transport', () => {
+  test('does not create a stream after cancellation', async () => {
     const controller = new AbortController();
     const client = createClient({
       createMessage: vi.fn().mockImplementation(async () => {
@@ -176,12 +97,12 @@ describe('runtime request transport BYOK local lease handling', () => {
     expect(client.chatTextStream).not.toHaveBeenCalled();
   });
 
-  test('does not create image stream when cancelled while creating local BYOK lease', async () => {
+  test('does not create an image stream after cancellation', async () => {
     const controller = new AbortController();
     const client = createClient({
-      gql: vi.fn().mockImplementation(async () => {
+      createMessage: vi.fn().mockImplementation(async () => {
         controller.abort();
-        return { createWorkspaceByokLocalLease: { leaseId: 'lease-1' } };
+        return 'message-1';
       }),
     });
 
@@ -196,17 +117,12 @@ describe('runtime request transport BYOK local lease handling', () => {
       }) as AsyncIterable<string>
     );
 
-    expect(client.gql).toHaveBeenCalled();
+    expect(client.gql).not.toHaveBeenCalled();
     expect(client.imagesStream).not.toHaveBeenCalled();
   });
 });
 
 describe('AIRequestService action definitions', () => {
-  beforeEach(() => {
-    vi.stubGlobal('BUILD_CONFIG', { isElectron: false });
-    electronApis.byokStorage = undefined;
-  });
-
   test('resolves static and dynamic action prompt names', () => {
     expect(
       resolveActionPromptName('createSlides', {

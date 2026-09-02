@@ -11,7 +11,6 @@ export const AIAppEvents = {
     template: string;
     mode: 'page' | 'edgeless';
   }>(),
-  requestConfigureByok: new Subject<{ host?: EditorHost | null }>(),
   requestLogin: new Subject<{ host?: EditorHost | null }>(),
   requestUpgradePlan: new Subject<{ host?: EditorHost | null }>(),
   userInfo: new BehaviorSubject<AIUserInfo | null>(null),

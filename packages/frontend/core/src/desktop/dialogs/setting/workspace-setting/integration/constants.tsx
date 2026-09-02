@@ -1,9 +1,8 @@
 import { IntegrationTypeIcon } from '@affine/core/modules/integration';
 import type { I18nString } from '@affine/i18n';
-import { AiIcon, CollaborationIcon, TodayIcon } from '@blocksuite/icons/rc';
+import { CollaborationIcon, TodayIcon } from '@blocksuite/icons/rc';
 import type { ReactNode } from 'react';
 
-import { WorkspaceByokSetting } from '../byok';
 import { CalendarSettingPanel } from './calendar/setting-panel';
 import { EnterpriseSettingPanel } from './enterprise/setting-panel';
 import { ExternalMcpSettingPanel } from './external-mcp/setting-panel';
@@ -17,7 +16,6 @@ type IntegrationCard = {
   desc: I18nString;
   icon: ReactNode;
   cloud?: boolean;
-  byok?: boolean;
   admin?: boolean;
 } & ({ setting: ReactNode } | { link: string });
 
@@ -62,14 +60,6 @@ const INTEGRATION_LIST = [
     cloud: true,
     admin: true,
   },
-  {
-    id: 'byok' as const,
-    name: 'com.affine.settings.workspace.byok.title',
-    desc: 'com.affine.settings.workspace.byok.subtitle',
-    icon: <AiIcon />,
-    setting: <WorkspaceByokSetting />,
-    byok: true,
-  },
 ] satisfies (IntegrationCard | false)[];
 
 type IntegrationId = Exclude<
@@ -83,12 +73,10 @@ export type IntegrationItem = Exclude<IntegrationCard, 'id'> & {
 
 export function getAllowedIntegrationList(
   isCloudWorkspace: boolean,
-  showByok: boolean,
-  showAdminIntegrations = showByok
+  showAdminIntegrations: boolean
 ) {
   return INTEGRATION_LIST.filter(item => {
     if (!item) return false;
-    if ('byok' in item && item.byok && !showByok) return false;
     if ('admin' in item && item.admin && !showAdminIntegrations) return false;
     const requiredCloud = 'cloud' in item && item.cloud;
     if (requiredCloud && !isCloudWorkspace) return false;

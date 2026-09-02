@@ -190,7 +190,7 @@ export class McpAiTaskQueryService {
       name: 'get_localmind_task',
       title: 'Check a LocalMind Task',
       description:
-        "Use ONLY after delegate_to_localmind has returned a taskId. Read that task's status, sanitized plan, steps, final result, errors, and artifact references. This read-only tool never starts, executes, retries, or cancels work and does not accept a natural-language task. If terminal is false, wait for pollAfterMs and call this tool again, or use knownStateVersion with waitMs for a bounded long poll. Never use this tool for a new user request.",
+        "Use ONLY when the user asks for the status, progress, or final result of an existing task whose taskId was returned by delegate_to_localmind. Read that task's sanitized plan, steps, final result, errors, and artifact references. This read-only tool never starts, executes, retries, or cancels work and does not accept a natural-language task. Never create or guess a taskId. If terminal is false, wait for pollAfterMs and call this tool again, or use knownStateVersion with waitMs for a bounded long poll. Follow-ups that request additional work, revisions, continuations, or retries must use delegate_to_localmind instead.",
       parser: GetLocalMindTaskInput,
       outputSchema: RESULT_OUTPUT_SCHEMA,
       annotations: READ_ONLY_TOOL,
@@ -366,18 +366,31 @@ export class McpAiTaskQueryService {
       };
     }
 
-    try {
-      await this.attachments.authorizeReferences({
-        workspaceId: record.workspaceId,
-        actorId: record.actorId,
-        credentialFamilyId: record.credentialFamilyId,
-        attachmentIds: record.requestedAttachmentIds,
-      });
-    } catch (error) {
-      if (error instanceof McpAttachmentReferenceError) {
-        return { error: error.result };
+    const persistedResult =
+      record.result &&
+      typeof record.result === 'object' &&
+      !Array.isArray(record.result)
+        ? (record.result as Record<string, unknown>)
+        : {};
+    const attachmentsWereExpectedToPersist =
+      !['credential_scope_denied', 'permission_denied'].includes(
+        record.status
+      ) &&
+      stringValue(persistedResult.code) !== 'attachment_persistence_failed';
+    if (attachmentsWereExpectedToPersist) {
+      try {
+        await this.attachments.authorizeReferences({
+          workspaceId: record.workspaceId,
+          actorId: record.actorId,
+          credentialFamilyId: record.credentialFamilyId,
+          attachmentIds: record.requestedAttachmentIds,
+        });
+      } catch (error) {
+        if (error instanceof McpAttachmentReferenceError) {
+          return { error: error.result };
+        }
+        return { error: { code: 'resource_not_accessible' } };
       }
-      return { error: { code: 'resource_not_accessible' } };
     }
 
     const documentAccess = await Promise.all(
@@ -674,6 +687,7 @@ export class McpAiTaskQueryService {
       'attachment_evidence_mismatch',
       'attachment_limit_exceeded',
       'attachment_materialization_failed',
+      'attachment_persistence_failed',
       'attachment_total_size_exceeded',
       'context_too_large',
       'credential_inactive',
@@ -702,6 +716,8 @@ export class McpAiTaskQueryService {
       attachment_limit_exceeded: 'The task contains too many attachments.',
       attachment_materialization_failed:
         'LocalMind could not read a task attachment.',
+      attachment_persistence_failed:
+        'LocalMind could not persist a task attachment.',
       attachment_total_size_exceeded:
         'The task attachments exceed the combined size limit.',
       context_too_large: 'The authorized task context was too large.',

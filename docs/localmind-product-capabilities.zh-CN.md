@@ -168,12 +168,11 @@ LocalMind 的 AI 运维支持包包含：
 
 LocalMind 对外提供工作区绑定的 MCP AI 接口：
 
-| 工具                          | 作用                           |
-| ----------------------------- | ------------------------------ |
-| `upload_localmind_attachment` | 上传与任务绑定的不可变附件     |
-| `delegate_to_localmind`       | 提交完整自然语言任务           |
-| `get_localmind_task`          | 查询持久化任务状态、结果和产物 |
-| `control_localmind_task`      | 仅取消尚未完成的任务           |
+| 工具                     | 作用                           |
+| ------------------------ | ------------------------------ |
+| `delegate_to_localmind`  | 提交完整任务及本次内联附件     |
+| `get_localmind_task`     | 查询持久化任务状态、结果和产物 |
+| `control_localmind_task` | 仅取消尚未完成的任务           |
 
 主要安全边界包括：
 

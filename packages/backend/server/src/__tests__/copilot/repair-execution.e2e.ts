@@ -1,5 +1,5 @@
 import type { GraphQLQuery } from '@affine/graphql';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, WorkspaceMemberStatus } from '@prisma/client';
 import type { TestFn } from 'ava';
 import ava from 'ava';
 import Sinon from 'sinon';
@@ -9,7 +9,7 @@ import { JOB_SIGNAL } from '../../base';
 import { ConfigModule } from '../../base/config';
 import { AuthService } from '../../core/auth';
 import { DocReader, DocWriter } from '../../core/doc';
-import { Models } from '../../models';
+import { Models, WorkspaceRole } from '../../models';
 import { agentRuntimeFingerprint } from '../../models/copilot-agent-runtime';
 import { repairExecutionFingerprint } from '../../models/copilot-repair-execution';
 import { CopilotAgentRuntimeWorker } from '../../plugins/copilot/agent-runtime-worker';
@@ -748,6 +748,80 @@ const agentRuntimeDocUpdateRequestMutation = {
           status
           summary
           payload
+        }
+      }
+    }
+  `,
+} satisfies GraphQLQuery;
+
+const copilotTasksQuery = {
+  id: 'copilotTasksTestQuery',
+  op: 'copilotTasks',
+  query: `
+    query copilotTasks($workspaceId: String!, $taskId: String!) {
+      currentUser {
+        copilot(workspaceId: $workspaceId) {
+          copilotTasks(limit: 20) {
+            id
+            title
+            workflow
+            status
+            createdAt
+            updatedAt
+            startedAt
+            completedAt
+            failureCode
+            failureMessage
+            resultSummary
+            availableActions
+            approval {
+              stepId
+              status
+              title
+              decidedAt
+            }
+            artifacts {
+              kind
+              id
+              title
+            }
+            steps {
+              id
+              key
+              type
+              status
+              title
+              order
+              startedAt
+              completedAt
+            }
+          }
+          copilotTask(id: $taskId) {
+            id
+            status
+            availableActions
+          }
+        }
+      }
+    }
+  `,
+} satisfies GraphQLQuery;
+
+const copilotTaskControlMutation = {
+  id: 'copilotTaskControlTestMutation',
+  op: 'controlCopilotTask',
+  query: `
+    mutation controlCopilotTask($input: CopilotTaskControlInput!) {
+      controlCopilotTask(input: $input) {
+        id
+        status
+        availableActions
+        approval {
+          status
+        }
+        steps {
+          key
+          status
         }
       }
     }
@@ -2313,6 +2387,163 @@ test('lists and reads persisted Agent Runtime runs outside repair execution muta
       timelineCount: 2,
     },
   ]);
+});
+
+test('projects Copilot tasks by actor and rejects cross-actor controls', async t => {
+  const { app, owner } = t.context;
+  const models = app.get(Models);
+  const workspace = await createWorkspace(app);
+  const member = await app.createUser();
+  await models.workspaceUser.set(
+    workspace.id,
+    member.id,
+    WorkspaceRole.Collaborator,
+    { status: WorkspaceMemberStatus.Accepted }
+  );
+
+  const ownerRun = await models.copilotAgentRuntime.createRun({
+    workspaceId: workspace.id,
+    actorId: owner.id,
+    workflow: 'workspace_doc_update',
+    sourceType: 'agent_runtime_office_task',
+    sourceId: 'owner-copilot-task',
+    status: 'waiting_approval',
+    title: 'Update owner document',
+    steps: [
+      {
+        stepKey: 'approve_doc_update',
+        stepType: 'approval',
+        status: 'waiting_approval',
+        title: 'Approve document update',
+        outputSummary: {
+          approvalRequest: { docId: 'owner-doc' },
+        },
+      },
+      {
+        stepKey: 'update_doc',
+        stepType: 'tool',
+        status: 'waiting_approval',
+        title: 'Update document',
+        outputSummary: {
+          docUpdateRequest: { docId: 'owner-doc' },
+        },
+      },
+    ],
+  });
+  const memberRun = await models.copilotAgentRuntime.createRun({
+    workspaceId: workspace.id,
+    actorId: member.id,
+    workflow: 'workspace_doc_update',
+    sourceType: 'agent_runtime_office_task',
+    sourceId: 'member-copilot-task',
+    status: 'waiting_approval',
+    title: 'Update member document',
+    steps: [
+      {
+        stepKey: 'approve_doc_update',
+        stepType: 'approval',
+        status: 'waiting_approval',
+      },
+    ],
+  });
+
+  const ownerTasks = await app.gql({
+    query: copilotTasksQuery,
+    variables: {
+      taskId: memberRun.id,
+      workspaceId: workspace.id,
+    },
+  });
+  t.deepEqual(
+    ownerTasks.currentUser.copilot.copilotTasks.map(
+      (task: { id: string }) => task.id
+    ),
+    [ownerRun.id]
+  );
+  t.is(ownerTasks.currentUser.copilot.copilotTask, null);
+  const ownerTask = ownerTasks.currentUser.copilot.copilotTasks[0];
+  t.deepEqual(ownerTask.availableActions, ['approve', 'reject']);
+  t.is(ownerTask.approval.status, 'waiting');
+  t.deepEqual(ownerTask.artifacts, [
+    {
+      kind: 'document',
+      id: 'owner-doc',
+      title: 'Update owner document',
+    },
+  ]);
+
+  await t.throwsAsync(
+    app.gql({
+      query: copilotTaskControlMutation,
+      variables: {
+        input: {
+          workspaceId: workspace.id,
+          taskId: memberRun.id,
+          action: 'approve',
+        },
+      },
+    })
+  );
+
+  const approved = await app.gql({
+    query: copilotTaskControlMutation,
+    variables: {
+      input: {
+        workspaceId: workspace.id,
+        taskId: ownerRun.id,
+        action: 'approve',
+      },
+    },
+  });
+  t.is(approved.controlCopilotTask.status, 'queued');
+  t.deepEqual(approved.controlCopilotTask.availableActions, ['cancel']);
+  t.is(approved.controlCopilotTask.approval.status, 'approved');
+
+  const cancelled = await app.gql({
+    query: copilotTaskControlMutation,
+    variables: {
+      input: {
+        workspaceId: workspace.id,
+        taskId: ownerRun.id,
+        action: 'cancel',
+      },
+    },
+  });
+  t.is(cancelled.controlCopilotTask.status, 'cancelled');
+  t.deepEqual(cancelled.controlCopilotTask.availableActions, ['resume']);
+
+  const resumed = await app.gql({
+    query: copilotTaskControlMutation,
+    variables: {
+      input: {
+        workspaceId: workspace.id,
+        taskId: ownerRun.id,
+        action: 'resume',
+      },
+    },
+  });
+  t.is(resumed.controlCopilotTask.status, 'queued');
+  t.deepEqual(resumed.controlCopilotTask.availableActions, ['cancel']);
+
+  await app.login(member);
+  await app.switchUser(member);
+  const memberTasks = await app.gql({
+    query: copilotTasksQuery,
+    variables: {
+      taskId: memberRun.id,
+      workspaceId: workspace.id,
+    },
+  });
+  t.deepEqual(
+    memberTasks.currentUser.copilot.copilotTasks.map(
+      (task: { id: string }) => task.id
+    ),
+    [memberRun.id]
+  );
+  t.is(memberTasks.currentUser.copilot.copilotTask.id, memberRun.id);
+
+  await app.login(owner);
+  await app.switchUser(owner);
 });
 
 test('creates generic Agent Runtime runs with tool, Codex, and MCP steps', async t => {

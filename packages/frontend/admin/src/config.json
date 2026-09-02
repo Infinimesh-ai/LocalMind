@@ -288,7 +288,7 @@
     },
     "path": {
       "type": "String",
-      "desc": "Subpath where the server get deployed if there is one.(e.g. /affine)",
+      "desc": "Subpath where the server is deployed, if any (e.g. /localmind).",
       "env": "AFFINE_SERVER_SUB_PATH"
     }
   },
@@ -303,6 +303,80 @@
       "type": "String",
       "desc": "The endpoint of the doc service.",
       "env": "DOC_SERVICE_ENDPOINT"
+    }
+  },
+  "documentOcr": {
+    "enabled": {
+      "type": "Boolean",
+      "desc": "Enable permission-checked scanned PDF OCR through the server-controlled SparkClaw endpoint.",
+      "env": "LOCALMIND_OCR_ENABLED"
+    },
+    "baseUrl": {
+      "type": "String",
+      "desc": "OpenAI-compatible SparkClaw OCR base URL. The server appends /chat/completions.",
+      "env": "LOCALMIND_OCR_BASE_URL"
+    },
+    "allowedHost": {
+      "type": "String",
+      "desc": "Exact hostname allowed for outbound OCR requests.",
+      "env": "LOCALMIND_OCR_ALLOWED_HOST"
+    },
+    "model": {
+      "type": "String",
+      "desc": "Model id sent to the OpenAI-compatible OCR endpoint.",
+      "env": "LOCALMIND_OCR_MODEL"
+    },
+    "apiKey": {
+      "type": "String",
+      "desc": "Optional server-only bearer token for the OCR endpoint.",
+      "env": "LOCALMIND_OCR_API_KEY"
+    },
+    "timeoutMs": {
+      "type": "Number",
+      "desc": "Maximum time for one OCR page inference.",
+      "env": "LOCALMIND_OCR_TIMEOUT_MS"
+    },
+    "maxUploadBytes": {
+      "type": "Number",
+      "desc": "Maximum rasterized page image size accepted by the OCR API.",
+      "env": "LOCALMIND_OCR_MAX_UPLOAD_BYTES"
+    },
+    "maxOutputBytes": {
+      "type": "Number",
+      "desc": "Maximum cleaned Markdown bytes accepted from one OCR completion.",
+      "env": "LOCALMIND_OCR_MAX_OUTPUT_BYTES"
+    },
+    "maxTokens": {
+      "type": "Number",
+      "desc": "Maximum completion tokens requested from the OCR model.",
+      "env": "LOCALMIND_OCR_MAX_TOKENS"
+    },
+    "maxConcurrency": {
+      "type": "Number",
+      "desc": "Maximum concurrent OCR page requests per LocalMind server process.",
+      "env": "LOCALMIND_OCR_MAX_CONCURRENCY"
+    }
+  },
+  "iscp": {
+    "enabled": {
+      "type": "Boolean",
+      "desc": "Enable the LocalMind SparkClaw ISCP integration",
+      "env": "ISCP_ENABLED"
+    },
+    "controllerUrl": {
+      "type": "String",
+      "desc": "Internal URL of the LocalMind ISCP controller",
+      "env": "ISCP_CONTROLLER_URL"
+    },
+    "controllerToken": {
+      "type": "String",
+      "desc": "Bearer token used between LocalMind and the ISCP controller",
+      "env": "ISCP_CONTROLLER_TOKEN"
+    },
+    "domainId": {
+      "type": "String",
+      "desc": "ISCP domain assigned to LocalMind SparkClaw endpoints",
+      "env": "ISCP_DOMAIN_ID"
     }
   },
   "telemetry": {
@@ -371,19 +445,19 @@
     },
     "byok.enabled": {
       "type": "Boolean",
-      "desc": "Allow workspace owners and admins to configure AI provider keys through AI BYOK."
+      "desc": "Allow instance administrators to manage AI provider credentials by workspace through Admin AI."
     },
     "byok.allowedProviders": {
       "type": "Array",
-      "desc": "AI providers that workspace owners and admins may add through AI BYOK."
+      "desc": "AI providers that instance administrators may assign to workspaces through Admin AI."
     },
     "byok.allowCustomEndpoint": {
       "type": "Boolean",
-      "desc": "Allow AI BYOK keys to use a custom provider endpoint."
+      "desc": "Allow administrator-managed workspace AI credentials to use a custom provider endpoint."
     },
     "byok.allowPrivateEndpoint": {
       "type": "Boolean",
-      "desc": "Whether workspace BYOK custom endpoints may resolve to private network targets. Enabling this allows workspace owners and admins to send provider probe requests to the private network."
+      "desc": "Whether administrator-managed workspace AI custom endpoints may resolve to private network targets. Enable only for trusted provider endpoints."
     },
     "providers.profiles": {
       "type": "Array",
@@ -393,10 +467,76 @@
       "type": "Object",
       "desc": "The default provider ids for model output types and global fallback."
     },
+    "providers.routePolicy": {
+      "type": "Object",
+      "desc": "Config-driven provider route policy. Supports provider allow/block lists plus cloud/private_cloud/local privacy filters and preferences globally, per feature, or per workspace."
+    },
+    "prompts.overrides": {
+      "type": "Array",
+      "desc": "Config-driven prompt metadata overrides. Built-in prompt messages remain native fallback unless a later Prompt Registry layer replaces them."
+    },
+    "prompts.defaults": {
+      "type": "Object",
+      "desc": "Global prompt model defaults for self-hosted deployments. The text bucket applies to text-like prompts, image/transcript apply to prompt category matches, and structured only applies to explicitly included structured prompts. Prompt overrides remain the more specific policy."
+    },
+    "tasks.models": {
+      "type": "Object",
+      "desc": "Optional task model aliases for embedding, workspace indexing, and rerank. Leave empty to let provider defaults and modelDefinitions choose task routes."
+    },
+    "supportBundles.objectStorageWebhooks": {
+      "type": "Array",
+      "desc": "Production object-storage webhooks for support bundle direct-download completion notifications. Each entry verifies raw webhook bodies with HMAC-SHA256 before forwarding provider event evidence into the durable transfer queue."
+    },
+    "externalMcp.endpoint": {
+      "type": "String",
+      "desc": "The exact server-controlled SparkClaw Streamable HTTP MCP endpoint. Workspace clients can view but cannot change this URL.",
+      "env": "LOCALMIND_SPARKCLAW_MCP_ENDPOINT"
+    },
+    "enterpriseCli.enabled": {
+      "type": "Boolean",
+      "desc": "Enable user-scoped enterprise CLI connectors for WeCom, Lark, and DingTalk.",
+      "env": "LOCALMIND_ENTERPRISE_CLI_ENABLED"
+    },
+    "enterpriseCli.allowedProviders": {
+      "type": "Array",
+      "desc": "Enterprise CLI providers that users may connect. Instance administrators own this allowlist."
+    },
+    "enterpriseCli.allowedToolsByProvider": {
+      "type": "Object",
+      "desc": "Exact Enterprise CLI tool names that LocalMind AI may use for each provider. Use * only when the instance administrator explicitly accepts the full discovered catalog."
+    },
+    "enterpriseCli.rootDir": {
+      "type": "String",
+      "desc": "Server-controlled root directory for isolated enterprise CLI profiles.",
+      "env": "LOCALMIND_ENTERPRISE_CLI_ROOT_DIR"
+    },
+    "enterpriseCli.binaries.wecom": {
+      "type": "String",
+      "desc": "Server-controlled WeCom CLI binary path or executable name.",
+      "env": "LOCALMIND_WECOM_CLI_BINARY"
+    },
+    "enterpriseCli.binaries.lark": {
+      "type": "String",
+      "desc": "Server-controlled Lark CLI binary path or executable name.",
+      "env": "LOCALMIND_LARK_CLI_BINARY"
+    },
+    "enterpriseCli.binaries.dingtalk": {
+      "type": "String",
+      "desc": "Server-controlled DingTalk Workspace CLI binary path or executable name.",
+      "env": "LOCALMIND_DINGTALK_CLI_BINARY"
+    },
+    "mcpDelegation.callbackAllowedOrigins": {
+      "type": "Array",
+      "desc": "Exact callback origins that may use HTTP or private network targets for LocalMind MCP delegation events. Keep empty unless a trusted local caller such as SparkClaw requires it."
+    },
     "providers.openai": {
       "type": "Object",
       "desc": "The config for the openai provider.",
       "link": "https://github.com/openai/openai-node"
+    },
+    "providers.openaiCompatible": {
+      "type": "Object",
+      "desc": "The config for OpenAI-compatible endpoints such as OpenRouter, DeepSeek, Ollama, LM Studio, vLLM and LocalAI."
     },
     "providers.cloudflareWorkersAi": {
       "type": "Object",
