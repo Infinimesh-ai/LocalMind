@@ -14,9 +14,9 @@ const COPILOT_FEATURE_ACCESS: Partial<
   Record<ByokFeatureKind, ByokSourceCoverage>
 > = {
   transcript: { local: false, server: true },
-  embedding: { local: false, server: true },
-  workspace_indexing: { local: false, server: true },
-  rerank: { local: false, server: true },
+  embedding: { local: false, server: false },
+  workspace_indexing: { local: false, server: false },
+  rerank: { local: false, server: false },
 };
 
 export function getByokSourceCoverage(

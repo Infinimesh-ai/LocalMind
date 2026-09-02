@@ -248,6 +248,22 @@ type RouteContext = {
   featureKind?: CopilotProviderRoutePolicyFeatureKind;
 };
 
+function isInstanceManagedOutputType(outputType?: ModelOutputType) {
+  return (
+    outputType === ModelOutputType.Embedding ||
+    outputType === ModelOutputType.Rerank
+  );
+}
+
+function getRoutePolicyContext(
+  context: RouteContext,
+  outputType?: ModelOutputType
+): RouteContext {
+  return isInstanceManagedOutputType(outputType)
+    ? { featureKind: context.featureKind }
+    : context;
+}
+
 function unique<T>(values: T[]): T[] {
   return Array.from(new Set(values));
 }
@@ -1095,8 +1111,14 @@ export class CopilotProviderFactory {
     };
   }
 
-  describeRoutePolicy(context: RouteContext = {}) {
-    return describeProviderRoutePolicy(this.getRegistry(), context);
+  describeRoutePolicy(
+    context: RouteContext = {},
+    outputType?: ModelOutputType
+  ) {
+    return describeProviderRoutePolicy(
+      this.getRegistry(),
+      getRoutePolicyContext(context, outputType)
+    );
   }
 
   describeRoutePolicyCandidates(context: RouteContext = {}) {
@@ -1110,11 +1132,40 @@ export class CopilotProviderFactory {
   }
 
   async describeEffectiveRoutePolicyCandidates(
-    context: CopilotAccessContext = {}
+    context: CopilotAccessContext = {},
+    outputType?: ModelOutputType
   ): Promise<CopilotProviderEffectiveRoutePolicyCandidateDiagnostics[]> {
     const { byokRegistry, quotaBackedRegistry, quotaBackedRoutesAvailable } =
-      await this.getEffectiveRegistry(context);
-    const routePolicyContext = {
+      await this.getEffectiveRegistry(context, outputType);
+    const routePolicyContext = getRoutePolicyContext(
+      {
+        workspaceId: context.workspaceId,
+        featureKind: context.featureKind,
+      },
+      outputType
+    );
+    if (quotaBackedRoutesAvailable) {
+      return describeProviderRoutePolicyCandidates(
+        quotaBackedRegistry,
+        quotaBackedRegistry.order,
+        routePolicyContext,
+        this.getAvailableProviderIds(quotaBackedRegistry)
+      ).map(candidate => {
+        const registrySelected = candidate.allowed;
+        return {
+          ...candidate,
+          registryKind: 'quota_backed' as const,
+          registryAvailable: true,
+          registrySelected,
+          reasons: unique([
+            ...candidate.reasons,
+            ...(registrySelected ? ['registry_selected'] : []),
+          ]),
+        };
+      });
+    }
+
+    const byokRoutePolicyContext = {
       workspaceId: context.workspaceId,
       featureKind: context.featureKind,
     };
@@ -1122,7 +1173,7 @@ export class CopilotProviderFactory {
     const byokCandidates = describeProviderRoutePolicyCandidates(
       byokRegistry,
       byokRegistry.order,
-      routePolicyContext,
+      byokRoutePolicyContext,
       this.getAvailableProviderIds(byokRegistry)
     ).map(candidate => {
       const registrySelected = byokRegistryAvailable && candidate.allowed;
@@ -1141,7 +1192,7 @@ export class CopilotProviderFactory {
     const quotaBackedCandidates = describeProviderRoutePolicyCandidates(
       quotaBackedRegistry,
       quotaBackedRegistry.order,
-      routePolicyContext,
+      byokRoutePolicyContext,
       this.getAvailableProviderIds(quotaBackedRegistry)
     ).map(candidate => {
       return {
@@ -1347,7 +1398,32 @@ export class CopilotProviderFactory {
     context: CopilotAccessContext = {}
   ) {
     const { byokRegistry, quotaBackedRegistry, quotaBackedRoutesAvailable } =
-      await this.getEffectiveRegistry(context);
+      await this.getEffectiveRegistry(context, cond.outputType);
+    if (quotaBackedRoutesAvailable) {
+      const instanceContext = getRoutePolicyContext(context, cond.outputType);
+      const quotaBackedCandidates =
+        await this.describeRouteCandidatesFromRegistry(
+          quotaBackedRegistry,
+          cond,
+          filter,
+          instanceContext,
+          {
+            registryKind: 'quota_backed',
+            registryAvailable: true,
+          }
+        );
+
+      return quotaBackedCandidates.map(candidate =>
+        appendReasons(
+          {
+            ...candidate,
+            registrySelected: candidate.matched,
+          },
+          candidate.matched ? ['registry_selected'] : []
+        )
+      );
+    }
+
     const byokCond = this.normalizeByokCond(
       byokRegistry,
       quotaBackedRegistry,
@@ -1461,11 +1537,17 @@ export class CopilotProviderFactory {
   }
 
   private async getEffectiveRegistry(
-    context: CopilotAccessContext = {}
+    context: CopilotAccessContext = {},
+    outputType?: ModelOutputType
   ): Promise<EffectiveProviderRegistry> {
+    const instanceManaged = isInstanceManagedOutputType(outputType);
     const quotaBackedRegistry =
-      await this.registries.getRegistryWithModelRevisions(context.workspaceId);
-    const { byokProfiles } = await this.access.resolveRouteAccess(context);
+      await this.registries.getRegistryWithModelRevisions(
+        instanceManaged ? undefined : context.workspaceId
+      );
+    const byokProfiles = instanceManaged
+      ? []
+      : (await this.access.resolveRouteAccess(context)).byokProfiles;
 
     return {
       byokRegistry: buildProviderRegistry({
@@ -1473,7 +1555,7 @@ export class CopilotProviderFactory {
         defaults: {},
       }),
       quotaBackedRegistry,
-      quotaBackedRoutesAvailable: false,
+      quotaBackedRoutesAvailable: instanceManaged,
     };
   }
 
@@ -1649,8 +1731,28 @@ export class CopilotProviderFactory {
     this.logger.debug(
       `Resolving copilot provider for output type: ${cond.outputType}`
     );
-    const { byokRegistry, quotaBackedRegistry } =
-      await this.getEffectiveRegistry(context);
+    const { byokRegistry, quotaBackedRegistry, quotaBackedRoutesAvailable } =
+      await this.getEffectiveRegistry(context, cond.outputType);
+    if (quotaBackedRoutesAvailable) {
+      const instanceContext = getRoutePolicyContext(context, cond.outputType);
+      const resolved = await this.resolveRoutesFromRegistry(
+        quotaBackedRegistry,
+        cond,
+        filter,
+        instanceContext,
+        {
+          registryKind: 'quota_backed',
+          registryAvailable: true,
+        }
+      );
+      const fallbackProviderIds = resolved.map(route => route.providerId);
+      return resolved.map(route => ({
+        ...route,
+        fallbackProviderIds,
+        registrySelected: true,
+      }));
+    }
+
     const byokCond = this.normalizeByokCond(
       byokRegistry,
       quotaBackedRegistry,

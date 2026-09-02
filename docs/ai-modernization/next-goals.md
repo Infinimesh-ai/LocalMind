@@ -878,9 +878,12 @@ Implemented outcome:
   of the same type;
 - usage audit rows retain the prepared request/route model when native provider
   responses omit model metadata or emit provider selection first;
-- runtime provider selection is BYOK-only: matching bare model ids use the
-  bound key, legacy platform-prefixed requests fall back to an eligible BYOK
-  binding, and quota-backed/global providers are never dispatched;
+- user-generation provider selection is BYOK-only: matching bare model ids use
+  the bound key, legacy platform-prefixed requests fall back to an eligible
+  BYOK binding, and quota-backed/global chat providers are never dispatched;
+- embedding and rerank are administrator-configured instance infrastructure:
+  every workspace shares the same global routes and Workspace BYOK cannot
+  override them;
 - requests without eligible BYOK coverage fail with
   `COPILOT_BYOK_NOT_CONFIGURED`; the compatibility quota API reports unlimited
   and does not participate in route selection;

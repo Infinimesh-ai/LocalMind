@@ -267,9 +267,12 @@ Implemented behavior:
 2. Server and local BYOK profiles expose `models=[modelId]` plus a generated
    model definition with the provider's runtime backend kind and bounded
    capabilities.
-3. The effective provider split is BYOK-only at runtime. Matching bare model
-   ids resolve to BYOK profiles, while quota-backed/global profiles remain
-   visible only as unavailable compatibility diagnostics and prefix metadata.
+3. The effective provider split is authority-specific at runtime. Text,
+   object, structured, and image generation resolve only to Workspace BYOK
+   profiles, while embedding and rerank resolve only to the administrator's
+   global Provider Registry. Global chat profiles remain unavailable for
+   generation and Workspace BYOK profiles cannot override infrastructure
+   routes.
 4. OpenAI-compatible key validation uses a minimal `POST /responses` call with
    the exact model id and safe response handling; model id normalization rejects
    blank or overlong values before persistence or network testing.
@@ -289,11 +292,20 @@ Implemented behavior:
    binding; when the requested model is not bound to BYOK, provider selection
    clears the model constraint and falls back to the workspace's bound BYOK
    model without changing the requested-model audit evidence.
-10. AI execution requires an eligible BYOK profile for the requested workspace
-    and feature. Missing coverage raises `COPILOT_BYOK_NOT_CONFIGURED`; platform
-    quota is not checked, the compatibility quota API reports unlimited, and
-    replayed turns cannot opt back into quota-backed routing. Chat and action
-    error states tell members to contact the LocalMind instance administrator.
+10. User-generation execution requires an eligible BYOK profile for the
+    requested workspace and feature. Missing coverage raises
+    `COPILOT_BYOK_NOT_CONFIGURED`; platform quota is not checked, the
+    compatibility quota API reports unlimited, and replayed turns cannot opt
+    back into quota-backed chat routing. Chat and action error states tell
+    members to contact the LocalMind instance administrator.
+11. Embedding and rerank are instance-managed infrastructure. All workspaces
+    share the same administrator-configured models while retaining separate
+    documents, vectors, and ACLs. Missing embedding configuration leaves
+    indexing unavailable; missing rerank configuration preserves the existing
+    vector-distance fallback. Runtime resolution uses only global task-route,
+    Provider Registry, Model Registry, health, and route-policy state;
+    workspace-scoped revisions remain historical evidence but cannot override
+    these routes.
 
 ## Workspace AI Credential Governance Migration
 

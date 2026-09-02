@@ -82,8 +82,13 @@ The workspace BYOK exact-model binding slice is now implemented:
   `modelId`, including encrypted local lease transport and generated GraphQL
   types;
 - a configured key contributes only its bound model and a generated runtime
-  model definition; runtime selection is BYOK-only and never dispatches through
-  quota-backed/global providers;
+  model definition; user-generation runtime selection is BYOK-only and never
+  dispatches through quota-backed/global chat providers;
+- embedding and rerank are instance-managed infrastructure exceptions: their
+  routes use only the administrator-configured global Provider Registry, are
+  shared by every workspace, never query or select Workspace BYOK profiles,
+  and ignore workspace-scoped registry, task-model, health, and route-policy
+  overrides;
 - provider lifecycle startup registers each built-in driver independently from
   statically configured provider profiles, so a BYOK OpenAI key remains
   executable when the global route uses only an OpenAI-compatible profile;
@@ -97,8 +102,8 @@ The workspace BYOK exact-model binding slice is now implemented:
   binding; when no BYOK profile supports the requested model, route selection
   removes that model constraint and falls back to the workspace's bound BYOK
   model without enabling the legacy platform route;
-- every AI execution requires an eligible BYOK profile for the requested
-  workspace and feature; missing coverage raises
+- every user-generation execution requires an eligible BYOK profile for the
+  requested workspace and feature; missing coverage raises
   `COPILOT_BYOK_NOT_CONFIGURED`, while the compatibility quota API reports an
   unlimited limit and is not consulted by routing; the AI error state tells
   members to contact the LocalMind instance administrator;

@@ -97,12 +97,12 @@ export class TaskPolicy {
   }
 
   async resolveEffectiveEmbeddingModel(
-    workspaceId?: string | null
+    _workspaceId?: string | null
   ): Promise<ResolvedTaskModel> {
     return this.resolveEffectiveModel(
       'embedding',
       this.resolveEmbeddingModel(),
-      workspaceId
+      undefined
     );
   }
 
@@ -138,12 +138,12 @@ export class TaskPolicy {
   }
 
   async resolveEffectiveWorkspaceIndexingModel(
-    workspaceId?: string | null
+    _workspaceId?: string | null
   ): Promise<ResolvedTaskModel> {
     return this.resolveEffectiveModel(
       'workspace_indexing',
       this.resolveWorkspaceIndexingModel(),
-      workspaceId
+      undefined
     );
   }
 
@@ -171,12 +171,12 @@ export class TaskPolicy {
   }
 
   async resolveEffectiveRerankModel(
-    workspaceId?: string | null
+    _workspaceId?: string | null
   ): Promise<ResolvedTaskModel> {
     return this.resolveEffectiveModel(
       'rerank',
       this.resolveRerankModel(),
-      workspaceId
+      undefined
     );
   }
 

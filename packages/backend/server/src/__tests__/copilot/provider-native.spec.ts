@@ -2162,16 +2162,62 @@ const BYOK_FAL_PROFILE: CopilotProviderProfile = {
   config: { apiKey: 'byok-key' },
 };
 
+const INSTANCE_EMBEDDING_PROFILE: CopilotProviderProfile = {
+  id: 'infinimesh-embedding',
+  type: CopilotProviderType.OpenAI,
+  priority: 100,
+  config: { apiKey: 'instance-key' },
+  models: ['sparkclaw-embedding'],
+  modelDefinitions: [
+    {
+      id: 'sparkclaw-embedding',
+      limits: { embeddingDimensions: 1024 },
+      capabilities: [
+        {
+          input: [ModelInputType.Text],
+          output: [ModelOutputType.Embedding],
+          defaultForOutputType: true,
+        },
+      ],
+    },
+  ],
+};
+
+const INSTANCE_RERANK_PROFILE: CopilotProviderProfile = {
+  id: 'infinimesh-rerank',
+  type: CopilotProviderType.OpenAI,
+  priority: 100,
+  config: { apiKey: 'instance-key' },
+  models: ['sparkclaw-reranker'],
+  modelDefinitions: [
+    {
+      id: 'sparkclaw-reranker',
+      capabilities: [
+        {
+          input: [ModelInputType.Text],
+          output: [ModelOutputType.Rerank],
+          defaultForOutputType: true,
+        },
+      ],
+    },
+  ],
+};
+
 function createProviderFactoryWithByokRoutes({
   byokProfiles = [BYOK_OPENAI_PROFILE],
   quotaBackedRoutesAvailable = true,
+  instanceProfiles = [INSTANCE_EMBEDDING_PROFILE, INSTANCE_RERANK_PROFILE],
 }: {
   byokProfiles?: CopilotProviderProfile[];
   quotaBackedRoutesAvailable?: boolean;
+  instanceProfiles?: CopilotProviderProfile[];
 } = {}) {
   const provider = createProvider();
+  const instanceProviderIds = new Set(
+    instanceProfiles.map(profile => profile.id)
+  );
   const registryService = {
-    getRegistry: () =>
+    getRegistry: Sinon.stub().callsFake(() =>
       buildProviderRegistry({
         profiles: [
           {
@@ -2180,9 +2226,31 @@ function createProviderFactoryWithByokRoutes({
             priority: 1,
             config: { apiKey: 'test-key' },
           },
+          ...instanceProfiles,
         ],
-        defaults: {},
-      }),
+        defaults: {
+          [ModelOutputType.Text]: 'openai-main',
+          ...(instanceProviderIds.has(INSTANCE_EMBEDDING_PROFILE.id)
+            ? {
+                [ModelOutputType.Embedding]: INSTANCE_EMBEDDING_PROFILE.id,
+              }
+            : {}),
+          ...(instanceProviderIds.has(INSTANCE_RERANK_PROFILE.id)
+            ? { [ModelOutputType.Rerank]: INSTANCE_RERANK_PROFILE.id }
+            : {}),
+        },
+        routePolicy: {
+          byWorkspace: {
+            'workspace-1': {
+              blockedProviderIds: [
+                INSTANCE_EMBEDDING_PROFILE.id,
+                INSTANCE_RERANK_PROFILE.id,
+              ],
+            },
+          },
+        },
+      })
+    ),
   };
   const server = {
     enableFeature: Sinon.stub(),
@@ -2204,8 +2272,11 @@ function createProviderFactoryWithByokRoutes({
     access as never
   );
   factory.register('openai-main', provider);
+  for (const profile of instanceProfiles) {
+    factory.register(profile.id, provider);
+  }
 
-  return { factory, byok };
+  return { factory, byok, registryService };
 }
 
 function createBoundOpenAIByokProfile(modelId: string): CopilotProviderProfile {
@@ -2504,12 +2575,13 @@ test('CopilotProviderFactory should not use quota-backed fallback for an unsuppo
   t.deepEqual(routes, []);
 });
 
-test('CopilotProviderFactory should resolve BYOK embedding routes with workspace context', async t => {
-  const { factory, byok } = createProviderFactoryWithByokRoutes();
+test('CopilotProviderFactory should resolve instance-managed embedding routes without BYOK', async t => {
+  const { factory, byok, registryService } =
+    createProviderFactoryWithByokRoutes();
 
   const routes = await factory.resolveRoutes(
     {
-      modelId: 'text-embedding-3-small',
+      modelId: 'sparkclaw-embedding',
       outputType: ModelOutputType.Embedding,
     },
     {},
@@ -2517,58 +2589,123 @@ test('CopilotProviderFactory should resolve BYOK embedding routes with workspace
   );
 
   t.deepEqual(
-    routes.map(route => route.providerId),
-    ['byok-aaaaaaaaaaaa-openai-server-key1']
+    routes.map(route => ({
+      providerId: route.providerId,
+      registryKind: route.registryKind,
+      registrySelected: route.registrySelected,
+    })),
+    [
+      {
+        providerId: 'infinimesh-embedding',
+        registryKind: 'quota_backed',
+        registrySelected: true,
+      },
+    ]
   );
-  Sinon.assert.calledOnceWithMatch(byok.getProfiles, {
-    workspaceId: 'workspace-1',
-    featureKind: 'workspace_indexing',
-  });
+  Sinon.assert.notCalled(byok.getProfiles);
+  Sinon.assert.calledOnceWithExactly(registryService.getRegistry, undefined);
 });
 
-test('CopilotProviderFactory should treat embedding preparation as embedding feature by default', async t => {
-  const { factory, byok } = createProviderFactoryWithByokRoutes();
+test('CopilotProviderFactory should resolve instance-managed rerank routes without BYOK', async t => {
+  const { factory, byok, registryService } =
+    createProviderFactoryWithByokRoutes();
 
-  await factory.prepareEmbeddingRoutes('text-embedding-3-small', 'hello', {
-    workspace: 'workspace-1',
-  });
-
-  t.true(byok.getProfiles.calledOnce);
-  Sinon.assert.calledOnceWithMatch(byok.getProfiles, {
-    workspaceId: 'workspace-1',
-    featureKind: 'embedding',
-  });
-});
-
-test('CopilotProviderFactory should resolve BYOK rerank routes before quota-backed routes', async t => {
-  const { factory, byok } = createProviderFactoryWithByokRoutes();
-
-  const preparedRoutes = await factory.prepareRerankRoutes(
-    'gpt-4o-mini',
-    {
-      query: 'programming',
-      candidates: [{ text: 'React is a UI library.' }],
-    },
-    { workspace: 'workspace-1' }
-  );
   const resolvedRoutes = await factory.resolveRoutes(
-    { modelId: 'gpt-4o-mini', outputType: ModelOutputType.Rerank },
+    {
+      modelId: 'sparkclaw-reranker',
+      outputType: ModelOutputType.Rerank,
+    },
     {},
     { workspaceId: 'workspace-1', featureKind: 'rerank' }
   );
 
   t.deepEqual(
-    preparedRoutes.map(route => route.providerId),
+    resolvedRoutes.map(route => ({
+      providerId: route.providerId,
+      registryKind: route.registryKind,
+      registrySelected: route.registrySelected,
+    })),
+    [
+      {
+        providerId: 'infinimesh-rerank',
+        registryKind: 'quota_backed',
+        registrySelected: true,
+      },
+    ]
+  );
+  Sinon.assert.notCalled(byok.getProfiles);
+  Sinon.assert.calledOnceWithExactly(registryService.getRegistry, undefined);
+});
+
+test('CopilotProviderFactory should not allow BYOK to override instance-managed routes', async t => {
+  const { factory, byok } = createProviderFactoryWithByokRoutes({
+    byokProfiles: [
+      {
+        ...BYOK_OPENAI_PROFILE,
+        models: ['workspace-infrastructure'],
+        modelDefinitions: [
+          {
+            id: 'workspace-infrastructure',
+            capabilities: [
+              {
+                input: [ModelInputType.Text],
+                output: [ModelOutputType.Embedding, ModelOutputType.Rerank],
+                defaultForOutputType: true,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  const embeddingRoutes = await factory.resolveRoutes(
+    {
+      modelId: 'sparkclaw-embedding',
+      outputType: ModelOutputType.Embedding,
+    },
+    {},
+    { workspaceId: 'workspace-1', featureKind: 'embedding' }
+  );
+  const rerankRoutes = await factory.resolveRoutes(
+    {
+      modelId: 'sparkclaw-reranker',
+      outputType: ModelOutputType.Rerank,
+    },
+    {},
+    { workspaceId: 'workspace-1', featureKind: 'rerank' }
+  );
+
+  t.deepEqual(
+    embeddingRoutes.map(route => route.providerId),
+    ['infinimesh-embedding']
+  );
+  t.deepEqual(
+    rerankRoutes.map(route => route.providerId),
+    ['infinimesh-rerank']
+  );
+  Sinon.assert.notCalled(byok.getProfiles);
+});
+
+test('CopilotProviderFactory should return no route when instance infrastructure is missing', async t => {
+  const { factory } = createProviderFactoryWithByokRoutes({
+    instanceProfiles: [],
+  });
+
+  t.deepEqual(
+    await factory.resolveRoutes({
+      modelId: 'missing-instance-embedding',
+      outputType: ModelOutputType.Embedding,
+    }),
     []
   );
   t.deepEqual(
-    resolvedRoutes.map(route => route.providerId),
-    ['byok-aaaaaaaaaaaa-openai-server-key1']
+    await factory.resolveRoutes({
+      modelId: 'missing-instance-rerank',
+      outputType: ModelOutputType.Rerank,
+    }),
+    []
   );
-  Sinon.assert.calledWithMatch(byok.getProfiles, {
-    workspaceId: 'workspace-1',
-    featureKind: 'rerank',
-  });
 });
 
 test('CopilotProviderFactory should treat image preparation as image feature by default', async t => {
@@ -3219,6 +3356,58 @@ test('TaskPolicy should use embedding model alias for workspace indexing when no
   });
 });
 
+test('TaskPolicy should ignore workspace task-route overrides for instance infrastructure', async t => {
+  const listLatestActiveWithPublishEventsByFeatureKinds =
+    Sinon.stub().callsFake(async ({ featureKinds, workspaceId }) => {
+      t.is(workspaceId, undefined);
+      const featureKind = featureKinds[0];
+      return new Map([
+        [
+          featureKind,
+          {
+            id: `global-${featureKind}`,
+            featureKind,
+            scopeType: 'global',
+            revision: '1',
+            status: 'active',
+            modelId: `global-${featureKind}-model`,
+            fingerprint: `fingerprint-${featureKind}`,
+            fallbackSourceChain: [],
+            createdAt: new Date('2026-09-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-09-01T00:00:00.000Z'),
+            publishEventCount: 0,
+            publishEvents: [],
+          },
+        ],
+      ]);
+    });
+  const policy = new TaskPolicy(
+    { copilot: { tasks: { models: {} } } } as never,
+    {} as never,
+    {} as never,
+    {
+      copilotTaskRoutePolicyRevision: {
+        listLatestActiveWithPublishEventsByFeatureKinds,
+      },
+    } as never
+  );
+
+  t.is(
+    (await policy.resolveEffectiveEmbeddingModel('workspace-1')).modelId,
+    'global-embedding-model'
+  );
+  t.is(
+    (await policy.resolveEffectiveWorkspaceIndexingModel('workspace-1'))
+      .modelId,
+    'global-workspace_indexing-model'
+  );
+  t.is(
+    (await policy.resolveEffectiveRerankModel('workspace-1')).modelId,
+    'global-rerank-model'
+  );
+  t.is(listLatestActiveWithPublishEventsByFeatureKinds.callCount, 3);
+});
+
 test('CopilotProviderFactory should resolve embedding and rerank defaults from provider registry routes', async t => {
   const provider = new OpenAICompatibleProvider();
   (provider as any).AFFiNEConfig = {
@@ -3434,8 +3623,8 @@ test('CopilotProviderFactory should describe route candidates after policy filte
     [
       {
         registryKind: 'quota_backed',
-        registryAvailable: false,
-        registrySelected: false,
+        registryAvailable: true,
+        registrySelected: true,
         providerId: 'embed-main',
         providerSource: 'configured',
         providerProfileId: 'embed-main',
@@ -3460,12 +3649,12 @@ test('CopilotProviderFactory should describe route candidates after policy filte
         reasons: [
           'profile_model_matched',
           'capability_matched',
-          'registry_unavailable',
+          'registry_selected',
         ],
       },
       {
         registryKind: 'quota_backed',
-        registryAvailable: false,
+        registryAvailable: true,
         registrySelected: false,
         providerId: 'chat-only',
         providerSource: 'configured',
@@ -3484,12 +3673,11 @@ test('CopilotProviderFactory should describe route candidates after policy filte
           'no_profile_model_match',
           'capability_mismatch',
           'output_not_supported',
-          'registry_unavailable',
         ],
       },
       {
         registryKind: 'quota_backed',
-        registryAvailable: false,
+        registryAvailable: true,
         registrySelected: false,
         providerId: 'restricted',
         providerSource: 'configured',
@@ -3504,11 +3692,7 @@ test('CopilotProviderFactory should describe route candidates after policy filte
         health: 'unknown',
         candidateModelIds: ['another-embedding'],
         matched: false,
-        reasons: [
-          'no_profile_model_match',
-          'capability_mismatch',
-          'registry_unavailable',
-        ],
+        reasons: ['no_profile_model_match', 'capability_mismatch'],
       },
     ]
   );
@@ -3527,7 +3711,7 @@ test('CopilotProviderFactory should describe route candidates after policy filte
     [
       {
         registryKind: 'quota_backed',
-        registryAvailable: false,
+        registryAvailable: true,
         registrySelected: false,
         providerId: 'restricted',
         providerSource: 'configured',
@@ -3543,7 +3727,7 @@ test('CopilotProviderFactory should describe route candidates after policy filte
         requestedModelId: 'workspace-embedding',
         candidateModelIds: ['another-embedding'],
         matched: false,
-        reasons: ['profile_model_not_allowed', 'registry_unavailable'],
+        reasons: ['profile_model_not_allowed'],
       },
     ]
   );

@@ -184,12 +184,12 @@ const byokCoverageCases: ByokCoverageCase[] = [
   { featureKind: 'action', expected: { local: true, server: true } },
   { featureKind: 'image', expected: { local: true, server: true } },
   { featureKind: 'transcript', expected: { local: false, server: true } },
-  { featureKind: 'embedding', expected: { local: false, server: true } },
+  { featureKind: 'embedding', expected: { local: false, server: false } },
   {
     featureKind: 'workspace_indexing',
-    expected: { local: false, server: true },
+    expected: { local: false, server: false },
   },
-  { featureKind: 'rerank', expected: { local: false, server: true } },
+  { featureKind: 'rerank', expected: { local: false, server: false } },
   { expected: { local: true, server: true } },
 ];
 

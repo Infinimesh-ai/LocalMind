@@ -23070,11 +23070,13 @@ export class CopilotResolver {
       featureKind: 'rerank' as const,
     };
     const embeddingRoutePolicy = this.providerFactory.describeRoutePolicy(
-      embeddingRoutePolicyContext
+      embeddingRoutePolicyContext,
+      ModelOutputType.Embedding
     );
     const describeEmbeddingRoutePolicyCandidates = () =>
       this.providerFactory.describeEffectiveRoutePolicyCandidates(
-        embeddingRoutePolicyContext
+        embeddingRoutePolicyContext,
+        ModelOutputType.Embedding
       );
     const describeEmbeddingRouteCandidates = () =>
       this.providerFactory.describeRouteCandidates(
@@ -23096,11 +23098,13 @@ export class CopilotResolver {
         }
       );
     const rerankRoutePolicy = this.providerFactory.describeRoutePolicy(
-      rerankRoutePolicyContext
+      rerankRoutePolicyContext,
+      ModelOutputType.Rerank
     );
     const describeRerankRoutePolicyCandidates = () =>
       this.providerFactory.describeEffectiveRoutePolicyCandidates(
-        rerankRoutePolicyContext
+        rerankRoutePolicyContext,
+        ModelOutputType.Rerank
       );
     const describeRerankRouteCandidates = () =>
       this.providerFactory.describeRouteCandidates(
