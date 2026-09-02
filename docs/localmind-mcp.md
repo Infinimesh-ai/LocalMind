@@ -148,10 +148,15 @@ The current built-in AI can:
 
 The tool-agent path has a 120-second bound, records at most 20 tool executions,
 polls cancellation and authority while running, and returns sanitized result
-and document-artifact evidence. Delegated document creation is idempotent for
-the same task and title. Folder mutations enforce workspace organization/write
-ACLs, require document read access for placements, and persist sanitized
-side-effect evidence only for non-replay writes.
+and document-artifact evidence. A deadline abort is reported as retryable
+`tool_agent_timeout` even when the provider stream closes normally. When one
+supplied document is explicitly requested to receive a body update, the task
+requires a successful `doc_update` and matching updated artifact; read-only
+completion fails as retryable `required_side_effect_missing`. Delegated
+document creation is idempotent for the same task and title. Folder mutations
+enforce workspace organization/write ACLs, require document read access for
+placements, and persist sanitized side-effect evidence only for non-replay
+writes.
 
 Each uploaded file is limited to 10 MiB; one task accepts at most eight files
 and 20 MiB combined. Upload records are immutable and bound to the workspace,

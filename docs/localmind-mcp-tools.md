@@ -108,10 +108,14 @@ The tool loop is bounded to 20 recorded executions and 120 seconds. It polls
 durable cancellation and credential/workspace authority while running, and
 persists only sanitized summaries, argument fingerprints, referenced document
 ids, created/updated document artifacts, and allowlisted workspace-folder
-effects. A document created by a delegated task uses a stable id derived from
-the task and title, making a same-task replay idempotent instead of creating
-duplicate documents. Idempotent folder replays are not recorded as new side
-effects.
+effects. A timeout is exposed as retryable `tool_agent_timeout` even if abort
+causes the provider stream to close normally. For one supplied document, an
+explicit body mutation carries a v3 completion contract and must record both a
+successful `doc_update` and a matching updated artifact; otherwise the task
+fails with retryable `required_side_effect_missing`. A document created by a
+delegated task uses a stable id derived from the task and title, making a
+same-task replay idempotent instead of creating duplicate documents.
+Idempotent folder replays are not recorded as new side effects.
 
 Successful MCP tool calls contain readable text and the same logical object in
 `structuredContent.result`. A permission or unsupported result is a normal
@@ -156,10 +160,11 @@ The success projection uses `protocolVersion=localmind.task.v1` and returns:
 
 Public lifecycle statuses are `planning`, `waiting_approval`, `queued`,
 `running`, `cancelling`, `completed`, `failed`, `rejected`, and `cancelled`.
-Specific causes such as `unsupported_task`, `permission_denied`, or
-`resource_version_conflict` appear under `error.code` rather than becoming new
-lifecycle states. `availableControls` contains `cancel` only while the task can
-accept a new cancellation request.
+Specific causes such as `unsupported_task`, `permission_denied`,
+`resource_version_conflict`, `tool_agent_timeout`, or
+`required_side_effect_missing` appear under `error.code` rather than becoming
+new lifecycle states. `availableControls` contains `cancel` only while the task
+can accept a new cancellation request.
 
 Only the credential family that created a task can query it. Rotation preserves
 family access; another family receives `task_not_found`. LocalMind rechecks

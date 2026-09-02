@@ -38,6 +38,7 @@ import {
 } from './attachments';
 import { MCP_DELEGATE_CAPABILITY, type McpCapability } from './capabilities';
 import { type LocalMindTaskPlan, LocalMindTaskPlanSchema } from './task-query';
+import { buildToolAgentCompletionContract } from './tool-agent-completion';
 import {
   defineTool,
   RESULT_OUTPUT_SCHEMA,
@@ -1068,6 +1069,10 @@ export class McpAiDelegationService {
     }
 
     if (output.kind === 'tool_agent') {
+      const completionContract = buildToolAgentCompletionContract({
+        request: input.request,
+        documentIds: requestedDocumentIds,
+      });
       const run = await this.models.copilotAgentRuntime.createRun({
         workspaceId: credential.workspaceId,
         actorId: credential.userId,
@@ -1099,11 +1104,12 @@ export class McpAiDelegationService {
             order: 0,
             outputSummary: {
               localMindToolAgentRequest: {
-                version: 'localmind-tool-agent-request/v2',
+                version: 'localmind-tool-agent-request/v3',
                 requestFingerprint,
                 allowedTools: [...LOCALMIND_DELEGATION_AI_TOOLS],
                 sparkClawToolNames,
                 sparkClawToolSnapshotFingerprint,
+                completionContract,
               },
             },
           },

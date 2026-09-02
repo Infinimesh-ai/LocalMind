@@ -1050,7 +1050,7 @@ Implemented behavior:
 1. The delegation planner accepts `tool_agent` as an immutable plan kind and
    creates one queued `agent_runtime_localmind_tool_agent` AgentRun with one
    persisted tool step.
-2. New v2 steps snapshot the complete AI Chat tool-category allowlist:
+2. New v2/v3 steps snapshot the complete AI Chat tool-category allowlist:
    `blobRead`, `codeArtifact`, `conversationSummary`, `docRead`, `docCreate`,
    `docUpdate`, `docUpdateMeta`, `docKeywordSearch`, `docSemanticSearch`,
    `webSearch`, `docCompose`, `sectionEdit`, `workspaceOrganization`,
@@ -1065,9 +1065,12 @@ Implemented behavior:
    caller-supplied documents before the loop. It polls cancellation and base
    authority every second while running and propagates one AbortSignal into the
    tool loop.
-5. Execution is bounded to 120 seconds and 20 recorded tool results. Native
-   tool-result `is_error` survives the runtime projection, and an already
-   aborted callback fails before a tool executor is invoked.
+5. Execution is bounded to 120 seconds and 20 recorded tool results. A timeout
+   remains terminal even when the native stream converts abort into a normal
+   iterator close, and public task state reports retryable
+   `tool_agent_timeout`. Native tool-result `is_error` survives the runtime
+   projection, and an already aborted callback fails before a tool executor is
+   invoked.
 6. Completion persists the terminal AgentRun execution result and MCP
    delegation result in one transaction before optional callback delivery is
    queued.
@@ -1082,8 +1085,9 @@ Implemented behavior:
    and title. `DocWriter.createDoc` recognizes an existing requested id,
    repairs missing root registration, and returns idempotent replay evidence.
 10. Focused E2E covers the full tool allowlist, document creation/readback,
-    same-task replay, sanitized artifact projection, failed-tool projection,
-    credential revocation before execution, and execution without a callback.
+    same-task replay, sanitized artifact projection, required document-update
+    evidence, normal-close timeout handling, failed-tool projection, credential
+    revocation before execution, and execution without a callback.
 11. `workspaceOrganization` is shared by Web AI and delegation and expands to
     seven semantic tools for folder listing, creation, rename, move, safe
     deletion, document placement, and moving a document into one or no folder.
@@ -1092,9 +1096,11 @@ Implemented behavior:
     allowlisted folder effect evidence; raw workspace table operations remain
     outside the AI surface.
 12. `sparkClaw` expands to only `sparkclaw_mcp_search` and
-    `sparkclaw_mcp_execute`. Delegation creation freezes enabled tool names and
-    a fingerprint in `localmind-tool-agent-request/v2`; execution intersects
-    that maximum with the current live admin allowlist and user ACL.
+    `sparkclaw_mcp_execute`. Delegation creation freezes enabled tool names, a
+    fingerprint, and the task completion contract in
+    `localmind-tool-agent-request/v3`; execution intersects the SparkClaw
+    maximum with the current live admin allowlist and user ACL. Legacy v1/v2
+    requests remain executable without gaining the new completion requirement.
 13. The public SparkClaw surface contains only
     `sparkclaw.conversation.send`; operation get/result/cancel remain internal.
     Direct and pending results persist in an encrypted idempotency ledger with
@@ -1324,7 +1330,13 @@ before treating the preview/version fence as atomic.
 The tool-agent path has its own bounded execution contract: 120 seconds, 20
 recorded tool results, one AbortSignal, one-second cancellation/authority
 polling, transactional AgentRun/delegation completion, and sanitized tool plus
-artifact evidence. Tool-level ACL remains inside the existing AI Chat tools.
+artifact evidence. New v3 requests also persist an explicit completion
+contract. A single supplied document with an explicit body mutation requires
+live `Doc.Update`, a successful `doc_update`, and a matching updated artifact;
+otherwise the task fails with retryable `required_side_effect_missing` instead
+of accepting read-only work as completion. Timeout aborts that close the stream
+normally fail with retryable `tool_agent_timeout`. Tool-level ACL remains
+inside the existing AI Chat tools.
 The shared workspace-organization category adds safe folder operations and
 records successful non-replay mutations as workspace side effects. Delegated
 document creation is stable by task id and title so worker retries do not
@@ -1341,8 +1353,10 @@ reintroduced to bypass this delegation boundary.
 The workspace-managed outbound SparkClaw MCP connection remains separate from
 inbound MCP credential authority, but its allowlisted tools are now available
 inside this durable tool-agent workflow. New requests freeze tool names and a
-fingerprint in `localmind-tool-agent-request/v2`; workers use only the
-intersection with the live allowlist and recheck the delegated user ACL. The
+fingerprint plus the completion contract in
+`localmind-tool-agent-request/v3`; workers use only the intersection with the
+live allowlist and recheck the delegated user ACL. Legacy v1/v2 requests keep
+their historical completion semantics. The
 tool execution ledger provides encrypted replay, stable task idempotency,
 fenced initial and remote-poll leases, cancellation/failure terminals, live ACL
 rechecks, binary-result redaction, and bounded audit evidence.

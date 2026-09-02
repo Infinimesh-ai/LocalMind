@@ -663,9 +663,11 @@ export class McpAiTaskQueryService {
     const missingPermission = stringValue(result.missingPermission);
     const documentId = stringValue(result.documentId);
     const attachmentId = stringValue(result.attachmentId);
+    const requiredToolName = stringValue(result.requiredToolName);
     if (missingPermission) details.missingPermission = missingPermission;
     if (documentId) details.documentId = documentId;
     if (attachmentId) details.attachmentId = attachmentId;
+    if (requiredToolName) details.requiredToolName = requiredToolName;
     if (Array.isArray(result.requiredCapabilities)) {
       details.requiredCapabilities = result.requiredCapabilities.filter(
         capability => typeof capability === 'string'
@@ -674,7 +676,12 @@ export class McpAiTaskQueryService {
     return {
       code,
       message: this.failureMessage(code),
-      retryable: ['ai_planning_failed', 'request_aborted'].includes(code),
+      retryable: [
+        'ai_planning_failed',
+        'request_aborted',
+        'required_side_effect_missing',
+        'tool_agent_timeout',
+      ].includes(code),
       ...(Object.keys(details).length ? { details } : {}),
     };
   }
@@ -694,9 +701,11 @@ export class McpAiTaskQueryService {
       'credential_scope_denied',
       'permission_denied',
       'request_aborted',
+      'required_side_effect_missing',
       'resource_not_accessible',
       'resource_version_conflict',
       'task_plan_persistence_failed',
+      'tool_agent_timeout',
       'unsupported_task',
     ]);
     return code && allowed.has(code) ? code : 'task_failed';
@@ -726,6 +735,8 @@ export class McpAiTaskQueryService {
         'The task credential capability ceiling is insufficient.',
       permission_denied: 'The delegated user no longer has required access.',
       request_aborted: 'The task request was aborted.',
+      required_side_effect_missing:
+        'LocalMind did not produce the required successful side-effect evidence.',
       resource_not_accessible: 'A required task resource is not accessible.',
       resource_version_conflict:
         'A task resource changed before the authorized update executed.',
@@ -733,6 +744,8 @@ export class McpAiTaskQueryService {
       task_failed: 'The LocalMind task failed.',
       task_plan_persistence_failed:
         'LocalMind could not persist the task plan.',
+      tool_agent_timeout:
+        'LocalMind tool execution timed out before the task completed.',
       unsupported_task: 'LocalMind does not support this task yet.',
     };
     return messages[code] ?? messages.task_failed;

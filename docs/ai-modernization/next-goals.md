@@ -962,9 +962,13 @@ Implemented outcome:
   Agent Runtime side-effect evidence;
 - the tool-agent path reuses `ToolRuntime`, carries the delegation task id into
   document creation, bounds execution to 120 seconds and 20 recorded tool
-  results, polls cancellation and authority, propagates abort, and persists
-  only sanitized answers, tool fingerprints, referenced document ids, and
-  created/updated document artifacts;
+  results, polls cancellation and authority, propagates abort, and treats a
+  normal stream close after the deadline as `tool_agent_timeout`; explicit
+  single-document body mutations carry a v3 completion contract and require a
+  successful `doc_update` plus matching updated artifact before completion,
+  otherwise returning retryable `required_side_effect_missing`; only sanitized
+  answers, tool fingerprints, referenced document ids, and created/updated
+  document artifacts are persisted;
 - delegated `doc_create` derives a stable document id from task id and title,
   while `DocWriter` repairs partial root registration and returns idempotent
   replay evidence instead of creating duplicate documents;
@@ -982,9 +986,9 @@ Implemented outcome:
   retains the endpoint and secret, while family revocation blocks queued work;
 - focused Docker E2E covers callback policy, ACL, stale-version, attachment
   upload/family isolation/immutable evidence, tool-agent document creation and
-  replay, failed-tool projection, direct execution
-  without a callback, immediate cancellation, cooperative cancellation, and
-  terminal notifications.
+  replay, required document-update evidence, normal-close timeout handling,
+  failed-tool projection, direct execution without a callback, immediate
+  cancellation, cooperative cancellation, and terminal notifications.
 
 Remaining follow-up:
 
@@ -1032,9 +1036,11 @@ Implemented outcome:
   scope, atomic terminal/audit updates, and fingerprint-only audit evidence.
   Remote pending/approval states are polled with fenced leases, live ACL
   rechecks, deadline and attempt budgets, and binary result redaction;
-- inbound MCP delegation freezes a v2 SparkClaw allowlist snapshot and runs the
-  live intersection through the existing tool-agent worker; legacy v1 tasks
-  keep an empty SparkClaw snapshot and cannot gain authority after upgrade;
+- inbound MCP delegation freezes a v3 SparkClaw allowlist and completion
+  contract snapshot and runs the live SparkClaw intersection through the
+  existing tool-agent worker; legacy v1/v2 tasks retain their historical
+  completion semantics, while v1 tasks keep an empty SparkClaw snapshot and
+  cannot gain authority after upgrade;
 - Agent Runtime execution evidence records SparkClaw tool name, normalized risk,
   replay state, and bounded side-effect state without raw arguments or results.
 

@@ -23,7 +23,10 @@ import { McpAiDelegationService } from '../../plugins/copilot/mcp/delegation';
 import { McpAiTaskControlService } from '../../plugins/copilot/mcp/task-control';
 import { McpAiTaskQueryService } from '../../plugins/copilot/mcp/task-query';
 import { CapabilityRuntime } from '../../plugins/copilot/runtime/capability-runtime';
-import { buildDocCreateHandler } from '../../plugins/copilot/tools/doc-write';
+import {
+  buildDocCreateHandler,
+  buildDocUpdateHandler,
+} from '../../plugins/copilot/tools/doc-write';
 import { createTestingApp, TestingApp, TestUser } from '../utils';
 
 type CapturedCallback = {
@@ -649,6 +652,283 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
     .getDocMarkdown(workspaceId, createdDocumentId, true);
   t.true(markdown?.markdown.includes('A concise summary created by'));
   t.is(await db.aiMcpDelegationCallbackDelivery.count(), 0);
+});
+
+test('LocalMind tool agent requires update evidence for an explicit single-document mutation', async t => {
+  const { credentials, models, owner, runtime, worker } = t.context;
+  const { docId, workspaceId } = await createDocument(
+    t.context,
+    owner.id,
+    'Original daily log body.'
+  );
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId,
+    name: 'LocalMind required document update',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'tool_agent',
+        summary: 'Read and merge the daily log document',
+      }),
+    },
+  } as any);
+
+  const toolLoop = Sinon.stub(runtime, 'streamObject').callsFake(((
+    _conditions: unknown,
+    messages: any[],
+    options: any
+  ) => {
+    return (async function* () {
+      t.regex(messages[0].content, new RegExp(docId));
+      yield {
+        type: 'tool-result',
+        toolCallId: 'read-daily-log',
+        toolName: 'doc_read',
+        args: { doc_id: docId },
+        result: {
+          docId,
+          title: 'Daily log',
+          markdown: 'Original daily log body.',
+        },
+      };
+      const updateDoc = buildDocUpdateHandler(
+        t.context.app!.get(PermissionAccess),
+        t.context.app!.get(DocWriter)
+      );
+      const result = await updateDoc(
+        options,
+        docId,
+        'Original daily log body.\n\nMerged deployment entry.'
+      );
+      yield {
+        type: 'tool-result',
+        toolCallId: 'update-daily-log',
+        toolName: 'doc_update',
+        args: {
+          doc_id: docId,
+          content: 'Original daily log body.\n\nMerged deployment entry.',
+        },
+        result,
+      };
+      yield {
+        type: 'text-delta',
+        textDelta: 'Updated the daily log document.',
+      };
+    })();
+  }) as any);
+
+  const delegated = await delegate(t.context, issued.token, {
+    request:
+      'Read the supplied document, merge the deployment entry, and update the document body.',
+    documentIds: [docId],
+    idempotencyKey: 'required-document-update-success',
+  });
+  const run = await models.copilotAgentRuntime.get(
+    workspaceId,
+    String(delegated.agentRunId)
+  );
+  t.like(run?.steps[0]?.outputSummary.localMindToolAgentRequest, {
+    version: 'localmind-tool-agent-request/v3',
+    completionContract: {
+      version: 'localmind-tool-agent-completion-contract/v1',
+      kind: 'document_update',
+      documentId: docId,
+    },
+  });
+
+  await worker.runStandaloneAgentRuntime({
+    workspaceId,
+    runId: String(delegated.agentRunId),
+  });
+  t.true(toolLoop.calledOnce);
+
+  const task = await getTask(t.context, issued.token, {
+    taskId: String(delegated.taskId),
+    waitMs: 0,
+  });
+  t.like(task, {
+    status: 'completed',
+    result: {
+      kind: 'tool_agent',
+      summary: 'Updated the daily log document.',
+    },
+  });
+  t.like(task.result.toolExecutions[1], {
+    toolName: 'doc_update',
+    status: 'completed',
+    documentId: docId,
+    relation: 'updated',
+  });
+  t.like(task.artifacts[0], {
+    kind: 'document',
+    relation: 'updated',
+    reference: {
+      type: 'localmind_document',
+      documentId: docId,
+    },
+  });
+  const markdown = await t.context
+    .app!.get(DocReader)
+    .getDocMarkdown(workspaceId, docId, true);
+  t.true(markdown?.markdown.includes('Merged deployment entry.'));
+});
+
+test('LocalMind tool agent fails when an explicit document update stops after reading', async t => {
+  const { credentials, owner, runtime, worker } = t.context;
+  const { docId, workspaceId } = await createDocument(
+    t.context,
+    owner.id,
+    'Daily log must remain unchanged.'
+  );
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId,
+    name: 'LocalMind missing update evidence',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'tool_agent',
+        summary: 'Read and update the supplied daily log',
+      }),
+    },
+  } as any);
+  Sinon.stub(runtime, 'streamObject').callsFake((() => {
+    return (async function* () {
+      yield {
+        type: 'tool-result',
+        toolCallId: 'read-only-daily-log',
+        toolName: 'doc_read',
+        args: { doc_id: docId },
+        result: {
+          docId,
+          title: 'Daily log',
+          markdown: 'Daily log must remain unchanged.',
+        },
+      };
+      yield {
+        type: 'text-delta',
+        textDelta: 'I read the daily log.',
+      };
+    })();
+  }) as any);
+
+  const delegated = await delegate(t.context, issued.token, {
+    request:
+      'Read the supplied document and update the daily log with the new deployment entry.',
+    documentIds: [docId],
+    idempotencyKey: 'required-document-update-missing',
+  });
+  await worker.runStandaloneAgentRuntime({
+    workspaceId,
+    runId: String(delegated.agentRunId),
+  });
+
+  const task = await getTask(t.context, issued.token, {
+    taskId: String(delegated.taskId),
+    waitMs: 0,
+  });
+  t.like(task, {
+    status: 'failed',
+    terminal: true,
+    result: null,
+    error: {
+      code: 'required_side_effect_missing',
+      retryable: true,
+      details: {
+        documentId: docId,
+        requiredToolName: 'doc_update',
+      },
+    },
+  });
+  t.deepEqual(task.artifacts, []);
+  const markdown = await t.context
+    .app!.get(DocReader)
+    .getDocMarkdown(workspaceId, docId, true);
+  t.true(markdown?.markdown.includes('Daily log must remain unchanged.'));
+});
+
+test('LocalMind tool agent records a normal stream close after timeout as failed', async t => {
+  const { credentials, models, owner, runtime, worker } = t.context;
+  const workspace = await models.workspace.create(owner.id);
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId: workspace.id,
+    name: 'LocalMind tool agent timeout',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'tool_agent',
+        summary: 'Search the workspace until the runtime deadline',
+      }),
+    },
+  } as any);
+  const toolLoop = Sinon.stub(runtime, 'streamObject').callsFake(((
+    _conditions: unknown,
+    _messages: unknown,
+    options: any
+  ) => {
+    return (async function* () {
+      await new Promise<void>(resolve => {
+        if (options.signal.aborted) {
+          resolve();
+          return;
+        }
+        options.signal.addEventListener('abort', () => resolve(), {
+          once: true,
+        });
+      });
+      yield* [];
+    })();
+  }) as any);
+
+  const delegated = await delegate(t.context, issued.token, {
+    request: 'Search the workspace for the requested operational record.',
+    documentIds: [],
+    idempotencyKey: 'tool-agent-normal-close-timeout',
+  });
+  const clock = Sinon.useFakeTimers({
+    toFake: ['setTimeout', 'clearTimeout'],
+  });
+  try {
+    const workerPromise = worker.runStandaloneAgentRuntime({
+      workspaceId: workspace.id,
+      runId: String(delegated.agentRunId),
+    });
+    while (!toolLoop.called) {
+      await new Promise(resolve => setImmediate(resolve));
+    }
+    await clock.tickAsync(120_000);
+    await workerPromise;
+  } finally {
+    clock.restore();
+  }
+
+  const task = await getTask(t.context, issued.token, {
+    taskId: String(delegated.taskId),
+    waitMs: 0,
+  });
+  t.like(task, {
+    status: 'failed',
+    terminal: true,
+    result: null,
+    error: {
+      code: 'tool_agent_timeout',
+      retryable: true,
+    },
+  });
 });
 
 test('inline delegated attachment is bound to one credential family and becomes a LocalMind document artifact', async t => {
@@ -1298,9 +1578,13 @@ test('SparkClaw requests use the tool agent when the planner returns an answer',
   );
   const toolRequest = run?.steps[0]?.outputSummary
     .localMindToolAgentRequest as Record<string, unknown>;
-  t.is(toolRequest.version, 'localmind-tool-agent-request/v2');
+  t.is(toolRequest.version, 'localmind-tool-agent-request/v3');
   t.deepEqual(toolRequest.sparkClawToolNames, []);
   t.is(typeof toolRequest.sparkClawToolSnapshotFingerprint, 'string');
+  t.deepEqual(toolRequest.completionContract, {
+    version: 'localmind-tool-agent-completion-contract/v1',
+    kind: 'none',
+  });
 });
 
 test('LocalMind tool agent rechecks credential activity before starting its tool loop', async t => {

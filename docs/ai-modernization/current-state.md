@@ -1513,9 +1513,14 @@ The inbound workspace MCP AI delegation slice is now implemented:
   subtree and placements, never the documents themselves;
 - delegated tool-agent runs have a 120-second timeout, poll durable
   cancellation and credential/workspace authority during execution, propagate
-  the abort signal into the tool loop, preserve native tool failures in their
-  sanitized execution summaries, and persist only bounded answers, argument
-  fingerprints, referenced document ids, and created/updated artifacts;
+  the abort signal into the tool loop, and now fail with `tool_agent_timeout`
+  even when the native stream converts abort into a normal iterator close;
+  explicit single-document body mutations persist a v3 completion contract,
+  require live `Doc.Update`, and fail with `required_side_effect_missing`
+  unless a successful `doc_update` plus matching updated artifact is recorded;
+  native tool failures remain in sanitized execution summaries, while only
+  bounded answers, argument fingerprints, referenced document ids, and
+  created/updated artifacts are persisted;
   successful folder mutations additionally persist a sanitized
   `workspace_organization` effect in Agent Runtime side-effect evidence and
   task projection, while idempotent replays are not counted as new effects;
@@ -1612,11 +1617,12 @@ implemented separately from the inbound LocalMind workspace MCP surface:
 - the execution ledger has database-enforced status/lease/result coherence and
   a composite connection/workspace foreign key, preventing cross-workspace
   evidence drift;
-- MCP delegation freezes the enabled SparkClaw tool-name set and fingerprint in
-  `localmind-tool-agent-request/v2`; workers intersect that frozen maximum with
-  the current live allowlist and recheck delegated-user ACL. Existing v1 queued
-  tasks retain their historical tool snapshot and receive an empty SparkClaw
-  set, so an upgrade cannot widen their authority;
+- MCP delegation freezes the enabled SparkClaw tool-name set, fingerprint, and
+  completion contract in `localmind-tool-agent-request/v3`; workers intersect
+  the frozen SparkClaw maximum with the current live allowlist and recheck
+  delegated-user ACL. Existing v1/v2 queued tasks retain their historical
+  semantics without a required completion side effect, and v1 tasks receive an
+  empty SparkClaw set, so an upgrade cannot widen their authority;
 - `401`, invalid Session, and Session decryption failures move the connection
   to `REAUTH_REQUIRED`, clear the unusable encrypted Session and fingerprint,
   and cannot reuse the old Session;
