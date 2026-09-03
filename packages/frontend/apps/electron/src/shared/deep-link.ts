@@ -6,12 +6,10 @@ export function getDeepLinkSchemes(
 ) {
   const suffix = isDev ? '-dev' : buildType === 'stable' ? '' : `-${buildType}`;
   const primary = `localmind${suffix}`;
-  const legacy = `affine${suffix}`;
 
   return {
     primary,
-    legacy,
-    supported: [primary, legacy] as const,
+    supported: [primary] as const,
   };
 }
 

@@ -58,7 +58,7 @@ when server started, it will created a default user and a pro user for testing:
 
 Workspace members up to 3
 
-- email: dev@affine.pro
+- email: dev@localmind.example
 - name: Dev User
 - password: dev
 
@@ -66,7 +66,7 @@ Workspace members up to 3
 
 Workspace members up to 10
 
-- email: pro@affine.pro
+- email: pro@localmind.example
 - name: Pro User
 - password: pro
 
@@ -74,7 +74,7 @@ Workspace members up to 10
 
 Include a default `Team Workspace` and the members up to 10
 
-- email: team@affine.pro
+- email: team@localmind.example
 - name: Team User
 - password: team
 
@@ -85,7 +85,7 @@ Include a default `Team Workspace` and the members up to 10
 yarn dev
 ```
 
-You can login with the user (dev@affine.pro / dev) above to test the server.
+You can log in with the user (dev@localmind.example / dev) above to test the server.
 
 ## Done
 

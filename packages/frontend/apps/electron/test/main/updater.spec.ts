@@ -69,11 +69,8 @@ describe('testing for client update', () => {
                 prerelease: buildType !== 'stable',
                 assets: release.assets.map((asset, index) => ({
                   ...asset,
-                  name: asset.name.replace(/^affine-/, 'localmind-'),
                   url: `https://api.github.com/repos/Infinimesh-ai/LocalMind/releases/assets/${version}-${index}`,
-                  browser_download_url: asset.url
-                    .replace('toeverything/AFFiNE', 'Infinimesh-ai/LocalMind')
-                    .replace(/\/affine-/g, '/localmind-'),
+                  browser_download_url: asset.url,
                 })),
               }));
             })
@@ -96,9 +93,7 @@ describe('testing for client update', () => {
               path.parse(req.request.url).base
             )
           );
-          return HttpResponse.text(
-            buffer.toString().replaceAll('affine-', 'localmind-')
-          );
+          return HttpResponse.text(buffer.toString());
         }
       )
     ),
@@ -140,18 +135,10 @@ describe('testing for client update', () => {
           // not support arm64 on linux yet
           continue;
         }
-        const data = (
-          await fs.readFile(
-            path.join(
-              __dirname,
-              'fixtures',
-              'releases',
-              '0.18.0',
-              `latest.yml`
-            ),
-            'utf-8'
-          )
-        ).replaceAll('affine-', 'localmind-');
+        const data = await fs.readFile(
+          path.join(__dirname, 'fixtures', 'releases', '0.18.0', `latest.yml`),
+          'utf-8'
+        );
 
         const files = parseUpdateInfo(
           data,
@@ -179,7 +166,7 @@ describe('testing for client update', () => {
       }
     }
 
-    it('accepts legacy AFFiNE installers during the transition', () => {
+    it('rejects installers that are not branded for LocalMind', () => {
       expect(
         availableForMyPlatformAndInstaller(
           'affine-0.27.0-stable-macos-arm64.dmg',
@@ -187,7 +174,7 @@ describe('testing for client update', () => {
           'arm64',
           false
         )
-      ).toBe(true);
+      ).toBe(false);
       expect(
         availableForMyPlatformAndInstaller(
           'other-0.27.0-stable-macos-arm64.dmg',

@@ -1,5 +1,16 @@
 #!/bin/sh
 set -e
 
-BUILD_TYPE=$(ls /usr/lib | grep '^affine')
-install -Dm0644 /usr/lib/${BUILD_TYPE}/resources/affine.metainfo.xml /usr/share/metainfo/affine.metainfo.xml
+PACKAGE_NAME="${DPKG_MAINTSCRIPT_PACKAGE:?}"
+
+case "${PACKAGE_NAME}" in
+  localmind) APP_ID='ai.infinimesh.localmind' ;;
+  localmind-beta) APP_ID='ai.infinimesh.localmind.beta' ;;
+  localmind-canary) APP_ID='ai.infinimesh.localmind.canary' ;;
+  localmind-internal) APP_ID='ai.infinimesh.localmind.internal' ;;
+  *) echo "Unsupported LocalMind package: ${PACKAGE_NAME}" >&2; exit 1 ;;
+esac
+
+install -Dm0644 \
+  "/usr/lib/${PACKAGE_NAME}/resources/${APP_ID}.metainfo.xml" \
+  "/usr/share/metainfo/${APP_ID}.metainfo.xml"

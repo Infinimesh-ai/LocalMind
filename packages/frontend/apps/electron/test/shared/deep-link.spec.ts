@@ -7,23 +7,22 @@ import {
 
 describe('LocalMind deep links', () => {
   it.each([
-    ['stable', false, 'localmind', 'affine'],
-    ['beta', false, 'localmind-beta', 'affine-beta'],
-    ['canary', false, 'localmind-canary', 'affine-canary'],
-    ['internal', false, 'localmind-internal', 'affine-internal'],
-    ['canary', true, 'localmind-dev', 'affine-dev'],
+    ['stable', false, 'localmind'],
+    ['beta', false, 'localmind-beta'],
+    ['canary', false, 'localmind-canary'],
+    ['internal', false, 'localmind-internal'],
+    ['canary', true, 'localmind-dev'],
   ] as const)(
-    'uses LocalMind for %s and keeps its AFFiNE compatibility scheme',
-    (buildType, isDev, primary, legacy) => {
+    'uses only the LocalMind scheme for %s',
+    (buildType, isDev, primary) => {
       expect(getDeepLinkSchemes(buildType, isDev)).toEqual({
         primary,
-        legacy,
-        supported: [primary, legacy],
+        supported: [primary],
       });
     }
   );
 
-  it('accepts only the configured LocalMind and legacy schemes', () => {
+  it('accepts only the configured LocalMind scheme', () => {
     const { supported } = getDeepLinkSchemes('canary', false);
 
     expect(
@@ -31,7 +30,7 @@ describe('LocalMind deep links', () => {
     ).toBe(true);
     expect(
       isSupportedDeepLink('affine-canary://authentication', supported)
-    ).toBe(true);
+    ).toBe(false);
     expect(isSupportedDeepLink('affine://authentication', supported)).toBe(
       false
     );

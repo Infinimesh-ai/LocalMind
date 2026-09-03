@@ -207,7 +207,7 @@ export function matchesReleaseChannel(
   );
 }
 
-type VersionProduct = 'localmind' | 'affine';
+type VersionProduct = 'localmind';
 type VersionDistribution = 'canary' | 'beta' | 'stable';
 type VersionPlatform = 'windows' | 'macos' | 'linux';
 type VersionArch = 'x64' | 'arm64';
@@ -246,7 +246,7 @@ export function availableForMyPlatformAndInstaller(
 
   const parts = filename.split('-') as FileParts;
 
-  if (parts[0] !== 'localmind' && parts[0] !== 'affine') {
+  if (parts[0] !== 'localmind') {
     return false;
   }
 

@@ -147,12 +147,6 @@ const needRefererDomains = [
   /^(?:[a-zA-Z0-9-]+\.)*googlevideo\.com$/,
 ];
 const defaultReferer = 'https://client.localmind.local/';
-const legacyUpstreamAssetDomains = [
-  /^(?:[a-z0-9-]+\.)*usercontent\.affine\.pro$/i,
-  /^(?:[a-z0-9-]+\.)*affine\.pro$/i,
-  /^(?:[a-z0-9-]+\.)*affine\.fail$/i,
-  /^(?:[a-z0-9-]+\.)*affine\.run$/i,
-];
 
 function setHeader(
   headers: Record<string, string[]>,
@@ -192,21 +186,6 @@ function ensureFrameAncestors(
   });
 }
 
-function allowCors(
-  headers: Record<string, string[]>,
-  origin: string = 'assets://.'
-) {
-  // Legacy signed blob URLs can redirect without CORS headers.
-  setHeader(headers, 'Access-Control-Allow-Origin', origin);
-  setHeader(headers, 'Access-Control-Allow-Credentials', 'true');
-  setHeader(headers, 'Access-Control-Allow-Methods', 'GET, HEAD, PUT, OPTIONS');
-  setHeader(
-    headers,
-    'Access-Control-Allow-Headers',
-    '*, Authorization, Content-Type, Range'
-  );
-}
-
 export async function registerProtocol() {
   await initializeAuthSessions();
 
@@ -219,9 +198,9 @@ export async function registerProtocol() {
       const { responseHeaders, url } = responseDetails;
       (async () => {
         if (responseHeaders) {
-          const { protocol, hostname } = new URL(url);
+          const { protocol } = new URL(url);
 
-          // Adjust CORS for local assets and legacy upstream blob redirects.
+          // Restrict local assets to the LocalMind application frame.
           if (protocol === 'assets:') {
             delete responseHeaders['access-control-allow-origin'];
             delete responseHeaders['access-control-allow-headers'];
@@ -229,11 +208,6 @@ export async function registerProtocol() {
             delete responseHeaders['Access-Control-Allow-Headers'];
             setHeader(responseHeaders, 'X-Frame-Options', 'SAMEORIGIN');
             ensureFrameAncestors(responseHeaders, "'self'");
-          } else if (
-            (protocol === 'http:' || protocol === 'https:') &&
-            legacyUpstreamAssetDomains.some(regex => regex.test(hostname))
-          ) {
-            allowCors(responseHeaders);
           }
         }
       })()

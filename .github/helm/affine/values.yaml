@@ -7,10 +7,9 @@ global:
     # hosts for ingress rules
     # e.g.
     # hosts:
-    #  - affine.pro
-    #  - www.affine.pro
+    #  - localmind.example.com
     hosts:
-      - affine.pro
+      - localmind.infinimesh.cloud
     tls: []
   secret:
     secretName: 'server-private-key'

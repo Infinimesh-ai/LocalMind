@@ -87,8 +87,7 @@
       {
         "name": "LocalMind",
         "schemes": [
-          "localmind",
-          "affine"
+          "localmind"
         ]
       }
     ]

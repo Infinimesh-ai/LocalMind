@@ -1,4 +1,4 @@
-# Building AFFiNE Web
+# Building LocalMind Web
 
 > **Warning**:
 >
@@ -17,7 +17,7 @@
 
 ## Prerequisites
 
-AFFiNE client has both **Node.js** & **Rust** toolchains.
+LocalMind has both **Node.js** and **Rust** toolchains.
 
 ### Install Node.js
 
@@ -27,7 +27,7 @@ We suggest develop our product under node.js LTS(Long-term support) version
 
 install [Node LTS version](https://nodejs.org/en/download)
 
-> Up to now, the major node.js version is 20.x
+Use the Node.js version declared by the repository, currently Node.js 22.
 
 #### Option 2: Use node version manager
 
@@ -62,7 +62,8 @@ yarn install
 #### Linux & MacOS
 
 ```sh
-git clone https://github.com/toeverything/AFFiNE
+git clone https://github.com/Infinimesh-ai/LocalMind
+cd LocalMind
 ```
 
 #### Windows
@@ -77,14 +78,15 @@ Once Developer Mode is enabled, execute the following command with administrator
 # Enable symbolic links
 git config --global core.symlinks true
 # Clone the repository
-git clone https://github.com/toeverything/AFFiNE
+git clone https://github.com/Infinimesh-ai/LocalMind
+cd LocalMind
 ```
 
 ### Build Native Dependencies
 
 Run the following script. It will build the native module at [`/packages/frontend/native`](/packages/frontend/native) and build Node.js binding using [NAPI.rs](https://napi.rs/).
 This could take a while if you build it for the first time.
-Note: use `strip` from system instead of `binutils` if you are running MacOS. [see problem here](https://github.com/toeverything/AFFiNE/discussions/2840)
+On macOS, use the system-provided `strip` instead of the GNU `binutils` version.
 
 ```sh
 yarn affine @affine/native build
@@ -114,7 +116,6 @@ yarn test
 ### E2E Test
 
 ```shell
-# there are `affine-local`, `affine-migration`, `affine-local`, `affine-prototype` e2e tests,
-#   which are run under different situations.
+# Workspace package names retain upstream-compatible identifiers.
 yarn workspace @affine-test/affine-local e2e
 ```

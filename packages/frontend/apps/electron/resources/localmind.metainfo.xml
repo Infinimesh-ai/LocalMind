@@ -30,7 +30,6 @@
   </recommends>
   <provides>
     <mediatype>x-scheme-handler/localmind</mediatype>
-    <mediatype>x-scheme-handler/affine</mediatype>
   </provides>
   <supports>
     <control>pointing</control>

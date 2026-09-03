@@ -36,11 +36,6 @@ on:
         required: false
         default: false
         type: boolean
-    outputs:
-      files_to_be_signed:
-        description: Files to be signed (Windows only)
-        value: ${{ jobs.build.outputs.files_to_be_signed }}
-
 permissions:
   actions: write
   contents: write
@@ -51,8 +46,6 @@ permissions:
 jobs:
   build:
     runs-on: ${{ inputs.runner }}
-    outputs:
-      files_to_be_signed: ${{ steps.get_files_to_be_signed.outputs.FILES_TO_BE_SIGNED }}
     env:
       BUILD_TYPE: ${{ inputs.build_type }}
       RELEASE_VERSION: ${{ inputs.app_version }}
@@ -65,7 +58,7 @@ jobs:
       APPLE_SIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-      SENTRY_PROJECT: 'affine'
+      SENTRY_PROJECT: ${{ vars.LOCALMIND_SENTRY_PROJECT || 'localmind-desktop' }}
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
       SENTRY_RELEASE: ${{ inputs.app_version }}
@@ -86,7 +79,7 @@ jobs:
           nmHoistingLimits: workspaces
           enableScripts: ${{ inputs.enable_scripts }}
 
-      - name: Build AFFiNE native
+      - name: Build LocalMind native runtime
         uses: ./.github/actions/build-rust
         with:
           target: ${{ inputs.target }}
@@ -201,26 +194,3 @@ jobs:
         with:
           name: localmind-${{ inputs.platform }}-${{ inputs.arch }}-builds
           path: builds
-
-      - name: get all files to be signed
-        id: get_files_to_be_signed
-        if: ${{ inputs.platform == 'win32' }}
-        shell: pwsh
-        run: |
-          Set-Variable -Name FILES_TO_BE_SIGNED -Value ((Get-ChildItem -Path packages/frontend/apps/electron/out -Recurse -File | Where-Object { $_.Extension -in @(".exe", ".node", ".dll", ".msi") } | ForEach-Object { '"' + $_.FullName.Replace((Get-Location).Path + '\packages\frontend\apps\electron\out\', '') + '"' }) -join ' ')
-          "FILES_TO_BE_SIGNED=$FILES_TO_BE_SIGNED" >> $env:GITHUB_OUTPUT
-          echo $FILES_TO_BE_SIGNED
-
-      - name: Zip artifacts for faster upload
-        if: ${{ inputs.platform == 'win32' }}
-        shell: pwsh
-        run: Compress-Archive -CompressionLevel Fastest -Path packages/frontend/apps/electron/out/* -DestinationPath archive.zip
-
-      - name: Save packaged artifacts for signing
-        if: ${{ inputs.platform == 'win32' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: packaged-${{ inputs.platform }}-${{ inputs.arch }}
-          path: |
-            archive.zip
-            !**/*.map

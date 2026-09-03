@@ -23,6 +23,8 @@
     "localmind": "r affine.ts",
     "dev": "yarn localmind dev",
     "build": "yarn localmind build",
+    "check:localmind-branding": "node ./scripts/check-localmind-branding.mjs",
+    "verify:release": "node ./scripts/verify-release-manifest.mjs",
     "lint:eslint": "cross-env NODE_OPTIONS=\"--max-old-space-size=16384\" eslint --report-unused-disable-directives-severity=off . --cache",
     "lint:eslint:fix": "yarn lint:eslint --fix --fix-type problem,suggestion,layout",
     "lint:prettier": "prettier --ignore-unknown --cache --check .",

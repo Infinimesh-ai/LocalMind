@@ -87,6 +87,8 @@ jobs:
         with:
           electron-install: false
           full-cache: true
+      - name: Check LocalMind product pointers
+        run: yarn check:localmind-branding
       - name: Run oxlint
         run: yarn lint:ox
       - name: Run i18n codegen

@@ -32,7 +32,6 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>localmind</string>
-				<string>affine</string>
 			</array>
 		</dict>
 	</array>

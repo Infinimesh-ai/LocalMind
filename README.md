@@ -78,9 +78,11 @@ Baseline tooling:
 - Rust toolchain from `rust-toolchain.toml`
 - Docker and Docker Compose for validation
 
-Windows-specific release steps may remain in inherited CI when needed to build
-or sign Windows desktop artifacts, but they are not the default LocalMind
-development or test path.
+Windows desktop artifacts no longer use the inherited AFFiNE remote signer.
+Community releases intentionally ship without Authenticode and are protected by
+SHA-256 checksums, a LocalMind Ed25519 release manifest, Sigstore, and GitHub
+build provenance. See
+[LocalMind release integrity](./docs/localmind-release-integrity.md).
 
 ## Development Loop
 

@@ -5,7 +5,7 @@ import { parseArgs } from 'node:util';
 import debug from 'debug';
 import { z } from 'zod';
 
-const log = debug('affine:make-env');
+const log = debug('localmind:make-env');
 
 const ReleaseTypeSchema = z.enum(['stable', 'beta', 'canary', 'internal']);
 
@@ -18,8 +18,7 @@ const envBuildType = (process.env.BUILD_TYPE || 'canary').trim().toLowerCase();
 const buildType = ReleaseTypeSchema.parse(envBuildType);
 const stableBuild = buildType === 'stable';
 const productName = !stableBuild ? `LocalMind-${buildType}` : 'LocalMind';
-const legacyProtocol = stableBuild ? 'affine' : `affine-${buildType}`;
-const protocolSchemes = [productName.toLowerCase(), legacyProtocol];
+const protocolSchemes = [productName.toLowerCase()];
 const icoPath = path.join(
   ROOT,
   !stableBuild

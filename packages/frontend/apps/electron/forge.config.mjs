@@ -1,5 +1,12 @@
 import cp from 'node:child_process';
-import { readdir, rm, symlink } from 'node:fs/promises';
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -7,6 +14,7 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import { utils } from '@electron-forge/core';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 
+import { renderLinuxMetainfo } from './scripts/linux-metainfo.js';
 import {
   appIdMap,
   arch,
@@ -22,12 +30,31 @@ import {
 } from './scripts/make-env.js';
 
 const fromBuildIdentifier = utils.fromBuildIdentifier;
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 const linuxMimeTypes = protocolSchemes.map(
   scheme => `x-scheme-handler/${scheme}`
 );
+const appId = fromBuildIdentifier(appIdMap);
+const linuxMetainfoFileName = `${appId}.metainfo.xml`;
+const generatedLinuxMetainfoPath = path.join(
+  __dirname,
+  'out',
+  buildType,
+  'generated',
+  linuxMetainfoFileName
+);
 
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const generateLinuxMetainfo = async () => {
+  const source = await readFile(
+    path.join(__dirname, 'resources', 'localmind.metainfo.xml'),
+    'utf8'
+  );
+  const content = renderLinuxMetainfo(source, appId, protocolSchemes[0]);
+
+  await mkdir(path.dirname(generatedLinuxMetainfoPath), { recursive: true });
+  await writeFile(generatedLinuxMetainfoPath, content);
+};
 
 const DEFAULT_ELECTRON_LOCALES_KEEP = new Set([
   'en',
@@ -283,8 +310,8 @@ const makers = [
         baseVersion: '25.08',
         files: [
           [
-            './resources/affine.metainfo.xml',
-            '/usr/share/metainfo/affine.metainfo.xml',
+            generatedLinuxMetainfoPath,
+            `/usr/share/metainfo/${linuxMetainfoFileName}`,
           ],
         ],
         modules: [
@@ -329,7 +356,7 @@ export default {
   buildIdentifier: buildType,
   packagerConfig: {
     name: productName,
-    appBundleId: fromBuildIdentifier(appIdMap),
+    appBundleId: appId,
     icon: icnsPath,
     osxSign: process.env.APPLE_SIGN_IDENTITY
       ? {
@@ -349,7 +376,7 @@ export default {
     // We need the following line for updater
     extraResource: [
       './resources/app-update.yml',
-      ...(platform === 'linux' ? ['./resources/affine.metainfo.xml'] : []),
+      ...(platform === 'linux' ? [generatedLinuxMetainfoPath] : []),
     ],
     protocols: [
       {
@@ -405,6 +432,10 @@ export default {
       packageJson.productName = productName;
     },
     prePackage: async () => {
+      if (platform === 'linux') {
+        await generateLinuxMetainfo();
+      }
+
       if (!process.env.HOIST_NODE_MODULES) {
         await rm(path.join(__dirname, 'node_modules'), {
           recursive: true,

@@ -35,4 +35,4 @@ You accept and agree to the following terms and conditions for your past, presen
 
 ## How To Sign
 
-Visit https://cla-assistant.io/toeverything/AFFiNE and sign it.
+Follow the contributor license instructions configured for the LocalMind repository.

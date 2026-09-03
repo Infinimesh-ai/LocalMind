@@ -1,4 +1,14 @@
 #!/bin/sh
 set -e
 
-rm /usr/share/metainfo/affine.metainfo.xml
+PACKAGE_NAME="${DPKG_MAINTSCRIPT_PACKAGE:?}"
+
+case "${PACKAGE_NAME}" in
+  localmind) APP_ID='ai.infinimesh.localmind' ;;
+  localmind-beta) APP_ID='ai.infinimesh.localmind.beta' ;;
+  localmind-canary) APP_ID='ai.infinimesh.localmind.canary' ;;
+  localmind-internal) APP_ID='ai.infinimesh.localmind.internal' ;;
+  *) exit 0 ;;
+esac
+
+rm -f "/usr/share/metainfo/${APP_ID}.metainfo.xml"
