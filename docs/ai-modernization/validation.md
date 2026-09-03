@@ -138,6 +138,44 @@ and Rust toolchain. Container source validation therefore reused the Linux
 ARM64 addon from the running fixed `localmind-affine:local` image in an
 ephemeral container. No Docker volume or persisted service data was changed.
 
+The 2026-09-02 4096-dimensional embedding contract was validated with:
+
+- Prisma schema validation and client generation after changing all five
+  pgvector columns to `vector(4096)`;
+- all 315 migrations applied from zero to disposable PostgreSQL 16 databases
+  with pgvector 0.8.5, once on the host and once in an ephemeral
+  `localmind-affine:test` container;
+- a synthetic upgrade from populated 1024-dimensional derived caches and a
+  durable Memory row: all chunk rows, Memory ids, text, and scope were retained
+  with pending null embeddings, and all five columns became `vector(4096)`;
+- index catalog checks for five binary-quantized `bit(4096)` HNSW indexes and
+  an `EXPLAIN` plan using `ai_context_embeddings_idx` for candidate retrieval;
+- 14 context/workspace model tests, focused 4096-dimensional backfill job and
+  minute-scheduling tests, and 7 embedding-client tests, including Linux
+  test-container coverage;
+- the resolver source-chain smoke, focused Admin AI diagnostics test, Copilot
+  test typecheck, oxlint, Prettier, Prisma validation, and `git diff --check`.
+
+No image was rebuilt. Validation used disposable databases and an ephemeral
+container without mounting or modifying existing LocalMind persistent volumes.
+
+The 2026-09-02 MCP tool-lifecycle hardening was validated with:
+
+- 39 focused tests covering keyword-search fallback, task tool-snapshot
+  intersection, sessionless task-attachment reads, document Trash/restore/
+  permanent deletion, and recursive folder lifecycle behavior;
+- all 28 tests in `copilot-mcp-delegation.e2e.ts`, including required and
+  conditional document evidence, current-tool intersection failure,
+  SparkClaw routing, cancellation, and live credential, ACL, and
+  document-version rechecks;
+- Copilot test typechecking, focused oxlint and Prettier checks, and
+  `git diff --check`.
+
+No image was rebuilt. The existing `localmind-affine:test` image was reused in
+the disposable `localmind_affine_test_tool_lifecycle` container with isolated
+PostgreSQL and Redis services. No existing LocalMind volume or persisted
+service data was changed.
+
 ## Definition Of Done
 
 Every future goal summary should state:

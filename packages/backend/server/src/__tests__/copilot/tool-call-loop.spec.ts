@@ -2,6 +2,7 @@ import serverNativeModule from '@affine/server-native';
 import test from 'ava';
 import { z } from 'zod';
 
+import { SearchProviderNotFound } from '../../base';
 import type { DocReader } from '../../core/doc';
 import type {
   PermissionAccess,
@@ -23,6 +24,7 @@ import {
 import {
   createToolExecutionCallback,
   createToolLoopBridge,
+  toJsonSafeToolOutput,
 } from '../../plugins/copilot/runtime/tool/bridge';
 import {
   buildBlobContentGetter,
@@ -44,6 +46,7 @@ import {
   DOCUMENT_SYNC_PENDING_MESSAGE,
   LOCAL_WORKSPACE_SYNC_REQUIRED_MESSAGE,
 } from '../../plugins/copilot/tools/doc-sync';
+import { createTaskAttachmentReadTool } from '../../plugins/copilot/tools/task-attachment-read';
 import { defineTool } from '../../plugins/copilot/tools/tool';
 import {
   nativeMessages,
@@ -70,6 +73,44 @@ test('defineTool should freeze json schema at definition time', t => {
     additionalProperties: false,
     required: ['doc_id'],
   });
+});
+
+test('tool output conversion serializes Date values before the native contract boundary', t => {
+  t.deepEqual(
+    toJsonSafeToolOutput({
+      createdAt: new Date('2026-09-02T12:34:56.000Z'),
+    }),
+    { createdAt: '2026-09-02T12:34:56.000Z' }
+  );
+});
+
+test('task_attachment_read is restricted to materialized task attachments', async t => {
+  const tool = createTaskAttachmentReadTool([
+    {
+      attachmentId: 'attachment-1',
+      fileName: 'notes.txt',
+      mimeType: 'text/plain',
+      byteSize: 12,
+      contentFingerprint: 'fingerprint-1',
+      extractedText: 'hello task attachment',
+    },
+  ]);
+
+  t.like(
+    await tool.execute?.({ attachment_id: 'attachment-1', chunk: 0 }, {}),
+    {
+      attachmentId: 'attachment-1',
+      content: 'hello task attachment',
+      hasMore: false,
+    }
+  );
+  t.like(
+    await tool.execute?.({ attachment_id: 'attachment-2', chunk: 0 }, {}),
+    {
+      type: 'error',
+      name: 'Task Attachment Read Failed',
+    }
+  );
 });
 
 test('buildToolContracts should project precomputed json schema', t => {
@@ -479,7 +520,8 @@ test('document search tools should return sync error for local workspace', async
       ac,
       {} as PermissionService,
       indexerService,
-      models
+      models,
+      {} as any
     ).bind(null, {
       user: 'user-1',
       workspace: 'workspace-1',
@@ -635,7 +677,8 @@ test('doc_keyword_search ranks only readable document ids', async t => {
     ac,
     permission,
     indexerService,
-    models
+    models,
+    {} as any
   );
 
   const result = await search(
@@ -647,7 +690,7 @@ test('doc_keyword_search ranks only readable document ids', async t => {
     'another query'
   );
 
-  t.deepEqual(searchOptions, { docIds: readableDocIds });
+  t.deepEqual(searchOptions, { docIds: readableDocIds, limit: 20 });
   t.is(permissionReads, 1, 'the tool-call loop should reuse permission scans');
   t.deepEqual(
     Array.isArray(result) ? result.map(doc => doc.docId) : result,
@@ -657,6 +700,65 @@ test('doc_keyword_search ranks only readable document ids', async t => {
     Array.isArray(repeated) ? repeated.map(doc => doc.docId) : repeated,
     readableDocIds
   );
+});
+
+test('doc_keyword_search fallback ranks all bounded candidates before applying the limit', async t => {
+  const recentDocIds = Array.from({ length: 16 }, (_, index) => `doc-${index}`);
+  const readableDocIds = [...recentDocIds, 'doc-exact'];
+  const readDocIds: string[] = [];
+  const ac = {
+    user: () => ({
+      workspace: () => ({
+        can: async () => true,
+        doc: () => ({ can: async () => true }),
+      }),
+    }),
+  } as unknown as PermissionAccess;
+  const permission = {
+    listReadableDocIds: async () => readableDocIds,
+  } as unknown as PermissionService;
+  const indexerService = {
+    searchDocsByKeyword: async () => {
+      throw new SearchProviderNotFound();
+    },
+  } as unknown as Parameters<typeof buildDocKeywordSearchGetter>[2];
+  const models = {
+    workspace: {
+      get: async () => ({ id: 'workspace-1' }),
+    },
+    doc: {
+      findTimestampsByDocIds: async () =>
+        Object.fromEntries(
+          readableDocIds.map((docId, index) => [docId, 100 - index])
+        ),
+    },
+  } as unknown as Models;
+  const reader = {
+    getDocMarkdown: async (_workspaceId: string, docId: string) => {
+      readDocIds.push(docId);
+      return docId === 'doc-exact'
+        ? { title: 'alpha beta', markdown: 'exact phrase in an older title' }
+        : { title: docId, markdown: 'alpha appears before beta' };
+    },
+  } as unknown as DocReader;
+  const search = buildDocKeywordSearchGetter(
+    ac,
+    permission,
+    indexerService,
+    models,
+    reader
+  );
+
+  const result = await search(
+    { user: 'user-1', workspace: 'workspace-1' },
+    'alpha beta',
+    1
+  );
+
+  t.deepEqual(readDocIds, readableDocIds);
+  t.deepEqual(Array.isArray(result) ? result.map(doc => doc.docId) : result, [
+    'doc-exact',
+  ]);
 });
 
 test('blob_read should return explicit error when attachment context is missing', async t => {

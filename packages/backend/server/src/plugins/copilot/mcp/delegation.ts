@@ -29,6 +29,7 @@ import { ExternalMcpConnectionService } from '../external-mcp';
 import type { PromptMessage } from '../providers/types';
 import { CapabilityRuntime } from '../runtime/capability-runtime';
 import { buildStructuredResponseContract } from '../runtime/contracts';
+import { ToolRuntime } from '../runtime/tool-runtime';
 import {
   McpAttachmentReferenceError,
   McpAttachmentService,
@@ -38,7 +39,10 @@ import {
 } from './attachments';
 import { MCP_DELEGATE_CAPABILITY, type McpCapability } from './capabilities';
 import { type LocalMindTaskPlan, LocalMindTaskPlanSchema } from './task-query';
-import { buildToolAgentCompletionContract } from './tool-agent-completion';
+import {
+  buildToolAgentCompletionContract,
+  buildToolAgentDestructiveIntent,
+} from './tool-agent-completion';
 import {
   defineTool,
   RESULT_OUTPUT_SCHEMA,
@@ -485,6 +489,7 @@ export class McpAiDelegationService {
     private readonly reader: DocReader,
     private readonly attachments: McpAttachmentService,
     private readonly runtime: CapabilityRuntime,
+    private readonly toolRuntime: ToolRuntime,
     private readonly models: Models,
     private readonly jobs: JobQueue,
     private readonly crypto: CryptoHelper,
@@ -1073,6 +1078,24 @@ export class McpAiDelegationService {
         request: input.request,
         documentIds: requestedDocumentIds,
       });
+      const destructiveIntent = buildToolAgentDestructiveIntent(input.request);
+      const actualTools = await this.toolRuntime.getTools(
+        {
+          user: credential.userId,
+          workspace: credential.workspaceId,
+          taskId: created.record.id,
+          tools: [...LOCALMIND_DELEGATION_AI_TOOLS],
+          sparkClawToolNames,
+          taskAttachments: materializedAttachments.context,
+          destructiveIntent,
+        },
+        'localmind-tool-agent-snapshot'
+      );
+      const allowedToolNames = Object.keys(actualTools).sort();
+      const toolSnapshotFingerprint = mcpDelegationFingerprint({
+        version: 'localmind-tool-agent-tools/v1',
+        toolNames: allowedToolNames,
+      });
       const run = await this.models.copilotAgentRuntime.createRun({
         workspaceId: credential.workspaceId,
         actorId: credential.userId,
@@ -1094,6 +1117,7 @@ export class McpAiDelegationService {
           credentialFamilyId: credential.familyId,
           credentialGeneration: credential.generation,
           sparkClawToolSnapshotFingerprint,
+          toolSnapshotFingerprint,
         },
         steps: [
           {
@@ -1104,11 +1128,14 @@ export class McpAiDelegationService {
             order: 0,
             outputSummary: {
               localMindToolAgentRequest: {
-                version: 'localmind-tool-agent-request/v3',
+                version: 'localmind-tool-agent-request/v4',
                 requestFingerprint,
                 allowedTools: [...LOCALMIND_DELEGATION_AI_TOOLS],
+                allowedToolNames,
+                toolSnapshotFingerprint,
                 sparkClawToolNames,
                 sparkClawToolSnapshotFingerprint,
+                destructiveIntent,
                 completionContract,
               },
             },

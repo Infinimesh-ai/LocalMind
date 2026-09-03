@@ -619,7 +619,9 @@ export class CopilotContextResolver {
       return [];
     }
     const session = await this.context.get(context.id);
-    return session.files;
+    const files = session.files;
+    await this.models.copilotContext.mergeFileStatus(session.id, files);
+    return files;
   }
 
   @Mutation(() => CopilotContextCategory, {

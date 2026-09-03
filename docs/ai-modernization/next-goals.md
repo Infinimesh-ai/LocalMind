@@ -950,25 +950,30 @@ Implemented outcome:
   then planning and worker execution independently rematerialize and verify
   bounded text/byte model context;
 - the planner can return a direct answer, queue the optimized one-document
-  replacement path, or queue `agent_runtime_localmind_tool_agent` with all 13
-  AI Chat server-side tool categories: attachment read, code artifact,
+  replacement path, or queue `agent_runtime_localmind_tool_agent` with the
+  canonical AI Chat server-side tool categories: task attachment read, code artifact,
   conversation summary, document read/create/update/title update, keyword and
   semantic search, web search/crawl, document composition, section edit, and
   semantic workspace folder organization;
 - Web AI and inbound delegation share one canonical tool-category registry;
-  folder organization provides list/create/rename/move/delete plus document
-  add/move semantics with `Workspace.Organize.Read`, `Workspace.Sync`, and
-  `Doc.Read` enforcement, safe recursive deletion, idempotency, and sanitized
-  Agent Runtime side-effect evidence;
+  folder organization provides list/create/rename/move, Trash/restore/permanent
+  delete, plus document add/move semantics with workspace and document ACLs,
+  explicit permanent-delete intent, recursive cleanup, retryable Trash manifests,
+  idempotency, and sanitized Agent Runtime side-effect evidence;
 - the tool-agent path reuses `ToolRuntime`, carries the delegation task id into
   document creation, bounds execution to 120 seconds and 20 recorded tool
   results, polls cancellation and authority, propagates abort, and treats a
   normal stream close after the deadline as `tool_agent_timeout`; explicit
-  single-document body mutations carry a v3 completion contract and require a
-  successful `doc_update` plus matching updated artifact before completion,
-  otherwise returning retryable `required_side_effect_missing`; only sanitized
+  single-document body mutations carry a v2 completion contract in a v4 task
+  snapshot; unconditional writes require a successful `doc_update` plus matching
+  updated artifact, while conditional writes may finish after read evidence
+  confirms no change is needed; only sanitized
   answers, tool fingerprints, referenced document ids, and created/updated
   document artifacts are persisted;
+- each v4 task persists the actual available internal tool names and fingerprint;
+  execution intersects that snapshot with current registrations and live ACL,
+  and sessionless task attachments use `task_attachment_read` instead of
+  general `blob_read`;
 - delegated `doc_create` derives a stable document id from task id and title,
   while `DocWriter` repairs partial root registration and returns idempotent
   replay evidence instead of creating duplicate documents;

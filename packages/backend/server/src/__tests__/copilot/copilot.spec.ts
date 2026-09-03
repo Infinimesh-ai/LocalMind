@@ -11,6 +11,7 @@ import { z } from 'zod';
 
 import {
   EventBus,
+  JOB_SIGNAL,
   JobQueue,
   RequestMutex,
   SpaceAccessDenied,
@@ -3465,6 +3466,49 @@ test('should be able to manage context', async t => {
 });
 
 // ==================== workspace embedding ====================
+test('should backfill pending chunks with 4096-dimensional vectors', async t => {
+  const { db, jobs, models, workspace } = t.context;
+  const ws = await workspace.create(userId);
+  const docId = randomUUID();
+  const memoryId = randomUUID();
+
+  await models.doc.upsert({
+    spaceId: ws.id,
+    docId,
+    blob: Uint8Array.from([1, 2, 3]),
+    timestamp: Date.now(),
+    editorId: userId,
+  });
+  await db.$executeRaw`
+    INSERT INTO "ai_workspace_embeddings"
+      ("workspace_id", "doc_id", "chunk", "content", "embedding", "updated_at")
+    VALUES (${ws.id}, ${docId}, 0, 'document content', NULL, NOW())
+  `;
+  await db.aiContextMemory.create({
+    data: {
+      id: memoryId,
+      ownerUserId: userId,
+      workspaceId: ws.id,
+      scope: 'workspace',
+      kind: 'auto_memory',
+      content: 'memory content',
+      fingerprint: randomUUID(),
+    },
+  });
+
+  Sinon.stub(jobs, 'embeddingClient').get(() => new MockEmbeddingClient());
+  const signal = await jobs.backfillEmbeddingDimensions({ limit: 64 });
+
+  t.is(signal, JOB_SIGNAL.Done);
+  t.deepEqual(await models.copilotContext.listPendingEmbeddingBackfill(10), []);
+  const dimensions = await db.$queryRaw<Array<{ dimensions: number }>>`
+    SELECT vector_dims("embedding")::int AS "dimensions"
+    FROM "ai_workspace_embeddings"
+    WHERE "workspace_id" = ${ws.id} AND "doc_id" = ${docId}
+  `;
+  t.is(dimensions[0]?.dimensions, EMBEDDING_DIMENSIONS);
+});
+
 test('should be able to manage workspace embedding', async t => {
   const { db, jobs, workspace, workspaceEmbedding, context, prompt, session } =
     t.context;
@@ -3710,6 +3754,27 @@ test('should handle generateSessionTitle correctly under various conditions', as
       'should use correct prompt for title generation'
     );
   }
+});
+
+test('should schedule embedding dimension backfill', async t => {
+  const { cronJobs } = t.context;
+  const jobAddStub = cronJobs['jobs'].add as Sinon.SinonStub;
+  jobAddStub.resetHistory();
+  jobAddStub.resolves();
+
+  await cronJobs.scheduleEmbeddingDimensionBackfill();
+
+  t.deepEqual(
+    jobAddStub.getCalls().map(call => call.args),
+    [
+      [
+        'copilot.embedding.backfillDimensions',
+        { limit: 64 },
+        { jobId: 'minute-copilot-embedding-dimension-backfill' },
+      ],
+    ]
+  );
+  jobAddStub.reset();
 });
 
 test('should handle copilot cron jobs correctly', async t => {
@@ -6752,7 +6817,7 @@ test('resolver models should expose workspace task route diagnostics', async t =
   );
   t.is(
     models.embeddingRoute?.embeddingIndexContractVersion,
-    'workspace-embedding-index/v1'
+    'workspace-embedding-index/v2'
   );
   t.is(
     models.embeddingRoute?.embeddingIndexContractStatus,
@@ -7064,7 +7129,7 @@ test('resolver models should expose workspace task route diagnostics', async t =
     requestedDimensions: EMBEDDING_DIMENSIONS,
     modelEmbeddingDimensions: 768,
     dimensionMismatch: true,
-    embeddingIndexContractVersion: 'workspace-embedding-index/v1',
+    embeddingIndexContractVersion: 'workspace-embedding-index/v2',
     embeddingIndexContractStatus: 'dimension_mismatch',
     embeddingIndexContractDimensions: EMBEDDING_DIMENSIONS,
     taskRoutePolicyRevisionSourceChain: [

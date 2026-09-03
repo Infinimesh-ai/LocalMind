@@ -1172,7 +1172,7 @@ model AiContextMemory {
   supersedesId    String?                      @map("supersedes_id") @db.VarChar
   lastUsedAt      DateTime?                    @map("last_used_at") @db.Timestamptz(3)
   useCount        Int                          @default(0) @map("use_count")
-  embedding       Unsupported("vector(1024)")?
+  embedding       Unsupported("vector(4096)")?
   metadata        Json                         @default("{}") @db.JsonB
   createdAt       DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime                     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -1954,7 +1954,7 @@ model AiContextEmbedding {
   // a file can be divided into multiple chunks and embedded separately.
   chunk     Int                         @db.Integer
   content   String                      @db.VarChar
-  embedding Unsupported("vector(1024)")
+  embedding Unsupported("vector(4096)")?
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -1972,7 +1972,7 @@ model AiWorkspaceEmbedding {
   // a doc can be divided into multiple chunks and embedded separately.
   chunk       Int                         @db.Integer
   content     String                      @db.VarChar
-  embedding   Unsupported("vector(1024)")
+  embedding   Unsupported("vector(4096)")?
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -2022,7 +2022,7 @@ model AiWorkspaceFileEmbedding {
   // a file can be divided into multiple chunks and embedded separately.
   chunk       Int                         @db.Integer
   content     String                      @db.VarChar
-  embedding   Unsupported("vector(1024)")
+  embedding   Unsupported("vector(4096)")?
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
@@ -2039,7 +2039,7 @@ model AiWorkspaceBlobEmbedding {
   // a file can be divided into multiple chunks and embedded separately.
   chunk       Int                         @db.Integer
   content     String                      @db.VarChar
-  embedding   Unsupported("vector(1024)")
+  embedding   Unsupported("vector(4096)")?
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 

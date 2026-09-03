@@ -18,6 +18,13 @@ BEGIN
     RAISE NOTICE 'pgvector HNSW index access method is not available. Skip repairing copilot embedding indexes.';
   END IF;
 
+  IF to_regprocedure('binary_quantize(vector)') IS NULL OR NOT EXISTS (
+    SELECT 1 FROM pg_opclass WHERE opcname = 'bit_hamming_ops'
+  ) THEN
+    RAISE NOTICE 'pgvector binary quantization support is not available. Skip repairing copilot embedding indexes.';
+    has_hnsw := FALSE;
+  END IF;
+
   IF to_regclass('public.ai_contexts') IS NOT NULL THEN
     CREATE TABLE IF NOT EXISTS "ai_context_embeddings" (
       "id" VARCHAR NOT NULL,
@@ -25,7 +32,7 @@ BEGIN
       "file_id" VARCHAR NOT NULL,
       "chunk" INTEGER NOT NULL,
       "content" VARCHAR NOT NULL,
-      "embedding" vector(1024) NOT NULL,
+      "embedding" vector(4096),
       "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updated_at" TIMESTAMPTZ(3) NOT NULL,
       CONSTRAINT "ai_context_embeddings_pkey" PRIMARY KEY ("id")
@@ -33,7 +40,9 @@ BEGIN
 
     IF has_hnsw THEN
       CREATE INDEX IF NOT EXISTS "ai_context_embeddings_idx"
-        ON "ai_context_embeddings" USING hnsw ("embedding" vector_cosine_ops);
+        ON "ai_context_embeddings" USING hnsw
+        ((binary_quantize("embedding")::bit(4096)) bit_hamming_ops)
+        WHERE "embedding" IS NOT NULL;
     END IF;
     CREATE UNIQUE INDEX IF NOT EXISTS "ai_context_embeddings_context_id_file_id_chunk_key"
       ON "ai_context_embeddings"("context_id", "file_id", "chunk");
@@ -56,7 +65,7 @@ BEGIN
       "doc_id" VARCHAR NOT NULL,
       "chunk" INTEGER NOT NULL,
       "content" VARCHAR NOT NULL,
-      "embedding" vector(1024) NOT NULL,
+      "embedding" vector(4096),
       "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updated_at" TIMESTAMPTZ(3) NOT NULL,
       CONSTRAINT "ai_workspace_embeddings_pkey"
@@ -65,7 +74,9 @@ BEGIN
 
     IF has_hnsw THEN
       CREATE INDEX IF NOT EXISTS "ai_workspace_embeddings_idx"
-        ON "ai_workspace_embeddings" USING hnsw ("embedding" vector_cosine_ops);
+        ON "ai_workspace_embeddings" USING hnsw
+        ((binary_quantize("embedding")::bit(4096)) bit_hamming_ops)
+        WHERE "embedding" IS NOT NULL;
     END IF;
 
     IF NOT EXISTS (
@@ -87,7 +98,7 @@ BEGIN
       "file_id" VARCHAR NOT NULL,
       "chunk" INTEGER NOT NULL,
       "content" VARCHAR NOT NULL,
-      "embedding" vector(1024) NOT NULL,
+      "embedding" vector(4096),
       "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT "ai_workspace_file_embeddings_pkey"
         PRIMARY KEY ("workspace_id", "file_id", "chunk")
@@ -95,7 +106,9 @@ BEGIN
 
     IF has_hnsw THEN
       CREATE INDEX IF NOT EXISTS "ai_workspace_file_embeddings_idx"
-        ON "ai_workspace_file_embeddings" USING hnsw ("embedding" vector_cosine_ops);
+        ON "ai_workspace_file_embeddings" USING hnsw
+        ((binary_quantize("embedding")::bit(4096)) bit_hamming_ops)
+        WHERE "embedding" IS NOT NULL;
     END IF;
 
     IF NOT EXISTS (
@@ -117,7 +130,7 @@ BEGIN
       "blob_id" VARCHAR NOT NULL,
       "chunk" INTEGER NOT NULL,
       "content" VARCHAR NOT NULL,
-      "embedding" vector(1024) NOT NULL,
+      "embedding" vector(4096),
       "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT "ai_workspace_blob_embeddings_pkey"
         PRIMARY KEY ("workspace_id", "blob_id", "chunk")
@@ -125,7 +138,9 @@ BEGIN
 
     IF has_hnsw THEN
       CREATE INDEX IF NOT EXISTS "ai_workspace_blob_embeddings_idx"
-        ON "ai_workspace_blob_embeddings" USING hnsw ("embedding" vector_cosine_ops);
+        ON "ai_workspace_blob_embeddings" USING hnsw
+        ((binary_quantize("embedding")::bit(4096)) bit_hamming_ops)
+        WHERE "embedding" IS NOT NULL;
     END IF;
 
     IF NOT EXISTS (

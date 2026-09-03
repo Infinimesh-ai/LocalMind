@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { nanoid } from 'nanoid';
 import * as Y from 'yjs';
@@ -8,6 +10,25 @@ import { DocWriter } from './writer';
 const MAX_OPERATIONS = 100;
 const MAX_INPUT_BYTES = 512 * 1024;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const MAX_FOLDER_LIFECYCLE_NODES = 2_000;
+const FOLDER_TRASH_OPERATION_ID = '$localmindTrashOperationId';
+const FOLDER_TRASH_ROOT = '$localmindTrashRoot';
+const FOLDER_TRASH_ACTOR_ID = '$localmindTrashActorId';
+const FOLDER_TRASHED_AT = '$localmindTrashedAt';
+const FOLDER_TRASH_DOCUMENT_IDS = '$localmindTrashDocumentIds';
+const FOLDER_TRASH_NEW_DOCUMENT_IDS = '$localmindTrashNewDocumentIds';
+const FOLDER_TRASH_PREVIOUS_DOCUMENT_IDS = '$localmindTrashPreviousDocumentIds';
+const FOLDER_TRASH_FINGERPRINT = '$localmindTrashFingerprint';
+const FOLDER_TRASH_METADATA_KEYS = [
+  FOLDER_TRASH_OPERATION_ID,
+  FOLDER_TRASH_ROOT,
+  FOLDER_TRASH_ACTOR_ID,
+  FOLDER_TRASHED_AT,
+  FOLDER_TRASH_DOCUMENT_IDS,
+  FOLDER_TRASH_NEW_DOCUMENT_IDS,
+  FOLDER_TRASH_PREVIOUS_DOCUMENT_IDS,
+  FOLDER_TRASH_FINGERPRINT,
+] as const;
 
 export type JsonObject = Record<string, unknown>;
 
@@ -193,6 +214,109 @@ function tableRecord(type: Y.AbstractType<any>): JsonObject {
 
 function tableField(type: Y.AbstractType<any>, key: string) {
   return Y.Map.prototype.get.call(type, key) as unknown;
+}
+
+function tableRecords(doc: Y.Doc, includeDeleted = false) {
+  const records: JsonObject[] = [];
+  for (const type of doc.share.values()) {
+    if (!includeDeleted && tableField(type, '$$DELETED') === true) continue;
+    const record = tableRecord(type);
+    if (typeof record.id === 'string') records.push(record);
+  }
+  return records;
+}
+
+function folderDescendants(records: JsonObject[], folderId: string) {
+  const ids = new Set([folderId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const record of records) {
+      if (
+        typeof record.id === 'string' &&
+        typeof record.parentId === 'string' &&
+        ids.has(record.parentId) &&
+        !ids.has(record.id)
+      ) {
+        ids.add(record.id);
+        changed = true;
+      }
+    }
+  }
+  return records.filter(
+    record => typeof record.id === 'string' && ids.has(record.id)
+  );
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
+}
+
+function folderTrashFingerprint(input: {
+  rootFolderId: string;
+  nodes: JsonObject[];
+  documentIds: string[];
+  newlyTrashedDocumentIds: string[];
+  previouslyTrashedDocumentIds: string[];
+}) {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        version: 'localmind-folder-trash-manifest/v1',
+        rootFolderId: input.rootFolderId,
+        nodes: input.nodes
+          .map(record => ({
+            id: record.id,
+            parentId: record.parentId ?? null,
+            type: record.type,
+            data: record.data,
+            index: record.index,
+          }))
+          .sort((left, right) =>
+            String(left.id).localeCompare(String(right.id))
+          ),
+        documentIds: [...input.documentIds].sort(),
+        newlyTrashedDocumentIds: [...input.newlyTrashedDocumentIds].sort(),
+        previouslyTrashedDocumentIds: [
+          ...input.previouslyTrashedDocumentIds,
+        ].sort(),
+      })
+    )
+    .digest('hex');
+}
+
+function rootPage(doc: Y.Doc, docId: string) {
+  const pages = rootPages(doc);
+  const index = findArrayEntry(pages, 'id', docId);
+  return index < 0 ? null : { pages, index, value: pages.get(index) };
+}
+
+function rootPageRecord(value: unknown) {
+  return jsonObject(value);
+}
+
+function setRootPageTrashed(value: unknown, trashed: boolean) {
+  if (value instanceof Y.Map) {
+    if (trashed) {
+      value.set('trash', true);
+      value.set('trashDate', Date.now());
+    } else {
+      value.delete('trash');
+      value.delete('trashDate');
+    }
+    return;
+  }
+  const next = jsonObject(value);
+  if (trashed) {
+    next.trash = true;
+    next.trashDate = Date.now();
+  } else {
+    delete next.trash;
+    delete next.trashDate;
+  }
+  return next;
 }
 
 function findArrayEntry(array: Y.Array<unknown>, key: string, value: string) {
@@ -463,6 +587,678 @@ export class WorkspaceOrganizationService {
     }
   }
 
+  async setDocumentTrashed(input: {
+    workspaceId: string;
+    editorId: string;
+    documentId: string;
+    expectedTitle: string;
+    trashed: boolean;
+  }) {
+    const loaded = await this.load(input.workspaceId, input.workspaceId);
+    try {
+      const page = rootPage(loaded.doc, input.documentId);
+      if (!page) {
+        throw new Error(`Document ${input.documentId} was not found.`);
+      }
+      const record = rootPageRecord(page.value);
+      const title = typeof record.title === 'string' ? record.title : '';
+      if (title !== input.expectedTitle) {
+        throw new Error(
+          'expected_title does not match the current document title.'
+        );
+      }
+      const currentlyTrashed = record.trash === true;
+      if (currentlyTrashed === input.trashed) {
+        return {
+          success: true,
+          documentId: input.documentId,
+          title,
+          trashed: input.trashed,
+          changed: false,
+          idempotentReplay: true,
+        };
+      }
+      const replacement = setRootPageTrashed(page.value, input.trashed);
+      if (replacement) replaceArrayEntry(page.pages, page.index, replacement);
+      await this.save(
+        input.workspaceId,
+        input.workspaceId,
+        input.editorId,
+        loaded
+      );
+      return {
+        success: true,
+        documentId: input.documentId,
+        title,
+        trashed: input.trashed,
+        changed: true,
+        idempotentReplay: false,
+      };
+    } finally {
+      loaded.doc.destroy();
+    }
+  }
+
+  async deleteDocumentPermanently(input: {
+    workspaceId: string;
+    userId: string;
+    editorId: string;
+    documentId: string;
+    expectedTitle: string;
+  }) {
+    const root = await this.load(input.workspaceId, input.workspaceId);
+    const folders = await this.load(
+      input.workspaceId,
+      resolveWorkspaceDataDocId('folders', input.workspaceId, input.userId),
+      true
+    );
+    try {
+      const page = rootPage(root.doc, input.documentId);
+      const placements = tableRecords(folders.doc).filter(
+        folder => folder.type === 'doc' && folder.data === input.documentId
+      );
+      if (!page) {
+        const existingDoc = await this.reader.getDoc(
+          input.workspaceId,
+          input.documentId
+        );
+        if (existingDoc) {
+          throw new Error(
+            'Document must already be in Trash before permanent deletion.'
+          );
+        }
+        if (placements.length) {
+          folders.doc.transact(() => {
+            for (const placement of placements) {
+              const placementId = String(placement.id);
+              const stored = folders.doc.getMap<unknown>(placementId);
+              for (const key of Array.from(stored.keys())) {
+                if (key !== 'id') stored.delete(key);
+              }
+              stored.set('id', placementId);
+              stored.set('$$DELETED', true);
+            }
+          });
+          await this.save(
+            input.workspaceId,
+            resolveWorkspaceDataDocId(
+              'folders',
+              input.workspaceId,
+              input.userId
+            ),
+            input.editorId,
+            folders
+          );
+        }
+        const changed = !!existingDoc || placements.length > 0;
+        return {
+          success: true,
+          documentId: input.documentId,
+          removedPlacementCount: placements.length,
+          alreadyAbsent: !changed,
+          changed,
+          idempotentReplay: !changed,
+        };
+      }
+      const record = rootPageRecord(page.value);
+      const title = typeof record.title === 'string' ? record.title : '';
+      if (title !== input.expectedTitle) {
+        throw new Error(
+          'expected_title does not match the current document title.'
+        );
+      }
+      if (record.trash !== true) {
+        throw new Error(
+          'Document must already be in Trash before permanent deletion.'
+        );
+      }
+
+      await this.writer.deleteDocPermanently(
+        input.workspaceId,
+        input.documentId
+      );
+      root.doc.transact(() => page.pages.delete(page.index, 1));
+      folders.doc.transact(() => {
+        for (const placement of placements) {
+          const placementId = String(placement.id);
+          const stored = folders.doc.getMap<unknown>(placementId);
+          for (const key of Array.from(stored.keys())) {
+            if (key !== 'id') stored.delete(key);
+          }
+          stored.set('id', placementId);
+          stored.set('$$DELETED', true);
+        }
+      });
+      await this.save(
+        input.workspaceId,
+        input.workspaceId,
+        input.editorId,
+        root
+      );
+      await this.save(
+        input.workspaceId,
+        resolveWorkspaceDataDocId('folders', input.workspaceId, input.userId),
+        input.editorId,
+        folders
+      );
+      return {
+        success: true,
+        documentId: input.documentId,
+        title,
+        removedPlacementCount: placements.length,
+        alreadyAbsent: false,
+        changed: true,
+        idempotentReplay: false,
+      };
+    } finally {
+      root.doc.destroy();
+      folders.doc.destroy();
+    }
+  }
+
+  async trashFolderTree(input: {
+    workspaceId: string;
+    userId: string;
+    editorId: string;
+    folderId: string;
+    expectedName: string;
+    recursive: boolean;
+    authorizeDocument: (documentId: string) => Promise<void>;
+  }) {
+    const folderDocId = resolveWorkspaceDataDocId(
+      'folders',
+      input.workspaceId,
+      input.userId
+    );
+    const folders = await this.load(input.workspaceId, folderDocId, true);
+    const root = await this.load(input.workspaceId, input.workspaceId);
+    try {
+      const activeRecords = tableRecords(folders.doc);
+      const target = activeRecords.find(
+        record => record.id === input.folderId && record.type === 'folder'
+      );
+      if (!target) {
+        const allRecords = tableRecords(folders.doc, true);
+        const deletedTarget = allRecords.find(
+          record =>
+            record.id === input.folderId &&
+            record.type === 'folder' &&
+            record.$$DELETED === true &&
+            record[FOLDER_TRASH_ROOT] === true
+        );
+        if (!deletedTarget) {
+          return {
+            success: true,
+            folderId: input.folderId,
+            alreadyAbsent: true,
+            changed: false,
+            idempotentReplay: true,
+          };
+        }
+        if (deletedTarget.data !== input.expectedName) {
+          throw new Error(
+            'expected_name does not match the trashed folder name.'
+          );
+        }
+        const operationId = String(
+          deletedTarget[FOLDER_TRASH_OPERATION_ID] ?? ''
+        );
+        const nodes = allRecords.filter(
+          record =>
+            record.$$DELETED === true &&
+            record[FOLDER_TRASH_OPERATION_ID] === operationId
+        );
+        const documentIds = stringArray(
+          deletedTarget[FOLDER_TRASH_DOCUMENT_IDS]
+        );
+        const newlyTrashedDocumentIds = stringArray(
+          deletedTarget[FOLDER_TRASH_NEW_DOCUMENT_IDS]
+        );
+        const previouslyTrashedDocumentIds = stringArray(
+          deletedTarget[FOLDER_TRASH_PREVIOUS_DOCUMENT_IDS]
+        );
+        const manifestFingerprint = folderTrashFingerprint({
+          rootFolderId: input.folderId,
+          nodes,
+          documentIds,
+          newlyTrashedDocumentIds,
+          previouslyTrashedDocumentIds,
+        });
+        if (deletedTarget[FOLDER_TRASH_FINGERPRINT] !== manifestFingerprint) {
+          throw new Error(
+            'The trashed folder manifest fingerprint is invalid.'
+          );
+        }
+        let repairedDocumentCount = 0;
+        for (const documentId of newlyTrashedDocumentIds) {
+          await input.authorizeDocument(documentId);
+          const page = rootPage(root.doc, documentId);
+          if (!page) {
+            throw new Error(
+              `Folder references missing document ${documentId}.`
+            );
+          }
+          if (rootPageRecord(page.value).trash !== true) {
+            const replacement = setRootPageTrashed(page.value, true);
+            if (replacement)
+              replaceArrayEntry(page.pages, page.index, replacement);
+            repairedDocumentCount++;
+          }
+        }
+        if (repairedDocumentCount) {
+          await this.save(
+            input.workspaceId,
+            input.workspaceId,
+            input.editorId,
+            root
+          );
+        }
+        return {
+          success: true,
+          folderId: input.folderId,
+          trashOperationId: operationId,
+          manifestFingerprint,
+          trashedFolderCount: nodes.filter(record => record.type === 'folder')
+            .length,
+          trashedDocumentCount: documentIds.length,
+          repairedDocumentCount,
+          alreadyAbsent: false,
+          changed: repairedDocumentCount > 0,
+          idempotentReplay: repairedDocumentCount === 0,
+        };
+      }
+      if (target.data !== input.expectedName) {
+        throw new Error(
+          'expected_name does not match the current folder name.'
+        );
+      }
+      const subtree = folderDescendants(activeRecords, input.folderId);
+      if (subtree.length > MAX_FOLDER_LIFECYCLE_NODES) {
+        throw new Error(
+          `The folder tree exceeds the ${MAX_FOLDER_LIFECYCLE_NODES}-record safety limit.`
+        );
+      }
+      if (subtree.length > 1 && !input.recursive) {
+        throw new Error(
+          'The folder is not empty. Set recursive=true to move the folder tree and its documents to Trash.'
+        );
+      }
+      const documentIds = [
+        ...new Set(
+          subtree.flatMap(record =>
+            record.type === 'doc' && typeof record.data === 'string'
+              ? [record.data]
+              : []
+          )
+        ),
+      ];
+      const newlyTrashedDocumentIds: string[] = [];
+      const previouslyTrashedDocumentIds: string[] = [];
+      for (const documentId of documentIds) {
+        await input.authorizeDocument(documentId);
+        const page = rootPage(root.doc, documentId);
+        if (!page) {
+          throw new Error(`Folder references missing document ${documentId}.`);
+        }
+        if (rootPageRecord(page.value).trash === true) {
+          previouslyTrashedDocumentIds.push(documentId);
+        } else {
+          newlyTrashedDocumentIds.push(documentId);
+        }
+      }
+      const trashOperationId = nanoid();
+      const manifestFingerprint = folderTrashFingerprint({
+        rootFolderId: input.folderId,
+        nodes: subtree,
+        documentIds,
+        newlyTrashedDocumentIds,
+        previouslyTrashedDocumentIds,
+      });
+      root.doc.transact(() => {
+        for (const documentId of newlyTrashedDocumentIds) {
+          const page = rootPage(root.doc, documentId);
+          if (!page) continue;
+          const replacement = setRootPageTrashed(page.value, true);
+          if (replacement)
+            replaceArrayEntry(page.pages, page.index, replacement);
+        }
+      });
+      folders.doc.transact(() => {
+        for (const node of subtree) {
+          const stored = folders.doc.getMap<unknown>(String(node.id));
+          stored.set('$$DELETED', true);
+          stored.set(FOLDER_TRASH_OPERATION_ID, trashOperationId);
+          if (node.id === input.folderId) {
+            stored.set(FOLDER_TRASH_ROOT, true);
+            stored.set(FOLDER_TRASH_ACTOR_ID, input.editorId);
+            stored.set(FOLDER_TRASHED_AT, Date.now());
+            stored.set(FOLDER_TRASH_DOCUMENT_IDS, documentIds);
+            stored.set(FOLDER_TRASH_NEW_DOCUMENT_IDS, newlyTrashedDocumentIds);
+            stored.set(
+              FOLDER_TRASH_PREVIOUS_DOCUMENT_IDS,
+              previouslyTrashedDocumentIds
+            );
+            stored.set(FOLDER_TRASH_FINGERPRINT, manifestFingerprint);
+          }
+        }
+      });
+      await this.save(input.workspaceId, folderDocId, input.editorId, folders);
+      await this.save(
+        input.workspaceId,
+        input.workspaceId,
+        input.editorId,
+        root
+      );
+      return {
+        success: true,
+        folderId: input.folderId,
+        trashOperationId,
+        manifestFingerprint,
+        trashedFolderCount: subtree.filter(record => record.type === 'folder')
+          .length,
+        trashedPlacementCount: subtree.filter(
+          record => record.type !== 'folder'
+        ).length,
+        trashedDocumentCount: documentIds.length,
+        newlyTrashedDocumentCount: newlyTrashedDocumentIds.length,
+        previouslyTrashedDocumentCount: previouslyTrashedDocumentIds.length,
+        alreadyAbsent: false,
+        changed: true,
+        idempotentReplay: false,
+      };
+    } finally {
+      folders.doc.destroy();
+      root.doc.destroy();
+    }
+  }
+
+  async restoreFolderTree(input: {
+    workspaceId: string;
+    userId: string;
+    editorId: string;
+    folderId: string;
+    expectedName: string;
+    authorizeDocument: (documentId: string) => Promise<void>;
+  }) {
+    const folderDocId = resolveWorkspaceDataDocId(
+      'folders',
+      input.workspaceId,
+      input.userId
+    );
+    const folders = await this.load(input.workspaceId, folderDocId, true);
+    const root = await this.load(input.workspaceId, input.workspaceId);
+    try {
+      const allRecords = tableRecords(folders.doc, true);
+      const activeTarget = allRecords.find(
+        record =>
+          record.id === input.folderId &&
+          record.type === 'folder' &&
+          record.$$DELETED !== true
+      );
+      if (activeTarget) {
+        if (activeTarget.data !== input.expectedName) {
+          throw new Error(
+            'expected_name does not match the current folder name.'
+          );
+        }
+        return {
+          success: true,
+          folderId: input.folderId,
+          changed: false,
+          idempotentReplay: true,
+        };
+      }
+      const target = allRecords.find(
+        record =>
+          record.id === input.folderId &&
+          record.type === 'folder' &&
+          record.$$DELETED === true &&
+          record[FOLDER_TRASH_ROOT] === true
+      );
+      if (!target)
+        throw new Error(`Trashed folder ${input.folderId} was not found.`);
+      if (target.data !== input.expectedName) {
+        throw new Error(
+          'expected_name does not match the trashed folder name.'
+        );
+      }
+      const operationId = String(target[FOLDER_TRASH_OPERATION_ID] ?? '');
+      const nodes = allRecords.filter(
+        record =>
+          record.$$DELETED === true &&
+          record[FOLDER_TRASH_OPERATION_ID] === operationId
+      );
+      const documentIds = stringArray(target[FOLDER_TRASH_DOCUMENT_IDS]);
+      const newlyTrashedDocumentIds = stringArray(
+        target[FOLDER_TRASH_NEW_DOCUMENT_IDS]
+      );
+      const previouslyTrashedDocumentIds = stringArray(
+        target[FOLDER_TRASH_PREVIOUS_DOCUMENT_IDS]
+      );
+      const fingerprint = folderTrashFingerprint({
+        rootFolderId: input.folderId,
+        nodes,
+        documentIds,
+        newlyTrashedDocumentIds,
+        previouslyTrashedDocumentIds,
+      });
+      if (target[FOLDER_TRASH_FINGERPRINT] !== fingerprint) {
+        throw new Error('The trashed folder manifest fingerprint is invalid.');
+      }
+      const activeIds = new Set(
+        allRecords.flatMap(record =>
+          record.$$DELETED !== true && typeof record.id === 'string'
+            ? [record.id]
+            : []
+        )
+      );
+      const operationNodeIds = new Set(nodes.map(record => String(record.id)));
+      const parentId =
+        typeof target.parentId === 'string' ? target.parentId : null;
+      if (
+        parentId &&
+        !activeIds.has(parentId) &&
+        !operationNodeIds.has(parentId)
+      ) {
+        throw new Error('The original parent folder is no longer available.');
+      }
+      for (const documentId of newlyTrashedDocumentIds) {
+        await input.authorizeDocument(documentId);
+        const page = rootPage(root.doc, documentId);
+        if (!page) {
+          throw new Error(`Document ${documentId} can no longer be restored.`);
+        }
+      }
+      root.doc.transact(() => {
+        for (const documentId of newlyTrashedDocumentIds) {
+          const page = rootPage(root.doc, documentId);
+          if (!page) continue;
+          const replacement = setRootPageTrashed(page.value, false);
+          if (replacement)
+            replaceArrayEntry(page.pages, page.index, replacement);
+        }
+      });
+      folders.doc.transact(() => {
+        for (const node of nodes) {
+          const stored = folders.doc.getMap<unknown>(String(node.id));
+          stored.delete('$$DELETED');
+          for (const key of FOLDER_TRASH_METADATA_KEYS) stored.delete(key);
+        }
+      });
+      validateFolderGraph(folders.doc);
+      await this.save(
+        input.workspaceId,
+        input.workspaceId,
+        input.editorId,
+        root
+      );
+      await this.save(input.workspaceId, folderDocId, input.editorId, folders);
+      return {
+        success: true,
+        folderId: input.folderId,
+        trashOperationId: operationId,
+        manifestFingerprint: fingerprint,
+        restoredFolderCount: nodes.filter(record => record.type === 'folder')
+          .length,
+        restoredPlacementCount: nodes.filter(record => record.type !== 'folder')
+          .length,
+        restoredDocumentCount: newlyTrashedDocumentIds.length,
+        leftInTrashDocumentCount: previouslyTrashedDocumentIds.length,
+        changed: true,
+        idempotentReplay: false,
+      };
+    } finally {
+      folders.doc.destroy();
+      root.doc.destroy();
+    }
+  }
+
+  async deleteFolderTreePermanently(input: {
+    workspaceId: string;
+    userId: string;
+    editorId: string;
+    folderId: string;
+    expectedName: string;
+    authorizeDocument: (documentId: string) => Promise<void>;
+  }) {
+    const folderDocId = resolveWorkspaceDataDocId(
+      'folders',
+      input.workspaceId,
+      input.userId
+    );
+    const folders = await this.load(input.workspaceId, folderDocId, true);
+    const root = await this.load(input.workspaceId, input.workspaceId);
+    try {
+      const allRecords = tableRecords(folders.doc, true);
+      const activeTarget = allRecords.find(
+        record =>
+          record.id === input.folderId &&
+          record.type === 'folder' &&
+          record.$$DELETED !== true
+      );
+      if (activeTarget) {
+        throw new Error(
+          'Folder must already be in Trash before permanent deletion.'
+        );
+      }
+      const target = allRecords.find(
+        record =>
+          record.id === input.folderId &&
+          record.type === 'folder' &&
+          record.$$DELETED === true &&
+          record[FOLDER_TRASH_ROOT] === true
+      );
+      if (!target) {
+        return {
+          success: true,
+          folderId: input.folderId,
+          alreadyAbsent: true,
+          changed: false,
+          idempotentReplay: true,
+        };
+      }
+      if (target.data !== input.expectedName) {
+        throw new Error(
+          'expected_name does not match the trashed folder name.'
+        );
+      }
+      const operationId = String(target[FOLDER_TRASH_OPERATION_ID] ?? '');
+      const nodes = allRecords.filter(
+        record =>
+          record.$$DELETED === true &&
+          record[FOLDER_TRASH_OPERATION_ID] === operationId
+      );
+      const documentIds = stringArray(target[FOLDER_TRASH_DOCUMENT_IDS]);
+      const newlyTrashedDocumentIds = stringArray(
+        target[FOLDER_TRASH_NEW_DOCUMENT_IDS]
+      );
+      const previouslyTrashedDocumentIds = stringArray(
+        target[FOLDER_TRASH_PREVIOUS_DOCUMENT_IDS]
+      );
+      const fingerprint = folderTrashFingerprint({
+        rootFolderId: input.folderId,
+        nodes,
+        documentIds,
+        newlyTrashedDocumentIds,
+        previouslyTrashedDocumentIds,
+      });
+      if (target[FOLDER_TRASH_FINGERPRINT] !== fingerprint) {
+        throw new Error('The trashed folder manifest fingerprint is invalid.');
+      }
+      for (const documentId of documentIds) {
+        const page = rootPage(root.doc, documentId);
+        if (page && rootPageRecord(page.value).trash !== true) {
+          throw new Error(
+            `Document ${documentId} is no longer in Trash; permanent deletion scope changed.`
+          );
+        }
+        if (page) {
+          await input.authorizeDocument(documentId);
+        } else if (await this.reader.getDoc(input.workspaceId, documentId)) {
+          throw new Error(
+            `Document ${documentId} is no longer in Trash; permanent deletion scope changed.`
+          );
+        }
+      }
+      for (const documentId of documentIds) {
+        await this.writer.deleteDocPermanently(input.workspaceId, documentId);
+      }
+      const documentIdSet = new Set(documentIds);
+      const pageIndexes = documentIds
+        .map(documentId => rootPage(root.doc, documentId)?.index)
+        .filter((index): index is number => index !== undefined)
+        .sort((left, right) => right - left);
+      root.doc.transact(() => {
+        const pages = rootPages(root.doc);
+        for (const index of pageIndexes) pages.delete(index, 1);
+      });
+      const permanentlyRemovedRecords = allRecords.filter(
+        record =>
+          record[FOLDER_TRASH_OPERATION_ID] === operationId ||
+          (record.type === 'doc' &&
+            typeof record.data === 'string' &&
+            documentIdSet.has(record.data))
+      );
+      folders.doc.transact(() => {
+        for (const record of permanentlyRemovedRecords) {
+          const id = String(record.id);
+          const stored = folders.doc.getMap<unknown>(id);
+          for (const key of Array.from(stored.keys())) {
+            if (key !== 'id') stored.delete(key);
+          }
+          stored.set('id', id);
+          stored.set('$$DELETED', true);
+        }
+      });
+      await this.save(
+        input.workspaceId,
+        input.workspaceId,
+        input.editorId,
+        root
+      );
+      await this.save(input.workspaceId, folderDocId, input.editorId, folders);
+      return {
+        success: true,
+        folderId: input.folderId,
+        trashOperationId: operationId,
+        manifestFingerprint: fingerprint,
+        permanentlyDeletedFolderCount: nodes.filter(
+          record => record.type === 'folder'
+        ).length,
+        permanentlyDeletedDocumentCount: documentIds.length,
+        removedPlacementCount: permanentlyRemovedRecords.filter(
+          record => record.type === 'doc'
+        ).length,
+        alreadyAbsent: false,
+        changed: true,
+        idempotentReplay: false,
+      };
+    } finally {
+      folders.doc.destroy();
+      root.doc.destroy();
+    }
+  }
+
   async applyRootOperations(
     workspaceId: string,
     editorId: string,
@@ -496,11 +1292,21 @@ export class WorkspaceOrganizationService {
               const page = pages.get(index);
               if (!(page instanceof Y.Map)) {
                 const next = jsonObject(page);
-                if (operation.trashed) next.trash = true;
-                else delete next.trash;
+                if (operation.trashed) {
+                  next.trash = true;
+                  next.trashDate = Date.now();
+                } else {
+                  delete next.trash;
+                  delete next.trashDate;
+                }
                 replaceArrayEntry(pages, index, next);
-              } else if (operation.trashed) page.set('trash', true);
-              else page.delete('trash');
+              } else if (operation.trashed) {
+                page.set('trash', true);
+                page.set('trashDate', Date.now());
+              } else {
+                page.delete('trash');
+                page.delete('trashDate');
+              }
               break;
             }
             case 'create_tag': {

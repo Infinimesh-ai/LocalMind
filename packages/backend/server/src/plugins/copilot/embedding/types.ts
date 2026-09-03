@@ -91,6 +91,10 @@ declare global {
       blobId: string;
     };
 
+    'copilot.embedding.backfillDimensions': {
+      limit?: number;
+    };
+
     'copilot.embedding.cleanupTrashedDocEmbeddings': {
       workspaceId: string;
     };

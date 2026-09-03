@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
-import { PrismaClient, User, Workspace } from '@prisma/client';
-import ava, { TestFn } from 'ava';
+import { PrismaClient, type User, type Workspace } from '@prisma/client';
+import ava, { type TestFn } from 'ava';
 
 import { Config } from '../../base';
+import { EMBEDDING_DIMENSIONS } from '../../models/common';
 import { CopilotContextModel } from '../../models/copilot-context';
 import { CopilotWorkspaceConfigModel } from '../../models/copilot-workspace';
 import { DocModel } from '../../models/doc';
@@ -126,7 +127,7 @@ test('should insert and search embedding', async t => {
         {
           index: 0,
           content: 'content',
-          embedding: Array.from({ length: 1024 }, () => 1),
+          embedding: Array.from({ length: EMBEDDING_DIMENSIONS }, () => 1),
         },
       ]
     );
@@ -134,7 +135,7 @@ test('should insert and search embedding', async t => {
     {
       const ret = await t.context.copilotWorkspace.matchFileEmbedding(
         workspace.id,
-        Array.from({ length: 1024 }, () => 0.9),
+        Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.9),
         1,
         1
       );
@@ -167,7 +168,7 @@ test('should insert and search embedding', async t => {
         {
           index: 0,
           content: 'blob content',
-          embedding: Array.from({ length: 1024 }, () => 1),
+          embedding: Array.from({ length: EMBEDDING_DIMENSIONS }, () => 1),
         },
       ]
     );
@@ -175,7 +176,7 @@ test('should insert and search embedding', async t => {
     {
       const ret = await t.context.copilotWorkspace.matchBlobEmbedding(
         workspace.id,
-        Array.from({ length: 1024 }, () => 0.9),
+        Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.9),
         1,
         1
       );
@@ -194,7 +195,7 @@ test('should insert and search embedding', async t => {
     {
       const ret = await t.context.copilotWorkspace.matchBlobEmbedding(
         workspace.id,
-        Array.from({ length: 1024 }, () => 0.9),
+        Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.9),
         1,
         1
       );
@@ -224,7 +225,7 @@ test('should insert and search embedding', async t => {
         {
           index: 0,
           content: 'content',
-          embedding: Array.from({ length: 1024 }, () => 1),
+          embedding: Array.from({ length: EMBEDDING_DIMENSIONS }, () => 1),
         },
       ]
     );
@@ -318,7 +319,7 @@ test('should check need to be embedded', async t => {
         {
           index: 0,
           content: 'content',
-          embedding: Array.from({ length: 1024 }, () => 1),
+          embedding: Array.from({ length: EMBEDDING_DIMENSIONS }, () => 1),
         },
       ]
     );
@@ -381,7 +382,7 @@ test('should check need to be embedded', async t => {
         {
           index: 0,
           content: 'content2',
-          embedding: Array.from({ length: 1024 }, () => 1),
+          embedding: Array.from({ length: EMBEDDING_DIMENSIONS }, () => 1),
         },
       ]
     );
@@ -470,7 +471,7 @@ test('should filter outdated doc id style in embedding status', async t => {
         {
           index: 0,
           content: 'content',
-          embedding: Array.from({ length: 1024 }, () => 1),
+          embedding: Array.from({ length: EMBEDDING_DIMENSIONS }, () => 1),
         },
       ]
     );

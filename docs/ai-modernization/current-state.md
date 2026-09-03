@@ -113,6 +113,25 @@ The workspace BYOK exact-model binding slice is now implemented:
 - existing rows remain migration-compatible with a nullable model id, while
   new UI-managed keys must bind and test a concrete model before use.
 
+The 4096-dimensional embedding index contract is now implemented locally:
+
+- embedding generation, write, query, route diagnostics, and five pgvector
+  columns use one fixed 4096-dimensional contract;
+- writes and searches reject non-4096 or non-finite vectors before PostgreSQL
+  execution;
+- the four large derived embedding tables use binary-quantized 4096-bit HNSW
+  candidate retrieval, followed by full-vector cosine reranking and threshold
+  evaluation;
+- the index diagnostics version is `workspace-embedding-index/v2`;
+- the upgrade migration preserves document, context-file, workspace-file, and
+  Blob chunk text while replacing incompatible vectors with pending nulls;
+- a bounded, idempotent queue job retries pending chunks every minute and
+  rebuilds them through the effective workspace embedding route without
+  requiring source-file re-upload;
+- durable Memory rows retain their ids, text, scope, lifecycle, and audit
+  relationships, while only their incompatible 1024-dimensional embedding is
+  cleared and queued for 4096-dimensional regeneration.
+
 The latest confirmed slice is main-plan section 554:
 
 - the source-evidence field
@@ -1498,26 +1517,45 @@ The inbound workspace MCP AI delegation slice is now implemented:
   verify persisted size/SHA-256 evidence before providing bounded extracted
   text or bytes to the model, while storage reconciliation treats active MCP
   attachment rows as Blob references rather than cleanup candidates;
-- `agent_runtime_localmind_tool_agent` exposes attachment read, code artifact,
-  conversation summary, document read/create/update/title update, keyword and
-  semantic search, web search/crawl, document composition, and section editing
-  through the existing `ToolRuntime`; it now also exposes semantic workspace
-  folder list/create/rename/move/delete and document placement/move operations
+- `agent_runtime_localmind_tool_agent` exposes task-scoped attachment read,
+  code artifact, conversation summary, document read/create/update/title
+  update, keyword and semantic search, web search/crawl, document composition,
+  and section editing through the existing `ToolRuntime`; it now also exposes
+  semantic workspace document/folder Trash, restore, permanent delete, folder
+  list/create/rename/move, and document placement/move operations
   from the same canonical tool-category registry used by Web AI, preserving
   each tool's normal permission and deployment checks instead of adding direct
   MCP resource tools;
+- task creation persists the sorted names of tools actually available through
+  `ToolRuntime` and their fingerprint in `localmind-tool-agent-request/v4`;
+  execution exposes only the intersection with the current registry and then
+  relies on each tool's live ACL, while a missing required completion tool fails
+  with `required_tool_unavailable`;
+- delegated attachments use `task_attachment_read`, which can read only the
+  materialized attachment ids frozen on the current task in 8,000-character
+  extracted-text chunks; `blob_read` is not registered without an AI Chat
+  session;
+- keyword search uses the indexer when available and otherwise scans the most
+  recently updated 200 readable Markdown documents in batches of 16 before
+  globally ranking and limiting matches;
 - workspace folder tools require `Workspace.Organize.Read` for lists,
-  `Workspace.Sync` for mutations, and `Doc.Read` before placing a document;
-  same-name creates and repeated placements/moves/deletes are idempotent,
-  folder cycles are rejected, and recursive deletion removes only the folder
-  subtree and placements, never the documents themselves;
+  `Workspace.Sync` for mutations, the corresponding `Doc.Trash`, `Doc.Restore`,
+  or `Doc.Delete` permission for document lifecycle changes, and `Doc.Read`
+  before placing a document. Ordinary document/folder deletion moves targets
+  to Trash; folder restore restores only documents newly trashed by that folder
+  operation. Permanent deletion is exposed only for explicit permanent intent,
+  requires Trash state and matching title/name, recursively deletes affected
+  documents and all placements, preserves a fingerprinted folder Trash manifest
+  until physical deletion succeeds, and remains retryable after partial failure;
 - delegated tool-agent runs have a 120-second timeout, poll durable
   cancellation and credential/workspace authority during execution, propagate
   the abort signal into the tool loop, and now fail with `tool_agent_timeout`
   even when the native stream converts abort into a normal iterator close;
-  explicit single-document body mutations persist a v3 completion contract,
-  require live `Doc.Update`, and fail with `required_side_effect_missing`
-  unless a successful `doc_update` plus matching updated artifact is recorded;
+  explicit single-document body mutations persist a v2 completion contract in
+  the v4 request, require live `Doc.Update`, and fail with
+  `required_side_effect_missing` unless a successful `doc_update` plus matching
+  updated artifact is recorded. Conditional mutations require read evidence and
+  may complete without a write when the requested condition is already met;
   native tool failures remain in sanitized execution summaries, while only
   bounded answers, argument fingerprints, referenced document ids, and
   created/updated artifacts are persisted;
@@ -1617,12 +1655,12 @@ implemented separately from the inbound LocalMind workspace MCP surface:
 - the execution ledger has database-enforced status/lease/result coherence and
   a composite connection/workspace foreign key, preventing cross-workspace
   evidence drift;
-- MCP delegation freezes the enabled SparkClaw tool-name set, fingerprint, and
-  completion contract in `localmind-tool-agent-request/v3`; workers intersect
-  the frozen SparkClaw maximum with the current live allowlist and recheck
-  delegated-user ACL. Existing v1/v2 queued tasks retain their historical
-  semantics without a required completion side effect, and v1 tasks receive an
-  empty SparkClaw set, so an upgrade cannot widen their authority;
+- MCP delegation freezes the complete actually available tool-name set, its
+  fingerprint, the enabled SparkClaw tool-name subset, and the completion
+  contract in `localmind-tool-agent-request/v4`; workers intersect both frozen
+  maxima with their current registries and recheck delegated-user ACL. Existing
+  v1-v3 queued tasks retain their historical tool and completion semantics, so
+  an upgrade cannot widen their authority;
 - `401`, invalid Session, and Session decryption failures move the connection
   to `REAUTH_REQUIRED`, clear the unusable encrypted Session and fingerprint,
   and cannot reuse the old Session;

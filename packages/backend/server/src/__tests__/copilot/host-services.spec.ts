@@ -507,6 +507,7 @@ test('LocalMind tool agent accepts the frozen v1 tool snapshot after SparkClaw u
     {} as any,
     {} as any,
     {} as any,
+    {} as any,
     { copilotMcpDelegation: { getRequestByAgentRun } } as any,
     {} as any,
     { register: Sinon.stub() } as any
@@ -601,14 +602,66 @@ test('ToolRuntime should expose semantic workspace organization tools', async t 
   );
 
   t.deepEqual(Object.keys(tools).sort(), [
+    'doc_delete_permanently',
+    'doc_restore',
+    'doc_trash',
     'workspace_folder_add_document',
     'workspace_folder_create',
-    'workspace_folder_delete',
+    'workspace_folder_delete_permanently',
     'workspace_folder_list',
     'workspace_folder_move',
     'workspace_folder_move_document',
     'workspace_folder_rename',
+    'workspace_folder_restore',
+    'workspace_folder_trash',
   ]);
+});
+
+test('ToolRuntime intersects task snapshots with current task-scoped tools', async t => {
+  const getBySessionId = Sinon.stub();
+  const runtime = new ToolRuntime(
+    {} as any,
+    {} as any,
+    {} as any,
+    { getBySessionId } as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any
+  );
+
+  const tools = await runtime.getTools(
+    {
+      tools: ['blobRead', 'taskAttachmentRead', 'workspaceOrganization'],
+      user: 'user-1',
+      workspace: 'workspace-1',
+      taskId: 'task-1',
+      taskAttachments: [
+        {
+          attachmentId: 'attachment-1',
+          fileName: 'notes.txt',
+          mimeType: 'text/plain',
+          byteSize: 5,
+          contentFingerprint: 'fingerprint-1',
+          extractedText: 'notes',
+        },
+      ],
+      allowedToolNames: [
+        'blob_read',
+        'task_attachment_read',
+        'workspace_folder_list',
+      ],
+    },
+    'gpt-4o-mini'
+  );
+
+  t.deepEqual(Object.keys(tools).sort(), [
+    'task_attachment_read',
+    'workspace_folder_list',
+  ]);
+  t.false(getBySessionId.called);
 });
 
 test('ResponsePostprocessor should build text, object and image assistant turns', t => {
@@ -1187,7 +1240,7 @@ test('CopilotEmbeddingClientService should reject embeddings that do not match w
     })
   );
 
-  t.regex(error?.message ?? '', /1024 embedding dimensions/);
+  t.regex(error?.message ?? '', /4096 embedding dimensions/);
   Sinon.assert.calledOnceWithMatch(runtime.embed, undefined, ['hello'], {
     dimensions: EMBEDDING_DIMENSIONS,
     featureKind: 'workspace_indexing',

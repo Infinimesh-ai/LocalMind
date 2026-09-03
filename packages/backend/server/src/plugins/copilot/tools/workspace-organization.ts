@@ -8,9 +8,14 @@ import type {
   PermissionAccess,
   PermissionService,
 } from '../../../core/permission';
+import { requestsExplicitPermanentDelete } from '../mcp/tool-agent-completion';
 import type { CopilotChatOptions } from '../providers/types';
 import { toolError } from './error';
-import { type CopilotToolSet, defineTool } from './tool';
+import {
+  type CopilotToolExecuteOptions,
+  type CopilotToolSet,
+  defineTool,
+} from './tool';
 
 const logger = new Logger('WorkspaceOrganizationTool');
 const MAX_FOLDER_MUTATIONS = 100;
@@ -26,10 +31,16 @@ type FolderNode = {
 };
 
 type WorkspaceEffectOperation =
+  | 'trash_document'
+  | 'restore_document'
+  | 'delete_document_permanently'
   | 'create_folder'
   | 'rename_folder'
   | 'move_folder'
   | 'delete_folder'
+  | 'trash_folder'
+  | 'restore_folder'
+  | 'delete_folder_permanently'
   | 'add_document'
   | 'move_document';
 
@@ -110,6 +121,12 @@ function descendants(nodes: FolderNode[], folderId: string) {
   return nodes.filter(node => ids.has(node.id));
 }
 
+function latestUserRequest(executeOptions: CopilotToolExecuteOptions) {
+  return [...(executeOptions.messages ?? [])]
+    .reverse()
+    .find(message => message.role === 'user')?.content;
+}
+
 export function createWorkspaceOrganizationTools(
   ac: PermissionAccess,
   permission: PermissionService,
@@ -152,6 +169,34 @@ export function createWorkspaceOrganizationTools(
     if (!readable) throw new Error(`Document ${documentId} is not readable.`);
   };
 
+  const assertDocumentPermission = async (
+    documentId: string,
+    action: 'Doc.Trash' | 'Doc.Restore' | 'Doc.Delete'
+  ) => {
+    const { userId, workspaceId } = context();
+    await ac.user(userId).workspace(workspaceId).doc(documentId).assert(action);
+  };
+
+  const assertPermanentDeleteIntent = (
+    kind: 'document' | 'folder',
+    executeOptions: CopilotToolExecuteOptions
+  ) => {
+    const frozenIntent =
+      kind === 'document'
+        ? options.destructiveIntent?.permanentDocumentDelete
+        : options.destructiveIntent?.permanentFolderDelete;
+    const allowed = options.taskId
+      ? frozenIntent === true
+      : requestsExplicitPermanentDelete(
+          latestUserRequest(executeOptions) ?? ''
+        );
+    if (!allowed) {
+      throw new Error(
+        'Permanent deletion requires an explicit permanent-delete request from the user.'
+      );
+    }
+  };
+
   const apply = async (
     operations: Parameters<
       WorkspaceOrganizationService['applyDataOperations']
@@ -182,7 +227,89 @@ export function createWorkspaceOrganizationTools(
     }
   };
 
-  return {
+  const tools: CopilotToolSet = {
+    doc_trash: defineTool({
+      description:
+        'Move one document to Trash. Ordinary user requests to delete a document must use this tool, never permanent deletion.',
+      inputSchema: z
+        .object({
+          doc_id: z.string().trim().min(1).max(256),
+          expected_title: z.string().max(512),
+        })
+        .strict(),
+      execute: async ({ doc_id, expected_title }) =>
+        execute('trash document', async () => {
+          await assertDocumentPermission(doc_id, 'Doc.Trash');
+          const { userId, workspaceId } = context();
+          const result = await organization.setDocumentTrashed({
+            workspaceId,
+            editorId: userId,
+            documentId: doc_id,
+            expectedTitle: expected_title,
+            trashed: true,
+          });
+          return {
+            ...result,
+            workspaceEffect: workspaceEffect('trash_document'),
+          };
+        }),
+    }),
+
+    doc_restore: defineTool({
+      description: 'Restore one document from Trash.',
+      inputSchema: z
+        .object({
+          doc_id: z.string().trim().min(1).max(256),
+          expected_title: z.string().max(512),
+        })
+        .strict(),
+      execute: async ({ doc_id, expected_title }) =>
+        execute('restore document', async () => {
+          await assertDocumentPermission(doc_id, 'Doc.Restore');
+          const { userId, workspaceId } = context();
+          const result = await organization.setDocumentTrashed({
+            workspaceId,
+            editorId: userId,
+            documentId: doc_id,
+            expectedTitle: expected_title,
+            trashed: false,
+          });
+          return {
+            ...result,
+            workspaceEffect: workspaceEffect('restore_document'),
+          };
+        }),
+    }),
+
+    doc_delete_permanently: defineTool({
+      description:
+        'Permanently delete one document that is already in Trash. Use only when the original user request explicitly says permanently delete or delete from Trash.',
+      inputSchema: z
+        .object({
+          doc_id: z.string().trim().min(1).max(256),
+          expected_title: z.string().max(512),
+          confirm_permanent_deletion: z.literal(true),
+        })
+        .strict(),
+      execute: async ({ doc_id, expected_title }, executeOptions) =>
+        execute('permanently delete document', async () => {
+          assertPermanentDeleteIntent('document', executeOptions);
+          await assertDocumentPermission(doc_id, 'Doc.Delete');
+          const { userId, workspaceId } = context();
+          const result = await organization.deleteDocumentPermanently({
+            workspaceId,
+            userId,
+            editorId: userId,
+            documentId: doc_id,
+            expectedTitle: expected_title,
+          });
+          return {
+            ...result,
+            workspaceEffect: workspaceEffect('delete_document_permanently'),
+          };
+        }),
+    }),
+
     workspace_folder_list: defineTool({
       description:
         'List the workspace folder hierarchy and readable document placements. Call this before changing or deleting folders so you use current IDs and names.',
@@ -455,6 +582,100 @@ export function createWorkspaceOrganizationTools(
         }),
     }),
 
+    workspace_folder_trash: defineTool({
+      description:
+        'Move a folder tree and every uniquely referenced document in that tree to Trash. Ordinary requests to delete a folder must use this tool. expected_name must match and non-empty folders require recursive=true.',
+      inputSchema: z
+        .object({
+          folder_id: z.string().trim().min(1),
+          expected_name: z.string().min(1).max(256),
+          recursive: z.boolean().default(false),
+        })
+        .strict(),
+      execute: async ({ folder_id, expected_name, recursive }) =>
+        execute('trash folder', async () => {
+          await assertWrite();
+          const { userId, workspaceId } = context();
+          const result = await organization.trashFolderTree({
+            workspaceId,
+            userId,
+            editorId: userId,
+            folderId: folder_id,
+            expectedName: expected_name,
+            recursive,
+            authorizeDocument: documentId =>
+              assertDocumentPermission(documentId, 'Doc.Trash'),
+          });
+          return {
+            ...result,
+            workspaceEffect: workspaceEffect('trash_folder', folder_id),
+          };
+        }),
+    }),
+
+    workspace_folder_restore: defineTool({
+      description:
+        'Restore a folder tree from Trash. Documents newly trashed by that folder operation are restored; documents that were already in Trash remain there.',
+      inputSchema: z
+        .object({
+          folder_id: z.string().trim().min(1),
+          expected_name: z.string().min(1).max(256),
+        })
+        .strict(),
+      execute: async ({ folder_id, expected_name }) =>
+        execute('restore folder', async () => {
+          await assertWrite();
+          const { userId, workspaceId } = context();
+          const result = await organization.restoreFolderTree({
+            workspaceId,
+            userId,
+            editorId: userId,
+            folderId: folder_id,
+            expectedName: expected_name,
+            authorizeDocument: documentId =>
+              assertDocumentPermission(documentId, 'Doc.Restore'),
+          });
+          return {
+            ...result,
+            workspaceEffect: workspaceEffect('restore_folder', folder_id),
+          };
+        }),
+    }),
+
+    workspace_folder_delete_permanently: defineTool({
+      description:
+        'Permanently delete a folder already in Trash, all nested folders, and every document affected by that folder Trash operation. Use only when the original user request explicitly requests permanent deletion.',
+      inputSchema: z
+        .object({
+          folder_id: z.string().trim().min(1),
+          expected_name: z.string().min(1).max(256),
+          confirm_permanent_deletion: z.literal(true),
+        })
+        .strict(),
+      execute: async ({ folder_id, expected_name }, executeOptions) =>
+        execute('permanently delete folder', async () => {
+          assertPermanentDeleteIntent('folder', executeOptions);
+          await assertWrite();
+          const { userId, workspaceId } = context();
+          const result = await organization.deleteFolderTreePermanently({
+            workspaceId,
+            userId,
+            editorId: userId,
+            folderId: folder_id,
+            expectedName: expected_name,
+            authorizeDocument: documentId =>
+              assertDocumentPermission(documentId, 'Doc.Delete'),
+          });
+          return {
+            ...result,
+            workspaceEffect: workspaceEffect(
+              'delete_folder_permanently',
+              folder_id
+            ),
+          };
+        }),
+    }),
+
     workspace_folder_add_document: defineTool({
       description:
         'Add a readable document to a folder while keeping any existing placements in other folders.',
@@ -598,4 +819,25 @@ export function createWorkspaceOrganizationTools(
         }),
     }),
   };
+  if (options.legacyWorkspaceFolderDelete) {
+    for (const name of [
+      'doc_trash',
+      'doc_restore',
+      'doc_delete_permanently',
+      'workspace_folder_trash',
+      'workspace_folder_restore',
+      'workspace_folder_delete_permanently',
+    ]) {
+      delete tools[name];
+    }
+    return tools;
+  }
+  delete tools.workspace_folder_delete;
+  if (options.taskId && !options.destructiveIntent?.permanentDocumentDelete) {
+    delete tools.doc_delete_permanently;
+  }
+  if (options.taskId && !options.destructiveIntent?.permanentFolderDelete) {
+    delete tools.workspace_folder_delete_permanently;
+  }
+  return tools;
 }

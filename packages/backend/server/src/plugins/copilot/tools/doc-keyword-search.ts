@@ -1,17 +1,80 @@
 import { z } from 'zod';
 
+import { SearchProviderNotFound } from '../../../base';
+import type { DocReader } from '../../../core/doc';
 import type {
   PermissionAccess,
   PermissionService,
 } from '../../../core/permission';
 import type { Models } from '../../../models';
-import type { IndexerService, SearchDoc } from '../../indexer';
+import type { IndexerService } from '../../indexer';
 import { workspaceSyncRequiredError } from './doc-sync';
 import { toolError } from './error';
 import { defineTool } from './tool';
 import type { CopilotChatOptions } from './types';
 
 export const READABLE_DOC_IDS_CACHE_TTL_MS = 10_000;
+export const MARKDOWN_KEYWORD_SEARCH_MAX_DOCUMENTS = 200;
+const MARKDOWN_SEARCH_BATCH_SIZE = 16;
+const MARKDOWN_HIGHLIGHT_CONTEXT = 120;
+
+export type WorkspaceKeywordSearchResult = {
+  docId: string;
+  blockId: string | null;
+  title: string;
+  highlight: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+  createdByUser?: unknown;
+  updatedByUser?: unknown;
+};
+
+function isoDate(value: unknown) {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
+  return null;
+}
+
+function findMarkdownMatch(source: string, query: string) {
+  const normalizedSource = source.toLocaleLowerCase();
+  const normalizedQuery = query.toLocaleLowerCase();
+  const exactIndex = normalizedSource.indexOf(normalizedQuery);
+  if (exactIndex >= 0) {
+    return { index: exactIndex, length: query.length, exact: true };
+  }
+
+  const terms = Array.from(
+    new Set(normalizedQuery.split(/\s+/).filter(term => term.length > 0))
+  );
+  const termIndexes = terms.map(term => normalizedSource.indexOf(term));
+  if (!terms.length || termIndexes.some(index => index < 0)) {
+    return null;
+  }
+
+  const firstTermIndex = Math.min(...termIndexes);
+  const firstTerm = terms[termIndexes.indexOf(firstTermIndex)];
+  return { index: firstTermIndex, length: firstTerm.length, exact: false };
+}
+
+function markdownHighlight(source: string, index: number, length: number) {
+  const start = Math.max(0, index - MARKDOWN_HIGHLIGHT_CONTEXT);
+  const end = Math.min(
+    source.length,
+    index + length + MARKDOWN_HIGHLIGHT_CONTEXT
+  );
+  const matchStart = index - start;
+  const matchEnd = matchStart + length;
+  const snippet = source.slice(start, end);
+  return `${start > 0 ? '...' : ''}${snippet.slice(
+    0,
+    matchStart
+  )}<b>${snippet.slice(matchStart, matchEnd)}</b>${snippet.slice(matchEnd)}${
+    end < source.length ? '...' : ''
+  }`;
+}
 
 export const createReadableDocIdsLoader = (
   permission: PermissionService,
@@ -44,10 +107,100 @@ export const buildDocKeywordSearchGetter = (
   ac: PermissionAccess,
   permission: PermissionService,
   indexerService: IndexerService,
-  models: Models
+  models: Models,
+  docReader: DocReader,
+  logger: Pick<Console, 'debug' | 'warn'> = console
 ) => {
   const loadReadableDocIds = createReadableDocIdsLoader(permission);
-  const searchDocs = async (options: CopilotChatOptions, query?: string) => {
+  const searchReadableMarkdown = async (
+    workspaceId: string,
+    userId: string,
+    docIds: string[],
+    query: string,
+    limit: number
+  ): Promise<WorkspaceKeywordSearchResult[]> => {
+    const timestamps = await models.doc.findTimestampsByDocIds(
+      workspaceId,
+      docIds
+    );
+    const boundedDocIds = docIds
+      .map(docId => ({ docId, updatedAt: timestamps[docId] ?? 0 }))
+      .sort((left, right) => right.updatedAt - left.updatedAt)
+      .slice(0, MARKDOWN_KEYWORD_SEARCH_MAX_DOCUMENTS)
+      .map(item => item.docId);
+    const matches: Array<
+      WorkspaceKeywordSearchResult & { exact: boolean; titleMatch: boolean }
+    > = [];
+
+    for (
+      let offset = 0;
+      offset < boundedDocIds.length;
+      offset += MARKDOWN_SEARCH_BATCH_SIZE
+    ) {
+      const batch = boundedDocIds.slice(
+        offset,
+        offset + MARKDOWN_SEARCH_BATCH_SIZE
+      );
+      const batchMatches = await Promise.all(
+        batch.map(async docId => {
+          const readable = await ac
+            .user(userId)
+            .workspace(workspaceId)
+            .doc(docId)
+            .can('Doc.Read');
+          if (!readable) return null;
+          let content;
+          try {
+            content = await docReader.getDocMarkdown(workspaceId, docId, false);
+          } catch (error) {
+            if (
+              !(error instanceof Error) ||
+              !error.message.startsWith('parser_error:')
+            ) {
+              throw error;
+            }
+            logger.debug(
+              `Skipping non-Markdown document ${docId} during fallback keyword search.`
+            );
+            return null;
+          }
+          if (!content) return null;
+          const source = `${content.title}\n${content.markdown}`;
+          const match = findMarkdownMatch(source, query);
+          if (!match) return null;
+          return {
+            docId,
+            blockId: null,
+            title: content.title,
+            highlight: markdownHighlight(source, match.index, match.length),
+            exact: match.exact,
+            titleMatch: findMarkdownMatch(content.title, query) !== null,
+            createdAt: null,
+            updatedAt: timestamps[docId]
+              ? new Date(timestamps[docId]).toISOString()
+              : null,
+          };
+        })
+      );
+      matches.push(...batchMatches.filter(match => match !== null));
+    }
+
+    return matches
+      .toSorted(
+        (left, right) =>
+          Number(right.exact) - Number(left.exact) ||
+          Number(right.titleMatch) - Number(left.titleMatch) ||
+          (timestamps[right.docId] ?? 0) - (timestamps[left.docId] ?? 0)
+      )
+      .slice(0, limit)
+      .map(({ exact: _exact, titleMatch: _titleMatch, ...match }) => match);
+  };
+
+  const searchDocs = async (
+    options: CopilotChatOptions,
+    query?: string,
+    limit = 20
+  ) => {
     const queryTrimmed = query?.trim();
     if (!options || !queryTrimmed || !options.user || !options.workspace) {
       return toolError(
@@ -73,26 +226,54 @@ export const buildDocKeywordSearchGetter = (
       userId: options.user,
       workspaceId: options.workspace,
     });
-    const docs = await indexerService.searchDocsByKeyword(
-      options.workspace,
-      queryTrimmed,
-      { docIds }
-    );
+    try {
+      const docs = await indexerService.searchDocsByKeyword(
+        options.workspace,
+        queryTrimmed,
+        { docIds, limit }
+      );
 
-    // filter current user readable docs
-    const readableDocs = await ac
-      .user(options.user)
-      .workspace(options.workspace)
-      .docs(docs, 'Doc.Read');
-    return readableDocs ?? [];
+      const readableDocs = await ac
+        .user(options.user)
+        .workspace(options.workspace)
+        .docs(docs, 'Doc.Read');
+      return (readableDocs ?? []).map(doc => ({
+        docId: doc.docId,
+        blockId: doc.blockId,
+        title: doc.title,
+        highlight: doc.highlight,
+        createdAt: isoDate(doc.createdAt),
+        updatedAt: isoDate(doc.updatedAt),
+        createdByUser: doc.createdByUser,
+        updatedByUser: doc.updatedByUser,
+      }));
+    } catch (error) {
+      const reason =
+        error instanceof SearchProviderNotFound
+          ? 'not configured'
+          : error instanceof Error
+            ? error.name
+            : 'unknown error';
+      logger.warn(
+        `Workspace keyword index is unavailable (${reason}); using bounded permission-filtered Markdown search.`
+      );
+      return await searchReadableMarkdown(
+        options.workspace,
+        options.user,
+        docIds,
+        queryTrimmed,
+        Math.min(Math.max(limit, 1), 100)
+      );
+    }
   };
   return searchDocs;
 };
 
 export const createDocKeywordSearchTool = (
   searchDocs: (
-    query: string
-  ) => Promise<SearchDoc[] | ReturnType<typeof toolError>>
+    query: string,
+    limit?: number
+  ) => Promise<WorkspaceKeywordSearchResult[] | ReturnType<typeof toolError>>
 ) => {
   return defineTool({
     description:
@@ -103,16 +284,19 @@ export const createDocKeywordSearchTool = (
         .describe(
           'The query to search for, e.g. "meeting notes" or "project plan".'
         ),
+      limit: z.number().int().min(1).max(100).default(20),
     }),
-    execute: async ({ query }) => {
+    execute: async ({ query, limit }) => {
       try {
-        const docs = await searchDocs(query);
+        const docs = await searchDocs(query, limit);
         if (!Array.isArray(docs)) {
           return docs;
         }
         return docs.map(doc => ({
           docId: doc.docId,
           title: doc.title,
+          blockId: doc.blockId,
+          highlight: doc.highlight,
           createdAt: doc.createdAt,
           updatedAt: doc.updatedAt,
           createdByUser: doc.createdByUser,

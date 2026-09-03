@@ -16,9 +16,11 @@ import {
 } from './mcp/attachments';
 import { MCP_DELEGATE_CAPABILITY } from './mcp/capabilities';
 import {
+  LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_LEGACY_VERSION,
   LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_VERSION,
   type LocalMindToolAgentCompletionContract,
   LocalMindToolAgentCompletionContractSchema,
+  type LocalMindToolAgentDestructiveIntent,
 } from './mcp/tool-agent-completion';
 import {
   COPILOT_CHAT_TOOL_CATEGORIES,
@@ -26,6 +28,7 @@ import {
   type StreamObject,
 } from './providers/types';
 import { CapabilityRuntime } from './runtime/capability-runtime';
+import { ToolRuntime } from './runtime/tool-runtime';
 
 export const AGENT_RUNTIME_LOCALMIND_TOOL_AGENT_WORKFLOW =
   'agent_runtime_localmind_tool_agent';
@@ -36,8 +39,10 @@ export const LOCALMIND_DELEGATION_AI_TOOLS =
 const LOCALMIND_TOOL_AGENT_REQUEST_VERSION = 'localmind-tool-agent-request/v1';
 const LOCALMIND_TOOL_AGENT_REQUEST_PREVIOUS_VERSION =
   'localmind-tool-agent-request/v2';
-const LOCALMIND_TOOL_AGENT_REQUEST_CURRENT_VERSION =
+const LOCALMIND_TOOL_AGENT_REQUEST_V3_VERSION =
   'localmind-tool-agent-request/v3';
+const LOCALMIND_TOOL_AGENT_REQUEST_CURRENT_VERSION =
+  'localmind-tool-agent-request/v4';
 const LOCALMIND_TOOL_AGENT_V1_AI_TOOLS = [
   'blobRead',
   'codeArtifact',
@@ -54,6 +59,10 @@ const LOCALMIND_TOOL_AGENT_V1_AI_TOOLS = [
   'workspaceOrganization',
   'enterprise',
 ] as const satisfies readonly CopilotChatTools[];
+const LOCALMIND_TOOL_AGENT_V2_V3_AI_TOOLS = [
+  ...LOCALMIND_TOOL_AGENT_V1_AI_TOOLS,
+  'sparkClaw',
+] as const satisfies readonly CopilotChatTools[];
 const LOCALMIND_TOOL_AGENT_RESULT_VERSION = 'localmind-tool-agent-result/v1';
 const LOCALMIND_TOOL_AGENT_MAX_RESULT_LENGTH = 6_000;
 const LOCALMIND_TOOL_AGENT_MAX_TOOL_EXECUTIONS = 20;
@@ -67,8 +76,14 @@ const WRITE_TOOL_NAMES = new Set([
   'workspace_folder_rename',
   'workspace_folder_move',
   'workspace_folder_delete',
+  'workspace_folder_trash',
+  'workspace_folder_restore',
+  'workspace_folder_delete_permanently',
   'workspace_folder_add_document',
   'workspace_folder_move_document',
+  'doc_trash',
+  'doc_restore',
+  'doc_delete_permanently',
 ]);
 
 type ToolExecutionSummary = {
@@ -87,6 +102,12 @@ type ToolExecutionSummary = {
       | 'rename_folder'
       | 'move_folder'
       | 'delete_folder'
+      | 'trash_folder'
+      | 'restore_folder'
+      | 'delete_folder_permanently'
+      | 'trash_document'
+      | 'restore_document'
+      | 'delete_document_permanently'
       | 'add_document'
       | 'move_document';
     folderId?: string | null;
@@ -163,9 +184,13 @@ function requireToolAgentStep(run: CopilotAgentRunRecord) {
   const request = objectValue(step.outputSummary.localMindToolAgentRequest);
   const legacyRequest =
     request.version === LOCALMIND_TOOL_AGENT_REQUEST_VERSION;
+  const v2OrV3Request =
+    request.version === LOCALMIND_TOOL_AGENT_REQUEST_PREVIOUS_VERSION ||
+    request.version === LOCALMIND_TOOL_AGENT_REQUEST_V3_VERSION;
   if (
     !legacyRequest &&
     request.version !== LOCALMIND_TOOL_AGENT_REQUEST_PREVIOUS_VERSION &&
+    request.version !== LOCALMIND_TOOL_AGENT_REQUEST_V3_VERSION &&
     request.version !== LOCALMIND_TOOL_AGENT_REQUEST_CURRENT_VERSION
   ) {
     throw new Error(
@@ -179,7 +204,9 @@ function requireToolAgentStep(run: CopilotAgentRunRecord) {
     : [];
   const expectedAllowedTools = legacyRequest
     ? LOCALMIND_TOOL_AGENT_V1_AI_TOOLS
-    : LOCALMIND_DELEGATION_AI_TOOLS;
+    : v2OrV3Request
+      ? LOCALMIND_TOOL_AGENT_V2_V3_AI_TOOLS
+      : LOCALMIND_DELEGATION_AI_TOOLS;
   if (
     allowedTools.length !== expectedAllowedTools.length ||
     expectedAllowedTools.some((tool, index) => allowedTools[index] !== tool)
@@ -221,15 +248,66 @@ function requireToolAgentStep(run: CopilotAgentRunRecord) {
     );
   }
   const completionContract =
+    request.version === LOCALMIND_TOOL_AGENT_REQUEST_V3_VERSION ||
     request.version === LOCALMIND_TOOL_AGENT_REQUEST_CURRENT_VERSION
       ? LocalMindToolAgentCompletionContractSchema.parse(
           request.completionContract
         )
       : ({
-          version: LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_VERSION,
+          version: LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_LEGACY_VERSION,
           kind: 'none',
         } satisfies LocalMindToolAgentCompletionContract);
-  return { completionContract, sparkClawToolNames };
+  const allowedToolNames =
+    request.version === LOCALMIND_TOOL_AGENT_REQUEST_CURRENT_VERSION &&
+    Array.isArray(request.allowedToolNames)
+      ? request.allowedToolNames.filter(
+          (tool): tool is string =>
+            typeof tool === 'string' &&
+            tool.trim() === tool &&
+            tool.length > 0 &&
+            tool.length <= 256
+        )
+      : null;
+  if (
+    request.version === LOCALMIND_TOOL_AGENT_REQUEST_CURRENT_VERSION &&
+    (!allowedToolNames ||
+      allowedToolNames.length > 256 ||
+      new Set(allowedToolNames).size !== allowedToolNames.length ||
+      allowedToolNames.some(
+        (tool, index) => index > 0 && allowedToolNames[index - 1] > tool
+      ) ||
+      request.toolSnapshotFingerprint !==
+        mcpDelegationFingerprint({
+          version: 'localmind-tool-agent-tools/v1',
+          toolNames: allowedToolNames,
+        }))
+  ) {
+    throw new Error(`LocalMind tool agent tool snapshot is invalid: ${run.id}`);
+  }
+  const rawDestructiveIntent = objectValue(request.destructiveIntent);
+  const destructiveIntent: LocalMindToolAgentDestructiveIntent = {
+    permanentDocumentDelete:
+      rawDestructiveIntent.permanentDocumentDelete === true,
+    permanentFolderDelete: rawDestructiveIntent.permanentFolderDelete === true,
+  };
+  if (
+    request.version === LOCALMIND_TOOL_AGENT_REQUEST_CURRENT_VERSION &&
+    (typeof rawDestructiveIntent.permanentDocumentDelete !== 'boolean' ||
+      typeof rawDestructiveIntent.permanentFolderDelete !== 'boolean')
+  ) {
+    throw new Error(
+      `LocalMind tool agent destructive intent is invalid: ${run.id}`
+    );
+  }
+  return {
+    allowedTools: [...expectedAllowedTools],
+    allowedToolNames: allowedToolNames ?? undefined,
+    completionContract,
+    destructiveIntent,
+    legacyWorkspaceFolderDelete:
+      request.version !== LOCALMIND_TOOL_AGENT_REQUEST_CURRENT_VERSION,
+    sparkClawToolNames,
+  };
 }
 
 function toolExecutionSummary(
@@ -262,6 +340,12 @@ function toolExecutionSummary(
     'rename_folder',
     'move_folder',
     'delete_folder',
+    'trash_folder',
+    'restore_folder',
+    'delete_folder_permanently',
+    'trash_document',
+    'restore_document',
+    'delete_document_permanently',
     'add_document',
     'move_document',
   ]);
@@ -308,7 +392,7 @@ function toolExecutionSummary(
       : undefined;
   const localSideEffectApplied =
     !failed && WRITE_TOOL_NAMES.has(event.toolName)
-      ? result.idempotentReplay !== true
+      ? result.idempotentReplay !== true && result.changed !== false
       : undefined;
   const enterpriseSideEffectApplied =
     enterpriseEffect?.risk === 'write' || enterpriseEffect?.risk === 'high'
@@ -382,6 +466,7 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
     private readonly ac: PermissionAccess,
     private readonly attachments: McpAttachmentService,
     private readonly runtime: CapabilityRuntime,
+    private readonly toolRuntime: ToolRuntime,
     private readonly models: Models,
     private readonly jobs: JobQueue,
     private readonly workflowRegistry: CopilotAgentRuntimeWorkflowRegistry
@@ -411,8 +496,14 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
   private async execute(input: CopilotAgentRuntimeWorkflowAdapterInput) {
     const { run, workerAttempt, workerLeaseId, checkCancellationRequested } =
       input;
-    const { completionContract, sparkClawToolNames } =
-      requireToolAgentStep(run);
+    const {
+      allowedTools,
+      allowedToolNames,
+      completionContract,
+      destructiveIntent,
+      legacyWorkspaceFolderDelete,
+      sparkClawToolNames,
+    } = requireToolAgentStep(run);
     const delegation =
       await this.models.copilotMcpDelegation.getRequestByAgentRun(run.id);
     if (!delegation || delegation.status !== 'processing') {
@@ -501,6 +592,47 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
       }
     }
 
+    const toolOptions = {
+      user: run.actorId,
+      workspace: run.workspaceId,
+      taskId: delegation.id,
+      sparkClawToolNames,
+      taskAttachments: materializedAttachments.context,
+      destructiveIntent,
+      legacyWorkspaceFolderDelete,
+      ...(allowedToolNames ? { allowedToolNames } : {}),
+      featureKind: 'action' as const,
+      tools: allowedTools,
+    };
+    const currentToolNames = new Set(
+      Object.keys(
+        await this.toolRuntime.getTools(
+          toolOptions,
+          'localmind-tool-agent-execution'
+        )
+      )
+    );
+    const requiredToolNames =
+      completionContract.kind === 'document_update'
+        ? completionContract.version ===
+            LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_VERSION &&
+          completionContract.mode === 'conditional'
+          ? ['doc_read', 'doc_update']
+          : ['doc_update']
+        : [];
+    const unavailableRequiredTool = requiredToolNames.find(
+      toolName => !currentToolNames.has(toolName)
+    );
+    if (unavailableRequiredTool) {
+      await this.failDelegation(run.id, 'failed', {
+        code: 'required_tool_unavailable',
+        requiredToolName: unavailableRequiredTool,
+      });
+      throw new Error(
+        `LocalMind tool agent required tool is unavailable: ${unavailableRequiredTool}`
+      );
+    }
+
     const toolExecutions: ToolExecutionSummary[] = [];
     let answer = '';
     const authorizedDocumentIds = delegation.requestedDocumentIds.length
@@ -511,10 +643,18 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
       : '(none supplied)';
     const completionInstruction =
       completionContract.kind === 'document_update'
-        ? [
-            `This task is not complete until doc_update succeeds for document ${completionContract.documentId}.`,
-            'Do not finish with a text response after reading the document; call doc_update with the complete merged Markdown body and wait for its successful result.',
-          ].join('\n')
+        ? completionContract.version ===
+            LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_VERSION &&
+          completionContract.mode === 'conditional'
+          ? [
+              `Read document ${completionContract.documentId} before deciding whether the requested change is needed.`,
+              'If the condition is already satisfied, do not write the document and explain that no change was needed.',
+              'If the condition is not satisfied, call doc_update with the complete merged Markdown body and wait for its successful result.',
+            ].join('\n')
+          : [
+              `This task is not complete until doc_update succeeds for document ${completionContract.documentId}.`,
+              'Do not finish with a text response after reading the document; call doc_update with the complete merged Markdown body and wait for its successful result.',
+            ].join('\n')
         : 'Complete the delegated request using the tools required by the request.';
     const abortController = new AbortController();
     const pollerStopController = new AbortController();
@@ -586,12 +726,7 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
         ],
         {
           signal: abortController.signal,
-          user: run.actorId,
-          workspace: run.workspaceId,
-          taskId: delegation.id,
-          sparkClawToolNames,
-          featureKind: 'action',
-          tools: [...LOCALMIND_DELEGATION_AI_TOOLS],
+          ...toolOptions,
           maxTokens: LOCALMIND_TOOL_AGENT_MAX_RESULT_LENGTH,
         }
       );
@@ -648,29 +783,48 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
     }
 
     const artifacts = documentArtifacts(toolExecutions);
-    if (
-      completionContract.kind === 'document_update' &&
-      (!toolExecutions.some(
+    if (completionContract.kind === 'document_update') {
+      const updatedRequiredDocument = toolExecutions.some(
         execution =>
           execution.status === 'completed' &&
           execution.toolName === 'doc_update' &&
           execution.documentId === completionContract.documentId &&
           execution.relation === 'updated'
-      ) ||
-        !artifacts.some(
-          artifact =>
-            artifact.relation === 'updated' &&
-            artifact.documentId === completionContract.documentId
-        ))
-    ) {
-      await this.failDelegation(run.id, 'failed', {
-        code: 'required_side_effect_missing',
-        documentId: completionContract.documentId,
-        requiredToolName: 'doc_update',
-      });
-      throw new Error(
-        `LocalMind tool agent did not update required document: ${completionContract.documentId}`
       );
+      const readRequiredDocument = toolExecutions.some(
+        execution =>
+          execution.status === 'completed' &&
+          execution.toolName === 'doc_read' &&
+          execution.documentIds?.includes(completionContract.documentId)
+      );
+      const hasUpdatedArtifact = artifacts.some(
+        artifact =>
+          artifact.relation === 'updated' &&
+          artifact.documentId === completionContract.documentId
+      );
+      const conditional =
+        completionContract.version ===
+          LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_VERSION &&
+        completionContract.mode === 'conditional';
+      if (
+        (conditional && !updatedRequiredDocument && !readRequiredDocument) ||
+        (!conditional && (!updatedRequiredDocument || !hasUpdatedArtifact))
+      ) {
+        await this.failDelegation(run.id, 'failed', {
+          code: conditional
+            ? 'required_read_evidence_missing'
+            : 'required_side_effect_missing',
+          documentId: completionContract.documentId,
+          requiredToolName: conditional
+            ? 'doc_read_or_doc_update'
+            : 'doc_update',
+        });
+        throw new Error(
+          conditional
+            ? `LocalMind tool agent did not read or update conditional document: ${completionContract.documentId}`
+            : `LocalMind tool agent did not update required document: ${completionContract.documentId}`
+        );
+      }
     }
     const normalizedAnswer =
       answer.trim() || 'LocalMind completed the delegated task.';

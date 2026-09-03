@@ -20879,7 +20879,7 @@ function buildEmbeddingIndexContractSnapshot(input: {
     return {};
   }
 
-  const embeddingIndexContractVersion = 'workspace-embedding-index/v1';
+  const embeddingIndexContractVersion = 'workspace-embedding-index/v2';
   const embeddingIndexContractStatus =
     input.dimensionMismatch === true
       ? 'dimension_mismatch'

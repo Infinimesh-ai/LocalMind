@@ -68,8 +68,8 @@ export const buildDocContentGetter = (
       docId,
       title: content.title,
       markdown: content.markdown,
-      createdAt: docMeta.createdAt,
-      updatedAt: docMeta.updatedAt,
+      createdAt: docMeta.createdAt.toISOString(),
+      updatedAt: docMeta.updatedAt.toISOString(),
       createdByUser: docMeta.createdByUser,
       updatedByUser: docMeta.updatedByUser,
     };

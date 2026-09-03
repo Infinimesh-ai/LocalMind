@@ -2867,7 +2867,7 @@ async function main() {
           requestLayer: 'chat_completions',
           modelBackendKind: 'openai_chat',
           behaviorFlags: [],
-          requestedDimensions: 1024,
+          requestedDimensions: 4096,
           modelEmbeddingDimensions: 768,
           dimensionMismatch: true,
         },
@@ -2884,7 +2884,7 @@ async function main() {
       providerType: 'openaiCompatible',
       providerPriority: 10,
       modelId: 'nomic-embed-text',
-      requestedDimensions: 1024,
+      requestedDimensions: 4096,
       modelEmbeddingDimensions: 768,
       dimensionMismatch: true,
       featureKind: 'workspace_indexing',
@@ -3373,9 +3373,9 @@ async function main() {
   assert.deepEqual(result.rerankRoute?.diagnosticsErrors, []);
   assert.equal(
     result.embeddingRoute?.embeddingIndexContractVersion,
-    'workspace-embedding-index/v1'
+    'workspace-embedding-index/v2'
   );
-  assert.equal(result.embeddingRoute?.embeddingIndexContractDimensions, 1024);
+  assert.equal(result.embeddingRoute?.embeddingIndexContractDimensions, 4096);
   assert.equal(
     result.embeddingRoute?.embeddingIndexContractStatus,
     'dimension_mismatch'
@@ -3437,7 +3437,7 @@ async function main() {
   );
   assert.equal(
     result.embeddingRoute?.preparedRoutes[0]?.requestedDimensions,
-    1024
+    4096
   );
   assert.equal(
     result.embeddingRoute?.preparedRoutes[0]?.modelEmbeddingDimensions,
@@ -11447,7 +11447,7 @@ async function main() {
     );
     assert.equal(
       taskDiagnosticsErrorRepair?.evidence.includes(
-        'policyCandidate#0:requestedDimensions:1024'
+        'policyCandidate#0:requestedDimensions:4096'
       ),
       true,
       'task diagnostics repair evidence should include requested embedding dimensions'
@@ -11468,14 +11468,14 @@ async function main() {
     );
     assert.equal(
       taskDiagnosticsErrorRepair?.evidence.includes(
-        'policyCandidate#0:embeddingIndexContractVersion:workspace-embedding-index/v1'
+        'policyCandidate#0:embeddingIndexContractVersion:workspace-embedding-index/v2'
       ),
       true,
       'task diagnostics repair evidence should include embedding index contract version'
     );
     assert.equal(
       taskDiagnosticsErrorRepair?.evidence.includes(
-        'policyCandidate#0:embeddingIndexContractDimensions:1024'
+        'policyCandidate#0:embeddingIndexContractDimensions:4096'
       ),
       true,
       'task diagnostics repair evidence should include embedding index contract dimensions'

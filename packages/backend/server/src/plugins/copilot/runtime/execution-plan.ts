@@ -680,6 +680,10 @@ function stripHostOnlyOptions<TOptions extends object | undefined>(
     user: _user,
     session: _session,
     workspace: _workspace,
+    allowedToolNames: _allowedToolNames,
+    taskAttachments: _taskAttachments,
+    destructiveIntent: _destructiveIntent,
+    legacyWorkspaceFolderDelete: _legacyWorkspaceFolderDelete,
     quotaBackedRoutesAllowed: _quotaBackedRoutesAllowed,
     ...serializable
   } = options as Record<string, unknown>;

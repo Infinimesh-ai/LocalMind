@@ -122,6 +122,23 @@ export type DocChunkSimilarity = ChunkSimilarity & {
   docId: string;
 };
 
+export type EmbeddingBackfillKind =
+  | 'context_file'
+  | 'memory'
+  | 'workspace_blob'
+  | 'workspace_document'
+  | 'workspace_file';
+
+export type PendingEmbeddingBackfillChunk = {
+  kind: EmbeddingBackfillKind;
+  workspaceId: string;
+  contextId: string | null;
+  userId: string | null;
+  entityId: string;
+  chunk: number;
+  content: string;
+};
+
 export const CopilotWorkspaceFileSchema = z.object({
   fileName: z.string(),
   blobId: z.string(),
@@ -150,10 +167,26 @@ export type IgnoredDoc = {
   updatedBy: string | undefined;
 };
 
-export const EMBEDDING_DIMENSIONS = 1024;
+export const EMBEDDING_DIMENSIONS = 4096;
+export const EMBEDDING_SEARCH_CANDIDATE_MULTIPLIER = 8;
+
+export function embeddingSearchCandidateLimit(topK: number): number {
+  const normalizedTopK = Number.isFinite(topK)
+    ? Math.max(1, Math.trunc(topK))
+    : 1;
+  return Math.max(
+    normalizedTopK,
+    Math.min(normalizedTopK * EMBEDDING_SEARCH_CANDIDATE_MULTIPLIER, 2048)
+  );
+}
 
 export function toPgVector(embedding: number[]): string {
-  if (!embedding.length || embedding.some(value => !Number.isFinite(value))) {
+  if (embedding.length !== EMBEDDING_DIMENSIONS) {
+    throw new Error(
+      `Embedding vector must contain exactly ${EMBEDDING_DIMENSIONS} dimensions, got ${embedding.length}`
+    );
+  }
+  if (embedding.some(value => !Number.isFinite(value))) {
     throw new Error('Embedding vector must contain finite numbers');
   }
   return `[${embedding.join(',')}]`;

@@ -100,11 +100,18 @@ export const buildDocUpdateHandler = (
       return notFound;
     }
 
-    await writer.updateDoc(options.workspace, docId, content, options.user);
+    const result = await writer.updateDoc(
+      options.workspace,
+      docId,
+      content,
+      options.user
+    );
 
     return {
       success: true,
       docId,
+      changed: result.changed !== false,
+      idempotentReplay: result.changed === false,
       message: 'Document updated successfully',
     };
   };

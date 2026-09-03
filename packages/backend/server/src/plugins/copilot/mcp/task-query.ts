@@ -679,7 +679,9 @@ export class McpAiTaskQueryService {
       retryable: [
         'ai_planning_failed',
         'request_aborted',
+        'required_read_evidence_missing',
         'required_side_effect_missing',
+        'required_tool_unavailable',
         'tool_agent_timeout',
       ].includes(code),
       ...(Object.keys(details).length ? { details } : {}),
@@ -701,7 +703,9 @@ export class McpAiTaskQueryService {
       'credential_scope_denied',
       'permission_denied',
       'request_aborted',
+      'required_read_evidence_missing',
       'required_side_effect_missing',
+      'required_tool_unavailable',
       'resource_not_accessible',
       'resource_version_conflict',
       'task_plan_persistence_failed',
@@ -735,8 +739,12 @@ export class McpAiTaskQueryService {
         'The task credential capability ceiling is insufficient.',
       permission_denied: 'The delegated user no longer has required access.',
       request_aborted: 'The task request was aborted.',
+      required_read_evidence_missing:
+        'LocalMind did not produce the required successful document-read evidence.',
       required_side_effect_missing:
         'LocalMind did not produce the required successful side-effect evidence.',
+      required_tool_unavailable:
+        'A tool required to complete the LocalMind task is no longer available.',
       resource_not_accessible: 'A required task resource is not accessible.',
       resource_version_conflict:
         'A task resource changed before the authorized update executed.',

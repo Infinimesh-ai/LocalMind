@@ -20,6 +20,7 @@ export interface CreateDocResult {
 
 export interface UpdateDocResult {
   success: boolean;
+  changed?: boolean;
 }
 
 export interface PushDocUpdateResult extends UpdateDocResult {
@@ -220,6 +221,10 @@ export class DocWriter {
         );
     const delta = updateDocWithMarkdown(existingBinary, markdown, docId);
 
+    if (this.storage.isEmptyBin(delta)) {
+      return { success: true, changed: false };
+    }
+
     // Push only the delta changes
     const timestamp = await this.storage.pushDocUpdates(
       workspaceId,
@@ -242,7 +247,7 @@ export class DocWriter {
       editorId
     );
 
-    return { success: true };
+    return { success: true, changed: true };
   }
 
   /**
@@ -282,6 +287,10 @@ export class DocWriter {
       editorId
     );
     return { success: true, timestamp };
+  }
+
+  async deleteDocPermanently(workspaceId: string, docId: string) {
+    await this.storage.deleteDoc(workspaceId, docId);
   }
 
   /**

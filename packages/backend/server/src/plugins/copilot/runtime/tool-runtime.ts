@@ -43,6 +43,7 @@ import {
   createExaCrawlTool,
   createExaSearchTool,
   createSectionEditTool,
+  createTaskAttachmentReadTool,
   createWorkspaceOrganizationTools,
 } from '../tools';
 import { PromptRuntime } from './prompt-runtime';
@@ -132,10 +133,19 @@ export class ToolRuntime {
           const docContext = options.session
             ? await this.context.getBySessionId(options.session)
             : null;
+          if (!docContext) break;
           const getBlobContent = buildBlobContentGetter(this.ac, docContext);
           tools.blob_read = createBlobReadTool(
             getBlobContent.bind(null, options)
           );
+          break;
+        }
+        case 'taskAttachmentRead': {
+          if (options.taskAttachments?.length) {
+            tools.task_attachment_read = createTaskAttachmentReadTool(
+              options.taskAttachments
+            );
+          }
           break;
         }
         case 'codeArtifact': {
@@ -162,17 +172,16 @@ export class ToolRuntime {
           break;
         }
         case 'docKeywordSearch': {
-          if (this.config.indexer.enabled) {
-            const searchDocs = buildDocKeywordSearchGetter(
-              this.ac,
-              this.permission,
-              this.indexerService,
-              this.models
-            );
-            tools.doc_keyword_search = createDocKeywordSearchTool(
-              searchDocs.bind(null, options)
-            );
-          }
+          const searchDocs = buildDocKeywordSearchGetter(
+            this.ac,
+            this.permission,
+            this.indexerService,
+            this.models,
+            this.docReader
+          );
+          tools.doc_keyword_search = createDocKeywordSearchTool(
+            searchDocs.bind(null, options)
+          );
           break;
         }
         case 'docRead': {
@@ -266,7 +275,11 @@ export class ToolRuntime {
       }
     }
 
-    return tools;
+    if (!options.allowedToolNames) return tools;
+    const allowed = new Set(options.allowedToolNames);
+    return Object.fromEntries(
+      Object.entries(tools).filter(([name]) => allowed.has(name))
+    );
   }
 
   createNativeAdapter(

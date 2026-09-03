@@ -11,12 +11,15 @@ import {
   ContextConfigSchema,
   ContextDoc,
   ContextEmbedStatus,
+  ContextFile,
   CopilotContext,
   DocChunkSimilarity,
   Embedding,
   EMBEDDING_DIMENSIONS,
+  embeddingSearchCandidateLimit,
   FileChunkSimilarity,
   MinimalContextConfigSchema,
+  PendingEmbeddingBackfillChunk,
   toPgVector,
 } from './common/copilot';
 
@@ -129,15 +132,24 @@ export class CopilotContextModel extends BaseModel {
     blobs: ContextBlob[]
   ): Promise<ContextBlob[]> {
     const canEmbedding = await this.checkEmbeddingAvailable();
-    const finishedBlobs = canEmbedding
-      ? await this.listWorkspaceBlobEmbedding(
-          workspaceId,
-          Array.from(new Set(blobs.map(blob => blob.id)))
-        )
-      : [];
+    const blobIds = Array.from(new Set(blobs.map(blob => blob.id)));
+    const [finishedBlobs, pendingBlobs] = canEmbedding
+      ? await Promise.all([
+          this.listWorkspaceBlobEmbedding(workspaceId, blobIds),
+          this.listWorkspaceBlobPendingEmbedding(workspaceId, blobIds),
+        ])
+      : [[], []];
     const finishedBlobSet = new Set(finishedBlobs);
+    const pendingBlobSet = new Set(pendingBlobs);
 
     for (const blob of blobs) {
+      if (
+        pendingBlobSet.has(blob.id) &&
+        blob.status !== ContextEmbedStatus.failed
+      ) {
+        blob.status = ContextEmbedStatus.processing;
+        continue;
+      }
       const status = finishedBlobSet.has(blob.id)
         ? ContextEmbedStatus.finished
         : undefined;
@@ -151,15 +163,24 @@ export class CopilotContextModel extends BaseModel {
 
   async mergeDocStatus(workspaceId: string, docs: ContextDoc[]) {
     const canEmbedding = await this.checkEmbeddingAvailable();
-    const finishedDoc = canEmbedding
-      ? await this.listWorkspaceDocEmbedding(
-          workspaceId,
-          Array.from(new Set(docs.map(doc => doc.id)))
-        )
-      : [];
+    const docIds = Array.from(new Set(docs.map(doc => doc.id)));
+    const [finishedDoc, pendingDoc] = canEmbedding
+      ? await Promise.all([
+          this.listWorkspaceDocEmbedding(workspaceId, docIds),
+          this.listWorkspaceDocPendingEmbedding(workspaceId, docIds),
+        ])
+      : [[], []];
     const finishedDocSet = new Set(finishedDoc);
+    const pendingDocSet = new Set(pendingDoc);
 
     for (const doc of docs) {
+      if (
+        pendingDocSet.has(doc.id) &&
+        doc.status !== ContextEmbedStatus.failed
+      ) {
+        doc.status = ContextEmbedStatus.processing;
+        continue;
+      }
       const status = finishedDocSet.has(doc.id)
         ? ContextEmbedStatus.finished
         : undefined;
@@ -169,6 +190,37 @@ export class CopilotContextModel extends BaseModel {
     }
 
     return docs;
+  }
+
+  async mergeFileStatus(contextId: string, files: ContextFile[]) {
+    if (!files.length) return files;
+
+    const rows = await this.db.$queryRaw<
+      Array<{ fileId: string; total: number; embedded: number }>
+    >`
+      SELECT
+        "file_id" AS "fileId",
+        COUNT(*)::int AS "total",
+        COUNT("embedding")::int AS "embedded"
+      FROM "ai_context_embeddings"
+      WHERE "context_id" = ${contextId}
+        AND "file_id" IN (${Prisma.join(files.map(file => file.id))})
+      GROUP BY "file_id"
+    `;
+    const statusByFileId = new Map(rows.map(row => [row.fileId, row]));
+
+    for (const file of files) {
+      const row = statusByFileId.get(file.id);
+      if (!row) continue;
+      if (file.status === ContextEmbedStatus.failed) continue;
+      file.status =
+        row.total === row.embedded
+          ? ContextEmbedStatus.finished
+          : ContextEmbedStatus.processing;
+      file.error = null;
+    }
+
+    return files;
   }
 
   async update(contextId: string, data: UpdateCopilotContextInput) {
@@ -192,33 +244,168 @@ export class CopilotContextModel extends BaseModel {
     return Number(count) === 2;
   }
 
+  async listPendingEmbeddingBackfill(
+    limit = 64
+  ): Promise<PendingEmbeddingBackfillChunk[]> {
+    const boundedLimit = Math.min(Math.max(Math.trunc(limit) || 1, 1), 128);
+    return await this.db.$queryRaw<PendingEmbeddingBackfillChunk[]>`
+      SELECT
+        "kind",
+        "workspaceId",
+        "contextId",
+        "userId",
+        "entityId",
+        "chunk",
+        "content"
+      FROM (
+        SELECT
+          pending.*,
+          ROW_NUMBER() OVER (
+            PARTITION BY
+              "kind",
+              "workspaceId",
+              "contextId",
+              "entityId"
+            ORDER BY "chunk"
+          ) AS "entityChunkOrdinal"
+        FROM (
+          SELECT
+            'context_file'::text AS "kind",
+            s."workspace_id" AS "workspaceId",
+            e."context_id" AS "contextId",
+            s."user_id" AS "userId",
+            e."file_id" AS "entityId",
+            e."chunk",
+            e."content"
+          FROM "ai_context_embeddings" e
+          JOIN "ai_contexts" c ON c."id" = e."context_id"
+          JOIN "ai_sessions_metadata" s ON s."id" = c."session_id"
+          WHERE e."embedding" IS NULL
+
+          UNION ALL
+
+          SELECT
+            'memory'::text AS "kind",
+            m."workspace_id" AS "workspaceId",
+            NULL::text AS "contextId",
+            m."owner_user_id" AS "userId",
+            m."id" AS "entityId",
+            0 AS "chunk",
+            m."content"
+          FROM "ai_context_memories" m
+          WHERE m."embedding" IS NULL
+            AND m."workspace_id" IS NOT NULL
+            AND m."status" IN ('active', 'disabled')
+
+          UNION ALL
+
+          SELECT
+            'workspace_document'::text AS "kind",
+            e."workspace_id" AS "workspaceId",
+            NULL::text AS "contextId",
+            NULL::text AS "userId",
+            e."doc_id" AS "entityId",
+            e."chunk",
+            e."content"
+          FROM "ai_workspace_embeddings" e
+          JOIN "workspaces" w ON w."id" = e."workspace_id"
+          WHERE e."embedding" IS NULL
+            AND w."enable_doc_embedding" = TRUE
+
+          UNION ALL
+
+          SELECT
+            'workspace_file'::text AS "kind",
+            e."workspace_id" AS "workspaceId",
+            NULL::text AS "contextId",
+            NULL::text AS "userId",
+            e."file_id" AS "entityId",
+            e."chunk",
+            e."content"
+          FROM "ai_workspace_file_embeddings" e
+          JOIN "workspaces" w ON w."id" = e."workspace_id"
+          WHERE e."embedding" IS NULL
+            AND w."enable_doc_embedding" = TRUE
+
+          UNION ALL
+
+          SELECT
+            'workspace_blob'::text AS "kind",
+            e."workspace_id" AS "workspaceId",
+            NULL::text AS "contextId",
+            NULL::text AS "userId",
+            e."blob_id" AS "entityId",
+            e."chunk",
+            e."content"
+          FROM "ai_workspace_blob_embeddings" e
+          JOIN "workspaces" w ON w."id" = e."workspace_id"
+          WHERE e."embedding" IS NULL
+            AND w."enable_doc_embedding" = TRUE
+        ) pending
+      ) bounded
+      WHERE "entityChunkOrdinal" <= 16
+      ORDER BY "kind", "workspaceId", "entityId", "chunk"
+      LIMIT ${boundedLimit}
+    `;
+  }
+
   async listWorkspaceBlobEmbedding(
     workspaceId: string,
     blobIds?: string[]
   ): Promise<string[]> {
-    const existsIds = await this.db.aiWorkspaceBlobEmbedding
-      .groupBy({
-        where: {
-          workspaceId,
-          blobId: blobIds ? { in: blobIds } : undefined,
-        },
-        by: ['blobId'],
-      })
-      .then(r => r.map(r => r.blobId));
-    return existsIds;
+    if (blobIds && !blobIds.length) return [];
+    const rows = await this.db.$queryRaw<Array<{ blobId: string }>>`
+      SELECT "blob_id" AS "blobId"
+      FROM "ai_workspace_blob_embeddings"
+      WHERE "workspace_id" = ${workspaceId}
+        ${blobIds?.length ? Prisma.sql`AND "blob_id" IN (${Prisma.join(blobIds)})` : Prisma.empty}
+      GROUP BY "blob_id"
+      HAVING BOOL_AND("embedding" IS NOT NULL)
+    `;
+    return rows.map(row => row.blobId);
+  }
+
+  async listWorkspaceBlobPendingEmbedding(
+    workspaceId: string,
+    blobIds?: string[]
+  ): Promise<string[]> {
+    if (blobIds && !blobIds.length) return [];
+    const rows = await this.db.$queryRaw<Array<{ blobId: string }>>`
+      SELECT DISTINCT "blob_id" AS "blobId"
+      FROM "ai_workspace_blob_embeddings"
+      WHERE "workspace_id" = ${workspaceId}
+        AND "embedding" IS NULL
+        ${blobIds?.length ? Prisma.sql`AND "blob_id" IN (${Prisma.join(blobIds)})` : Prisma.empty}
+    `;
+    return rows.map(row => row.blobId);
   }
 
   async listWorkspaceDocEmbedding(workspaceId: string, docIds?: string[]) {
-    const existsIds = await this.db.aiWorkspaceEmbedding
-      .groupBy({
-        where: {
-          workspaceId,
-          docId: docIds ? { in: docIds } : undefined,
-        },
-        by: ['docId'],
-      })
-      .then(r => r.map(r => r.docId));
-    return existsIds;
+    if (docIds && !docIds.length) return [];
+    const rows = await this.db.$queryRaw<Array<{ docId: string }>>`
+      SELECT "doc_id" AS "docId"
+      FROM "ai_workspace_embeddings"
+      WHERE "workspace_id" = ${workspaceId}
+        ${docIds?.length ? Prisma.sql`AND "doc_id" IN (${Prisma.join(docIds)})` : Prisma.empty}
+      GROUP BY "doc_id"
+      HAVING BOOL_AND("embedding" IS NOT NULL)
+    `;
+    return rows.map(row => row.docId);
+  }
+
+  async listWorkspaceDocPendingEmbedding(
+    workspaceId: string,
+    docIds?: string[]
+  ) {
+    if (docIds && !docIds.length) return [];
+    const rows = await this.db.$queryRaw<Array<{ docId: string }>>`
+      SELECT DISTINCT "doc_id" AS "docId"
+      FROM "ai_workspace_embeddings"
+      WHERE "workspace_id" = ${workspaceId}
+        AND "embedding" IS NULL
+        ${docIds?.length ? Prisma.sql`AND "doc_id" IN (${Prisma.join(docIds)})` : Prisma.empty}
+    `;
+    return rows.map(row => row.docId);
   }
 
   private processEmbeddings(
@@ -234,7 +421,7 @@ export class CopilotContextModel extends BaseModel {
         fileOrDocId,
         e.index,
         e.content,
-        Prisma.raw(`'[${e.embedding.join(',')}]'`),
+        Prisma.raw(`'${toPgVector(e.embedding)}'`),
         new Date(),
       ].filter(v => v !== undefined)
     );
@@ -289,12 +476,26 @@ export class CopilotContextModel extends BaseModel {
     threshold: number
   ): Promise<Omit<FileChunkSimilarity, 'blobId' | 'name' | 'mimeType'>[]> {
     const vector = toPgVector(embedding);
+    const candidateLimit = embeddingSearchCandidateLimit(topK);
     const similarityChunks = await this.db.$queryRaw<
       Array<Omit<FileChunkSimilarity, 'blobId' | 'name' | 'mimeType'>>
     >`
-      SELECT "file_id" as "fileId", "chunk", "content", "embedding" <=> ${vector}::vector as "distance"
-      FROM "ai_context_embeddings"
-      WHERE context_id = ${contextId}
+      WITH "candidates" AS MATERIALIZED (
+        SELECT "file_id", "chunk", "content", "embedding"
+        FROM "ai_context_embeddings"
+        WHERE context_id = ${contextId}
+          AND "embedding" IS NOT NULL
+        ORDER BY
+          binary_quantize("embedding")::bit(4096) <~>
+          binary_quantize(${vector}::vector)::bit(4096)
+        LIMIT ${candidateLimit}
+      )
+      SELECT
+        "file_id" as "fileId",
+        "chunk",
+        "content",
+        "embedding" <=> ${vector}::vector as "distance"
+      FROM "candidates"
       ORDER BY "distance" ASC
       LIMIT ${topK};
     `;
@@ -377,22 +578,36 @@ export class CopilotContextModel extends BaseModel {
     matchDocIds?: string[]
   ): Promise<DocChunkSimilarity[]> {
     const vector = toPgVector(embedding);
+    const candidateLimit = embeddingSearchCandidateLimit(topK);
     const similarityChunks = await this.db.$queryRaw<Array<DocChunkSimilarity>>`
-      SELECT
-        w."doc_id" as "docId",
-        w."chunk",
-        w."content",
-        w."embedding" <=> ${vector}::vector as "distance"
-      FROM "ai_workspace_embeddings" w
-      LEFT JOIN "ai_workspace_ignored_docs" i
-        ON i."workspace_id" = w."workspace_id"
-          AND i."doc_id" = w."doc_id"
-          ${matchDocIds?.length ? Prisma.sql`AND w."doc_id" NOT IN (${Prisma.join(matchDocIds)})` : Prisma.empty}
-      WHERE
-        w."workspace_id" = ${workspaceId}
-        AND i."doc_id" IS NULL
-        AND ${readablePredicate}
-        AND (w."embedding" <=> ${vector}::vector) <= ${threshold}
+      WITH "candidates" AS MATERIALIZED (
+        SELECT w."doc_id", w."chunk", w."content", w."embedding"
+        FROM "ai_workspace_embeddings" w
+        LEFT JOIN "ai_workspace_ignored_docs" i
+          ON i."workspace_id" = w."workspace_id"
+            AND i."doc_id" = w."doc_id"
+            ${matchDocIds?.length ? Prisma.sql`AND w."doc_id" NOT IN (${Prisma.join(matchDocIds)})` : Prisma.empty}
+        WHERE
+          w."workspace_id" = ${workspaceId}
+          AND w."embedding" IS NOT NULL
+          AND i."doc_id" IS NULL
+          AND ${readablePredicate}
+        ORDER BY
+          binary_quantize(w."embedding")::bit(4096) <~>
+          binary_quantize(${vector}::vector)::bit(4096)
+        LIMIT ${candidateLimit}
+      ),
+      "ranked" AS (
+        SELECT
+          "doc_id" as "docId",
+          "chunk",
+          "content",
+          "embedding" <=> ${vector}::vector as "distance"
+        FROM "candidates"
+      )
+      SELECT "docId", "chunk", "content", "distance"
+      FROM "ranked"
+      WHERE "distance" <= ${threshold}
       ORDER BY "distance" ASC
       LIMIT ${topK};
     `;

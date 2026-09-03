@@ -17,6 +17,7 @@ const ENQUEUE_QUEUED_REPAIR_EXECUTION_JOB_BATCH_SIZE = 50;
 const ENQUEUE_PROVIDER_HEALTH_PROBE_JOB_BATCH_SIZE = 100;
 const PROCESS_PROVIDER_HEALTH_PROBE_JOB_BATCH_SIZE = 50;
 const PROCESS_EXTERNAL_MCP_REMOTE_OPERATION_JOB_BATCH_SIZE = 25;
+const BACKFILL_EMBEDDING_DIMENSION_JOB_BATCH_SIZE = 64;
 
 declare global {
   interface Jobs {
@@ -74,6 +75,15 @@ export class CopilotCronJobs {
   @Cron(CronExpression.EVERY_MINUTE)
   async reconcileTranscriptDispatches() {
     await this.transcript.reconcileDispatches();
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  async scheduleEmbeddingDimensionBackfill() {
+    await this.jobs.add(
+      'copilot.embedding.backfillDimensions',
+      { limit: BACKFILL_EMBEDDING_DIMENSION_JOB_BATCH_SIZE },
+      { jobId: 'minute-copilot-embedding-dimension-backfill' }
+    );
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)

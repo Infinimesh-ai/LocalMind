@@ -70,6 +70,7 @@ test('MCP keyword search falls back to readable Markdown without an indexer prov
       ac: {
         user: () => ({
           workspace: () => ({
+            can: async () => true,
             doc: () => ({ can: async () => true }),
             docs: async () => {
               throw new Error(
@@ -112,6 +113,9 @@ test('MCP keyword search falls back to readable Markdown without an indexer prov
         },
       } as never,
       models: {
+        workspace: {
+          get: async () => ({ id: 'workspace-1' }),
+        },
         doc: {
           findTimestampsByDocIds: async () => ({
             'doc-new': 2,

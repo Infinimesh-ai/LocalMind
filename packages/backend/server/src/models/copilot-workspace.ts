@@ -12,6 +12,7 @@ import {
   type CopilotWorkspaceFile,
   type CopilotWorkspaceFileMetadata,
   type Embedding,
+  embeddingSearchCandidateLimit,
   type FileChunkSimilarity,
   type IgnoredDoc,
   toPgVector,
@@ -54,7 +55,12 @@ export class CopilotWorkspaceConfigModel extends BaseModel {
     const docIds = await this.database.$queryRaw<{ id: string }[]>`
       SELECT s.guid as id
         FROM snapshots AS s
-          LEFT JOIN ai_workspace_embeddings e
+          LEFT JOIN (
+            SELECT workspace_id, doc_id
+            FROM ai_workspace_embeddings
+            GROUP BY workspace_id, doc_id
+            HAVING BOOL_AND(embedding IS NOT NULL)
+          ) e
             ON e.workspace_id = s.workspace_id
                AND e.doc_id = s.guid
           LEFT JOIN ai_workspace_ignored_docs id
@@ -157,17 +163,20 @@ export class CopilotWorkspaceConfigModel extends BaseModel {
   // check if a docId has only placeholder embeddings
   @Transactional()
   async hasPlaceholder(workspaceId: string, docId: string): Promise<boolean> {
-    const [total, nonPlaceholder] = await Promise.all([
-      this.db.aiWorkspaceEmbedding.count({ where: { workspaceId, docId } }),
-      this.db.aiWorkspaceEmbedding.count({
-        where: {
-          workspaceId,
-          docId,
-          NOT: { AND: [{ chunk: 0 }, { content: '' }] },
-        },
-      }),
-    ]);
-    return total > 0 && nonPlaceholder === 0;
+    const [row] = await this.db.$queryRaw<
+      Array<{ total: number; nonPlaceholder: number }>
+    >`
+      SELECT
+        COUNT(*)::int AS "total",
+        COUNT(*) FILTER (
+          WHERE NOT ("chunk" = 0 AND "content" = '')
+        )::int AS "nonPlaceholder"
+      FROM "ai_workspace_embeddings"
+      WHERE "workspace_id" = ${workspaceId}
+        AND "doc_id" = ${docId}
+        AND "embedding" IS NOT NULL
+    `;
+    return (row?.total ?? 0) > 0 && row?.nonPlaceholder === 0;
   }
 
   private getEmbeddableCondition(
@@ -205,20 +214,31 @@ export class CopilotWorkspaceConfigModel extends BaseModel {
       ignoredDocIds
     );
 
-    const [docTotal, docEmbedded, fileTotal, fileEmbedded] = await Promise.all([
-      this.db.snapshot.findMany({
-        where: snapshotCondition,
-        select: { id: true },
-      }),
-      this.db.snapshot.findMany({
-        where: { ...snapshotCondition, embedding: { some: {} } },
-        select: { id: true },
-      }),
-      this.db.aiWorkspaceFiles.count({ where: { workspaceId } }),
-      this.db.aiWorkspaceFiles.count({
-        where: { workspaceId, embeddings: { some: {} } },
-      }),
-    ]);
+    const [docTotal, docEmbedded, fileTotal, [fileEmbedded]] =
+      await Promise.all([
+        this.db.snapshot.findMany({
+          where: snapshotCondition,
+          select: { id: true },
+        }),
+        this.db.$queryRaw<Array<{ id: string }>>`
+          SELECT "doc_id" AS "id"
+          FROM "ai_workspace_embeddings"
+          WHERE "workspace_id" = ${workspaceId}
+          GROUP BY "doc_id"
+          HAVING BOOL_AND("embedding" IS NOT NULL)
+        `,
+        this.db.aiWorkspaceFiles.count({ where: { workspaceId } }),
+        this.db.$queryRaw<Array<{ count: number }>>`
+          SELECT COUNT(*)::int AS "count"
+          FROM (
+            SELECT "file_id"
+            FROM "ai_workspace_file_embeddings"
+            WHERE "workspace_id" = ${workspaceId}
+            GROUP BY "file_id"
+            HAVING BOOL_AND("embedding" IS NOT NULL)
+          ) embedded_files
+        `,
+      ]);
 
     const docTotalIds = docTotal.map(d => d.id);
     const docTotalSet = new Set(docTotalIds);
@@ -236,7 +256,8 @@ export class CopilotWorkspaceConfigModel extends BaseModel {
       embedded:
         docEmbedded
           .map(d => d.id)
-          .filter(id => !duplicateOutdatedDocSet.has(id)).length + fileEmbedded,
+          .filter(id => !duplicateOutdatedDocSet.has(id)).length +
+        (fileEmbedded?.count ?? 0),
     };
   }
 
@@ -280,6 +301,7 @@ export class CopilotWorkspaceConfigModel extends BaseModel {
               AND e.doc_id = docs.doc_id
           WHERE
             e.updated_at IS NULL
+            OR e.embedding IS NULL
             OR (docs.updated_at > e.updated_at AND e.updated_at < NOW() - INTERVAL '10 minutes')
         ) AS needs_embedding;
     `;
@@ -307,7 +329,7 @@ export class CopilotWorkspaceConfigModel extends BaseModel {
         fileOrBlobId,
         e.index,
         e.content,
-        Prisma.raw(`'[${e.embedding.join(',')}]'`),
+        Prisma.raw(`'${toPgVector(e.embedding)}'`),
       ].filter(v => v !== undefined)
     );
     return Prisma.join(groups.map(row => Prisma.sql`(${Prisma.join(row)})`));
@@ -352,7 +374,9 @@ export class CopilotWorkspaceConfigModel extends BaseModel {
     await this.db.$executeRaw`
           INSERT INTO "ai_workspace_file_embeddings"
           ("workspace_id", "file_id", "chunk", "content", "embedding") VALUES ${values}
-          ON CONFLICT (workspace_id, file_id, chunk) DO NOTHING;
+          ON CONFLICT (workspace_id, file_id, chunk) DO UPDATE SET
+            content = EXCLUDED.content,
+            embedding = EXCLUDED.embedding;
       `;
   }
 
@@ -392,23 +416,40 @@ export class CopilotWorkspaceConfigModel extends BaseModel {
       return [];
     }
     const vector = toPgVector(embedding);
+    const candidateLimit = embeddingSearchCandidateLimit(topK);
 
     const similarityChunks = await this.db.$queryRaw<
       Array<FileChunkSimilarity>
     >`
+      WITH "candidates" AS MATERIALIZED (
+        SELECT
+          e."file_id",
+          f."file_name" as "name",
+          f."blob_id" as "blobId",
+          f."mime_type" as "mimeType",
+          e."chunk",
+          e."content",
+          e."embedding"
+        FROM "ai_workspace_file_embeddings" e
+        JOIN "ai_workspace_files" f
+          ON e."workspace_id" = f."workspace_id"
+          AND e."file_id" = f."file_id"
+        WHERE e.workspace_id = ${workspaceId}
+          AND e."embedding" IS NOT NULL
+        ORDER BY
+          binary_quantize(e."embedding")::bit(4096) <~>
+          binary_quantize(${vector}::vector)::bit(4096)
+        LIMIT ${candidateLimit}
+      )
       SELECT
-        e."file_id" as "fileId",
-        f."file_name" as "name",
-        f."blob_id" as "blobId",
-        f."mime_type" as "mimeType",
-        e."chunk",
-        e."content",
-        e."embedding" <=> ${vector}::vector as "distance"
-      FROM "ai_workspace_file_embeddings" e
-      JOIN "ai_workspace_files" f
-        ON e."workspace_id" = f."workspace_id"
-        AND e."file_id" = f."file_id"
-      WHERE e.workspace_id = ${workspaceId}
+        "file_id" as "fileId",
+        "name",
+        "blobId",
+        "mimeType",
+        "chunk",
+        "content",
+        "embedding" <=> ${vector}::vector as "distance"
+      FROM "candidates"
       ORDER BY "distance" ASC
       LIMIT ${topK};
     `;
@@ -459,7 +500,9 @@ export class CopilotWorkspaceConfigModel extends BaseModel {
     await this.db.$executeRaw`
           INSERT INTO "ai_workspace_blob_embeddings"
           ("workspace_id", "blob_id", "chunk", "content", "embedding") VALUES ${values}
-          ON CONFLICT (workspace_id, blob_id, chunk) DO NOTHING;
+          ON CONFLICT (workspace_id, blob_id, chunk) DO UPDATE SET
+            content = EXCLUDED.content,
+            embedding = EXCLUDED.embedding;
       `;
   }
 
@@ -473,17 +516,27 @@ export class CopilotWorkspaceConfigModel extends BaseModel {
       return [];
     }
     const vector = toPgVector(embedding);
+    const candidateLimit = embeddingSearchCandidateLimit(topK);
 
     const similarityChunks = await this.db.$queryRaw<
       Array<BlobChunkSimilarity>
     >`
+      WITH "candidates" AS MATERIALIZED (
+        SELECT e."blob_id", e."chunk", e."content", e."embedding"
+        FROM "ai_workspace_blob_embeddings" e
+        WHERE e.workspace_id = ${workspaceId}
+          AND e."embedding" IS NOT NULL
+        ORDER BY
+          binary_quantize(e."embedding")::bit(4096) <~>
+          binary_quantize(${vector}::vector)::bit(4096)
+        LIMIT ${candidateLimit}
+      )
       SELECT
-        e."blob_id" as "blobId",
-        e."chunk",
-        e."content",
-        e."embedding" <=> ${vector}::vector as "distance"
-      FROM "ai_workspace_blob_embeddings" e
-      WHERE e.workspace_id = ${workspaceId}
+        "blob_id" as "blobId",
+        "chunk",
+        "content",
+        "embedding" <=> ${vector}::vector as "distance"
+      FROM "candidates"
       ORDER BY "distance" ASC
       LIMIT ${topK};
     `;

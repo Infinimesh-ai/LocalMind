@@ -1,7 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { z } from 'zod';
 
-import { SearchProviderNotFound } from '../../../base';
 import type {
   DocReader,
   DocWriter,
@@ -14,7 +13,10 @@ import type {
 import { clearEmbeddingChunk, type Models } from '../../../models';
 import type { IndexerService } from '../../indexer';
 import type { CopilotContextService } from '../context/service';
-import { createReadableDocIdsLoader } from '../tools/doc-keyword-search';
+import {
+  buildDocKeywordSearchGetter,
+  createReadableDocIdsLoader,
+} from '../tools/doc-keyword-search';
 import { createStructuredDocumentMcpTools } from './structured-document-tools';
 import {
   abortIfNeeded,
@@ -41,47 +43,6 @@ type DocumentToolDependencies = {
   logger: Logger;
 };
 
-const MARKDOWN_SEARCH_BATCH_SIZE = 16;
-const MARKDOWN_HIGHLIGHT_CONTEXT = 120;
-
-function findMarkdownMatch(source: string, query: string) {
-  const normalizedSource = source.toLocaleLowerCase();
-  const normalizedQuery = query.toLocaleLowerCase();
-  const exactIndex = normalizedSource.indexOf(normalizedQuery);
-  if (exactIndex >= 0) {
-    return { index: exactIndex, length: query.length, exact: true };
-  }
-
-  const terms = Array.from(
-    new Set(normalizedQuery.split(/\s+/).filter(term => term.length > 0))
-  );
-  const termIndexes = terms.map(term => normalizedSource.indexOf(term));
-  if (!terms.length || termIndexes.some(index => index < 0)) {
-    return null;
-  }
-
-  const firstTermIndex = Math.min(...termIndexes);
-  const firstTerm = terms[termIndexes.indexOf(firstTermIndex)];
-  return { index: firstTermIndex, length: firstTerm.length, exact: false };
-}
-
-function markdownHighlight(source: string, index: number, length: number) {
-  const start = Math.max(0, index - MARKDOWN_HIGHLIGHT_CONTEXT);
-  const end = Math.min(
-    source.length,
-    index + length + MARKDOWN_HIGHLIGHT_CONTEXT
-  );
-  const matchStart = index - start;
-  const matchEnd = matchStart + length;
-  const snippet = source.slice(start, end);
-  return `${start > 0 ? '...' : ''}${snippet.slice(
-    0,
-    matchStart
-  )}<b>${snippet.slice(matchStart, matchEnd)}</b>${snippet.slice(matchEnd)}${
-    end < source.length ? '...' : ''
-  }`;
-}
-
 export function createDocumentMcpSurface(
   dependencies: DocumentToolDependencies,
   userId: string,
@@ -99,6 +60,14 @@ export function createDocumentMcpSurface(
     writer,
   } = dependencies;
   const loadReadableDocIds = createReadableDocIdsLoader(permission);
+  const keywordSearch = buildDocKeywordSearchGetter(
+    ac,
+    permission,
+    indexer,
+    models,
+    reader,
+    logger
+  );
   const structuredTools = createStructuredDocumentMcpTools(
     { ac, logger, structured },
     userId,
@@ -147,82 +116,6 @@ export function createDocumentMcpSurface(
       .can('Doc.Read');
     if (!accessible) return null;
     return await reader.getDocMarkdown(workspaceId, docId, false);
-  };
-
-  const searchReadableMarkdown = async (
-    docIds: string[],
-    query: string,
-    limit: number
-  ) => {
-    const matches: Array<{
-      docId: string;
-      title: string;
-      highlight: string;
-      exact: boolean;
-      titleMatch: boolean;
-    }> = [];
-
-    for (
-      let offset = 0;
-      offset < docIds.length;
-      offset += MARKDOWN_SEARCH_BATCH_SIZE
-    ) {
-      const batch = docIds.slice(offset, offset + MARKDOWN_SEARCH_BATCH_SIZE);
-      const batchMatches = await Promise.all(
-        batch.map(async docId => {
-          let content;
-          try {
-            content = await readDocumentContent(docId);
-          } catch (error) {
-            if (
-              !(error instanceof Error) ||
-              !error.message.startsWith('parser_error:')
-            ) {
-              throw error;
-            }
-            logger.debug(
-              `Skipping non-Markdown document ${docId} during MCP fallback search: ${error.message}`
-            );
-            return null;
-          }
-          if (!content) return null;
-          const source = `${content.title}\n${content.markdown}`;
-          const match = findMarkdownMatch(source, query);
-          if (!match) return null;
-          return {
-            docId,
-            title: content.title,
-            highlight: markdownHighlight(source, match.index, match.length),
-            exact: match.exact,
-            titleMatch: findMarkdownMatch(content.title, query) !== null,
-          };
-        })
-      );
-      matches.push(...batchMatches.filter(match => match !== null));
-    }
-
-    const timestamps = await models.doc.findTimestampsByDocIds(
-      workspaceId,
-      matches.map(match => match.docId)
-    );
-    return matches
-      .toSorted(
-        (left, right) =>
-          Number(right.exact) - Number(left.exact) ||
-          Number(right.titleMatch) - Number(left.titleMatch) ||
-          (timestamps[right.docId] ?? 0) - (timestamps[left.docId] ?? 0)
-      )
-      .slice(0, limit)
-      .map(match => ({
-        docId: match.docId,
-        blockId: null,
-        title: match.title,
-        highlight: match.highlight,
-        createdAt: null,
-        updatedAt: timestamps[match.docId]
-          ? new Date(timestamps[match.docId]).toISOString()
-          : null,
-      }));
   };
 
   const readTools: WorkspaceMcpToolDefinition[] = [
@@ -316,34 +209,12 @@ export function createDocumentMcpSurface(
       outputSchema: RESULT_OUTPUT_SCHEMA,
       annotations: READ_ONLY_TOOL,
       execute: async ({ query, limit }) => {
-        const docIds = await loadReadableDocIds({ userId, workspaceId });
-        const trimmedQuery = query.trim();
-        let results;
-        try {
-          let matches = await indexer.searchDocsByKeyword(
-            workspaceId,
-            trimmedQuery,
-            { docIds, limit }
-          );
-          matches = await ac
-            .user(userId)
-            .workspace(workspaceId)
-            .docs(matches, 'Doc.Read');
-          results = matches.map(match => ({
-            docId: match.docId,
-            blockId: match.blockId,
-            title: match.title,
-            highlight: match.highlight,
-            createdAt: match.createdAt,
-            updatedAt: match.updatedAt,
-          }));
-        } catch (error) {
-          if (!(error instanceof SearchProviderNotFound)) throw error;
-          logger.debug(
-            'No search provider is configured; using permission-filtered MCP Markdown search.'
-          );
-          results = await searchReadableMarkdown(docIds, trimmedQuery, limit);
-        }
+        const results = await keywordSearch(
+          { user: userId, workspace: workspaceId },
+          query,
+          limit
+        );
+        if (!Array.isArray(results)) return toolError(results.message);
         return toolResult({ results }, JSON.stringify(results));
       },
     }),

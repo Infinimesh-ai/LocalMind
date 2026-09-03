@@ -5,6 +5,7 @@ import {
   CallMetric,
   CopilotContextFileNotSupported,
   EventBus,
+  JOB_SIGNAL,
   JobQueue,
   mapAnyError,
   OneDay,
@@ -14,7 +15,12 @@ import {
 import { DocReader } from '../../../core/doc';
 import { WorkspaceBlobStorage } from '../../../core/storage';
 import { readAllDocIdsFromWorkspaceSnapshot } from '../../../core/utils/blocksuite';
-import { Models } from '../../../models';
+import {
+  type Embedding,
+  EMBEDDING_DIMENSIONS,
+  Models,
+  type PendingEmbeddingBackfillChunk,
+} from '../../../models';
 import { CopilotStorage } from '../storage';
 import { readStream } from '../utils';
 import { CopilotEmbeddingClientService } from './client';
@@ -80,6 +86,132 @@ export class CopilotEmbeddingJob {
     if (!this.supportEmbedding) return;
 
     await this.queue.add('copilot.embedding.blobs', blob);
+  }
+
+  @OnJob('copilot.embedding.backfillDimensions')
+  async backfillEmbeddingDimensions({
+    limit = 64,
+  }: Jobs['copilot.embedding.backfillDimensions']) {
+    if (!this.supportEmbedding || !this.embeddingClient) {
+      return JOB_SIGNAL.Done;
+    }
+
+    const boundedLimit = Math.min(Math.max(Math.trunc(limit) || 1, 1), 128);
+    const pending =
+      await this.models.copilotContext.listPendingEmbeddingBackfill(
+        boundedLimit
+      );
+    if (!pending.length) return JOB_SIGNAL.Done;
+
+    const groups = Map.groupBy(
+      pending,
+      row =>
+        `${row.kind}\u0000${row.workspaceId}\u0000${row.contextId ?? ''}\u0000${row.userId ?? ''}\u0000${row.entityId}`
+    );
+    let failedGroups = 0;
+    let restoredChunks = 0;
+
+    for (const rows of groups.values()) {
+      const first = rows[0];
+      try {
+        const embeddings = await this.generateBackfillEmbeddings(rows);
+        await this.persistBackfillEmbeddings(first, embeddings);
+        restoredChunks += embeddings.length;
+      } catch (error) {
+        failedGroups++;
+        this.logger.warn('Failed to backfill embedding chunks', {
+          kind: first.kind,
+          workspaceId: first.workspaceId,
+          contextId: first.contextId,
+          entityId: first.entityId,
+          chunks: rows.length,
+          error: mapAnyError(error).message,
+        });
+      }
+    }
+
+    this.logger.log(
+      `Backfilled ${restoredChunks} embedding chunks; ${failedGroups} groups remain pending`
+    );
+    return failedGroups === 0 && pending.length >= boundedLimit
+      ? JOB_SIGNAL.Repeat
+      : JOB_SIGNAL.Done;
+  }
+
+  private async generateBackfillEmbeddings(
+    rows: PendingEmbeddingBackfillChunk[]
+  ): Promise<Embedding[]> {
+    const emptyRows = rows.filter(row => row.content.length === 0);
+    const contentRows = rows.filter(row => row.content.length > 0);
+    const first = rows[0];
+    const embeddings = contentRows.length
+      ? await this.embeddingClient.generateEmbeddings(
+          contentRows.map(row => ({ index: row.chunk, content: row.content })),
+          {
+            workspaceId: first.workspaceId,
+            userId: first.userId ?? undefined,
+            featureKind:
+              first.kind === 'memory' ? 'embedding' : 'workspace_indexing',
+          }
+        )
+      : [];
+
+    embeddings.push(
+      ...emptyRows.map(row => ({
+        index: row.chunk,
+        content: row.content,
+        embedding: Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0),
+      }))
+    );
+    return embeddings;
+  }
+
+  private async persistBackfillEmbeddings(
+    row: PendingEmbeddingBackfillChunk,
+    embeddings: Embedding[]
+  ) {
+    switch (row.kind) {
+      case 'context_file':
+        if (!row.contextId) {
+          throw new Error('Context embedding backfill is missing context id');
+        }
+        await this.models.copilotContext.insertFileEmbedding(
+          row.contextId,
+          row.entityId,
+          embeddings
+        );
+        break;
+      case 'memory':
+        if (embeddings.length !== 1) {
+          throw new Error('Memory embedding backfill must contain one vector');
+        }
+        await this.models.copilotContextMemory.putEmbedding(
+          row.entityId,
+          embeddings[0].embedding
+        );
+        break;
+      case 'workspace_document':
+        await this.models.copilotContext.insertWorkspaceEmbedding(
+          row.workspaceId,
+          row.entityId,
+          embeddings
+        );
+        break;
+      case 'workspace_file':
+        await this.models.copilotWorkspace.insertFileEmbeddings(
+          row.workspaceId,
+          row.entityId,
+          embeddings
+        );
+        break;
+      case 'workspace_blob':
+        await this.models.copilotWorkspace.insertBlobEmbeddings(
+          row.workspaceId,
+          row.entityId,
+          embeddings
+        );
+        break;
+    }
   }
 
   @OnEvent('workspace.doc.embedding')

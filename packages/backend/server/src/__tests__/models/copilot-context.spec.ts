@@ -1,15 +1,22 @@
 import { randomUUID } from 'node:crypto';
 
-import { Prisma, PrismaClient, User, Workspace } from '@prisma/client';
-import ava, { TestFn } from 'ava';
+import {
+  Prisma,
+  PrismaClient,
+  type User,
+  type Workspace,
+} from '@prisma/client';
+import ava, { type TestFn } from 'ava';
 import Sinon from 'sinon';
 
 import { Config } from '../../base';
 import {
   ContextEmbedStatus,
+  CopilotContextMemoryModel,
   CopilotContextModel,
   CopilotSessionModel,
   CopilotWorkspaceConfigModel,
+  EMBEDDING_DIMENSIONS,
   UserModel,
   WorkspaceModel,
 } from '../../models';
@@ -24,6 +31,7 @@ interface Context {
   workspace: WorkspaceModel;
   copilotSession: CopilotSessionModel;
   copilotContext: CopilotContextModel;
+  copilotContextMemory: CopilotContextMemoryModel;
   copilotWorkspace: CopilotWorkspaceConfigModel;
 }
 
@@ -35,6 +43,7 @@ test.before(async t => {
   t.context.workspace = module.get(WorkspaceModel);
   t.context.copilotSession = module.get(CopilotSessionModel);
   t.context.copilotContext = module.get(CopilotContextModel);
+  t.context.copilotContextMemory = module.get(CopilotContextMemoryModel);
   t.context.copilotWorkspace = module.get(CopilotWorkspaceConfigModel);
   t.context.db = module.get(PrismaClient);
   t.context.config = module.get(Config);
@@ -113,13 +122,13 @@ test('should insert embedding by doc id', async t => {
       {
         index: 0,
         content: 'content',
-        embedding: Array.from({ length: 1024 }, () => 1),
+        embedding: Array.from({ length: EMBEDDING_DIMENSIONS }, () => 1),
       },
     ]);
 
     {
       const ret = await t.context.copilotContext.matchFileEmbedding(
-        Array.from({ length: 1024 }, () => 0.9),
+        Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.9),
         contextId,
         1,
         1
@@ -133,7 +142,7 @@ test('should insert embedding by doc id', async t => {
     {
       await t.context.copilotContext.deleteFileEmbedding(contextId, 'file-id');
       const ret = await t.context.copilotContext.matchFileEmbedding(
-        Array.from({ length: 1024 }, () => 0.9),
+        Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.9),
         contextId,
         1,
         1
@@ -161,7 +170,7 @@ test('should insert embedding by doc id', async t => {
         {
           index: 0,
           content: 'content',
-          embedding: Array.from({ length: 1024 }, () => 1),
+          embedding: Array.from({ length: EMBEDDING_DIMENSIONS }, () => 1),
         },
       ]
     );
@@ -179,7 +188,7 @@ test('should insert embedding by doc id', async t => {
 
     {
       const ret = await t.context.copilotContext.matchWorkspaceEmbedding(
-        Array.from({ length: 1024 }, () => 0.9),
+        Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.9),
         workspace.id,
         1,
         1,
@@ -194,7 +203,7 @@ test('should insert embedding by doc id', async t => {
     {
       await t.context.copilotWorkspace.updateIgnoredDocs(workspace.id, [docId]);
       const ret = await t.context.copilotContext.matchWorkspaceEmbedding(
-        Array.from({ length: 1024 }, () => 0.9),
+        Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.9),
         workspace.id,
         1,
         1,
@@ -210,7 +219,7 @@ test('should insert embedding by doc id', async t => {
         [docId]
       );
       const ret = await t.context.copilotContext.matchWorkspaceEmbedding(
-        Array.from({ length: 1024 }, () => 0.9),
+        Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.9),
         workspace.id,
         1,
         1,
@@ -228,7 +237,7 @@ test('should insert embedding by doc id', async t => {
         docId
       );
       const ret = await t.context.copilotContext.matchWorkspaceEmbedding(
-        Array.from({ length: 1024 }, () => 0.9),
+        Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.9),
         workspace.id,
         1,
         1,
@@ -237,6 +246,152 @@ test('should insert embedding by doc id', async t => {
       t.snapshot(ret, 'should return empty array when embedding deleted');
     }
   }
+});
+
+test('should reject vectors outside the 4096-dimensional contract', async t => {
+  const { id: contextId } = await t.context.copilotContext.create(sessionId);
+  const error = await t.throwsAsync(() =>
+    t.context.copilotContext.matchFileEmbedding(
+      Array.from({ length: 1024 }, () => 0.9),
+      contextId,
+      1,
+      1
+    )
+  );
+
+  t.regex(error?.message ?? '', /exactly 4096 dimensions, got 1024/);
+});
+
+test('should preserve and backfill pending embedding chunks', async t => {
+  const { id: contextId } = await t.context.copilotContext.create(sessionId);
+  const workspaceDocId = randomUUID();
+  const workspaceFileId = randomUUID();
+  const workspaceBlobId = randomUUID();
+  const memoryId = randomUUID();
+
+  await t.context.db.snapshot.create({
+    data: {
+      workspaceId: workspace.id,
+      id: workspaceDocId,
+      blob: Buffer.from([1, 1]),
+      state: Buffer.from([1, 1]),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  });
+  await t.context.db.aiWorkspaceFiles.create({
+    data: {
+      workspaceId: workspace.id,
+      fileId: workspaceFileId,
+      blobId: 'workspace-file-blob',
+      fileName: 'workspace.txt',
+      mimeType: 'text/plain',
+      size: 7,
+    },
+  });
+  await t.context.db.blob.create({
+    data: {
+      workspaceId: workspace.id,
+      key: workspaceBlobId,
+      mime: 'text/plain',
+      size: 4,
+    },
+  });
+  await t.context.db.aiContextMemory.create({
+    data: {
+      id: memoryId,
+      ownerUserId: user.id,
+      workspaceId: workspace.id,
+      scope: 'workspace',
+      kind: 'auto_memory',
+      content: 'remember this',
+      fingerprint: randomUUID(),
+    },
+  });
+
+  await t.context.db.$executeRaw`
+    INSERT INTO "ai_context_embeddings"
+      ("id", "context_id", "file_id", "chunk", "content", "embedding", "updated_at")
+    VALUES (${randomUUID()}, ${contextId}, 'context-file', 0, 'context content', NULL, NOW())
+  `;
+  await t.context.db.$executeRaw`
+    INSERT INTO "ai_workspace_embeddings"
+      ("workspace_id", "doc_id", "chunk", "content", "embedding", "updated_at")
+    VALUES (${workspace.id}, ${workspaceDocId}, 0, 'document content', NULL, NOW())
+  `;
+  await t.context.db.$executeRaw`
+    INSERT INTO "ai_workspace_file_embeddings"
+      ("workspace_id", "file_id", "chunk", "content", "embedding")
+    VALUES (${workspace.id}, ${workspaceFileId}, 0, 'file content', NULL)
+  `;
+  await t.context.db.$executeRaw`
+    INSERT INTO "ai_workspace_blob_embeddings"
+      ("workspace_id", "blob_id", "chunk", "content", "embedding")
+    VALUES (${workspace.id}, ${workspaceBlobId}, 0, 'blob content', NULL)
+  `;
+
+  const pending =
+    await t.context.copilotContext.listPendingEmbeddingBackfill(10);
+  t.deepEqual(pending.map(row => row.kind).toSorted(), [
+    'context_file',
+    'memory',
+    'workspace_blob',
+    'workspace_document',
+    'workspace_file',
+  ]);
+  t.true(
+    pending.some(
+      row =>
+        row.kind === 'context_file' &&
+        row.contextId === contextId &&
+        row.userId === user.id
+    )
+  );
+
+  const contextFiles = [
+    {
+      id: 'context-file',
+      chunkSize: 1,
+      name: 'context.txt',
+      mimeType: 'text/plain',
+      status: ContextEmbedStatus.finished,
+      error: null,
+      blobId: 'context-blob',
+      createdAt: Date.now(),
+    },
+  ];
+  await t.context.copilotContext.mergeFileStatus(contextId, contextFiles);
+  t.is(contextFiles[0].status, ContextEmbedStatus.processing);
+
+  const vector = Array.from({ length: EMBEDDING_DIMENSIONS }, () => 1);
+  await Promise.all([
+    t.context.copilotContext.insertFileEmbedding(contextId, 'context-file', [
+      { index: 0, content: 'context content', embedding: vector },
+    ]),
+    t.context.copilotContext.insertWorkspaceEmbedding(
+      workspace.id,
+      workspaceDocId,
+      [{ index: 0, content: 'document content', embedding: vector }]
+    ),
+    t.context.copilotWorkspace.insertFileEmbeddings(
+      workspace.id,
+      workspaceFileId,
+      [{ index: 0, content: 'file content', embedding: vector }]
+    ),
+    t.context.copilotWorkspace.insertBlobEmbeddings(
+      workspace.id,
+      workspaceBlobId,
+      [{ index: 0, content: 'blob content', embedding: vector }]
+    ),
+    t.context.copilotContextMemory.putEmbedding(memoryId, vector),
+  ]);
+
+  t.deepEqual(
+    await t.context.copilotContext.listPendingEmbeddingBackfill(10),
+    []
+  );
+  await t.context.copilotContext.mergeFileStatus(contextId, contextFiles);
+  t.is(contextFiles[0].status, ContextEmbedStatus.finished);
 });
 
 test('should check embedding table', async t => {
@@ -279,7 +434,7 @@ test('should merge doc status correctly', async t => {
         {
           index: 0,
           content: 'content',
-          embedding: Array.from({ length: 1024 }, () => 1),
+          embedding: Array.from({ length: EMBEDDING_DIMENSIONS }, () => 1),
         },
       ]
     );
@@ -397,7 +552,7 @@ test('should handle concurrent mergeDocStatus calls', async t => {
       {
         index: 0,
         content: 'content',
-        embedding: Array.from({ length: 1024 }, () => 1),
+        embedding: Array.from({ length: EMBEDDING_DIMENSIONS }, () => 1),
       },
     ]
   );

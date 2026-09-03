@@ -63,6 +63,10 @@ trust and scope boundary:
   uniqueness contract or leaving conflicting active versions;
 - authorized candidates are ranked with keyword and embedding similarity,
   temporal/confidence features, reranking, and MMR diversity;
+- durable memory embeddings share the instance-wide 4096-dimensional
+  embedding contract; the dimension migration retains memory text and scope
+  while invalidating only incompatible legacy vectors, and the bounded
+  embedding backfill restores eligible workspace-scoped memories;
 - Rule is modeled independently with `always`, `relevant`, and `manual`
   application modes, priorities, conditions, immutable revisions, rollback,
   and hit records;
@@ -107,6 +111,9 @@ The v6 foundation still has follow-up work before broad production rollout:
   user-feedback, and online experiment outcomes;
 - scheduled expiry cleanup and large-corpus query performance still need
   production load validation beyond the write-time per-scope LRU quota.
+- existing memories whose legacy vectors were invalidated continue to use
+  lexical recall while the bounded 4096-dimensional backfill is pending or the
+  configured embedding provider is unavailable.
 
 ## Next Vertical Slices
 

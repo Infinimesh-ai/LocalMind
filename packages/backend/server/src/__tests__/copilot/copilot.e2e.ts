@@ -18,6 +18,7 @@ import {
   ContextCategories,
   CopilotContextModel,
   DocRole,
+  EMBEDDING_DIMENSIONS,
   WorkspaceRole,
 } from '../../models';
 import { CompatSubmissionStore } from '../../plugins/copilot/compat/submission-store';
@@ -2093,7 +2094,7 @@ test('global context search excludes unauthorized docs before reranking', async 
       {
         index: 0,
         content,
-        embedding: Array.from({ length: 1024 }, () => 1),
+        embedding: Array.from({ length: EMBEDDING_DIMENSIONS }, () => 1),
       },
     ]);
   }

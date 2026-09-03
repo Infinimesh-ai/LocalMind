@@ -10,5 +10,6 @@ export * from './error';
 export * from './exa-crawl';
 export * from './exa-search';
 export * from './section-edit';
+export * from './task-attachment-read';
 export * from './tool';
 export * from './workspace-organization';

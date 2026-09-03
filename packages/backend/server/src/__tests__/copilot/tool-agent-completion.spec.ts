@@ -1,6 +1,10 @@
 import test from 'ava';
 
-import { buildToolAgentCompletionContract } from '../../plugins/copilot/mcp/tool-agent-completion';
+import {
+  buildToolAgentCompletionContract,
+  buildToolAgentDestructiveIntent,
+  requestsExplicitPermanentDelete,
+} from '../../plugins/copilot/mcp/tool-agent-completion';
 
 const documentId = 'daily-log-document';
 
@@ -13,9 +17,10 @@ test('requires a document update for explicit English and Chinese body mutations
     t.deepEqual(
       buildToolAgentCompletionContract({ request, documentIds: [documentId] }),
       {
-        version: 'localmind-tool-agent-completion-contract/v1',
+        version: 'localmind-tool-agent-completion-contract/v2',
         kind: 'document_update',
         documentId,
+        mode: 'required',
       }
     );
   }
@@ -34,7 +39,7 @@ test('does not require a body update for read-only, upload, or metadata requests
     t.deepEqual(
       buildToolAgentCompletionContract({ request, documentIds: [documentId] }),
       {
-        version: 'localmind-tool-agent-completion-contract/v1',
+        version: 'localmind-tool-agent-completion-contract/v2',
         kind: 'none',
       }
     );
@@ -48,8 +53,40 @@ test('does not require one document update when the target is ambiguous', t => {
       documentIds: ['first-document', 'second-document'],
     }),
     {
-      version: 'localmind-tool-agent-completion-contract/v1',
+      version: 'localmind-tool-agent-completion-contract/v2',
       kind: 'none',
     }
   );
+});
+
+test('classifies guarded append requests as conditional document updates', t => {
+  t.deepEqual(
+    buildToolAgentCompletionContract({
+      request:
+        '如果今日日志还没有这条记录，就写入；如果已经存在，则不要修改文档。',
+      documentIds: [documentId],
+    }),
+    {
+      version: 'localmind-tool-agent-completion-contract/v2',
+      kind: 'document_update',
+      documentId,
+      mode: 'conditional',
+    }
+  );
+});
+
+test('requires explicit permanent-delete wording and classifies mixed Chinese Trash requests', t => {
+  t.false(requestsExplicitPermanentDelete('删除这个文档。'));
+  t.deepEqual(buildToolAgentDestructiveIntent('从 Trash 中删除这个文档。'), {
+    permanentDocumentDelete: true,
+    permanentFolderDelete: false,
+  });
+  t.deepEqual(buildToolAgentDestructiveIntent('从 trash 中删除这个文件夹。'), {
+    permanentDocumentDelete: false,
+    permanentFolderDelete: true,
+  });
+  t.deepEqual(buildToolAgentDestructiveIntent('清空 Trash。'), {
+    permanentDocumentDelete: true,
+    permanentFolderDelete: true,
+  });
 });

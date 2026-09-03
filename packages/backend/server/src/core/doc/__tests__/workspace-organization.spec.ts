@@ -61,6 +61,7 @@ function createService() {
       timestamp++;
       return { success: true, timestamp };
     },
+    deleteDocPermanently: async () => {},
   };
   return new WorkspaceOrganizationService(reader as never, writer as never);
 }
@@ -162,6 +163,7 @@ test('workspace organization service round-trips root metadata operations', asyn
       title: 'Document',
       tags: ['tag-1'],
       trash: true,
+      trashDate: (read.documents as { trashDate: number }[])[0].trashDate,
     },
   ]);
 });

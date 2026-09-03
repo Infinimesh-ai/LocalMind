@@ -65,6 +65,11 @@ export function createToolExecutionCallback(
   };
 }
 
+export function toJsonSafeToolOutput(output: unknown): unknown {
+  if (output === undefined) return null;
+  return JSON.parse(JSON.stringify(output)) as unknown;
+}
+
 export async function executeToolCall(
   tools: CopilotToolSet,
   request: LlmToolCallbackRequest,
@@ -128,7 +133,7 @@ export async function executeToolCall(
       args: request.args,
       rawArgumentsText: request.rawArgumentsText,
       argumentParseError: request.argumentParseError,
-      output: (output ?? null) as LlmToolCallbackResponse['output'],
+      output: toJsonSafeToolOutput(output) as LlmToolCallbackResponse['output'],
     };
   } catch (error) {
     return {

@@ -76,6 +76,7 @@ export const VertexSchema: JSONSchema = {
 
 export const COPILOT_CHAT_TOOL_CATEGORIES = [
   'blobRead',
+  'taskAttachmentRead',
   'codeArtifact',
   'conversationSummary',
   // work with indexer
@@ -276,6 +277,32 @@ const CopilotProviderOptionsSchema = z.object({
   taskId: z.string().optional(),
   actionId: z.string().optional(),
   sparkClawToolNames: z.array(z.string().min(1).max(256)).max(128).optional(),
+  allowedToolNames: z.array(z.string().min(1).max(256)).max(256).optional(),
+  taskAttachments: z
+    .array(
+      z
+        .object({
+          attachmentId: z.string().min(1).max(256),
+          fileName: z.string().min(1).max(512),
+          mimeType: z.string().min(1).max(256),
+          byteSize: z.number().int().nonnegative(),
+          contentFingerprint: z.string().min(1).max(256),
+          extractedText: z.string().max(24_000).optional(),
+          extractedTextTruncated: z.boolean().optional(),
+          suppliedToModel: z.boolean().optional(),
+        })
+        .strict()
+    )
+    .max(8)
+    .optional(),
+  destructiveIntent: z
+    .object({
+      permanentDocumentDelete: z.boolean(),
+      permanentFolderDelete: z.boolean(),
+    })
+    .strict()
+    .optional(),
+  legacyWorkspaceFolderDelete: z.boolean().optional(),
   quotaBackedRoutesAllowed: z.boolean().optional(),
   featureKind: z
     .enum([

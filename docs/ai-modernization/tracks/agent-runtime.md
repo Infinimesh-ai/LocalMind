@@ -1089,18 +1089,21 @@ Implemented behavior:
     evidence, normal-close timeout handling, failed-tool projection, credential
     revocation before execution, and execution without a callback.
 11. `workspaceOrganization` is shared by Web AI and delegation and expands to
-    seven semantic tools for folder listing, creation, rename, move, safe
-    deletion, document placement, and moving a document into one or no folder.
-    The tools enforce organization/write/document ACLs, reject cycles and
-    unsafe non-recursive deletion, preserve document content, and persist only
-    allowlisted folder effect evidence; raw workspace table operations remain
-    outside the AI surface.
+    semantic document/folder Trash, restore, permanent delete, folder listing,
+    creation, rename, move, document placement, and moving a document into one
+    or no folder. Ordinary delete requests use Trash. Folder restore changes
+    only documents newly trashed by the matching fingerprinted operation;
+    documents already in Trash remain there. Permanent deletion requires
+    explicit intent, matching current title/name, Trash state, real delete ACL,
+    recursive document/placement cleanup, and a retryable manifest-preserving
+    physical-delete sequence.
 12. `sparkClaw` expands to only `sparkclaw_mcp_search` and
-    `sparkclaw_mcp_execute`. Delegation creation freezes enabled tool names, a
-    fingerprint, and the task completion contract in
-    `localmind-tool-agent-request/v3`; execution intersects the SparkClaw
-    maximum with the current live admin allowlist and user ACL. Legacy v1/v2
-    requests remain executable without gaining the new completion requirement.
+    `sparkclaw_mcp_execute`. Delegation creation freezes the complete sorted set
+    of actually available internal tool names, its fingerprint, the enabled
+    SparkClaw subset, destructive intent, and the task completion contract in
+    `localmind-tool-agent-request/v4`; execution intersects those snapshots
+    with current registries and user ACL. Legacy v1-v3 requests remain
+    executable without gaining newer authority or completion requirements.
 13. The public SparkClaw surface contains only
     `sparkclaw.conversation.send`; operation get/result/cancel remain internal.
     Direct and pending results persist in an encrypted idempotency ledger with
@@ -1109,6 +1112,14 @@ Implemented behavior:
     persistence. Agent Runtime records only tool name, risk, replay state,
     argument/result fingerprints, and side-effect state; raw arguments and
     external results are not copied into runtime evidence.
+14. Delegated attachment reads use `task_attachment_read`, which accepts only
+    ids from the current materialized task context and returns bounded extracted
+    text chunks. General `blob_read` remains tied to an AI Chat session and is
+    not registered for sessionless delegated tasks.
+15. Keyword search uses the workspace indexer when available and otherwise
+    scans at most the 200 most recently updated readable Markdown documents in
+    batches of 16, then ranks the full bounded candidate set before applying the
+    caller's result limit.
 
 ## Agent Run Source Conflict Evidence Fence Slice
 
@@ -1330,13 +1341,15 @@ before treating the preview/version fence as atomic.
 The tool-agent path has its own bounded execution contract: 120 seconds, 20
 recorded tool results, one AbortSignal, one-second cancellation/authority
 polling, transactional AgentRun/delegation completion, and sanitized tool plus
-artifact evidence. New v3 requests also persist an explicit completion
-contract. A single supplied document with an explicit body mutation requires
+artifact evidence. New v4 requests persist actual available tool names and a
+fingerprint plus an explicit v2 completion contract. A single supplied document
+with an unconditional explicit body mutation requires
 live `Doc.Update`, a successful `doc_update`, and a matching updated artifact;
 otherwise the task fails with retryable `required_side_effect_missing` instead
 of accepting read-only work as completion. Timeout aborts that close the stream
 normally fail with retryable `tool_agent_timeout`. Tool-level ACL remains
-inside the existing AI Chat tools.
+inside the existing AI Chat tools. Conditional mutations must record a
+successful `doc_read` or `doc_update`; a verified no-change result is valid.
 The shared workspace-organization category adds safe folder operations and
 records successful non-replay mutations as workspace side effects. Delegated
 document creation is stable by task id and title so worker retries do not
@@ -1354,9 +1367,9 @@ The workspace-managed outbound SparkClaw MCP connection remains separate from
 inbound MCP credential authority, but its allowlisted tools are now available
 inside this durable tool-agent workflow. New requests freeze tool names and a
 fingerprint plus the completion contract in
-`localmind-tool-agent-request/v3`; workers use only the intersection with the
-live allowlist and recheck the delegated user ACL. Legacy v1/v2 requests keep
-their historical completion semantics. The
+`localmind-tool-agent-request/v4`; workers use only the intersection with the
+current registry/live allowlist and recheck the delegated user ACL. Legacy
+v1-v3 requests keep their historical completion and tool semantics. The
 tool execution ledger provides encrypted replay, stable task idempotency,
 fenced initial and remote-poll leases, cancellation/failure terminals, live ACL
 rechecks, binary-result redaction, and bounded audit evidence.
