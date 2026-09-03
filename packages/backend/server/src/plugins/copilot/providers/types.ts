@@ -278,6 +278,55 @@ const CopilotProviderOptionsSchema = z.object({
   actionId: z.string().optional(),
   sparkClawToolNames: z.array(z.string().min(1).max(256)).max(128).optional(),
   allowedToolNames: z.array(z.string().min(1).max(256)).max(256).optional(),
+  toolCapabilities: z
+    .array(
+      z
+        .object({
+          name: z.string().min(1).max(256),
+          schemaFingerprint: z.string().length(64),
+          sideEffectType: z.enum([
+            'read',
+            'workspace_write',
+            'external_dynamic',
+          ]),
+        })
+        .strict()
+    )
+    .max(256)
+    .optional(),
+  enterpriseToolCapabilities: z
+    .array(
+      z
+        .object({
+          connectionId: z.string().min(1).max(256),
+          provider: z.string().min(1).max(64),
+          toolName: z.string().min(1).max(256),
+          risk: z.enum(['read', 'write', 'high']),
+          schemaFingerprint: z.string().length(64),
+          requiresConfirmation: z.boolean(),
+        })
+        .strict()
+    )
+    .max(256)
+    .optional(),
+  sparkClawToolCapabilities: z
+    .array(
+      z
+        .object({
+          toolName: z.string().min(1).max(256),
+          risk: z.enum(['read', 'write', 'high']),
+          schemaFingerprint: z.string().length(64),
+          requiresExplicitUserRequest: z.boolean(),
+        })
+        .strict()
+    )
+    .max(128)
+    .optional(),
+  maxToolExecutions: z.number().int().min(1).max(100).optional(),
+  conditionalDocumentUpdate: z
+    .object({ documentId: z.string().min(1).max(256) })
+    .strict()
+    .optional(),
   taskAttachments: z
     .array(
       z
@@ -288,6 +337,7 @@ const CopilotProviderOptionsSchema = z.object({
           byteSize: z.number().int().nonnegative(),
           contentFingerprint: z.string().min(1).max(256),
           extractedText: z.string().max(24_000).optional(),
+          hasExtractedText: z.boolean().optional(),
           extractedTextTruncated: z.boolean().optional(),
           suppliedToModel: z.boolean().optional(),
         })

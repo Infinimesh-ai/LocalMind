@@ -19,6 +19,8 @@ const FOLDER_TRASH_DOCUMENT_IDS = '$localmindTrashDocumentIds';
 const FOLDER_TRASH_NEW_DOCUMENT_IDS = '$localmindTrashNewDocumentIds';
 const FOLDER_TRASH_PREVIOUS_DOCUMENT_IDS = '$localmindTrashPreviousDocumentIds';
 const FOLDER_TRASH_FINGERPRINT = '$localmindTrashFingerprint';
+const DOCUMENT_TRASH_CLAIMS = '$localmindTrashClaims';
+const DIRECT_DOCUMENT_TRASH_CLAIM = 'direct';
 const FOLDER_TRASH_METADATA_KEYS = [
   FOLDER_TRASH_OPERATION_ID,
   FOLDER_TRASH_ROOT,
@@ -287,6 +289,114 @@ function folderTrashFingerprint(input: {
     .digest('hex');
 }
 
+type FolderTrashManifestRepair = {
+  rootId: string;
+  documentIds: string[];
+  newlyTrashedDocumentIds: string[];
+  previouslyTrashedDocumentIds: string[];
+  fingerprint: string;
+};
+
+function folderTrashManifestRepairs(input: {
+  records: JsonObject[];
+  removedDocumentIds: Set<string>;
+  removedRecordIds: Set<string>;
+  ignoredOperationIds?: Set<string>;
+}) {
+  const repairs: FolderTrashManifestRepair[] = [];
+  for (const root of input.records) {
+    if (
+      root.$$DELETED !== true ||
+      root[FOLDER_TRASH_ROOT] !== true ||
+      typeof root.id !== 'string'
+    ) {
+      continue;
+    }
+    const operationId = String(root[FOLDER_TRASH_OPERATION_ID] ?? '');
+    if (!operationId || input.ignoredOperationIds?.has(operationId)) continue;
+    const documentIds = stringArray(root[FOLDER_TRASH_DOCUMENT_IDS]);
+    if (
+      !documentIds.some(documentId => input.removedDocumentIds.has(documentId))
+    ) {
+      continue;
+    }
+    const nodes = input.records.filter(
+      record =>
+        record.$$DELETED === true &&
+        record[FOLDER_TRASH_OPERATION_ID] === operationId
+    );
+    const newlyTrashedDocumentIds = stringArray(
+      root[FOLDER_TRASH_NEW_DOCUMENT_IDS]
+    );
+    const previouslyTrashedDocumentIds = stringArray(
+      root[FOLDER_TRASH_PREVIOUS_DOCUMENT_IDS]
+    );
+    const currentFingerprint = folderTrashFingerprint({
+      rootFolderId: root.id,
+      nodes,
+      documentIds,
+      newlyTrashedDocumentIds,
+      previouslyTrashedDocumentIds,
+    });
+    if (root[FOLDER_TRASH_FINGERPRINT] !== currentFingerprint) {
+      throw new Error(`The trashed folder manifest for ${root.id} is invalid.`);
+    }
+    const remainingDocumentIds = documentIds.filter(
+      documentId => !input.removedDocumentIds.has(documentId)
+    );
+    const remainingNewDocumentIds = newlyTrashedDocumentIds.filter(
+      documentId => !input.removedDocumentIds.has(documentId)
+    );
+    const remainingPreviousDocumentIds = previouslyTrashedDocumentIds.filter(
+      documentId => !input.removedDocumentIds.has(documentId)
+    );
+    const remainingNodes = nodes.filter(
+      record =>
+        typeof record.id !== 'string' || !input.removedRecordIds.has(record.id)
+    );
+    repairs.push({
+      rootId: root.id,
+      documentIds: remainingDocumentIds,
+      newlyTrashedDocumentIds: remainingNewDocumentIds,
+      previouslyTrashedDocumentIds: remainingPreviousDocumentIds,
+      fingerprint: folderTrashFingerprint({
+        rootFolderId: root.id,
+        nodes: remainingNodes,
+        documentIds: remainingDocumentIds,
+        newlyTrashedDocumentIds: remainingNewDocumentIds,
+        previouslyTrashedDocumentIds: remainingPreviousDocumentIds,
+      }),
+    });
+  }
+  return repairs;
+}
+
+function permanentlyRemoveTableRecords(
+  doc: Y.Doc,
+  records: JsonObject[],
+  manifestRepairs: FolderTrashManifestRepair[]
+) {
+  for (const record of records) {
+    const id = String(record.id);
+    const stored = doc.getMap<unknown>(id);
+    for (const key of Array.from(stored.keys())) {
+      if (key !== 'id') stored.delete(key);
+    }
+    stored.set('id', id);
+    stored.set('$$DELETED', true);
+  }
+  for (const repair of manifestRepairs) {
+    const stored = doc.getMap<unknown>(repair.rootId);
+    stored.set(FOLDER_TRASH_DOCUMENT_IDS, repair.documentIds);
+    stored.set(FOLDER_TRASH_NEW_DOCUMENT_IDS, repair.newlyTrashedDocumentIds);
+    stored.set(
+      FOLDER_TRASH_PREVIOUS_DOCUMENT_IDS,
+      repair.previouslyTrashedDocumentIds
+    );
+    stored.set(FOLDER_TRASH_FINGERPRINT, repair.fingerprint);
+  }
+}
+
 function rootPage(doc: Y.Doc, docId: string) {
   const pages = rootPages(doc);
   const index = findArrayEntry(pages, 'id', docId);
@@ -297,24 +407,60 @@ function rootPageRecord(value: unknown) {
   return jsonObject(value);
 }
 
-function setRootPageTrashed(value: unknown, trashed: boolean) {
+function publicRootPageRecord(value: unknown) {
+  const record = rootPageRecord(value);
+  delete record[DOCUMENT_TRASH_CLAIMS];
+  return record;
+}
+
+function storedRootPageTrashClaims(value: unknown): string[] | null {
+  const record = jsonObject(value);
+  if (!Array.isArray(record[DOCUMENT_TRASH_CLAIMS])) return null;
+  return [
+    ...new Set(
+      record[DOCUMENT_TRASH_CLAIMS].filter(
+        (claim): claim is string =>
+          typeof claim === 'string' && claim.length > 0 && claim.length <= 256
+      )
+    ),
+  ].sort();
+}
+
+function rootPageTrashClaims(
+  value: unknown,
+  legacyClaims: string[] = [DIRECT_DOCUMENT_TRASH_CLAIM]
+) {
+  const stored = storedRootPageTrashClaims(value);
+  if (stored) return stored;
+  return jsonObject(value).trash === true ? [...legacyClaims] : [];
+}
+
+function setRootPageTrashClaims(value: unknown, claims: string[]) {
+  const normalized = [...new Set(claims)].sort();
+  const trashed = normalized.length > 0;
   if (value instanceof Y.Map) {
     if (trashed) {
       value.set('trash', true);
-      value.set('trashDate', Date.now());
+      if (typeof value.get('trashDate') !== 'number') {
+        value.set('trashDate', Date.now());
+      }
+      value.set(DOCUMENT_TRASH_CLAIMS, normalized);
     } else {
       value.delete('trash');
       value.delete('trashDate');
+      value.delete(DOCUMENT_TRASH_CLAIMS);
     }
     return;
   }
   const next = jsonObject(value);
   if (trashed) {
     next.trash = true;
-    next.trashDate = Date.now();
+    if (typeof next.trashDate !== 'number') next.trashDate = Date.now();
+    next[DOCUMENT_TRASH_CLAIMS] = normalized;
   } else {
     delete next.trash;
     delete next.trashDate;
+    delete next[DOCUMENT_TRASH_CLAIMS];
   }
   return next;
 }
@@ -571,7 +717,7 @@ export class WorkspaceOrganizationService {
           name: meta.get('name') ?? null,
           avatar: meta.get('avatar') ?? null,
         },
-        documents: serialize(rootPages(root.doc)),
+        documents: rootPages(root.doc).toArray().map(publicRootPageRecord),
         tags: serialize(rootTagOptions(root.doc)),
         collections: serialize(rootCollections(root.doc)),
         folders,
@@ -608,17 +754,26 @@ export class WorkspaceOrganizationService {
         );
       }
       const currentlyTrashed = record.trash === true;
-      if (currentlyTrashed === input.trashed) {
+      const currentClaims = rootPageTrashClaims(page.value);
+      const nextClaims = input.trashed
+        ? [...new Set([...currentClaims, DIRECT_DOCUMENT_TRASH_CLAIM])]
+        : currentClaims.filter(claim => claim !== DIRECT_DOCUMENT_TRASH_CLAIM);
+      if (
+        currentClaims.length === nextClaims.length &&
+        currentClaims.every(claim => nextClaims.includes(claim))
+      ) {
         return {
           success: true,
           documentId: input.documentId,
           title,
-          trashed: input.trashed,
+          trashed: currentlyTrashed,
+          requestedTrashed: input.trashed,
+          remainingTrashClaims: currentClaims.length,
           changed: false,
           idempotentReplay: true,
         };
       }
-      const replacement = setRootPageTrashed(page.value, input.trashed);
+      const replacement = setRootPageTrashClaims(page.value, nextClaims);
       if (replacement) replaceArrayEntry(page.pages, page.index, replacement);
       await this.save(
         input.workspaceId,
@@ -630,7 +785,9 @@ export class WorkspaceOrganizationService {
         success: true,
         documentId: input.documentId,
         title,
-        trashed: input.trashed,
+        trashed: nextClaims.length > 0,
+        requestedTrashed: input.trashed,
+        remainingTrashClaims: nextClaims.length,
         changed: true,
         idempotentReplay: false,
       };
@@ -654,9 +811,18 @@ export class WorkspaceOrganizationService {
     );
     try {
       const page = rootPage(root.doc, input.documentId);
-      const placements = tableRecords(folders.doc).filter(
+      const allFolderRecords = tableRecords(folders.doc, true);
+      const placements = allFolderRecords.filter(
         folder => folder.type === 'doc' && folder.data === input.documentId
       );
+      const removedRecordIds = new Set(
+        placements.map(placement => String(placement.id))
+      );
+      const manifestRepairs = folderTrashManifestRepairs({
+        records: allFolderRecords,
+        removedDocumentIds: new Set([input.documentId]),
+        removedRecordIds,
+      });
       if (!page) {
         const existingDoc = await this.reader.getDoc(
           input.workspaceId,
@@ -667,17 +833,13 @@ export class WorkspaceOrganizationService {
             'Document must already be in Trash before permanent deletion.'
           );
         }
-        if (placements.length) {
+        if (placements.length || manifestRepairs.length) {
           folders.doc.transact(() => {
-            for (const placement of placements) {
-              const placementId = String(placement.id);
-              const stored = folders.doc.getMap<unknown>(placementId);
-              for (const key of Array.from(stored.keys())) {
-                if (key !== 'id') stored.delete(key);
-              }
-              stored.set('id', placementId);
-              stored.set('$$DELETED', true);
-            }
+            permanentlyRemoveTableRecords(
+              folders.doc,
+              placements,
+              manifestRepairs
+            );
           });
           await this.save(
             input.workspaceId,
@@ -690,7 +852,8 @@ export class WorkspaceOrganizationService {
             folders
           );
         }
-        const changed = !!existingDoc || placements.length > 0;
+        const changed =
+          !!existingDoc || placements.length > 0 || manifestRepairs.length > 0;
         return {
           success: true,
           documentId: input.documentId,
@@ -719,15 +882,7 @@ export class WorkspaceOrganizationService {
       );
       root.doc.transact(() => page.pages.delete(page.index, 1));
       folders.doc.transact(() => {
-        for (const placement of placements) {
-          const placementId = String(placement.id);
-          const stored = folders.doc.getMap<unknown>(placementId);
-          for (const key of Array.from(stored.keys())) {
-            if (key !== 'id') stored.delete(key);
-          }
-          stored.set('id', placementId);
-          stored.set('$$DELETED', true);
-        }
+        permanentlyRemoveTableRecords(folders.doc, placements, manifestRepairs);
       });
       await this.save(
         input.workspaceId,
@@ -830,7 +985,8 @@ export class WorkspaceOrganizationService {
           );
         }
         let repairedDocumentCount = 0;
-        for (const documentId of newlyTrashedDocumentIds) {
+        const folderClaim = `folder:${operationId}`;
+        for (const documentId of documentIds) {
           await input.authorizeDocument(documentId);
           const page = rootPage(root.doc, documentId);
           if (!page) {
@@ -838,8 +994,15 @@ export class WorkspaceOrganizationService {
               `Folder references missing document ${documentId}.`
             );
           }
-          if (rootPageRecord(page.value).trash !== true) {
-            const replacement = setRootPageTrashed(page.value, true);
+          const legacyClaims = newlyTrashedDocumentIds.includes(documentId)
+            ? []
+            : [DIRECT_DOCUMENT_TRASH_CLAIM];
+          const claims = rootPageTrashClaims(page.value, legacyClaims);
+          if (!claims.includes(folderClaim)) {
+            const replacement = setRootPageTrashClaims(page.value, [
+              ...claims,
+              folderClaim,
+            ]);
             if (replacement)
               replaceArrayEntry(page.pages, page.index, replacement);
             repairedDocumentCount++;
@@ -892,6 +1055,8 @@ export class WorkspaceOrganizationService {
           )
         ),
       ];
+      const trashOperationId = nanoid();
+      const folderClaim = `folder:${trashOperationId}`;
       const newlyTrashedDocumentIds: string[] = [];
       const previouslyTrashedDocumentIds: string[] = [];
       for (const documentId of documentIds) {
@@ -900,13 +1065,12 @@ export class WorkspaceOrganizationService {
         if (!page) {
           throw new Error(`Folder references missing document ${documentId}.`);
         }
-        if (rootPageRecord(page.value).trash === true) {
+        if (rootPageTrashClaims(page.value).length > 0) {
           previouslyTrashedDocumentIds.push(documentId);
         } else {
           newlyTrashedDocumentIds.push(documentId);
         }
       }
-      const trashOperationId = nanoid();
       const manifestFingerprint = folderTrashFingerprint({
         rootFolderId: input.folderId,
         nodes: subtree,
@@ -915,10 +1079,13 @@ export class WorkspaceOrganizationService {
         previouslyTrashedDocumentIds,
       });
       root.doc.transact(() => {
-        for (const documentId of newlyTrashedDocumentIds) {
+        for (const documentId of documentIds) {
           const page = rootPage(root.doc, documentId);
           if (!page) continue;
-          const replacement = setRootPageTrashed(page.value, true);
+          const replacement = setRootPageTrashClaims(page.value, [
+            ...rootPageTrashClaims(page.value),
+            folderClaim,
+          ]);
           if (replacement)
             replaceArrayEntry(page.pages, page.index, replacement);
         }
@@ -1062,18 +1229,31 @@ export class WorkspaceOrganizationService {
       ) {
         throw new Error('The original parent folder is no longer available.');
       }
-      for (const documentId of newlyTrashedDocumentIds) {
+      for (const documentId of documentIds) {
         await input.authorizeDocument(documentId);
         const page = rootPage(root.doc, documentId);
         if (!page) {
           throw new Error(`Document ${documentId} can no longer be restored.`);
         }
       }
+      const folderClaim = `folder:${operationId}`;
+      let restoredDocumentCount = 0;
       root.doc.transact(() => {
-        for (const documentId of newlyTrashedDocumentIds) {
+        for (const documentId of documentIds) {
           const page = rootPage(root.doc, documentId);
           if (!page) continue;
-          const replacement = setRootPageTrashed(page.value, false);
+          const legacyClaims = newlyTrashedDocumentIds.includes(documentId)
+            ? [folderClaim]
+            : [DIRECT_DOCUMENT_TRASH_CLAIM, folderClaim];
+          const remainingClaims = rootPageTrashClaims(
+            page.value,
+            legacyClaims
+          ).filter(claim => claim !== folderClaim);
+          if (!remainingClaims.length) restoredDocumentCount++;
+          const replacement = setRootPageTrashClaims(
+            page.value,
+            remainingClaims
+          );
           if (replacement)
             replaceArrayEntry(page.pages, page.index, replacement);
         }
@@ -1102,8 +1282,8 @@ export class WorkspaceOrganizationService {
           .length,
         restoredPlacementCount: nodes.filter(record => record.type !== 'folder')
           .length,
-        restoredDocumentCount: newlyTrashedDocumentIds.length,
-        leftInTrashDocumentCount: previouslyTrashedDocumentIds.length,
+        restoredDocumentCount,
+        leftInTrashDocumentCount: documentIds.length - restoredDocumentCount,
         changed: true,
         idempotentReplay: false,
       };
@@ -1200,10 +1380,26 @@ export class WorkspaceOrganizationService {
           );
         }
       }
+      const documentIdSet = new Set(documentIds);
+      const permanentlyRemovedRecords = allRecords.filter(
+        record =>
+          record[FOLDER_TRASH_OPERATION_ID] === operationId ||
+          (record.type === 'doc' &&
+            typeof record.data === 'string' &&
+            documentIdSet.has(record.data))
+      );
+      const removedRecordIds = new Set(
+        permanentlyRemovedRecords.map(record => String(record.id))
+      );
+      const manifestRepairs = folderTrashManifestRepairs({
+        records: allRecords,
+        removedDocumentIds: documentIdSet,
+        removedRecordIds,
+        ignoredOperationIds: new Set([operationId]),
+      });
       for (const documentId of documentIds) {
         await this.writer.deleteDocPermanently(input.workspaceId, documentId);
       }
-      const documentIdSet = new Set(documentIds);
       const pageIndexes = documentIds
         .map(documentId => rootPage(root.doc, documentId)?.index)
         .filter((index): index is number => index !== undefined)
@@ -1212,23 +1408,12 @@ export class WorkspaceOrganizationService {
         const pages = rootPages(root.doc);
         for (const index of pageIndexes) pages.delete(index, 1);
       });
-      const permanentlyRemovedRecords = allRecords.filter(
-        record =>
-          record[FOLDER_TRASH_OPERATION_ID] === operationId ||
-          (record.type === 'doc' &&
-            typeof record.data === 'string' &&
-            documentIdSet.has(record.data))
-      );
       folders.doc.transact(() => {
-        for (const record of permanentlyRemovedRecords) {
-          const id = String(record.id);
-          const stored = folders.doc.getMap<unknown>(id);
-          for (const key of Array.from(stored.keys())) {
-            if (key !== 'id') stored.delete(key);
-          }
-          stored.set('id', id);
-          stored.set('$$DELETED', true);
-        }
+        permanentlyRemoveTableRecords(
+          folders.doc,
+          permanentlyRemovedRecords,
+          manifestRepairs
+        );
       });
       await this.save(
         input.workspaceId,
@@ -1290,23 +1475,14 @@ export class WorkspaceOrganizationService {
               if (index < 0)
                 throw new Error(`Document ${operation.docId} was not found.`);
               const page = pages.get(index);
-              if (!(page instanceof Y.Map)) {
-                const next = jsonObject(page);
-                if (operation.trashed) {
-                  next.trash = true;
-                  next.trashDate = Date.now();
-                } else {
-                  delete next.trash;
-                  delete next.trashDate;
-                }
-                replaceArrayEntry(pages, index, next);
-              } else if (operation.trashed) {
-                page.set('trash', true);
-                page.set('trashDate', Date.now());
-              } else {
-                page.delete('trash');
-                page.delete('trashDate');
-              }
+              const currentClaims = rootPageTrashClaims(page);
+              const nextClaims = operation.trashed
+                ? [...new Set([...currentClaims, DIRECT_DOCUMENT_TRASH_CLAIM])]
+                : currentClaims.filter(
+                    claim => claim !== DIRECT_DOCUMENT_TRASH_CLAIM
+                  );
+              const replacement = setRootPageTrashClaims(page, nextClaims);
+              if (replacement) replaceArrayEntry(pages, index, replacement);
               break;
             }
             case 'create_tag': {

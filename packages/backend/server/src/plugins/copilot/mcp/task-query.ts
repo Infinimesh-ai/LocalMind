@@ -6,6 +6,7 @@ import { PermissionAccess } from '../../../core/permission';
 import { Models } from '../../../models';
 import type { CopilotAgentRunRecord } from '../../../models/copilot-agent-runtime';
 import { mcpDelegationFingerprint } from '../../../models/copilot-mcp-delegation';
+import { WORKSPACE_EFFECT_OPERATIONS } from '../tools/workspace-organization';
 import {
   McpAttachmentReferenceError,
   McpAttachmentService,
@@ -581,14 +582,9 @@ export class McpAiTaskQueryService {
             const workspaceEffect =
               rawWorkspaceEffect.kind === 'workspace_organization' &&
               workspaceOperation &&
-              [
-                'create_folder',
-                'rename_folder',
-                'move_folder',
-                'delete_folder',
-                'add_document',
-                'move_document',
-              ].includes(workspaceOperation)
+              (WORKSPACE_EFFECT_OPERATIONS as readonly string[]).includes(
+                workspaceOperation
+              )
                 ? {
                     kind: 'workspace_organization',
                     operation: workspaceOperation,
@@ -664,10 +660,17 @@ export class McpAiTaskQueryService {
     const documentId = stringValue(result.documentId);
     const attachmentId = stringValue(result.attachmentId);
     const requiredToolName = stringValue(result.requiredToolName);
+    const requiredToolNames = Array.isArray(result.requiredToolNames)
+      ? result.requiredToolNames
+          .map(stringValue)
+          .filter((toolName): toolName is string => toolName !== null)
+          .slice(0, 16)
+      : [];
     if (missingPermission) details.missingPermission = missingPermission;
     if (documentId) details.documentId = documentId;
     if (attachmentId) details.attachmentId = attachmentId;
     if (requiredToolName) details.requiredToolName = requiredToolName;
+    if (requiredToolNames.length) details.requiredToolNames = requiredToolNames;
     if (Array.isArray(result.requiredCapabilities)) {
       details.requiredCapabilities = result.requiredCapabilities.filter(
         capability => typeof capability === 'string'
@@ -681,7 +684,10 @@ export class McpAiTaskQueryService {
         'request_aborted',
         'required_read_evidence_missing',
         'required_side_effect_missing',
+        'required_tool_evidence_missing',
         'required_tool_unavailable',
+        'tool_execution_limit_exceeded',
+        'tool_snapshot_failed',
         'tool_agent_timeout',
       ].includes(code),
       ...(Object.keys(details).length ? { details } : {}),
@@ -705,11 +711,14 @@ export class McpAiTaskQueryService {
       'request_aborted',
       'required_read_evidence_missing',
       'required_side_effect_missing',
+      'required_tool_evidence_missing',
       'required_tool_unavailable',
       'resource_not_accessible',
       'resource_version_conflict',
       'task_plan_persistence_failed',
       'tool_agent_timeout',
+      'tool_execution_limit_exceeded',
+      'tool_snapshot_failed',
       'unsupported_task',
     ]);
     return code && allowed.has(code) ? code : 'task_failed';
@@ -743,6 +752,8 @@ export class McpAiTaskQueryService {
         'LocalMind did not produce the required successful document-read evidence.',
       required_side_effect_missing:
         'LocalMind did not produce the required successful side-effect evidence.',
+      required_tool_evidence_missing:
+        'LocalMind did not produce all successful tool evidence required to complete the task.',
       required_tool_unavailable:
         'A tool required to complete the LocalMind task is no longer available.',
       resource_not_accessible: 'A required task resource is not accessible.',
@@ -754,6 +765,10 @@ export class McpAiTaskQueryService {
         'LocalMind could not persist the task plan.',
       tool_agent_timeout:
         'LocalMind tool execution timed out before the task completed.',
+      tool_execution_limit_exceeded:
+        'LocalMind reached the maximum number of tool executions before the task completed.',
+      tool_snapshot_failed:
+        'LocalMind could not freeze the task tool capabilities before execution.',
       unsupported_task: 'LocalMind does not support this task yet.',
     };
     return messages[code] ?? messages.task_failed;

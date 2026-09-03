@@ -18,6 +18,7 @@ const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const MAX_ATTACHMENT_TOTAL_BYTES = 20 * 1024 * 1024;
 const MAX_ATTACHMENT_COUNT = 8;
 const MAX_ATTACHMENT_CONTEXT_LENGTH = 24_000;
+const TASK_ATTACHMENT_CHUNK_LENGTH = 8_000;
 const MAX_BASE64_LENGTH = Math.ceil((MAX_ATTACHMENT_BYTES * 4) / 3) + 8;
 
 export const McpInlineAttachmentInput = z
@@ -73,6 +74,7 @@ export type MaterializedMcpAttachments = {
     byteSize: number;
     contentFingerprint: string;
     extractedText?: string;
+    hasExtractedText?: boolean;
     extractedTextTruncated?: boolean;
     suppliedToModel?: boolean;
   }>;
@@ -423,6 +425,7 @@ export class McpAttachmentService {
             mimeType: record.mimeType,
             byteSize: record.byteSize,
             contentFingerprint: record.contentFingerprint,
+            hasExtractedText: true,
             ...(extractedText ? { extractedText } : {}),
             ...(extractedTextTruncated ? { extractedTextTruncated: true } : {}),
           });
@@ -450,6 +453,77 @@ export class McpAttachmentService {
     }
 
     return { context, promptAttachments, records };
+  }
+
+  async readTaskAttachmentChunk(input: {
+    taskId: string;
+    workspaceId: string;
+    actorId: string;
+    attachmentId: string;
+    chunk: number;
+  }) {
+    const delegation = await this.models.copilotMcpDelegation.getRequest(
+      input.taskId
+    );
+    if (
+      !delegation ||
+      delegation.workspaceId !== input.workspaceId ||
+      delegation.actorId !== input.actorId ||
+      !delegation.requestedAttachmentIds.includes(input.attachmentId)
+    ) {
+      throw new McpAttachmentReferenceError(
+        'resource_not_accessible',
+        { code: 'resource_not_accessible', attachmentId: input.attachmentId },
+        `MCP attachment is not bound to task ${input.taskId}.`
+      );
+    }
+    const [record] = await this.authorizeReferences({
+      workspaceId: input.workspaceId,
+      actorId: input.actorId,
+      credentialFamilyId: delegation.credentialFamilyId,
+      attachmentIds: [input.attachmentId],
+    });
+    const buffer = await this.readVerified(record);
+    let text = '';
+    try {
+      const parsed = await parseDoc(record.fileName, buffer);
+      text = parsed.chunks
+        .toSorted((left, right) => left.index - right.index)
+        .map(chunk => chunk.content.trim())
+        .filter(Boolean)
+        .join('\n');
+    } catch {
+      text = '';
+    }
+    if (!text) {
+      return {
+        attachmentId: record.id,
+        fileName: record.fileName,
+        mimeType: record.mimeType,
+        byteSize: record.byteSize,
+        contentFingerprint: record.contentFingerprint,
+        content: null,
+        message: 'This attachment has no readable extracted text.',
+      };
+    }
+    const start = input.chunk * TASK_ATTACHMENT_CHUNK_LENGTH;
+    if (start >= text.length) {
+      throw new Error(
+        `Attachment ${record.id} does not have chunk ${input.chunk}.`
+      );
+    }
+    const content = text.slice(start, start + TASK_ATTACHMENT_CHUNK_LENGTH);
+    return {
+      attachmentId: record.id,
+      fileName: record.fileName,
+      mimeType: record.mimeType,
+      byteSize: record.byteSize,
+      contentFingerprint: record.contentFingerprint,
+      chunk: input.chunk,
+      content,
+      hasMore: start + content.length < text.length,
+      extractedTextTruncated: false,
+    };
   }
 
   private async readVerified(record: AiMcpAttachment) {

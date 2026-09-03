@@ -30,19 +30,23 @@ type FolderNode = {
   index: string;
 };
 
-type WorkspaceEffectOperation =
-  | 'trash_document'
-  | 'restore_document'
-  | 'delete_document_permanently'
-  | 'create_folder'
-  | 'rename_folder'
-  | 'move_folder'
-  | 'delete_folder'
-  | 'trash_folder'
-  | 'restore_folder'
-  | 'delete_folder_permanently'
-  | 'add_document'
-  | 'move_document';
+export const WORKSPACE_EFFECT_OPERATIONS = [
+  'trash_document',
+  'restore_document',
+  'delete_document_permanently',
+  'create_folder',
+  'rename_folder',
+  'move_folder',
+  'delete_folder',
+  'trash_folder',
+  'restore_folder',
+  'delete_folder_permanently',
+  'add_document',
+  'move_document',
+] as const;
+
+export type WorkspaceEffectOperation =
+  (typeof WORKSPACE_EFFECT_OPERATIONS)[number];
 
 function asFolderNodes(value: unknown): FolderNode[] {
   if (!Array.isArray(value)) return [];

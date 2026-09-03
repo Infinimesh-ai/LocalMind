@@ -11,6 +11,7 @@ import {
   ExternalMcpTransport,
   ExternalMcpTransportError,
 } from '../../plugins/copilot/external-mcp/transport';
+import { toolSchemaFingerprint } from '../../plugins/copilot/runtime/tool-capability-snapshot';
 
 type CapturedRequest = {
   method: string;
@@ -675,6 +676,14 @@ test('connection service executes an allowlisted tool through an encrypted durab
     arguments: { text: 'What is queued?' },
     idempotencyKey: 'delegation-1-conversation',
     confirmed: true,
+    expectedCapability: {
+      toolName: conversationToolName,
+      risk: 'write',
+      schemaFingerprint: toolSchemaFingerprint(
+        connection.toolCatalog[0].inputSchema
+      ),
+      requiresExplicitUserRequest: true,
+    },
   });
 
   t.deepEqual(result, {
@@ -726,6 +735,25 @@ test('connection service executes an allowlisted tool through an encrypted durab
   t.false(serializedAudits.includes('SparkClaw answer'));
   t.true(serializedAudits.includes('argumentsFingerprint'));
   t.true(serializedAudits.includes('resultFingerprint'));
+
+  await t.throwsAsync(
+    service.executeTool({
+      workspaceId: 'workspace-1',
+      actorId: 'user-1',
+      toolName: conversationToolName,
+      arguments: { text: 'What is queued?' },
+      idempotencyKey: 'delegation-1-capability-drift',
+      confirmed: true,
+      expectedCapability: {
+        toolName: conversationToolName,
+        risk: 'write',
+        schemaFingerprint: '0'.repeat(64),
+        requiresExplicitUserRequest: true,
+      },
+    }),
+    { message: 'SparkClaw tool capability changed after the task was queued' }
+  );
+  Sinon.assert.calledOnce(callTool);
 });
 
 test('connection service persists a pending SparkClaw operation for polling', async t => {

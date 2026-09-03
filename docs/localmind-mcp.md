@@ -107,11 +107,13 @@ revoking the family or disabling the user prevents queued work from executing.
 Credentials from the legacy resource-capability model are revoked
 during migration and must be recreated.
 
-Each tool-agent task also persists the exact internal tool names that were
-actually available at creation time plus a fingerprint of that sorted set. The
-worker exposes only the intersection of that frozen snapshot and the tools that
-are still registered at execution time. Each selected tool then applies its
-normal live workspace/document ACL. A required completion tool that has
+Each tool-agent task also persists the exact internal tool names and input-Schema
+fingerprints that were actually available at creation time. Enterprise and
+SparkClaw aggregate tools additionally freeze their concrete connection,
+provider, tool, risk, and confirmation requirements. The worker exposes only
+capabilities present in both that frozen snapshot and the current registries,
+rechecks dynamic catalogs immediately before execution, and then applies each
+tool's normal live workspace/document ACL. A required completion tool that has
 disappeared fails the task instead of silently widening or substituting tools.
 
 Inline attachment persistence requires live `Workspace.Copilot` and
@@ -151,37 +153,46 @@ The current built-in AI can:
   generation, conversation summarization, workspace folder organization, and
   task-scoped attachment reading. Keyword search uses the workspace index when
   available and otherwise scans at most the 200 most recently updated readable
-  Markdown documents in bounded batches. Task attachment reads use
-  `task_attachment_read` and never depend on a chat session or general
-  `blob_read` access. Folder organization supports list/create/rename/move,
+  Markdown documents in bounded batches; parser failures and invalid binary
+  documents are skipped without suppressing other read failures. Task
+  attachment reads use `task_attachment_read` and never depend on a chat
+  session or general `blob_read` access. Folder organization supports
+  list/create/rename/move,
   Trash, restore, permanent deletion, and adding or moving a readable document.
   Ordinary delete requests move the folder tree and its referenced documents to
-  Trash. Restore returns only documents newly trashed by that operation;
-  documents already in Trash stay there. Permanent deletion requires explicit
-  user intent, requires the target to already be in Trash, and recursively
-  removes affected document content plus all of its folder placements.
+  Trash. Direct document Trash and each folder Trash operation persist separate
+  claims, so restoring one folder removes only its claim and preserves direct or
+  overlapping folder claims. Permanent deletion requires explicit user intent,
+  requires the target to already be in Trash, recursively removes affected
+  document content plus all folder placements, and rewrites other affected
+  folder Trash manifests so they remain restorable.
 
-The tool-agent path has a 120-second bound, records at most 20 tool executions,
+The tool-agent path has a 120-second bound and a hard maximum of 20 attempted
+tool executions; the twenty-first executor is not invoked. It
 polls cancellation and authority while running, and returns sanitized result
 and document-artifact evidence. A deadline abort is reported as retryable
-`tool_agent_timeout` even when the provider stream closes normally. When one
-supplied document is explicitly requested to receive a body update, the task
-requires a successful `doc_update` and matching updated artifact; read-only
-completion fails as retryable `required_side_effect_missing`. Conditional
-requests such as "append only if missing" must first read the document and may
-finish without a write when the condition is already satisfied. Delegated
-document creation is idempotent for the same task and title. Folder mutations
-enforce workspace organization/write ACLs, require document read access for
-placements, and persist sanitized side-effect evidence only for non-replay
-writes.
+`tool_agent_timeout` even when the provider stream closes normally. The v3
+completion contract names the successful internal tools and optional document,
+workspace operation, Enterprise provider, SparkClaw tool, ordering, or
+side-effect evidence required for the request. Text-only claims cannot complete
+document creation/update or workspace organization. Conditional requests such
+as "append only if missing" must first call `doc_read`, then call `doc_update`
+or `conditional_noop_complete`; the no-op must return the exact fingerprint
+issued by that read. Missing evidence is retryable
+`required_tool_evidence_missing`. Delegated document creation is idempotent for
+the same task and title. Folder mutations enforce workspace organization/write
+ACLs, require document read access for placements, and persist sanitized
+side-effect evidence only for non-replay writes.
 
 Each uploaded file is limited to 10 MiB; one task accepts at most eight files
 and 20 MiB combined. Upload records are immutable and bound to the workspace,
 delegated actor, and credential family. Planning and worker execution reread
 the Blob and verify its stored size and SHA-256 evidence. Parseable documents
 contribute bounded extracted text; supported provider-native media is supplied
-as bounded bytes. The task-scoped attachment reader returns extracted text in
-8,000-character chunks. The original upload remains a task resource. A
+as bounded bytes. Every task-scoped attachment chunk read rechecks the task,
+actor, workspace, credential-family binding, and live Blob ACL, then rereads,
+verifies, and reparses the Blob before returning up to 8,000 characters. The
+original upload remains a task resource. A
 generated workspace result is returned as a `localmind_document` artifact
 created or updated through LocalMind's normal document tools.
 
@@ -294,9 +305,12 @@ returns `delegate_to_localmind`, `get_localmind_task`, and
 - `required_tool_unavailable`: a tool frozen into the task snapshot is no
   longer registered or currently available, so execution stops before the
   model tool loop.
-- `required_read_evidence_missing` / `required_side_effect_missing`: the tool
-  loop did not produce the read or write evidence required by the task's
-  completion contract.
+- `required_tool_evidence_missing`: the tool loop did not produce all concrete
+  tool evidence required by the task's completion contract.
+- `tool_execution_limit_exceeded`: the task attempted a twenty-first tool
+  execution; that executor was not invoked.
+- `tool_snapshot_failed`: LocalMind could not freeze the task's actual tool
+  capabilities before execution.
 - Missing callback: execution continues; poll `get_localmind_task` for the
   terminal result.
 - Missing terminal notification: query the task, then check the receiver's HMAC

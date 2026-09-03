@@ -83,6 +83,7 @@ test('MCP keyword search falls back to readable Markdown without an indexer prov
       permission: {
         listReadableDocIds: async () => [
           'workspace-root',
+          'doc-corrupt',
           'doc-new',
           'doc-old',
         ],
@@ -92,6 +93,11 @@ test('MCP keyword search falls back to readable Markdown without an indexer prov
           readDocIds.push(docId);
           if (docId === 'workspace-root') {
             throw new Error('parser_error: blocks map not found');
+          }
+          if (docId === 'doc-corrupt') {
+            throw Object.assign(new Error('invalid_binary'), {
+              code: 'invalid_binary',
+            });
           }
           return docId === 'doc-new'
             ? {
@@ -118,6 +124,7 @@ test('MCP keyword search falls back to readable Markdown without an indexer prov
         },
         doc: {
           findTimestampsByDocIds: async () => ({
+            'doc-corrupt': 3,
             'doc-new': 2,
             'doc-old': 1,
           }),
@@ -136,7 +143,12 @@ test('MCP keyword search falls back to readable Markdown without an indexer prov
   );
 
   t.false(result.isError ?? false);
-  t.deepEqual(readDocIds.sort(), ['doc-new', 'doc-old', 'workspace-root']);
+  t.deepEqual(readDocIds.sort(), [
+    'doc-corrupt',
+    'doc-new',
+    'doc-old',
+    'workspace-root',
+  ]);
   t.deepEqual(result.structuredContent?.result, {
     results: [
       {

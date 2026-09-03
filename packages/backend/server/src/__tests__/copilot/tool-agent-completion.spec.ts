@@ -17,30 +17,57 @@ test('requires a document update for explicit English and Chinese body mutations
     t.deepEqual(
       buildToolAgentCompletionContract({ request, documentIds: [documentId] }),
       {
-        version: 'localmind-tool-agent-completion-contract/v2',
-        kind: 'document_update',
-        documentId,
-        mode: 'required',
+        version: 'localmind-tool-agent-completion-contract/v3',
+        kind: 'requirements',
+        requirements: [
+          {
+            kind: 'tool_success',
+            toolNames: ['doc_update'],
+            minCount: 1,
+            documentId,
+          },
+        ],
       }
     );
   }
 });
 
-test('does not require a body update for read-only, upload, or metadata requests', t => {
+test('does not require a body update for read-only or upload requests', t => {
   for (const request of [
     'Update me about the document status.',
     'Upload the attachment and summarize the supplied document.',
-    'Change the document title to Daily Log.',
     '读取文档并总结日志内容。',
     '上传附件，然后总结日志文档。',
-    '修改文档标题为今日日志。',
     '提交今日日志给管理员。',
   ]) {
     t.deepEqual(
       buildToolAgentCompletionContract({ request, documentIds: [documentId] }),
       {
-        version: 'localmind-tool-agent-completion-contract/v2',
+        version: 'localmind-tool-agent-completion-contract/v3',
         kind: 'none',
+      }
+    );
+  }
+});
+
+test('requires a metadata tool for explicit document title changes', t => {
+  for (const request of [
+    'Change the document title to Daily Log.',
+    '修改文档标题为今日日志。',
+  ]) {
+    t.deepEqual(
+      buildToolAgentCompletionContract({ request, documentIds: [documentId] }),
+      {
+        version: 'localmind-tool-agent-completion-contract/v3',
+        kind: 'requirements',
+        requirements: [
+          {
+            kind: 'tool_success',
+            toolNames: ['doc_update_meta'],
+            minCount: 1,
+            documentId,
+          },
+        ],
       }
     );
   }
@@ -53,7 +80,7 @@ test('does not require one document update when the target is ambiguous', t => {
       documentIds: ['first-document', 'second-document'],
     }),
     {
-      version: 'localmind-tool-agent-completion-contract/v2',
+      version: 'localmind-tool-agent-completion-contract/v3',
       kind: 'none',
     }
   );
@@ -67,16 +94,86 @@ test('classifies guarded append requests as conditional document updates', t => 
       documentIds: [documentId],
     }),
     {
-      version: 'localmind-tool-agent-completion-contract/v2',
-      kind: 'document_update',
-      documentId,
-      mode: 'conditional',
+      version: 'localmind-tool-agent-completion-contract/v3',
+      kind: 'requirements',
+      requirements: [
+        {
+          kind: 'tool_success',
+          toolNames: ['doc_read'],
+          minCount: 1,
+          documentId,
+        },
+        {
+          kind: 'any_of',
+          minCount: 1,
+          requirements: [
+            {
+              kind: 'tool_success',
+              toolNames: ['doc_update'],
+              minCount: 1,
+              documentId,
+              afterToolName: 'doc_read',
+            },
+            {
+              kind: 'tool_success',
+              toolNames: ['conditional_noop_complete'],
+              minCount: 1,
+              documentId,
+              afterToolName: 'doc_read',
+            },
+          ],
+        },
+      ],
+    }
+  );
+});
+
+test('requires concrete successful tools for document, folder, and external work', t => {
+  t.like(
+    buildToolAgentCompletionContract({
+      request: 'Create a new workspace document named Release Notes.',
+      documentIds: [],
+    }),
+    {
+      kind: 'requirements',
+      requirements: [{ toolNames: ['doc_create'] }],
+    }
+  );
+  t.like(
+    buildToolAgentCompletionContract({
+      request: '删除这个文件夹，放入回收站。',
+      documentIds: [],
+    }),
+    {
+      kind: 'requirements',
+      requirements: [{ toolNames: ['workspace_folder_trash'] }],
+    }
+  );
+  t.like(
+    buildToolAgentCompletionContract({
+      request: '查询我今天的钉钉日程。',
+      documentIds: [],
+    }),
+    {
+      kind: 'requirements',
+      requirements: [
+        {
+          toolNames: ['enterprise_cli_execute'],
+          enterpriseProviders: ['DINGTALK'],
+        },
+      ],
     }
   );
 });
 
 test('requires explicit permanent-delete wording and classifies mixed Chinese Trash requests', t => {
   t.false(requestsExplicitPermanentDelete('删除这个文档。'));
+  t.false(requestsExplicitPermanentDelete('不要永久删除这个文档。'));
+  t.false(requestsExplicitPermanentDelete('Do not permanently delete it.'));
+  t.deepEqual(buildToolAgentDestructiveIntent('不要从 Trash 中删除文档。'), {
+    permanentDocumentDelete: false,
+    permanentFolderDelete: false,
+  });
   t.deepEqual(buildToolAgentDestructiveIntent('从 Trash 中删除这个文档。'), {
     permanentDocumentDelete: true,
     permanentFolderDelete: false,

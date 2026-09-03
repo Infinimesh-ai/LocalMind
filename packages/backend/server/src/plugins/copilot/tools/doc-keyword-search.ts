@@ -18,6 +18,16 @@ export const MARKDOWN_KEYWORD_SEARCH_MAX_DOCUMENTS = 200;
 const MARKDOWN_SEARCH_BATCH_SIZE = 16;
 const MARKDOWN_HIGHLIGHT_CONTEXT = 120;
 
+function isUnreadableDocumentContent(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  const code = (error as Error & { code?: unknown }).code;
+  return (
+    error.message.startsWith('parser_error:') ||
+    error.message === 'invalid_binary' ||
+    code === 'invalid_binary'
+  );
+}
+
 export type WorkspaceKeywordSearchResult = {
   docId: string;
   blockId: string | null;
@@ -153,14 +163,11 @@ export const buildDocKeywordSearchGetter = (
           try {
             content = await docReader.getDocMarkdown(workspaceId, docId, false);
           } catch (error) {
-            if (
-              !(error instanceof Error) ||
-              !error.message.startsWith('parser_error:')
-            ) {
+            if (!isUnreadableDocumentContent(error)) {
               throw error;
             }
             logger.debug(
-              `Skipping non-Markdown document ${docId} during fallback keyword search.`
+              `Skipping unreadable document ${docId} during fallback keyword search.`
             );
             return null;
           }

@@ -22,6 +22,7 @@ import { WeComCliDriver } from '../../plugins/copilot/enterprise/providers/wecom
 import { EnterpriseConnectionResolver } from '../../plugins/copilot/enterprise/resolver';
 import { EnterpriseConnectionService } from '../../plugins/copilot/enterprise/service';
 import { EnterpriseToolRegistry } from '../../plugins/copilot/enterprise/tool-registry';
+import { toolSchemaFingerprint } from '../../plugins/copilot/runtime/tool-capability-snapshot';
 
 function runtimeConfig(rootDir: string) {
   return {
@@ -1074,6 +1075,84 @@ test('EnterpriseConnectionService rechecks the administrator tool policy before 
     }
   );
   t.false(getDriver.called);
+});
+
+test('EnterpriseConnectionService accepts the frozen tool schema and rejects catalog drift', async t => {
+  const tool = {
+    name: 'lark_docs_search',
+    command: ['docs', 'search'],
+    description: 'Search documents',
+    inputSchema: {
+      type: 'object',
+      properties: { query: { type: 'string' } },
+      required: ['query'],
+    },
+    risk: 'read',
+    requiresConfirmation: false,
+    supportsDryRun: true,
+  };
+  const connection = {
+    id: 'connection-capability-snapshot',
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    provider: EnterpriseProvider.LARK,
+    transport: EnterpriseConnectionTransport.CLI,
+    profileKey: 'profile-capability-snapshot',
+    status: EnterpriseConnectionStatus.ACTIVE,
+    activeAuthorizationSessionId: null,
+    enabledToolNames: [tool.name],
+    toolCatalog: [tool],
+  };
+  const execute = Sinon.stub().resolves({
+    data: { matches: [] },
+    resources: [],
+  });
+  const service = new EnterpriseConnectionService(
+    {
+      copilotEnterpriseConnection: {
+        get: Sinon.stub().resolves(connection),
+        recordSuccess: Sinon.stub().resolves(),
+        addAudit: Sinon.stub().resolves(),
+      },
+    } as any,
+    { get: Sinon.stub().returns({ execute }) } as any,
+    {} as any,
+    runtimeConfig('/tmp') as any
+  );
+  const expectedCapability = {
+    connectionId: connection.id,
+    provider: connection.provider,
+    toolName: tool.name,
+    risk: tool.risk as 'read',
+    schemaFingerprint: toolSchemaFingerprint(tool.inputSchema),
+    requiresConfirmation: tool.requiresConfirmation,
+  };
+
+  await t.notThrowsAsync(
+    service.execute({
+      connection: connection as any,
+      actorId: connection.userId,
+      toolName: tool.name,
+      arguments: { query: 'release' },
+      confirmed: false,
+      expectedCapability,
+    })
+  );
+  await t.throwsAsync(
+    service.execute({
+      connection: connection as any,
+      actorId: connection.userId,
+      toolName: tool.name,
+      arguments: { query: 'release' },
+      confirmed: false,
+      expectedCapability: {
+        ...expectedCapability,
+        schemaFingerprint: '0'.repeat(64),
+      },
+    }),
+    { message: 'Enterprise tool capability changed after the task was queued' }
+  );
+  Sinon.assert.calledOnce(execute);
 });
 
 test('EnterpriseConnectionService keeps an authorized connection active after a tool failure', async t => {

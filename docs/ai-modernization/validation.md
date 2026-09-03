@@ -31,6 +31,18 @@ For backend server TypeScript smoke files, use `yarn r <file>`. Plain `ava` can
 miss smoke files that are outside AVA's configured glob, and root `tsx` is not a
 script in this repo.
 
+When invoking backend AVA directly instead of through an existing repository
+script, load the repository TypeScript ESM hook explicitly:
+
+```sh
+NODE_OPTIONS="--import=$PWD/tools/cli/register.js" \
+  yarn workspace @affine/server ava --serial <test-files>
+```
+
+Without that hook, extensionless TypeScript imports such as `./env` can fail or
+produce misleading runner shutdown diagnostics even after matched assertions
+finish.
+
 ## Documentation-only Changes
 
 Documentation-only edits do not require a Docker image rebuild or runtime
@@ -175,6 +187,31 @@ No image was rebuilt. The existing `localmind-affine:test` image was reused in
 the disposable `localmind_affine_test_tool_lifecycle` container with isolated
 PostgreSQL and Redis services. No existing LocalMind volume or persisted
 service data was changed.
+
+The 2026-09-03 MCP capability-snapshot, completion-evidence, and Trash
+consistency hardening was validated with:
+
+- 189 focused AVA tests in `localmind-affine:test`, covering ToolRuntime,
+  completion contracts, tool-loop bridges, MCP tools, Enterprise CLI,
+  SparkClaw/outbound MCP, semantic workspace folder tools, core workspace
+  organization, and the complete inbound MCP delegation E2E suite;
+- all 31 tests in `copilot-mcp-delegation.e2e.ts`, including text-only write
+  claim rejection, conditional read/no-op evidence, task/current tool Schema
+  intersection, snapshot failure persistence, cancellation, callback delivery,
+  live credential/ACL/version rechecks, and attachment isolation;
+- eight core workspace-organization tests covering overlapping Trash claims,
+  legacy manifests, generic root-operation compatibility, individual permanent
+  document deletion inside a trashed folder, and shared-folder manifest repair;
+- Copilot test typechecking for 38 files, focused oxlint, Prettier, and
+  `git diff --check`;
+- the repository TypeScript ESM hook on direct AVA invocations, confirming the
+  full E2E suite exits normally instead of producing a false shutdown timeout.
+
+No image was rebuilt. The fixed `localmind-affine:test` image was reused with a
+disposable network, PostgreSQL, Redis, and runner; the database contained 314
+successfully applied migrations and this slice made no schema or migration
+change. No existing LocalMind volume or persisted service data was mounted or
+modified.
 
 ## Definition Of Done
 

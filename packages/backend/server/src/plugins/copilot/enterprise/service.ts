@@ -15,6 +15,7 @@ import {
 
 import { Config } from '../../../base';
 import { type EnterpriseToolCatalogRecord, Models } from '../../../models';
+import { toolSchemaFingerprint } from '../runtime/tool-capability-snapshot';
 import { EnterpriseCliRuntime, EnterpriseCliRuntimeError } from './cli/runtime';
 import { EnterpriseCliDriverRegistry } from './driver-registry';
 import type { EnterpriseToolResult } from './types';
@@ -232,6 +233,14 @@ export class EnterpriseConnectionService {
     toolName: string;
     arguments: Record<string, unknown>;
     confirmed: boolean;
+    expectedCapability?: {
+      connectionId: string;
+      provider: EnterpriseProvider;
+      toolName: string;
+      risk: 'read' | 'write' | 'high';
+      schemaFingerprint: string;
+      requiresConfirmation: boolean;
+    };
     signal?: AbortSignal;
   }): Promise<EnterpriseToolResult> {
     const connection = await this.models.copilotEnterpriseConnection.get(
@@ -256,6 +265,21 @@ export class EnterpriseConnectionService {
       candidate => candidate.name === input.toolName
     );
     if (!tool) throw new BadRequestException('Enterprise tool is unavailable');
+    if (
+      input.expectedCapability &&
+      (connection.id !== input.expectedCapability.connectionId ||
+        connection.provider !== input.expectedCapability.provider ||
+        tool.name !== input.expectedCapability.toolName ||
+        tool.risk !== input.expectedCapability.risk ||
+        tool.requiresConfirmation !==
+          input.expectedCapability.requiresConfirmation ||
+        toolSchemaFingerprint(tool.inputSchema) !==
+          input.expectedCapability.schemaFingerprint)
+    ) {
+      throw new BadRequestException(
+        'Enterprise tool capability changed after the task was queued'
+      );
+    }
     if (tool.requiresConfirmation && !input.confirmed) {
       throw new BadRequestException(
         'Enterprise write tool requires explicit LocalMind confirmation'

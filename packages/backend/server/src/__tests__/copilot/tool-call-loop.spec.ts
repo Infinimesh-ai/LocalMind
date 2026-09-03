@@ -1,5 +1,6 @@
 import serverNativeModule from '@affine/server-native';
 import test from 'ava';
+import Sinon from 'sinon';
 import { z } from 'zod';
 
 import { SearchProviderNotFound } from '../../base';
@@ -110,6 +111,37 @@ test('task_attachment_read is restricted to materialized task attachments', asyn
       type: 'error',
       name: 'Task Attachment Read Failed',
     }
+  );
+});
+
+test('task_attachment_read uses the task-bound Blob reader beyond prompt preview', async t => {
+  const readChunk = Sinon.stub().resolves({
+    attachmentId: 'attachment-2',
+    chunk: 0,
+    content: 'text from verified Blob',
+    hasMore: false,
+  });
+  const tool = createTaskAttachmentReadTool(
+    [
+      {
+        attachmentId: 'attachment-2',
+        fileName: 'second.txt',
+        mimeType: 'text/plain',
+        byteSize: 24,
+        contentFingerprint: 'fingerprint-2',
+        hasExtractedText: true,
+        extractedTextTruncated: true,
+      },
+    ],
+    readChunk
+  );
+
+  t.like(
+    await tool.execute?.({ attachment_id: 'attachment-2', chunk: 0 }, {}),
+    { content: 'text from verified Blob' }
+  );
+  t.true(
+    readChunk.calledOnceWithExactly({ attachmentId: 'attachment-2', chunk: 0 })
   );
 });
 

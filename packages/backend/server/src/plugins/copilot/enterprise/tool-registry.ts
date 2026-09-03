@@ -6,6 +6,7 @@ import {
 import { z } from 'zod';
 
 import type { EnterpriseToolCatalogRecord } from '../../../models';
+import { toolSchemaFingerprint } from '../runtime/tool-capability-snapshot';
 import { type CopilotToolSet, defineTool } from '../tools';
 import { EnterpriseConnectionService } from './service';
 
@@ -52,6 +53,41 @@ type CatalogEntry = {
   connection: AiEnterpriseConnection;
   tool: EnterpriseToolCatalogRecord;
 };
+
+export type EnterpriseToolCapabilitySnapshot = {
+  connectionId: string;
+  provider: EnterpriseProvider;
+  toolName: string;
+  risk: 'read' | 'write' | 'high';
+  schemaFingerprint: string;
+  requiresConfirmation: boolean;
+};
+
+function capability(entry: CatalogEntry): EnterpriseToolCapabilitySnapshot {
+  return {
+    connectionId: entry.connection.id,
+    provider: entry.connection.provider,
+    toolName: entry.tool.name,
+    risk: entry.tool.risk,
+    schemaFingerprint: toolSchemaFingerprint(entry.tool.inputSchema),
+    requiresConfirmation: entry.tool.requiresConfirmation,
+  };
+}
+
+function matchesCapability(
+  entry: CatalogEntry,
+  expected: EnterpriseToolCapabilitySnapshot
+) {
+  const current = capability(entry);
+  return (
+    current.connectionId === expected.connectionId &&
+    current.provider === expected.provider &&
+    current.toolName === expected.toolName &&
+    current.risk === expected.risk &&
+    current.schemaFingerprint === expected.schemaFingerprint &&
+    current.requiresConfirmation === expected.requiresConfirmation
+  );
+}
 
 const WRITE_INTENT_PATTERN =
   /(?:\b(?:add|append|archive|approve|cancel|complete|copy|create|delete|edit|finish|import|invite|move|patch|publish|reject|remove|rename|reply|restore|revoke|send|set|share|subscribe|transfer|unpublish|update|upload|write)\b|创建|新建|写入|写到|修改|更新|编辑|追加|发送|发到|发布|上传|移动|重命名|归档|订阅|邀请|回复|完成|设置|取消|删除|移除|撤回|审批|同意|拒绝|转移|置顶|钉住|导入|复制|分享)/i;
@@ -123,8 +159,16 @@ export class EnterpriseToolRegistry {
   async getTools(input: {
     workspaceId: string;
     userId: string;
+    allowedTools?: readonly EnterpriseToolCapabilitySnapshot[];
   }): Promise<CopilotToolSet> {
-    const entries = await this.entries(input.workspaceId, input.userId);
+    const currentEntries = await this.entries(input.workspaceId, input.userId);
+    const entries = input.allowedTools
+      ? currentEntries.filter(entry =>
+          input.allowedTools?.some(expected =>
+            matchesCapability(entry, expected)
+          )
+        )
+      : currentEntries;
     if (!entries.length) return {};
 
     return {
@@ -202,6 +246,7 @@ export class EnterpriseToolRegistry {
             toolName: entry.tool.name,
             arguments: args.arguments,
             confirmed,
+            expectedCapability: capability(entry),
             signal: options.signal,
           });
           return {
@@ -217,6 +262,19 @@ export class EnterpriseToolRegistry {
         },
       }),
     };
+  }
+
+  async getCapabilitySnapshot(input: {
+    workspaceId: string;
+    userId: string;
+  }): Promise<EnterpriseToolCapabilitySnapshot[]> {
+    return (await this.entries(input.workspaceId, input.userId))
+      .map(capability)
+      .sort(
+        (left, right) =>
+          left.connectionId.localeCompare(right.connectionId) ||
+          left.toolName.localeCompare(right.toolName)
+      );
   }
 
   private async entries(workspaceId: string, userId: string) {

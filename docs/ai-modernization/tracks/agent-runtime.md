@@ -1065,7 +1065,8 @@ Implemented behavior:
    caller-supplied documents before the loop. It polls cancellation and base
    authority every second while running and propagates one AbortSignal into the
    tool loop.
-5. Execution is bounded to 120 seconds and 20 recorded tool results. A timeout
+5. Execution is bounded to 120 seconds and 20 attempted tool executions. The
+   twenty-first execution is rejected before its executor runs. A timeout
    remains terminal even when the native stream converts abort into a normal
    iterator close, and public task state reports retryable
    `tool_agent_timeout`. Native tool-result `is_error` survives the runtime
@@ -1092,18 +1093,24 @@ Implemented behavior:
     semantic document/folder Trash, restore, permanent delete, folder listing,
     creation, rename, move, document placement, and moving a document into one
     or no folder. Ordinary delete requests use Trash. Folder restore changes
-    only documents newly trashed by the matching fingerprinted operation;
-    documents already in Trash remain there. Permanent deletion requires
-    explicit intent, matching current title/name, Trash state, real delete ACL,
-    recursive document/placement cleanup, and a retryable manifest-preserving
-    physical-delete sequence.
+    only the matching folder operation's persisted Trash claim; direct and
+    overlapping folder claims keep the document in Trash. Legacy manifests
+    without claim metadata preserve the original newly/already-trashed split.
+    Permanent deletion requires explicit intent, matching current title/name,
+    Trash state, real delete ACL, recursive document/placement cleanup, and a
+    retryable manifest-preserving physical-delete sequence. Deleting one
+    document or shared folder also validates and rewrites other affected Trash
+    manifests so their later restore remains valid.
 12. `sparkClaw` expands to only `sparkclaw_mcp_search` and
     `sparkclaw_mcp_execute`. Delegation creation freezes the complete sorted set
-    of actually available internal tool names, its fingerprint, the enabled
-    SparkClaw subset, destructive intent, and the task completion contract in
-    `localmind-tool-agent-request/v4`; execution intersects those snapshots
-    with current registries and user ACL. Legacy v1-v3 requests remain
-    executable without gaining newer authority or completion requirements.
+    of actually available internal tool names, each input-Schema fingerprint,
+    concrete Enterprise and SparkClaw connection/provider/tool/risk/confirmation
+    capabilities, destructive intent, and the task completion contract in
+    `localmind-tool-agent-request/v5`; execution intersects those snapshots
+    with current registries, rechecks dynamic catalogs before execution, and
+    applies user ACL. Legacy v1-v4 requests remain executable without gaining
+    newer authority or completion requirements. Snapshot acquisition failures
+    persist terminal `tool_snapshot_failed` task state.
 13. The public SparkClaw surface contains only
     `sparkclaw.conversation.send`; operation get/result/cancel remain internal.
     Direct and pending results persist in an encrypted idempotency ledger with
@@ -1113,13 +1120,23 @@ Implemented behavior:
     argument/result fingerprints, and side-effect state; raw arguments and
     external results are not copied into runtime evidence.
 14. Delegated attachment reads use `task_attachment_read`, which accepts only
-    ids from the current materialized task context and returns bounded extracted
-    text chunks. General `blob_read` remains tied to an AI Chat session and is
-    not registered for sessionless delegated tasks.
+    ids from the current task context. Every chunk rechecks task/actor/workspace/
+    credential-family binding and live Blob ACL, rereads and verifies immutable
+    Blob evidence, reparses the source, and returns bounded extracted text.
+    General `blob_read` remains tied to an AI Chat session and is not registered
+    for sessionless delegated tasks.
 15. Keyword search uses the workspace indexer when available and otherwise
     scans at most the 200 most recently updated readable Markdown documents in
-    batches of 16, then ranks the full bounded candidate set before applying the
-    caller's result limit.
+    batches of 16, skips parser and invalid-binary content without suppressing
+    other read failures, then ranks the full bounded candidate set before
+    applying the caller's result limit.
+16. `localmind-tool-agent-completion-contract/v3` persists concrete successful
+    tool requirements plus optional document, workspace-operation, Enterprise
+    provider, SparkClaw tool, ordering, and side-effect constraints. Text-only
+    completion claims fail. Conditional updates require `doc_read` followed by
+    `doc_update` or `conditional_noop_complete`, and the no-op must echo the
+    exact read fingerprint. Missing evidence projects retryable
+    `required_tool_evidence_missing` state.
 
 ## Agent Run Source Conflict Evidence Fence Slice
 
@@ -1339,17 +1356,19 @@ check and before the update is persisted. Close this with a storage-level CAS
 before treating the preview/version fence as atomic.
 
 The tool-agent path has its own bounded execution contract: 120 seconds, 20
-recorded tool results, one AbortSignal, one-second cancellation/authority
+attempted tool executions, one AbortSignal, one-second cancellation/authority
 polling, transactional AgentRun/delegation completion, and sanitized tool plus
-artifact evidence. New v4 requests persist actual available tool names and a
-fingerprint plus an explicit v2 completion contract. A single supplied document
-with an unconditional explicit body mutation requires
-live `Doc.Update`, a successful `doc_update`, and a matching updated artifact;
-otherwise the task fails with retryable `required_side_effect_missing` instead
-of accepting read-only work as completion. Timeout aborts that close the stream
-normally fail with retryable `tool_agent_timeout`. Tool-level ACL remains
-inside the existing AI Chat tools. Conditional mutations must record a
-successful `doc_read` or `doc_update`; a verified no-change result is valid.
+artifact evidence. New v5 requests persist actual available tool names, exact
+input-Schema fingerprints, concrete Enterprise/SparkClaw capabilities, and an
+explicit v3 completion contract. Required creates, updates, workspace
+operations, and external-provider actions must produce matching successful tool
+evidence instead of text-only claims. Conditional mutations must record a
+successful `doc_read`, then either `doc_update` or
+`conditional_noop_complete` with the exact read fingerprint. Missing evidence
+fails with retryable `required_tool_evidence_missing`; the twenty-first tool
+execution fails with retryable `tool_execution_limit_exceeded`. Timeout aborts
+that close the stream normally fail with retryable `tool_agent_timeout`.
+Tool-level ACL remains inside the existing AI Chat tools.
 The shared workspace-organization category adds safe folder operations and
 records successful non-replay mutations as workspace side effects. Delegated
 document creation is stable by task id and title so worker retries do not
@@ -1365,11 +1384,12 @@ reintroduced to bypass this delegation boundary.
 
 The workspace-managed outbound SparkClaw MCP connection remains separate from
 inbound MCP credential authority, but its allowlisted tools are now available
-inside this durable tool-agent workflow. New requests freeze tool names and a
-fingerprint plus the completion contract in
-`localmind-tool-agent-request/v4`; workers use only the intersection with the
-current registry/live allowlist and recheck the delegated user ACL. Legacy
-v1-v3 requests keep their historical completion and tool semantics. The
+inside this durable tool-agent workflow. New requests freeze tool names,
+input-Schema fingerprints, concrete dynamic tool capabilities, and the
+completion contract in `localmind-tool-agent-request/v5`; workers use only the
+intersection with the current registry/live allowlist, recheck dynamic
+catalogs, and recheck the delegated user ACL. Legacy v1-v4 requests keep their
+historical completion and tool semantics. The
 tool execution ledger provides encrypted replay, stable task idempotency,
 fenced initial and remote-poll leases, cancellation/failure terminals, live ACL
 rechecks, binary-result redaction, and bounded audit evidence.

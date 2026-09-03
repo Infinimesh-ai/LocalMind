@@ -23,6 +23,7 @@ import { McpAiDelegationService } from '../../plugins/copilot/mcp/delegation';
 import { McpAiTaskControlService } from '../../plugins/copilot/mcp/task-control';
 import { McpAiTaskQueryService } from '../../plugins/copilot/mcp/task-query';
 import { CapabilityRuntime } from '../../plugins/copilot/runtime/capability-runtime';
+import { ToolRuntime } from '../../plugins/copilot/runtime/tool-runtime';
 import {
   buildDocCreateHandler,
   buildDocUpdateHandler,
@@ -738,12 +739,18 @@ test('LocalMind tool agent requires update evidence for an explicit single-docum
     String(delegated.agentRunId)
   );
   t.like(run?.steps[0]?.outputSummary.localMindToolAgentRequest, {
-    version: 'localmind-tool-agent-request/v4',
+    version: 'localmind-tool-agent-request/v5',
     completionContract: {
-      version: 'localmind-tool-agent-completion-contract/v2',
-      kind: 'document_update',
-      documentId: docId,
-      mode: 'required',
+      version: 'localmind-tool-agent-completion-contract/v3',
+      kind: 'requirements',
+      requirements: [
+        {
+          kind: 'tool_success',
+          toolNames: ['doc_update'],
+          minCount: 1,
+          documentId: docId,
+        },
+      ],
     },
   });
 
@@ -847,11 +854,11 @@ test('LocalMind tool agent fails when an explicit document update stops after re
     terminal: true,
     result: null,
     error: {
-      code: 'required_side_effect_missing',
+      code: 'required_tool_evidence_missing',
       retryable: true,
       details: {
         documentId: docId,
-        requiredToolName: 'doc_update',
+        requiredToolNames: ['doc_update'],
       },
     },
   });
@@ -860,6 +867,63 @@ test('LocalMind tool agent fails when an explicit document update stops after re
     .app!.get(DocReader)
     .getDocMarkdown(workspaceId, docId, true);
   t.true(markdown?.markdown.includes('Daily log must remain unchanged.'));
+});
+
+test('LocalMind tool agent rejects a text-only document creation claim', async t => {
+  const { credentials, models, owner, runtime, worker } = t.context;
+  const workspace = await models.workspace.create(owner.id);
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId: workspace.id,
+    name: 'LocalMind document creation evidence',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'tool_agent',
+        summary: 'Create a release-notes document',
+      }),
+    },
+  } as any);
+  Sinon.stub(runtime, 'streamObject').callsFake((() => {
+    return (async function* () {
+      yield {
+        type: 'text-delta',
+        textDelta: 'Created the release-notes document.',
+      };
+    })();
+  }) as any);
+
+  const delegated = await delegate(t.context, issued.token, {
+    request: 'Create a new document named Release Notes.',
+    documentIds: [],
+    idempotencyKey: 'document-create-text-only-claim',
+  });
+  await worker.runStandaloneAgentRuntime({
+    workspaceId: workspace.id,
+    runId: String(delegated.agentRunId),
+  });
+
+  const task = await getTask(t.context, issued.token, {
+    taskId: String(delegated.taskId),
+    waitMs: 0,
+  });
+  t.like(task, {
+    status: 'failed',
+    terminal: true,
+    result: null,
+    error: {
+      code: 'required_tool_evidence_missing',
+      retryable: true,
+      details: {
+        requiredToolNames: ['doc_create'],
+      },
+    },
+  });
+  t.deepEqual(task.artifacts, []);
 });
 
 test('LocalMind tool agent exposes missing conditional read evidence', async t => {
@@ -906,10 +970,36 @@ test('LocalMind tool agent exposes missing conditional read evidence', async t =
   );
   t.like(run?.steps[0]?.outputSummary.localMindToolAgentRequest, {
     completionContract: {
-      version: 'localmind-tool-agent-completion-contract/v2',
-      kind: 'document_update',
-      documentId: docId,
-      mode: 'conditional',
+      version: 'localmind-tool-agent-completion-contract/v3',
+      kind: 'requirements',
+      requirements: [
+        {
+          kind: 'tool_success',
+          toolNames: ['doc_read'],
+          minCount: 1,
+          documentId: docId,
+        },
+        {
+          kind: 'any_of',
+          minCount: 1,
+          requirements: [
+            {
+              kind: 'tool_success',
+              toolNames: ['doc_update'],
+              minCount: 1,
+              documentId: docId,
+              afterToolName: 'doc_read',
+            },
+            {
+              kind: 'tool_success',
+              toolNames: ['conditional_noop_complete'],
+              minCount: 1,
+              documentId: docId,
+              afterToolName: 'doc_read',
+            },
+          ],
+        },
+      ],
     },
   });
 
@@ -925,11 +1015,15 @@ test('LocalMind tool agent exposes missing conditional read evidence', async t =
     status: 'failed',
     terminal: true,
     error: {
-      code: 'required_read_evidence_missing',
+      code: 'required_tool_evidence_missing',
       retryable: true,
       details: {
         documentId: docId,
-        requiredToolName: 'doc_read_or_doc_update',
+        requiredToolNames: [
+          'doc_read',
+          'doc_update',
+          'conditional_noop_complete',
+        ],
       },
     },
   });
@@ -987,7 +1081,7 @@ test('LocalMind tool agent rejects required tools removed after the task snapsho
       code: 'required_tool_unavailable',
       retryable: true,
       details: {
-        requiredToolName: 'doc_update',
+        requiredToolNames: ['doc_update'],
       },
     },
   });
@@ -1311,6 +1405,97 @@ test('planner renders an answer again when branch fields contain answer text', a
   t.like(renderer.firstCall.args[2], {
     maxTokens: 6_000,
     temperature: 0,
+  });
+});
+
+test('direct answers do not depend on external tool capability snapshots', async t => {
+  const { credentials, models, owner, runtime } = t.context;
+  const workspace = await models.workspace.create(owner.id);
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId: workspace.id,
+    name: 'LocalMind answer without tool snapshot',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'answer',
+        answer: 'The answer is available without external tools.',
+      }),
+    },
+  } as any);
+  const toolRuntime = t.context.app!.get(ToolRuntime);
+  const enterpriseSnapshot = Sinon.stub(
+    toolRuntime,
+    'getEnterpriseToolCapabilitySnapshot'
+  ).rejects(new Error('enterprise unavailable'));
+  const sparkClawSnapshot = Sinon.stub(
+    toolRuntime,
+    'getSparkClawToolCapabilitySnapshot'
+  ).rejects(new Error('sparkclaw unavailable'));
+
+  const delegated = await delegate(t.context, issued.token, {
+    request: 'Return the supplied answer directly.',
+    documentIds: [],
+    idempotencyKey: 'answer-skips-tool-snapshot',
+  });
+
+  t.like(delegated, {
+    status: 'completed',
+    kind: 'answer',
+    answer: 'The answer is available without external tools.',
+  });
+  Sinon.assert.notCalled(enterpriseSnapshot);
+  Sinon.assert.notCalled(sparkClawSnapshot);
+});
+
+test('tool snapshot exceptions persist a terminal task failure', async t => {
+  const { credentials, models, owner, runtime } = t.context;
+  const workspace = await models.workspace.create(owner.id);
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId: workspace.id,
+    name: 'LocalMind tool snapshot failure',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'tool_agent',
+        summary: 'Create a release-notes document.',
+      }),
+    },
+  } as any);
+  const toolRuntime = t.context.app!.get(ToolRuntime);
+  Sinon.stub(toolRuntime, 'getEnterpriseToolCapabilitySnapshot').rejects(
+    new Error('enterprise unavailable')
+  );
+
+  const delegated = await delegate(t.context, issued.token, {
+    request: 'Create a release-notes document.',
+    documentIds: [],
+    idempotencyKey: 'tool-snapshot-terminal-failure',
+  });
+  t.like(delegated, {
+    status: 'failed',
+    code: 'tool_snapshot_failed',
+  });
+  const task = await getTask(t.context, issued.token, {
+    taskId: String(delegated.taskId),
+    waitMs: 0,
+  });
+  t.like(task, {
+    status: 'failed',
+    terminal: true,
+    error: {
+      code: 'tool_snapshot_failed',
+      retryable: true,
+    },
   });
 });
 
@@ -1715,14 +1900,25 @@ test('SparkClaw requests use the tool agent when the planner returns an answer',
   );
   const toolRequest = run?.steps[0]?.outputSummary
     .localMindToolAgentRequest as Record<string, unknown>;
-  t.is(toolRequest.version, 'localmind-tool-agent-request/v4');
+  t.is(toolRequest.version, 'localmind-tool-agent-request/v5');
   t.true(Array.isArray(toolRequest.allowedToolNames));
   t.is(typeof toolRequest.toolSnapshotFingerprint, 'string');
+  t.true(Array.isArray(toolRequest.toolCapabilities));
+  t.is(typeof toolRequest.toolCapabilitySnapshotFingerprint, 'string');
   t.deepEqual(toolRequest.sparkClawToolNames, []);
   t.is(typeof toolRequest.sparkClawToolSnapshotFingerprint, 'string');
+  t.deepEqual(toolRequest.sparkClawToolCapabilities, []);
+  t.is(typeof toolRequest.sparkClawToolCapabilitySnapshotFingerprint, 'string');
   t.deepEqual(toolRequest.completionContract, {
-    version: 'localmind-tool-agent-completion-contract/v2',
-    kind: 'none',
+    version: 'localmind-tool-agent-completion-contract/v3',
+    kind: 'requirements',
+    requirements: [
+      {
+        kind: 'tool_success',
+        toolNames: ['sparkclaw_mcp_execute'],
+        minCount: 1,
+      },
+    ],
   });
 });
 

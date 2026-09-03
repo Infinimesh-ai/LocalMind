@@ -25,10 +25,13 @@ import {
   AGENT_RUNTIME_LOCALMIND_TOOL_AGENT_WORKFLOW,
   LOCALMIND_DELEGATION_AI_TOOLS,
 } from '../agent-runtime-localmind-tool-agent-adapter';
-import { ExternalMcpConnectionService } from '../external-mcp';
 import type { PromptMessage } from '../providers/types';
 import { CapabilityRuntime } from '../runtime/capability-runtime';
 import { buildStructuredResponseContract } from '../runtime/contracts';
+import {
+  buildToolCapabilitySnapshot,
+  toolCapabilitySnapshotFingerprint as fingerprintToolCapabilities,
+} from '../runtime/tool-capability-snapshot';
 import { ToolRuntime } from '../runtime/tool-runtime';
 import {
   McpAttachmentReferenceError,
@@ -493,8 +496,7 @@ export class McpAiDelegationService {
     private readonly models: Models,
     private readonly jobs: JobQueue,
     private readonly crypto: CryptoHelper,
-    private readonly config: Config,
-    private readonly externalMcp: ExternalMcpConnectionService
+    private readonly config: Config
   ) {}
 
   createTool(
@@ -676,27 +678,6 @@ export class McpAiDelegationService {
         code: 'attachment_persistence_failed',
       });
     }
-
-    let sparkClawToolNames: string[];
-    try {
-      sparkClawToolNames = (
-        await this.externalMcp.enabledTools({
-          workspaceId: credential.workspaceId,
-          actorId: credential.userId,
-        })
-      )
-        .map(tool => tool.name)
-        .sort();
-    } catch (error) {
-      this.logger.error('SparkClaw tool snapshot failed', error);
-      return await this.finish(created.record.id, 'failed', {
-        code: 'sparkclaw_tool_snapshot_failed',
-      });
-    }
-    const sparkClawToolSnapshotFingerprint = mcpDelegationFingerprint({
-      version: 'mcp-ai-delegation-sparkclaw-tools/v1',
-      toolNames: sparkClawToolNames,
-    });
 
     let materializedAttachments;
     try {
@@ -1074,28 +1055,102 @@ export class McpAiDelegationService {
     }
 
     if (output.kind === 'tool_agent') {
+      let enterpriseToolCapabilities;
+      let sparkClawToolCapabilities;
+      try {
+        [enterpriseToolCapabilities, sparkClawToolCapabilities] =
+          await Promise.all([
+            this.toolRuntime.getEnterpriseToolCapabilitySnapshot({
+              workspaceId: credential.workspaceId,
+              userId: credential.userId,
+            }),
+            this.toolRuntime.getSparkClawToolCapabilitySnapshot({
+              workspaceId: credential.workspaceId,
+              userId: credential.userId,
+            }),
+          ]);
+      } catch (error) {
+        this.logger.error('LocalMind tool capability snapshot failed', error);
+        return await this.finish(created.record.id, 'failed', {
+          code: 'tool_snapshot_failed',
+        });
+      }
+      const sparkClawToolNames = sparkClawToolCapabilities.map(
+        tool => tool.toolName
+      );
+      const sparkClawToolSnapshotFingerprint = mcpDelegationFingerprint({
+        version: 'mcp-ai-delegation-sparkclaw-tools/v1',
+        toolNames: sparkClawToolNames,
+      });
+      const sparkClawToolCapabilitySnapshotFingerprint =
+        mcpDelegationFingerprint({
+          version: 'localmind-sparkclaw-tool-capabilities/v1',
+          tools: sparkClawToolCapabilities,
+        });
+      const enterpriseToolSnapshotFingerprint = mcpDelegationFingerprint({
+        version: 'localmind-enterprise-tool-capabilities/v1',
+        tools: enterpriseToolCapabilities,
+      });
       const completionContract = buildToolAgentCompletionContract({
         request: input.request,
         documentIds: requestedDocumentIds,
       });
       const destructiveIntent = buildToolAgentDestructiveIntent(input.request);
-      const actualTools = await this.toolRuntime.getTools(
-        {
-          user: credential.userId,
-          workspace: credential.workspaceId,
-          taskId: created.record.id,
-          tools: [...LOCALMIND_DELEGATION_AI_TOOLS],
-          sparkClawToolNames,
-          taskAttachments: materializedAttachments.context,
-          destructiveIntent,
-        },
-        'localmind-tool-agent-snapshot'
-      );
+      const conditionalDocumentId =
+        completionContract.kind === 'requirements'
+          ? completionContract.requirements.flatMap(requirement =>
+              requirement.kind === 'any_of' &&
+              requirement.requirements.some(candidate =>
+                candidate.toolNames.includes('conditional_noop_complete')
+              )
+                ? requirement.requirements.flatMap(candidate =>
+                    candidate.documentId ? [candidate.documentId] : []
+                  )
+                : []
+            )[0]
+          : completionContract.kind === 'document_update' &&
+              'mode' in completionContract &&
+              completionContract.mode === 'conditional'
+            ? completionContract.documentId
+            : undefined;
+      let actualTools;
+      try {
+        actualTools = await this.toolRuntime.getTools(
+          {
+            user: credential.userId,
+            workspace: credential.workspaceId,
+            taskId: created.record.id,
+            tools: [...LOCALMIND_DELEGATION_AI_TOOLS],
+            sparkClawToolNames,
+            enterpriseToolCapabilities,
+            sparkClawToolCapabilities,
+            taskAttachments: materializedAttachments.context,
+            destructiveIntent,
+            maxToolExecutions: 20,
+            ...(conditionalDocumentId
+              ? {
+                  conditionalDocumentUpdate: {
+                    documentId: conditionalDocumentId,
+                  },
+                }
+              : {}),
+          },
+          'localmind-tool-agent-snapshot'
+        );
+      } catch (error) {
+        this.logger.error('LocalMind tool snapshot failed', error);
+        return await this.finish(created.record.id, 'failed', {
+          code: 'tool_snapshot_failed',
+        });
+      }
       const allowedToolNames = Object.keys(actualTools).sort();
       const toolSnapshotFingerprint = mcpDelegationFingerprint({
         version: 'localmind-tool-agent-tools/v1',
         toolNames: allowedToolNames,
       });
+      const toolCapabilities = buildToolCapabilitySnapshot(actualTools);
+      const toolCapabilitySnapshotFingerprint =
+        fingerprintToolCapabilities(toolCapabilities);
       const run = await this.models.copilotAgentRuntime.createRun({
         workspaceId: credential.workspaceId,
         actorId: credential.userId,
@@ -1128,13 +1183,19 @@ export class McpAiDelegationService {
             order: 0,
             outputSummary: {
               localMindToolAgentRequest: {
-                version: 'localmind-tool-agent-request/v4',
+                version: 'localmind-tool-agent-request/v5',
                 requestFingerprint,
                 allowedTools: [...LOCALMIND_DELEGATION_AI_TOOLS],
                 allowedToolNames,
                 toolSnapshotFingerprint,
+                toolCapabilities,
+                toolCapabilitySnapshotFingerprint,
                 sparkClawToolNames,
                 sparkClawToolSnapshotFingerprint,
+                sparkClawToolCapabilities,
+                sparkClawToolCapabilitySnapshotFingerprint,
+                enterpriseToolCapabilities,
+                enterpriseToolSnapshotFingerprint,
                 destructiveIntent,
                 completionContract,
               },

@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { z } from 'zod';
 
 import type { ExternalMcpToolRecord } from '../../../models/copilot-external-mcp';
+import { toolSchemaFingerprint } from '../runtime/tool-capability-snapshot';
 import { type CopilotToolSet, defineTool } from '../tools';
 import {
   ExternalMcpConnectionService,
@@ -12,6 +13,37 @@ import {
 
 const MAX_SEARCH_RESULTS = 20;
 const DEFAULT_SEARCH_RESULTS = 8;
+
+export type SparkClawToolCapabilitySnapshot = {
+  toolName: string;
+  risk: 'read' | 'write' | 'high';
+  schemaFingerprint: string;
+  requiresExplicitUserRequest: boolean;
+};
+
+function capability(
+  tool: ExternalMcpToolRecord
+): SparkClawToolCapabilitySnapshot {
+  return {
+    toolName: tool.name,
+    risk: tool.risk,
+    schemaFingerprint: toolSchemaFingerprint(tool.inputSchema),
+    requiresExplicitUserRequest: tool.requiresExplicitUserRequest,
+  };
+}
+
+function matchesCapability(
+  tool: ExternalMcpToolRecord,
+  expected: SparkClawToolCapabilitySnapshot
+) {
+  const current = capability(tool);
+  return (
+    current.toolName === expected.toolName &&
+    current.risk === expected.risk &&
+    current.schemaFingerprint === expected.schemaFingerprint &&
+    current.requiresExplicitUserRequest === expected.requiresExplicitUserRequest
+  );
+}
 
 const SearchInput = z.object({
   query: z
@@ -207,6 +239,7 @@ export class ExternalMcpToolRegistry {
     userId: string;
     invocationId: string;
     allowedToolNames?: readonly string[];
+    allowedTools?: readonly SparkClawToolCapabilitySnapshot[];
   }): Promise<CopilotToolSet> {
     const currentlyEnabledTools = await this.connections.enabledTools({
       workspaceId: input.workspaceId,
@@ -215,9 +248,14 @@ export class ExternalMcpToolRegistry {
     const frozenAllowlist = input.allowedToolNames
       ? new Set(input.allowedToolNames)
       : null;
-    const enabledTools = frozenAllowlist
+    let enabledTools = frozenAllowlist
       ? currentlyEnabledTools.filter(tool => frozenAllowlist.has(tool.name))
       : currentlyEnabledTools;
+    if (input.allowedTools) {
+      enabledTools = enabledTools.filter(tool =>
+        input.allowedTools?.some(expected => matchesCapability(tool, expected))
+      );
+    }
     if (!enabledTools.length) return {};
 
     return {
@@ -283,6 +321,7 @@ export class ExternalMcpToolRegistry {
               args.arguments
             ),
             confirmed,
+            expectedCapability: capability(advertised),
             signal: options.signal,
           });
           return {
@@ -297,6 +336,20 @@ export class ExternalMcpToolRegistry {
         },
       }),
     };
+  }
+
+  async getCapabilitySnapshot(input: {
+    workspaceId: string;
+    userId: string;
+  }): Promise<SparkClawToolCapabilitySnapshot[]> {
+    return (
+      await this.connections.enabledTools({
+        workspaceId: input.workspaceId,
+        actorId: input.userId,
+      })
+    )
+      .map(capability)
+      .sort((left, right) => left.toolName.localeCompare(right.toolName));
   }
 
   private idempotencyKey(

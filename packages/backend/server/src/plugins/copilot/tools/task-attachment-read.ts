@@ -12,12 +12,17 @@ export type TaskAttachmentContext = {
   byteSize: number;
   contentFingerprint: string;
   extractedText?: string;
+  hasExtractedText?: boolean;
   extractedTextTruncated?: boolean;
   suppliedToModel?: boolean;
 };
 
 export function createTaskAttachmentReadTool(
-  attachments: readonly TaskAttachmentContext[]
+  attachments: readonly TaskAttachmentContext[],
+  readChunk?: (input: {
+    attachmentId: string;
+    chunk: number;
+  }) => Promise<unknown>
 ) {
   const byId = new Map(
     attachments.map(attachment => [attachment.attachmentId, attachment])
@@ -32,13 +37,16 @@ export function createTaskAttachmentReadTool(
         chunk: z.number().int().min(0).default(0),
       })
       .strict(),
-    execute: ({ attachment_id, chunk }) => {
+    execute: async ({ attachment_id, chunk }) => {
       const attachment = byId.get(attachment_id);
       if (!attachment) {
         return toolError(
           'Task Attachment Read Failed',
           `Attachment ${attachment_id} is not bound to the current task.`
         );
+      }
+      if (readChunk) {
+        return await readChunk({ attachmentId: attachment_id, chunk });
       }
       if (!attachment.extractedText) {
         return {
@@ -51,7 +59,9 @@ export function createTaskAttachmentReadTool(
           suppliedToModel: attachment.suppliedToModel === true,
           message: attachment.suppliedToModel
             ? 'This attachment was supplied directly to the model and has no extracted text.'
-            : 'This attachment has no readable extracted text.',
+            : attachment.hasExtractedText
+              ? 'This attachment has readable text, but task-bound Blob reading is unavailable.'
+              : 'This attachment has no readable extracted text.',
         };
       }
 

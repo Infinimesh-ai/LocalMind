@@ -17,6 +17,7 @@ import {
   REMOTE_OPERATION_MAX_POLL_ATTEMPTS,
 } from '../../../models/copilot-external-mcp';
 import { llmValidateJsonSchema } from '../../../native';
+import { toolSchemaFingerprint } from '../runtime/tool-capability-snapshot';
 import { ExternalMcpTransport, ExternalMcpTransportError } from './transport';
 
 const PROTOCOL_VERSION = '2025-06-18';
@@ -316,6 +317,12 @@ export class ExternalMcpConnectionService {
     arguments: Record<string, unknown>;
     idempotencyKey: string;
     confirmed: boolean;
+    expectedCapability?: {
+      toolName: string;
+      risk: ExternalMcpToolRisk;
+      schemaFingerprint: string;
+      requiresExplicitUserRequest: boolean;
+    };
     signal?: AbortSignal;
   }): Promise<ExternalMcpToolExecutionResult> {
     return await this.withConnectionLock(input.workspaceId, async () => {
@@ -346,6 +353,19 @@ export class ExternalMcpConnectionService {
       );
       if (!tool) {
         throw new BadRequestException('SparkClaw MCP tool is unavailable');
+      }
+      if (
+        input.expectedCapability &&
+        (tool.name !== input.expectedCapability.toolName ||
+          tool.risk !== input.expectedCapability.risk ||
+          tool.requiresExplicitUserRequest !==
+            input.expectedCapability.requiresExplicitUserRequest ||
+          toolSchemaFingerprint(tool.inputSchema) !==
+            input.expectedCapability.schemaFingerprint)
+      ) {
+        throw new BadRequestException(
+          'SparkClaw tool capability changed after the task was queued'
+        );
       }
       if (tool.requiresExplicitUserRequest && !input.confirmed) {
         throw new BadRequestException(

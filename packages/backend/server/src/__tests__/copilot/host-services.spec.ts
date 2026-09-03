@@ -1,5 +1,6 @@
 import test from 'ava';
 import Sinon from 'sinon';
+import { z } from 'zod';
 
 import { CopilotByokNotConfigured } from '../../base';
 import { EMBEDDING_DIMENSIONS, type Models } from '../../models';
@@ -42,10 +43,12 @@ import { ConversationHost } from '../../plugins/copilot/runtime/hosts/conversati
 import { ImageResultHost } from '../../plugins/copilot/runtime/hosts/image-result-host';
 import { ResponsePostprocessor } from '../../plugins/copilot/runtime/hosts/response-postprocessor';
 import { TurnPersistence } from '../../plugins/copilot/runtime/hosts/turn-persistence';
+import { buildToolCapabilitySnapshot } from '../../plugins/copilot/runtime/tool-capability-snapshot';
 import {
   canExposeDocumentWriteTools,
   ToolRuntime,
 } from '../../plugins/copilot/runtime/tool-runtime';
+import { defineTool } from '../../plugins/copilot/tools';
 
 function stubTurnPersistence(
   persistProjectedResult: Sinon.SinonStub = Sinon.stub().resolves(null)
@@ -662,6 +665,167 @@ test('ToolRuntime intersects task snapshots with current task-scoped tools', asy
     'workspace_folder_list',
   ]);
   t.false(getBySessionId.called);
+});
+
+test('ToolRuntime blocks the twenty-first tool execution', async t => {
+  const promptRuntime = {
+    runText: Sinon.stub().resolves('done'),
+  };
+  const runtime = new ToolRuntime(
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    promptRuntime as any,
+    {} as any
+  );
+  const tools = await runtime.getTools(
+    {
+      tools: ['codeArtifact'],
+      maxToolExecutions: 20,
+    },
+    'gpt-4o-mini'
+  );
+
+  for (let index = 0; index < 20; index++) {
+    await t.notThrowsAsync(async () => {
+      await tools.code_artifact.execute?.(
+        { title: `Artifact ${index}`, userPrompt: 'render' },
+        {}
+      );
+    });
+  }
+  const error = await t.throwsAsync(async () => {
+    await tools.code_artifact.execute?.(
+      { title: 'Artifact 21', userPrompt: 'render' },
+      {}
+    );
+  });
+
+  t.is(error.message, 'tool_execution_limit_exceeded');
+  Sinon.assert.callCount(promptRuntime.runText, 20);
+});
+
+test('ToolRuntime requires a read before conditional update or no-op completion', async t => {
+  const readTool = defineTool({
+    description: 'read',
+    inputSchema: z.object({ doc_id: z.string() }),
+    execute: async ({ doc_id }) => ({ docId: doc_id, markdown: 'complete' }),
+  });
+  const update = Sinon.stub().resolves({
+    success: true,
+    documentId: 'doc-1',
+  });
+  const updateTool = defineTool({
+    description: 'update',
+    inputSchema: z.object({ doc_id: z.string(), content: z.string() }),
+    execute: update,
+  });
+  const runtime = new ToolRuntime(
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any
+  );
+  const tools = await runtime.getTools(
+    {
+      tools: ['docRead', 'docUpdate'],
+      conditionalDocumentUpdate: { documentId: 'doc-1' },
+    },
+    'gpt-4o-mini',
+    toolName =>
+      toolName === 'docRead'
+        ? ['doc_read', readTool]
+        : toolName === 'docUpdate'
+          ? ['doc_update', updateTool]
+          : undefined
+  );
+
+  const prematureUpdate = await t.throwsAsync(async () => {
+    await tools.doc_update.execute?.(
+      { doc_id: 'doc-1', content: 'replacement' },
+      {}
+    );
+  });
+  t.is(prematureUpdate.message, 'conditional_document_update_requires_read');
+  Sinon.assert.notCalled(update);
+
+  const read = (await tools.doc_read.execute?.({ doc_id: 'doc-1' }, {})) as {
+    readFingerprint: string;
+  };
+  t.regex(read.readFingerprint, /^[a-f0-9]{64}$/);
+  t.deepEqual(
+    await tools.conditional_noop_complete.execute?.(
+      {
+        document_id: 'doc-1',
+        read_fingerprint: read.readFingerprint,
+      },
+      {}
+    ),
+    {
+      success: true,
+      conditionalNoop: {
+        documentId: 'doc-1',
+        readFingerprint: read.readFingerprint,
+      },
+    }
+  );
+  await t.notThrowsAsync(async () => {
+    await tools.doc_update.execute?.(
+      { doc_id: 'doc-1', content: 'replacement' },
+      {}
+    );
+  });
+  Sinon.assert.calledOnce(update);
+});
+
+test('ToolRuntime removes tools whose current schema differs from the task snapshot', async t => {
+  const frozenTool = defineTool({
+    description: 'frozen',
+    inputSchema: z.object({ query: z.string() }),
+    execute: async () => ({ success: true }),
+  });
+  const changedTool = defineTool({
+    description: 'changed',
+    inputSchema: z.object({ query: z.string(), limit: z.number() }),
+    execute: async () => ({ success: true }),
+  });
+  const snapshot = buildToolCapabilitySnapshot({
+    code_artifact: frozenTool,
+  });
+  const runtime = new ToolRuntime(
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any
+  );
+  const tools = await runtime.getTools(
+    {
+      tools: ['codeArtifact'],
+      allowedToolNames: ['code_artifact'],
+      toolCapabilities: snapshot,
+    },
+    'gpt-4o-mini',
+    () => ['code_artifact', changedTool]
+  );
+
+  t.deepEqual(tools, {});
 });
 
 test('ResponsePostprocessor should build text, object and image assistant turns', t => {

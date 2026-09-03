@@ -30,7 +30,7 @@ function rootFixture() {
   return doc;
 }
 
-function createService() {
+function createServiceFixture() {
   const docs = new Map<string, Y.Doc>([['workspace-1', rootFixture()]]);
   let timestamp = 1;
   const reader = {
@@ -63,7 +63,27 @@ function createService() {
     },
     deleteDocPermanently: async () => {},
   };
-  return new WorkspaceOrganizationService(reader as never, writer as never);
+  return {
+    docs,
+    service: new WorkspaceOrganizationService(reader as never, writer as never),
+  };
+}
+
+function createService() {
+  return createServiceFixture().service;
+}
+
+function removeTrashClaims(doc: Y.Doc, documentId: string) {
+  const pages = doc.getMap<unknown>('meta').get('pages');
+  if (!(pages instanceof Y.Array)) throw new Error('Root pages are missing.');
+  const page = pages
+    .toArray()
+    .find(
+      candidate =>
+        candidate instanceof Y.Map && candidate.get('id') === documentId
+    );
+  if (!(page instanceof Y.Map)) throw new Error('Document page is missing.');
+  page.delete('$localmindTrashClaims');
 }
 
 test('workspace organization resolves browser-compatible storage doc IDs', t => {
@@ -240,5 +260,446 @@ test('workspace organization service round-trips ORM table operations', async t 
   ]);
   t.deepEqual(read.documentProperties, [
     { id: 'doc-1', primaryMode: 'edgeless', isTemplate: true },
+  ]);
+});
+
+test('folder Trash claims keep a multiply placed document trashed until every folder is restored', async t => {
+  const service = createService();
+  await service.applyDataOperations(
+    'workspace-1',
+    'user-1',
+    'user-1',
+    'folders',
+    [
+      {
+        op: 'upsert',
+        key: 'folder-a',
+        values: {
+          parentId: null,
+          type: 'folder',
+          data: 'Folder A',
+          index: 'a0',
+        },
+      },
+      {
+        op: 'upsert',
+        key: 'placement-a',
+        values: {
+          parentId: 'folder-a',
+          type: 'doc',
+          data: 'doc-1',
+          index: 'a0',
+        },
+      },
+      {
+        op: 'upsert',
+        key: 'folder-b',
+        values: {
+          parentId: null,
+          type: 'folder',
+          data: 'Folder B',
+          index: 'a1',
+        },
+      },
+      {
+        op: 'upsert',
+        key: 'placement-b',
+        values: {
+          parentId: 'folder-b',
+          type: 'doc',
+          data: 'doc-1',
+          index: 'a0',
+        },
+      },
+    ]
+  );
+  const authorizeDocument = async () => {};
+  await service.trashFolderTree({
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    editorId: 'user-1',
+    folderId: 'folder-a',
+    expectedName: 'Folder A',
+    recursive: true,
+    authorizeDocument,
+  });
+  await service.trashFolderTree({
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    editorId: 'user-1',
+    folderId: 'folder-b',
+    expectedName: 'Folder B',
+    recursive: true,
+    authorizeDocument,
+  });
+  await service.restoreFolderTree({
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    editorId: 'user-1',
+    folderId: 'folder-a',
+    expectedName: 'Folder A',
+    authorizeDocument,
+  });
+  const afterFirstRestore = await service.readOrganization(
+    'workspace-1',
+    'user-1'
+  );
+  t.is((afterFirstRestore.documents[0] as Record<string, unknown>).trash, true);
+
+  await service.restoreFolderTree({
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    editorId: 'user-1',
+    folderId: 'folder-b',
+    expectedName: 'Folder B',
+    authorizeDocument,
+  });
+  const afterSecondRestore = await service.readOrganization(
+    'workspace-1',
+    'user-1'
+  );
+  t.false('trash' in afterSecondRestore.documents[0]);
+});
+
+test('root trash operations preserve active folder claims', async t => {
+  const service = createService();
+  await service.applyDataOperations(
+    'workspace-1',
+    'user-1',
+    'user-1',
+    'folders',
+    [
+      {
+        op: 'upsert',
+        key: 'folder-1',
+        values: {
+          parentId: null,
+          type: 'folder',
+          data: 'Folder',
+          index: 'a0',
+        },
+      },
+      {
+        op: 'upsert',
+        key: 'placement-1',
+        values: {
+          parentId: 'folder-1',
+          type: 'doc',
+          data: 'doc-1',
+          index: 'a0',
+        },
+      },
+    ]
+  );
+  const authorizeDocument = async () => {};
+  await service.trashFolderTree({
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    editorId: 'user-1',
+    folderId: 'folder-1',
+    expectedName: 'Folder',
+    recursive: true,
+    authorizeDocument,
+  });
+  await service.applyRootOperations('workspace-1', 'user-1', [
+    { op: 'set_document_trashed', docId: 'doc-1', trashed: true },
+  ]);
+  await service.restoreFolderTree({
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    editorId: 'user-1',
+    folderId: 'folder-1',
+    expectedName: 'Folder',
+    authorizeDocument,
+  });
+  let organization = await service.readOrganization('workspace-1', 'user-1');
+  t.is((organization.documents[0] as Record<string, unknown>).trash, true);
+  t.false(
+    '$localmindTrashClaims' in
+      (organization.documents[0] as Record<string, unknown>)
+  );
+
+  await service.applyRootOperations('workspace-1', 'user-1', [
+    { op: 'set_document_trashed', docId: 'doc-1', trashed: false },
+  ]);
+  organization = await service.readOrganization('workspace-1', 'user-1');
+  t.false('trash' in organization.documents[0]);
+});
+
+test('legacy folder Trash manifests restore documents according to their original state', async t => {
+  const authorizeDocument = async () => {};
+
+  const newlyTrashed = createServiceFixture();
+  await newlyTrashed.service.applyDataOperations(
+    'workspace-1',
+    'user-1',
+    'user-1',
+    'folders',
+    [
+      {
+        op: 'upsert',
+        key: 'folder-new',
+        values: {
+          parentId: null,
+          type: 'folder',
+          data: 'New',
+          index: 'a0',
+        },
+      },
+      {
+        op: 'upsert',
+        key: 'placement-new',
+        values: {
+          parentId: 'folder-new',
+          type: 'doc',
+          data: 'doc-1',
+          index: 'a0',
+        },
+      },
+    ]
+  );
+  await newlyTrashed.service.trashFolderTree({
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    editorId: 'user-1',
+    folderId: 'folder-new',
+    expectedName: 'New',
+    recursive: true,
+    authorizeDocument,
+  });
+  removeTrashClaims(newlyTrashed.docs.get('workspace-1')!, 'doc-1');
+  await newlyTrashed.service.restoreFolderTree({
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    editorId: 'user-1',
+    folderId: 'folder-new',
+    expectedName: 'New',
+    authorizeDocument,
+  });
+  const restoredNew = await newlyTrashed.service.readOrganization(
+    'workspace-1',
+    'user-1'
+  );
+  t.false('trash' in restoredNew.documents[0]);
+
+  const previouslyTrashed = createServiceFixture();
+  await previouslyTrashed.service.applyRootOperations('workspace-1', 'user-1', [
+    { op: 'set_document_trashed', docId: 'doc-1', trashed: true },
+  ]);
+  await previouslyTrashed.service.applyDataOperations(
+    'workspace-1',
+    'user-1',
+    'user-1',
+    'folders',
+    [
+      {
+        op: 'upsert',
+        key: 'folder-existing',
+        values: {
+          parentId: null,
+          type: 'folder',
+          data: 'Existing',
+          index: 'a0',
+        },
+      },
+      {
+        op: 'upsert',
+        key: 'placement-existing',
+        values: {
+          parentId: 'folder-existing',
+          type: 'doc',
+          data: 'doc-1',
+          index: 'a0',
+        },
+      },
+    ]
+  );
+  await previouslyTrashed.service.trashFolderTree({
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    editorId: 'user-1',
+    folderId: 'folder-existing',
+    expectedName: 'Existing',
+    recursive: true,
+    authorizeDocument,
+  });
+  removeTrashClaims(previouslyTrashed.docs.get('workspace-1')!, 'doc-1');
+  await previouslyTrashed.service.restoreFolderTree({
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    editorId: 'user-1',
+    folderId: 'folder-existing',
+    expectedName: 'Existing',
+    authorizeDocument,
+  });
+  const restoredExisting = await previouslyTrashed.service.readOrganization(
+    'workspace-1',
+    'user-1'
+  );
+  t.is((restoredExisting.documents[0] as Record<string, unknown>).trash, true);
+});
+
+test('permanently deleting a document repairs its trashed folder manifest', async t => {
+  const service = createService();
+  await service.applyDataOperations(
+    'workspace-1',
+    'user-1',
+    'user-1',
+    'folders',
+    [
+      {
+        op: 'upsert',
+        key: 'folder-1',
+        values: {
+          parentId: null,
+          type: 'folder',
+          data: 'Folder',
+          index: 'a0',
+        },
+      },
+      {
+        op: 'upsert',
+        key: 'placement-1',
+        values: {
+          parentId: 'folder-1',
+          type: 'doc',
+          data: 'doc-1',
+          index: 'a0',
+        },
+      },
+    ]
+  );
+  const authorizeDocument = async () => {};
+  await service.trashFolderTree({
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    editorId: 'user-1',
+    folderId: 'folder-1',
+    expectedName: 'Folder',
+    recursive: true,
+    authorizeDocument,
+  });
+  const deleted = await service.deleteDocumentPermanently({
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    editorId: 'user-1',
+    documentId: 'doc-1',
+    expectedTitle: 'Document',
+  });
+  t.is(deleted.removedPlacementCount, 1);
+
+  await service.restoreFolderTree({
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    editorId: 'user-1',
+    folderId: 'folder-1',
+    expectedName: 'Folder',
+    authorizeDocument,
+  });
+  const organization = await service.readOrganization('workspace-1', 'user-1');
+  t.deepEqual(organization.documents, []);
+  t.deepEqual(organization.folders, [
+    {
+      id: 'folder-1',
+      parentId: null,
+      type: 'folder',
+      data: 'Folder',
+      index: 'a0',
+    },
+  ]);
+});
+
+test('permanently deleting one shared folder repairs other trashed folder manifests', async t => {
+  const service = createService();
+  await service.applyDataOperations(
+    'workspace-1',
+    'user-1',
+    'user-1',
+    'folders',
+    [
+      {
+        op: 'upsert',
+        key: 'folder-a',
+        values: {
+          parentId: null,
+          type: 'folder',
+          data: 'Folder A',
+          index: 'a0',
+        },
+      },
+      {
+        op: 'upsert',
+        key: 'placement-a',
+        values: {
+          parentId: 'folder-a',
+          type: 'doc',
+          data: 'doc-1',
+          index: 'a0',
+        },
+      },
+      {
+        op: 'upsert',
+        key: 'folder-b',
+        values: {
+          parentId: null,
+          type: 'folder',
+          data: 'Folder B',
+          index: 'a1',
+        },
+      },
+      {
+        op: 'upsert',
+        key: 'placement-b',
+        values: {
+          parentId: 'folder-b',
+          type: 'doc',
+          data: 'doc-1',
+          index: 'a0',
+        },
+      },
+    ]
+  );
+  const authorizeDocument = async () => {};
+  for (const [folderId, expectedName] of [
+    ['folder-a', 'Folder A'],
+    ['folder-b', 'Folder B'],
+  ] as const) {
+    await service.trashFolderTree({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      editorId: 'user-1',
+      folderId,
+      expectedName,
+      recursive: true,
+      authorizeDocument,
+    });
+  }
+  await service.deleteFolderTreePermanently({
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    editorId: 'user-1',
+    folderId: 'folder-a',
+    expectedName: 'Folder A',
+    authorizeDocument,
+  });
+
+  await service.restoreFolderTree({
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    editorId: 'user-1',
+    folderId: 'folder-b',
+    expectedName: 'Folder B',
+    authorizeDocument,
+  });
+  const organization = await service.readOrganization('workspace-1', 'user-1');
+  t.deepEqual(organization.documents, []);
+  t.deepEqual(organization.folders, [
+    {
+      id: 'folder-b',
+      parentId: null,
+      type: 'folder',
+      data: 'Folder B',
+      index: 'a1',
+    },
   ]);
 });

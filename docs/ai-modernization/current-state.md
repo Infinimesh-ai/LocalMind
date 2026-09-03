@@ -1526,36 +1526,49 @@ The inbound workspace MCP AI delegation slice is now implemented:
   from the same canonical tool-category registry used by Web AI, preserving
   each tool's normal permission and deployment checks instead of adding direct
   MCP resource tools;
-- task creation persists the sorted names of tools actually available through
-  `ToolRuntime` and their fingerprint in `localmind-tool-agent-request/v4`;
-  execution exposes only the intersection with the current registry and then
-  relies on each tool's live ACL, while a missing required completion tool fails
-  with `required_tool_unavailable`;
+- task creation persists the sorted names and exact input-Schema fingerprints
+  of tools actually available through `ToolRuntime` in
+  `localmind-tool-agent-request/v5`; Enterprise and SparkClaw aggregate tools
+  additionally freeze their concrete connection/provider/tool/risk/confirmation
+  capability catalogs. Execution exposes only capabilities present in both the
+  task snapshot and current registries, rechecks dynamic catalogs immediately
+  before execution, and then relies on each tool's live ACL. Missing required
+  completion tools fail with `required_tool_unavailable`, while snapshot
+  acquisition failure persists terminal `tool_snapshot_failed` state;
 - delegated attachments use `task_attachment_read`, which can read only the
-  materialized attachment ids frozen on the current task in 8,000-character
-  extracted-text chunks; `blob_read` is not registered without an AI Chat
-  session;
+  attachment ids frozen on the current task. Each chunk request rechecks the
+  task/actor/workspace/credential-family binding and live Blob ACL, rereads and
+  verifies the immutable Blob evidence, reparses the source, and returns at
+  most 8,000 extracted-text characters; `blob_read` is not registered without
+  an AI Chat session;
 - keyword search uses the indexer when available and otherwise scans the most
   recently updated 200 readable Markdown documents in batches of 16 before
-  globally ranking and limiting matches;
+  globally ranking and limiting matches; parser failures and invalid binary
+  documents are skipped without hiding other read failures;
 - workspace folder tools require `Workspace.Organize.Read` for lists,
   `Workspace.Sync` for mutations, the corresponding `Doc.Trash`, `Doc.Restore`,
   or `Doc.Delete` permission for document lifecycle changes, and `Doc.Read`
   before placing a document. Ordinary document/folder deletion moves targets
-  to Trash; folder restore restores only documents newly trashed by that folder
-  operation. Permanent deletion is exposed only for explicit permanent intent,
+  to Trash. Document metadata stores a direct claim plus one claim per folder
+  Trash operation, so overlapping folder restores remove only their own claim;
+  legacy manifests without claims retain their original newly/already-trashed
+  semantics. Permanent deletion is exposed only for explicit permanent intent,
   requires Trash state and matching title/name, recursively deletes affected
-  documents and all placements, preserves a fingerprinted folder Trash manifest
-  until physical deletion succeeds, and remains retryable after partial failure;
+  documents and all placements, validates and rewrites every other affected
+  folder Trash manifest, preserves the target fingerprinted manifest until
+  physical deletion succeeds, and remains retryable after partial failure;
 - delegated tool-agent runs have a 120-second timeout, poll durable
   cancellation and credential/workspace authority during execution, propagate
-  the abort signal into the tool loop, and now fail with `tool_agent_timeout`
+  the abort signal into the tool loop, enforce a hard maximum of 20 tool
+  executions, and now fail with `tool_agent_timeout`
   even when the native stream converts abort into a normal iterator close;
-  explicit single-document body mutations persist a v2 completion contract in
-  the v4 request, require live `Doc.Update`, and fail with
-  `required_side_effect_missing` unless a successful `doc_update` plus matching
-  updated artifact is recorded. Conditional mutations require read evidence and
-  may complete without a write when the requested condition is already met;
+  v5 requests persist a v3 completion contract naming required tools and any
+  document, workspace operation, Enterprise provider, SparkClaw tool, ordering,
+  or side-effect constraints. Text-only claims cannot complete create/update or
+  organization tasks. Conditional mutations require a successful `doc_read`
+  followed by either `doc_update` or `conditional_noop_complete`; the no-op tool
+  must return the exact fingerprint from that read. Unsatisfied contracts fail
+  with retryable `required_tool_evidence_missing`;
   native tool failures remain in sanitized execution summaries, while only
   bounded answers, argument fingerprints, referenced document ids, and
   created/updated artifacts are persisted;
@@ -1655,12 +1668,13 @@ implemented separately from the inbound LocalMind workspace MCP surface:
 - the execution ledger has database-enforced status/lease/result coherence and
   a composite connection/workspace foreign key, preventing cross-workspace
   evidence drift;
-- MCP delegation freezes the complete actually available tool-name set, its
-  fingerprint, the enabled SparkClaw tool-name subset, and the completion
-  contract in `localmind-tool-agent-request/v4`; workers intersect both frozen
-  maxima with their current registries and recheck delegated-user ACL. Existing
-  v1-v3 queued tasks retain their historical tool and completion semantics, so
-  an upgrade cannot widen their authority;
+- MCP delegation freezes the complete actually available tool-name set, each
+  input-Schema fingerprint, the concrete Enterprise and SparkClaw capability
+  catalogs, and the completion contract in
+  `localmind-tool-agent-request/v5`; workers intersect every frozen maximum with
+  current registries, recheck dynamic catalogs before execution, and recheck
+  delegated-user ACL. Existing v1-v4 queued tasks retain their historical tool
+  and completion semantics, so an upgrade cannot widen their authority;
 - `401`, invalid Session, and Session decryption failures move the connection
   to `REAUTH_REQUIRED`, clear the unusable encrypted Session and fingerprint,
   and cannot reuse the old Session;
