@@ -44,6 +44,11 @@ Future work should prefer vertical slices that create real behavior:
 - Admin or user-facing operation surfaces;
 - focused container validation.
 
+Native DOCX/XLSX/PPTX/PDF editing is tracked separately in
+`docs/office-native/README.md`. Office AI tools must still use the durable Agent
+Runtime, authorization, approval, audit, and cancellation semantics defined by
+this modernization plan.
+
 ## Track Documents
 
 - `tracks/support-bundle.md`
@@ -51,6 +56,7 @@ Future work should prefer vertical slices that create real behavior:
 - `tracks/agent-runtime.md`
 - `tracks/registries.md`
 - `tracks/context-memory.md`
+- `tracks/intelligence-workbench.md`
 
 ## Local Documentation Policy
 

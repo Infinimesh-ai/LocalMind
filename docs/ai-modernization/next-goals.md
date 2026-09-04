@@ -3,6 +3,34 @@
 This backlog is ordered to push the project from diagnostics toward real
 runtime behavior.
 
+## P1: Native Office Fidelity And Collaboration
+
+Status: the native DOCX/XLSX/PPTX/PDF resource model, GraphQL/API surface,
+editing engines, workspace routing, existing AI Chat integration, strict
+Artifact/Revision/selection context, BYOK-only tool loop, persisted approval,
+single-command and atomic-batch Agent Runtime execution, cancellation,
+conflict handling, audit evidence, and completion refresh are implemented.
+
+Remaining follow-up:
+
+- expand Word-compatible pagination, font measurement, list/table/drawing
+  layout, tracked-change write-back, and structural round-trip fixtures;
+- broaden spreadsheet calculation, conditional formatting, pivot/table/chart,
+  drawing, and large-workbook incremental recalculation coverage;
+- deepen slide master/layout/placeholder, drawing, media, chart, notes,
+  transition, and animation fidelity;
+- extend PDF forms, signatures, accessibility metadata, redaction verification,
+  and page-rendering performance while retaining the fixed-layout boundary;
+- add multi-user CRDT collaboration and presence semantics owned by each native
+  engine without moving Office state into BlockSuite;
+- harden large-file selector indexes, streaming package access, worker resource
+  budgets, mobile ergonomics, accessibility, and visual-regression coverage;
+- define explicit conversion paths for legacy `.doc`, `.xls`, `.ppt`, ODF, and
+  reflow-to-Docs workflows without treating converted content as the original
+  native resource.
+
+See `docs/office-native/README.md`.
+
 ## P1: Context Memory Quality
 
 Status: the active Planner v6 commercial-memory foundation and GitHub issues
@@ -65,6 +93,34 @@ Remaining follow-up:
   sensitive prompt text.
 
 See `tracks/context-memory.md`.
+
+## P1: Intelligence Workbench
+
+Status: designed and settled; not yet implemented.
+
+Turn the Intelligence page into a global, Codex-style AI workbench:
+
+- move the workbench onto a true top-level global route outside the workspace
+  shell, re-hosting the shell affordances it still needs and keeping in-page
+  document opening;
+- evolve `AiContextProject` into a global, user-owned Project with
+  owner/member roles and cross-workspace `(workspaceId, docId)` references;
+- add a top task panel (To do / In progress / Done) projecting existing
+  copilot task, run, and approval state through a new user-level
+  cross-workspace aggregation query;
+- make the project a permission principal: audited, revocable project grants,
+  an add-document two-branch rule gated on sharing rights, server-side
+  per-viewer redaction of pending placeholders, and one generic
+  access-request state machine with user and project beneficiaries;
+- enforce the three-layer AI permission intersection with per-document write
+  serialization and re-confirmation on drift;
+- add the reminder-only Blocker entity with AI-suggested,
+  user-confirmed creation.
+
+All product decisions, phases, and acceptance criteria are in the track
+document. Executing agents must not re-litigate settled decisions there.
+
+See `tracks/intelligence-workbench.md`.
 
 ## P1: Support Bundle Persistence
 
