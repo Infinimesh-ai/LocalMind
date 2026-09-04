@@ -434,7 +434,8 @@ test('front and sync realtime gateway required handlers are registered by lightw
   new CommentRealtimeProvider(
     {} as never,
     {} as never,
-    registry
+    registry,
+    {} as never
   ).onModuleInit();
   new CopilotEmbeddingRealtimeProvider(
     {} as never,

@@ -20,6 +20,7 @@ import type {
   FeatureFlagService,
   NotificationService,
 } from '@blocksuite/affine-shared/services';
+import type { OfficeAiContext } from '@localmind/office';
 import { css, html, type PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
 
@@ -166,6 +167,9 @@ export class AIChatComposer extends SignalWatcher(
   accessor docId: string | undefined;
 
   @property({ attribute: false })
+  accessor officeContext: OfficeAiContext | undefined;
+
+  @property({ attribute: false })
   accessor session!: CopilotChatHistoryFragment | null | undefined;
 
   @property({ attribute: false })
@@ -276,6 +280,7 @@ export class AIChatComposer extends SignalWatcher(
         .workspaceId=${this.workspaceId}
         .promptName=${this.activePromptName}
         .docId=${this.docId}
+        .officeContext=${this.officeContext}
         .session=${this.session}
         .runtime=${this.runtime}
         .runtimeSnapshot=${this.runtimeSnapshot}

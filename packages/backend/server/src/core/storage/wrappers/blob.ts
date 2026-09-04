@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Transactional } from '@nestjs-cls/transactional';
 
 import {
   BlobInvalid,
@@ -73,16 +74,22 @@ export class WorkspaceBlobStorage {
     private readonly config: Config
   ) {}
 
-  async put(workspaceId: string, key: string, blob: Buffer) {
-    const metadata = await this.rt.putObject(
+  async put(
+    workspaceId: string,
+    key: string,
+    blob: Buffer,
+    metadata?: PutObjectMetadata
+  ) {
+    const storedMetadata = await this.rt.putObject(
       'blob',
       `${workspaceId}/${key}`,
-      blob
+      blob,
+      metadata
     );
     await this.upsert(workspaceId, key, {
-      contentType: metadata.contentType,
-      contentLength: metadata.contentLength,
-      lastModified: metadata.lastModified,
+      contentType: storedMetadata.contentType,
+      contentLength: storedMetadata.contentLength,
+      lastModified: storedMetadata.lastModified,
     });
   }
 
@@ -275,7 +282,9 @@ export class WorkspaceBlobStorage {
     return await this.models.blob.list(workspaceId);
   }
 
+  @Transactional()
   async delete(workspaceId: string, key: string, permanently = false) {
+    await this.models.blob.lockForDelete(workspaceId, key);
     if (permanently) {
       await this.rt.deleteObject('blob', `${workspaceId}/${key}`);
     }

@@ -57,6 +57,10 @@ import { McpAiDelegationService } from './mcp/delegation';
 import { WorkspaceMcpProvider } from './mcp/provider';
 import { McpAiTaskControlService } from './mcp/task-control';
 import { McpAiTaskQueryService } from './mcp/task-query';
+import {
+  CopilotAgentRuntimeOfficeCommandAdapter,
+  OfficeAgentCommandService,
+} from './office-agent-command';
 import { PromptService } from './prompt';
 import { CopilotProviderHealthWorker } from './provider-health-worker';
 import {
@@ -141,6 +145,7 @@ export const COPILOT_RUNTIME_PROVIDERS = [
   ExternalMcpTransport,
   ExternalMcpConnectionService,
   ExternalMcpToolRegistry,
+  OfficeAgentCommandService,
   ModelSelectionPolicy,
   ActionRuntimeBridge,
   CopilotExecutionMetrics,
@@ -206,6 +211,7 @@ export const COPILOT_JOB_PROVIDERS = [
   CopilotAgentRuntimeWorkflowRegistry,
   CopilotAgentRuntimeModelCompletionAdapter,
   CopilotAgentRuntimeDocUpdateAdapter,
+  CopilotAgentRuntimeOfficeCommandAdapter,
   CopilotAgentRuntimeLocalMindToolAgentAdapter,
   CopilotAgentRuntimeWorker,
   CopilotProviderHealthWorker,

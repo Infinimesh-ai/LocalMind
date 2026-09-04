@@ -49,6 +49,8 @@ import { MagicLinkOtpModel } from './magic-link-otp';
 import { MailDeliveryModel } from './mail-delivery';
 import { McpCredentialModel } from './mcp-credential';
 import { NotificationModel } from './notification';
+import { OfficeArtifactModel } from './office-artifact';
+import { OfficeCommandRequestModel } from './office-command-request';
 import {
   DocAccessPolicyModel,
   DocGrantModel,
@@ -84,6 +86,8 @@ const MODELS = {
   docUser: DocUserModel,
   history: HistoryModel,
   notification: NotificationModel,
+  officeArtifact: OfficeArtifactModel,
+  officeCommandRequest: OfficeCommandRequestModel,
   iscp: IscpModel,
   workspaceMember: WorkspaceMemberModel,
   workspaceInvitation: WorkspaceInvitationModel,
@@ -215,6 +219,8 @@ export * from './iscp';
 export * from './magic-link-otp';
 export * from './mail-delivery';
 export * from './notification';
+export * from './office-artifact';
+export * from './office-command-request';
 export * from './permission-write';
 export * from './session';
 export * from './user';

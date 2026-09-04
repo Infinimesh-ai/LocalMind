@@ -1,0 +1,45 @@
+mutation importOfficeDocx($input: ImportOfficeDocxRequestInput!) {
+  importOfficeDocx(input: $input) {
+    created
+    artifact {
+      id
+      workspaceId
+      kind
+      title
+      sourceFileName
+      sourceMimeType
+      sourceByteSize
+      sourceFingerprint
+      revisionCounter
+      compatibility
+      createdBy
+      createdAt
+      updatedAt
+      currentRevision {
+        id
+        sequence
+        origin
+        packageMimeType
+        packageByteSize
+        packageFingerprint
+        stateByteSize
+        stateFingerprint
+        modelVersion
+        operationSummary
+        createdBy
+        createdAt
+        packageUrl
+        stateUrl
+      }
+    }
+    revision {
+      id
+      sequence
+      origin
+      packageFingerprint
+      stateFingerprint
+      packageUrl
+      stateUrl
+    }
+  }
+}

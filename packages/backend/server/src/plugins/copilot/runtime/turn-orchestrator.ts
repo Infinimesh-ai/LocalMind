@@ -1,9 +1,13 @@
+import type { OfficeAiContext } from '@localmind/office';
 import { Injectable } from '@nestjs/common';
 
+import { BadRequest } from '../../../base';
 import { CopilotContextService } from '../context/service';
 import { type Turn } from '../core';
+import { OfficeAgentCommandService } from '../office-agent-command';
 import {
   ModelInputType,
+  type PromptMessage,
   type PromptParams,
   type StreamObject,
 } from '../providers/types';
@@ -20,11 +24,61 @@ export class TurnOrchestrator {
   constructor(
     private readonly conversations: ConversationHost,
     private readonly context: CopilotContextService,
+    private readonly office: OfficeAgentCommandService,
     private readonly capabilityPolicy: CapabilityPolicyHost,
     private readonly runtime: CapabilityRuntime,
     private readonly imageResults: ImageResultHost,
     private readonly turnPersistence: TurnPersistence
   ) {}
+
+  private async resolveOfficeContext(
+    latestTurn: Turn | undefined,
+    session: ChatSession
+  ) {
+    if (!latestTurn || !Object.hasOwn(latestTurn.metadata, 'officeContext')) {
+      return null;
+    }
+    return await this.office.validateAiContext({
+      workspaceId: session.config.workspaceId,
+      actorId: session.config.userId,
+      context: latestTurn.metadata.officeContext,
+    });
+  }
+
+  private appendOfficePlannerPolicy(
+    messages: PromptMessage[],
+    office: {
+      context: OfficeAiContext;
+      artifact: { title: string; sourceFileName: string };
+      revision: { sequence: number };
+    }
+  ) {
+    const policy: PromptMessage = {
+      role: 'system',
+      content: [
+        'You are editing the current LocalMind native Office artifact through audited tools.',
+        `Validated context: ${JSON.stringify(office.context)}.`,
+        `File: ${office.artifact.title} (${office.artifact.sourceFileName}), immutable revision ${office.revision.sequence}.`,
+        'Before every write request, call office_read in this tool loop and use only its returned revision and stable IDs. office_read is already bound to the validated current artifact and revision, so pass only an optional selector and never ask the user for an artifact ID.',
+        'Use office_command_request for one change and office_command_batch_request when all changes must succeed atomically.',
+        'Never invent stable IDs, directly rewrite an OOXML/PDF package, or use another artifact.',
+        'A command request only creates a persisted preview awaiting approval. Say that approval is required and do not claim the edit completed.',
+        'Only a later completed Agent Runtime result with a new immutable revision is completion evidence.',
+        office.context.artifactKind === 'pdf'
+          ? 'PDF is fixed-layout. Only use supported annotation, form, page, signature appearance, and redaction commands; reject body-text rewrite or reflow requests.'
+          : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    };
+    const insertAt = messages.findIndex(message => message.role !== 'system');
+    if (insertAt === -1) return [...messages, policy];
+    return [
+      ...messages.slice(0, insertAt),
+      policy,
+      ...messages.slice(insertAt),
+    ];
+  }
 
   private async buildPromptParams(
     sessionId: string,
@@ -64,6 +118,15 @@ export class TurnOrchestrator {
     );
     const { modelId, reasoning, webSearch, toolsConfig, byokLeaseId } =
       ChatQuerySchema.parse(query);
+    const office = await this.resolveOfficeContext(
+      prepared.latestTurn,
+      prepared.session
+    );
+    if (office && selection.responseMode === 'image') {
+      throw new BadRequest(
+        'Office AI context does not support image generation'
+      );
+    }
     const promptParams = await this.buildPromptParams(sessionId, {
       latestTurn: prepared.latestTurn,
       includeContextFiles: selection.includeContextFiles,
@@ -76,7 +139,10 @@ export class TurnOrchestrator {
       toolsConfig,
       byokLeaseId,
       billingUnitId: prepared.latestTurn?.id,
-      quotaBackedRoutesAllowed: prepared.quotaBackedRoutesAllowed,
+      quotaBackedRoutesAllowed: office
+        ? false
+        : prepared.quotaBackedRoutesAllowed,
+      officeContext: office?.context,
       featureKind:
         selection.responseMode === 'image'
           ? 'image'
@@ -84,13 +150,16 @@ export class TurnOrchestrator {
             ? 'action'
             : 'chat',
     });
-    const finalMessage = prepared.session.finish(
+    const renderedMessages = prepared.session.finish(
       {
         ...prepared.params,
         ...promptParams,
       },
       { contextWindow: selected.contextWindow }
     );
+    const finalMessage = office
+      ? this.appendOfficePlannerPolicy(renderedMessages, office)
+      : renderedMessages;
 
     return {
       prepared,

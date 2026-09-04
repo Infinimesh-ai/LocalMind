@@ -1111,6 +1111,7 @@ export const PackageList = [
     workspaceDependencies: [
       'packages/common/s3-compat',
       'packages/backend/native',
+      'packages/common/office',
       'tools/cli',
       'tools/utils',
       'packages/common/graphql',
@@ -1163,6 +1164,11 @@ export const PackageList = [
       'packages/common/graphql',
       'blocksuite/affine/all',
     ],
+  },
+  {
+    location: 'packages/common/office',
+    name: '@localmind/office',
+    workspaceDependencies: [],
   },
   {
     location: 'packages/common/reader',
@@ -1313,6 +1319,7 @@ export const PackageList = [
       'blocksuite/affine/data-view',
       'blocksuite/framework/global',
       'blocksuite/framework/std',
+      'packages/common/office',
       'packages/common/infra',
       'blocksuite/affine/ext-loader',
     ],
@@ -1536,6 +1543,7 @@ export type PackageName =
   | '@affine/graphql'
   | '@toeverything/infra'
   | '@affine/nbstore'
+  | '@localmind/office'
   | '@affine/reader'
   | '@affine/realtime'
   | '@affine/s3-compat'

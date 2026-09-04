@@ -207,6 +207,34 @@ describe('AIChatRuntime', () => {
     );
   });
 
+  test('send passes the captured Office context to the request service', async () => {
+    const request = createRequest();
+    const runtime = createRuntime(request);
+    const officeContext = {
+      version: 'localmind-office-ai-context/v1',
+      workspaceId: 'workspace-1',
+      artifactId: 'artifact-1',
+      artifactKind: 'document',
+      revisionId: 'revision-1',
+      selection: {
+        kind: 'document',
+        target: {
+          type: 'text_range',
+          start: { blockId: 'paragraph-1', offset: 0 },
+          end: { blockId: 'paragraph-1', offset: 4 },
+        },
+      },
+    } as const;
+    await runtime.dispatch({ type: 'initialize' });
+
+    await runtime.dispatch({ type: 'send', input: 'format it', officeContext });
+
+    expect(request.executeAction).toHaveBeenCalledWith(
+      'chat',
+      expect.objectContaining({ officeContext })
+    );
+  });
+
   test('send keeps the default chat prompt when no prompt scope is provided', async () => {
     const request = createRequest();
     const runtime = createRuntime(request);

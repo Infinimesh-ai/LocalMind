@@ -9,6 +9,7 @@ export * from './doc-write';
 export * from './error';
 export * from './exa-crawl';
 export * from './exa-search';
+export * from './office';
 export * from './section-edit';
 export * from './task-attachment-read';
 export * from './tool';

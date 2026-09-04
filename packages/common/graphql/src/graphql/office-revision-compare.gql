@@ -1,0 +1,44 @@
+query officeRevisionCompare(
+  $workspaceId: String!
+  $artifactId: String!
+  $beforeRevisionId: String!
+  $afterRevisionId: String!
+) {
+  officeRevisionCompare(
+    workspaceId: $workspaceId
+    artifactId: $artifactId
+    beforeRevisionId: $beforeRevisionId
+    afterRevisionId: $afterRevisionId
+  ) {
+    artifactId
+    kind
+    changed
+    truncated
+    summary
+    changes
+    beforeRevision {
+      id
+      sequence
+      origin
+      createdAt
+      createdBy
+      operationSummary
+      packageFingerprint
+      stateFingerprint
+      packageUrl
+      stateUrl
+    }
+    afterRevision {
+      id
+      sequence
+      origin
+      createdAt
+      createdBy
+      operationSummary
+      packageFingerprint
+      stateFingerprint
+      packageUrl
+      stateUrl
+    }
+  }
+}

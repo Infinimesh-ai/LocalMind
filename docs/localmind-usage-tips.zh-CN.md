@@ -12,14 +12,26 @@
    Context Project。
 5. 从左侧栏 `Others > Help & guide` 打开应用内帮助页面。
 
-## 转换 PDF 和 Office 文件
+## 原生编辑或转换 Office 文件
 
-- 在工作区 `Import` 中选择文本型 PDF、`.docx`、`.xlsx` 或 `.pptx`，可转换为
-  普通可编辑页面；转换不会覆盖源文件。
-- 管理员启用 OCR 后，扫描页会通过 LocalMind 后端发送到管理员配置的 OCR 服务并
-  转换为可编辑内容；原生文本页仍在本地解析。OCR 结果需要人工复核。
-- 编辑转换后的页面后，从页面导出菜单选择 `Export to PDF`，并在浏览器打印窗口
-  中保存为 PDF。
+- 在工作区 `Import` 中选择 `.docx`、`.xlsx`、`.pptx` 或 `.pdf` 的主选项，会
+  创建原生 Docs、Sheets、Slides 或 PDF 资源并保留不可变版本历史。
+- 只有带 `as BlockSuite page` 的选项才会提取内容并转换为普通页面；这类转换
+  可能丢失复杂排版、图表、公式、主题、动画或媒体。
+- 管理员启用 OCR 后，`PDF as BlockSuite page` 可以处理扫描页；OCR 结果需要
+  人工复核。原生 PDF 始终保持固定版式。
+
+## 在 Office 页面中使用 AI
+
+- 点击原生 Office 页面的 AI 按钮，当前文件、Revision 和稳定选择区会自动附加
+  到现有 AI Chat。
+- Office AI 必须使用工作区有效 BYOK；缺少配置时不会回退到平台额度模型。
+- AI 修改先生成语义预览，再等待 `Approve`、`Reject` 或 `Cancel`。批准前、拒绝、
+  取消、权限变化、版本冲突和预览漂移都不会创建新 Revision。
+- 多步骤请求作为一个原子 batch 执行：全部成功只创建一个 AI Revision，任一
+  子命令失败则整个 batch 不写入。
+- 完成后编辑器自动刷新到新 Revision，并尽量恢复仍有效的选择区。PDF AI 仅允许
+  批注、表单、页面、签名外观和涂黑等固定版式操作。
 
 > [!IMPORTANT]
 > 对话读取文档后会保留快照。源文档被修改时，当前对话不会自动读取新版。
@@ -118,3 +130,6 @@
 | 项目无法删除                | 先归档，并清理引用它的个人项目 Memory   |
 | 搜索不到文档                | 检查权限、Embedding、索引进度和忽略列表 |
 | 修改 Rule 后效果不明确      | 保存并启用后，在 `New Chat` 中验证      |
+| Office AI 提示未配置 BYOK   | 请实例管理员配置并测试工作区模型        |
+| Office AI 显示版本冲突      | 重新读取最新 Revision 后重新发起请求    |
+| PDF AI 拒绝正文重排         | 使用固定版式命令，或显式转换为 Docs     |

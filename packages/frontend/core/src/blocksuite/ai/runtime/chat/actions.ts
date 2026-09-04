@@ -1,4 +1,5 @@
 import type { CopilotChatHistoryFragment } from '@affine/graphql';
+import type { OfficeAiContext } from '@localmind/office';
 
 import type { AIChatContextItem, AIChatScope } from './state';
 
@@ -20,6 +21,7 @@ export type AIChatSendOptions = {
   reasoning?: boolean;
   toolsConfig?: unknown;
   modelId?: string;
+  officeContext?: OfficeAiContext;
   userInfo?: {
     userId?: string;
     userName?: string;

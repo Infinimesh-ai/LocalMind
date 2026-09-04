@@ -1,0 +1,7 @@
+#import "./fragments/office-comment-fields.gql"
+
+query officeComments($workspaceId: String!, $artifactId: String!) {
+  officeComments(workspaceId: $workspaceId, artifactId: $artifactId) {
+    ...OfficeCommentFields
+  }
+}

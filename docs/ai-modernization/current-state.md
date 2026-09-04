@@ -1,5 +1,55 @@
 # Current State
 
+## Native Office And AI Editing
+
+The LocalMind Native Office vertical slice and its AI editing loop are
+implemented for DOCX, XLSX, PPTX, and PDF:
+
+- `OfficeArtifact` and immutable, linearly linked `OfficeRevision` records own
+  native Office identity, source/package/state Blob evidence, origin,
+  idempotency, bounded operation summaries, and monotonic revision history
+  outside the BlockSuite page schema;
+- PostgreSQL constraints and deferred triggers bind Office evidence to one
+  workspace, guard initial and parent revisions, serialize revision counters,
+  protect referenced Blobs, and prevent Revision or command-request rewrites;
+- `@localmind/office` owns strict semantic readers/writers for all four formats,
+  47 `localmind-office-command/v1` schemas, stable resource-specific targets,
+  bounded semantic diffing, and the 64-command/32 MiB
+  `localmind-office-command-batch/v1` contract;
+- workspace-scoped GraphQL and authorized HTTP endpoints support native import,
+  open, preview, execute, history, compare, comments, collaborators, package/
+  state/part delivery, and DOCX PDF export without converting the file into a
+  BlockSuite page;
+- the native Docs, Sheets, Slides, and PDF surfaces share the command bus,
+  immutable save path, import routing, workspace navigation, download/print,
+  comments, history, and per-format editing engines;
+- every Office page reuses the existing LocalMind AI Chat and sends a strict
+  `localmind-office-ai-context/v1` value containing the current Artifact,
+  Revision, resource kind, and optional stable selection captured at send time;
+- Office user-generation requests are BYOK-only, expose only bounded
+  `office_read`, `office_command_request`, and
+  `office_command_batch_request` tools, require a successful read before a
+  write, and cannot fall back to quota-backed/global chat providers or replace
+  raw OOXML/PDF bytes;
+- single commands and atomic batches persist preview and command evidence,
+  enter an approval-gated Agent Runtime run, and are rechecked by the worker for
+  current ACL, cancellation, command fingerprint, expected Revision, preview
+  drift, idempotency, and existing side-effect evidence;
+- reject, cancel, permission loss, stale Revision, invalid stable target, and
+  preview drift produce no Office Revision, while success produces exactly one
+  `origin=ai` Revision and immutable execution-result evidence;
+- the Office task panel shows approval and execution states, and completion
+  refreshes only the current Artifact to the new Revision without page
+  navigation, restoring or explicitly clearing the stable selection;
+- PDF remains fixed-layout across tool policy, planner instructions, and UI;
+  AI can use supported annotations, forms, page operations, signature
+  appearances, and redaction but cannot disguise document reflow as PDF editing.
+
+The implementation and compatibility source of truth is
+`docs/office-native/README.md`. Remaining Native Office work is fidelity,
+collaboration depth, performance, accessibility expansion, and broader format
+compatibility rather than completion of the AI editing control loop.
+
 ## Completed
 
 The project has implemented many P1 read-only diagnostics and compatibility

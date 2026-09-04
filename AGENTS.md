@@ -13,6 +13,11 @@ LocalMind 基于 AFFiNE 的 local-first 文档、画布、同步、桌面端和�
 在其上建设可审计、可持久化、可执行的 AI 办公工作区。它不是简单的 AFFiNE
 换皮分支，也不应继续堆叠只有展示价值的只读诊断字段。
 
+LocalMind 原生 Office 子系统与 BlockSuite Page/Edgeless 并列建设 Docs、Sheets、
+Slides 和 PDF 资源类型；它们共享 LocalMind 平台能力，但不得把 OOXML/PDF 的
+编辑状态强行转换或塞入普通 BlockSuite 页面模型。其 source of truth 是
+`docs/office-native/README.md`。
+
 新增 LocalMind AI 能力通常至少应落到以下一项：
 
 - 持久化的运行状态或业务状态；

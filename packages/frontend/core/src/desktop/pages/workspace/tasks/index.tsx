@@ -279,7 +279,13 @@ export const Component = () => {
                 statusLabel={statusLabel}
                 stepStatusLabel={stepStatusLabel}
                 onControl={controlTask}
-                onOpenDocument={docId => workbench.openDoc(docId)}
+                onOpenArtifact={(kind, id) => {
+                  if (kind === 'office') {
+                    workbench.open(`/office/${id}`, { at: 'active' });
+                  } else {
+                    workbench.openDoc(id);
+                  }
+                }}
               />
             ) : (
               <div className={styles.centerState}>
@@ -300,7 +306,7 @@ const TaskDetail = ({
   statusLabel,
   stepStatusLabel,
   onControl,
-  onOpenDocument,
+  onOpenArtifact,
 }: {
   task: CopilotTask;
   pending: { action: CopilotTaskAction; taskId: string } | null;
@@ -308,7 +314,7 @@ const TaskDetail = ({
   statusLabel: (status: string) => string;
   stepStatusLabel: (status: string) => string;
   onControl: (task: CopilotTask, action: CopilotTaskAction) => Promise<void>;
-  onOpenDocument: (docId: string) => void;
+  onOpenArtifact: (kind: string, id: string) => void;
 }) => {
   const t = useI18n();
   return (
@@ -389,9 +395,11 @@ const TaskDetail = ({
             <Button
               key={`${artifact.kind}:${artifact.id}`}
               prefix={<PageIcon />}
-              onClick={() => onOpenDocument(artifact.id)}
+              onClick={() => onOpenArtifact(artifact.kind, artifact.id)}
             >
-              {t['com.affine.localmind.tasks.openDocument']()}
+              {artifact.kind === 'office'
+                ? 'Open Office file'
+                : t['com.affine.localmind.tasks.openDocument']()}
             </Button>
           ))}
         </section>

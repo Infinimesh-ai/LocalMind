@@ -11,6 +11,8 @@ mutation controlCopilotTask($input: CopilotTaskControlInput!) {
     failureCode
     failureMessage
     resultSummary
+    approvalSummary
+    resultEvidence
     availableActions
     approval {
       stepId

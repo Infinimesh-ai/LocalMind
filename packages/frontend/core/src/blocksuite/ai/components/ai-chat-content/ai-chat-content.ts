@@ -17,6 +17,7 @@ import { SignalWatcher, WithDisposable } from '@blocksuite/affine/global/lit';
 import { type EditorHost, ShadowlessElement } from '@blocksuite/affine/std';
 import type { ExtensionType } from '@blocksuite/affine/store';
 import type { NotificationService } from '@blocksuite/affine-shared/services';
+import type { OfficeAiContext } from '@localmind/office';
 import { type Signal } from '@preact/signals-core';
 import { css, html, type PropertyValues, type TemplateResult } from 'lit';
 import { property, state } from 'lit/decorators.js';
@@ -133,6 +134,9 @@ export class AIChatContent extends SignalWatcher(
 
   @property({ attribute: false })
   accessor docId: string | undefined;
+
+  @property({ attribute: false })
+  accessor officeContext: OfficeAiContext | undefined;
 
   @property({ attribute: false })
   accessor reasoningConfig!: AIReasoningConfig;
@@ -403,6 +407,7 @@ export class AIChatContent extends SignalWatcher(
         .workspaceId=${this.workspaceId}
         .promptName=${this.activePromptName}
         .docId=${this.docId}
+        .officeContext=${this.officeContext}
         .session=${this.session}
         .runtime=${this.runtime}
         .runtimeSnapshot=${this.runtimeSnapshot}

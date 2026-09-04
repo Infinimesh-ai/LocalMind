@@ -1,29 +1,30 @@
 import { toast } from '@affine/component';
-import { getStoreManager } from '@affine/core/blocksuite/manager/store';
 import { AppSidebarService } from '@affine/core/modules/app-sidebar';
+import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
 import { DocsService } from '@affine/core/modules/doc';
 import {
   EditorSettingService,
   resolveNewDocTitle,
 } from '@affine/core/modules/editor-setting';
 import { WorkbenchService } from '@affine/core/modules/workbench';
-import { getAFFiNEWorkspaceSchema } from '@affine/core/modules/workspace';
 import { type DocMode } from '@blocksuite/affine/model';
 import type { Workspace } from '@blocksuite/affine/store';
 import { LiveData, useLiveData, useServices } from '@toeverything/infra';
 import { useCallback, useMemo } from 'react';
 
-export const usePageHelper = (docCollection: Workspace) => {
+export const usePageHelper = (_docCollection: Workspace) => {
   const {
     docsService,
     workbenchService,
     appSidebarService,
     editorSettingService,
+    workspaceDialogService,
   } = useServices({
     DocsService,
     WorkbenchService,
     AppSidebarService,
     EditorSettingService,
+    WorkspaceDialogService,
   });
   const workbench = workbenchService.workbench;
   const docRecordList = docsService.list;
@@ -91,47 +92,31 @@ export const usePageHelper = (docCollection: Workspace) => {
 
   const importFileAndOpen = useMemo(
     () => async () => {
-      const { showImportModal } =
-        await import('@blocksuite/affine/widgets/linked-doc');
-      const { promise, resolve, reject } =
-        Promise.withResolvers<
-          Parameters<
-            NonNullable<Parameters<typeof showImportModal>[0]['onSuccess']>
-          >[1]
-        >();
-      const onSuccess = (
-        pageIds: string[],
-        options: { isWorkspaceFile: boolean; importedCount: number }
-      ) => {
-        resolve(options);
-        toast(
-          `Successfully imported ${options.importedCount} Page${
-            options.importedCount > 1 ? 's' : ''
-          }.`
-        );
-        if (options.isWorkspaceFile) {
+      const { promise, resolve } = Promise.withResolvers<void>();
+      workspaceDialogService.open('import', undefined, result => {
+        resolve();
+        if (!result) return;
+        if (result.officeArtifactId) {
+          toast('Successfully imported a native Office document.');
+          workbench.openOffice(result.officeArtifactId);
+          return;
+        }
+        if (result.isWorkspaceFile) {
           workbench.openAll();
           return;
         }
-
-        if (pageIds.length === 0) {
-          return;
-        }
-        const pageId = pageIds[0];
-        workbench.openDoc(pageId);
-      };
-      showImportModal({
-        collection: docCollection,
-        schema: getAFFiNEWorkspaceSchema(),
-        extensions: getStoreManager().config.init().value.get('store'),
-        onSuccess,
-        onFail: message => {
-          reject(new Error(message));
-        },
+        if (!result.docIds.length) return;
+        toast(
+          `Successfully imported ${result.docIds.length} Page${
+            result.docIds.length > 1 ? 's' : ''
+          }.`
+        );
+        if (result.docIds.length > 1) workbench.openAll();
+        else workbench.openDoc(result.docIds[0]);
       });
       return await promise;
     },
-    [docCollection, workbench]
+    [workbench, workspaceDialogService]
   );
 
   return useMemo(() => {

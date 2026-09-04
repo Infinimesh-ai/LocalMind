@@ -1,3 +1,5 @@
+import type { OfficeAiContext } from '@localmind/office';
+
 import type { PromptKey } from '../../provider/prompt';
 import { Endpoint } from './copilot-client';
 import type { TextToTextOptions } from './message-transport';
@@ -14,6 +16,7 @@ export type AIActionModelSelection = {
 export type AIActionOptions = BlockSuitePresets.AITextActionOptions &
   Record<string, unknown> & {
     modelSelection?: AIActionModelSelection;
+    officeContext?: OfficeAiContext;
   };
 
 export type AIActionDefinition = {
@@ -80,6 +83,7 @@ export const actionDefinitions = {
         selectedSnapshot: contexts?.selectedSnapshot,
         selectedMarkdown: contexts?.selectedMarkdown,
         html: contexts?.html,
+        officeContext: options.officeContext,
         ...(options.docId ? { currentDocId: options.docId } : {}),
       };
     },

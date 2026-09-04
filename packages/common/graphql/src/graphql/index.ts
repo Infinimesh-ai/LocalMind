@@ -42,6 +42,42 @@ export const credentialsRequirementsFragment = `fragment CredentialsRequirements
     ...PasswordLimits
   }
 }`;
+export const officeCommentFieldsFragment = `fragment OfficeCommentFields on OfficeCommentType {
+  id
+  content
+  resolved
+  user {
+    id
+    name
+    avatarUrl
+  }
+  replies {
+    id
+    commentId
+    content
+    user {
+      id
+      name
+      avatarUrl
+    }
+    createdAt
+    updatedAt
+  }
+  createdAt
+  updatedAt
+}`;
+export const officeCommentReplyFieldsFragment = `fragment OfficeCommentReplyFields on OfficeCommentReplyType {
+  id
+  commentId
+  content
+  user {
+    id
+    name
+    avatarUrl
+  }
+  createdAt
+  updatedAt
+}`;
 export const paginatedCopilotChatsFragment = `fragment PaginatedCopilotChats on PaginatedCopilotHistoriesType {
   pageInfo {
     hasNextPage
@@ -1735,6 +1771,40 @@ export const controlCopilotAgentRuntimeRunMutation = {
       stepId
       summary
       workspaceId
+    }
+  }
+}`,
+};
+
+export const requestCopilotAgentRuntimeOfficeCommandMutation = {
+  id: 'requestCopilotAgentRuntimeOfficeCommandMutation' as const,
+  op: 'requestCopilotAgentRuntimeOfficeCommand',
+  query: `mutation requestCopilotAgentRuntimeOfficeCommand($input: CopilotAgentRuntimeOfficeCommandRequestInput!) {
+  requestCopilotAgentRuntimeOfficeCommand(input: $input) {
+    id
+    workspaceId
+    actorId
+    workflow
+    sourceType
+    sourceId
+    status
+    title
+    targetFingerprint
+    evidenceFingerprint
+    timelineFingerprint
+    workerAttempt
+    workerMaxAttempts
+    createdAt
+    updatedAt
+    steps {
+      id
+      stepKey
+      stepType
+      status
+      title
+      order
+      evidenceFingerprint
+      outputSummary
     }
   }
 }`,
@@ -6803,6 +6873,8 @@ export const controlCopilotTaskMutation = {
     failureCode
     failureMessage
     resultSummary
+    approvalSummary
+    resultEvidence
     availableActions
     approval {
       stepId
@@ -6847,6 +6919,8 @@ export const copilotTaskGetQuery = {
         failureCode
         failureMessage
         resultSummary
+        approvalSummary
+        resultEvidence
         availableActions
         approval {
           stepId
@@ -6893,6 +6967,8 @@ export const copilotTasksGetQuery = {
         failureCode
         failureMessage
         resultSummary
+        approvalSummary
+        resultEvidence
         availableActions
         approval {
           stepId
@@ -8362,6 +8438,491 @@ export const mentionUserMutation = {
   op: 'mentionUser',
   query: `mutation mentionUser($input: MentionInput!) {
   mentionUser(input: $input)
+}`,
+};
+
+export const officeArtifactQuery = {
+  id: 'officeArtifactQuery' as const,
+  op: 'officeArtifact',
+  query: `query officeArtifact($workspaceId: String!, $artifactId: String!) {
+  officeArtifact(workspaceId: $workspaceId, artifactId: $artifactId) {
+    id
+    workspaceId
+    kind
+    title
+    sourceFileName
+    sourceMimeType
+    sourceByteSize
+    sourceFingerprint
+    revisionCounter
+    compatibility
+    createdBy
+    createdAt
+    updatedAt
+    currentRevision {
+      id
+      workspaceId
+      artifactId
+      sequence
+      origin
+      parentRevisionId
+      packageMimeType
+      packageByteSize
+      packageFingerprint
+      stateByteSize
+      stateFingerprint
+      modelVersion
+      operationSummary
+      createdBy
+      createdAt
+      packageUrl
+      stateUrl
+    }
+  }
+}`,
+};
+
+export const officeArtifactsQuery = {
+  id: 'officeArtifactsQuery' as const,
+  op: 'officeArtifacts',
+  query: `query officeArtifacts($workspaceId: String!, $kind: OfficeArtifactKind, $limit: SafeInt = 50) {
+  officeArtifacts(workspaceId: $workspaceId, kind: $kind, limit: $limit) {
+    id
+    workspaceId
+    kind
+    title
+    sourceFileName
+    sourceMimeType
+    sourceByteSize
+    sourceFingerprint
+    revisionCounter
+    compatibility
+    createdBy
+    createdAt
+    updatedAt
+    currentRevision {
+      id
+      workspaceId
+      artifactId
+      sequence
+      origin
+      parentRevisionId
+      packageMimeType
+      packageByteSize
+      packageFingerprint
+      stateByteSize
+      stateFingerprint
+      modelVersion
+      operationSummary
+      createdBy
+      createdAt
+      packageUrl
+      stateUrl
+    }
+  }
+}`,
+};
+
+export const officeCollaboratorsQuery = {
+  id: 'officeCollaboratorsQuery' as const,
+  op: 'officeCollaborators',
+  query: `query officeCollaborators($workspaceId: String!, $artifactId: String!) {
+  officeCollaborators(workspaceId: $workspaceId, artifactId: $artifactId) {
+    id
+    name
+    avatarUrl
+  }
+}`,
+};
+
+export const executeOfficeCommandMutation = {
+  id: 'executeOfficeCommandMutation' as const,
+  op: 'executeOfficeCommand',
+  query: `mutation executeOfficeCommand($input: OfficeCommandInput!) {
+  executeOfficeCommand(input: $input) {
+    created
+    artifact {
+      id
+      workspaceId
+      kind
+      title
+      sourceFileName
+      sourceMimeType
+      sourceByteSize
+      sourceFingerprint
+      revisionCounter
+      compatibility
+      createdBy
+      createdAt
+      updatedAt
+      currentRevision {
+        id
+        workspaceId
+        artifactId
+        sequence
+        origin
+        parentRevisionId
+        packageMimeType
+        packageByteSize
+        packageFingerprint
+        stateByteSize
+        stateFingerprint
+        modelVersion
+        operationSummary
+        createdBy
+        createdAt
+        packageUrl
+        stateUrl
+      }
+    }
+    revision {
+      id
+      workspaceId
+      artifactId
+      sequence
+      origin
+      parentRevisionId
+      packageMimeType
+      packageByteSize
+      packageFingerprint
+      stateByteSize
+      stateFingerprint
+      modelVersion
+      operationSummary
+      createdBy
+      createdAt
+      packageUrl
+      stateUrl
+    }
+    summary
+  }
+}`,
+};
+
+export const previewOfficeCommandQuery = {
+  id: 'previewOfficeCommandQuery' as const,
+  op: 'previewOfficeCommand',
+  query: `query previewOfficeCommand($input: OfficeCommandInput!) {
+  previewOfficeCommand(input: $input) {
+    artifactId
+    expectedRevisionId
+    packageFingerprint
+    stateFingerprint
+    stats
+    summary
+  }
+}`,
+};
+
+export const createOfficeCommentMutation = {
+  id: 'createOfficeCommentMutation' as const,
+  op: 'createOfficeComment',
+  query: `mutation createOfficeComment($input: OfficeCommentCreateInput!) {
+  createOfficeComment(input: $input) {
+    ...OfficeCommentFields
+  }
+}
+${officeCommentFieldsFragment}`,
+};
+
+export const deleteOfficeCommentMutation = {
+  id: 'deleteOfficeCommentMutation' as const,
+  op: 'deleteOfficeComment',
+  query: `mutation deleteOfficeComment($id: String!) {
+  deleteOfficeComment(id: $id)
+}`,
+};
+
+export const createOfficeCommentReplyMutation = {
+  id: 'createOfficeCommentReplyMutation' as const,
+  op: 'createOfficeCommentReply',
+  query: `mutation createOfficeCommentReply($input: OfficeCommentReplyCreateInput!) {
+  createOfficeCommentReply(input: $input) {
+    ...OfficeCommentReplyFields
+  }
+}
+${officeCommentReplyFieldsFragment}`,
+};
+
+export const deleteOfficeCommentReplyMutation = {
+  id: 'deleteOfficeCommentReplyMutation' as const,
+  op: 'deleteOfficeCommentReply',
+  query: `mutation deleteOfficeCommentReply($id: String!) {
+  deleteOfficeCommentReply(id: $id)
+}`,
+};
+
+export const updateOfficeCommentReplyMutation = {
+  id: 'updateOfficeCommentReplyMutation' as const,
+  op: 'updateOfficeCommentReply',
+  query: `mutation updateOfficeCommentReply($input: OfficeCommentReplyUpdateInput!) {
+  updateOfficeCommentReply(input: $input) {
+    ...OfficeCommentReplyFields
+  }
+}
+${officeCommentReplyFieldsFragment}`,
+};
+
+export const resolveOfficeCommentMutation = {
+  id: 'resolveOfficeCommentMutation' as const,
+  op: 'resolveOfficeComment',
+  query: `mutation resolveOfficeComment($input: OfficeCommentResolveInput!) {
+  resolveOfficeComment(input: $input) {
+    ...OfficeCommentFields
+  }
+}
+${officeCommentFieldsFragment}`,
+};
+
+export const updateOfficeCommentMutation = {
+  id: 'updateOfficeCommentMutation' as const,
+  op: 'updateOfficeComment',
+  query: `mutation updateOfficeComment($input: OfficeCommentUpdateInput!) {
+  updateOfficeComment(input: $input) {
+    ...OfficeCommentFields
+  }
+}
+${officeCommentFieldsFragment}`,
+};
+
+export const officeCommentsQuery = {
+  id: 'officeCommentsQuery' as const,
+  op: 'officeComments',
+  query: `query officeComments($workspaceId: String!, $artifactId: String!) {
+  officeComments(workspaceId: $workspaceId, artifactId: $artifactId) {
+    ...OfficeCommentFields
+  }
+}
+${officeCommentFieldsFragment}`,
+};
+
+export const executeOfficeDocxCommandMutation = {
+  id: 'executeOfficeDocxCommandMutation' as const,
+  op: 'executeOfficeDocxCommand',
+  query: `mutation executeOfficeDocxCommand($input: OfficeDocxCommandInput!) {
+  executeOfficeDocxCommand(input: $input) {
+    created
+    artifact {
+      id
+      workspaceId
+      kind
+      title
+      revisionCounter
+      currentRevision {
+        id
+        sequence
+        origin
+        packageFingerprint
+        stateFingerprint
+        modelVersion
+        operationSummary
+        createdBy
+        createdAt
+        packageUrl
+        stateUrl
+      }
+    }
+    revision {
+      id
+      sequence
+      origin
+      packageFingerprint
+      stateFingerprint
+      operationSummary
+      packageUrl
+      stateUrl
+    }
+    summary
+  }
+}`,
+};
+
+export const previewOfficeDocxCommandQuery = {
+  id: 'previewOfficeDocxCommandQuery' as const,
+  op: 'previewOfficeDocxCommand',
+  query: `query previewOfficeDocxCommand($input: OfficeDocxCommandInput!) {
+  previewOfficeDocxCommand(input: $input) {
+    artifactId
+    expectedRevisionId
+    packageFingerprint
+    stateFingerprint
+    stats
+    summary
+  }
+}`,
+};
+
+export const importOfficeDocxMutation = {
+  id: 'importOfficeDocxMutation' as const,
+  op: 'importOfficeDocx',
+  query: `mutation importOfficeDocx($input: ImportOfficeDocxRequestInput!) {
+  importOfficeDocx(input: $input) {
+    created
+    artifact {
+      id
+      workspaceId
+      kind
+      title
+      sourceFileName
+      sourceMimeType
+      sourceByteSize
+      sourceFingerprint
+      revisionCounter
+      compatibility
+      createdBy
+      createdAt
+      updatedAt
+      currentRevision {
+        id
+        sequence
+        origin
+        packageMimeType
+        packageByteSize
+        packageFingerprint
+        stateByteSize
+        stateFingerprint
+        modelVersion
+        operationSummary
+        createdBy
+        createdAt
+        packageUrl
+        stateUrl
+      }
+    }
+    revision {
+      id
+      sequence
+      origin
+      packageFingerprint
+      stateFingerprint
+      packageUrl
+      stateUrl
+    }
+  }
+}`,
+};
+
+export const importOfficeArtifactMutation = {
+  id: 'importOfficeArtifactMutation' as const,
+  op: 'importOfficeArtifact',
+  query: `mutation importOfficeArtifact($input: ImportOfficeArtifactRequestInput!) {
+  importOfficeArtifact(input: $input) {
+    created
+    artifact {
+      id
+      workspaceId
+      kind
+      title
+      sourceFileName
+      sourceMimeType
+      sourceByteSize
+      sourceFingerprint
+      revisionCounter
+      compatibility
+      createdBy
+      createdAt
+      updatedAt
+      currentRevision {
+        id
+        sequence
+        origin
+        packageMimeType
+        packageByteSize
+        packageFingerprint
+        stateByteSize
+        stateFingerprint
+        modelVersion
+        operationSummary
+        createdBy
+        createdAt
+        packageUrl
+        stateUrl
+      }
+    }
+    revision {
+      id
+      sequence
+      origin
+      packageFingerprint
+      stateFingerprint
+      packageUrl
+      stateUrl
+    }
+  }
+}`,
+};
+
+export const officeRevisionCompareQuery = {
+  id: 'officeRevisionCompareQuery' as const,
+  op: 'officeRevisionCompare',
+  query: `query officeRevisionCompare($workspaceId: String!, $artifactId: String!, $beforeRevisionId: String!, $afterRevisionId: String!) {
+  officeRevisionCompare(
+    workspaceId: $workspaceId
+    artifactId: $artifactId
+    beforeRevisionId: $beforeRevisionId
+    afterRevisionId: $afterRevisionId
+  ) {
+    artifactId
+    kind
+    changed
+    truncated
+    summary
+    changes
+    beforeRevision {
+      id
+      sequence
+      origin
+      createdAt
+      createdBy
+      operationSummary
+      packageFingerprint
+      stateFingerprint
+      packageUrl
+      stateUrl
+    }
+    afterRevision {
+      id
+      sequence
+      origin
+      createdAt
+      createdBy
+      operationSummary
+      packageFingerprint
+      stateFingerprint
+      packageUrl
+      stateUrl
+    }
+  }
+}`,
+};
+
+export const officeRevisionsQuery = {
+  id: 'officeRevisionsQuery' as const,
+  op: 'officeRevisions',
+  query: `query officeRevisions($workspaceId: String!, $artifactId: String!, $limit: SafeInt = 50) {
+  officeRevisions(
+    workspaceId: $workspaceId
+    artifactId: $artifactId
+    limit: $limit
+  ) {
+    id
+    workspaceId
+    artifactId
+    sequence
+    origin
+    parentRevisionId
+    packageMimeType
+    packageByteSize
+    packageFingerprint
+    stateByteSize
+    stateFingerprint
+    modelVersion
+    operationSummary
+    createdBy
+    createdAt
+    packageUrl
+    stateUrl
+  }
 }`,
 };
 

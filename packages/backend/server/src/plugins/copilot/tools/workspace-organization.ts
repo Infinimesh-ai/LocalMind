@@ -135,7 +135,7 @@ export function createWorkspaceOrganizationTools(
   ac: PermissionAccess,
   permission: PermissionService,
   organization: WorkspaceOrganizationService,
-  options: CopilotChatOptions
+  options: NonNullable<CopilotChatOptions>
 ): CopilotToolSet {
   const context = () => {
     if (!options?.user || !options.workspace) {

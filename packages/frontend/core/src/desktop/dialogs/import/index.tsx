@@ -7,7 +7,7 @@ import {
 import { getStoreManager } from '@affine/core/blocksuite/manager/store';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import { useNavigateHelper } from '@affine/core/components/hooks/use-navigate-helper';
-import { FetchService } from '@affine/core/modules/cloud';
+import { FetchService, GraphQLService } from '@affine/core/modules/cloud';
 import {
   type DialogComponentProps,
   GlobalDialogService,
@@ -17,9 +17,11 @@ import {
   type ImportRunContext,
   ImportService,
 } from '@affine/core/modules/import';
+import { importNativeOffice } from '@affine/core/modules/office';
 import { UrlService } from '@affine/core/modules/url';
 import {
   getAFFiNEWorkspaceSchema,
+  type Workspace as LocalMindWorkspace,
   type WorkspaceMetadata,
   WorkspaceService,
 } from '@affine/core/modules/workspace';
@@ -83,9 +85,13 @@ type ImportType =
   | 'snapshot'
   | 'html'
   | 'docx'
+  | 'docxPage'
   | 'pdf'
+  | 'pdfPage'
   | 'xlsx'
+  | 'xlsxPage'
   | 'pptx'
+  | 'pptxPage'
   | 'dotaffinefile';
 type AcceptType =
   | 'Markdown'
@@ -106,6 +112,7 @@ type ImportErrorState = {
 };
 type ImportResult = {
   docIds: string[];
+  officeArtifactId?: string;
   entryId?: string;
   isWorkspaceFile?: boolean;
   rootFolderId?: string;
@@ -119,6 +126,8 @@ type ImportedWorkspacePayload = {
 
 type ImportFunctionArgs = {
   docCollection: Workspace;
+  workspace: LocalMindWorkspace;
+  graphqlService: GraphQLService;
   files: File[];
   fetchService: FetchService;
   importAffineFile: () => Promise<WorkspaceMetadata | undefined>;
@@ -274,6 +283,20 @@ const importOptions = [
     type: 'docx' as ImportType,
   },
   {
+    key: 'docxPage',
+    label: 'com.affine.import.docx',
+    labelText: 'DOCX as BlockSuite page',
+    prefixIcon: (
+      <PageIcon color={cssVarV2('icon/primary')} width={20} height={20} />
+    ),
+    suffixIcon: (
+      <HelpIcon color={cssVarV2('icon/primary')} width={20} height={20} />
+    ),
+    suffixTooltip: 'com.affine.import.docx.tooltip',
+    testId: 'editor-option-menu-import-docx-as-page',
+    type: 'docxPage' as ImportType,
+  },
+  {
     key: 'pdf',
     label: 'com.affine.import.pdf',
     prefixIcon: (
@@ -291,6 +314,20 @@ const importOptions = [
     type: 'pdf' as ImportType,
   },
   {
+    key: 'pdfPage',
+    label: 'com.affine.import.pdf',
+    labelText: 'PDF as BlockSuite page',
+    prefixIcon: (
+      <PageIcon color={cssVarV2('icon/primary')} width={20} height={20} />
+    ),
+    suffixIcon: (
+      <HelpIcon color={cssVarV2('icon/primary')} width={20} height={20} />
+    ),
+    suffixTooltip: 'com.affine.import.pdf.tooltip',
+    testId: 'editor-option-menu-import-pdf-as-page',
+    type: 'pdfPage' as ImportType,
+  },
+  {
     key: 'xlsx',
     label: 'com.affine.import.xlsx',
     prefixIcon: (
@@ -302,6 +339,20 @@ const importOptions = [
     suffixTooltip: 'com.affine.import.xlsx.tooltip',
     testId: 'editor-option-menu-import-xlsx',
     type: 'xlsx' as ImportType,
+  },
+  {
+    key: 'xlsxPage',
+    label: 'com.affine.import.xlsx',
+    labelText: 'XLSX as BlockSuite page',
+    prefixIcon: (
+      <PageIcon color={cssVarV2('icon/primary')} width={20} height={20} />
+    ),
+    suffixIcon: (
+      <HelpIcon color={cssVarV2('icon/primary')} width={20} height={20} />
+    ),
+    suffixTooltip: 'com.affine.import.xlsx.tooltip',
+    testId: 'editor-option-menu-import-xlsx-as-page',
+    type: 'xlsxPage' as ImportType,
   },
   {
     key: 'pptx',
@@ -319,6 +370,20 @@ const importOptions = [
     suffixTooltip: 'com.affine.import.pptx.tooltip',
     testId: 'editor-option-menu-import-pptx',
     type: 'pptx' as ImportType,
+  },
+  {
+    key: 'pptxPage',
+    label: 'com.affine.import.pptx',
+    labelText: 'PPTX as BlockSuite page',
+    prefixIcon: (
+      <PageIcon color={cssVarV2('icon/primary')} width={20} height={20} />
+    ),
+    suffixIcon: (
+      <HelpIcon color={cssVarV2('icon/primary')} width={20} height={20} />
+    ),
+    suffixTooltip: 'com.affine.import.pptx.tooltip',
+    testId: 'editor-option-menu-import-pptx-as-page',
+    type: 'pptxPage' as ImportType,
   },
   {
     key: 'snapshot',
@@ -451,21 +516,37 @@ const importConfigs: Record<ImportType, ImportConfig> = {
   },
   docx: {
     fileOptions: { acceptType: 'Docx', multiple: false },
+    importFunction: async ({ workspace, graphqlService, files }) => {
+      const file = files.length === 1 ? files[0] : null;
+      if (!file) throw new Error('Expected a single .docx file');
+      const result = await importNativeOffice(workspace, graphqlService, file);
+      return { docIds: [], officeArtifactId: result.artifact.id };
+    },
+  },
+  docxPage: {
+    fileOptions: { acceptType: 'Docx', multiple: false },
     importFunction: async ({ docCollection, files }) => {
-      const docIds: string[] = [];
-      for (const file of files) {
-        const docId = await DocxTransformer.importDocx({
-          collection: docCollection,
-          schema: getAFFiNEWorkspaceSchema(),
-          imported: file,
-          extensions: getStoreManager().config.init().value.get('store'),
-        });
-        if (docId) docIds.push(docId);
-      }
-      return { docIds };
+      const file = files.length === 1 ? files[0] : null;
+      if (!file) throw new Error('Expected a single .docx file');
+      const docId = await DocxTransformer.importDocx({
+        collection: docCollection,
+        schema: getAFFiNEWorkspaceSchema(),
+        imported: file,
+        extensions: getStoreManager().config.init().value.get('store'),
+      });
+      return { docIds: docId ? [docId] : [] };
     },
   },
   pdf: {
+    fileOptions: { acceptType: 'Pdf', multiple: false },
+    importFunction: async ({ workspace, graphqlService, files }) => {
+      const file = files.length === 1 ? files[0] : null;
+      if (!file) throw new Error('Expected a single .pdf file');
+      const result = await importNativeOffice(workspace, graphqlService, file);
+      return { docIds: [], officeArtifactId: result.artifact.id };
+    },
+  },
+  pdfPage: {
     fileOptions: { acceptType: 'Pdf', multiple: false },
     importFunction: async ({ docCollection, fetchService, files, context }) => {
       const file = files.length === 1 ? files[0] : null;
@@ -516,6 +597,15 @@ const importConfigs: Record<ImportType, ImportConfig> = {
   },
   xlsx: {
     fileOptions: { acceptType: 'Excel', multiple: false },
+    importFunction: async ({ workspace, graphqlService, files }) => {
+      const file = files.length === 1 ? files[0] : null;
+      if (!file) throw new Error('Expected a single .xlsx file');
+      const result = await importNativeOffice(workspace, graphqlService, file);
+      return { docIds: [], officeArtifactId: result.artifact.id };
+    },
+  },
+  xlsxPage: {
+    fileOptions: { acceptType: 'Excel', multiple: false },
     importFunction: async ({ docCollection, files }) => {
       const file = files.length === 1 ? files[0] : null;
       if (!file) {
@@ -536,6 +626,15 @@ const importConfigs: Record<ImportType, ImportConfig> = {
     },
   },
   pptx: {
+    fileOptions: { acceptType: 'PowerPoint', multiple: false },
+    importFunction: async ({ workspace, graphqlService, files }) => {
+      const file = files.length === 1 ? files[0] : null;
+      if (!file) throw new Error('Expected a single .pptx file');
+      const result = await importNativeOffice(workspace, graphqlService, file);
+      return { docIds: [], officeArtifactId: result.artifact.id };
+    },
+  },
+  pptxPage: {
     fileOptions: { acceptType: 'PowerPoint', multiple: false },
     importFunction: async ({ docCollection, files }) => {
       const file = files.length === 1 ? files[0] : null;
@@ -594,6 +693,7 @@ const importConfigs: Record<ImportType, ImportConfig> = {
 
 const ImportOptionItem = ({
   label,
+  labelText,
   prefixIcon,
   suffixIcon,
   suffixTooltip,
@@ -603,6 +703,7 @@ const ImportOptionItem = ({
   ...props
 }: {
   label: string;
+  labelText?: string;
   prefixIcon: ReactElement<SVGAttributes<SVGElement>>;
   suffixIcon?: ReactElement<SVGAttributes<SVGElement>>;
   suffixTooltip?: string;
@@ -619,7 +720,7 @@ const ImportOptionItem = ({
       {...props}
     >
       {prefixIcon}
-      <div className={style.importItemLabel}>{t[label]()}</div>
+      <div className={style.importItemLabel}>{labelText ?? t[label]()}</div>
       {suffixIcon && (
         <IconButton
           className={style.importItemSuffix}
@@ -646,6 +747,7 @@ const ImportOptions = ({
           ({
             key,
             label,
+            labelText,
             prefixIcon,
             suffixIcon,
             suffixTooltip,
@@ -662,6 +764,7 @@ const ImportOptions = ({
                 suffixIcon={suffixIcon}
                 suffixTooltip={suffixTooltip}
                 label={label}
+                labelText={labelText}
                 type={type}
                 onImport={onImport}
                 disabled={disabled}
@@ -839,6 +942,7 @@ export const ImportDialog = ({
   const docCollection = workspace.docCollection;
   const importService = useService(ImportService);
   const fetchService = useService(FetchService);
+  const graphqlService = useService(GraphQLService);
 
   const globalDialogService = useService(GlobalDialogService);
 
@@ -925,6 +1029,7 @@ export const ImportDialog = ({
         importAbortControllerRef.current = abortController;
         const {
           docIds,
+          officeArtifactId,
           entryId,
           isWorkspaceFile,
           rootFolderId,
@@ -932,6 +1037,8 @@ export const ImportDialog = ({
           warnings,
         } = await importConfig.importFunction({
           docCollection,
+          workspace,
+          graphqlService,
           files,
           fetchService,
           importAffineFile: handleImportAffineFile,
@@ -947,6 +1054,7 @@ export const ImportDialog = ({
 
         setImportResult({
           docIds,
+          officeArtifactId,
           entryId,
           isWorkspaceFile,
           rootFolderId,
@@ -977,7 +1085,15 @@ export const ImportDialog = ({
         logger.error('Failed to import', error);
       }
     },
-    [docCollection, fetchService, handleImportAffineFile, importService, t]
+    [
+      docCollection,
+      fetchService,
+      graphqlService,
+      handleImportAffineFile,
+      importService,
+      t,
+      workspace,
+    ]
   );
 
   const finishImport = useCallback(() => {
@@ -990,6 +1106,7 @@ export const ImportDialog = ({
     }
     close({
       docIds: importResult.docIds,
+      officeArtifactId: importResult.officeArtifactId,
       entryId: importResult.entryId,
       isWorkspaceFile: importResult.isWorkspaceFile,
     });

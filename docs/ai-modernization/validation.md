@@ -71,6 +71,60 @@ Report whether the image was rebuilt and which fixed tag was used.
 
 ## Latest Validation Record
 
+The 2026-09-04 Native Office AI editing loop was validated with:
+
+- Prisma schema validation and Client generation in Linux ARM64, followed by
+  all 317 migrations applied from zero to the disposable
+  `office_ai_validation_goal_20260904` PostgreSQL database;
+- a separate pre-Office upgrade fixture with the first 315 migrations applied,
+  explicit confirmation that no Office table existed, and then only
+  `20260903010000_office_artifact_foundation` and
+  `20260903020000_office_command_requests` applied by the current image;
+- catalog checks for `office_artifacts`, `office_revisions`,
+  `office_command_requests`, the two Office migration ledger entries, and all
+  nine Office immutability/blob/parent/revision-counter triggers;
+- 83 focused backend AVA tests in `localmind-affine:test`, covering Artifact and
+  Revision persistence, strict command requests, Blob protection, GraphQL
+  import/open/preview/execute/download, all four native engines, single and
+  atomic-batch AI execution, approval, cancellation, ACL revocation, stale
+  revisions/selections, preview drift, fingerprint/idempotency, bounded reads,
+  immutable side-effect evidence, and BYOK-only routing;
+- 42 shared `@localmind/office` Vitest tests for strict AI context and batch
+  contracts plus DOCX/XLSX/PPTX/PDF parsing, writing, diffing, package reopen,
+  and preservation behavior;
+- 85 frontend Vitest tests across the Office surfaces and AI request/runtime/
+  tool-result bridge, plus targeted reruns for the current slide thumbnail,
+  spreadsheet control mock, and Office Chat enum fixes;
+- Copilot test typechecking for 40 files and root TypeScript project references;
+- GraphQL generation run twice with identical SHA-256 values for the server
+  schema, generated operation index, and generated client schema;
+- focused oxlint, Prettier, and `git diff --check` over the Goal-owned source
+  and documentation files;
+- a live Sheets browser flow proving a single command, reject with zero Office
+  side effect, a two-command batch producing one `origin=ai` Revision,
+  execution-result ledger evidence, automatic in-place refresh, and stable A1
+  selection restoration.
+
+`Dockerfile.localmind` changed the `test` stage to inherit from `deps` and copy
+only the four Linux native addons from `native-build`, so the fixed
+`localmind-affine:test` image was rebuilt with:
+
+```sh
+docker build --target test -t localmind-affine:test -f Dockerfile.localmind .
+```
+
+The resulting Linux ARM64 image is
+`sha256:d1b4fe40936cecd263854d96a68e2f752e14e65de4f18791af43fe1a29e599da`
+at approximately 2.60 GB. Its server addon loads successfully, and neither
+`/workspace/target` nor `/workspace/packages/backend/native/target` is present.
+No `localmind-affine:local` image was rebuilt. The build's 4.001 GB of unused
+BuildKit cache was removed; no volume, running service data, or unrelated image
+was deleted. Final Docker accounting reported 42.8 GB of images, 340.9 MB of
+containers, 1.099 GB of local volumes, and 0 B of BuildKit cache.
+
+This validation followed `docs/office-native/README.md`, the Office AI execution
+plan, `tracks/agent-runtime.md`, and the Docker development constraints.
+
 The 2026-08-02 Context Memory v6 and GitHub issues #2-#8 stabilization pass was
 validated with:
 

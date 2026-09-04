@@ -2980,6 +2980,7 @@ async function main() {
     taskPolicy as any,
     {} as any,
     {} as any,
+    {} as any,
     {} as any
   );
 
@@ -3062,6 +3063,7 @@ async function main() {
     {} as any,
     capabilityRuntime as any,
     taskPolicy as any,
+    {} as any,
     {} as any,
     {} as any,
     {} as any
@@ -3586,6 +3588,7 @@ async function main() {
         getRegistryPublishGateVerdict: async () => gateVerdict,
       },
     } as any,
+    {} as any,
     {} as any,
     {} as any
   );
@@ -10163,6 +10166,7 @@ async function main() {
       } as any,
       {} as any,
       {} as any,
+      {} as any,
       planBuilder as any
     );
     const structuredRouteGate =
@@ -10318,6 +10322,7 @@ async function main() {
           getRegistryPublishGateVerdict: async () => structuredVerdict,
         },
       } as any,
+      {} as any,
       {} as any,
       {} as any,
       mismatchPlanBuilder as any
@@ -10570,6 +10575,7 @@ async function main() {
       } as any,
       {} as any,
       {} as any,
+      {} as any,
       failingPlanBuilder as any
     );
     const structuredDryRunFailureGate =
@@ -10675,6 +10681,7 @@ async function main() {
           getRegistryPublishGateVerdict: async () => imageVerdict,
         },
       } as any,
+      {} as any,
       {} as any,
       {} as any
     );
@@ -10804,6 +10811,7 @@ async function main() {
           getRegistryPublishGateVerdict: async () => gateVerdict,
         },
       } as any,
+      {} as any,
       {} as any,
       {} as any
     );
@@ -11009,6 +11017,7 @@ async function main() {
         },
       } as any,
       {} as any,
+      {} as any,
       {} as any
     );
     const diagnosticsErrorGate =
@@ -11104,6 +11113,7 @@ async function main() {
         getRegistryPublishGateVerdict: async () => gateVerdict,
       },
     } as any,
+    {} as any,
     {} as any,
     {} as any
   );

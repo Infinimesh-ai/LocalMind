@@ -1,0 +1,10 @@
+query previewOfficeDocxCommand($input: OfficeDocxCommandInput!) {
+  previewOfficeDocxCommand(input: $input) {
+    artifactId
+    expectedRevisionId
+    packageFingerprint
+    stateFingerprint
+    stats
+    summary
+  }
+}

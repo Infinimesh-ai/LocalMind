@@ -13,6 +13,8 @@ query copilotTaskGet($workspaceId: String!, $taskId: String!) {
         failureCode
         failureMessage
         resultSummary
+        approvalSummary
+        resultEvidence
         availableActions
         approval {
           stepId

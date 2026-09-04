@@ -1,0 +1,29 @@
+query officeRevisions(
+  $workspaceId: String!
+  $artifactId: String!
+  $limit: SafeInt = 50
+) {
+  officeRevisions(
+    workspaceId: $workspaceId
+    artifactId: $artifactId
+    limit: $limit
+  ) {
+    id
+    workspaceId
+    artifactId
+    sequence
+    origin
+    parentRevisionId
+    packageMimeType
+    packageByteSize
+    packageFingerprint
+    stateByteSize
+    stateFingerprint
+    modelVersion
+    operationSummary
+    createdBy
+    createdAt
+    packageUrl
+    stateUrl
+  }
+}

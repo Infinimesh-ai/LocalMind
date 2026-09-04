@@ -167,6 +167,42 @@ describe('AIRequestService action definitions', () => {
     ).toThrow('processImage requires a promptName');
   });
 
+  test('persists the strict Office context in the user message params', async () => {
+    const client = createClient();
+    const service = new AIRequestService(client);
+    const officeContext = {
+      version: 'localmind-office-ai-context/v1',
+      workspaceId: 'workspace-1',
+      artifactId: 'artifact-1',
+      artifactKind: 'workbook',
+      revisionId: 'revision-3',
+      selection: {
+        kind: 'workbook',
+        target: {
+          type: 'cell_range',
+          sheetId: 'sheet-1',
+          range: 'B2:D8',
+        },
+      },
+    } as const;
+
+    await drainActionResult(
+      (await service.executeAction('chat', {
+        workspaceId: 'workspace-1',
+        input: 'format the selected range',
+        officeContext,
+        stream: true,
+      })) as AsyncIterable<unknown>
+    );
+
+    expect(client.createMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({ officeContext }),
+      }),
+      expect.anything()
+    );
+  });
+
   test('routes action-stream requests through action endpoint', async () => {
     const client = createClient();
     const service = new AIRequestService(client);

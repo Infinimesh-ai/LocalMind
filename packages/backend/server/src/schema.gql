@@ -986,6 +986,13 @@ type CopilotAgentRuntimeExecutionResultType {
   workspaceId: String!
 }
 
+input CopilotAgentRuntimeOfficeCommandRequestInput {
+  command: JSON!
+  reason: String
+  title: String
+  workspaceId: String!
+}
+
 type CopilotAgentRuntimeWorkflowAdapterCapabilitiesType {
   sideEffectMode: String!
   summary: String!
@@ -3686,6 +3693,7 @@ type CopilotTaskStepType {
 
 type CopilotTaskType {
   approval: CopilotTaskApprovalType
+  approvalSummary: JSON
   artifacts: [CopilotTaskArtifactType!]!
   availableActions: [String!]!
   completedAt: DateTime
@@ -3693,6 +3701,7 @@ type CopilotTaskType {
   failureCode: String
   failureMessage: String
   id: String!
+  resultEvidence: JSON
   resultSummary: String
   startedAt: DateTime
   status: String!
@@ -4238,6 +4247,20 @@ enum ErrorNames {
   WRONG_SIGN_IN_METHOD
 }
 
+type ExecuteOfficeCommandResultType {
+  artifact: OfficeArtifactType!
+  created: Boolean!
+  revision: OfficeRevisionType!
+  summary: JSONObject!
+}
+
+type ExecuteOfficeDocxCommandResultType {
+  artifact: OfficeArtifactType!
+  created: Boolean!
+  revision: OfficeRevisionType!
+  summary: JSONObject!
+}
+
 type ExpectToGrantDocUserRolesDataType {
   docId: String!
   spaceId: String!
@@ -4347,6 +4370,34 @@ type HttpRequestErrorDataType {
 
 type ImageFormatNotSupportedDataType {
   format: String!
+}
+
+input ImportOfficeArtifactRequestInput {
+  idempotencyKey: String!
+  sourceBlobKey: String!
+  sourceFileName: String!
+  title: String!
+  workspaceId: ID!
+}
+
+type ImportOfficeArtifactResultType {
+  artifact: OfficeArtifactType!
+  created: Boolean!
+  revision: OfficeRevisionType!
+}
+
+input ImportOfficeDocxRequestInput {
+  idempotencyKey: String!
+  sourceBlobKey: String!
+  sourceFileName: String!
+  title: String!
+  workspaceId: ID!
+}
+
+type ImportOfficeDocxResultType {
+  artifact: OfficeArtifactType!
+  created: Boolean!
+  revision: OfficeRevisionType!
 }
 
 input ImportUsersInput {
@@ -4847,6 +4898,8 @@ type Mutation {
   createEnterpriseConnection(input: CreateEnterpriseConnectionInput!): EnterpriseConnectionType!
   createInviteLink(expireTime: WorkspaceInviteLinkExpireTime!, workspaceId: String!): InviteLink!
   createMcpCredential(input: CreateMcpCredentialInput!): RevealedMcpCredentialType!
+  createOfficeComment(input: OfficeCommentCreateInput!): OfficeCommentType!
+  createOfficeCommentReply(input: OfficeCommentReplyCreateInput!): OfficeCommentReplyType!
   createReply(input: ReplyCreateInput!): ReplyObjectType!
   createSelfhostWorkspaceCustomerPortal(workspaceId: String!): String!
   createSparkClawPairing: SparkClawPairingType!
@@ -4875,6 +4928,8 @@ type Mutation {
   deleteCopilotContextRule(id: ID!): Boolean!
   deleteEnterpriseConnection(connectionId: String!, workspaceId: String!): Boolean!
   deleteExternalMcp(workspaceId: String!): Boolean!
+  deleteOfficeComment(id: String!): Boolean!
+  deleteOfficeCommentReply(id: String!): Boolean!
 
   """Delete a reply"""
   deleteReply(id: String!): Boolean!
@@ -4896,12 +4951,26 @@ type Mutation {
   """Reenable an banned user"""
   enableUser(id: String!): UserType!
 
+  """Execute and persist a native Docs, Sheets, Slides, or PDF user command"""
+  executeOfficeCommand(input: OfficeCommandInput!): ExecuteOfficeCommandResultType!
+
+  """Execute and persist a native DOCX user command"""
+  executeOfficeDocxCommand(input: OfficeDocxCommandInput!): ExecuteOfficeDocxCommandResultType!
+
   """Create a chat session"""
   forkCopilotSession(options: ForkChatSessionInput!): String!
   generateLicenseKey(sessionId: String!): String!
   grantCommercialEntitlement(plan: String!, quantity: Int, targetId: String!, targetType: String!): Boolean!
   grantDocUserRoles(input: GrantDocUserRolesInput!): Boolean!
   grantMember(permission: Permission!, userId: String!, workspaceId: String!): Boolean!
+
+  """
+  Import a completed workspace DOCX, XLSX, PPTX, or PDF blob as a native resource
+  """
+  importOfficeArtifact(input: ImportOfficeArtifactRequestInput!): ImportOfficeArtifactResultType!
+
+  """Import a completed workspace DOCX blob as a native resource"""
+  importOfficeDocx(input: ImportOfficeDocxRequestInput!): ImportOfficeDocxResultType!
 
   """import users"""
   importUsers(input: ImportUsersInput!): [UserImportResultType!]!
@@ -5000,12 +5069,18 @@ type Mutation {
   requestCopilotAgentRuntimeDocUpdate(input: CopilotAgentRuntimeDocUpdateRequestInput!): CopilotAgentRunType!
 
   """
+  Preview and persist one native Office AI command as an immutable approval-gated Agent Runtime task.
+  """
+  requestCopilotAgentRuntimeOfficeCommand(input: CopilotAgentRuntimeOfficeCommandRequestInput!): CopilotAgentRunType!
+
+  """
   Request prompt registry repair execution. Approval-gated requests can publish a DB-backed workspace prompt registry revision after approval.
   """
   requestCopilotPromptRegistryRepairExecution(input: CopilotPromptRegistryRepairExecutionRequestInput!): CopilotPromptRegistryRepairExecutionRequestType!
 
   """Resolve a comment or not"""
   resolveComment(input: CommentResolveInput!): Boolean!
+  resolveOfficeComment(input: OfficeCommentResolveInput!): OfficeCommentType!
   resumeSubscription(idempotencyKey: String @deprecated(reason: "use header `Idempotency-Key`"), plan: SubscriptionPlan = Pro, workspaceId: String): SubscriptionType!
 
   """
@@ -5056,6 +5131,8 @@ type Mutation {
   updateDocUserRole(input: UpdateDocUserRoleInput!): Boolean!
   updateEnterpriseToolAllowlist(connectionId: String!, enabledToolNames: [String!]!, workspaceId: String!): EnterpriseConnectionType!
   updateExternalMcpToolAllowlist(enabledToolNames: [String!]!, workspaceId: String!): ExternalMcpConnectionType!
+  updateOfficeComment(input: OfficeCommentUpdateInput!): OfficeCommentType!
+  updateOfficeCommentReply(input: OfficeCommentReplyUpdateInput!): OfficeCommentReplyType!
   updateProfile(input: UpdateUserInput!): UserType!
 
   """Update a reply content"""
@@ -5177,6 +5254,143 @@ enum OAuthProviderType {
   GitHub
   Google
   OIDC
+}
+
+"""Native LocalMind Office resource kind"""
+enum OfficeArtifactKind {
+  document
+  pdf
+  presentation
+  workbook
+}
+
+type OfficeArtifactType {
+  compatibility: JSONObject!
+  createdAt: DateTime!
+  createdBy: ID!
+  currentRevision: OfficeRevisionType!
+  id: ID!
+  kind: OfficeArtifactKind!
+  revisionCounter: SafeInt!
+  sourceByteSize: SafeInt!
+  sourceFileName: String!
+  sourceFingerprint: String!
+  sourceMimeType: String!
+  title: String!
+  updatedAt: DateTime!
+  workspaceId: ID!
+}
+
+input OfficeCommandInput {
+  command: JSON!
+  workspaceId: ID!
+}
+
+type OfficeCommandPreviewType {
+  artifactId: ID!
+  expectedRevisionId: ID!
+  packageFingerprint: String!
+  stateFingerprint: String!
+  stats: JSONObject!
+  summary: JSONObject!
+}
+
+input OfficeCommentCreateInput {
+  artifactId: ID!
+  content: JSON!
+  workspaceId: ID!
+}
+
+input OfficeCommentReplyCreateInput {
+  commentId: ID!
+  content: JSON!
+}
+
+type OfficeCommentReplyType {
+  commentId: ID!
+  content: JSONObject!
+  createdAt: DateTime!
+  id: ID!
+  updatedAt: DateTime!
+  user: PublicUserType!
+}
+
+input OfficeCommentReplyUpdateInput {
+  content: JSON!
+  id: ID!
+}
+
+input OfficeCommentResolveInput {
+  id: ID!
+  resolved: Boolean!
+}
+
+type OfficeCommentType {
+  content: JSONObject!
+  createdAt: DateTime!
+  id: ID!
+  replies: [OfficeCommentReplyType!]!
+  resolved: Boolean!
+  updatedAt: DateTime!
+  user: PublicUserType!
+}
+
+input OfficeCommentUpdateInput {
+  content: JSON!
+  id: ID!
+}
+
+input OfficeDocxCommandInput {
+  command: JSON!
+  workspaceId: ID!
+}
+
+type OfficeDocxCommandPreviewType {
+  artifactId: ID!
+  expectedRevisionId: ID!
+  packageFingerprint: String!
+  stateFingerprint: String!
+  stats: JSONObject!
+  summary: JSONObject!
+}
+
+type OfficeRevisionCompareType {
+  afterRevision: OfficeRevisionType!
+  artifactId: ID!
+  beforeRevision: OfficeRevisionType!
+  changed: Boolean!
+  changes: JSON!
+  kind: OfficeArtifactKind!
+  summary: JSONObject!
+  truncated: Boolean!
+}
+
+"""Origin of an immutable Office revision"""
+enum OfficeRevisionOrigin {
+  ai
+  import
+  system
+  user
+}
+
+type OfficeRevisionType {
+  artifactId: ID!
+  createdAt: DateTime!
+  createdBy: ID!
+  id: ID!
+  modelVersion: String!
+  operationSummary: JSONObject!
+  origin: OfficeRevisionOrigin!
+  packageByteSize: SafeInt!
+  packageFingerprint: String!
+  packageMimeType: String!
+  packageUrl: String!
+  parentRevisionId: ID
+  sequence: SafeInt!
+  stateByteSize: SafeInt
+  stateFingerprint: String
+  stateUrl: String
+  workspaceId: ID!
 }
 
 type PageInfo {
@@ -5324,6 +5538,35 @@ type Query {
   latestEnterpriseAuthorizationSession(connectionId: ID!, workspaceId: String!): EnterpriseAuthorizationSessionType
   mcpCredentialReadWriteAvailable: Boolean!
   mcpCredentials(workspaceId: String!): [McpCredentialType!]!
+
+  """Get one native Office resource and its current revision"""
+  officeArtifact(artifactId: String!, workspaceId: String!): OfficeArtifactType
+
+  """List native Office resources in a workspace"""
+  officeArtifacts(kind: OfficeArtifactKind, limit: SafeInt = 50, workspaceId: String!): [OfficeArtifactType!]!
+
+  """List users represented in native Office revision and comment history"""
+  officeCollaborators(artifactId: String!, workspaceId: String!): [PublicUserType!]!
+
+  """List comments anchored to one native Office artifact"""
+  officeComments(artifactId: String!, workspaceId: String!): [OfficeCommentType!]!
+
+  """Get a current or specific immutable Office revision"""
+  officeRevision(artifactId: String!, revisionId: String, workspaceId: String!): OfficeRevisionType
+
+  """Compare two immutable semantic revisions of one native Office resource"""
+  officeRevisionCompare(afterRevisionId: String!, artifactId: String!, beforeRevisionId: String!, workspaceId: String!): OfficeRevisionCompareType!
+
+  """List immutable revisions for one Office resource"""
+  officeRevisions(artifactId: String!, limit: SafeInt = 50, workspaceId: String!): [OfficeRevisionType!]!
+
+  """
+  Preview a native Docs, Sheets, Slides, or PDF command without persisting changes
+  """
+  previewOfficeCommand(input: OfficeCommandInput!): OfficeCommandPreviewType!
+
+  """Preview a native DOCX command without persisting changes"""
+  previewOfficeDocxCommand(input: OfficeDocxCommandInput!): OfficeDocxCommandPreviewType!
   prices: [SubscriptionPrice!]!
 
   """Get public user by id"""

@@ -206,6 +206,10 @@ export class Workbench extends Entity {
     this.open(`/${docId}/attachments/${blockId}`, options);
   }
 
+  openOffice(artifactId: string, options?: WorkbenchOpenOptions) {
+    this.open(`/office/${artifactId}`, options);
+  }
+
   openCollections(options?: WorkbenchOpenOptions) {
     this.open('/collection', options);
   }

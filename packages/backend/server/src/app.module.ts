@@ -40,6 +40,7 @@ import { IscpModule } from './core/iscp';
 import { MailModule } from './core/mail';
 import { MonitorModule } from './core/monitor';
 import { NotificationModule } from './core/notification';
+import { OfficeModule } from './core/office';
 import { PermissionModule } from './core/permission';
 import { QueueDashboardModule } from './core/queue-dashboard';
 import { QuotaModule } from './core/quota';
@@ -212,6 +213,7 @@ export function buildAppModule(env: Env) {
       CalendarModule,
       TelemetryModule,
       CommentModule,
+      OfficeModule,
       QueueDashboardModule
     )
     // doc service and front service

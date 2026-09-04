@@ -80,7 +80,12 @@ RUN CARGO_PROFILE_RELEASE_LTO="${LOCALMIND_CARGO_PROFILE_RELEASE_LTO}" \
       fi; \
     done
 
-FROM native-build AS test
+FROM deps AS test
+
+COPY --from=native-build /workspace/packages/backend/native/server-native.node packages/backend/native/server-native.node
+COPY --from=native-build /workspace/packages/backend/native/server-native.x64.node packages/backend/native/server-native.x64.node
+COPY --from=native-build /workspace/packages/backend/native/server-native.arm64.node packages/backend/native/server-native.arm64.node
+COPY --from=native-build /workspace/packages/backend/native/server-native.armv7.node packages/backend/native/server-native.armv7.node
 
 FROM native-build AS verify
 

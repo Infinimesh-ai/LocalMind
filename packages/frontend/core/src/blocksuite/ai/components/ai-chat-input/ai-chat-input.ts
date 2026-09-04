@@ -18,6 +18,7 @@ import type { EditorHost } from '@blocksuite/affine/std';
 import { ShadowlessElement } from '@blocksuite/affine/std';
 import type { NotificationService } from '@blocksuite/affine-shared/services';
 import { ArrowUpBigIcon, CloseIcon } from '@blocksuite/icons/lit';
+import { type OfficeAiContext, parseOfficeAiContext } from '@localmind/office';
 import { css, html, nothing, type PropertyValues } from 'lit';
 import { property, query, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
@@ -334,6 +335,9 @@ export class AIChatInput extends SignalWatcher(
 
   @property({ attribute: false })
   accessor docId: string | undefined;
+
+  @property({ attribute: false })
+  accessor officeContext: OfficeAiContext | undefined;
 
   @property({ attribute: false })
   accessor session!: CopilotChatHistoryFragment | null | undefined;
@@ -830,6 +834,9 @@ export class AIChatInput extends SignalWatcher(
 
   send = async (text: string) => {
     if (!this.runtime) return;
+    const officeContext = this.officeContext
+      ? parseOfficeAiContext(this.officeContext)
+      : undefined;
     const { markdown, images, snapshot, combinedElementsMarkdown, html } =
       this.chatContextValue;
     const userInput = (markdown ? `${markdown}\n` : '') + text;
@@ -868,6 +875,7 @@ export class AIChatInput extends SignalWatcher(
       reasoning: this._isReasoningActive,
       toolsConfig: this.aiToolsConfigService.config.value,
       modelId: this.aiModelService.modelId.value,
+      officeContext,
       promptName: this.activePromptName,
       userInfo: {
         userId: userInfo?.id,

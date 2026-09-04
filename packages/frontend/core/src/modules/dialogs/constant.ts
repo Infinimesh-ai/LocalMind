@@ -68,6 +68,7 @@ export type WORKSPACE_DIALOG_SCHEMA = {
   }) => string;
   import: () => {
     docIds: string[];
+    officeArtifactId?: string;
     entryId?: string;
     isWorkspaceFile?: boolean;
   };

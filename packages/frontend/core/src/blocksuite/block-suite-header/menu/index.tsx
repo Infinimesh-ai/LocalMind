@@ -253,10 +253,15 @@ const PageHeaderMenuItem = ({
   const handleOpenDocs = useCallback(
     (result: {
       docIds: string[];
+      officeArtifactId?: string;
       entryId?: string;
       isWorkspaceFile?: boolean;
     }) => {
-      const { docIds, entryId, isWorkspaceFile } = result;
+      const { docIds, officeArtifactId, entryId, isWorkspaceFile } = result;
+      if (officeArtifactId) {
+        workbench.openOffice(officeArtifactId);
+        return;
+      }
       // If the imported file is a workspace file, open the entry page.
       if (isWorkspaceFile && entryId) {
         workbench.openDoc(entryId);

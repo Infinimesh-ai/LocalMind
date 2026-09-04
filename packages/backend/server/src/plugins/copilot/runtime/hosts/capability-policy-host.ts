@@ -1,3 +1,4 @@
+import type { OfficeAiContext } from '@localmind/office';
 import { Injectable } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 
@@ -25,6 +26,7 @@ export type ChatSelectionOptions = {
   billingUnitId?: string;
   featureKind?: CopilotProviderRoutePolicyFeatureKind;
   quotaBackedRoutesAllowed?: boolean;
+  officeContext?: OfficeAiContext;
 };
 
 type ResolvePolicyModelInput = ResolveModelInput & {
@@ -161,6 +163,9 @@ export class CapabilityPolicyHost {
 
   async selectChat(session: ChatSession, options: ChatSelectionOptions) {
     const outputType = this.outputTypeForResponseMode(options.responseMode);
+    const quotaBackedRoutesAllowed = options.officeContext
+      ? false
+      : options.quotaBackedRoutesAllowed;
     const routeContext = {
       userId: session.config.userId,
       workspaceId: session.config.workspaceId,
@@ -168,7 +173,7 @@ export class CapabilityPolicyHost {
       featureKind:
         options.featureKind ??
         (options.responseMode === 'image' ? 'image' : 'chat'),
-      quotaBackedRoutesAllowed: options.quotaBackedRoutesAllowed,
+      quotaBackedRoutesAllowed,
     };
     const model = await this.resolveModel(
       {
@@ -190,10 +195,9 @@ export class CapabilityPolicyHost {
       {},
       routeContext
     );
-    const tools = getTools(
-      session.config.promptConfig?.tools,
-      options.toolsConfig
-    );
+    const tools = options.officeContext
+      ? (['office'] as const)
+      : getTools(session.config.promptConfig?.tools, options.toolsConfig);
     return {
       model,
       contextWindow,
@@ -205,7 +209,8 @@ export class CapabilityPolicyHost {
         byokLeaseId: options.byokLeaseId,
         billingUnitId: options.billingUnitId,
         featureKind: routeContext.featureKind,
-        quotaBackedRoutesAllowed: options.quotaBackedRoutesAllowed,
+        quotaBackedRoutesAllowed,
+        officeContext: options.officeContext,
         reasoning: options.reasoning,
         webSearch: options.webSearch,
         tools,

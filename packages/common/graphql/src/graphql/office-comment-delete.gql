@@ -1,0 +1,3 @@
+mutation deleteOfficeComment($id: String!) {
+  deleteOfficeComment(id: $id)
+}

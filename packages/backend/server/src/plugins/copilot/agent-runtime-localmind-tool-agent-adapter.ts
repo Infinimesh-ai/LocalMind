@@ -91,6 +91,8 @@ const WRITE_TOOL_NAMES = new Set([
   'workspace_folder_delete_permanently',
   'workspace_folder_add_document',
   'workspace_folder_move_document',
+  'office_command_request',
+  'office_command_batch_request',
   'doc_trash',
   'doc_restore',
   'doc_delete_permanently',

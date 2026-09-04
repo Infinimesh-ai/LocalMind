@@ -1137,6 +1137,13 @@ export interface CopilotAgentRuntimeExecutionResultType {
   workspaceId: Scalars['String']['output'];
 }
 
+export interface CopilotAgentRuntimeOfficeCommandRequestInput {
+  command: Scalars['JSON']['input'];
+  reason?: InputMaybe<Scalars['String']['input']>;
+  title?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
 export interface CopilotAgentRuntimeWorkflowAdapterCapabilitiesType {
   __typename?: 'CopilotAgentRuntimeWorkflowAdapterCapabilitiesType';
   sideEffectMode: Scalars['String']['output'];
@@ -4147,6 +4154,7 @@ export interface CopilotTaskStepType {
 export interface CopilotTaskType {
   __typename?: 'CopilotTaskType';
   approval: Maybe<CopilotTaskApprovalType>;
+  approvalSummary: Maybe<Scalars['JSON']['output']>;
   artifacts: Array<CopilotTaskArtifactType>;
   availableActions: Array<Scalars['String']['output']>;
   completedAt: Maybe<Scalars['DateTime']['output']>;
@@ -4154,6 +4162,7 @@ export interface CopilotTaskType {
   failureCode: Maybe<Scalars['String']['output']>;
   failureMessage: Maybe<Scalars['String']['output']>;
   id: Scalars['String']['output'];
+  resultEvidence: Maybe<Scalars['JSON']['output']>;
   resultSummary: Maybe<Scalars['String']['output']>;
   startedAt: Maybe<Scalars['DateTime']['output']>;
   status: Scalars['String']['output'];
@@ -4799,6 +4808,22 @@ export enum ErrorNames {
   WRONG_SIGN_IN_METHOD = 'WRONG_SIGN_IN_METHOD',
 }
 
+export interface ExecuteOfficeCommandResultType {
+  __typename?: 'ExecuteOfficeCommandResultType';
+  artifact: OfficeArtifactType;
+  created: Scalars['Boolean']['output'];
+  revision: OfficeRevisionType;
+  summary: Scalars['JSONObject']['output'];
+}
+
+export interface ExecuteOfficeDocxCommandResultType {
+  __typename?: 'ExecuteOfficeDocxCommandResultType';
+  artifact: OfficeArtifactType;
+  created: Scalars['Boolean']['output'];
+  revision: OfficeRevisionType;
+  summary: Scalars['JSONObject']['output'];
+}
+
 export interface ExpectToGrantDocUserRolesDataType {
   __typename?: 'ExpectToGrantDocUserRolesDataType';
   docId: Scalars['String']['output'];
@@ -4917,6 +4942,36 @@ export interface HttpRequestErrorDataType {
 export interface ImageFormatNotSupportedDataType {
   __typename?: 'ImageFormatNotSupportedDataType';
   format: Scalars['String']['output'];
+}
+
+export interface ImportOfficeArtifactRequestInput {
+  idempotencyKey: Scalars['String']['input'];
+  sourceBlobKey: Scalars['String']['input'];
+  sourceFileName: Scalars['String']['input'];
+  title: Scalars['String']['input'];
+  workspaceId: Scalars['ID']['input'];
+}
+
+export interface ImportOfficeArtifactResultType {
+  __typename?: 'ImportOfficeArtifactResultType';
+  artifact: OfficeArtifactType;
+  created: Scalars['Boolean']['output'];
+  revision: OfficeRevisionType;
+}
+
+export interface ImportOfficeDocxRequestInput {
+  idempotencyKey: Scalars['String']['input'];
+  sourceBlobKey: Scalars['String']['input'];
+  sourceFileName: Scalars['String']['input'];
+  title: Scalars['String']['input'];
+  workspaceId: Scalars['ID']['input'];
+}
+
+export interface ImportOfficeDocxResultType {
+  __typename?: 'ImportOfficeDocxResultType';
+  artifact: OfficeArtifactType;
+  created: Scalars['Boolean']['output'];
+  revision: OfficeRevisionType;
 }
 
 export interface ImportUsersInput {
@@ -5377,6 +5432,8 @@ export interface Mutation {
   createEnterpriseConnection: EnterpriseConnectionType;
   createInviteLink: InviteLink;
   createMcpCredential: RevealedMcpCredentialType;
+  createOfficeComment: OfficeCommentType;
+  createOfficeCommentReply: OfficeCommentReplyType;
   createReply: ReplyObjectType;
   createSelfhostWorkspaceCustomerPortal: Scalars['String']['output'];
   createSparkClawPairing: SparkClawPairingType;
@@ -5399,6 +5456,8 @@ export interface Mutation {
   deleteCopilotContextRule: Scalars['Boolean']['output'];
   deleteEnterpriseConnection: Scalars['Boolean']['output'];
   deleteExternalMcp: Scalars['Boolean']['output'];
+  deleteOfficeComment: Scalars['Boolean']['output'];
+  deleteOfficeCommentReply: Scalars['Boolean']['output'];
   /** Delete a reply */
   deleteReply: Scalars['Boolean']['output'];
   /** Delete a user account */
@@ -5414,12 +5473,20 @@ export interface Mutation {
   dismissReadNotifications: Scalars['Boolean']['output'];
   /** Reenable an banned user */
   enableUser: UserType;
+  /** Execute and persist a native Docs, Sheets, Slides, or PDF user command */
+  executeOfficeCommand: ExecuteOfficeCommandResultType;
+  /** Execute and persist a native DOCX user command */
+  executeOfficeDocxCommand: ExecuteOfficeDocxCommandResultType;
   /** Create a chat session */
   forkCopilotSession: Scalars['String']['output'];
   generateLicenseKey: Scalars['String']['output'];
   grantCommercialEntitlement: Scalars['Boolean']['output'];
   grantDocUserRoles: Scalars['Boolean']['output'];
   grantMember: Scalars['Boolean']['output'];
+  /** Import a completed workspace DOCX, XLSX, PPTX, or PDF blob as a native resource */
+  importOfficeArtifact: ImportOfficeArtifactResultType;
+  /** Import a completed workspace DOCX blob as a native resource */
+  importOfficeDocx: ImportOfficeDocxResultType;
   /** import users */
   importUsers: Array<UserImportResultType>;
   installLicense: License;
@@ -5476,10 +5543,13 @@ export interface Mutation {
   requestApplySubscription: Array<SubscriptionType>;
   /** Request an approval-gated Agent Runtime office task that updates one workspace document after approval. */
   requestCopilotAgentRuntimeDocUpdate: CopilotAgentRunType;
+  /** Preview and persist one native Office AI command as an immutable approval-gated Agent Runtime task. */
+  requestCopilotAgentRuntimeOfficeCommand: CopilotAgentRunType;
   /** Request prompt registry repair execution. Approval-gated requests can publish a DB-backed workspace prompt registry revision after approval. */
   requestCopilotPromptRegistryRepairExecution: CopilotPromptRegistryRepairExecutionRequestType;
   /** Resolve a comment or not */
   resolveComment: Scalars['Boolean']['output'];
+  resolveOfficeComment: OfficeCommentType;
   resumeSubscription: SubscriptionType;
   /** Queue a fresh Provider Health probe attempt for a dead-lettered workspace attempt without mutating terminal evidence. */
   retryCopilotProviderHealthProbeAttempt: CopilotProviderHealthProbeAttemptType;
@@ -5524,6 +5594,8 @@ export interface Mutation {
   updateDocUserRole: Scalars['Boolean']['output'];
   updateEnterpriseToolAllowlist: EnterpriseConnectionType;
   updateExternalMcpToolAllowlist: ExternalMcpConnectionType;
+  updateOfficeComment: OfficeCommentType;
+  updateOfficeCommentReply: OfficeCommentReplyType;
   updateProfile: UserType;
   /** Update a reply content */
   updateReply: Scalars['Boolean']['output'];
@@ -5741,6 +5813,14 @@ export interface MutationCreateMcpCredentialArgs {
   input: CreateMcpCredentialInput;
 }
 
+export interface MutationCreateOfficeCommentArgs {
+  input: OfficeCommentCreateInput;
+}
+
+export interface MutationCreateOfficeCommentReplyArgs {
+  input: OfficeCommentReplyCreateInput;
+}
+
 export interface MutationCreateReplyArgs {
   input: ReplyCreateInput;
 }
@@ -5811,6 +5891,14 @@ export interface MutationDeleteExternalMcpArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationDeleteOfficeCommentArgs {
+  id: Scalars['String']['input'];
+}
+
+export interface MutationDeleteOfficeCommentReplyArgs {
+  id: Scalars['String']['input'];
+}
+
 export interface MutationDeleteReplyArgs {
   id: Scalars['String']['input'];
 }
@@ -5849,6 +5937,14 @@ export interface MutationEnableUserArgs {
   id: Scalars['String']['input'];
 }
 
+export interface MutationExecuteOfficeCommandArgs {
+  input: OfficeCommandInput;
+}
+
+export interface MutationExecuteOfficeDocxCommandArgs {
+  input: OfficeDocxCommandInput;
+}
+
 export interface MutationForkCopilotSessionArgs {
   options: ForkChatSessionInput;
 }
@@ -5872,6 +5968,14 @@ export interface MutationGrantMemberArgs {
   permission: Permission;
   userId: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationImportOfficeArtifactArgs {
+  input: ImportOfficeArtifactRequestInput;
+}
+
+export interface MutationImportOfficeDocxArgs {
+  input: ImportOfficeDocxRequestInput;
 }
 
 export interface MutationImportUsersArgs {
@@ -6009,12 +6113,20 @@ export interface MutationRequestCopilotAgentRuntimeDocUpdateArgs {
   input: CopilotAgentRuntimeDocUpdateRequestInput;
 }
 
+export interface MutationRequestCopilotAgentRuntimeOfficeCommandArgs {
+  input: CopilotAgentRuntimeOfficeCommandRequestInput;
+}
+
 export interface MutationRequestCopilotPromptRegistryRepairExecutionArgs {
   input: CopilotPromptRegistryRepairExecutionRequestInput;
 }
 
 export interface MutationResolveCommentArgs {
   input: CommentResolveInput;
+}
+
+export interface MutationResolveOfficeCommentArgs {
+  input: OfficeCommentResolveInput;
 }
 
 export interface MutationResumeSubscriptionArgs {
@@ -6206,6 +6318,14 @@ export interface MutationUpdateExternalMcpToolAllowlistArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationUpdateOfficeCommentArgs {
+  input: OfficeCommentUpdateInput;
+}
+
+export interface MutationUpdateOfficeCommentReplyArgs {
+  input: OfficeCommentReplyUpdateInput;
+}
+
 export interface MutationUpdateProfileArgs {
   input: UpdateUserInput;
 }
@@ -6360,6 +6480,150 @@ export enum OAuthProviderType {
   OIDC = 'OIDC',
 }
 
+/** Native LocalMind Office resource kind */
+export enum OfficeArtifactKind {
+  document = 'document',
+  pdf = 'pdf',
+  presentation = 'presentation',
+  workbook = 'workbook',
+}
+
+export interface OfficeArtifactType {
+  __typename?: 'OfficeArtifactType';
+  compatibility: Scalars['JSONObject']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  createdBy: Scalars['ID']['output'];
+  currentRevision: OfficeRevisionType;
+  id: Scalars['ID']['output'];
+  kind: OfficeArtifactKind;
+  revisionCounter: Scalars['SafeInt']['output'];
+  sourceByteSize: Scalars['SafeInt']['output'];
+  sourceFileName: Scalars['String']['output'];
+  sourceFingerprint: Scalars['String']['output'];
+  sourceMimeType: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Scalars['ID']['output'];
+}
+
+export interface OfficeCommandInput {
+  command: Scalars['JSON']['input'];
+  workspaceId: Scalars['ID']['input'];
+}
+
+export interface OfficeCommandPreviewType {
+  __typename?: 'OfficeCommandPreviewType';
+  artifactId: Scalars['ID']['output'];
+  expectedRevisionId: Scalars['ID']['output'];
+  packageFingerprint: Scalars['String']['output'];
+  stateFingerprint: Scalars['String']['output'];
+  stats: Scalars['JSONObject']['output'];
+  summary: Scalars['JSONObject']['output'];
+}
+
+export interface OfficeCommentCreateInput {
+  artifactId: Scalars['ID']['input'];
+  content: Scalars['JSON']['input'];
+  workspaceId: Scalars['ID']['input'];
+}
+
+export interface OfficeCommentReplyCreateInput {
+  commentId: Scalars['ID']['input'];
+  content: Scalars['JSON']['input'];
+}
+
+export interface OfficeCommentReplyType {
+  __typename?: 'OfficeCommentReplyType';
+  commentId: Scalars['ID']['output'];
+  content: Scalars['JSONObject']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  user: PublicUserType;
+}
+
+export interface OfficeCommentReplyUpdateInput {
+  content: Scalars['JSON']['input'];
+  id: Scalars['ID']['input'];
+}
+
+export interface OfficeCommentResolveInput {
+  id: Scalars['ID']['input'];
+  resolved: Scalars['Boolean']['input'];
+}
+
+export interface OfficeCommentType {
+  __typename?: 'OfficeCommentType';
+  content: Scalars['JSONObject']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  replies: Array<OfficeCommentReplyType>;
+  resolved: Scalars['Boolean']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  user: PublicUserType;
+}
+
+export interface OfficeCommentUpdateInput {
+  content: Scalars['JSON']['input'];
+  id: Scalars['ID']['input'];
+}
+
+export interface OfficeDocxCommandInput {
+  command: Scalars['JSON']['input'];
+  workspaceId: Scalars['ID']['input'];
+}
+
+export interface OfficeDocxCommandPreviewType {
+  __typename?: 'OfficeDocxCommandPreviewType';
+  artifactId: Scalars['ID']['output'];
+  expectedRevisionId: Scalars['ID']['output'];
+  packageFingerprint: Scalars['String']['output'];
+  stateFingerprint: Scalars['String']['output'];
+  stats: Scalars['JSONObject']['output'];
+  summary: Scalars['JSONObject']['output'];
+}
+
+export interface OfficeRevisionCompareType {
+  __typename?: 'OfficeRevisionCompareType';
+  afterRevision: OfficeRevisionType;
+  artifactId: Scalars['ID']['output'];
+  beforeRevision: OfficeRevisionType;
+  changed: Scalars['Boolean']['output'];
+  changes: Scalars['JSON']['output'];
+  kind: OfficeArtifactKind;
+  summary: Scalars['JSONObject']['output'];
+  truncated: Scalars['Boolean']['output'];
+}
+
+/** Origin of an immutable Office revision */
+export enum OfficeRevisionOrigin {
+  ai = 'ai',
+  import = 'import',
+  system = 'system',
+  user = 'user',
+}
+
+export interface OfficeRevisionType {
+  __typename?: 'OfficeRevisionType';
+  artifactId: Scalars['ID']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  createdBy: Scalars['ID']['output'];
+  id: Scalars['ID']['output'];
+  modelVersion: Scalars['String']['output'];
+  operationSummary: Scalars['JSONObject']['output'];
+  origin: OfficeRevisionOrigin;
+  packageByteSize: Scalars['SafeInt']['output'];
+  packageFingerprint: Scalars['String']['output'];
+  packageMimeType: Scalars['String']['output'];
+  packageUrl: Scalars['String']['output'];
+  parentRevisionId: Maybe<Scalars['ID']['output']>;
+  sequence: Scalars['SafeInt']['output'];
+  stateByteSize: Maybe<Scalars['SafeInt']['output']>;
+  stateFingerprint: Maybe<Scalars['String']['output']>;
+  stateUrl: Maybe<Scalars['String']['output']>;
+  workspaceId: Scalars['ID']['output'];
+}
+
 export interface PageInfo {
   __typename?: 'PageInfo';
   endCursor: Maybe<Scalars['String']['output']>;
@@ -6508,6 +6772,24 @@ export interface Query {
   latestEnterpriseAuthorizationSession: Maybe<EnterpriseAuthorizationSessionType>;
   mcpCredentialReadWriteAvailable: Scalars['Boolean']['output'];
   mcpCredentials: Array<McpCredentialType>;
+  /** Get one native Office resource and its current revision */
+  officeArtifact: Maybe<OfficeArtifactType>;
+  /** List native Office resources in a workspace */
+  officeArtifacts: Array<OfficeArtifactType>;
+  /** List users represented in native Office revision and comment history */
+  officeCollaborators: Array<PublicUserType>;
+  /** List comments anchored to one native Office artifact */
+  officeComments: Array<OfficeCommentType>;
+  /** Get a current or specific immutable Office revision */
+  officeRevision: Maybe<OfficeRevisionType>;
+  /** Compare two immutable semantic revisions of one native Office resource */
+  officeRevisionCompare: OfficeRevisionCompareType;
+  /** List immutable revisions for one Office resource */
+  officeRevisions: Array<OfficeRevisionType>;
+  /** Preview a native Docs, Sheets, Slides, or PDF command without persisting changes */
+  previewOfficeCommand: OfficeCommandPreviewType;
+  /** Preview a native DOCX command without persisting changes */
+  previewOfficeDocxCommand: OfficeDocxCommandPreviewType;
   prices: Array<SubscriptionPrice>;
   /** Get public user by id */
   publicUserById: Maybe<PublicUserType>;
@@ -6615,6 +6897,54 @@ export interface QueryLatestEnterpriseAuthorizationSessionArgs {
 
 export interface QueryMcpCredentialsArgs {
   workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryOfficeArtifactArgs {
+  artifactId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryOfficeArtifactsArgs {
+  kind?: InputMaybe<OfficeArtifactKind>;
+  limit?: InputMaybe<Scalars['SafeInt']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryOfficeCollaboratorsArgs {
+  artifactId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryOfficeCommentsArgs {
+  artifactId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryOfficeRevisionArgs {
+  artifactId: Scalars['String']['input'];
+  revisionId?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryOfficeRevisionCompareArgs {
+  afterRevisionId: Scalars['String']['input'];
+  artifactId: Scalars['String']['input'];
+  beforeRevisionId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryOfficeRevisionsArgs {
+  artifactId: Scalars['String']['input'];
+  limit?: InputMaybe<Scalars['SafeInt']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryPreviewOfficeCommandArgs {
+  input: OfficeCommandInput;
+}
+
+export interface QueryPreviewOfficeDocxCommandArgs {
+  input: OfficeDocxCommandInput;
 }
 
 export interface QueryPublicUserByIdArgs {
@@ -9615,6 +9945,43 @@ export type ControlCopilotAgentRuntimeRunMutation = {
       stepId: string | null;
       summary: string;
       workspaceId: string;
+    }>;
+  };
+};
+
+export type RequestCopilotAgentRuntimeOfficeCommandMutationVariables = Exact<{
+  input: CopilotAgentRuntimeOfficeCommandRequestInput;
+}>;
+
+export type RequestCopilotAgentRuntimeOfficeCommandMutation = {
+  __typename?: 'Mutation';
+  requestCopilotAgentRuntimeOfficeCommand: {
+    __typename?: 'CopilotAgentRunType';
+    id: string;
+    workspaceId: string;
+    actorId: string;
+    workflow: string;
+    sourceType: string;
+    sourceId: string;
+    status: string;
+    title: string | null;
+    targetFingerprint: string;
+    evidenceFingerprint: string;
+    timelineFingerprint: string;
+    workerAttempt: number;
+    workerMaxAttempts: number;
+    createdAt: string;
+    updatedAt: string;
+    steps: Array<{
+      __typename?: 'CopilotAgentStepType';
+      id: string;
+      stepKey: string;
+      stepType: string;
+      status: string;
+      title: string | null;
+      order: number;
+      evidenceFingerprint: string;
+      outputSummary: unknown;
     }>;
   };
 };
@@ -15436,6 +15803,8 @@ export type ControlCopilotTaskMutation = {
     failureCode: string | null;
     failureMessage: string | null;
     resultSummary: string | null;
+    approvalSummary: unknown | null;
+    resultEvidence: unknown | null;
     availableActions: Array<string>;
     approval: {
       __typename?: 'CopilotTaskApprovalType';
@@ -15488,6 +15857,8 @@ export type CopilotTaskGetQuery = {
         failureCode: string | null;
         failureMessage: string | null;
         resultSummary: string | null;
+        approvalSummary: unknown | null;
+        resultEvidence: unknown | null;
         availableActions: Array<string>;
         approval: {
           __typename?: 'CopilotTaskApprovalType';
@@ -15543,6 +15914,8 @@ export type CopilotTasksGetQuery = {
         failureCode: string | null;
         failureMessage: string | null;
         resultSummary: string | null;
+        approvalSummary: unknown | null;
+        resultEvidence: unknown | null;
         availableActions: Array<string>;
         approval: {
           __typename?: 'CopilotTaskApprovalType';
@@ -16403,6 +16776,50 @@ export type CredentialsRequirementsFragment = {
     __typename?: 'PasswordLimitsType';
     minLength: number;
     maxLength: number;
+  };
+};
+
+export type OfficeCommentFieldsFragment = {
+  __typename?: 'OfficeCommentType';
+  id: string;
+  content: any;
+  resolved: boolean;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    __typename?: 'PublicUserType';
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+  };
+  replies: Array<{
+    __typename?: 'OfficeCommentReplyType';
+    id: string;
+    commentId: string;
+    content: any;
+    createdAt: string;
+    updatedAt: string;
+    user: {
+      __typename?: 'PublicUserType';
+      id: string;
+      name: string;
+      avatarUrl: string | null;
+    };
+  }>;
+};
+
+export type OfficeCommentReplyFieldsFragment = {
+  __typename?: 'OfficeCommentReplyType';
+  id: string;
+  commentId: string;
+  content: any;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    __typename?: 'PublicUserType';
+    id: string;
+    name: string;
+    avatarUrl: string | null;
   };
 };
 
@@ -17342,6 +17759,654 @@ export type MentionUserMutationVariables = Exact<{
 export type MentionUserMutation = {
   __typename?: 'Mutation';
   mentionUser: string;
+};
+
+export type OfficeArtifactQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  artifactId: Scalars['String']['input'];
+}>;
+
+export type OfficeArtifactQuery = {
+  __typename?: 'Query';
+  officeArtifact: {
+    __typename?: 'OfficeArtifactType';
+    id: string;
+    workspaceId: string;
+    kind: OfficeArtifactKind;
+    title: string;
+    sourceFileName: string;
+    sourceMimeType: string;
+    sourceByteSize: number;
+    sourceFingerprint: string;
+    revisionCounter: number;
+    compatibility: any;
+    createdBy: string;
+    createdAt: string;
+    updatedAt: string;
+    currentRevision: {
+      __typename?: 'OfficeRevisionType';
+      id: string;
+      workspaceId: string;
+      artifactId: string;
+      sequence: number;
+      origin: OfficeRevisionOrigin;
+      parentRevisionId: string | null;
+      packageMimeType: string;
+      packageByteSize: number;
+      packageFingerprint: string;
+      stateByteSize: number | null;
+      stateFingerprint: string | null;
+      modelVersion: string;
+      operationSummary: any;
+      createdBy: string;
+      createdAt: string;
+      packageUrl: string;
+      stateUrl: string | null;
+    };
+  } | null;
+};
+
+export type OfficeArtifactsQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  kind?: InputMaybe<OfficeArtifactKind>;
+  limit?: InputMaybe<Scalars['SafeInt']['input']>;
+}>;
+
+export type OfficeArtifactsQuery = {
+  __typename?: 'Query';
+  officeArtifacts: Array<{
+    __typename?: 'OfficeArtifactType';
+    id: string;
+    workspaceId: string;
+    kind: OfficeArtifactKind;
+    title: string;
+    sourceFileName: string;
+    sourceMimeType: string;
+    sourceByteSize: number;
+    sourceFingerprint: string;
+    revisionCounter: number;
+    compatibility: any;
+    createdBy: string;
+    createdAt: string;
+    updatedAt: string;
+    currentRevision: {
+      __typename?: 'OfficeRevisionType';
+      id: string;
+      workspaceId: string;
+      artifactId: string;
+      sequence: number;
+      origin: OfficeRevisionOrigin;
+      parentRevisionId: string | null;
+      packageMimeType: string;
+      packageByteSize: number;
+      packageFingerprint: string;
+      stateByteSize: number | null;
+      stateFingerprint: string | null;
+      modelVersion: string;
+      operationSummary: any;
+      createdBy: string;
+      createdAt: string;
+      packageUrl: string;
+      stateUrl: string | null;
+    };
+  }>;
+};
+
+export type OfficeCollaboratorsQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  artifactId: Scalars['String']['input'];
+}>;
+
+export type OfficeCollaboratorsQuery = {
+  __typename?: 'Query';
+  officeCollaborators: Array<{
+    __typename?: 'PublicUserType';
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+  }>;
+};
+
+export type ExecuteOfficeCommandMutationVariables = Exact<{
+  input: OfficeCommandInput;
+}>;
+
+export type ExecuteOfficeCommandMutation = {
+  __typename?: 'Mutation';
+  executeOfficeCommand: {
+    __typename?: 'ExecuteOfficeCommandResultType';
+    created: boolean;
+    summary: any;
+    artifact: {
+      __typename?: 'OfficeArtifactType';
+      id: string;
+      workspaceId: string;
+      kind: OfficeArtifactKind;
+      title: string;
+      sourceFileName: string;
+      sourceMimeType: string;
+      sourceByteSize: number;
+      sourceFingerprint: string;
+      revisionCounter: number;
+      compatibility: any;
+      createdBy: string;
+      createdAt: string;
+      updatedAt: string;
+      currentRevision: {
+        __typename?: 'OfficeRevisionType';
+        id: string;
+        workspaceId: string;
+        artifactId: string;
+        sequence: number;
+        origin: OfficeRevisionOrigin;
+        parentRevisionId: string | null;
+        packageMimeType: string;
+        packageByteSize: number;
+        packageFingerprint: string;
+        stateByteSize: number | null;
+        stateFingerprint: string | null;
+        modelVersion: string;
+        operationSummary: any;
+        createdBy: string;
+        createdAt: string;
+        packageUrl: string;
+        stateUrl: string | null;
+      };
+    };
+    revision: {
+      __typename?: 'OfficeRevisionType';
+      id: string;
+      workspaceId: string;
+      artifactId: string;
+      sequence: number;
+      origin: OfficeRevisionOrigin;
+      parentRevisionId: string | null;
+      packageMimeType: string;
+      packageByteSize: number;
+      packageFingerprint: string;
+      stateByteSize: number | null;
+      stateFingerprint: string | null;
+      modelVersion: string;
+      operationSummary: any;
+      createdBy: string;
+      createdAt: string;
+      packageUrl: string;
+      stateUrl: string | null;
+    };
+  };
+};
+
+export type PreviewOfficeCommandQueryVariables = Exact<{
+  input: OfficeCommandInput;
+}>;
+
+export type PreviewOfficeCommandQuery = {
+  __typename?: 'Query';
+  previewOfficeCommand: {
+    __typename?: 'OfficeCommandPreviewType';
+    artifactId: string;
+    expectedRevisionId: string;
+    packageFingerprint: string;
+    stateFingerprint: string;
+    stats: any;
+    summary: any;
+  };
+};
+
+export type CreateOfficeCommentMutationVariables = Exact<{
+  input: OfficeCommentCreateInput;
+}>;
+
+export type CreateOfficeCommentMutation = {
+  __typename?: 'Mutation';
+  createOfficeComment: {
+    __typename?: 'OfficeCommentType';
+    id: string;
+    content: any;
+    resolved: boolean;
+    createdAt: string;
+    updatedAt: string;
+    user: {
+      __typename?: 'PublicUserType';
+      id: string;
+      name: string;
+      avatarUrl: string | null;
+    };
+    replies: Array<{
+      __typename?: 'OfficeCommentReplyType';
+      id: string;
+      commentId: string;
+      content: any;
+      createdAt: string;
+      updatedAt: string;
+      user: {
+        __typename?: 'PublicUserType';
+        id: string;
+        name: string;
+        avatarUrl: string | null;
+      };
+    }>;
+  };
+};
+
+export type DeleteOfficeCommentMutationVariables = Exact<{
+  id: Scalars['String']['input'];
+}>;
+
+export type DeleteOfficeCommentMutation = {
+  __typename?: 'Mutation';
+  deleteOfficeComment: boolean;
+};
+
+export type CreateOfficeCommentReplyMutationVariables = Exact<{
+  input: OfficeCommentReplyCreateInput;
+}>;
+
+export type CreateOfficeCommentReplyMutation = {
+  __typename?: 'Mutation';
+  createOfficeCommentReply: {
+    __typename?: 'OfficeCommentReplyType';
+    id: string;
+    commentId: string;
+    content: any;
+    createdAt: string;
+    updatedAt: string;
+    user: {
+      __typename?: 'PublicUserType';
+      id: string;
+      name: string;
+      avatarUrl: string | null;
+    };
+  };
+};
+
+export type DeleteOfficeCommentReplyMutationVariables = Exact<{
+  id: Scalars['String']['input'];
+}>;
+
+export type DeleteOfficeCommentReplyMutation = {
+  __typename?: 'Mutation';
+  deleteOfficeCommentReply: boolean;
+};
+
+export type UpdateOfficeCommentReplyMutationVariables = Exact<{
+  input: OfficeCommentReplyUpdateInput;
+}>;
+
+export type UpdateOfficeCommentReplyMutation = {
+  __typename?: 'Mutation';
+  updateOfficeCommentReply: {
+    __typename?: 'OfficeCommentReplyType';
+    id: string;
+    commentId: string;
+    content: any;
+    createdAt: string;
+    updatedAt: string;
+    user: {
+      __typename?: 'PublicUserType';
+      id: string;
+      name: string;
+      avatarUrl: string | null;
+    };
+  };
+};
+
+export type ResolveOfficeCommentMutationVariables = Exact<{
+  input: OfficeCommentResolveInput;
+}>;
+
+export type ResolveOfficeCommentMutation = {
+  __typename?: 'Mutation';
+  resolveOfficeComment: {
+    __typename?: 'OfficeCommentType';
+    id: string;
+    content: any;
+    resolved: boolean;
+    createdAt: string;
+    updatedAt: string;
+    user: {
+      __typename?: 'PublicUserType';
+      id: string;
+      name: string;
+      avatarUrl: string | null;
+    };
+    replies: Array<{
+      __typename?: 'OfficeCommentReplyType';
+      id: string;
+      commentId: string;
+      content: any;
+      createdAt: string;
+      updatedAt: string;
+      user: {
+        __typename?: 'PublicUserType';
+        id: string;
+        name: string;
+        avatarUrl: string | null;
+      };
+    }>;
+  };
+};
+
+export type UpdateOfficeCommentMutationVariables = Exact<{
+  input: OfficeCommentUpdateInput;
+}>;
+
+export type UpdateOfficeCommentMutation = {
+  __typename?: 'Mutation';
+  updateOfficeComment: {
+    __typename?: 'OfficeCommentType';
+    id: string;
+    content: any;
+    resolved: boolean;
+    createdAt: string;
+    updatedAt: string;
+    user: {
+      __typename?: 'PublicUserType';
+      id: string;
+      name: string;
+      avatarUrl: string | null;
+    };
+    replies: Array<{
+      __typename?: 'OfficeCommentReplyType';
+      id: string;
+      commentId: string;
+      content: any;
+      createdAt: string;
+      updatedAt: string;
+      user: {
+        __typename?: 'PublicUserType';
+        id: string;
+        name: string;
+        avatarUrl: string | null;
+      };
+    }>;
+  };
+};
+
+export type OfficeCommentsQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  artifactId: Scalars['String']['input'];
+}>;
+
+export type OfficeCommentsQuery = {
+  __typename?: 'Query';
+  officeComments: Array<{
+    __typename?: 'OfficeCommentType';
+    id: string;
+    content: any;
+    resolved: boolean;
+    createdAt: string;
+    updatedAt: string;
+    user: {
+      __typename?: 'PublicUserType';
+      id: string;
+      name: string;
+      avatarUrl: string | null;
+    };
+    replies: Array<{
+      __typename?: 'OfficeCommentReplyType';
+      id: string;
+      commentId: string;
+      content: any;
+      createdAt: string;
+      updatedAt: string;
+      user: {
+        __typename?: 'PublicUserType';
+        id: string;
+        name: string;
+        avatarUrl: string | null;
+      };
+    }>;
+  }>;
+};
+
+export type ExecuteOfficeDocxCommandMutationVariables = Exact<{
+  input: OfficeDocxCommandInput;
+}>;
+
+export type ExecuteOfficeDocxCommandMutation = {
+  __typename?: 'Mutation';
+  executeOfficeDocxCommand: {
+    __typename?: 'ExecuteOfficeDocxCommandResultType';
+    created: boolean;
+    summary: any;
+    artifact: {
+      __typename?: 'OfficeArtifactType';
+      id: string;
+      workspaceId: string;
+      kind: OfficeArtifactKind;
+      title: string;
+      revisionCounter: number;
+      currentRevision: {
+        __typename?: 'OfficeRevisionType';
+        id: string;
+        sequence: number;
+        origin: OfficeRevisionOrigin;
+        packageFingerprint: string;
+        stateFingerprint: string | null;
+        modelVersion: string;
+        operationSummary: any;
+        createdBy: string;
+        createdAt: string;
+        packageUrl: string;
+        stateUrl: string | null;
+      };
+    };
+    revision: {
+      __typename?: 'OfficeRevisionType';
+      id: string;
+      sequence: number;
+      origin: OfficeRevisionOrigin;
+      packageFingerprint: string;
+      stateFingerprint: string | null;
+      operationSummary: any;
+      packageUrl: string;
+      stateUrl: string | null;
+    };
+  };
+};
+
+export type PreviewOfficeDocxCommandQueryVariables = Exact<{
+  input: OfficeDocxCommandInput;
+}>;
+
+export type PreviewOfficeDocxCommandQuery = {
+  __typename?: 'Query';
+  previewOfficeDocxCommand: {
+    __typename?: 'OfficeDocxCommandPreviewType';
+    artifactId: string;
+    expectedRevisionId: string;
+    packageFingerprint: string;
+    stateFingerprint: string;
+    stats: any;
+    summary: any;
+  };
+};
+
+export type ImportOfficeDocxMutationVariables = Exact<{
+  input: ImportOfficeDocxRequestInput;
+}>;
+
+export type ImportOfficeDocxMutation = {
+  __typename?: 'Mutation';
+  importOfficeDocx: {
+    __typename?: 'ImportOfficeDocxResultType';
+    created: boolean;
+    artifact: {
+      __typename?: 'OfficeArtifactType';
+      id: string;
+      workspaceId: string;
+      kind: OfficeArtifactKind;
+      title: string;
+      sourceFileName: string;
+      sourceMimeType: string;
+      sourceByteSize: number;
+      sourceFingerprint: string;
+      revisionCounter: number;
+      compatibility: any;
+      createdBy: string;
+      createdAt: string;
+      updatedAt: string;
+      currentRevision: {
+        __typename?: 'OfficeRevisionType';
+        id: string;
+        sequence: number;
+        origin: OfficeRevisionOrigin;
+        packageMimeType: string;
+        packageByteSize: number;
+        packageFingerprint: string;
+        stateByteSize: number | null;
+        stateFingerprint: string | null;
+        modelVersion: string;
+        operationSummary: any;
+        createdBy: string;
+        createdAt: string;
+        packageUrl: string;
+        stateUrl: string | null;
+      };
+    };
+    revision: {
+      __typename?: 'OfficeRevisionType';
+      id: string;
+      sequence: number;
+      origin: OfficeRevisionOrigin;
+      packageFingerprint: string;
+      stateFingerprint: string | null;
+      packageUrl: string;
+      stateUrl: string | null;
+    };
+  };
+};
+
+export type ImportOfficeArtifactMutationVariables = Exact<{
+  input: ImportOfficeArtifactRequestInput;
+}>;
+
+export type ImportOfficeArtifactMutation = {
+  __typename?: 'Mutation';
+  importOfficeArtifact: {
+    __typename?: 'ImportOfficeArtifactResultType';
+    created: boolean;
+    artifact: {
+      __typename?: 'OfficeArtifactType';
+      id: string;
+      workspaceId: string;
+      kind: OfficeArtifactKind;
+      title: string;
+      sourceFileName: string;
+      sourceMimeType: string;
+      sourceByteSize: number;
+      sourceFingerprint: string;
+      revisionCounter: number;
+      compatibility: any;
+      createdBy: string;
+      createdAt: string;
+      updatedAt: string;
+      currentRevision: {
+        __typename?: 'OfficeRevisionType';
+        id: string;
+        sequence: number;
+        origin: OfficeRevisionOrigin;
+        packageMimeType: string;
+        packageByteSize: number;
+        packageFingerprint: string;
+        stateByteSize: number | null;
+        stateFingerprint: string | null;
+        modelVersion: string;
+        operationSummary: any;
+        createdBy: string;
+        createdAt: string;
+        packageUrl: string;
+        stateUrl: string | null;
+      };
+    };
+    revision: {
+      __typename?: 'OfficeRevisionType';
+      id: string;
+      sequence: number;
+      origin: OfficeRevisionOrigin;
+      packageFingerprint: string;
+      stateFingerprint: string | null;
+      packageUrl: string;
+      stateUrl: string | null;
+    };
+  };
+};
+
+export type OfficeRevisionCompareQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  artifactId: Scalars['String']['input'];
+  beforeRevisionId: Scalars['String']['input'];
+  afterRevisionId: Scalars['String']['input'];
+}>;
+
+export type OfficeRevisionCompareQuery = {
+  __typename?: 'Query';
+  officeRevisionCompare: {
+    __typename?: 'OfficeRevisionCompareType';
+    artifactId: string;
+    kind: OfficeArtifactKind;
+    changed: boolean;
+    truncated: boolean;
+    summary: any;
+    changes: unknown;
+    beforeRevision: {
+      __typename?: 'OfficeRevisionType';
+      id: string;
+      sequence: number;
+      origin: OfficeRevisionOrigin;
+      createdAt: string;
+      createdBy: string;
+      operationSummary: any;
+      packageFingerprint: string;
+      stateFingerprint: string | null;
+      packageUrl: string;
+      stateUrl: string | null;
+    };
+    afterRevision: {
+      __typename?: 'OfficeRevisionType';
+      id: string;
+      sequence: number;
+      origin: OfficeRevisionOrigin;
+      createdAt: string;
+      createdBy: string;
+      operationSummary: any;
+      packageFingerprint: string;
+      stateFingerprint: string | null;
+      packageUrl: string;
+      stateUrl: string | null;
+    };
+  };
+};
+
+export type OfficeRevisionsQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  artifactId: Scalars['String']['input'];
+  limit?: InputMaybe<Scalars['SafeInt']['input']>;
+}>;
+
+export type OfficeRevisionsQuery = {
+  __typename?: 'Query';
+  officeRevisions: Array<{
+    __typename?: 'OfficeRevisionType';
+    id: string;
+    workspaceId: string;
+    artifactId: string;
+    sequence: number;
+    origin: OfficeRevisionOrigin;
+    parentRevisionId: string | null;
+    packageMimeType: string;
+    packageByteSize: number;
+    packageFingerprint: string;
+    stateByteSize: number | null;
+    stateFingerprint: string | null;
+    modelVersion: string;
+    operationSummary: any;
+    createdBy: string;
+    createdAt: string;
+    packageUrl: string;
+    stateUrl: string | null;
+  }>;
 };
 
 export type PricesQueryVariables = Exact<{ [key: string]: never }>;
@@ -18490,6 +19555,46 @@ export type Queries =
       response: McpCredentialsQuery;
     }
   | {
+      name: 'officeArtifactQuery';
+      variables: OfficeArtifactQueryVariables;
+      response: OfficeArtifactQuery;
+    }
+  | {
+      name: 'officeArtifactsQuery';
+      variables: OfficeArtifactsQueryVariables;
+      response: OfficeArtifactsQuery;
+    }
+  | {
+      name: 'officeCollaboratorsQuery';
+      variables: OfficeCollaboratorsQueryVariables;
+      response: OfficeCollaboratorsQuery;
+    }
+  | {
+      name: 'previewOfficeCommandQuery';
+      variables: PreviewOfficeCommandQueryVariables;
+      response: PreviewOfficeCommandQuery;
+    }
+  | {
+      name: 'officeCommentsQuery';
+      variables: OfficeCommentsQueryVariables;
+      response: OfficeCommentsQuery;
+    }
+  | {
+      name: 'previewOfficeDocxCommandQuery';
+      variables: PreviewOfficeDocxCommandQueryVariables;
+      response: PreviewOfficeDocxCommandQuery;
+    }
+  | {
+      name: 'officeRevisionCompareQuery';
+      variables: OfficeRevisionCompareQueryVariables;
+      response: OfficeRevisionCompareQuery;
+    }
+  | {
+      name: 'officeRevisionsQuery';
+      variables: OfficeRevisionsQueryVariables;
+      response: OfficeRevisionsQuery;
+    }
+  | {
       name: 'pricesQuery';
       variables: PricesQueryVariables;
       response: PricesQuery;
@@ -18725,6 +19830,11 @@ export type Mutations =
       name: 'controlCopilotAgentRuntimeRunMutation';
       variables: ControlCopilotAgentRuntimeRunMutationVariables;
       response: ControlCopilotAgentRuntimeRunMutation;
+    }
+  | {
+      name: 'requestCopilotAgentRuntimeOfficeCommandMutation';
+      variables: RequestCopilotAgentRuntimeOfficeCommandMutationVariables;
+      response: RequestCopilotAgentRuntimeOfficeCommandMutation;
     }
   | {
       name: 'addContextBlobMutation';
@@ -19140,6 +20250,61 @@ export type Mutations =
       name: 'mentionUserMutation';
       variables: MentionUserMutationVariables;
       response: MentionUserMutation;
+    }
+  | {
+      name: 'executeOfficeCommandMutation';
+      variables: ExecuteOfficeCommandMutationVariables;
+      response: ExecuteOfficeCommandMutation;
+    }
+  | {
+      name: 'createOfficeCommentMutation';
+      variables: CreateOfficeCommentMutationVariables;
+      response: CreateOfficeCommentMutation;
+    }
+  | {
+      name: 'deleteOfficeCommentMutation';
+      variables: DeleteOfficeCommentMutationVariables;
+      response: DeleteOfficeCommentMutation;
+    }
+  | {
+      name: 'createOfficeCommentReplyMutation';
+      variables: CreateOfficeCommentReplyMutationVariables;
+      response: CreateOfficeCommentReplyMutation;
+    }
+  | {
+      name: 'deleteOfficeCommentReplyMutation';
+      variables: DeleteOfficeCommentReplyMutationVariables;
+      response: DeleteOfficeCommentReplyMutation;
+    }
+  | {
+      name: 'updateOfficeCommentReplyMutation';
+      variables: UpdateOfficeCommentReplyMutationVariables;
+      response: UpdateOfficeCommentReplyMutation;
+    }
+  | {
+      name: 'resolveOfficeCommentMutation';
+      variables: ResolveOfficeCommentMutationVariables;
+      response: ResolveOfficeCommentMutation;
+    }
+  | {
+      name: 'updateOfficeCommentMutation';
+      variables: UpdateOfficeCommentMutationVariables;
+      response: UpdateOfficeCommentMutation;
+    }
+  | {
+      name: 'executeOfficeDocxCommandMutation';
+      variables: ExecuteOfficeDocxCommandMutationVariables;
+      response: ExecuteOfficeDocxCommandMutation;
+    }
+  | {
+      name: 'importOfficeDocxMutation';
+      variables: ImportOfficeDocxMutationVariables;
+      response: ImportOfficeDocxMutation;
+    }
+  | {
+      name: 'importOfficeArtifactMutation';
+      variables: ImportOfficeArtifactMutationVariables;
+      response: ImportOfficeArtifactMutation;
     }
   | {
       name: 'publishPageMutation';

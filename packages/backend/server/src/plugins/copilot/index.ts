@@ -6,6 +6,7 @@ import { ServerConfigModule } from '../../core';
 import { CommentModule } from '../../core/comment';
 import { DocStorageModule } from '../../core/doc';
 import { FeatureModule } from '../../core/features';
+import { OfficeModule } from '../../core/office';
 import { PermissionModule } from '../../core/permission';
 import { QuotaModule } from '../../core/quota';
 import { StorageModule } from '../../core/storage';
@@ -34,6 +35,7 @@ const COPILOT_SHARED_IMPORTS = [
   WorkspaceModule,
   IndexerModule,
   CommentModule,
+  OfficeModule,
 ];
 
 @Module({

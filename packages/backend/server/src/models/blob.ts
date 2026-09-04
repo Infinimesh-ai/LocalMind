@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Transactional } from '@nestjs-cls/transactional';
 import { Prisma } from '@prisma/client';
 
 import { BaseModel } from './base';
@@ -37,7 +38,9 @@ export class BlobModel extends BaseModel {
     return result;
   }
 
+  @Transactional()
   async delete(workspaceId: string, key: string, permanently = false) {
+    await this.lockForDelete(workspaceId, key);
     if (permanently) {
       await this.db.blob.deleteMany({
         where: {
@@ -62,6 +65,40 @@ export class BlobModel extends BaseModel {
       },
     });
     await this.markQuotaStateStale(workspaceId);
+  }
+
+  async lockForDelete(workspaceId: string, key: string) {
+    await this.db.$queryRaw<Array<{ key: string }>>`
+      SELECT "key"
+      FROM "blobs"
+      WHERE "workspace_id" = ${workspaceId}
+        AND "key" = ${key}
+      FOR UPDATE
+    `;
+    const [reference] = await this.db.$queryRaw<Array<{ referenced: boolean }>>`
+      SELECT EXISTS (
+        SELECT 1
+        FROM "office_artifacts"
+        WHERE "workspace_id" = ${workspaceId}
+          AND "source_blob_key" = ${key}
+        UNION ALL
+        SELECT 1
+        FROM "office_revisions"
+        WHERE "workspace_id" = ${workspaceId}
+          AND (
+            "package_blob_key" = ${key} OR
+            "state_blob_key" = ${key}
+          )
+        UNION ALL
+        SELECT 1
+        FROM "office_command_requests"
+        WHERE "workspace_id" = ${workspaceId}
+          AND "command_blob_key" = ${key}
+      ) AS "referenced"
+    `;
+    if (reference?.referenced) {
+      throw new Error(`Office blob is still referenced: ${workspaceId}/${key}`);
+    }
   }
 
   async get(workspaceId: string, key: string) {

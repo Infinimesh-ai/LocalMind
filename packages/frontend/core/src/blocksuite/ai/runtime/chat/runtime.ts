@@ -419,6 +419,7 @@ export class AIChatRuntime {
         reasoning: options.reasoning ?? this.snapshot.composer.reasoning,
         toolsConfig: options.toolsConfig ?? this.snapshot.composer.toolsConfig,
         modelId: options.modelId ?? this.snapshot.composer.modelId,
+        officeContext: options.officeContext,
         isRootSession: options.isRootSession,
         where: options.where,
         control: options.control,

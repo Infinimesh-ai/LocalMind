@@ -52,6 +52,10 @@ export const workbenchRoutes = [
     lazy: () => import('./pages/workspace/trash'),
   },
   {
+    path: '/office/:artifactId',
+    lazy: () => import('../desktop/pages/workspace/office/document'),
+  },
+  {
     path: '/:pageId',
     lazy: () => import('./pages/workspace/detail/mobile-detail-page'),
   },

@@ -14,6 +14,9 @@ export const StreamObjectSchema = z.discriminatedUnion('type', [
     toolCallId: z.string(),
     toolName: z.string(),
     args: z.record(z.any()),
+    rawArgumentsText: z.string().optional(),
+    argumentParseError: z.string().optional(),
+    thought: z.string().optional(),
   }),
   z.object({
     type: z.literal('tool-result'),
@@ -21,6 +24,9 @@ export const StreamObjectSchema = z.discriminatedUnion('type', [
     toolName: z.string(),
     args: z.record(z.any()),
     result: z.any(),
+    isError: z.boolean().optional(),
+    rawArgumentsText: z.string().optional(),
+    argumentParseError: z.string().optional(),
   }),
 ]);
 

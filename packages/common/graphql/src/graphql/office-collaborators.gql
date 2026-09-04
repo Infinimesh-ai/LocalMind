@@ -1,0 +1,7 @@
+query officeCollaborators($workspaceId: String!, $artifactId: String!) {
+  officeCollaborators(workspaceId: $workspaceId, artifactId: $artifactId) {
+    id
+    name
+    avatarUrl
+  }
+}

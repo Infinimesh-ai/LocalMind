@@ -15,9 +15,13 @@ import { mcpDelegationFingerprint } from '../../../models/copilot-mcp-delegation
 import { IndexerService } from '../../indexer';
 import type { NodeTextMiddleware } from '../config';
 import { CopilotContextService } from '../context/service';
-import { EnterpriseToolRegistry } from '../enterprise';
+import {
+  type EnterpriseToolCapabilitySnapshot,
+  EnterpriseToolRegistry,
+} from '../enterprise';
 import { ExternalMcpToolRegistry } from '../external-mcp';
 import { McpAttachmentService } from '../mcp/attachments';
+import { OfficeAgentCommandService } from '../office-agent-command';
 import {
   type CopilotChatOptions,
   type CopilotChatTools,
@@ -31,6 +35,9 @@ import {
   buildDocSearchGetter,
   buildDocUpdateHandler,
   buildDocUpdateMetaHandler,
+  buildOfficeCommandBatchRequestHandler,
+  buildOfficeCommandRequestHandler,
+  buildOfficeReadHandler,
   type CopilotTool,
   type CopilotToolSet,
   createBlobReadTool,
@@ -45,6 +52,9 @@ import {
   createDocUpdateTool,
   createExaCrawlTool,
   createExaSearchTool,
+  createOfficeCommandBatchRequestTool,
+  createOfficeCommandRequestTool,
+  createOfficeReadTool,
   createSectionEditTool,
   createTaskAttachmentReadTool,
   createWorkspaceOrganizationTools,
@@ -82,6 +92,7 @@ export class ToolRuntime {
     private readonly docWriter: DocWriter,
     private readonly workspaceOrganization: WorkspaceOrganizationService,
     private readonly models: Models,
+    private readonly office: OfficeAgentCommandService,
     private readonly promptRuntime: PromptRuntime,
     private readonly indexerService: IndexerService,
     @Optional() private readonly enterpriseTools?: EnterpriseToolRegistry,
@@ -261,6 +272,30 @@ export class ToolRuntime {
           );
           break;
         }
+        case 'office': {
+          let readProof: { artifactId: string; revisionId: string } | null =
+            null;
+          const readOffice = buildOfficeReadHandler(this.office, proof => {
+            readProof = proof;
+          });
+          const requestOfficeCommand = buildOfficeCommandRequestHandler(
+            this.office,
+            () => readProof
+          );
+          const requestOfficeCommandBatch =
+            buildOfficeCommandBatchRequestHandler(this.office, () => readProof);
+          tools.office_read = createOfficeReadTool(selector =>
+            readOffice(options, undefined, undefined, selector)
+          );
+          tools.office_command_request = createOfficeCommandRequestTool(
+            requestOfficeCommand.bind(null, options)
+          );
+          tools.office_command_batch_request =
+            createOfficeCommandBatchRequestTool(
+              requestOfficeCommandBatch.bind(null, options)
+            );
+          break;
+        }
         case 'enterprise': {
           if (
             this.config.copilot.enterpriseCli.enabled &&
@@ -273,7 +308,9 @@ export class ToolRuntime {
               await this.enterpriseTools.getTools({
                 workspaceId: options.workspace,
                 userId: options.user,
-                allowedTools: options.enterpriseToolCapabilities,
+                allowedTools: options.enterpriseToolCapabilities as
+                  | EnterpriseToolCapabilitySnapshot[]
+                  | undefined,
               })
             );
           }

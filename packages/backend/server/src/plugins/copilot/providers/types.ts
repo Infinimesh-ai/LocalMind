@@ -1,3 +1,4 @@
+import { OfficeAiContextSchema } from '@localmind/office';
 import { AiPromptRole } from '@prisma/client';
 import { z } from 'zod';
 
@@ -95,6 +96,8 @@ export const COPILOT_CHAT_TOOL_CATEGORIES = [
   'sectionEdit',
   // semantic workspace organization operations
   'workspaceOrganization',
+  // native Docs, Sheets, Slides, and PDF read/approval command path
+  'office',
   // user-scoped enterprise collaboration connections
   'enterprise',
   // workspace-managed outbound SparkClaw MCP connection
@@ -353,6 +356,7 @@ const CopilotProviderOptionsSchema = z.object({
     .strict()
     .optional(),
   legacyWorkspaceFolderDelete: z.boolean().optional(),
+  officeContext: OfficeAiContextSchema.optional(),
   quotaBackedRoutesAllowed: z.boolean().optional(),
   featureKind: z
     .enum([

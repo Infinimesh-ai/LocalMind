@@ -192,7 +192,10 @@ export class WorkspaceBlobResolver {
 
     const buffer = await readBuffer(blob.createReadStream(), checkExceeded);
 
-    await this.storage.put(workspaceId, blob.filename, buffer);
+    await this.storage.put(workspaceId, blob.filename, buffer, {
+      contentType: blob.mimetype || 'application/octet-stream',
+      contentLength: buffer.byteLength,
+    });
     return blob.filename;
   }
 

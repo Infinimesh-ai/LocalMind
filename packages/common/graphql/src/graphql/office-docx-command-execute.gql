@@ -1,0 +1,36 @@
+mutation executeOfficeDocxCommand($input: OfficeDocxCommandInput!) {
+  executeOfficeDocxCommand(input: $input) {
+    created
+    artifact {
+      id
+      workspaceId
+      kind
+      title
+      revisionCounter
+      currentRevision {
+        id
+        sequence
+        origin
+        packageFingerprint
+        stateFingerprint
+        modelVersion
+        operationSummary
+        createdBy
+        createdAt
+        packageUrl
+        stateUrl
+      }
+    }
+    revision {
+      id
+      sequence
+      origin
+      packageFingerprint
+      stateFingerprint
+      operationSummary
+      packageUrl
+      stateUrl
+    }
+    summary
+  }
+}

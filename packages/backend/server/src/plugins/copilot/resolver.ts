@@ -119,6 +119,10 @@ import type {
 import { ContextScopeResolver } from './context-scope-resolver';
 import { ConversationInboxService } from './conversation/inbox';
 import {
+  AGENT_RUNTIME_OFFICE_COMMAND_WORKFLOW,
+  OfficeAgentCommandService,
+} from './office-agent-command';
+import {
   isImagePromptCategory,
   isTranscriptPromptCategory,
 } from './prompt/category';
@@ -481,6 +485,21 @@ class CopilotAgentRuntimeDocUpdateRequestInput {
 
   @Field(() => String, { nullable: true })
   idempotencyKey?: string;
+
+  @Field(() => String, { nullable: true })
+  title?: string;
+
+  @Field(() => String, { nullable: true })
+  reason?: string;
+}
+
+@InputType()
+class CopilotAgentRuntimeOfficeCommandRequestInput {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => GraphQLJSON)
+  command!: unknown;
 
   @Field(() => String, { nullable: true })
   title?: string;
@@ -5215,7 +5234,7 @@ class CopilotTaskApprovalType {
 @ObjectType()
 class CopilotTaskArtifactType {
   @Field(() => String)
-  kind!: 'document';
+  kind!: 'document' | 'office';
 
   @Field(() => String)
   id!: string;
@@ -5270,6 +5289,12 @@ class CopilotTaskType {
 
   @Field(() => [CopilotTaskArtifactType])
   artifacts!: CopilotTaskArtifactType[];
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  approvalSummary!: Record<string, unknown> | null;
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  resultEvidence!: Record<string, unknown> | null;
 }
 
 function copilotTaskPayloadRecord(value: unknown) {
@@ -5309,10 +5334,51 @@ function copilotTaskDocumentId(run: CopilotAgentRunRecord) {
   return null;
 }
 
+function copilotTaskOfficeArtifact(
+  run: CopilotAgentRunRecord,
+  approvalSummary: Record<string, unknown> | null,
+  resultEvidence: Record<string, unknown> | null
+) {
+  if (run.workflow !== AGENT_RUNTIME_OFFICE_COMMAND_WORKFLOW) return null;
+  const artifactId = approvalSummary?.artifactId ?? resultEvidence?.artifactId;
+  if (typeof artifactId !== 'string' || !artifactId) return null;
+  const artifactTitle = approvalSummary?.artifactTitle;
+  const sourceFileName = approvalSummary?.sourceFileName;
+  return {
+    kind: 'office' as const,
+    id: artifactId,
+    title:
+      typeof artifactTitle === 'string' && artifactTitle
+        ? artifactTitle
+        : typeof sourceFileName === 'string' && sourceFileName
+          ? sourceFileName
+          : run.title,
+  };
+}
+
+function copilotTaskApprovalSummary(run: CopilotAgentRunRecord) {
+  const approval = run.steps.find(step => step.stepType === 'approval');
+  const output = copilotTaskPayloadRecord(approval?.outputSummary);
+  return copilotTaskPayloadRecord(output?.approvalRequest);
+}
+
+function copilotTaskResultEvidence(run: CopilotAgentRunRecord) {
+  const latestResult = run.executionResults[0];
+  const payload = copilotTaskPayloadRecord(latestResult?.resultPayload);
+  return copilotTaskPayloadRecord(payload?.sideEffectSummary);
+}
+
 function projectCopilotTask(run: CopilotAgentRunRecord): CopilotTaskType {
   const approvalStep = run.steps.find(step => step.stepType === 'approval');
   const controlAction = copilotTaskControlAction(run);
   const documentId = copilotTaskDocumentId(run);
+  const approvalSummary = copilotTaskApprovalSummary(run);
+  const resultEvidence = copilotTaskResultEvidence(run);
+  const officeArtifact = copilotTaskOfficeArtifact(
+    run,
+    approvalSummary,
+    resultEvidence
+  );
   const latestResult = run.executionResults[0];
   const availableActions: CopilotTaskType['availableActions'] =
     run.status === 'waiting_approval'
@@ -5365,9 +5431,14 @@ function projectCopilotTask(run: CopilotAgentRunRecord): CopilotTaskType {
               : approvalStep.completedAt,
         }
       : null,
-    artifacts: documentId
-      ? [{ kind: 'document', id: documentId, title: run.title }]
-      : [],
+    artifacts: [
+      ...(documentId
+        ? [{ kind: 'document' as const, id: documentId, title: run.title }]
+        : []),
+      ...(officeArtifact ? [officeArtifact] : []),
+    ],
+    approvalSummary,
+    resultEvidence,
   };
 }
 
@@ -22832,6 +22903,7 @@ export class CopilotResolver {
     private readonly modelsStore: Models,
     private readonly url: URLHelper,
     private readonly jobs: JobQueue,
+    private readonly officeAgentCommands: OfficeAgentCommandService,
     @Optional() private readonly plans?: ExecutionPlanBuilder,
     @Optional()
     private readonly agentRuntimeWorkflowRegistry?: CopilotAgentRuntimeWorkflowRegistry
@@ -24786,6 +24858,38 @@ export class CopilotResolver {
         },
       ],
     });
+  }
+
+  @Mutation(() => CopilotAgentRunType, {
+    description:
+      'Preview and persist one native Office AI command as an immutable approval-gated Agent Runtime task.',
+  })
+  @CallMetric('ai', 'agent_runtime_office_command_request')
+  async requestCopilotAgentRuntimeOfficeCommand(
+    @CurrentUser() user: CurrentUser,
+    @Args('input', {
+      type: () => CopilotAgentRuntimeOfficeCommandRequestInput,
+    })
+    input: CopilotAgentRuntimeOfficeCommandRequestInput
+  ): Promise<CopilotAgentRunType> {
+    const { workspaceId } = await this.assertPermission(user, {
+      workspaceId: input.workspaceId,
+    });
+    try {
+      const result = await this.officeAgentCommands.request({
+        workspaceId,
+        actorId: user.id,
+        command: input.command,
+        title: input.title,
+        reason: input.reason,
+      });
+      return result.run;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new BadRequest(error.message);
+      }
+      throw error;
+    }
   }
 
   @Mutation(() => CopilotAgentRunType, {

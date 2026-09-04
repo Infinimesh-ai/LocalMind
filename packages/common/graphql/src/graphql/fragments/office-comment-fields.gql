@@ -1,0 +1,24 @@
+fragment OfficeCommentFields on OfficeCommentType {
+  id
+  content
+  resolved
+  user {
+    id
+    name
+    avatarUrl
+  }
+  replies {
+    id
+    commentId
+    content
+    user {
+      id
+      name
+      avatarUrl
+    }
+    createdAt
+    updatedAt
+  }
+  createdAt
+  updatedAt
+}

@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { z } from 'zod';
 
 import { decodeWithJson, encodeWithJson } from '../../base/graphql';
+import { Models } from '../../models';
 import { PermissionAccess } from '../permission';
 import {
   realtimeCommentRoom,
@@ -21,7 +22,8 @@ export class CommentRealtimeProvider implements OnModuleInit {
   constructor(
     private readonly service: CommentService,
     private readonly ac: PermissionAccess,
-    private readonly registry: RealtimeRegistry
+    private readonly registry: RealtimeRegistry,
+    private readonly models: Models
   ) {}
 
   onModuleInit() {
@@ -87,6 +89,17 @@ export class CommentRealtimeProvider implements OnModuleInit {
   }
 
   private async assertRead(userId: string, workspaceId: string, docId: string) {
+    const officeArtifact = await this.models.officeArtifact.get(
+      workspaceId,
+      docId
+    );
+    if (officeArtifact) {
+      await this.ac
+        .user(userId)
+        .workspace(workspaceId)
+        .assert('Workspace.Blobs.Read');
+      return;
+    }
     await this.ac
       .user(userId)
       .workspace(workspaceId)

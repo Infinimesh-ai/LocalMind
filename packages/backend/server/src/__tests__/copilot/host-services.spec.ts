@@ -393,6 +393,7 @@ test('ToolRuntime should pass route context and appended messages into prompt-ba
     {} as any,
     {} as any,
     {} as any,
+    {} as any,
     promptRuntime as any,
     {} as any
   );
@@ -470,6 +471,7 @@ test('ToolRuntime should expose SparkClaw tools with a stable task invocation', 
   };
   const getTools = Sinon.stub().resolves(sparkClawTools);
   const runtime = new ToolRuntime(
+    {} as any,
     {} as any,
     {} as any,
     {} as any,
@@ -592,6 +594,7 @@ test('ToolRuntime should expose semantic workspace organization tools', async t 
     {} as any,
     {} as any,
     {} as any,
+    {} as any,
     {} as any
   );
 
@@ -627,6 +630,7 @@ test('ToolRuntime intersects task snapshots with current task-scoped tools', asy
     {} as any,
     {} as any,
     { getBySessionId } as any,
+    {} as any,
     {} as any,
     {} as any,
     {} as any,
@@ -672,6 +676,7 @@ test('ToolRuntime blocks the twenty-first tool execution', async t => {
     runText: Sinon.stub().resolves('done'),
   };
   const runtime = new ToolRuntime(
+    {} as any,
     {} as any,
     {} as any,
     {} as any,
@@ -726,6 +731,7 @@ test('ToolRuntime requires a read before conditional update or no-op completion'
     execute: update,
   });
   const runtime = new ToolRuntime(
+    {} as any,
     {} as any,
     {} as any,
     {} as any,
@@ -804,6 +810,7 @@ test('ToolRuntime removes tools whose current schema differs from the task snaps
     code_artifact: frozenTool,
   });
   const runtime = new ToolRuntime(
+    {} as any,
     {} as any,
     {} as any,
     {} as any,

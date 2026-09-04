@@ -1,0 +1,40 @@
+query officeArtifacts(
+  $workspaceId: String!
+  $kind: OfficeArtifactKind
+  $limit: SafeInt = 50
+) {
+  officeArtifacts(workspaceId: $workspaceId, kind: $kind, limit: $limit) {
+    id
+    workspaceId
+    kind
+    title
+    sourceFileName
+    sourceMimeType
+    sourceByteSize
+    sourceFingerprint
+    revisionCounter
+    compatibility
+    createdBy
+    createdAt
+    updatedAt
+    currentRevision {
+      id
+      workspaceId
+      artifactId
+      sequence
+      origin
+      parentRevisionId
+      packageMimeType
+      packageByteSize
+      packageFingerprint
+      stateByteSize
+      stateFingerprint
+      modelVersion
+      operationSummary
+      createdBy
+      createdAt
+      packageUrl
+      stateUrl
+    }
+  }
+}

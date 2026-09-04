@@ -51,6 +51,7 @@ import type { GuardService, MemberSearchService } from '../../permissions';
 import type { DocGrantedUsersService } from '../../permissions/services/doc-granted-users';
 import { highlighter } from '../../quicksearch/utils/highlighter';
 import type { SearchMenuService } from '../../search-menu/services';
+import { WorkbenchService } from '../../workbench';
 
 function resolveSignal<T>(data: T | Signal<T>): T {
   return data instanceof Signal ? data.value : data;
@@ -193,7 +194,14 @@ export class AtMenuConfigService extends Service {
           }
 
           // If the imported file is a workspace file, insert the entry page node.
-          const { docIds, entryId, isWorkspaceFile } = payload;
+          const { docIds, officeArtifactId, entryId, isWorkspaceFile } =
+            payload;
+          if (officeArtifactId) {
+            this.framework
+              .get(WorkbenchService)
+              .workbench.openOffice(officeArtifactId);
+            return;
+          }
           if (isWorkspaceFile && entryId) {
             this.insertDoc(inlineEditor, entryId);
             return;

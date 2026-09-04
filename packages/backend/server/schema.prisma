@@ -87,6 +87,9 @@ model User {
   createdAiContextPolicies              AiContextPolicy[]                      @relation("context_policy_creator")
   createdAiContextPolicyRevisions       AiContextPolicyRevision[]              @relation("context_policy_revision_creator")
   aiProfileAssignment                   AiUserAiProfileAssignment?             @relation("ai_profile_assignment_user")
+  createdOfficeArtifacts                OfficeArtifact[]                       @relation("office_artifact_creator")
+  createdOfficeRevisions                OfficeRevision[]                       @relation("office_revision_creator")
+  createdOfficeCommandRequests          OfficeCommandRequest[]                 @relation("office_command_request_creator")
 
   @@index([email])
   @@map("users")
@@ -274,6 +277,9 @@ model Workspace {
   enterpriseConnections                 AiEnterpriseConnection[]               @relation("enterprise_connection_workspace")
   enterpriseAuditEvents                 AiEnterpriseAuditEvent[]               @relation("enterprise_audit_workspace")
   enterpriseAuthorizationSessions       AiEnterpriseAuthorizationSession[]     @relation("enterprise_authorization_workspace")
+  officeArtifacts                       OfficeArtifact[]                       @relation("office_artifact_workspace")
+  officeRevisions                       OfficeRevision[]                       @relation("office_revision_workspace")
+  officeCommandRequests                 OfficeCommandRequest[]                 @relation("office_command_request_workspace")
 
   @@index([lastCheckEmbeddings])
   @@index([createdAt])
@@ -1948,12 +1954,12 @@ model AiContext {
 }
 
 model AiContextEmbedding {
-  id        String                      @id @default(uuid()) @db.VarChar
-  contextId String                      @map("context_id") @db.VarChar
-  fileId    String                      @map("file_id") @db.VarChar
+  id        String                       @id @default(uuid()) @db.VarChar
+  contextId String                       @map("context_id") @db.VarChar
+  fileId    String                       @map("file_id") @db.VarChar
   // a file can be divided into multiple chunks and embedded separately.
-  chunk     Int                         @db.Integer
-  content   String                      @db.VarChar
+  chunk     Int                          @db.Integer
+  content   String                       @db.VarChar
   embedding Unsupported("vector(4096)")?
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -1967,11 +1973,11 @@ model AiContextEmbedding {
 }
 
 model AiWorkspaceEmbedding {
-  workspaceId String                      @map("workspace_id") @db.VarChar
-  docId       String                      @map("doc_id") @db.VarChar
+  workspaceId String                       @map("workspace_id") @db.VarChar
+  docId       String                       @map("doc_id") @db.VarChar
   // a doc can be divided into multiple chunks and embedded separately.
-  chunk       Int                         @db.Integer
-  content     String                      @db.VarChar
+  chunk       Int                          @db.Integer
+  content     String                       @db.VarChar
   embedding   Unsupported("vector(4096)")?
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -2017,11 +2023,11 @@ model AiWorkspaceFiles {
 }
 
 model AiWorkspaceFileEmbedding {
-  workspaceId String                      @map("workspace_id") @db.VarChar
-  fileId      String                      @map("file_id") @db.VarChar
+  workspaceId String                       @map("workspace_id") @db.VarChar
+  fileId      String                       @map("file_id") @db.VarChar
   // a file can be divided into multiple chunks and embedded separately.
-  chunk       Int                         @db.Integer
-  content     String                      @db.VarChar
+  chunk       Int                          @db.Integer
+  content     String                       @db.VarChar
   embedding   Unsupported("vector(4096)")?
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -2034,11 +2040,11 @@ model AiWorkspaceFileEmbedding {
 }
 
 model AiWorkspaceBlobEmbedding {
-  workspaceId String                      @map("workspace_id") @db.VarChar
-  blobId      String                      @map("blob_id") @db.VarChar
+  workspaceId String                       @map("workspace_id") @db.VarChar
+  blobId      String                       @map("blob_id") @db.VarChar
   // a file can be divided into multiple chunks and embedded separately.
-  chunk       Int                         @db.Integer
-  content     String                      @db.VarChar
+  chunk       Int                          @db.Integer
+  content     String                       @db.VarChar
   embedding   Unsupported("vector(4096)")?
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -2380,10 +2386,123 @@ model Blob {
 
   workspace                Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   AiWorkspaceBlobEmbedding AiWorkspaceBlobEmbedding[]
+  officeArtifactSources    OfficeArtifact[]           @relation("office_artifact_source_blob")
+  officeRevisionPackages   OfficeRevision[]           @relation("office_revision_package_blob")
+  officeRevisionStates     OfficeRevision[]           @relation("office_revision_state_blob")
+  officeCommandRequests    OfficeCommandRequest[]     @relation("office_command_request_blob")
 
   @@id([workspaceId, key])
   @@index([workspaceId, status, deletedAt])
   @@map("blobs")
+}
+
+enum OfficeArtifactKind {
+  document
+  workbook
+  presentation
+  pdf
+}
+
+enum OfficeRevisionOrigin {
+  import
+  user
+  ai
+  system
+}
+
+model OfficeArtifact {
+  id                   String             @id @default(uuid()) @db.VarChar
+  workspaceId          String             @map("workspace_id") @db.VarChar
+  kind                 OfficeArtifactKind
+  title                String             @db.VarChar(512)
+  sourceFileName       String             @map("source_file_name") @db.VarChar(512)
+  sourceMimeType       String             @map("source_mime_type") @db.VarChar(256)
+  sourceBlobKey        String             @map("source_blob_key") @db.VarChar
+  sourceByteSize       Int                @map("source_byte_size") @db.Integer
+  sourceFingerprint    String             @map("source_fingerprint") @db.VarChar(128)
+  importIdempotencyKey String             @map("import_idempotency_key") @db.VarChar(256)
+  importFingerprint    String             @map("import_fingerprint") @db.VarChar(128)
+  revisionCounter      Int                @default(0) @map("revision_counter") @db.Integer
+  compatibility        Json               @default("{}") @db.JsonB
+  createdBy            String             @map("created_by") @db.VarChar
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace       Workspace              @relation("office_artifact_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator         User                   @relation("office_artifact_creator", fields: [createdBy], references: [id], onDelete: Restrict)
+  sourceBlob      Blob                   @relation("office_artifact_source_blob", fields: [workspaceId, sourceBlobKey], references: [workspaceId, key], onDelete: Restrict, onUpdate: Restrict)
+  revisions       OfficeRevision[]       @relation("office_artifact_revisions")
+  commandRequests OfficeCommandRequest[] @relation("office_artifact_command_requests")
+
+  @@unique([id, workspaceId])
+  @@unique([workspaceId, importIdempotencyKey])
+  @@index([workspaceId, kind, updatedAt(sort: Desc)])
+  @@map("office_artifacts")
+}
+
+model OfficeRevision {
+  id                     String               @id @default(uuid()) @db.VarChar
+  workspaceId            String               @map("workspace_id") @db.VarChar
+  artifactId             String               @map("artifact_id") @db.VarChar
+  sequence               Int                  @db.Integer
+  origin                 OfficeRevisionOrigin
+  parentRevisionId       String?              @map("parent_revision_id") @db.VarChar
+  idempotencyKey         String               @map("idempotency_key") @db.VarChar(256)
+  idempotencyFingerprint String               @map("idempotency_fingerprint") @db.VarChar(128)
+  packageBlobKey         String               @map("package_blob_key") @db.VarChar
+  packageMimeType        String               @map("package_mime_type") @db.VarChar(256)
+  packageByteSize        Int                  @map("package_byte_size") @db.Integer
+  packageFingerprint     String               @map("package_fingerprint") @db.VarChar(128)
+  stateBlobKey           String?              @map("state_blob_key") @db.VarChar
+  stateByteSize          Int?                 @map("state_byte_size") @db.Integer
+  stateFingerprint       String?              @map("state_fingerprint") @db.VarChar(128)
+  modelVersion           String               @default("localmind-office-model/v1") @map("model_version") @db.VarChar(128)
+  operationSummary       Json                 @default("{}") @map("operation_summary") @db.JsonB
+  createdBy              String               @map("created_by") @db.VarChar
+  createdAt              DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  workspace       Workspace              @relation("office_revision_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  artifact        OfficeArtifact         @relation("office_artifact_revisions", fields: [artifactId, workspaceId], references: [id, workspaceId], onDelete: Cascade, onUpdate: Restrict)
+  creator         User                   @relation("office_revision_creator", fields: [createdBy], references: [id], onDelete: Restrict)
+  parent          OfficeRevision?        @relation("office_revision_parent", fields: [parentRevisionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  children        OfficeRevision[]       @relation("office_revision_parent")
+  commandRequests OfficeCommandRequest[] @relation("office_command_request_expected_revision")
+  packageBlob     Blob                   @relation("office_revision_package_blob", fields: [workspaceId, packageBlobKey], references: [workspaceId, key], onDelete: Restrict, onUpdate: Restrict)
+  stateBlob       Blob?                  @relation("office_revision_state_blob", fields: [workspaceId, stateBlobKey], references: [workspaceId, key], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, artifactId, workspaceId])
+  @@unique([artifactId, sequence])
+  @@unique([artifactId, idempotencyKey])
+  @@index([workspaceId, artifactId, createdAt(sort: Desc)])
+  @@map("office_revisions")
+}
+
+model OfficeCommandRequest {
+  id                        String   @id @default(uuid()) @db.VarChar
+  workspaceId               String   @map("workspace_id") @db.VarChar
+  artifactId                String   @map("artifact_id") @db.VarChar
+  expectedRevisionId        String   @map("expected_revision_id") @db.VarChar
+  requestedBy               String   @map("requested_by") @db.VarChar
+  idempotencyKey            String   @map("idempotency_key") @db.VarChar(256)
+  commandBlobKey            String   @map("command_blob_key") @db.VarChar
+  commandByteSize           Int      @map("command_byte_size") @db.Integer
+  commandFingerprint        String   @map("command_fingerprint") @db.VarChar(128)
+  previewPackageFingerprint String   @map("preview_package_fingerprint") @db.VarChar(128)
+  previewStateFingerprint   String   @map("preview_state_fingerprint") @db.VarChar(128)
+  previewSummary            Json     @default("{}") @map("preview_summary") @db.JsonB
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  workspace        Workspace      @relation("office_command_request_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  artifact         OfficeArtifact @relation("office_artifact_command_requests", fields: [artifactId, workspaceId], references: [id, workspaceId], onDelete: Cascade, onUpdate: Restrict)
+  expectedRevision OfficeRevision @relation("office_command_request_expected_revision", fields: [expectedRevisionId, artifactId, workspaceId], references: [id, artifactId, workspaceId], onDelete: Restrict, onUpdate: Restrict)
+  requester        User           @relation("office_command_request_creator", fields: [requestedBy], references: [id], onDelete: Restrict)
+  commandBlob      Blob           @relation("office_command_request_blob", fields: [workspaceId, commandBlobKey], references: [workspaceId, key], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, workspaceId])
+  @@unique([artifactId, idempotencyKey])
+  @@index([workspaceId, artifactId, createdAt(sort: Desc)])
+  @@index([requestedBy, createdAt(sort: Desc)])
+  @@map("office_command_requests")
 }
 
 enum NotificationType {
