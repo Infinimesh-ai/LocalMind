@@ -46,6 +46,8 @@ import { TurnPersistence } from '../../plugins/copilot/runtime/hosts/turn-persis
 import { buildToolCapabilitySnapshot } from '../../plugins/copilot/runtime/tool-capability-snapshot';
 import {
   canExposeDocumentWriteTools,
+  canExposeInProjectSession,
+  canRunDirectlyInProjectSession,
   ToolRuntime,
 } from '../../plugins/copilot/runtime/tool-runtime';
 import { defineTool } from '../../plugins/copilot/tools';
@@ -392,7 +394,11 @@ test('ToolRuntime should pass route context and appended messages into prompt-ba
     {} as any,
     {} as any,
     {} as any,
-    {} as any,
+    {
+      copilotSession: {
+        getMeta: Sinon.stub().resolves({ selectedContextProjectId: null }),
+      },
+    } as any,
     {} as any,
     promptRuntime as any,
     {} as any
@@ -581,6 +587,92 @@ test('ToolRuntime should expose document write tools for self-hosted deployments
       canary: false,
     })
   );
+});
+
+test('ToolRuntime rejects generic, Office, and provider-spoofed tools in project sessions', async t => {
+  const readTool = defineTool({
+    description: 'read',
+    inputSchema: z.object({ doc_id: z.string() }),
+    execute: async () => ({ success: true }),
+  });
+  const runtime = new ToolRuntime(
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {
+      copilotSession: {
+        getMeta: Sinon.stub().resolves({
+          selectedContextProjectId: 'project-1',
+        }),
+      },
+    } as any,
+    {} as any,
+    {} as any,
+    {} as any
+  );
+
+  const providerToolResolver = Sinon.stub().returns([
+    'project_doc_read',
+    readTool,
+  ]);
+  const tools = await runtime.getTools(
+    {
+      tools: ['office'],
+      session: 'session-1',
+    },
+    'gpt-4o-mini',
+    providerToolResolver
+  );
+
+  t.deepEqual(Object.keys(tools), []);
+  t.false(providerToolResolver.called);
+  t.false(canRunDirectlyInProjectSession('office_command_request'));
+  t.false(canRunDirectlyInProjectSession('office_read'));
+  t.false(canRunDirectlyInProjectSession('workspace_folder_create'));
+  t.false(canRunDirectlyInProjectSession('future_unclassified_tool'));
+  t.false(canRunDirectlyInProjectSession('doc_read'));
+  t.true(canRunDirectlyInProjectSession('doc_keyword_search'));
+  t.true(canRunDirectlyInProjectSession('doc_semantic_search'));
+  t.true(canRunDirectlyInProjectSession('project_doc_read'));
+  t.true(canRunDirectlyInProjectSession('blocker_suggest'));
+  t.false(canRunDirectlyInProjectSession('project_doc_update_request'));
+  t.true(canExposeInProjectSession('project_doc_update_request'));
+});
+
+test('ToolRuntime never exposes Blocker suggestions without a selected Project', async t => {
+  const runtime = new ToolRuntime(
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any
+  );
+  const providerToolResolver = Sinon.stub().returns([
+    'blocker_suggest',
+    defineTool({
+      inputSchema: z.object({ title: z.string() }),
+      execute: async () => ({ confirmationRequired: false }),
+    }),
+  ]);
+
+  const tools = await runtime.getTools(
+    { tools: ['blocker'], user: 'user-1' },
+    'gpt-4o-mini',
+    providerToolResolver
+  );
+
+  t.deepEqual(tools, {});
+  t.false(providerToolResolver.called);
 });
 
 test('ToolRuntime should expose semantic workspace organization tools', async t => {

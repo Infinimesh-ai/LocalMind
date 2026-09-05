@@ -23,13 +23,28 @@ import type {
 } from '../stores/guard';
 import type { WorkspacePermissionService } from './permission';
 
+const DOCUMENT_SCOPE_READ_ACTIONS = new Set<DocPermissionActions>([
+  'Doc_Read',
+  'Doc_Properties_Read',
+  'Doc_Users_Read',
+  'Doc_Comments_Read',
+]);
+
 export class GuardService extends Service {
+  private readonly documentScopePollTimer?: ReturnType<typeof setInterval>;
+
   constructor(
     private readonly guardStore: GuardStore,
     private readonly workspaceService: WorkspaceService,
     private readonly workspacePermissionService: WorkspacePermissionService
   ) {
     super();
+    const docScopeId = this.workspaceService.workspace.openOptions.docScopeId;
+    if (docScopeId) {
+      this.documentScopePollTimer = setInterval(() => {
+        this.revalidateDocPermission(docScopeId);
+      }, 5000);
+    }
   }
 
   private readonly workspacePermissions$ = new LiveData<
@@ -48,6 +63,24 @@ export class GuardService extends Service {
     }
     return isOwner || isAdmin;
   });
+
+  private isDeniedByDocumentScope(
+    action: WorkspacePermissionActions | DocPermissionActions,
+    docId?: string
+  ) {
+    const { docScopeId, docScopeAccess } =
+      this.workspaceService.workspace.openOptions;
+    if (!docScopeId) {
+      return false;
+    }
+    if (!docId || docId !== docScopeId) {
+      return true;
+    }
+    return (
+      docScopeAccess === 'read' &&
+      !DOCUMENT_SCOPE_READ_ACTIONS.has(action as DocPermissionActions)
+    );
+  }
 
   /**
    * @example
@@ -80,7 +113,9 @@ export class GuardService extends Service {
           if (isAdmin) {
             return subscriber.next(true);
           }
-          const current = permissions[action] ?? undefined;
+          const current = this.isDeniedByDocumentScope(action, docId)
+            ? false
+            : (permissions[action] ?? undefined);
           if (current !== prev) {
             prev = current;
             subscriber.next(current);
@@ -101,6 +136,10 @@ export class GuardService extends Service {
   ): Promise<boolean> {
     const docId = args[0];
 
+    if (this.isDeniedByDocumentScope(action, docId)) {
+      return false;
+    }
+
     if (this.isAdmin$.value === null) {
       await this.workspacePermissionService.permission.waitForRevalidation();
     }
@@ -120,6 +159,11 @@ export class GuardService extends Service {
     _action: T,
     ...args: T extends DocPermissionActions ? [string] : []
   ) {
+    const docId = args[0];
+    if (this.isDeniedByDocumentScope(_action, docId)) {
+      return;
+    }
+
     // revalidate workspace permission if it's not initialized
     if (this.isAdmin$.value === null) {
       this.workspacePermissionService.permission.revalidate();
@@ -130,7 +174,6 @@ export class GuardService extends Service {
       return;
     }
 
-    const docId = args[0];
     // revalidate permission
     if (docId) {
       this.revalidateDocPermission(docId);
@@ -171,6 +214,9 @@ export class GuardService extends Service {
     if (this.workspaceService.workspace.openOptions.isSharedMode) {
       return {};
     }
+    if (this.workspaceService.workspace.openOptions.docScopeId) {
+      return {};
+    }
     const permissions = await this.guardStore.getWorkspacePermissions();
     this.workspacePermissions$.next(permissions);
     return permissions;
@@ -183,6 +229,10 @@ export class GuardService extends Service {
     if (this.workspaceService.workspace.openOptions.isSharedMode) {
       return {};
     }
+    const docScopeId = this.workspaceService.workspace.openOptions.docScopeId;
+    if (docScopeId && docId !== docScopeId) {
+      return {};
+    }
     const permissions = await this.guardStore.getDocPermissions(docId);
     this.docPermissions$.next({
       ...this.docPermissions$.value,
@@ -192,6 +242,9 @@ export class GuardService extends Service {
   };
 
   override dispose() {
+    if (this.documentScopePollTimer) {
+      clearInterval(this.documentScopePollTimer);
+    }
     this.revalidateWorkspacePermission.unsubscribe();
     this.revalidateDocPermission.unsubscribe();
   }

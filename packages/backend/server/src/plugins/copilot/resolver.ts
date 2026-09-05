@@ -101,10 +101,7 @@ import type {
   CopilotSupportBundleTransferForwardingEventRecord,
 } from '../../models/copilot-support-bundle';
 import type { CopilotAccessContext } from './access';
-import {
-  AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION,
-  AGENT_RUNTIME_DOC_UPDATE_WORKFLOW,
-} from './agent-runtime-doc-update-adapter';
+import { createAgentRuntimeDocUpdateRequest } from './agent-runtime-doc-update-request';
 import {
   type CopilotAgentRuntimeWorkflowAdapterCapabilities,
   CopilotAgentRuntimeWorkflowRegistry,
@@ -474,6 +471,9 @@ class CopilotAgentRuntimeDocUpdateRequestInput {
   @Field(() => String)
   workspaceId!: string;
 
+  @Field(() => ID, { nullable: true })
+  sessionId?: string;
+
   @Field(() => String)
   docId!: string;
 
@@ -747,6 +747,8 @@ class CopilotRepairExecutionListFilterInput implements CopilotRepairExecutionLis
 
 @InputType()
 class CopilotAgentRuntimeControlInput {
+  @Field(() => String, { nullable: true })
+  expectedApprovalFingerprint?: string;
   @Field(() => String)
   workspaceId!: string;
 
@@ -789,6 +791,8 @@ class CopilotTaskListFilterInput {
 
 @InputType()
 class CopilotTaskControlInput {
+  @Field(() => String, { nullable: true })
+  expectedApprovalFingerprint?: string;
   @Field(() => String)
   workspaceId!: string;
 
@@ -796,7 +800,7 @@ class CopilotTaskControlInput {
   taskId!: string;
 
   @Field(() => String)
-  action!: 'approve' | 'cancel' | 'reject' | 'resume';
+  action!: 'abandon' | 'approve' | 'cancel' | 'reject' | 'resume';
 
   @Field(() => String, { nullable: true })
   reason?: string;
@@ -5116,6 +5120,8 @@ class CopilotAgentRunType implements CopilotAgentRunRecord {
   @Field(() => String)
   actorId!: string;
 
+  sessionId!: string | null;
+
   @Field(() => String)
   workflow!: string;
 
@@ -5234,6 +5240,8 @@ class CopilotTaskApprovalType {
 @ObjectType()
 class CopilotTaskArtifactType {
   @Field(() => String)
+  workspaceId!: string;
+  @Field(() => String)
   kind!: 'document' | 'office';
 
   @Field(() => String)
@@ -5244,9 +5252,41 @@ class CopilotTaskArtifactType {
 }
 
 @ObjectType()
-class CopilotTaskType {
+class CopilotTaskDocumentUpdateType {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  docId!: string;
+
+  @Field(() => String)
+  content!: string;
+
+  @Field(() => String)
+  expectedVersion!: string;
+
+  @Field(() => Boolean)
+  needsReconfirmation!: boolean;
+
+  @Field(() => String, { nullable: true })
+  previousVersion!: string | null;
+}
+
+@ObjectType()
+export class CopilotTaskType {
+  @Field(() => String, { nullable: true })
+  approvalFingerprint!: string | null;
+
+  @Field(() => CopilotTaskDocumentUpdateType, { nullable: true })
+  documentUpdate!: CopilotTaskDocumentUpdateType | null;
   @Field(() => String)
   id!: string;
+
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String, { nullable: true })
+  projectId!: string | null;
 
   @Field(() => String, { nullable: true })
   title!: string | null;
@@ -5279,7 +5319,12 @@ class CopilotTaskType {
   resultSummary!: string | null;
 
   @Field(() => [String])
-  availableActions!: Array<'approve' | 'cancel' | 'reject' | 'resume'>;
+  availableActions!: Array<
+    'abandon' | 'approve' | 'cancel' | 'reject' | 'resume'
+  >;
+
+  @Field(() => Boolean)
+  abandoned!: boolean;
 
   @Field(() => [CopilotTaskStepType])
   steps!: CopilotTaskStepType[];
@@ -5305,11 +5350,18 @@ function copilotTaskPayloadRecord(value: unknown) {
 
 function copilotTaskControlAction(
   run: CopilotAgentRunRecord
-): 'cancel' | 'reject' | null {
+): 'abandon' | 'approve' | 'cancel' | 'reject' | 'resume' | null {
   for (let index = run.timelineEvents.length - 1; index >= 0; index--) {
     const payload = copilotTaskPayloadRecord(run.timelineEvents[index].payload);
-    if (payload?.action === 'reject') return 'reject';
-    if (payload?.action === 'cancel') return 'cancel';
+    if (
+      payload?.action === 'abandon' ||
+      payload?.action === 'approve' ||
+      payload?.action === 'cancel' ||
+      payload?.action === 'reject' ||
+      payload?.action === 'resume'
+    ) {
+      return payload.action;
+    }
   }
   return null;
 }
@@ -5334,6 +5386,46 @@ function copilotTaskDocumentId(run: CopilotAgentRunRecord) {
   return null;
 }
 
+function copilotTaskDocumentUpdate(
+  run: CopilotAgentRunRecord
+): CopilotTaskDocumentUpdateType | null {
+  for (const step of run.steps) {
+    const request = copilotTaskPayloadRecord(
+      step.outputSummary.docUpdateRequest
+    );
+    if (
+      !request ||
+      typeof request.docId !== 'string' ||
+      typeof request.content !== 'string' ||
+      typeof request.expectedDocumentVersion !== 'string'
+    )
+      continue;
+    const reconfirmation = copilotTaskPayloadRecord(
+      step.outputSummary.reconfirmationRequest
+    );
+    const needsReconfirmation =
+      run.status === 'waiting_approval' &&
+      reconfirmation?.previewStatus === 'invalidated' &&
+      typeof reconfirmation.actualVersion === 'string';
+    return {
+      workspaceId:
+        typeof request.sourceWorkspaceId === 'string'
+          ? request.sourceWorkspaceId
+          : run.workspaceId,
+      docId: request.docId,
+      content: request.content,
+      expectedVersion: needsReconfirmation
+        ? (reconfirmation.actualVersion as string)
+        : request.expectedDocumentVersion,
+      needsReconfirmation,
+      previousVersion: needsReconfirmation
+        ? request.expectedDocumentVersion
+        : null,
+    };
+  }
+  return null;
+}
+
 function copilotTaskOfficeArtifact(
   run: CopilotAgentRunRecord,
   approvalSummary: Record<string, unknown> | null,
@@ -5346,6 +5438,7 @@ function copilotTaskOfficeArtifact(
   const sourceFileName = approvalSummary?.sourceFileName;
   return {
     kind: 'office' as const,
+    workspaceId: run.workspaceId,
     id: artifactId,
     title:
       typeof artifactTitle === 'string' && artifactTitle
@@ -5368,10 +5461,13 @@ function copilotTaskResultEvidence(run: CopilotAgentRunRecord) {
   return copilotTaskPayloadRecord(payload?.sideEffectSummary);
 }
 
-function projectCopilotTask(run: CopilotAgentRunRecord): CopilotTaskType {
+export function projectCopilotTask(
+  run: CopilotAgentRunRecord
+): CopilotTaskType {
   const approvalStep = run.steps.find(step => step.stepType === 'approval');
   const controlAction = copilotTaskControlAction(run);
   const documentId = copilotTaskDocumentId(run);
+  const documentUpdate = copilotTaskDocumentUpdate(run);
   const approvalSummary = copilotTaskApprovalSummary(run);
   const resultEvidence = copilotTaskResultEvidence(run);
   const officeArtifact = copilotTaskOfficeArtifact(
@@ -5385,13 +5481,21 @@ function projectCopilotTask(run: CopilotAgentRunRecord): CopilotTaskType {
       ? ['approve', 'reject']
       : run.status === 'queued' || run.status === 'running'
         ? ['cancel']
-        : run.status === 'failed' ||
-            (run.status === 'cancelled' && controlAction !== 'reject')
-          ? ['resume']
-          : [];
+        : run.status === 'failed'
+          ? ['resume', 'abandon']
+          : run.status === 'cancelled' &&
+              controlAction !== 'abandon' &&
+              controlAction !== 'reject'
+            ? ['resume']
+            : [];
 
   return {
     id: run.id,
+    approvalFingerprint:
+      run.status === 'waiting_approval' ? run.timelineFingerprint : null,
+    documentUpdate,
+    workspaceId: run.workspaceId,
+    projectId: run.projectId ?? null,
     title: run.title,
     workflow: run.workflow,
     status: run.status,
@@ -5403,6 +5507,7 @@ function projectCopilotTask(run: CopilotAgentRunRecord): CopilotTaskType {
     failureMessage: run.failureMessage,
     resultSummary: latestResult?.summary ?? null,
     availableActions,
+    abandoned: controlAction === 'abandon',
     steps: run.steps.map(step => ({
       id: step.id,
       key: step.stepKey,
@@ -5433,7 +5538,14 @@ function projectCopilotTask(run: CopilotAgentRunRecord): CopilotTaskType {
       : null,
     artifacts: [
       ...(documentId
-        ? [{ kind: 'document' as const, id: documentId, title: run.title }]
+        ? [
+            {
+              kind: 'document' as const,
+              workspaceId: documentUpdate?.workspaceId ?? run.workspaceId,
+              id: documentId,
+              title: run.title,
+            },
+          ]
         : []),
       ...(officeArtifact ? [officeArtifact] : []),
     ],
@@ -11541,62 +11653,6 @@ function stableRepairRecommendationStringify(value: unknown): string {
       .join(',')}}`;
   }
   return JSON.stringify(value);
-}
-
-const AGENT_RUNTIME_DOC_UPDATE_CONTENT_MAX_LENGTH = 6_000;
-const AGENT_RUNTIME_DOC_UPDATE_STRING_MAX_LENGTH = 256;
-
-function agentRuntimeDocUpdateFingerprint(value: unknown) {
-  return createHash('sha256')
-    .update(stableRepairRecommendationStringify(value))
-    .digest('hex');
-}
-
-function normalizeAgentRuntimeDocUpdateRequestString(
-  value: unknown,
-  field: string
-) {
-  if (typeof value !== 'string') {
-    throw new Error(`Agent Runtime doc update ${field} must be a string`);
-  }
-  const normalized = value.trim();
-  if (!normalized) {
-    throw new Error(`Agent Runtime doc update ${field} must not be blank`);
-  }
-  if (normalized.length > AGENT_RUNTIME_DOC_UPDATE_STRING_MAX_LENGTH) {
-    throw new Error(`Agent Runtime doc update ${field} is too long`);
-  }
-  return normalized;
-}
-
-function normalizeOptionalAgentRuntimeDocUpdateRequestString(
-  value: unknown,
-  field: string
-) {
-  if (value === undefined || value === null) {
-    return null;
-  }
-  return normalizeAgentRuntimeDocUpdateRequestString(value, field);
-}
-
-function normalizeAgentRuntimeDocUpdateContent(value: unknown) {
-  if (typeof value !== 'string') {
-    throw new Error('Agent Runtime doc update content must be a string');
-  }
-  if (!value.trim()) {
-    throw new Error('Agent Runtime doc update content must not be blank');
-  }
-  if (value.length > AGENT_RUNTIME_DOC_UPDATE_CONTENT_MAX_LENGTH) {
-    throw new Error('Agent Runtime doc update content is too long');
-  }
-  return value;
-}
-
-function agentRuntimeDocUpdateContentFingerprint(content: string) {
-  return agentRuntimeDocUpdateFingerprint({
-    version: 'agent-runtime-doc-update-content/v1',
-    content,
-  });
 }
 
 function promptRegistryRepairCandidateEvidenceReferenceSchemaFingerprint() {
@@ -24755,108 +24811,11 @@ export class CopilotResolver {
     })
     input: CopilotAgentRuntimeDocUpdateRequestInput
   ): Promise<CopilotAgentRunType> {
-    const docId = normalizeAgentRuntimeDocUpdateRequestString(
-      input.docId,
-      'docId'
-    );
-    const content = normalizeAgentRuntimeDocUpdateContent(input.content);
-    const contentFingerprint = agentRuntimeDocUpdateContentFingerprint(content);
-    const expectedContentFingerprint =
-      normalizeOptionalAgentRuntimeDocUpdateRequestString(
-        input.contentFingerprint,
-        'contentFingerprint'
-      );
-    if (
-      expectedContentFingerprint &&
-      expectedContentFingerprint !== contentFingerprint
-    ) {
-      throw new Error(
-        'Agent Runtime doc update contentFingerprint must match content'
-      );
-    }
-    const idempotencyKey = normalizeOptionalAgentRuntimeDocUpdateRequestString(
-      input.idempotencyKey,
-      'idempotencyKey'
-    );
-    const reason = normalizeOptionalAgentRuntimeDocUpdateRequestString(
-      input.reason,
-      'reason'
-    );
-
-    const { workspaceId } = await this.assertPermission(user, {
-      workspaceId: input.workspaceId,
-      docId,
-    });
-    await this.ac
-      .user(user.id)
-      .workspace(workspaceId)
-      .allowLocal()
-      .assert('Workspace.Copilot');
-
-    const requestFingerprint = agentRuntimeDocUpdateFingerprint({
-      version: AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION,
-      workspaceId,
-      docId,
-      contentFingerprint,
-      idempotencyKey,
-    });
-    const sourceId = `agent-runtime-doc-update-${requestFingerprint.slice(
-      0,
-      48
-    )}`;
-    const docUpdateRequest = {
-      version: AGENT_RUNTIME_DOC_UPDATE_REQUEST_VERSION,
-      docId,
-      content,
-      contentFingerprint,
-    };
-
-    return await this.modelsStore.copilotAgentRuntime.createRun({
-      workspaceId,
+    return await createAgentRuntimeDocUpdateRequest({
+      ac: this.ac,
+      models: this.modelsStore,
       actorId: user.id,
-      workflow: AGENT_RUNTIME_DOC_UPDATE_WORKFLOW,
-      sourceType: 'agent_runtime_office_task',
-      sourceId,
-      status: 'waiting_approval',
-      title: input.title ?? `Update document ${docId}`,
-      target: {
-        version: 'agent-runtime-doc-update-target/v1',
-        docId,
-        contentFingerprint,
-      },
-      evidence: {
-        version: 'agent-runtime-doc-update-request-evidence/v1',
-        requestFingerprint,
-        idempotencyKey,
-        reason,
-      },
-      steps: [
-        {
-          stepKey: 'approve_doc_update',
-          stepType: 'approval',
-          status: 'waiting_approval',
-          title: 'Approve document update',
-          order: 0,
-          outputSummary: {
-            approvalRequest: {
-              version: 'agent-runtime-doc-update-approval/v1',
-              docId,
-              contentFingerprint,
-              reason,
-            },
-          },
-        },
-        {
-          stepKey: 'update_doc',
-          stepType: 'tool',
-          status: 'waiting_approval',
-          title: 'Update document',
-          order: 1,
-          outputSummary: {
-            docUpdateRequest,
-          },
-        },
-      ],
+      request: input,
     });
   }
 
@@ -24919,13 +24878,17 @@ export class CopilotResolver {
 
     let record;
     try {
-      record = await this.modelsStore.copilotAgentRuntime.controlRun({
-        workspaceId,
-        actorId: user.id,
-        id: input.runId,
-        action: input.action,
-        reason: input.reason,
-      });
+      record =
+        await this.modelsStore.copilotAgentRuntime.controlRunForWorkspaceViewer(
+          {
+            workspaceId,
+            actorId: user.id,
+            id: input.runId,
+            action: input.action,
+            reason: input.reason,
+            expectedApprovalFingerprint: input.expectedApprovalFingerprint,
+          }
+        );
     } catch (error) {
       if (error instanceof Error && error.message.startsWith('Agent runtime')) {
         throw new BadRequest(error.message);
@@ -24962,6 +24925,7 @@ export class CopilotResolver {
     input: CopilotTaskControlInput
   ): Promise<CopilotTaskType> {
     if (
+      input.action !== 'abandon' &&
       input.action !== 'approve' &&
       input.action !== 'cancel' &&
       input.action !== 'reject' &&
@@ -24982,6 +24946,7 @@ export class CopilotResolver {
         id: input.taskId,
         action: input.action,
         reason: input.reason,
+        expectedApprovalFingerprint: input.expectedApprovalFingerprint,
       });
     } catch (error) {
       if (
@@ -25551,15 +25516,16 @@ export class CopilotResolver {
   ): Promise<CopilotAgentRunType[]> {
     const { workspaceId } = await this.assertPermission(user, copilot);
 
-    return await this.modelsStore.copilotAgentRuntime.list(workspaceId, {
-      filter,
-      limit,
-    });
+    return await this.modelsStore.copilotAgentRuntime.listForWorkspaceViewer(
+      workspaceId,
+      user.id,
+      { filter, limit }
+    );
   }
 
   @ResolveField(() => [CopilotTaskType], {
     description:
-      'List standalone Copilot tasks owned by the current user in the current workspace.',
+      'List standalone Copilot tasks owned by the current user in one workspace or across all accessible workspaces.',
     complexity: 2,
   })
   async copilotTasks(
@@ -25573,15 +25539,16 @@ export class CopilotResolver {
     })
     filter?: CopilotTaskListFilterInput
   ): Promise<CopilotTaskType[]> {
-    const { workspaceId } = await this.assertPermission(user, copilot);
-    const runs = await this.modelsStore.copilotAgentRuntime.listForActor(
-      workspaceId,
-      user.id,
-      {
-        filter,
-        limit,
-      }
-    );
+    const runs = copilot.workspaceId
+      ? await this.modelsStore.copilotAgentRuntime.listForActor(
+          (await this.assertPermission(user, copilot)).workspaceId,
+          user.id,
+          { filter, limit }
+        )
+      : await this.modelsStore.copilotAgentRuntime.listForActorAcrossAccessibleWorkspaces(
+          user.id,
+          { filter, limit }
+        );
     return runs.map(projectCopilotTask);
   }
 
@@ -25679,7 +25646,11 @@ export class CopilotResolver {
   ): Promise<CopilotAgentRunType | null> {
     const { workspaceId } = await this.assertPermission(user, copilot);
 
-    return await this.modelsStore.copilotAgentRuntime.get(workspaceId, id);
+    return await this.modelsStore.copilotAgentRuntime.getForWorkspaceViewer(
+      workspaceId,
+      user.id,
+      id
+    );
   }
 
   @ResolveField(() => CopilotTaskType, {

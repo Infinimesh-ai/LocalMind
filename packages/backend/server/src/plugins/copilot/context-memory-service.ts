@@ -10,12 +10,14 @@ import { Transactional } from '@nestjs-cls/transactional';
 import { z } from 'zod';
 
 import {
+  type CopilotContextDocumentRef,
   type CopilotContextMemoryInput,
   type CopilotContextMemoryKind,
   type CopilotContextMemoryScope,
   type CopilotContextMemoryStatus,
   type CopilotContextMemoryWriterDecision,
   type CopilotContextPlanTraceInput,
+  type CopilotContextProjectDocumentInput,
   type CopilotContextProjectStatus,
   Models,
 } from '../../models';
@@ -345,6 +347,31 @@ export class ContextMemoryService implements OnModuleInit {
     await this.ensureStrategyHistory();
   }
 
+  private async projectMemorySourceDocuments(input: {
+    userId: string;
+    projectId: string;
+    readableDocumentRefs?: CopilotContextDocumentRef[];
+  }) {
+    const grants =
+      await this.models.intelligenceWorkbenchAuthorization.listGrantedProjectDocuments(
+        { projectId: input.projectId, userId: input.userId }
+      );
+    const grantKeys = new Set(
+      grants.map(grant => `${grant.workspaceId}\0${grant.docId}`)
+    );
+    const candidates = input.readableDocumentRefs ?? grants;
+    const sources = new Map<string, CopilotContextDocumentRef>();
+    for (const document of candidates) {
+      const key = `${document.workspaceId}\0${document.docId}`;
+      if (grantKeys.has(key)) sources.set(key, document);
+    }
+    return [...sources.values()].sort(
+      (left, right) =>
+        left.workspaceId.localeCompare(right.workspaceId) ||
+        left.docId.localeCompare(right.docId)
+    );
+  }
+
   private async ensureStrategyHistory() {
     this.strategyHistoryReady ??= Promise.all([
       this.models.copilotContextMemory.ensureStrategyRevision({
@@ -459,6 +486,7 @@ export class ContextMemoryService implements OnModuleInit {
     workspaceId?: string | null;
     docId?: string | null;
     docIds?: string[];
+    documentRefs?: CopilotContextDocumentRef[];
     projectIds?: string[];
     includeDisabled?: boolean;
   }) {
@@ -466,6 +494,7 @@ export class ContextMemoryService implements OnModuleInit {
       input.projectIds ??
       (input.workspaceId && input.docId
         ? await this.models.copilotContextMemory.listProjectIdsForDoc({
+            userId: input.userId,
             workspaceId: input.workspaceId,
             docId: input.docId,
           })
@@ -521,6 +550,7 @@ export class ContextMemoryService implements OnModuleInit {
     userId: string;
     workspaceId: string;
     docIds: string[];
+    documentRefs?: CopilotContextDocumentRef[];
     projectIds: string[];
     query: string;
     limit?: number;
@@ -531,6 +561,7 @@ export class ContextMemoryService implements OnModuleInit {
         userId: input.userId,
         workspaceId: input.workspaceId,
         docIds: input.docIds,
+        documentRefs: input.documentRefs,
         projectIds: input.projectIds,
       })
     ).filter(memory => memory.kind !== 'rule');
@@ -876,6 +907,7 @@ export class ContextMemoryService implements OnModuleInit {
         input.scope?.projectIds ??
         (input.docId
           ? await this.models.copilotContextMemory.listProjectIdsForDoc({
+              userId: input.userId,
               workspaceId: input.workspaceId,
               docId: input.docId,
             })
@@ -910,6 +942,26 @@ export class ContextMemoryService implements OnModuleInit {
               : [];
       if (!targets.length) return [];
 
+      const targetsWithSources = await Promise.all(
+        targets.map(async target => ({
+          ...target,
+          sourceDocuments: target.projectId
+            ? await this.projectMemorySourceDocuments({
+                userId: input.userId,
+                projectId: target.projectId,
+                readableDocumentRefs: input.scope?.readableDocumentRefs,
+              })
+            : undefined,
+        }))
+      );
+      if (
+        targetsWithSources.some(
+          target => target.projectId && !target.sourceDocuments?.length
+        )
+      ) {
+        return [];
+      }
+
       let decisions = explicitDecisions;
       if (!decisions.length) {
         try {
@@ -935,13 +987,14 @@ export class ContextMemoryService implements OnModuleInit {
           originalDecision,
           input.turn.content
         );
-        for (const target of targets) {
+        for (const target of targetsWithSources) {
           const event =
             await this.models.copilotContextMemory.applyWriterDecision({
               ownerUserId: input.userId,
               workspaceId: input.workspaceId,
               docId: target.docId,
               projectId: target.projectId,
+              sourceDocuments: target.sourceDocuments,
               sourceSessionId: input.sessionId,
               sourceTurnId: input.turn.id ?? null,
               scope: target.scope,
@@ -983,7 +1036,7 @@ export class ContextMemoryService implements OnModuleInit {
       ) {
         try {
           await Promise.all(
-            targets.map(target =>
+            targetsWithSources.map(target =>
               this.models.copilotContextMemory.enforceAutoMemoryQuota({
                 ownerUserId: input.userId,
                 workspaceId: input.workspaceId,
@@ -1019,6 +1072,7 @@ export class ContextMemoryService implements OnModuleInit {
       scope: CopilotContextMemoryScope;
       kind: Exclude<CopilotContextMemoryKind, 'auto_memory'>;
       content: string;
+      sourceDocuments?: CopilotContextDocumentRef[];
     }
   ) {
     const memory = await this.models.copilotContextMemory.put({
@@ -1031,6 +1085,7 @@ export class ContextMemoryService implements OnModuleInit {
       writerVersion: MEMORY_WRITER_VERSION,
       sensitivity: 'private',
       metadata: { source: 'manual' },
+      sourceDocuments: input.sourceDocuments,
     });
     if (memory.workspaceId) {
       await this.embedMemory({
@@ -1049,9 +1104,19 @@ export class ContextMemoryService implements OnModuleInit {
 
   async update(
     id: string,
-    input: { content?: string; status?: CopilotContextMemoryStatus }
+    input: { content?: string; status?: CopilotContextMemoryStatus },
+    actorUserId?: string
   ) {
     const current = await this.models.copilotContextMemory.get(id);
+    const operationUserId =
+      current?.scope === 'project' ? actorUserId : current?.ownerUserId;
+    if (!current || !operationUserId) return null;
+    const sourceDocuments = current.projectId
+      ? await this.projectMemorySourceDocuments({
+          userId: operationUserId,
+          projectId: current.projectId,
+        })
+      : undefined;
     if (
       current &&
       current.kind === 'auto_memory' &&
@@ -1062,10 +1127,11 @@ export class ContextMemoryService implements OnModuleInit {
     ) {
       const content = normalize(input.content ?? current.content);
       const event = await this.models.copilotContextMemory.applyWriterDecision({
-        ownerUserId: current.ownerUserId,
+        ownerUserId: operationUserId,
         workspaceId: current.workspaceId,
         docId: current.docId,
         projectId: current.projectId,
+        sourceDocuments,
         sourceSessionId: current.sourceSessionId,
         sourceTurnId: null,
         scope: current.scope as Exclude<CopilotContextMemoryScope, 'user'>,
@@ -1108,7 +1174,7 @@ export class ContextMemoryService implements OnModuleInit {
         await this.embedMemory({
           id: memory.id,
           content: memory.content,
-          userId: memory.ownerUserId,
+          userId: operationUserId,
           workspaceId: current.workspaceId,
         });
       }
@@ -1124,10 +1190,11 @@ export class ContextMemoryService implements OnModuleInit {
     ) {
       const content = normalize(input.content);
       const event = await this.models.copilotContextMemory.applyWriterDecision({
-        ownerUserId: current.ownerUserId,
+        ownerUserId: operationUserId,
         workspaceId: current.workspaceId,
         docId: current.docId,
         projectId: current.projectId,
+        sourceDocuments,
         sourceSessionId: current.sourceSessionId,
         sourceTurnId: null,
         scope: current.scope as Exclude<CopilotContextMemoryScope, 'user'>,
@@ -1173,27 +1240,31 @@ export class ContextMemoryService implements OnModuleInit {
         await this.embedMemory({
           id: memory.id,
           content: memory.content,
-          userId: memory.ownerUserId,
+          userId: operationUserId,
           workspaceId: current.workspaceId,
         });
       }
       return memory;
     }
-    const memory = await this.models.copilotContextMemory.update(id, input);
+    const memory = await this.models.copilotContextMemory.update(
+      id,
+      input,
+      actorUserId
+    );
     if (memory && input.content !== undefined && memory.workspaceId) {
       await this.models.copilotContextMemory.clearEmbedding(memory.id);
       await this.embedMemory({
         id: memory.id,
         content: memory.content,
-        userId: memory.ownerUserId,
+        userId: operationUserId,
         workspaceId: memory.workspaceId,
       });
     }
     return memory;
   }
 
-  async delete(id: string) {
-    return await this.models.copilotContextMemory.delete(id);
+  async delete(id: string, actorUserId?: string) {
+    return await this.models.copilotContextMemory.delete(id, actorUserId);
   }
 
   async listWriterEvents(userId: string, workspaceId: string, limit?: number) {
@@ -1216,37 +1287,91 @@ export class ContextMemoryService implements OnModuleInit {
     return await this.models.copilotContextMemory.getProject(id);
   }
 
-  async listProjects(workspaceId: string, includeArchived = false) {
+  async getDocumentMetas(documents: CopilotContextDocumentRef[]) {
+    return await this.models.doc.findMetas(documents, {
+      select: { title: true },
+    });
+  }
+
+  async listProjects(userId: string, includeArchived = false) {
     return await this.models.copilotContextMemory.listProjects({
-      workspaceId,
+      userId,
       includeArchived,
     });
   }
 
   async createProject(input: {
-    workspaceId: string;
     createdByUserId: string;
     name: string;
     description?: string;
-    documentIds: string[];
+    documents: CopilotContextProjectDocumentInput[];
   }) {
     return await this.models.copilotContextMemory.createProject(input);
   }
 
+  async addProjectDocument(
+    projectId: string,
+    actorUserId: string,
+    document: CopilotContextProjectDocumentInput
+  ) {
+    return await this.models.copilotContextMemory.addProjectDocument(
+      projectId,
+      actorUserId,
+      document
+    );
+  }
+
+  async removeProjectDocument(
+    projectId: string,
+    actorUserId: string,
+    document: CopilotContextDocumentRef
+  ) {
+    return await this.models.copilotContextMemory.removeProjectDocument(
+      projectId,
+      actorUserId,
+      document
+    );
+  }
+
+  async updateProjectDocument(
+    projectId: string,
+    actorUserId: string,
+    document: CopilotContextDocumentRef,
+    input: { groupId?: string | null; sortOrder?: number }
+  ) {
+    return await this.models.copilotContextMemory.updateProjectDocument(
+      projectId,
+      actorUserId,
+      document,
+      input
+    );
+  }
+
   async updateProject(
     id: string,
+    actorUserId: string,
     input: {
       name?: string;
       description?: string;
       status?: CopilotContextProjectStatus;
-      documentIds?: string[];
+      workspaceDocuments?: {
+        workspaceId: string;
+        documents: CopilotContextProjectDocumentInput[];
+      };
     }
   ) {
-    return await this.models.copilotContextMemory.updateProject(id, input);
+    return await this.models.copilotContextMemory.updateProject(
+      id,
+      actorUserId,
+      input
+    );
   }
 
-  async deleteProject(id: string) {
-    return await this.models.copilotContextMemory.deleteProject(id);
+  async deleteProject(id: string, actorUserId: string) {
+    return await this.models.copilotContextMemory.deleteProject(
+      id,
+      actorUserId
+    );
   }
 }
 

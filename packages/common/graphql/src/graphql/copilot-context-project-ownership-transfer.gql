@@ -1,0 +1,5 @@
+mutation transferCopilotContextProjectOwnership(
+  $input: TransferCopilotProjectOwnershipInput!
+) {
+  transferCopilotContextProjectOwnership(input: $input)
+}

@@ -1,0 +1,7 @@
+#import "./fragments/copilot-blocker.gql"
+
+mutation createCopilotBlocker($input: CreateCopilotBlockerInput!) {
+  createCopilotBlocker(input: $input) {
+    ...CopilotBlockerFields
+  }
+}

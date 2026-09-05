@@ -1,0 +1,287 @@
+import { Logger } from '@nestjs/common';
+import { z } from 'zod';
+
+import type { DocReader } from '../../../core/doc';
+import type { PermissionAccess } from '../../../core/permission';
+import type { Models } from '../../../models';
+import {
+  createAgentRuntimeDocUpdateRequest,
+  resolveProjectDocumentOperation,
+} from '../agent-runtime-doc-update-request';
+import {
+  documentSyncPendingError,
+  workspaceSyncRequiredError,
+} from './doc-sync';
+import { type ToolError, toolError } from './error';
+import { defineTool } from './tool';
+import type { CopilotChatOptions } from './types';
+
+const logger = new Logger('ProjectDocTool');
+
+const isToolError = (result: ToolError | object): result is ToolError =>
+  'type' in result && result.type === 'error';
+
+export type AuthorizedProjectDocumentRef = {
+  workspaceId: string;
+  docId: string;
+};
+
+export async function resolveAuthorizedProjectDocuments(input: {
+  ac: PermissionAccess;
+  models: Models;
+  options: CopilotChatOptions;
+}) {
+  const actorId = input.options?.user;
+  const hostWorkspaceId = input.options?.workspace;
+  const sessionId = input.options?.session;
+  if (!actorId || !hostWorkspaceId || !sessionId) {
+    throw new Error(
+      'Project document access requires a host workspace, session, and user'
+    );
+  }
+
+  const session = await input.models.copilotSession.getMeta(sessionId);
+  if (
+    !session ||
+    session.userId !== actorId ||
+    session.workspaceId !== hostWorkspaceId ||
+    !session.selectedContextProjectId
+  ) {
+    throw new Error('Project document session is not active for this user');
+  }
+  await input.ac
+    .user(actorId)
+    .workspace(hostWorkspaceId)
+    .allowLocal()
+    .assert('Workspace.Copilot');
+
+  const project = await input.models.copilotContextMemory.getProject(
+    session.selectedContextProjectId
+  );
+  if (
+    !project ||
+    project.status !== 'active' ||
+    !project.members.some(member => member.userId === actorId)
+  ) {
+    throw new Error('Project document access is not available');
+  }
+
+  const grants =
+    await input.models.intelligenceWorkbenchAuthorization.listGrantedProjectDocuments(
+      { projectId: project.id, userId: actorId }
+    );
+  const documentsByWorkspace = new Map<
+    string,
+    AuthorizedProjectDocumentRef[]
+  >();
+  for (const grant of grants) {
+    const documents = documentsByWorkspace.get(grant.workspaceId) ?? [];
+    documents.push({ workspaceId: grant.workspaceId, docId: grant.docId });
+    documentsByWorkspace.set(grant.workspaceId, documents);
+  }
+
+  const readable = await Promise.all(
+    [...documentsByWorkspace].map(([workspaceId, documents]) =>
+      input.ac
+        .user(actorId)
+        .workspace(workspaceId)
+        .allowLocal()
+        .docs(documents, 'Doc.Read')
+    )
+  );
+  return {
+    projectId: project.id,
+    documents: readable.flat(),
+  };
+}
+
+export const buildProjectDocContentGetter = (
+  ac: PermissionAccess,
+  docReader: DocReader,
+  models: Models
+) => {
+  return async (
+    options: CopilotChatOptions,
+    sourceWorkspaceId: string,
+    docId: string
+  ) => {
+    if (
+      !options?.user ||
+      !options.workspace ||
+      !options.session ||
+      !sourceWorkspaceId ||
+      !docId
+    ) {
+      return toolError(
+        'Project Doc Read Failed',
+        'Missing host workspace, session, user, source workspace, or document id.'
+      );
+    }
+
+    const operation = await resolveProjectDocumentOperation({
+      ac,
+      models,
+      actorId: options.user,
+      sessionId: options.session,
+      sourceWorkspaceId,
+      docId,
+      operation: 'read',
+      approvalGate: 'none',
+      expectedHostWorkspaceId: options.workspace,
+    });
+    const workspace = await models.workspace.get(sourceWorkspaceId);
+    if (!workspace) return workspaceSyncRequiredError();
+
+    const docMeta = await models.doc.getAuthors(sourceWorkspaceId, docId);
+    if (!docMeta) return documentSyncPendingError(docId);
+    const content = await docReader.getDocMarkdown(
+      sourceWorkspaceId,
+      docId,
+      true
+    );
+    if (!content) return documentSyncPendingError(docId);
+
+    return {
+      projectId: operation.projectId,
+      sourceWorkspaceId,
+      docId,
+      title: content.title,
+      markdown: content.markdown,
+      createdAt: docMeta.createdAt.toISOString(),
+      updatedAt: docMeta.updatedAt.toISOString(),
+      createdByUser: docMeta.createdByUser,
+      updatedByUser: docMeta.updatedByUser,
+    };
+  };
+};
+
+type ProjectDocReadResult = Awaited<
+  ReturnType<ReturnType<typeof buildProjectDocContentGetter>>
+>;
+
+export const createProjectDocReadTool = (
+  getDoc: (
+    sourceWorkspaceId: string,
+    docId: string
+  ) => Promise<ProjectDocReadResult>
+) =>
+  defineTool({
+    description:
+      'Read one document granted to the selected global Project. Always pass the source workspace and document id from the Project reference. Permission is checked against the current Project membership, grant, and AI policy at execution time.',
+    inputSchema: z
+      .object({
+        source_workspace_id: z
+          .string()
+          .trim()
+          .min(1)
+          .max(256)
+          .describe('The workspace that owns the referenced document'),
+        doc_id: z
+          .string()
+          .trim()
+          .min(1)
+          .max(256)
+          .describe('The referenced document id'),
+      })
+      .strict(),
+    execute: async ({ source_workspace_id, doc_id }) => {
+      try {
+        const doc = await getDoc(source_workspace_id, doc_id);
+        return isToolError(doc) ? doc : { ...doc };
+      } catch (error) {
+        logger.warn('Project document read was denied or failed', error);
+        return toolError(
+          'Project Doc Read Failed',
+          error instanceof Error
+            ? error.message
+            : 'Project document read failed'
+        );
+      }
+    },
+  });
+
+export const createProjectDocUpdateRequestTool = (input: {
+  ac: PermissionAccess;
+  models: Models;
+  options: CopilotChatOptions;
+}) =>
+  defineTool({
+    description:
+      'Create an approval request to replace the body of one document granted to the selected global Project. This tool never writes the document directly. Always pass the source workspace and document id from the Project reference, plus the complete proposed Markdown body.',
+    inputSchema: z
+      .object({
+        source_workspace_id: z
+          .string()
+          .trim()
+          .min(1)
+          .max(256)
+          .describe('The workspace that owns the referenced document'),
+        doc_id: z
+          .string()
+          .trim()
+          .min(1)
+          .max(256)
+          .describe('The referenced document id'),
+        content: z
+          .string()
+          .min(1)
+          .max(6_000)
+          .describe('The complete proposed Markdown body, without a title H1'),
+        title: z.string().trim().min(1).max(256).optional(),
+        reason: z.string().trim().min(1).max(256).optional(),
+        idempotency_key: z.string().trim().min(1).max(256).optional(),
+      })
+      .strict(),
+    execute: async request => {
+      try {
+        if (
+          !input.options?.user ||
+          !input.options.workspace ||
+          !input.options.session
+        ) {
+          return toolError(
+            'Project Doc Update Request Failed',
+            'Missing host workspace, session, or user context.'
+          );
+        }
+        const run = await createAgentRuntimeDocUpdateRequest({
+          ac: input.ac,
+          models: input.models,
+          actorId: input.options.user,
+          expectedHostWorkspaceId: input.options.workspace,
+          requireProject: true,
+          request: {
+            workspaceId: request.source_workspace_id,
+            sessionId: input.options.session,
+            docId: request.doc_id,
+            content: request.content,
+            idempotencyKey: request.idempotency_key,
+            title: request.title,
+            reason: request.reason,
+          },
+        });
+        return {
+          success: true,
+          approvalRequired: true,
+          runId: run.id,
+          status: run.status,
+          hostWorkspaceId: run.workspaceId,
+          sourceWorkspaceId: request.source_workspace_id,
+          docId: request.doc_id,
+          message:
+            'Document update request created. The document remains unchanged until the user approves it.',
+        };
+      } catch (error) {
+        logger.warn(
+          'Project document update request was denied or failed',
+          error
+        );
+        return toolError(
+          'Project Doc Update Request Failed',
+          error instanceof Error
+            ? error.message
+            : 'Project document update request failed'
+        );
+      }
+    },
+  });

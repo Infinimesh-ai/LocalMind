@@ -1,0 +1,7 @@
+#import "./fragments/copilot-blocker.gql"
+
+mutation abandonCopilotBlocker($blockerId: ID!) {
+  abandonCopilotBlocker(blockerId: $blockerId) {
+    ...CopilotBlockerFields
+  }
+}

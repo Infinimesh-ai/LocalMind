@@ -1,5 +1,5 @@
 query copilotTasksGet(
-  $workspaceId: String!
+  $workspaceId: String
   $limit: SafeInt
   $filter: CopilotTaskListFilterInput
 ) {
@@ -7,6 +7,8 @@ query copilotTasksGet(
     copilot(workspaceId: $workspaceId) {
       copilotTasks(filter: $filter, limit: $limit) {
         id
+        workspaceId
+        projectId
         title
         workflow
         status
@@ -20,6 +22,7 @@ query copilotTasksGet(
         approvalSummary
         resultEvidence
         availableActions
+        abandoned
         approval {
           stepId
           status

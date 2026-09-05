@@ -496,6 +496,7 @@ export class CopilotClient {
       runId,
       retry,
       byokLeaseId,
+      chatSurface,
     }: {
       sessionId: string;
       messageId?: string;
@@ -508,6 +509,7 @@ export class CopilotClient {
       runId?: string;
       retry?: boolean;
       byokLeaseId?: string;
+      chatSurface?: 'intelligence_workbench';
     },
     endpoint = Endpoint.StreamObject
   ) {
@@ -526,6 +528,7 @@ export class CopilotClient {
       runId,
       retry,
       byokLeaseId,
+      chatSurface,
     });
     if (queryString) {
       url += `?${queryString}`;

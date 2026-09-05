@@ -1,0 +1,9 @@
+mutation withdrawCopilotProjectInvitation($invitationId: ID!) {
+  withdrawCopilotProjectInvitation(invitationId: $invitationId) {
+    id
+    projectId
+    status
+    withdrawnAt
+    updatedAt
+  }
+}

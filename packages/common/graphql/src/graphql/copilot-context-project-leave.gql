@@ -1,0 +1,3 @@
+mutation leaveCopilotContextProject($projectId: ID!) {
+  leaveCopilotContextProject(projectId: $projectId)
+}

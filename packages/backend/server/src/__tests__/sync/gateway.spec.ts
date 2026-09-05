@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import test, { type ExecutionContext } from 'ava';
 import { io, type Socket as SocketIOClient } from 'socket.io-client';
-import { Doc, encodeStateAsUpdate } from 'yjs';
+import { applyUpdate, Doc, encodeStateAsUpdate, encodeStateVector } from 'yjs';
 
 import { CANARY_CLIENT_VERSION_MAX_AGE_DAYS } from '../../base';
 import {
@@ -10,6 +10,11 @@ import {
   WorkspaceMemberStatus,
   WorkspaceRole,
 } from '../../models';
+import {
+  addDocToRootDoc,
+  mergeUpdatesInApplyWay,
+  readAllDocIdsFromRootDoc,
+} from '../../native';
 import { createTestingApp, TestingApp } from '../utils';
 
 type WebsocketResponse<T> =
@@ -185,6 +190,89 @@ function createYjsUpdateBase64() {
   doc.getMap('m').set('k', 'v');
   const update = encodeStateAsUpdate(doc);
   return Buffer.from(update).toString('base64');
+}
+
+function createYjsSnapshot(value: string) {
+  const doc = new Doc();
+  doc.getMap('content').set('value', value);
+  return {
+    blob: Buffer.from(encodeStateAsUpdate(doc)),
+    state: Buffer.from(encodeStateVector(doc)),
+  };
+}
+
+function createWorkspaceRoot(
+  workspaceId: string,
+  docs: Array<{ id: string; title: string }>
+) {
+  let root = Buffer.from([0, 0]);
+  for (const doc of docs) {
+    const update = addDocToRootDoc(root, doc.id, doc.title);
+    root = Buffer.from(mergeUpdatesInApplyWay([root, update]));
+  }
+  const ydoc = new Doc({ guid: workspaceId });
+  applyUpdate(ydoc, root);
+  ydoc.getMap('meta').set('workspaceSecret', 'classified-workspace-metadata');
+  return {
+    blob: Buffer.from(encodeStateAsUpdate(ydoc)),
+    state: Buffer.from(encodeStateVector(ydoc)),
+  };
+}
+
+async function createProjectDocumentGrants(
+  db: PrismaClient,
+  input: {
+    ownerId: string;
+    memberId: string;
+    workspaceId: string;
+    docs: Array<{ docId: string; level: 'read' | 'write' }>;
+  }
+) {
+  const project = await db.aiContextProject.create({
+    data: {
+      createdByUserId: input.ownerId,
+      name: 'Scoped sync project',
+      members: {
+        create: [
+          { userId: input.ownerId, role: 'owner' },
+          { userId: input.memberId, role: 'member' },
+        ],
+      },
+    },
+  });
+  const grants = await db.$transaction(async transaction => {
+    await transaction.aiContextProjectDoc.createMany({
+      data: input.docs.map(doc => ({
+        projectId: project.id,
+        workspaceId: input.workspaceId,
+        docId: doc.docId,
+        status: 'granted',
+        requestedLevel: doc.level,
+        addedByUserId: input.ownerId,
+      })),
+    });
+    const created = [];
+    for (const doc of input.docs) {
+      created.push(
+        await transaction.aiContextProjectGrant.create({
+          data: {
+            projectId: project.id,
+            workspaceId: input.workspaceId,
+            docId: doc.docId,
+            level: doc.level,
+            status: 'active',
+            source: 'direct',
+            approvingSide: 'source',
+            revocable: true,
+            grantedByUserId: input.ownerId,
+            grantorUserIdSnapshot: input.ownerId,
+          },
+        })
+      );
+    }
+    return created;
+  });
+  return { project, grants };
 }
 
 async function createSnapshot(
@@ -720,6 +808,12 @@ test('workspace sync delete-doc should enforce doc permissions', async t => {
       })
     );
     t.true(error.message.includes('Doc.Delete'));
+    t.is(
+      await db.snapshot.count({
+        where: { workspaceId: workspace.id, id: docId },
+      }),
+      1
+    );
 
     const ownerJoin = unwrapResponse(
       t,
@@ -746,7 +840,7 @@ test('workspace sync delete-doc should enforce doc permissions', async t => {
       await db.snapshot.count({
         where: { workspaceId: workspace.id, id: docId },
       }),
-      1
+      0
     );
   } finally {
     socket.disconnect();
@@ -952,6 +1046,449 @@ test('workspace sync load-doc-timestamps should filter unreadable docs', async t
 
     t.false(privateDocId in timestamps);
     t.true(readableDocId in timestamps);
+  } finally {
+    socket.disconnect();
+  }
+});
+
+test('project-granted document scope is isolated and rechecks live ACLs', async t => {
+  const db = app.get(PrismaClient);
+  const models = app.get(Models);
+  const { user: owner, cookieHeader: ownerCookie } = await login(app);
+  const { user: member, cookieHeader: memberCookie } = await login(app);
+  const workspace = await models.workspace.create(owner.id);
+  const readDocId = 'project-read-doc';
+  const writeDocId = 'project-write-doc';
+  const otherDocId = 'source-private-doc';
+  const targetUpdatedAt = new Date('2026-09-04T12:00:00.000Z');
+  const root = createWorkspaceRoot(workspace.id, [
+    { id: readDocId, title: 'Project Read' },
+    { id: writeDocId, title: 'Project Write' },
+    { id: otherDocId, title: 'Source Secret Title' },
+  ]);
+  await createSnapshot(db, {
+    workspaceId: workspace.id,
+    docId: workspace.id,
+    userId: owner.id,
+    ...root,
+    updatedAt: new Date('2026-09-04T13:00:00.000Z'),
+  });
+  for (const [docId, title, updatedAt] of [
+    [readDocId, 'Project Read', targetUpdatedAt],
+    [writeDocId, 'Project Write', targetUpdatedAt],
+    [otherDocId, 'Source Secret Title', new Date('2026-09-04T14:00:00Z')],
+  ] as const) {
+    await models.doc.upsertMeta(workspace.id, docId, { title });
+    await models.doc.setDefaultRole(workspace.id, docId, DocRole.None);
+    await createSnapshot(db, {
+      workspaceId: workspace.id,
+      docId,
+      userId: owner.id,
+      ...createYjsSnapshot(title),
+      updatedAt,
+    });
+  }
+  let grants: Awaited<
+    ReturnType<typeof createProjectDocumentGrants>
+  >['grants'] = [];
+
+  const unauthorized = createClient(url, memberCookie);
+  const scoped = createClient(url, memberCookie);
+  const ownerSocket = createClient(url, ownerCookie);
+  try {
+    await Promise.all([
+      waitForConnect(unauthorized),
+      waitForConnect(scoped),
+      waitForConnect(ownerSocket),
+    ]);
+
+    const normalJoinError = getErrorResponse(
+      t,
+      await emitWithAck(unauthorized, 'space:join', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        clientVersion: '0.26.0',
+      })
+    );
+    t.regex(normalJoinError.message, /permission to access Space/);
+
+    const noGrantJoinError = getErrorResponse(
+      t,
+      await emitWithAck(unauthorized, 'space:join', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        clientVersion: '0.26.0',
+        docScopeId: readDocId,
+      })
+    );
+    t.true(noGrantJoinError.message.includes('Doc.Read'));
+    getErrorResponse(
+      t,
+      await emitWithAck(unauthorized, 'space:load-doc', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        docId: readDocId,
+        docScopeId: readDocId,
+      })
+    );
+
+    ({ grants } = await createProjectDocumentGrants(db, {
+      ownerId: owner.id,
+      memberId: member.id,
+      workspaceId: workspace.id,
+      docs: [
+        { docId: readDocId, level: 'read' },
+        { docId: writeDocId, level: 'write' },
+      ],
+    }));
+
+    const scopedJoin = unwrapResponse(
+      t,
+      await emitWithAck<{ clientId: string; success: boolean }>(
+        scoped,
+        'space:join',
+        {
+          spaceType: 'workspace',
+          spaceId: workspace.id,
+          clientVersion: '0.26.0',
+          docScopeId: readDocId,
+        }
+      )
+    );
+    t.true(scopedJoin.success);
+    const awarenessError = getErrorResponse(
+      t,
+      await emitWithAck(scoped, 'space:join-awareness', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        docId: readDocId,
+        clientVersion: '0.26.0',
+      })
+    );
+    t.regex(awarenessError.message, /permission to access Space/);
+
+    const rootResponse = unwrapResponse(
+      t,
+      await emitWithAck<{
+        missing: string;
+        state: string;
+        timestamp: number;
+      }>(scoped, 'space:load-doc', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        docId: workspace.id,
+        docScopeId: readDocId,
+      })
+    );
+    const safeRootBin = Buffer.from(rootResponse.missing, 'base64');
+    t.deepEqual(readAllDocIdsFromRootDoc(safeRootBin, false), [readDocId]);
+    t.false(safeRootBin.includes(Buffer.from(otherDocId)));
+    t.false(safeRootBin.includes(Buffer.from('Source Secret Title')));
+    t.false(safeRootBin.includes(Buffer.from('classified-workspace-metadata')));
+    const safeRoot = new Doc({ guid: workspace.id });
+    applyUpdate(safeRoot, safeRootBin);
+    t.false(safeRoot.getMap('meta').has('workspaceSecret'));
+
+    const targetResponse = unwrapResponse(
+      t,
+      await emitWithAck<{
+        missing: string;
+        state: string;
+        timestamp: number;
+      }>(scoped, 'space:load-doc', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        docId: readDocId,
+        docScopeId: readDocId,
+      })
+    );
+    t.is(rootResponse.timestamp, targetResponse.timestamp);
+
+    const timestamps = unwrapResponse(
+      t,
+      await emitWithAck<Record<string, number>>(
+        scoped,
+        'space:load-doc-timestamps',
+        {
+          spaceType: 'workspace',
+          spaceId: workspace.id,
+          docScopeId: readDocId,
+        }
+      )
+    );
+    t.deepEqual(
+      Object.keys(timestamps).sort(),
+      [workspace.id, readDocId].sort()
+    );
+    t.is(timestamps[workspace.id], timestamps[readDocId]);
+
+    getErrorResponse(
+      t,
+      await emitWithAck(scoped, 'space:load-doc', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        docId: writeDocId,
+        docScopeId: readDocId,
+      })
+    );
+    getErrorResponse(
+      t,
+      await emitWithAck(scoped, 'space:push-doc-update', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        docId: writeDocId,
+        docScopeId: readDocId,
+        update: createYjsUpdateBase64(),
+      })
+    );
+
+    const secondJoinError = getErrorResponse(
+      t,
+      await emitWithAck(scoped, 'space:join', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        clientVersion: '0.26.0',
+        docScopeId: writeDocId,
+      })
+    );
+    t.truthy(secondJoinError.message);
+    unwrapResponse(
+      t,
+      await emitWithAck(scoped, 'space:load-doc', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        docId: readDocId,
+        docScopeId: readDocId,
+      })
+    );
+
+    const readPushError = getErrorResponse(
+      t,
+      await emitWithAck(scoped, 'space:push-doc-update', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        docId: readDocId,
+        docScopeId: readDocId,
+        update: createYjsUpdateBase64(),
+      })
+    );
+    t.true(readPushError.message.includes('Doc.Update'));
+    getErrorResponse(
+      t,
+      await emitWithAck(scoped, 'space:delete-doc', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        docId: readDocId,
+        docScopeId: readDocId,
+      })
+    );
+
+    unwrapResponse(
+      t,
+      await emitWithAck(ownerSocket, 'space:join', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        clientVersion: '0.26.0',
+      })
+    );
+    const noWorkspaceBroadcast = expectNoEvent(
+      scoped,
+      'space:broadcast-doc-updates'
+    );
+    unwrapResponse(
+      t,
+      await emitWithAck(ownerSocket, 'space:push-doc-update', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        docId: otherDocId,
+        update: createYjsUpdateBase64(),
+      })
+    );
+    await noWorkspaceBroadcast;
+
+    unwrapResponse(
+      t,
+      await emitWithAck(scoped, 'space:leave', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        docScopeId: readDocId,
+      })
+    );
+    unwrapResponse(
+      t,
+      await emitWithAck(scoped, 'space:join', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        clientVersion: '0.26.0',
+        docScopeId: writeDocId,
+      })
+    );
+    unwrapResponse(
+      t,
+      await emitWithAck(scoped, 'space:push-doc-update', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        docId: writeDocId,
+        docScopeId: writeDocId,
+        update: createYjsUpdateBase64(),
+      })
+    );
+    t.is(
+      await db.update.count({
+        where: { workspaceId: workspace.id, id: writeDocId },
+      }),
+      1
+    );
+
+    const writeGrant = grants.find(grant => grant.docId === writeDocId);
+    t.truthy(writeGrant);
+    const revokedAt = new Date();
+    await db.$transaction(async transaction => {
+      await transaction.aiContextProjectGrant.update({
+        where: { id: writeGrant!.id },
+        data: {
+          status: 'revoked',
+          revokedByUserId: owner.id,
+          revokerUserIdSnapshot: owner.id,
+          revokedAt,
+        },
+      });
+      await transaction.aiContextProjectDoc.update({
+        where: {
+          projectId_workspaceId_docId: {
+            projectId: writeGrant!.projectId,
+            workspaceId: workspace.id,
+            docId: writeDocId,
+          },
+        },
+        data: { status: 'revoked', revokedAt },
+      });
+    });
+
+    const revokedLoadError = getErrorResponse(
+      t,
+      await emitWithAck(scoped, 'space:load-doc', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        docId: writeDocId,
+        docScopeId: writeDocId,
+      })
+    );
+    t.true(revokedLoadError.message.includes('Doc.Read'));
+    const revokedPushError = getErrorResponse(
+      t,
+      await emitWithAck(scoped, 'space:push-doc-update', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        docId: writeDocId,
+        docScopeId: writeDocId,
+        update: createYjsUpdateBase64(),
+      })
+    );
+    t.true(revokedPushError.message.includes('Doc.Update'));
+    const revokedTimestampsError = getErrorResponse(
+      t,
+      await emitWithAck(scoped, 'space:load-doc-timestamps', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        docScopeId: writeDocId,
+      })
+    );
+    t.true(revokedTimestampsError.message.includes('Doc.Read'));
+  } finally {
+    unauthorized.disconnect();
+    scoped.disconnect();
+    ownerSocket.disconnect();
+  }
+});
+
+test('concurrent regular and scoped joins cannot create dual socket state', async t => {
+  const db = app.get(PrismaClient);
+  const models = app.get(Models);
+  const { user: owner, cookieHeader } = await login(app);
+  const workspace = await models.workspace.create(owner.id);
+  const docId = 'join-race-target';
+  await models.doc.upsertMeta(workspace.id, docId, { title: 'Race target' });
+  await createSnapshot(db, {
+    workspaceId: workspace.id,
+    docId: workspace.id,
+    userId: owner.id,
+    ...createWorkspaceRoot(workspace.id, [{ id: docId, title: 'Race target' }]),
+  });
+  await createSnapshot(db, {
+    workspaceId: workspace.id,
+    docId,
+    userId: owner.id,
+    ...createYjsSnapshot('race target'),
+  });
+
+  const socket = createClient(url, cookieHeader);
+  try {
+    await waitForConnect(socket);
+    const [regular, scoped] = await Promise.all([
+      emitWithAck<{ clientId: string; success: boolean }>(
+        socket,
+        'space:join',
+        {
+          spaceType: 'workspace',
+          spaceId: workspace.id,
+          clientVersion: '0.26.0',
+        }
+      ),
+      emitWithAck<{ clientId: string; success: boolean }>(
+        socket,
+        'space:join',
+        {
+          spaceType: 'workspace',
+          spaceId: workspace.id,
+          clientVersion: '0.26.0',
+          docScopeId: docId,
+        }
+      ),
+    ]);
+    const regularSucceeded = 'data' in regular && regular.data.success;
+    const scopedSucceeded = 'data' in scoped && scoped.data.success;
+    t.is(Number(regularSucceeded) + Number(scopedSucceeded), 1);
+
+    if (regularSucceeded) {
+      getErrorResponse(t, scoped);
+      unwrapResponse(
+        t,
+        await emitWithAck(socket, 'space:load-doc', {
+          spaceType: 'workspace',
+          spaceId: workspace.id,
+          docId,
+        })
+      );
+      getErrorResponse(
+        t,
+        await emitWithAck(socket, 'space:load-doc', {
+          spaceType: 'workspace',
+          spaceId: workspace.id,
+          docId,
+          docScopeId: docId,
+        })
+      );
+    } else {
+      getErrorResponse(t, regular);
+      unwrapResponse(
+        t,
+        await emitWithAck(socket, 'space:load-doc', {
+          spaceType: 'workspace',
+          spaceId: workspace.id,
+          docId,
+          docScopeId: docId,
+        })
+      );
+      getErrorResponse(
+        t,
+        await emitWithAck(socket, 'space:load-doc', {
+          spaceType: 'workspace',
+          spaceId: workspace.id,
+          docId,
+        })
+      );
+    }
   } finally {
     socket.disconnect();
   }

@@ -23,6 +23,7 @@ function createLoader() {
     runtime: 0,
     docPolicies: 0,
     docGrants: 0,
+    projectDocGrants: 0,
   };
   const db = {
     $queryRaw: async (strings: TemplateStringsArray) => {
@@ -72,6 +73,16 @@ function createLoader() {
           {
             docId: 'private',
             role: 'manager',
+          },
+        ];
+      }
+      if (sql.includes('FROM ai_context_project_grants')) {
+        calls.projectDocGrants += 1;
+        return [
+          {
+            docId: 'project-private',
+            projectId: 'project-1',
+            role: 'reader',
           },
         ];
       }
@@ -205,6 +216,7 @@ test('PermissionContextLoader reads only terminal permission tables', async t =>
     docs: [
       { docId: 'private', actions: ['Doc.Update'] },
       { docId: 'public', actions: ['Doc.Read'] },
+      { docId: 'project-private', actions: ['Doc.Read'] },
     ],
   });
 
@@ -213,6 +225,11 @@ test('PermissionContextLoader reads only terminal permission tables', async t =>
   t.is(input.docs?.[0]?.explicitUserRole, 'manager');
   t.is(input.docs?.[0]?.memberDefaultRole, 'manager');
   t.is(input.docs?.[1]?.publicRole, 'external');
+  t.deepEqual(input.subject?.groupIds, ['project-1']);
+  t.deepEqual(input.docs?.[2]?.groupGrants, [
+    { groupId: 'project-1', role: 'reader' },
+  ]);
+  t.true(input.docs?.[2]?.groupGrantsEnabled);
 });
 
 test('PermissionContextLoader treats missing quota state as unknown and stale', async t => {

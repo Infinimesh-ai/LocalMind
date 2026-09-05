@@ -24,6 +24,10 @@ import {
   type Unsubscribable,
 } from 'rxjs';
 
+import {
+  joinAppRoutePathname,
+  parseAppRouteLocation,
+} from '../../shared/deep-link';
 import { mainWindowOrigin, shellViewUrl } from '../../shared/internal-origin';
 import { isMacOS } from '../../shared/utils';
 import { beforeAppQuit, onTabClose } from '../cleanup';
@@ -41,6 +45,7 @@ import {
 import { globalStateStorage } from '../shared-storage/storage';
 import { buildWebPreferences } from '../web-preferences';
 import { getMainWindow, MainWindowManager } from './main-window';
+import { navigateUrlInActiveTab } from './tab-navigation';
 
 async function getAdditionalArguments() {
   const { getExposedMeta } = await import('../exposed');
@@ -552,7 +557,10 @@ export class WebContentViewsManager {
     const viewMeta = workbench?.views[workbench.activeViewIndex];
     if (workbench && viewMeta) {
       const url = new URL(
-        workbench.basename + (viewMeta.path?.pathname ?? ''),
+        joinAppRoutePathname(
+          workbench.basename,
+          viewMeta.path?.pathname ?? '/'
+        ),
         mainWindowOrigin
       );
       url.hash = viewMeta.path?.hash ?? '';
@@ -1151,14 +1159,7 @@ export const isActiveTab = (wc: WebContents) => {
 // parse the full pathname to basename and pathname
 // eg: /workspace/xxx/yyy => { basename: '/workspace/xxx', pathname: '/yyy' }
 export const parseFullPathname = (url: string) => {
-  const urlObj = new URL(url);
-  const basename = urlObj.pathname.match(/\/workspace\/[^/]+/g)?.[0] ?? '/';
-  return {
-    basename,
-    pathname: urlObj.pathname.slice(basename.length),
-    search: urlObj.search,
-    hash: urlObj.hash,
-  };
+  return parseAppRouteLocation(url);
 };
 
 export const addTab = WebContentViewsManager.instance.addTab;
@@ -1172,9 +1173,18 @@ export const addTabWithUrl = (url: string) => {
   });
 };
 
-export const loadUrlInActiveTab = async (_url: string) => {
-  // todo: implement
-  throw new Error('loadUrlInActiveTab not implemented');
+export const loadUrlInActiveTab = async (url: string) => {
+  const manager = WebContentViewsManager.instance;
+  await navigateUrlInActiveTab({
+    url,
+    mainWindowOrigin,
+    activeWorkbenchId: manager.activeWorkbenchId,
+    activeWorkbench: manager.activeWorkbenchMeta,
+    getActiveWorkbenchView: () => manager.activeWorkbenchView,
+    updateWorkbench: (id, patch) => manager.updateWorkbenchMeta(id, patch),
+    showTab: id => manager.showTab(id),
+    addTabWithUrl,
+  });
 };
 export const ensureTabLoaded = async (tabId: string) => {
   const tab = WebContentViewsManager.instance.tabViewsMap.get(tabId);

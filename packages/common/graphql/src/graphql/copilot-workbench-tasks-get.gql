@@ -1,0 +1,15 @@
+#import "./fragments/copilot-workbench-task-item.gql"
+
+query copilotWorkbenchTasksGet($projectId: ID, $limit: Int, $cursor: String, $filter: String) {
+  currentUser {
+    copilot {
+      workbenchTasks(projectId: $projectId, limit: $limit, cursor: $cursor, filter: $filter) {
+        capped
+        nextCursor
+        items {
+          ...CopilotWorkbenchTaskItemFields
+        }
+      }
+    }
+  }
+}

@@ -98,6 +98,8 @@ export const COPILOT_CHAT_TOOL_CATEGORIES = [
   'workspaceOrganization',
   // native Docs, Sheets, Slides, and PDF read/approval command path
   'office',
+  // reminder-only Project Blocker suggestion (confirmation persists separately)
+  'blocker',
   // user-scoped enterprise collaboration connections
   'enterprise',
   // workspace-managed outbound SparkClaw MCP connection
@@ -358,6 +360,7 @@ const CopilotProviderOptionsSchema = z.object({
   legacyWorkspaceFolderDelete: z.boolean().optional(),
   officeContext: OfficeAiContextSchema.optional(),
   quotaBackedRoutesAllowed: z.boolean().optional(),
+  chatSurface: z.literal('intelligence_workbench').optional(),
   featureKind: z
     .enum([
       'chat',

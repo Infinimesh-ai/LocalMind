@@ -14,7 +14,7 @@ import { DocStorageOptions } from './options';
 import { DatabaseDocReader, DocReader, DocReaderProvider } from './reader';
 import { StructuredDocService } from './structured';
 import { WorkspaceOrganizationService } from './workspace-organization';
-import { DocWriter } from './writer';
+import { DocWriter, type WorkspaceDocUpdatesPushedPayload } from './writer';
 
 @Module({
   imports: [BackendRuntimeModule, QuotaModule, PermissionModule, StorageModule],
@@ -51,6 +51,7 @@ export {
   StructuredDocService,
   WorkspaceOrganizationService,
 };
+export type { WorkspaceDocUpdatesPushedPayload };
 
 export { DocStorageAdapter, type Editor } from './storage';
 export {

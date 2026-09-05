@@ -7592,9 +7592,65 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.tasks.filter.active"](): string;
     /**
+      * `All`
+      */
+    ["com.affine.localmind.tasks.filter.all"](): string;
+    /**
       * `Approval`
       */
     ["com.affine.localmind.tasks.filter.approval"](): string;
+    /**
+      * `Task history pages`
+      */
+    ["com.affine.localmind.tasks.history.navigation"](): string;
+    /**
+      * `Previous page`
+      */
+    ["com.affine.localmind.tasks.history.previous"](): string;
+    /**
+      * `Next page`
+      */
+    ["com.affine.localmind.tasks.history.next"](): string;
+    /**
+      * `This task is unavailable or you no longer have access.`
+      */
+    ["com.affine.localmind.tasks.history.unavailable"](): string;
+    /**
+      * `Confirm again`
+      */
+    ["com.affine.localmind.tasks.approval.confirmAgain"](): string;
+    /**
+      * `Document update preview`
+      */
+    ["com.affine.localmind.tasks.approval.preview"](): string;
+    /**
+      * `The document changed while this task was queued. The previous approval is invalid. Review this update before confirming again.`
+      */
+    ["com.affine.localmind.tasks.approval.changed"](): string;
+    /**
+      * `Previously approved version`
+      */
+    ["com.affine.localmind.tasks.approval.previousVersion"](): string;
+    /**
+      * `Target version`
+      */
+    ["com.affine.localmind.tasks.approval.currentVersion"](): string;
+    /**
+      * `Approval details`
+      */
+    ["com.affine.localmind.tasks.approval.summary"](): string;
+    /**
+      * `Operation`
+      */
+    ["com.affine.localmind.tasks.approval.operation"](): string;
+    /**
+      * `Commands`
+      */
+    ["com.affine.localmind.tasks.approval.commandCount"](): string;
+    /**
+      * `Revision`
+      */
+    ["com.affine.localmind.tasks.approval.revision"](): string;
     /**
       * `Completed`
       */
@@ -7603,6 +7659,10 @@ export function useAFFiNEI18N(): {
       * `No active tasks`
       */
     ["com.affine.localmind.tasks.empty.active"](): string;
+    /**
+      * `No tasks`
+      */
+    ["com.affine.localmind.tasks.empty.all"](): string;
     /**
       * `No tasks need approval`
       */
@@ -7668,6 +7728,10 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.tasks.action.resume"](): string;
     /**
+      * `Abandon`
+      */
+    ["com.affine.localmind.tasks.action.abandon"](): string;
+    /**
       * `Task updated`
       */
     ["com.affine.localmind.tasks.action.success"](): string;
@@ -7700,6 +7764,110 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.tasks.status.cancelled"](): string;
     /**
+      * `Abandoned`
+      */
+    ["com.affine.localmind.tasks.status.abandoned"](): string;
+    /**
+      * `Pending`
+      */
+    ["com.affine.localmind.tasks.status.pending"](): string;
+    /**
+      * `Approved`
+      */
+    ["com.affine.localmind.tasks.status.approved"](): string;
+    /**
+      * `Active`
+      */
+    ["com.affine.localmind.tasks.status.active"](): string;
+    /**
+      * `Rejected`
+      */
+    ["com.affine.localmind.tasks.status.rejected"](): string;
+    /**
+      * `Withdrawn`
+      */
+    ["com.affine.localmind.tasks.status.withdrawn"](): string;
+    /**
+      * `Expired`
+      */
+    ["com.affine.localmind.tasks.status.expired"](): string;
+    /**
+      * `Accepted`
+      */
+    ["com.affine.localmind.tasks.status.accepted"](): string;
+    /**
+      * `Declined`
+      */
+    ["com.affine.localmind.tasks.status.declined"](): string;
+    /**
+      * `Revoked`
+      */
+    ["com.affine.localmind.tasks.status.revoked"](): string;
+    /**
+      * `Restricted document request`
+      */
+    ["com.affine.localmind.tasks.authorization.redacted"](): string;
+    /**
+      * `Document access request`
+      */
+    ["com.affine.localmind.tasks.authorization.accessRequest"](): string;
+    /**
+      * `Project invitation`
+      */
+    ["com.affine.localmind.tasks.authorization.invitation"](): string;
+    /**
+      * `Project document authorization`
+      */
+    ["com.affine.localmind.tasks.authorization.projectGrant"](): string;
+    /**
+      * `Type`
+      */
+    ["com.affine.localmind.tasks.authorization.kindLabel"](): string;
+    /**
+      * `Access level`
+      */
+    ["com.affine.localmind.tasks.authorization.level"](): string;
+    /**
+      * `Workspace`
+      */
+    ["com.affine.localmind.tasks.authorization.workspace"](): string;
+    /**
+      * `Project`
+      */
+    ["com.affine.localmind.tasks.authorization.project"](): string;
+    /**
+      * `Document`
+      */
+    ["com.affine.localmind.tasks.authorization.document"](): string;
+    /**
+      * `Related user`
+      */
+    ["com.affine.localmind.tasks.authorization.relatedUser"](): string;
+    /**
+      * `AI run`
+      */
+    ["com.affine.localmind.tasks.authorization.kind.run"](): string;
+    /**
+      * `Access request`
+      */
+    ["com.affine.localmind.tasks.authorization.kind.access_request"](): string;
+    /**
+      * `Project invitation`
+      */
+    ["com.affine.localmind.tasks.authorization.kind.project_invitation"](): string;
+    /**
+      * `Project authorization`
+      */
+    ["com.affine.localmind.tasks.authorization.kind.project_grant"](): string;
+    /**
+      * `Blocker`
+      */
+    ["com.affine.localmind.tasks.authorization.kind.blocker"](): string;
+    /**
+      * `Only the 100 most recent items are shown.`
+      */
+    ["com.affine.localmind.tasks.capped"](): string;
+    /**
       * `Pending`
       */
     ["com.affine.localmind.tasks.step.pending"](): string;
@@ -7723,6 +7891,651 @@ export function useAFFiNEI18N(): {
       * `Skipped`
       */
     ["com.affine.localmind.tasks.step.skipped"](): string;
+    /**
+      * `Intelligence navigation`
+      */
+    ["com.affine.localmind.workbench.navigation"](): string;
+    /**
+      * `Projects`
+      */
+    ["com.affine.localmind.workbench.projects"](): string;
+    /**
+      * `All projects`
+      */
+    ["com.affine.localmind.workbench.projects.all"](): string;
+    /**
+      * `Create a project to collect documents, tasks, and conversations.`
+      */
+    ["com.affine.localmind.workbench.projects.empty"](): string;
+    /**
+      * `Create project`
+      */
+    ["com.affine.localmind.workbench.project.create"](): string;
+    /**
+      * `Project name`
+      */
+    ["com.affine.localmind.workbench.project.namePlaceholder"](): string;
+    /**
+      * `Project actions`
+      */
+    ["com.affine.localmind.workbench.project.actions"](): string;
+    /**
+      * `Add documents`
+      */
+    ["com.affine.localmind.workbench.project.addDocument"](): string;
+    /**
+      * `Add with read access`
+      */
+    ["com.affine.localmind.workbench.project.addDocument.read"](): string;
+    /**
+      * `Add with write access`
+      */
+    ["com.affine.localmind.workbench.project.addDocument.write"](): string;
+    /**
+      * `Project access and members`
+      */
+    ["com.affine.localmind.workbench.project.collaboration"](): string;
+    /**
+      * `Members`
+      */
+    ["com.affine.localmind.workbench.project.members"](): string;
+    /**
+      * `Owner`
+      */
+    ["com.affine.localmind.workbench.project.role.owner"](): string;
+    /**
+      * `Member`
+      */
+    ["com.affine.localmind.workbench.project.role.member"](): string;
+    /**
+      * `Invite member`
+      */
+    ["com.affine.localmind.workbench.project.invite"](): string;
+    /**
+      * `Member email`
+      */
+    ["com.affine.localmind.workbench.project.invitePlaceholder"](): string;
+    /**
+      * `Invitation sent`
+      */
+    ["com.affine.localmind.workbench.project.inviteSent"](): string;
+    /**
+      * `Could not send invitation`
+      */
+    ["com.affine.localmind.workbench.project.inviteFailed"](): string;
+    /**
+      * `Remove member`
+      */
+    ["com.affine.localmind.workbench.project.removeMember"](): string;
+    /**
+      * `Remove this project member?`
+      */
+    ["com.affine.localmind.workbench.project.removeMemberConfirm"](): string;
+    /**
+      * `{{name}} will immediately lose access granted through this project.`
+      */
+    ["com.affine.localmind.workbench.project.removeMemberDescription"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Member removed`
+      */
+    ["com.affine.localmind.workbench.project.memberRemoved"](): string;
+    /**
+      * `Could not remove member`
+      */
+    ["com.affine.localmind.workbench.project.memberRemoveFailed"](): string;
+    /**
+      * `Transfer ownership`
+      */
+    ["com.affine.localmind.workbench.project.transferOwnership"](): string;
+    /**
+      * `Transfer project ownership?`
+      */
+    ["com.affine.localmind.workbench.project.transferOwnershipConfirm"](): string;
+    /**
+      * `{{name}} will become an owner of this project.`
+      */
+    ["com.affine.localmind.workbench.project.transferOwnershipDescription"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Ownership transferred`
+      */
+    ["com.affine.localmind.workbench.project.ownershipTransferred"](): string;
+    /**
+      * `Could not transfer ownership`
+      */
+    ["com.affine.localmind.workbench.project.transferFailed"](): string;
+    /**
+      * `Project AI permissions`
+      */
+    ["com.affine.localmind.workbench.project.aiPolicy"](): string;
+    /**
+      * `Read only`
+      */
+    ["com.affine.localmind.workbench.project.aiPolicy.readOnly"](): string;
+    /**
+      * `Read and write`
+      */
+    ["com.affine.localmind.workbench.project.aiPolicy.readWrite"](): string;
+    /**
+      * `AI permissions updated`
+      */
+    ["com.affine.localmind.workbench.project.aiPolicyUpdated"](): string;
+    /**
+      * `Could not update AI permissions`
+      */
+    ["com.affine.localmind.workbench.project.aiPolicyFailed"](): string;
+    /**
+      * `Leave project`
+      */
+    ["com.affine.localmind.workbench.project.leave"](): string;
+    /**
+      * `Leave this project?`
+      */
+    ["com.affine.localmind.workbench.project.leaveConfirm"](): string;
+    /**
+      * `You will lose access to this project's documents, conversations, and memory.`
+      */
+    ["com.affine.localmind.workbench.project.leaveDescription"](): string;
+    /**
+      * `You left the project`
+      */
+    ["com.affine.localmind.workbench.project.left"](): string;
+    /**
+      * `Could not leave project`
+      */
+    ["com.affine.localmind.workbench.project.leaveFailed"](): string;
+    /**
+      * `Archive`
+      */
+    ["com.affine.localmind.workbench.project.archive"](): string;
+    /**
+      * `Archive project?`
+      */
+    ["com.affine.localmind.workbench.project.archiveConfirm"](): string;
+    /**
+      * `This project will be removed from the active project tree.`
+      */
+    ["com.affine.localmind.workbench.project.archiveDescription"](): string;
+    /**
+      * `Project created`
+      */
+    ["com.affine.localmind.workbench.project.created"](): string;
+    /**
+      * `Could not create project`
+      */
+    ["com.affine.localmind.workbench.project.createFailed"](): string;
+    /**
+      * `Project renamed`
+      */
+    ["com.affine.localmind.workbench.project.renamed"](): string;
+    /**
+      * `Could not rename project`
+      */
+    ["com.affine.localmind.workbench.project.renameFailed"](): string;
+    /**
+      * `Project archived`
+      */
+    ["com.affine.localmind.workbench.project.archived"](): string;
+    /**
+      * `Could not archive project`
+      */
+    ["com.affine.localmind.workbench.project.archiveFailed"](): string;
+    /**
+      * `Untitled document`
+      */
+    ["com.affine.localmind.workbench.document.untitled"](): string;
+    /**
+      * `Documents added`
+      */
+    ["com.affine.localmind.workbench.document.added"](): string;
+    /**
+      * `Could not add documents`
+      */
+    ["com.affine.localmind.workbench.document.addFailed"](): string;
+    /**
+      * `{{granted}} added, {{requested}} awaiting authorization`
+      */
+    ["com.affine.localmind.workbench.document.addResult"](options: Readonly<{
+        granted: string;
+        requested: string;
+    }>): string;
+    /**
+      * `Document awaiting authorization`
+      */
+    ["com.affine.localmind.workbench.document.pending"](): string;
+    /**
+      * `Document authorization lost`
+      */
+    ["com.affine.localmind.workbench.document.revoked"](): string;
+    /**
+      * `Remove document`
+      */
+    ["com.affine.localmind.workbench.document.remove"](): string;
+    /**
+      * `Remove this document from the project?`
+      */
+    ["com.affine.localmind.workbench.document.removeConfirm"](): string;
+    /**
+      * `Project members and AI will no longer use this document through the project.`
+      */
+    ["com.affine.localmind.workbench.document.removeDescription"](): string;
+    /**
+      * `Document removed`
+      */
+    ["com.affine.localmind.workbench.document.removed"](): string;
+    /**
+      * `Could not remove document`
+      */
+    ["com.affine.localmind.workbench.document.removeFailed"](): string;
+    /**
+      * `Some documents were not added`
+      */
+    ["com.affine.localmind.workbench.document.shareRequired"](): string;
+    /**
+      * `You need sharing permission before a selected document can be added.`
+      */
+    ["com.affine.localmind.workbench.document.shareRequiredDetail"](): string;
+    /**
+      * `Return to workspace`
+      */
+    ["com.affine.localmind.workbench.returnToWorkspace"](): string;
+    /**
+      * `Tasks`
+      */
+    ["com.affine.localmind.workbench.tasks"](): string;
+    /**
+      * `To do`
+      */
+    ["com.affine.localmind.workbench.tasks.todo"](): string;
+    /**
+      * `In progress`
+      */
+    ["com.affine.localmind.workbench.tasks.inProgress"](): string;
+    /**
+      * `Done`
+      */
+    ["com.affine.localmind.workbench.tasks.done"](): string;
+    /**
+      * `Needs my action`
+      */
+    ["com.affine.localmind.workbench.tasks.needsMyAction"](): string;
+    /**
+      * `Waiting on others`
+      */
+    ["com.affine.localmind.workbench.tasks.waitingOnOthers"](): string;
+    /**
+      * `Nothing needs your action`
+      */
+    ["com.affine.localmind.workbench.tasks.noneForMe"](): string;
+    /**
+      * `Nothing is waiting on others`
+      */
+    ["com.affine.localmind.workbench.tasks.noneWaiting"](): string;
+    /**
+      * `No tasks in this segment`
+      */
+    ["com.affine.localmind.workbench.tasks.empty"](): string;
+    /**
+      * `View all in Tasks`
+      */
+    ["com.affine.localmind.workbench.tasks.viewAll"](): string;
+    /**
+      * `Add blocker`
+      */
+    ["com.affine.localmind.workbench.blocker.add"](): string;
+    /**
+      * `Create blocker`
+      */
+    ["com.affine.localmind.workbench.blocker.create"](): string;
+    /**
+      * `Title`
+      */
+    ["com.affine.localmind.workbench.blocker.title"](): string;
+    /**
+      * `Type`
+      */
+    ["com.affine.localmind.workbench.blocker.type"](): string;
+    /**
+      * `Waiting on`
+      */
+    ["com.affine.localmind.workbench.blocker.waitingOnLabel"](): string;
+    /**
+      * `Due date`
+      */
+    ["com.affine.localmind.workbench.blocker.dueAt"](): string;
+    /**
+      * `No due date`
+      */
+    ["com.affine.localmind.workbench.blocker.noDueDate"](): string;
+    /**
+      * `Created from`
+      */
+    ["com.affine.localmind.workbench.blocker.originLabel"](): string;
+    /**
+      * `User`
+      */
+    ["com.affine.localmind.workbench.blocker.origin.user"](): string;
+    /**
+      * `AI suggestion`
+      */
+    ["com.affine.localmind.workbench.blocker.origin.ai"](): string;
+    /**
+      * `Enter both a title and who or what you are waiting on.`
+      */
+    ["com.affine.localmind.workbench.blocker.required"](): string;
+    /**
+      * `Enter a valid due date.`
+      */
+    ["com.affine.localmind.workbench.blocker.invalidDueDate"](): string;
+    /**
+      * `The blocker was not created. Check your access and try again.`
+      */
+    ["com.affine.localmind.workbench.blocker.createFailedInline"](): string;
+    /**
+      * `Blocker created`
+      */
+    ["com.affine.localmind.workbench.blocker.created"](): string;
+    /**
+      * `Could not create blocker`
+      */
+    ["com.affine.localmind.workbench.blocker.createFailed"](): string;
+    /**
+      * `Blockers`
+      */
+    ["com.affine.localmind.workbench.blocker.group"](): string;
+    /**
+      * `No blockers in this project`
+      */
+    ["com.affine.localmind.workbench.blocker.empty"](): string;
+    /**
+      * `Reply`
+      */
+    ["com.affine.localmind.workbench.blocker.type.reply"](): string;
+    /**
+      * `File`
+      */
+    ["com.affine.localmind.workbench.blocker.type.file"](): string;
+    /**
+      * `Decision`
+      */
+    ["com.affine.localmind.workbench.blocker.type.decision"](): string;
+    /**
+      * `Other`
+      */
+    ["com.affine.localmind.workbench.blocker.type.custom"](): string;
+    /**
+      * `Waiting`
+      */
+    ["com.affine.localmind.workbench.blocker.status.waiting"](): string;
+    /**
+      * `Resolved`
+      */
+    ["com.affine.localmind.workbench.blocker.status.resolved"](): string;
+    /**
+      * `Abandoned`
+      */
+    ["com.affine.localmind.workbench.blocker.status.abandoned"](): string;
+    /**
+      * `Waiting on {{name}}`
+      */
+    ["com.affine.localmind.workbench.blocker.waitingOn"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Due {{date}}`
+      */
+    ["com.affine.localmind.workbench.blocker.due"](options: {
+        readonly date: string;
+    }): string;
+    /**
+      * `Overdue · due {{date}}`
+      */
+    ["com.affine.localmind.workbench.blocker.overdue"](options: {
+        readonly date: string;
+    }): string;
+    /**
+      * `Resolve`
+      */
+    ["com.affine.localmind.workbench.blocker.resolve"](): string;
+    /**
+      * `Abandon`
+      */
+    ["com.affine.localmind.workbench.blocker.abandon"](): string;
+    /**
+      * `Blocker updated`
+      */
+    ["com.affine.localmind.workbench.blocker.updated"](): string;
+    /**
+      * `Could not update blocker`
+      */
+    ["com.affine.localmind.workbench.blocker.updateFailed"](): string;
+    /**
+      * `Suggested blocker`
+      */
+    ["com.affine.localmind.workbench.blocker.suggestion"](): string;
+    /**
+      * `Create blocker`
+      */
+    ["com.affine.localmind.workbench.blocker.suggestionCreate"](): string;
+    /**
+      * `Creating blocker…`
+      */
+    ["com.affine.localmind.workbench.blocker.suggestionCreating"](): string;
+    /**
+      * `Blocker created`
+      */
+    ["com.affine.localmind.workbench.blocker.suggestionCreated"](): string;
+    /**
+      * `The blocker was not created. Try again.`
+      */
+    ["com.affine.localmind.workbench.blocker.suggestionFailed"](): string;
+    /**
+      * `Select the project where this blocker was suggested, then try again.`
+      */
+    ["com.affine.localmind.workbench.blocker.selectSuggestedProject"](): string;
+    /**
+      * `Abandon`
+      */
+    ["com.affine.localmind.workbench.task.abandon"](): string;
+    /**
+      * `Approve access`
+      */
+    ["com.affine.localmind.workbench.action.approveAccess"](): string;
+    /**
+      * `Reject access`
+      */
+    ["com.affine.localmind.workbench.action.rejectAccess"](): string;
+    /**
+      * `Withdraw request`
+      */
+    ["com.affine.localmind.workbench.action.withdrawRequest"](): string;
+    /**
+      * `Request again`
+      */
+    ["com.affine.localmind.workbench.action.requestAgain"](): string;
+    /**
+      * `Accept invitation`
+      */
+    ["com.affine.localmind.workbench.action.acceptInvite"](): string;
+    /**
+      * `Decline invitation`
+      */
+    ["com.affine.localmind.workbench.action.declineInvite"](): string;
+    /**
+      * `Withdraw invitation`
+      */
+    ["com.affine.localmind.workbench.action.withdrawInvite"](): string;
+    /**
+      * `Pending`
+      */
+    ["com.affine.localmind.workbench.status.pending"](): string;
+    /**
+      * `Approved`
+      */
+    ["com.affine.localmind.workbench.status.approved"](): string;
+    /**
+      * `Rejected`
+      */
+    ["com.affine.localmind.workbench.status.rejected"](): string;
+    /**
+      * `Withdrawn`
+      */
+    ["com.affine.localmind.workbench.status.withdrawn"](): string;
+    /**
+      * `Expired`
+      */
+    ["com.affine.localmind.workbench.status.expired"](): string;
+    /**
+      * `Accepted`
+      */
+    ["com.affine.localmind.workbench.status.accepted"](): string;
+    /**
+      * `Declined`
+      */
+    ["com.affine.localmind.workbench.status.declined"](): string;
+    /**
+      * `Revoked`
+      */
+    ["com.affine.localmind.workbench.status.revoked"](): string;
+    /**
+      * `Retry`
+      */
+    ["com.affine.localmind.workbench.retry"](): string;
+    /**
+      * `AI conversation`
+      */
+    ["com.affine.localmind.workbench.conversation"](): string;
+    /**
+      * `AI context settings`
+      */
+    ["com.affine.localmind.workbench.aiSettings"](): string;
+    /**
+      * `No accessible workspace is available as an AI execution host.`
+      */
+    ["com.affine.localmind.workbench.noHost"](): string;
+    /**
+      * `Document preview`
+      */
+    ["com.affine.localmind.workbench.documentPreview"](): string;
+    /**
+      * `Open in workspace`
+      */
+    ["com.affine.localmind.workbench.openInWorkspace"](): string;
+    /**
+      * `Close preview`
+      */
+    ["com.affine.localmind.workbench.closePreview"](): string;
+    /**
+      * `Request read access`
+      */
+    ["com.affine.localmind.accessRequest.request"](): string;
+    /**
+      * `Access requested`
+      */
+    ["com.affine.localmind.accessRequest.requested"](): string;
+    /**
+      * `Could not request access`
+      */
+    ["com.affine.localmind.accessRequest.failed"](): string;
+    /**
+      * `Projects with access`
+      */
+    ["com.affine.localmind.share.projectAccess.title"](): string;
+    /**
+      * `Pending requests`
+      */
+    ["com.affine.localmind.share.projectAccess.requests"](): string;
+    /**
+      * `Active project grants`
+      */
+    ["com.affine.localmind.share.projectAccess.grants"](): string;
+    /**
+      * `Project access request`
+      */
+    ["com.affine.localmind.share.projectAccess.projectRequest"](): string;
+    /**
+      * `Personal access request`
+      */
+    ["com.affine.localmind.share.projectAccess.personalRequest"](): string;
+    /**
+      * `{{level}} · requested {{time}}`
+      */
+    ["com.affine.localmind.share.projectAccess.requestMeta"](options: Readonly<{
+        level: string;
+        time: string;
+    }>): string;
+    /**
+      * `Beneficiary project: {{id}}`
+      */
+    ["com.affine.localmind.share.projectAccess.projectBeneficiary"](options: {
+        readonly id: string;
+    }): string;
+    /**
+      * `Beneficiary user: {{id}}`
+      */
+    ["com.affine.localmind.share.projectAccess.userBeneficiary"](options: {
+        readonly id: string;
+    }): string;
+    /**
+      * `Requested by: {{id}}`
+      */
+    ["com.affine.localmind.share.projectAccess.requester"](options: {
+        readonly id: string;
+    }): string;
+    /**
+      * `{{level}} · {{source}} · granted by {{grantor}} · {{time}}`
+      */
+    ["com.affine.localmind.share.projectAccess.grantMeta"](options: Readonly<{
+        level: string;
+        source: string;
+        grantor: string;
+        time: string;
+    }>): string;
+    /**
+      * `No project currently has access.`
+      */
+    ["com.affine.localmind.share.projectAccess.empty"](): string;
+    /**
+      * `Approve`
+      */
+    ["com.affine.localmind.share.projectAccess.approve"](): string;
+    /**
+      * `Reject`
+      */
+    ["com.affine.localmind.share.projectAccess.reject"](): string;
+    /**
+      * `Access approved`
+      */
+    ["com.affine.localmind.share.projectAccess.approved"](): string;
+    /**
+      * `Access rejected`
+      */
+    ["com.affine.localmind.share.projectAccess.rejected"](): string;
+    /**
+      * `Revoke`
+      */
+    ["com.affine.localmind.share.projectAccess.revoke"](): string;
+    /**
+      * `Revoke this project grant?`
+      */
+    ["com.affine.localmind.share.projectAccess.revokeConfirm"](): string;
+    /**
+      * `{{project}} will immediately lose this document and its derived memory.`
+      */
+    ["com.affine.localmind.share.projectAccess.revokeDescription"](options: {
+        readonly project: string;
+    }): string;
+    /**
+      * `Project access revoked`
+      */
+    ["com.affine.localmind.share.projectAccess.revoked"](): string;
+    /**
+      * `Could not update project access`
+      */
+    ["com.affine.localmind.share.projectAccess.actionFailed"](): string;
     /**
       * `Write with a blank page`
       */

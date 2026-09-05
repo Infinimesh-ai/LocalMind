@@ -211,6 +211,12 @@ pub(super) fn doc_candidates(
     Some(WorkspaceRole::Member | WorkspaceRole::Admin | WorkspaceRole::Owner)
   );
   let sharing = sharing_enabled(input, Some(doc));
+  let subject_groups = input.subject.group_ids.iter().collect::<BTreeSet<_>>();
+  let has_matching_group_grant = doc.group_grants_enabled
+    && doc.group_grants.iter().any(|grant| {
+      subject_groups.contains(&grant.group_id)
+        && parse_doc_role(&grant.role).is_ok_and(|role| doc_actions_for_role(role).contains("Doc.Read"))
+    });
 
   match active_workspace_role {
     Some(WorkspaceRole::Owner) => candidates.push(Candidate {
@@ -239,7 +245,7 @@ pub(super) fn doc_candidates(
     if !active_workspace_member {
       role = role.min(DocRole::Editor);
     }
-    if active_workspace_member || sharing {
+    if active_workspace_member || sharing || has_matching_group_grant {
       candidates.push(Candidate {
         source_type: "doc-grant",
         role: role_name(role),
@@ -250,7 +256,6 @@ pub(super) fn doc_candidates(
   }
 
   if doc.group_grants_enabled && !input.subject.group_ids.is_empty() {
-    let subject_groups = input.subject.group_ids.iter().collect::<BTreeSet<_>>();
     for grant in &doc.group_grants {
       if subject_groups.contains(&grant.group_id) {
         let role = parse_doc_role(&grant.role)?;

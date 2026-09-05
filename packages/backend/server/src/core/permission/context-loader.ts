@@ -40,6 +40,12 @@ type DocGrantRow = {
   role: 'owner' | 'manager' | 'editor' | 'commenter' | 'reader';
 };
 
+type ProjectDocGrantRow = {
+  docId: string;
+  projectId: string;
+  role: 'editor' | 'reader';
+};
+
 type WorkspaceRuntimeState = {
   known: boolean;
   stale: boolean;
@@ -75,22 +81,40 @@ export class PermissionContextLoader {
   }): Promise<PermissionEvaluationInputV1> {
     const docs = input.docs ?? [];
     const docIds = docs.map(doc => doc.docId);
-    const [member, workspacePolicy, runtime, docPolicies, docGrants] =
-      await Promise.all([
-        input.userId
-          ? this.workspaceMember(input.workspaceId, input.userId)
-          : Promise.resolve(null),
-        this.workspacePolicy(input.workspaceId),
-        this.workspaceRuntime(input.workspaceId),
-        this.docPolicies(input.workspaceId, docIds),
-        input.userId
-          ? this.docGrants(input.workspaceId, docIds, input.userId)
-          : Promise.resolve([]),
-      ]);
+    const [
+      member,
+      workspacePolicy,
+      runtime,
+      docPolicies,
+      docGrants,
+      projectDocGrants,
+    ] = await Promise.all([
+      input.userId
+        ? this.workspaceMember(input.workspaceId, input.userId)
+        : Promise.resolve(null),
+      this.workspacePolicy(input.workspaceId),
+      this.workspaceRuntime(input.workspaceId),
+      this.docPolicies(input.workspaceId, docIds),
+      input.userId
+        ? this.docGrants(input.workspaceId, docIds, input.userId)
+        : Promise.resolve([]),
+      input.userId
+        ? this.projectDocGrants(input.workspaceId, docIds, input.userId)
+        : Promise.resolve([]),
+    ]);
     const docPolicyMap = new Map(
       docPolicies.map(policy => [policy.docId, policy])
     );
     const docGrantMap = new Map(docGrants.map(grant => [grant.docId, grant]));
+    const projectGrantsByDoc = new Map<string, ProjectDocGrantRow[]>();
+    for (const grant of projectDocGrants) {
+      const grants = projectGrantsByDoc.get(grant.docId) ?? [];
+      grants.push(grant);
+      projectGrantsByDoc.set(grant.docId, grants);
+    }
+    const projectIds = Array.from(
+      new Set(projectDocGrants.map(grant => grant.projectId))
+    );
     const local =
       !workspacePolicy &&
       !!input.allowLocal &&
@@ -103,7 +127,7 @@ export class PermissionContextLoader {
       legacyCompatMode: true,
       subject: {
         userId: input.userId,
-        groupIds: [],
+        groupIds: projectIds,
         allowLocal: input.allowLocal,
       },
       runtime: {
@@ -132,8 +156,11 @@ export class PermissionContextLoader {
           docId: doc.docId,
           actions: doc.actions,
           explicitUserRole: grant?.role,
-          groupGrants: [],
-          groupGrantsEnabled: false,
+          groupGrants: (projectGrantsByDoc.get(doc.docId) ?? []).map(grant => ({
+            groupId: grant.projectId,
+            role: grant.role,
+          })),
+          groupGrantsEnabled: true,
           memberDefaultRole:
             policy?.memberDefaultRole ??
             workspacePolicy?.memberDefaultDocRole ??
@@ -310,6 +337,35 @@ export class PermissionContextLoader {
         AND principal_type = 'user'
         AND principal_id = ${userId}
         AND doc_id = ANY(${[...new Set(docIds)]})
+    `;
+  }
+
+  private async projectDocGrants(
+    workspaceId: string,
+    docIds: string[],
+    userId: string
+  ) {
+    if (docIds.length === 0) {
+      return [];
+    }
+    return await this.db.$queryRaw<ProjectDocGrantRow[]>`
+      SELECT
+        project_grant.doc_id AS "docId",
+        project_grant.project_id AS "projectId",
+        CASE project_grant.level
+          WHEN 'write' THEN 'editor'
+          ELSE 'reader'
+        END AS role
+      FROM ai_context_project_grants project_grant
+      JOIN ai_context_projects project
+        ON project.id = project_grant.project_id
+       AND project.status = 'active'
+      JOIN ai_context_project_members project_member
+        ON project_member.project_id = project_grant.project_id
+       AND project_member.user_id = ${userId}
+      WHERE project_grant.workspace_id = ${workspaceId}
+        AND project_grant.status = 'active'
+        AND project_grant.doc_id = ANY(${[...new Set(docIds)]})
     `;
   }
 }

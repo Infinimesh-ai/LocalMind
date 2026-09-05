@@ -15,6 +15,7 @@ import { MembersPermission, PublicDoc } from './general-access';
 import * as styles from './index.css';
 import { InviteInput } from './invite-member-editor';
 import { MembersRow } from './member-management';
+import { ProjectAccess } from './project-access';
 import type { ShareMenuProps } from './share-menu';
 
 export const LocalSharePage = (props: ShareMenuProps) => {
@@ -106,6 +107,9 @@ export const AFFiNESharePage = (
           disabled={!canManageUsers}
         />
         <PublicDoc disabled={!canPublish} />
+        {canManageUsers ? (
+          <ProjectAccess workspaceId={workspaceId} docId={docService.doc.id} />
+        ) : null}
       </div>
       <Divider className={styles.divider} />
       <CopyLinkButton workspaceId={workspaceId} />

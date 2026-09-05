@@ -12,5 +12,6 @@ export function configureDesktopApiModule(framework: Framework) {
     .service(DesktopApiService, [DesktopApi]);
 }
 
+export { useAppLayoutReady } from './hooks/use-app-layout-ready';
 export { DesktopApiService } from './service/desktop-api';
 export type { ClientEvents, TabViewsMetaSchema } from '@affine/electron-api';

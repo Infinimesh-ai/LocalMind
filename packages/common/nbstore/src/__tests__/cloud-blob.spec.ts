@@ -316,3 +316,155 @@ test('uses manual redirect when downloading blobs on mobile', async () => {
     'https://cdn.example.com/blob-key'
   );
 });
+
+test('scopes blob downloads to a document without caching or redirects', async () => {
+  const storage = new CloudBlobStorage({
+    serverBaseUrl: 'https://example.com',
+    id: 'workspace-1',
+    docScopeId: 'doc-1',
+  });
+  const fetchMock = vi.fn(
+    async () =>
+      new Response('blob-data', {
+        status: 200,
+        headers: { 'content-type': 'text/plain' },
+      })
+  );
+  (storage.connection as any).fetch = fetchMock;
+
+  const blob = await storage.get('blob-key');
+
+  expect(storage.isReadonly).toBe(true);
+  expect(blob?.data).toEqual(new TextEncoder().encode('blob-data'));
+  expect(fetchMock).toHaveBeenCalledWith(
+    '/api/workspaces/workspace-1/blobs/blob-key?docScopeId=doc-1',
+    expect.objectContaining({ cache: 'no-store' })
+  );
+});
+
+test('document-scoped blob storage rejects workspace-wide operations', async () => {
+  const storage = new CloudBlobStorage({
+    serverBaseUrl: 'https://example.com',
+    id: 'workspace-1',
+    docScopeId: 'doc-1',
+  });
+  const gqlMock = vi.fn();
+  (storage.connection as any).gql = gqlMock;
+
+  await expect(
+    storage.set({
+      key: 'blob-key',
+      data: new Uint8Array([1]),
+      mime: 'text/plain',
+    })
+  ).rejects.toThrow('Read-only cloud blob storage cannot upload blobs');
+  await expect(storage.delete('blob-key', false)).rejects.toThrow(
+    'cannot delete blobs'
+  );
+  await expect(storage.release()).rejects.toThrow('cannot release blobs');
+  await expect(storage.list()).rejects.toThrow('cannot list blobs');
+  expect(gqlMock).not.toHaveBeenCalled();
+});
+
+test('writable document scope is carried through server-mediated upload', async () => {
+  const storage = new CloudBlobStorage({
+    serverBaseUrl: 'https://example.com',
+    id: 'workspace-1',
+    docScopeId: 'doc-1',
+    readonlyMode: false,
+  });
+  const gqlMock = vi.fn(async ({ query }) => {
+    if (query === createBlobUploadMutation) {
+      return {
+        createBlobUpload: {
+          method: BlobUploadMethod.GRAPHQL,
+          blobKey: 'blob-key',
+          alreadyUploaded: false,
+        },
+      };
+    }
+    if (query === setBlobMutation) {
+      return { setBlob: 'blob-key' };
+    }
+    throw new Error('Unexpected query');
+  });
+  (storage.connection as any).gql = gqlMock;
+
+  await storage.set({
+    key: 'blob-key',
+    data: new Uint8Array([1, 2, 3]),
+    mime: 'text/plain',
+  });
+
+  expect(storage.isReadonly).toBe(false);
+  expect(gqlMock).toHaveBeenCalledTimes(2);
+  for (const [request] of gqlMock.mock.calls) {
+    expect(request.variables.docScopeId).toBe('doc-1');
+  }
+  expect(
+    gqlMock.mock.calls.some(
+      ([request]) => request.query === workspaceBlobQuotaQuery
+    )
+  ).toBe(false);
+});
+
+test('writable document scope is carried through multipart stages', async () => {
+  const storage = new CloudBlobStorage({
+    serverBaseUrl: 'https://example.com',
+    id: 'workspace-1',
+    docScopeId: 'doc-1',
+    readonlyMode: false,
+  });
+  const gqlMock = vi.fn(async ({ query, variables }) => {
+    if (query === createBlobUploadMutation) {
+      return {
+        createBlobUpload: {
+          method: BlobUploadMethod.MULTIPART,
+          blobKey: 'blob-key',
+          alreadyUploaded: false,
+          uploadId: 'upload-1',
+          partSize: 2,
+          uploadedParts: [],
+        },
+      };
+    }
+    if (query === getBlobUploadPartUrlQuery) {
+      return {
+        workspace: {
+          blobUploadPartUrl: {
+            uploadUrl: `https://upload.example.com/${variables.partNumber}`,
+          },
+        },
+      };
+    }
+    if (query === completeBlobUploadMutation) {
+      return { completeBlobUpload: 'blob-key' };
+    }
+    throw new Error('Unexpected query');
+  });
+  (storage.connection as any).gql = gqlMock;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response('', { status: 200, headers: { etag: 'part-etag' } })
+    )
+  );
+
+  await storage.set({
+    key: 'blob-key',
+    data: new Uint8Array([1, 2, 3]),
+    mime: 'text/plain',
+  });
+
+  const scopedRequests = gqlMock.mock.calls.filter(
+    ([request]) =>
+      request.query === createBlobUploadMutation ||
+      request.query === getBlobUploadPartUrlQuery ||
+      request.query === completeBlobUploadMutation
+  );
+  expect(scopedRequests).toHaveLength(4);
+  for (const [request] of scopedRequests) {
+    expect(request.variables.docScopeId).toBe('doc-1');
+  }
+});

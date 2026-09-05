@@ -9,6 +9,10 @@ import {
   setLocalWorkspaceIds,
 } from './impls/local';
 
+export {
+  createDocumentScopedWorkerInitOptions,
+  type DocumentScopeAccess,
+} from './document-scope';
 export { base64ToUint8Array, uint8ArrayToBase64 } from './utils/base64';
 
 export function configureBrowserWorkspaceFlavours(framework: Framework) {

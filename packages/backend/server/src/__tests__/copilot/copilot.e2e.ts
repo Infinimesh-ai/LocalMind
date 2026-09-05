@@ -1749,7 +1749,7 @@ test('should reject context reads from another user', async t => {
 });
 
 test('context memory GraphQL enforces workspace, document, and project permissions across users', async t => {
-  const { app, u1 } = t.context;
+  const { app, db, u1 } = t.context;
   const u2 = await app.signupV1();
   const workspace2 = await createWorkspace(app);
 
@@ -1781,16 +1781,26 @@ test('context memory GraphQL enforces workspace, document, and project permissio
       'createContextProjectPermissionE2E',
       `
       mutation CreateContextProject($input: CreateCopilotContextProjectInput!) {
-        createCopilotContextProject(input: $input) { id documentIds canManage }
+        createCopilotContextProject(input: $input) {
+          id
+          role
+          documents { workspaceId docId }
+          canManage
+        }
       }
     `
     ),
     variables: {
       input: {
-        workspaceId: workspace1.id,
         name: 'Permission project',
         description: 'Permission e2e project',
-        documentIds: [readableSnapshot.id, laterHiddenSnapshot.id],
+        documents: [readableSnapshot.id, laterHiddenSnapshot.id].map(
+          (docId, sortOrder) => ({
+            workspaceId: workspace1.id,
+            docId,
+            sortOrder,
+          })
+        ),
       },
     },
   });
@@ -1818,6 +1828,21 @@ test('context memory GraphQL enforces workspace, document, and project permissio
         },
       },
     })
+  );
+  await t.throwsAsync(
+    app.gql({
+      query: unregisteredTestQuery(
+        'readUnauthorizedContextProjectE2E',
+        `
+        query ContextProject($id: ID!) {
+          currentUser { copilot { contextProject(id: $id) { id } } }
+        }
+      `
+      ),
+      variables: { id: project.id },
+    }),
+    undefined,
+    'a non-member cannot query a global project directly'
   );
   await t.throwsAsync(
     app.gql({
@@ -1910,6 +1935,13 @@ test('context memory GraphQL enforces workspace, document, and project permissio
     laterHiddenSnapshot.id,
     DocRole.None
   );
+  await db.aiContextProjectMember.create({
+    data: {
+      projectId: project.id,
+      userId: u2.id,
+      role: 'member',
+    },
+  });
   await app.switchUser(u2);
   const scopedResult = await app.gql({
     query: unregisteredTestQuery(
@@ -1919,7 +1951,12 @@ test('context memory GraphQL enforces workspace, document, and project permissio
         currentUser {
           copilot(workspaceId: $workspaceId) {
             contextMemories(includeDisabled: true) { id docId }
-            contextProjects { id documentIds canManage }
+            contextProjects {
+              id
+              role
+              documents { workspaceId docId }
+              canManage
+            }
           }
         }
       }
@@ -1931,7 +1968,8 @@ test('context memory GraphQL enforces workspace, document, and project permissio
     contextMemories: Array<{ id: string }>;
     contextProjects: Array<{
       id: string;
-      documentIds: string[];
+      role: string;
+      documents: Array<{ workspaceId: string; docId: string }>;
       canManage: boolean;
     }>;
   };
@@ -1942,7 +1980,8 @@ test('context memory GraphQL enforces workspace, document, and project permissio
   t.deepEqual(scoped.contextProjects, [
     {
       id: project.id,
-      documentIds: [readableSnapshot.id],
+      role: 'member',
+      documents: [{ workspaceId: workspace1.id, docId: readableSnapshot.id }],
       canManage: false,
     },
   ]);

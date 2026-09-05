@@ -1,6 +1,7 @@
 import { DebugLogger } from '@affine/debug';
 import type { WorkerInitOptions } from '@affine/nbstore/worker/client';
 import { ObjectPool, Service } from '@toeverything/infra';
+import { nanoid } from 'nanoid';
 
 import type { Workspace } from '../entities/workspace';
 import { WorkspaceInitialized } from '../events';
@@ -45,7 +46,7 @@ export class WorkspaceRepositoryService extends Service {
     workspace: Workspace;
     dispose: () => void;
   } => {
-    if (options.isSharedMode) {
+    if (options.isSharedMode || options.docScopeId) {
       const workspace = this.instantiate(
         options,
         customEngineWorkerInitOptions
@@ -104,6 +105,9 @@ export class WorkspaceRepositoryService extends Service {
     const workspaceScope = this.framework.createScope(WorkspaceScope, {
       openOptions,
       engineWorkerInitOptions,
+      engineStoreKey: openOptions.docScopeId
+        ? `document-scope:${openOptions.metadata.flavour}:${openOptions.metadata.id}:${openOptions.docScopeId}:${nanoid()}`
+        : undefined,
     });
 
     const workspace = workspaceScope.get(WorkspaceService).workspace;
@@ -114,9 +118,11 @@ export class WorkspaceRepositoryService extends Service {
 
     flavourProvider?.onWorkspaceInitialized?.(workspace);
 
-    this.profileRepo
-      .getProfile(openOptions.metadata)
-      .syncWithWorkspace(workspace);
+    if (!openOptions.docScopeId) {
+      this.profileRepo
+        .getProfile(openOptions.metadata)
+        .syncWithWorkspace(workspace);
+    }
 
     return workspace;
   }

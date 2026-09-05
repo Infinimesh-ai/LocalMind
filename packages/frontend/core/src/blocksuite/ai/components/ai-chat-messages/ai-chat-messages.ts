@@ -35,7 +35,12 @@ import {
   AI_CHAT_SCROLL_DOWN_INDICATOR_THRESHOLD,
 } from './auto-scroll';
 import { AIPreloadConfig } from './preload-config';
-import { type HistoryMessage, isChatAction, isChatMessage } from './type';
+import {
+  type BlockerSuggestionConfirmation,
+  type HistoryMessage,
+  isChatAction,
+  isChatMessage,
+} from './type';
 
 export class AIChatMessages extends WithDisposable(ShadowlessElement) {
   static override styles = css`
@@ -217,6 +222,11 @@ export class AIChatMessages extends WithDisposable(ShadowlessElement) {
   @property({ attribute: false })
   accessor onOpenDoc!: (docId: string, sessionId?: string) => void;
 
+  @property({ attribute: false })
+  accessor blockerSuggestionConfirmation:
+    | BlockerSuggestionConfirmation
+    | undefined;
+
   @property({
     type: String,
     attribute: 'data-testid',
@@ -384,6 +394,8 @@ export class AIChatMessages extends WithDisposable(ShadowlessElement) {
                     .docDisplayService=${this.docDisplayService}
                     .peekViewService=${this.peekViewService}
                     .onOpenDoc=${this.onOpenDoc}
+                    .blockerSuggestionConfirmation=${this
+                      .blockerSuggestionConfirmation}
                   ></chat-message-assistant>`;
                 } else if (isChatAction(item) && this.host) {
                   return html`<chat-message-action

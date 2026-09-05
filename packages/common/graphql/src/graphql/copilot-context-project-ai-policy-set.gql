@@ -1,0 +1,10 @@
+mutation setCopilotContextProjectAiPolicy(
+  $input: SetCopilotProjectAiPolicyInput!
+) {
+  setCopilotContextProjectAiPolicy(input: $input) {
+    projectId
+    policy
+    updatedByUserId
+    updatedAt
+  }
+}

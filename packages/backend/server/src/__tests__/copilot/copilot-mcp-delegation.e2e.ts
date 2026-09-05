@@ -437,6 +437,55 @@ test('credential-authorized document task runs without approval and sends a sign
   );
 });
 
+test('task query fails closed when a delegation points at another task run', async t => {
+  const { credentials, db, owner, runtime } = t.context;
+  const { docId, workspaceId } = await createDocument(
+    t.context,
+    owner.id,
+    'Linkage validation body.'
+  );
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId,
+    name: 'Task query linkage validation',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'document_update',
+        docId,
+        content: 'Linkage validation replacement.',
+        summary: 'Validate task linkage',
+      }),
+    },
+  } as any);
+  const first = await delegate(t.context, issued.token, {
+    request: 'Create the first task.',
+    documentIds: [docId],
+    idempotencyKey: 'task-query-linkage-first',
+  });
+  const second = await delegate(t.context, issued.token, {
+    request: 'Create the second task.',
+    documentIds: [docId],
+    idempotencyKey: 'task-query-linkage-second',
+  });
+  await db.aiMcpDelegationRequest.update({
+    where: { id: String(first.taskId) },
+    data: { agentRunId: String(second.agentRunId) },
+  });
+
+  t.deepEqual(
+    await getTaskThroughMcp(t.context, issued.token, {
+      taskId: String(first.taskId),
+      waitMs: 0,
+    }),
+    { code: 'task_state_invalid' }
+  );
+});
+
 test('LocalMind tool agent creates a document and returns a sanitized task artifact', async t => {
   const { credentials, db, owner, runtime, worker } = t.context;
   const { docId: sourceDocId, workspaceId } = await createDocument(
@@ -2430,7 +2479,7 @@ test('worker failures send a terminal failure notification', async t => {
       }),
     },
   } as any);
-  Sinon.stub(t.context.app!.get(DocWriter), 'updateDoc').rejects(
+  Sinon.stub(t.context.app!.get(DocWriter), 'updateDocDeferred').rejects(
     new Error('Simulated document write failure')
   );
 

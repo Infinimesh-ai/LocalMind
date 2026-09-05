@@ -32,6 +32,39 @@ export const StreamObjectSchema = z.discriminatedUnion('type', [
 
 export type StreamObject = z.infer<typeof StreamObjectSchema>;
 
+export type BlockerSuggestionType =
+  | 'wait_reply'
+  | 'wait_file'
+  | 'wait_decision'
+  | 'custom';
+
+export type BlockerSuggestion = {
+  aiSuggestionId: string;
+  confirmationProof: string;
+  projectId: string;
+  title: string;
+  type: BlockerSuggestionType;
+  waitingOn: string;
+  dueAt: string | null;
+  origin: 'ai_suggested';
+  confirmationRequired: true;
+};
+
+export type BlockerSuggestionConfirmation = {
+  onConfirm: (suggestion: BlockerSuggestion) => Promise<void>;
+  labels: {
+    title: string;
+    type: string;
+    waitingOn: string;
+    dueAt: string;
+    create: string;
+    creating: string;
+    created: string;
+    failed: string;
+    typeNames: Record<BlockerSuggestionType, string>;
+  };
+};
+
 const ChatMessageSchema = z.object({
   id: z.string(),
   content: z.string(),

@@ -60,6 +60,41 @@ test('normalizeOpenAppSignInNextParam', () => {
 
   expect(
     normalizeOpenAppSignInNextParam(
+      '/intelligence?project=project-1#in-progress',
+      'https://app.affine.local'
+    )
+  ).toBe('/intelligence?project=project-1#in-progress');
+
+  expect(
+    normalizeOpenAppSignInNextParam(
+      'https://app.affine.local/intelligence',
+      'https://app.affine.local'
+    )
+  ).toBe('/intelligence');
+
+  expect(
+    normalizeOpenAppSignInNextParam(
+      '/tasks?filter=all&taskId=workspace-b-task',
+      'https://app.affine.local'
+    )
+  ).toBe('/tasks?filter=all&taskId=workspace-b-task');
+
+  expect(
+    normalizeOpenAppSignInNextParam(
+      '/tasks-redirect?next=https://evil.example',
+      'https://app.affine.local'
+    )
+  ).toBeUndefined();
+
+  expect(
+    normalizeOpenAppSignInNextParam(
+      '/intelligence-redirect?next=https://evil.example',
+      'https://app.affine.local'
+    )
+  ).toBeUndefined();
+
+  expect(
+    normalizeOpenAppSignInNextParam(
       'https://evil.example/workspace/123',
       'https://app.affine.local'
     )

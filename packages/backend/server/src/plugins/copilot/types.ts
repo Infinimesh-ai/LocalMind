@@ -24,6 +24,11 @@ const zModelSelectionSource = z.preprocess(val => {
   return normalizeActionModelSelectionSource(takeFirst(val));
 }, z.enum(ACTION_MODEL_SELECTION_SOURCES).optional());
 
+const zChatSurface = z.preprocess(
+  takeFirst,
+  z.literal('intelligence_workbench').optional()
+);
+
 const ToolsConfigSchema = z.preprocess(
   val => {
     // if val is a string, try to parse it as JSON
@@ -50,6 +55,7 @@ export const ChatQuerySchema = z
     retry: zBool,
     reasoning: zBool,
     webSearch: zBool,
+    chatSurface: zChatSurface,
     toolsConfig: ToolsConfigSchema,
   })
   .catchall(z.string())
@@ -62,6 +68,7 @@ export const ChatQuerySchema = z
       retry,
       reasoning,
       webSearch,
+      chatSurface,
       toolsConfig,
       ...params
     }) => ({
@@ -72,6 +79,7 @@ export const ChatQuerySchema = z
       retry,
       reasoning,
       webSearch,
+      chatSurface,
       toolsConfig,
       params,
     })

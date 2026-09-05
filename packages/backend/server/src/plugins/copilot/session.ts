@@ -210,6 +210,7 @@ export class ChatSession implements AsyncDisposable {
       scope: {
         primaryDocId: this.context.scope.primaryDocId,
         readableDocIds: this.context.scope.readableDocIds,
+        readableDocumentRefs: this.context.scope.readableDocumentRefs,
         candidateProjectIds: this.context.scope.candidateProjectIds,
         projectIds: this.context.scope.projectIds,
         selectedProjectId: this.context.scope.selectedProjectId,
@@ -291,6 +292,7 @@ export class ChatSessionService {
           userId: scope.userId,
           workspaceId: scope.workspaceId,
           docIds: scope.readableDocIds,
+          documentRefs: scope.readableDocumentRefs,
           projectIds: scope.projectIds,
           query,
         })

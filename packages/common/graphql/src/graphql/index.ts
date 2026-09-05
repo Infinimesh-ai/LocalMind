@@ -6,6 +6,22 @@ export interface GraphQLQuery {
   file?: boolean;
   deprecations?: string[];
 }
+export const copilotBlockerFieldsFragment = `fragment CopilotBlockerFields on CopilotBlockerType {
+  id
+  projectId
+  creatorUserId
+  title
+  type
+  waitingOn
+  dueAt
+  overdue
+  status
+  origin
+  resolutionActorUserId
+  resolvedAt
+  createdAt
+  updatedAt
+}`;
 export const copilotChatHistoryFragment = `fragment CopilotChatHistory on CopilotHistories {
   sessionId
   workspaceId
@@ -36,6 +52,76 @@ export const copilotChatHistoryFragment = `fragment CopilotChatHistory on Copilo
   }
   createdAt
   updatedAt
+}`;
+export const copilotWorkbenchTaskItemFieldsFragment = `fragment CopilotWorkbenchTaskItemFields on CopilotWorkbenchTaskItemType {
+  id
+  entityId
+  kind
+  segment
+  attention
+  workspaceId
+  projectId
+  title
+  status
+  requestedLevel
+  documentId
+  redacted
+  relatedUserId
+  createdAt
+  updatedAt
+  completedAt
+  availableActions
+  blocker {
+    creatorUserId
+    type
+    waitingOn
+    dueAt
+    overdue
+    origin
+    resolutionActorUserId
+  }
+  run {
+    id
+    workspaceId
+    projectId
+    title
+    workflow
+    status
+    createdAt
+    updatedAt
+    startedAt
+    completedAt
+    failureCode
+    failureMessage
+    resultSummary
+    approvalSummary
+    approvalFingerprint
+    resultEvidence
+    availableActions
+    abandoned
+    approval {
+      stepId
+      status
+      title
+      decidedAt
+    }
+    artifacts {
+      workspaceId
+      kind
+      id
+      title
+    }
+    steps {
+      id
+      key
+      type
+      status
+      title
+      order
+      startedAt
+      completedAt
+    }
+  }
 }`;
 export const credentialsRequirementsFragment = `fragment CredentialsRequirements on CredentialsRequirementType {
   password {
@@ -820,8 +906,8 @@ export const releaseDeletedBlobsMutation = {
 export const setBlobMutation = {
   id: 'setBlobMutation' as const,
   op: 'setBlob',
-  query: `mutation setBlob($workspaceId: String!, $blob: Upload!) {
-  setBlob(workspaceId: $workspaceId, blob: $blob)
+  query: `mutation setBlob($workspaceId: String!, $blob: Upload!, $docScopeId: String) {
+  setBlob(workspaceId: $workspaceId, blob: $blob, docScopeId: $docScopeId)
 }`,
   file: true,
 };
@@ -829,20 +915,26 @@ export const setBlobMutation = {
 export const abortBlobUploadMutation = {
   id: 'abortBlobUploadMutation' as const,
   op: 'abortBlobUpload',
-  query: `mutation abortBlobUpload($workspaceId: String!, $key: String!, $uploadId: String!) {
-  abortBlobUpload(workspaceId: $workspaceId, key: $key, uploadId: $uploadId)
+  query: `mutation abortBlobUpload($workspaceId: String!, $key: String!, $uploadId: String!, $docScopeId: String) {
+  abortBlobUpload(
+    workspaceId: $workspaceId
+    key: $key
+    uploadId: $uploadId
+    docScopeId: $docScopeId
+  )
 }`,
 };
 
 export const completeBlobUploadMutation = {
   id: 'completeBlobUploadMutation' as const,
   op: 'completeBlobUpload',
-  query: `mutation completeBlobUpload($workspaceId: String!, $key: String!, $uploadId: String, $parts: [BlobUploadPartInput!]) {
+  query: `mutation completeBlobUpload($workspaceId: String!, $key: String!, $uploadId: String, $parts: [BlobUploadPartInput!], $docScopeId: String) {
   completeBlobUpload(
     workspaceId: $workspaceId
     key: $key
     uploadId: $uploadId
     parts: $parts
+    docScopeId: $docScopeId
   )
 }`,
 };
@@ -850,8 +942,14 @@ export const completeBlobUploadMutation = {
 export const createBlobUploadMutation = {
   id: 'createBlobUploadMutation' as const,
   op: 'createBlobUpload',
-  query: `mutation createBlobUpload($workspaceId: String!, $key: String!, $size: Int!, $mime: String!) {
-  createBlobUpload(workspaceId: $workspaceId, key: $key, size: $size, mime: $mime) {
+  query: `mutation createBlobUpload($workspaceId: String!, $key: String!, $size: Int!, $mime: String!, $docScopeId: String) {
+  createBlobUpload(
+    workspaceId: $workspaceId
+    key: $key
+    size: $size
+    mime: $mime
+    docScopeId: $docScopeId
+  ) {
     method
     blobKey
     alreadyUploaded
@@ -871,9 +969,14 @@ export const createBlobUploadMutation = {
 export const getBlobUploadPartUrlQuery = {
   id: 'getBlobUploadPartUrlQuery' as const,
   op: 'getBlobUploadPartUrl',
-  query: `query getBlobUploadPartUrl($workspaceId: String!, $key: String!, $uploadId: String!, $partNumber: Int!) {
+  query: `query getBlobUploadPartUrl($workspaceId: String!, $key: String!, $uploadId: String!, $partNumber: Int!, $docScopeId: String) {
   workspace(id: $workspaceId) {
-    blobUploadPartUrl(key: $key, uploadId: $uploadId, partNumber: $partNumber) {
+    blobUploadPartUrl(
+      key: $key
+      uploadId: $uploadId
+      partNumber: $partNumber
+      docScopeId: $docScopeId
+    ) {
       uploadUrl
       headers
       expiresAt
@@ -1268,6 +1371,51 @@ export const uploadCommentAttachmentMutation = {
   )
 }`,
   file: true,
+};
+
+export const approveCopilotAccessRequestMutation = {
+  id: 'approveCopilotAccessRequestMutation' as const,
+  op: 'approveCopilotAccessRequest',
+  query: `mutation approveCopilotAccessRequest($input: ResolveCopilotAccessRequestInput!) {
+  approveCopilotAccessRequest(input: $input) {
+    id
+    status
+    resolvedByUserId
+    resolutionReason
+    resolvedAt
+    updatedAt
+  }
+}`,
+};
+
+export const rejectCopilotAccessRequestMutation = {
+  id: 'rejectCopilotAccessRequestMutation' as const,
+  op: 'rejectCopilotAccessRequest',
+  query: `mutation rejectCopilotAccessRequest($input: ResolveCopilotAccessRequestInput!) {
+  rejectCopilotAccessRequest(input: $input) {
+    id
+    status
+    resolvedByUserId
+    resolutionReason
+    resolvedAt
+    updatedAt
+  }
+}`,
+};
+
+export const withdrawCopilotAccessRequestMutation = {
+  id: 'withdrawCopilotAccessRequestMutation' as const,
+  op: 'withdrawCopilotAccessRequest',
+  query: `mutation withdrawCopilotAccessRequest($input: ResolveCopilotAccessRequestInput!) {
+  withdrawCopilotAccessRequest(input: $input) {
+    id
+    status
+    resolvedByUserId
+    resolutionReason
+    resolvedAt
+    updatedAt
+  }
+}`,
 };
 
 export const getCopilotActionRunPreparedRouteTraceQuery = {
@@ -1776,6 +1924,40 @@ export const controlCopilotAgentRuntimeRunMutation = {
 }`,
 };
 
+export const requestCopilotAgentRuntimeDocUpdateMutation = {
+  id: 'requestCopilotAgentRuntimeDocUpdateMutation' as const,
+  op: 'requestCopilotAgentRuntimeDocUpdate',
+  query: `mutation requestCopilotAgentRuntimeDocUpdate($input: CopilotAgentRuntimeDocUpdateRequestInput!) {
+  requestCopilotAgentRuntimeDocUpdate(input: $input) {
+    id
+    workspaceId
+    actorId
+    workflow
+    sourceType
+    sourceId
+    status
+    title
+    targetFingerprint
+    evidenceFingerprint
+    timelineFingerprint
+    workerAttempt
+    workerMaxAttempts
+    createdAt
+    updatedAt
+    steps {
+      id
+      stepKey
+      stepType
+      status
+      title
+      order
+      evidenceFingerprint
+      outputSummary
+    }
+  }
+}`,
+};
+
 export const requestCopilotAgentRuntimeOfficeCommandMutation = {
   id: 'requestCopilotAgentRuntimeOfficeCommandMutation' as const,
   op: 'requestCopilotAgentRuntimeOfficeCommand',
@@ -1808,6 +1990,50 @@ export const requestCopilotAgentRuntimeOfficeCommandMutation = {
     }
   }
 }`,
+};
+
+export const abandonCopilotBlockerMutation = {
+  id: 'abandonCopilotBlockerMutation' as const,
+  op: 'abandonCopilotBlocker',
+  query: `mutation abandonCopilotBlocker($blockerId: ID!) {
+  abandonCopilotBlocker(blockerId: $blockerId) {
+    ...CopilotBlockerFields
+  }
+}
+${copilotBlockerFieldsFragment}`,
+};
+
+export const createCopilotBlockerMutation = {
+  id: 'createCopilotBlockerMutation' as const,
+  op: 'createCopilotBlocker',
+  query: `mutation createCopilotBlocker($input: CreateCopilotBlockerInput!) {
+  createCopilotBlocker(input: $input) {
+    ...CopilotBlockerFields
+  }
+}
+${copilotBlockerFieldsFragment}`,
+};
+
+export const resolveCopilotBlockerMutation = {
+  id: 'resolveCopilotBlockerMutation' as const,
+  op: 'resolveCopilotBlocker',
+  query: `mutation resolveCopilotBlocker($blockerId: ID!) {
+  resolveCopilotBlocker(blockerId: $blockerId) {
+    ...CopilotBlockerFields
+  }
+}
+${copilotBlockerFieldsFragment}`,
+};
+
+export const confirmCopilotBlockerSuggestionMutation = {
+  id: 'confirmCopilotBlockerSuggestionMutation' as const,
+  op: 'confirmCopilotBlockerSuggestion',
+  query: `mutation confirmCopilotBlockerSuggestion($input: ConfirmCopilotBlockerSuggestionInput!) {
+  confirmCopilotBlockerSuggestion(input: $input) {
+    ...CopilotBlockerFields
+  }
+}
+${copilotBlockerFieldsFragment}`,
 };
 
 export const addContextBlobMutation = {
@@ -1887,12 +2113,18 @@ export const copilotContextDashboardGetQuery = {
       }
       contextProjects(includeArchived: true) {
         id
-        workspaceId
         createdByUserId
         name
         description
         status
-        documentIds
+        role
+        documents {
+          workspaceId
+          docId
+          title
+          groupId
+          sortOrder
+        }
         documentCount
         canManage
         createdAt
@@ -2297,18 +2529,52 @@ export const copilotContextMemoryUpdateMutation = {
 }`,
 };
 
+export const setCopilotContextProjectAiPolicyMutation = {
+  id: 'setCopilotContextProjectAiPolicyMutation' as const,
+  op: 'setCopilotContextProjectAiPolicy',
+  query: `mutation setCopilotContextProjectAiPolicy($input: SetCopilotProjectAiPolicyInput!) {
+  setCopilotContextProjectAiPolicy(input: $input) {
+    projectId
+    policy
+    updatedByUserId
+    updatedAt
+  }
+}`,
+};
+
 export const copilotContextProjectCreateMutation = {
   id: 'copilotContextProjectCreateMutation' as const,
   op: 'copilotContextProjectCreate',
   query: `mutation copilotContextProjectCreate($input: CreateCopilotContextProjectInput!) {
   createCopilotContextProject(input: $input) {
     id
-    workspaceId
     createdByUserId
     name
     description
     status
-    documentIds
+    aiPolicy
+    role
+    members {
+      userId
+      name
+      email
+      avatarUrl
+      role
+      createdAt
+    }
+    documents {
+      workspaceId
+      docId
+      title
+      groupId
+      sortOrder
+      status
+      requestedLevel
+      accessRequestId
+      addedByMe
+      createdAt
+      updatedAt
+    }
     documentCount
     canManage
     createdAt
@@ -2325,18 +2591,140 @@ export const copilotContextProjectDeleteMutation = {
 }`,
 };
 
+export const copilotContextProjectDocumentAddMutation = {
+  id: 'copilotContextProjectDocumentAddMutation' as const,
+  op: 'copilotContextProjectDocumentAdd',
+  query: `mutation copilotContextProjectDocumentAdd($input: AddCopilotContextProjectDocumentInput!) {
+  addCopilotContextProjectDocument(input: $input) {
+    outcome
+    projectDocument {
+      workspaceId
+      docId
+      title
+      groupId
+      sortOrder
+      status
+      requestedLevel
+      accessRequestId
+      addedByMe
+      createdAt
+      updatedAt
+    }
+  }
+}`,
+};
+
+export const copilotContextProjectDocumentRemoveMutation = {
+  id: 'copilotContextProjectDocumentRemoveMutation' as const,
+  op: 'copilotContextProjectDocumentRemove',
+  query: `mutation copilotContextProjectDocumentRemove($input: RemoveCopilotContextProjectDocumentInput!) {
+  removeCopilotContextProjectDocument(input: $input) {
+    id
+    role
+    documents {
+      workspaceId
+      docId
+      title
+      groupId
+      sortOrder
+      status
+      requestedLevel
+      accessRequestId
+      addedByMe
+      createdAt
+      updatedAt
+    }
+    documentCount
+    canManage
+    updatedAt
+  }
+}`,
+};
+
+export const copilotContextProjectDocumentUpdateMutation = {
+  id: 'copilotContextProjectDocumentUpdateMutation' as const,
+  op: 'copilotContextProjectDocumentUpdate',
+  query: `mutation copilotContextProjectDocumentUpdate($input: UpdateCopilotContextProjectDocumentInput!) {
+  updateCopilotContextProjectDocument(input: $input) {
+    id
+    role
+    documents {
+      workspaceId
+      docId
+      title
+      groupId
+      sortOrder
+      status
+      requestedLevel
+      accessRequestId
+      addedByMe
+      createdAt
+      updatedAt
+    }
+    documentCount
+    canManage
+    updatedAt
+  }
+}`,
+};
+
+export const leaveCopilotContextProjectMutation = {
+  id: 'leaveCopilotContextProjectMutation' as const,
+  op: 'leaveCopilotContextProject',
+  query: `mutation leaveCopilotContextProject($projectId: ID!) {
+  leaveCopilotContextProject(projectId: $projectId)
+}`,
+};
+
+export const removeCopilotContextProjectMemberMutation = {
+  id: 'removeCopilotContextProjectMemberMutation' as const,
+  op: 'removeCopilotContextProjectMember',
+  query: `mutation removeCopilotContextProjectMember($input: RemoveCopilotProjectMemberInput!) {
+  removeCopilotContextProjectMember(input: $input)
+}`,
+};
+
+export const transferCopilotContextProjectOwnershipMutation = {
+  id: 'transferCopilotContextProjectOwnershipMutation' as const,
+  op: 'transferCopilotContextProjectOwnership',
+  query: `mutation transferCopilotContextProjectOwnership($input: TransferCopilotProjectOwnershipInput!) {
+  transferCopilotContextProjectOwnership(input: $input)
+}`,
+};
+
 export const copilotContextProjectUpdateMutation = {
   id: 'copilotContextProjectUpdateMutation' as const,
   op: 'copilotContextProjectUpdate',
   query: `mutation copilotContextProjectUpdate($input: UpdateCopilotContextProjectInput!) {
   updateCopilotContextProject(input: $input) {
     id
-    workspaceId
     createdByUserId
     name
     description
     status
-    documentIds
+    aiPolicy
+    role
+    members {
+      userId
+      name
+      email
+      avatarUrl
+      role
+      createdAt
+    }
+    documents {
+      workspaceId
+      docId
+      title
+      groupId
+      sortOrder
+      status
+      requestedLevel
+      accessRequestId
+      addedByMe
+      createdAt
+      updatedAt
+    }
     documentCount
     canManage
     createdAt
@@ -2365,6 +2753,10 @@ export const copilotContextSessionScopeQuery = {
         sessionId
         primaryDocId
         readableDocIds
+        readableDocumentRefs {
+          workspaceId
+          docId
+        }
         candidateProjectIds
         projectIds
         selectedProjectId
@@ -2476,6 +2868,31 @@ export const queueWorkspaceEmbeddingMutation = {
   op: 'queueWorkspaceEmbedding',
   query: `mutation queueWorkspaceEmbedding($workspaceId: String!, $docId: [String!]!) {
   queueWorkspaceEmbedding(workspaceId: $workspaceId, docId: $docId)
+}`,
+};
+
+export const requestCopilotDocumentAccessMutation = {
+  id: 'requestCopilotDocumentAccessMutation' as const,
+  op: 'requestCopilotDocumentAccess',
+  query: `mutation requestCopilotDocumentAccess($input: RequestCopilotDocumentAccessInput!) {
+  requestCopilotDocumentAccess(input: $input) {
+    id
+    workspaceId
+    docId
+    beneficiaryType
+    beneficiaryUserId
+    beneficiaryProjectId
+    requesterUserId
+    requestedLevel
+    requestedTitle
+    status
+    resolvedByUserId
+    resolutionReason
+    resolvedAt
+    expiresAt
+    createdAt
+    updatedAt
+  }
 }`,
 };
 
@@ -3456,6 +3873,112 @@ export const getPromptModelsQuery = {
         }
       }
     }
+  }
+}`,
+};
+
+export const reRequestCopilotProjectDocumentAccessMutation = {
+  id: 'reRequestCopilotProjectDocumentAccessMutation' as const,
+  op: 'reRequestCopilotProjectDocumentAccess',
+  query: `mutation reRequestCopilotProjectDocumentAccess($input: ReRequestCopilotProjectDocumentInput!) {
+  reRequestCopilotProjectDocumentAccess(input: $input) {
+    id
+    beneficiaryProjectId
+    requestedLevel
+    status
+    createdAt
+    updatedAt
+  }
+}`,
+};
+
+export const revokeCopilotProjectGrantMutation = {
+  id: 'revokeCopilotProjectGrantMutation' as const,
+  op: 'revokeCopilotProjectGrant',
+  query: `mutation revokeCopilotProjectGrant($input: RevokeCopilotProjectGrantInput!) {
+  revokeCopilotProjectGrant(input: $input) {
+    grant {
+      id
+      projectId
+      projectName
+      workspaceId
+      docId
+      level
+      status
+      source
+      approvingSide
+      revocable
+      grantedByUserId
+      accessRequestId
+      grantedAt
+      revokedByUserId
+      revokedAt
+      createdAt
+      updatedAt
+    }
+    rerequestCardId
+    quarantinedMemoryCount
+  }
+}`,
+};
+
+export const acceptCopilotProjectInvitationMutation = {
+  id: 'acceptCopilotProjectInvitationMutation' as const,
+  op: 'acceptCopilotProjectInvitation',
+  query: `mutation acceptCopilotProjectInvitation($invitationId: ID!) {
+  acceptCopilotProjectInvitation(invitationId: $invitationId) {
+    id
+    projectId
+    status
+    acceptedAt
+    updatedAt
+  }
+}`,
+};
+
+export const declineCopilotProjectInvitationMutation = {
+  id: 'declineCopilotProjectInvitationMutation' as const,
+  op: 'declineCopilotProjectInvitation',
+  query: `mutation declineCopilotProjectInvitation($invitationId: ID!) {
+  declineCopilotProjectInvitation(invitationId: $invitationId) {
+    id
+    projectId
+    status
+    declinedAt
+    updatedAt
+  }
+}`,
+};
+
+export const sendCopilotProjectInvitationMutation = {
+  id: 'sendCopilotProjectInvitationMutation' as const,
+  op: 'sendCopilotProjectInvitation',
+  query: `mutation sendCopilotProjectInvitation($input: SendCopilotProjectInvitationInput!) {
+  sendCopilotProjectInvitation(input: $input) {
+    id
+    projectId
+    inviteeUserId
+    inviterUserId
+    status
+    acceptedAt
+    declinedAt
+    withdrawnAt
+    createdAt
+    updatedAt
+  }
+}`,
+};
+
+export const withdrawCopilotProjectInvitationMutation = {
+  id: 'withdrawCopilotProjectInvitationMutation' as const,
+  op: 'withdrawCopilotProjectInvitation',
+  query: `mutation withdrawCopilotProjectInvitation($invitationId: ID!) {
+  withdrawCopilotProjectInvitation(invitationId: $invitationId) {
+    id
+    projectId
+    status
+    withdrawnAt
+    updatedAt
   }
 }`,
 };
@@ -6863,6 +7386,8 @@ export const controlCopilotTaskMutation = {
   query: `mutation controlCopilotTask($input: CopilotTaskControlInput!) {
   controlCopilotTask(input: $input) {
     id
+    workspaceId
+    projectId
     title
     workflow
     status
@@ -6876,6 +7401,7 @@ export const controlCopilotTaskMutation = {
     approvalSummary
     resultEvidence
     availableActions
+    abandoned
     approval {
       stepId
       status
@@ -6909,6 +7435,8 @@ export const copilotTaskGetQuery = {
     copilot(workspaceId: $workspaceId) {
       copilotTask(id: $taskId) {
         id
+        workspaceId
+        projectId
         title
         workflow
         status
@@ -6922,6 +7450,7 @@ export const copilotTaskGetQuery = {
         approvalSummary
         resultEvidence
         availableActions
+        abandoned
         approval {
           stepId
           status
@@ -6952,11 +7481,13 @@ export const copilotTaskGetQuery = {
 export const copilotTasksGetQuery = {
   id: 'copilotTasksGetQuery' as const,
   op: 'copilotTasksGet',
-  query: `query copilotTasksGet($workspaceId: String!, $limit: SafeInt, $filter: CopilotTaskListFilterInput) {
+  query: `query copilotTasksGet($workspaceId: String, $limit: SafeInt, $filter: CopilotTaskListFilterInput) {
   currentUser {
     copilot(workspaceId: $workspaceId) {
       copilotTasks(filter: $filter, limit: $limit) {
         id
+        workspaceId
+        projectId
         title
         workflow
         status
@@ -6970,6 +7501,7 @@ export const copilotTasksGetQuery = {
         approvalSummary
         resultEvidence
         availableActions
+        abandoned
         approval {
           stepId
           status
@@ -7152,6 +7684,200 @@ export const submitTranscriptTaskMutation = {
   }
 }`,
   file: true,
+};
+
+export const copilotWorkbenchBlockersGetQuery = {
+  id: 'copilotWorkbenchBlockersGetQuery' as const,
+  op: 'copilotWorkbenchBlockersGet',
+  query: `query copilotWorkbenchBlockersGet($projectId: ID, $statuses: [String!], $limit: Int) {
+  currentUser {
+    copilot {
+      workbenchBlockers(projectId: $projectId, statuses: $statuses, limit: $limit) {
+        ...CopilotBlockerFields
+      }
+    }
+  }
+}
+${copilotBlockerFieldsFragment}`,
+};
+
+export const copilotWorkbenchProjectsGetQuery = {
+  id: 'copilotWorkbenchProjectsGetQuery' as const,
+  op: 'copilotWorkbenchProjectsGet',
+  query: `query copilotWorkbenchProjectsGet($includeArchived: Boolean = false) {
+  currentUser {
+    copilot {
+      contextProjects(includeArchived: $includeArchived) {
+        id
+        createdByUserId
+        name
+        description
+        status
+        aiPolicy
+        role
+        members {
+          userId
+          name
+          email
+          avatarUrl
+          role
+          createdAt
+        }
+        documents {
+          workspaceId
+          docId
+          title
+          groupId
+          sortOrder
+          status
+          requestedLevel
+          accessRequestId
+          addedByMe
+          createdAt
+          updatedAt
+        }
+        documentCount
+        canManage
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}`,
+};
+
+export const copilotWorkbenchSourceAuthorizationGetQuery = {
+  id: 'copilotWorkbenchSourceAuthorizationGetQuery' as const,
+  op: 'copilotWorkbenchSourceAuthorizationGet',
+  query: `query copilotWorkbenchSourceAuthorizationGet($workspaceId: String!, $docId: String!) {
+  currentUser {
+    copilot {
+      workbenchAccessRequests(
+        view: "source"
+        workspaceId: $workspaceId
+        docId: $docId
+        statuses: ["pending"]
+        limit: 50
+      ) {
+        id
+        workspaceId
+        docId
+        beneficiaryType
+        beneficiaryUserId
+        beneficiaryProjectId
+        requesterUserId
+        requestedLevel
+        requestedTitle
+        status
+        createdAt
+        updatedAt
+      }
+      workbenchProjectGrantsForSource(
+        workspaceId: $workspaceId
+        docId: $docId
+        statuses: ["active"]
+        limit: 100
+      ) {
+        id
+        projectId
+        projectName
+        workspaceId
+        docId
+        level
+        status
+        source
+        approvingSide
+        revocable
+        grantedByUserId
+        accessRequestId
+        grantedAt
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}`,
+};
+
+export const copilotWorkbenchTaskGetQuery = {
+  id: 'copilotWorkbenchTaskGetQuery' as const,
+  op: 'copilotWorkbenchTaskGet',
+  query: `query copilotWorkbenchTaskGet($taskId: String!) {
+  currentUser {
+    copilot {
+      workbenchTask(taskId: $taskId) {
+        ...CopilotWorkbenchTaskItemFields
+        run {
+          documentUpdate {
+            workspaceId
+            docId
+            content
+            expectedVersion
+            needsReconfirmation
+            previousVersion
+          }
+        }
+      }
+    }
+  }
+}
+${copilotWorkbenchTaskItemFieldsFragment}`,
+};
+
+export const copilotWorkbenchTaskPanelGetQuery = {
+  id: 'copilotWorkbenchTaskPanelGetQuery' as const,
+  op: 'copilotWorkbenchTaskPanelGet',
+  query: `query copilotWorkbenchTaskPanelGet($projectId: ID) {
+  currentUser {
+    copilot {
+      workbenchTaskPanel(projectId: $projectId) {
+        todo {
+          capped
+          items {
+            ...CopilotWorkbenchTaskItemFields
+          }
+        }
+        inProgress {
+          capped
+          items {
+            ...CopilotWorkbenchTaskItemFields
+          }
+        }
+        done {
+          capped
+          items {
+            ...CopilotWorkbenchTaskItemFields
+          }
+        }
+      }
+    }
+  }
+}
+${copilotWorkbenchTaskItemFieldsFragment}`,
+};
+
+export const copilotWorkbenchTasksGetQuery = {
+  id: 'copilotWorkbenchTasksGetQuery' as const,
+  op: 'copilotWorkbenchTasksGet',
+  query: `query copilotWorkbenchTasksGet($projectId: ID, $limit: Int, $cursor: String, $filter: String) {
+  currentUser {
+    copilot {
+      workbenchTasks(
+        projectId: $projectId
+        limit: $limit
+        cursor: $cursor
+        filter: $filter
+      ) {
+        capped
+        nextCursor
+        items {
+          ...CopilotWorkbenchTaskItemFields
+        }
+      }
+    }
+  }
+}
+${copilotWorkbenchTaskItemFieldsFragment}`,
 };
 
 export const addWorkspaceEmbeddingFilesMutation = {

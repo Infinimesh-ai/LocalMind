@@ -264,6 +264,16 @@ export class McpAiTaskQueryService {
           record.agentRunId
         )
       : null;
+    if (
+      record.agentRunId &&
+      (!run ||
+        run.workspaceId !== record.workspaceId ||
+        run.actorId !== record.actorId ||
+        run.sourceType !== 'mcp_ai_delegation' ||
+        run.sourceId !== record.id)
+    ) {
+      return { error: { code: 'task_state_invalid' } };
+    }
     const marker: TaskStateMarker = {
       id: record.id,
       status: record.status,

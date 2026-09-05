@@ -14,6 +14,7 @@ import {
   ResolveField,
   Resolver,
 } from '@nestjs/graphql';
+import { Transactional } from '@nestjs-cls/transactional';
 import { GraphQLJSON } from 'graphql-scalars';
 
 import { BadRequest, Throttle } from '../../base';
@@ -21,19 +22,24 @@ import type { CurrentUser as CurrentUserType } from '../../core/auth';
 import { CurrentUser } from '../../core/auth';
 import { PermissionAccess } from '../../core/permission';
 import type {
+  CopilotContextDocumentRef,
   CopilotContextMemoryKind,
   CopilotContextMemoryScope,
   CopilotContextMemoryStatus,
+  CopilotContextProjectDocumentInput,
+  CopilotContextProjectRole,
   CopilotContextProjectStatus,
   CopilotContextRuleConditions,
   CopilotContextRuleMode,
   CopilotContextRuleStatus,
 } from '../../models';
+import { Models } from '../../models';
 import {
   classifyContextMemoryDlp,
   ContextMemoryService,
 } from './context-memory-service';
 import { ContextRuleService } from './context-rule-service';
+import { redactProjectDocumentForViewer } from './intelligence-workbench-permission';
 import { CopilotType } from './resolver';
 
 enum CopilotContextMemoryScopeInputValue {
@@ -200,8 +206,8 @@ export class CopilotContextRuleRevisionType {
   @Field(() => String)
   fingerprint!: string;
 
-  @Field(() => String)
-  createdByUserId!: string;
+  @Field(() => String, { nullable: true })
+  createdByUserId!: string | null;
 
   @Field(() => String)
   source!: string;
@@ -361,6 +367,15 @@ export class CopilotContextScopeProjectType {
 }
 
 @ObjectType()
+export class CopilotContextDocumentRefType {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  docId!: string;
+}
+
+@ObjectType()
 export class CopilotContextSessionScopeType {
   @Field(() => String)
   sessionId!: string;
@@ -370,6 +385,9 @@ export class CopilotContextSessionScopeType {
 
   @Field(() => [String])
   readableDocIds!: string[];
+
+  @Field(() => [CopilotContextDocumentRefType])
+  readableDocumentRefs!: CopilotContextDocumentRefType[];
 
   @Field(() => [String])
   candidateProjectIds!: string[];
@@ -421,12 +439,30 @@ export class CopilotContextStrategyType {
 }
 
 @ObjectType()
+export class CopilotContextProjectMemberType {
+  @Field(() => String)
+  userId!: string;
+
+  @Field(() => String)
+  name!: string;
+
+  @Field(() => String)
+  email!: string;
+
+  @Field(() => String, { nullable: true })
+  avatarUrl!: string | null;
+
+  @Field(() => String)
+  role!: CopilotContextProjectRole;
+
+  @Field(() => GraphQLISODateTime)
+  createdAt!: Date;
+}
+
+@ObjectType()
 export class CopilotContextProjectType {
   @Field(() => ID)
   id!: string;
-
-  @Field(() => String)
-  workspaceId!: string;
 
   @Field(() => String, { nullable: true })
   createdByUserId!: string | null;
@@ -440,8 +476,17 @@ export class CopilotContextProjectType {
   @Field(() => String)
   status!: string;
 
-  @Field(() => [String])
-  documentIds!: string[];
+  @Field(() => String)
+  aiPolicy!: string;
+
+  @Field(() => String)
+  role!: CopilotContextProjectRole;
+
+  @Field(() => [CopilotContextProjectDocumentType])
+  documents!: CopilotContextProjectDocumentType[];
+
+  @Field(() => [CopilotContextProjectMemberType])
+  members!: CopilotContextProjectMemberType[];
 
   @Field(() => Int)
   documentCount!: number;
@@ -454,6 +499,51 @@ export class CopilotContextProjectType {
 
   @Field(() => GraphQLISODateTime)
   updatedAt!: Date;
+}
+
+@ObjectType()
+export class CopilotContextProjectDocumentType {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String, { nullable: true })
+  docId!: string | null;
+
+  @Field(() => String, { nullable: true })
+  title!: string | null;
+
+  @Field(() => String, { nullable: true })
+  groupId!: string | null;
+
+  @Field(() => Int)
+  sortOrder!: number;
+
+  @Field(() => String)
+  status!: string;
+
+  @Field(() => String)
+  requestedLevel!: string;
+
+  @Field(() => String, { nullable: true })
+  accessRequestId!: string | null;
+
+  @Field(() => Boolean)
+  addedByMe!: boolean;
+
+  @Field(() => GraphQLISODateTime)
+  createdAt!: Date;
+
+  @Field(() => GraphQLISODateTime)
+  updatedAt!: Date;
+}
+
+@InputType()
+export class CopilotContextRuleDocumentRefInput implements CopilotContextDocumentRef {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  docId!: string;
 }
 
 @InputType()
@@ -475,6 +565,9 @@ export class CreateCopilotContextMemoryInput {
 
   @Field(() => String)
   content!: string;
+
+  @Field(() => [CopilotContextRuleDocumentRefInput], { nullable: true })
+  sourceDocuments?: CopilotContextRuleDocumentRefInput[];
 }
 
 @InputType()
@@ -496,6 +589,9 @@ export class CopilotContextRuleConditionsInput {
 
   @Field(() => [String], { nullable: true })
   docIds?: string[];
+
+  @Field(() => [CopilotContextRuleDocumentRefInput], { nullable: true })
+  documentRefs?: CopilotContextRuleDocumentRefInput[];
 
   @Field(() => [String], { nullable: true })
   projectIds?: string[];
@@ -625,18 +721,51 @@ export class UpdateCopilotContextSettingsInput {
 }
 
 @InputType()
-export class CreateCopilotContextProjectInput {
+export class CopilotContextProjectDocumentInputType implements CopilotContextProjectDocumentInput {
   @Field(() => String)
   workspaceId!: string;
 
+  @Field(() => String)
+  docId!: string;
+
+  @Field(() => String, { nullable: true })
+  groupId?: string | null;
+
+  @Field(() => Int, { nullable: true })
+  sortOrder?: number;
+}
+
+@InputType()
+export class CopilotContextProjectWorkspaceDocumentInputType {
+  @Field(() => String)
+  docId!: string;
+
+  @Field(() => String, { nullable: true })
+  groupId?: string | null;
+
+  @Field(() => Int, { nullable: true })
+  sortOrder?: number;
+}
+
+@InputType()
+export class CopilotContextProjectWorkspaceDocumentsInputType {
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => [CopilotContextProjectWorkspaceDocumentInputType])
+  documents!: CopilotContextProjectWorkspaceDocumentInputType[];
+}
+
+@InputType()
+export class CreateCopilotContextProjectInput {
   @Field(() => String)
   name!: string;
 
   @Field(() => String, { nullable: true })
   description?: string;
 
-  @Field(() => [String])
-  documentIds!: string[];
+  @Field(() => [CopilotContextProjectDocumentInputType], { nullable: true })
+  documents?: CopilotContextProjectDocumentInputType[];
 }
 
 @InputType()
@@ -653,8 +782,52 @@ export class UpdateCopilotContextProjectInput {
   @Field(() => String, { nullable: true })
   status?: CopilotContextProjectStatus;
 
-  @Field(() => [String], { nullable: true })
-  documentIds?: string[];
+  @Field(() => CopilotContextProjectWorkspaceDocumentsInputType, {
+    nullable: true,
+  })
+  workspaceDocuments?: CopilotContextProjectWorkspaceDocumentsInputType;
+}
+
+@InputType()
+export class AddCopilotContextProjectDocumentInput extends CopilotContextProjectDocumentInputType {
+  @Field(() => ID)
+  projectId!: string;
+
+  @Field(() => String, { nullable: true, defaultValue: 'read' })
+  requestedLevel?: 'read' | 'write';
+
+  @Field(() => String, { nullable: true })
+  requestedTitle?: string | null;
+}
+
+@ObjectType()
+export class CopilotContextProjectDocumentAddResultType {
+  @Field(() => String)
+  outcome!: 'granted' | 'requested';
+
+  @Field(() => CopilotContextProjectDocumentType)
+  projectDocument!: CopilotContextProjectDocumentType;
+}
+
+@InputType()
+export class RemoveCopilotContextProjectDocumentInput {
+  @Field(() => ID)
+  projectId!: string;
+
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String)
+  docId!: string;
+}
+
+@InputType()
+export class UpdateCopilotContextProjectDocumentInput extends RemoveCopilotContextProjectDocumentInput {
+  @Field(() => String, { nullable: true })
+  groupId?: string | null;
+
+  @Field(() => Int, { nullable: true })
+  sortOrder?: number;
 }
 
 type StoredMemory = NonNullable<
@@ -676,7 +849,8 @@ export class CopilotContextMemoryResolver {
   constructor(
     private readonly ac: PermissionAccess,
     private readonly contextMemory: ContextMemoryService,
-    private readonly ruleService: ContextRuleService
+    private readonly ruleService: ContextRuleService,
+    private readonly models: Models
   ) {}
 
   private assertDlpSafe(content: string) {
@@ -742,18 +916,44 @@ export class CopilotContextMemoryResolver {
     const conditions: CopilotContextRuleConditions = {
       keywords: normalizeList(input.conditions?.keywords),
       docIds: normalizeList(input.conditions?.docIds),
+      documentRefs:
+        input.conditions?.documentRefs === undefined
+          ? undefined
+          : [
+              ...new Map(
+                input.conditions.documentRefs.flatMap(document => {
+                  const workspaceId = document.workspaceId.trim();
+                  const docId = document.docId.trim();
+                  return workspaceId && docId
+                    ? [
+                        [
+                          `${workspaceId}\0${docId}`,
+                          { workspaceId, docId },
+                        ] as const,
+                      ]
+                    : [];
+                })
+              ).values(),
+            ],
       projectIds: normalizeList(input.conditions?.projectIds),
       match: input.conditions?.match === 'all' ? 'all' : 'any',
     };
     for (const values of [
       conditions.keywords,
       conditions.docIds,
+      conditions.documentRefs,
       conditions.projectIds,
     ]) {
       if (values && values.length > 100) {
         throw new BadRequest('A condition list cannot exceed 100 values');
       }
-      if (values?.some(value => value.length > 200)) {
+      if (
+        values?.some(value =>
+          typeof value === 'string'
+            ? value.length > 200
+            : value.workspaceId.length > 200 || value.docId.length > 200
+        )
+      ) {
         throw new BadRequest('A condition value cannot exceed 200 characters');
       }
     }
@@ -764,7 +964,14 @@ export class CopilotContextMemoryResolver {
   }
 
   private async assertRuleOwner(userId: string, rule: StoredRule | null) {
-    if (!rule || rule.ownerUserId !== userId) {
+    if (!rule) {
+      throw new NotFoundException('Context rule not found');
+    }
+    if (rule.scope === 'project') {
+      await this.requireFullyReadableProject(userId, rule.projectId, 'owner');
+      return;
+    }
+    if (rule.ownerUserId !== userId) {
       throw new NotFoundException('Context rule not found');
     }
   }
@@ -819,14 +1026,17 @@ export class CopilotContextMemoryResolver {
     }
     if (
       input.scope === 'project' &&
-      (!input.workspaceId || input.docId || !input.projectId)
+      (input.workspaceId || input.docId || !input.projectId)
     ) {
-      throw new BadRequest(
-        'Project-scoped memory requires workspaceId and projectId'
-      );
+      throw new BadRequest('Project-scoped memory requires only projectId');
     }
     if (input.kind === 'project_summary' && input.scope !== 'project') {
       throw new BadRequest('Project summaries must use project scope');
+    }
+    if (input.scope !== 'project' && input.sourceDocuments !== undefined) {
+      throw new BadRequest(
+        'Source documents are supported only for project-scoped memory'
+      );
     }
     return content;
   }
@@ -835,7 +1045,7 @@ export class CopilotContextMemoryResolver {
     name?: string;
     description?: string;
     status?: CopilotContextProjectStatus;
-    documentIds?: string[];
+    documents?: CopilotContextProjectDocumentInput[];
   }) {
     const name = input.name?.trim();
     const description = input.description?.trim();
@@ -851,15 +1061,39 @@ export class CopilotContextMemoryResolver {
     ) {
       throw new BadRequest('Invalid project status');
     }
-    const documentIds = input.documentIds
-      ? [...new Set(input.documentIds.map(id => id.trim()).filter(Boolean))]
-      : undefined;
-    if (documentIds && (documentIds.length === 0 || documentIds.length > 100)) {
-      throw new BadRequest(
-        'A project must contain between 1 and 100 documents'
-      );
+    let documents: CopilotContextProjectDocumentInput[] | undefined;
+    if (input.documents) {
+      const unique = new Map<string, CopilotContextProjectDocumentInput>();
+      for (const [index, document] of input.documents.entries()) {
+        const workspaceId = document.workspaceId.trim();
+        const docId = document.docId.trim();
+        const groupId = document.groupId?.trim() || null;
+        const sortOrder = document.sortOrder ?? index;
+        if (!workspaceId || !docId) {
+          throw new BadRequest(
+            'Project documents require workspaceId and docId'
+          );
+        }
+        if (!Number.isInteger(sortOrder) || sortOrder < 0) {
+          throw new BadRequest(
+            'Project document sortOrder must be a non-negative integer'
+          );
+        }
+        unique.set(`${workspaceId}\0${docId}`, {
+          workspaceId,
+          docId,
+          groupId,
+          sortOrder,
+        });
+      }
+      documents = [...unique.values()];
+      if (documents.length > 100) {
+        throw new BadRequest(
+          'A project cannot contain more than 100 documents'
+        );
+      }
     }
-    return { name, description, documentIds };
+    return { name, description, documents };
   }
 
   private async assertRead(
@@ -870,18 +1104,11 @@ export class CopilotContextMemoryResolver {
       projectId?: string | null;
     }
   ) {
-    if (!input.workspaceId) return;
     if (input.projectId) {
-      const project = await this.contextMemory.getProject(input.projectId);
-      if (!project || project.workspaceId !== input.workspaceId) {
-        throw new NotFoundException('Context project not found');
-      }
-      const accessible = await this.accessibleProjectDocuments(userId, project);
-      if (!accessible.length) {
-        throw new NotFoundException('Context project not found');
-      }
+      await this.requireFullyReadableProject(userId, input.projectId, 'member');
       return;
     }
+    if (!input.workspaceId) return;
     if (input.docId) {
       await this.ac
         .user(userId)
@@ -904,20 +1131,122 @@ export class CopilotContextMemoryResolver {
     userId: string,
     project: StoredProject
   ) {
-    if (!project.documents.length) return [];
-    return await this.ac
-      .user(userId)
-      .workspace(project.workspaceId)
-      .allowLocal()
-      .docs(project.documents, 'Doc.Read');
+    const activeGrants =
+      await this.models.intelligenceWorkbenchAuthorization.listGrantedProjectDocuments(
+        { projectId: project.id, userId }
+      );
+    const activeGrantKeys = new Set(
+      activeGrants.map(grant => `${grant.workspaceId}\0${grant.docId}`)
+    );
+    const grantedDocuments = project.documents.filter(
+      document =>
+        document.status === 'granted' &&
+        activeGrantKeys.has(`${document.workspaceId}\0${document.docId}`)
+    );
+    if (!grantedDocuments.length) return [];
+    const byWorkspace = new Map<string, typeof project.documents>();
+    for (const document of grantedDocuments) {
+      const documents = byWorkspace.get(document.workspaceId) ?? [];
+      documents.push(document);
+      byWorkspace.set(document.workspaceId, documents);
+    }
+    const accessibleByWorkspace = await Promise.all(
+      [...byWorkspace].map(async ([workspaceId, documents]) => {
+        const accessible = await this.ac
+          .user(userId)
+          .workspace(workspaceId)
+          .allowLocal()
+          .docs(documents, 'Doc.Read');
+        return { workspaceId, accessible };
+      })
+    );
+    const accessibleKeys = new Set(
+      accessibleByWorkspace.flatMap(({ workspaceId, accessible }) =>
+        accessible.map(document => `${workspaceId}\0${document.docId}`)
+      )
+    );
+    return grantedDocuments.filter(document =>
+      accessibleKeys.has(`${document.workspaceId}\0${document.docId}`)
+    );
   }
 
-  private async assertProjectManager(userId: string, project: StoredProject) {
-    await this.ac
-      .user(userId)
-      .workspace(project.workspaceId)
-      .allowLocal()
-      .assert('Workspace.Settings.Update');
+  private async fullyReadableProjects(
+    userId: string,
+    projects: StoredProject[]
+  ) {
+    const readable = await Promise.all(
+      projects.map(async project => {
+        if (project.status !== 'active' || !this.projectRole(userId, project)) {
+          return null;
+        }
+        const documents = await this.accessibleProjectDocuments(
+          userId,
+          project
+        );
+        const grantedDocumentCount = project.documents.filter(
+          document => document.status === 'granted'
+        ).length;
+        return documents.length === grantedDocumentCount ? project : null;
+      })
+    );
+    return readable.filter(
+      (project): project is StoredProject => project !== null
+    );
+  }
+
+  private projectRole(userId: string, project: StoredProject | null) {
+    return project?.members.find(member => member.userId === userId)?.role as
+      | CopilotContextProjectRole
+      | undefined;
+  }
+
+  private requireProjectMembership(
+    userId: string,
+    project: StoredProject | null
+  ) {
+    const role = this.projectRole(userId, project);
+    if (!project || !role) {
+      throw new NotFoundException('Context project not found');
+    }
+    return { project, role };
+  }
+
+  private requireProjectOwner(userId: string, project: StoredProject | null) {
+    const membership = this.requireProjectMembership(userId, project);
+    const { role } = membership;
+    if (role !== 'owner') {
+      throw new NotFoundException('Context project not found');
+    }
+    return membership.project;
+  }
+
+  private async requireFullyReadableProject(
+    userId: string,
+    projectId: string | null | undefined,
+    requiredRole: 'member' | 'owner'
+  ) {
+    if (!projectId) {
+      throw new NotFoundException('Context project not found');
+    }
+    const storedProject = await this.contextMemory.getProject(projectId);
+    const { project, role } = this.requireProjectMembership(
+      userId,
+      storedProject
+    );
+    if (
+      project.status !== 'active' ||
+      (requiredRole === 'owner' && role !== 'owner')
+    ) {
+      throw new NotFoundException('Context project not found');
+    }
+    const documents = await this.accessibleProjectDocuments(userId, project);
+    const grantedDocumentCount = project.documents.filter(
+      document => document.status === 'granted'
+    ).length;
+    if (documents.length !== grantedDocumentCount) {
+      throw new NotFoundException('Context project not found');
+    }
+    return project;
   }
 
   private async assertDocumentsReadable(
@@ -942,62 +1271,110 @@ export class CopilotContextMemoryResolver {
     userId: string,
     projects: StoredProject[]
   ): Promise<CopilotContextProjectType[]> {
-    const workspaceId = projects[0]?.workspaceId;
-    if (!workspaceId) return [];
-    const documentRefs = projects.flatMap(project =>
-      project.documents.map(document => ({
-        projectId: project.id,
-        docId: document.docId,
-      }))
-    );
-    const [accessibleDocuments, canManageWorkspace] = await Promise.all([
-      this.ac
-        .user(userId)
-        .workspace(workspaceId)
-        .allowLocal()
-        .docs(documentRefs, 'Doc.Read'),
-      this.ac
-        .user(userId)
-        .workspace(workspaceId)
-        .allowLocal()
-        .can('Workspace.Settings.Update'),
-    ]);
-    const accessibleByProject = new Map<
-      string,
-      (typeof accessibleDocuments)[number][]
-    >();
-    for (const document of accessibleDocuments) {
-      const current = accessibleByProject.get(document.projectId) ?? [];
-      current.push(document);
-      accessibleByProject.set(document.projectId, current);
-    }
-
-    return projects.flatMap(project => {
-      const projectDocuments = accessibleByProject.get(project.id) ?? [];
-      const canManage =
-        canManageWorkspace &&
-        projectDocuments.length === project.documents.length;
-      if (!projectDocuments.length && !canManage) return [];
-      return [
-        {
+    const presented = await Promise.all(
+      projects.map(async project => {
+        const role = this.projectRole(userId, project);
+        if (!role) return null;
+        const accessibleDocuments = await this.accessibleProjectDocuments(
+          userId,
+          project
+        );
+        const [metas, requests, users] = await Promise.all([
+          this.contextMemory.getDocumentMetas(accessibleDocuments),
+          this.models.intelligenceWorkbenchAuthorization.listAccessRequests({
+            actorUserId: userId,
+            view: 'project',
+            projectId: project.id,
+            statuses: ['pending'],
+            limit: 100,
+          }),
+          this.models.user.getWorkspaceUsers(
+            project.members.map(member => member.userId)
+          ),
+        ]);
+        const titleByDocument = new Map(
+          accessibleDocuments.map((document, index) => [
+            `${document.workspaceId}\0${document.docId}`,
+            metas[index]?.title ?? null,
+          ])
+        );
+        const requestByDocument = new Map(
+          requests.map(request => [
+            `${request.workspaceId}\0${request.docId}`,
+            request,
+          ])
+        );
+        const userById = new Map(users.map(user => [user.id, user]));
+        const accessibleDocumentKeys = new Set(
+          accessibleDocuments.map(
+            document => `${document.workspaceId}\0${document.docId}`
+          )
+        );
+        return {
           ...project,
-          documentIds: projectDocuments.map(document => document.docId),
-          documentCount: projectDocuments.length,
-          canManage,
-        },
-      ];
-    });
-  }
-
-  private async assertProjectDocumentsManageable(
-    userId: string,
-    project: StoredProject
-  ) {
-    await this.assertProjectManager(userId, project);
-    const accessible = await this.accessibleProjectDocuments(userId, project);
-    if (accessible.length !== project.documents.length) {
-      throw new NotFoundException('Context project not found');
-    }
+          role,
+          documents: project.documents.flatMap(document => {
+            if (
+              document.status === 'granted' &&
+              !accessibleDocumentKeys.has(
+                `${document.workspaceId}\0${document.docId}`
+              )
+            ) {
+              return [];
+            }
+            const request = requestByDocument.get(
+              `${document.workspaceId}\0${document.docId}`
+            );
+            return [
+              redactProjectDocumentForViewer(
+                {
+                  workspaceId: document.workspaceId,
+                  docId: document.docId as string | null,
+                  title:
+                    document.status === 'granted'
+                      ? (titleByDocument.get(
+                          `${document.workspaceId}\0${document.docId}`
+                        ) ?? null)
+                      : document.suppliedTitle,
+                  groupId: document.groupId,
+                  sortOrder: document.sortOrder,
+                  status: document.status,
+                  requestedLevel: document.requestedLevel,
+                  accessRequestId: request?.id ?? null,
+                  addedByMe: document.addedByUserId === userId,
+                  createdAt: document.createdAt,
+                  updatedAt: document.updatedAt,
+                  suppliedTitle: document.suppliedTitle,
+                  placeholderInitiatorUserId:
+                    document.placeholderInitiatorUserId,
+                },
+                userId
+              ),
+            ];
+          }),
+          members: project.members.flatMap(member => {
+            const projectUser = userById.get(member.userId);
+            return projectUser
+              ? [
+                  {
+                    userId: member.userId,
+                    name: projectUser.name,
+                    email: projectUser.email,
+                    avatarUrl: projectUser.avatarUrl,
+                    role: member.role as CopilotContextProjectRole,
+                    createdAt: member.createdAt,
+                  },
+                ]
+              : [];
+          }),
+          documentCount: project.documents.length,
+          canManage: role === 'owner',
+        };
+      })
+    );
+    return presented.filter(
+      (project): project is NonNullable<typeof project> => project !== null
+    );
   }
 
   private async assertWorkspaceProjectManager(
@@ -1014,12 +1391,49 @@ export class CopilotContextMemoryResolver {
   private async assertDirectiveConditionsReadable(
     userId: string,
     workspaceId: string | null | undefined,
-    conditions: CopilotContextRuleConditions
+    conditions: CopilotContextRuleConditions,
+    projectId?: string | null
   ) {
+    for (const projectId of conditions.projectIds ?? []) {
+      await this.requireFullyReadableProject(userId, projectId, 'member');
+    }
+    if (conditions.documentRefs?.length) {
+      const refsByWorkspace = new Map<string, string[]>();
+      for (const document of conditions.documentRefs) {
+        const docIds = refsByWorkspace.get(document.workspaceId) ?? [];
+        docIds.push(document.docId);
+        refsByWorkspace.set(document.workspaceId, docIds);
+      }
+      await Promise.all(
+        [...refsByWorkspace].map(([sourceWorkspaceId, docIds]) =>
+          this.assertDocumentsReadable(userId, sourceWorkspaceId, docIds)
+        )
+      );
+      if (projectId) {
+        const project = await this.contextMemory.getProject(projectId);
+        const projectDocumentKeys = new Set(
+          project?.documents.map(
+            document => `${document.workspaceId}\0${document.docId}`
+          ) ?? []
+        );
+        if (
+          conditions.documentRefs.some(
+            document =>
+              !projectDocumentKeys.has(
+                `${document.workspaceId}\0${document.docId}`
+              )
+          )
+        ) {
+          throw new BadRequest(
+            'Project rule document conditions must belong to the project'
+          );
+        }
+      }
+    }
     if (!workspaceId) {
-      if (conditions.docIds?.length || conditions.projectIds?.length) {
+      if (conditions.docIds?.length) {
         throw new BadRequest(
-          'Global user rules can only use keyword conditions'
+          'Rules without a workspace cannot use document conditions'
         );
       }
       return;
@@ -1031,19 +1445,17 @@ export class CopilotContextMemoryResolver {
         conditions.docIds
       );
     }
-    for (const projectId of conditions.projectIds ?? []) {
-      const project = await this.contextMemory.getProject(projectId);
-      if (!project || project.workspaceId !== workspaceId) {
-        throw new NotFoundException('Context project not found');
-      }
-      const accessible = await this.accessibleProjectDocuments(userId, project);
-      if (!accessible.length) {
-        throw new NotFoundException('Context project not found');
-      }
-    }
   }
 
   private async assertCanMutate(user: CurrentUserType, memory: StoredMemory) {
+    if (memory.scope === 'project') {
+      await this.requireFullyReadableProject(
+        user.id,
+        memory.projectId,
+        'owner'
+      );
+      return;
+    }
     if (memory.ownerUserId !== user.id) {
       throw new NotFoundException('Context memory not found');
     }
@@ -1082,22 +1494,36 @@ export class CopilotContextMemoryResolver {
   }
 
   @ResolveField(() => [CopilotContextProjectType], {
-    description:
-      'List context projects whose documents the current user can access',
+    description: 'List global context projects the current user belongs to',
   })
   async contextProjects(
-    @Parent() copilot: CopilotType,
+    @Parent() _copilot: CopilotType,
     @CurrentUser() user: CurrentUserType,
     @Args('includeArchived', { nullable: true, defaultValue: false })
     includeArchived?: boolean
   ) {
-    const workspaceId = this.requireWorkspace(copilot);
-    await this.assertRead(user.id, { workspaceId });
     const projects = await this.contextMemory.listProjects(
-      workspaceId,
+      user.id,
       includeArchived
     );
     return await this.presentProjects(user.id, projects);
+  }
+
+  @ResolveField(() => CopilotContextProjectType, {
+    description: 'Get a global context project by membership',
+  })
+  async contextProject(
+    @Parent() _copilot: CopilotType,
+    @CurrentUser() user: CurrentUserType,
+    @Args('id', { type: () => ID }) id: string
+  ) {
+    const { project } = this.requireProjectMembership(
+      user.id,
+      await this.contextMemory.getProject(id)
+    );
+    const [presented] = await this.presentProjects(user.id, [project]);
+    if (!presented) throw new NotFoundException('Context project not found');
+    return presented;
   }
 
   @ResolveField(() => CopilotContextSessionScopeType, {
@@ -1174,8 +1600,11 @@ export class CopilotContextMemoryResolver {
   ) {
     const workspaceId = this.requireWorkspace(copilot);
     await this.assertRead(user.id, { workspaceId });
-    const projects = await this.contextMemory.listProjects(workspaceId, true);
-    const accessibleProjects = await this.presentProjects(user.id, projects);
+    const projects = await this.contextMemory.listProjects(user.id, true);
+    const accessibleProjects = await this.fullyReadableProjects(
+      user.id,
+      projects
+    );
     return await this.ruleService.listRules({
       userId: user.id,
       workspaceId,
@@ -1229,13 +1658,22 @@ export class CopilotContextMemoryResolver {
     }
 
     if (!workspaceId) {
+      const projects = await this.contextMemory.listProjects(user.id, true);
+      const accessibleProjects = await this.fullyReadableProjects(
+        user.id,
+        projects
+      );
       return await this.contextMemory.listManageable({
         userId: user.id,
+        projectIds: accessibleProjects.map(project => project.id),
         includeDisabled,
       });
     }
-    const projects = await this.contextMemory.listProjects(workspaceId, true);
-    const accessibleProjects = await this.presentProjects(user.id, projects);
+    const projects = await this.contextMemory.listProjects(user.id, true);
+    const accessibleProjects = await this.fullyReadableProjects(
+      user.id,
+      projects
+    );
     const memories = await this.contextMemory.listManageable({
       userId: user.id,
       workspaceId,
@@ -1265,12 +1703,10 @@ export class CopilotContextMemoryResolver {
     @Args('input') input: CreateCopilotContextMemoryInput
   ) {
     const content = this.validateMemoryShape(input);
-    await this.assertRead(user.id, input);
     if (input.projectId) {
-      const project = await this.contextMemory.getProject(input.projectId);
-      if (!project || project.status !== 'active') {
-        throw new BadRequest('Archived projects cannot accept memory');
-      }
+      await this.requireFullyReadableProject(user.id, input.projectId, 'owner');
+    } else {
+      await this.assertRead(user.id, input);
     }
     return await this.contextMemory.create(user.id, {
       workspaceId: input.workspaceId ?? null,
@@ -1279,6 +1715,7 @@ export class CopilotContextMemoryResolver {
       scope: input.scope,
       kind: input.kind,
       content,
+      sourceDocuments: input.sourceDocuments,
     });
   }
 
@@ -1300,26 +1737,28 @@ export class CopilotContextMemoryResolver {
     ) {
       throw new BadRequest('Workspace rules require only workspaceId');
     }
-    if (input.scope === 'project' && (!input.workspaceId || !input.projectId)) {
-      throw new BadRequest('Project rules require workspaceId and projectId');
+    if (input.scope === 'project' && (input.workspaceId || !input.projectId)) {
+      throw new BadRequest('Project rules require only projectId');
     }
     if (input.scope === 'user' && (input.workspaceId || input.projectId)) {
       throw new BadRequest('User rules cannot target a workspace or project');
     }
-    if (input.workspaceId) {
+    if (input.scope === 'project') {
+      await this.requireFullyReadableProject(user.id, input.projectId, 'owner');
+    } else if (input.workspaceId) {
       await this.assertRead(user.id, {
         workspaceId: input.workspaceId,
-        projectId: input.projectId,
       });
     }
     await this.assertDirectiveConditionsReadable(
       user.id,
-      input.scope === 'user' ? null : input.workspaceId,
-      normalized.conditions
+      input.scope === 'workspace' ? input.workspaceId : null,
+      normalized.conditions,
+      input.scope === 'project' ? input.projectId : null
     );
     return await this.ruleService.createRule({
       ownerUserId: user.id,
-      workspaceId: input.scope === 'user' ? null : input.workspaceId,
+      workspaceId: input.scope === 'workspace' ? input.workspaceId : null,
       projectId: input.scope === 'project' ? input.projectId : null,
       scope: input.scope,
       name: normalized.name,
@@ -1363,33 +1802,41 @@ export class CopilotContextMemoryResolver {
   }
 
   @Mutation(() => CopilotContextProjectType)
+  @Transactional()
   async createCopilotContextProject(
     @CurrentUser() user: CurrentUserType,
     @Args('input') input: CreateCopilotContextProjectInput
   ) {
     const normalized = this.validateProjectShape(input);
-    if (!normalized.name || !normalized.documentIds) {
-      throw new BadRequest('Project name and documents are required');
+    if (!normalized.name) {
+      throw new BadRequest('Project name is required');
     }
-    await this.assertWorkspaceProjectManager(user.id, input.workspaceId);
-    await this.assertDocumentsReadable(
-      user.id,
-      input.workspaceId,
-      normalized.documentIds
-    );
     const project = await this.contextMemory.createProject({
-      workspaceId: input.workspaceId,
       createdByUserId: user.id,
       name: normalized.name,
       description: normalized.description,
-      documentIds: normalized.documentIds,
+      documents: [],
     });
-    const [presented] = await this.presentProjects(user.id, [project]);
+    for (const document of normalized.documents ?? []) {
+      await this.models.intelligenceWorkbenchAuthorization.addProjectDocument({
+        projectId: project.id,
+        workspaceId: document.workspaceId,
+        docId: document.docId,
+        requesterUserId: user.id,
+        requestedLevel: 'read',
+        groupId: document.groupId,
+        sortOrder: document.sortOrder,
+      });
+    }
+    const stored = await this.contextMemory.getProject(project.id);
+    if (!stored) throw new NotFoundException('Context project not found');
+    const [presented] = await this.presentProjects(user.id, [stored]);
     if (!presented) throw new NotFoundException('Context project not found');
     return presented;
   }
 
   @Mutation(() => CopilotContextProjectType)
+  @Transactional()
   async updateCopilotContextProject(
     @CurrentUser() user: CurrentUserType,
     @Args('input') input: UpdateCopilotContextProjectInput
@@ -1399,26 +1846,204 @@ export class CopilotContextMemoryResolver {
       input.name === undefined &&
       input.description === undefined &&
       input.status === undefined &&
-      input.documentIds === undefined
+      input.workspaceDocuments === undefined
     ) {
       throw new BadRequest('No context project fields to update');
     }
     const project = await this.contextMemory.getProject(input.id);
-    if (!project) throw new NotFoundException('Context project not found');
-    await this.assertProjectDocumentsManageable(user.id, project);
-    if (normalized.documentIds) {
-      await this.assertDocumentsReadable(
-        user.id,
-        project.workspaceId,
-        normalized.documentIds
+    this.requireProjectOwner(user.id, project);
+    if (input.workspaceDocuments) {
+      if (project?.status !== 'active') {
+        throw new BadRequest('Archived projects cannot replace documents');
+      }
+      const workspaceId = input.workspaceDocuments.workspaceId.trim();
+      const documents = this.validateProjectShape({
+        documents: input.workspaceDocuments.documents.map(document => ({
+          workspaceId,
+          ...document,
+        })),
+      }).documents;
+      if (!workspaceId || !documents) {
+        throw new BadRequest('Project document workspaceId is required');
+      }
+      const desiredByKey = new Map(
+        documents.map(document => [document.docId, document])
       );
+      const currentByKey = new Map(
+        project.documents
+          .filter(document => document.workspaceId === workspaceId)
+          .map(document => [document.docId, document])
+      );
+      const documentIds = [
+        ...new Set([...desiredByKey.keys(), ...currentByKey.keys()]),
+      ].sort();
+      for (const docId of documentIds) {
+        await this.models.intelligenceWorkbenchAuthorization.lockProjectDocumentAuthorization(
+          { projectId: input.id, workspaceId, docId }
+        );
+      }
+      for (const docId of documentIds) {
+        const desired = desiredByKey.get(docId);
+        const current = currentByKey.get(docId);
+        if (!desired) {
+          await this.models.intelligenceWorkbenchAuthorization.removeProjectDocument(
+            {
+              projectId: input.id,
+              workspaceId,
+              docId,
+              actorUserId: user.id,
+            }
+          );
+          continue;
+        }
+        if (!current || current.status === 'revoked') {
+          await this.models.intelligenceWorkbenchAuthorization.addProjectDocument(
+            {
+              projectId: input.id,
+              workspaceId,
+              docId,
+              requesterUserId: user.id,
+              requestedLevel: 'read',
+              groupId: desired.groupId,
+              sortOrder: desired.sortOrder,
+            }
+          );
+          continue;
+        }
+        await this.contextMemory.updateProjectDocument(
+          input.id,
+          user.id,
+          { workspaceId, docId },
+          { groupId: desired.groupId, sortOrder: desired.sortOrder }
+        );
+      }
     }
-    const updated = await this.contextMemory.updateProject(input.id, {
+    const updated = await this.contextMemory.updateProject(input.id, user.id, {
       name: normalized.name,
       description: normalized.description,
       status: input.status,
-      documentIds: normalized.documentIds,
     });
+    if (!updated) throw new NotFoundException('Context project not found');
+    const [presented] = await this.presentProjects(user.id, [updated]);
+    if (!presented) throw new NotFoundException('Context project not found');
+    return presented;
+  }
+
+  @Mutation(() => CopilotContextProjectDocumentAddResultType)
+  @Transactional()
+  async addCopilotContextProjectDocument(
+    @CurrentUser() user: CurrentUserType,
+    @Args('input') input: AddCopilotContextProjectDocumentInput
+  ) {
+    const project = this.requireProjectMembership(
+      user.id,
+      await this.contextMemory.getProject(input.projectId)
+    ).project;
+    if (project.status !== 'active') {
+      throw new BadRequest('Archived projects cannot accept documents');
+    }
+    const [document] =
+      this.validateProjectShape({
+        documents: [input],
+      }).documents ?? [];
+    if (!document) throw new BadRequest('Project document is required');
+    if (
+      project.documents.length >= 100 &&
+      !project.documents.some(
+        current =>
+          current.workspaceId === document.workspaceId &&
+          current.docId === document.docId
+      )
+    ) {
+      throw new BadRequest('A project cannot contain more than 100 documents');
+    }
+    const result =
+      await this.models.intelligenceWorkbenchAuthorization.addProjectDocument({
+        projectId: input.projectId,
+        workspaceId: document.workspaceId,
+        docId: document.docId,
+        requesterUserId: user.id,
+        requestedLevel: input.requestedLevel ?? 'read',
+        requestedTitle: input.requestedTitle,
+        groupId: document.groupId,
+        sortOrder: document.sortOrder,
+      });
+    const updated = await this.contextMemory.getProject(input.projectId);
+    if (!updated) throw new NotFoundException('Context project not found');
+    const [presented] = await this.presentProjects(user.id, [updated]);
+    if (!presented) throw new NotFoundException('Context project not found');
+    const projectDocument = presented.documents.find(
+      current =>
+        current.workspaceId === document.workspaceId &&
+        current.docId === document.docId
+    );
+    if (!projectDocument) {
+      throw new NotFoundException('Project document not found');
+    }
+    return { outcome: result.kind, projectDocument };
+  }
+
+  @Mutation(() => CopilotContextProjectType)
+  @Transactional()
+  async removeCopilotContextProjectDocument(
+    @CurrentUser() user: CurrentUserType,
+    @Args('input') input: RemoveCopilotContextProjectDocumentInput
+  ) {
+    this.requireProjectOwner(
+      user.id,
+      await this.contextMemory.getProject(input.projectId)
+    );
+    const result =
+      await this.models.intelligenceWorkbenchAuthorization.removeProjectDocument(
+        {
+          projectId: input.projectId,
+          workspaceId: input.workspaceId,
+          docId: input.docId,
+          actorUserId: user.id,
+        }
+      );
+    if (!result.removed) {
+      throw new NotFoundException('Project document not found');
+    }
+    const updated = await this.contextMemory.getProject(input.projectId);
+    if (!updated) throw new NotFoundException('Context project not found');
+    const [presented] = await this.presentProjects(user.id, [updated]);
+    if (!presented) throw new NotFoundException('Context project not found');
+    return presented;
+  }
+
+  @Mutation(() => CopilotContextProjectType)
+  @Transactional()
+  async updateCopilotContextProjectDocument(
+    @CurrentUser() user: CurrentUserType,
+    @Args('input') input: UpdateCopilotContextProjectDocumentInput
+  ) {
+    this.requireProjectOwner(
+      user.id,
+      await this.contextMemory.getProject(input.projectId)
+    );
+    if (input.groupId === undefined && input.sortOrder === undefined) {
+      throw new BadRequest('No project document fields to update');
+    }
+    const [document] =
+      this.validateProjectShape({
+        documents: [input],
+      }).documents ?? [];
+    if (!document) throw new BadRequest('Project document is required');
+    const updated = await this.contextMemory.updateProjectDocument(
+      input.projectId,
+      user.id,
+      {
+        workspaceId: document.workspaceId,
+        docId: document.docId,
+      },
+      {
+        groupId: input.groupId === undefined ? undefined : document.groupId,
+        sortOrder:
+          input.sortOrder === undefined ? undefined : document.sortOrder,
+      }
+    );
+    if (!updated) throw new NotFoundException('Project document not found');
     const [presented] = await this.presentProjects(user.id, [updated]);
     if (!presented) throw new NotFoundException('Context project not found');
     return presented;
@@ -1446,7 +2071,8 @@ export class CopilotContextMemoryResolver {
     await this.assertDirectiveConditionsReadable(
       user.id,
       rule?.workspaceId,
-      normalized.conditions
+      normalized.conditions,
+      rule?.scope === 'project' ? rule.projectId : null
     );
     const updated = await this.ruleService.updateRule(input.id, user.id, {
       name: normalized.name,
@@ -1583,10 +2209,14 @@ export class CopilotContextMemoryResolver {
     if (!['active', 'disabled'].includes(memory.status)) {
       throw new BadRequest('Historical memory versions cannot be edited');
     }
-    const updated = await this.contextMemory.update(input.id, {
-      content: input.content?.trim(),
-      status: input.status,
-    });
+    const updated = await this.contextMemory.update(
+      input.id,
+      {
+        content: input.content?.trim(),
+        status: input.status,
+      },
+      user.id
+    );
     if (!updated) throw new NotFoundException('Context memory not found');
     return updated;
   }
@@ -1612,7 +2242,7 @@ export class CopilotContextMemoryResolver {
     const memory = await this.contextMemory.get(id);
     if (!memory) throw new NotFoundException('Context memory not found');
     await this.assertCanMutate(user, memory);
-    return await this.contextMemory.delete(id);
+    return await this.contextMemory.delete(id, user.id);
   }
 
   @Mutation(() => CopilotContextMemoryEventType)
@@ -1657,14 +2287,17 @@ export class CopilotContextMemoryResolver {
   }
 
   @Mutation(() => Boolean)
+  @Transactional()
   async deleteCopilotContextProject(
     @CurrentUser() user: CurrentUserType,
     @Args('id', { type: () => ID }) id: string
   ) {
     const project = await this.contextMemory.getProject(id);
-    if (!project) throw new NotFoundException('Context project not found');
-    await this.assertProjectDocumentsManageable(user.id, project);
-    const deleted = await this.contextMemory.deleteProject(id);
+    this.requireProjectOwner(user.id, project);
+    const deleted = await this.contextMemory.deleteProject(id, user.id);
+    if (deleted === null) {
+      throw new NotFoundException('Context project not found');
+    }
     if (!deleted) {
       throw new BadRequest(
         'Projects with user memories must be archived instead of deleted'

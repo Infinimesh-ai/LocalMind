@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client';
 import { EventBus, PaginationInput } from '../base';
 import { DocIsNotPublic } from '../base/error';
 import { BaseModel } from './base';
-import { Doc, DocRole, PublicDocMode, publicUserSelect } from './common';
+import { type Doc, DocRole, PublicDocMode, publicUserSelect } from './common';
 
 declare global {
   interface Events {
@@ -37,6 +37,13 @@ export type DocMetaUpsertInput = Omit<
   public?: boolean;
   defaultRole?: DocRole;
 };
+
+export function documentContentWriteLockKey(
+  workspaceId: string,
+  docId: string
+) {
+  return `doc:content-write:${workspaceId}:${docId}`;
+}
 
 /**
  * Workspace Doc Model
@@ -73,6 +80,27 @@ export class DocModel extends BaseModel {
 
   // #region Update
 
+  private async lockContentWrites(
+    refs: Array<{ workspaceId: string; docId: string }>
+  ) {
+    const keys = Array.from(
+      new Set(
+        refs.map(({ workspaceId, docId }) =>
+          documentContentWriteLockKey(workspaceId, docId)
+        )
+      )
+    ).sort();
+    for (const key of keys) {
+      await this.db
+        .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
+    }
+  }
+
+  @Transactional()
+  async lockContentWrite(workspaceId: string, docId: string) {
+    await this.lockContentWrites([{ workspaceId, docId }]);
+  }
+
   private updateToDocRecord(row: Update): Doc {
     return {
       spaceId: row.workspaceId,
@@ -93,10 +121,49 @@ export class DocModel extends BaseModel {
     };
   }
 
+  @Transactional()
   async createUpdates(updates: Doc[]) {
-    return await this.db.update.createMany({
-      data: updates.map(r => this.docRecordToUpdate(r)),
+    await this.lockContentWrites(
+      updates.map(update => ({
+        workspaceId: update.spaceId,
+        docId: update.docId,
+      }))
+    );
+    const latestTimestamps = new Map<string, number>();
+    for (const update of updates) {
+      const key = `${update.spaceId}\0${update.docId}`;
+      if (latestTimestamps.has(key)) continue;
+      const rows = await this.db.$queryRaw<Array<{ timestamp: Date | null }>>`
+        SELECT MAX(version) AS timestamp
+        FROM (
+          SELECT snapshot.updated_at AS version
+          FROM snapshots snapshot
+          WHERE snapshot.workspace_id = ${update.spaceId}
+            AND snapshot.guid = ${update.docId}
+          UNION ALL
+          SELECT MAX(pending.created_at) AS version
+          FROM updates pending
+          WHERE pending.workspace_id = ${update.spaceId}
+            AND pending.guid = ${update.docId}
+        ) versions
+      `;
+      latestTimestamps.set(key, rows[0]?.timestamp?.getTime() ?? 0);
+    }
+
+    const assigned = updates.map(update => {
+      const key = `${update.spaceId}\0${update.docId}`;
+      const latestTimestamp = latestTimestamps.get(key) ?? 0;
+      const timestamp = Math.max(update.timestamp, latestTimestamp + 1);
+      latestTimestamps.set(key, timestamp);
+      return { ...update, timestamp };
     });
+    const result = await this.db.update.createMany({
+      data: assigned.map(r => this.docRecordToUpdate(r)),
+    });
+    return {
+      ...result,
+      timestamps: assigned.map(update => update.timestamp),
+    };
   }
 
   /**
@@ -174,8 +241,10 @@ export class DocModel extends BaseModel {
   /**
    * insert or update a doc.
    */
+  @Transactional()
   async upsert(doc: Doc) {
     const { spaceId, docId, blob, timestamp, editorId } = doc;
+    await this.lockContentWrites([{ workspaceId: spaceId, docId }]);
     const updatedAt = new Date(timestamp);
     const size = blob.byteLength ?? blob.length;
     // CONCERNS:
@@ -545,10 +614,10 @@ export class DocModel extends BaseModel {
   }
 
   async findAuthors(ids: { workspaceId: string; docId: string }[]) {
+    if (!ids.length) return [];
     const rows = await this.db.snapshot.findMany({
       where: {
-        workspaceId: { in: ids.map(id => id.workspaceId) },
-        id: { in: ids.map(id => id.docId) },
+        OR: ids.map(({ workspaceId, docId: id }) => ({ workspaceId, id })),
       },
       select: {
         workspaceId: true,
@@ -560,10 +629,10 @@ export class DocModel extends BaseModel {
       },
     });
     const resultMap = new Map(
-      rows.map(row => [`${row.workspaceId}-${row.id}`, row])
+      rows.map(row => [`${row.workspaceId}\0${row.id}`, row])
     );
     return ids.map(
-      id => resultMap.get(`${id.workspaceId}-${id.docId}`) ?? null
+      id => resultMap.get(`${id.workspaceId}\0${id.docId}`) ?? null
     );
   }
 
@@ -571,6 +640,7 @@ export class DocModel extends BaseModel {
     ids: { workspaceId: string; docId: string }[],
     options?: { select?: Select }
   ) {
+    if (!ids.length) return [];
     let select = options?.select;
     if (select) {
       // add workspaceId and docId to the select
@@ -582,8 +652,7 @@ export class DocModel extends BaseModel {
     }
     const rows = (await this.db.workspaceDoc.findMany({
       where: {
-        workspaceId: { in: ids.map(id => id.workspaceId) },
-        docId: { in: ids.map(id => id.docId) },
+        OR: ids.map(({ workspaceId, docId }) => ({ workspaceId, docId })),
       },
       select,
     })) as (Prisma.WorkspaceDocGetPayload<{ select: Select }> & {
@@ -591,10 +660,10 @@ export class DocModel extends BaseModel {
       docId: string;
     })[];
     const resultMap = new Map(
-      rows.map(row => [`${row.workspaceId}-${row.docId}`, row])
+      rows.map(row => [`${row.workspaceId}\0${row.docId}`, row])
     );
     return ids.map(
-      id => resultMap.get(`${id.workspaceId}-${id.docId}`) ?? null
+      id => resultMap.get(`${id.workspaceId}\0${id.docId}`) ?? null
     );
   }
 

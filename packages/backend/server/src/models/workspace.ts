@@ -150,7 +150,7 @@ export class WorkspaceModel extends BaseModel {
     );
 
     if (notifyUpdate) {
-      this.event.emit('workspace.updated', workspace);
+      this.event.emitDetached('workspace.updated', workspace);
     }
 
     return workspace;

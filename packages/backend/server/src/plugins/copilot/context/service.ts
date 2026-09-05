@@ -276,6 +276,40 @@ export class CopilotContextService implements OnApplicationBootstrap {
     return await client.reRank(content, workspaceChunks, topK, options);
   }
 
+  async matchWorkspaceProjectDocs(
+    workspaceId: string,
+    docIds: string[],
+    content: string,
+    topK: number = 5,
+    signal?: AbortSignal,
+    threshold: number = 0.8,
+    routeContext?: EmbeddingRouteContext
+  ) {
+    const scopedDocIds = [...new Set(docIds)];
+    if (!scopedDocIds.length) return [];
+    const client = this.embeddingClient;
+    if (!client) return [];
+    const readablePredicate = this.readableDocPredicate(
+      workspaceId,
+      routeContext
+    );
+    const options = this.embeddingOptions(workspaceId, signal, routeContext);
+    const embedding = await client.getEmbedding(content, options);
+    if (!embedding) return [];
+
+    const chunks = await this.models.copilotContext.matchWorkspaceEmbedding(
+      embedding,
+      workspaceId,
+      topK * 2,
+      threshold,
+      readablePredicate,
+      scopedDocIds,
+      scopedDocIds
+    );
+    if (!chunks.length) return [];
+    return await client.reRank(content, chunks, topK, options);
+  }
+
   async matchWorkspaceAll(
     workspaceId: string,
     content: string,

@@ -20,9 +20,13 @@ import {
 } from '../../storage';
 import { HttpConnection } from './http';
 
-interface CloudBlobStorageOptions {
+export interface CloudBlobStorageOptions {
   serverBaseUrl: string;
   id: string;
+  /** Restrict blob reads to references in one currently readable document. */
+  docScopeId?: string;
+  /** Keep document-scoped storage read-only unless the caller has write access. */
+  readonlyMode?: boolean;
 }
 
 const SHOULD_MANUAL_REDIRECT =
@@ -61,7 +65,9 @@ function toStrictArrayBuffer(
 
 export class CloudBlobStorage extends BlobStorageBase {
   static readonly identifier = 'CloudBlobStorage';
-  override readonly isReadonly = false;
+  override get isReadonly() {
+    return this.options.readonlyMode ?? !!this.options.docScopeId;
+  }
 
   constructor(private readonly options: CloudBlobStorageOptions) {
     super();
@@ -70,14 +76,17 @@ export class CloudBlobStorage extends BlobStorageBase {
   readonly connection = new HttpConnection(this.options.serverBaseUrl);
 
   override async get(key: string, signal?: AbortSignal) {
+    const query = new URLSearchParams();
+    if (this.options.docScopeId) {
+      query.set('docScopeId', this.options.docScopeId);
+    } else if (SHOULD_MANUAL_REDIRECT) {
+      query.set('redirect', 'manual');
+    }
+    const search = query.size ? `?${query.toString()}` : '';
     const res = await this.connection.fetch(
-      '/api/workspaces/' +
-        this.options.id +
-        '/blobs/' +
-        key +
-        (SHOULD_MANUAL_REDIRECT ? '?redirect=manual' : ''),
+      '/api/workspaces/' + this.options.id + '/blobs/' + key + search,
       {
-        cache: 'default',
+        cache: this.options.docScopeId ? 'no-store' : 'default',
         headers: {
           'x-affine-version': BUILD_CONFIG.appVersion,
         },
@@ -88,6 +97,9 @@ export class CloudBlobStorage extends BlobStorageBase {
     if (res.status === 404) {
       return null;
     }
+    if (this.options.docScopeId && !res.ok) {
+      throw new Error(`Scoped blob download failed with status ${res.status}`);
+    }
 
     try {
       const contentType = res.headers.get('content-type');
@@ -96,6 +108,7 @@ export class CloudBlobStorage extends BlobStorageBase {
 
       if (
         SHOULD_MANUAL_REDIRECT &&
+        !this.options.docScopeId &&
         contentType?.startsWith('application/json')
       ) {
         const json = await res.json();
@@ -129,10 +142,15 @@ export class CloudBlobStorage extends BlobStorageBase {
   }
 
   override async set(blob: BlobRecord, signal?: AbortSignal) {
+    if (this.isReadonly) {
+      throw new Error('Read-only cloud blob storage cannot upload blobs');
+    }
     try {
-      const blobSizeLimit = await this.getBlobSizeLimit();
-      if (blob.data.byteLength > blobSizeLimit) {
-        throw new OverSizeError(this.humanReadableBlobSizeLimitCache);
+      if (!this.options.docScopeId) {
+        const blobSizeLimit = await this.getBlobSizeLimit();
+        if (blob.data.byteLength > blobSizeLimit) {
+          throw new OverSizeError(this.humanReadableBlobSizeLimitCache);
+        }
       }
 
       const init = await this.connection.gql({
@@ -142,6 +160,7 @@ export class CloudBlobStorage extends BlobStorageBase {
           key: blob.key,
           size: blob.data.byteLength,
           mime: blob.mime,
+          docScopeId: this.options.docScopeId,
         },
         context: { signal },
       });
@@ -224,6 +243,7 @@ export class CloudBlobStorage extends BlobStorageBase {
   }
 
   override async delete(key: string, permanently: boolean) {
+    this.assertWorkspaceScope('delete blobs');
     await this.connection.gql({
       query: deleteBlobMutation,
       variables: { workspaceId: this.options.id, key, permanently },
@@ -231,6 +251,7 @@ export class CloudBlobStorage extends BlobStorageBase {
   }
 
   override async release() {
+    this.assertWorkspaceScope('release blobs');
     await this.connection.gql({
       query: releaseDeletedBlobsMutation,
       variables: { workspaceId: this.options.id },
@@ -238,6 +259,7 @@ export class CloudBlobStorage extends BlobStorageBase {
   }
 
   override async list() {
+    this.assertWorkspaceScope('list blobs');
     const res = await this.connection.gql({
       query: listBlobsQuery,
       variables: { workspaceId: this.options.id },
@@ -257,6 +279,7 @@ export class CloudBlobStorage extends BlobStorageBase {
         blob: new File([toStrictArrayBuffer(blob.data)], blob.key, {
           type: blob.mime,
         }),
+        docScopeId: this.options.docScopeId,
       },
       context: { signal },
       timeout: UPLOAD_REQUEST_TIMEOUT,
@@ -306,7 +329,13 @@ export class CloudBlobStorage extends BlobStorageBase {
 
       const part = await this.connection.gql({
         query: getBlobUploadPartUrlQuery,
-        variables: { workspaceId: this.options.id, key, uploadId, partNumber },
+        variables: {
+          workspaceId: this.options.id,
+          key,
+          uploadId,
+          partNumber,
+          docScopeId: this.options.docScopeId,
+        },
         context: { signal },
       });
 
@@ -350,7 +379,13 @@ export class CloudBlobStorage extends BlobStorageBase {
   ) {
     await this.connection.gql({
       query: completeBlobUploadMutation,
-      variables: { workspaceId: this.options.id, key, uploadId, parts },
+      variables: {
+        workspaceId: this.options.id,
+        key,
+        uploadId,
+        parts,
+        docScopeId: this.options.docScopeId,
+      },
       context: { signal },
       timeout: UPLOAD_REQUEST_TIMEOUT,
     });
@@ -364,7 +399,12 @@ export class CloudBlobStorage extends BlobStorageBase {
     try {
       await this.connection.gql({
         query: abortBlobUploadMutation,
-        variables: { workspaceId: this.options.id, key, uploadId },
+        variables: {
+          workspaceId: this.options.id,
+          key,
+          uploadId,
+          docScopeId: this.options.docScopeId,
+        },
         context: { signal },
       });
     } catch {}
@@ -429,6 +469,12 @@ export class CloudBlobStorage extends BlobStorageBase {
       return this.blobSizeLimitCache;
     } catch (err) {
       throw UserFriendlyError.fromAny(err);
+    }
+  }
+
+  private assertWorkspaceScope(operation: string) {
+    if (this.options.docScopeId) {
+      throw new Error(`Document-scoped cloud storage cannot ${operation}`);
     }
   }
 }

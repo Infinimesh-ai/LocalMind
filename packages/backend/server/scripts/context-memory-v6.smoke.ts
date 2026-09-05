@@ -380,6 +380,7 @@ async function evaluateRules() {
     sessionId: 'session-1',
     primaryDocId: null,
     readableDocIds: [],
+    readableDocumentRefs: [],
     candidateProjectIds: [],
     projectIds: [],
     selectedProjectId: null,

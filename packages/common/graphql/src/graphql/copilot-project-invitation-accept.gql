@@ -1,0 +1,9 @@
+mutation acceptCopilotProjectInvitation($invitationId: ID!) {
+  acceptCopilotProjectInvitation(invitationId: $invitationId) {
+    id
+    projectId
+    status
+    acceptedAt
+    updatedAt
+  }
+}

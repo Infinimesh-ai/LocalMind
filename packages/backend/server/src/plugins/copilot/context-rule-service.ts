@@ -68,9 +68,37 @@ function normalizeConditions(value: unknown): CopilotContextRuleConditions {
           100
         )
       : undefined;
+  const documentRefs = Array.isArray(input.documentRefs)
+    ? [
+        ...new Map(
+          input.documentRefs
+            .filter(
+              (item): item is Record<string, unknown> =>
+                !!item && typeof item === 'object' && !Array.isArray(item)
+            )
+            .flatMap(item => {
+              const workspaceId =
+                typeof item.workspaceId === 'string'
+                  ? item.workspaceId.trim()
+                  : '';
+              const docId =
+                typeof item.docId === 'string' ? item.docId.trim() : '';
+              return workspaceId && docId
+                ? [
+                    [
+                      `${workspaceId}\0${docId}`,
+                      { workspaceId, docId },
+                    ] as const,
+                  ]
+                : [];
+            })
+        ).values(),
+      ].slice(0, 100)
+    : undefined;
   return {
     keywords: strings(input.keywords),
     docIds: strings(input.docIds),
+    documentRefs,
     projectIds: strings(input.projectIds),
     match: input.match === 'all' ? 'all' : 'any',
   };
@@ -85,6 +113,18 @@ function conditionMatch(
   if (conditions.docIds?.length) {
     checks.push(
       conditions.docIds.some(docId => scope.readableDocIds.includes(docId))
+    );
+  }
+  if (conditions.documentRefs?.length) {
+    const readableRefs = new Set(
+      scope.readableDocumentRefs.map(
+        document => `${document.workspaceId}\0${document.docId}`
+      )
+    );
+    checks.push(
+      conditions.documentRefs.some(document =>
+        readableRefs.has(`${document.workspaceId}\0${document.docId}`)
+      )
     );
   }
   if (conditions.projectIds?.length) {
@@ -271,7 +311,7 @@ export class ContextRuleService {
   rollbackRule(id: string, userId: string, revision: number) {
     return this.models.copilotContextRule.rollbackRule({
       id,
-      ownerUserId: userId,
+      actorUserId: userId,
       revision,
     });
   }

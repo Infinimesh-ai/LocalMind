@@ -45,6 +45,14 @@ export class PermissionSqlPredicateBuilder {
     return [...roles];
   }
 
+  private projectGrantLevelsForAction(action: DocAction) {
+    const roles = new Set(this.docRolesForAction(action));
+    return [
+      roles.has('reader') ? 'read' : null,
+      roles.has('editor') ? 'write' : null,
+    ].filter((level): level is 'read' | 'write' => level !== null);
+  }
+
   private rawDocIdColumn(column: RawDocIdColumn = 'doc_id') {
     switch (column) {
       case 'doc_id':
@@ -69,6 +77,7 @@ export class PermissionSqlPredicateBuilder {
     const nonMemberGrantRoles = this.nonMemberDocGrantRolesForAction(
       input.action
     );
+    const projectGrantLevels = this.projectGrantLevelsForAction(input.action);
     const docIdColumn = this.rawDocIdColumn(input.docIdColumn);
 
     return {
@@ -87,6 +96,12 @@ export class PermissionSqlPredicateBuilder {
         `OR wm.role = ANY(?::text[])`,
         `OR (wm.id IS NOT NULL AND dg.principal_id IS NULL AND COALESCE(dap.member_default_role, wap.member_default_doc_role) = ANY(?::text[]))`,
         `OR (wap.sharing_enabled AND dap.visibility = 'public' AND dap.public_role = ANY(?::text[]))`,
+        `OR EXISTS (SELECT 1 FROM ai_context_project_grants project_grant`,
+        `JOIN ai_context_projects project ON project.id = project_grant.project_id AND project.status = 'active'`,
+        `JOIN ai_context_project_members project_member ON project_member.project_id = project_grant.project_id AND project_member.user_id = ?`,
+        `WHERE project_grant.workspace_id = ? AND project_grant.doc_id = ${docIdColumn}`,
+        `AND project_grant.status = 'active'`,
+        `AND (project_grant.level = ANY(?::text[]) OR dg.role = ANY(?::text[])))`,
         `))`,
       ].join(' '),
       params: [
@@ -98,6 +113,10 @@ export class PermissionSqlPredicateBuilder {
         inheritedWorkspaceRoles,
         grantRoles,
         docRoles,
+        input.userId,
+        input.workspaceId,
+        projectGrantLevels,
+        nonMemberGrantRoles,
       ],
     };
   }
@@ -116,6 +135,7 @@ export class PermissionSqlPredicateBuilder {
     const inheritedWorkspaceRoles = this.inheritedWorkspaceRolesForDocAction(
       input.action
     );
+    const projectGrantLevels = this.projectGrantLevelsForAction(input.action);
     const docIdColumn = input.docIdColumn ?? Prisma.raw('doc_id');
 
     return Prisma.sql`
@@ -141,6 +161,23 @@ export class PermissionSqlPredicateBuilder {
             OR wm.role = ANY(${Prisma.sql`${inheritedWorkspaceRoles}::text[]`})
             OR (wm.id IS NOT NULL AND dg.principal_id IS NULL AND COALESCE(dap.member_default_role, wap.member_default_doc_role) = ANY(${Prisma.sql`${grantRoles}::text[]`}))
             OR (wap.sharing_enabled AND dap.visibility = 'public' AND dap.public_role = ANY(${Prisma.sql`${docRoles}::text[]`}))
+            OR EXISTS (
+              SELECT 1
+              FROM ai_context_project_grants project_grant
+              JOIN ai_context_projects project
+                ON project.id = project_grant.project_id
+               AND project.status = 'active'
+              JOIN ai_context_project_members project_member
+                ON project_member.project_id = project_grant.project_id
+               AND project_member.user_id = ${input.userId}
+              WHERE project_grant.workspace_id = ${input.workspaceId}
+                AND project_grant.doc_id = ${docIdColumn}
+                AND project_grant.status = 'active'
+                AND (
+                  project_grant.level = ANY(${Prisma.sql`${projectGrantLevels}::text[]`})
+                  OR dg.role = ANY(${Prisma.sql`${nonMemberGrantRoles}::text[]`})
+                )
+            )
           )
       )
     `;

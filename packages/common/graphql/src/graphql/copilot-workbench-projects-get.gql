@@ -1,0 +1,40 @@
+query copilotWorkbenchProjectsGet($includeArchived: Boolean = false) {
+  currentUser {
+    copilot {
+      contextProjects(includeArchived: $includeArchived) {
+        id
+        createdByUserId
+        name
+        description
+        status
+        aiPolicy
+        role
+        members {
+          userId
+          name
+          email
+          avatarUrl
+          role
+          createdAt
+        }
+        documents {
+          workspaceId
+          docId
+          title
+          groupId
+          sortOrder
+          status
+          requestedLevel
+          accessRequestId
+          addedByMe
+          createdAt
+          updatedAt
+        }
+        documentCount
+        canManage
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}

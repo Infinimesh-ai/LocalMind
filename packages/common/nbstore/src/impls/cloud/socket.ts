@@ -64,10 +64,19 @@ interface ServerEvents {
 
 interface ClientEvents {
   'space:join': [
-    { spaceType: string; spaceId: string; clientVersion: string },
+    {
+      spaceType: string;
+      spaceId: string;
+      clientVersion: string;
+      docScopeId?: string;
+    },
     { clientId: string },
   ];
-  'space:leave': { spaceType: string; spaceId: string };
+  'space:leave': {
+    spaceType: string;
+    spaceId: string;
+    docScopeId?: string;
+  };
   'space:join-awareness': [
     {
       spaceType: string;
@@ -97,7 +106,13 @@ interface ClientEvents {
   };
 
   'space:push-doc-update': [
-    { spaceType: string; spaceId: string; docId: string; update: string },
+    {
+      spaceType: string;
+      spaceId: string;
+      docId: string;
+      update: string;
+      docScopeId?: string;
+    },
     { timestamp: number },
   ];
   'space:load-doc-timestamps': [
@@ -105,6 +120,7 @@ interface ClientEvents {
       spaceType: string;
       spaceId: string;
       timestamp?: number;
+      docScopeId?: string;
     },
     Record<string, number>,
   ];
@@ -114,6 +130,7 @@ interface ClientEvents {
       spaceId: string;
       docId: string;
       stateVector?: string;
+      docScopeId?: string;
     },
     {
       missing: string;
@@ -122,7 +139,12 @@ interface ClientEvents {
     },
   ];
   'space:delete-doc': [
-    { spaceType: string; spaceId: string; docId: string },
+    {
+      spaceType: string;
+      spaceId: string;
+      docId: string;
+      docScopeId?: string;
+    },
     { success?: true },
   ];
 
@@ -269,13 +291,17 @@ export class SocketConnection extends AutoReconnectConnection<{
     )?.reset();
   }
 
-  manager = getSocketManager(this.endpoint, this.isSelfHosted);
+  manager: SocketManager;
 
   constructor(
     private readonly endpoint: string,
-    private readonly isSelfHosted: boolean
+    private readonly isSelfHosted: boolean,
+    shareSocket = true
   ) {
     super();
+    this.manager = shareSocket
+      ? getSocketManager(this.endpoint, this.isSelfHosted)
+      : new SocketManager(this.endpoint, this.isSelfHosted);
   }
 
   override async doConnect(signal?: AbortSignal) {

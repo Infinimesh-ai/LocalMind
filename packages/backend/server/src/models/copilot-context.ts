@@ -575,8 +575,10 @@ export class CopilotContextModel extends BaseModel {
     topK: number,
     threshold: number,
     readablePredicate: Prisma.Sql,
-    matchDocIds?: string[]
+    matchDocIds?: string[],
+    restrictDocIds?: string[]
   ): Promise<DocChunkSimilarity[]> {
+    if (restrictDocIds?.length === 0) return [];
     const vector = toPgVector(embedding);
     const candidateLimit = embeddingSearchCandidateLimit(topK);
     const similarityChunks = await this.db.$queryRaw<Array<DocChunkSimilarity>>`
@@ -589,6 +591,7 @@ export class CopilotContextModel extends BaseModel {
             ${matchDocIds?.length ? Prisma.sql`AND w."doc_id" NOT IN (${Prisma.join(matchDocIds)})` : Prisma.empty}
         WHERE
           w."workspace_id" = ${workspaceId}
+          ${restrictDocIds?.length ? Prisma.sql`AND w."doc_id" IN (${Prisma.join(restrictDocIds)})` : Prisma.empty}
           AND w."embedding" IS NOT NULL
           AND i."doc_id" IS NULL
           AND ${readablePredicate}

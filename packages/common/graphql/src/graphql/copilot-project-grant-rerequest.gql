@@ -1,0 +1,12 @@
+mutation reRequestCopilotProjectDocumentAccess(
+  $input: ReRequestCopilotProjectDocumentInput!
+) {
+  reRequestCopilotProjectDocumentAccess(input: $input) {
+    id
+    beneficiaryProjectId
+    requestedLevel
+    status
+    createdAt
+    updatedAt
+  }
+}

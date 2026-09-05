@@ -1,4 +1,5 @@
 export * from './blob-read';
+export * from './blocker';
 export * from './code-artifact';
 export * from './conversation-summary';
 export * from './doc-compose';
@@ -10,6 +11,7 @@ export * from './error';
 export * from './exa-crawl';
 export * from './exa-search';
 export * from './office';
+export * from './project-doc';
 export * from './section-edit';
 export * from './task-attachment-read';
 export * from './tool';

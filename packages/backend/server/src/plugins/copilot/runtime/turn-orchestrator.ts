@@ -116,8 +116,14 @@ export class TurnOrchestrator {
       sessionId,
       query
     );
-    const { modelId, reasoning, webSearch, toolsConfig, byokLeaseId } =
-      ChatQuerySchema.parse(query);
+    const {
+      modelId,
+      reasoning,
+      webSearch,
+      chatSurface,
+      toolsConfig,
+      byokLeaseId,
+    } = ChatQuerySchema.parse(query);
     const office = await this.resolveOfficeContext(
       prepared.latestTurn,
       prepared.session
@@ -136,6 +142,7 @@ export class TurnOrchestrator {
       modelId,
       reasoning,
       webSearch,
+      chatSurface,
       toolsConfig,
       byokLeaseId,
       billingUnitId: prepared.latestTurn?.id,

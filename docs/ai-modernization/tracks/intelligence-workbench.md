@@ -95,6 +95,14 @@ Today the pieces exist but do not compose into a workbench:
 6. The document-attached chat panel is unchanged. The standalone Tasks page is
    retained as the full list/history view; the workbench panel is the
    attention view.
+7. A workbench conversation keeps `AiSession.workspaceId` as its explicit
+   execution and billing host. The workbench selects an accessible host from
+   the user's last active workspace, displays it, and lets the user switch it;
+   this does not bind the selected Project to that workspace. Project context
+   continues to resolve each `(workspaceId, docId)` reference against its own
+   source workspace and current permission. The global route therefore works
+   without a workspace route being active while preserving the existing
+   provider, quota, and session contracts.
 
 ### D2. Task panel
 
@@ -135,8 +143,12 @@ Today the pieces exist but do not compose into a workbench:
 ### D3. Project entity (evolve `AiContextProject`)
 
 1. Evolve `AiContextProject` into the global product Project via migration; do
-   not create a parallel project entity. Existing rows: the creator becomes
-   the sole owner; existing doc references gain their source workspace id.
+   not create a parallel project entity. Existing rows whose creator still
+   exists: the creator becomes the sole owner. A legacy row whose creator was
+   deleted and whose `createdByUserId` is therefore null is assigned to every
+   active Owner of its source workspace; the migration fails closed if that
+   workspace has no active Owner. Existing doc references gain their source
+   workspace id.
 2. Membership: an explicit member table with exactly two roles in this track.
    - **Owner** (one or more): invite/remove members, add/remove documents,
      set project AI policy, archive, transfer ownership.
@@ -265,8 +277,10 @@ Scope:
 
 Acceptance (prove at least):
 
-- migration applies onto a database with existing workspace-scoped projects;
-  prior projects keep their memories/rules and gain the creator as owner;
+- migration applies onto a database with existing workspace-scoped projects,
+  including a project whose creator was deleted; prior projects keep their
+  memories/rules, projects with a creator gain that creator as sole owner, and
+  orphaned projects gain the active Owner(s) of their source workspace;
 - the panel shows a run created in workspace X and an approval in workspace Y
   for the same user in one aggregate, and a user without access to a run's
   workspace never sees its card (authorization denial test);
@@ -355,3 +369,119 @@ settled. These are execution risks to manage, not choices to reopen.
   project memory and re-redact placeholders in the same transaction boundary
   as the grant change. Partial revocation that leaves memory residue is a
   trust-boundary failure, not a cosmetic bug.
+
+## Repair Verification (2026-09-04)
+
+A completion audit found that the running development container had only the
+Phase 1 migration and an older native addon. It also found a truncated Tasks
+history, unstable old-task deep links, document result links using the execution
+host instead of the source workspace, and incomplete approval details. These
+were implementation gaps, not changes to D1-D6.
+
+The repair adds:
+
+- server-filtered, bounded seek pagination across all five task kinds and an
+  independently permission-checked `workbenchTask` detail query; pagination
+  cursors are bound to the viewer, project and filter, and exact details use
+  entity/workspace predicates instead of scanning a concatenated display id;
+- source `workspaceId` on task artifacts, with document-scope navigation
+  through the existing source-workspace permission gate;
+- approval reasons, Office operation/impact metadata and document update
+  content/version previews in Tasks; Workbench run approvals first open this
+  detail, and a drift-invalidated preview requires the current approval
+  fingerprint before it can be confirmed again;
+- explicit repository `#import` declarations for all eight Workbench/Blocker
+  operations that use shared fragments. Previously the type generator could
+  succeed while exported runtime query strings omitted their fragments;
+- runtime-provenance checks in `tools/localmind-dev-sync.mjs`, with a deliberate
+  database-backup and validated-Linux-container path for synchronizing
+  migrations, Prisma Client and native addons together. Ordinary JavaScript
+  sync fails before copying if schema/native provenance is missing or changed.
+
+### Verification Evidence
+
+The fixed `localmind-affine:test` image was reused in the disposable
+`localmind_iw_fix_runner`. Current source was copied into `/workspace`; native
+code was compiled with `yarn workspace @affine/server-native build`,
+`CARGO_BUILD_JOBS=2`, `CARGO_PROFILE_RELEASE_LTO=false` and
+`CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16`. No image was rebuilt.
+
+Validation used the separate `localmind_iw_fix_validation` database on
+`localmind_affine_test_postgres`, never the runtime database for AVA reset
+helpers. Direct AVA commands loaded
+`NODE_OPTIONS=--import=/workspace/tools/cli/register.js`; Redis used the
+test-only service `localmind_phase2_auth_redis`, database 9.
+
+- Phase 1: `yarn r scripts/intelligence-workbench-phase1-migration.smoke.ts`
+  passed the populated 317-migration upgrade, retained project evidence,
+  creator/fallback ownership, and fail-closed orphan checks.
+- Phase 2: `yarn r scripts/intelligence-workbench-phase2-migration.smoke.ts`
+  passed Phase 1 upgrade/fresh install, least-privilege grant backfill, memory
+  quarantine, indexed projections, uniqueness and transactional guards.
+- Phase 3: `yarn r scripts/intelligence-workbench-phase3-migration.smoke.ts`
+  passed 319-to-320 upgrade/fresh install, lifecycle/origin constraints and
+  confirmation uniqueness. All migration smokes used `NODE_ENV=test`.
+- `yarn r scripts/context-memory-v6.smoke.ts` passed: scope leakage 0,
+  sensitive-write rate 0, extraction F1/Recall@5/MRR/nDCG@5 all 1.
+- `yarn ava --serial` over `intelligence-workbench.e2e.ts`,
+  `intelligence-workbench-authorization.spec.ts`,
+  `intelligence-workbench-blocker.spec.ts`,
+  `intelligence-workbench-permission.spec.ts`, and core permission
+  `docs.spec.ts` passed 52 tests. Coverage includes history beyond 100 rows,
+  equal-time pagination, old detail links, live ACL denial, source artifact
+  identity, stale/missing approval fingerprints, revocation, write ordering,
+  authorization redaction and zero-write Blocker suggestions.
+- The focused `prompt-service.spec.ts --match='*Blocker*'` test passed against
+  the newly compiled native addon.
+- Host and Linux Vitest passed 36 Tasks/Workbench UI tests plus eight checks
+  validating the actual generated operation strings against the server schema.
+  The latter reproduced eight unknown-fragment failures before the repair.
+- Electron deep-link/navigation and document-scope route regression tests
+  passed another 21 tests; this is unit coverage, not a packaged Electron
+  launch check.
+- Nest generated `src/schema.gql` during container integration tests;
+  `yarn workspace @affine/graphql build` and
+  `yarn workspace @affine/i18n build` regenerated clients and translations.
+  `yarn typecheck` passed, including the isolated 42-file Copilot test check.
+- The running `localmind_affine_server` was updated with
+  `LOCALMIND_RUNTIME_SOURCE_CONTAINER=localmind_iw_fix_runner`
+  `LOCALMIND_DATABASE_BACKUP=/private/tmp/localmind-iw-recovery.hxzQHH/affine-before-runtime-fix.dump`
+  `yarn localmind:sync:all`, followed by a normal `yarn localmind:sync:all`
+  after the final generated-query repair. The database now has 320 applied
+  migrations and all three authorization/Blocker tables. The runtime addon
+  exposes the Blocker tool and passes the sharing-disabled personal/project
+  union check without granting document management.
+- The authenticated browser at `http://localhost:3011/tasks?filter=all`
+  displayed real history, Office approval details and an unchanged inaccessible
+  task deep link. Tasks was inspected at 1366x900 and 390x844 without horizontal
+  overflow; the Intelligence route and panel use the repaired operations.
+- Final `yarn typecheck`, scoped oxlint/Prettier and `git diff --check` passed.
+  A final runtime check confirmed 320 applied migrations and the mapped tables
+  `access_requests`, `ai_context_project_grants` and
+  `ai_context_project_blockers`; `/intelligence` returned HTTP 200.
+
+After validation, `docker stop localmind_iw_fix_runner` and
+`docker rm localmind_iw_fix_runner` removed only the disposable runner.
+`docker exec localmind_affine_test_postgres dropdb -U affine --if-exists localmind_iw_fix_validation`
+removed the 25 MB disposable test database; its fixtures can be recreated by
+the tests. No business database, shared Redis service, image or volume was
+removed. The retained pre-upgrade backup is nonempty, readable by `pg_restore`
+and restricted to its owner (directory mode 700, file mode 600).
+
+Final `docker system df`: images 45.34 GB, containers 689.8 MB, local volumes
+1.15 GB, build cache 2.913 GB (0 B reclaimable). No image rebuild or cache prune
+was performed in this repair.
+
+### Remaining Validation Limits
+
+The full existing PromptService suite still has five unrelated expectation
+failures: legacy hard-coded model/default-policy values and registry source-chain
+metadata no longer match the current built-in catalog. This repair does not
+change those product defaults to make old assertions pass. The targeted Blocker
+test and all 52 Workbench/authorization tests pass independently.
+
+Runtime synchronization updates the current development container, not the
+`localmind-affine:local` image. Recreating that container requires the normal
+fixed-tag image build or repeating the explicit validated runtime-sync process.
+The pre-upgrade database backup is retained at the path above. Browser checks
+in this repair covered the light theme; no new Electron package was built.

@@ -7,11 +7,13 @@ import {
   DocStorageModule,
   PgWorkspaceDocStorageAdapter as Adapter,
 } from '../../core/doc';
+import { Models } from '../../models';
 import { createTestingModule, type TestingModule } from '../utils';
 
 let m: TestingModule;
 let db: PrismaClient;
 let adapter: Adapter;
+let models: Models;
 
 test.before('init testing module', async () => {
   m = await createTestingModule({
@@ -19,6 +21,7 @@ test.before('init testing module', async () => {
   });
   db = m.get(PrismaClient);
   adapter = m.get(Adapter);
+  models = m.get(Models);
   // @ts-expect-error private method
   Sinon.stub(adapter, 'createDocHistory');
 });
@@ -98,37 +101,33 @@ test('should have timestamp update', async t => {
 });
 
 test('should retry if failed to insert updates', async t => {
-  const stub = Sinon.stub();
-  const createMany = db.update.createMany;
-  db.update.createMany = stub;
-
+  const stub = Sinon.stub(models.doc, 'createUpdates');
   stub.onCall(0).rejects(new Error());
-  stub.onCall(1).resolves();
+  stub.onCall(1).resolves({ count: 1, timestamps: [Date.now()] });
 
-  await t.notThrowsAsync(() =>
-    adapter.pushDocUpdates('1', '1', [Buffer.from([0, 0])])
-  );
-  t.is(stub.callCount, 2);
-
-  stub.reset();
-  db.update.createMany = createMany;
+  try {
+    await t.notThrowsAsync(() =>
+      adapter.pushDocUpdates('1', '1', [Buffer.from([0, 0])])
+    );
+    t.is(stub.callCount, 2);
+  } finally {
+    stub.restore();
+  }
 });
 
 test('should throw if meet max retry times', async t => {
-  const stub = Sinon.stub();
-  const createMany = db.update.createMany;
-  db.update.createMany = stub;
-
+  const stub = Sinon.stub(models.doc, 'createUpdates');
   stub.rejects(new Error());
 
-  await t.throwsAsync(
-    () => adapter.pushDocUpdates('1', '1', [Buffer.from([0, 0])]),
-    { message: 'Failed to store doc updates.' }
-  );
-  t.is(stub.callCount, 4);
-
-  stub.reset();
-  db.update.createMany = createMany;
+  try {
+    await t.throwsAsync(
+      () => adapter.pushDocUpdates('1', '1', [Buffer.from([0, 0])]),
+      { message: 'Failed to store doc updates.' }
+    );
+    t.is(stub.callCount, 4);
+  } finally {
+    stub.restore();
+  }
 });
 
 test('should be able to merge updates as snapshot', async t => {
@@ -225,7 +224,7 @@ test('should be able to merge updates into snapshot', async t => {
   t.is(await db.update.count(), 0);
 });
 
-test('should not update snapshot if doc is outdated', async t => {
+test('should allocate new updates after a future snapshot timestamp', async t => {
   const updates: Buffer[] = [];
   {
     const doc = new YDoc();
@@ -244,6 +243,7 @@ test('should not update snapshot if doc is outdated', async t => {
   // merge
   await adapter.getDoc('2', '1');
   // fake the snapshot is a lot newer
+  const futureSnapshotTimestamp = Date.now() + 10000;
   await db.snapshot.update({
     where: {
       workspaceId_id: {
@@ -252,16 +252,17 @@ test('should not update snapshot if doc is outdated', async t => {
       },
     },
     data: {
-      updatedAt: new Date(Date.now() + 10000),
+      updatedAt: new Date(futureSnapshotTimestamp),
     },
   });
 
   {
-    await adapter.pushDocUpdates('2', '1', updates.slice(2)); // 'hello world!'
+    const timestamp = await adapter.pushDocUpdates('2', '1', updates.slice(2)); // 'hello world!'
+    t.is(timestamp, futureSnapshotTimestamp + 2);
     const { bin } = (await adapter.getDoc('2', '1'))!;
 
-    // all updated will merged into doc not matter it's timestamp is outdated or not,
-    // but the snapshot record will not be updated
+    // The write is ordered after the persisted snapshot, so the merge can
+    // advance the snapshot without dropping the update.
     const doc = new YDoc();
     applyUpdate(doc, bin);
     t.is(doc.getText('content').toString(), 'hello world!');
@@ -270,10 +271,9 @@ test('should not update snapshot if doc is outdated', async t => {
   {
     const doc = new YDoc();
     applyUpdate(doc, (await adapter.getDoc('2', '1'))!.bin);
-    // the snapshot will not get touched if the new doc's timestamp is outdated
-    t.is(doc.getText('content').toString(), 'helloworld');
+    t.is(doc.getText('content').toString(), 'hello world!');
 
-    // the updates are known as outdated, so they will be deleted
+    // The merged updates are removed after the snapshot advances.
     t.is(await db.update.count(), 0);
   }
 });

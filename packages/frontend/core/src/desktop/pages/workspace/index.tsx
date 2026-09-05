@@ -15,6 +15,12 @@ import {
   type WorkspaceMetadata,
   WorkspacesService,
 } from '@affine/core/modules/workspace';
+import {
+  createDocumentScopedWorkerInitOptions,
+  type DocumentScopeAccess,
+} from '@affine/core/modules/workspace-engine';
+import { ServerDeploymentType } from '@affine/graphql';
+import type { WorkerInitOptions } from '@affine/nbstore/worker/client';
 import { ZipTransformer } from '@blocksuite/affine/widgets/linked-doc';
 import {
   FrameworkScope,
@@ -38,6 +44,7 @@ import { AffineErrorBoundary } from '../../../components/affine/affine-error-bou
 import { WorkbenchRoot } from '../../../modules/workbench';
 import { AppContainer } from '../../components/app-container';
 import { PageNotFound } from '../404';
+import { resolveDocumentScopeAccess } from './document-scope-route';
 import { WorkspaceLayout } from './layouts/workspace-layout';
 import { SharePage } from './share/share-page';
 
@@ -154,6 +161,43 @@ export const Component = (): ReactElement => {
       : undefined
   );
   const server = serverFromWorkspace ?? serverFromSearchParams;
+  const hasDocumentScopeRequest = searchParams.has('docScope');
+  const documentScopeAccess =
+    detailDocRoute && hasDocumentScopeRequest
+      ? resolveDocumentScopeAccess(searchParams, detailDocRoute.docId)
+      : null;
+  const documentScopedMeta = useMemo<WorkspaceMetadata | null>(
+    () =>
+      detailDocRoute && documentScopeAccess && server
+        ? { id: detailDocRoute.workspaceId, flavour: server.id }
+        : null,
+    [detailDocRoute, documentScopeAccess, server]
+  );
+  const documentScopedWorkerInitOptions = useMemo(
+    () =>
+      detailDocRoute && documentScopeAccess && server
+        ? createDocumentScopedWorkerInitOptions({
+            workspaceId: detailDocRoute.workspaceId,
+            docId: detailDocRoute.docId,
+            access: documentScopeAccess,
+            serverBaseUrl: server.baseUrl,
+            isSelfHosted:
+              server.config$.value.type === ServerDeploymentType.Selfhosted,
+          })
+        : null,
+    [detailDocRoute, documentScopeAccess, server]
+  );
+  const documentScope = useMemo(
+    () =>
+      detailDocRoute && documentScopeAccess && documentScopedWorkerInitOptions
+        ? {
+            docId: detailDocRoute.docId,
+            access: documentScopeAccess,
+            workerInitOptions: documentScopedWorkerInitOptions,
+          }
+        : null,
+    [detailDocRoute, documentScopeAccess, documentScopedWorkerInitOptions]
+  );
 
   useEffect(() => {
     if (server) {
@@ -193,6 +237,33 @@ export const Component = (): ReactElement => {
     searchParams,
     serverFromSearchParams,
   ]);
+
+  if (hasDocumentScopeRequest) {
+    if (
+      !detailDocRoute ||
+      !documentScopeAccess ||
+      !documentScopedMeta ||
+      !documentScope ||
+      !server
+    ) {
+      return (
+        <FrameworkScope scope={server?.scope}>
+          <AffineOtherPageLayout>
+            <PageNotFound noPermission />
+          </AffineOtherPageLayout>
+        </FrameworkScope>
+      );
+    }
+
+    return (
+      <FrameworkScope scope={server.scope}>
+        <WorkspacePage
+          meta={documentScopedMeta}
+          documentScope={documentScope}
+        />
+      </FrameworkScope>
+    );
+  }
 
   if (workspaceNotFound) {
     if (detailDocRoute) {
@@ -237,7 +308,16 @@ const DNDContextProvider = ({ children }: PropsWithChildren) => {
   );
 };
 
-const WorkspacePage = ({ meta }: { meta: WorkspaceMetadata }) => {
+type WorkspacePageProps = {
+  meta: WorkspaceMetadata;
+  documentScope?: {
+    docId: string;
+    access: DocumentScopeAccess;
+    workerInitOptions: WorkerInitOptions;
+  };
+};
+
+const WorkspacePage = ({ meta, documentScope }: WorkspacePageProps) => {
   const { workspacesService, globalContextService } = useServices({
     WorkspacesService,
     GlobalContextService,
@@ -246,12 +326,19 @@ const WorkspacePage = ({ meta }: { meta: WorkspaceMetadata }) => {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
 
   useLayoutEffect(() => {
-    const ref = workspacesService.open({ metadata: meta });
+    const ref = workspacesService.open(
+      {
+        metadata: meta,
+        docScopeId: documentScope?.docId,
+        docScopeAccess: documentScope?.access,
+      },
+      documentScope?.workerInitOptions
+    );
     setWorkspace(ref.workspace);
     return () => {
       ref.dispose();
     };
-  }, [meta, workspacesService]);
+  }, [documentScope, meta, workspacesService]);
 
   const rootDocReady$ = useMemo(
     () =>
@@ -313,7 +400,9 @@ const WorkspacePage = ({ meta }: { meta: WorkspaceMetadata }) => {
         };
         input.click();
       };
-      localStorage.setItem('last_workspace_id', workspace.id);
+      if (!workspace.openOptions.docScopeId) {
+        localStorage.setItem('last_workspace_id', workspace.id);
+      }
       globalContextService.globalContext.workspaceId.set(workspace.id);
       globalContextService.globalContext.workspaceFlavour.set(
         workspace.flavour

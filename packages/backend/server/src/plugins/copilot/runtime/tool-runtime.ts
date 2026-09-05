@@ -38,9 +38,13 @@ import {
   buildOfficeCommandBatchRequestHandler,
   buildOfficeCommandRequestHandler,
   buildOfficeReadHandler,
+  buildProjectDocContentGetter,
+  buildProjectDocKeywordSearchGetter,
+  buildProjectDocSearchGetter,
   type CopilotTool,
   type CopilotToolSet,
   createBlobReadTool,
+  createBlockerSuggestionTool,
   createCodeArtifactTool,
   createConversationSummaryTool,
   createDocComposeTool,
@@ -55,6 +59,10 @@ import {
   createOfficeCommandBatchRequestTool,
   createOfficeCommandRequestTool,
   createOfficeReadTool,
+  createProjectDocKeywordSearchTool,
+  createProjectDocReadTool,
+  createProjectDocSemanticSearchTool,
+  createProjectDocUpdateRequestTool,
   createSectionEditTool,
   createTaskAttachmentReadTool,
   createWorkspaceOrganizationTools,
@@ -66,6 +74,7 @@ import { createNativeToolLoopAdapter } from './tool/native-adapter';
 import {
   matchesToolCapability,
   type ToolCapabilitySnapshot,
+  toolSideEffectType,
 } from './tool-capability-snapshot';
 
 export type ProviderSpecificToolResolver = (
@@ -79,6 +88,40 @@ export function canExposeDocumentWriteTools(environment: {
   canary: boolean;
 }) {
   return environment.dev || environment.selfhosted || environment.canary;
+}
+
+const PROJECT_SESSION_DIRECT_READ_TOOLS = new Set([
+  'blob_read',
+  'task_attachment_read',
+  'code_artifact',
+  'conversation_summary',
+  'doc_semantic_search',
+  'doc_keyword_search',
+  'project_doc_read',
+  'web_search_exa',
+  'web_crawl_exa',
+  'doc_compose',
+  'section_edit',
+  'conditional_noop_complete',
+  'blocker_suggest',
+]);
+
+const PROJECT_SESSION_APPROVAL_GATED_TOOLS = new Set([
+  'project_doc_update_request',
+]);
+
+export function canRunDirectlyInProjectSession(toolName: string) {
+  return (
+    PROJECT_SESSION_DIRECT_READ_TOOLS.has(toolName) &&
+    toolSideEffectType(toolName) === 'read'
+  );
+}
+
+export function canExposeInProjectSession(toolName: string) {
+  return (
+    canRunDirectlyInProjectSession(toolName) ||
+    PROJECT_SESSION_APPROVAL_GATED_TOOLS.has(toolName)
+  );
 }
 
 @Injectable()
@@ -131,9 +174,37 @@ export class ToolRuntime {
       selfhosted: env.selfhosted,
       canary: env.namespaces.canary,
     });
-
+    let sessionMeta:
+      | {
+          userId: string;
+          workspaceId: string;
+          docId: string | null;
+          selectedContextProjectId: string | null;
+        }
+      | null
+      | undefined;
+    const resolveSessionMeta = async () => {
+      if (sessionMeta !== undefined) return sessionMeta;
+      sessionMeta = options.session
+        ? await this.models.copilotSession.getMeta(options.session)
+        : null;
+      return sessionMeta;
+    };
+    let selectedProjectId: string | null | undefined;
+    const resolveSelectedProjectId = async () => {
+      if (selectedProjectId !== undefined) return selectedProjectId;
+      selectedProjectId =
+        (await resolveSessionMeta())?.selectedContextProjectId ?? null;
+      return selectedProjectId;
+    };
+    if (options.session) {
+      await resolveSelectedProjectId();
+    }
     for (const tool of options.tools) {
-      const toolDef = resolveProviderSpecificTool?.(tool, model);
+      const toolDef =
+        selectedProjectId || tool === 'blocker'
+          ? undefined
+          : resolveProviderSpecificTool?.(tool, model);
       if (toolDef) {
         if (toolDef[1]) {
           tools[toolDef[0]] = toolDef[1];
@@ -143,7 +214,8 @@ export class ToolRuntime {
 
       if (
         !documentWriteToolsEnabled &&
-        ['docCreate', 'docUpdate', 'docUpdateMeta'].includes(tool)
+        ['docCreate', 'docUpdate', 'docUpdateMeta'].includes(tool) &&
+        !(tool === 'docUpdate' && selectedProjectId)
       ) {
         continue;
       }
@@ -194,6 +266,17 @@ export class ToolRuntime {
           break;
         }
         case 'docSemanticSearch': {
+          if (selectedProjectId) {
+            const searchDocs = buildProjectDocSearchGetter(
+              this.ac,
+              this.context,
+              this.models
+            );
+            tools.doc_semantic_search = createProjectDocSemanticSearchTool(
+              searchDocs.bind(null, options)
+            );
+            break;
+          }
           const searchDocs = buildDocSearchGetter(
             this.ac,
             this.context,
@@ -206,6 +289,18 @@ export class ToolRuntime {
           break;
         }
         case 'docKeywordSearch': {
+          if (selectedProjectId) {
+            const searchDocs = buildProjectDocKeywordSearchGetter(
+              this.ac,
+              this.indexerService,
+              this.models,
+              this.docReader
+            );
+            tools.doc_keyword_search = createProjectDocKeywordSearchTool(
+              searchDocs.bind(null, options)
+            );
+            break;
+          }
           const searchDocs = buildDocKeywordSearchGetter(
             this.ac,
             this.permission,
@@ -219,6 +314,17 @@ export class ToolRuntime {
           break;
         }
         case 'docRead': {
+          if (selectedProjectId) {
+            const getProjectDoc = buildProjectDocContentGetter(
+              this.ac,
+              this.docReader,
+              this.models
+            );
+            tools.project_doc_read = createProjectDocReadTool(
+              getProjectDoc.bind(null, options)
+            );
+            break;
+          }
           const getDoc = buildDocContentGetter(
             this.ac,
             this.docReader,
@@ -233,6 +339,15 @@ export class ToolRuntime {
           break;
         }
         case 'docUpdate': {
+          if (selectedProjectId) {
+            tools.project_doc_update_request =
+              createProjectDocUpdateRequestTool({
+                ac: this.ac,
+                models: this.models,
+                options,
+              });
+            break;
+          }
           const updateDoc = buildDocUpdateHandler(this.ac, this.docWriter);
           tools.doc_update = createDocUpdateTool(updateDoc.bind(null, options));
           break;
@@ -296,6 +411,42 @@ export class ToolRuntime {
             );
           break;
         }
+        case 'blocker': {
+          const workbenchSession = await resolveSessionMeta();
+          if (
+            options.chatSurface !== 'intelligence_workbench' ||
+            !workbenchSession ||
+            workbenchSession.userId !== options.user ||
+            workbenchSession.workspaceId !== options.workspace ||
+            workbenchSession.docId !== null ||
+            !selectedProjectId ||
+            !options.user
+          ) {
+            break;
+          }
+          const projectId = selectedProjectId;
+          if (
+            !(await this.models.intelligenceWorkbenchBlocker.canAccess({
+              projectId,
+              userId: options.user,
+            }))
+          ) {
+            break;
+          }
+          tools.blocker_suggest = createBlockerSuggestionTool(
+            async suggestion => ({
+              projectId,
+              ...(await this.models.intelligenceWorkbenchBlocker.suggestForMember(
+                {
+                  projectId,
+                  actorUserId: options.user as string,
+                  ...suggestion,
+                }
+              )),
+            })
+          );
+          break;
+        }
         case 'enterprise': {
           if (
             this.config.copilot.enterpriseCli.enabled &&
@@ -351,8 +502,16 @@ export class ToolRuntime {
           ])
         )
       : null;
+    const activeProjectId =
+      options.session &&
+      Object.keys(guarded).some(name => !canExposeInProjectSession(name))
+        ? await resolveSelectedProjectId()
+        : (selectedProjectId ?? null);
     return Object.fromEntries(
       Object.entries(guarded).filter(([name, tool]) => {
+        if (activeProjectId && !canExposeInProjectSession(name)) {
+          return false;
+        }
         if (allowedNames && !allowedNames.has(name)) return false;
         if (!allowedCapabilities) return true;
         const expected = allowedCapabilities.get(name);

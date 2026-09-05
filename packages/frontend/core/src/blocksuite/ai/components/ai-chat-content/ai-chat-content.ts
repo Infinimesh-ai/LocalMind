@@ -36,6 +36,7 @@ import type { DocDisplayConfig } from '../ai-chat-chips';
 import type { AIReasoningConfig } from '../ai-chat-input';
 import {
   type AIChatMessages,
+  type BlockerSuggestionConfirmation,
   type HistoryMessage,
   isChatMessage,
 } from '../ai-chat-messages';
@@ -176,6 +177,11 @@ export class AIChatContent extends SignalWatcher(
 
   @property({ attribute: false })
   accessor onOpenDoc!: (docId: string, sessionId?: string) => void;
+
+  @property({ attribute: false })
+  accessor blockerSuggestionConfirmation:
+    | BlockerSuggestionConfirmation
+    | undefined;
 
   @property({ attribute: false })
   accessor width: Signal<number | undefined> | undefined;
@@ -395,6 +401,7 @@ export class AIChatContent extends SignalWatcher(
         .docDisplayService=${this.docDisplayConfig}
         .peekViewService=${this.peekViewService}
         .onOpenDoc=${this.onOpenDoc}
+        .blockerSuggestionConfirmation=${this.blockerSuggestionConfirmation}
       ></ai-chat-messages>
       <ai-chat-composer
         style=${styleMap({

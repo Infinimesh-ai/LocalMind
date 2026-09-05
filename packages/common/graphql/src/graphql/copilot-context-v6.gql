@@ -5,6 +5,10 @@ query copilotContextSessionScope($workspaceId: String!, $sessionId: ID!) {
         sessionId
         primaryDocId
         readableDocIds
+        readableDocumentRefs {
+          workspaceId
+          docId
+        }
         candidateProjectIds
         projectIds
         selectedProjectId

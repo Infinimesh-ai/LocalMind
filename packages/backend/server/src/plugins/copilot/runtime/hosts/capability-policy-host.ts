@@ -21,6 +21,7 @@ export type ChatSelectionOptions = {
   modelId?: string;
   reasoning?: boolean;
   webSearch?: boolean;
+  chatSurface?: 'intelligence_workbench';
   toolsConfig?: ToolsConfig;
   byokLeaseId?: string;
   billingUnitId?: string;
@@ -213,6 +214,7 @@ export class CapabilityPolicyHost {
         officeContext: options.officeContext,
         reasoning: options.reasoning,
         webSearch: options.webSearch,
+        chatSurface: options.chatSurface,
         tools,
       },
     };

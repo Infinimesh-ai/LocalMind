@@ -44,6 +44,16 @@ function tailRenderer(maxTurns: number) {
   ];
 }
 
+function grantedProjectDocuments(
+  documents: Array<{ workspaceId: string; docId: string }>
+) {
+  return {
+    intelligenceWorkbenchAuthorization: {
+      listGrantedProjectDocuments: async () => documents,
+    },
+  };
+}
+
 test('ContextPlanner retains early and recent facts with a checkpoint', t => {
   const turns = [
     message('user', 'Remember that the deployment region is eu-west-1.'),
@@ -576,6 +586,7 @@ test('ContextRuleService applies modes, conditions, priority, and manual referen
       sessionId: 'session-a',
       primaryDocId: 'doc-a',
       readableDocIds: ['doc-a'],
+      readableDocumentRefs: [{ workspaceId: 'workspace-a', docId: 'doc-a' }],
       candidateProjectIds: [],
       projectIds: [],
       selectedProjectId: null,
@@ -592,9 +603,100 @@ test('ContextRuleService applies modes, conditions, priority, and manual referen
   t.is(result.find(item => item.id === 'manual-rule')?.matchReason, 'manual');
 });
 
+test('ContextRuleService matches document conditions without widening equal ids across workspaces', async t => {
+  const now = new Date();
+  const directive = (
+    id: string,
+    scope: 'user' | 'workspace' | 'project',
+    conditions: Record<string, unknown>,
+    priority: number
+  ) => ({
+    id,
+    ownerUserId: 'user-a',
+    workspaceId: scope === 'workspace' ? 'workspace-a' : null,
+    projectId: scope === 'project' ? 'project-a' : null,
+    scope,
+    name: id,
+    description: '',
+    applicationMode: 'always',
+    priority,
+    conditions,
+    status: 'active',
+    activeRevision: 1,
+    createdAt: now,
+    updatedAt: now,
+    revisions: [
+      {
+        id: `${id}-revision`,
+        revision: 1,
+        content: `${id} instruction`,
+      },
+    ],
+    hits: [],
+  });
+  const service = new ContextRuleService({
+    copilotContextRule: {
+      listRules: async () => [
+        directive(
+          'exact-project-ref',
+          'project',
+          {
+            documentRefs: [{ workspaceId: 'workspace-a', docId: 'doc-shared' }],
+          },
+          40
+        ),
+        directive(
+          'wrong-workspace-same-id',
+          'project',
+          {
+            documentRefs: [{ workspaceId: 'workspace-b', docId: 'doc-shared' }],
+          },
+          100
+        ),
+        directive(
+          'legacy-workspace-doc-id',
+          'workspace',
+          { docIds: ['doc-shared'] },
+          30
+        ),
+        directive('legacy-user-doc-id', 'user', { docIds: ['doc-shared'] }, 20),
+      ],
+      listPolicies: async () => [],
+    },
+  } as unknown as Models);
+
+  const result = await service.retrieveApplicable({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    scope: {
+      userId: 'user-a',
+      workspaceId: 'workspace-a',
+      sessionId: 'session-a',
+      primaryDocId: 'doc-shared',
+      readableDocIds: ['doc-shared'],
+      readableDocumentRefs: [
+        { workspaceId: 'workspace-a', docId: 'doc-shared' },
+      ],
+      candidateProjectIds: ['project-a'],
+      projectIds: ['project-a'],
+      selectedProjectId: 'project-a',
+      projectResolution: 'selected',
+    },
+    query: 'Apply the document instructions.',
+  });
+
+  t.deepEqual(
+    result.map(item => item.id),
+    ['exact-project-ref', 'legacy-workspace-doc-id', 'legacy-user-doc-id']
+  );
+  t.false(result.some(item => item.id === 'wrong-workspace-same-id'));
+  t.true(result.every(item => item.matchReason === 'condition'));
+});
+
 test('hybrid retrieval sends only authorized memory ids to vector and rerank', async t => {
   const vectorIds: string[][] = [];
   const rerankIds: string[][] = [];
+  let visibilityInput: Record<string, unknown> | null = null;
   const now = new Date();
   const memories = ['allowed-a', 'allowed-b'].map((id, index) => ({
     id,
@@ -630,7 +732,10 @@ test('hybrid retrieval sends only authorized memory ids to vector and rerank', a
     {
       copilotContextMemory: {
         expireDueMemories: async () => ({ count: 0 }),
-        listVisible: async () => memories,
+        listVisible: async (input: Record<string, unknown>) => {
+          visibilityInput = input;
+          return memories;
+        },
         matchAuthorizedEmbeddings: async (ids: string[]) => {
           vectorIds.push(ids);
           return ids.map((id, index) => ({ id, distance: index / 10 }));
@@ -656,12 +761,20 @@ test('hybrid retrieval sends only authorized memory ids to vector and rerank', a
     userId: 'user-a',
     workspaceId: 'workspace-a',
     docIds: [],
+    documentRefs: [{ workspaceId: 'workspace-b', docId: 'doc-b' }],
     projectIds: [],
     query: 'Which deployment region and database?',
   });
 
   t.deepEqual(vectorIds, [['allowed-a', 'allowed-b']]);
   t.deepEqual(rerankIds, [['allowed-a', 'allowed-b']]);
+  t.deepEqual(visibilityInput, {
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    docIds: [],
+    documentRefs: [{ workspaceId: 'workspace-b', docId: 'doc-b' }],
+    projectIds: [],
+  });
   t.deepEqual(result.map(memory => memory.id).toSorted(), [
     'allowed-a',
     'allowed-b',
@@ -671,6 +784,9 @@ test('hybrid retrieval sends only authorized memory ids to vector and rerank', a
 test('automatic memory follows its owner into the active project', async t => {
   const stored: Array<Record<string, unknown>> = [];
   const service = new ContextMemoryService({
+    ...grantedProjectDocuments([
+      { workspaceId: 'workspace-a', docId: 'doc-a' },
+    ]),
     copilotContextMemory: {
       getPreference: async () => ({ autoMemoryEnabled: false }),
       listProjectIdsForDoc: async () => ['project-a'],
@@ -803,6 +919,7 @@ test('automatic memory uses workspace scope when no document is in scope', async
       sessionId: 'session-a',
       primaryDocId: null,
       readableDocIds: [],
+      readableDocumentRefs: [],
       candidateProjectIds: [],
       projectIds: [],
       projectResolution: 'none',
@@ -845,6 +962,10 @@ test('automatic memory fails closed across ambiguous projects', async t => {
       sessionId: 'session-a',
       primaryDocId: null,
       readableDocIds: ['doc-a', 'doc-b'],
+      readableDocumentRefs: [
+        { workspaceId: 'workspace-a', docId: 'doc-a' },
+        { workspaceId: 'workspace-a', docId: 'doc-b' },
+      ],
       candidateProjectIds: ['project-a', 'project-b'],
       projectIds: [],
       projectResolution: 'ambiguous',
@@ -856,15 +977,34 @@ test('automatic memory fails closed across ambiguous projects', async t => {
 });
 
 test('ContextScopeResolver recognizes one attached project after permission filtering', async t => {
+  let membershipInput: Record<string, unknown> | null = null;
   const resolver = new ContextScopeResolver(
     {
+      ...grantedProjectDocuments([
+        { workspaceId: 'workspace-a', docId: 'doc-a' },
+      ]),
       copilotContext: {
         listSessionDocIds: async () => ['doc-a', 'doc-denied'],
       },
       copilotContextMemory: {
-        listProjectMembershipsForDocs: async () => [
-          { docId: 'doc-a', projectId: 'project-a' },
-        ],
+        listProjectMembershipsForDocs: async (
+          input: Record<string, unknown>
+        ) => {
+          membershipInput = input;
+          return [
+            {
+              workspaceId: 'workspace-a',
+              docId: 'doc-a',
+              projectId: 'project-a',
+            },
+          ];
+        },
+        getProject: async () => ({
+          id: 'project-a',
+          status: 'active',
+          members: [{ userId: 'user-a', role: 'member' }],
+          documents: [{ workspaceId: 'workspace-a', docId: 'doc-a' }],
+        }),
       },
     } as unknown as Models,
     {
@@ -882,6 +1022,11 @@ test('ContextScopeResolver recognizes one attached project after permission filt
   t.deepEqual(scope.readableDocIds, ['doc-a']);
   t.deepEqual(scope.projectIds, ['project-a']);
   t.is(scope.projectResolution, 'single');
+  t.deepEqual(membershipInput, {
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    docIds: ['doc-a'],
+  });
 });
 
 test('ContextScopeResolver fails closed when attached docs span projects', async t => {
@@ -892,8 +1037,16 @@ test('ContextScopeResolver fails closed when attached docs span projects', async
       },
       copilotContextMemory: {
         listProjectMembershipsForDocs: async () => [
-          { docId: 'doc-a', projectId: 'project-a' },
-          { docId: 'doc-b', projectId: 'project-b' },
+          {
+            workspaceId: 'workspace-a',
+            docId: 'doc-a',
+            projectId: 'project-a',
+          },
+          {
+            workspaceId: 'workspace-a',
+            docId: 'doc-b',
+            projectId: 'project-b',
+          },
         ],
       },
     } as unknown as Models,
@@ -914,17 +1067,70 @@ test('ContextScopeResolver fails closed when attached docs span projects', async
   t.is(scope.projectResolution, 'ambiguous');
 });
 
+test('ContextScopeResolver fails closed when attached docs mix project and non-project scope', async t => {
+  const resolver = new ContextScopeResolver(
+    {
+      copilotContext: {
+        listSessionDocIds: async () => ['doc-project', 'doc-unscoped'],
+      },
+      copilotContextMemory: {
+        listProjectMembershipsForDocs: async () => [
+          {
+            workspaceId: 'workspace-a',
+            docId: 'doc-project',
+            projectId: 'project-a',
+          },
+        ],
+      },
+    } as unknown as Models,
+    {
+      filterReadableDocs: async (input: { docs: Array<{ docId: string }> }) =>
+        input.docs,
+    } as unknown as PermissionService
+  );
+
+  const scope = await resolver.resolve({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    sessionId: 'session-a',
+  });
+
+  t.deepEqual(scope.candidateProjectIds, ['project-a']);
+  t.deepEqual(scope.projectIds, []);
+  t.is(scope.projectResolution, 'mixed');
+});
+
 test('ContextScopeResolver accepts only an authorized project candidate selection', async t => {
   const resolver = new ContextScopeResolver(
     {
+      ...grantedProjectDocuments([
+        { workspaceId: 'workspace-a', docId: 'doc-b' },
+      ]),
       copilotContext: {
         listSessionDocIds: async () => ['doc-a', 'doc-b'],
       },
       copilotContextMemory: {
         listProjectMembershipsForDocs: async () => [
-          { docId: 'doc-a', projectId: 'project-a' },
-          { docId: 'doc-b', projectId: 'project-b' },
+          {
+            workspaceId: 'workspace-a',
+            docId: 'doc-a',
+            projectId: 'project-a',
+          },
+          {
+            workspaceId: 'workspace-a',
+            docId: 'doc-b',
+            projectId: 'project-b',
+          },
         ],
+        getProject: async (id: string) =>
+          id === 'project-b'
+            ? {
+                id,
+                status: 'active',
+                members: [{ userId: 'user-a', role: 'member' }],
+                documents: [{ workspaceId: 'workspace-a', docId: 'doc-b' }],
+              }
+            : null,
       },
     } as unknown as Models,
     {
@@ -954,7 +1160,282 @@ test('ContextScopeResolver accepts only an authorized project candidate selectio
   t.is(stale.selectedProjectId, null);
 });
 
-test('memory visibility query is isolated by owner, workspace, and project', t => {
+test('ContextScopeResolver resolves selected project documents in each source workspace', async t => {
+  let grantInput: Record<string, unknown> | null = null;
+  const permissionInputs: Array<{
+    workspaceId: string;
+    docs: Array<{ docId: string }>;
+  }> = [];
+  const resolver = new ContextScopeResolver(
+    {
+      intelligenceWorkbenchAuthorization: {
+        listGrantedProjectDocuments: async (input: Record<string, unknown>) => {
+          grantInput = input;
+          return [
+            { workspaceId: 'workspace-a', docId: 'doc-shared' },
+            { workspaceId: 'workspace-b', docId: 'doc-shared' },
+          ];
+        },
+      },
+      copilotContext: {
+        listSessionDocIds: async () => [],
+      },
+      copilotContextMemory: {
+        listProjectMembershipsForDocs: async () => [],
+        getProject: async () => ({
+          id: 'project-global',
+          status: 'active',
+          members: [{ userId: 'user-a', role: 'owner' }],
+          documents: [
+            { workspaceId: 'workspace-a', docId: 'doc-shared' },
+            { workspaceId: 'workspace-b', docId: 'doc-shared' },
+          ],
+        }),
+      },
+    } as unknown as Models,
+    {
+      filterReadableDocs: async (input: {
+        workspaceId: string;
+        docs: Array<{ docId: string }>;
+      }) => {
+        permissionInputs.push(input);
+        return input.docs;
+      },
+    } as unknown as PermissionService
+  );
+
+  const scope = await resolver.resolve({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    sessionId: 'session-a',
+    selectedProjectId: 'project-global',
+  });
+
+  t.is(scope.projectResolution, 'selected');
+  t.deepEqual(scope.projectIds, ['project-global']);
+  t.deepEqual(scope.readableDocIds, []);
+  t.deepEqual(scope.readableDocumentRefs, [
+    { workspaceId: 'workspace-a', docId: 'doc-shared' },
+    { workspaceId: 'workspace-b', docId: 'doc-shared' },
+  ]);
+  t.deepEqual(permissionInputs.map(input => input.workspaceId).toSorted(), [
+    'workspace-a',
+    'workspace-b',
+  ]);
+  t.deepEqual(grantInput, {
+    projectId: 'project-global',
+    userId: 'user-a',
+  });
+});
+
+test('ContextScopeResolver keeps selection but excludes project scope when one same-id cross-workspace ref is denied', async t => {
+  const resolver = new ContextScopeResolver(
+    {
+      ...grantedProjectDocuments([
+        { workspaceId: 'workspace-a', docId: 'doc-shared' },
+        { workspaceId: 'workspace-b', docId: 'doc-shared' },
+      ]),
+      copilotContext: {
+        listSessionDocIds: async () => [],
+      },
+      copilotContextMemory: {
+        listProjectMembershipsForDocs: async () => [],
+        getProject: async () => ({
+          id: 'project-global',
+          status: 'active',
+          members: [{ userId: 'user-a', role: 'member' }],
+          documents: [
+            { workspaceId: 'workspace-a', docId: 'doc-shared' },
+            { workspaceId: 'workspace-b', docId: 'doc-shared' },
+          ],
+        }),
+      },
+    } as unknown as Models,
+    {
+      filterReadableDocs: async (input: {
+        workspaceId: string;
+        docs: Array<{ docId: string }>;
+      }) => (input.workspaceId === 'workspace-a' ? input.docs : []),
+    } as unknown as PermissionService
+  );
+
+  const scope = await resolver.resolve({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    sessionId: 'session-a',
+    selectedProjectId: 'project-global',
+  });
+
+  t.is(scope.projectResolution, 'selected');
+  t.is(scope.selectedProjectId, 'project-global');
+  t.deepEqual(scope.projectIds, []);
+  t.deepEqual(scope.readableDocumentRefs, [
+    { workspaceId: 'workspace-a', docId: 'doc-shared' },
+  ]);
+});
+
+test('ContextScopeResolver keeps an empty member project selected with no refs', async t => {
+  const resolver = new ContextScopeResolver(
+    {
+      ...grantedProjectDocuments([]),
+      copilotContext: {
+        listSessionDocIds: async () => [],
+      },
+      copilotContextMemory: {
+        listProjectMembershipsForDocs: async () => [],
+        getProject: async () => ({
+          id: 'project-empty',
+          status: 'active',
+          members: [{ userId: 'user-a', role: 'owner' }],
+          documents: [],
+        }),
+      },
+    } as unknown as Models,
+    {
+      filterReadableDocs: async () => {
+        throw new Error('empty project should not resolve document ACLs');
+      },
+    } as unknown as PermissionService
+  );
+
+  const scope = await resolver.resolve({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    sessionId: 'session-a',
+    selectedProjectId: 'project-empty',
+  });
+
+  t.is(scope.projectResolution, 'selected');
+  t.deepEqual(scope.projectIds, ['project-empty']);
+  t.deepEqual(scope.readableDocumentRefs, []);
+});
+
+test('ContextScopeResolver keeps an all-denied member project selected without widening refs', async t => {
+  const resolver = new ContextScopeResolver(
+    {
+      ...grantedProjectDocuments([
+        { workspaceId: 'workspace-a', docId: 'doc-a' },
+        { workspaceId: 'workspace-b', docId: 'doc-b' },
+      ]),
+      copilotContext: {
+        listSessionDocIds: async () => [],
+      },
+      copilotContextMemory: {
+        listProjectMembershipsForDocs: async () => [],
+        getProject: async () => ({
+          id: 'project-denied',
+          status: 'active',
+          members: [{ userId: 'user-a', role: 'member' }],
+          documents: [
+            { workspaceId: 'workspace-a', docId: 'doc-a' },
+            { workspaceId: 'workspace-b', docId: 'doc-b' },
+          ],
+        }),
+      },
+    } as unknown as Models,
+    {
+      filterReadableDocs: async () => [],
+    } as unknown as PermissionService
+  );
+
+  const scope = await resolver.resolve({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    sessionId: 'session-a',
+    selectedProjectId: 'project-denied',
+  });
+
+  t.is(scope.projectResolution, 'selected');
+  t.is(scope.selectedProjectId, 'project-denied');
+  t.deepEqual(scope.projectIds, []);
+  t.deepEqual(scope.readableDocIds, []);
+  t.deepEqual(scope.readableDocumentRefs, []);
+});
+
+test('ContextScopeResolver fails closed when an automatically inferred project has an unreadable ref', async t => {
+  const resolver = new ContextScopeResolver(
+    {
+      ...grantedProjectDocuments([
+        { workspaceId: 'workspace-a', docId: 'doc-host' },
+        { workspaceId: 'workspace-b', docId: 'doc-denied' },
+      ]),
+      copilotContext: {
+        listSessionDocIds: async () => ['doc-host'],
+      },
+      copilotContextMemory: {
+        listProjectMembershipsForDocs: async () => [
+          {
+            workspaceId: 'workspace-a',
+            docId: 'doc-host',
+            projectId: 'project-global',
+          },
+        ],
+        getProject: async () => ({
+          id: 'project-global',
+          status: 'active',
+          members: [{ userId: 'user-a', role: 'member' }],
+          documents: [
+            { workspaceId: 'workspace-a', docId: 'doc-host' },
+            { workspaceId: 'workspace-b', docId: 'doc-denied' },
+          ],
+        }),
+      },
+    } as unknown as Models,
+    {
+      filterReadableDocs: async (input: {
+        workspaceId: string;
+        docs: Array<{ docId: string }>;
+      }) => (input.workspaceId === 'workspace-a' ? input.docs : []),
+    } as unknown as PermissionService
+  );
+
+  const scope = await resolver.resolve({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    sessionId: 'session-a',
+  });
+
+  t.is(scope.projectResolution, 'single');
+  t.deepEqual(scope.candidateProjectIds, ['project-global']);
+  t.deepEqual(scope.projectIds, []);
+  t.is(scope.selectedProjectId, null);
+});
+
+test('ContextScopeResolver rejects selected projects for non-members', async t => {
+  const resolver = new ContextScopeResolver(
+    {
+      copilotContext: {
+        listSessionDocIds: async () => [],
+      },
+      copilotContextMemory: {
+        listProjectMembershipsForDocs: async () => [],
+        getProject: async () => ({
+          id: 'project-private',
+          status: 'active',
+          members: [{ userId: 'user-b', role: 'owner' }],
+          documents: [{ workspaceId: 'workspace-a', docId: 'doc-readable' }],
+        }),
+      },
+    } as unknown as Models,
+    {
+      filterReadableDocs: async (input: { docs: Array<{ docId: string }> }) =>
+        input.docs,
+    } as unknown as PermissionService
+  );
+
+  const scope = await resolver.resolve({
+    userId: 'user-a',
+    workspaceId: 'workspace-a',
+    sessionId: 'session-a',
+    selectedProjectId: 'project-private',
+  });
+
+  t.is(scope.projectResolution, 'invalid_selection');
+  t.deepEqual(scope.projectIds, []);
+  t.deepEqual(scope.readableDocumentRefs, []);
+});
+
+test('memory visibility keeps document scope local and project scope global', t => {
   const where = buildContextMemoryVisibilityWhere({
     userId: 'user-a',
     workspaceId: 'workspace-a',
@@ -975,7 +1456,8 @@ test('memory visibility query is isolated by owner, workspace, and project', t =
           alternative.docId !== null &&
           Array.isArray((alternative.docId as { in?: unknown }).in) &&
           (alternative.docId as { in: unknown[] }).in.includes('doc-b')) ||
-        alternative.ownerUserId !== 'user-a'
+        (alternative.scope !== 'project' &&
+          alternative.ownerUserId !== 'user-a')
     )
   );
   t.true(
@@ -993,10 +1475,91 @@ test('memory visibility query is isolated by owner, workspace, and project', t =
   t.true(
     alternatives.some(
       alternative =>
-        alternative.ownerUserId === 'user-a' &&
-        alternative.workspaceId === 'workspace-a' &&
-        alternative.scope === 'project'
+        alternative.ownerUserId === undefined &&
+        alternative.scope === 'project' &&
+        alternative.workspaceId === null &&
+        typeof alternative.projectId === 'object' &&
+        alternative.projectId !== null &&
+        Array.isArray((alternative.projectId as { in?: unknown }).in) &&
+        (alternative.projectId as { in: unknown[] }).in.includes('project-a') &&
+        typeof alternative.project === 'object' &&
+        alternative.project !== null &&
+        (alternative.project as { status?: unknown }).status === 'active' &&
+        typeof (alternative.project as { members?: unknown }).members ===
+          'object'
     )
+  );
+});
+
+test('memory visibility keeps workspace and document reference pairs exact', t => {
+  const where = buildContextMemoryVisibilityWhere({
+    userId: 'user-a',
+    workspaceId: 'workspace-host',
+    documentRefs: [
+      { workspaceId: 'workspace-a', docId: 'doc-a' },
+      { workspaceId: 'workspace-b', docId: 'doc-b' },
+      { workspaceId: 'workspace-a', docId: 'doc-a' },
+    ],
+  });
+  const alternatives = where.OR as Array<Record<string, unknown>>;
+  const documentScopes = alternatives.filter(
+    alternative => alternative.scope === 'document'
+  );
+
+  t.deepEqual(documentScopes, [
+    {
+      ownerUserId: 'user-a',
+      scope: 'document',
+      workspaceId: 'workspace-a',
+      docId: { in: ['doc-a'] },
+      projectId: null,
+    },
+    {
+      ownerUserId: 'user-a',
+      scope: 'document',
+      workspaceId: 'workspace-b',
+      docId: { in: ['doc-b'] },
+      projectId: null,
+    },
+  ]);
+  t.false(
+    documentScopes.some(
+      scope =>
+        scope.workspaceId === 'workspace-a' &&
+        typeof scope.docId === 'object' &&
+        scope.docId !== null &&
+        (scope.docId as { in: string[] }).in.includes('doc-b')
+    )
+  );
+});
+
+test('ContextMemoryService loads document titles by exact ordered refs', async t => {
+  let metadataInput: unknown = null;
+  let metadataOptions: unknown = null;
+  const service = new ContextMemoryService({
+    doc: {
+      findMetas: async (input: unknown, options: unknown) => {
+        metadataInput = input;
+        metadataOptions = options;
+        return [
+          { workspaceId: 'workspace-a', docId: 'doc-same', title: 'A' },
+          { workspaceId: 'workspace-b', docId: 'doc-same', title: 'B' },
+        ];
+      },
+    },
+  } as unknown as Models);
+  const refs = [
+    { workspaceId: 'workspace-a', docId: 'doc-same' },
+    { workspaceId: 'workspace-b', docId: 'doc-same' },
+  ];
+
+  const metas = await service.getDocumentMetas(refs);
+
+  t.deepEqual(metadataInput, refs);
+  t.deepEqual(metadataOptions, { select: { title: true } });
+  t.deepEqual(
+    metas.map(meta => meta?.title),
+    ['A', 'B']
   );
 });
 
@@ -1068,6 +1631,7 @@ test('ChatSession persists the planner checkpoint on save', async t => {
         sessionId: 'session-a',
         primaryDocId: 'doc-a',
         readableDocIds: ['doc-a'],
+        readableDocumentRefs: [{ workspaceId: 'workspace-a', docId: 'doc-a' }],
         candidateProjectIds: [],
         projectIds: [],
         projectResolution: 'none',
@@ -1097,4 +1661,8 @@ test('ChatSession persists the planner checkpoint on save', async t => {
   t.deepEqual((traces[0].scope as Record<string, unknown>).readableDocIds, [
     'doc-a',
   ]);
+  t.deepEqual(
+    (traces[0].scope as Record<string, unknown>).readableDocumentRefs,
+    [{ workspaceId: 'workspace-a', docId: 'doc-a' }]
+  );
 });

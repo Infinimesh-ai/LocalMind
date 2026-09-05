@@ -30,6 +30,7 @@ import {
 import { useLiveData, useService, useServices } from '@toeverything/infra';
 import type { ReactElement } from 'react';
 import { memo, useCallback } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 
 import {
   CollapsibleSection,
@@ -92,25 +93,25 @@ const AllDocsButton = () => {
 
 const AIChatButton = () => {
   const t = useI18n();
+  const location = useLocation();
   const featureFlagService = useService(FeatureFlagService);
   const serverService = useService(ServerService);
   const serverFeatures = useLiveData(serverService.server.features$);
   const enableAI = useLiveData(featureFlagService.flags.enable_ai.$);
 
-  const { workbenchService } = useServices({
-    WorkbenchService,
-  });
-  const workbench = workbenchService.workbench;
-  const aiChatActive = useLiveData(
-    workbench.location$.selector(location => location.pathname === '/chat')
-  );
+  const aiChatActive = location.pathname === '/intelligence';
 
   if (!enableAI || !serverFeatures?.copilot) {
     return null;
   }
 
   return (
-    <MenuLinkItem icon={<AiOutlineIcon />} active={aiChatActive} to={'/chat'}>
+    <MenuLinkItem
+      icon={<AiOutlineIcon />}
+      active={aiChatActive}
+      linkComponent={Link}
+      to="/intelligence"
+    >
       <span data-testid="ai-chat">
         {t['com.affine.workspaceSubPath.chat']()}
       </span>

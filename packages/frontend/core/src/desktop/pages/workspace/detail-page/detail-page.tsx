@@ -474,6 +474,7 @@ const DetailPageImpl = memo(function DetailPageImpl() {
 export const Component = () => {
   const params = useParams();
   const recentPages = useService(RecentDocsService);
+  const workspaceId = useService(WorkspaceService).workspace.id;
 
   useEffect(() => {
     if (params.pageId) {
@@ -492,7 +493,12 @@ export const Component = () => {
       pageId={pageId}
       canAccess={canAccess}
       skeleton={<PageDetailLoading />}
-      notFound={<PageNotFound noPermission />}
+      notFound={
+        <PageNotFound
+          noPermission
+          accessRequest={{ workspaceId, docId: pageId }}
+        />
+      }
     >
       <DetailPageImpl />
     </DetailPageWrapper>

@@ -1,0 +1,22 @@
+mutation requestCopilotDocumentAccess(
+  $input: RequestCopilotDocumentAccessInput!
+) {
+  requestCopilotDocumentAccess(input: $input) {
+    id
+    workspaceId
+    docId
+    beneficiaryType
+    beneficiaryUserId
+    beneficiaryProjectId
+    requesterUserId
+    requestedLevel
+    requestedTitle
+    status
+    resolvedByUserId
+    resolutionReason
+    resolvedAt
+    expiresAt
+    createdAt
+    updatedAt
+  }
+}

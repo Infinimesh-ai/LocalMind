@@ -8,12 +8,11 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { HelpCenterPage } from './index';
 
-const openWorkbench = vi.hoisted(() => vi.fn());
+const navigate = vi.hoisted(() => vi.fn());
 const openDialog = vi.hoisted(() => vi.fn());
 const WorkspaceDialogServiceToken = vi.hoisted(
   () => class WorkspaceDialogService {}
 );
-const WorkbenchServiceToken = vi.hoisted(() => class WorkbenchService {});
 
 vi.mock('@affine/i18n', () => {
   const messages: Record<string, string> = {
@@ -60,7 +59,6 @@ vi.mock('@affine/core/modules/dialogs', () => ({
 }));
 
 vi.mock('@affine/core/modules/workbench', () => ({
-  WorkbenchService: WorkbenchServiceToken,
   ViewBody: ({ children }: PropsWithChildren) => (
     <div data-testid="view-body">{children}</div>
   ),
@@ -73,9 +71,6 @@ vi.mock('@affine/core/modules/workbench', () => ({
 
 vi.mock('@toeverything/infra', () => ({
   useService: (token: unknown) => {
-    if (token === WorkbenchServiceToken) {
-      return { workbench: { open: openWorkbench } };
-    }
     if (token === WorkspaceDialogServiceToken) {
       return { open: openDialog };
     }
@@ -83,11 +78,15 @@ vi.mock('@toeverything/infra', () => ({
   },
 }));
 
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => navigate,
+}));
+
 describe('LocalMind help center', () => {
   afterEach(cleanup);
 
   beforeEach(() => {
-    openWorkbench.mockReset();
+    navigate.mockReset();
     openDialog.mockReset();
   });
 
@@ -128,7 +127,7 @@ describe('LocalMind help center', () => {
     render(<HelpCenterPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Open AI Chat' }));
-    expect(openWorkbench).toHaveBeenCalledWith('/chat', { at: 'active' });
+    expect(navigate).toHaveBeenCalledWith('/intelligence');
 
     fireEvent.click(screen.getByRole('button', { name: 'Manage AI context' }));
     expect(openDialog).toHaveBeenCalledWith('setting', {

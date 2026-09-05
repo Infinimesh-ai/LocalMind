@@ -31,6 +31,7 @@ import { PgWorkspaceDocStorageAdapter } from '../doc';
 import { DocReader } from '../doc/reader';
 import { PermissionAccess } from '../permission';
 import { CommentAttachmentStorage, WorkspaceBlobStorage } from '../storage';
+import { readAllBlocksFromDocSnapshot } from '../utils/blocksuite';
 import { DocID } from '../utils/doc';
 
 @Controller('/api/workspaces')
@@ -105,21 +106,31 @@ export class WorkspacesController {
     @Param('id') workspaceId: string,
     @Param('name') name: string,
     @Query('redirect') redirect: string | undefined,
+    @Query('docScopeId') docScopeId: string | undefined,
     @Res() res: Response
   ) {
-    const canReadWorkspace = await this.ac
-      .user(user?.id ?? 'anonymous')
-      .workspace(workspaceId)
-      .can('Workspace.Read');
-    const canReadSharedWorkspaceBlobs =
-      await this.canReadSharedWorkspaceBlobs(workspaceId);
-    if (!canReadWorkspace && !canReadSharedWorkspaceBlobs) {
-      throw new SpaceAccessDenied({ spaceId: workspaceId });
+    if (docScopeId) {
+      await this.assertBlobReferencedByReadableDoc(
+        user?.id ?? 'anonymous',
+        workspaceId,
+        docScopeId,
+        name
+      );
+    } else {
+      const canReadWorkspace = await this.ac
+        .user(user?.id ?? 'anonymous')
+        .workspace(workspaceId)
+        .can('Workspace.Read');
+      const canReadSharedWorkspaceBlobs =
+        await this.canReadSharedWorkspaceBlobs(workspaceId);
+      if (!canReadWorkspace && !canReadSharedWorkspaceBlobs) {
+        throw new SpaceAccessDenied({ spaceId: workspaceId });
+      }
     }
     const { body, metadata, redirectUrl } = await this.storage.get(
       workspaceId,
       name,
-      true
+      !docScopeId
     );
 
     if (redirectUrl) {
@@ -158,8 +169,45 @@ export class WorkspacesController {
       filename: name,
     });
 
-    res.setHeader('cache-control', 'public, max-age=2592000, immutable');
+    res.setHeader(
+      'cache-control',
+      docScopeId ? 'private, no-store' : 'public, max-age=2592000, immutable'
+    );
     body.pipe(res);
+  }
+
+  private async assertBlobReferencedByReadableDoc(
+    userId: string,
+    workspaceId: string,
+    docId: string,
+    blobId: string
+  ) {
+    await this.ac.user(userId).doc(workspaceId, docId).assert('Doc.Read');
+    const doc = await this.docReader.getDoc(workspaceId, docId);
+    if (!doc) {
+      throw new DocNotFound({ spaceId: workspaceId, docId });
+    }
+
+    try {
+      const parsed = await readAllBlocksFromDocSnapshot(docId, doc.bin);
+      if (
+        parsed.blocks.some(block => {
+          const reference = block.blob;
+          return typeof reference === 'string'
+            ? reference === blobId
+            : reference?.includes(blobId) === true;
+        })
+      ) {
+        return;
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to verify scoped blob reference for ${workspaceId}/${docId}`,
+        error as Error
+      );
+    }
+
+    throw new BlobNotFound({ spaceId: workspaceId, blobId });
   }
 
   private async canReadSharedWorkspaceBlobs(workspaceId: string) {

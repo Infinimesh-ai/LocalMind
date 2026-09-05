@@ -16,10 +16,15 @@ import {
   uint8ArrayToBase64,
 } from './socket';
 
-interface CloudDocStorageOptions extends DocStorageOptions {
+export interface CloudDocStorageOptions extends DocStorageOptions {
   serverBaseUrl: string;
   isSelfHosted: boolean;
   type: SpaceType;
+  /**
+   * Restrict this transport to one workspace document without joining the
+   * workspace-wide sync channel.
+   */
+  docScopeId?: string;
 }
 
 function createWebsocketError(error: { name: string; message: string }) {
@@ -44,6 +49,7 @@ export class CloudDocStorage extends DocStorageBase<CloudDocStorageOptions> {
 
   onServerUpdate: ServerEventsMap['space:broadcast-doc-update'] = message => {
     if (
+      this.options.docScopeId ||
       this.spaceType !== message.spaceType ||
       this.spaceId !== message.spaceId
     ) {
@@ -60,6 +66,7 @@ export class CloudDocStorage extends DocStorageBase<CloudDocStorageOptions> {
 
   onServerUpdates: ServerEventsMap['space:broadcast-doc-updates'] = message => {
     if (
+      this.options.docScopeId ||
       this.spaceType !== message.spaceType ||
       this.spaceId !== message.spaceId
     ) {
@@ -87,6 +94,7 @@ export class CloudDocStorage extends DocStorageBase<CloudDocStorageOptions> {
       spaceType: this.spaceType,
       spaceId: this.spaceId,
       docId: this.idConverter.newIdToOldId(docId),
+      docScopeId: this.options.docScopeId,
     });
 
     if ('error' in response) {
@@ -110,6 +118,7 @@ export class CloudDocStorage extends DocStorageBase<CloudDocStorageOptions> {
       spaceId: this.spaceId,
       docId: this.idConverter.newIdToOldId(docId),
       stateVector: state ? await uint8ArrayToBase64(state) : void 0,
+      docScopeId: this.options.docScopeId,
     });
 
     if ('error' in response) {
@@ -134,6 +143,7 @@ export class CloudDocStorage extends DocStorageBase<CloudDocStorageOptions> {
       spaceId: this.spaceId,
       docId: this.idConverter.newIdToOldId(update.docId),
       update: await uint8ArrayToBase64(update.bin),
+      docScopeId: this.options.docScopeId,
     });
 
     if ('error' in response) {
@@ -155,6 +165,7 @@ export class CloudDocStorage extends DocStorageBase<CloudDocStorageOptions> {
       spaceType: this.spaceType,
       spaceId: this.spaceId,
       docId: this.idConverter.newIdToOldId(docId),
+      docScopeId: this.options.docScopeId,
     });
 
     if ('error' in response) {
@@ -175,6 +186,7 @@ export class CloudDocStorage extends DocStorageBase<CloudDocStorageOptions> {
         spaceType: this.spaceType,
         spaceId: this.spaceId,
         timestamp: after ? after.getTime() : undefined,
+        docScopeId: this.options.docScopeId,
       }
     );
 
@@ -190,6 +202,10 @@ export class CloudDocStorage extends DocStorageBase<CloudDocStorageOptions> {
   }
 
   override async deleteDoc(docId: string) {
+    if (this.options.docScopeId) {
+      throw new Error('Document-scoped cloud storage cannot delete documents');
+    }
+
     const response = await this.socket.emitWithAck('space:delete-doc', {
       spaceType: this.spaceType,
       spaceId: this.spaceId,
@@ -219,7 +235,9 @@ class CloudDocStorageConnection extends SocketConnection {
     private readonly onServerUpdate: ServerEventsMap['space:broadcast-doc-update'],
     private readonly onServerUpdates: ServerEventsMap['space:broadcast-doc-updates']
   ) {
-    super(options.serverBaseUrl, options.isSelfHosted);
+    // A scoped transport must not share a physical socket with a workspace
+    // transport or with a differently scoped document.
+    super(options.serverBaseUrl, options.isSelfHosted, !options.docScopeId);
   }
 
   idConverter: IdConverter | null = null;
@@ -232,6 +250,7 @@ class CloudDocStorageConnection extends SocketConnection {
         spaceType: this.options.type,
         spaceId: this.options.id,
         clientVersion: BUILD_CONFIG.appVersion,
+        docScopeId: this.options.docScopeId,
       });
 
       if ('error' in res) {
@@ -262,6 +281,7 @@ class CloudDocStorageConnection extends SocketConnection {
     socket.emit('space:leave', {
       spaceType: this.options.type,
       spaceId: this.options.id,
+      docScopeId: this.options.docScopeId,
     });
     socket.off('space:broadcast-doc-update', this.onServerUpdate);
     socket.off('space:broadcast-doc-updates', this.onServerUpdates);
@@ -276,6 +296,7 @@ class CloudDocStorageConnection extends SocketConnection {
             spaceType: this.options.type,
             spaceId: this.options.id,
             docId: id,
+            docScopeId: this.options.docScopeId,
           });
 
           if ('error' in response) {

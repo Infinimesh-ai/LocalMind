@@ -21,6 +21,7 @@ import {
 } from '../../_common/chat-actions-handle';
 import type { DocDisplayConfig } from '../../components/ai-chat-chips';
 import {
+  type BlockerSuggestionConfirmation,
   type ChatMessage,
   type ChatStatus,
   isChatMessage,
@@ -93,6 +94,11 @@ export class ChatMessageAssistant extends WithDisposable(ShadowlessElement) {
   @property({ attribute: false })
   accessor onOpenDoc!: (docId: string, sessionId?: string) => void;
 
+  @property({ attribute: false })
+  accessor blockerSuggestionConfirmation:
+    | BlockerSuggestionConfirmation
+    | undefined;
+
   get state() {
     const { isLast, status } = this;
     return isLast
@@ -156,6 +162,7 @@ export class ChatMessageAssistant extends WithDisposable(ShadowlessElement) {
       .docDisplayService=${this.docDisplayService}
       .peekViewService=${this.peekViewService}
       .onOpenDoc=${this.onOpenDoc}
+      .blockerSuggestionConfirmation=${this.blockerSuggestionConfirmation}
     ></chat-content-stream-objects>`;
   }
 

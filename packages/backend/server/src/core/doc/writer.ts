@@ -40,6 +40,16 @@ declare global {
   }
 }
 
+export type WorkspaceDocUpdatesPushedPayload = Omit<
+  Events['doc.updates.pushed'],
+  'spaceType'
+>;
+
+export interface DeferredDocUpdateResult {
+  result: UpdateDocResult;
+  broadcasts: WorkspaceDocUpdatesPushedPayload[];
+}
+
 @Injectable()
 export class DocWriter {
   private readonly logger = new Logger(DocWriter.name);
@@ -200,6 +210,23 @@ export class DocWriter {
     markdown: string,
     editorId?: string
   ): Promise<UpdateDocResult> {
+    const deferred = await this.updateDocDeferred(
+      workspaceId,
+      docId,
+      markdown,
+      editorId
+    );
+    this.publishDocUpdatesPushed(deferred.broadcasts);
+    return deferred.result;
+  }
+
+  async updateDocDeferred(
+    workspaceId: string,
+    docId: string,
+    markdown: string,
+    editorId?: string
+  ): Promise<DeferredDocUpdateResult> {
+    const broadcasts: WorkspaceDocUpdatesPushedPayload[] = [];
     this.logger.debug(
       `Updating doc ${docId} in workspace ${workspaceId} from markdown`
     );
@@ -222,7 +249,10 @@ export class DocWriter {
     const delta = updateDocWithMarkdown(existingBinary, markdown, docId);
 
     if (this.storage.isEmptyBin(delta)) {
-      return { success: true, changed: false };
+      return {
+        result: { success: true, changed: false },
+        broadcasts,
+      };
     }
 
     // Push only the delta changes
@@ -232,7 +262,7 @@ export class DocWriter {
       [delta],
       editorId
     );
-    this.emitDocUpdatesPushed({
+    this.recordDocUpdatesPushed(broadcasts, {
       spaceId: workspaceId,
       docId,
       updates: [delta],
@@ -244,10 +274,14 @@ export class DocWriter {
       workspaceId,
       docId,
       { updatedBy: editorId },
-      editorId
+      editorId,
+      broadcasts
     );
 
-    return { success: true, changed: true };
+    return {
+      result: { success: true, changed: true },
+      broadcasts,
+    };
   }
 
   /**
@@ -385,28 +419,34 @@ export class DocWriter {
     return { success: true };
   }
 
-  private emitDocUpdatesPushed(payload: {
-    spaceId: string;
-    docId: string;
-    updates: Uint8Array[];
-    timestamp: number;
-    editor?: string;
-  }) {
-    this.event.emit('doc.updates.pushed', {
-      spaceType: 'workspace',
-      spaceId: payload.spaceId,
-      docId: payload.docId,
-      updates: payload.updates,
-      timestamp: payload.timestamp,
-      editor: payload.editor,
-    });
+  publishDocUpdatesPushed(
+    payloads: readonly WorkspaceDocUpdatesPushedPayload[]
+  ) {
+    for (const payload of payloads) {
+      this.event.emitDetached('doc.updates.pushed', {
+        spaceType: 'workspace',
+        ...payload,
+      });
+    }
+  }
+
+  private emitDocUpdatesPushed(payload: WorkspaceDocUpdatesPushedPayload) {
+    this.publishDocUpdatesPushed([payload]);
+  }
+
+  private recordDocUpdatesPushed(
+    broadcasts: WorkspaceDocUpdatesPushedPayload[],
+    payload: WorkspaceDocUpdatesPushedPayload
+  ) {
+    broadcasts.push(payload);
   }
 
   private async updateDocProperties(
     workspaceId: string,
     docId: string,
     props: { createdBy?: string; updatedBy?: string },
-    editorId?: string
+    editorId?: string,
+    broadcasts?: WorkspaceDocUpdatesPushedPayload[]
   ) {
     if (!editorId) {
       return;
@@ -451,12 +491,17 @@ export class DocWriter {
       [update],
       editorId
     );
-    this.emitDocUpdatesPushed({
+    const payload = {
       spaceId: workspaceId,
       docId: propertiesDocId,
       updates: [update],
       timestamp,
       editor: editorId,
-    });
+    };
+    if (broadcasts) {
+      this.recordDocUpdatesPushed(broadcasts, payload);
+    } else {
+      this.emitDocUpdatesPushed(payload);
+    }
   }
 }

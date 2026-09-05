@@ -5344,6 +5344,11 @@ test('standalone Agent Runtime worker leases queued runs and records unsupported
     requestedStepTypes: ['codex', 'tool'],
     registeredAdapters: [
       {
+        workflow: 'agent_runtime_doc_update',
+        supportedStepTypes: ['approval', 'tool'],
+        sideEffectMode: 'workspace_write',
+      },
+      {
         workflow: 'agent_runtime_local_completion',
         supportedStepTypes: [
           'approval',
@@ -5356,9 +5361,19 @@ test('standalone Agent Runtime worker leases queued runs and records unsupported
         sideEffectMode: 'none',
       },
       {
+        workflow: 'agent_runtime_localmind_tool_agent',
+        supportedStepTypes: ['tool'],
+        sideEffectMode: 'workspace_write',
+      },
+      {
         workflow: 'agent_runtime_model_completion',
         supportedStepTypes: ['model'],
         sideEffectMode: 'none',
+      },
+      {
+        workflow: 'agent_runtime_office_command',
+        supportedStepTypes: ['approval', 'tool'],
+        sideEffectMode: 'workspace_write',
       },
       {
         workflow: 'agent_runtime_record_only',

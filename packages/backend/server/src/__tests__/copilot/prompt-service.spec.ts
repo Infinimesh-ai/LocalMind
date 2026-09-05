@@ -1012,6 +1012,24 @@ test('PromptService should let prompt overrides win over global text defaults', 
   }
 });
 
+test('PromptService should expose the Blocker tool category from the built-in chat prompt', async t => {
+  const module = await Test.createTestingModule({
+    imports: [ConfigModule],
+    providers: [PromptService],
+  }).compile();
+
+  try {
+    const prompt = await module
+      .get(PromptService)
+      .get('Chat With LocalMind AI');
+
+    t.truthy(prompt);
+    t.true(prompt?.config?.tools?.includes('blocker'));
+  } finally {
+    await module.close();
+  }
+});
+
 test('PromptService should apply explicit structured defaults before text defaults', async t => {
   const module = await Test.createTestingModule({
     imports: [

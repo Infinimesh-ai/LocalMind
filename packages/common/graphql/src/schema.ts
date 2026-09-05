@@ -58,6 +58,16 @@ export interface AddContextFileInput {
   contextId: Scalars['String']['input'];
 }
 
+export interface AddCopilotContextProjectDocumentInput {
+  docId: Scalars['String']['input'];
+  groupId?: InputMaybe<Scalars['String']['input']>;
+  projectId: Scalars['ID']['input'];
+  requestedLevel?: InputMaybe<Scalars['String']['input']>;
+  requestedTitle?: InputMaybe<Scalars['String']['input']>;
+  sortOrder?: InputMaybe<Scalars['Int']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
 export interface AdminAiProfileCredentialType {
   __typename?: 'AdminAiProfileCredentialType';
   enabled: Scalars['Boolean']['output'];
@@ -616,6 +626,11 @@ export interface CommentUpdateInput {
   id: Scalars['ID']['input'];
 }
 
+export interface ConfirmCopilotBlockerSuggestionInput {
+  projectId: Scalars['ID']['input'];
+  suggestion: CopilotBlockerSuggestionInput;
+}
+
 export interface ConnectExternalMcpInput {
   accessTicket: Scalars['String']['input'];
   name?: Scalars['String']['input'];
@@ -679,7 +694,9 @@ export interface Copilot {
   contextPlannerStrategies: Array<CopilotContextStrategyType>;
   /** List workspace-enforced AI context policies */
   contextPolicies: Array<CopilotContextPolicyType>;
-  /** List context projects whose documents the current user can access */
+  /** Get a global context project by membership */
+  contextProject: CopilotContextProjectType;
+  /** List global context projects the current user belongs to */
   contextProjects: Array<CopilotContextProjectType>;
   /** List the current user rules and revision history */
   contextRules: Array<CopilotContextRuleType>;
@@ -691,7 +708,7 @@ export interface Copilot {
   contexts: Array<CopilotContext>;
   /** Get one standalone Copilot task owned by the current user in the current workspace. */
   copilotTask: Maybe<CopilotTaskType>;
-  /** List standalone Copilot tasks owned by the current user in the current workspace. */
+  /** List standalone Copilot tasks owned by the current user in one workspace or across all accessible workspaces. */
   copilotTasks: Array<CopilotTaskType>;
   /** @deprecated use `chats` instead */
   histories: Array<CopilotHistories>;
@@ -722,6 +739,19 @@ export interface Copilot {
   supportBundles: Array<CopilotSupportBundleType>;
   /** @deprecated Use realtime subscription "copilot.transcript.task.changed" instead. */
   transcriptTask: Maybe<TranscriptionResultType>;
+  /** List access requests visible to the current user. */
+  workbenchAccessRequests: Array<CopilotAccessRequestType>;
+  /** List reminder-only Blockers visible through active global Project membership. */
+  workbenchBlockers: Array<CopilotBlockerType>;
+  /** List project grants on source documents the current user may manage. */
+  workbenchProjectGrantsForSource: Array<CopilotProjectGrantType>;
+  /** List project invitations visible to the current user. */
+  workbenchProjectInvitations: Array<CopilotProjectInvitationType>;
+  workbenchTask: Maybe<CopilotWorkbenchTaskItemType>;
+  /** Project the current user task attention panel across all currently accessible workspaces. */
+  workbenchTaskPanel: CopilotWorkbenchTaskPanelType;
+  /** List the current user workbench tasks across all currently accessible workspaces. */
+  workbenchTasks: CopilotWorkbenchTaskListType;
   workspaceId: Maybe<Scalars['ID']['output']>;
 }
 
@@ -759,6 +789,10 @@ export interface CopilotContextMemoryEventsArgs {
 
 export interface CopilotContextPoliciesArgs {
   includeDisabled?: InputMaybe<Scalars['Boolean']['input']>;
+}
+
+export interface CopilotContextProjectArgs {
+  id: Scalars['ID']['input'];
 }
 
 export interface CopilotContextProjectsArgs {
@@ -838,6 +872,70 @@ export interface CopilotSupportBundlesArgs {
 export interface CopilotTranscriptTaskArgs {
   blobId?: InputMaybe<Scalars['String']['input']>;
   taskId?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface CopilotWorkbenchAccessRequestsArgs {
+  docId?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  projectId?: InputMaybe<Scalars['ID']['input']>;
+  statuses?: InputMaybe<Array<Scalars['String']['input']>>;
+  view?: InputMaybe<Scalars['String']['input']>;
+  workspaceId?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface CopilotWorkbenchBlockersArgs {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  projectId?: InputMaybe<Scalars['ID']['input']>;
+  statuses?: InputMaybe<Array<Scalars['String']['input']>>;
+}
+
+export interface CopilotWorkbenchProjectGrantsForSourceArgs {
+  docId?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  statuses?: InputMaybe<Array<Scalars['String']['input']>>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotWorkbenchProjectInvitationsArgs {
+  direction?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  projectId?: InputMaybe<Scalars['ID']['input']>;
+  statuses?: InputMaybe<Array<Scalars['String']['input']>>;
+}
+
+export interface CopilotWorkbenchTaskArgs {
+  taskId: Scalars['String']['input'];
+}
+
+export interface CopilotWorkbenchTaskPanelArgs {
+  projectId?: InputMaybe<Scalars['ID']['input']>;
+}
+
+export interface CopilotWorkbenchTasksArgs {
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  filter?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  projectId?: InputMaybe<Scalars['ID']['input']>;
+}
+
+export interface CopilotAccessRequestType {
+  __typename?: 'CopilotAccessRequestType';
+  beneficiaryProjectId: Maybe<Scalars['String']['output']>;
+  beneficiaryType: Scalars['String']['output'];
+  beneficiaryUserId: Maybe<Scalars['String']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  docId: Maybe<Scalars['String']['output']>;
+  expiresAt: Maybe<Scalars['DateTime']['output']>;
+  id: Scalars['ID']['output'];
+  requestedLevel: Scalars['String']['output'];
+  requestedTitle: Maybe<Scalars['String']['output']>;
+  requesterUserId: Scalars['String']['output'];
+  resolutionReason: Maybe<Scalars['String']['output']>;
+  resolvedAt: Maybe<Scalars['DateTime']['output']>;
+  resolvedByUserId: Maybe<Scalars['String']['output']>;
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Scalars['String']['output'];
 }
 
 export interface CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadataType {
@@ -1097,6 +1195,7 @@ export interface CopilotAgentRunType {
 
 export interface CopilotAgentRuntimeControlInput {
   action: Scalars['String']['input'];
+  expectedApprovalFingerprint?: InputMaybe<Scalars['String']['input']>;
   reason?: InputMaybe<Scalars['String']['input']>;
   runId: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
@@ -1108,6 +1207,7 @@ export interface CopilotAgentRuntimeDocUpdateRequestInput {
   docId: Scalars['String']['input'];
   idempotencyKey?: InputMaybe<Scalars['String']['input']>;
   reason?: InputMaybe<Scalars['String']['input']>;
+  sessionId?: InputMaybe<Scalars['ID']['input']>;
   title?: InputMaybe<Scalars['String']['input']>;
   workspaceId: Scalars['String']['input'];
 }
@@ -1193,6 +1293,35 @@ export interface CopilotAgentTimelineEventType {
   workspaceId: Scalars['String']['output'];
 }
 
+export interface CopilotBlockerSuggestionInput {
+  aiSuggestionId: Scalars['String']['input'];
+  confirmationProof: Scalars['String']['input'];
+  confirmationRequired: Scalars['Boolean']['input'];
+  dueAt?: InputMaybe<Scalars['DateTime']['input']>;
+  origin: Scalars['String']['input'];
+  title: Scalars['String']['input'];
+  type: Scalars['String']['input'];
+  waitingOn: Scalars['String']['input'];
+}
+
+export interface CopilotBlockerType {
+  __typename?: 'CopilotBlockerType';
+  createdAt: Scalars['DateTime']['output'];
+  creatorUserId: Scalars['String']['output'];
+  dueAt: Maybe<Scalars['DateTime']['output']>;
+  id: Scalars['ID']['output'];
+  origin: Scalars['String']['output'];
+  overdue: Scalars['Boolean']['output'];
+  projectId: Scalars['ID']['output'];
+  resolutionActorUserId: Maybe<Scalars['String']['output']>;
+  resolvedAt: Maybe<Scalars['DateTime']['output']>;
+  status: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+  type: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  waitingOn: Scalars['String']['output'];
+}
+
 export interface CopilotContext {
   __typename?: 'CopilotContext';
   /** list blobs in context */
@@ -1250,6 +1379,12 @@ export interface CopilotContextDoc {
   snapshotUpdatedAt: Maybe<Scalars['SafeInt']['output']>;
   status: Maybe<ContextEmbedStatus>;
   updatedAt: Maybe<Scalars['SafeInt']['output']>;
+}
+
+export interface CopilotContextDocumentRefType {
+  __typename?: 'CopilotContextDocumentRefType';
+  docId: Scalars['String']['output'];
+  workspaceId: Scalars['String']['output'];
 }
 
 export interface CopilotContextFile {
@@ -1363,26 +1498,83 @@ export interface CopilotContextPolicyType {
   workspaceId: Scalars['String']['output'];
 }
 
+export interface CopilotContextProjectDocumentAddResultType {
+  __typename?: 'CopilotContextProjectDocumentAddResultType';
+  outcome: Scalars['String']['output'];
+  projectDocument: CopilotContextProjectDocumentType;
+}
+
+export interface CopilotContextProjectDocumentInputType {
+  docId: Scalars['String']['input'];
+  groupId?: InputMaybe<Scalars['String']['input']>;
+  sortOrder?: InputMaybe<Scalars['Int']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotContextProjectDocumentType {
+  __typename?: 'CopilotContextProjectDocumentType';
+  accessRequestId: Maybe<Scalars['String']['output']>;
+  addedByMe: Scalars['Boolean']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  docId: Maybe<Scalars['String']['output']>;
+  groupId: Maybe<Scalars['String']['output']>;
+  requestedLevel: Scalars['String']['output'];
+  sortOrder: Scalars['Int']['output'];
+  status: Scalars['String']['output'];
+  title: Maybe<Scalars['String']['output']>;
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface CopilotContextProjectMemberType {
+  __typename?: 'CopilotContextProjectMemberType';
+  avatarUrl: Maybe<Scalars['String']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  email: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  role: Scalars['String']['output'];
+  userId: Scalars['String']['output'];
+}
+
 export interface CopilotContextProjectType {
   __typename?: 'CopilotContextProjectType';
+  aiPolicy: Scalars['String']['output'];
   canManage: Scalars['Boolean']['output'];
   createdAt: Scalars['DateTime']['output'];
   createdByUserId: Maybe<Scalars['String']['output']>;
   description: Scalars['String']['output'];
   documentCount: Scalars['Int']['output'];
-  documentIds: Array<Scalars['String']['output']>;
+  documents: Array<CopilotContextProjectDocumentType>;
   id: Scalars['ID']['output'];
+  members: Array<CopilotContextProjectMemberType>;
   name: Scalars['String']['output'];
+  role: Scalars['String']['output'];
   status: Scalars['String']['output'];
   updatedAt: Scalars['DateTime']['output'];
-  workspaceId: Scalars['String']['output'];
+}
+
+export interface CopilotContextProjectWorkspaceDocumentInputType {
+  docId: Scalars['String']['input'];
+  groupId?: InputMaybe<Scalars['String']['input']>;
+  sortOrder?: InputMaybe<Scalars['Int']['input']>;
+}
+
+export interface CopilotContextProjectWorkspaceDocumentsInputType {
+  documents: Array<CopilotContextProjectWorkspaceDocumentInputType>;
+  workspaceId: Scalars['String']['input'];
 }
 
 export interface CopilotContextRuleConditionsInput {
   docIds?: InputMaybe<Array<Scalars['String']['input']>>;
+  documentRefs?: InputMaybe<Array<CopilotContextRuleDocumentRefInput>>;
   keywords?: InputMaybe<Array<Scalars['String']['input']>>;
   match?: InputMaybe<Scalars['String']['input']>;
   projectIds?: InputMaybe<Array<Scalars['String']['input']>>;
+}
+
+export interface CopilotContextRuleDocumentRefInput {
+  docId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
 }
 
 export interface CopilotContextRuleHitType {
@@ -1399,7 +1591,7 @@ export interface CopilotContextRuleRevisionType {
   __typename?: 'CopilotContextRuleRevisionType';
   content: Scalars['String']['output'];
   createdAt: Scalars['DateTime']['output'];
-  createdByUserId: Scalars['String']['output'];
+  createdByUserId: Maybe<Scalars['String']['output']>;
   fingerprint: Scalars['String']['output'];
   id: Scalars['ID']['output'];
   revision: Scalars['Int']['output'];
@@ -1440,6 +1632,7 @@ export interface CopilotContextSessionScopeType {
   projectIds: Array<Scalars['String']['output']>;
   projectResolution: Scalars['String']['output'];
   readableDocIds: Array<Scalars['String']['output']>;
+  readableDocumentRefs: Array<CopilotContextDocumentRefType>;
   selectedProjectId: Maybe<Scalars['String']['output']>;
   sessionId: Scalars['String']['output'];
 }
@@ -1705,6 +1898,56 @@ export interface CopilotPreparedTaskRouteDiagnosticsType {
   requestLayer: Maybe<Scalars['String']['output']>;
   requestedDimensions: Maybe<Scalars['SafeInt']['output']>;
   routeIndex: Scalars['SafeInt']['output'];
+}
+
+export interface CopilotProjectAiPolicyType {
+  __typename?: 'CopilotProjectAiPolicyType';
+  policy: Scalars['String']['output'];
+  projectId: Scalars['ID']['output'];
+  updatedAt: Maybe<Scalars['DateTime']['output']>;
+  updatedByUserId: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotProjectGrantRevocationType {
+  __typename?: 'CopilotProjectGrantRevocationType';
+  grant: CopilotProjectGrantType;
+  quarantinedMemoryCount: Scalars['Int']['output'];
+  rerequestCardId: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotProjectGrantType {
+  __typename?: 'CopilotProjectGrantType';
+  accessRequestId: Maybe<Scalars['String']['output']>;
+  approvingSide: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  docId: Scalars['String']['output'];
+  grantedAt: Scalars['DateTime']['output'];
+  grantedByUserId: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  level: Scalars['String']['output'];
+  projectId: Scalars['String']['output'];
+  projectName: Scalars['String']['output'];
+  revocable: Scalars['Boolean']['output'];
+  revokedAt: Maybe<Scalars['DateTime']['output']>;
+  revokedByUserId: Maybe<Scalars['String']['output']>;
+  source: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface CopilotProjectInvitationType {
+  __typename?: 'CopilotProjectInvitationType';
+  acceptedAt: Maybe<Scalars['DateTime']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  declinedAt: Maybe<Scalars['DateTime']['output']>;
+  id: Scalars['ID']['output'];
+  inviteeUserId: Scalars['String']['output'];
+  inviterUserId: Scalars['String']['output'];
+  projectId: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  withdrawnAt: Maybe<Scalars['DateTime']['output']>;
 }
 
 export interface CopilotPromptCatalogItemType {
@@ -3830,13 +4073,25 @@ export interface CopilotTaskArtifactType {
   id: Scalars['String']['output'];
   kind: Scalars['String']['output'];
   title: Maybe<Scalars['String']['output']>;
+  workspaceId: Scalars['String']['output'];
 }
 
 export interface CopilotTaskControlInput {
   action: Scalars['String']['input'];
+  expectedApprovalFingerprint?: InputMaybe<Scalars['String']['input']>;
   reason?: InputMaybe<Scalars['String']['input']>;
   taskId: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
+}
+
+export interface CopilotTaskDocumentUpdateType {
+  __typename?: 'CopilotTaskDocumentUpdateType';
+  content: Scalars['String']['output'];
+  docId: Scalars['String']['output'];
+  expectedVersion: Scalars['String']['output'];
+  needsReconfirmation: Scalars['Boolean']['output'];
+  previousVersion: Maybe<Scalars['String']['output']>;
+  workspaceId: Scalars['String']['output'];
 }
 
 export interface CopilotTaskListFilterInput {
@@ -4153,15 +4408,19 @@ export interface CopilotTaskStepType {
 
 export interface CopilotTaskType {
   __typename?: 'CopilotTaskType';
+  abandoned: Scalars['Boolean']['output'];
   approval: Maybe<CopilotTaskApprovalType>;
+  approvalFingerprint: Maybe<Scalars['String']['output']>;
   approvalSummary: Maybe<Scalars['JSON']['output']>;
   artifacts: Array<CopilotTaskArtifactType>;
   availableActions: Array<Scalars['String']['output']>;
   completedAt: Maybe<Scalars['DateTime']['output']>;
   createdAt: Scalars['DateTime']['output'];
+  documentUpdate: Maybe<CopilotTaskDocumentUpdateType>;
   failureCode: Maybe<Scalars['String']['output']>;
   failureMessage: Maybe<Scalars['String']['output']>;
   id: Scalars['String']['output'];
+  projectId: Maybe<Scalars['String']['output']>;
   resultEvidence: Maybe<Scalars['JSON']['output']>;
   resultSummary: Maybe<Scalars['String']['output']>;
   startedAt: Maybe<Scalars['DateTime']['output']>;
@@ -4170,6 +4429,61 @@ export interface CopilotTaskType {
   title: Maybe<Scalars['String']['output']>;
   updatedAt: Scalars['DateTime']['output'];
   workflow: Scalars['String']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface CopilotWorkbenchBlockerTaskType {
+  __typename?: 'CopilotWorkbenchBlockerTaskType';
+  creatorUserId: Scalars['String']['output'];
+  dueAt: Maybe<Scalars['DateTime']['output']>;
+  origin: Scalars['String']['output'];
+  overdue: Scalars['Boolean']['output'];
+  resolutionActorUserId: Maybe<Scalars['String']['output']>;
+  type: Scalars['String']['output'];
+  waitingOn: Scalars['String']['output'];
+}
+
+export interface CopilotWorkbenchTaskItemType {
+  __typename?: 'CopilotWorkbenchTaskItemType';
+  attention: Maybe<Scalars['String']['output']>;
+  availableActions: Array<Scalars['String']['output']>;
+  blocker: Maybe<CopilotWorkbenchBlockerTaskType>;
+  completedAt: Maybe<Scalars['DateTime']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  documentId: Maybe<Scalars['String']['output']>;
+  entityId: Scalars['ID']['output'];
+  id: Scalars['ID']['output'];
+  kind: Scalars['String']['output'];
+  projectId: Maybe<Scalars['String']['output']>;
+  redacted: Scalars['Boolean']['output'];
+  relatedUserId: Maybe<Scalars['String']['output']>;
+  requestedLevel: Maybe<Scalars['String']['output']>;
+  run: Maybe<CopilotTaskType>;
+  segment: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  title: Maybe<Scalars['String']['output']>;
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotWorkbenchTaskListType {
+  __typename?: 'CopilotWorkbenchTaskListType';
+  capped: Scalars['Boolean']['output'];
+  items: Array<CopilotWorkbenchTaskItemType>;
+  nextCursor: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotWorkbenchTaskPanelType {
+  __typename?: 'CopilotWorkbenchTaskPanelType';
+  done: CopilotWorkbenchTaskSegmentType;
+  inProgress: CopilotWorkbenchTaskSegmentType;
+  todo: CopilotWorkbenchTaskSegmentType;
+}
+
+export interface CopilotWorkbenchTaskSegmentType {
+  __typename?: 'CopilotWorkbenchTaskSegmentType';
+  capped: Scalars['Boolean']['output'];
+  items: Array<CopilotWorkbenchTaskItemType>;
 }
 
 export interface CopilotWorkspaceConfig {
@@ -4254,12 +4568,21 @@ export interface CreateCheckoutSessionInput {
   variant?: InputMaybe<SubscriptionVariant>;
 }
 
+export interface CreateCopilotBlockerInput {
+  dueAt?: InputMaybe<Scalars['DateTime']['input']>;
+  projectId: Scalars['ID']['input'];
+  title: Scalars['String']['input'];
+  type: Scalars['String']['input'];
+  waitingOn: Scalars['String']['input'];
+}
+
 export interface CreateCopilotContextMemoryInput {
   content: Scalars['String']['input'];
   docId?: InputMaybe<Scalars['String']['input']>;
   kind: CopilotContextMemoryManualKindInput;
   projectId?: InputMaybe<Scalars['String']['input']>;
   scope: CopilotContextMemoryScopeInput;
+  sourceDocuments?: InputMaybe<Array<CopilotContextRuleDocumentRefInput>>;
   workspaceId?: InputMaybe<Scalars['String']['input']>;
 }
 
@@ -4275,9 +4598,8 @@ export interface CreateCopilotContextPolicyInput {
 
 export interface CreateCopilotContextProjectInput {
   description?: InputMaybe<Scalars['String']['input']>;
-  documentIds: Array<Scalars['String']['input']>;
+  documents?: InputMaybe<Array<CopilotContextProjectDocumentInputType>>;
   name: Scalars['String']['input'];
-  workspaceId: Scalars['String']['input'];
 }
 
 export interface CreateCopilotContextRuleInput {
@@ -5364,7 +5686,9 @@ export interface MissingOauthQueryParameterDataType {
 
 export interface Mutation {
   __typename?: 'Mutation';
+  abandonCopilotBlocker: CopilotBlockerType;
   abortBlobUpload: Scalars['Boolean']['output'];
+  acceptCopilotProjectInvitation: CopilotProjectInvitationType;
   acceptInviteById: Scalars['Boolean']['output'];
   /** Acknowledge client completion telemetry for a direct object-storage support bundle download. */
   acknowledgeCopilotSupportBundleDirectDownload: CopilotSupportBundleDownloadAuthorizationType;
@@ -5377,10 +5701,12 @@ export interface Mutation {
   addContextDoc: CopilotContextDoc;
   /** add a file to context */
   addContextFile: CopilotContextFile;
+  addCopilotContextProjectDocument: CopilotContextProjectDocumentAddResultType;
   /** Update workspace embedding files */
   addWorkspaceEmbeddingFiles: CopilotWorkspaceFile;
   /** Update workspace flags for admin */
   adminUpdateWorkspace: Maybe<AdminWorkspace>;
+  approveCopilotAccessRequest: CopilotAccessRequestType;
   approveMember: Scalars['Boolean']['output'];
   /** Authorize a short-lived manifest or archive artifact download for a DB-backed support bundle. */
   authorizeCopilotSupportBundleDownload: CopilotSupportBundleDownloadAuthorizationType;
@@ -5397,6 +5723,7 @@ export interface Mutation {
   cleanupCopilotSupportBundleRetention: CopilotSupportBundleRetentionCleanupType;
   clearWorkspaceByokConfigs: Scalars['Boolean']['output'];
   completeBlobUpload: Scalars['String']['output'];
+  confirmCopilotBlockerSuggestion: CopilotBlockerType;
   connectExternalMcp: ExternalMcpConnectionType;
   /** Control a standalone persisted Agent Runtime run outside repair execution. */
   controlCopilotAgentRuntimeRun: CopilotAgentRunType;
@@ -5410,6 +5737,7 @@ export interface Mutation {
   /** Create a subscription checkout link of stripe */
   createCheckoutSession: Scalars['String']['output'];
   createComment: CommentObjectType;
+  createCopilotBlocker: CopilotBlockerType;
   /** Create a context session */
   createCopilotContext: Scalars['String']['output'];
   createCopilotContextMemory: CopilotContextMemoryType;
@@ -5444,6 +5772,7 @@ export interface Mutation {
   deactivateLicense: Scalars['Boolean']['output'];
   /** Approve or reject a persisted repair execution request that is waiting for approval. */
   decideCopilotRepairExecutionApproval: CopilotRepairExecutionRecordType;
+  declineCopilotProjectInvitation: CopilotProjectInvitationType;
   deleteAccount: DeleteAccount;
   deleteAdminAiProfile: Scalars['Boolean']['output'];
   deleteAuthSigningKey: Array<AuthSigningKeyType>;
@@ -5491,6 +5820,7 @@ export interface Mutation {
   importUsers: Array<UserImportResultType>;
   installLicense: License;
   inviteMembers: Array<InviteResult>;
+  leaveCopilotContextProject: Scalars['Boolean']['output'];
   leaveWorkspace: Scalars['Boolean']['output'];
   linkCalDAVAccount: CalendarAccountObjectType;
   linkCalendarAccount: Scalars['String']['output'];
@@ -5512,6 +5842,7 @@ export interface Mutation {
   publishDoc: DocType;
   /** queue workspace doc embedding */
   queueWorkspaceEmbedding: Scalars['Boolean']['output'];
+  reRequestCopilotProjectDocumentAccess: CopilotAccessRequestType;
   /** mark all notifications as read */
   readAllNotifications: Scalars['Boolean']['output'];
   /** mark notification as read */
@@ -5523,6 +5854,7 @@ export interface Mutation {
   refreshExternalMcpTools: ExternalMcpConnectionType;
   /** Refresh current user subscriptions and return latest. */
   refreshUserSubscriptions: Array<SubscriptionType>;
+  rejectCopilotAccessRequest: CopilotAccessRequestType;
   releaseDeletedBlobs: Scalars['Boolean']['output'];
   /** Remove user avatar */
   removeAvatar: RemoveAvatar;
@@ -5534,6 +5866,8 @@ export interface Mutation {
   removeContextDoc: Scalars['Boolean']['output'];
   /** remove a file from context */
   removeContextFile: Scalars['Boolean']['output'];
+  removeCopilotContextProjectDocument: CopilotContextProjectType;
+  removeCopilotContextProjectMember: Scalars['Boolean']['output'];
   /** Remove workspace embedding files */
   removeWorkspaceEmbeddingFiles: Scalars['Boolean']['output'];
   reorderWorkspaceByokConfigs: Array<WorkspaceByokKeyConfigType>;
@@ -5545,16 +5879,19 @@ export interface Mutation {
   requestCopilotAgentRuntimeDocUpdate: CopilotAgentRunType;
   /** Preview and persist one native Office AI command as an immutable approval-gated Agent Runtime task. */
   requestCopilotAgentRuntimeOfficeCommand: CopilotAgentRunType;
+  requestCopilotDocumentAccess: CopilotAccessRequestType;
   /** Request prompt registry repair execution. Approval-gated requests can publish a DB-backed workspace prompt registry revision after approval. */
   requestCopilotPromptRegistryRepairExecution: CopilotPromptRegistryRepairExecutionRequestType;
   /** Resolve a comment or not */
   resolveComment: Scalars['Boolean']['output'];
+  resolveCopilotBlocker: CopilotBlockerType;
   resolveOfficeComment: OfficeCommentType;
   resumeSubscription: SubscriptionType;
   /** Queue a fresh Provider Health probe attempt for a dead-lettered workspace attempt without mutating terminal evidence. */
   retryCopilotProviderHealthProbeAttempt: CopilotProviderHealthProbeAttemptType;
   retryTranscriptTask: Maybe<TranscriptionResultType>;
   revokeCommercialEntitlement: Scalars['Boolean']['output'];
+  revokeCopilotProjectGrant: CopilotProjectGrantRevocationType;
   revokeDocUserRoles: Scalars['Boolean']['output'];
   revokeInviteLink: Scalars['Boolean']['output'];
   revokeMcpCredential: Scalars['Boolean']['output'];
@@ -5566,16 +5903,19 @@ export interface Mutation {
   rotateMcpCredential: RevealedMcpCredentialType;
   sendChangeEmail: Scalars['Boolean']['output'];
   sendChangePasswordEmail: Scalars['Boolean']['output'];
+  sendCopilotProjectInvitation: CopilotProjectInvitationType;
   sendSetPasswordEmail: Scalars['Boolean']['output'];
   sendTestEmail: Scalars['Boolean']['output'];
   sendVerifyChangeEmail: Scalars['Boolean']['output'];
   sendVerifyEmail: Scalars['Boolean']['output'];
   setAdminUserAiProfileAssignment: Maybe<AdminUserAiProfileAssignmentType>;
   setBlob: Scalars['String']['output'];
+  setCopilotContextProjectAiPolicy: CopilotProjectAiPolicyType;
   settleTranscriptTask: Maybe<TranscriptionResultType>;
   submitTranscriptTask: Maybe<TranscriptionResultType>;
   testExternalMcpConversation: ExternalMcpToolCallResultType;
   testWorkspaceByokConfig: TestWorkspaceByokConfigResultType;
+  transferCopilotContextProjectOwnership: Scalars['Boolean']['output'];
   undoCopilotContextMemoryEvent: CopilotContextMemoryEventType;
   unlinkCalendarAccount: Scalars['Boolean']['output'];
   /** update app configuration */
@@ -5586,6 +5926,7 @@ export interface Mutation {
   updateCopilotContextMemory: CopilotContextMemoryType;
   updateCopilotContextPolicy: CopilotContextPolicyType;
   updateCopilotContextProject: CopilotContextProjectType;
+  updateCopilotContextProjectDocument: CopilotContextProjectType;
   updateCopilotContextRule: CopilotContextRuleType;
   updateCopilotContextSettings: CopilotContextSettingsType;
   /** Update a chat session */
@@ -5618,12 +5959,23 @@ export interface Mutation {
   upsertAdminAiProfile: AdminAiProfileType;
   upsertWorkspaceByokConfig: WorkspaceByokKeyConfigType;
   verifyEmail: Scalars['Boolean']['output'];
+  withdrawCopilotAccessRequest: CopilotAccessRequestType;
+  withdrawCopilotProjectInvitation: CopilotProjectInvitationType;
+}
+
+export interface MutationAbandonCopilotBlockerArgs {
+  blockerId: Scalars['ID']['input'];
 }
 
 export interface MutationAbortBlobUploadArgs {
+  docScopeId?: InputMaybe<Scalars['String']['input']>;
   key: Scalars['String']['input'];
   uploadId: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationAcceptCopilotProjectInvitationArgs {
+  invitationId: Scalars['ID']['input'];
 }
 
 export interface MutationAcceptInviteByIdArgs {
@@ -5658,6 +6010,10 @@ export interface MutationAddContextFileArgs {
   options: AddContextFileInput;
 }
 
+export interface MutationAddCopilotContextProjectDocumentArgs {
+  input: AddCopilotContextProjectDocumentInput;
+}
+
 export interface MutationAddWorkspaceEmbeddingFilesArgs {
   blob: Scalars['Upload']['input'];
   workspaceId: Scalars['String']['input'];
@@ -5665,6 +6021,10 @@ export interface MutationAddWorkspaceEmbeddingFilesArgs {
 
 export interface MutationAdminUpdateWorkspaceArgs {
   input: AdminUpdateWorkspaceInput;
+}
+
+export interface MutationApproveCopilotAccessRequestArgs {
+  input: ResolveCopilotAccessRequestInput;
 }
 
 export interface MutationApproveMemberArgs {
@@ -5721,10 +6081,15 @@ export interface MutationClearWorkspaceByokConfigsArgs {
 }
 
 export interface MutationCompleteBlobUploadArgs {
+  docScopeId?: InputMaybe<Scalars['String']['input']>;
   key: Scalars['String']['input'];
   parts?: InputMaybe<Array<BlobUploadPartInput>>;
   uploadId?: InputMaybe<Scalars['String']['input']>;
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationConfirmCopilotBlockerSuggestionArgs {
+  input: ConfirmCopilotBlockerSuggestionInput;
 }
 
 export interface MutationConnectExternalMcpArgs {
@@ -5744,6 +6109,7 @@ export interface MutationControlCopilotTaskArgs {
 }
 
 export interface MutationCreateBlobUploadArgs {
+  docScopeId?: InputMaybe<Scalars['String']['input']>;
   key: Scalars['String']['input'];
   mime: Scalars['String']['input'];
   size: Scalars['Int']['input'];
@@ -5761,6 +6127,10 @@ export interface MutationCreateCheckoutSessionArgs {
 
 export interface MutationCreateCommentArgs {
   input: CommentCreateInput;
+}
+
+export interface MutationCreateCopilotBlockerArgs {
+  input: CreateCopilotBlockerInput;
 }
 
 export interface MutationCreateCopilotContextArgs {
@@ -5843,6 +6213,10 @@ export interface MutationDeactivateLicenseArgs {
 
 export interface MutationDecideCopilotRepairExecutionApprovalArgs {
   input: CopilotRepairExecutionApprovalDecisionInput;
+}
+
+export interface MutationDeclineCopilotProjectInvitationArgs {
+  invitationId: Scalars['ID']['input'];
 }
 
 export interface MutationDeleteAdminAiProfileArgs {
@@ -5992,6 +6366,10 @@ export interface MutationInviteMembersArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationLeaveCopilotContextProjectArgs {
+  projectId: Scalars['ID']['input'];
+}
+
 export interface MutationLeaveWorkspaceArgs {
   sendLeaveMail?: InputMaybe<Scalars['Boolean']['input']>;
   workspaceId: Scalars['String']['input'];
@@ -6049,6 +6427,10 @@ export interface MutationQueueWorkspaceEmbeddingArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationReRequestCopilotProjectDocumentAccessArgs {
+  input: ReRequestCopilotProjectDocumentInput;
+}
+
 export interface MutationReadNotificationArgs {
   id: Scalars['String']['input'];
 }
@@ -6072,6 +6454,10 @@ export interface MutationRefreshExternalMcpToolsArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationRejectCopilotAccessRequestArgs {
+  input: ResolveCopilotAccessRequestInput;
+}
+
 export interface MutationReleaseDeletedBlobsArgs {
   workspaceId: Scalars['String']['input'];
 }
@@ -6090,6 +6476,14 @@ export interface MutationRemoveContextDocArgs {
 
 export interface MutationRemoveContextFileArgs {
   options: RemoveContextFileInput;
+}
+
+export interface MutationRemoveCopilotContextProjectDocumentArgs {
+  input: RemoveCopilotContextProjectDocumentInput;
+}
+
+export interface MutationRemoveCopilotContextProjectMemberArgs {
+  input: RemoveCopilotProjectMemberInput;
 }
 
 export interface MutationRemoveWorkspaceEmbeddingFilesArgs {
@@ -6117,12 +6511,20 @@ export interface MutationRequestCopilotAgentRuntimeOfficeCommandArgs {
   input: CopilotAgentRuntimeOfficeCommandRequestInput;
 }
 
+export interface MutationRequestCopilotDocumentAccessArgs {
+  input: RequestCopilotDocumentAccessInput;
+}
+
 export interface MutationRequestCopilotPromptRegistryRepairExecutionArgs {
   input: CopilotPromptRegistryRepairExecutionRequestInput;
 }
 
 export interface MutationResolveCommentArgs {
   input: CommentResolveInput;
+}
+
+export interface MutationResolveCopilotBlockerArgs {
+  blockerId: Scalars['ID']['input'];
 }
 
 export interface MutationResolveOfficeCommentArgs {
@@ -6147,6 +6549,10 @@ export interface MutationRetryTranscriptTaskArgs {
 export interface MutationRevokeCommercialEntitlementArgs {
   targetId: Scalars['String']['input'];
   targetType: Scalars['String']['input'];
+}
+
+export interface MutationRevokeCopilotProjectGrantArgs {
+  input: RevokeCopilotProjectGrantInput;
 }
 
 export interface MutationRevokeDocUserRolesArgs {
@@ -6202,6 +6608,10 @@ export interface MutationSendChangePasswordEmailArgs {
   email?: InputMaybe<Scalars['String']['input']>;
 }
 
+export interface MutationSendCopilotProjectInvitationArgs {
+  input: SendCopilotProjectInvitationInput;
+}
+
 export interface MutationSendSetPasswordEmailArgs {
   callbackUrl: Scalars['String']['input'];
   email?: InputMaybe<Scalars['String']['input']>;
@@ -6228,7 +6638,12 @@ export interface MutationSetAdminUserAiProfileAssignmentArgs {
 
 export interface MutationSetBlobArgs {
   blob: Scalars['Upload']['input'];
+  docScopeId?: InputMaybe<Scalars['String']['input']>;
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationSetCopilotContextProjectAiPolicyArgs {
+  input: SetCopilotProjectAiPolicyInput;
 }
 
 export interface MutationSettleTranscriptTaskArgs {
@@ -6251,6 +6666,10 @@ export interface MutationTestExternalMcpConversationArgs {
 
 export interface MutationTestWorkspaceByokConfigArgs {
   input: TestWorkspaceByokConfigInput;
+}
+
+export interface MutationTransferCopilotContextProjectOwnershipArgs {
+  input: TransferCopilotProjectOwnershipInput;
 }
 
 export interface MutationUndoCopilotContextMemoryEventArgs {
@@ -6285,6 +6704,10 @@ export interface MutationUpdateCopilotContextPolicyArgs {
 
 export interface MutationUpdateCopilotContextProjectArgs {
   input: UpdateCopilotContextProjectInput;
+}
+
+export interface MutationUpdateCopilotContextProjectDocumentArgs {
+  input: UpdateCopilotContextProjectDocumentInput;
 }
 
 export interface MutationUpdateCopilotContextRuleArgs {
@@ -6389,6 +6812,14 @@ export interface MutationUpsertWorkspaceByokConfigArgs {
 
 export interface MutationVerifyEmailArgs {
   token: Scalars['String']['input'];
+}
+
+export interface MutationWithdrawCopilotAccessRequestArgs {
+  input: ResolveCopilotAccessRequestInput;
+}
+
+export interface MutationWithdrawCopilotProjectInvitationArgs {
+  invitationId: Scalars['ID']['input'];
 }
 
 export interface NoCopilotProviderAvailableDataType {
@@ -6769,6 +7200,7 @@ export interface Query {
   externalMcpSettings: ExternalMcpSettingsType;
   /** get workspace invitation info */
   getInviteInfo: InvitationType;
+  hello: Scalars['String']['output'];
   latestEnterpriseAuthorizationSession: Maybe<EnterpriseAuthorizationSessionType>;
   mcpCredentialReadWriteAvailable: Scalars['Boolean']['output'];
   mcpCredentials: Array<McpCredentialType>;
@@ -7013,6 +7445,11 @@ export interface QueryTooLongDataType {
   max: Scalars['Int']['output'];
 }
 
+export interface ReRequestCopilotProjectDocumentInput {
+  grantId: Scalars['ID']['input'];
+  idempotencyKey?: InputMaybe<Scalars['String']['input']>;
+}
+
 export interface ReleaseVersionType {
   __typename?: 'ReleaseVersionType';
   changelog: Scalars['String']['output'];
@@ -7045,6 +7482,17 @@ export interface RemoveContextDocInput {
 export interface RemoveContextFileInput {
   contextId: Scalars['String']['input'];
   fileId: Scalars['String']['input'];
+}
+
+export interface RemoveCopilotContextProjectDocumentInput {
+  docId: Scalars['String']['input'];
+  projectId: Scalars['ID']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface RemoveCopilotProjectMemberInput {
+  memberUserId: Scalars['String']['input'];
+  projectId: Scalars['ID']['input'];
 }
 
 export interface ReorderWorkspaceByokConfigsInput {
@@ -7081,6 +7529,21 @@ export interface ReplyUpdateInput {
   id: Scalars['ID']['input'];
 }
 
+export interface RequestCopilotDocumentAccessInput {
+  docId: Scalars['String']['input'];
+  expiresAt?: InputMaybe<Scalars['DateTime']['input']>;
+  idempotencyKey?: InputMaybe<Scalars['String']['input']>;
+  projectId?: InputMaybe<Scalars['String']['input']>;
+  requestedLevel?: InputMaybe<Scalars['String']['input']>;
+  requestedTitle?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface ResolveCopilotAccessRequestInput {
+  reason?: InputMaybe<Scalars['String']['input']>;
+  requestId: Scalars['ID']['input'];
+}
+
 export interface ResponseTooLargeErrorDataType {
   __typename?: 'ResponseTooLargeErrorDataType';
   limitBytes: Scalars['Int']['output'];
@@ -7092,6 +7555,11 @@ export interface RevealedMcpCredentialType {
   callbackSecret: Maybe<Scalars['String']['output']>;
   credential: McpCredentialType;
   token: Scalars['String']['output'];
+}
+
+export interface RevokeCopilotProjectGrantInput {
+  grantId: Scalars['ID']['input'];
+  reason?: InputMaybe<Scalars['String']['input']>;
 }
 
 export interface RevokeDocUserRoleInput {
@@ -7205,6 +7673,11 @@ export enum SearchTable {
   doc = 'doc',
 }
 
+export interface SendCopilotProjectInvitationInput {
+  email: Scalars['String']['input'];
+  projectId: Scalars['ID']['input'];
+}
+
 export interface ServerConfigType {
   __typename?: 'ServerConfigType';
   /** fetch latest available upgradable release of server */
@@ -7244,6 +7717,11 @@ export enum ServerFeature {
   LocalWorkspace = 'LocalWorkspace',
   OAuth = 'OAuth',
   Payment = 'Payment',
+}
+
+export interface SetCopilotProjectAiPolicyInput {
+  policy: Scalars['String']['input'];
+  projectId: Scalars['ID']['input'];
 }
 
 export interface SpaceAccessDeniedDataType {
@@ -7479,6 +7957,11 @@ export interface TranscriptionSourceAudioType {
   sampleRate: Maybe<Scalars['Int']['output']>;
 }
 
+export interface TransferCopilotProjectOwnershipInput {
+  memberUserId: Scalars['String']['input'];
+  projectId: Scalars['ID']['input'];
+}
+
 export type UnionNotificationBodyType =
   | InvitationAcceptedNotificationBodyType
   | InvitationBlockedNotificationBodyType
@@ -7545,12 +8028,20 @@ export interface UpdateCopilotContextPolicyInput {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface UpdateCopilotContextProjectDocumentInput {
+  docId: Scalars['String']['input'];
+  groupId?: InputMaybe<Scalars['String']['input']>;
+  projectId: Scalars['ID']['input'];
+  sortOrder?: InputMaybe<Scalars['Int']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
 export interface UpdateCopilotContextProjectInput {
   description?: InputMaybe<Scalars['String']['input']>;
-  documentIds?: InputMaybe<Array<Scalars['String']['input']>>;
   id: Scalars['ID']['input'];
   name?: InputMaybe<Scalars['String']['input']>;
   status?: InputMaybe<Scalars['String']['input']>;
+  workspaceDocuments?: InputMaybe<CopilotContextProjectWorkspaceDocumentsInputType>;
 }
 
 export interface UpdateCopilotContextRuleInput {
@@ -8007,6 +8498,7 @@ export interface WorkspaceTypeAggregateArgs {
 }
 
 export interface WorkspaceTypeBlobUploadPartUrlArgs {
+  docScopeId?: InputMaybe<Scalars['String']['input']>;
   key: Scalars['String']['input'];
   partNumber: Scalars['Int']['input'];
   uploadId: Scalars['String']['input'];
@@ -8886,6 +9378,7 @@ export type ReleaseDeletedBlobsMutation = {
 export type SetBlobMutationVariables = Exact<{
   workspaceId: Scalars['String']['input'];
   blob: Scalars['Upload']['input'];
+  docScopeId?: InputMaybe<Scalars['String']['input']>;
 }>;
 
 export type SetBlobMutation = { __typename?: 'Mutation'; setBlob: string };
@@ -8894,6 +9387,7 @@ export type AbortBlobUploadMutationVariables = Exact<{
   workspaceId: Scalars['String']['input'];
   key: Scalars['String']['input'];
   uploadId: Scalars['String']['input'];
+  docScopeId?: InputMaybe<Scalars['String']['input']>;
 }>;
 
 export type AbortBlobUploadMutation = {
@@ -8906,6 +9400,7 @@ export type CompleteBlobUploadMutationVariables = Exact<{
   key: Scalars['String']['input'];
   uploadId?: InputMaybe<Scalars['String']['input']>;
   parts?: InputMaybe<Array<BlobUploadPartInput> | BlobUploadPartInput>;
+  docScopeId?: InputMaybe<Scalars['String']['input']>;
 }>;
 
 export type CompleteBlobUploadMutation = {
@@ -8918,6 +9413,7 @@ export type CreateBlobUploadMutationVariables = Exact<{
   key: Scalars['String']['input'];
   size: Scalars['Int']['input'];
   mime: Scalars['String']['input'];
+  docScopeId?: InputMaybe<Scalars['String']['input']>;
 }>;
 
 export type CreateBlobUploadMutation = {
@@ -8945,6 +9441,7 @@ export type GetBlobUploadPartUrlQueryVariables = Exact<{
   key: Scalars['String']['input'];
   uploadId: Scalars['String']['input'];
   partNumber: Scalars['Int']['input'];
+  docScopeId?: InputMaybe<Scalars['String']['input']>;
 }>;
 
 export type GetBlobUploadPartUrlQuery = {
@@ -9400,6 +9897,57 @@ export type UploadCommentAttachmentMutationVariables = Exact<{
 export type UploadCommentAttachmentMutation = {
   __typename?: 'Mutation';
   uploadCommentAttachment: string;
+};
+
+export type ApproveCopilotAccessRequestMutationVariables = Exact<{
+  input: ResolveCopilotAccessRequestInput;
+}>;
+
+export type ApproveCopilotAccessRequestMutation = {
+  __typename?: 'Mutation';
+  approveCopilotAccessRequest: {
+    __typename?: 'CopilotAccessRequestType';
+    id: string;
+    status: string;
+    resolvedByUserId: string | null;
+    resolutionReason: string | null;
+    resolvedAt: string | null;
+    updatedAt: string;
+  };
+};
+
+export type RejectCopilotAccessRequestMutationVariables = Exact<{
+  input: ResolveCopilotAccessRequestInput;
+}>;
+
+export type RejectCopilotAccessRequestMutation = {
+  __typename?: 'Mutation';
+  rejectCopilotAccessRequest: {
+    __typename?: 'CopilotAccessRequestType';
+    id: string;
+    status: string;
+    resolvedByUserId: string | null;
+    resolutionReason: string | null;
+    resolvedAt: string | null;
+    updatedAt: string;
+  };
+};
+
+export type WithdrawCopilotAccessRequestMutationVariables = Exact<{
+  input: ResolveCopilotAccessRequestInput;
+}>;
+
+export type WithdrawCopilotAccessRequestMutation = {
+  __typename?: 'Mutation';
+  withdrawCopilotAccessRequest: {
+    __typename?: 'CopilotAccessRequestType';
+    id: string;
+    status: string;
+    resolvedByUserId: string | null;
+    resolutionReason: string | null;
+    resolvedAt: string | null;
+    updatedAt: string;
+  };
 };
 
 export type GetCopilotActionRunPreparedRouteTraceQueryVariables = Exact<{
@@ -9949,6 +10497,43 @@ export type ControlCopilotAgentRuntimeRunMutation = {
   };
 };
 
+export type RequestCopilotAgentRuntimeDocUpdateMutationVariables = Exact<{
+  input: CopilotAgentRuntimeDocUpdateRequestInput;
+}>;
+
+export type RequestCopilotAgentRuntimeDocUpdateMutation = {
+  __typename?: 'Mutation';
+  requestCopilotAgentRuntimeDocUpdate: {
+    __typename?: 'CopilotAgentRunType';
+    id: string;
+    workspaceId: string;
+    actorId: string;
+    workflow: string;
+    sourceType: string;
+    sourceId: string;
+    status: string;
+    title: string | null;
+    targetFingerprint: string;
+    evidenceFingerprint: string;
+    timelineFingerprint: string;
+    workerAttempt: number;
+    workerMaxAttempts: number;
+    createdAt: string;
+    updatedAt: string;
+    steps: Array<{
+      __typename?: 'CopilotAgentStepType';
+      id: string;
+      stepKey: string;
+      stepType: string;
+      status: string;
+      title: string | null;
+      order: number;
+      evidenceFingerprint: string;
+      outputSummary: unknown;
+    }>;
+  };
+};
+
 export type RequestCopilotAgentRuntimeOfficeCommandMutationVariables = Exact<{
   input: CopilotAgentRuntimeOfficeCommandRequestInput;
 }>;
@@ -9983,6 +10568,106 @@ export type RequestCopilotAgentRuntimeOfficeCommandMutation = {
       evidenceFingerprint: string;
       outputSummary: unknown;
     }>;
+  };
+};
+
+export type AbandonCopilotBlockerMutationVariables = Exact<{
+  blockerId: Scalars['ID']['input'];
+}>;
+
+export type AbandonCopilotBlockerMutation = {
+  __typename?: 'Mutation';
+  abandonCopilotBlocker: {
+    __typename?: 'CopilotBlockerType';
+    id: string;
+    projectId: string;
+    creatorUserId: string;
+    title: string;
+    type: string;
+    waitingOn: string;
+    dueAt: string | null;
+    overdue: boolean;
+    status: string;
+    origin: string;
+    resolutionActorUserId: string | null;
+    resolvedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type CreateCopilotBlockerMutationVariables = Exact<{
+  input: CreateCopilotBlockerInput;
+}>;
+
+export type CreateCopilotBlockerMutation = {
+  __typename?: 'Mutation';
+  createCopilotBlocker: {
+    __typename?: 'CopilotBlockerType';
+    id: string;
+    projectId: string;
+    creatorUserId: string;
+    title: string;
+    type: string;
+    waitingOn: string;
+    dueAt: string | null;
+    overdue: boolean;
+    status: string;
+    origin: string;
+    resolutionActorUserId: string | null;
+    resolvedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type ResolveCopilotBlockerMutationVariables = Exact<{
+  blockerId: Scalars['ID']['input'];
+}>;
+
+export type ResolveCopilotBlockerMutation = {
+  __typename?: 'Mutation';
+  resolveCopilotBlocker: {
+    __typename?: 'CopilotBlockerType';
+    id: string;
+    projectId: string;
+    creatorUserId: string;
+    title: string;
+    type: string;
+    waitingOn: string;
+    dueAt: string | null;
+    overdue: boolean;
+    status: string;
+    origin: string;
+    resolutionActorUserId: string | null;
+    resolvedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type ConfirmCopilotBlockerSuggestionMutationVariables = Exact<{
+  input: ConfirmCopilotBlockerSuggestionInput;
+}>;
+
+export type ConfirmCopilotBlockerSuggestionMutation = {
+  __typename?: 'Mutation';
+  confirmCopilotBlockerSuggestion: {
+    __typename?: 'CopilotBlockerType';
+    id: string;
+    projectId: string;
+    creatorUserId: string;
+    title: string;
+    type: string;
+    waitingOn: string;
+    dueAt: string | null;
+    overdue: boolean;
+    status: string;
+    origin: string;
+    resolutionActorUserId: string | null;
+    resolvedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
   };
 };
 
@@ -10080,16 +10765,23 @@ export type CopilotContextDashboardGetQuery = {
       contextProjects: Array<{
         __typename?: 'CopilotContextProjectType';
         id: string;
-        workspaceId: string;
         createdByUserId: string | null;
         name: string;
         description: string;
         status: string;
-        documentIds: Array<string>;
+        role: string;
         documentCount: number;
         canManage: boolean;
         createdAt: string;
         updatedAt: string;
+        documents: Array<{
+          __typename?: 'CopilotContextProjectDocumentType';
+          workspaceId: string;
+          docId: string | null;
+          title: string | null;
+          groupId: string | null;
+          sortOrder: number;
+        }>;
       }>;
       contextMemories: Array<{
         __typename?: 'CopilotContextMemoryType';
@@ -10157,7 +10849,7 @@ export type CopilotContextDashboardGetQuery = {
           revision: number;
           content: string;
           fingerprint: string;
-          createdByUserId: string;
+          createdByUserId: string | null;
           source: string;
           createdAt: string;
         }>;
@@ -10543,6 +11235,21 @@ export type CopilotContextMemoryUpdateMutation = {
   };
 };
 
+export type SetCopilotContextProjectAiPolicyMutationVariables = Exact<{
+  input: SetCopilotProjectAiPolicyInput;
+}>;
+
+export type SetCopilotContextProjectAiPolicyMutation = {
+  __typename?: 'Mutation';
+  setCopilotContextProjectAiPolicy: {
+    __typename?: 'CopilotProjectAiPolicyType';
+    projectId: string;
+    policy: string;
+    updatedByUserId: string | null;
+    updatedAt: string | null;
+  };
+};
+
 export type CopilotContextProjectCreateMutationVariables = Exact<{
   input: CreateCopilotContextProjectInput;
 }>;
@@ -10552,16 +11259,39 @@ export type CopilotContextProjectCreateMutation = {
   createCopilotContextProject: {
     __typename?: 'CopilotContextProjectType';
     id: string;
-    workspaceId: string;
     createdByUserId: string | null;
     name: string;
     description: string;
     status: string;
-    documentIds: Array<string>;
+    aiPolicy: string;
+    role: string;
     documentCount: number;
     canManage: boolean;
     createdAt: string;
     updatedAt: string;
+    members: Array<{
+      __typename?: 'CopilotContextProjectMemberType';
+      userId: string;
+      name: string;
+      email: string;
+      avatarUrl: string | null;
+      role: string;
+      createdAt: string;
+    }>;
+    documents: Array<{
+      __typename?: 'CopilotContextProjectDocumentType';
+      workspaceId: string;
+      docId: string | null;
+      title: string | null;
+      groupId: string | null;
+      sortOrder: number;
+      status: string;
+      requestedLevel: string;
+      accessRequestId: string | null;
+      addedByMe: boolean;
+      createdAt: string;
+      updatedAt: string;
+    }>;
   };
 };
 
@@ -10574,6 +11304,119 @@ export type CopilotContextProjectDeleteMutation = {
   deleteCopilotContextProject: boolean;
 };
 
+export type CopilotContextProjectDocumentAddMutationVariables = Exact<{
+  input: AddCopilotContextProjectDocumentInput;
+}>;
+
+export type CopilotContextProjectDocumentAddMutation = {
+  __typename?: 'Mutation';
+  addCopilotContextProjectDocument: {
+    __typename?: 'CopilotContextProjectDocumentAddResultType';
+    outcome: string;
+    projectDocument: {
+      __typename?: 'CopilotContextProjectDocumentType';
+      workspaceId: string;
+      docId: string | null;
+      title: string | null;
+      groupId: string | null;
+      sortOrder: number;
+      status: string;
+      requestedLevel: string;
+      accessRequestId: string | null;
+      addedByMe: boolean;
+      createdAt: string;
+      updatedAt: string;
+    };
+  };
+};
+
+export type CopilotContextProjectDocumentRemoveMutationVariables = Exact<{
+  input: RemoveCopilotContextProjectDocumentInput;
+}>;
+
+export type CopilotContextProjectDocumentRemoveMutation = {
+  __typename?: 'Mutation';
+  removeCopilotContextProjectDocument: {
+    __typename?: 'CopilotContextProjectType';
+    id: string;
+    role: string;
+    documentCount: number;
+    canManage: boolean;
+    updatedAt: string;
+    documents: Array<{
+      __typename?: 'CopilotContextProjectDocumentType';
+      workspaceId: string;
+      docId: string | null;
+      title: string | null;
+      groupId: string | null;
+      sortOrder: number;
+      status: string;
+      requestedLevel: string;
+      accessRequestId: string | null;
+      addedByMe: boolean;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+  };
+};
+
+export type CopilotContextProjectDocumentUpdateMutationVariables = Exact<{
+  input: UpdateCopilotContextProjectDocumentInput;
+}>;
+
+export type CopilotContextProjectDocumentUpdateMutation = {
+  __typename?: 'Mutation';
+  updateCopilotContextProjectDocument: {
+    __typename?: 'CopilotContextProjectType';
+    id: string;
+    role: string;
+    documentCount: number;
+    canManage: boolean;
+    updatedAt: string;
+    documents: Array<{
+      __typename?: 'CopilotContextProjectDocumentType';
+      workspaceId: string;
+      docId: string | null;
+      title: string | null;
+      groupId: string | null;
+      sortOrder: number;
+      status: string;
+      requestedLevel: string;
+      accessRequestId: string | null;
+      addedByMe: boolean;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+  };
+};
+
+export type LeaveCopilotContextProjectMutationVariables = Exact<{
+  projectId: Scalars['ID']['input'];
+}>;
+
+export type LeaveCopilotContextProjectMutation = {
+  __typename?: 'Mutation';
+  leaveCopilotContextProject: boolean;
+};
+
+export type RemoveCopilotContextProjectMemberMutationVariables = Exact<{
+  input: RemoveCopilotProjectMemberInput;
+}>;
+
+export type RemoveCopilotContextProjectMemberMutation = {
+  __typename?: 'Mutation';
+  removeCopilotContextProjectMember: boolean;
+};
+
+export type TransferCopilotContextProjectOwnershipMutationVariables = Exact<{
+  input: TransferCopilotProjectOwnershipInput;
+}>;
+
+export type TransferCopilotContextProjectOwnershipMutation = {
+  __typename?: 'Mutation';
+  transferCopilotContextProjectOwnership: boolean;
+};
+
 export type CopilotContextProjectUpdateMutationVariables = Exact<{
   input: UpdateCopilotContextProjectInput;
 }>;
@@ -10583,16 +11426,39 @@ export type CopilotContextProjectUpdateMutation = {
   updateCopilotContextProject: {
     __typename?: 'CopilotContextProjectType';
     id: string;
-    workspaceId: string;
     createdByUserId: string | null;
     name: string;
     description: string;
     status: string;
-    documentIds: Array<string>;
+    aiPolicy: string;
+    role: string;
     documentCount: number;
     canManage: boolean;
     createdAt: string;
     updatedAt: string;
+    members: Array<{
+      __typename?: 'CopilotContextProjectMemberType';
+      userId: string;
+      name: string;
+      email: string;
+      avatarUrl: string | null;
+      role: string;
+      createdAt: string;
+    }>;
+    documents: Array<{
+      __typename?: 'CopilotContextProjectDocumentType';
+      workspaceId: string;
+      docId: string | null;
+      title: string | null;
+      groupId: string | null;
+      sortOrder: number;
+      status: string;
+      requestedLevel: string;
+      accessRequestId: string | null;
+      addedByMe: boolean;
+      createdAt: string;
+      updatedAt: string;
+    }>;
   };
 };
 
@@ -10628,6 +11494,11 @@ export type CopilotContextSessionScopeQuery = {
         projectIds: Array<string>;
         selectedProjectId: string | null;
         projectResolution: string;
+        readableDocumentRefs: Array<{
+          __typename?: 'CopilotContextDocumentRefType';
+          workspaceId: string;
+          docId: string;
+        }>;
         candidateProjects: Array<{
           __typename?: 'CopilotContextScopeProjectType';
           id: string;
@@ -10755,6 +11626,33 @@ export type QueueWorkspaceEmbeddingMutationVariables = Exact<{
 export type QueueWorkspaceEmbeddingMutation = {
   __typename?: 'Mutation';
   queueWorkspaceEmbedding: boolean;
+};
+
+export type RequestCopilotDocumentAccessMutationVariables = Exact<{
+  input: RequestCopilotDocumentAccessInput;
+}>;
+
+export type RequestCopilotDocumentAccessMutation = {
+  __typename?: 'Mutation';
+  requestCopilotDocumentAccess: {
+    __typename?: 'CopilotAccessRequestType';
+    id: string;
+    workspaceId: string;
+    docId: string | null;
+    beneficiaryType: string;
+    beneficiaryUserId: string | null;
+    beneficiaryProjectId: string | null;
+    requesterUserId: string;
+    requestedLevel: string;
+    requestedTitle: string | null;
+    status: string;
+    resolvedByUserId: string | null;
+    resolutionReason: string | null;
+    resolvedAt: string | null;
+    expiresAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
 };
 
 export type GetCopilotHistoryIdsQueryVariables = Exact<{
@@ -11981,6 +12879,125 @@ export type GetPromptModelsQuery = {
       };
     };
   } | null;
+};
+
+export type ReRequestCopilotProjectDocumentAccessMutationVariables = Exact<{
+  input: ReRequestCopilotProjectDocumentInput;
+}>;
+
+export type ReRequestCopilotProjectDocumentAccessMutation = {
+  __typename?: 'Mutation';
+  reRequestCopilotProjectDocumentAccess: {
+    __typename?: 'CopilotAccessRequestType';
+    id: string;
+    beneficiaryProjectId: string | null;
+    requestedLevel: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type RevokeCopilotProjectGrantMutationVariables = Exact<{
+  input: RevokeCopilotProjectGrantInput;
+}>;
+
+export type RevokeCopilotProjectGrantMutation = {
+  __typename?: 'Mutation';
+  revokeCopilotProjectGrant: {
+    __typename?: 'CopilotProjectGrantRevocationType';
+    rerequestCardId: string | null;
+    quarantinedMemoryCount: number;
+    grant: {
+      __typename?: 'CopilotProjectGrantType';
+      id: string;
+      projectId: string;
+      projectName: string;
+      workspaceId: string;
+      docId: string;
+      level: string;
+      status: string;
+      source: string;
+      approvingSide: string;
+      revocable: boolean;
+      grantedByUserId: string | null;
+      accessRequestId: string | null;
+      grantedAt: string;
+      revokedByUserId: string | null;
+      revokedAt: string | null;
+      createdAt: string;
+      updatedAt: string;
+    };
+  };
+};
+
+export type AcceptCopilotProjectInvitationMutationVariables = Exact<{
+  invitationId: Scalars['ID']['input'];
+}>;
+
+export type AcceptCopilotProjectInvitationMutation = {
+  __typename?: 'Mutation';
+  acceptCopilotProjectInvitation: {
+    __typename?: 'CopilotProjectInvitationType';
+    id: string;
+    projectId: string;
+    status: string;
+    acceptedAt: string | null;
+    updatedAt: string;
+  };
+};
+
+export type DeclineCopilotProjectInvitationMutationVariables = Exact<{
+  invitationId: Scalars['ID']['input'];
+}>;
+
+export type DeclineCopilotProjectInvitationMutation = {
+  __typename?: 'Mutation';
+  declineCopilotProjectInvitation: {
+    __typename?: 'CopilotProjectInvitationType';
+    id: string;
+    projectId: string;
+    status: string;
+    declinedAt: string | null;
+    updatedAt: string;
+  };
+};
+
+export type SendCopilotProjectInvitationMutationVariables = Exact<{
+  input: SendCopilotProjectInvitationInput;
+}>;
+
+export type SendCopilotProjectInvitationMutation = {
+  __typename?: 'Mutation';
+  sendCopilotProjectInvitation: {
+    __typename?: 'CopilotProjectInvitationType';
+    id: string;
+    projectId: string;
+    inviteeUserId: string;
+    inviterUserId: string;
+    status: string;
+    acceptedAt: string | null;
+    declinedAt: string | null;
+    withdrawnAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type WithdrawCopilotProjectInvitationMutationVariables = Exact<{
+  invitationId: Scalars['ID']['input'];
+}>;
+
+export type WithdrawCopilotProjectInvitationMutation = {
+  __typename?: 'Mutation';
+  withdrawCopilotProjectInvitation: {
+    __typename?: 'CopilotProjectInvitationType';
+    id: string;
+    projectId: string;
+    status: string;
+    withdrawnAt: string | null;
+    updatedAt: string;
+  };
 };
 
 export type GetCopilotPromptRegistryPublishGateQueryVariables = Exact<{
@@ -15793,6 +16810,8 @@ export type ControlCopilotTaskMutation = {
   controlCopilotTask: {
     __typename?: 'CopilotTaskType';
     id: string;
+    workspaceId: string;
+    projectId: string | null;
     title: string | null;
     workflow: string;
     status: string;
@@ -15806,6 +16825,7 @@ export type ControlCopilotTaskMutation = {
     approvalSummary: unknown | null;
     resultEvidence: unknown | null;
     availableActions: Array<string>;
+    abandoned: boolean;
     approval: {
       __typename?: 'CopilotTaskApprovalType';
       stepId: string;
@@ -15847,6 +16867,8 @@ export type CopilotTaskGetQuery = {
       copilotTask: {
         __typename?: 'CopilotTaskType';
         id: string;
+        workspaceId: string;
+        projectId: string | null;
         title: string | null;
         workflow: string;
         status: string;
@@ -15860,6 +16882,7 @@ export type CopilotTaskGetQuery = {
         approvalSummary: unknown | null;
         resultEvidence: unknown | null;
         availableActions: Array<string>;
+        abandoned: boolean;
         approval: {
           __typename?: 'CopilotTaskApprovalType';
           stepId: string;
@@ -15890,7 +16913,7 @@ export type CopilotTaskGetQuery = {
 };
 
 export type CopilotTasksGetQueryVariables = Exact<{
-  workspaceId: Scalars['String']['input'];
+  workspaceId?: InputMaybe<Scalars['String']['input']>;
   limit?: InputMaybe<Scalars['SafeInt']['input']>;
   filter?: InputMaybe<CopilotTaskListFilterInput>;
 }>;
@@ -15904,6 +16927,8 @@ export type CopilotTasksGetQuery = {
       copilotTasks: Array<{
         __typename?: 'CopilotTaskType';
         id: string;
+        workspaceId: string;
+        projectId: string | null;
         title: string | null;
         workflow: string;
         status: string;
@@ -15917,6 +16942,7 @@ export type CopilotTasksGetQuery = {
         approvalSummary: unknown | null;
         resultEvidence: unknown | null;
         availableActions: Array<string>;
+        abandoned: boolean;
         approval: {
           __typename?: 'CopilotTaskApprovalType';
           stepId: string;
@@ -16126,6 +17152,594 @@ export type SubmitTranscriptTaskMutation = {
     __typename?: 'TranscriptionResultType';
     id: string;
     status: AiJobStatus;
+  } | null;
+};
+
+export type CopilotWorkbenchBlockersGetQueryVariables = Exact<{
+  projectId?: InputMaybe<Scalars['ID']['input']>;
+  statuses?: InputMaybe<
+    Array<Scalars['String']['input']> | Scalars['String']['input']
+  >;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+}>;
+
+export type CopilotWorkbenchBlockersGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      workbenchBlockers: Array<{
+        __typename?: 'CopilotBlockerType';
+        id: string;
+        projectId: string;
+        creatorUserId: string;
+        title: string;
+        type: string;
+        waitingOn: string;
+        dueAt: string | null;
+        overdue: boolean;
+        status: string;
+        origin: string;
+        resolutionActorUserId: string | null;
+        resolvedAt: string | null;
+        createdAt: string;
+        updatedAt: string;
+      }>;
+    };
+  } | null;
+};
+
+export type CopilotWorkbenchProjectsGetQueryVariables = Exact<{
+  includeArchived?: InputMaybe<Scalars['Boolean']['input']>;
+}>;
+
+export type CopilotWorkbenchProjectsGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      contextProjects: Array<{
+        __typename?: 'CopilotContextProjectType';
+        id: string;
+        createdByUserId: string | null;
+        name: string;
+        description: string;
+        status: string;
+        aiPolicy: string;
+        role: string;
+        documentCount: number;
+        canManage: boolean;
+        createdAt: string;
+        updatedAt: string;
+        members: Array<{
+          __typename?: 'CopilotContextProjectMemberType';
+          userId: string;
+          name: string;
+          email: string;
+          avatarUrl: string | null;
+          role: string;
+          createdAt: string;
+        }>;
+        documents: Array<{
+          __typename?: 'CopilotContextProjectDocumentType';
+          workspaceId: string;
+          docId: string | null;
+          title: string | null;
+          groupId: string | null;
+          sortOrder: number;
+          status: string;
+          requestedLevel: string;
+          accessRequestId: string | null;
+          addedByMe: boolean;
+          createdAt: string;
+          updatedAt: string;
+        }>;
+      }>;
+    };
+  } | null;
+};
+
+export type CopilotWorkbenchSourceAuthorizationGetQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  docId: Scalars['String']['input'];
+}>;
+
+export type CopilotWorkbenchSourceAuthorizationGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      workbenchAccessRequests: Array<{
+        __typename?: 'CopilotAccessRequestType';
+        id: string;
+        workspaceId: string;
+        docId: string | null;
+        beneficiaryType: string;
+        beneficiaryUserId: string | null;
+        beneficiaryProjectId: string | null;
+        requesterUserId: string;
+        requestedLevel: string;
+        requestedTitle: string | null;
+        status: string;
+        createdAt: string;
+        updatedAt: string;
+      }>;
+      workbenchProjectGrantsForSource: Array<{
+        __typename?: 'CopilotProjectGrantType';
+        id: string;
+        projectId: string;
+        projectName: string;
+        workspaceId: string;
+        docId: string;
+        level: string;
+        status: string;
+        source: string;
+        approvingSide: string;
+        revocable: boolean;
+        grantedByUserId: string | null;
+        accessRequestId: string | null;
+        grantedAt: string;
+        createdAt: string;
+        updatedAt: string;
+      }>;
+    };
+  } | null;
+};
+
+export type CopilotWorkbenchTaskGetQueryVariables = Exact<{
+  taskId: Scalars['String']['input'];
+}>;
+
+export type CopilotWorkbenchTaskGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      workbenchTask: {
+        __typename?: 'CopilotWorkbenchTaskItemType';
+        id: string;
+        entityId: string;
+        kind: string;
+        segment: string;
+        attention: string | null;
+        workspaceId: string | null;
+        projectId: string | null;
+        title: string | null;
+        status: string;
+        requestedLevel: string | null;
+        documentId: string | null;
+        redacted: boolean;
+        relatedUserId: string | null;
+        createdAt: string;
+        updatedAt: string;
+        completedAt: string | null;
+        availableActions: Array<string>;
+        run: {
+          __typename?: 'CopilotTaskType';
+          id: string;
+          workspaceId: string;
+          projectId: string | null;
+          title: string | null;
+          workflow: string;
+          status: string;
+          createdAt: string;
+          updatedAt: string;
+          startedAt: string | null;
+          completedAt: string | null;
+          failureCode: string | null;
+          failureMessage: string | null;
+          resultSummary: string | null;
+          approvalSummary: unknown | null;
+          approvalFingerprint: string | null;
+          resultEvidence: unknown | null;
+          availableActions: Array<string>;
+          abandoned: boolean;
+          documentUpdate: {
+            __typename?: 'CopilotTaskDocumentUpdateType';
+            workspaceId: string;
+            docId: string;
+            content: string;
+            expectedVersion: string;
+            needsReconfirmation: boolean;
+            previousVersion: string | null;
+          } | null;
+          approval: {
+            __typename?: 'CopilotTaskApprovalType';
+            stepId: string;
+            status: string;
+            title: string | null;
+            decidedAt: string | null;
+          } | null;
+          artifacts: Array<{
+            __typename?: 'CopilotTaskArtifactType';
+            workspaceId: string;
+            kind: string;
+            id: string;
+            title: string | null;
+          }>;
+          steps: Array<{
+            __typename?: 'CopilotTaskStepType';
+            id: string;
+            key: string;
+            type: string;
+            status: string;
+            title: string | null;
+            order: number;
+            startedAt: string | null;
+            completedAt: string | null;
+          }>;
+        } | null;
+        blocker: {
+          __typename?: 'CopilotWorkbenchBlockerTaskType';
+          creatorUserId: string;
+          type: string;
+          waitingOn: string;
+          dueAt: string | null;
+          overdue: boolean;
+          origin: string;
+          resolutionActorUserId: string | null;
+        } | null;
+      } | null;
+    };
+  } | null;
+};
+
+export type CopilotWorkbenchTaskPanelGetQueryVariables = Exact<{
+  projectId?: InputMaybe<Scalars['ID']['input']>;
+}>;
+
+export type CopilotWorkbenchTaskPanelGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      workbenchTaskPanel: {
+        __typename?: 'CopilotWorkbenchTaskPanelType';
+        todo: {
+          __typename?: 'CopilotWorkbenchTaskSegmentType';
+          capped: boolean;
+          items: Array<{
+            __typename?: 'CopilotWorkbenchTaskItemType';
+            id: string;
+            entityId: string;
+            kind: string;
+            segment: string;
+            attention: string | null;
+            workspaceId: string | null;
+            projectId: string | null;
+            title: string | null;
+            status: string;
+            requestedLevel: string | null;
+            documentId: string | null;
+            redacted: boolean;
+            relatedUserId: string | null;
+            createdAt: string;
+            updatedAt: string;
+            completedAt: string | null;
+            availableActions: Array<string>;
+            blocker: {
+              __typename?: 'CopilotWorkbenchBlockerTaskType';
+              creatorUserId: string;
+              type: string;
+              waitingOn: string;
+              dueAt: string | null;
+              overdue: boolean;
+              origin: string;
+              resolutionActorUserId: string | null;
+            } | null;
+            run: {
+              __typename?: 'CopilotTaskType';
+              id: string;
+              workspaceId: string;
+              projectId: string | null;
+              title: string | null;
+              workflow: string;
+              status: string;
+              createdAt: string;
+              updatedAt: string;
+              startedAt: string | null;
+              completedAt: string | null;
+              failureCode: string | null;
+              failureMessage: string | null;
+              resultSummary: string | null;
+              approvalSummary: unknown | null;
+              approvalFingerprint: string | null;
+              resultEvidence: unknown | null;
+              availableActions: Array<string>;
+              abandoned: boolean;
+              approval: {
+                __typename?: 'CopilotTaskApprovalType';
+                stepId: string;
+                status: string;
+                title: string | null;
+                decidedAt: string | null;
+              } | null;
+              artifacts: Array<{
+                __typename?: 'CopilotTaskArtifactType';
+                workspaceId: string;
+                kind: string;
+                id: string;
+                title: string | null;
+              }>;
+              steps: Array<{
+                __typename?: 'CopilotTaskStepType';
+                id: string;
+                key: string;
+                type: string;
+                status: string;
+                title: string | null;
+                order: number;
+                startedAt: string | null;
+                completedAt: string | null;
+              }>;
+            } | null;
+          }>;
+        };
+        inProgress: {
+          __typename?: 'CopilotWorkbenchTaskSegmentType';
+          capped: boolean;
+          items: Array<{
+            __typename?: 'CopilotWorkbenchTaskItemType';
+            id: string;
+            entityId: string;
+            kind: string;
+            segment: string;
+            attention: string | null;
+            workspaceId: string | null;
+            projectId: string | null;
+            title: string | null;
+            status: string;
+            requestedLevel: string | null;
+            documentId: string | null;
+            redacted: boolean;
+            relatedUserId: string | null;
+            createdAt: string;
+            updatedAt: string;
+            completedAt: string | null;
+            availableActions: Array<string>;
+            blocker: {
+              __typename?: 'CopilotWorkbenchBlockerTaskType';
+              creatorUserId: string;
+              type: string;
+              waitingOn: string;
+              dueAt: string | null;
+              overdue: boolean;
+              origin: string;
+              resolutionActorUserId: string | null;
+            } | null;
+            run: {
+              __typename?: 'CopilotTaskType';
+              id: string;
+              workspaceId: string;
+              projectId: string | null;
+              title: string | null;
+              workflow: string;
+              status: string;
+              createdAt: string;
+              updatedAt: string;
+              startedAt: string | null;
+              completedAt: string | null;
+              failureCode: string | null;
+              failureMessage: string | null;
+              resultSummary: string | null;
+              approvalSummary: unknown | null;
+              approvalFingerprint: string | null;
+              resultEvidence: unknown | null;
+              availableActions: Array<string>;
+              abandoned: boolean;
+              approval: {
+                __typename?: 'CopilotTaskApprovalType';
+                stepId: string;
+                status: string;
+                title: string | null;
+                decidedAt: string | null;
+              } | null;
+              artifacts: Array<{
+                __typename?: 'CopilotTaskArtifactType';
+                workspaceId: string;
+                kind: string;
+                id: string;
+                title: string | null;
+              }>;
+              steps: Array<{
+                __typename?: 'CopilotTaskStepType';
+                id: string;
+                key: string;
+                type: string;
+                status: string;
+                title: string | null;
+                order: number;
+                startedAt: string | null;
+                completedAt: string | null;
+              }>;
+            } | null;
+          }>;
+        };
+        done: {
+          __typename?: 'CopilotWorkbenchTaskSegmentType';
+          capped: boolean;
+          items: Array<{
+            __typename?: 'CopilotWorkbenchTaskItemType';
+            id: string;
+            entityId: string;
+            kind: string;
+            segment: string;
+            attention: string | null;
+            workspaceId: string | null;
+            projectId: string | null;
+            title: string | null;
+            status: string;
+            requestedLevel: string | null;
+            documentId: string | null;
+            redacted: boolean;
+            relatedUserId: string | null;
+            createdAt: string;
+            updatedAt: string;
+            completedAt: string | null;
+            availableActions: Array<string>;
+            blocker: {
+              __typename?: 'CopilotWorkbenchBlockerTaskType';
+              creatorUserId: string;
+              type: string;
+              waitingOn: string;
+              dueAt: string | null;
+              overdue: boolean;
+              origin: string;
+              resolutionActorUserId: string | null;
+            } | null;
+            run: {
+              __typename?: 'CopilotTaskType';
+              id: string;
+              workspaceId: string;
+              projectId: string | null;
+              title: string | null;
+              workflow: string;
+              status: string;
+              createdAt: string;
+              updatedAt: string;
+              startedAt: string | null;
+              completedAt: string | null;
+              failureCode: string | null;
+              failureMessage: string | null;
+              resultSummary: string | null;
+              approvalSummary: unknown | null;
+              approvalFingerprint: string | null;
+              resultEvidence: unknown | null;
+              availableActions: Array<string>;
+              abandoned: boolean;
+              approval: {
+                __typename?: 'CopilotTaskApprovalType';
+                stepId: string;
+                status: string;
+                title: string | null;
+                decidedAt: string | null;
+              } | null;
+              artifacts: Array<{
+                __typename?: 'CopilotTaskArtifactType';
+                workspaceId: string;
+                kind: string;
+                id: string;
+                title: string | null;
+              }>;
+              steps: Array<{
+                __typename?: 'CopilotTaskStepType';
+                id: string;
+                key: string;
+                type: string;
+                status: string;
+                title: string | null;
+                order: number;
+                startedAt: string | null;
+                completedAt: string | null;
+              }>;
+            } | null;
+          }>;
+        };
+      };
+    };
+  } | null;
+};
+
+export type CopilotWorkbenchTasksGetQueryVariables = Exact<{
+  projectId?: InputMaybe<Scalars['ID']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  filter?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+export type CopilotWorkbenchTasksGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      workbenchTasks: {
+        __typename?: 'CopilotWorkbenchTaskListType';
+        capped: boolean;
+        nextCursor: string | null;
+        items: Array<{
+          __typename?: 'CopilotWorkbenchTaskItemType';
+          id: string;
+          entityId: string;
+          kind: string;
+          segment: string;
+          attention: string | null;
+          workspaceId: string | null;
+          projectId: string | null;
+          title: string | null;
+          status: string;
+          requestedLevel: string | null;
+          documentId: string | null;
+          redacted: boolean;
+          relatedUserId: string | null;
+          createdAt: string;
+          updatedAt: string;
+          completedAt: string | null;
+          availableActions: Array<string>;
+          blocker: {
+            __typename?: 'CopilotWorkbenchBlockerTaskType';
+            creatorUserId: string;
+            type: string;
+            waitingOn: string;
+            dueAt: string | null;
+            overdue: boolean;
+            origin: string;
+            resolutionActorUserId: string | null;
+          } | null;
+          run: {
+            __typename?: 'CopilotTaskType';
+            id: string;
+            workspaceId: string;
+            projectId: string | null;
+            title: string | null;
+            workflow: string;
+            status: string;
+            createdAt: string;
+            updatedAt: string;
+            startedAt: string | null;
+            completedAt: string | null;
+            failureCode: string | null;
+            failureMessage: string | null;
+            resultSummary: string | null;
+            approvalSummary: unknown | null;
+            approvalFingerprint: string | null;
+            resultEvidence: unknown | null;
+            availableActions: Array<string>;
+            abandoned: boolean;
+            approval: {
+              __typename?: 'CopilotTaskApprovalType';
+              stepId: string;
+              status: string;
+              title: string | null;
+              decidedAt: string | null;
+            } | null;
+            artifacts: Array<{
+              __typename?: 'CopilotTaskArtifactType';
+              workspaceId: string;
+              kind: string;
+              id: string;
+              title: string | null;
+            }>;
+            steps: Array<{
+              __typename?: 'CopilotTaskStepType';
+              id: string;
+              key: string;
+              type: string;
+              status: string;
+              title: string | null;
+              order: number;
+              startedAt: string | null;
+              completedAt: string | null;
+            }>;
+          } | null;
+        }>;
+      };
+    };
   } | null;
 };
 
@@ -16735,6 +18349,24 @@ export type UpdateExternalMcpToolAllowlistMutation = {
   };
 };
 
+export type CopilotBlockerFieldsFragment = {
+  __typename?: 'CopilotBlockerType';
+  id: string;
+  projectId: string;
+  creatorUserId: string;
+  title: string;
+  type: string;
+  waitingOn: string;
+  dueAt: string | null;
+  overdue: boolean;
+  status: string;
+  origin: string;
+  resolutionActorUserId: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CopilotChatHistoryFragment = {
   __typename?: 'CopilotHistories';
   sessionId: string;
@@ -16768,6 +18400,83 @@ export type CopilotChatHistoryFragment = {
       result: unknown | null;
     }> | null;
   }>;
+};
+
+export type CopilotWorkbenchTaskItemFieldsFragment = {
+  __typename?: 'CopilotWorkbenchTaskItemType';
+  id: string;
+  entityId: string;
+  kind: string;
+  segment: string;
+  attention: string | null;
+  workspaceId: string | null;
+  projectId: string | null;
+  title: string | null;
+  status: string;
+  requestedLevel: string | null;
+  documentId: string | null;
+  redacted: boolean;
+  relatedUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  availableActions: Array<string>;
+  blocker: {
+    __typename?: 'CopilotWorkbenchBlockerTaskType';
+    creatorUserId: string;
+    type: string;
+    waitingOn: string;
+    dueAt: string | null;
+    overdue: boolean;
+    origin: string;
+    resolutionActorUserId: string | null;
+  } | null;
+  run: {
+    __typename?: 'CopilotTaskType';
+    id: string;
+    workspaceId: string;
+    projectId: string | null;
+    title: string | null;
+    workflow: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+    startedAt: string | null;
+    completedAt: string | null;
+    failureCode: string | null;
+    failureMessage: string | null;
+    resultSummary: string | null;
+    approvalSummary: unknown | null;
+    approvalFingerprint: string | null;
+    resultEvidence: unknown | null;
+    availableActions: Array<string>;
+    abandoned: boolean;
+    approval: {
+      __typename?: 'CopilotTaskApprovalType';
+      stepId: string;
+      status: string;
+      title: string | null;
+      decidedAt: string | null;
+    } | null;
+    artifacts: Array<{
+      __typename?: 'CopilotTaskArtifactType';
+      workspaceId: string;
+      kind: string;
+      id: string;
+      title: string | null;
+    }>;
+    steps: Array<{
+      __typename?: 'CopilotTaskStepType';
+      id: string;
+      key: string;
+      type: string;
+      status: string;
+      title: string | null;
+      order: number;
+      startedAt: string | null;
+      completedAt: string | null;
+    }>;
+  } | null;
 };
 
 export type CredentialsRequirementsFragment = {
@@ -19360,6 +21069,36 @@ export type Queries =
       response: GetTranscriptTaskQuery;
     }
   | {
+      name: 'copilotWorkbenchBlockersGetQuery';
+      variables: CopilotWorkbenchBlockersGetQueryVariables;
+      response: CopilotWorkbenchBlockersGetQuery;
+    }
+  | {
+      name: 'copilotWorkbenchProjectsGetQuery';
+      variables: CopilotWorkbenchProjectsGetQueryVariables;
+      response: CopilotWorkbenchProjectsGetQuery;
+    }
+  | {
+      name: 'copilotWorkbenchSourceAuthorizationGetQuery';
+      variables: CopilotWorkbenchSourceAuthorizationGetQueryVariables;
+      response: CopilotWorkbenchSourceAuthorizationGetQuery;
+    }
+  | {
+      name: 'copilotWorkbenchTaskGetQuery';
+      variables: CopilotWorkbenchTaskGetQueryVariables;
+      response: CopilotWorkbenchTaskGetQuery;
+    }
+  | {
+      name: 'copilotWorkbenchTaskPanelGetQuery';
+      variables: CopilotWorkbenchTaskPanelGetQueryVariables;
+      response: CopilotWorkbenchTaskPanelGetQuery;
+    }
+  | {
+      name: 'copilotWorkbenchTasksGetQuery';
+      variables: CopilotWorkbenchTasksGetQueryVariables;
+      response: CopilotWorkbenchTasksGetQuery;
+    }
+  | {
       name: 'getWorkspaceEmbeddingFilesQuery';
       variables: GetWorkspaceEmbeddingFilesQueryVariables;
       response: GetWorkspaceEmbeddingFilesQuery;
@@ -19827,14 +21566,54 @@ export type Mutations =
       response: UploadCommentAttachmentMutation;
     }
   | {
+      name: 'approveCopilotAccessRequestMutation';
+      variables: ApproveCopilotAccessRequestMutationVariables;
+      response: ApproveCopilotAccessRequestMutation;
+    }
+  | {
+      name: 'rejectCopilotAccessRequestMutation';
+      variables: RejectCopilotAccessRequestMutationVariables;
+      response: RejectCopilotAccessRequestMutation;
+    }
+  | {
+      name: 'withdrawCopilotAccessRequestMutation';
+      variables: WithdrawCopilotAccessRequestMutationVariables;
+      response: WithdrawCopilotAccessRequestMutation;
+    }
+  | {
       name: 'controlCopilotAgentRuntimeRunMutation';
       variables: ControlCopilotAgentRuntimeRunMutationVariables;
       response: ControlCopilotAgentRuntimeRunMutation;
     }
   | {
+      name: 'requestCopilotAgentRuntimeDocUpdateMutation';
+      variables: RequestCopilotAgentRuntimeDocUpdateMutationVariables;
+      response: RequestCopilotAgentRuntimeDocUpdateMutation;
+    }
+  | {
       name: 'requestCopilotAgentRuntimeOfficeCommandMutation';
       variables: RequestCopilotAgentRuntimeOfficeCommandMutationVariables;
       response: RequestCopilotAgentRuntimeOfficeCommandMutation;
+    }
+  | {
+      name: 'abandonCopilotBlockerMutation';
+      variables: AbandonCopilotBlockerMutationVariables;
+      response: AbandonCopilotBlockerMutation;
+    }
+  | {
+      name: 'createCopilotBlockerMutation';
+      variables: CreateCopilotBlockerMutationVariables;
+      response: CreateCopilotBlockerMutation;
+    }
+  | {
+      name: 'resolveCopilotBlockerMutation';
+      variables: ResolveCopilotBlockerMutationVariables;
+      response: ResolveCopilotBlockerMutation;
+    }
+  | {
+      name: 'confirmCopilotBlockerSuggestionMutation';
+      variables: ConfirmCopilotBlockerSuggestionMutationVariables;
+      response: ConfirmCopilotBlockerSuggestionMutation;
     }
   | {
       name: 'addContextBlobMutation';
@@ -19897,6 +21676,11 @@ export type Mutations =
       response: CopilotContextMemoryUpdateMutation;
     }
   | {
+      name: 'setCopilotContextProjectAiPolicyMutation';
+      variables: SetCopilotContextProjectAiPolicyMutationVariables;
+      response: SetCopilotContextProjectAiPolicyMutation;
+    }
+  | {
       name: 'copilotContextProjectCreateMutation';
       variables: CopilotContextProjectCreateMutationVariables;
       response: CopilotContextProjectCreateMutation;
@@ -19905,6 +21689,36 @@ export type Mutations =
       name: 'copilotContextProjectDeleteMutation';
       variables: CopilotContextProjectDeleteMutationVariables;
       response: CopilotContextProjectDeleteMutation;
+    }
+  | {
+      name: 'copilotContextProjectDocumentAddMutation';
+      variables: CopilotContextProjectDocumentAddMutationVariables;
+      response: CopilotContextProjectDocumentAddMutation;
+    }
+  | {
+      name: 'copilotContextProjectDocumentRemoveMutation';
+      variables: CopilotContextProjectDocumentRemoveMutationVariables;
+      response: CopilotContextProjectDocumentRemoveMutation;
+    }
+  | {
+      name: 'copilotContextProjectDocumentUpdateMutation';
+      variables: CopilotContextProjectDocumentUpdateMutationVariables;
+      response: CopilotContextProjectDocumentUpdateMutation;
+    }
+  | {
+      name: 'leaveCopilotContextProjectMutation';
+      variables: LeaveCopilotContextProjectMutationVariables;
+      response: LeaveCopilotContextProjectMutation;
+    }
+  | {
+      name: 'removeCopilotContextProjectMemberMutation';
+      variables: RemoveCopilotContextProjectMemberMutationVariables;
+      response: RemoveCopilotContextProjectMemberMutation;
+    }
+  | {
+      name: 'transferCopilotContextProjectOwnershipMutation';
+      variables: TransferCopilotContextProjectOwnershipMutationVariables;
+      response: TransferCopilotContextProjectOwnershipMutation;
     }
   | {
       name: 'copilotContextProjectUpdateMutation';
@@ -19967,9 +21781,44 @@ export type Mutations =
       response: QueueWorkspaceEmbeddingMutation;
     }
   | {
+      name: 'requestCopilotDocumentAccessMutation';
+      variables: RequestCopilotDocumentAccessMutationVariables;
+      response: RequestCopilotDocumentAccessMutation;
+    }
+  | {
       name: 'createCopilotMessageMutation';
       variables: CreateCopilotMessageMutationVariables;
       response: CreateCopilotMessageMutation;
+    }
+  | {
+      name: 'reRequestCopilotProjectDocumentAccessMutation';
+      variables: ReRequestCopilotProjectDocumentAccessMutationVariables;
+      response: ReRequestCopilotProjectDocumentAccessMutation;
+    }
+  | {
+      name: 'revokeCopilotProjectGrantMutation';
+      variables: RevokeCopilotProjectGrantMutationVariables;
+      response: RevokeCopilotProjectGrantMutation;
+    }
+  | {
+      name: 'acceptCopilotProjectInvitationMutation';
+      variables: AcceptCopilotProjectInvitationMutationVariables;
+      response: AcceptCopilotProjectInvitationMutation;
+    }
+  | {
+      name: 'declineCopilotProjectInvitationMutation';
+      variables: DeclineCopilotProjectInvitationMutationVariables;
+      response: DeclineCopilotProjectInvitationMutation;
+    }
+  | {
+      name: 'sendCopilotProjectInvitationMutation';
+      variables: SendCopilotProjectInvitationMutationVariables;
+      response: SendCopilotProjectInvitationMutation;
+    }
+  | {
+      name: 'withdrawCopilotProjectInvitationMutation';
+      variables: WithdrawCopilotProjectInvitationMutationVariables;
+      response: WithdrawCopilotProjectInvitationMutation;
     }
   | {
       name: 'requestCopilotPromptRegistryRepairExecutionMutation';

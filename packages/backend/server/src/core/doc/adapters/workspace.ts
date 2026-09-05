@@ -79,11 +79,10 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
         const batchCount = 10;
         for (const batch of chunk(pendings, batchCount)) {
           const now = Date.now();
-          await this.models.doc.createUpdates(
+          const created = await this.models.doc.createUpdates(
             batch.map((update, i) => {
               const subSeq = turn * batchCount + i + 1;
               const createdAt = now + subSeq;
-              timestamp = Math.max(timestamp, createdAt);
 
               return {
                 spaceId: workspaceId,
@@ -94,6 +93,7 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
               };
             })
           );
+          timestamp = Math.max(timestamp, ...created.timestamps);
           await this.queue.add(
             'doc.mergePendingDocUpdates',
             {

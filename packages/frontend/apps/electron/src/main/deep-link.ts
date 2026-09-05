@@ -2,7 +2,11 @@ import path from 'node:path';
 
 import type { App } from 'electron';
 
-import { getDeepLinkSchemes, isSupportedDeepLink } from '../shared/deep-link';
+import {
+  getDeepLinkNavigationMode,
+  getDeepLinkSchemes,
+  isSupportedDeepLink,
+} from '../shared/deep-link';
 import { buildType, isDev } from './config';
 import { logger } from './logger';
 import { uiSubjects } from './ui';
@@ -109,8 +113,9 @@ async function handleDeepLink(url: string) {
 
   logger.info('open LocalMind URL', summarizeDeepLink(url));
   const urlObj = new URL(url);
+  const navigationMode = getDeepLinkNavigationMode(url);
 
-  if (urlObj.hostname === 'authentication') {
+  if (navigationMode === 'authentication') {
     const method = urlObj.searchParams.get('method');
     const payload = JSON.parse(urlObj.searchParams.get('payload') ?? 'false');
     const server = urlObj.searchParams.get('server') || undefined;
@@ -131,18 +136,10 @@ async function handleDeepLink(url: string) {
       payload,
       server,
     });
-  } else if (
-    urlObj.searchParams.get('new-tab') &&
-    urlObj.pathname.startsWith('/workspace')
-  ) {
-    // @todo(@forehalo): refactor router utilities
-    // basename of /workspace/xxx/yyy is /workspace/xxx
+  } else if (navigationMode === 'new-tab') {
     await addTabWithUrl(url);
-  } else {
-    const hiddenWindow = urlObj.searchParams.get('hidden')
-      ? await openUrlInHiddenWindow(urlObj)
-      : await loadUrlInActiveTab(url);
-
+  } else if (navigationMode === 'hidden-window') {
+    const hiddenWindow = await openUrlInHiddenWindow(urlObj);
     if (hiddenWindow) {
       // when hidden window closed, the main window will be hidden somehow
       hiddenWindow.on('close', () => {
@@ -151,5 +148,7 @@ async function handleDeepLink(url: string) {
         });
       });
     }
+  } else if (navigationMode === 'active-tab') {
+    await loadUrlInActiveTab(url);
   }
 }

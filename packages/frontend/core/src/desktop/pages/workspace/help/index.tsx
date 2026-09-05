@@ -6,7 +6,6 @@ import {
   ViewHeader,
   ViewIcon,
   ViewTitle,
-  WorkbenchService,
 } from '@affine/core/modules/workbench';
 import { useI18n } from '@affine/i18n';
 import {
@@ -27,6 +26,7 @@ import {
   useMemo,
   useState,
 } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import * as styles from './index.css';
 
@@ -375,7 +375,7 @@ export const filterGuideSections = (
 
 export const HelpCenterPage = () => {
   const t = useI18n();
-  const workbench = useService(WorkbenchService).workbench;
+  const navigate = useNavigate();
   const workspaceDialogService = useService(WorkspaceDialogService);
   const sectionIdPrefix = useId().replace(/:/g, '');
   const [query, setQuery] = useState('');
@@ -386,8 +386,8 @@ export const HelpCenterPage = () => {
   );
 
   const openAIChat = useCallback(() => {
-    workbench.open('/chat', { at: 'active' });
-  }, [workbench]);
+    navigate('/intelligence');
+  }, [navigate]);
 
   const openAIContext = useCallback(() => {
     workspaceDialogService.open('setting', {

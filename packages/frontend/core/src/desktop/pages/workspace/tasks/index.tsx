@@ -1,12 +1,12 @@
 import { Button, IconButton, Loading, notify, Tabs } from '@affine/component';
 import { useQuery } from '@affine/core/components/hooks/use-query';
+import { getWorkspaceDocPath } from '@affine/core/desktop/route-paths';
 import { GraphQLService } from '@affine/core/modules/cloud';
 import {
   ViewBody,
   ViewHeader,
   ViewIcon,
   ViewTitle,
-  WorkbenchService,
 } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
 import { UserFriendlyError } from '@affine/error';
@@ -17,29 +17,42 @@ import {
 import { useI18n } from '@affine/i18n';
 import { PageIcon, ResetIcon } from '@blocksuite/icons/rc';
 import { useService } from '@toeverything/infra';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import {
   buildCopilotTaskControlInput,
   type CopilotTask,
   type CopilotTaskAction,
   type CopilotTaskFilter,
-  filterCopilotTasks,
   isCopilotTaskActionDisabled,
 } from '../../../../modules/copilot-tasks/utils';
+import { GlobalWorkbenchTasks } from './global-workbench-tasks';
 import * as styles from './index.css';
+import { useTaskRouteSelection } from './use-task-route-selection';
 
-const taskFilters: CopilotTaskFilter[] = ['active', 'approval', 'completed'];
+const taskFilters: CopilotTaskFilter[] = [
+  'all',
+  'active',
+  'approval',
+  'completed',
+];
 
 const formatDate = (value: string) => new Date(value).toLocaleString();
 
 export const Component = () => {
-  const t = useI18n();
   const workspaceId = useService(WorkspaceService).workspace.id;
+  return <TasksPage workspaceId={workspaceId} />;
+};
+
+export const GlobalTasksComponent = () => {
+  return <GlobalWorkbenchTasks />;
+};
+
+export const TasksPage = ({ workspaceId }: { workspaceId: string }) => {
+  const t = useI18n();
   const graphqlService = useService(GraphQLService);
-  const workbench = useService(WorkbenchService).workbench;
-  const [filter, setFilter] = useState<CopilotTaskFilter>('active');
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const navigate = useNavigate();
   const [pending, setPending] = useState<{
     action: CopilotTaskAction;
     taskId: string;
@@ -60,24 +73,14 @@ export const Component = () => {
     () => data?.currentUser?.copilot.copilotTasks ?? [],
     [data?.currentUser?.copilot.copilotTasks]
   );
-  const visibleTasks = useMemo(
-    () => filterCopilotTasks(tasks, filter),
-    [filter, tasks]
-  );
-  const selectedTask =
-    visibleTasks.find(task => task.id === selectedTaskId) ??
-    visibleTasks[0] ??
-    null;
-
-  useEffect(() => {
-    if (selectedTask?.id !== selectedTaskId) {
-      setSelectedTaskId(selectedTask?.id ?? null);
-    }
-  }, [selectedTask?.id, selectedTaskId]);
+  const { filter, selectedTask, selectFilter, selectTask, visibleTasks } =
+    useTaskRouteSelection(tasks, !isLoading && !error);
 
   const filterLabel = useCallback(
     (value: CopilotTaskFilter) => {
       switch (value) {
+        case 'all':
+          return t['com.affine.localmind.tasks.filter.all']();
         case 'approval':
           return t['com.affine.localmind.tasks.filter.approval']();
         case 'completed':
@@ -92,6 +95,8 @@ export const Component = () => {
 
   const emptyLabel = useCallback(() => {
     switch (filter) {
+      case 'all':
+        return t['com.affine.localmind.tasks.empty.all']();
       case 'approval':
         return t['com.affine.localmind.tasks.empty.approval']();
       case 'completed':
@@ -103,8 +108,11 @@ export const Component = () => {
   }, [filter, t]);
 
   const statusLabel = useCallback(
-    (status: string) => {
-      switch (status) {
+    (task: Pick<CopilotTask, 'abandoned' | 'status'>) => {
+      if (task.abandoned) {
+        return t['com.affine.localmind.tasks.status.abandoned']();
+      }
+      switch (task.status) {
         case 'queued':
           return t['com.affine.localmind.tasks.status.queued']();
         case 'running':
@@ -118,7 +126,7 @@ export const Component = () => {
         case 'cancelled':
           return t['com.affine.localmind.tasks.status.cancelled']();
         default:
-          return status;
+          return task.status;
       }
     },
     [t]
@@ -157,6 +165,8 @@ export const Component = () => {
           return t['com.affine.localmind.tasks.action.cancel']();
         case 'resume':
           return t['com.affine.localmind.tasks.action.resume']();
+        case 'abandon':
+          return t['com.affine.localmind.tasks.action.abandon']();
       }
     },
     [t]
@@ -179,7 +189,11 @@ export const Component = () => {
         await graphqlService.gql({
           query: controlCopilotTaskMutation,
           variables: {
-            input: buildCopilotTaskControlInput(workspaceId, task.id, action),
+            input: buildCopilotTaskControlInput(
+              task.workspaceId,
+              task.id,
+              action
+            ),
           },
         });
         await mutate();
@@ -196,7 +210,7 @@ export const Component = () => {
         setPending(null);
       }
     },
-    [graphqlService, mutate, pending?.taskId, t, workspaceId]
+    [graphqlService, mutate, pending?.taskId, t]
   );
 
   const renderTaskList = () => {
@@ -226,14 +240,17 @@ export const Component = () => {
         type="button"
         className={styles.taskRow}
         data-selected={task.id === selectedTask?.id}
-        onClick={() => setSelectedTaskId(task.id)}
+        onClick={() => selectTask(task.id)}
       >
         <span className={styles.taskRowTopline}>
           <span className={styles.taskTitle}>
             {task.title ?? t['com.affine.localmind.tasks.untitled']()}
           </span>
-          <span className={styles.status} data-status={task.status}>
-            {statusLabel(task.status)}
+          <span
+            className={styles.status}
+            data-status={task.abandoned ? 'abandoned' : task.status}
+          >
+            {statusLabel(task)}
           </span>
         </span>
         <span className={styles.taskMeta}>{formatDate(task.updatedAt)}</span>
@@ -241,60 +258,64 @@ export const Component = () => {
     ));
   };
 
+  const taskHeader = (
+    <div className={styles.header}>
+      <Tabs.Root
+        value={filter}
+        onValueChange={value => selectFilter(value as CopilotTaskFilter)}
+      >
+        <Tabs.List className={styles.filters}>
+          {taskFilters.map(value => (
+            <Tabs.Trigger key={value} value={value}>
+              {filterLabel(value)}
+            </Tabs.Trigger>
+          ))}
+        </Tabs.List>
+      </Tabs.Root>
+      <IconButton
+        size="20"
+        icon={<ResetIcon />}
+        tooltip={t['com.affine.localmind.tasks.refresh']()}
+        aria-label={t['com.affine.localmind.tasks.refresh']()}
+        onClick={() => void mutate()}
+      />
+    </div>
+  );
+  const taskBody = (
+    <div className={styles.root}>
+      <section className={styles.listPane}>{renderTaskList()}</section>
+      <section className={styles.detailPane}>
+        {selectedTask ? (
+          <TaskDetail
+            task={selectedTask}
+            pending={pending}
+            actionLabel={actionLabel}
+            statusLabel={statusLabel}
+            stepStatusLabel={stepStatusLabel}
+            onControl={controlTask}
+            onOpenArtifact={(task, kind, id) => {
+              const path =
+                kind === 'office'
+                  ? `/workspace/${encodeURIComponent(task.workspaceId)}/office/${encodeURIComponent(id)}`
+                  : getWorkspaceDocPath(task.workspaceId, id);
+              navigate(path);
+            }}
+          />
+        ) : (
+          <div className={styles.centerState}>
+            {t['com.affine.localmind.tasks.empty.detail']()}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+
   return (
     <>
       <ViewTitle title={t['com.affine.workspaceSubPath.tasks']()} />
       <ViewIcon icon="tasks" />
-      <ViewHeader>
-        <div className={styles.header}>
-          <Tabs.Root
-            value={filter}
-            onValueChange={value => setFilter(value as CopilotTaskFilter)}
-          >
-            <Tabs.List className={styles.filters}>
-              {taskFilters.map(value => (
-                <Tabs.Trigger key={value} value={value}>
-                  {filterLabel(value)}
-                </Tabs.Trigger>
-              ))}
-            </Tabs.List>
-          </Tabs.Root>
-          <IconButton
-            size="20"
-            icon={<ResetIcon />}
-            tooltip={t['com.affine.localmind.tasks.refresh']()}
-            onClick={() => void mutate()}
-          />
-        </div>
-      </ViewHeader>
-      <ViewBody>
-        <main className={styles.root}>
-          <section className={styles.listPane}>{renderTaskList()}</section>
-          <section className={styles.detailPane}>
-            {selectedTask ? (
-              <TaskDetail
-                task={selectedTask}
-                pending={pending}
-                actionLabel={actionLabel}
-                statusLabel={statusLabel}
-                stepStatusLabel={stepStatusLabel}
-                onControl={controlTask}
-                onOpenArtifact={(kind, id) => {
-                  if (kind === 'office') {
-                    workbench.open(`/office/${id}`, { at: 'active' });
-                  } else {
-                    workbench.openDoc(id);
-                  }
-                }}
-              />
-            ) : (
-              <div className={styles.centerState}>
-                {t['com.affine.localmind.tasks.empty.detail']()}
-              </div>
-            )}
-          </section>
-        </main>
-      </ViewBody>
+      <ViewHeader>{taskHeader}</ViewHeader>
+      <ViewBody>{taskBody}</ViewBody>
     </>
   );
 };
@@ -311,10 +332,10 @@ const TaskDetail = ({
   task: CopilotTask;
   pending: { action: CopilotTaskAction; taskId: string } | null;
   actionLabel: (action: CopilotTaskAction) => string;
-  statusLabel: (status: string) => string;
+  statusLabel: (task: Pick<CopilotTask, 'abandoned' | 'status'>) => string;
   stepStatusLabel: (status: string) => string;
   onControl: (task: CopilotTask, action: CopilotTaskAction) => Promise<void>;
-  onOpenArtifact: (kind: string, id: string) => void;
+  onOpenArtifact: (task: CopilotTask, kind: string, id: string) => void;
 }) => {
   const t = useI18n();
   return (
@@ -324,8 +345,11 @@ const TaskDetail = ({
           <h1 className={styles.detailTitle}>
             {task.title ?? t['com.affine.localmind.tasks.untitled']()}
           </h1>
-          <span className={styles.status} data-status={task.status}>
-            {statusLabel(task.status)}
+          <span
+            className={styles.status}
+            data-status={task.abandoned ? 'abandoned' : task.status}
+          >
+            {statusLabel(task)}
           </span>
         </div>
         <div className={styles.actions}>
@@ -335,7 +359,7 @@ const TaskDetail = ({
               variant={
                 action === 'approve' || action === 'resume'
                   ? 'primary'
-                  : action === 'reject'
+                  : action === 'reject' || action === 'abandon'
                     ? 'error'
                     : 'secondary'
               }
@@ -395,7 +419,7 @@ const TaskDetail = ({
             <Button
               key={`${artifact.kind}:${artifact.id}`}
               prefix={<PageIcon />}
-              onClick={() => onOpenArtifact(artifact.kind, artifact.id)}
+              onClick={() => onOpenArtifact(task, artifact.kind, artifact.id)}
             >
               {artifact.kind === 'office'
                 ? 'Open Office file'

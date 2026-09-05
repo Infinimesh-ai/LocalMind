@@ -1,0 +1,51 @@
+query copilotWorkbenchSourceAuthorizationGet(
+  $workspaceId: String!
+  $docId: String!
+) {
+  currentUser {
+    copilot {
+      workbenchAccessRequests(
+        view: "source"
+        workspaceId: $workspaceId
+        docId: $docId
+        statuses: ["pending"]
+        limit: 50
+      ) {
+        id
+        workspaceId
+        docId
+        beneficiaryType
+        beneficiaryUserId
+        beneficiaryProjectId
+        requesterUserId
+        requestedLevel
+        requestedTitle
+        status
+        createdAt
+        updatedAt
+      }
+      workbenchProjectGrantsForSource(
+        workspaceId: $workspaceId
+        docId: $docId
+        statuses: ["active"]
+        limit: 100
+      ) {
+        id
+        projectId
+        projectName
+        workspaceId
+        docId
+        level
+        status
+        source
+        approvingSide
+        revocable
+        grantedByUserId
+        accessRequestId
+        grantedAt
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}

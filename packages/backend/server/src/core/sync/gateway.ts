@@ -18,6 +18,7 @@ import type { Request } from 'express';
 import { ClsInterceptor } from 'nestjs-cls';
 import semver from 'semver';
 import { type Server, Socket } from 'socket.io';
+import { diffUpdate, encodeStateVectorFromUpdate } from 'yjs';
 
 import {
   CallMetric,
@@ -32,6 +33,7 @@ import {
   SpaceAccessDenied,
 } from '../../base';
 import { Models } from '../../models';
+import { buildPublicRootDoc } from '../../native';
 import { CurrentUser } from '../auth';
 import {
   DocReader,
@@ -124,6 +126,7 @@ interface JoinSpaceMessage {
   spaceType: SpaceType;
   spaceId: string;
   clientVersion: string;
+  docScopeId?: string;
 }
 
 interface JoinSpaceAwarenessMessage {
@@ -136,6 +139,7 @@ interface JoinSpaceAwarenessMessage {
 interface LeaveSpaceMessage {
   spaceType: SpaceType;
   spaceId: string;
+  docScopeId?: string;
 }
 
 interface LeaveSpaceAwarenessMessage {
@@ -149,6 +153,7 @@ interface PushDocUpdateMessage {
   spaceId: string;
   docId: string;
   update: string;
+  docScopeId?: string;
 }
 
 interface BroadcastDocUpdatesMessage {
@@ -175,18 +180,26 @@ interface LoadDocMessage {
   spaceId: string;
   docId: string;
   stateVector?: string;
+  docScopeId?: string;
 }
 
 interface DeleteDocMessage {
   spaceType: SpaceType;
   spaceId: string;
   docId: string;
+  docScopeId?: string;
 }
 
 interface LoadDocTimestampsMessage {
   spaceType: SpaceType;
   spaceId: string;
   timestamp?: number;
+  docScopeId?: string;
+}
+
+interface DocScopeBinding {
+  spaceId: string;
+  docId: string;
 }
 
 interface LoadSpaceAwarenessesMessage {
@@ -223,6 +236,8 @@ export class SpaceSyncGateway
   private activeUsersFlushTimer?: NodeJS.Timeout;
   private activeUsersFlushInFlight = false;
   private activeUsersFlushQueued = false;
+  private readonly docScopeBindings = new WeakMap<Socket, DocScopeBinding>();
+  private readonly joinOperations = new WeakMap<Socket, Promise<void>>();
 
   constructor(
     private readonly ac: PermissionAccess,
@@ -310,6 +325,45 @@ export class SpaceSyncGateway
     }
   }
 
+  private broadcastDocUpdate(
+    client: Socket,
+    adapter: SyncSocketAdapter,
+    spaceType: SpaceType,
+    spaceId: string,
+    docId: string,
+    update: string,
+    timestamp: number,
+    editor: string
+  ) {
+    const payload = this.buildBroadcastPayload(
+      spaceType,
+      spaceId,
+      docId,
+      [Buffer.from(update, 'base64')],
+      timestamp,
+      editor
+    );
+    client
+      .to(adapter.room(spaceId, 'sync-026'))
+      .emit('space:broadcast-doc-updates', payload);
+    metrics.socketio
+      .counter('doc_updates_broadcast')
+      .add(payload.updates.length, {
+        mode: payload.compressed ? 'compressed' : 'batch',
+      });
+
+    client
+      .to(adapter.room(spaceId, 'sync-025'))
+      .emit('space:broadcast-doc-update', {
+        spaceType,
+        spaceId,
+        docId,
+        update,
+        timestamp,
+        editor,
+      } satisfies BroadcastDocUpdateMessage);
+  }
+
   private rejectJoin(client: Socket) {
     // Give socket.io a chance to flush the ack packet before disconnecting.
     setImmediate(() => client.disconnect());
@@ -332,6 +386,131 @@ export class SpaceSyncGateway
     await this.ac.user(userId).doc(spaceId, docId).assert(action);
   }
 
+  private normalizeDocScopeId(
+    spaceType: SpaceType,
+    spaceId: string,
+    docScopeId: string
+  ) {
+    if (
+      spaceType !== SpaceType.Workspace ||
+      typeof docScopeId !== 'string' ||
+      !docScopeId.trim()
+    ) {
+      throw new SpaceAccessDenied({ spaceId });
+    }
+
+    try {
+      const normalized = new DocID(docScopeId, spaceId).guid;
+      if (normalized === spaceId) {
+        throw new SpaceAccessDenied({ spaceId });
+      }
+      return normalized;
+    } catch (error) {
+      if (error instanceof SpaceAccessDenied) {
+        throw error;
+      }
+      throw new SpaceAccessDenied({ spaceId });
+    }
+  }
+
+  private hasWorkspaceSyncRoom(client: Socket) {
+    return Array.from(client.rooms).some(room =>
+      /:(?:sync|sync-025|sync-026)$/.test(room)
+    );
+  }
+
+  private assertScopedBinding(
+    client: Socket,
+    message: {
+      spaceType: SpaceType;
+      spaceId: string;
+      docScopeId: string;
+    }
+  ) {
+    const docId = this.normalizeDocScopeId(
+      message.spaceType,
+      message.spaceId,
+      message.docScopeId
+    );
+    const binding = this.docScopeBindings.get(client);
+    if (
+      !binding ||
+      binding.spaceId !== message.spaceId ||
+      binding.docId !== docId
+    ) {
+      throw new NotInSpace({ spaceId: message.spaceId });
+    }
+    return binding;
+  }
+
+  private assertScopedDocumentRequest(
+    client: Socket,
+    message: {
+      spaceType: SpaceType;
+      spaceId: string;
+      docId: string;
+      docScopeId: string;
+    },
+    allowSyntheticRoot: boolean
+  ) {
+    const binding = this.assertScopedBinding(client, message);
+    const requestedDocId = new DocID(message.docId, message.spaceId).guid;
+    if (
+      requestedDocId !== binding.docId &&
+      (!allowSyntheticRoot || requestedDocId !== message.spaceId)
+    ) {
+      throw new SpaceAccessDenied({ spaceId: message.spaceId });
+    }
+    return { binding, requestedDocId };
+  }
+
+  private async getScopedRootDiff(
+    workspaceId: string,
+    docId: string,
+    stateVector?: Uint8Array
+  ) {
+    const [root, scopedDoc, docMeta] = await Promise.all([
+      this.docReader.getDoc(workspaceId, workspaceId),
+      this.docReader.getDoc(workspaceId, docId),
+      this.models.doc.getMeta(workspaceId, docId, {
+        select: { title: true },
+      }),
+    ]);
+    if (!root) {
+      throw new DocNotFound({ spaceId: workspaceId, docId: workspaceId });
+    }
+    if (!scopedDoc) {
+      throw new DocNotFound({ spaceId: workspaceId, docId });
+    }
+
+    const safeRoot = buildPublicRootDoc(Buffer.from(root.bin), [
+      { id: docId, title: docMeta?.title ?? undefined },
+    ]);
+    return {
+      missing: stateVector ? diffUpdate(safeRoot, stateVector) : safeRoot,
+      state: encodeStateVectorFromUpdate(safeRoot),
+      // Do not reveal the activity cadence of the real workspace root.
+      timestamp: scopedDoc.timestamp,
+    };
+  }
+
+  private async serializeJoin<T>(client: Socket, operation: () => Promise<T>) {
+    const previous = this.joinOperations.get(client) ?? Promise.resolve();
+    const current = previous.catch(() => undefined).then(operation);
+    const completion = current.then(
+      () => undefined,
+      () => undefined
+    );
+    this.joinOperations.set(client, completion);
+    try {
+      return await current;
+    } finally {
+      if (this.joinOperations.get(client) === completion) {
+        this.joinOperations.delete(client);
+      }
+    }
+  }
+
   handleConnection(client: Socket) {
     this.connectionCount++;
     this.logger.debug(`New connection, total: ${this.connectionCount}`);
@@ -342,6 +521,8 @@ export class SpaceSyncGateway
   }
 
   handleDisconnect(client: Socket) {
+    this.docScopeBindings.delete(client);
+    this.joinOperations.delete(client);
     this.connectionCount = Math.max(0, this.connectionCount - 1);
     this.trackDisconnectedSocket(client.id);
     this.logger.debug(
@@ -587,7 +768,17 @@ export class SpaceSyncGateway
     @CurrentUser() user: CurrentUser,
     @ConnectedSocket() client: Socket,
     @MessageBody()
-    { spaceType, spaceId, clientVersion }: JoinSpaceMessage
+    message: JoinSpaceMessage
+  ): Promise<EventResponse<{ clientId: string; success: boolean }>> {
+    return await this.serializeJoin(client, async () => {
+      return await this.joinSpace(user, client, message);
+    });
+  }
+
+  private async joinSpace(
+    user: CurrentUser,
+    client: Socket,
+    { spaceType, spaceId, clientVersion, docScopeId }: JoinSpaceMessage
   ): Promise<EventResponse<{ clientId: string; success: boolean }>> {
     if (![SpaceType.Userspace, SpaceType.Workspace].includes(spaceType)) {
       this.rejectJoin(client);
@@ -597,6 +788,61 @@ export class SpaceSyncGateway
     if (!isSupportedWsClientVersion(clientVersion)) {
       this.rejectJoin(client);
       return { data: { clientId: client.id, success: false } };
+    }
+
+    const existingScope = this.docScopeBindings.get(client);
+    if (docScopeId !== undefined) {
+      const scopedDocId = this.normalizeDocScopeId(
+        spaceType,
+        spaceId,
+        docScopeId
+      );
+      if (
+        (existingScope &&
+          (existingScope.spaceId !== spaceId ||
+            existingScope.docId !== scopedDocId)) ||
+        this.hasWorkspaceSyncRoom(client)
+      ) {
+        throw new SpaceAccessDenied({ spaceId });
+      }
+
+      try {
+        await this.assertDocActionAllowed(
+          spaceType,
+          user.id,
+          spaceId,
+          scopedDocId,
+          'Doc.Read'
+        );
+      } catch (error) {
+        if (existingScope) {
+          this.docScopeBindings.delete(client);
+        }
+        throw error;
+      }
+
+      // Recheck after the asynchronous ACL lookup so concurrent joins cannot
+      // race this socket from one document scope into another.
+      const racedScope = this.docScopeBindings.get(client);
+      if (
+        (racedScope &&
+          (racedScope.spaceId !== spaceId ||
+            racedScope.docId !== scopedDocId)) ||
+        this.hasWorkspaceSyncRoom(client) ||
+        !client.connected
+      ) {
+        throw new SpaceAccessDenied({ spaceId });
+      }
+      this.docScopeBindings.set(client, {
+        spaceId,
+        docId: scopedDocId,
+      });
+
+      return { data: { clientId: client.id, success: true } };
+    }
+
+    if (existingScope) {
+      throw new SpaceAccessDenied({ spaceId });
     }
 
     if (spaceType === SpaceType.Workspace) {
@@ -625,8 +871,17 @@ export class SpaceSyncGateway
   @SubscribeMessage('space:leave')
   async onLeaveSpace(
     @ConnectedSocket() client: Socket,
-    @MessageBody() { spaceType, spaceId }: LeaveSpaceMessage
+    @MessageBody() { spaceType, spaceId, docScopeId }: LeaveSpaceMessage
   ): Promise<EventResponse<{ clientId: string; success: true }>> {
+    if (docScopeId !== undefined) {
+      this.assertScopedBinding(client, { spaceType, spaceId, docScopeId });
+      this.docScopeBindings.delete(client);
+      return { data: { clientId: client.id, success: true } };
+    }
+    if (this.docScopeBindings.has(client)) {
+      throw new NotInSpace({ spaceId });
+    }
+
     await this.selectAdapter(client, spaceType).leave(spaceId);
 
     return { data: { clientId: client.id, success: true } };
@@ -637,12 +892,44 @@ export class SpaceSyncGateway
     @ConnectedSocket() client: Socket,
     @CurrentUser() user: CurrentUser,
     @MessageBody()
-    { spaceType, spaceId, docId, stateVector }: LoadDocMessage
+    { spaceType, spaceId, docId, stateVector, docScopeId }: LoadDocMessage
   ): Promise<
     EventResponse<{ missing: string; state: string; timestamp: number }>
   > {
-    const id = new DocID(docId, spaceId);
     const adapter = this.selectAdapter(client, spaceType);
+    if (docScopeId !== undefined) {
+      const scoped = this.assertScopedDocumentRequest(
+        client,
+        { spaceType, spaceId, docId, docScopeId },
+        true
+      );
+      await this.assertDocActionAllowed(
+        spaceType,
+        user.id,
+        spaceId,
+        scoped.binding.docId,
+        'Doc.Read'
+      );
+      const state = stateVector
+        ? Buffer.from(stateVector, 'base64')
+        : undefined;
+      const doc =
+        scoped.requestedDocId === spaceId
+          ? await this.getScopedRootDiff(spaceId, scoped.binding.docId, state)
+          : await adapter.diffScoped(spaceId, scoped.binding.docId, state);
+      if (!doc) {
+        throw new DocNotFound({ spaceId, docId });
+      }
+      return {
+        data: {
+          missing: Buffer.from(doc.missing).toString('base64'),
+          state: Buffer.from(doc.state).toString('base64'),
+          timestamp: doc.timestamp,
+        },
+      };
+    }
+
+    const id = new DocID(docId, spaceId);
     adapter.assertIn(spaceId);
     await this.assertDocActionAllowed(
       spaceType,
@@ -675,8 +962,11 @@ export class SpaceSyncGateway
   async onDeleteSpaceDoc(
     @ConnectedSocket() client: Socket,
     @CurrentUser() user: CurrentUser,
-    @MessageBody() { spaceType, spaceId, docId }: DeleteDocMessage
+    @MessageBody() { spaceType, spaceId, docId, docScopeId }: DeleteDocMessage
   ): Promise<EventResponse<{ success: true }>> {
+    if (docScopeId !== undefined) {
+      throw new SpaceAccessDenied({ spaceId });
+    }
     const adapter = this.selectAdapter(client, spaceType);
     await this.assertDocActionAllowed(
       spaceType,
@@ -703,6 +993,43 @@ export class SpaceSyncGateway
     const adapter = this.selectAdapter(client, spaceType);
 
     // Quota recovery mode is intentionally not applied to sync in this phase.
+    if (message.docScopeId !== undefined) {
+      const scoped = this.assertScopedDocumentRequest(
+        client,
+        {
+          spaceType,
+          spaceId,
+          docId,
+          docScopeId: message.docScopeId,
+        },
+        false
+      );
+      await this.assertDocActionAllowed(
+        spaceType,
+        user.id,
+        spaceId,
+        scoped.binding.docId,
+        'Doc.Update'
+      );
+      const timestamp = await adapter.pushScoped(
+        spaceId,
+        scoped.binding.docId,
+        [Buffer.from(update, 'base64')],
+        user.id
+      );
+      this.broadcastDocUpdate(
+        client,
+        adapter,
+        spaceType,
+        spaceId,
+        scoped.binding.docId,
+        update,
+        timestamp,
+        user.id
+      );
+      return { data: { accepted: true, timestamp } };
+    }
+
     await this.assertDocActionAllowed(
       spaceType,
       user.id,
@@ -717,33 +1044,16 @@ export class SpaceSyncGateway
       user.id
     );
 
-    const payload = this.buildBroadcastPayload(
+    this.broadcastDocUpdate(
+      client,
+      adapter,
       spaceType,
       spaceId,
       docId,
-      [Buffer.from(update, 'base64')],
+      update,
       timestamp,
       user.id
     );
-    client
-      .to(adapter.room(spaceId, 'sync-026'))
-      .emit('space:broadcast-doc-updates', payload);
-    metrics.socketio
-      .counter('doc_updates_broadcast')
-      .add(payload.updates.length, {
-        mode: payload.compressed ? 'compressed' : 'batch',
-      });
-
-    client
-      .to(adapter.room(spaceId, 'sync-025'))
-      .emit('space:broadcast-doc-update', {
-        spaceType,
-        spaceId,
-        docId,
-        update,
-        timestamp,
-        editor: user.id,
-      } satisfies BroadcastDocUpdateMessage);
 
     return {
       data: {
@@ -758,9 +1068,37 @@ export class SpaceSyncGateway
     @ConnectedSocket() client: Socket,
     @CurrentUser() user: CurrentUser,
     @MessageBody()
-    { spaceType, spaceId, timestamp }: LoadDocTimestampsMessage
+    { spaceType, spaceId, timestamp, docScopeId }: LoadDocTimestampsMessage
   ): Promise<EventResponse<Record<string, number>>> {
     const adapter = this.selectAdapter(client, spaceType);
+
+    if (docScopeId !== undefined) {
+      const binding = this.assertScopedBinding(client, {
+        spaceType,
+        spaceId,
+        docScopeId,
+      });
+      await this.assertDocActionAllowed(
+        spaceType,
+        user.id,
+        spaceId,
+        binding.docId,
+        'Doc.Read'
+      );
+      const scopedDoc = await adapter.diffScoped(spaceId, binding.docId);
+      if (
+        !scopedDoc ||
+        (timestamp !== undefined && scopedDoc.timestamp <= timestamp)
+      ) {
+        return { data: {} };
+      }
+      return {
+        data: {
+          [spaceId]: scopedDoc.timestamp,
+          [binding.docId]: scopedDoc.timestamp,
+        },
+      };
+    }
 
     const stats = await adapter.getTimestamps(spaceId, timestamp);
     if (!stats || spaceType === SpaceType.Userspace) {
@@ -902,6 +1240,15 @@ abstract class SyncSocketAdapter {
     action: WorkspaceAction
   ): Promise<void>;
 
+  protected pushDocUpdates(
+    spaceId: string,
+    docId: string,
+    updates: Buffer[],
+    editorId: string
+  ) {
+    return this.storage.pushDocUpdates(spaceId, docId, updates, editorId);
+  }
+
   async push(
     spaceId: string,
     docId: string,
@@ -909,12 +1256,33 @@ abstract class SyncSocketAdapter {
     editorId: string
   ) {
     this.assertIn(spaceId);
-    return await this.storage.pushDocUpdates(spaceId, docId, updates, editorId);
+    return await this.pushDocUpdates(spaceId, docId, updates, editorId);
+  }
+
+  async pushScoped(
+    spaceId: string,
+    docId: string,
+    updates: Buffer[],
+    editorId: string
+  ) {
+    return await this.pushDocUpdates(spaceId, docId, updates, editorId);
+  }
+
+  protected loadDocDiff(
+    spaceId: string,
+    docId: string,
+    stateVector?: Uint8Array
+  ) {
+    return this.storage.getDocDiff(spaceId, docId, stateVector);
   }
 
   diff(spaceId: string, docId: string, stateVector?: Uint8Array) {
     this.assertIn(spaceId);
-    return this.storage.getDocDiff(spaceId, docId, stateVector);
+    return this.loadDocDiff(spaceId, docId, stateVector);
+  }
+
+  diffScoped(spaceId: string, docId: string, stateVector?: Uint8Array) {
+    return this.loadDocDiff(spaceId, docId, stateVector);
   }
 
   delete(spaceId: string, docId: string) {
@@ -924,6 +1292,10 @@ abstract class SyncSocketAdapter {
 
   getTimestamps(spaceId: string, timestamp?: number) {
     this.assertIn(spaceId);
+    return this.getTimestampsScoped(spaceId, timestamp);
+  }
+
+  getTimestampsScoped(spaceId: string, timestamp?: number) {
     return this.storage.getSpaceDocTimestamps(spaceId, timestamp);
   }
 }
@@ -939,7 +1311,7 @@ class WorkspaceSyncAdapter extends SyncSocketAdapter {
     super(SpaceType.Workspace, client, storage);
   }
 
-  override async push(
+  protected override async pushDocUpdates(
     spaceId: string,
     docId: string,
     updates: Buffer[],
@@ -953,10 +1325,10 @@ class WorkspaceSyncAdapter extends SyncSocketAdapter {
     if (docMeta?.blocked) {
       throw new DocUpdateBlocked({ spaceId, docId });
     }
-    return await super.push(spaceId, docId, updates, editorId);
+    return await super.pushDocUpdates(spaceId, docId, updates, editorId);
   }
 
-  override async diff(
+  protected override async loadDocDiff(
     spaceId: string,
     docId: string,
     stateVector?: Uint8Array

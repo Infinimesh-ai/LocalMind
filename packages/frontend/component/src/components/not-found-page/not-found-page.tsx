@@ -22,12 +22,18 @@ export interface NotFoundPageProps {
   signInComponent?: JSX.Element;
   onBack: () => void;
   onSignOut: () => void;
+  requestAccess?: {
+    pending: boolean;
+    requested: boolean;
+    onRequest: () => void;
+  };
 }
 export const NoPermissionOrNotFound = ({
   user,
   onBack,
   onSignOut,
   signInComponent,
+  requestAccess,
 }: NotFoundPageProps) => {
   const t = useI18n();
 
@@ -47,6 +53,20 @@ export const NoPermissionOrNotFound = ({
                 >
                   {t['404.back']()}
                 </Button>
+                {requestAccess ? (
+                  <Button
+                    variant="secondary"
+                    size="extraLarge"
+                    disabled={requestAccess.pending || requestAccess.requested}
+                    loading={requestAccess.pending}
+                    onClick={requestAccess.onRequest}
+                    className={largeButtonEffect}
+                  >
+                    {requestAccess.requested
+                      ? t['com.affine.localmind.accessRequest.requested']()
+                      : t['com.affine.localmind.accessRequest.request']()}
+                  </Button>
+                ) : null}
               </div>
               <div className={wrapper}>
                 <Avatar url={user.avatar ?? user.image} name={user.label} />

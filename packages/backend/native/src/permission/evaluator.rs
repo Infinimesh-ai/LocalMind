@@ -368,4 +368,53 @@ mod tests {
     let output = evaluate_permission(input).unwrap();
     assert!(!decision(&output.docs[0].decisions, "Doc.Update").allowed);
   }
+
+  #[test]
+  fn matching_group_grant_unions_capped_personal_grant_when_sharing_is_disabled() {
+    let mut input = base_input();
+    input.workspace.role = None;
+    input.runtime.sharing_enabled = Some(false);
+    input.subject.group_ids = vec!["project".to_string()];
+    input.docs[0].explicit_user_role = Some("owner".to_string());
+    input.docs[0].group_grants_enabled = true;
+    input.docs[0].group_grants = vec![PermissionGroupGrantInputV1 {
+      group_id: "project".to_string(),
+      role: "reader".to_string(),
+    }];
+    input.docs[0].actions = vec![
+      "Doc.Read".to_string(),
+      "Doc.Update".to_string(),
+      "Doc.Users.Manage".to_string(),
+    ];
+
+    let output = evaluate_permission(input).unwrap();
+    let doc = &output.docs[0];
+    assert_eq!(doc.effective_role.as_deref(), Some("editor"));
+    assert!(decision(&doc.decisions, "Doc.Read").allowed);
+    assert!(decision(&doc.decisions, "Doc.Update").allowed);
+    assert!(!decision(&doc.decisions, "Doc.Users.Manage").allowed);
+    assert_eq!(doc.resource_owner_role, None);
+  }
+
+  #[test]
+  fn no_access_group_grant_does_not_unlock_personal_grant() {
+    let mut input = base_input();
+    input.workspace.role = None;
+    input.runtime.sharing_enabled = Some(false);
+    input.subject.group_ids = vec!["project".to_string()];
+    input.docs[0].explicit_user_role = Some("editor".to_string());
+    input.docs[0].member_default_role = Some("none".to_string());
+    input.docs[0].group_grants_enabled = true;
+    input.docs[0].group_grants = vec![PermissionGroupGrantInputV1 {
+      group_id: "project".to_string(),
+      role: "none".to_string(),
+    }];
+    input.docs[0].actions = vec!["Doc.Read".to_string(), "Doc.Update".to_string()];
+
+    let output = evaluate_permission(input).unwrap();
+    let doc = &output.docs[0];
+    assert_eq!(doc.effective_role, None);
+    assert!(!decision(&doc.decisions, "Doc.Read").allowed);
+    assert!(!decision(&doc.decisions, "Doc.Update").allowed);
+  }
 }

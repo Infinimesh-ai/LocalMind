@@ -1,0 +1,16 @@
+mutation sendCopilotProjectInvitation(
+  $input: SendCopilotProjectInvitationInput!
+) {
+  sendCopilotProjectInvitation(input: $input) {
+    id
+    projectId
+    inviteeUserId
+    inviterUserId
+    status
+    acceptedAt
+    declinedAt
+    withdrawnAt
+    createdAt
+    updatedAt
+  }
+}

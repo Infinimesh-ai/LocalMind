@@ -52,6 +52,7 @@ import {
   ExternalMcpToolRegistry,
   ExternalMcpTransport,
 } from './external-mcp';
+import { IntelligenceWorkbenchResolver } from './intelligence-workbench-resolver';
 import { McpAttachmentService } from './mcp/attachments';
 import { McpAiDelegationService } from './mcp/delegation';
 import { WorkspaceMcpProvider } from './mcp/provider';
@@ -197,6 +198,7 @@ export const COPILOT_WORKSPACE_PROVIDERS = [
 export const COPILOT_RESOLVER_PROVIDERS = [
   CopilotResolver,
   CopilotContextMemoryResolver,
+  IntelligenceWorkbenchResolver,
   EnterpriseConnectionResolver,
   ExternalMcpConnectionResolver,
   UserCopilotResolver,

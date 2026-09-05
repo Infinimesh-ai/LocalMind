@@ -242,6 +242,8 @@ function actionLabel(action: CopilotTaskAction) {
       return 'Cancel';
     case 'resume':
       return 'Resume';
+    case 'abandon':
+      return 'Abandon';
   }
 }
 

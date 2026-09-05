@@ -120,6 +120,56 @@ describe('runtime request transport', () => {
     expect(client.gql).not.toHaveBeenCalled();
     expect(client.imagesStream).not.toHaveBeenCalled();
   });
+
+  test('forwards the Workbench surface marker only on marked text streams', async () => {
+    const client = createClient();
+
+    await drain(
+      textToText({
+        client,
+        sessionId: 'session-1',
+        workspaceId: 'workspace-1',
+        content: 'workbench chat',
+        stream: true,
+        chatSurface: 'intelligence_workbench',
+      }) as AsyncIterable<string>
+    );
+    expect(client.chatTextStream).toHaveBeenLastCalledWith(
+      expect.objectContaining({ chatSurface: 'intelligence_workbench' }),
+      Endpoint.StreamObject
+    );
+
+    await expect(
+      textToText({
+        client,
+        sessionId: 'session-non-stream',
+        workspaceId: 'workspace-1',
+        content: 'non-stream workbench chat',
+        chatSurface: 'intelligence_workbench',
+      }) as Promise<string>
+    ).resolves.toBe('');
+    expect(client.chatTextStream).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        chatSurface: 'intelligence_workbench',
+        sessionId: 'session-non-stream',
+      }),
+      Endpoint.StreamObject
+    );
+
+    await drain(
+      textToText({
+        client,
+        sessionId: 'session-2',
+        workspaceId: 'workspace-1',
+        content: 'document chat',
+        stream: true,
+      }) as AsyncIterable<string>
+    );
+    expect(client.chatTextStream).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ chatSurface: expect.anything() }),
+      Endpoint.StreamObject
+    );
+  });
 });
 
 describe('AIRequestService action definitions', () => {

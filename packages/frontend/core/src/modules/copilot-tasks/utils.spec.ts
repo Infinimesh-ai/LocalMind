@@ -4,10 +4,12 @@ import {
   buildCopilotTaskControlInput,
   type CopilotTask,
   filterCopilotTasks,
+  getCopilotTaskFilter,
   isCopilotTaskActionDisabled,
 } from './utils';
 
-const task = (id: string, status: string) => ({ id, status }) as CopilotTask;
+const task = (id: string, status: string, abandoned = false) =>
+  ({ id, status, abandoned }) as CopilotTask;
 
 describe('Copilot Tasks utilities', () => {
   test('groups task statuses into product filters', () => {
@@ -17,9 +19,11 @@ describe('Copilot Tasks utilities', () => {
       task('approval', 'waiting_approval'),
       task('completed', 'completed'),
       task('failed', 'failed'),
+      task('abandoned', 'cancelled', true),
       task('cancelled', 'cancelled'),
     ];
 
+    expect(filterCopilotTasks(tasks, 'all')).toEqual(tasks);
     expect(filterCopilotTasks(tasks, 'active').map(item => item.id)).toEqual([
       'queued',
       'running',
@@ -28,8 +32,20 @@ describe('Copilot Tasks utilities', () => {
       'approval',
     ]);
     expect(filterCopilotTasks(tasks, 'completed').map(item => item.id)).toEqual(
-      ['completed', 'failed', 'cancelled']
+      ['completed', 'abandoned', 'cancelled']
     );
+  });
+
+  test('resolves the full-list filter for a linked task status', () => {
+    expect(getCopilotTaskFilter(task('running', 'running'))).toBe('active');
+    expect(getCopilotTaskFilter(task('approval', 'waiting_approval'))).toBe(
+      'approval'
+    );
+    expect(getCopilotTaskFilter(task('failed', 'failed'))).toBe('all');
+    expect(getCopilotTaskFilter(task('abandoned', 'cancelled', true))).toBe(
+      'completed'
+    );
+    expect(getCopilotTaskFilter(task('done', 'completed'))).toBe('completed');
   });
 
   test('serializes the actor-scoped task control mutation input', () => {
@@ -39,6 +55,13 @@ describe('Copilot Tasks utilities', () => {
       workspaceId: 'workspace-1',
       taskId: 'task-1',
       action: 'approve',
+    });
+    expect(
+      buildCopilotTaskControlInput('workspace-2', 'failed-task', 'abandon')
+    ).toEqual({
+      workspaceId: 'workspace-2',
+      taskId: 'failed-task',
+      action: 'abandon',
     });
   });
 
@@ -65,6 +88,14 @@ describe('Copilot Tasks utilities', () => {
         availableActions: ['approve'],
         pendingTaskId: null,
         taskId: 'task-1',
+      })
+    ).toBe(false);
+    expect(
+      isCopilotTaskActionDisabled({
+        action: 'abandon',
+        availableActions: ['resume', 'abandon'],
+        pendingTaskId: null,
+        taskId: 'failed-task',
       })
     ).toBe(false);
   });

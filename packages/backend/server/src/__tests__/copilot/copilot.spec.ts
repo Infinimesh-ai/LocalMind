@@ -1204,32 +1204,468 @@ test('should be able to render listed prompt', async t => {
 });
 
 test('context memories should stay private to their owner and scope', async t => {
-  const { auth, db, models, workspace } = t.context;
+  const { auth, db, models, prompt, session, workspace } = t.context;
   const otherUser = await auth.signUp(
     `memory-${randomUUID()}@affine.pro`,
     '123456'
   );
   const primaryWorkspace = await workspace.create(userId);
+  const secondaryWorkspace = await workspace.create(userId);
   const otherWorkspace = await workspace.create(otherUser.id);
   const memory = models.copilotContextMemory;
   const projectA = await memory.createProject({
-    workspaceId: primaryWorkspace.id,
     createdByUserId: userId,
     name: 'Project A',
-    documentIds: ['doc-a'],
+    documents: [
+      {
+        workspaceId: primaryWorkspace.id,
+        docId: 'doc-a',
+        groupId: 'source',
+        sortOrder: 10,
+      },
+      {
+        workspaceId: secondaryWorkspace.id,
+        docId: 'doc-a',
+        groupId: 'source',
+        sortOrder: 2,
+      },
+    ],
   });
   const projectB = await memory.createProject({
-    workspaceId: primaryWorkspace.id,
     createdByUserId: userId,
     name: 'Project B',
-    documentIds: ['doc-b'],
+    documents: [{ workspaceId: primaryWorkspace.id, docId: 'doc-b' }],
   });
   const cleanupProject = await memory.createProject({
-    workspaceId: primaryWorkspace.id,
     createdByUserId: userId,
     name: 'Document cleanup',
-    documentIds: ['doc-cleanup'],
+    documents: [{ workspaceId: primaryWorkspace.id, docId: 'doc-cleanup' }],
   });
+
+  t.deepEqual(
+    projectA.members.map(member => [member.userId, member.role]),
+    [[userId, 'owner']]
+  );
+  t.deepEqual(
+    projectA.documents.map(document => [
+      document.workspaceId,
+      document.docId,
+      document.groupId,
+      document.sortOrder,
+    ]),
+    [
+      [secondaryWorkspace.id, 'doc-a', 'source', 2],
+      [primaryWorkspace.id, 'doc-a', 'source', 10],
+    ]
+  );
+  const upsertedProjectDocument = await memory.addProjectDocument(
+    projectA.id,
+    userId,
+    {
+      workspaceId: primaryWorkspace.id,
+      docId: 'doc-a',
+      groupId: 'upserted',
+      sortOrder: 4,
+    }
+  );
+  t.is(upsertedProjectDocument?.documents.length, 2);
+  t.like(
+    upsertedProjectDocument?.documents.find(
+      document => document.workspaceId === primaryWorkspace.id
+    ),
+    { groupId: 'upserted', sortOrder: 4 }
+  );
+  t.like(
+    upsertedProjectDocument?.documents.find(
+      document => document.workspaceId === secondaryWorkspace.id
+    ),
+    { groupId: 'source', sortOrder: 2 }
+  );
+  await memory.addProjectDocument(projectA.id, userId, {
+    workspaceId: secondaryWorkspace.id,
+    docId: 'doc-added',
+    groupId: 'later',
+    sortOrder: 20,
+  });
+  const reorderedProjectDocument = await memory.updateProjectDocument(
+    projectA.id,
+    userId,
+    { workspaceId: secondaryWorkspace.id, docId: 'doc-added' },
+    { groupId: 'first', sortOrder: 1 }
+  );
+  t.like(reorderedProjectDocument?.documents[0], {
+    workspaceId: secondaryWorkspace.id,
+    docId: 'doc-added',
+    groupId: 'first',
+    sortOrder: 1,
+  });
+  t.truthy(
+    await memory.removeProjectDocument(projectA.id, userId, {
+      workspaceId: secondaryWorkspace.id,
+      docId: 'doc-added',
+    })
+  );
+  t.is(
+    await memory.removeProjectDocument(projectA.id, userId, {
+      workspaceId: secondaryWorkspace.id,
+      docId: 'doc-added',
+    }),
+    null
+  );
+  t.deepEqual(
+    (await memory.listProjects({ userId }))
+      .map(project => project.id)
+      .toSorted((left, right) => left.localeCompare(right)),
+    [projectA.id, projectB.id, cleanupProject.id].toSorted((left, right) =>
+      left.localeCompare(right)
+    )
+  );
+  t.deepEqual(await memory.listProjects({ userId: otherUser.id }), []);
+  t.deepEqual(
+    await memory.listProjectIdsForDoc({
+      userId,
+      workspaceId: secondaryWorkspace.id,
+      docId: 'doc-a',
+    }),
+    [projectA.id]
+  );
+  t.deepEqual(
+    await memory.listProjectIdsForDoc({
+      userId: otherUser.id,
+      workspaceId: primaryWorkspace.id,
+      docId: 'doc-a',
+    }),
+    []
+  );
+  const globalProjectRule = await models.copilotContextRule.createRule({
+    ownerUserId: userId,
+    workspaceId: primaryWorkspace.id,
+    projectId: projectA.id,
+    scope: 'project',
+    name: 'Global project rule',
+    applicationMode: 'always',
+    priority: 1,
+    conditions: {},
+    content: 'Keep this project scoped across workspaces.',
+  });
+  t.is(globalProjectRule.workspaceId, null);
+  t.true(
+    (
+      await models.copilotContextRule.listRules({
+        ownerUserId: userId,
+        workspaceId: secondaryWorkspace.id,
+        projectIds: [projectA.id],
+      })
+    ).some(rule => rule.id === globalProjectRule.id),
+    'a global Project rule is independent of the execution host workspace'
+  );
+  await t.throwsAsync(
+    memory.put({
+      ownerUserId: otherUser.id,
+      workspaceId: primaryWorkspace.id,
+      projectId: projectA.id,
+      scope: 'project',
+      kind: 'project_summary',
+      visibility: 'private',
+      content: 'NON_MEMBER_PROJECT_MEMORY',
+    }),
+    { message: /requires active project membership/ }
+  );
+  t.false(
+    (
+      await memory.listVisible({
+        userId: otherUser.id,
+        workspaceId: otherWorkspace.id,
+        projectIds: [projectA.id],
+      })
+    ).some(item => item.projectId === projectA.id),
+    'a non-member cannot widen visibility by supplying a Project id'
+  );
+  t.false(
+    (
+      await memory.listManageable({
+        userId: otherUser.id,
+        projectIds: [projectA.id],
+        includeDisabled: true,
+      })
+    ).some(item => item.projectId === projectA.id),
+    'a non-member cannot widen management scope by supplying a Project id'
+  );
+  t.false(
+    (
+      await models.copilotContextRule.listRules({
+        ownerUserId: otherUser.id,
+        workspaceId: otherWorkspace.id,
+        projectIds: [projectA.id],
+      })
+    ).some(rule => rule.id === globalProjectRule.id),
+    'a non-member cannot widen rule visibility by supplying a Project id'
+  );
+
+  await db.aiContextProjectMember.create({
+    data: {
+      projectId: projectA.id,
+      userId: otherUser.id,
+      role: 'member',
+    },
+  });
+  await t.throwsAsync(
+    models.copilotContextRule.createRule({
+      ownerUserId: otherUser.id,
+      projectId: projectA.id,
+      scope: 'project',
+      name: 'Member cannot create',
+      applicationMode: 'always',
+      priority: 1,
+      conditions: {},
+      content: 'A member must not set Project AI policy.',
+    }),
+    { message: /project not found/i }
+  );
+  t.true(
+    (
+      await models.copilotContextRule.listRules({
+        ownerUserId: otherUser.id,
+        workspaceId: otherWorkspace.id,
+        projectIds: [projectA.id],
+      })
+    ).some(rule => rule.id === globalProjectRule.id),
+    'a Project member sees rules created by another member'
+  );
+  await db.aiContextProjectMember.update({
+    where: {
+      projectId_userId: { projectId: projectA.id, userId: otherUser.id },
+    },
+    data: { role: 'owner' },
+  });
+  const otherAuthoredRule = await models.copilotContextRule.createRule({
+    ownerUserId: otherUser.id,
+    projectId: projectA.id,
+    scope: 'project',
+    name: 'Cross-owner project rule',
+    applicationMode: 'always',
+    priority: 2,
+    conditions: {},
+    content: 'Initial owner-authored content.',
+  });
+  const crossOwnerUpdate = await models.copilotContextRule.updateRule(
+    otherAuthoredRule.id,
+    userId,
+    { content: 'Updated by another current Project owner.' }
+  );
+  t.is(crossOwnerUpdate?.ownerUserId, otherUser.id);
+  t.is(crossOwnerUpdate?.revisions[0].createdByUserId, userId);
+  await db.aiContextProjectMember.update({
+    where: {
+      projectId_userId: { projectId: projectA.id, userId: otherUser.id },
+    },
+    data: { role: 'member' },
+  });
+  t.is(
+    await models.copilotContextRule.updateRule(
+      otherAuthoredRule.id,
+      otherUser.id,
+      { content: 'Historical authorship must not grant management.' }
+    ),
+    null
+  );
+  t.false(
+    await models.copilotContextRule.deleteRule(
+      otherAuthoredRule.id,
+      otherUser.id
+    )
+  );
+  t.true(
+    await models.copilotContextRule.deleteRule(otherAuthoredRule.id, userId)
+  );
+
+  await prompt.set(promptName, 'test', [
+    { role: 'system', content: 'Global project scope test.' },
+  ]);
+  const memberSessionId = await session.create({
+    userId,
+    workspaceId: secondaryWorkspace.id,
+    docId: 'doc-a',
+    promptName,
+    pinned: false,
+    reuseLatestChat: false,
+  });
+  await db.aiSession.update({
+    where: { id: memberSessionId },
+    data: { selectedContextProjectId: projectA.id },
+  });
+  t.is(
+    (await db.aiSession.findUnique({ where: { id: memberSessionId } }))
+      ?.selectedContextProjectId,
+    projectA.id
+  );
+  const crossAuthorSessionId = await session.create({
+    userId: otherUser.id,
+    workspaceId: otherWorkspace.id,
+    docId: null,
+    promptName,
+    pinned: false,
+    reuseLatestChat: false,
+  });
+  await db.aiSession.update({
+    where: { id: crossAuthorSessionId },
+    data: { selectedContextProjectId: projectA.id },
+  });
+  t.deepEqual(
+    await models.copilotContextRule.recordHits({
+      sessionId: memberSessionId,
+      sourceTurnId: 'global-project-rule-hit',
+      rules: [
+        {
+          ruleId: globalProjectRule.id,
+          revisionId: globalProjectRule.revisions[0].id,
+          matchReason: 'always',
+          score: 1,
+        },
+      ],
+      policies: [],
+    }),
+    { ruleCount: 1, policyCount: 0 }
+  );
+
+  const primaryProjectSessionId = await session.create({
+    userId,
+    workspaceId: primaryWorkspace.id,
+    docId: 'doc-a',
+    promptName,
+    pinned: false,
+    reuseLatestChat: false,
+  });
+  await db.aiSession.update({
+    where: { id: primaryProjectSessionId },
+    data: { selectedContextProjectId: projectA.id },
+  });
+  const projectFactKey = `project:cross-host:${randomUUID()}`;
+  const projectDecision = (content: string) => ({
+    operation: 'UPDATE' as const,
+    factKey: projectFactKey,
+    content,
+    confidence: 1,
+    importance: 0.8,
+    sensitivity: 'private' as const,
+    validFrom: new Date(),
+    validUntil: null,
+    expiresAt: null,
+    reasonCode: 'cross_host_project_test',
+  });
+  const projectWriter = (
+    ownerUserId: string,
+    workspaceId: string,
+    sourceSessionId: string,
+    content: string
+  ) =>
+    memory.applyWriterDecision({
+      ownerUserId,
+      workspaceId,
+      projectId: projectA.id,
+      sourceSessionId,
+      sourceTurnId: `turn-${workspaceId}`,
+      scope: 'project',
+      explicit: true,
+      writerVersion: 'structured-memory-writer/test',
+      decisionFingerprint: `project-writer-${randomUUID()}`,
+      decision: projectDecision(content),
+    });
+  const projectEvents = await Promise.all([
+    projectWriter(
+      userId,
+      primaryWorkspace.id,
+      primaryProjectSessionId,
+      'The project deployment region is us-west-1.'
+    ),
+    projectWriter(
+      otherUser.id,
+      otherWorkspace.id,
+      crossAuthorSessionId,
+      'The project deployment region is us-west-2.'
+    ),
+  ]);
+  t.deepEqual(
+    projectEvents
+      .map(event => event.operation)
+      .toSorted((left, right) => left.localeCompare(right)),
+    ['ADD', 'UPDATE']
+  );
+  t.deepEqual(
+    projectEvents
+      .map(event => event.workspaceId)
+      .toSorted((left, right) => (left ?? '').localeCompare(right ?? '')),
+    [primaryWorkspace.id, otherWorkspace.id].toSorted((left, right) =>
+      left.localeCompare(right)
+    ),
+    'writer events retain their execution host workspace'
+  );
+  const projectMemoryChain = await db.aiContextMemory.findMany({
+    where: {
+      projectId: projectA.id,
+      factKey: projectFactKey,
+      kind: 'auto_memory',
+    },
+  });
+  t.is(projectMemoryChain.length, 2);
+  t.true(projectMemoryChain.every(item => item.workspaceId === null));
+  t.deepEqual(
+    projectMemoryChain
+      .map(item => item.ownerUserId)
+      .toSorted((left, right) => left.localeCompare(right)),
+    [userId, otherUser.id].toSorted((left, right) => left.localeCompare(right)),
+    'each memory version retains its writing actor as audit provenance'
+  );
+  t.is(
+    projectMemoryChain.filter(item => item.status === 'active').length,
+    1,
+    'cross-host writes share one active Project fact identity'
+  );
+  t.is(
+    projectMemoryChain.filter(item => item.status === 'superseded').length,
+    1
+  );
+  t.true(
+    (
+      await memory.listVisible({
+        userId: otherUser.id,
+        workspaceId: otherWorkspace.id,
+        projectIds: [projectA.id],
+      })
+    ).some(item => item.factKey === projectFactKey),
+    'a Project member sees the active version written by another member'
+  );
+  t.false(
+    (
+      await memory.listManageable({
+        userId: otherUser.id,
+        projectIds: [projectA.id],
+        includeDisabled: true,
+      })
+    ).some(item => item.factKey === projectFactKey),
+    'a Project member cannot manage the shared Project memory chain'
+  );
+
+  const nonMemberUser = await auth.signUp(
+    `memory-non-member-${randomUUID()}@affine.pro`,
+    '123456'
+  );
+  const nonMemberWorkspace = await workspace.create(nonMemberUser.id);
+  const nonMemberSessionId = await session.create({
+    userId: nonMemberUser.id,
+    workspaceId: nonMemberWorkspace.id,
+    docId: null,
+    promptName,
+    pinned: false,
+    reuseLatestChat: false,
+  });
+  await t.throwsAsync(
+    db.aiSession.update({
+      where: { id: nonMemberSessionId },
+      data: { selectedContextProjectId: projectA.id },
+    }),
+    { message: /requires active project membership/ }
+  );
 
   await Promise.all([
     memory.put({
@@ -1315,13 +1751,18 @@ test('context memories should stay private to their owner and scope', async t =>
     docId: 'doc-a',
     projectIds: [projectA.id],
   });
-  const contents = visible.map(item => item.content);
+  const projectFactVisible = visible.filter(
+    item => item.factKey === projectFactKey
+  );
+  t.is(projectFactVisible.length, 1);
+  const contents = visible
+    .filter(item => item.factKey !== projectFactKey)
+    .map(item => item.content);
 
-  t.deepEqual(contents.toSorted(), [
-    'GLOBAL_VISIBLE_RULE',
-    'PRIVATE_WORKSPACE_VISIBLE',
-    'PROJECT_A_VISIBLE',
-  ]);
+  t.deepEqual(
+    contents.toSorted((left, right) => left.localeCompare(right)),
+    ['GLOBAL_VISIBLE_RULE', 'PRIVATE_WORKSPACE_VISIBLE', 'PROJECT_A_VISIBLE']
+  );
   const multiDocumentVisible = await memory.listVisible({
     userId,
     workspaceId: primaryWorkspace.id,
@@ -1362,15 +1803,22 @@ test('context memories should stay private to their owner and scope', async t =>
 
   t.deepEqual(
     await memory.listProjectIdsForDoc({
+      userId,
       workspaceId: primaryWorkspace.id,
       docId: 'doc-a',
     }),
     [projectA.id]
   );
 
-  await memory.updateProject(projectA.id, { status: 'archived' });
+  await memory.updateProject(projectA.id, userId, { status: 'archived' });
+  t.is(
+    (await db.aiSession.findUnique({ where: { id: memberSessionId } }))
+      ?.selectedContextProjectId,
+    null
+  );
   t.deepEqual(
     await memory.listProjectIdsForDoc({
+      userId,
       workspaceId: primaryWorkspace.id,
       docId: 'doc-a',
     }),
@@ -1381,15 +1829,16 @@ test('context memories should stay private to their owner and scope', async t =>
       where: { id: projectA.id },
     })
   );
-  t.false(await memory.deleteProject(projectA.id));
-  t.true(
+  t.false(await memory.deleteProject(projectA.id, userId));
+  t.false(
     (
       await memory.listManageable({
         userId,
         workspaceId: primaryWorkspace.id,
         projectIds: [projectA.id],
       })
-    ).some(item => item.content === 'PROJECT_A_VISIBLE')
+    ).some(item => item.content === 'PROJECT_A_VISIBLE'),
+    'archived Project memory is retained but no longer manageable'
   );
   t.truthy(await memory.getProject(projectA.id));
   t.truthy(
@@ -1405,14 +1854,348 @@ test('context memories should stay private to their owner and scope', async t =>
     `memory-audit-${randomUUID()}@affine.pro`,
     '123456'
   );
+  const auditWorkspace = await workspace.create(auditUser.id);
   const auditProject = await memory.createProject({
-    workspaceId: primaryWorkspace.id,
     createdByUserId: auditUser.id,
     name: 'Audit creator lifecycle',
-    documentIds: ['doc-audit'],
+    documents: [{ workspaceId: auditWorkspace.id, docId: 'doc-audit' }],
+  });
+  await db.aiContextProjectMember.create({
+    data: {
+      projectId: auditProject.id,
+      userId,
+      role: 'owner',
+    },
+  });
+  const auditSessionId = await session.create({
+    userId: auditUser.id,
+    workspaceId: auditWorkspace.id,
+    docId: 'doc-audit',
+    promptName,
+    pinned: false,
+    reuseLatestChat: false,
+  });
+  const retainedEvent = await memory.applyWriterDecision({
+    ownerUserId: auditUser.id,
+    workspaceId: auditWorkspace.id,
+    projectId: auditProject.id,
+    sourceSessionId: auditSessionId,
+    sourceTurnId: 'audit-project-turn',
+    scope: 'project',
+    explicit: true,
+    writerVersion: 'structured-memory-writer/test',
+    decisionFingerprint: `audit-project-${randomUUID()}`,
+    decision: {
+      operation: 'ADD',
+      factKey: `audit:project:${randomUUID()}`,
+      content: 'Retain this Project memory after its author is deleted.',
+      confidence: 1,
+      importance: 0.8,
+      sensitivity: 'private',
+      validFrom: new Date(),
+      validUntil: null,
+      expiresAt: null,
+      reasonCode: 'project_audit_retention',
+    },
+  });
+  const retainedRule = await models.copilotContextRule.createRule({
+    ownerUserId: auditUser.id,
+    projectId: auditProject.id,
+    scope: 'project',
+    name: 'Retained Project rule',
+    applicationMode: 'always',
+    priority: 1,
+    conditions: {},
+    content: 'Retain this Project rule after its author is deleted.',
+  });
+  const personalEvent = await memory.applyWriterDecision({
+    ownerUserId: auditUser.id,
+    workspaceId: auditWorkspace.id,
+    sourceSessionId: auditSessionId,
+    sourceTurnId: 'audit-personal-turn',
+    scope: 'workspace',
+    explicit: true,
+    writerVersion: 'structured-memory-writer/test',
+    decisionFingerprint: `audit-personal-${randomUUID()}`,
+    decision: {
+      operation: 'ADD',
+      factKey: `audit:personal:${randomUUID()}`,
+      content: 'Delete this personal memory with its account.',
+      confidence: 1,
+      importance: 0.8,
+      sensitivity: 'private',
+      validFrom: new Date(),
+      validUntil: null,
+      expiresAt: null,
+      reasonCode: 'personal_audit_cleanup',
+    },
+  });
+  const personalRule = await models.copilotContextRule.createRule({
+    ownerUserId: auditUser.id,
+    scope: 'user',
+    name: 'Personal cleanup rule',
+    applicationMode: 'always',
+    priority: 1,
+    conditions: {},
+    content: 'Delete this personal rule with its account.',
   });
   await db.user.delete({ where: { id: auditUser.id } });
-  t.is((await memory.getProject(auditProject.id))?.createdByUserId, null);
+  const retainedProject = await memory.getProject(auditProject.id);
+  t.is(retainedProject?.createdByUserId, null);
+  t.deepEqual(
+    retainedProject?.members.map(member => [member.userId, member.role]),
+    [[userId, 'owner']]
+  );
+  t.is(
+    (
+      await db.aiContextMemory.findUnique({
+        where: { id: retainedEvent.memoryId! },
+      })
+    )?.ownerUserId,
+    userId
+  );
+  t.like(
+    await db.aiContextMemoryEvent.findUnique({
+      where: { id: retainedEvent.id },
+    }),
+    { ownerUserId: null, sourceSessionId: null }
+  );
+  t.is(
+    (await db.aiContextRule.findUnique({ where: { id: retainedRule.id } }))
+      ?.ownerUserId,
+    userId
+  );
+  t.is(
+    (
+      await db.aiContextRuleRevision.findUnique({
+        where: { id: retainedRule.revisions[0].id },
+      })
+    )?.createdByUserId,
+    null
+  );
+  t.is(
+    await db.aiContextMemoryEvent.count({ where: { id: personalEvent.id } }),
+    0
+  );
+  t.is(await db.aiContextRule.count({ where: { id: personalRule.id } }), 0);
+
+  const soleOwner = await auth.signUp(
+    `memory-sole-owner-${randomUUID()}@affine.pro`,
+    '123456'
+  );
+  const soleOwnerProject = await memory.createProject({
+    createdByUserId: soleOwner.id,
+    name: 'Sole owner deletion guard',
+    documents: [],
+  });
+  await t.throwsAsync(
+    db.$transaction(async transaction => {
+      await transaction.user.delete({ where: { id: soleOwner.id } });
+    }),
+    { message: /must retain at least one owner/ }
+  );
+  t.truthy(await db.user.findUnique({ where: { id: soleOwner.id } }));
+  t.deepEqual(
+    (await memory.getProject(soleOwnerProject.id))?.members.map(member => [
+      member.userId,
+      member.role,
+    ]),
+    [[soleOwner.id, 'owner']]
+  );
+});
+
+test('project document limit is atomic across concurrent additions', async t => {
+  const { models, workspace } = t.context;
+  const targetWorkspace = await workspace.create(userId);
+  const memory = models.copilotContextMemory;
+  const project = await memory.createProject({
+    createdByUserId: userId,
+    name: 'Bounded project',
+    documents: Array.from({ length: 99 }, (_, index) => ({
+      workspaceId: targetWorkspace.id,
+      docId: `existing-${index}`,
+    })),
+  });
+
+  const additions = await Promise.allSettled([
+    memory.addProjectDocument(project.id, userId, {
+      workspaceId: targetWorkspace.id,
+      docId: 'concurrent-a',
+    }),
+    memory.addProjectDocument(project.id, userId, {
+      workspaceId: targetWorkspace.id,
+      docId: 'concurrent-b',
+    }),
+  ]);
+  t.is(additions.filter(result => result.status === 'fulfilled').length, 1);
+  const rejected = additions.find(
+    result => result.status === 'rejected'
+  ) as PromiseRejectedResult;
+  t.regex(rejected.reason.message, /cannot contain more than 100 documents/);
+
+  const bounded = await memory.getProject(project.id);
+  t.is(bounded?.documents.length, 100);
+  const concurrentDocument = bounded?.documents.find(document =>
+    document.docId.startsWith('concurrent-')
+  );
+  t.truthy(concurrentDocument);
+  await memory.addProjectDocument(project.id, userId, {
+    workspaceId: concurrentDocument!.workspaceId,
+    docId: concurrentDocument!.docId,
+    groupId: 'updated-idempotently',
+    sortOrder: 7,
+  });
+  t.like(
+    (await memory.getProject(project.id))?.documents.find(
+      document => document.docId === concurrentDocument!.docId
+    ),
+    { groupId: 'updated-idempotently', sortOrder: 7 }
+  );
+  await t.throwsAsync(
+    memory.addProjectDocument(project.id, userId, {
+      workspaceId: targetWorkspace.id,
+      docId: 'overflow',
+    }),
+    { message: /cannot contain more than 100 documents/ }
+  );
+  t.is((await memory.getProject(project.id))?.documents.length, 100);
+});
+
+test('project workspace document replacement is scoped, ordered, and atomic', async t => {
+  const { auth, db, models, workspace } = t.context;
+  const workspaceA = await workspace.create(userId);
+  const workspaceB = await workspace.create(userId);
+  const member = await auth.signUp(
+    `project-replace-member-${randomUUID()}@affine.pro`,
+    '123456'
+  );
+  const memory = models.copilotContextMemory;
+  const project = await memory.createProject({
+    createdByUserId: userId,
+    name: 'Before replacement',
+    documents: [
+      {
+        workspaceId: workspaceA.id,
+        docId: 'workspace-a-old',
+        groupId: 'old',
+        sortOrder: 4,
+      },
+      {
+        workspaceId: workspaceB.id,
+        docId: 'workspace-b-retained',
+        groupId: 'retained',
+        sortOrder: 9,
+      },
+    ],
+  });
+  await db.aiContextProjectMember.create({
+    data: { projectId: project.id, userId: member.id, role: 'member' },
+  });
+
+  const replaced = await memory.updateProject(project.id, userId, {
+    name: 'After replacement',
+    workspaceDocuments: {
+      workspaceId: workspaceA.id,
+      documents: [
+        {
+          workspaceId: workspaceA.id,
+          docId: 'workspace-a-second',
+          groupId: 'later',
+          sortOrder: 3,
+        },
+        {
+          workspaceId: workspaceA.id,
+          docId: 'workspace-a-first',
+          groupId: 'first',
+          sortOrder: 0,
+        },
+      ],
+    },
+  });
+  t.is(replaced?.name, 'After replacement');
+  t.deepEqual(
+    replaced?.documents.map(document => ({
+      workspaceId: document.workspaceId,
+      docId: document.docId,
+      groupId: document.groupId,
+      sortOrder: document.sortOrder,
+    })),
+    [
+      {
+        workspaceId: workspaceA.id,
+        docId: 'workspace-a-first',
+        groupId: 'first',
+        sortOrder: 0,
+      },
+      {
+        workspaceId: workspaceA.id,
+        docId: 'workspace-a-second',
+        groupId: 'later',
+        sortOrder: 3,
+      },
+      {
+        workspaceId: workspaceB.id,
+        docId: 'workspace-b-retained',
+        groupId: 'retained',
+        sortOrder: 9,
+      },
+    ]
+  );
+
+  const denied = await memory.updateProject(project.id, member.id, {
+    name: 'Member must not rename',
+    workspaceDocuments: {
+      workspaceId: workspaceA.id,
+      documents: [],
+    },
+  });
+  t.is(denied, null);
+  const afterDenied = await memory.getProject(project.id);
+  t.is(afterDenied?.name, 'After replacement');
+  t.is(afterDenied?.documents.length, 3);
+
+  await t.throwsAsync(
+    memory.updateProject(project.id, userId, {
+      name: 'Overflow must roll back',
+      status: 'archived',
+      workspaceDocuments: {
+        workspaceId: workspaceA.id,
+        documents: Array.from({ length: 100 }, (_, index) => ({
+          workspaceId: workspaceA.id,
+          docId: `overflow-${index}`,
+          groupId: 'overflow',
+          sortOrder: index,
+        })),
+      },
+    }),
+    { message: /cannot contain more than 100 documents/ }
+  );
+  const afterOverflow = await memory.getProject(project.id);
+  t.is(afterOverflow?.name, 'After replacement');
+  t.is(afterOverflow?.status, 'active');
+  t.deepEqual(
+    afterOverflow?.documents.map(document => document.docId),
+    ['workspace-a-first', 'workspace-a-second', 'workspace-b-retained']
+  );
+
+  await db.aiContextProjectMember.update({
+    where: {
+      projectId_userId: { projectId: project.id, userId: member.id },
+    },
+    data: { role: 'owner' },
+  });
+  await db.aiContextProjectMember.delete({
+    where: {
+      projectId_userId: { projectId: project.id, userId },
+    },
+  });
+  t.is(
+    await memory.updateProject(project.id, userId, {
+      name: 'Lost owner race must not write',
+    }),
+    null
+  );
+  t.is((await memory.getProject(project.id))?.name, 'After replacement');
 });
 
 test('structured context memory lifecycle should version, expire, and undo facts', async t => {
@@ -1677,6 +2460,47 @@ test('context memory quota keeps the most recently used automatic memories', asy
   t.is(await memory.get(created[0].id), null);
   t.truthy(await memory.get(created[1].id));
   t.truthy(await memory.get(created[2].id));
+
+  const secondaryWorkspace = await workspace.create(userId);
+  const project = await memory.createProject({
+    createdByUserId: userId,
+    name: 'Cross-host quota project',
+    documents: [],
+  });
+  const projectMemories = [];
+  for (const index of [0, 1, 2]) {
+    const row = await memory.put({
+      ownerUserId: userId,
+      workspaceId: index % 2 === 0 ? targetWorkspace.id : secondaryWorkspace.id,
+      projectId: project.id,
+      scope: 'project',
+      kind: 'auto_memory',
+      visibility: 'private',
+      content: `Cross-host quota fact ${index}.`,
+      factKey: `quota:project:${index}`,
+      captureMode: 'explicit',
+      writerVersion: 'structured-memory-writer/test',
+    });
+    await db.aiContextMemory.update({
+      where: { id: row.id },
+      data: { lastUsedAt: new Date(Date.UTC(2026, 1, index + 1)) },
+    });
+    projectMemories.push(row);
+  }
+  t.true(projectMemories.every(item => item.workspaceId === null));
+  const projectCleanup = await memory.enforceAutoMemoryQuota(
+    {
+      ownerUserId: userId,
+      workspaceId: secondaryWorkspace.id,
+      scope: 'project',
+      projectId: project.id,
+    },
+    2
+  );
+  t.is(projectCleanup.count, 1);
+  t.is(await memory.get(projectMemories[0].id), null);
+  t.truthy(await memory.get(projectMemories[1].id));
+  t.truthy(await memory.get(projectMemories[2].id));
 });
 
 test('context memory update maps identity conflicts and concurrent deletion', async t => {
@@ -1751,7 +2575,7 @@ test('context rules and workspace policies should retain revisions and hit histo
   t.is(revisedRule?.activeRevision, 2);
   const rolledBackRule = await directives.rollbackRule({
     id: createdRule.id,
-    ownerUserId: userId,
+    actorUserId: userId,
     revision: 1,
   });
   t.is(rolledBackRule?.activeRevision, 3);

@@ -44,6 +44,9 @@ import { DocModel } from './doc';
 import { DocUserModel } from './doc-user';
 import { FeatureModel } from './feature';
 import { HistoryModel } from './history';
+import { IntelligenceWorkbenchAuthorizationModel } from './intelligence-workbench-authorization';
+import { IntelligenceWorkbenchBlockerModel } from './intelligence-workbench-blocker';
+import { IntelligenceWorkbenchTaskProjectionModel } from './intelligence-workbench-task-projection';
 import { IscpModel } from './iscp';
 import { MagicLinkOtpModel } from './magic-link-otp';
 import { MailDeliveryModel } from './mail-delivery';
@@ -89,6 +92,9 @@ const MODELS = {
   officeArtifact: OfficeArtifactModel,
   officeCommandRequest: OfficeCommandRequestModel,
   iscp: IscpModel,
+  intelligenceWorkbenchAuthorization: IntelligenceWorkbenchAuthorizationModel,
+  intelligenceWorkbenchBlocker: IntelligenceWorkbenchBlockerModel,
+  intelligenceWorkbenchTaskProjection: IntelligenceWorkbenchTaskProjectionModel,
   workspaceMember: WorkspaceMemberModel,
   workspaceInvitation: WorkspaceInvitationModel,
   workspaceAccessPolicy: WorkspaceAccessPolicyModel,
@@ -215,6 +221,9 @@ export * from './doc';
 export * from './doc-user';
 export * from './feature';
 export * from './history';
+export * from './intelligence-workbench-authorization';
+export * from './intelligence-workbench-blocker';
+export * from './intelligence-workbench-task-projection';
 export * from './iscp';
 export * from './magic-link-otp';
 export * from './mail-delivery';

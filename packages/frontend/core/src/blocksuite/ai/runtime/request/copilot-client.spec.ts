@@ -57,6 +57,35 @@ describe('CopilotClient action streams', () => {
     );
   });
 
+  test('adds the Intelligence Workbench marker only to an explicitly marked chat stream', () => {
+    const eventSource = vi.fn(
+      () =>
+        ({
+          close: vi.fn(),
+        }) as unknown as EventSource
+    );
+    const client = new CopilotClient(vi.fn(), eventSource);
+
+    client.chatTextStream({
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      chatSurface: 'intelligence_workbench',
+    });
+    client.chatTextStream({
+      sessionId: 'session-2',
+      messageId: 'message-2',
+    });
+
+    expect(eventSource).toHaveBeenNthCalledWith(
+      1,
+      '/api/copilot/chat/session-1/stream-object?messageId=message-1&chatSurface=intelligence_workbench'
+    );
+    expect(eventSource).toHaveBeenNthCalledWith(
+      2,
+      '/api/copilot/chat/session-2/stream-object?messageId=message-2'
+    );
+  });
+
   test('passes modelId through image stream query', () => {
     const eventSource = vi.fn(
       () =>

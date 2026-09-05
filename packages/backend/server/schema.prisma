@@ -25,71 +25,90 @@ model User {
   registered      Boolean   @default(true)
   disabled        Boolean   @default(false)
 
-  features                              UserFeature[]
-  userStripeCustomer                    UserStripeCustomer?
-  workspaceMembers                      WorkspaceMember[]
-  workspaceInvitations                  WorkspaceInvitation[]                  @relation("workspace_invitation_invitee")
-  createdWorkspaceInvitations           WorkspaceInvitation[]                  @relation("workspace_invitation_inviter")
+  features                                  UserFeature[]
+  userStripeCustomer                        UserStripeCustomer?
+  workspaceMembers                          WorkspaceMember[]
+  workspaceInvitations                      WorkspaceInvitation[]                  @relation("workspace_invitation_invitee")
+  createdWorkspaceInvitations               WorkspaceInvitation[]                  @relation("workspace_invitation_inviter")
   // Invite others to join the workspace
-  connectedAccounts                     ConnectedAccount[]
-  calendarAccounts                      CalendarAccount[]
-  mcpCredentials                        McpCredential[]
-  aiMcpAttachments                      AiMcpAttachment[]                      @relation("mcp_attachment_actor")
-  mcpDelegationEndpoints                AiMcpDelegationEndpoint[]              @relation("mcp_delegation_endpoint_user")
-  aiMcpDelegationRequests               AiMcpDelegationRequest[]               @relation("mcp_delegation_request_actor")
-  createdExternalMcpConnections         AiExternalMcpConnection[]              @relation("external_mcp_connection_creator")
-  externalMcpAuditEvents                AiExternalMcpAuditEvent[]              @relation("external_mcp_audit_actor")
-  externalMcpToolExecutions             AiExternalMcpToolExecution[]           @relation("external_mcp_tool_execution_actor")
-  enterpriseConnections                 AiEnterpriseConnection[]               @relation("enterprise_connection_user")
-  enterpriseAuditEvents                 AiEnterpriseAuditEvent[]               @relation("enterprise_audit_actor")
-  enterpriseAuthorizationSessions       AiEnterpriseAuthorizationSession[]     @relation("enterprise_authorization_user")
-  sessions                              UserSession[]
-  aiSessions                            AiSession[]
-  appConfigs                            AppConfig[]
-  userSnapshots                         UserSnapshot[]
-  createdSnapshot                       Snapshot[]                             @relation("createdSnapshot")
-  updatedSnapshot                       Snapshot[]                             @relation("updatedSnapshot")
-  createdUpdate                         Update[]                               @relation("createdUpdate")
-  createdHistory                        SnapshotHistory[]                      @relation("createdHistory")
-  createdAiJobs                         AiJobs[]                               @relation("createdAiJobs")
+  connectedAccounts                         ConnectedAccount[]
+  calendarAccounts                          CalendarAccount[]
+  mcpCredentials                            McpCredential[]
+  aiMcpAttachments                          AiMcpAttachment[]                      @relation("mcp_attachment_actor")
+  mcpDelegationEndpoints                    AiMcpDelegationEndpoint[]              @relation("mcp_delegation_endpoint_user")
+  aiMcpDelegationRequests                   AiMcpDelegationRequest[]               @relation("mcp_delegation_request_actor")
+  createdExternalMcpConnections             AiExternalMcpConnection[]              @relation("external_mcp_connection_creator")
+  externalMcpAuditEvents                    AiExternalMcpAuditEvent[]              @relation("external_mcp_audit_actor")
+  externalMcpToolExecutions                 AiExternalMcpToolExecution[]           @relation("external_mcp_tool_execution_actor")
+  enterpriseConnections                     AiEnterpriseConnection[]               @relation("enterprise_connection_user")
+  enterpriseAuditEvents                     AiEnterpriseAuditEvent[]               @relation("enterprise_audit_actor")
+  enterpriseAuthorizationSessions           AiEnterpriseAuthorizationSession[]     @relation("enterprise_authorization_user")
+  sessions                                  UserSession[]
+  aiSessions                                AiSession[]
+  appConfigs                                AppConfig[]
+  userSnapshots                             UserSnapshot[]
+  createdSnapshot                           Snapshot[]                             @relation("createdSnapshot")
+  updatedSnapshot                           Snapshot[]                             @relation("updatedSnapshot")
+  createdUpdate                             Update[]                               @relation("createdUpdate")
+  createdHistory                            SnapshotHistory[]                      @relation("createdHistory")
+  createdAiJobs                             AiJobs[]                               @relation("createdAiJobs")
   // receive notifications
-  notifications                         Notification[]                         @relation("user_notifications")
-  iscpAgentEndpoints                    IscpAgentEndpoint[]
-  iscpEnrollments                       IscpEnrollment[]
-  settings                              UserSettings?
-  comments                              Comment[]
-  replies                               Reply[]
-  commentAttachments                    CommentAttachment[]                    @relation("createdCommentAttachments")
-  workspaceCalendars                    WorkspaceCalendar[]
-  workspaceMemberLastAccesses           WorkspaceMemberLastAccess[]
-  quotaState                            EffectiveUserQuotaState?
-  ownedQuotaStates                      EffectiveWorkspaceQuotaState[]
-  aiSupportBundleRequests               AiSupportBundleRequest[]               @relation("support_bundle_request_actor")
-  aiSupportBundleAuditEvents            AiSupportBundleAuditEvent[]            @relation("support_bundle_audit_event_actor")
-  aiSupportBundleDownloadAuthorizations AiSupportBundleDownloadAuthorization[] @relation("support_bundle_download_authorization_actor")
-  aiRepairExecutionRequests             AiRepairExecutionRequest[]             @relation("repair_execution_request_actor")
-  aiRepairExecutionAuditEvents          AiRepairExecutionAuditEvent[]          @relation("repair_execution_audit_event_actor")
-  aiAgentRuns                           AiAgentRun[]                           @relation("agent_run_actor")
-  aiAgentSteps                          AiAgentStep[]                          @relation("agent_step_actor")
-  aiAgentTimelineEvents                 AiAgentTimelineEvent[]                 @relation("agent_timeline_event_actor")
-  aiPromptRegistryRevisions             AiPromptRegistryRevision[]             @relation("prompt_registry_revision_actor")
-  aiTaskRoutePolicyRevisions            AiTaskRoutePolicyRevision[]            @relation("task_route_policy_revision_actor")
-  aiModelRegistryRevisions              AiModelRegistryRevision[]              @relation("model_registry_revision_actor")
-  aiProviderRegistryRevisions           AiProviderRegistryRevision[]           @relation("provider_registry_revision_actor")
-  aiProviderHealthStates                AiProviderHealthState[]                @relation("provider_health_state_actor")
-  aiProviderHealthEvents                AiProviderHealthEvent[]                @relation("provider_health_event_actor")
-  aiContextMemories                     AiContextMemory[]                      @relation("context_memory_owner")
-  aiContextMemoryEvents                 AiContextMemoryEvent[]                 @relation("context_memory_event_owner")
-  aiContextPreferences                  AiContextPreference[]                  @relation("context_preference_user")
-  createdAiContextProjects              AiContextProject[]                     @relation("context_project_creator")
-  aiContextRules                        AiContextRule[]                        @relation("context_rule_owner")
-  createdAiContextRuleRevisions         AiContextRuleRevision[]                @relation("context_rule_revision_creator")
-  createdAiContextPolicies              AiContextPolicy[]                      @relation("context_policy_creator")
-  createdAiContextPolicyRevisions       AiContextPolicyRevision[]              @relation("context_policy_revision_creator")
-  aiProfileAssignment                   AiUserAiProfileAssignment?             @relation("ai_profile_assignment_user")
-  createdOfficeArtifacts                OfficeArtifact[]                       @relation("office_artifact_creator")
-  createdOfficeRevisions                OfficeRevision[]                       @relation("office_revision_creator")
-  createdOfficeCommandRequests          OfficeCommandRequest[]                 @relation("office_command_request_creator")
+  notifications                             Notification[]                         @relation("user_notifications")
+  iscpAgentEndpoints                        IscpAgentEndpoint[]
+  iscpEnrollments                           IscpEnrollment[]
+  settings                                  UserSettings?
+  comments                                  Comment[]
+  replies                                   Reply[]
+  commentAttachments                        CommentAttachment[]                    @relation("createdCommentAttachments")
+  workspaceCalendars                        WorkspaceCalendar[]
+  workspaceMemberLastAccesses               WorkspaceMemberLastAccess[]
+  quotaState                                EffectiveUserQuotaState?
+  ownedQuotaStates                          EffectiveWorkspaceQuotaState[]
+  aiSupportBundleRequests                   AiSupportBundleRequest[]               @relation("support_bundle_request_actor")
+  aiSupportBundleAuditEvents                AiSupportBundleAuditEvent[]            @relation("support_bundle_audit_event_actor")
+  aiSupportBundleDownloadAuthorizations     AiSupportBundleDownloadAuthorization[] @relation("support_bundle_download_authorization_actor")
+  aiRepairExecutionRequests                 AiRepairExecutionRequest[]             @relation("repair_execution_request_actor")
+  aiRepairExecutionAuditEvents              AiRepairExecutionAuditEvent[]          @relation("repair_execution_audit_event_actor")
+  aiAgentRuns                               AiAgentRun[]                           @relation("agent_run_actor")
+  aiAgentSteps                              AiAgentStep[]                          @relation("agent_step_actor")
+  aiAgentTimelineEvents                     AiAgentTimelineEvent[]                 @relation("agent_timeline_event_actor")
+  aiPromptRegistryRevisions                 AiPromptRegistryRevision[]             @relation("prompt_registry_revision_actor")
+  aiTaskRoutePolicyRevisions                AiTaskRoutePolicyRevision[]            @relation("task_route_policy_revision_actor")
+  aiModelRegistryRevisions                  AiModelRegistryRevision[]              @relation("model_registry_revision_actor")
+  aiProviderRegistryRevisions               AiProviderRegistryRevision[]           @relation("provider_registry_revision_actor")
+  aiProviderHealthStates                    AiProviderHealthState[]                @relation("provider_health_state_actor")
+  aiProviderHealthEvents                    AiProviderHealthEvent[]                @relation("provider_health_event_actor")
+  aiContextMemories                         AiContextMemory[]                      @relation("context_memory_owner")
+  aiContextMemoryEvents                     AiContextMemoryEvent[]                 @relation("context_memory_event_owner")
+  aiContextPreferences                      AiContextPreference[]                  @relation("context_preference_user")
+  createdAiContextProjects                  AiContextProject[]                     @relation("context_project_creator")
+  aiContextProjectMemberships               AiContextProjectMember[]               @relation("context_project_member_user")
+  addedAiContextProjectDocuments            AiContextProjectDoc[]                  @relation("context_project_document_adder")
+  initiatedAiContextProjectPlaceholders     AiContextProjectDoc[]                  @relation("context_project_document_placeholder_initiator")
+  updatedAiContextProjectPolicies           AiContextProject[]                     @relation("context_project_policy_updater")
+  grantedAiContextProjectGrants             AiContextProjectGrant[]                @relation("context_project_grant_grantor")
+  revokedAiContextProjectGrants             AiContextProjectGrant[]                @relation("context_project_grant_revoker")
+  requestedAccessRequests                   AccessRequest[]                        @relation("access_request_requester")
+  benefitedAccessRequests                   AccessRequest[]                        @relation("access_request_user_beneficiary")
+  resolvedAccessRequests                    AccessRequest[]                        @relation("access_request_resolver")
+  accessRequestAuditEvents                  AccessRequestAuditEvent[]              @relation("access_request_audit_actor")
+  sentAiContextProjectInvitations           AiContextProjectInvitation[]           @relation("context_project_invitation_inviter")
+  receivedAiContextProjectInvitations       AiContextProjectInvitation[]           @relation("context_project_invitation_invitee")
+  aiContextProjectInvitationEvents          AiContextProjectInvitationAuditEvent[] @relation("context_project_invitation_audit_actor")
+  aiContextProjectGrantEvents               AiContextProjectGrantAuditEvent[]      @relation("context_project_grant_audit_actor")
+  aiContextProjectPolicyEvents              AiContextProjectPolicyAuditEvent[]     @relation("context_project_policy_audit_actor")
+  initiatedAiContextProjectMembershipEvents AiContextProjectMembershipAuditEvent[] @relation("context_project_membership_audit_actor")
+  subjectAiContextProjectMembershipEvents   AiContextProjectMembershipAuditEvent[] @relation("context_project_membership_audit_subject")
+  createdAiContextProjectBlockers           AiContextProjectBlocker[]              @relation("context_project_blocker_creator")
+  resolvedAiContextProjectBlockers          AiContextProjectBlocker[]              @relation("context_project_blocker_resolution_actor")
+  aiContextRules                            AiContextRule[]                        @relation("context_rule_owner")
+  createdAiContextRuleRevisions             AiContextRuleRevision[]                @relation("context_rule_revision_creator")
+  createdAiContextPolicies                  AiContextPolicy[]                      @relation("context_policy_creator")
+  createdAiContextPolicyRevisions           AiContextPolicyRevision[]              @relation("context_policy_revision_creator")
+  aiProfileAssignment                       AiUserAiProfileAssignment?             @relation("ai_profile_assignment_user")
+  createdOfficeArtifacts                    OfficeArtifact[]                       @relation("office_artifact_creator")
+  createdOfficeRevisions                    OfficeRevision[]                       @relation("office_revision_creator")
+  createdOfficeCommandRequests              OfficeCommandRequest[]                 @relation("office_command_request_creator")
 
   @@index([email])
   @@map("users")
@@ -264,7 +283,9 @@ model Workspace {
   aiContextMemories                     AiContextMemory[]                      @relation("context_memory_workspace")
   aiContextMemoryEvents                 AiContextMemoryEvent[]                 @relation("context_memory_event_workspace")
   aiContextPreferences                  AiContextPreference[]                  @relation("context_preference_workspace")
-  aiContextProjects                     AiContextProject[]                     @relation("context_project_workspace")
+  aiContextProjectDocuments             AiContextProjectDoc[]                  @relation("context_project_document_workspace")
+  aiContextProjectGrants                AiContextProjectGrant[]                @relation("context_project_grant_workspace")
+  accessRequests                        AccessRequest[]                        @relation("access_request_workspace")
   aiContextRules                        AiContextRule[]                        @relation("context_rule_workspace")
   aiContextPolicies                     AiContextPolicy[]                      @relation("context_policy_workspace")
   mcpCredentials                        McpCredential[]
@@ -1138,6 +1159,7 @@ model AiSession {
   contextPolicyHits      AiContextPolicyHit[]
   selectedContextProject AiContextProject?      @relation("context_project_selected_session", fields: [selectedContextProjectId], references: [id], onDelete: SetNull)
   actionRuns             AiActionRun[]
+  agentRuns              AiAgentRun[]           @relation("agent_run_session")
 
   //NOTE:
   // unrecorded index:
@@ -1154,44 +1176,50 @@ model AiSession {
 model AiContextMemory {
   // Migrations additionally enforce scope/lifecycle/content CHECK constraints
   // and expression-based partial uniqueness that Prisma cannot represent.
-  id              String                       @id @default(uuid()) @db.VarChar
-  ownerUserId     String                       @map("owner_user_id") @db.VarChar
-  workspaceId     String?                      @map("workspace_id") @db.VarChar
-  docId           String?                      @map("doc_id") @db.VarChar
-  projectId       String?                      @map("project_id") @db.VarChar
-  sourceSessionId String?                      @map("source_session_id") @db.VarChar
-  scope           String                       @db.VarChar
-  kind            String                       @db.VarChar
-  visibility      String                       @default("private") @db.VarChar
-  status          String                       @default("active") @db.VarChar
-  content         String                       @db.Text
-  fingerprint     String                       @db.VarChar
-  factKey         String?                      @map("fact_key") @db.VarChar
-  confidence      Float                        @default(1)
-  importance      Float                        @default(0.5)
-  sensitivity     String                       @default("private") @db.VarChar
-  captureMode     String                       @default("manual") @map("capture_mode") @db.VarChar
-  writerVersion   String                       @default("legacy/v1") @map("writer_version") @db.VarChar
-  validFrom       DateTime?                    @map("valid_from") @db.Timestamptz(3)
-  validUntil      DateTime?                    @map("valid_until") @db.Timestamptz(3)
-  expiresAt       DateTime?                    @map("expires_at") @db.Timestamptz(3)
-  supersedesId    String?                      @map("supersedes_id") @db.VarChar
-  lastUsedAt      DateTime?                    @map("last_used_at") @db.Timestamptz(3)
-  useCount        Int                          @default(0) @map("use_count")
-  embedding       Unsupported("vector(4096)")?
-  metadata        Json                         @default("{}") @db.JsonB
-  createdAt       DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime                     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                          String                       @id @default(uuid()) @db.VarChar
+  ownerUserId                 String                       @map("owner_user_id") @db.VarChar
+  workspaceId                 String?                      @map("workspace_id") @db.VarChar
+  docId                       String?                      @map("doc_id") @db.VarChar
+  projectId                   String?                      @map("project_id") @db.VarChar
+  sourceSessionId             String?                      @map("source_session_id") @db.VarChar
+  scope                       String                       @db.VarChar
+  kind                        String                       @db.VarChar
+  visibility                  String                       @default("private") @db.VarChar
+  status                      String                       @default("active") @db.VarChar
+  content                     String                       @db.Text
+  fingerprint                 String                       @db.VarChar
+  factKey                     String?                      @map("fact_key") @db.VarChar
+  confidence                  Float                        @default(1)
+  importance                  Float                        @default(0.5)
+  sensitivity                 String                       @default("private") @db.VarChar
+  captureMode                 String                       @default("manual") @map("capture_mode") @db.VarChar
+  writerVersion               String                       @default("legacy/v1") @map("writer_version") @db.VarChar
+  validFrom                   DateTime?                    @map("valid_from") @db.Timestamptz(3)
+  validUntil                  DateTime?                    @map("valid_until") @db.Timestamptz(3)
+  expiresAt                   DateTime?                    @map("expires_at") @db.Timestamptz(3)
+  supersedesId                String?                      @map("supersedes_id") @db.VarChar
+  lastUsedAt                  DateTime?                    @map("last_used_at") @db.Timestamptz(3)
+  useCount                    Int                          @default(0) @map("use_count")
+  quarantinedAt               DateTime?                    @map("quarantined_at") @db.Timestamptz(3)
+  quarantineReason            String?                      @map("quarantine_reason") @db.VarChar
+  quarantinedByProjectGrantId String?                      @map("quarantined_by_project_grant_id") @db.VarChar
+  embedding                   Unsupported("vector(4096)")?
+  metadata                    Json                         @default("{}") @db.JsonB
+  createdAt                   DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                   DateTime                     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  owner          User                   @relation("context_memory_owner", fields: [ownerUserId], references: [id], onDelete: Cascade)
-  workspace      Workspace?             @relation("context_memory_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
-  project        AiContextProject?      @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  sourceSession  AiSession?             @relation("context_memory_source_session", fields: [sourceSessionId], references: [id], onDelete: SetNull)
-  supersedes     AiContextMemory?       @relation("context_memory_supersession", fields: [supersedesId], references: [id], onDelete: SetNull)
-  supersededBy   AiContextMemory[]      @relation("context_memory_supersession")
-  events         AiContextMemoryEvent[] @relation("context_memory_event_memory")
-  previousEvents AiContextMemoryEvent[] @relation("context_memory_event_previous_memory")
+  owner                     User                    @relation("context_memory_owner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  workspace                 Workspace?              @relation("context_memory_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  project                   AiContextProject?       @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  sourceSession             AiSession?              @relation("context_memory_source_session", fields: [sourceSessionId], references: [id], onDelete: SetNull)
+  supersedes                AiContextMemory?        @relation("context_memory_supersession", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy              AiContextMemory[]       @relation("context_memory_supersession")
+  events                    AiContextMemoryEvent[]  @relation("context_memory_event_memory")
+  previousEvents            AiContextMemoryEvent[]  @relation("context_memory_event_previous_memory")
+  sources                   AiContextMemorySource[]
+  quarantinedByProjectGrant AiContextProjectGrant?  @relation("context_memory_quarantine_grant", fields: [quarantinedByProjectGrantId], references: [id], onDelete: SetNull)
 
+  @@unique([id, projectId])
   @@index([ownerUserId, status, updatedAt])
   @@index([workspaceId, docId, status, updatedAt])
   @@index([projectId, status, updatedAt])
@@ -1200,13 +1228,14 @@ model AiContextMemory {
   @@index([lastUsedAt])
   @@index([supersedesId])
   @@index([sourceSessionId])
+  @@index([quarantinedByProjectGrantId, status])
   @@index([fingerprint])
   @@map("ai_context_memories")
 }
 
 model AiContextMemoryEvent {
   id                  String    @id @default(uuid()) @db.VarChar
-  ownerUserId         String    @map("owner_user_id") @db.VarChar
+  ownerUserId         String?   @map("owner_user_id") @db.VarChar
   workspaceId         String?   @map("workspace_id") @db.VarChar
   sourceSessionId     String?   @map("source_session_id") @db.VarChar
   sourceTurnId        String?   @map("source_turn_id") @db.VarChar
@@ -1222,7 +1251,7 @@ model AiContextMemoryEvent {
   undoneAt            DateTime? @map("undone_at") @db.Timestamptz(3)
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  owner          User                   @relation("context_memory_event_owner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  owner          User?                  @relation("context_memory_event_owner", fields: [ownerUserId], references: [id], onDelete: Cascade)
   workspace      Workspace?             @relation("context_memory_event_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
   sourceSession  AiSession?             @relation("context_memory_event_source_session", fields: [sourceSessionId], references: [id], onDelete: SetNull)
   memory         AiContextMemory?       @relation("context_memory_event_memory", fields: [memoryId], references: [id], onDelete: Cascade)
@@ -1238,36 +1267,324 @@ model AiContextMemoryEvent {
 }
 
 model AiContextProject {
-  id              String   @id @default(uuid()) @db.VarChar
-  workspaceId     String   @map("workspace_id") @db.VarChar
-  createdByUserId String?  @map("created_by_user_id") @db.VarChar
-  name            String   @db.VarChar
-  description     String   @default("") @db.Text
-  status          String   @default("active") @db.VarChar
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                      String    @id @default(uuid()) @db.VarChar
+  createdByUserId         String?   @map("created_by_user_id") @db.VarChar
+  name                    String    @db.VarChar
+  description             String    @default("") @db.Text
+  status                  String    @default("active") @db.VarChar
+  aiPolicy                String    @default("read_only") @map("ai_policy") @db.VarChar
+  aiPolicyUpdatedByUserId String?   @map("ai_policy_updated_by_user_id") @db.VarChar
+  aiPolicyUpdatedAt       DateTime? @map("ai_policy_updated_at") @db.Timestamptz(3)
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  workspace        Workspace             @relation("context_project_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
-  creator          User?                 @relation("context_project_creator", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  documents        AiContextProjectDoc[]
-  memories         AiContextMemory[]
-  rules            AiContextRule[]
-  selectedSessions AiSession[]           @relation("context_project_selected_session")
+  creator               User?                                  @relation("context_project_creator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  aiPolicyUpdatedBy     User?                                  @relation("context_project_policy_updater", fields: [aiPolicyUpdatedByUserId], references: [id], onDelete: SetNull)
+  members               AiContextProjectMember[]
+  documents             AiContextProjectDoc[]
+  grants                AiContextProjectGrant[]
+  accessRequests        AccessRequest[]                        @relation("access_request_project_beneficiary")
+  invitations           AiContextProjectInvitation[]
+  blockers              AiContextProjectBlocker[]
+  membershipAuditEvents AiContextProjectMembershipAuditEvent[]
+  policyAuditEvents     AiContextProjectPolicyAuditEvent[]
+  memories              AiContextMemory[]
+  memorySources         AiContextMemorySource[]
+  rules                 AiContextRule[]
+  selectedSessions      AiSession[]                            @relation("context_project_selected_session")
 
-  @@index([workspaceId, status, updatedAt])
+  @@index([status, updatedAt])
+  @@index([aiPolicyUpdatedByUserId])
   @@map("ai_context_projects")
 }
 
-model AiContextProjectDoc {
+model AiContextProjectMember {
   projectId String   @map("project_id") @db.VarChar
-  docId     String   @map("doc_id") @db.VarChar
+  userId    String   @map("user_id") @db.VarChar
+  role      String   @db.VarChar
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   project AiContextProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User             @relation("context_project_member_user", fields: [userId], references: [id], onDelete: Cascade)
 
-  @@id([projectId, docId])
-  @@index([docId, projectId])
+  @@id([projectId, userId])
+  @@index([userId, role, createdAt])
+  @@index([projectId, role])
+  @@map("ai_context_project_members")
+}
+
+model AiContextProjectBlocker {
+  id                            String    @id @default(uuid()) @db.VarChar
+  projectId                     String    @map("project_id") @db.VarChar
+  creatorUserId                 String?   @map("creator_user_id") @db.VarChar
+  creatorUserIdSnapshot         String    @map("creator_user_id_snapshot") @db.VarChar
+  title                         String    @db.VarChar
+  type                          String    @db.VarChar
+  waitingOn                     String    @map("waiting_on") @db.VarChar
+  dueAt                         DateTime? @map("due_at") @db.Timestamptz(3)
+  status                        String    @default("waiting") @db.VarChar
+  origin                        String    @db.VarChar
+  aiSuggestionId                String?   @map("ai_suggestion_id") @db.VarChar
+  resolutionActorUserId         String?   @map("resolution_actor_user_id") @db.VarChar
+  resolutionActorUserIdSnapshot String?   @map("resolution_actor_user_id_snapshot") @db.VarChar
+  resolvedAt                    DateTime? @map("resolved_at") @db.Timestamptz(3)
+  createdAt                     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project         AiContextProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator         User?            @relation("context_project_blocker_creator", fields: [creatorUserId], references: [id], onDelete: SetNull)
+  resolutionActor User?            @relation("context_project_blocker_resolution_actor", fields: [resolutionActorUserId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, aiSuggestionId])
+  @@index([projectId, status, dueAt, updatedAt])
+  @@index([projectId, status, resolvedAt])
+  @@index([creatorUserId, createdAt])
+  @@index([resolutionActorUserId, resolvedAt])
+  @@map("ai_context_project_blockers")
+}
+
+model AiContextProjectMembershipAuditEvent {
+  id                    String   @id @default(uuid()) @db.VarChar
+  projectId             String   @map("project_id") @db.VarChar
+  eventType             String   @map("event_type") @db.VarChar
+  actorUserId           String?  @map("actor_user_id") @db.VarChar
+  actorUserIdSnapshot   String   @map("actor_user_id_snapshot") @db.VarChar
+  subjectUserId         String?  @map("subject_user_id") @db.VarChar
+  subjectUserIdSnapshot String   @map("subject_user_id_snapshot") @db.VarChar
+  eventFingerprint      String   @unique @map("event_fingerprint") @db.VarChar
+  metadata              Json     @default("{}") @db.JsonB
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  project AiContextProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actor   User?            @relation("context_project_membership_audit_actor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  subject User?            @relation("context_project_membership_audit_subject", fields: [subjectUserId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([subjectUserId, createdAt])
+  @@map("ai_context_project_membership_audit_events")
+}
+
+model AiContextProjectDoc {
+  projectId                  String    @map("project_id") @db.VarChar
+  workspaceId                String    @map("workspace_id") @db.VarChar
+  docId                      String    @map("doc_id") @db.VarChar
+  groupId                    String?   @map("group_id") @db.VarChar
+  sortOrder                  Int       @default(0) @map("sort_order")
+  status                     String    @default("granted") @db.VarChar
+  requestedLevel             String    @default("read") @map("requested_level") @db.VarChar
+  addedByUserId              String?   @map("added_by_user_id") @db.VarChar
+  placeholderInitiatorUserId String?   @map("placeholder_initiator_user_id") @db.VarChar
+  suppliedTitle              String?   @map("supplied_title") @db.VarChar
+  revokedAt                  DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt                  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project              AiContextProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workspace            Workspace        @relation("context_project_document_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  addedBy              User?            @relation("context_project_document_adder", fields: [addedByUserId], references: [id], onDelete: SetNull)
+  placeholderInitiator User?            @relation("context_project_document_placeholder_initiator", fields: [placeholderInitiatorUserId], references: [id], onDelete: SetNull)
+
+  @@id([projectId, workspaceId, docId])
+  @@index([workspaceId, docId, status, projectId])
+  @@index([projectId, status, groupId, sortOrder])
+  @@index([placeholderInitiatorUserId, status, updatedAt])
   @@map("ai_context_project_docs")
+}
+
+model AiContextProjectGrant {
+  id                    String    @id @default(uuid()) @db.VarChar
+  projectId             String    @map("project_id") @db.VarChar
+  workspaceId           String    @map("workspace_id") @db.VarChar
+  docId                 String    @map("doc_id") @db.VarChar
+  level                 String    @db.VarChar
+  status                String    @default("active") @db.VarChar
+  source                String    @db.VarChar
+  approvingSide         String    @default("source") @map("approving_side") @db.VarChar
+  revocable             Boolean   @default(true)
+  grantedByUserId       String?   @map("granted_by_user_id") @db.VarChar
+  grantorUserIdSnapshot String?   @map("grantor_user_id_snapshot") @db.VarChar
+  accessRequestId       String?   @unique @map("access_request_id") @db.VarChar
+  grantedAt             DateTime  @default(now()) @map("granted_at") @db.Timestamptz(3)
+  revokedByUserId       String?   @map("revoked_by_user_id") @db.VarChar
+  revokerUserIdSnapshot String?   @map("revoker_user_id_snapshot") @db.VarChar
+  revokedAt             DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project             AiContextProject                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workspace           Workspace                         @relation("context_project_grant_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  grantedBy           User?                             @relation("context_project_grant_grantor", fields: [grantedByUserId], references: [id], onDelete: SetNull)
+  revokedBy           User?                             @relation("context_project_grant_revoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+  accessRequest       AccessRequest?                    @relation(fields: [accessRequestId], references: [id], onDelete: Restrict)
+  auditEvents         AiContextProjectGrantAuditEvent[]
+  memorySources       AiContextMemorySource[]
+  quarantinedMemories AiContextMemory[]                 @relation("context_memory_quarantine_grant")
+
+  @@unique([id, projectId, workspaceId, docId])
+  @@index([projectId, status, updatedAt])
+  @@index([workspaceId, docId, status, updatedAt])
+  @@index([grantedByUserId, grantedAt])
+  @@map("ai_context_project_grants")
+}
+
+model AccessRequest {
+  id                        String    @id @default(uuid()) @db.VarChar
+  workspaceId               String    @map("workspace_id") @db.VarChar
+  docId                     String    @map("doc_id") @db.VarChar
+  beneficiaryType           String    @map("beneficiary_type") @db.VarChar
+  beneficiaryUserId         String?   @map("beneficiary_user_id") @db.VarChar
+  beneficiaryProjectId      String?   @map("beneficiary_project_id") @db.VarChar
+  requesterUserId           String?   @map("requester_user_id") @db.VarChar
+  requesterUserIdSnapshot   String    @map("requester_user_id_snapshot") @db.VarChar
+  requesterSuppliedIdentity Boolean   @default(true) @map("requester_supplied_identity")
+  requestedLevel            String    @map("requested_level") @db.VarChar
+  requestedTitle            String?   @map("requested_title") @db.VarChar
+  requestFingerprint        String    @unique @map("request_fingerprint") @db.VarChar
+  status                    String    @default("pending") @db.VarChar
+  resolvedByUserId          String?   @map("resolved_by_user_id") @db.VarChar
+  resolverUserIdSnapshot    String?   @map("resolver_user_id_snapshot") @db.VarChar
+  resolutionReason          String?   @map("resolution_reason") @db.VarChar
+  resolvedAt                DateTime? @map("resolved_at") @db.Timestamptz(3)
+  expiresAt                 DateTime? @map("expires_at") @db.Timestamptz(3)
+  createdAt                 DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace          Workspace                 @relation("access_request_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  beneficiaryUser    User?                     @relation("access_request_user_beneficiary", fields: [beneficiaryUserId], references: [id], onDelete: Cascade)
+  beneficiaryProject AiContextProject?         @relation("access_request_project_beneficiary", fields: [beneficiaryProjectId], references: [id], onDelete: Cascade)
+  requester          User?                     @relation("access_request_requester", fields: [requesterUserId], references: [id], onDelete: SetNull)
+  resolvedBy         User?                     @relation("access_request_resolver", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+  projectGrant       AiContextProjectGrant?
+  auditEvents        AccessRequestAuditEvent[]
+
+  @@index([workspaceId, docId, status, updatedAt])
+  @@index([beneficiaryUserId, status, updatedAt])
+  @@index([beneficiaryProjectId, status, updatedAt])
+  @@index([requesterUserId, status, updatedAt])
+  @@index([status, expiresAt])
+  @@map("access_requests")
+}
+
+model AccessRequestAuditEvent {
+  id                  String   @id @default(uuid()) @db.VarChar
+  accessRequestId     String   @map("access_request_id") @db.VarChar
+  eventType           String   @map("event_type") @db.VarChar
+  fromStatus          String?  @map("from_status") @db.VarChar
+  toStatus            String   @map("to_status") @db.VarChar
+  actorUserId         String?  @map("actor_user_id") @db.VarChar
+  actorUserIdSnapshot String?  @map("actor_user_id_snapshot") @db.VarChar
+  eventFingerprint    String   @unique @map("event_fingerprint") @db.VarChar
+  metadata            Json     @default("{}") @db.JsonB
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  accessRequest AccessRequest @relation(fields: [accessRequestId], references: [id], onDelete: Cascade)
+  actor         User?         @relation("access_request_audit_actor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([accessRequestId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("access_request_audit_events")
+}
+
+model AiContextProjectInvitation {
+  id                    String    @id @default(uuid()) @db.VarChar
+  projectId             String    @map("project_id") @db.VarChar
+  inviteeUserId         String    @map("invitee_user_id") @db.VarChar
+  inviterUserId         String?   @map("inviter_user_id") @db.VarChar
+  inviterUserIdSnapshot String    @map("inviter_user_id_snapshot") @db.VarChar
+  status                String    @default("pending") @db.VarChar
+  acceptedAt            DateTime? @map("accepted_at") @db.Timestamptz(3)
+  declinedAt            DateTime? @map("declined_at") @db.Timestamptz(3)
+  withdrawnAt           DateTime? @map("withdrawn_at") @db.Timestamptz(3)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project     AiContextProject                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  invitee     User                                   @relation("context_project_invitation_invitee", fields: [inviteeUserId], references: [id], onDelete: Cascade)
+  inviter     User?                                  @relation("context_project_invitation_inviter", fields: [inviterUserId], references: [id], onDelete: SetNull)
+  auditEvents AiContextProjectInvitationAuditEvent[]
+
+  @@index([inviteeUserId, status, updatedAt])
+  @@index([projectId, status, updatedAt])
+  @@index([inviterUserId, status, updatedAt])
+  @@map("ai_context_project_invitations")
+}
+
+model AiContextProjectInvitationAuditEvent {
+  id                  String   @id @default(uuid()) @db.VarChar
+  invitationId        String   @map("invitation_id") @db.VarChar
+  eventType           String   @map("event_type") @db.VarChar
+  fromStatus          String?  @map("from_status") @db.VarChar
+  toStatus            String   @map("to_status") @db.VarChar
+  actorUserId         String?  @map("actor_user_id") @db.VarChar
+  actorUserIdSnapshot String?  @map("actor_user_id_snapshot") @db.VarChar
+  eventFingerprint    String   @unique @map("event_fingerprint") @db.VarChar
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  invitation AiContextProjectInvitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  actor      User?                      @relation("context_project_invitation_audit_actor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([invitationId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("ai_context_project_invitation_audit_events")
+}
+
+model AiContextProjectGrantAuditEvent {
+  id                  String   @id @default(uuid()) @db.VarChar
+  grantId             String   @map("grant_id") @db.VarChar
+  eventType           String   @map("event_type") @db.VarChar
+  actorUserId         String?  @map("actor_user_id") @db.VarChar
+  actorUserIdSnapshot String?  @map("actor_user_id_snapshot") @db.VarChar
+  level               String   @db.VarChar
+  source              String   @db.VarChar
+  eventFingerprint    String   @unique @map("event_fingerprint") @db.VarChar
+  metadata            Json     @default("{}") @db.JsonB
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  grant AiContextProjectGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+  actor User?                 @relation("context_project_grant_audit_actor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([grantId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("ai_context_project_grant_audit_events")
+}
+
+model AiContextProjectPolicyAuditEvent {
+  id                  String   @id @default(uuid()) @db.VarChar
+  projectId           String   @map("project_id") @db.VarChar
+  actorUserId         String?  @map("actor_user_id") @db.VarChar
+  actorUserIdSnapshot String   @map("actor_user_id_snapshot") @db.VarChar
+  previousPolicy      String   @map("previous_policy") @db.VarChar
+  policy              String   @db.VarChar
+  eventFingerprint    String   @unique @map("event_fingerprint") @db.VarChar
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  project AiContextProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actor   User?            @relation("context_project_policy_audit_actor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("ai_context_project_policy_audit_events")
+}
+
+model AiContextMemorySource {
+  memoryId       String   @map("memory_id") @db.VarChar
+  projectId      String   @map("project_id") @db.VarChar
+  workspaceId    String   @map("workspace_id") @db.VarChar
+  docId          String   @map("doc_id") @db.VarChar
+  projectGrantId String   @map("project_grant_id") @db.VarChar
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  memory       AiContextMemory       @relation(fields: [memoryId, projectId], references: [id, projectId], onDelete: Cascade, onUpdate: Restrict)
+  project      AiContextProject      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectGrant AiContextProjectGrant @relation(fields: [projectGrantId, projectId, workspaceId, docId], references: [id, projectId, workspaceId, docId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([memoryId, projectGrantId])
+  @@index([projectId, workspaceId, docId, memoryId])
+  @@index([projectGrantId, memoryId])
+  @@index([workspaceId, memoryId], map: "ai_context_memory_sources_workspace_id_memory_id_idx")
+  @@map("ai_context_memory_sources")
 }
 
 model AiContextRule {
@@ -1303,12 +1620,12 @@ model AiContextRuleRevision {
   revision        Int
   content         String   @db.Text
   fingerprint     String   @db.VarChar
-  createdByUserId String   @map("created_by_user_id") @db.VarChar
+  createdByUserId String?  @map("created_by_user_id") @db.VarChar
   source          String   @default("manual") @db.VarChar
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   rule    AiContextRule      @relation(fields: [ruleId], references: [id], onDelete: Cascade)
-  creator User               @relation("context_rule_revision_creator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  creator User?              @relation("context_rule_revision_creator", fields: [createdByUserId], references: [id], onDelete: Cascade)
   hits    AiContextRuleHit[]
 
   @@unique([ruleId, revision])
@@ -1773,6 +2090,7 @@ model AiAgentRun {
   id                   String    @id @db.VarChar
   workspaceId          String    @map("workspace_id") @db.VarChar
   actorId              String    @map("actor_id") @db.VarChar
+  sessionId            String?   @map("session_id") @db.VarChar
   workflow             String    @db.VarChar
   sourceType           String    @map("source_type") @db.VarChar
   sourceId             String    @map("source_id") @db.VarChar
@@ -1796,6 +2114,7 @@ model AiAgentRun {
 
   workspace                      Workspace                       @relation("agent_run_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
   actor                          User                            @relation("agent_run_actor", fields: [actorId], references: [id], onDelete: Restrict)
+  session                        AiSession?                      @relation("agent_run_session", fields: [sessionId], references: [id], onDelete: SetNull)
   steps                          AiAgentStep[]                   @relation("agent_step_run")
   stepRunSnapshots               AiAgentStep[]                   @relation("agent_step_run_snapshot")
   timelineEvents                 AiAgentTimelineEvent[]          @relation("agent_timeline_event_run")
@@ -1809,6 +2128,9 @@ model AiAgentRun {
   @@unique([id, workspaceId, actorId, workflow, sourceType, sourceId], map: "ai_agent_runs_execution_result_source_snapshot_key")
   @@index([workspaceId, createdAt])
   @@index([actorId, createdAt])
+  @@index([actorId, status, updatedAt])
+  @@index([actorId, status, completedAt])
+  @@index([sessionId])
   @@index([status, createdAt])
   @@index([status, workerLeaseExpiresAt])
   @@index([queuedAt])

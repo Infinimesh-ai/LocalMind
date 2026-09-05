@@ -1,0 +1,28 @@
+#import "./fragments/copilot-workbench-task-item.gql"
+
+query copilotWorkbenchTaskPanelGet($projectId: ID) {
+  currentUser {
+    copilot {
+      workbenchTaskPanel(projectId: $projectId) {
+        todo {
+          capped
+          items {
+            ...CopilotWorkbenchTaskItemFields
+          }
+        }
+        inProgress {
+          capped
+          items {
+            ...CopilotWorkbenchTaskItemFields
+          }
+        }
+        done {
+          capped
+          items {
+            ...CopilotWorkbenchTaskItemFields
+          }
+        }
+      }
+    }
+  }
+}

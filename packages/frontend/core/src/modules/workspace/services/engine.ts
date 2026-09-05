@@ -9,6 +9,7 @@ export class WorkspaceEngineService extends Service {
     if (!this._engine) {
       this._engine = this.framework.createEntity(WorkspaceEngine, {
         isSharedMode: this.workspaceScope.props.openOptions.isSharedMode,
+        engineStoreKey: this.workspaceScope.props.engineStoreKey,
         engineWorkerInitOptions:
           this.workspaceScope.props.engineWorkerInitOptions,
       });

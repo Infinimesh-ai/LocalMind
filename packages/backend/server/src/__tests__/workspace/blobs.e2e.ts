@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 
+import { type AiContextProjectGrant, PrismaClient } from '@prisma/client';
 import test from 'ava';
 import Sinon from 'sinon';
 
@@ -11,6 +12,7 @@ import { WorkspaceBlobStorage } from '../../core/storage/wrappers/blob';
 import { StorageRuntimeProvider } from '../../core/storage-runtime';
 import { BlobModel } from '../../models';
 import { getMime } from '../../native';
+import { Mockers } from '../mocks';
 import {
   collectAllBlobSizes,
   completeBlobUpload,
@@ -33,6 +35,7 @@ const RESTRICTED_QUOTA = {
   historyPeriod: 1,
   memberLimit: 1,
 };
+const SCOPED_FIXTURE_BLOB_ID = 'ldZMrM4PDlsNG4Q4YvCsz623h6TKu4qI9_FpTqIypfw=';
 
 let app: TestingApp;
 type CompleteResult =
@@ -186,6 +189,378 @@ async function withRestrictedWorkspaceQuota(workspaceId: string) {
   await quotaState.reconcileWorkspaceQuotaState(workspaceId);
   return stub;
 }
+
+async function createScopedProjectAccess(level: 'read' | 'write') {
+  const owner = await app.signupV1('scoped-owner@affine.pro');
+  const workspace = await createWorkspace(app);
+  const member = await app.signupV1('scoped-member@affine.pro');
+  const docId = 'scoped-doc';
+  await app.create(Mockers.DocSnapshot, {
+    workspaceId: workspace.id,
+    user: owner,
+    docId,
+    snapshotFile: 'test-doc-with-blob.snapshot.bin',
+  });
+
+  const db = app.get(PrismaClient);
+  const project = await db.aiContextProject.create({
+    data: {
+      createdByUserId: owner.id,
+      name: 'Scoped blob project',
+      members: {
+        create: [
+          { userId: owner.id, role: 'owner' },
+          { userId: member.id, role: 'member' },
+        ],
+      },
+    },
+  });
+  const grant = await db.$transaction(async transaction => {
+    await transaction.aiContextProjectDoc.create({
+      data: {
+        projectId: project.id,
+        workspaceId: workspace.id,
+        docId,
+        status: 'granted',
+        requestedLevel: level,
+        addedByUserId: owner.id,
+      },
+    });
+    return transaction.aiContextProjectGrant.create({
+      data: {
+        projectId: project.id,
+        workspaceId: workspace.id,
+        docId,
+        level,
+        status: 'active',
+        source: 'direct',
+        approvingSide: 'source',
+        revocable: true,
+        grantedByUserId: owner.id,
+        grantorUserIdSnapshot: owner.id,
+      },
+    });
+  });
+  await app.switchUser(member);
+  return { db, docId, grant, member, owner, workspace };
+}
+
+async function setScopedProjectGrantStatus(
+  db: PrismaClient,
+  grant: AiContextProjectGrant,
+  actorUserId: string,
+  status: 'active' | 'revoked'
+) {
+  const revokedAt = status === 'revoked' ? new Date() : null;
+  await db.$transaction(async transaction => {
+    await transaction.aiContextProjectDoc.update({
+      where: {
+        projectId_workspaceId_docId: {
+          projectId: grant.projectId,
+          workspaceId: grant.workspaceId,
+          docId: grant.docId,
+        },
+      },
+      data: { status: status === 'active' ? 'granted' : 'revoked', revokedAt },
+    });
+    await transaction.aiContextProjectGrant.update({
+      where: { id: grant.id },
+      data: {
+        status,
+        revokedByUserId: status === 'revoked' ? actorUserId : null,
+        revokerUserIdSnapshot: status === 'revoked' ? actorUserId : null,
+        revokedAt,
+      },
+    });
+  });
+}
+
+async function createScopedBlobUpload(
+  workspaceId: string,
+  docScopeId: string,
+  key: string,
+  size: number,
+  mime: string
+) {
+  const result = await app.gql(
+    `mutation scopedCreateBlobUpload(
+      $workspaceId: String!
+      $docScopeId: String!
+      $key: String!
+      $size: Int!
+      $mime: String!
+    ) {
+      createBlobUpload(
+        workspaceId: $workspaceId
+        docScopeId: $docScopeId
+        key: $key
+        size: $size
+        mime: $mime
+      ) {
+        method
+        blobKey
+        alreadyUploaded
+        uploadUrl
+      }
+    }`,
+    { workspaceId, docScopeId, key, size, mime }
+  );
+  return result.createBlobUpload;
+}
+
+async function setScopedBlob(
+  workspaceId: string,
+  docScopeId: string,
+  key: string,
+  body: Buffer,
+  mime = 'text/plain'
+) {
+  const response = await app
+    .POST('/graphql')
+    .set({ 'x-request-id': 'test', 'x-operation-name': 'scopedSetBlob' })
+    .field(
+      'operations',
+      JSON.stringify({
+        name: 'scopedSetBlob',
+        query: `mutation scopedSetBlob(
+          $workspaceId: String!
+          $docScopeId: String!
+          $blob: Upload!
+        ) {
+          setBlob(
+            workspaceId: $workspaceId
+            docScopeId: $docScopeId
+            blob: $blob
+          )
+        }`,
+        variables: { workspaceId, docScopeId, blob: null },
+      })
+    )
+    .field('map', JSON.stringify({ '0': ['variables.blob'] }))
+    .attach('0', body, { filename: key, contentType: mime })
+    .expect(200);
+  if (response.body.errors?.length) {
+    throw new Error(response.body.errors[0].message);
+  }
+  return response.body.data.setBlob as string;
+}
+
+test('document-scoped blob download only exposes current document references', async t => {
+  const { db, docId, grant, workspace } =
+    await createScopedProjectAccess('read');
+  const storage = app.get(WorkspaceBlobStorage);
+  await storage.put(
+    workspace.id,
+    SCOPED_FIXTURE_BLOB_ID,
+    Buffer.from('referenced'),
+    { contentType: 'text/plain', contentLength: 10 }
+  );
+  await storage.put(workspace.id, 'other-doc-blob', Buffer.from('hidden'), {
+    contentType: 'text/plain',
+    contentLength: 6,
+  });
+
+  const referenced = await app.GET(
+    `/api/workspaces/${workspace.id}/blobs/${encodeURIComponent(SCOPED_FIXTURE_BLOB_ID)}?docScopeId=${docId}`
+  );
+  t.is(referenced.status, 200);
+  t.is(referenced.text, 'referenced');
+  t.is(referenced.get('cache-control'), 'private, no-store');
+
+  const unrelated = await app.GET(
+    `/api/workspaces/${workspace.id}/blobs/other-doc-blob?docScopeId=${docId}`
+  );
+  t.is(unrelated.status, 404);
+
+  const forgedBlobIds = [
+    SCOPED_FIXTURE_BLOB_ID.slice(0, -1),
+    SCOPED_FIXTURE_BLOB_ID.slice(1),
+    `prefix-${SCOPED_FIXTURE_BLOB_ID}`,
+    `${SCOPED_FIXTURE_BLOB_ID}-suffix`,
+  ];
+  for (const forgedBlobId of forgedBlobIds) {
+    const forged = await app.GET(
+      `/api/workspaces/${workspace.id}/blobs/${encodeURIComponent(forgedBlobId)}?docScopeId=${docId}`
+    );
+    t.is(forged.status, 404);
+  }
+
+  await setScopedProjectGrantStatus(
+    db,
+    grant,
+    grant.grantorUserIdSnapshot!,
+    'revoked'
+  );
+  const revoked = await app.GET(
+    `/api/workspaces/${workspace.id}/blobs/${encodeURIComponent(SCOPED_FIXTURE_BLOB_ID)}?docScopeId=${docId}`
+  );
+  t.is(revoked.status, 403);
+});
+
+test('public document scope does not expose arbitrary workspace blobs', async t => {
+  const owner = await app.signupV1('public-scoped-owner@affine.pro');
+  const workspace = await createWorkspace(app);
+  const docId = 'public-scoped-doc';
+  await app.create(Mockers.DocSnapshot, {
+    workspaceId: workspace.id,
+    user: owner,
+    docId,
+    snapshotFile: 'test-doc-with-blob.snapshot.bin',
+  });
+  await app.get(PrismaClient).docAccessPolicy.create({
+    data: {
+      workspaceId: workspace.id,
+      docId,
+      visibility: 'public',
+      publicRole: 'external',
+    },
+  });
+  const storage = app.get(WorkspaceBlobStorage);
+  await storage.put(workspace.id, 'unrelated-public-blob', Buffer.from('no'), {
+    contentType: 'text/plain',
+    contentLength: 2,
+  });
+  app.clearAuth();
+
+  const response = await app.GET(
+    `/api/workspaces/${workspace.id}/blobs/unrelated-public-blob?docScopeId=${docId}`
+  );
+  t.is(response.status, 404);
+});
+
+test('document-scoped uploads require a live write grant on the target doc', async t => {
+  const { db, docId, grant, member, owner, workspace } =
+    await createScopedProjectAccess('write');
+  const body = Buffer.from('scoped upload');
+  const key = sha256Base64urlWithPadding(body);
+
+  const init = await createScopedBlobUpload(
+    workspace.id,
+    docId,
+    key,
+    body.byteLength,
+    'text/plain'
+  );
+  t.is(init.method, 'GRAPHQL');
+  t.falsy(init.uploadUrl);
+
+  await app.switchUser(owner);
+  await t.throwsAsync(
+    app.gql(
+      `query {
+        workspace(id: "${workspace.id}") {
+          blobUploadPartUrl(
+            key: "${key}"
+            uploadId: "scoped-upload"
+            partNumber: 1
+            docScopeId: "${docId}"
+          ) {
+            uploadUrl
+          }
+        }
+      }`
+    ),
+    { message: /Scoped multipart blob upload is not supported/ }
+  );
+  await t.throwsAsync(
+    app.gql(
+      `mutation {
+        completeBlobUpload(
+          workspaceId: "${workspace.id}"
+          docScopeId: "${docId}"
+          key: "${key}"
+          uploadId: "scoped-upload"
+          parts: [{ partNumber: 1, etag: "etag" }]
+        )
+      }`
+    ),
+    { message: /Scoped multipart blob upload is not supported/ }
+  );
+  await t.throwsAsync(
+    app.gql(
+      `mutation {
+        abortBlobUpload(
+          workspaceId: "${workspace.id}"
+          docScopeId: "${docId}"
+          key: "${key}"
+          uploadId: "scoped-upload"
+        )
+      }`
+    ),
+    { message: /Scoped multipart blob upload is not supported/ }
+  );
+  await app.switchUser(member);
+
+  await setScopedProjectGrantStatus(db, grant, owner.id, 'revoked');
+  await t.throwsAsync(
+    setScopedBlob(workspace.id, docId, key, body),
+    undefined,
+    'revocation between create and upload must fail closed'
+  );
+  t.false(objects.has(`${workspace.id}/${key}`));
+
+  await setScopedProjectGrantStatus(db, grant, owner.id, 'active');
+  t.is(await setScopedBlob(workspace.id, docId, key, body), key);
+  t.deepEqual(objects.get(`${workspace.id}/${key}`)?.body, body);
+
+  const otherDocId = 'other-scoped-doc';
+  await app.create(Mockers.DocSnapshot, {
+    workspaceId: workspace.id,
+    user: owner,
+    docId: otherDocId,
+  });
+  await t.throwsAsync(
+    createScopedBlobUpload(
+      workspace.id,
+      otherDocId,
+      key,
+      body.byteLength,
+      'text/plain'
+    ),
+    undefined,
+    'a write grant on one doc must not authorize another doc scope'
+  );
+});
+
+test('read project grant cannot use any scoped blob write stage', async t => {
+  const { docId, workspace } = await createScopedProjectAccess('read');
+  const body = Buffer.from('read denied');
+  const key = sha256Base64urlWithPadding(body);
+
+  await t.throwsAsync(
+    createScopedBlobUpload(
+      workspace.id,
+      docId,
+      key,
+      body.byteLength,
+      'text/plain'
+    )
+  );
+  await t.throwsAsync(setScopedBlob(workspace.id, docId, key, body));
+  await t.throwsAsync(
+    app.gql(
+      `mutation {
+        completeBlobUpload(
+          workspaceId: "${workspace.id}"
+          docScopeId: "${docId}"
+          key: "${key}"
+        )
+      }`
+    )
+  );
+  await t.throwsAsync(
+    app.gql(
+      `mutation {
+        abortBlobUpload(
+          workspaceId: "${workspace.id}"
+          docScopeId: "${docId}"
+          key: "${key}"
+          uploadId: "unknown"
+        )
+      }`
+    )
+  );
+});
 
 test('should set blobs', async t => {
   await app.signupV1('u1@affine.pro');

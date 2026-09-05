@@ -20,6 +20,7 @@ type RuntimeOptions = {
   request: AIRequestService;
   scope: AIChatScope;
   strategy: AIChatSessionStrategy;
+  chatSurface?: 'intelligence_workbench';
 };
 
 type ContextStatus = 'finished' | 'processing' | 'failed';
@@ -348,10 +349,18 @@ export class AIChatRuntime {
       this.createSessionPromiseKey !== scopeKey
     ) {
       this.createSessionPromiseKey = scopeKey;
-      this.createSessionPromise = this.options.strategy
-        .createSession(this.snapshot.scope, this.options.request, {
-          promptName,
-        })
+      const createSession = this.options.strategy.createSession(
+        this.snapshot.scope,
+        this.options.request,
+        { promptName }
+      );
+      this.createSessionPromise = createSession
+        .then(session =>
+          this.persistDraftProjectSelection(
+            session,
+            this.snapshot.composer.projectScope.selectedProjectId
+          )
+        )
         .finally(() => {
           this.createSessionPromise = null;
           this.createSessionPromiseKey = null;
@@ -423,6 +432,9 @@ export class AIChatRuntime {
         isRootSession: options.isRootSession,
         where: options.where,
         control: options.control,
+        ...(this.options.chatSurface
+          ? { chatSurface: this.options.chatSurface }
+          : {}),
         stream: true,
         signal: this.streamAbortController.signal,
       })) as AsyncIterable<string>;
@@ -474,6 +486,9 @@ export class AIChatRuntime {
         workspaceId: this.snapshot.scope.workspaceId,
         sessionId: this.snapshot.activeSessionId,
         retry: true,
+        ...(this.options.chatSurface
+          ? { chatSurface: this.options.chatSurface }
+          : {}),
         stream: true,
         signal: this.streamAbortController.signal,
       })) as AsyncIterable<string>;
@@ -581,12 +596,13 @@ export class AIChatRuntime {
     const seq = ++this.projectScopeRequestSeq;
     const sessionId = this.snapshot.activeSessionId;
     if (!sessionId) {
+      const selectedProjectId =
+        this.snapshot.composer.projectScope.selectedProjectId;
       this.updateProjectScopeState({
         loading: false,
         error: null,
-        projectResolution: 'none',
-        selectedProjectId: null,
-        candidates: [],
+        projectResolution: selectedProjectId ? 'selected' : 'none',
+        selectedProjectId,
       });
       return;
     }
@@ -618,7 +634,15 @@ export class AIChatRuntime {
 
   private async setSelectedContextProject(projectId: string | null) {
     const sessionId = this.snapshot.activeSessionId;
-    if (!sessionId) return;
+    if (!sessionId) {
+      this.updateProjectScopeState({
+        loading: false,
+        error: null,
+        projectResolution: projectId ? 'selected' : 'none',
+        selectedProjectId: projectId,
+      });
+      return;
+    }
     this.updateProjectScopeState({ loading: true, error: null });
     try {
       await this.options.request.updateSession({
@@ -639,6 +663,23 @@ export class AIChatRuntime {
         error: this.toError(error),
       });
     }
+  }
+
+  private async persistDraftProjectSelection(
+    session: CopilotChatHistoryFragment | null | undefined,
+    selectedProjectId: string | null
+  ) {
+    if (
+      !session ||
+      (session.selectedContextProjectId ?? null) === selectedProjectId
+    ) {
+      return session;
+    }
+    await this.options.request.updateSession({
+      sessionId: session.sessionId,
+      selectedContextProjectId: selectedProjectId,
+    });
+    return { ...session, selectedContextProjectId: selectedProjectId };
   }
 
   private async getContextId(options: { promptName?: string } = {}) {

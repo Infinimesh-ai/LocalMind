@@ -709,6 +709,7 @@
         "codeArtifact",
         "blobRead",
         "workspaceOrganization",
+        "blocker",
         "enterprise",
         "sparkClaw"
       ],

@@ -82,6 +82,7 @@ export type OfficeAiReadSelector = z.infer<typeof OfficeAiReadSelectorSchema>;
 export type RequestOfficeAgentCommandInput = {
   workspaceId: string;
   actorId: string;
+  sessionId?: string | null;
   command: unknown;
   title?: string | null;
   reason?: string | null;
@@ -90,6 +91,7 @@ export type RequestOfficeAgentCommandInput = {
 export type RequestOfficeAgentCommandBatchInput = {
   workspaceId: string;
   actorId: string;
+  sessionId?: string | null;
   batch: unknown;
   title?: string | null;
   reason?: string | null;
@@ -733,6 +735,7 @@ export class OfficeAgentCommandService {
     const run = await this.models.copilotAgentRuntime.createRun({
       workspaceId: input.workspaceId,
       actorId: input.actorId,
+      sessionId: input.sessionId,
       workflow: AGENT_RUNTIME_OFFICE_COMMAND_WORKFLOW,
       sourceType: 'office_command_request',
       sourceId: persisted.request.id,

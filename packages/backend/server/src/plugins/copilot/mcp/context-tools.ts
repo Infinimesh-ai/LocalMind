@@ -18,6 +18,17 @@ const conditionsSchema = z
   .object({
     keywords: z.array(z.string()).optional(),
     docIds: z.array(z.string()).optional(),
+    documentRefs: z
+      .array(
+        z
+          .object({
+            workspaceId: z.string().min(1),
+            docId: z.string().min(1),
+          })
+          .strict()
+      )
+      .max(100)
+      .optional(),
     projectIds: z.array(z.string()).optional(),
     match: z.enum(['any', 'all']).optional(),
   })
@@ -409,12 +420,12 @@ export function createContextMcpTools(
       name: 'create_ai_context_project',
       title: 'Create AI Context Project',
       description:
-        'Create a context project from readable documents. Workspace settings permission is required.',
+        'Create a global context project from documents the caller may share in this workspace.',
       parser: z
         .object({
           name: z.string().min(1),
           description: z.string().optional(),
-          documentIds: z.array(z.string().min(1)).min(1),
+          documentIds: z.array(z.string().min(1)).max(100).default([]),
         })
         .strict(),
       outputSchema: RESULT_OUTPUT_SCHEMA,
@@ -422,8 +433,11 @@ export function createContextMcpTools(
       execute: async input =>
         toolResult(
           await resolver.createCopilotContextProject(user, {
-            ...input,
-            workspaceId,
+            name: input.name,
+            description: input.description,
+            documents: [...new Set(input.documentIds)].map(
+              (docId, sortOrder) => ({ workspaceId, docId, sortOrder })
+            ),
           })
         ),
     }),
@@ -445,8 +459,31 @@ export function createContextMcpTools(
       execute: async input => {
         const error = await ensureVisible('project', input.id);
         if (error) return error;
+        const { documentIds, ...projectInput } = input;
+        if (
+          projectInput.name === undefined &&
+          projectInput.description === undefined &&
+          projectInput.status === undefined &&
+          documentIds === undefined
+        ) {
+          return toolResult(
+            await resolver.contextProject(copilot, user, input.id)
+          );
+        }
         return toolResult(
-          await resolver.updateCopilotContextProject(user, input)
+          await resolver.updateCopilotContextProject(user, {
+            ...projectInput,
+            ...(documentIds === undefined
+              ? {}
+              : {
+                  workspaceDocuments: {
+                    workspaceId,
+                    documents: [...new Set(documentIds)].map(
+                      (docId, sortOrder) => ({ docId, sortOrder })
+                    ),
+                  },
+                }),
+          })
         );
       },
     }),

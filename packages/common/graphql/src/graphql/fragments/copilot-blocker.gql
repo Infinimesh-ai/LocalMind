@@ -1,0 +1,16 @@
+fragment CopilotBlockerFields on CopilotBlockerType {
+  id
+  projectId
+  creatorUserId
+  title
+  type
+  waitingOn
+  dueAt
+  overdue
+  status
+  origin
+  resolutionActorUserId
+  resolvedAt
+  createdAt
+  updatedAt
+}

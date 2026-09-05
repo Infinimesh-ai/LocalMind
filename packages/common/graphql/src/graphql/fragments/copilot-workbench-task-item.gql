@@ -1,0 +1,70 @@
+fragment CopilotWorkbenchTaskItemFields on CopilotWorkbenchTaskItemType {
+  id
+  entityId
+  kind
+  segment
+  attention
+  workspaceId
+  projectId
+  title
+  status
+  requestedLevel
+  documentId
+  redacted
+  relatedUserId
+  createdAt
+  updatedAt
+  completedAt
+  availableActions
+  blocker {
+    creatorUserId
+    type
+    waitingOn
+    dueAt
+    overdue
+    origin
+    resolutionActorUserId
+  }
+  run {
+    id
+    workspaceId
+    projectId
+    title
+    workflow
+    status
+    createdAt
+    updatedAt
+    startedAt
+    completedAt
+    failureCode
+    failureMessage
+    resultSummary
+    approvalSummary
+    approvalFingerprint
+    resultEvidence
+    availableActions
+    abandoned
+    approval {
+      stepId
+      status
+      title
+      decidedAt
+    }
+    artifacts {
+      workspaceId
+      kind
+      id
+      title
+    }
+    steps {
+      id
+      key
+      type
+      status
+      title
+      order
+      startedAt
+      completedAt
+    }
+  }
+}

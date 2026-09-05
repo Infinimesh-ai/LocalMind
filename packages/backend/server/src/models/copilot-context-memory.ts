@@ -9,6 +9,7 @@ import { BaseModel } from './base';
 import { toPgVector } from './common';
 
 export const AUTO_MEMORY_SCOPE_LIMIT = 200;
+const CONTEXT_PROJECT_DOCUMENT_LIMIT = 100;
 
 export const COPILOT_CONTEXT_MEMORY_SCOPES = [
   'user',
@@ -41,9 +42,18 @@ export const COPILOT_CONTEXT_MEMORY_STATUSES = [
 export type CopilotContextMemoryStatus =
   (typeof COPILOT_CONTEXT_MEMORY_STATUSES)[number];
 
+export type CopilotContextMemorySourceDocumentInput = {
+  workspaceId: string;
+  docId: string;
+};
+
 export const COPILOT_CONTEXT_PROJECT_STATUSES = ['active', 'archived'] as const;
 export type CopilotContextProjectStatus =
   (typeof COPILOT_CONTEXT_PROJECT_STATUSES)[number];
+
+export const COPILOT_CONTEXT_PROJECT_ROLES = ['owner', 'member'] as const;
+export type CopilotContextProjectRole =
+  (typeof COPILOT_CONTEXT_PROJECT_ROLES)[number];
 
 export type CopilotContextMemoryInput = {
   ownerUserId: string;
@@ -67,6 +77,7 @@ export type CopilotContextMemoryInput = {
   expiresAt?: Date | null;
   supersedesId?: string | null;
   metadata?: Record<string, unknown>;
+  sourceDocuments?: CopilotContextMemorySourceDocumentInput[];
 };
 
 export type CopilotContextMemoryWriterOperation =
@@ -99,6 +110,7 @@ export type CopilotContextMemoryWriterInput = {
   explicit: boolean;
   writerVersion: string;
   decisionFingerprint: string;
+  sourceDocuments?: CopilotContextMemorySourceDocumentInput[];
   decision: CopilotContextMemoryWriterDecision;
 };
 
@@ -150,12 +162,23 @@ export type CopilotContextPlanTraceInput = {
 };
 
 export type CopilotContextProjectInput = {
-  workspaceId: string;
   createdByUserId: string;
   name: string;
   description?: string;
-  documentIds: string[];
+  documents: CopilotContextProjectDocumentInput[];
 };
+
+export type CopilotContextProjectDocumentInput = {
+  workspaceId: string;
+  docId: string;
+  groupId?: string | null;
+  sortOrder?: number;
+};
+
+export type CopilotContextDocumentRef = Pick<
+  CopilotContextProjectDocumentInput,
+  'workspaceId' | 'docId'
+>;
 
 function normalizeMemoryContent(content: string) {
   return content.replace(/\s+/g, ' ').trim();
@@ -188,13 +211,20 @@ function memoryWriterLockKey(input: {
 }) {
   return [
     'context-memory-writer/v1',
-    input.ownerUserId,
-    input.workspaceId,
+    input.scope === 'project' ? '' : input.ownerUserId,
+    input.scope === 'project' ? '' : input.workspaceId,
     input.scope,
     input.docId ?? '',
     input.projectId ?? '',
     normalizeFactKey(input.factKey) ?? input.fallback,
   ].join(':');
+}
+
+function memoryScopeWorkspaceId(input: {
+  scope: CopilotContextMemoryScope;
+  workspaceId?: string | null;
+}) {
+  return input.scope === 'project' ? null : (input.workspaceId ?? null);
 }
 
 export function fingerprintContextMemory(input: {
@@ -215,10 +245,10 @@ export function fingerprintContextMemory(input: {
 
 function memoryIdentityWhere(input: CopilotContextMemoryInput) {
   return {
-    ...(input.visibility === 'private'
+    ...(input.visibility === 'private' && input.scope !== 'project'
       ? { ownerUserId: input.ownerUserId }
       : {}),
-    workspaceId: input.workspaceId ?? null,
+    workspaceId: memoryScopeWorkspaceId(input),
     docId: input.docId ?? null,
     projectId: input.projectId ?? null,
     kind: input.kind,
@@ -232,12 +262,33 @@ export function buildContextMemoryVisibilityWhere(input: {
   workspaceId?: string | null;
   docId?: string | null;
   docIds?: string[];
+  documentRefs?: CopilotContextDocumentRef[];
   projectIds?: string[];
   includeDisabled?: boolean;
 }) {
-  const docIds = Array.from(
-    new Set([input.docId, ...(input.docIds ?? [])].filter(Boolean))
-  ) as string[];
+  const documentRefs = new Map<string, CopilotContextDocumentRef>();
+  if (input.workspaceId) {
+    for (const docId of [input.docId, ...(input.docIds ?? [])]) {
+      if (!docId) continue;
+      documentRefs.set(`${input.workspaceId}\u0000${docId}`, {
+        workspaceId: input.workspaceId,
+        docId,
+      });
+    }
+  }
+  for (const document of input.documentRefs ?? []) {
+    if (!document.workspaceId || !document.docId) continue;
+    documentRefs.set(`${document.workspaceId}\u0000${document.docId}`, {
+      workspaceId: document.workspaceId,
+      docId: document.docId,
+    });
+  }
+  const documentIdsByWorkspace = new Map<string, string[]>();
+  for (const document of documentRefs.values()) {
+    const current = documentIdsByWorkspace.get(document.workspaceId) ?? [];
+    current.push(document.docId);
+    documentIdsByWorkspace.set(document.workspaceId, current);
+  }
   const scopes: Prisma.AiContextMemoryWhereInput[] = [
     {
       ownerUserId: input.userId,
@@ -255,24 +306,27 @@ export function buildContextMemoryVisibilityWhere(input: {
       docId: null,
       projectId: null,
     });
-    if (docIds.length) {
-      scopes.push({
-        ownerUserId: input.userId,
-        scope: 'document',
-        workspaceId: input.workspaceId,
-        docId: { in: docIds },
-        projectId: null,
-      });
-    }
-    if (input.projectIds?.length) {
-      scopes.push({
-        ownerUserId: input.userId,
-        workspaceId: input.workspaceId,
-        scope: 'project',
-        docId: null,
-        projectId: { in: input.projectIds },
-      });
-    }
+  }
+  for (const [workspaceId, docIds] of documentIdsByWorkspace) {
+    scopes.push({
+      ownerUserId: input.userId,
+      scope: 'document',
+      workspaceId,
+      docId: { in: docIds },
+      projectId: null,
+    });
+  }
+  if (input.projectIds?.length) {
+    scopes.push({
+      scope: 'project',
+      workspaceId: null,
+      docId: null,
+      projectId: { in: input.projectIds },
+      project: {
+        status: 'active',
+        members: { some: { userId: input.userId } },
+      },
+    });
   }
 
   return {
@@ -286,10 +340,111 @@ export function buildContextMemoryVisibilityWhere(input: {
 
 @Injectable()
 export class CopilotContextMemoryModel extends BaseModel {
+  private memoryManagementWhere(id: string, actorUserId: string) {
+    return {
+      id,
+      OR: [
+        {
+          ownerUserId: actorUserId,
+          scope: { not: 'project' },
+        },
+        {
+          scope: 'project',
+          project: {
+            status: 'active',
+            members: {
+              some: { userId: actorUserId, role: 'owner' },
+            },
+          },
+        },
+      ],
+    } satisfies Prisma.AiContextMemoryWhereInput;
+  }
+
   private async lockWriterKey(key: string) {
     await this.db.$queryRaw<Array<{ locked: boolean }>>`
       SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0)) IS NULL AS "locked"
     `;
+  }
+
+  private projectMemorySourceDocuments(input: {
+    scope: CopilotContextMemoryScope;
+    projectId?: string | null;
+    sourceDocuments?: CopilotContextMemorySourceDocumentInput[];
+  }) {
+    if (input.scope !== 'project') return null;
+    const projectId = input.projectId?.trim();
+    if (!projectId) {
+      throw new BadRequest('Project memory requires a projectId');
+    }
+    const documents = new Map<
+      string,
+      CopilotContextMemorySourceDocumentInput
+    >();
+    for (const document of input.sourceDocuments ?? []) {
+      const workspaceId = document.workspaceId.trim();
+      const docId = document.docId.trim();
+      if (!workspaceId || !docId) {
+        throw new BadRequest(
+          'Project memory source workspaceId and docId are required'
+        );
+      }
+      documents.set(`${workspaceId}\0${docId}`, { workspaceId, docId });
+    }
+    if (!documents.size) {
+      throw new BadRequest(
+        'Project memory requires at least one source document'
+      );
+    }
+    return {
+      projectId,
+      documents: [...documents.values()].sort(
+        (left, right) =>
+          left.workspaceId.localeCompare(right.workspaceId) ||
+          left.docId.localeCompare(right.docId)
+      ),
+    };
+  }
+
+  private async attachProjectMemorySources(input: {
+    memoryId: string;
+    projectId: string;
+    sourceDocuments: CopilotContextMemorySourceDocumentInput[];
+  }) {
+    await this.models.intelligenceWorkbenchAuthorization.attachProjectMemorySources(
+      {
+        memoryId: input.memoryId,
+        projectId: input.projectId,
+        documents: input.sourceDocuments,
+      }
+    );
+  }
+
+  private async lockProjectOwner(projectId: string, actorUserId: string) {
+    await this.db.$executeRaw`
+      SELECT pg_advisory_xact_lock(
+        hashtextextended(${`context-project-documents:${projectId}`}, 0)
+      )
+    `;
+    const rows = await this.db.$queryRaw<
+      Array<{ id: string; status: CopilotContextProjectStatus }>
+    >`
+      SELECT project.id, project.status
+      FROM ai_context_projects project
+      JOIN ai_context_project_members member
+        ON member.project_id = project.id
+       AND member.user_id = ${actorUserId}
+       AND member.role = 'owner'
+      WHERE project.id = ${projectId}
+      LIMIT 1
+      FOR UPDATE OF project, member
+    `;
+    return rows[0] ?? null;
+  }
+
+  private async lockActiveProjectOwner(projectId: string, actorUserId: string) {
+    const project = await this.lockProjectOwner(projectId, actorUserId);
+    return project?.status === 'active' ? project : null;
   }
 
   async getPreference(userId: string, workspaceId: string) {
@@ -322,6 +477,7 @@ export class CopilotContextMemoryModel extends BaseModel {
 
   @Transactional()
   async put(input: CopilotContextMemoryInput) {
+    const projectSource = this.projectMemorySourceDocuments(input);
     const content = normalizeMemoryContent(input.content);
     const identity = memoryIdentityWhere({ ...input, content });
     const existing = await this.db.aiContextMemory.findFirst({
@@ -329,7 +485,7 @@ export class CopilotContextMemoryModel extends BaseModel {
     });
     const data = {
       ownerUserId: input.ownerUserId,
-      workspaceId: input.workspaceId ?? null,
+      workspaceId: memoryScopeWorkspaceId(input),
       docId: input.docId ?? null,
       projectId: input.projectId ?? null,
       sourceSessionId: input.sourceSessionId ?? null,
@@ -353,6 +509,14 @@ export class CopilotContextMemoryModel extends BaseModel {
     };
 
     if (existing) {
+      if (projectSource) {
+        await this.attachProjectMemorySources({
+          memoryId: existing.id,
+          projectId: projectSource.projectId,
+          sourceDocuments: projectSource.documents,
+        });
+        return existing;
+      }
       return await this.db.aiContextMemory.update({
         where: { id: existing.id },
         data: {
@@ -364,7 +528,15 @@ export class CopilotContextMemoryModel extends BaseModel {
     }
 
     try {
-      return await this.db.aiContextMemory.create({ data });
+      const created = await this.db.aiContextMemory.create({ data });
+      if (projectSource) {
+        await this.attachProjectMemorySources({
+          memoryId: created.id,
+          projectId: projectSource.projectId,
+          sourceDocuments: projectSource.documents,
+        });
+      }
+      return created;
     } catch (error) {
       if (
         !(error instanceof Prisma.PrismaClientKnownRequestError) ||
@@ -376,6 +548,14 @@ export class CopilotContextMemoryModel extends BaseModel {
         where: identity,
       });
       if (!raced) throw error;
+      if (projectSource) {
+        await this.attachProjectMemorySources({
+          memoryId: raced.id,
+          projectId: projectSource.projectId,
+          sourceDocuments: projectSource.documents,
+        });
+        return raced;
+      }
       return await this.db.aiContextMemory.update({
         where: { id: raced.id },
         data: {
@@ -433,11 +613,13 @@ export class CopilotContextMemoryModel extends BaseModel {
       include: { memory: true, previousMemory: true },
     });
     if (replay) return replay;
+    const projectSource = this.projectMemorySourceDocuments(input);
 
     const factKey = normalizeFactKey(input.decision.factKey);
+    const scopeWorkspaceId = memoryScopeWorkspaceId(input);
     const scopeWhere = {
-      ownerUserId: input.ownerUserId,
-      workspaceId: input.workspaceId,
+      ...(input.scope === 'project' ? {} : { ownerUserId: input.ownerUserId }),
+      workspaceId: scopeWorkspaceId,
       docId: input.docId ?? null,
       projectId: input.projectId ?? null,
       scope: input.scope,
@@ -466,6 +648,13 @@ export class CopilotContextMemoryModel extends BaseModel {
     };
 
     if (input.decision.operation === 'NOOP') {
+      if (projectSource && current) {
+        await this.attachProjectMemorySources({
+          memoryId: current.id,
+          projectId: projectSource.projectId,
+          sourceDocuments: projectSource.documents,
+        });
+      }
       return await this.appendWriterEvent({
         ...eventBase,
         operation: 'NOOP',
@@ -509,6 +698,13 @@ export class CopilotContextMemoryModel extends BaseModel {
       content,
     });
     if (current?.fingerprint === fingerprint) {
+      if (projectSource) {
+        await this.attachProjectMemorySources({
+          memoryId: current.id,
+          projectId: projectSource.projectId,
+          sourceDocuments: projectSource.documents,
+        });
+      }
       return await this.appendWriterEvent({
         ...eventBase,
         operation: 'NOOP',
@@ -517,19 +713,24 @@ export class CopilotContextMemoryModel extends BaseModel {
       });
     }
 
+    const requestedValidFrom = input.decision.validFrom ?? new Date();
+    const validFrom =
+      current?.validFrom && requestedValidFrom <= current.validFrom
+        ? new Date(current.validFrom.getTime() + 1)
+        : requestedValidFrom;
     if (current) {
       await this.db.aiContextMemory.update({
         where: { id: current.id },
         data: {
           status: 'superseded',
-          validUntil: input.decision.validFrom ?? new Date(),
+          validUntil: validFrom,
         },
       });
     }
     const memory = await this.db.aiContextMemory.create({
       data: {
         ownerUserId: input.ownerUserId,
-        workspaceId: input.workspaceId,
+        workspaceId: scopeWorkspaceId,
         docId: input.docId ?? null,
         projectId: input.projectId ?? null,
         sourceSessionId: input.sourceSessionId,
@@ -545,7 +746,7 @@ export class CopilotContextMemoryModel extends BaseModel {
         sensitivity: input.decision.sensitivity,
         captureMode: input.explicit ? 'explicit' : 'implicit',
         writerVersion: input.writerVersion,
-        validFrom: input.decision.validFrom ?? new Date(),
+        validFrom,
         validUntil: input.decision.validUntil ?? null,
         expiresAt: input.decision.expiresAt ?? null,
         supersedesId: current?.id ?? null,
@@ -555,6 +756,13 @@ export class CopilotContextMemoryModel extends BaseModel {
         },
       },
     });
+    if (projectSource) {
+      await this.attachProjectMemorySources({
+        memoryId: memory.id,
+        projectId: projectSource.projectId,
+        sourceDocuments: projectSource.documents,
+      });
+    }
     return await this.appendWriterEvent({
       ...eventBase,
       operation: current ? 'UPDATE' : 'ADD',
@@ -605,8 +813,10 @@ export class CopilotContextMemoryModel extends BaseModel {
     if (!event?.memoryId || !event.memory) return null;
     const activeFact = await this.db.aiContextMemory.findFirst({
       where: {
-        ownerUserId: input.ownerUserId,
-        workspaceId: input.workspaceId,
+        ...(event.memory.scope === 'project'
+          ? {}
+          : { ownerUserId: input.ownerUserId }),
+        workspaceId: event.memory.workspaceId,
         scope: event.memory.scope,
         docId: event.memory.docId,
         projectId: event.memory.projectId,
@@ -745,12 +955,17 @@ export class CopilotContextMemoryModel extends BaseModel {
     limit = AUTO_MEMORY_SCOPE_LIMIT
   ) {
     const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 1_000);
+    const scopeWorkspaceId = memoryScopeWorkspaceId(input);
+    const ownerScope =
+      input.scope === 'project'
+        ? Prisma.empty
+        : Prisma.sql`"owner_user_id" = ${input.ownerUserId} AND`;
     const overflow = await this.db.$queryRaw<Array<{ id: string }>>`
       SELECT "id"
       FROM "ai_context_memories"
       WHERE
-        "owner_user_id" = ${input.ownerUserId} AND
-        "workspace_id" = ${input.workspaceId} AND
+        ${ownerScope}
+        "workspace_id" IS NOT DISTINCT FROM ${scopeWorkspaceId} AND
         "scope" = ${input.scope} AND
         "doc_id" IS NOT DISTINCT FROM ${input.docId ?? null} AND
         "project_id" IS NOT DISTINCT FROM ${input.projectId ?? null} AND
@@ -815,6 +1030,7 @@ export class CopilotContextMemoryModel extends BaseModel {
     workspaceId?: string | null;
     docId?: string | null;
     docIds?: string[];
+    documentRefs?: CopilotContextDocumentRef[];
     projectIds?: string[];
     includeDisabled?: boolean;
   }) {
@@ -831,40 +1047,63 @@ export class CopilotContextMemoryModel extends BaseModel {
     projectIds?: string[];
     includeDisabled?: boolean;
   }) {
+    const personalScopes: Prisma.AiContextMemoryWhereInput[] = input.workspaceId
+      ? [
+          {
+            ownerUserId: input.userId,
+            scope: 'user',
+            workspaceId: null,
+            docId: null,
+            projectId: null,
+          },
+          {
+            ownerUserId: input.userId,
+            workspaceId: input.workspaceId,
+            OR: [{ scope: 'workspace' }, { scope: 'document' }],
+          },
+        ]
+      : [
+          {
+            ownerUserId: input.userId,
+            scope: { not: 'project' },
+          },
+        ];
+    const projectScopes: Prisma.AiContextMemoryWhereInput[] =
+      input.projectIds === undefined
+        ? [
+            {
+              scope: 'project',
+              workspaceId: null,
+              project: {
+                status: 'active',
+                members: {
+                  some: { userId: input.userId, role: 'owner' },
+                },
+              },
+            },
+          ]
+        : input.projectIds.length
+          ? [
+              {
+                scope: 'project',
+                workspaceId: null,
+                projectId: { in: input.projectIds },
+                project: {
+                  status: 'active',
+                  members: {
+                    some: { userId: input.userId, role: 'owner' },
+                  },
+                },
+              },
+            ]
+          : [];
     return await this.db.aiContextMemory.findMany({
       where: {
         status: input.includeDisabled
           ? { in: ['active', 'disabled'] }
           : 'active',
-        ownerUserId: input.userId,
         visibility: 'private',
-        ...(input.workspaceId
-          ? {
-              OR: [
-                {
-                  scope: 'user',
-                  workspaceId: null,
-                  docId: null,
-                  projectId: null,
-                },
-                {
-                  workspaceId: input.workspaceId,
-                  OR: [
-                    { scope: 'workspace' },
-                    { scope: 'document' },
-                    ...(input.projectIds?.length
-                      ? [
-                          {
-                            scope: 'project',
-                            projectId: { in: input.projectIds },
-                          },
-                        ]
-                      : []),
-                  ],
-                },
-              ],
-            }
-          : {}),
+        OR: [...personalScopes, ...projectScopes],
       },
       orderBy: [{ kind: 'asc' }, { updatedAt: 'desc' }],
     });
@@ -876,7 +1115,8 @@ export class CopilotContextMemoryModel extends BaseModel {
     input: {
       content?: string;
       status?: CopilotContextMemoryStatus;
-    }
+    },
+    actorUserId?: string
   ) {
     const current = await this.get(id);
     if (!current) return null;
@@ -885,8 +1125,10 @@ export class CopilotContextMemoryModel extends BaseModel {
         ? current.content
         : normalizeMemoryContent(input.content);
     try {
-      return await this.db.aiContextMemory.update({
-        where: { id },
+      const updated = await this.db.aiContextMemory.updateMany({
+        where: actorUserId
+          ? this.memoryManagementWhere(id, actorUserId)
+          : { id },
         data: {
           content,
           status: input.status,
@@ -900,6 +1142,10 @@ export class CopilotContextMemoryModel extends BaseModel {
                 }),
         },
       });
+      if (updated.count !== 1) {
+        throw new NotFound('AI context memory not found');
+      }
+      return await this.get(id);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
@@ -923,9 +1169,9 @@ export class CopilotContextMemoryModel extends BaseModel {
   }
 
   @Transactional()
-  async delete(id: string) {
+  async delete(id: string, actorUserId?: string) {
     const result = await this.db.aiContextMemory.deleteMany({
-      where: { id },
+      where: actorUserId ? this.memoryManagementWhere(id, actorUserId) : { id },
     });
     return result.count > 0;
   }
@@ -935,37 +1181,44 @@ export class CopilotContextMemoryModel extends BaseModel {
       where: { id },
       include: {
         documents: {
-          orderBy: { createdAt: 'asc' },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
         },
+        members: { orderBy: [{ role: 'asc' }, { createdAt: 'asc' }] },
       },
     });
   }
 
-  async listProjects(input: {
-    workspaceId: string;
-    includeArchived?: boolean;
-  }) {
+  async listProjects(input: { userId: string; includeArchived?: boolean }) {
     return await this.db.aiContextProject.findMany({
       where: {
-        workspaceId: input.workspaceId,
+        members: { some: { userId: input.userId } },
         ...(input.includeArchived ? {} : { status: 'active' }),
       },
       include: {
         documents: {
-          orderBy: { createdAt: 'asc' },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
         },
+        members: { orderBy: [{ role: 'asc' }, { createdAt: 'asc' }] },
       },
       orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
     });
   }
 
-  async listProjectIdsForDoc(input: { workspaceId: string; docId: string }) {
+  async listProjectIdsForDoc(input: {
+    userId: string;
+    workspaceId: string;
+    docId: string;
+  }) {
     const projects = await this.db.aiContextProject.findMany({
       where: {
-        workspaceId: input.workspaceId,
         status: 'active',
+        members: { some: { userId: input.userId } },
         documents: {
-          some: { docId: input.docId },
+          some: {
+            workspaceId: input.workspaceId,
+            docId: input.docId,
+            status: 'granted',
+          },
         },
       },
       select: { id: true },
@@ -974,19 +1227,23 @@ export class CopilotContextMemoryModel extends BaseModel {
   }
 
   async listProjectMembershipsForDocs(input: {
+    userId: string;
     workspaceId: string;
     docIds: string[];
   }) {
     if (!input.docIds.length) return [];
     return await this.db.aiContextProjectDoc.findMany({
       where: {
+        workspaceId: input.workspaceId,
         docId: { in: input.docIds },
+        status: 'granted',
         project: {
-          workspaceId: input.workspaceId,
           status: 'active',
+          members: { some: { userId: input.userId } },
         },
       },
       select: {
+        workspaceId: true,
         docId: true,
         projectId: true,
       },
@@ -998,90 +1255,275 @@ export class CopilotContextMemoryModel extends BaseModel {
     workspaceId: string;
     docId: string;
   }) {
-    const [memories, projectDocuments] = await Promise.all([
-      this.db.aiContextMemory.deleteMany({
-        where: {
-          workspaceId: input.workspaceId,
-          docId: input.docId,
-          scope: 'document',
-        },
-      }),
-      this.db.aiContextProjectDoc.deleteMany({
-        where: {
-          docId: input.docId,
-          project: {
-            workspaceId: input.workspaceId,
-          },
-        },
-      }),
-    ]);
+    const authorizations =
+      await this.models.intelligenceWorkbenchAuthorization.removeSourceDocumentAuthorizations(
+        input
+      );
+    const memories = await this.db.aiContextMemory.deleteMany({
+      where: {
+        workspaceId: input.workspaceId,
+        docId: input.docId,
+        scope: 'document',
+      },
+    });
     return {
       memoryCount: memories.count,
-      projectDocumentCount: projectDocuments.count,
+      projectDocumentCount: authorizations.projectDocumentCount,
     };
   }
 
   @Transactional()
   async createProject(input: CopilotContextProjectInput) {
-    return await this.db.aiContextProject.create({
+    const project = await this.db.aiContextProject.create({
       data: {
-        workspaceId: input.workspaceId,
         createdByUserId: input.createdByUserId,
         name: input.name,
         description: input.description ?? '',
-        documents: {
-          createMany: {
-            data: input.documentIds.map(docId => ({ docId })),
-            skipDuplicates: true,
+        members: {
+          create: {
+            userId: input.createdByUserId,
+            role: 'owner',
           },
         },
       },
-      include: {
-        documents: {
-          orderBy: { createdAt: 'asc' },
-        },
+    });
+    for (const [index, document] of input.documents.entries()) {
+      await this.models.intelligenceWorkbenchAuthorization.addProjectDocument({
+        projectId: project.id,
+        workspaceId: document.workspaceId,
+        docId: document.docId,
+        requesterUserId: input.createdByUserId,
+        requestedLevel: 'read',
+        groupId: document.groupId ?? null,
+        sortOrder: document.sortOrder ?? index,
+      });
+    }
+    const created = await this.getProject(project.id);
+    if (!created) throw new Error('Created context project disappeared');
+    return created;
+  }
+
+  @Transactional()
+  async addProjectDocument(
+    projectId: string,
+    actorUserId: string,
+    document: CopilotContextProjectDocumentInput
+  ) {
+    if (!(await this.lockActiveProjectOwner(projectId, actorUserId)))
+      return null;
+    await this.models.intelligenceWorkbenchAuthorization.addProjectDocument({
+      projectId,
+      workspaceId: document.workspaceId,
+      docId: document.docId,
+      requesterUserId: actorUserId,
+      requestedLevel: 'read',
+      groupId: document.groupId ?? null,
+      sortOrder: document.sortOrder ?? 0,
+    });
+    await this.db.aiContextProjectDoc.updateMany({
+      where: {
+        projectId,
+        workspaceId: document.workspaceId,
+        docId: document.docId,
+      },
+      data: {
+        groupId: document.groupId ?? null,
+        sortOrder: document.sortOrder ?? 0,
       },
     });
+    return await this.getProject(projectId);
+  }
+
+  @Transactional()
+  async removeProjectDocument(
+    projectId: string,
+    actorUserId: string,
+    document: CopilotContextDocumentRef
+  ) {
+    const result =
+      await this.models.intelligenceWorkbenchAuthorization.removeProjectDocument(
+        {
+          projectId,
+          workspaceId: document.workspaceId,
+          docId: document.docId,
+          actorUserId,
+        }
+      );
+    if (!result.removed) return null;
+    return await this.getProject(projectId);
+  }
+
+  @Transactional()
+  async updateProjectDocument(
+    projectId: string,
+    actorUserId: string,
+    document: CopilotContextDocumentRef,
+    input: { groupId?: string | null; sortOrder?: number }
+  ) {
+    if (!(await this.lockActiveProjectOwner(projectId, actorUserId)))
+      return null;
+    const result = await this.db.aiContextProjectDoc.updateMany({
+      where: {
+        projectId,
+        workspaceId: document.workspaceId,
+        docId: document.docId,
+      },
+      data: {
+        groupId: input.groupId,
+        sortOrder: input.sortOrder,
+      },
+    });
+    if (!result.count) return null;
+    return await this.getProject(projectId);
   }
 
   @Transactional()
   async updateProject(
     id: string,
+    actorUserId: string,
     input: {
       name?: string;
       description?: string;
       status?: CopilotContextProjectStatus;
-      documentIds?: string[];
+      workspaceDocuments?: {
+        workspaceId: string;
+        documents: CopilotContextProjectDocumentInput[];
+      };
     }
   ) {
-    return await this.db.aiContextProject.update({
+    if (!(await this.lockActiveProjectOwner(id, actorUserId))) return null;
+
+    let workspaceDocuments:
+      | { workspaceId: string; documents: CopilotContextProjectDocumentInput[] }
+      | undefined;
+    if (input.workspaceDocuments) {
+      const workspaceId = input.workspaceDocuments.workspaceId.trim();
+      if (!workspaceId) {
+        throw new BadRequest('Project document workspaceId is required');
+      }
+      const documents = new Map<string, CopilotContextProjectDocumentInput>();
+      for (const [
+        index,
+        document,
+      ] of input.workspaceDocuments.documents.entries()) {
+        const documentWorkspaceId = document.workspaceId.trim();
+        const docId = document.docId.trim();
+        const groupId = document.groupId?.trim() || null;
+        const sortOrder = document.sortOrder ?? index;
+        if (documentWorkspaceId !== workspaceId || !docId) {
+          throw new BadRequest(
+            'Project replacement documents must belong to the source workspace'
+          );
+        }
+        if (!Number.isInteger(sortOrder) || sortOrder < 0) {
+          throw new BadRequest(
+            'Project document sortOrder must be a non-negative integer'
+          );
+        }
+        documents.set(docId, {
+          workspaceId,
+          docId,
+          groupId,
+          sortOrder,
+        });
+      }
+      workspaceDocuments = { workspaceId, documents: [...documents.values()] };
+      const retainedDocumentCount = await this.db.aiContextProjectDoc.count({
+        where: { projectId: id, workspaceId: { not: workspaceId } },
+      });
+      if (
+        retainedDocumentCount + workspaceDocuments.documents.length >
+        CONTEXT_PROJECT_DOCUMENT_LIMIT
+      ) {
+        throw new BadRequest(
+          `A project cannot contain more than ${CONTEXT_PROJECT_DOCUMENT_LIMIT} documents`
+        );
+      }
+    }
+
+    if (workspaceDocuments) {
+      const current = await this.db.aiContextProjectDoc.findMany({
+        where: { projectId: id, workspaceId: workspaceDocuments.workspaceId },
+        select: { docId: true },
+      });
+      const currentIds = new Set(current.map(document => document.docId));
+      const desiredIds = new Set(
+        workspaceDocuments.documents.map(document => document.docId)
+      );
+      for (const document of current) {
+        if (desiredIds.has(document.docId)) continue;
+        await this.models.intelligenceWorkbenchAuthorization.removeProjectDocument(
+          {
+            projectId: id,
+            workspaceId: workspaceDocuments.workspaceId,
+            docId: document.docId,
+            actorUserId,
+          }
+        );
+      }
+      for (const document of workspaceDocuments.documents) {
+        if (currentIds.has(document.docId)) {
+          await this.db.aiContextProjectDoc.update({
+            where: {
+              projectId_workspaceId_docId: {
+                projectId: id,
+                workspaceId: document.workspaceId,
+                docId: document.docId,
+              },
+            },
+            data: {
+              groupId: document.groupId ?? null,
+              sortOrder: document.sortOrder ?? 0,
+            },
+          });
+          continue;
+        }
+        await this.models.intelligenceWorkbenchAuthorization.addProjectDocument(
+          {
+            projectId: id,
+            workspaceId: document.workspaceId,
+            docId: document.docId,
+            requesterUserId: actorUserId,
+            requestedLevel: 'read',
+            groupId: document.groupId ?? null,
+            sortOrder: document.sortOrder ?? 0,
+          }
+        );
+      }
+    }
+
+    if (input.status === 'archived') {
+      await this.models.intelligenceWorkbenchAuthorization.withdrawPendingProjectWorkForArchive(
+        { projectId: id, actorUserId }
+      );
+    }
+
+    const project = await this.db.aiContextProject.update({
       where: { id },
       data: {
         name: input.name,
         description: input.description,
         status: input.status,
-        ...(input.documentIds
-          ? {
-              documents: {
-                deleteMany: {},
-                createMany: {
-                  data: input.documentIds.map(docId => ({ docId })),
-                  skipDuplicates: true,
-                },
-              },
-            }
-          : {}),
       },
       include: {
         documents: {
-          orderBy: { createdAt: 'asc' },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
         },
+        members: { orderBy: [{ role: 'asc' }, { createdAt: 'asc' }] },
       },
     });
+    if (input.status === 'archived') {
+      await this.db.aiSession.updateMany({
+        where: { selectedContextProjectId: id },
+        data: { selectedContextProjectId: null },
+      });
+    }
+    return project;
   }
 
   @Transactional()
-  async deleteProject(id: string) {
+  async deleteProject(id: string, actorUserId: string) {
+    if (!(await this.lockProjectOwner(id, actorUserId))) return null;
     const memoryCount = await this.db.aiContextMemory.count({
       where: { projectId: id },
     });

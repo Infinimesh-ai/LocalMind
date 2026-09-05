@@ -19,12 +19,18 @@ query copilotContextDashboardGet(
       }
       contextProjects(includeArchived: true) {
         id
-        workspaceId
         createdByUserId
         name
         description
         status
-        documentIds
+        role
+        documents {
+          workspaceId
+          docId
+          title
+          groupId
+          sortOrder
+        }
         documentCount
         canManage
         createdAt

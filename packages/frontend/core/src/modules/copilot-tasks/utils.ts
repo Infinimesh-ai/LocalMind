@@ -7,21 +7,44 @@ export type CopilotTask = NonNullable<
   CopilotTasksGetQuery['currentUser']
 >['copilot']['copilotTasks'][number];
 
-export type CopilotTaskFilter = 'active' | 'approval' | 'completed';
-export type CopilotTaskAction = 'approve' | 'cancel' | 'reject' | 'resume';
+export type CopilotTaskFilter = 'all' | 'active' | 'approval' | 'completed';
+export type CopilotTaskAction =
+  | 'abandon'
+  | 'approve'
+  | 'cancel'
+  | 'reject'
+  | 'resume';
 
 const activeStatuses = new Set(['queued', 'running']);
-const completedStatuses = new Set(['completed', 'failed', 'cancelled']);
+const completedStatuses = new Set(['completed', 'cancelled']);
+
+const isDoneTask = (task: Pick<CopilotTask, 'abandoned' | 'status'>) =>
+  task.abandoned || completedStatuses.has(task.status);
+
+export function getCopilotTaskFilter(
+  task: Pick<CopilotTask, 'abandoned' | 'status'>
+): CopilotTaskFilter {
+  if (task.status === 'waiting_approval') {
+    return 'approval';
+  }
+  if (isDoneTask(task)) {
+    return 'completed';
+  }
+  return activeStatuses.has(task.status) ? 'active' : 'all';
+}
 
 export function filterCopilotTasks(
   tasks: CopilotTask[],
   filter: CopilotTaskFilter
 ) {
+  if (filter === 'all') {
+    return tasks;
+  }
   if (filter === 'approval') {
     return tasks.filter(task => task.status === 'waiting_approval');
   }
   if (filter === 'completed') {
-    return tasks.filter(task => completedStatuses.has(task.status));
+    return tasks.filter(isDoneTask);
   }
   return tasks.filter(task => activeStatuses.has(task.status));
 }

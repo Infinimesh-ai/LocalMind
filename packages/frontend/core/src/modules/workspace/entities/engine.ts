@@ -11,6 +11,7 @@ import type { WorkspaceService } from '../services/workspace';
 
 export class WorkspaceEngine extends Entity<{
   isSharedMode?: boolean;
+  engineStoreKey?: string;
   engineWorkerInitOptions: WorkerInitOptions;
 }> {
   client?: StoreClient;
@@ -58,9 +59,12 @@ export class WorkspaceEngine extends Entity<{
     }
     this.started = true;
 
-    const { store, dispose } = this.nbstoreService.openStore(
+    const storeKey =
+      this.props.engineStoreKey ??
       (this.props.isSharedMode ? 'shared:' : '') +
-        `workspace:${this.workspaceService.workspace.flavour}:${this.workspaceService.workspace.id}`,
+        `workspace:${this.workspaceService.workspace.flavour}:${this.workspaceService.workspace.id}`;
+    const { store, dispose } = this.nbstoreService.openStore(
+      storeKey,
       this.props.engineWorkerInitOptions
     );
     if (

@@ -60,6 +60,7 @@ type DashboardCopilot = NonNullable<
 >;
 type ContextMemory = DashboardCopilot['contextMemories'][number];
 type ContextProject = DashboardCopilot['contextProjects'][number];
+type ContextProjectDocument = ContextProject['documents'][number];
 type ContextRule = DashboardCopilot['contextRules'][number];
 type ContextPolicy = DashboardCopilot['contextPolicies'][number];
 type ContextMemoryEvent = DashboardCopilot['contextMemoryEvents'][number];
@@ -71,6 +72,24 @@ type ProjectDraft = {
   description: string;
   documentIds: string[];
 };
+
+export const buildProjectWorkspaceUpdateInput = (
+  projectId: string,
+  workspaceId: string,
+  draft: ProjectDraft
+) => ({
+  id: projectId,
+  name: draft.name.trim(),
+  description: draft.description.trim(),
+  workspaceDocuments: {
+    workspaceId,
+    documents: [...new Set(draft.documentIds)].map((docId, sortOrder) => ({
+      workspaceId,
+      docId,
+      sortOrder,
+    })),
+  },
+});
 type DirectiveDraft = {
   name: string;
   description: string;
@@ -211,18 +230,27 @@ const DocumentName = ({ docId }: { docId: string }) => {
   return title || t['com.affine.localmind.aiContext.untitled']();
 };
 
-const ProjectDocumentNames = ({ documentIds }: { documentIds: string[] }) => {
-  const visible = documentIds.slice(0, 3);
+const ProjectDocumentNames = ({
+  documents,
+}: {
+  documents: ContextProjectDocument[];
+}) => {
+  const t = useI18n();
+  const visible = documents.slice(0, 3);
   return (
     <div className={styles.documentNames}>
-      {visible.map(docId => (
-        <span className={styles.documentName} key={docId} title={docId}>
-          <DocumentName docId={docId} />
+      {visible.map(document => (
+        <span
+          className={styles.documentName}
+          key={`${document.workspaceId}:${document.docId}`}
+          title={document.title ?? document.docId ?? undefined}
+        >
+          {document.title || t['com.affine.localmind.aiContext.untitled']()}
         </span>
       ))}
-      {documentIds.length > visible.length ? (
+      {documents.length > visible.length ? (
         <span className={styles.documentMore}>
-          +{documentIds.length - visible.length}
+          +{documents.length - visible.length}
         </span>
       ) : null}
     </div>
@@ -580,13 +608,21 @@ const AIContextDashboard = ({
           next[project.id] = {
             name: project.name,
             description: project.description,
-            documentIds: [...project.documentIds],
+            documentIds: project.documents
+              .filter(
+                (
+                  document
+                ): document is ContextProjectDocument & { docId: string } =>
+                  document.workspaceId === workspaceId &&
+                  document.docId !== null
+              )
+              .map(document => document.docId),
           };
         }
       }
       return next;
     });
-  }, [projects, setProjectDrafts]);
+  }, [projects, setProjectDrafts, workspaceId]);
 
   const reportError = useCallback(
     (caught: unknown) => {
@@ -637,17 +673,20 @@ const AIContextDashboard = ({
   const createProject = useCallback(async () => {
     const name = newProjectName.trim();
     const description = newProjectDescription.trim();
-    if (!name || !newProjectDocumentIds.length) return;
+    if (!name) return;
     setCreatingProject(true);
     try {
       await graphqlService.gql({
         query: copilotContextProjectCreateMutation,
         variables: {
           input: {
-            workspaceId,
             name,
             description,
-            documentIds: newProjectDocumentIds,
+            documents: newProjectDocumentIds.map((docId, sortOrder) => ({
+              workspaceId,
+              docId,
+              sortOrder,
+            })),
           },
         },
       });
@@ -677,7 +716,6 @@ const AIContextDashboard = ({
         name?: string;
         description?: string;
         status?: string;
-        documentIds?: string[];
       }
     ) => {
       markProjectPending(project.id, true);
@@ -699,6 +737,30 @@ const AIContextDashboard = ({
       }
     },
     [graphqlService, markProjectPending, mutate, reportError]
+  );
+
+  const saveProject = useCallback(
+    async (project: ContextProject, draft: ProjectDraft) => {
+      markProjectPending(project.id, true);
+      try {
+        await graphqlService.gql({
+          query: copilotContextProjectUpdateMutation,
+          variables: {
+            input: buildProjectWorkspaceUpdateInput(
+              project.id,
+              workspaceId,
+              draft
+            ),
+          },
+        });
+        await mutate();
+      } catch (caught) {
+        reportError(caught);
+      } finally {
+        markProjectPending(project.id, false);
+      }
+    },
+    [graphqlService, markProjectPending, mutate, reportError, workspaceId]
   );
 
   const deleteProject = useCallback(
@@ -751,7 +813,6 @@ const AIContextDashboard = ({
         query: copilotContextMemoryCreateMutation,
         variables: {
           input: {
-            workspaceId,
             projectId: selectedProjectId,
             scope: CopilotContextMemoryScopeInput.project,
             kind: CopilotContextMemoryManualKindInput.project_summary,
@@ -766,14 +827,7 @@ const AIContextDashboard = ({
     } finally {
       setCreating(false);
     }
-  }, [
-    graphqlService,
-    mutate,
-    newContent,
-    reportError,
-    selectedProjectId,
-    workspaceId,
-  ]);
+  }, [graphqlService, mutate, newContent, reportError, selectedProjectId]);
 
   const createRule = useCallback(async () => {
     const name = newRuleName.trim();
@@ -793,7 +847,7 @@ const AIContextDashboard = ({
         query: createCopilotContextRuleMutation,
         variables: {
           input: {
-            ...(target === 'personal' ? {} : { workspaceId }),
+            ...(target === 'workspace' ? { workspaceId } : {}),
             ...(target === 'project' ? { projectId: selectedProjectId } : {}),
             scope:
               target === 'personal'
@@ -807,7 +861,7 @@ const AIContextDashboard = ({
             priority,
             conditions: {
               keywords: parseKeywords(newRuleKeywords),
-              docIds: target === 'personal' ? [] : newRuleDocumentIds,
+              docIds: target === 'workspace' ? newRuleDocumentIds : [],
               projectIds: target === 'personal' ? [] : newRuleProjectIds,
               match: newRuleMatch,
             },
@@ -1263,8 +1317,7 @@ const AIContextDashboard = ({
     !newPolicyContent.trim() ||
     !Number.isInteger(Number(newPolicyPriority)) ||
     creating;
-  const createProjectDisabled =
-    !newProjectName.trim() || !newProjectDocumentIds.length || creatingProject;
+  const createProjectDisabled = !newProjectName.trim() || creatingProject;
 
   if (error) {
     return (
@@ -1357,7 +1410,7 @@ const AIContextDashboard = ({
       <SettingWrapper
         title={t['com.affine.localmind.aiContext.projects.title']()}
       >
-        {!isLocal && canManageProjects ? (
+        {!isLocal ? (
           <div className={styles.projectCreateArea}>
             <div className={styles.projectCreateFields}>
               <Input
@@ -1411,15 +1464,25 @@ const AIContextDashboard = ({
           ) : projects.length ? (
             projects.map(project => {
               const pending = pendingProjectIds.has(project.id);
+              const workspaceDocumentIds = project.documents
+                .filter(
+                  (
+                    document
+                  ): document is ContextProjectDocument & { docId: string } =>
+                    document.workspaceId === workspaceId &&
+                    document.docId !== null
+                )
+                .map(document => document.docId);
               const draft = projectDrafts[project.id] ?? {
                 name: project.name,
                 description: project.description,
-                documentIds: project.documentIds,
+                documentIds: workspaceDocumentIds,
               };
               const changed =
                 draft.name.trim() !== project.name ||
                 draft.description.trim() !== project.description ||
-                draft.documentIds.join('\0') !== project.documentIds.join('\0');
+                draft.documentIds.join('\0') !==
+                  workspaceDocumentIds.join('\0');
               return (
                 <div
                   className={
@@ -1468,7 +1531,7 @@ const AIContextDashboard = ({
                           count: String(project.documentCount),
                         })}
                       </span>
-                      <ProjectDocumentNames documentIds={project.documentIds} />
+                      <ProjectDocumentNames documents={project.documents} />
                     </div>
                   </div>
                   <div className={styles.projectActions}>
@@ -1505,17 +1568,10 @@ const AIContextDashboard = ({
                       disabled={
                         !changed ||
                         !draft.name.trim() ||
-                        !draft.documentIds.length ||
                         pending ||
                         !project.canManage
                       }
-                      onClick={() =>
-                        void updateProject(project, {
-                          name: draft.name.trim(),
-                          description: draft.description.trim(),
-                          documentIds: draft.documentIds,
-                        })
-                      }
+                      onClick={() => void saveProject(project, draft)}
                     />
                     {project.status === 'archived' ? (
                       <IconButton
@@ -1536,11 +1592,7 @@ const AIContextDashboard = ({
             <div className={styles.empty}>
               {isLocal
                 ? t['com.affine.localmind.aiContext.projects.syncRequired']()
-                : canManageProjects
-                  ? t['com.affine.localmind.aiContext.projects.empty']()
-                  : t[
-                      'com.affine.localmind.aiContext.projects.emptyAccessible'
-                    ]()}
+                : t['com.affine.localmind.aiContext.projects.empty']()}
             </div>
           )}
         </div>

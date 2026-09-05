@@ -19,6 +19,7 @@ const WORKSPACE_WRITE_TOOLS = new Set([
   'doc_create',
   'doc_update',
   'doc_update_meta',
+  'project_doc_update_request',
   'workspace_folder_create',
   'workspace_folder_rename',
   'workspace_folder_move',

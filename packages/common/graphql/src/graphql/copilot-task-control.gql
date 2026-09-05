@@ -1,6 +1,8 @@
 mutation controlCopilotTask($input: CopilotTaskControlInput!) {
   controlCopilotTask(input: $input) {
     id
+    workspaceId
+    projectId
     title
     workflow
     status
@@ -14,6 +16,7 @@ mutation controlCopilotTask($input: CopilotTaskControlInput!) {
     approvalSummary
     resultEvidence
     availableActions
+    abandoned
     approval {
       stepId
       status

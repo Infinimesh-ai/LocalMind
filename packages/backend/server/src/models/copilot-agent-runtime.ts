@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
+import { Prisma } from '@prisma/client';
 
 import { BaseModel } from './base';
 import type { CopilotRepairExecutionRecord } from './copilot-repair-execution';
@@ -103,6 +104,8 @@ export type CopilotAgentRunRecord = {
   id: string;
   workspaceId: string;
   actorId: string;
+  sessionId: string | null;
+  projectId?: string | null;
   workflow: string;
   sourceType: string;
   sourceId: string;
@@ -149,6 +152,7 @@ export type CopilotAgentRuntimeCreateStepInput = {
 export type CopilotAgentRuntimeCreateInput = {
   workspaceId: string;
   actorId: string;
+  sessionId?: string | null;
   workflow: string;
   sourceType: string;
   sourceId: string;
@@ -160,6 +164,7 @@ export type CopilotAgentRuntimeCreateInput = {
 };
 
 export type CopilotAgentRuntimeControlAction =
+  | 'abandon'
   | 'approve'
   | 'cancel'
   | 'reject'
@@ -186,11 +191,23 @@ type AgentRuntimeCreateRunEvidence = {
   evidenceFingerprint: string;
   sourceId: string;
   sourceType: string;
+  sessionId: string | null;
   steps: AgentRuntimeCreateStepEvidence[];
   targetFingerprint: string;
   title: string | null;
   workflow: string;
   workspaceId: string;
+};
+
+export type CopilotWorkbenchTaskSegmentRecord = {
+  items: CopilotAgentRunRecord[];
+  capped: boolean;
+};
+
+export type CopilotWorkbenchTaskPanelRecord = {
+  todo: CopilotWorkbenchTaskSegmentRecord;
+  inProgress: CopilotWorkbenchTaskSegmentRecord;
+  done: CopilotWorkbenchTaskSegmentRecord;
 };
 
 type AgentRuntimeExecutionResultLedgerEvidence = {
@@ -321,6 +338,11 @@ const AGENT_RUNTIME_ADAPTER_SIDE_EFFECT_MODES = new Set([
   'external_tool',
 ]);
 const AGENT_RUNTIME_ADAPTER_SNAPSHOT_MAX_COUNT = 24;
+const WORKBENCH_TODO_LIMIT = 50;
+const WORKBENCH_IN_PROGRESS_LIMIT = 50;
+const WORKBENCH_DONE_LIMIT = 20;
+const COPILOT_TASK_LIST_MAX_LIMIT = 100;
+const WORKBENCH_DONE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 function toJsonString(value: unknown) {
   return JSON.stringify(value);
@@ -336,6 +358,39 @@ function normalizeWorkerFailureMessage(message: string) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isProjectDocumentWriteRun(run: CopilotAgentRunRecord) {
+  return run.steps.some(step => {
+    const request = step.outputSummary.docUpdateRequest;
+    return (
+      step.stepType === 'tool' &&
+      isRecord(request) &&
+      typeof request.projectId === 'string' &&
+      request.projectId.trim().length > 0
+    );
+  });
+}
+
+function docWriteReconfirmationRequest(outputSummary: Record<string, unknown>) {
+  const request = outputSummary.reconfirmationRequest;
+  if (
+    !isRecord(request) ||
+    request.version !== 'agent-runtime-doc-update-reconfirmation/v1' ||
+    request.reason !== 'document_version_drift' ||
+    request.previewStatus !== 'invalidated' ||
+    typeof request.documentWorkspaceId !== 'string' ||
+    typeof request.documentId !== 'string' ||
+    typeof request.actualVersion !== 'string' ||
+    Number.isNaN(new Date(request.actualVersion).getTime())
+  ) {
+    return null;
+  }
+  return {
+    documentWorkspaceId: request.documentWorkspaceId,
+    documentId: request.documentId,
+    actualVersion: request.actualVersion,
+  };
 }
 
 function requireAgentRuntimeString(
@@ -839,6 +894,16 @@ function hydrateAgentRuntimeExecutionResult(
   };
 }
 
+function latestAgentRuntimeControlAction(run: CopilotAgentRunRecord) {
+  for (let index = run.timelineEvents.length - 1; index >= 0; index--) {
+    const action = run.timelineEvents[index].payload.action;
+    if (typeof action === 'string') {
+      return action;
+    }
+  }
+  return null;
+}
+
 function assertAgentRuntimeRunMatchesCreateConflictEvidence(
   run: CopilotAgentRunRecord,
   expected: AgentRuntimeCreateRunEvidence
@@ -846,6 +911,7 @@ function assertAgentRuntimeRunMatchesCreateConflictEvidence(
   if (
     run.workspaceId !== expected.workspaceId ||
     run.actorId !== expected.actorId ||
+    run.sessionId !== expected.sessionId ||
     run.workflow !== expected.workflow ||
     run.sourceType !== expected.sourceType ||
     run.sourceId !== expected.sourceId ||
@@ -919,6 +985,10 @@ function normalizeListLimit(limit: number | undefined) {
   return Math.min(Math.max(limit ?? 8, 1), 20);
 }
 
+function normalizeCopilotTaskListLimit(limit: number | undefined) {
+  return Math.min(Math.max(limit ?? 8, 1), COPILOT_TASK_LIST_MAX_LIMIT);
+}
+
 function normalizeInitialStepStatus(
   status: CopilotAgentRunStatus,
   stepStatus?: CopilotAgentStepStatus
@@ -980,6 +1050,27 @@ function isActiveStepStatus(status: CopilotAgentStepStatus) {
 
 function isTerminalStepStatus(status: CopilotAgentStepStatus) {
   return status === 'completed' || status === 'failed' || status === 'skipped';
+}
+
+function nextAgentRuntimeTransitionTimestamp(
+  run: CopilotAgentRunRecord,
+  proposedAt = new Date()
+) {
+  const persistedFloor = Math.max(
+    run.createdAt.getTime(),
+    run.updatedAt.getTime(),
+    run.startedAt?.getTime() ?? 0,
+    run.completedAt?.getTime() ?? 0,
+    run.queuedAt?.getTime() ?? 0,
+    run.lastAttemptAt?.getTime() ?? 0,
+    ...run.steps.flatMap(step => [
+      step.createdAt.getTime(),
+      step.updatedAt.getTime(),
+      step.startedAt?.getTime() ?? 0,
+      step.completedAt?.getTime() ?? 0,
+    ])
+  );
+  return new Date(Math.max(proposedAt.getTime(), persistedFloor + 1));
 }
 
 function repairExecutionSideEffectProjection(
@@ -1047,7 +1138,9 @@ function controlledRunTimeline(input: {
   const status: CopilotAgentRunStatus =
     input.action === 'approve'
       ? 'queued'
-      : input.action === 'cancel' || input.action === 'reject'
+      : input.action === 'abandon' ||
+          input.action === 'cancel' ||
+          input.action === 'reject'
         ? 'cancelled'
         : input.action === 'cancel_requested'
           ? 'running'
@@ -1062,15 +1155,17 @@ function controlledRunTimeline(input: {
     status,
     ordinal: nextOrdinal,
     summary:
-      input.action === 'cancel'
-        ? 'Agent runtime run manually cancelled'
-        : input.action === 'approve'
-          ? 'Agent runtime run manually approved'
-          : input.action === 'reject'
-            ? 'Agent runtime run manually rejected'
-            : input.action === 'cancel_requested'
-              ? 'Agent runtime run cancellation requested'
-              : 'Agent runtime run manually resumed',
+      input.action === 'abandon'
+        ? 'Failed agent runtime run manually abandoned'
+        : input.action === 'cancel'
+          ? 'Agent runtime run manually cancelled'
+          : input.action === 'approve'
+            ? 'Agent runtime run manually approved'
+            : input.action === 'reject'
+              ? 'Agent runtime run manually rejected'
+              : input.action === 'cancel_requested'
+                ? 'Agent runtime run cancellation requested'
+                : 'Agent runtime run manually resumed',
     stepId: null,
     payload: {
       version: approvalDecision
@@ -1244,6 +1339,11 @@ export class CopilotAgentRuntimeModel extends BaseModel {
     );
     validateAgentRuntimeSourceWorkflow({ sourceType, workflow });
     const sourceId = requireAgentRuntimeString(input.sourceId, 'source id');
+    const sessionId = optionalAgentRuntimeString(
+      input.sessionId,
+      'session id',
+      AGENT_RUNTIME_REQUIRED_STRING_MAX_LENGTH
+    );
     const title = optionalAgentRuntimeString(
       input.title,
       'title',
@@ -1264,12 +1364,34 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       throw new Error('Agent runtime run has too many steps');
     }
 
+    if (sessionId) {
+      const sessionRows = await this.db.$queryRaw<Array<{ id: string }>>`
+        SELECT id
+        FROM ai_sessions_metadata
+        WHERE id = ${sessionId}
+          AND user_id = ${input.actorId}
+          AND workspace_id = ${input.workspaceId}
+          AND deleted_at IS NULL
+        LIMIT 1
+      `;
+      if (!sessionRows.length) {
+        throw new Error(
+          'Agent runtime session must be active and match its actor and workspace'
+        );
+      }
+    }
+
     const existing = await this.getBySource(
       input.workspaceId,
       sourceType,
       sourceId
     );
     if (existing) {
+      if (existing.sessionId !== sessionId) {
+        throw new Error(
+          'Agent runtime run conflict reused mismatched create session'
+        );
+      }
       return existing;
     }
 
@@ -1362,6 +1484,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
         id,
         workspace_id,
         actor_id,
+        session_id,
         workflow,
         source_type,
         source_id,
@@ -1387,6 +1510,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
         ${runId},
         ${input.workspaceId},
         ${input.actorId},
+        ${sessionId},
         ${workflow},
         ${sourceType},
         ${sourceId},
@@ -1426,6 +1550,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       assertAgentRuntimeRunMatchesCreateConflictEvidence(reused, {
         actorId: input.actorId,
         evidenceFingerprint,
+        sessionId,
         sourceId,
         sourceType,
         steps: steps.map(step => ({
@@ -1558,8 +1683,29 @@ export class CopilotAgentRuntimeModel extends BaseModel {
     id: string;
     action: CopilotAgentRuntimeControlAction;
     reason?: string | null;
+    expectedApprovalFingerprint?: string;
   }): Promise<CopilotAgentRunRecord> {
     const existing = await this.get(input.workspaceId, input.id);
+    if (!existing) {
+      throw new Error(`Agent runtime run not found: ${input.id}`);
+    }
+    return await this.controlExistingRun(input, existing);
+  }
+
+  @Transactional()
+  async controlRunForWorkspaceViewer(input: {
+    workspaceId: string;
+    actorId: string;
+    id: string;
+    action: CopilotAgentRuntimeControlAction;
+    reason?: string | null;
+    expectedApprovalFingerprint?: string;
+  }): Promise<CopilotAgentRunRecord> {
+    const existing = await this.getForWorkspaceViewer(
+      input.workspaceId,
+      input.actorId,
+      input.id
+    );
     if (!existing) {
       throw new Error(`Agent runtime run not found: ${input.id}`);
     }
@@ -1573,6 +1719,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
     id: string;
     action: CopilotAgentRuntimeControlAction;
     reason?: string | null;
+    expectedApprovalFingerprint?: string;
   }): Promise<CopilotAgentRunRecord> {
     const existing = await this.getForActor(
       input.workspaceId,
@@ -1592,6 +1739,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       id: string;
       action: CopilotAgentRuntimeControlAction;
       reason?: string | null;
+      expectedApprovalFingerprint?: string;
     },
     existing: CopilotAgentRunRecord
   ) {
@@ -1599,6 +1747,9 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       throw new Error(
         'Repair execution Agent Runtime runs must be controlled through repair execution controls'
       );
+    }
+    if (input.action === 'abandon') {
+      return await this.abandonFailedStandaloneRun(input, existing);
     }
     if (input.action === 'approve' || input.action === 'reject') {
       return await this.decideStandaloneApprovalRun(input, existing);
@@ -1612,6 +1763,99 @@ export class CopilotAgentRuntimeModel extends BaseModel {
     throw new Error('Unsupported Agent Runtime control action');
   }
 
+  private async abandonFailedStandaloneRun(
+    input: {
+      workspaceId: string;
+      actorId: string;
+      id: string;
+      action: CopilotAgentRuntimeControlAction;
+      reason?: string | null;
+    },
+    existing: CopilotAgentRunRecord
+  ) {
+    if (
+      existing.status === 'cancelled' &&
+      latestAgentRuntimeControlAction(existing) === 'abandon'
+    ) {
+      return existing;
+    }
+    if (existing.status !== 'failed') {
+      throw new Error(
+        `Agent runtime run cannot be abandoned from status: ${existing.status}`
+      );
+    }
+
+    const now = nextAgentRuntimeTransitionTimestamp(existing);
+    const reason = normalizeControlReason(input.reason);
+    const event = controlledRunTimeline({
+      action: 'abandon',
+      actorId: input.actorId,
+      reason,
+      run: existing,
+      startedAt: now,
+    });
+    const timelineFingerprint = timelineFingerprintWithEvents(existing, [
+      event,
+    ]);
+    const abandonedRows = await this.db.$queryRaw<Array<{ id: string }>>`
+      UPDATE ai_agent_runs
+      SET
+        status = ${'cancelled'},
+        timeline_fingerprint = ${timelineFingerprint},
+        completed_at = ${now},
+        queued_at = ${null},
+        worker_lease_id = ${null},
+        worker_lease_expires_at = ${null},
+        updated_at = ${now}
+      WHERE workspace_id = ${input.workspaceId}
+        AND id = ${input.id}
+        AND actor_id = ${existing.actorId}
+        AND source_type <> ${'repair_execution_request'}
+        AND source_type = ${existing.sourceType}
+        AND source_id = ${existing.sourceId}
+        AND workflow = ${existing.workflow}
+        AND status = ${'failed'}
+        AND title IS NOT DISTINCT FROM ${existing.title}
+        AND target_fingerprint = ${existing.targetFingerprint}
+        AND evidence_fingerprint = ${existing.evidenceFingerprint}
+        AND timeline_fingerprint = ${existing.timelineFingerprint}
+        AND started_at IS NOT DISTINCT FROM ${existing.startedAt}
+        AND completed_at IS NOT DISTINCT FROM ${existing.completedAt}
+        AND failure_code IS NOT DISTINCT FROM ${existing.failureCode}
+        AND failure_message IS NOT DISTINCT FROM ${existing.failureMessage}
+        AND queued_at IS NOT DISTINCT FROM ${existing.queuedAt}
+        AND worker_lease_id IS NOT DISTINCT FROM ${existing.workerLeaseId}
+        AND worker_lease_expires_at IS NOT DISTINCT FROM ${
+          existing.workerLeaseExpiresAt
+        }
+        AND worker_attempt = ${existing.workerAttempt}
+        AND worker_max_attempts = ${existing.workerMaxAttempts}
+        AND last_attempt_at IS NOT DISTINCT FROM ${existing.lastAttemptAt}
+        AND created_at = ${existing.createdAt}
+        AND updated_at IS NOT DISTINCT FROM ${existing.updatedAt}
+      RETURNING id
+    `;
+    if (!abandonedRows.length) {
+      throw new Error(
+        `Agent runtime run could not be abandoned because its state changed: ${input.id}`
+      );
+    }
+
+    await this.insertTimelineEvent({
+      actorId: input.actorId,
+      event,
+      runId: existing.id,
+      workspaceId: input.workspaceId,
+      createdAt: now,
+    });
+
+    const run = await this.get(input.workspaceId, input.id);
+    if (!run) {
+      throw new Error(`Abandoned agent runtime run not found: ${input.id}`);
+    }
+    return run;
+  }
+
   private async decideStandaloneApprovalRun(
     input: {
       workspaceId: string;
@@ -1619,6 +1863,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       id: string;
       action: CopilotAgentRuntimeControlAction;
       reason?: string | null;
+      expectedApprovalFingerprint?: string;
     },
     existing: CopilotAgentRunRecord
   ) {
@@ -1631,9 +1876,64 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       );
     }
 
-    const now = new Date();
+    if (
+      input.action === 'approve' &&
+      (input.expectedApprovalFingerprint !== undefined ||
+        existing.steps.some(step =>
+          docWriteReconfirmationRequest(step.outputSummary)
+        )) &&
+      input.expectedApprovalFingerprint !== existing.timelineFingerprint
+    ) {
+      throw new Error(
+        'Agent runtime approval changed; review the current preview before confirming'
+      );
+    }
+
+    const now = nextAgentRuntimeTransitionTimestamp(existing);
     const reason = normalizeControlReason(input.reason);
     const approved = input.action === 'approve';
+    const reconfirmationApproval = approved
+      ? existing.steps
+          .filter(
+            step =>
+              step.stepType === 'approval' && step.status === 'waiting_approval'
+          )
+          .map(step => ({
+            step,
+            request: docWriteReconfirmationRequest(step.outputSummary),
+          }))
+          .find(item => item.request !== null)
+      : undefined;
+    const reconfirmation = reconfirmationApproval?.request ?? null;
+    const reconfirmationTool = reconfirmation
+      ? existing.steps.find(step => {
+          if (step.stepType !== 'tool' || !isActiveStepStatus(step.status)) {
+            return false;
+          }
+          const request = step.outputSummary.docUpdateRequest;
+          return (
+            isRecord(request) &&
+            request.docId === reconfirmation.documentId &&
+            (request.sourceWorkspaceId ??
+              request.workspaceId ??
+              step.workspaceId) === reconfirmation.documentWorkspaceId
+          );
+        })
+      : undefined;
+    if (reconfirmation && !reconfirmationTool) {
+      throw new Error(
+        `Agent runtime doc update re-confirmation is missing its target tool step: ${existing.id}`
+      );
+    }
+    const reconfirmationControl = reconfirmation
+      ? {
+          version: 'agent-runtime-doc-update-reconfirmation-control/v1',
+          status: 'confirmed',
+          actorId: input.actorId,
+          confirmedAt: now.toISOString(),
+          confirmedVersion: reconfirmation.actualVersion,
+        }
+      : null;
     const stepDecisions = existing.steps.map(step => {
       const nextStatus: CopilotAgentStepStatus = approved
         ? step.stepType === 'approval' && isActiveStepStatus(step.status)
@@ -1644,10 +1944,32 @@ export class CopilotAgentRuntimeModel extends BaseModel {
         : isActiveStepStatus(step.status)
           ? 'skipped'
           : step.status;
-      return { step, nextStatus };
+      const outputPatch: Record<string, unknown> = {};
+      if (
+        reconfirmationControl &&
+        (step.id === reconfirmationApproval?.step.id ||
+          step.id === reconfirmationTool?.id)
+      ) {
+        outputPatch.reconfirmationControl = reconfirmationControl;
+      }
+      if (reconfirmation && step.id === reconfirmationTool?.id) {
+        const request = step.outputSummary.docUpdateRequest;
+        if (!isRecord(request)) {
+          throw new Error(
+            `Agent runtime doc update re-confirmation request is invalid: ${step.id}`
+          );
+        }
+        outputPatch.docUpdateRequest = {
+          ...request,
+          expectedDocumentVersion: reconfirmation.actualVersion,
+        };
+      }
+      return { step, nextStatus, outputPatch };
     });
     const changedStepDecisions = stepDecisions.filter(
-      decision => decision.nextStatus !== decision.step.status
+      decision =>
+        decision.nextStatus !== decision.step.status ||
+        Object.keys(decision.outputPatch).length > 0
     );
     const event = controlledRunTimeline({
       action: input.action,
@@ -1718,7 +2040,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       );
     }
 
-    for (const { step, nextStatus } of changedStepDecisions) {
+    for (const { step, nextStatus, outputPatch } of changedStepDecisions) {
       const nextCompletedAt =
         nextStatus === 'completed' || nextStatus === 'skipped'
           ? (step.completedAt ?? now)
@@ -1740,6 +2062,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
               actorId: input.actorId,
               reason,
             },
+            ...outputPatch,
           })}::jsonb,
           updated_at = ${now}
         WHERE workspace_id = ${input.workspaceId}
@@ -2021,7 +2344,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       return existing;
     }
 
-    const updatedAt = new Date();
+    const updatedAt = nextAgentRuntimeTransitionTimestamp(existing);
     const runStatus = mapRepairExecutionRunStatus(input.record.status);
     const stepStatus = mapRepairExecutionStepStatus(input.record.status);
     const completedAt =
@@ -2206,31 +2529,46 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       >[]
     >`
       SELECT
-        id,
-        workspace_id AS "workspaceId",
-        actor_id AS "actorId",
-        workflow,
-        source_type AS "sourceType",
-        source_id AS "sourceId",
-        status,
-        title,
-        target_fingerprint AS "targetFingerprint",
-        evidence_fingerprint AS "evidenceFingerprint",
-        timeline_fingerprint AS "timelineFingerprint",
-        started_at AS "startedAt",
-        completed_at AS "completedAt",
-        failure_code AS "failureCode",
-        failure_message AS "failureMessage",
-        queued_at AS "queuedAt",
-        worker_lease_id AS "workerLeaseId",
-        worker_lease_expires_at AS "workerLeaseExpiresAt",
-        worker_attempt AS "workerAttempt",
-        worker_max_attempts AS "workerMaxAttempts",
-        last_attempt_at AS "lastAttemptAt",
-        created_at AS "createdAt",
-        updated_at AS "updatedAt"
-      FROM ai_agent_runs
-      WHERE workspace_id = ${workspaceId} AND id = ${id}
+        run.id,
+        run.workspace_id AS "workspaceId",
+        run.actor_id AS "actorId",
+        run.session_id AS "sessionId",
+        CASE
+          WHEN project_member.user_id IS NOT NULL THEN project.id
+          ELSE NULL
+        END AS "projectId",
+        run.workflow,
+        run.source_type AS "sourceType",
+        run.source_id AS "sourceId",
+        run.status,
+        run.title,
+        run.target_fingerprint AS "targetFingerprint",
+        run.evidence_fingerprint AS "evidenceFingerprint",
+        run.timeline_fingerprint AS "timelineFingerprint",
+        run.started_at AS "startedAt",
+        run.completed_at AS "completedAt",
+        run.failure_code AS "failureCode",
+        run.failure_message AS "failureMessage",
+        run.queued_at AS "queuedAt",
+        run.worker_lease_id AS "workerLeaseId",
+        run.worker_lease_expires_at AS "workerLeaseExpiresAt",
+        run.worker_attempt AS "workerAttempt",
+        run.worker_max_attempts AS "workerMaxAttempts",
+        run.last_attempt_at AS "lastAttemptAt",
+        run.created_at AS "createdAt",
+        run.updated_at AS "updatedAt"
+      FROM ai_agent_runs run
+      LEFT JOIN ai_sessions_metadata session
+        ON session.id = run.session_id
+       AND session.user_id = run.actor_id
+       AND session.workspace_id = run.workspace_id
+      LEFT JOIN ai_context_projects project
+        ON project.id = session.selected_context_project_id
+       AND project.status = ${'active'}
+      LEFT JOIN ai_context_project_members project_member
+        ON project_member.project_id = project.id
+       AND project_member.user_id = run.actor_id
+      WHERE run.workspace_id = ${workspaceId} AND run.id = ${id}
       LIMIT 1
     `;
     const run = rows[0];
@@ -2257,6 +2595,40 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       LIMIT 1
     `;
     return rows[0] ? await this.get(workspaceId, id) : null;
+  }
+
+  async getForWorkspaceViewer(
+    workspaceId: string,
+    viewerId: string,
+    id: string
+  ) {
+    const rows = await this.db.$queryRaw<Array<{ id: string }>>`
+      SELECT run.id
+      FROM ai_agent_runs run
+      WHERE run.workspace_id = ${workspaceId}
+        AND run.id = ${id}
+        AND (
+          run.actor_id = ${viewerId}
+          OR NOT EXISTS (
+            SELECT 1
+            FROM ai_agent_steps project_write_step
+            WHERE project_write_step.run_id = run.id
+              AND project_write_step.workspace_id = run.workspace_id
+              AND project_write_step.step_type = ${'tool'}
+              AND NULLIF(
+                project_write_step.output_summary -> 'docUpdateRequest' ->> 'projectId',
+                ''
+              ) IS NOT NULL
+          )
+        )
+      LIMIT 1
+    `;
+    if (!rows[0]) return null;
+    const run = await this.get(workspaceId, id);
+    if (!run) return null;
+    return run.actorId === viewerId || !isProjectDocumentWriteRun(run)
+      ? run
+      : null;
   }
 
   @Transactional()
@@ -2371,12 +2743,71 @@ export class CopilotAgentRuntimeModel extends BaseModel {
     return runs.filter((run): run is CopilotAgentRunRecord => !!run);
   }
 
+  async listForWorkspaceViewer(
+    workspaceId: string,
+    viewerId: string,
+    options: { filter?: CopilotAgentRunListFilter | null; limit?: number } = {}
+  ) {
+    const limit = normalizeListLimit(options.limit);
+    const filter = normalizeAgentRunListFilter(options.filter);
+    const rows = await this.db.$queryRaw<Array<{ id: string }>>`
+      SELECT run.id
+      FROM ai_agent_runs run
+      WHERE run.workspace_id = ${workspaceId}
+        AND (
+          run.actor_id = ${viewerId}
+          OR NOT EXISTS (
+            SELECT 1
+            FROM ai_agent_steps project_write_step
+            WHERE project_write_step.run_id = run.id
+              AND project_write_step.workspace_id = run.workspace_id
+              AND project_write_step.step_type = ${'tool'}
+              AND NULLIF(
+                project_write_step.output_summary -> 'docUpdateRequest' ->> 'projectId',
+                ''
+              ) IS NOT NULL
+          )
+        )
+        AND (${filter.status}::varchar IS NULL OR run.status = ${filter.status})
+        AND (
+          ${filter.workflow}::varchar IS NULL
+          OR run.workflow = ${filter.workflow}
+        )
+        AND (
+          ${filter.sourceType}::varchar IS NULL
+          OR run.source_type = ${filter.sourceType}
+        )
+        AND (
+          ${filter.sourceId}::varchar IS NULL
+          OR run.source_id = ${filter.sourceId}
+        )
+        AND (
+          ${filter.query}::varchar IS NULL
+          OR run.id = ${filter.query}
+          OR run.workflow = ${filter.query}
+          OR run.source_type = ${filter.query}
+          OR run.source_id = ${filter.query}
+          OR run.target_fingerprint = ${filter.query}
+          OR run.evidence_fingerprint = ${filter.query}
+          OR run.timeline_fingerprint = ${filter.query}
+          OR run.failure_code = ${filter.query}
+          OR run.worker_lease_id = ${filter.query}
+        )
+      ORDER BY run.created_at DESC, run.id DESC
+      LIMIT ${limit}
+    `;
+    const runs = await Promise.all(
+      rows.map(row => this.getForWorkspaceViewer(workspaceId, viewerId, row.id))
+    );
+    return runs.filter((run): run is CopilotAgentRunRecord => !!run);
+  }
+
   async listForActor(
     workspaceId: string,
     actorId: string,
     options: { filter?: CopilotAgentRunListFilter | null; limit?: number } = {}
   ) {
-    const limit = normalizeListLimit(options.limit);
+    const limit = normalizeCopilotTaskListLimit(options.limit);
     const filter = normalizeAgentRunListFilter(options.filter);
     const rows = await this.db.$queryRaw<Array<{ id: string }>>`
       SELECT id
@@ -2412,6 +2843,166 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       rows.map(row => this.getForActor(workspaceId, actorId, row.id))
     );
     return runs.filter((run): run is CopilotAgentRunRecord => !!run);
+  }
+
+  async listForActorAcrossAccessibleWorkspaces(
+    actorId: string,
+    options: { filter?: CopilotAgentRunListFilter | null; limit?: number } = {}
+  ) {
+    const normalizedActorId = requireAgentRuntimeString(actorId, 'actor id');
+    const limit = normalizeCopilotTaskListLimit(options.limit);
+    const filter = normalizeAgentRunListFilter(options.filter);
+    const rows = await this.db.$queryRaw<
+      Array<{ id: string; workspaceId: string }>
+    >`
+      SELECT
+        run.id,
+        run.workspace_id AS "workspaceId"
+      FROM ai_agent_runs run
+      JOIN workspace_members workspace_member
+        ON workspace_member.workspace_id = run.workspace_id
+       AND workspace_member.user_id = ${normalizedActorId}
+       AND workspace_member.state = 'active'
+      WHERE run.actor_id = ${normalizedActorId}
+        AND run.source_type <> ${'repair_execution_request'}
+        AND (${filter.status}::varchar IS NULL OR run.status = ${filter.status})
+        AND (
+          ${filter.workflow}::varchar IS NULL
+          OR run.workflow = ${filter.workflow}
+        )
+        AND (
+          ${filter.sourceType}::varchar IS NULL
+          OR run.source_type = ${filter.sourceType}
+        )
+        AND (
+          ${filter.sourceId}::varchar IS NULL
+          OR run.source_id = ${filter.sourceId}
+        )
+        AND (
+          ${filter.query}::varchar IS NULL
+          OR run.id = ${filter.query}
+          OR run.workflow = ${filter.query}
+          OR run.source_type = ${filter.query}
+          OR run.source_id = ${filter.query}
+          OR run.title ILIKE ${filter.query}
+        )
+      ORDER BY run.created_at DESC, run.id DESC
+      LIMIT ${limit}
+    `;
+    const runs = await Promise.all(
+      rows.map(row =>
+        this.getForActor(row.workspaceId, normalizedActorId, row.id)
+      )
+    );
+    return runs.filter((run): run is CopilotAgentRunRecord => !!run);
+  }
+
+  async listWorkbenchTaskPanel(input: {
+    actorId: string;
+    projectId?: string | null;
+    now?: Date;
+  }): Promise<CopilotWorkbenchTaskPanelRecord> {
+    const actorId = requireAgentRuntimeString(input.actorId, 'actor id');
+    const projectId = optionalAgentRuntimeString(
+      input.projectId,
+      'project id',
+      AGENT_RUNTIME_REQUIRED_STRING_MAX_LENGTH
+    );
+    const now = input.now ?? new Date();
+
+    const [todo, inProgress, done] = await Promise.all([
+      this.listWorkbenchTaskSegment({
+        actorId,
+        projectId,
+        statuses: ['waiting_approval', 'failed'],
+        limit: WORKBENCH_TODO_LIMIT,
+        ordering: 'todo',
+      }),
+      this.listWorkbenchTaskSegment({
+        actorId,
+        projectId,
+        statuses: ['queued', 'running'],
+        limit: WORKBENCH_IN_PROGRESS_LIMIT,
+        ordering: 'active',
+      }),
+      this.listWorkbenchTaskSegment({
+        actorId,
+        projectId,
+        statuses: ['completed', 'cancelled'],
+        completedSince: new Date(now.getTime() - WORKBENCH_DONE_WINDOW_MS),
+        limit: WORKBENCH_DONE_LIMIT,
+        ordering: 'done',
+      }),
+    ]);
+
+    return { todo, inProgress, done };
+  }
+
+  private async listWorkbenchTaskSegment(input: {
+    actorId: string;
+    projectId: string | null;
+    statuses: readonly CopilotAgentRunStatus[];
+    completedSince?: Date;
+    limit: number;
+    ordering: 'active' | 'done' | 'todo';
+  }): Promise<CopilotWorkbenchTaskSegmentRecord> {
+    const completedSincePredicate = input.completedSince
+      ? Prisma.sql`AND run.completed_at >= ${input.completedSince}`
+      : Prisma.sql``;
+    const ordering =
+      input.ordering === 'todo'
+        ? Prisma.sql`
+            CASE WHEN run.status = 'waiting_approval' THEN 0 ELSE 1 END ASC,
+            run.updated_at DESC,
+            run.id DESC
+          `
+        : input.ordering === 'done'
+          ? Prisma.sql`run.completed_at DESC, run.id DESC`
+          : Prisma.sql`run.updated_at DESC, run.id DESC`;
+    const rows = await this.db.$queryRaw<
+      Array<{ id: string; workspaceId: string }>
+    >(Prisma.sql`
+      SELECT
+        run.id,
+        run.workspace_id AS "workspaceId"
+      FROM ai_agent_runs run
+      JOIN workspace_members workspace_member
+        ON workspace_member.workspace_id = run.workspace_id
+       AND workspace_member.user_id = ${input.actorId}
+       AND workspace_member.state = 'active'
+      LEFT JOIN ai_sessions_metadata session
+        ON session.id = run.session_id
+       AND session.user_id = run.actor_id
+       AND session.workspace_id = run.workspace_id
+      LEFT JOIN ai_context_projects project
+        ON project.id = session.selected_context_project_id
+       AND project.status = 'active'
+      LEFT JOIN ai_context_project_members project_member
+        ON project_member.project_id = project.id
+       AND project_member.user_id = ${input.actorId}
+      WHERE run.actor_id = ${input.actorId}
+        AND run.source_type <> 'repair_execution_request'
+        AND run.status IN (${Prisma.join(input.statuses)})
+        AND (
+          ${input.projectId}::varchar IS NULL
+          OR (
+            project.id = ${input.projectId}
+            AND project_member.user_id IS NOT NULL
+          )
+        )
+        ${completedSincePredicate}
+      ORDER BY ${ordering}
+      LIMIT ${input.limit + 1}
+    `);
+    const capped = rows.length > input.limit;
+    const runs = await Promise.all(
+      rows.slice(0, input.limit).map(row => this.get(row.workspaceId, row.id))
+    );
+    const items = runs.filter(
+      (run): run is CopilotAgentRunRecord =>
+        !!run && (!input.projectId || run.projectId === input.projectId)
+    );
+    return { items, capped };
   }
 
   async listExpiredStandaloneWorkerLeases(input: {
@@ -2485,13 +3076,14 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       );
     }
 
-    const now = new Date();
+    const observedAt = new Date();
     if (
       !existing.workerLeaseExpiresAt ||
-      existing.workerLeaseExpiresAt.getTime() > now.getTime()
+      existing.workerLeaseExpiresAt.getTime() > observedAt.getTime()
     ) {
       throw new Error('Agent runtime worker lease has not expired');
     }
+    const now = nextAgentRuntimeTransitionTimestamp(existing, observedAt);
     const workerLeaseExpiresAt = existing.workerLeaseExpiresAt;
 
     const retryScheduled = existing.workerAttempt < existing.workerMaxAttempts;
@@ -2716,20 +3308,101 @@ export class CopilotAgentRuntimeModel extends BaseModel {
     workerId: string;
     leaseMs?: number;
   }): Promise<CopilotAgentRunRecord | null> {
-    const now = new Date();
-    const leaseExpiresAt = new Date(now.getTime() + (input.leaseMs ?? 300000));
+    const leaseMs = input.leaseMs ?? 300000;
     const rows = await this.db.$queryRaw<
-      Array<{ id: string; workspaceId: string }>
+      Array<{
+        id: string;
+        workspaceId: string;
+        leasedAt: Date;
+        leaseExpiresAt: Date;
+      }>
     >`
-      WITH candidate AS (
-        SELECT id, workspace_id
-        FROM ai_agent_runs
-        WHERE source_type <> ${'repair_execution_request'}
-          AND worker_attempt < worker_max_attempts
-          AND status = ${'queued'}
-          AND (${input.workspaceId ?? null}::varchar IS NULL OR workspace_id = ${input.workspaceId ?? null})
-          AND (${input.id ?? null}::varchar IS NULL OR id = ${input.id ?? null})
-        ORDER BY queued_at ASC NULLS LAST, created_at ASC, id ASC
+      WITH wall_clock AS MATERIALIZED (
+        SELECT clock_timestamp() AS now
+      ),
+      candidate AS (
+        SELECT
+          run.id,
+          run.workspace_id,
+          wall_clock.now AS wall_clock_at,
+          GREATEST(
+            wall_clock.now,
+            run.created_at,
+            run.updated_at,
+            COALESCE(run.started_at, run.created_at),
+            COALESCE(run.queued_at, run.created_at),
+            COALESCE(run.last_attempt_at, run.created_at),
+            COALESCE(
+              (
+                SELECT MAX(
+                  GREATEST(
+                    step.created_at,
+                    step.updated_at,
+                    COALESCE(step.started_at, step.created_at),
+                    COALESCE(step.completed_at, step.created_at)
+                  )
+                )
+                FROM ai_agent_steps step
+                WHERE step.run_id = run.id
+              ),
+              run.created_at
+            )
+          ) + INTERVAL '1 millisecond' AS transition_at
+        FROM ai_agent_runs run
+        CROSS JOIN wall_clock
+        WHERE run.source_type <> ${'repair_execution_request'}
+          AND run.worker_attempt < run.worker_max_attempts
+          AND run.status = ${'queued'}
+          AND (${input.workspaceId ?? null}::varchar IS NULL OR run.workspace_id = ${input.workspaceId ?? null})
+          AND (${input.id ?? null}::varchar IS NULL OR run.id = ${input.id ?? null})
+          AND NOT EXISTS (
+            SELECT 1
+            FROM ai_agent_steps current_tool
+            JOIN ai_agent_runs earlier
+              ON earlier.id <> run.id
+             AND earlier.status IN (${'queued'}, ${'running'})
+             AND (
+               COALESCE(earlier.queued_at, earlier.created_at),
+               earlier.created_at,
+               earlier.id
+             ) < (
+               COALESCE(run.queued_at, run.created_at),
+               run.created_at,
+               run.id
+             )
+            JOIN ai_agent_steps earlier_tool
+              ON earlier_tool.run_id = earlier.id
+             AND earlier_tool.step_type = ${'tool'}
+             AND earlier_tool.output_summary -> 'docUpdateRequest' ->> 'projectId' IS NOT NULL
+             AND earlier_tool.output_summary -> 'docUpdateRequest' ->> 'docId' =
+                 current_tool.output_summary -> 'docUpdateRequest' ->> 'docId'
+             AND COALESCE(
+                   NULLIF(
+                     earlier_tool.output_summary -> 'docUpdateRequest' ->> 'sourceWorkspaceId',
+                     ''
+                   ),
+                   NULLIF(
+                     earlier_tool.output_summary -> 'docUpdateRequest' ->> 'workspaceId',
+                     ''
+                   ),
+                   earlier_tool.workspace_id
+                 ) = COALESCE(
+                   NULLIF(
+                     current_tool.output_summary -> 'docUpdateRequest' ->> 'sourceWorkspaceId',
+                     ''
+                   ),
+                   NULLIF(
+                     current_tool.output_summary -> 'docUpdateRequest' ->> 'workspaceId',
+                     ''
+                   ),
+                   current_tool.workspace_id
+                 )
+            WHERE current_tool.run_id = run.id
+             AND current_tool.step_type = ${'tool'}
+             AND current_tool.output_summary -> 'docUpdateRequest' ->> 'docId' IS NOT NULL
+              AND current_tool.output_summary -> 'docUpdateRequest' ->> 'projectId' IS NOT NULL
+          )
+        ORDER BY run.queued_at ASC NULLS LAST, run.created_at ASC, run.id ASC
         LIMIT 1
         FOR UPDATE SKIP LOCKED
       )
@@ -2738,23 +3411,29 @@ export class CopilotAgentRuntimeModel extends BaseModel {
         status = ${'running'},
         queued_at = COALESCE(run.queued_at, run.created_at),
         worker_lease_id = ${input.workerId},
-        worker_lease_expires_at = ${leaseExpiresAt},
+        worker_lease_expires_at = candidate.wall_clock_at + (${leaseMs} * INTERVAL '1 millisecond'),
         worker_attempt = run.worker_attempt + 1,
-        last_attempt_at = ${now},
+        last_attempt_at = candidate.transition_at,
         completed_at = ${null},
         failure_code = ${null},
         failure_message = ${null},
-        updated_at = ${now}
+        updated_at = candidate.transition_at
       FROM candidate
       WHERE run.id = candidate.id
         AND run.workspace_id = candidate.workspace_id
-      RETURNING run.id, run.workspace_id AS "workspaceId"
+      RETURNING
+        run.id,
+        run.workspace_id AS "workspaceId",
+        run.last_attempt_at AS "leasedAt",
+        run.worker_lease_expires_at AS "leaseExpiresAt"
     `;
 
     const leased = rows[0];
     if (!leased) {
       return null;
     }
+    const now = leased.leasedAt;
+    const leaseExpiresAt = leased.leaseExpiresAt;
 
     const run = await this.get(leased.workspaceId, leased.id);
     if (!run) {
@@ -2910,6 +3589,195 @@ export class CopilotAgentRuntimeModel extends BaseModel {
   }
 
   @Transactional()
+  async returnStandaloneDocWriteForReconfirmation(input: {
+    workspaceId: string;
+    id: string;
+    workerLeaseId: string;
+    workerAttempt: number;
+    documentWorkspaceId: string;
+    documentId: string;
+    expectedVersion: Date;
+    actualVersion: Date;
+  }): Promise<CopilotAgentRunRecord> {
+    const existing = await this.get(input.workspaceId, input.id);
+    if (!existing) {
+      throw new Error(`Agent runtime run not found: ${input.id}`);
+    }
+    if (
+      existing.status !== 'running' ||
+      existing.workerLeaseId !== input.workerLeaseId ||
+      existing.workerAttempt !== input.workerAttempt
+    ) {
+      throw new Error(
+        `Agent runtime run is not leased by this worker: ${input.id}`
+      );
+    }
+
+    const approvalStep = existing.steps.find(
+      step => step.stepType === 'approval' && step.status === 'completed'
+    );
+    const toolStep = existing.steps.find(
+      step => step.stepType === 'tool' && step.status === 'running'
+    );
+    if (!approvalStep || !toolStep) {
+      throw new Error(
+        `Agent runtime doc update cannot request re-confirmation without completed approval and running tool steps: ${input.id}`
+      );
+    }
+
+    const now = nextAgentRuntimeTransitionTimestamp(existing);
+    const nextOrdinal =
+      Math.max(-1, ...existing.timelineEvents.map(item => item.ordinal)) + 1;
+    const nextWorkerMaxAttempts = Math.max(
+      existing.workerMaxAttempts,
+      existing.workerAttempt + 1
+    );
+    const evidence = {
+      version: 'agent-runtime-doc-update-reconfirmation/v1',
+      reason: 'document_version_drift',
+      workflow: existing.workflow,
+      sourceType: existing.sourceType,
+      sourceId: existing.sourceId,
+      previousStatus: existing.status,
+      documentWorkspaceId: input.documentWorkspaceId,
+      documentId: input.documentId,
+      expectedVersion: input.expectedVersion.toISOString(),
+      actualVersion: input.actualVersion.toISOString(),
+      previousApprovalStepId: approvalStep.id,
+      workerAttempt: input.workerAttempt,
+      nextWorkerMaxAttempts,
+      previewStatus: 'invalidated',
+      invalidatedAt: now.toISOString(),
+    };
+    const events: AgentRuntimeTimelineEventInput[] = [
+      {
+        eventType: 'run_status',
+        status: 'waiting_approval',
+        ordinal: nextOrdinal,
+        summary:
+          'Document changed while queued; confirmation is required again',
+        stepId: null,
+        payload: evidence,
+      },
+      {
+        eventType: 'approval_step',
+        status: 'waiting_approval',
+        ordinal: nextOrdinal + 1,
+        summary: 'Previous approval invalidated by document version drift',
+        stepId: approvalStep.id,
+        payload: evidence,
+      },
+      {
+        eventType: 'tool_step',
+        status: 'pending',
+        ordinal: nextOrdinal + 2,
+        summary: 'Document write paused before side effects',
+        stepId: toolStep.id,
+        payload: evidence,
+      },
+    ];
+    const timelineFingerprint = timelineFingerprintWithEvents(existing, events);
+
+    const updatedRunRows = await this.db.$queryRaw<Array<{ id: string }>>`
+      UPDATE ai_agent_runs
+      SET
+        status = ${'waiting_approval'},
+        timeline_fingerprint = ${timelineFingerprint},
+        queued_at = ${null},
+        worker_lease_id = ${null},
+        worker_lease_expires_at = ${null},
+        worker_max_attempts = ${nextWorkerMaxAttempts},
+        failure_code = ${null},
+        failure_message = ${null},
+        completed_at = ${null},
+        updated_at = ${now}
+      WHERE workspace_id = ${input.workspaceId}
+        AND id = ${input.id}
+        AND status = ${'running'}
+        AND worker_lease_id = ${input.workerLeaseId}
+        AND worker_attempt = ${input.workerAttempt}
+        AND worker_max_attempts = ${existing.workerMaxAttempts}
+        AND timeline_fingerprint = ${existing.timelineFingerprint}
+      RETURNING id
+    `;
+    if (!updatedRunRows.length) {
+      throw new Error(
+        `Agent runtime run could not request re-confirmation because its state changed: ${input.id}`
+      );
+    }
+
+    const approvalOutput = {
+      ...approvalStep.outputSummary,
+      reconfirmationRequest: evidence,
+    };
+    const updatedApprovalRows = await this.db.$queryRaw<Array<{ id: string }>>`
+      UPDATE ai_agent_steps
+      SET
+        status = ${'waiting_approval'},
+        completed_at = ${null},
+        output_summary = ${toJsonString(approvalOutput)}::jsonb,
+        updated_at = ${now}
+      WHERE id = ${approvalStep.id}
+        AND run_id = ${existing.id}
+        AND workspace_id = ${existing.workspaceId}
+        AND status = ${'completed'}
+        AND output_summary IS NOT DISTINCT FROM ${toJsonString(
+          approvalStep.outputSummary
+        )}::jsonb
+      RETURNING id
+    `;
+    if (!updatedApprovalRows.length) {
+      throw new Error(
+        `Agent runtime approval step could not request re-confirmation because its state changed: ${approvalStep.id}`
+      );
+    }
+
+    const toolOutput = {
+      ...toolStep.outputSummary,
+      reconfirmationRequest: evidence,
+    };
+    const updatedToolRows = await this.db.$queryRaw<Array<{ id: string }>>`
+      UPDATE ai_agent_steps
+      SET
+        status = ${'pending'},
+        completed_at = ${null},
+        output_summary = ${toJsonString(toolOutput)}::jsonb,
+        updated_at = ${now}
+      WHERE id = ${toolStep.id}
+        AND run_id = ${existing.id}
+        AND workspace_id = ${existing.workspaceId}
+        AND status = ${'running'}
+        AND output_summary IS NOT DISTINCT FROM ${toJsonString(
+          toolStep.outputSummary
+        )}::jsonb
+      RETURNING id
+    `;
+    if (!updatedToolRows.length) {
+      throw new Error(
+        `Agent runtime tool step could not pause for re-confirmation because its state changed: ${toolStep.id}`
+      );
+    }
+
+    for (const event of events) {
+      await this.insertTimelineEvent({
+        actorId: existing.actorId,
+        event,
+        runId: existing.id,
+        workspaceId: existing.workspaceId,
+        createdAt: now,
+      });
+    }
+
+    const updated = await this.get(input.workspaceId, input.id);
+    if (!updated) {
+      throw new Error(
+        `Re-confirmation Agent Runtime run not found: ${input.id}`
+      );
+    }
+    return updated;
+  }
+
+  @Transactional()
   async failStandaloneWorkerExecution(input: {
     workspaceId: string;
     id: string;
@@ -2938,7 +3806,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       );
     }
 
-    const failedAt = new Date();
+    const failedAt = nextAgentRuntimeTransitionTimestamp(existing);
     const failureCode = requireAgentRuntimeString(
       input.code,
       'failure code',
@@ -3175,7 +4043,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       );
     }
 
-    const completedAt = new Date();
+    const completedAt = nextAgentRuntimeTransitionTimestamp(existing);
     const summary = normalizeRecordOnlySummary(input.summary);
     const nextOrdinal =
       Math.max(-1, ...existing.timelineEvents.map(item => item.ordinal)) + 1;
@@ -3432,7 +4300,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       );
     }
 
-    const completedAt = new Date();
+    const completedAt = nextAgentRuntimeTransitionTimestamp(existing);
     const summary = normalizeWorkerCompletionSummary(input.summary);
     const nextOrdinal =
       Math.max(-1, ...existing.timelineEvents.map(item => item.ordinal)) + 1;
@@ -4042,7 +4910,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       return await this.requestRunningStandaloneCancellation(input, existing);
     }
 
-    const now = new Date();
+    const now = nextAgentRuntimeTransitionTimestamp(existing);
     const reason = normalizeControlReason(input.reason);
     const event = controlledRunTimeline({
       action: 'cancel',
@@ -4193,7 +5061,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       );
     }
 
-    const now = new Date();
+    const now = nextAgentRuntimeTransitionTimestamp(existing);
     const reason = normalizeControlReason(input.reason);
     const event = controlledRunTimeline({
       action: 'cancel_requested',
@@ -4278,13 +5146,19 @@ export class CopilotAgentRuntimeModel extends BaseModel {
     },
     existing: CopilotAgentRunRecord
   ) {
+    if (
+      existing.status === 'cancelled' &&
+      latestAgentRuntimeControlAction(existing) === 'abandon'
+    ) {
+      throw new Error('Agent runtime abandoned run cannot be resumed');
+    }
     if (existing.status !== 'failed' && existing.status !== 'cancelled') {
       throw new Error(
         `Agent runtime run cannot be resumed from status: ${existing.status}`
       );
     }
 
-    const now = new Date();
+    const now = nextAgentRuntimeTransitionTimestamp(existing);
     const workerMaxAttempts =
       existing.workerAttempt >= existing.workerMaxAttempts
         ? existing.workerAttempt + 1

@@ -185,6 +185,7 @@ export const buildOfficeCommandRequestHandler = (
     const result = await service.request({
       workspaceId: options.workspace,
       actorId: options.user,
+      ...(options.session ? { sessionId: options.session } : {}),
       command: parsed,
       title,
       reason,
@@ -227,6 +228,7 @@ export const buildOfficeCommandBatchRequestHandler = (
     const result = await service.requestBatch({
       workspaceId: options.workspace,
       actorId: options.user,
+      ...(options.session ? { sessionId: options.session } : {}),
       batch: parsed,
       title,
       reason,

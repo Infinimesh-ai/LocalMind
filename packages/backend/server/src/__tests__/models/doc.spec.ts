@@ -66,10 +66,10 @@ test('should create a batch updates on a doc', async t => {
   t.is(updates.count, 2);
 });
 
-test('should create error when createdAt timestamp is not unique', async t => {
+test('should assign a strictly increasing timestamp when requested timestamps repeat', async t => {
   const docId = randomUUID();
   const timestamp = Date.now();
-  await t.context.doc.createUpdates([
+  const first = await t.context.doc.createUpdates([
     {
       spaceId: workspace.id,
       docId,
@@ -78,21 +78,59 @@ test('should create error when createdAt timestamp is not unique', async t => {
       editorId: user.id,
     },
   ]);
-  await t.throwsAsync(
-    t.context.doc.createUpdates([
-      {
-        spaceId: workspace.id,
-        docId,
-        blob: Buffer.from('blob2'),
-        timestamp,
-        editorId: user.id,
-      },
-    ]),
+  const second = await t.context.doc.createUpdates([
     {
-      message:
-        /Unique constraint failed on the fields: \(`workspace_id`,`guid`,`created_at`\)/,
-    }
+      spaceId: workspace.id,
+      docId,
+      blob: Buffer.from('blob2'),
+      timestamp,
+      editorId: user.id,
+    },
+  ]);
+
+  t.deepEqual(first.timestamps, [timestamp]);
+  t.deepEqual(second.timestamps, [timestamp + 1]);
+  t.deepEqual(
+    (await t.context.doc.findUpdates(workspace.id, docId)).map(
+      update => update.timestamp
+    ),
+    [timestamp, timestamp + 1]
   );
+});
+
+test('should allocate updates after future snapshot and update timestamps', async t => {
+  const docId = randomUUID();
+  const requestedTimestamp = Date.now();
+  const futureSnapshotTimestamp = requestedTimestamp + 60_000;
+  await t.context.doc.upsert({
+    spaceId: workspace.id,
+    docId,
+    blob: Buffer.from('snapshot'),
+    timestamp: futureSnapshotTimestamp,
+    editorId: user.id,
+  });
+
+  const first = await t.context.doc.createUpdates([
+    {
+      spaceId: workspace.id,
+      docId,
+      blob: Buffer.from('blob1'),
+      timestamp: requestedTimestamp,
+      editorId: user.id,
+    },
+  ]);
+  const second = await t.context.doc.createUpdates([
+    {
+      spaceId: workspace.id,
+      docId,
+      blob: Buffer.from('blob2'),
+      timestamp: requestedTimestamp,
+      editorId: user.id,
+    },
+  ]);
+
+  t.deepEqual(first.timestamps, [futureSnapshotTimestamp + 1]);
+  t.deepEqual(second.timestamps, [futureSnapshotTimestamp + 2]);
 });
 
 test('should find updates by spaceId and docId', async t => {

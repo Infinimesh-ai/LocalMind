@@ -15,10 +15,11 @@ import type { WorkspaceService } from '../../workspace';
 import type { WorkspacePermissionStore } from '../stores/permission';
 
 export class WorkspacePermission extends Entity {
-  private readonly cache$ = LiveData.from(
-    this.store.watchWorkspacePermissionCache(),
-    undefined
-  );
+  private readonly isDocumentScoped =
+    !!this.workspaceService.workspace.openOptions.docScopeId;
+  private readonly cache$ = this.isDocumentScoped
+    ? new LiveData({ isOwner: false, isAdmin: false, isTeam: false })
+    : LiveData.from(this.store.watchWorkspacePermissionCache(), undefined);
   isOwner$ = this.cache$.map(cache => cache?.isOwner ?? null);
   isAdmin$ = this.cache$.map(cache => cache?.isAdmin ?? null);
   isOwnerOrAdmin$ = this.cache$.map(
@@ -35,7 +36,8 @@ export class WorkspacePermission extends Entity {
     super();
     if (
       this.workspaceService.workspace.flavour !== 'local' &&
-      !this.workspaceService.workspace.openOptions.isSharedMode
+      !this.workspaceService.workspace.openOptions.isSharedMode &&
+      !this.isDocumentScoped
     ) {
       this.subscription = this.store
         .subscribeWorkspaceAccess(this.workspaceService.workspace.id)
@@ -49,6 +51,9 @@ export class WorkspacePermission extends Entity {
   revalidate = effect(
     exhaustMapWithTrailing(() => {
       return fromPromise(async signal => {
+        if (this.isDocumentScoped) {
+          return { isOwner: false, isAdmin: false, isTeam: false };
+        }
         if (
           this.workspaceService.workspace.flavour !== 'local' &&
           !this.workspaceService.workspace.openOptions.isSharedMode
@@ -73,11 +78,13 @@ export class WorkspacePermission extends Entity {
           count: Infinity,
         }),
         tap(({ isOwner, isAdmin, isTeam }) => {
-          this.store.setWorkspacePermissionCache({
-            isOwner,
-            isAdmin,
-            isTeam,
-          });
+          if (!this.isDocumentScoped) {
+            this.store.setWorkspacePermissionCache({
+              isOwner,
+              isAdmin,
+              isTeam,
+            });
+          }
         }),
         onStart(() => this.isRevalidating$.setValue(true)),
         onComplete(() => this.isRevalidating$.setValue(false))
@@ -86,6 +93,9 @@ export class WorkspacePermission extends Entity {
   );
 
   async waitForRevalidation(signal?: AbortSignal) {
+    if (this.isDocumentScoped) {
+      return;
+    }
     this.revalidate();
     await this.isRevalidating$.waitFor(
       isRevalidating => !isRevalidating,

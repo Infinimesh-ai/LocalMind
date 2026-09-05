@@ -265,6 +265,13 @@ yarn localmind:sync:all
 
 只有任务确实涉及运行中的 LocalMind 环境时才执行同步脚本，并在交付中说明影响。
 
+后端同步会核对 schema、迁移和 native 源码的运行版本证据；缺少证据或发生漂移时，
+不会只复制 JavaScript。涉及这些变化时，先备份数据库并验证同平台 Linux 容器，
+再设置 `LOCALMIND_RUNTIME_SOURCE_CONTAINER`（源码位于 `/workspace` 的已验证容器）
+和 `LOCALMIND_DATABASE_BACKUP`（非空本地备份文件）执行同步。该路径一并同步迁移、
+Prisma Client 和 native addon。同步只更新容器，不更新镜像；重建部署仍走固定
+`localmind-affine:local` 镜像流程。
+
 ---
 
 ## 7. 验证策略

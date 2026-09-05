@@ -47,7 +47,7 @@ async function* stream(chunks: string[]) {
 }
 
 async function waitUntil(assertion: () => void) {
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 100; i++) {
     try {
       assertion();
       return;
@@ -207,6 +207,45 @@ describe('AIChatRuntime', () => {
     );
   });
 
+  test('marks first send and retry only for an opted-in Intelligence Workbench runtime', async () => {
+    const request = createRequest();
+    const runtime = new AIChatRuntime({
+      request,
+      scope: docScope,
+      strategy: new DocAIChatSessionStrategy(),
+      chatSurface: 'intelligence_workbench',
+    });
+    await runtime.dispatch({ type: 'initialize' });
+
+    await runtime.dispatch({ type: 'send', input: 'track this blocker' });
+    expect(request.executeAction).toHaveBeenLastCalledWith(
+      'chat',
+      expect.objectContaining({ chatSurface: 'intelligence_workbench' })
+    );
+
+    await runtime.dispatch({ type: 'retry', messageId: '' });
+    expect(request.executeAction).toHaveBeenLastCalledWith(
+      'chat',
+      expect.objectContaining({
+        chatSurface: 'intelligence_workbench',
+        retry: true,
+      })
+    );
+  });
+
+  test('does not mark ordinary document chat requests as Workbench traffic', async () => {
+    const request = createRequest();
+    const runtime = createRuntime(request);
+    await runtime.dispatch({ type: 'initialize' });
+
+    await runtime.dispatch({ type: 'send', input: 'ordinary document chat' });
+
+    expect(request.executeAction).toHaveBeenCalledWith(
+      'chat',
+      expect.not.objectContaining({ chatSurface: expect.anything() })
+    );
+  });
+
   test('send passes the captured Office context to the request service', async () => {
     const request = createRequest();
     const runtime = createRuntime(request);
@@ -310,6 +349,7 @@ describe('AIChatRuntime', () => {
       sessionId: 'session-1',
       primaryDocId: 'doc-1',
       readableDocIds: ['doc-1', 'doc-2'],
+      readableDocumentRefs: [],
       candidateProjectIds: ['project-1', 'project-2'],
       projectIds: selectedProjectId ? [selectedProjectId] : [],
       selectedProjectId,
@@ -363,6 +403,99 @@ describe('AIChatRuntime', () => {
       })
     );
   });
+
+  test('persists a draft project selection before the first message executes', async () => {
+    const updateSession = vi.fn().mockResolvedValue('session-1');
+    const executeAction = vi.fn().mockResolvedValue(stream(['hello']));
+    const request = createRequest({ updateSession, executeAction });
+    const runtime = createRuntime(request);
+    await runtime.dispatch({ type: 'initialize' });
+
+    await runtime.dispatch({
+      type: 'setSelectedContextProject',
+      projectId: 'project-1',
+    });
+
+    expect(updateSession).not.toHaveBeenCalled();
+    expect(runtime.getSnapshot().composer.projectScope).toEqual(
+      expect.objectContaining({
+        projectResolution: 'selected',
+        selectedProjectId: 'project-1',
+      })
+    );
+
+    await runtime.dispatch({ type: 'send', input: 'Use this project' });
+
+    expect(updateSession).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      selectedContextProjectId: 'project-1',
+    });
+    expect(updateSession.mock.invocationCallOrder[0]).toBeLessThan(
+      executeAction.mock.invocationCallOrder[0]
+    );
+    expect(executeAction).toHaveBeenCalledWith(
+      'chat',
+      expect.objectContaining({ sessionId: 'session-1' })
+    );
+  });
+
+  test.each([
+    ['switches', 'project-2', 1],
+    ['clears', null, 0],
+  ] as const)(
+    '%s a draft project selection while the first session is being created',
+    async (_label, latestProjectId, expectedUpdateCount) => {
+      let resolveSession!: (value: CopilotChatHistoryFragment) => void;
+      const createSessionWithHistory = vi.fn(
+        () =>
+          new Promise<CopilotChatHistoryFragment>(resolve => {
+            resolveSession = resolve;
+          })
+      );
+      const updateSession = vi.fn().mockResolvedValue('session-1');
+      const executeAction = vi.fn().mockResolvedValue(stream(['hello']));
+      const request = createRequest({
+        createSessionWithHistory,
+        updateSession,
+        executeAction,
+      });
+      const runtime = createRuntime(request);
+      await runtime.dispatch({ type: 'initialize' });
+      await runtime.dispatch({
+        type: 'setSelectedContextProject',
+        projectId: 'project-1',
+      });
+
+      const send = runtime.dispatch({
+        type: 'send',
+        input: 'Use this project',
+      });
+      await waitUntil(() => {
+        expect(createSessionWithHistory).toHaveBeenCalledTimes(1);
+      });
+      await runtime.dispatch({
+        type: 'setSelectedContextProject',
+        projectId: latestProjectId,
+      });
+      resolveSession(session());
+      await send;
+
+      expect(updateSession).toHaveBeenCalledTimes(expectedUpdateCount);
+      expect(updateSession).not.toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        selectedContextProjectId: 'project-1',
+      });
+      if (latestProjectId) {
+        expect(updateSession).toHaveBeenCalledWith({
+          sessionId: 'session-1',
+          selectedContextProjectId: latestProjectId,
+        });
+        expect(updateSession.mock.invocationCallOrder[0]).toBeLessThan(
+          executeAction.mock.invocationCallOrder[0]
+        );
+      }
+    }
+  );
 
   test('keeps a revoked stored project selection fail closed', async () => {
     const baseRequest = createRequest();

@@ -3,6 +3,8 @@ query copilotTaskGet($workspaceId: String!, $taskId: String!) {
     copilot(workspaceId: $workspaceId) {
       copilotTask(id: $taskId) {
         id
+        workspaceId
+        projectId
         title
         workflow
         status
@@ -16,6 +18,7 @@ query copilotTaskGet($workspaceId: String!, $taskId: String!) {
         approvalSummary
         resultEvidence
         availableActions
+        abandoned
         approval {
           stepId
           status

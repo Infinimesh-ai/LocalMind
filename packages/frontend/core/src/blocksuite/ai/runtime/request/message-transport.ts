@@ -27,6 +27,7 @@ export type TextToTextOptions = {
   modelId?: string;
   modelSelectionSource?: AIActionModelSelectionSource;
   toolsConfig?: AIToolsConfig;
+  chatSurface?: 'intelligence_workbench';
 };
 
 export type ToImageOptions = TextToTextOptions & {
@@ -130,6 +131,7 @@ export function textToText({
   modelId,
   modelSelectionSource,
   toolsConfig,
+  chatSurface,
 }: TextToTextOptions) {
   let messageId: string | undefined;
 
@@ -162,6 +164,7 @@ export function textToText({
             actionVersion,
             runId,
             retry,
+            ...(chatSurface ? { chatSurface } : {}),
           },
           endpoint
         );
@@ -223,6 +226,7 @@ export function textToText({
           actionVersion,
           runId,
           retry,
+          ...(chatSurface ? { chatSurface } : {}),
         },
         endpoint
       );

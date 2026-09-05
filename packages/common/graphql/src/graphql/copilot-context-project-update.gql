@@ -3,12 +3,33 @@ mutation copilotContextProjectUpdate(
 ) {
   updateCopilotContextProject(input: $input) {
     id
-    workspaceId
     createdByUserId
     name
     description
     status
-    documentIds
+    aiPolicy
+    role
+    members {
+      userId
+      name
+      email
+      avatarUrl
+      role
+      createdAt
+    }
+    documents {
+      workspaceId
+      docId
+      title
+      groupId
+      sortOrder
+      status
+      requestedLevel
+      accessRequestId
+      addedByMe
+      createdAt
+      updatedAt
+    }
     documentCount
     canManage
     createdAt

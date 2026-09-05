@@ -1,0 +1,21 @@
+#import "./fragments/copilot-workbench-task-item.gql"
+
+query copilotWorkbenchTaskGet($taskId: String!) {
+  currentUser {
+    copilot {
+      workbenchTask(taskId: $taskId) {
+        ...CopilotWorkbenchTaskItemFields
+        run {
+          documentUpdate {
+            workspaceId
+            docId
+            content
+            expectedVersion
+            needsReconfirmation
+            previousVersion
+          }
+        }
+      }
+    }
+  }
+}

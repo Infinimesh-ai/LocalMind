@@ -14,6 +14,14 @@ type WorkspaceInvitationKind = 'email' | 'link';
 type PermissionSource = 'email' | 'link' | 'legacy';
 type DocGrantRole = 'owner' | 'manager' | 'editor' | 'commenter' | 'reader';
 
+export function permissionWorkspaceLockKey(workspaceId: string) {
+  return `permission:workspace:${workspaceId}`;
+}
+
+export function permissionDocumentLockKey(workspaceId: string, docId: string) {
+  return `permission:doc-owner:${workspaceId}:${docId}`;
+}
+
 export function workspaceRoleToNew(role: WorkspaceRole): WorkspaceMemberRole {
   switch (role) {
     case WorkspaceRole.Owner:
@@ -129,6 +137,8 @@ export class WorkspaceMemberModel extends BaseModel {
     fallbackRole: WorkspaceRole
   ) {
     await this.db
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${permissionWorkspaceLockKey(workspaceId)}, 0))`;
+    await this.db
       .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`permission:workspace-owner:${workspaceId}`}, 0))`;
     const ownerCount = await this.db.workspaceMember.count({
       where: { workspaceId, role: 'owner', state: 'active' },
@@ -184,6 +194,8 @@ export class WorkspaceMemberModel extends BaseModel {
     role: WorkspaceRole,
     data: { source?: PermissionSource } = {}
   ) {
+    await this.db
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${permissionWorkspaceLockKey(workspaceId)}, 0))`;
     if (role === WorkspaceRole.Owner) {
       throw new Error('Cannot grant Owner role of a workspace to a user.');
     }
@@ -225,6 +237,8 @@ export class WorkspaceMemberModel extends BaseModel {
 
   @Transactional()
   async delete(workspaceId: string, userId: string) {
+    await this.db
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${permissionWorkspaceLockKey(workspaceId)}, 0))`;
     await this.db.$queryRaw`
       SELECT id
       FROM workspace_members
@@ -443,6 +457,8 @@ export class WorkspaceAccessPolicyModel extends BaseModel {
       enableUrlPreview?: boolean;
     }
   ) {
+    await this.db
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${permissionWorkspaceLockKey(workspaceId)}, 0))`;
     return await this.db.workspaceAccessPolicy.upsert({
       where: { workspaceId },
       update: {
@@ -489,6 +505,8 @@ export class DocAccessPolicyModel extends BaseModel {
       urlPreviewEnabled?: boolean;
     }
   ) {
+    await this.db
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${permissionDocumentLockKey(workspaceId, docId)}, 0))`;
     const publicRole = policy.public ? 'external' : null;
     return await this.db.docAccessPolicy.upsert({
       where: { workspaceId_docId: { workspaceId, docId } },
@@ -532,7 +550,7 @@ export class DocGrantModel extends BaseModel {
   @Transactional()
   async setOwner(workspaceId: string, docId: string, userId: string) {
     await this.db
-      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`permission:doc-owner:${workspaceId}:${docId}`}, 0))`;
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${permissionDocumentLockKey(workspaceId, docId)}, 0))`;
     await this.db.docGrant.updateMany({
       where: {
         workspaceId,
@@ -549,6 +567,8 @@ export class DocGrantModel extends BaseModel {
 
   @Transactional()
   async set(workspaceId: string, docId: string, userId: string, role: DocRole) {
+    await this.db
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${permissionDocumentLockKey(workspaceId, docId)}, 0))`;
     assert(role !== DocRole.None && role !== DocRole.External);
 
     return await this.db.docGrant.upsert({
@@ -580,6 +600,8 @@ export class DocGrantModel extends BaseModel {
     userIds: string[],
     role: DocRole
   ) {
+    await this.db
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${permissionDocumentLockKey(workspaceId, docId)}, 0))`;
     if (role === DocRole.Owner) {
       throw new CanNotBatchGrantDocOwnerPermissions();
     }
@@ -615,6 +637,8 @@ export class DocGrantModel extends BaseModel {
 
   @Transactional()
   async delete(workspaceId: string, docId: string, userId: string) {
+    await this.db
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${permissionDocumentLockKey(workspaceId, docId)}, 0))`;
     await this.db.$queryRaw`
       SELECT 1
       FROM doc_grants

@@ -1,0 +1,12 @@
+mutation approveCopilotAccessRequest(
+  $input: ResolveCopilotAccessRequestInput!
+) {
+  approveCopilotAccessRequest(input: $input) {
+    id
+    status
+    resolvedByUserId
+    resolutionReason
+    resolvedAt
+    updatedAt
+  }
+}

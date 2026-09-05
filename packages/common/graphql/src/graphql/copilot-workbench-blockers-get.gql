@@ -1,0 +1,19 @@
+#import "./fragments/copilot-blocker.gql"
+
+query copilotWorkbenchBlockersGet(
+  $projectId: ID
+  $statuses: [String!]
+  $limit: Int
+) {
+  currentUser {
+    copilot {
+      workbenchBlockers(
+        projectId: $projectId
+        statuses: $statuses
+        limit: $limit
+      ) {
+        ...CopilotBlockerFields
+      }
+    }
+  }
+}

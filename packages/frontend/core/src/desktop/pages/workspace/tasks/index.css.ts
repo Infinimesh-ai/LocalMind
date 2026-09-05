@@ -1,6 +1,60 @@
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { style } from '@vanilla-extract/css';
 
+export const globalPage = style({
+  width: '100vw',
+  height: '100dvh',
+  minWidth: 0,
+  minHeight: 0,
+  display: 'grid',
+  gridTemplateRows: 'auto minmax(0, 1fr)',
+  overflow: 'hidden',
+  background: cssVarV2('layer/background/primary'),
+  color: cssVarV2('text/primary'),
+});
+
+export const globalHeader = style({
+  minWidth: 0,
+  display: 'grid',
+  gridTemplateColumns: 'auto minmax(0, 1fr)',
+  alignItems: 'center',
+  gap: 20,
+  minHeight: 56,
+  padding: '8px 16px',
+  borderBottom: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
+  '@media': {
+    'screen and (max-width: 760px)': {
+      gridTemplateColumns: 'minmax(0, 1fr)',
+      gap: 8,
+      paddingBlock: 10,
+    },
+  },
+});
+
+export const globalTitleRow = style({
+  minWidth: 0,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+});
+
+export const globalTitle = style({
+  minWidth: 0,
+  margin: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontSize: 16,
+  lineHeight: '24px',
+  fontWeight: 600,
+  letterSpacing: 0,
+});
+
+export const globalBody = style({
+  minWidth: 0,
+  minHeight: 0,
+});
+
 export const header = style({
   width: '100%',
   minWidth: 0,
@@ -13,6 +67,7 @@ export const header = style({
 export const filters = style({
   display: 'flex',
   minWidth: 0,
+  overflowX: 'auto',
 });
 
 export const root = style({
@@ -215,6 +270,35 @@ export const metadataValue = style({
 export const detailSection = style({
   paddingTop: 24,
   color: cssVarV2('text/primary'),
+});
+
+export const pagination = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 16,
+  padding: 16,
+  fontVariantNumeric: 'tabular-nums',
+});
+
+export const documentPreview = style({
+  whiteSpace: 'pre-wrap',
+  overflowWrap: 'anywhere',
+  fontFamily: 'inherit',
+  fontSize: 14,
+  lineHeight: '22px',
+  maxHeight: 400,
+  overflowY: 'auto',
+  paddingBlock: 16,
+});
+
+export const reconfirmation = style({
+  color: cssVarV2('text/primary'),
+  background: cssVarV2('layer/background/secondary'),
+  padding: 12,
+  fontSize: 14,
+  lineHeight: '22px',
+  overflowWrap: 'anywhere',
 });
 
 export const detailSectionTitle = style({

@@ -248,6 +248,71 @@ test('should insert embedding by doc id', async t => {
   }
 });
 
+test('workspace embedding search restricts candidates before ranking', async t => {
+  const scopedDocId = 'project-scoped-doc';
+  const unscopedDocId = 'workspace-only-doc';
+  await t.context.db.snapshot.createMany({
+    data: [scopedDocId, unscopedDocId].map(id => ({
+      workspaceId: workspace.id,
+      id,
+      blob: Buffer.from([1, 1]),
+      state: Buffer.from([1, 1]),
+      updatedAt: new Date(),
+      createdAt: new Date(),
+    })),
+  });
+  await Promise.all([
+    t.context.copilotContext.insertWorkspaceEmbedding(
+      workspace.id,
+      scopedDocId,
+      [
+        {
+          index: 0,
+          content: 'scoped content',
+          embedding: Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.9),
+        },
+      ]
+    ),
+    t.context.copilotContext.insertWorkspaceEmbedding(
+      workspace.id,
+      unscopedDocId,
+      [
+        {
+          index: 0,
+          content: 'closer but unscoped content',
+          embedding: Array.from({ length: EMBEDDING_DIMENSIONS }, () => 1),
+        },
+      ]
+    ),
+  ]);
+
+  const result = await t.context.copilotContext.matchWorkspaceEmbedding(
+    Array.from({ length: EMBEDDING_DIMENSIONS }, () => 1),
+    workspace.id,
+    10,
+    1,
+    Prisma.sql`TRUE`,
+    [scopedDocId],
+    [scopedDocId]
+  );
+  t.deepEqual(
+    result.map(chunk => chunk.docId),
+    [scopedDocId]
+  );
+  t.deepEqual(
+    await t.context.copilotContext.matchWorkspaceEmbedding(
+      Array.from({ length: EMBEDDING_DIMENSIONS }, () => 1),
+      workspace.id,
+      10,
+      1,
+      Prisma.sql`TRUE`,
+      [],
+      []
+    ),
+    []
+  );
+});
+
 test('should reject vectors outside the 4096-dimensional contract', async t => {
   const { id: contextId } = await t.context.copilotContext.create(sessionId);
   const error = await t.throwsAsync(() =>

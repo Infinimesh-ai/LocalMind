@@ -4,8 +4,12 @@ import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 import { Prisma } from '@prisma/client';
 
+import { NotFound } from '../base';
 import { BaseModel } from './base';
-import type { CopilotContextMemoryScope } from './copilot-context-memory';
+import type {
+  CopilotContextDocumentRef,
+  CopilotContextMemoryScope,
+} from './copilot-context-memory';
 
 export const COPILOT_CONTEXT_RULE_MODES = [
   'always',
@@ -22,6 +26,7 @@ export type CopilotContextRuleStatus =
 export type CopilotContextRuleConditions = {
   keywords?: string[];
   docIds?: string[];
+  documentRefs?: CopilotContextDocumentRef[];
   projectIds?: string[];
   match?: 'any' | 'all';
 };
@@ -72,12 +77,57 @@ export function fingerprintContextRuleRevision(input: {
 
 @Injectable()
 export class CopilotContextRuleModel extends BaseModel {
+  private ruleManagementWhere(id: string, actorUserId: string) {
+    return {
+      id,
+      OR: [
+        {
+          ownerUserId: actorUserId,
+          scope: { not: 'project' },
+        },
+        {
+          scope: 'project',
+          project: {
+            status: 'active',
+            members: {
+              some: { userId: actorUserId, role: 'owner' },
+            },
+          },
+        },
+      ],
+    } satisfies Prisma.AiContextRuleWhereInput;
+  }
+
+  private async getManageableRule(id: string, actorUserId: string) {
+    return await this.db.aiContextRule.findFirst({
+      where: this.ruleManagementWhere(id, actorUserId),
+      include: {
+        revisions: { orderBy: { revision: 'desc' } },
+        hits: { orderBy: { createdAt: 'desc' }, take: 20 },
+      },
+    });
+  }
+
   @Transactional()
   async createRule(input: CopilotContextRuleInput) {
+    if (input.scope === 'project') {
+      const project = await this.db.aiContextProject.findFirst({
+        where: {
+          id: input.projectId ?? undefined,
+          status: 'active',
+          members: {
+            some: { userId: input.ownerUserId, role: 'owner' },
+          },
+        },
+        select: { id: true },
+      });
+      if (!project) throw new NotFound('AI context project not found');
+    }
     const rule = await this.db.aiContextRule.create({
       data: {
         ownerUserId: input.ownerUserId,
-        workspaceId: input.workspaceId ?? null,
+        workspaceId:
+          input.scope === 'project' ? null : (input.workspaceId ?? null),
         projectId: input.projectId ?? null,
         scope: input.scope,
         name: normalize(input.name),
@@ -123,15 +173,16 @@ export class CopilotContextRuleModel extends BaseModel {
   }) {
     return await this.db.aiContextRule.findMany({
       where: {
-        ownerUserId: input.ownerUserId,
         ...(input.includeDisabled ? {} : { status: 'active' }),
         OR: [
           {
+            ownerUserId: input.ownerUserId,
             scope: 'user',
             workspaceId: null,
             projectId: null,
           },
           {
+            ownerUserId: input.ownerUserId,
             scope: 'workspace',
             workspaceId: input.workspaceId,
             projectId: null,
@@ -140,8 +191,12 @@ export class CopilotContextRuleModel extends BaseModel {
             ? [
                 {
                   scope: 'project',
-                  workspaceId: input.workspaceId,
+                  workspaceId: null,
                   projectId: { in: input.projectIds },
+                  project: {
+                    status: 'active',
+                    members: { some: { userId: input.ownerUserId } },
+                  },
                 },
               ]
             : []),
@@ -159,7 +214,7 @@ export class CopilotContextRuleModel extends BaseModel {
   @Transactional()
   async updateRule(
     id: string,
-    ownerUserId: string,
+    actorUserId: string,
     input: {
       name?: string;
       description?: string;
@@ -171,8 +226,8 @@ export class CopilotContextRuleModel extends BaseModel {
     },
     source: 'manual' | 'rollback' = 'manual'
   ) {
-    const current = await this.getRule(id);
-    if (!current || current.ownerUserId !== ownerUserId) return null;
+    const current = await this.getManageableRule(id, actorUserId);
+    if (!current) return null;
     const nextRevision = current.activeRevision + 1;
     const activeContent = current.revisions.find(
       revision => revision.revision === current.activeRevision
@@ -185,8 +240,7 @@ export class CopilotContextRuleModel extends BaseModel {
 
     const updated = await this.db.aiContextRule.updateMany({
       where: {
-        id,
-        ownerUserId,
+        ...this.ruleManagementWhere(id, actorUserId),
         activeRevision: current.activeRevision,
         updatedAt: current.updatedAt,
       },
@@ -215,7 +269,7 @@ export class CopilotContextRuleModel extends BaseModel {
             revision: nextRevision,
             content,
           }),
-          createdByUserId: ownerUserId,
+          createdByUserId: actorUserId,
           source,
         },
       });
@@ -225,26 +279,26 @@ export class CopilotContextRuleModel extends BaseModel {
 
   async rollbackRule(input: {
     id: string;
-    ownerUserId: string;
+    actorUserId: string;
     revision: number;
   }) {
-    const rule = await this.getRule(input.id);
+    const rule = await this.getManageableRule(input.id, input.actorUserId);
     const target = rule?.revisions.find(
       revision => revision.revision === input.revision
     );
-    if (!rule || rule.ownerUserId !== input.ownerUserId || !target) return null;
+    if (!rule || !target) return null;
     return await this.updateRule(
       input.id,
-      input.ownerUserId,
+      input.actorUserId,
       { content: target.content },
       'rollback'
     );
   }
 
   @Transactional()
-  async deleteRule(id: string, ownerUserId: string) {
+  async deleteRule(id: string, actorUserId: string) {
     const result = await this.db.aiContextRule.deleteMany({
-      where: { id, ownerUserId },
+      where: this.ruleManagementWhere(id, actorUserId),
     });
     return result.count > 0;
   }

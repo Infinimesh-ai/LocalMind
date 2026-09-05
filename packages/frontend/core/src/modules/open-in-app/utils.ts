@@ -32,14 +32,25 @@ function isAllowedOpenAppSignInNext(next: string) {
     return true;
   }
 
-  if (next.startsWith('/workspace')) {
-    const boundary = next.charAt('/workspace'.length);
+  const hasRouteBoundary = (route: string) => {
+    if (!next.startsWith(route)) {
+      return false;
+    }
+    const boundary = next.charAt(route.length);
     return (
       boundary === '' ||
       boundary === '/' ||
       boundary === '?' ||
       boundary === '#'
     );
+  };
+
+  if (
+    hasRouteBoundary('/workspace') ||
+    hasRouteBoundary('/intelligence') ||
+    hasRouteBoundary('/tasks')
+  ) {
+    return true;
   }
 
   return next.startsWith('/share/');

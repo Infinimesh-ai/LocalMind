@@ -2,19 +2,21 @@ import { WorkbenchService } from '@affine/core/modules/workbench';
 import { useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { IslandContainer } from './container';
 import { AIIcon } from './icons';
 import { aiIslandBtn, aiIslandWrapper, toolStyle } from './styles.css';
 
 const hideChat: Array<string | ((path: string) => boolean)> = [
-  '/chat',
+  '/intelligence',
   path => path.includes('attachments'),
 ];
 
 export const AIIsland = () => {
   // to make sure ai island is hidden first and animate in
   const [hide, setHide] = useState(true);
+  const navigate = useNavigate();
 
   const workbench = useService(WorkbenchService).workbench;
   const activeView = useLiveData(workbench.activeView$);
@@ -44,10 +46,10 @@ export const AIIsland = () => {
       workbench.openSidebar();
       activeView.activeSidebarTab('chat');
     } else {
-      workbench.open('/chat');
+      navigate('/intelligence');
       workbench.closeSidebar();
     }
-  }, [activeView, haveChatTab, hide, workbench]);
+  }, [activeView, haveChatTab, hide, navigate, workbench]);
 
   return (
     <IslandContainer className={clsx(toolStyle, { hide })}>

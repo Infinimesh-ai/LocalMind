@@ -31,7 +31,7 @@ import {
 } from 'react';
 
 import { AppSidebarService } from '../../app-sidebar';
-import { DesktopApiService } from '../../desktop-api';
+import { DesktopApiService, useAppLayoutReady } from '../../desktop-api';
 import { resolveLinkToDoc } from '../../navigation';
 import { iconNameToIcon } from '../../workbench/constants';
 import { DesktopStateSynchronizer } from '../../workbench/services/desktop-state-synchronizer';
@@ -389,8 +389,6 @@ export const AppTabsHeader = ({
   const isWindowsDesktop = BUILD_CONFIG.isElectron && environment.isWindows;
   const fullScreen = useIsFullScreen();
 
-  const desktopApi = useService(DesktopApiService);
-
   const tabsHeaderService = useService(AppTabsHeaderService);
   const tabs = useLiveData(tabsHeaderService.tabsStatus$);
 
@@ -408,11 +406,7 @@ export const AppTabsHeader = ({
     await tabsHeaderService.onToggleRightSidebar?.();
   }, [tabsHeaderService]);
 
-  useEffect(() => {
-    if (mode === 'app') {
-      desktopApi.handler.ui.pingAppLayoutReady().catch(console.error);
-    }
-  }, [mode, desktopApi]);
+  useAppLayoutReady(mode === 'app');
 
   const onDrop = useAsyncCallback(
     async (data: DropTargetDropEvent<AffineDNDData>, targetId?: string) => {

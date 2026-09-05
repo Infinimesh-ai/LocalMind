@@ -1,0 +1,9 @@
+#import "./fragments/copilot-blocker.gql"
+
+mutation confirmCopilotBlockerSuggestion(
+  $input: ConfirmCopilotBlockerSuggestionInput!
+) {
+  confirmCopilotBlockerSuggestion(input: $input) {
+    ...CopilotBlockerFields
+  }
+}

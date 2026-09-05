@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { Logger, UseGuards } from '@nestjs/common';
 import {
   Args,
@@ -20,6 +22,7 @@ import {
   BlobNotFound,
   BlobQuotaExceeded,
   CloudThrottlerGuard,
+  DocNotFound,
   readBuffer,
   StorageQuotaExceeded,
 } from '../../../base';
@@ -163,9 +166,17 @@ export class WorkspaceBlobResolver {
     @Parent() workspace: WorkspaceType,
     @Args('key') key: string,
     @Args('uploadId') uploadId: string,
-    @Args('partNumber', { type: () => Int }) partNumber: number
+    @Args('partNumber', { type: () => Int }) partNumber: number,
+    @Args('docScopeId', { nullable: true }) docScopeId?: string
   ): Promise<BlobUploadPart> {
-    return this.getUploadPart(user, workspace.id, key, uploadId, partNumber);
+    return this.getUploadPart(
+      user,
+      workspace.id,
+      key,
+      uploadId,
+      partNumber,
+      docScopeId
+    );
   }
 
   @Mutation(() => String)
@@ -173,12 +184,10 @@ export class WorkspaceBlobResolver {
     @CurrentUser() user: CurrentUser,
     @Args('workspaceId') workspaceId: string,
     @Args({ name: 'blob', type: () => GraphQLUpload })
-    blob: FileUpload
+    blob: FileUpload,
+    @Args('docScopeId', { nullable: true }) docScopeId?: string
   ) {
-    await this.ac
-      .user(user.id)
-      .workspace(workspaceId)
-      .assert('Workspace.Blobs.Write');
+    await this.assertCanWriteBlob(user.id, workspaceId, docScopeId);
 
     const checkExceeded =
       await this.quota.getWorkspaceQuotaCalculator(workspaceId);
@@ -191,6 +200,21 @@ export class WorkspaceBlobResolver {
     }
 
     const buffer = await readBuffer(blob.createReadStream(), checkExceeded);
+
+    if (docScopeId) {
+      this.assertContentAddressedBlob(blob.filename, buffer);
+      const record = await this.models.blob.get(workspaceId, blob.filename);
+      if (!record) {
+        throw new BlobInvalid('Scoped blob upload is not initialized');
+      }
+      if (record.size !== buffer.byteLength) {
+        throw new BlobInvalid('Blob size mismatch');
+      }
+      if (record.mime !== (blob.mimetype || 'application/octet-stream')) {
+        throw new BlobInvalid('Blob mime mismatch');
+      }
+      await this.assertCanWriteBlob(user.id, workspaceId, docScopeId);
+    }
 
     await this.storage.put(workspaceId, blob.filename, buffer, {
       contentType: blob.mimetype || 'application/octet-stream',
@@ -205,14 +229,13 @@ export class WorkspaceBlobResolver {
     @Args('workspaceId') workspaceId: string,
     @Args('key') key: string,
     @Args('size', { type: () => Int }) size: number,
-    @Args('mime') mime: string
+    @Args('mime') mime: string,
+    @Args('docScopeId', { nullable: true }) docScopeId?: string
   ): Promise<BlobUploadInit> {
-    await this.ac
-      .user(user.id)
-      .workspace(workspaceId)
-      .assert('Workspace.Blobs.Write');
+    await this.assertCanWriteBlob(user.id, workspaceId, docScopeId);
 
     let record = await this.models.blob.get(workspaceId, key);
+    let keepCompletedRecord = false;
     mime = mime || 'application/octet-stream';
     if (record) {
       if (record.size !== size) {
@@ -226,12 +249,14 @@ export class WorkspaceBlobResolver {
           record = null;
         } else if (existingMetadata.contentLength !== size) {
           throw new BlobInvalid('Blob size mismatch');
-        } else {
+        } else if (!docScopeId) {
           return {
             method: BlobUploadMethod.GRAPHQL,
             blobKey: key,
             alreadyUploaded: true,
           };
+        } else {
+          keepCompletedRecord = true;
         }
       } else {
         mime = record.mime;
@@ -252,10 +277,17 @@ export class WorkspaceBlobResolver {
     let uploadIdForRecord: string | null = null;
 
     try {
+      if (docScopeId) {
+        // A presigned URL would remain usable after a project grant is revoked.
+        init = {
+          method: BlobUploadMethod.GRAPHQL,
+          blobKey: key,
+        };
+      }
       const capabilities = await this.storage.capabilities();
 
       // try to resume multipart uploads
-      if (capabilities.multipartDirect && record && record.uploadId) {
+      if (!init && capabilities.multipartDirect && record && record.uploadId) {
         const uploadedParts = await this.storage.listMultipartUploadParts(
           workspaceId,
           key,
@@ -273,7 +305,11 @@ export class WorkspaceBlobResolver {
         }
       }
 
-      if (capabilities.multipartDirect && size >= MULTIPART_THRESHOLD) {
+      if (
+        !init &&
+        capabilities.multipartDirect &&
+        size >= MULTIPART_THRESHOLD
+      ) {
         const multipart = await this.storage.createMultipartUpload(
           workspaceId,
           key,
@@ -321,14 +357,19 @@ export class WorkspaceBlobResolver {
       };
     }
 
-    await this.models.blob.upsert({
-      workspaceId,
-      key,
-      mime,
-      size,
-      status: 'pending',
-      uploadId: uploadIdForRecord,
-    });
+    if (!keepCompletedRecord) {
+      if (docScopeId) {
+        await this.assertCanWriteBlob(user.id, workspaceId, docScopeId);
+      }
+      await this.models.blob.upsert({
+        workspaceId,
+        key,
+        mime,
+        size,
+        status: 'pending',
+        uploadId: uploadIdForRecord,
+      });
+    }
 
     return init;
   }
@@ -344,16 +385,20 @@ export class WorkspaceBlobResolver {
       type: () => [BlobUploadPartInput],
       nullable: true,
     })
-    parts?: BlobUploadPartInput[]
+    parts?: BlobUploadPartInput[],
+    @Args('docScopeId', { nullable: true }) docScopeId?: string
   ): Promise<string> {
-    await this.ac
-      .user(user.id)
-      .workspace(workspaceId)
-      .assert('Workspace.Blobs.Write');
+    await this.assertCanWriteBlob(user.id, workspaceId, docScopeId);
 
     const record = await this.models.blob.get(workspaceId, key);
     if (!record) {
       throw new BlobNotFound({ spaceId: workspaceId, blobId: key });
+    }
+    if (
+      docScopeId &&
+      (record.uploadId || uploadId !== undefined || (parts?.length ?? 0) > 0)
+    ) {
+      throw new BlobInvalid('Scoped multipart blob upload is not supported');
     }
     if (record.status === 'completed') {
       return key;
@@ -374,6 +419,9 @@ export class WorkspaceBlobResolver {
 
       const metadata = await this.storage.head(workspaceId, key);
       if (!metadata) {
+        if (docScopeId) {
+          await this.assertCanWriteBlob(user.id, workspaceId, docScopeId);
+        }
         const completed = await this.storage.completeMultipartUpload(
           workspaceId,
           key,
@@ -388,6 +436,9 @@ export class WorkspaceBlobResolver {
       throw new BlobInvalid('Multipart upload is not initialized');
     }
 
+    if (docScopeId) {
+      await this.assertCanWriteBlob(user.id, workspaceId, docScopeId);
+    }
     const result = await this.storage.complete(workspaceId, key, {
       size: record.size,
       mime: record.mime,
@@ -419,12 +470,13 @@ export class WorkspaceBlobResolver {
     @CurrentUser() user: CurrentUser,
     @Args('workspaceId') workspaceId: string,
     @Args('key') key: string,
-    @Args('uploadId') uploadId: string
+    @Args('uploadId') uploadId: string,
+    @Args('docScopeId', { nullable: true }) docScopeId?: string
   ) {
-    await this.ac
-      .user(user.id)
-      .workspace(workspaceId)
-      .assert('Workspace.Blobs.Write');
+    await this.assertCanWriteBlob(user.id, workspaceId, docScopeId);
+    if (docScopeId) {
+      throw new BlobInvalid('Scoped multipart blob upload is not supported');
+    }
 
     return this.storage.abortMultipartUpload(workspaceId, key, uploadId);
   }
@@ -434,12 +486,13 @@ export class WorkspaceBlobResolver {
     workspaceId: string,
     key: string,
     uploadId: string,
-    partNumber: number
+    partNumber: number,
+    docScopeId?: string
   ): Promise<BlobUploadPart> {
-    await this.ac
-      .user(user.id)
-      .workspace(workspaceId)
-      .assert('Workspace.Blobs.Write');
+    await this.assertCanWriteBlob(user.id, workspaceId, docScopeId);
+    if (docScopeId) {
+      throw new BlobInvalid('Scoped multipart blob upload is not supported');
+    }
 
     const part = await this.storage.presignUploadPart(
       workspaceId,
@@ -456,6 +509,35 @@ export class WorkspaceBlobResolver {
       headers: part.headers,
       expiresAt: part.expiresAt,
     };
+  }
+
+  private async assertCanWriteBlob(
+    userId: string,
+    workspaceId: string,
+    docScopeId?: string
+  ) {
+    if (!docScopeId) {
+      await this.ac
+        .user(userId)
+        .workspace(workspaceId)
+        .assert('Workspace.Blobs.Write');
+      return;
+    }
+
+    await this.ac
+      .user(userId)
+      .doc(workspaceId, docScopeId)
+      .assert('Doc.Update');
+    if (!(await this.models.doc.get(workspaceId, docScopeId))) {
+      throw new DocNotFound({ spaceId: workspaceId, docId: docScopeId });
+    }
+  }
+
+  private assertContentAddressedBlob(key: string, body: Buffer) {
+    const expected = createHash('sha256').update(body).digest('base64url');
+    if (key.replace(/=+$/, '') !== expected) {
+      throw new BlobInvalid('Blob key mismatch');
+    }
   }
 
   @Mutation(() => Boolean)

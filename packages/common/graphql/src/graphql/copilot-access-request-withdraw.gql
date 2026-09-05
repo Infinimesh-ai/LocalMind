@@ -1,0 +1,12 @@
+mutation withdrawCopilotAccessRequest(
+  $input: ResolveCopilotAccessRequestInput!
+) {
+  withdrawCopilotAccessRequest(input: $input) {
+    id
+    status
+    resolvedByUserId
+    resolutionReason
+    resolvedAt
+    updatedAt
+  }
+}

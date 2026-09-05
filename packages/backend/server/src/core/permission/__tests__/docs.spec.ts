@@ -359,6 +359,180 @@ test('SQL doc predicate suppresses member default when explicit grant exists', a
   t.deepEqual(sqlUpdateAllowed, ['default-manager']);
 });
 
+test('project grants authorize active members without granting document management', async t => {
+  const sourceOwner = await module.create(Mockers.User);
+  const projectMember = await module.create(Mockers.User);
+  const workspace = await module.create(Mockers.Workspace, {
+    owner: sourceOwner,
+  });
+  await resetProjection(workspace.id);
+  await db.workspaceAccessPolicy.update({
+    where: { workspaceId: workspace.id },
+    data: { sharingEnabled: false },
+  });
+
+  const project = await db.aiContextProject.create({
+    data: {
+      createdByUserId: sourceOwner.id,
+      name: 'Project grant permission boundary',
+      members: {
+        create: [
+          { userId: sourceOwner.id, role: 'owner' },
+          { userId: projectMember.id, role: 'member' },
+        ],
+      },
+    },
+  });
+  await db.$transaction(async tx => {
+    for (const [docId, level] of [
+      ['project-read', 'read'],
+      ['project-write', 'write'],
+    ] as const) {
+      await tx.aiContextProjectDoc.create({
+        data: {
+          projectId: project.id,
+          workspaceId: workspace.id,
+          docId,
+          status: 'granted',
+          requestedLevel: level,
+          addedByUserId: sourceOwner.id,
+        },
+      });
+      await tx.aiContextProjectGrant.create({
+        data: {
+          projectId: project.id,
+          workspaceId: workspace.id,
+          docId,
+          level,
+          source: 'direct',
+          grantedByUserId: sourceOwner.id,
+          grantorUserIdSnapshot: sourceOwner.id,
+        },
+      });
+    }
+    await tx.docGrant.createMany({
+      data: [
+        {
+          workspaceId: workspace.id,
+          docId: 'project-write',
+          principalType: 'user',
+          principalId: projectMember.id,
+          role: 'reader',
+        },
+        {
+          workspaceId: workspace.id,
+          docId: 'project-read',
+          principalType: 'user',
+          principalId: projectMember.id,
+          role: 'editor',
+        },
+      ],
+    });
+  });
+
+  const readPermissions = await builder
+    .user(projectMember.id)
+    .doc(workspace.id, 'project-read')
+    .permissions();
+  const writePermissions = await builder
+    .user(projectMember.id)
+    .doc(workspace.id, 'project-write')
+    .permissions();
+  t.is(readPermissions.role, DocRole.Editor);
+  t.true(readPermissions.permissions['Doc.Read']);
+  t.true(readPermissions.permissions['Doc.Update']);
+  t.false(readPermissions.permissions['Doc.Users.Manage']);
+  t.is(writePermissions.role, DocRole.Editor);
+  t.true(writePermissions.permissions['Doc.Read']);
+  t.true(writePermissions.permissions['Doc.Update']);
+  t.false(writePermissions.permissions['Doc.Users.Manage']);
+
+  t.deepEqual(
+    await sqlReadableDocIds({
+      workspaceId: workspace.id,
+      userId: projectMember.id,
+      docIds: ['project-read', 'project-write'],
+    }),
+    ['project-read', 'project-write']
+  );
+  t.deepEqual(
+    await sqlReadableDocIds({
+      workspaceId: workspace.id,
+      userId: projectMember.id,
+      action: 'Doc.Update',
+      docIds: ['project-read', 'project-write'],
+    }),
+    ['project-read', 'project-write']
+  );
+  t.deepEqual(
+    await sqlReadableDocIds({
+      workspaceId: workspace.id,
+      userId: projectMember.id,
+      action: 'Doc.Users.Manage',
+      docIds: ['project-read', 'project-write'],
+    }),
+    []
+  );
+
+  await db.$transaction([
+    db.aiContextProjectGrant.updateMany({
+      where: { projectId: project.id, docId: 'project-write' },
+      data: {
+        status: 'revoked',
+        revokedByUserId: sourceOwner.id,
+        revokerUserIdSnapshot: sourceOwner.id,
+        revokedAt: new Date(),
+      },
+    }),
+    db.aiContextProjectDoc.update({
+      where: {
+        projectId_workspaceId_docId: {
+          projectId: project.id,
+          workspaceId: workspace.id,
+          docId: 'project-write',
+        },
+      },
+      data: { status: 'revoked', revokedAt: new Date() },
+    }),
+  ]);
+  t.false(
+    await builder
+      .user(projectMember.id)
+      .doc(workspace.id, 'project-write')
+      .can('Doc.Read')
+  );
+
+  await db.aiContextProject.update({
+    where: { id: project.id },
+    data: { status: 'archived' },
+  });
+  t.false(
+    await builder
+      .user(projectMember.id)
+      .doc(workspace.id, 'project-read')
+      .can('Doc.Read')
+  );
+  await db.aiContextProject.update({
+    where: { id: project.id },
+    data: { status: 'active' },
+  });
+
+  await db.aiContextProjectMember.delete({
+    where: {
+      projectId_userId: {
+        projectId: project.id,
+        userId: projectMember.id,
+      },
+    },
+  });
+  t.false(
+    await builder
+      .user(projectMember.id)
+      .doc(workspace.id, 'project-read')
+      .can('Doc.Read')
+  );
+});
+
 test('should filter docs by Doc.Publish', async t => {
   const owner = await module.create(Mockers.User);
   const workspace = await module.create(Mockers.Workspace, {
