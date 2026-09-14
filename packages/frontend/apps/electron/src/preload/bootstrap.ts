@@ -1,4 +1,4 @@
-import '@sentry/electron/preload';
+// External Sentry preload instrumentation is disabled for LocalMind clients.
 
 import { contextBridge } from 'electron';
 

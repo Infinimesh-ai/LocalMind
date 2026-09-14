@@ -54,7 +54,11 @@ export class TelemetryManager {
   }
 
   async setContext(context: TelemetryContext) {
-    this.context = { ...context };
+    this.context = {
+      ...context,
+      // Self-hosted instances keep telemetry local; no official endpoint is ever contacted.
+      officialEndpoint: context.isSelfHosted ? '' : context.officialEndpoint,
+    };
     this.updateSocketConnection();
     this.scheduleFlush(true);
   }

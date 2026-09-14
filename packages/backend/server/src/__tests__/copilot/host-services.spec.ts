@@ -721,6 +721,7 @@ test('ToolRuntime should expose semantic workspace organization tools', async t 
     'workspace_folder_list',
     'workspace_folder_move',
     'workspace_folder_move_document',
+    'workspace_folder_move_item',
     'workspace_folder_rename',
     'workspace_folder_restore',
     'workspace_folder_trash',

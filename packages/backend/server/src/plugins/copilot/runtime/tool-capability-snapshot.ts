@@ -32,6 +32,7 @@ const WORKSPACE_WRITE_TOOLS = new Set([
   'workspace_folder_delete_permanently',
   'workspace_folder_add_document',
   'workspace_folder_move_document',
+  'workspace_folder_move_item',
   'doc_trash',
   'doc_restore',
   'doc_delete_permanently',

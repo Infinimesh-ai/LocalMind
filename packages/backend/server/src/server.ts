@@ -15,6 +15,7 @@ import {
   CORS_EXPOSED_HEADERS,
   corsOriginCallback,
   GlobalExceptionFilter,
+  LocalMindLogService,
   URLHelper,
 } from './base';
 import { SocketIoAdapter } from './base/websocket';
@@ -40,6 +41,11 @@ export async function run() {
   app.useBodyParser('raw', { limit: 100 * OneMB });
 
   const logger = app.get(AFFiNELogger);
+  const localMindLogs = app.get(LocalMindLogService);
+  LocalMindLogService.registerSink(input => {
+    void localMindLogs.write(input).catch(() => undefined);
+  });
+  LocalMindLogService.installConsoleBridge();
   app.useLogger(logger);
   const config = app.get(Config);
   const url = app.get(URLHelper);

@@ -17,6 +17,11 @@ export const ROUTES = {
     queue: '/admin/queue',
     ai: '/admin/ai',
     aiRuntime: '/admin/ai/runtime',
+    observability: {
+      index: '/admin/observability',
+      logs: '/admin/observability/logs',
+      settings: '/admin/observability/settings',
+    },
     settings: { index: '/admin/settings', module: '/admin/settings/:module' },
     about: '/admin/about',
     notFound: '/admin/404',
@@ -37,6 +42,11 @@ export const RELATIVE_ROUTES = {
     queue: 'queue',
     ai: 'ai',
     aiRuntime: 'ai/runtime',
+    observability: {
+      index: 'observability',
+      logs: 'logs',
+      settings: 'settings',
+    },
     settings: { index: 'settings', module: ':module' },
     about: 'about',
     notFound: '404',
@@ -55,6 +65,10 @@ admin.workspaces = () => '/admin/workspaces';
 admin.queue = () => '/admin/queue';
 admin.ai = () => '/admin/ai';
 admin.aiRuntime = () => '/admin/ai/runtime';
+const admin_observability = () => '/admin/observability';
+admin_observability.logs = () => '/admin/observability/logs';
+admin_observability.settings = () => '/admin/observability/settings';
+admin.observability = admin_observability;
 const admin_settings = () => '/admin/settings';
 admin_settings.module = (params: { module: string }) =>
   `/admin/settings/${params.module}`;

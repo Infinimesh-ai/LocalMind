@@ -115,6 +115,7 @@ test('provider probe verifies non-empty OpenAI Responses output', async t => {
     provider: ByokProvider.openai,
     operation: 'chat',
     modelId: 'gpt-test',
+    modelIds: ['gpt-test'],
   });
 });
 
@@ -217,6 +218,8 @@ test('provider probe accepts FAL catalog wrapper variants but not empty lists', 
     null,
     false
   );
+
+  t.deepEqual(result.modelIds, ['fal-ai/test']);
   const error = await t.throwsAsync(
     runProviderProbe(fetch, ByokProvider.fal, 'secret', null, false)
   );

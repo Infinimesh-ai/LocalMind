@@ -105,6 +105,7 @@ describe('WorkspaceByokAdmin', () => {
         ok: true,
         status: ByokKeyTestStatus.passed,
         message: null,
+        models: ['gpt-test'],
       },
     });
     upsertConfigMock.mockReset().mockResolvedValue({
@@ -126,9 +127,6 @@ describe('WorkspaceByokAdmin', () => {
       screen.getByText('No Workspace AI credentials configured.')
     ).not.toBeNull();
 
-    fireEvent.change(screen.getByLabelText('Credential name'), {
-      target: { value: 'Primary' },
-    });
     fireEvent.change(screen.getByLabelText('API key'), {
       target: { value: 'sk-test' },
     });
@@ -152,6 +150,7 @@ describe('WorkspaceByokAdmin', () => {
         }),
       });
       expect(save.hasAttribute('disabled')).toBe(false);
+      expect(screen.getByLabelText('Available models')).not.toBeNull();
     });
 
     fireEvent.click(save);

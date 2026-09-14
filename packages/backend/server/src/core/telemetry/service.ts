@@ -90,6 +90,9 @@ export class TelemetryService {
     }
 
     const events = batch.events;
+    if (env.DEPLOYMENT_TYPE === 'selfhosted') {
+      return { ok: true, accepted: 0, dropped: events.length };
+    }
     let dropped = 0;
 
     const cleanedEvents = [];

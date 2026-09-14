@@ -97,7 +97,7 @@ function emptyDraft(
     enabled: true,
     endpoint: '',
     modelId: '',
-    name: '',
+    name: 'Primary',
     provider,
     sortOrder,
   };
@@ -149,6 +149,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
   const [testedFingerprint, setTestedFingerprint] = useState<string | null>(
     null
   );
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
   const { trigger: testConfig, isMutating: isTesting } = useMutation({
     mutation: testWorkspaceByokConfigMutation,
   });
@@ -165,6 +166,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
   useEffect(() => {
     setDraft(emptyDraft(settings.keys.length, defaultProvider));
     setTestedFingerprint(null);
+    setAvailableModels([]);
   }, [defaultProvider, scope.id, settings.keys.length]);
 
   const currentTestFingerprint = useMemo(
@@ -183,6 +185,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
   const resetDraft = () => {
     setDraft(emptyDraft(settings.keys.length, defaultProvider));
     setTestedFingerprint(null);
+    setAvailableModels([]);
   };
 
   const handleTest = async () => {
@@ -203,6 +206,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
       });
       if (!result.testWorkspaceByokConfig.ok) {
         setTestedFingerprint(null);
+        setAvailableModels([]);
         await mutate();
         toast.error(
           result.testWorkspaceByokConfig.message ??
@@ -210,12 +214,14 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
         );
         return;
       }
+      setAvailableModels(result.testWorkspaceByokConfig.models ?? []);
       setTestedFingerprint(currentTestFingerprint);
       await mutate();
       toast.success(i18n['com.affine.admin.provider-credential-verified']());
     } catch (testError) {
       console.error(testError);
       setTestedFingerprint(null);
+      setAvailableModels([]);
       toast.error(i18n['com.affine.admin.provider-test-failed']());
     }
   };
@@ -449,6 +455,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
                         onClick={() => {
                           setDraft(keyDraft(key));
                           setTestedFingerprint(null);
+                          setAvailableModels([]);
                         }}
                       >
                         <PencilIcon size={16} />
@@ -529,6 +536,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
                   provider: value as ByokProvider,
                 }));
                 setTestedFingerprint(null);
+                setAvailableModels([]);
               }}
             >
               <SelectTrigger id={`byok-provider-${scope.id}`}>
@@ -572,6 +580,29 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
                 setTestedFingerprint(null);
               }}
             />
+            {availableModels.length ? (
+              <Select
+                value={draft.modelId}
+                onValueChange={value => {
+                  setDraft(current => ({ ...current, modelId: value }));
+                  setTestedFingerprint(null);
+                }}
+              >
+                <SelectTrigger
+                  id={`byok-model-options-${scope.id}`}
+                  aria-label="Available models"
+                >
+                  <SelectValue placeholder="Select a verified model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableModels.map(model => (
+                    <SelectItem key={model} value={model}>
+                      {model}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
           </div>
           <div className="space-y-2 md:col-span-2 xl:col-span-1">
             <Label htmlFor={`byok-key-${scope.id}`}>
@@ -617,6 +648,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
                   endpoint: event.target.value,
                 }));
                 setTestedFingerprint(null);
+                setAvailableModels([]);
               }}
             />
           </div>

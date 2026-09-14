@@ -31,4 +31,19 @@ describe('debug', () => {
       expect(fn, level).toBeCalled();
     }
   });
+
+  test('forwards structured events to an optional sink', () => {
+    const sink = vi.fn();
+    DebugLogger.setSink(sink);
+    const logger = new DebugLogger('sink-test');
+    logger.enabled = false;
+    logger.error('secret-safe message', { code: 'E_TEST' });
+    expect(sink).toHaveBeenCalledWith({
+      namespace: 'sink-test',
+      level: 'error',
+      message: 'secret-safe message',
+      args: [{ code: 'E_TEST' }],
+    });
+    DebugLogger.setSink(undefined);
+  });
 });

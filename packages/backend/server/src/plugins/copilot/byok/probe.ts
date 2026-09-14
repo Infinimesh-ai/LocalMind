@@ -13,6 +13,7 @@ export type ProviderProbeResult = {
   provider: ByokProvider;
   operation: ProbeOperation;
   modelId: string | null;
+  modelIds: string[];
 };
 
 type ProbeRequest = {
@@ -69,7 +70,51 @@ export async function runProviderProbe(
     provider,
     operation: request.operation,
     modelId: request.operation === 'chat' ? (modelId ?? null) : null,
+    modelIds:
+      request.operation === 'model_catalog'
+        ? extractModelIds(provider, payload)
+        : modelId
+          ? [modelId]
+          : [],
   };
+}
+
+function extractModelIds(provider: ByokProvider, payload: unknown): string[] {
+  const entries =
+    provider === ByokProvider.fal
+      ? Array.isArray(payload)
+        ? payload
+        : isRecord(payload)
+          ? (payload.models ?? payload.data ?? payload.items)
+          : null
+      : isRecord(payload)
+        ? provider === ByokProvider.gemini
+          ? payload.models
+          : payload.data
+        : null;
+
+  if (!Array.isArray(entries)) return [];
+
+  const ids = entries
+    .map(entry => {
+      if (isNonEmptyString(entry)) return entry.trim();
+      if (!isRecord(entry)) return null;
+      const fields =
+        provider === ByokProvider.gemini
+          ? ['name']
+          : provider === ByokProvider.fal
+            ? ['endpoint_id', 'id', 'model_id', 'name', 'model_url']
+            : ['id'];
+      const value = fields.find(field => isNonEmptyString(entry[field]));
+      return value
+        ? String(entry[value])
+            .trim()
+            .replace(/^models\//, '')
+        : null;
+    })
+    .filter((id): id is string => Boolean(id));
+
+  return [...new Set(ids)].slice(0, 200);
 }
 
 function buildProbeRequest(

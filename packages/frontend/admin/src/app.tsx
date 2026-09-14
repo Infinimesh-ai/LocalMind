@@ -43,13 +43,24 @@ export const About = lazy(
 export const Settings = lazy(
   () => import(/* webpackChunkName: "settings" */ './modules/settings')
 );
+export const ObservabilityLogs = lazy(() =>
+  import('./modules/observability').then(module => ({
+    default: module.ObservabilityLogsPage,
+  }))
+);
+export const ObservabilitySettings = lazy(() =>
+  import('./modules/observability').then(module => ({
+    default: module.ObservabilitySettingsPage,
+  }))
+);
 export const Auth = lazy(
   () => import(/* webpackChunkName: "auth" */ './modules/auth')
 );
 
-const Routes = window.SENTRY_RELEASE
-  ? withSentryReactRouterV7Routing(ReactRouterRoutes)
-  : ReactRouterRoutes;
+const Routes =
+  window.SENTRY_RELEASE && !environment.isSelfHosted
+    ? withSentryReactRouterV7Routing(ReactRouterRoutes)
+    : ReactRouterRoutes;
 
 function AuthenticatedRoutes() {
   const i18n = useI18n();
@@ -129,6 +140,14 @@ export const App = () => {
                   <Route path={`${ROUTES.admin.queue}/*`} element={<Queue />} />
                   <Route path={`${ROUTES.admin.ai}/*`} element={<AI />} />
                   <Route path={ROUTES.admin.about} element={<About />} />
+                  <Route
+                    path={ROUTES.admin.observability.logs}
+                    element={<ObservabilityLogs />}
+                  />
+                  <Route
+                    path={ROUTES.admin.observability.settings}
+                    element={<ObservabilitySettings />}
+                  />
                   <Route
                     path={ROUTES.admin.settings.index}
                     element={<Settings />}

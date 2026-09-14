@@ -98,7 +98,9 @@ const createBrowserRouter = wrapCreateBrowserRouterV6(
   reactRouterCreateBrowserRouter
 );
 export const router = (
-  window.SENTRY_RELEASE ? createBrowserRouter : reactRouterCreateBrowserRouter
+  window.SENTRY_RELEASE && !environment.isSelfHosted
+    ? createBrowserRouter
+    : reactRouterCreateBrowserRouter
 )(topLevelRoutes, {
   future: {
     v7_normalizeFormMethod: true,

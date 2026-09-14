@@ -4140,3 +4140,103 @@ model CalendarEventInstance {
   @@index([calendarEventId, startAtUtc])
   @@map("calendar_event_instances")
 }
+
+model LocalMindLogEvent {
+  id                 String   @default(uuid()) @db.VarChar
+  eventId            String   @map("event_id") @db.VarChar
+  occurredAt         DateTime @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  ingestedAt         DateTime @default(now()) @map("ingested_at") @db.Timestamptz(3)
+  instanceId         String   @map("instance_id") @db.VarChar
+  nodeId             String   @map("node_id") @db.VarChar
+  service            String   @db.VarChar
+  component          String?  @db.VarChar
+  severity           String   @db.VarChar
+  eventName          String   @map("event_name") @db.VarChar
+  messageTemplate    String?  @map("message_template") @db.VarChar
+  messageParams      Json?    @map("message_params") @db.JsonB
+  requestId          String?  @map("request_id") @db.VarChar
+  traceId            String?  @map("trace_id") @db.VarChar
+  spanId             String?  @map("span_id") @db.VarChar
+  actorType          String?  @map("actor_type") @db.VarChar
+  actorIdHash        String?  @map("actor_id_hash") @db.VarChar
+  workspaceId        String?  @map("workspace_id") @db.VarChar
+  projectId          String?  @map("project_id") @db.VarChar
+  resourceType       String?  @map("resource_type") @db.VarChar
+  resourceId         String?  @map("resource_id") @db.VarChar
+  sessionId          String?  @map("session_id") @db.VarChar
+  runId              String?  @map("run_id") @db.VarChar
+  stepId             String?  @map("step_id") @db.VarChar
+  jobName            String?  @map("job_name") @db.VarChar
+  jobId              String?  @map("job_id") @db.VarChar
+  status             String?  @db.VarChar
+  errorCode          String?  @map("error_code") @db.VarChar
+  durationMs         Int?     @map("duration_ms")
+  metadata           Json?    @db.JsonB
+  redactionVersion   String   @default("v1") @map("redaction_version") @db.VarChar
+  retentionClass     String   @default("runtime") @map("retention_class") @db.VarChar
+
+  @@id([id, occurredAt])
+  @@index([eventId])
+
+  @@index([occurredAt])
+  @@index([severity, occurredAt])
+  @@index([eventName, occurredAt])
+  @@index([requestId])
+  @@index([traceId])
+  @@index([workspaceId, occurredAt])
+  @@index([projectId, occurredAt])
+  @@map("localmind_log_events")
+}
+
+model LocalMindLogPolicy {
+  id                       String   @id @default("default") @db.VarChar
+  runtimeRetentionDays     Int      @default(30) @map("runtime_retention_days")
+  failureRetentionDays     Int      @default(90) @map("failure_retention_days")
+  traceRetentionDays       Int      @default(14) @map("trace_retention_days")
+  auditRetentionDays       Int      @default(365) @map("audit_retention_days")
+  spoolMaxBytes            BigInt   @default(52428800) @map("spool_max_bytes")
+  legalHold                Boolean  @default(false) @map("legal_hold")
+  retentionFrozen          Boolean  @default(false) @map("retention_frozen")
+  frozenAt                 DateTime? @map("frozen_at") @db.Timestamptz(3)
+  externalTelemetryEnabled Boolean  @default(false) @map("external_telemetry_enabled")
+  updatedAt                DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("localmind_log_policies")
+}
+
+model LocalMindLogArchive {
+  id             String   @id @default(uuid()) @db.VarChar
+  eventId        String   @unique @map("event_id") @db.VarChar
+  occurredAt     DateTime @map("occurred_at") @db.Timestamptz(3)
+  archivedAt     DateTime @default(now()) @map("archived_at") @db.Timestamptz(3)
+  retentionClass String   @map("retention_class") @db.VarChar
+  payload        Json     @db.JsonB
+
+  @@index([occurredAt])
+  @@index([archivedAt])
+  @@map("localmind_log_archives")
+}
+
+model LocalMindAuditEnvelope {
+  id              String   @id @default(uuid()) @db.VarChar
+  auditEventId    String   @unique @map("audit_event_id") @db.VarChar
+  eventId         String?  @map("event_id") @db.VarChar
+  action          String   @db.VarChar
+  outcome         String   @db.VarChar
+  actorType       String?  @map("actor_type") @db.VarChar
+  actorIdHash     String?  @map("actor_id_hash") @db.VarChar
+  workspaceId     String?  @map("workspace_id") @db.VarChar
+  projectId       String?  @map("project_id") @db.VarChar
+  resourceType    String?  @map("resource_type") @db.VarChar
+  resourceId      String?  @map("resource_id") @db.VarChar
+  authorizationFp String?  @map("authorization_fingerprint") @db.VarChar
+  fingerprint     String   @db.VarChar
+  metadata        Json?    @db.JsonB
+  occurredAt      DateTime @default(now()) @map("occurred_at") @db.Timestamptz(3)
+
+  @@index([occurredAt])
+  @@index([workspaceId, occurredAt])
+  @@index([projectId, occurredAt])
+  @@index([eventId])
+  @@map("localmind_audit_envelopes")
+}

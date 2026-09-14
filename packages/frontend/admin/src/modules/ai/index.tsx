@@ -61,6 +61,8 @@ import {
   getAIModelTaskRoutesDiagnostics,
 } from '@affine/core/modules/ai-button/services/models';
 import {
+  adminProjectByokSettingsQuery,
+  adminWorkspaceByokSettingsQuery,
   appConfigQuery,
   authorizeCopilotSupportBundleDownloadMutation,
   cleanupCopilotSupportBundleRetentionMutation,
@@ -98,6 +100,7 @@ import {
 import { Link, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { useMutateQueryResource } from '../../use-mutation';
 import { Header } from '../header';
 import { ProjectByokAdmin } from './project-byok';
 import { WorkspaceByokAdmin } from './workspace-byok';
@@ -11955,6 +11958,7 @@ function AiConfigPageContent() {
   const { data: appConfigData, mutate: mutateAppConfig } = useQuery({
     query: appConfigQuery,
   });
+  const mutateQueryResource = useMutateQueryResource();
 
   return (
     <div className="flex h-dvh flex-1 flex-col bg-background">
@@ -11966,7 +11970,11 @@ function AiConfigPageContent() {
           <AiConfigPage
             appConfig={appConfigData.appConfig as AppConfigData | undefined}
             onSaved={async () => {
-              await mutateAppConfig();
+              await Promise.all([
+                mutateAppConfig(),
+                mutateQueryResource(adminProjectByokSettingsQuery),
+                mutateQueryResource(adminWorkspaceByokSettingsQuery),
+              ]);
             }}
           />
           <WorkspaceByokAdmin />

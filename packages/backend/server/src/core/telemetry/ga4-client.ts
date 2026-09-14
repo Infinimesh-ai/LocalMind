@@ -28,6 +28,11 @@ export class Ga4Client {
       return;
     }
 
+    // Private deployments keep telemetry inside the LocalMind instance.
+    if (env.DEPLOYMENT_TYPE === 'selfhosted') {
+      return;
+    }
+
     if (!this.measurementId || !this.apiSecret) {
       return;
     }

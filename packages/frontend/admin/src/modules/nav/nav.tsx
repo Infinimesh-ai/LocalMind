@@ -7,6 +7,7 @@ import {
   BotIcon,
   LayoutDashboardIcon,
   ListChecksIcon,
+  ScrollTextIcon,
 } from 'lucide-react';
 
 import { AdminLanguageSelect } from '../../i18n';
@@ -64,6 +65,12 @@ export function Nav({ isCollapsed = false }: NavProps) {
           to={ROUTES.admin.ai}
           icon={<BotIcon size={18} />}
           label="AI"
+          isCollapsed={isCollapsed}
+        />
+        <NavItem
+          to={ROUTES.admin.observability.logs}
+          icon={<ScrollTextIcon size={18} />}
+          label="Logs"
           isCollapsed={isCollapsed}
         />
         <SettingsItem isCollapsed={isCollapsed} />

@@ -1,7 +1,7 @@
 import { RealtimeLiveQuery } from '@affine/core/modules/cloud/realtime/live-query';
 import type { WorkspaceService } from '@affine/core/modules/workspace';
+import { DebugLogger } from '@affine/debug';
 import type { RealtimeTopicEventOf } from '@affine/realtime';
-import { logger } from '@sentry/react';
 import { Entity, LiveData } from '@toeverything/infra';
 
 import type { EmbeddingStore } from '../stores/embedding';
@@ -13,6 +13,7 @@ interface Progress {
 }
 
 export class EmbeddingProgress extends Entity {
+  private readonly logger = new DebugLogger('embedding-progress');
   progress$ = new LiveData<Progress | null>(null);
   error$ = new LiveData<any>(null);
   loading$ = new LiveData(true);
@@ -39,7 +40,9 @@ export class EmbeddingProgress extends Entity {
     },
     onError: error => {
       this.error$.setValue(error);
-      logger.error('Failed to fetch workspace embedding progress', { error });
+      this.logger.error('Failed to fetch workspace embedding progress', {
+        error,
+      });
     },
   });
 

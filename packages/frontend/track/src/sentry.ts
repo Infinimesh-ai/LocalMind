@@ -11,6 +11,15 @@ function createSentry() {
   let client: Sentry.BrowserClient | undefined;
   const wrapped = {
     init() {
+      if (
+        (
+          globalThis as typeof globalThis & {
+            environment?: { isSelfHosted?: boolean };
+          }
+        ).environment?.isSelfHosted
+      ) {
+        return;
+      }
       if (!globalThis.SENTRY_RELEASE) {
         // https://docs.sentry.io/platforms/javascript/guides/react/#configure
         client = Sentry.init({

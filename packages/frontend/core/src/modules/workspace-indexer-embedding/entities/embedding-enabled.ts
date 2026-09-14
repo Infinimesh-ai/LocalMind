@@ -1,5 +1,5 @@
 import type { WorkspaceService } from '@affine/core/modules/workspace';
-import { logger } from '@sentry/react';
+import { DebugLogger } from '@affine/debug';
 import {
   catchErrorInto,
   effect,
@@ -16,6 +16,7 @@ import { exhaustMap, mergeMap } from 'rxjs/operators';
 import type { EmbeddingStore } from '../stores/embedding';
 
 export class EmbeddingEnabled extends Entity {
+  private readonly logger = new DebugLogger('embedding-enabled');
   enabled$ = new LiveData<boolean | null>(null);
   loading$ = new LiveData(true);
   error$ = new LiveData<any>(null);
@@ -38,7 +39,7 @@ export class EmbeddingEnabled extends Entity {
           return EMPTY;
         }),
         catchErrorInto(this.error$, error => {
-          logger.error(
+          this.logger.error(
             'Failed to fetch workspace doc embedding enabled',
             error
           );

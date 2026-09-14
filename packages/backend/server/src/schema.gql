@@ -5048,6 +5048,30 @@ type ListedBlob {
   size: Int!
 }
 
+type LocalMindLogEventType {
+  auditEventId: String
+  errorCode: String
+  eventId: String!
+  eventName: String!
+  messageTemplate: String
+  metadata: JSONObject
+  occurredAt: DateTime!
+  requestId: String
+  severity: String!
+  status: String
+  traceId: String
+}
+
+input LocalMindLogPolicyInput {
+  auditRetentionDays: Int
+  failureRetentionDays: Int
+  legalHold: Boolean
+  retentionFrozen: Boolean
+  runtimeRetentionDays: Int
+  spoolMaxBytes: Int
+  traceRetentionDays: Int
+}
+
 input ManageUserInput {
   """User email"""
   email: String
@@ -5184,6 +5208,7 @@ type Mutation {
   approveCopilotAccessRequest(input: ResolveCopilotAccessRequestInput!): CopilotAccessRequestType!
   approveMember(userId: String!, workspaceId: String!): Boolean!
   approveProjectAgentTask(projectId: String!, runId: String!, targetFingerprint: String!): ProjectAgentTaskType!
+  archiveLocalmindLogRetention(dryRun: Boolean): JSONObject!
 
   """
   Authorize a short-lived manifest or archive artifact download for a DB-backed support bundle.
@@ -5210,6 +5235,7 @@ type Mutation {
   Expire DB-backed support bundles whose retention window has elapsed and retry failed archive object cleanup.
   """
   cleanupCopilotSupportBundleRetention(input: CopilotSupportBundleRetentionCleanupInput!): CopilotSupportBundleRetentionCleanupType!
+  cleanupLocalmindLogRetention(dryRun: Boolean): JSONObject!
   cleanupProjectCopilotSessions(projectId: String!, sessionIds: [String!]!): [String!]!
   clearWorkspaceByokConfigs(provider: ByokProvider, workspaceId: String!): Boolean!
   completeBlobUpload(docScopeId: String, key: String!, parts: [BlobUploadPartInput!], uploadId: String, workspaceId: String!): String!
@@ -5537,6 +5563,7 @@ type Mutation {
   updateDocUserRole(input: UpdateDocUserRoleInput!): Boolean!
   updateEnterpriseToolAllowlist(connectionId: String!, enabledToolNames: [String!]!, workspaceId: String!): EnterpriseConnectionType!
   updateExternalMcpToolAllowlist(enabledToolNames: [String!]!, workspaceId: String!): ExternalMcpConnectionType!
+  updateLocalmindLogPolicy(input: LocalMindLogPolicyInput!): JSONObject!
   updateOfficeComment(input: OfficeCommentUpdateInput!): OfficeCommentType!
   updateOfficeCommentReply(input: OfficeCommentReplyUpdateInput!): OfficeCommentReplyType!
   updateProfile(input: UpdateUserInput!): UserType!
@@ -6387,6 +6414,10 @@ type Query {
   """get workspace invitation info"""
   getInviteInfo(inviteId: String!): InvitationType!
   latestEnterpriseAuthorizationSession(connectionId: ID!, workspaceId: String!): EnterpriseAuthorizationSessionType
+  localmindAuditEnvelopes(limit: Int, projectId: String, workspaceId: String!): [JSONObject!]!
+  localmindLogEvents(component: String, errorCode: String, eventName: String, from: DateTime, jobId: String, keyword: String, limit: Int, projectId: String, requestId: String, runId: String, service: String, severity: String, status: String, to: DateTime, traceId: String, workspaceId: String): [LocalMindLogEventType!]!
+  localmindLogIngestionStatus: JSONObject!
+  localmindLogPolicy: JSONObject!
   mcpCredentialReadWriteAvailable: Boolean!
   mcpCredentials(workspaceId: String!): [McpCredentialType!]!
 
@@ -6944,6 +6975,7 @@ input TestWorkspaceByokConfigInput {
 
 type TestWorkspaceByokConfigResultType {
   message: String
+  models: [String!]!
   ok: Boolean!
   status: ByokKeyTestStatus!
 }

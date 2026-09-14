@@ -7,6 +7,7 @@ import { Plugin } from '@nestjs/apollo';
 import { Logger } from '@nestjs/common';
 import { Response } from 'express';
 
+import { LocalMindLogService } from '../logger';
 import { metrics } from '../metrics/metrics';
 import { mapAnyError } from '../nestjs';
 
@@ -51,6 +52,16 @@ export class GQLLoggerPlugin implements ApolloServerPlugin {
     return Promise.resolve({
       willSendResponse: () => {
         const time = endTimer();
+        LocalMindLogService.emit({
+          eventName: 'graphql.request.completed',
+          severity: 'info',
+          status: 'success',
+          durationMs: time,
+          metadata: {
+            operation: info.operation,
+            clientVersion: info.clientVersion,
+          },
+        });
         res.setHeader('Server-Timing', `gql;dur=${time};desc="GraphQL"`);
         metrics.gql.histogram('query_duration').record(time, info);
         return Promise.resolve();
@@ -59,6 +70,13 @@ export class GQLLoggerPlugin implements ApolloServerPlugin {
         ctx.errors.forEach(gqlErr => {
           const error = mapAnyError(gqlErr);
           error.log('GraphQL');
+          LocalMindLogService.emit({
+            eventName: 'graphql.request.failed',
+            severity: 'error',
+            status: 'failed',
+            errorCode: error.type,
+            metadata: { operation: info.operation },
+          });
 
           metrics.gql.counter('query_error_counter').add(1, {
             ...info,

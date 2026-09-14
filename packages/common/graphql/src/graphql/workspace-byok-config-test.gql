@@ -3,5 +3,6 @@ mutation testWorkspaceByokConfig($input: TestWorkspaceByokConfigInput!) {
     ok
     status
     message
+    models
   }
 }

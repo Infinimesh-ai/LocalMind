@@ -671,7 +671,7 @@ export class ByokService {
     }
 
     try {
-      await runProviderProbe(
+      const probeResult = await runProviderProbe(
         this.probeFetch,
         input.provider,
         apiKey,
@@ -692,7 +692,12 @@ export class ByokService {
         storage: input.storage,
         result: 'passed',
       });
-      return { ok: true, status: ByokKeyTestStatus.passed, message: null };
+      return {
+        ok: true,
+        status: ByokKeyTestStatus.passed,
+        message: null,
+        models: probeResult.modelIds,
+      };
     } catch (error) {
       const message = this.sanitizeError(error);
       if (input.configId && input.storage === ByokKeyStorage.server) {
@@ -708,7 +713,12 @@ export class ByokService {
         storage: input.storage,
         result: 'failed',
       });
-      return { ok: false, status: ByokKeyTestStatus.failed, message };
+      return {
+        ok: false,
+        status: ByokKeyTestStatus.failed,
+        message,
+        models: [],
+      };
     }
   }
 

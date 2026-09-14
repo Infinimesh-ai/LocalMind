@@ -2,6 +2,7 @@ import { ConsoleLogger, Injectable, type LogLevel } from '@nestjs/common';
 import { ClsServiceManager } from 'nestjs-cls';
 
 import { UserFriendlyError } from '../error';
+import { LocalMindLogService } from './localmind-log-service';
 
 // DO NOT use this Logger directly
 // Use it via this way: `private readonly logger = new Logger(MyService.name)`
@@ -53,6 +54,46 @@ export class AFFiNELogger extends ConsoleLogger {
     stackOrError?: Error | string | unknown,
     context?: string
   ) {
+    LocalMindLogService.emit({
+      eventName: 'logger.error',
+      severity: 'error',
+      message: String(message),
+      metadata: stackOrError,
+      component: context,
+    });
     super.error(message, AFFiNELogger.formatStack(stackOrError), context);
+  }
+
+  override log(message: any, context?: string | object) {
+    LocalMindLogService.emit({
+      eventName: 'logger.log',
+      severity: 'info',
+      message: String(message),
+      component: typeof context === 'string' ? context : undefined,
+      metadata: typeof context === 'object' ? context : undefined,
+    });
+    super.log(message, typeof context === 'string' ? context : undefined);
+  }
+
+  override warn(message: any, context?: string | object) {
+    LocalMindLogService.emit({
+      eventName: 'logger.warn',
+      severity: 'warn',
+      message: String(message),
+      component: typeof context === 'string' ? context : undefined,
+      metadata: typeof context === 'object' ? context : undefined,
+    });
+    super.warn(message, typeof context === 'string' ? context : undefined);
+  }
+
+  override debug(message: any, context?: string | object) {
+    LocalMindLogService.emit({
+      eventName: 'logger.debug',
+      severity: 'debug',
+      message: String(message),
+      component: typeof context === 'string' ? context : undefined,
+      metadata: typeof context === 'object' ? context : undefined,
+    });
+    super.debug(message, typeof context === 'string' ? context : undefined);
   }
 }

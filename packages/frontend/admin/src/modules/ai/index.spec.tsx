@@ -48,6 +48,7 @@ import {
 
 const useQueryMock = vi.fn();
 const useMutationMock = vi.fn();
+const revalidateQueryResourceMock = vi.fn();
 const mutateMock = vi.fn();
 const requestRepairExecutionMock = vi.fn();
 const decideRepairExecutionApprovalMock = vi.fn();
@@ -1878,6 +1879,7 @@ vi.mock('@affine/admin/use-query', () => ({
 
 vi.mock('@affine/admin/use-mutation', () => ({
   useMutation: (...args: unknown[]) => useMutationMock(...args),
+  useMutateQueryResource: () => revalidateQueryResourceMock,
 }));
 
 vi.mock('../header', () => ({

@@ -2,7 +2,13 @@ import { shallowEqual } from '@affine/component';
 import { DebugLogger } from '@affine/debug';
 import { ServerDeploymentType } from '@affine/graphql';
 import { flushTelemetry, setTelemetryContext, tracker } from '@affine/track';
-import { LiveData, OnEvent, Service } from '@toeverything/infra';
+import {
+  installLocalMindConsoleBridge,
+  LiveData,
+  LocalMindClientLogTransport,
+  OnEvent,
+  Service,
+} from '@toeverything/infra';
 
 import type { AuthAccountInfo, Server, ServersService } from '../../cloud';
 import { getOfficialTelemetryEndpoint } from '../../cloud/constant';
@@ -14,6 +20,7 @@ const logger = new DebugLogger('telemetry-service');
 @OnEvent(ApplicationStarted, e => e.onApplicationStart)
 export class TelemetryService extends Service {
   private readonly disposableFns: (() => void)[] = [];
+  private clientLogTransport?: LocalMindClientLogTransport;
 
   private readonly currentAccount$ =
     this.globalContextService.globalContext.serverId.$.selector(id =>
@@ -50,6 +57,30 @@ export class TelemetryService extends Service {
     let prevSelfHosted: boolean | undefined = undefined;
     const unsubscribe = this.currentAccount$.subscribe(
       ({ account, selfHosted }) => {
+        const serverId = this.globalContextService.globalContext.serverId.get();
+        if (selfHosted && serverId) {
+          const server = this.serversService.server$(serverId).value;
+          if (server?.baseUrl && !this.clientLogTransport) {
+            this.clientLogTransport = new LocalMindClientLogTransport(
+              server.baseUrl
+            );
+            installLocalMindConsoleBridge(this.clientLogTransport);
+            DebugLogger.setSink(event => {
+              void this.clientLogTransport
+                ?.write({
+                  eventName: `client.debug.${event.namespace}`,
+                  severity: event.level,
+                  message: event.message,
+                  metadata: { args: event.args },
+                })
+                .catch(() => undefined);
+            });
+          }
+        } else if (!selfHosted) {
+          DebugLogger.setSink(undefined);
+          installLocalMindConsoleBridge(null);
+          this.clientLogTransport = undefined;
+        }
         const channel =
           BUILD_CONFIG.appBuildType === 'beta' ||
           BUILD_CONFIG.appBuildType === 'internal' ||
@@ -65,18 +96,18 @@ export class TelemetryService extends Service {
           officialEndpoint: getOfficialTelemetryEndpoint(channel),
         });
 
-        if (prevAccount) {
+        if (prevAccount && !selfHosted) {
           tracker.reset();
         }
         // the isSelfHosted property from environment is not reliable
-        if (selfHosted !== prevSelfHosted) {
+        if (!selfHosted && selfHosted !== prevSelfHosted) {
           tracker.register({
             isSelfHosted: selfHosted,
           });
         }
         prevSelfHosted = selfHosted;
         prevAccount = account ?? null;
-        if (account) {
+        if (account && !selfHosted) {
           tracker.identify(account.id);
           tracker.people.set({
             $email: account.email,

@@ -40,10 +40,27 @@ if (typeof window !== 'undefined') {
 }
 
 export class DebugLogger {
+  private static sink?: (event: {
+    namespace: string;
+    level: LogLevel;
+    message: string;
+    args: unknown[];
+  }) => void;
   private readonly _debug: debug.Debugger;
 
   constructor(namespace: string) {
     this._debug = debug(namespace);
+  }
+
+  static setSink(
+    sink?: (event: {
+      namespace: string;
+      level: LogLevel;
+      message: string;
+      args: unknown[];
+    }) => void
+  ) {
+    DebugLogger.sink = sink;
   }
 
   set enabled(enabled: boolean) {
@@ -71,6 +88,12 @@ export class DebugLogger {
   }
 
   log(level: LogLevel, message: string, ...args: any[]) {
+    DebugLogger.sink?.({
+      namespace: this._debug.namespace,
+      level,
+      message,
+      args,
+    });
     this._debug.log = console[level].bind(console);
     this._debug(`[${level.toUpperCase()}] ${message}`, ...args);
   }

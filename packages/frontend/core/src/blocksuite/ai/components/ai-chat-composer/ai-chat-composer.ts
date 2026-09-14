@@ -373,21 +373,12 @@ export class AIChatComposer extends SignalWatcher(
   };
 
   private renderProjectSelector() {
+    // Project Workbench scopes are already bound to the selected Project.
+    // The selector is only meaningful for Workspace scoped chats.
+    if (this.runtimeSnapshot?.scope.kind === 'project') return null;
     const scope = this.runtimeSnapshot?.composer.projectScope;
     if (!scope || !shouldShowContextProjectSelector(scope)) {
       return null;
-    }
-    if (this.runtimeSnapshot?.scope.kind === 'project') {
-      const project = scope.candidates.find(
-        candidate => candidate.id === scope.selectedProjectId
-      );
-      return project
-        ? html`<div class="context-project-selector">
-            <span
-              >${I18n.t('com.affine.localmind.aiContext.currentProject')}</span
-            ><span>${project.name}</span>
-          </div>`
-        : null;
     }
     return html`
       <label class="context-project-selector">

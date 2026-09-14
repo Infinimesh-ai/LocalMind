@@ -91,7 +91,7 @@ app.on('window-all-closed', () => {
  */
 app.on('activate', () => {
   if (app.isReady()) {
-    launch().catch(e => console.error('Failed launch:', e));
+    launch().catch(error => logger.error('Failed launch', error));
   }
 });
 
@@ -111,9 +111,12 @@ app
   .then(registerUpdater)
   .then(setupRecordingFeature)
   .then(setupTrayState)
-  .catch(e => console.error('Failed create window:', e));
+  .catch(error => logger.error('Failed create window', error));
 
-if (process.env.SENTRY_RELEASE) {
+if (
+  process.env.LOCALMIND_EXTERNAL_TELEMETRY === '1' &&
+  process.env.SENTRY_RELEASE
+) {
   // https://docs.sentry.io/platforms/javascript/guides/electron/
   Sentry.init({
     dsn: process.env.SENTRY_DSN,

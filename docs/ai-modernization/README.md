@@ -67,6 +67,13 @@ migration chapter and D11: the reference tables and migration bridge are
 retired together. [Execution and acceptance evidence](project-workbench-redesign.execution.md)
 tracks the current P1-P7 and A01-A22 results separately from historical acceptance.
 
+The instance-wide [LocalMind logging system goal](./localmind-logging-system.goal.md)
+defines the implementation prompt for PostgreSQL-backed runtime logs, business
+audit correlation, automatic client ingestion, durable spool, Admin observability,
+retention controls, and self-hosted external-telemetry blocking. Its design
+contract is `docs/localmind-logging-system-design.zh-CN.md`, together with the
+enterprise deployment model.
+
 - `tracks/support-bundle.md`
 - `tracks/repair-execution.md`
 - `tracks/agent-runtime.md`

@@ -121,6 +121,10 @@ export const DEFAULT_DEV_SERVER_CONFIG: RspackDevServerConfiguration = {
   },
   proxy: [
     {
+      context: '/admin',
+      target: devServerProxyTarget,
+    },
+    {
       context: '/api',
       target: devServerProxyTarget,
     },

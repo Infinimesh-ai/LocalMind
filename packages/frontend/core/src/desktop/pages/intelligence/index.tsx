@@ -1012,6 +1012,7 @@ const IntelligenceWorkbench = ({
           {selectedProject ? (
             <div className={styles.conversationPane} hidden={fullscreen}>
               <WorkbenchConversation
+                key={selectedProject.id}
                 onDocumentsChanged={refreshProjects}
                 selectedProjectId={selectedProject.id}
                 selectedProjectName={selectedProject.name}

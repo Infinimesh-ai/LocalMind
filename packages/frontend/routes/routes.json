@@ -12,6 +12,14 @@
         "workspaces": "workspaces",
         "queue": "queue",
         "ai": "ai",
+        "aiRuntime": "ai/runtime",
+        "observability": {
+          "route": "observability",
+          "children": {
+            "logs": "logs",
+            "settings": "settings"
+          }
+        },
         "settings": {
           "route": "settings",
           "children": {

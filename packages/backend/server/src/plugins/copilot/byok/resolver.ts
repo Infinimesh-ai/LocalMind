@@ -152,6 +152,9 @@ class TestWorkspaceByokConfigResultType {
 
   @Field(() => String, { nullable: true })
   message!: string | null;
+
+  @Field(() => [String])
+  models!: string[];
 }
 
 @ObjectType()

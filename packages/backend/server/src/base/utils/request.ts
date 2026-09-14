@@ -148,6 +148,14 @@ export function getOrGenRequestId(type: RequestType) {
 }
 
 export function getRequestIdFromRequest(req: Request, type: RequestType) {
+  const w3cTraceParent = req.headers.traceparent;
+  const traceparent = Array.isArray(w3cTraceParent)
+    ? w3cTraceParent[0]
+    : w3cTraceParent;
+  const w3cTraceId = traceparent?.match(
+    /^(?:00|01|02)-([0-9a-f]{32})-[0-9a-f]{16}-[0-9a-f]{2}$/i
+  )?.[1];
+  if (w3cTraceId) return w3cTraceId;
   const traceContext = req.headers['x-cloud-trace-context'] as string;
   const traceId = traceContext ? traceContext.split('/', 1)[0] : undefined;
   if (traceId) return traceId;

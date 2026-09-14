@@ -7,7 +7,11 @@ import {
 import { FolderIcon, PageIcon } from '@blocksuite/icons/rc';
 import { Entity, LiveData } from '@toeverything/infra';
 
-import { type DefaultServerService, GraphQLService } from '../../cloud';
+import {
+  type DefaultServerService,
+  GraphQLService,
+  type WorkspaceServerService,
+} from '../../cloud';
 import type { QuickSearchSession } from '../providers/quick-search-provider';
 import type { QuickSearchItem } from '../types/item';
 
@@ -17,7 +21,11 @@ export class ProjectsQuickSearchSession
   extends Entity
   implements QuickSearchSession<'project', ProjectSearchPayload>
 {
-  constructor(private readonly defaultServer: DefaultServerService) {
+  constructor(
+    private readonly serverService:
+      | DefaultServerService
+      | WorkspaceServerService
+  ) {
     super();
   }
 
@@ -49,7 +57,12 @@ export class ProjectsQuickSearchSession
 
   private async search(query: string, controller: AbortController) {
     const signal = controller.signal;
-    const graphql = this.defaultServer.server.scope.get(GraphQLService);
+    const server = this.serverService.server;
+    if (!server) {
+      this.reportError(new Error('Workspace server is not ready'), signal);
+      return;
+    }
+    const graphql = server.scope.get(GraphQLService);
     try {
       const result = await graphql.gql({
         query: copilotWorkbenchProjectsGetQuery,

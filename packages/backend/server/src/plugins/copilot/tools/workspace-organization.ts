@@ -43,6 +43,8 @@ export const WORKSPACE_EFFECT_OPERATIONS = [
   'delete_folder_permanently',
   'add_document',
   'move_document',
+  'reorder_folder',
+  'reorder_document',
 ] as const;
 
 export type WorkspaceEffectOperation =
@@ -93,6 +95,46 @@ function nextIndex(nodes: FolderNode[], parentId: string | null) {
     .sort((a, b) => a.localeCompare(b))
     .at(-1);
   return generateKeyBetween(lastIndex ?? null, null);
+}
+
+function indexForPosition(
+  nodes: FolderNode[],
+  sourceId: string,
+  parentId: string | null,
+  position:
+    | { kind: 'before' | 'after'; siblingId: string }
+    | { kind: 'first' | 'last' }
+) {
+  const siblings = nodes
+    .filter(node => node.parentId === parentId && node.id !== sourceId)
+    .sort((left, right) => compareIndex(left.index, right.index));
+  let insertionIndex: number;
+  if (position.kind === 'first') insertionIndex = 0;
+  else if (position.kind === 'last') insertionIndex = siblings.length;
+  else {
+    const siblingIndex = siblings.findIndex(
+      sibling => sibling.id === position.siblingId
+    );
+    if (siblingIndex < 0) throw new Error('Target sibling was not found.');
+    insertionIndex = siblingIndex + (position.kind === 'after' ? 1 : 0);
+  }
+  const previous = siblings[insertionIndex - 1];
+  const next = siblings[insertionIndex];
+  return {
+    index: generateKeyBetween(previous?.index ?? null, next?.index ?? null),
+    insertionIndex,
+  };
+}
+
+function compareIndex(left: string, right: string) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function compareFolderNodes(left: FolderNode, right: FolderNode) {
+  const parent = (left.parentId ?? '').localeCompare(right.parentId ?? '');
+  if (parent !== 0) return parent;
+  const index = compareIndex(left.index, right.index);
+  return index !== 0 ? index : left.id.localeCompare(right.id);
 }
 
 function normalizedName(name: string) {
@@ -148,6 +190,15 @@ export function createWorkspaceOrganizationTools(
     const { userId, workspaceId } = context();
     const result = await organization.readOrganization(workspaceId, userId);
     return { result, nodes: asFolderNodes(result.folders) };
+  };
+
+  const readFolderState = async () => {
+    const { userId, workspaceId } = context();
+    const directory = await organization.readDirectory(workspaceId, userId);
+    return {
+      nodes: asFolderNodes(directory.entries.map(entry => entry.row)),
+      revision: directory.revision,
+    };
   };
 
   const assertRead = async () => {
@@ -350,9 +401,15 @@ export function createWorkspaceOrganizationTools(
                 : []
             )
           );
+          const directory = await organization.readDirectory(
+            workspaceId,
+            userId
+          );
+          const sortedNodes = [...nodes].sort(compareFolderNodes);
           return {
             success: true,
-            folders: nodes
+            revision: directory.revision,
+            folders: sortedNodes
               .filter(node => node.type === 'folder')
               .map(node => ({
                 folderId: node.id,
@@ -360,7 +417,7 @@ export function createWorkspaceOrganizationTools(
                 parentFolderId: node.parentId,
                 index: node.index,
               })),
-            documents: nodes.flatMap(node =>
+            documents: sortedNodes.flatMap(node =>
               node.type === 'doc' && readable.has(node.data)
                 ? [
                     {
@@ -372,6 +429,154 @@ export function createWorkspaceOrganizationTools(
                     },
                   ]
                 : []
+            ),
+          };
+        }),
+    }),
+
+    workspace_folder_move_item: defineTool({
+      description:
+        'Move one existing folder-tree item within its current folder or to another folder. Use workspace_folder_list first and pass its revision. Documents are moved by placementId, so other links to the same document are preserved.',
+      inputSchema: z
+        .object({
+          node_id: z.string().trim().min(1).max(256),
+          target_parent_folder_id: z.string().trim().min(1).nullable(),
+          position: z.union([
+            z.object({
+              kind: z.enum(['before', 'after']),
+              sibling_id: z.string().trim().min(1).max(256),
+            }),
+            z.object({ kind: z.enum(['first', 'last']) }),
+          ]),
+          expected_directory_revision: z.string().trim().length(64),
+        })
+        .strict(),
+      execute: async ({
+        node_id,
+        target_parent_folder_id,
+        position,
+        expected_directory_revision,
+      }) =>
+        execute('move item', async () => {
+          await assertWrite();
+          const { userId, workspaceId } = context();
+          const { nodes, revision } = await readFolderState();
+          if (revision !== expected_directory_revision) {
+            throw new Error('Directory changed; refresh before editing.');
+          }
+          const source = nodes.find(node => node.id === node_id);
+          if (!source) throw new Error('The selected item was not found.');
+          if (target_parent_folder_id) {
+            requireFolder(nodes, target_parent_folder_id);
+          } else if (source.type !== 'folder') {
+            throw new Error(
+              'Only folders can be placed at the workspace root.'
+            );
+          }
+          if (
+            source.type === 'folder' &&
+            target_parent_folder_id &&
+            descendants(nodes, source.id).some(
+              node => node.id === target_parent_folder_id
+            )
+          ) {
+            throw new Error('A folder cannot be moved into its descendant.');
+          }
+          if (source.type === 'doc') {
+            await assertReadableDocument(source.data);
+          }
+          const targetFolderSiblings = nodes.filter(
+            node =>
+              node.parentId === target_parent_folder_id && node.id !== source.id
+          );
+          if (
+            source.type === 'folder' &&
+            targetFolderSiblings.some(
+              node => node.type === 'folder' && node.data === source.data
+            )
+          ) {
+            throw new Error(
+              'A folder with the same name already exists there.'
+            );
+          }
+          if (
+            source.type === 'doc' &&
+            targetFolderSiblings.some(
+              node => node.type === 'doc' && node.data === source.data
+            )
+          ) {
+            throw new Error(
+              'That document is already linked in the target folder.'
+            );
+          }
+          const currentSiblings = nodes
+            .filter(node => node.parentId === source.parentId)
+            .sort((left, right) => compareIndex(left.index, right.index));
+          const currentIndex = currentSiblings.findIndex(
+            node => node.id === source.id
+          );
+          const next = indexForPosition(
+            nodes,
+            source.id,
+            target_parent_folder_id,
+            'sibling_id' in position
+              ? { kind: position.kind, siblingId: position.sibling_id }
+              : position
+          );
+          if (
+            source.parentId === target_parent_folder_id &&
+            currentIndex === next.insertionIndex
+          ) {
+            return {
+              success: true,
+              nodeId: source.id,
+              nodeType: source.type,
+              parentFolderId: source.parentId,
+              index: source.index,
+              revision,
+              idempotentReplay: true,
+              workspaceEffect: workspaceEffect(
+                source.type === 'folder'
+                  ? 'reorder_folder'
+                  : 'reorder_document',
+                source.parentId
+              ),
+            };
+          }
+          const result = await organization.applyConditionalFolderOperations({
+            workspaceId,
+            actorId: userId,
+            expectedRevision: expected_directory_revision,
+            operations: [
+              {
+                op: 'upsert',
+                key: source.id,
+                values: {
+                  parentId: target_parent_folder_id,
+                  index: next.index,
+                },
+              },
+            ],
+            authorizeDocument: documentId => assertReadableDocument(documentId),
+          });
+          const parentChanged = source.parentId !== target_parent_folder_id;
+          return {
+            success: true,
+            nodeId: source.id,
+            nodeType: source.type,
+            parentFolderId: target_parent_folder_id,
+            index: next.index,
+            revision: result.revision,
+            idempotentReplay: false,
+            workspaceEffect: workspaceEffect(
+              parentChanged
+                ? source.type === 'folder'
+                  ? 'move_folder'
+                  : 'move_document'
+                : source.type === 'folder'
+                  ? 'reorder_folder'
+                  : 'reorder_document',
+              target_parent_folder_id
             ),
           };
         }),

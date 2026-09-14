@@ -40,6 +40,7 @@ import { IscpModule } from './core/iscp';
 import { MailModule } from './core/mail';
 import { MonitorModule } from './core/monitor';
 import { NotificationModule } from './core/notification';
+import { ObservabilityModule } from './core/observability';
 import { OfficeModule } from './core/office';
 import { PermissionModule } from './core/permission';
 import { ProjectModule } from './core/project';
@@ -128,6 +129,7 @@ export const FunctionalityModules = [
   StorageRuntimeModule,
   ScheduleModule.forRoot(),
   MonitorModule,
+  ObservabilityModule,
 ];
 
 export class AppModuleBuilder {

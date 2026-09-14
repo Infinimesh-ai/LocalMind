@@ -5682,6 +5682,31 @@ export interface ListedBlob {
   size: Scalars['Int']['output'];
 }
 
+export interface LocalMindLogEventType {
+  __typename?: 'LocalMindLogEventType';
+  auditEventId: Maybe<Scalars['String']['output']>;
+  errorCode: Maybe<Scalars['String']['output']>;
+  eventId: Scalars['String']['output'];
+  eventName: Scalars['String']['output'];
+  messageTemplate: Maybe<Scalars['String']['output']>;
+  metadata: Maybe<Scalars['JSONObject']['output']>;
+  occurredAt: Scalars['DateTime']['output'];
+  requestId: Maybe<Scalars['String']['output']>;
+  severity: Scalars['String']['output'];
+  status: Maybe<Scalars['String']['output']>;
+  traceId: Maybe<Scalars['String']['output']>;
+}
+
+export interface LocalMindLogPolicyInput {
+  auditRetentionDays?: InputMaybe<Scalars['Int']['input']>;
+  failureRetentionDays?: InputMaybe<Scalars['Int']['input']>;
+  legalHold?: InputMaybe<Scalars['Boolean']['input']>;
+  retentionFrozen?: InputMaybe<Scalars['Boolean']['input']>;
+  runtimeRetentionDays?: InputMaybe<Scalars['Int']['input']>;
+  spoolMaxBytes?: InputMaybe<Scalars['Int']['input']>;
+  traceRetentionDays?: InputMaybe<Scalars['Int']['input']>;
+}
+
 export interface ManageUserInput {
   /** User email */
   email?: InputMaybe<Scalars['String']['input']>;
@@ -5813,6 +5838,7 @@ export interface Mutation {
   approveCopilotAccessRequest: CopilotAccessRequestType;
   approveMember: Scalars['Boolean']['output'];
   approveProjectAgentTask: ProjectAgentTaskType;
+  archiveLocalmindLogRetention: Scalars['JSONObject']['output'];
   /** Authorize a short-lived manifest or archive artifact download for a DB-backed support bundle. */
   authorizeCopilotSupportBundleDownload: CopilotSupportBundleDownloadAuthorizationType;
   /** Ban an user */
@@ -5831,6 +5857,7 @@ export interface Mutation {
   cleanupCopilotSession: Array<Scalars['String']['output']>;
   /** Expire DB-backed support bundles whose retention window has elapsed and retry failed archive object cleanup. */
   cleanupCopilotSupportBundleRetention: CopilotSupportBundleRetentionCleanupType;
+  cleanupLocalmindLogRetention: Scalars['JSONObject']['output'];
   cleanupProjectCopilotSessions: Array<Scalars['String']['output']>;
   clearWorkspaceByokConfigs: Scalars['Boolean']['output'];
   completeBlobUpload: Scalars['String']['output'];
@@ -6070,6 +6097,7 @@ export interface Mutation {
   updateDocUserRole: Scalars['Boolean']['output'];
   updateEnterpriseToolAllowlist: EnterpriseConnectionType;
   updateExternalMcpToolAllowlist: ExternalMcpConnectionType;
+  updateLocalmindLogPolicy: Scalars['JSONObject']['output'];
   updateOfficeComment: OfficeCommentType;
   updateOfficeCommentReply: OfficeCommentReplyType;
   updateProfile: UserType;
@@ -6177,6 +6205,10 @@ export interface MutationApproveProjectAgentTaskArgs {
   targetFingerprint: Scalars['String']['input'];
 }
 
+export interface MutationArchiveLocalmindLogRetentionArgs {
+  dryRun?: InputMaybe<Scalars['Boolean']['input']>;
+}
+
 export interface MutationAuthorizeCopilotSupportBundleDownloadArgs {
   input: CopilotSupportBundleDownloadAuthorizeInput;
 }
@@ -6248,6 +6280,10 @@ export interface MutationCleanupCopilotSessionArgs {
 
 export interface MutationCleanupCopilotSupportBundleRetentionArgs {
   input: CopilotSupportBundleRetentionCleanupInput;
+}
+
+export interface MutationCleanupLocalmindLogRetentionArgs {
+  dryRun?: InputMaybe<Scalars['Boolean']['input']>;
 }
 
 export interface MutationCleanupProjectCopilotSessionsArgs {
@@ -7043,6 +7079,10 @@ export interface MutationUpdateEnterpriseToolAllowlistArgs {
 export interface MutationUpdateExternalMcpToolAllowlistArgs {
   enabledToolNames: Array<Scalars['String']['input']>;
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationUpdateLocalmindLogPolicyArgs {
+  input: LocalMindLogPolicyInput;
 }
 
 export interface MutationUpdateOfficeCommentArgs {
@@ -8005,6 +8045,10 @@ export interface Query {
   /** get workspace invitation info */
   getInviteInfo: InvitationType;
   latestEnterpriseAuthorizationSession: Maybe<EnterpriseAuthorizationSessionType>;
+  localmindAuditEnvelopes: Array<Scalars['JSONObject']['output']>;
+  localmindLogEvents: Array<LocalMindLogEventType>;
+  localmindLogIngestionStatus: Scalars['JSONObject']['output'];
+  localmindLogPolicy: Scalars['JSONObject']['output'];
   mcpCredentialReadWriteAvailable: Scalars['Boolean']['output'];
   mcpCredentials: Array<McpCredentialType>;
   /** Get one native Office resource and its current revision */
@@ -8155,6 +8199,31 @@ export interface QueryGetInviteInfoArgs {
 export interface QueryLatestEnterpriseAuthorizationSessionArgs {
   connectionId: Scalars['ID']['input'];
   workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryLocalmindAuditEnvelopesArgs {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  projectId?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryLocalmindLogEventsArgs {
+  component?: InputMaybe<Scalars['String']['input']>;
+  errorCode?: InputMaybe<Scalars['String']['input']>;
+  eventName?: InputMaybe<Scalars['String']['input']>;
+  from?: InputMaybe<Scalars['DateTime']['input']>;
+  jobId?: InputMaybe<Scalars['String']['input']>;
+  keyword?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  projectId?: InputMaybe<Scalars['String']['input']>;
+  requestId?: InputMaybe<Scalars['String']['input']>;
+  runId?: InputMaybe<Scalars['String']['input']>;
+  service?: InputMaybe<Scalars['String']['input']>;
+  severity?: InputMaybe<Scalars['String']['input']>;
+  status?: InputMaybe<Scalars['String']['input']>;
+  to?: InputMaybe<Scalars['DateTime']['input']>;
+  traceId?: InputMaybe<Scalars['String']['input']>;
+  workspaceId?: InputMaybe<Scalars['String']['input']>;
 }
 
 export interface QueryMcpCredentialsArgs {
@@ -8863,6 +8932,7 @@ export interface TestWorkspaceByokConfigInput {
 export interface TestWorkspaceByokConfigResultType {
   __typename?: 'TestWorkspaceByokConfigResultType';
   message: Maybe<Scalars['String']['output']>;
+  models: Array<Scalars['String']['output']>;
   ok: Scalars['Boolean']['output'];
   status: ByokKeyTestStatus;
 }
@@ -23685,6 +23755,7 @@ export type TestWorkspaceByokConfigMutation = {
     ok: boolean;
     status: ByokKeyTestStatus;
     message: string | null;
+    models: Array<string>;
   };
 };
 

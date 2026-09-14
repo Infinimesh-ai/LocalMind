@@ -45,6 +45,8 @@ function createOrganization(input?: {
     },
   };
   const writer = {
+    withDeferredBroadcasts: async <T>(operation: () => Promise<T>) =>
+      await operation(),
     pushDocUpdate: async (
       _workspaceId: string,
       docId: string,
@@ -331,6 +333,91 @@ test('workspace folder tools enforce organization ACLs', async t => {
   });
   t.is(create.type, 'error');
   t.regex(create.message, /Workspace\.Sync/);
+});
+
+test('workspace folder move item reorders placements and moves across folders', async t => {
+  const organization = createOrganization();
+  const toolSet = tools(
+    organization,
+    createPermissions({ readableDocumentIds: ['doc-1', 'doc-2'] })
+  );
+  const source = await run(toolSet, 'workspace_folder_create', {
+    name: 'Source',
+    parent_folder_id: null,
+  });
+  const target = await run(toolSet, 'workspace_folder_create', {
+    name: 'Target',
+    parent_folder_id: null,
+  });
+  await run(toolSet, 'workspace_folder_add_document', {
+    folder_id: source.folderId,
+    document_id: 'doc-1',
+  });
+  await run(toolSet, 'workspace_folder_add_document', {
+    folder_id: source.folderId,
+    document_id: 'doc-2',
+  });
+
+  const foldersBefore = await run(toolSet, 'workspace_folder_list', {});
+  const rootSource = foldersBefore.folders.find(
+    (folder: any) => folder.folderId === source.folderId
+  );
+  const rootTarget = foldersBefore.folders.find(
+    (folder: any) => folder.folderId === target.folderId
+  );
+  const reorderedFolder = await run(toolSet, 'workspace_folder_move_item', {
+    node_id: target.folderId,
+    target_parent_folder_id: null,
+    position: { kind: 'before', sibling_id: source.folderId },
+    expected_directory_revision: foldersBefore.revision,
+  });
+  t.true(reorderedFolder.success);
+  t.true(reorderedFolder.index < rootSource.index);
+  t.is(rootTarget.parentFolderId, null);
+
+  const before = await run(toolSet, 'workspace_folder_list', {});
+  const doc1 = before.documents.find((doc: any) => doc.documentId === 'doc-1');
+  const doc2 = before.documents.find((doc: any) => doc.documentId === 'doc-2');
+  t.truthy(doc1);
+  t.truthy(doc2);
+  const reordered = await run(toolSet, 'workspace_folder_move_item', {
+    node_id: doc2.placementId,
+    target_parent_folder_id: source.folderId,
+    position: { kind: 'before', sibling_id: doc1.placementId },
+    expected_directory_revision: before.revision,
+  });
+  t.true(reordered.success);
+  t.is(reordered.parentFolderId, source.folderId);
+
+  const afterReorder = await run(toolSet, 'workspace_folder_list', {});
+  t.deepEqual(
+    afterReorder.documents
+      .filter((doc: any) => doc.folderId === source.folderId)
+      .map((doc: any) => doc.documentId),
+    ['doc-2', 'doc-1']
+  );
+  const moved = await run(toolSet, 'workspace_folder_move_item', {
+    node_id: doc1.placementId,
+    target_parent_folder_id: target.folderId,
+    position: { kind: 'last' },
+    expected_directory_revision: afterReorder.revision,
+  });
+  t.true(moved.success);
+  const afterMove = await run(toolSet, 'workspace_folder_list', {});
+  t.is(
+    afterMove.documents.find((doc: any) => doc.documentId === 'doc-1')
+      ?.folderId,
+    target.folderId
+  );
+
+  const stale = await run(toolSet, 'workspace_folder_move_item', {
+    node_id: doc2.placementId,
+    target_parent_folder_id: target.folderId,
+    position: { kind: 'last' },
+    expected_directory_revision: before.revision,
+  });
+  t.is(stale.type, 'error');
+  t.regex(stale.message, /Directory changed/);
 });
 
 test('current document and folder deletion tools use Trash before permanent deletion', async t => {

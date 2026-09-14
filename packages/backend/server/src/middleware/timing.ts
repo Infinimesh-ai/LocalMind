@@ -1,12 +1,28 @@
 import { NextFunction, Request, Response } from 'express';
 import onHeaders from 'on-headers';
 
+import { LocalMindLogService } from '../base/logger';
+
 export const serverTimingAndCache = (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
   req.res = res;
+  const startedAt = Date.now();
+  res.once('finish', () => {
+    LocalMindLogService.emit({
+      eventName: 'http.request.completed',
+      severity: res.statusCode >= 500 ? 'error' : 'info',
+      status: res.statusCode >= 400 ? 'failed' : 'success',
+      durationMs: Date.now() - startedAt,
+      metadata: {
+        method: req.method,
+        path: req.path,
+        statusCode: res.statusCode,
+      },
+    });
+  });
   const now = process.hrtime();
 
   onHeaders(res, () => {

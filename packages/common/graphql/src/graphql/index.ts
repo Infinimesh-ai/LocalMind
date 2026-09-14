@@ -11136,6 +11136,7 @@ export const testWorkspaceByokConfigMutation = {
     ok
     status
     message
+    models
   }
 }`,
 };

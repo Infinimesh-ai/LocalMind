@@ -108,6 +108,9 @@ export class OpentelemetryProvider {
     if (env.flavors.script) {
       return;
     }
+    if (env.selfhosted) {
+      return;
+    }
     if (event.config.metrics.enabled) {
       await this.setup();
       registerCustomMetrics();
@@ -116,6 +119,9 @@ export class OpentelemetryProvider {
 
   @OnEvent('config.changed')
   async onConfigChanged(event: Events['config.changed']) {
+    if (env.selfhosted) {
+      return;
+    }
     if ('metrics' in event.updates) {
       await this.setup();
     }

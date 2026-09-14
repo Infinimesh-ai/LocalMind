@@ -73,3 +73,14 @@ test('telemetry queue caps entries and drops oldest', async () => {
 
   expect(manager.getQueueState().size).toBe(2);
 });
+
+test('self-hosted context never sends to the official telemetry endpoint', async () => {
+  const fetchMock = vi.fn();
+  globalThis.fetch = fetchMock as any;
+  const manager = new TelemetryManager();
+  await manager.setContext({ ...context, isSelfHosted: true });
+  await manager.track(baseEvent);
+  const result = await manager.flush();
+  expect(result.ok).toBe(false);
+  expect(fetchMock).not.toHaveBeenCalled();
+});
