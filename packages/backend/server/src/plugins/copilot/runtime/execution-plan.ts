@@ -688,6 +688,9 @@ function stripHostOnlyOptions<TOptions extends object | undefined>(
     destructiveIntent: _destructiveIntent,
     legacyWorkspaceFolderDelete: _legacyWorkspaceFolderDelete,
     quotaBackedRoutesAllowed: _quotaBackedRoutesAllowed,
+    // Host-only callback; never pass JavaScript functions to the native/Rust
+    // request builder, which accepts serde_json::Value only.
+    onToolExecution: _onToolExecution,
     ...serializable
   } = options as Record<string, unknown>;
 

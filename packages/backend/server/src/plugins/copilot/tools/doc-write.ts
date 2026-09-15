@@ -250,8 +250,10 @@ function documentWriteSourceGuard(
   actorId: string,
   workspaceId: string,
   sessionId: string | undefined,
-  docId: string
+  docId: string,
+  delegatedExecution = false
 ) {
+  if (delegatedExecution) return async () => undefined;
   return () =>
     models.copilotContext.assertDocumentSourcesShared({
       actorId,
@@ -300,7 +302,8 @@ export const buildDocUpdateHandler = (
       options.user,
       options.workspace,
       options.session,
-      docId
+      docId,
+      Boolean(options.delegatedExecution)
     );
     await beforeWrite();
     const result = await writer.updateDoc(
@@ -356,7 +359,8 @@ export const buildDocUpdateMetaHandler = (
       options.user,
       options.workspace,
       options.session,
-      docId
+      docId,
+      Boolean(options.delegatedExecution)
     );
     await beforeWrite();
     await writer.updateDocMeta(

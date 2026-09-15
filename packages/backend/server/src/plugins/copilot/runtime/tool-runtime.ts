@@ -737,7 +737,15 @@ export class ToolRuntime {
             ['doc_trash', 'doc_restore', 'doc_delete_permanently'].includes(
               name
             );
-          if (organizationWrite && options.user && options.workspace) {
+          const delegatedWorkspaceWrite = Boolean(
+            options.taskId && options.delegatedExecution
+          );
+          if (
+            organizationWrite &&
+            !delegatedWorkspaceWrite &&
+            options.user &&
+            options.workspace
+          ) {
             await this.models.copilotContext.assertDocumentSourcesShared({
               actorId: options.user,
               sessionId: options.session,
@@ -759,7 +767,8 @@ export class ToolRuntime {
             ].includes(name) &&
             options.session &&
             options.user &&
-            options.workspace
+            options.workspace &&
+            !delegatedWorkspaceWrite
           ) {
             await this.models.copilotContext.assertDocumentSourcesShared({
               actorId: options.user,
