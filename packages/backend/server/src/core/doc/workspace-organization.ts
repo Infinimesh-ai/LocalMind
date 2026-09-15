@@ -856,6 +856,21 @@ export class WorkspaceOrganizationService {
     );
   }
 
+  /**
+   * Checks the persisted directory snapshot without applying actor visibility.
+   * Keep this internal to authorization flows: callers may use it to
+   * distinguish a missing folder from a hidden one, but must not expose the
+   * folder or grant access from this result.
+   */
+  async folderExistsForAuthorization(
+    workspaceId: string,
+    actorId: string,
+    folderId: string
+  ) {
+    const { rows } = await this.readDirectorySnapshot(workspaceId, actorId);
+    return rows.some(row => row.type === 'folder' && row.id === folderId);
+  }
+
   async documentLocations(
     workspaceId: string,
     userId: string,

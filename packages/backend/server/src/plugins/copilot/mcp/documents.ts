@@ -226,7 +226,7 @@ export function createDocumentMcpSurface(
       name: 'create_document',
       title: 'Create Document',
       description:
-        'Document creation requires human location confirmation. Use delegate_to_localmind to create a durable task that waits for the user to select a workspace and root or folder.',
+        'Direct MCP document creation is unavailable. Use delegate_to_localmind; its internal doc_create normally saves to the delegated Workspace automatically and waits for a human location only when automatic resolution fails.',
       parser: z
         .object({ title: z.string().min(1), content: z.string() })
         .strict(),
@@ -234,7 +234,7 @@ export function createDocumentMcpSurface(
       annotations: WRITE_TOOL,
       execute: async () =>
         toolError(
-          'Document location confirmation is required. Use delegate_to_localmind; no document has been created.'
+          'Direct MCP document creation is unavailable. Use delegate_to_localmind; no document has been created by this call.'
         ),
     }),
     defineTool({

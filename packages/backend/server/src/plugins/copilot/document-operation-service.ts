@@ -225,7 +225,10 @@ export class CopilotDocumentOperationService {
     if (current.status === 'complete')
       return {
         operation: await model.receipt(receiptInput),
-        folderFallback: false,
+        folderFallback:
+          autoConfirmedDestination(current) &&
+          input.folderId !== null &&
+          current.destinationFolderId === null,
       };
     let folderId = input.folderId;
     let folderFallback = false;

@@ -152,7 +152,7 @@ export const createDocCreateRequestTool = (
       try {
         if (!options?.user || !options.workspace || !options.session)
           throw new Error(
-            'Document creation requires a user conversation and location selection'
+            'Document creation requires a user conversation and workspace'
           );
         const session = await models.copilotSession.getMeta(options.session);
         if (
@@ -172,6 +172,10 @@ export const createDocCreateRequestTool = (
             title: sanitizeTitle(title),
             markdown: stripLeadingH1(content),
             addToProject: add_to_project,
+            requestedDestination: {
+              workspaceId: options.workspace,
+              folderId: folder_id ?? null,
+            },
             ...(options.taskId
               ? { delegatedCallId: executeOptions.toolCallId }
               : {}),
@@ -207,14 +211,20 @@ export const createDocCreateRequestTool = (
                 operationId: operation.id,
                 actorId: options.user,
               });
-            } catch (receiptError) {
+            } catch {
               logger.warn(
-                `Document operation ${operation.id} could not be reloaded after an automatic location failure: ${
-                  receiptError instanceof Error
-                    ? receiptError.message
-                    : 'unknown error'
-                }`
+                `Document operation ${operation.id} could not be reloaded after an automatic location failure; its outcome is unknown`
               );
+              return {
+                type: 'error' as const,
+                name: 'Document Creation Outcome Unavailable',
+                operationId: operation.id,
+                status: 'unknown' as const,
+                documentCreated: null,
+                retrySafe: false,
+                message:
+                  'The document creation outcome could not be verified. Do not call doc_create again. Use doc_creation_status with this operationId before taking further action.',
+              };
             }
           }
         }

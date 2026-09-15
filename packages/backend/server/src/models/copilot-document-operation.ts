@@ -14,6 +14,10 @@ import {
 
 type OperationActor = { operationId: string; actorId: string };
 type OperationLease = OperationActor & { leaseToken: string };
+type RequestedDocumentDestination = {
+  workspaceId: string;
+  folderId: string | null;
+};
 
 export type DocumentCopySourceInput = {
   workspaceId: string;
@@ -228,6 +232,7 @@ export class CopilotDocumentOperationModel extends BaseModel {
     markdown: string;
     addToProject: boolean;
     copySource?: DocumentCopySourceInput;
+    requestedDestination?: RequestedDocumentDestination;
   }) {
     await this.assertSession(input.sessionId, input.actorId);
     if (input.delegatedCallId) {
@@ -255,7 +260,7 @@ export class CopilotDocumentOperationModel extends BaseModel {
       throw new BadRequest(
         'Document creation requires a persisted user request'
       );
-    const contentKey = createHash('sha256')
+    const legacyContentKey = createHash('sha256')
       .update(
         JSON.stringify([
           input.title,
@@ -267,9 +272,27 @@ export class CopilotDocumentOperationModel extends BaseModel {
         ])
       )
       .digest('hex');
+    const contentKey = input.requestedDestination
+      ? createHash('sha256')
+          .update(
+            JSON.stringify([
+              input.title,
+              input.markdown,
+              input.addToProject,
+              input.copySource
+                ? freezeCopySource(input.copySource).fingerprint
+                : null,
+              input.requestedDestination,
+            ])
+          )
+          .digest('hex')
+      : legacyContentKey;
     return await this.prepare({
       ...input,
       requestKey: `${message.id}:${contentKey}`,
+      ...(contentKey !== legacyContentKey
+        ? { legacyRequestKey: `${message.id}:${legacyContentKey}` }
+        : {}),
     });
   }
   private async assertSession(
@@ -279,7 +302,12 @@ export class CopilotDocumentOperationModel extends BaseModel {
   ) {
     const session = await this.db.aiSession.findFirst({
       where: { id: sessionId, userId: actorId, deletedAt: null },
-      select: { id: true, selectedContextProjectId: true, docId: true },
+      select: {
+        id: true,
+        workspaceId: true,
+        selectedContextProjectId: true,
+        docId: true,
+      },
     });
     if (
       !session ||
@@ -333,10 +361,12 @@ export class CopilotDocumentOperationModel extends BaseModel {
     sessionId: string;
     actorId: string;
     requestKey: string;
+    legacyRequestKey?: string;
     title: string;
     markdown: string;
     addToProject: boolean;
     copySource?: DocumentCopySourceInput;
+    requestedDestination?: RequestedDocumentDestination;
   }) {
     const copySource = input.copySource
       ? freezeCopySource(input.copySource)
@@ -347,16 +377,32 @@ export class CopilotDocumentOperationModel extends BaseModel {
       );
     const title = input.title.trim();
     const requestKey = input.requestKey.trim();
+    const legacyRequestKey = input.legacyRequestKey?.trim();
     if (
       !title ||
       title.length > 512 ||
       !requestKey ||
       requestKey.length > 256 ||
+      (legacyRequestKey !== undefined &&
+        (!legacyRequestKey || legacyRequestKey.length > 256)) ||
+      (input.requestedDestination !== undefined &&
+        (!input.requestedDestination.workspaceId.trim() ||
+          input.requestedDestination.workspaceId.length > 256 ||
+          (input.requestedDestination.folderId !== null &&
+            (!input.requestedDestination.folderId.trim() ||
+              input.requestedDestination.folderId.length > 256)))) ||
       Buffer.byteLength(input.markdown) > 1024 * 1024
     ) {
       throw new BadRequest('Document operation input exceeds its bounds');
     }
     const session = await this.assertSession(input.sessionId, input.actorId);
+    if (
+      input.requestedDestination &&
+      session.workspaceId !== input.requestedDestination.workspaceId
+    )
+      throw new BadRequest(
+        'The requested document destination must match the conversation workspace'
+      );
     if (input.addToProject && !session.selectedContextProjectId)
       throw new BadRequest(
         'Select a project before requesting project addition'
@@ -368,24 +414,68 @@ export class CopilotDocumentOperationModel extends BaseModel {
           markdown: input.markdown,
           addToProject: input.addToProject,
           ...(copySource ? { copyFingerprint: copySource.fingerprint } : {}),
+          ...(input.requestedDestination
+            ? { requestedDestination: input.requestedDestination }
+            : {}),
         })
       )
       .digest('hex');
-    await this.db
-      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`document-operation:${input.sessionId}:${requestKey}`}, 0))`;
-    const existing = await this.db.copilotDocumentOperation.findUnique({
+    const legacyContentFingerprint = input.requestedDestination
+      ? createHash('sha256')
+          .update(
+            JSON.stringify({
+              title,
+              markdown: input.markdown,
+              addToProject: input.addToProject,
+              ...(copySource
+                ? { copyFingerprint: copySource.fingerprint }
+                : {}),
+            })
+          )
+          .digest('hex')
+      : contentFingerprint;
+    const requestKeys = [...new Set([requestKey, legacyRequestKey])]
+      .filter((key): key is string => !!key)
+      .sort();
+    for (const key of requestKeys)
+      await this.db
+        .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`document-operation:${input.sessionId}:${key}`}, 0))`;
+    let existing = await this.db.copilotDocumentOperation.findUnique({
       where: {
         sessionId_requestKey: { sessionId: input.sessionId, requestKey },
       },
     });
+    if (!existing && legacyRequestKey)
+      existing = await this.db.copilotDocumentOperation.findUnique({
+        where: {
+          sessionId_requestKey: {
+            sessionId: input.sessionId,
+            requestKey: legacyRequestKey,
+          },
+        },
+      });
     if (existing) {
-      if (
-        existing.actorId !== input.actorId ||
-        existing.contentFingerprint !== contentFingerprint
-      )
+      if (existing.actorId !== input.actorId)
         throw new BadRequest(
           'Document request key already identifies different content'
         );
+      if (existing.requestKey === requestKey) {
+        if (
+          existing.contentFingerprint !== contentFingerprint &&
+          existing.contentFingerprint !== legacyContentFingerprint
+        )
+          throw new BadRequest(
+            'Document request key already identifies different content'
+          );
+        return existing;
+      }
+      if (existing.contentFingerprint !== legacyContentFingerprint)
+        throw new BadRequest(
+          'Document request key already identifies different content'
+        );
+      // A legacy key did not include its requested destination. Reuse that
+      // operation conservatively so an upgrade cannot duplicate a document;
+      // operations created by this version use destination-specific keys.
       return existing;
     }
     return await this.db.copilotDocumentOperation.create({

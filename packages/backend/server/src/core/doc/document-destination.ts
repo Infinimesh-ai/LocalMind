@@ -331,16 +331,17 @@ export class DocumentDestinationService {
       return 'ok';
     } catch (error) {
       // A directory that disappeared and one this actor may not write to both
-      // surface as `NotFound`; re-read the visible directory to tell them
-      // apart. A malformed directory path stays an error.
+      // surface as `NotFound`; compare against raw persisted existence to tell
+      // them apart. A malformed directory path stays an error.
       if (!(error instanceof NotFound)) throw error;
-      const rows = await this.organization.readFolders(
+      // `readFolders` is actor-filtered and therefore cannot distinguish a
+      // hidden folder from a deleted one. Check only raw existence here; the
+      // original authorization failure remains the authority decision.
+      return (await this.organization.folderExistsForAuthorization(
         input.workspaceId,
-        input.actorId
-      );
-      return rows.some(
-        row => row.type === 'folder' && row.id === input.folderId
-      )
+        input.actorId,
+        input.folderId
+      ))
         ? 'denied'
         : 'missing';
     }

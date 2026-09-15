@@ -386,6 +386,15 @@ test('revalidates persisted Office turn context and injects fixed-layout planner
   t.regex(policy?.content ?? '', /do not claim the edit completed/i);
   t.regex(policy?.content ?? '', /PDF is fixed-layout/);
   t.regex(policy?.content ?? '', /reject body-text rewrite or reflow/i);
+  const runtimePolicy = result.finalMessage
+    .filter(message => message.role === 'system')
+    .map(message => message.content)
+    .join('\n');
+  t.regex(
+    runtimePolicy,
+    /doc_create saves immediately to the current Workspace root by default/
+  );
+  t.notRegex(runtimePolicy, /requires an explicitly chosen destination/);
   t.true(persistTextResult.calledOnce);
 });
 

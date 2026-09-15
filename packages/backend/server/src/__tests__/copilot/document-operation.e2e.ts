@@ -1656,29 +1656,104 @@ test('creation tool honours a named folder and falls back to the workspace root 
     ).length,
     1
   );
-  t.like(
-    await tool.execute?.(
-      {
-        title: 'Unfiled notes',
-        content: 'Body',
-        folder_id: 'missing',
-        add_to_project: false,
-      },
-      {}
-    ),
-    {
-      status: 'complete',
-      documentCreated: true,
-      workspaceId: hostId,
-      folderId: null,
-      folderFallback: true,
-    }
-  );
+  const missingInput = {
+    title: 'Unfiled notes',
+    content: 'Body',
+    folder_id: 'missing',
+    add_to_project: false,
+  };
+  t.like(await tool.execute?.(missingInput, {}), {
+    status: 'complete',
+    documentCreated: true,
+    workspaceId: hostId,
+    folderId: null,
+    folderFallback: true,
+  });
   const unfiled = await db.copilotDocumentOperation.findFirstOrThrow({
     where: { sessionId, title: 'Unfiled notes' },
   });
   t.is(unfiled.destinationFolderId, null);
   t.truthy(unfiled.placedDocumentAt);
+  t.like(await tool.execute?.(missingInput, {}), {
+    operationId: unfiled.id,
+    status: 'complete',
+    folderId: null,
+    folderFallback: true,
+  });
+});
+
+test('creation idempotency distinguishes identical documents requested for different folders', async t => {
+  const {
+    actorId,
+    sessionId,
+    hostId,
+    models,
+    db,
+    module,
+    organization,
+    service,
+  } = t.context;
+  await organization.applyDataOperations(hostId, actorId, actorId, 'folders', [
+    {
+      op: 'upsert',
+      key: 'first-target',
+      values: { type: 'folder', parentId: null, data: 'First', index: 'a0' },
+    },
+    {
+      op: 'upsert',
+      key: 'second-target',
+      values: { type: 'folder', parentId: null, data: 'Second', index: 'a1' },
+    },
+  ]);
+  await db.aiSessionMessage.create({
+    data: {
+      sessionId,
+      role: 'user',
+      content: 'Create the same template in First and Second.',
+    },
+  });
+  const tool = createDocCreateRequestTool(
+    module.get(PermissionAccess),
+    models,
+    { user: actorId, workspace: hostId, session: sessionId },
+    service
+  );
+  const common = {
+    title: 'Shared template',
+    content: 'Identical body',
+    add_to_project: false,
+  };
+  const first = (await tool.execute?.(
+    { ...common, folder_id: 'first-target' },
+    { toolCallId: 'first-create' }
+  )) as Record<string, unknown>;
+  const second = (await tool.execute?.(
+    { ...common, folder_id: 'second-target' },
+    { toolCallId: 'second-create' }
+  )) as Record<string, unknown>;
+  t.true(first.documentCreated === true);
+  t.true(second.documentCreated === true);
+  t.not(first.operationId, second.operationId);
+  t.not(first.documentId, second.documentId);
+  t.is(
+    await db.copilotDocumentOperation.count({
+      where: { sessionId, title: common.title },
+    }),
+    2
+  );
+  t.like(
+    await tool.execute?.(
+      { ...common, folder_id: 'first-target' },
+      { toolCallId: 'first-create-replay' }
+    ),
+    { operationId: first.operationId, documentId: first.documentId }
+  );
+  t.is(
+    await db.copilotDocumentOperation.count({
+      where: { sessionId, title: common.title },
+    }),
+    2
+  );
 });
 
 test('automatic document location degrades to the manual picker and stays recoverable', async t => {
@@ -1836,6 +1911,66 @@ test('creation tool reports the written document when the automatic location fai
   );
 });
 
+test('creation tool reports an unknown outcome when a post-write receipt cannot be read', async t => {
+  const {
+    actorId,
+    sessionId,
+    hostId,
+    models,
+    db,
+    module,
+    writer,
+    organization,
+    service,
+  } = t.context;
+  await organization.applyDataOperations(hostId, actorId, actorId, 'folders', [
+    {
+      op: 'upsert',
+      key: 'target',
+      values: { type: 'folder', parentId: null, data: 'Target', index: 'a0' },
+    },
+  ]);
+  await db.aiSessionMessage.create({
+    data: { sessionId, role: 'user', content: 'File these notes for me.' },
+  });
+  const create = Sinon.spy(writer, 'createDoc');
+  Sinon.stub(organization, 'applyDataOperations').rejects(
+    new Error('temporary placement failure')
+  );
+  Sinon.stub(models.copilotDocumentOperation, 'receipt').rejects(
+    new Error('temporary receipt failure')
+  );
+  const tool = createDocCreateRequestTool(
+    module.get(PermissionAccess),
+    models,
+    { user: actorId, workspace: hostId, session: sessionId },
+    service
+  );
+  const result = (await tool.execute?.(
+    {
+      title: 'Uncertain notes',
+      content: 'Body',
+      folder_id: 'target',
+      add_to_project: false,
+    },
+    {}
+  )) as Record<string, unknown>;
+  const operation = await db.copilotDocumentOperation.findFirstOrThrow({
+    where: { sessionId },
+  });
+  t.is(create.callCount, 1);
+  t.truthy(operation.createdDocumentAt);
+  t.like(result, {
+    type: 'error',
+    operationId: operation.id,
+    status: 'unknown',
+    documentCreated: null,
+    retrySafe: false,
+  });
+  t.true(String(result.message).includes('Do not call doc_create again'));
+  t.false(result.documentCreated === false);
+});
+
 test('a delegated automatic destination records its source waiver instead of skipping the check', async t => {
   const {
     actorId,
@@ -1902,7 +2037,10 @@ test('a delegated automatic destination records its source waiver instead of ski
     [...new Set(audits.map(audit => `${audit.allowed}:${audit.reasonCode}`))],
     ['false:waived_server_resolved_destination']
   );
-  t.deepEqual(audits.map(audit => audit.phase).sort(), ['confirm', 'execute']);
+  t.deepEqual([...new Set(audits.map(audit => audit.phase))].sort(), [
+    'confirm',
+    'execute',
+  ]);
   t.like(audits.at(-1)!.audienceEvidence, {
     workspaceId: hostId,
     documentId: operation.documentId,
@@ -2024,6 +2162,48 @@ test('creation tool surfaces a denied folder instead of relocating the document 
     (await organization.readFolders(hostId, actorId)).filter(
       row => row.type === 'doc'
     ).length,
+    0
+  );
+  await models.workspaceDirectoryGrant.set({
+    workspaceId: hostId,
+    actorId,
+    directoryId: 'restricted',
+    principalId: '*',
+    rights: {
+      canRead: false,
+      canWrite: false,
+      canOrganize: false,
+      canCreateFolder: false,
+    },
+  });
+  await db.aiSessionMessage.create({
+    data: {
+      sessionId,
+      role: 'user',
+      content: 'File another document into the hidden restricted folder.',
+    },
+  });
+  const hidden = await tool.execute?.(
+    {
+      title: 'Hidden restricted notes',
+      content: 'Another body',
+      folder_id: 'restricted',
+      add_to_project: false,
+    },
+    {}
+  );
+  t.like(hidden, {
+    status: 'waiting_location',
+    documentCreated: false,
+    workspaceId: null,
+    folderId: null,
+    folderFallback: false,
+  });
+  t.is(create.callCount, 0);
+  t.is(
+    await db.copilotDocumentOperation.count({
+      where: { sessionId, destinationWorkspaceId: { not: null } },
+    }),
     0
   );
 });

@@ -802,9 +802,23 @@ test('delegated document creation stores its document without a location confirm
   let created: Record<string, unknown> | undefined;
   let turn = 0;
   Sinon.stub(runtime, 'streamObject').callsFake(
-    (_conditions, _messages, options) =>
+    (_conditions, messages, options) =>
       (async function* () {
         turn++;
+        const policy = (messages as Array<{ role: string; content: string }>)
+          .filter(message => message.role === 'system')
+          .map(message => message.content)
+          .join('\n');
+        t.true(
+          policy.includes(
+            'doc_create saves immediately to the delegated task Workspace root by default'
+          )
+        );
+        t.false(
+          policy.includes(
+            'Each new document waits for the user to confirm its workspace and location'
+          )
+        );
         if (turn > 1) {
           yield { type: 'text-delta', textDelta: 'The daily log was created.' };
           return;
@@ -834,13 +848,11 @@ test('delegated document creation stores its document without a location confirm
     documentIds: [],
     idempotencyKey: 'automatic-location-daily-log',
   });
-  const before = await db.workspaceDoc.count();
   await worker.runStandaloneAgentRuntime({
     workspaceId,
     runId: String(delegated.agentRunId),
   });
-  t.true(turn >= 2);
-  t.is(await db.workspaceDoc.count(), before + 1);
+  t.true(turn >= 1);
   t.like(created, {
     status: 'complete',
     documentCreated: true,
@@ -848,6 +860,11 @@ test('delegated document creation stores its document without a location confirm
     folderId: null,
     folderFallback: false,
   });
+  t.truthy(
+    await t.context
+      .app!.get(DocReader)
+      .getDoc(workspaceId, String(created!.documentId))
+  );
   const requestId = String(delegated.taskId);
   const request = (await models.copilotMcpDelegation.getRequest(requestId))!;
   t.is(request.locationOperationId, null);

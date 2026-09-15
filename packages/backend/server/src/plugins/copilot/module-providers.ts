@@ -173,8 +173,10 @@ export const COPILOT_RUNTIME_PROVIDERS = [
   ContextPlanner,
   NativeExecutionEngine,
   TaskPolicy,
-  ToolRuntime,
+  McpAiTaskControlService,
   CopilotDocumentCopyService,
+  CopilotDocumentOperationService,
+  ToolRuntime,
   ToolExecutorHost,
   AttachmentMaterializer,
   AttachmentAdmissionHost,
@@ -227,7 +229,6 @@ export const COPILOT_RESOLVER_PROVIDERS = [
 ];
 
 export const COPILOT_JOB_PROVIDERS = [
-  CopilotDocumentOperationService,
   CopilotEmbeddingJob,
   CopilotCronJobs,
   CopilotAgentRuntimeWorkflowRegistry,
@@ -243,7 +244,6 @@ export const COPILOT_JOB_PROVIDERS = [
   CopilotRepairExecutionWorker,
   McpAttachmentService,
   McpAiDelegationService,
-  McpAiTaskControlService,
   EnterpriseAuthorizationWorker,
 ];
 
