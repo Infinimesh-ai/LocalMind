@@ -97,8 +97,13 @@ tool outputs, Rules and recalled memories now accumulate evidence in ordinary
 sessions as well. Delegated planners bind a durable session before consuming
 document/attachment context, including direct document-update plans.
 
-External tool tasks now persist `waiting_for_location`, a session/operation
-binding, confirmed destination revision, actor, permission evidence and expiry.
+Workspace document creation no longer asks for a second confirmation: the server
+resolves the destination for the authenticated session actor (session workspace
+root by default, or a folder the user named), rechecks live workspace and
+directory authority, and stamps `autoConfirmed: true` on the permission
+evidence. External tool tasks still persist `waiting_for_location` when that
+resolution fails, together with a session/operation binding, confirmed
+destination revision, actor, permission evidence and expiry.
 Bounded tool checkpoints recover completed calls; location recovery rechecks
 authority and does not recreate completed documents. Linux fixtures cover
 withdrawal, expiry, stale leases, queue outage, forged MCP confirmation, audience

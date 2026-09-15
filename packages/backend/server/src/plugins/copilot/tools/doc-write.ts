@@ -7,6 +7,7 @@ import { DocWriter } from '../../../core/doc';
 import { PermissionAccess } from '../../../core/permission';
 import type { Models } from '../../../models';
 import type { CopilotDocumentCopyService } from '../document-copy-service';
+import type { CopilotDocumentOperationService } from '../document-operation-service';
 import { toolError } from './error';
 import { defineTool } from './tool';
 import type { CopilotChatOptions } from './types';
@@ -117,15 +118,25 @@ export const createDocCreationStatusTool = (
 export const createDocCreateRequestTool = (
   ac: PermissionAccess,
   models: Models,
-  options: CopilotChatOptions
+  options: CopilotChatOptions,
+  documentOperations?: CopilotDocumentOperationService
 ) =>
   defineTool({
-    description:
-      'Prepare a new document for the user to choose its storage workspace and explicit root or folder. This does not create a document. Report waiting for location selection until a persisted operation result confirms creation. Never use a document or folder as a substitute for creating a Project.',
+    description: documentOperations
+      ? 'Create and save a new document in the current workspace immediately. It is stored at the workspace root unless the user named a target folder. The returned documentId is persisted; report the real result instead of asking the user to confirm a location. Never use a document or folder as a substitute for creating a Project.'
+      : 'Prepare a new document for the user to choose its storage workspace and explicit root or folder. This does not create a document. Report waiting for location selection until a persisted operation result confirms creation. Never use a document or folder as a substitute for creating a Project.',
     inputSchema: z
       .object({
         title: z.string().trim().min(1).max(512),
         content: z.string().max(1024 * 1024),
+        folder_id: z
+          .string()
+          .min(1)
+          .max(256)
+          .nullish()
+          .describe(
+            'Only set this when the user explicitly named a destination folder. Leave it empty to store the document at the workspace root.'
+          ),
         add_to_project: z
           .boolean()
           .default(false)
@@ -134,7 +145,10 @@ export const createDocCreateRequestTool = (
           ),
       })
       .strict(),
-    execute: async ({ title, content, add_to_project }, executeOptions) => {
+    execute: async (
+      { title, content, folder_id, add_to_project },
+      executeOptions
+    ) => {
       try {
         if (!options?.user || !options.workspace || !options.session)
           throw new Error(
@@ -151,7 +165,7 @@ export const createDocCreateRequestTool = (
           .user(options.user)
           .workspace(options.workspace)
           .assert('Workspace.Copilot');
-        const operation =
+        let operation =
           await models.copilotDocumentOperation.prepareForLatestTurn({
             actorId: options.user,
             sessionId: options.session,
@@ -162,6 +176,57 @@ export const createDocCreateRequestTool = (
               ? { delegatedCallId: executeOptions.toolCallId }
               : {}),
           });
+        let folderFallback = false;
+        let locationFailure: string | undefined;
+        // Project-bound operations keep the explicit location workflow; Project
+        // resources are published through the Project workflows, not this tool.
+        if (documentOperations && !operation.projectId) {
+          try {
+            const result = await documentOperations.autoConfirmAndExecute({
+              operationId: operation.id,
+              actorId: options.user,
+              workspaceId: options.workspace,
+              folderId: folder_id ?? null,
+            });
+            operation = result.operation;
+            folderFallback = result.folderFallback;
+          } catch (error) {
+            // Degrade to the explicit location workflow instead of failing the
+            // draft; the prepared operation stays available for its owner.
+            locationFailure =
+              error instanceof Error
+                ? error.message
+                : 'Automatic document location failed';
+            logger.warn(
+              `Automatic document location failed for operation ${operation.id}: ${locationFailure}`
+            );
+            try {
+              // The failure may land after the body was written, so report the
+              // persisted state instead of the pre-execution draft.
+              operation = await models.copilotDocumentOperation.receipt({
+                operationId: operation.id,
+                actorId: options.user,
+              });
+            } catch (receiptError) {
+              logger.warn(
+                `Document operation ${operation.id} could not be reloaded after an automatic location failure: ${
+                  receiptError instanceof Error
+                    ? receiptError.message
+                    : 'unknown error'
+                }`
+              );
+            }
+          }
+        }
+        // A failed automatic location can still leave a written document behind,
+        // so the wording follows the persisted state rather than the failure.
+        const message = operation.createdDocumentAt
+          ? locationFailure
+            ? 'The document was created and saved, but finishing its location failed. Do not create it again; report the recorded result and check its creation status separately.'
+            : folderFallback
+              ? 'Document created and saved at the workspace root because the requested folder was unavailable.'
+              : 'Document created and saved. Check its placement and project-addition status separately.'
+          : `${locationFailure ? 'Automatic document location failed. ' : ''}Waiting for the user to select a storage workspace and location. No document has been created.`;
         return {
           operationId: operation.id,
           status: operation.status,
@@ -169,9 +234,9 @@ export const createDocCreateRequestTool = (
           projectStatus: operation.projectStatus,
           documentId: operation.createdDocumentAt ? operation.documentId : null,
           workspaceId: operation.destinationWorkspaceId,
-          message: operation.createdDocumentAt
-            ? 'Document creation is recorded. Check its placement and project-addition status separately.'
-            : 'Waiting for the user to select a storage workspace and location. No document has been created.',
+          folderId: operation.destinationFolderId,
+          folderFallback,
+          message,
         };
       } catch (error) {
         return toolError(

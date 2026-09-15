@@ -313,6 +313,39 @@ export class DocumentDestinationService {
     };
   }
 
+  /**
+   * Reports why a directory cannot receive this operation instead of throwing,
+   * so a caller that wants to fall back can tell a directory that no longer
+   * exists apart from one this actor may not write to. Only a missing directory
+   * may be replaced silently; a denial has to stay visible to its caller.
+   * Anything that is not a directory-level rejection still throws.
+   */
+  async availability(input: {
+    actorId: string;
+    workspaceId: string;
+    folderId: string;
+    createFolder?: boolean;
+  }): Promise<'ok' | 'missing' | 'denied'> {
+    try {
+      await this.authorize(input);
+      return 'ok';
+    } catch (error) {
+      // A directory that disappeared and one this actor may not write to both
+      // surface as `NotFound`; re-read the visible directory to tell them
+      // apart. A malformed directory path stays an error.
+      if (!(error instanceof NotFound)) throw error;
+      const rows = await this.organization.readFolders(
+        input.workspaceId,
+        input.actorId
+      );
+      return rows.some(
+        row => row.type === 'folder' && row.id === input.folderId
+      )
+        ? 'denied'
+        : 'missing';
+    }
+  }
+
   private describe(
     input: {
       workspaceId: string;

@@ -533,7 +533,9 @@ test('LocalMind tool agent accepts the frozen v1 tool snapshot after SparkClaw u
     {} as any,
     { copilotMcpDelegation: { getRequestByAgentRun } } as any,
     {} as any,
-    { register: Sinon.stub() } as any
+    { register: Sinon.stub() } as any,
+    {} as any,
+    {} as any
   );
   const execute = (
     adapter as unknown as {

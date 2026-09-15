@@ -8,7 +8,11 @@ import Sinon from 'sinon';
 import { AppModule } from '../../app.module';
 import { ConfigModule } from '../../base/config';
 import { AuthService } from '../../core/auth';
-import { DocReader, DocWriter } from '../../core/doc';
+import {
+  DocReader,
+  DocumentDestinationService,
+  DocWriter,
+} from '../../core/doc';
 import { PermissionAccess } from '../../core/permission';
 import { Models, WorkspaceMemberStatus, WorkspaceRole } from '../../models';
 import { LOCALMIND_DELEGATION_AI_TOOLS } from '../../plugins/copilot/agent-runtime-localmind-tool-agent-adapter';
@@ -525,6 +529,16 @@ test('delegated location waits without creation and resumes two distinct confirm
     capabilities: [...MCP_CAPABILITIES],
     expirationDays: 30,
   });
+  // The tool resolves its destination automatically inside the execution
+  // workspace; refusing that workspace forces the degraded manual workflow this
+  // test covers, while the explicit destination stays authorizable.
+  const destinations = t.context.app!.get(DocumentDestinationService);
+  const authorize = destinations.authorize.bind(destinations);
+  Sinon.stub(destinations, 'authorize').callsFake(async input => {
+    if (input.workspaceId === workspaceId)
+      throw new Error('Automatic destination refused for this workspace');
+    return await authorize(input);
+  });
   Sinon.stub(runtime, 'generateStructuredValue').resolves({
     value: {
       result: plannerResult({
@@ -760,6 +774,116 @@ test('delegated location waits without creation and resumes two distinct confirm
   t.deepEqual(revoked?.artifacts, []);
   t.is(revoked?.resultSummary, null);
   t.is(revoked?.resultEvidence, null);
+});
+
+test('delegated document creation stores its document without a location confirmation', async t => {
+  const { credentials, db, models, owner, runtime, worker } = t.context;
+  const { workspaceId } = await createDocument(
+    t.context,
+    owner.id,
+    'Automatic location host'
+  );
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId,
+    name: 'Automatic location task',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'tool_agent',
+        summary: 'Create the daily log',
+      }),
+    },
+  } as never);
+  let created: Record<string, unknown> | undefined;
+  let turn = 0;
+  Sinon.stub(runtime, 'streamObject').callsFake(
+    (_conditions, _messages, options) =>
+      (async function* () {
+        turn++;
+        if (turn > 1) {
+          yield { type: 'text-delta', textDelta: 'The daily log was created.' };
+          return;
+        }
+        const tools = await t.context
+          .app!.get(ToolRuntime)
+          .getTools(options as CopilotChatOptions, 'automatic-location-test');
+        const args = {
+          title: 'Daily log',
+          content: 'Body written by the delegated task.',
+          add_to_project: false,
+        };
+        const toolCallId = 'automatic-location-create';
+        const result = await tools.doc_create.execute!(args, { toolCallId });
+        created = result as Record<string, unknown>;
+        yield {
+          type: 'tool-result',
+          toolName: 'doc_create',
+          toolCallId,
+          args,
+          result,
+        };
+      })()
+  );
+  const delegated = await delegate(t.context, issued.token, {
+    request: 'Write my daily log.',
+    documentIds: [],
+    idempotencyKey: 'automatic-location-daily-log',
+  });
+  const before = await db.workspaceDoc.count();
+  await worker.runStandaloneAgentRuntime({
+    workspaceId,
+    runId: String(delegated.agentRunId),
+  });
+  t.true(turn >= 2);
+  t.is(await db.workspaceDoc.count(), before + 1);
+  t.like(created, {
+    status: 'complete',
+    documentCreated: true,
+    workspaceId,
+    folderId: null,
+    folderFallback: false,
+  });
+  const requestId = String(delegated.taskId);
+  const request = (await models.copilotMcpDelegation.getRequest(requestId))!;
+  t.is(request.locationOperationId, null);
+  const task = await getTaskThroughMcp(t.context, issued.token, {
+    taskId: requestId,
+    waitMs: 0,
+  });
+  t.like(task, { status: 'completed', terminal: true });
+  t.like(task.result.toolExecutions[0], {
+    toolName: 'doc_create',
+    status: 'completed',
+    documentId: created!.documentId,
+    relation: 'created',
+  });
+  t.like(task.artifacts[0], {
+    kind: 'document',
+    relation: 'created',
+    reference: {
+      type: 'localmind_document',
+      workspaceId,
+      documentId: created!.documentId,
+    },
+  });
+  const operation = await db.copilotDocumentOperation.findFirstOrThrow({
+    where: { sessionId: request.executionSessionId! },
+  });
+  t.is(operation.status, 'complete');
+  t.is(operation.destinationWorkspaceId, workspaceId);
+  t.is(operation.destinationConfirmedBy, owner.id);
+  t.truthy(operation.placedDocumentAt);
+  t.like(operation.destinationEvidence as Record<string, unknown>, {
+    actorId: owner.id,
+    workspaceId,
+    canCreateDoc: true,
+    autoConfirmed: true,
+  });
 });
 
 test('LocalMind tool agent creates a document and returns a sanitized task artifact', async t => {

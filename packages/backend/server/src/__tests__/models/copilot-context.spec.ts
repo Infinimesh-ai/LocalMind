@@ -394,6 +394,99 @@ test('shared source audience rejects Workspace expansion, public exposure and ot
   );
 });
 
+test('a server-resolved destination records its waiver instead of dropping the source check', async t => {
+  const { db, copilotContext, copilotSession } = t.context;
+  await db.aiSessionMessage.create({
+    data: { sessionId, role: 'user', content: 'Delegated brief' },
+  });
+  const outsider = await t.context.user.create({
+    email: 'waived-reader@example.com',
+  });
+  await db.workspaceMember.create({
+    data: {
+      workspaceId: workspace.id,
+      userId: outsider.id,
+      role: 'member',
+      state: 'active',
+    },
+  });
+  const identity = {
+    actorId: user.id,
+    sessionId,
+    sink: {
+      type: 'document_create' as const,
+      id: 'waived-sink',
+      documentId: 'waived-sink',
+      workspaceId: workspace.id,
+      phase: 'execute' as const,
+    },
+  };
+  // A second reader removes the private audience, so an interactive write is
+  // rejected. A server-resolved destination proceeds, but only by recording
+  // the same judgement and the same evidence under a waiver reason.
+  await t.throwsAsync(copilotContext.assertDocumentSourcesShared(identity));
+  await copilotContext.assertDocumentSourcesShared({
+    ...identity,
+    policy: 'record',
+  });
+  // A retry re-evidences the waiver rather than inheriting a silent skip.
+  await copilotContext.assertDocumentSourcesShared({
+    ...identity,
+    sink: { ...identity.sink, phase: 'retry' as const },
+    policy: 'record',
+  });
+  const audits = await db.aiSharedWriteSourceCheck.findMany({
+    where: { sessionId, sinkId: 'waived-sink' },
+    orderBy: { createdAt: 'asc' },
+  });
+  t.deepEqual(
+    audits.map(audit => [audit.allowed, audit.reasonCode, audit.phase]),
+    [
+      [false, 'unshared_source', 'execute'],
+      [false, 'waived_server_resolved_destination', 'execute'],
+      [false, 'waived_server_resolved_destination', 'retry'],
+    ]
+  );
+  t.true(audits.every(audit => audit.sourceFingerprint.length === 64));
+  t.like(audits[2].audienceEvidence, {
+    workspaceId: workspace.id,
+    documentId: 'waived-sink',
+    known: true,
+  });
+  await t.throwsAsync(
+    db.aiSharedWriteSourceCheck.update({
+      where: { id: audits[2].id },
+      data: { allowed: true },
+    })
+  );
+  // A Project destination is always picked explicitly, so the waiver must not
+  // reach the Project authority rules.
+  const project = await db.aiContextProject.create({
+    data: {
+      name: 'Waiver boundary Project',
+      createdByUserId: user.id,
+      members: { create: { userId: user.id, role: 'owner' } },
+    },
+  });
+  const projectSession = await copilotSession.create({
+    sessionId: randomUUID(),
+    workspaceId: workspace.id,
+    userId: user.id,
+    selectedContextProjectId: project.id,
+    title: null,
+    promptName: 'prompt-name',
+    promptAction: null,
+  });
+  await t.throwsAsync(
+    copilotContext.assertDocumentSourcesShared({
+      ...identity,
+      sessionId: projectSession,
+      policy: 'record',
+    }),
+    { message: /requires an explicit destination/ }
+  );
+});
+
 test('personal and unknown lineage cannot enter a shared document, including a completed noop', async t => {
   const { db, copilotContext } = t.context;
   await db.aiSessionMessage.create({

@@ -130,18 +130,34 @@ export class CopilotContextModel extends BaseModel {
     sessionId?: string | null;
     actorId: string;
     sink: SharedWriteSourceSink & { workspaceId: string; documentId: string };
+    /**
+     * `enforce` rejects a write whose sources carry no authority over the
+     * destination readers. `record` keeps the same judgement and the same
+     * evidence but lets the write proceed; it is only for a destination the
+     * server resolved on the caller's behalf. A relaxation stays auditable:
+     * the row keeps `allowed: false` and carries a waiver reason.
+     */
+    policy?: 'enforce' | 'record';
   }) {
+    const policy = input.policy ?? 'enforce';
     const session = input.sessionId
       ? await this.models.copilotSession.getMeta(input.sessionId)
       : null;
     if (input.sessionId && (!session || session.userId !== input.actorId))
       throw new BadRequest('Shared write conversation is unavailable');
-    if (session?.selectedContextProjectId)
+    if (session?.selectedContextProjectId) {
+      // A Project destination is never resolved by the server, so a waiver
+      // must not reach the Project authority rules.
+      if (policy === 'record')
+        throw new BadRequest(
+          'A Project conversation requires an explicit destination'
+        );
       return await this.assertProjectSourcesShared({
         ...input,
         sessionId: session.id,
         projectId: session.selectedContextProjectId,
       });
+    }
     const audienceEvidence = await this.lockDocumentAudience(
       input.sink.workspaceId,
       input.sink.documentId
@@ -196,9 +212,11 @@ export class CopilotContextModel extends BaseModel {
         allowed,
         reasonCode: allowed
           ? 'authorized'
-          : overBudget
-            ? 'source_budget_exceeded'
-            : 'unshared_source',
+          : policy === 'record'
+            ? 'waived_server_resolved_destination'
+            : overBudget
+              ? 'source_budget_exceeded'
+              : 'unshared_source',
         sources: evidence,
         sourceFingerprint: createHash('sha256')
           .update(JSON.stringify(evidence))
@@ -206,7 +224,7 @@ export class CopilotContextModel extends BaseModel {
         audienceEvidence,
       },
     });
-    if (!allowed)
+    if (!allowed && policy === 'enforce')
       throw new BadRequest(
         'This conversation has no verified source authority for the destination readers. Use an authorized Project conversation before writing shared content.'
       );

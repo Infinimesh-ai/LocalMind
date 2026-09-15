@@ -143,7 +143,7 @@ test.after.always(async t => {
   await t.context.module.close();
 });
 
-async function pendingDelegatedLocation(context: {
+async function processingDelegation(context: {
   module: TestingModule;
   models: Models;
   actorId: string;
@@ -199,8 +199,26 @@ async function pendingDelegatedLocation(context: {
     workerId: workerLeaseId,
     leaseMs: 300000,
   });
-  const operation = await models.copilotDocumentOperation.prepare({
+  return {
+    issued,
+    runId: run.id,
+    requestId: record.id,
     sessionId,
+    workerLeaseId,
+    workerAttempt: leased!.workerAttempt,
+  };
+}
+
+async function pendingDelegatedLocation(context: {
+  module: TestingModule;
+  models: Models;
+  actorId: string;
+  hostId: string;
+}) {
+  const { models, actorId } = context;
+  const delegation = await processingDelegation(context);
+  const operation = await models.copilotDocumentOperation.prepare({
+    sessionId: delegation.sessionId,
     actorId,
     requestKey: 'delegated:lifecycle',
     title: 'Location lifecycle',
@@ -208,20 +226,13 @@ async function pendingDelegatedLocation(context: {
     addToProject: false,
   });
   await models.copilotMcpDelegation.waitForLocation({
-    id: record.id,
-    runId: run.id,
-    workerLeaseId,
-    workerAttempt: leased!.workerAttempt,
+    id: delegation.requestId,
+    runId: delegation.runId,
+    workerLeaseId: delegation.workerLeaseId,
+    workerAttempt: delegation.workerAttempt,
     operationId: operation.id,
   });
-  return {
-    issued,
-    operation,
-    runId: run.id,
-    requestId: record.id,
-    sessionId,
-    workerLeaseId,
-  };
+  return { ...delegation, operation };
 }
 
 test('delegated location expiration and competing confirmations require a fresh revision with zero premature writes', async t => {
@@ -1518,6 +1529,503 @@ test('creation tool waits for authenticated location mutation and rejects ambigu
     documentId: operation.documentId,
     workspaceId,
   });
+});
+
+test('creation tool stores a document at the session workspace root without a second confirmation', async t => {
+  const {
+    actorId,
+    sessionId,
+    hostId,
+    workspaceId,
+    models,
+    db,
+    module,
+    reader,
+    writer,
+    service,
+  } = t.context;
+  await db.aiSessionMessage.create({
+    data: { sessionId, role: 'user', content: 'Write my daily log.' },
+  });
+  const create = Sinon.spy(writer, 'createDoc');
+  const tool = createDocCreateRequestTool(
+    module.get(PermissionAccess),
+    models,
+    { user: actorId, workspace: hostId, session: sessionId },
+    service
+  );
+  const input = { title: 'Daily log', content: 'Body', add_to_project: false };
+  const result = await tool.execute?.(input, {});
+  t.like(result, {
+    status: 'complete',
+    documentCreated: true,
+    projectStatus: 'not_requested',
+    workspaceId: hostId,
+    folderId: null,
+    folderFallback: false,
+  });
+  t.is(create.callCount, 1);
+  const operation = await db.copilotDocumentOperation.findFirstOrThrow({
+    where: { sessionId },
+  });
+  t.is(operation.status, 'complete');
+  t.truthy(operation.createdDocumentAt);
+  t.truthy(operation.placedDocumentAt);
+  t.is(operation.destinationWorkspaceId, hostId);
+  t.is(operation.destinationFolderId, null);
+  t.is(operation.destinationConfirmedBy, actorId);
+  t.like(operation.destinationEvidence as Record<string, unknown>, {
+    actorId,
+    workspaceId: hostId,
+    canCreateDoc: true,
+    autoConfirmed: true,
+  });
+  t.truthy(await reader.getDoc(hostId, operation.documentId));
+  t.is(await reader.getDoc(workspaceId, operation.documentId), null);
+  const root = await db.snapshot.findUniqueOrThrow({
+    where: { workspaceId_id: { workspaceId: hostId, id: hostId } },
+    select: { blob: true },
+  });
+  t.true(readRootDocPageIdsWithYjs(root.blob).includes(operation.documentId));
+  const replay = await tool.execute?.(input, {});
+  t.like(replay, {
+    operationId: operation.id,
+    status: 'complete',
+    documentCreated: true,
+    documentId: operation.documentId,
+  });
+  t.is(create.callCount, 1);
+  t.is(await db.copilotDocumentOperation.count({ where: { sessionId } }), 1);
+});
+
+test('creation tool honours a named folder and falls back to the workspace root when it is unavailable', async t => {
+  const {
+    actorId,
+    sessionId,
+    hostId,
+    models,
+    db,
+    module,
+    organization,
+    service,
+  } = t.context;
+  await organization.applyDataOperations(hostId, actorId, actorId, 'folders', [
+    {
+      op: 'upsert',
+      key: 'target',
+      values: { type: 'folder', parentId: null, data: 'Target', index: 'a0' },
+    },
+  ]);
+  await db.aiSessionMessage.create({
+    data: { sessionId, role: 'user', content: 'File these notes for me.' },
+  });
+  const tool = createDocCreateRequestTool(
+    module.get(PermissionAccess),
+    models,
+    { user: actorId, workspace: hostId, session: sessionId },
+    service
+  );
+  t.like(
+    await tool.execute?.(
+      {
+        title: 'Filed notes',
+        content: 'Body',
+        folder_id: 'target',
+        add_to_project: false,
+      },
+      {}
+    ),
+    {
+      status: 'complete',
+      documentCreated: true,
+      workspaceId: hostId,
+      folderId: 'target',
+      folderFallback: false,
+    }
+  );
+  const filed = await db.copilotDocumentOperation.findFirstOrThrow({
+    where: { sessionId, title: 'Filed notes' },
+  });
+  const rows = await organization.readFolders(hostId, actorId);
+  t.is(
+    rows.filter(
+      row =>
+        row.type === 'doc' &&
+        row.data === filed.documentId &&
+        row.parentId === 'target'
+    ).length,
+    1
+  );
+  t.like(
+    await tool.execute?.(
+      {
+        title: 'Unfiled notes',
+        content: 'Body',
+        folder_id: 'missing',
+        add_to_project: false,
+      },
+      {}
+    ),
+    {
+      status: 'complete',
+      documentCreated: true,
+      workspaceId: hostId,
+      folderId: null,
+      folderFallback: true,
+    }
+  );
+  const unfiled = await db.copilotDocumentOperation.findFirstOrThrow({
+    where: { sessionId, title: 'Unfiled notes' },
+  });
+  t.is(unfiled.destinationFolderId, null);
+  t.truthy(unfiled.placedDocumentAt);
+});
+
+test('automatic document location degrades to the manual picker and stays recoverable', async t => {
+  const {
+    actorId,
+    sessionId,
+    hostId,
+    workspaceId,
+    models,
+    db,
+    module,
+    writer,
+    destination,
+    service,
+  } = t.context;
+  await db.aiSessionMessage.create({
+    data: { sessionId, role: 'user', content: 'Write my daily log.' },
+  });
+  const create = Sinon.spy(writer, 'createDoc');
+  const authorize = Sinon.stub(destination, 'authorize').rejects(
+    new Error('destination temporarily unavailable')
+  );
+  const tool = createDocCreateRequestTool(
+    module.get(PermissionAccess),
+    models,
+    { user: actorId, workspace: hostId, session: sessionId },
+    service
+  );
+  const result = await tool.execute?.(
+    { title: 'Daily log', content: 'Body', add_to_project: false },
+    {}
+  );
+  t.like(result, { status: 'waiting_location', documentCreated: false });
+  t.not((result as { type?: string }).type, 'error');
+  t.is(create.callCount, 0);
+  const operation = await db.copilotDocumentOperation.findFirstOrThrow({
+    where: { sessionId },
+  });
+  // The tool keeps reporting its operation so the owner and the delegated
+  // recovery path can still resolve the destination by hand.
+  t.is((result as { operationId: string }).operationId, operation.id);
+  t.is(operation.status, 'waiting_location');
+  t.is(operation.destinationWorkspaceId, null);
+  authorize.restore();
+  const resolver = module.get(CopilotDocumentOperationResolver);
+  const completed = await resolver.confirmCopilotDocumentDestination(
+    { id: actorId } as Parameters<
+      typeof resolver.confirmCopilotDocumentDestination
+    >[0],
+    {
+      operationId: operation.id,
+      workspaceId,
+      folderId: null,
+      root: true,
+      expectedRevision: 0,
+    }
+  );
+  t.is(completed.status, 'complete');
+  t.is(create.callCount, 1);
+  const confirmed = await db.copilotDocumentOperation.findUniqueOrThrow({
+    where: { id: operation.id },
+  });
+  t.is(
+    (confirmed.destinationEvidence as Record<string, unknown>).autoConfirmed,
+    undefined
+  );
+});
+
+test('creation tool reports the written document when the automatic location fails after the write', async t => {
+  const {
+    actorId,
+    sessionId,
+    hostId,
+    models,
+    db,
+    module,
+    reader,
+    writer,
+    organization,
+    service,
+  } = t.context;
+  await organization.applyDataOperations(hostId, actorId, actorId, 'folders', [
+    {
+      op: 'upsert',
+      key: 'target',
+      values: { type: 'folder', parentId: null, data: 'Target', index: 'a0' },
+    },
+  ]);
+  await db.aiSessionMessage.create({
+    data: { sessionId, role: 'user', content: 'File these notes for me.' },
+  });
+  const create = Sinon.spy(writer, 'createDoc');
+  const placement = Sinon.stub(organization, 'applyDataOperations');
+  placement.onFirstCall().rejects(new Error('temporary placement failure'));
+  placement.callThrough();
+  const tool = createDocCreateRequestTool(
+    module.get(PermissionAccess),
+    models,
+    { user: actorId, workspace: hostId, session: sessionId },
+    service
+  );
+  const result = await tool.execute?.(
+    {
+      title: 'Filed notes',
+      content: 'Body',
+      folder_id: 'target',
+      add_to_project: false,
+    },
+    {}
+  );
+  placement.restore();
+  t.not((result as { type?: string }).type, 'error');
+  t.is(create.callCount, 1);
+  const operation = await db.copilotDocumentOperation.findFirstOrThrow({
+    where: { sessionId },
+  });
+  t.is(operation.status, 'created');
+  t.truthy(operation.createdDocumentAt);
+  t.is(operation.placedDocumentAt, null);
+  // The write already happened, so the tool must not tell the model that no
+  // document exists; otherwise the model creates a duplicate.
+  t.like(result, {
+    operationId: operation.id,
+    status: 'created',
+    documentCreated: true,
+    documentId: operation.documentId,
+    workspaceId: hostId,
+    folderId: 'target',
+    folderFallback: false,
+  });
+  t.false((result as { message: string }).message.includes('No document'));
+  t.false(
+    (result as { message: string }).message.includes(
+      'temporary placement failure'
+    )
+  );
+  t.truthy(await reader.getDoc(hostId, operation.documentId));
+  // The owner can still finish the placement without a second write.
+  const recovered = await service.execute({
+    operationId: operation.id,
+    actorId,
+    expectedRevision: operation.destinationRevision,
+  });
+  t.is(recovered.status, 'complete');
+  t.is(create.callCount, 1);
+  const rows = await organization.readFolders(hostId, actorId);
+  t.is(
+    rows.filter(
+      row =>
+        row.type === 'doc' &&
+        row.data === operation.documentId &&
+        row.parentId === 'target'
+    ).length,
+    1
+  );
+});
+
+test('a delegated automatic destination records its source waiver instead of skipping the check', async t => {
+  const {
+    actorId,
+    sessionId,
+    hostId,
+    models,
+    db,
+    module,
+    reader,
+    writer,
+    service,
+  } = t.context;
+  const outsider = await models.user.create({
+    email: 'delegated-reader@example.com',
+  });
+  await db.workspaceMember.create({
+    data: {
+      workspaceId: hostId,
+      userId: outsider.id,
+      role: 'member',
+      state: 'active',
+    },
+  });
+  const delegation = await processingDelegation(t.context);
+  await db.aiSessionMessage.create({
+    data: {
+      sessionId: delegation.sessionId,
+      role: 'user',
+      content: 'Write my daily log.',
+    },
+  });
+  const create = Sinon.spy(writer, 'createDoc');
+  const tool = createDocCreateRequestTool(
+    module.get(PermissionAccess),
+    models,
+    { user: actorId, workspace: hostId, session: delegation.sessionId },
+    service
+  );
+  const result = await tool.execute?.(
+    { title: 'Daily log', content: 'Body', add_to_project: false },
+    {}
+  );
+  t.like(result, {
+    status: 'complete',
+    documentCreated: true,
+    workspaceId: hostId,
+    folderId: null,
+    folderFallback: false,
+  });
+  t.is(create.callCount, 1);
+  const operation = await db.copilotDocumentOperation.findFirstOrThrow({
+    where: { sessionId: delegation.sessionId },
+  });
+  t.truthy(await reader.getDoc(hostId, operation.documentId));
+  // The waiver replaces the check's rejection, never its evidence: a shared
+  // audience keeps every confirm and execute recorded as unauthorized under a
+  // waiver reason, so a delegated write is never invisible to an audit.
+  const audits = await db.aiSharedWriteSourceCheck.findMany({
+    where: { sessionId: delegation.sessionId, sinkId: operation.id },
+    orderBy: { createdAt: 'asc' },
+  });
+  t.true(audits.length >= 2);
+  t.deepEqual(
+    [...new Set(audits.map(audit => `${audit.allowed}:${audit.reasonCode}`))],
+    ['false:waived_server_resolved_destination']
+  );
+  t.deepEqual(audits.map(audit => audit.phase).sort(), ['confirm', 'execute']);
+  t.like(audits.at(-1)!.audienceEvidence, {
+    workspaceId: hostId,
+    documentId: operation.documentId,
+    known: true,
+  });
+  // The same destination stays closed to an interactive conversation, so the
+  // delegated path is a recorded exception rather than a wider write reach.
+  await db.aiSessionMessage.create({
+    data: { sessionId, role: 'user', content: 'Write mine too.' },
+  });
+  const interactive = createDocCreateRequestTool(
+    module.get(PermissionAccess),
+    models,
+    { user: actorId, workspace: hostId, session: sessionId },
+    service
+  );
+  t.like(
+    await interactive.execute?.(
+      { title: 'Personal log', content: 'Body', add_to_project: false },
+      {}
+    ),
+    { status: 'waiting_location', documentCreated: false, workspaceId: null }
+  );
+  t.is(create.callCount, 1);
+  const denials = await db.aiSharedWriteSourceCheck.findMany({
+    where: { sessionId },
+  });
+  t.true(denials.length >= 1);
+  t.true(
+    denials.every(
+      denial => !denial.allowed && denial.reasonCode === 'unshared_source'
+    )
+  );
+});
+
+test('creation tool surfaces a denied folder instead of relocating the document to the workspace root', async t => {
+  const {
+    actorId,
+    sessionId,
+    hostId,
+    models,
+    db,
+    module,
+    writer,
+    organization,
+    service,
+  } = t.context;
+  await organization.applyDataOperations(hostId, actorId, actorId, 'folders', [
+    {
+      op: 'upsert',
+      key: 'restricted',
+      values: {
+        type: 'folder',
+        parentId: null,
+        data: 'Restricted',
+        index: 'a0',
+      },
+    },
+  ]);
+  await models.workspaceDirectoryGrant.set({
+    workspaceId: hostId,
+    actorId,
+    directoryId: 'restricted',
+    principalId: '*',
+    rights: {
+      canRead: true,
+      canWrite: false,
+      canOrganize: true,
+      canCreateFolder: true,
+    },
+  });
+  await db.aiSessionMessage.create({
+    data: {
+      sessionId,
+      role: 'user',
+      content: 'File this into the restricted folder.',
+    },
+  });
+  const create = Sinon.spy(writer, 'createDoc');
+  const tool = createDocCreateRequestTool(
+    module.get(PermissionAccess),
+    models,
+    { user: actorId, workspace: hostId, session: sessionId },
+    service
+  );
+  const result = await tool.execute?.(
+    {
+      title: 'Restricted notes',
+      content: 'Body',
+      folder_id: 'restricted',
+      add_to_project: false,
+    },
+    {}
+  );
+  // A directory this actor may not write to is an authorization decision, so
+  // it must not be downgraded into a silent relocation to the workspace root.
+  t.not((result as { type?: string }).type, 'error');
+  t.is(create.callCount, 0);
+  t.like(result, {
+    status: 'waiting_location',
+    documentCreated: false,
+    documentId: null,
+    workspaceId: null,
+    folderId: null,
+    folderFallback: false,
+  });
+  t.true(
+    (result as { message: string }).message.includes(
+      'Waiting for the user to select'
+    )
+  );
+  const operation = await db.copilotDocumentOperation.findFirstOrThrow({
+    where: { sessionId },
+  });
+  t.is(operation.status, 'waiting_location');
+  t.is(operation.destinationWorkspaceId, null);
+  t.is(operation.createdDocumentAt, null);
+  t.is(
+    (await organization.readFolders(hostId, actorId)).filter(
+      row => row.type === 'doc'
+    ).length,
+    0
+  );
 });
 
 test('creation status rejects another conversation and actor without exposing a receipt', async t => {

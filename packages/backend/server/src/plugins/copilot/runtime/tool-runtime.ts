@@ -17,6 +17,7 @@ import { IndexerService } from '../../indexer';
 import type { NodeTextMiddleware } from '../config';
 import { CopilotContextService } from '../context/service';
 import { CopilotDocumentCopyService } from '../document-copy-service';
+import { CopilotDocumentOperationService } from '../document-operation-service';
 import {
   type EnterpriseToolCapabilitySnapshot,
   EnterpriseToolRegistry,
@@ -167,6 +168,8 @@ export class ToolRuntime {
     @Optional() private readonly externalMcpTools?: ExternalMcpToolRegistry,
     @Optional() private readonly mcpAttachments?: McpAttachmentService,
     @Optional() private readonly documentCopies?: CopilotDocumentCopyService,
+    @Optional()
+    private readonly documentOperations?: CopilotDocumentOperationService,
     @Optional() private readonly projectResources?: ProjectResourceService,
     @Optional()
     private readonly projectOffice?: ProjectOfficeAgentCommandService
@@ -390,7 +393,8 @@ export class ToolRuntime {
           tools.doc_create = createDocCreateRequestTool(
             this.ac,
             this.models,
-            options
+            options,
+            this.documentOperations
           );
           tools.doc_creation_status = createDocCreationStatusTool(
             this.models,

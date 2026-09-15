@@ -11,7 +11,8 @@ import {
   ParagraphBlockSchemaExtension,
   RootBlockSchemaExtension,
 } from '@blocksuite/affine-model';
-import { ViewManagerBase } from '@blocksuite/data-view';
+import { type DataViewDataType, ViewManagerBase } from '@blocksuite/data-view';
+import type { TableViewData } from '@blocksuite/data-view/view-presets';
 import { Text } from '@blocksuite/store';
 import {
   createAutoIncrementIdGenerator,
@@ -130,23 +131,29 @@ describe('database conversion integrity', () => {
     const { source, store } = fixture(['12']);
     const manager = new ViewManagerBase(source);
     const id = manager.viewAdd('table');
-    source.viewDataUpdate(id, () => ({
+    // `viewDataGet` is typed for the shared view shape; these assertions read
+    // the table-specific fields that must survive a mode change.
+    const viewData = (viewId: string) =>
+      source.viewDataGet(viewId) as
+        | (DataViewDataType & Partial<TableViewData>)
+        | undefined;
+    source.viewDataUpdate<TableViewData>(id, () => ({
       columns: [{ id: 'custom', width: 237, hide: true }],
       sort: { sortBy: [], manuallySort: ['row-b', 'row-a'] },
     }));
-    const before = JSON.parse(JSON.stringify(source.viewDataGet(id)));
+    const before = JSON.parse(JSON.stringify(viewData(id)));
     manager.viewChangeType(id, 'kanban');
-    expect(source.viewDataGet(id)?.sort).toEqual(before.sort);
+    expect(viewData(id)?.sort).toEqual(before.sort);
     store.undo();
-    expect(source.viewDataGet(id)?.mode).toBe('table');
-    expect(source.viewDataGet(id)?.columns).toEqual(before.columns);
+    expect(viewData(id)?.mode).toBe('table');
+    expect(viewData(id)?.columns).toEqual(before.columns);
     store.redo();
     manager.viewChangeType(id, 'table');
-    expect(source.viewDataGet(id)?.columns).toEqual(before.columns);
-    expect(source.viewDataGet(id)?.sort).toEqual(before.sort);
+    expect(viewData(id)?.columns).toEqual(before.columns);
+    expect(viewData(id)?.sort).toEqual(before.sort);
     const reloaded = new ViewManagerBase(source);
     reloaded.viewChangeType(id, 'kanban');
     reloaded.viewChangeType(id, 'table');
-    expect(source.viewDataGet(id)?.columns).toEqual(before.columns);
+    expect(viewData(id)?.columns).toEqual(before.columns);
   });
 });

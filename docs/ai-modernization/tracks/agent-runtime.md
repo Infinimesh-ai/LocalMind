@@ -15,9 +15,15 @@ creation/copy confirmation, retries and no-op paths. Checks retain original
 document-grant identity and survive a rejected write transaction. Destination
 audience evidence rejects broader sharing. External `waiting_for_location`,
 session/operation bindings, immutable tool checkpoints and periodic recovery
-are implemented with Linux lifecycle and queue-outage tests. Human confirmation
-stores the selected revision, actor, permission evidence and expiry; MCP cannot
-submit it. Automatic recovery skips cancelled runs and isolates per-request
+are implemented with Linux lifecycle and queue-outage tests. `doc_create` now
+resolves its destination on the server for the authenticated session actor: it
+defaults to the session workspace root, accepts an explicit `folder_id` only
+when the user named one, rechecks live workspace/directory authority through the
+same destination service, and records the resulting evidence with
+`autoConfirmed: true`. `waiting_for_location` remains the degraded state when
+that resolution fails. Confirmation stores the selected revision, actor,
+permission evidence and expiry; MCP clients still cannot select or submit a
+destination. Automatic recovery skips cancelled runs and isolates per-request
 conflicts; manual resume updates the external request in the run transaction
 and rejects withdrawn operations or inactive credentials. Office and directory
 AI writes now check cumulative sources through persistence, with document

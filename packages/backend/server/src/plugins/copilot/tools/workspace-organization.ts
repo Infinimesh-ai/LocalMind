@@ -109,15 +109,18 @@ function indexForPosition(
     .filter(node => node.parentId === parentId && node.id !== sourceId)
     .sort((left, right) => compareIndex(left.index, right.index));
   let insertionIndex: number;
-  if (position.kind === 'first') insertionIndex = 0;
-  else if (position.kind === 'last') insertionIndex = siblings.length;
-  else {
+  // Narrow the sibling-relative kinds positively, and read the discriminated
+  // fields before the callback, which does not inherit the narrowing.
+  if (position.kind === 'before' || position.kind === 'after') {
+    const { siblingId } = position;
+    const after = position.kind === 'after';
     const siblingIndex = siblings.findIndex(
-      sibling => sibling.id === position.siblingId
+      sibling => sibling.id === siblingId
     );
     if (siblingIndex < 0) throw new Error('Target sibling was not found.');
-    insertionIndex = siblingIndex + (position.kind === 'after' ? 1 : 0);
-  }
+    insertionIndex = siblingIndex + (after ? 1 : 0);
+  } else if (position.kind === 'first') insertionIndex = 0;
+  else insertionIndex = siblings.length;
   const previous = siblings[insertionIndex - 1];
   const next = siblings[insertionIndex];
   return {

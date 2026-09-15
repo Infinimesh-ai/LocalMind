@@ -3,7 +3,7 @@ import { Transactional } from '@nestjs-cls/transactional';
 import type { CopilotDocumentOperation } from '@prisma/client';
 import { generateKeyBetween } from 'fractional-indexing';
 
-import { BadRequest, JobQueue } from '../../base';
+import { BadRequest, JobQueue, NotFound } from '../../base';
 import {
   DocumentDestinationService,
   DocWriter,
@@ -14,6 +14,19 @@ import { Models } from '../../models';
 import { CopilotDocumentCopyService } from './document-copy-service';
 import { MCP_DELEGATE_CAPABILITY } from './mcp/capabilities';
 import { McpAiTaskControlService } from './mcp/task-control';
+
+// `confirmDestination` stamps this marker into the immutable destination
+// evidence, so a later retry or worker recovery can tell that the destination
+// was resolved by the server rather than picked by its owner.
+const autoConfirmedDestination = (operation: CopilotDocumentOperation) => {
+  const evidence = operation.destinationEvidence;
+  return (
+    typeof evidence === 'object' &&
+    evidence !== null &&
+    !Array.isArray(evidence) &&
+    (evidence as Record<string, unknown>).autoConfirmed === true
+  );
+};
 
 @Injectable()
 export class CopilotDocumentOperationService {
@@ -30,7 +43,8 @@ export class CopilotDocumentOperationService {
 
   private async assertExecution(
     operation: CopilotDocumentOperation,
-    phase: 'confirm' | 'execute' = 'execute'
+    phase: 'confirm' | 'execute' = 'execute',
+    auto = false
   ) {
     if (operation.status === 'cancelled')
       throw new BadRequest('Document creation was withdrawn');
@@ -47,14 +61,27 @@ export class CopilotDocumentOperationService {
         operation.sessionId
       );
     if (delegated) {
-      if (
-        phase === 'confirm' &&
-        (delegated.status !== 'waiting_for_location' ||
-          delegated.locationOperationId !== operation.id)
-      )
-        throw new BadRequest(
-          'The delegated task is not waiting for this location'
-        );
+      if (phase === 'confirm') {
+        // Automatic destinations are confirmed by the server while the run is
+        // still executing; a delegated task that already parked on another
+        // pending location must still be resolved by its owner.
+        if (auto) {
+          if (
+            delegated.status !== 'processing' ||
+            (delegated.locationOperationId &&
+              delegated.locationOperationId !== operation.id)
+          )
+            throw new BadRequest(
+              'The delegated task cannot resolve this location automatically'
+            );
+        } else if (
+          delegated.status !== 'waiting_for_location' ||
+          delegated.locationOperationId !== operation.id
+        )
+          throw new BadRequest(
+            'The delegated task is not waiting for this location'
+          );
+      }
       const credential =
         await this.models.mcpCredential.findUsableFamilyCredential(
           delegated.credentialFamilyId,
@@ -93,6 +120,12 @@ export class CopilotDocumentOperationService {
       await this.models.copilotContext.assertDocumentSourcesShared({
         sessionId: operation.sessionId,
         actorId: operation.actorId,
+        // A delegated task writes into its own execution workspace without the
+        // caller picking a destination, so its referenced sources are not
+        // required to be shared with that workspace. The waiver is recorded
+        // rather than skipped: every execute and retry still has to leave
+        // source evidence behind. Interactive conversations keep the check.
+        policy: auto && delegated ? 'record' : 'enforce',
         sink: {
           type: operation.kind === 'copy' ? 'document_copy' : 'document_create',
           id: operation.id,
@@ -137,23 +170,95 @@ export class CopilotDocumentOperationService {
     workspaceId: string;
     folderId: string | null;
     expectedRevision: number;
+    auto?: boolean;
   }) {
-    const operation = await this.models.copilotDocumentOperation.get(input);
+    const { auto = false, ...destinationInput } = input;
+    const operation =
+      await this.models.copilotDocumentOperation.get(destinationInput);
     await this.assertExecution(
       { ...operation, destinationWorkspaceId: input.workspaceId },
-      'confirm'
+      'confirm',
+      auto
     );
     if (operation.kind === 'copy') {
+      if (auto)
+        throw new BadRequest(
+          'A document copy requires an explicit destination'
+        );
       const source = await this.copies.source(operation);
       if (source.workspaceId === input.workspaceId)
         throw new BadRequest('Choose a different workspace for this copy');
     }
-    const destination = await this.destinations.authorize(input);
+    const destination = await this.destinations.authorize(destinationInput);
     return await this.models.copilotDocumentOperation.confirmDestination({
-      ...input,
+      ...destinationInput,
       fingerprint: destination.fingerprint,
-      permissionEvidence: destination.permissionEvidence,
+      // The evidence records who resolved the destination so an audit can tell
+      // a server-resolved default apart from an owner's explicit selection.
+      permissionEvidence: auto
+        ? { ...destination.permissionEvidence, autoConfirmed: true }
+        : destination.permissionEvidence,
     });
+  }
+
+  /**
+   * Resolves the destination on behalf of the authenticated session actor and
+   * writes the document in one call. Every permission is still checked live by
+   * {@link DocumentDestinationService.authorize}; only the human picker step is
+   * skipped. A failure before the destination is confirmed leaves the operation
+   * in `waiting_location`; once it is confirmed the operation keeps whatever the
+   * execution recorded, so callers must re-read it instead of reporting the
+   * pre-execution snapshot. Either way the owner can still resolve it manually.
+   */
+  async autoConfirmAndExecute(input: {
+    operationId: string;
+    actorId: string;
+    workspaceId: string;
+    folderId: string | null;
+  }) {
+    const model = this.models.copilotDocumentOperation;
+    const receiptInput = {
+      operationId: input.operationId,
+      actorId: input.actorId,
+    };
+    const current = await model.get(receiptInput);
+    if (current.status === 'complete')
+      return {
+        operation: await model.receipt(receiptInput),
+        folderFallback: false,
+      };
+    let folderId = input.folderId;
+    let folderFallback = false;
+    if (folderId) {
+      const availability = await this.destinations.availability({
+        actorId: input.actorId,
+        workspaceId: input.workspaceId,
+        folderId,
+      });
+      // A directory that is gone may be replaced by the workspace root instead
+      // of parking the task on a manual picker. A directory this actor may not
+      // write to is an authorization decision, so it is surfaced rather than
+      // downgraded into a silent relocation.
+      if (availability === 'missing') {
+        folderId = null;
+        folderFallback = true;
+      } else if (availability === 'denied')
+        throw new NotFound(
+          'The selected directory does not allow this operation'
+        );
+    }
+    const confirmed = await this.confirmDestination({
+      ...input,
+      folderId,
+      expectedRevision: current.destinationRevision,
+      auto: true,
+    });
+    await this.execute({
+      operationId: confirmed.id,
+      actorId: input.actorId,
+      expectedRevision: confirmed.destinationRevision,
+    });
+    return { operation: await model.receipt(receiptInput), folderFallback };
   }
 
   async resumeDelegatedOperation(operationId: string, actorId: string) {
@@ -201,7 +306,11 @@ export class CopilotDocumentOperationService {
       operationId: operation.id,
       actorId: operation.actorId,
     });
-    await this.assertExecution(operation);
+    await this.assertExecution(
+      operation,
+      'execute',
+      autoConfirmedDestination(operation)
+    );
     if (!operation.destinationWorkspaceId || !operation.destinationFingerprint)
       throw new BadRequest('Select the destination before creating a document');
     await this.destinations.authorize({

@@ -678,8 +678,13 @@ open. The later stage acceptance above records the completed browser copy flow.
 
 A document operation owns a frozen content fingerprint and a newly allocated
 document ID. Preparing it has no document side effects. Its initial state is
-`waiting_location`; only an authenticated user destination selection may move
-it to `ready`. The selected workspace and explicit root/folder are separate
+`waiting_location`. A Workspace creation resolves that destination on the server
+for the authenticated session actor — the session workspace root by default, or
+an explicit folder the user named — and records `autoConfirmed: true` in the
+permission evidence; the operation stays in `waiting_location` for an
+authenticated user selection when that resolution fails, and Project operations
+keep the explicit selection workflow. MCP clients can never select or submit a
+destination. The selected workspace and explicit root/folder are separate
 from the execution workspace. Destination changes increment a revision and
 invalidate previous confirmations. The execution service must check live
 workspace/location authority before confirming and before every effect.
