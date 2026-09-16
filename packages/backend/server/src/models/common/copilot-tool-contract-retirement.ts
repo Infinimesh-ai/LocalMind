@@ -233,3 +233,172 @@ export async function retireToolContracts(db: PrismaClient, apply = false) {
   }
   return report;
 }
+
+/** Reconcile stale failure projections without rewriting terminal execution history. */
+export async function reconcileStaleMcpDelegations(
+  db: PrismaClient,
+  before: Date,
+  apply = false
+) {
+  if (
+    !Number.isFinite(before.getTime()) ||
+    before.getTime() > Date.now() - 3600000
+  )
+    throw new Error(
+      'Reconciliation cutoff must be at least one hour in the past'
+    );
+  const report = {
+    scannedRequests: 0,
+    eligibleRequests: 0,
+    reconciledRequests: 0,
+    activeRuns: 0,
+    unresolvedRequests: 0,
+    cancelledCallbacks: 0,
+    concurrentSkips: 0,
+  };
+  let cursor: string | undefined;
+  for (;;) {
+    const candidates = await db.aiMcpDelegationRequest.findMany({
+      where: {
+        status: 'processing',
+        updatedAt: { lt: before },
+        ...(cursor ? { id: { gt: cursor } } : {}),
+      },
+      orderBy: { id: 'asc' },
+      take: 100,
+      select: { id: true },
+    });
+    if (!candidates.length) break;
+    cursor = candidates.at(-1)?.id;
+    for (const candidate of candidates) {
+      report.scannedRequests++;
+      const outcome = await db.$transaction(async tx => {
+        await tx.$queryRaw`SELECT id FROM ai_mcp_delegation_requests WHERE id = ${candidate.id} FOR UPDATE`;
+        const request = await tx.aiMcpDelegationRequest.findUniqueOrThrow({
+          where: { id: candidate.id },
+        });
+        if (request.status !== 'processing' || request.updatedAt >= before)
+          return { kind: 'concurrent' as const };
+        if (request.agentRunId)
+          await tx.$queryRaw`SELECT id FROM ai_agent_runs WHERE id = ${request.agentRunId} FOR UPDATE`;
+        const run = request.agentRunId
+          ? await tx.aiAgentRun.findUnique({
+              where: { id: request.agentRunId },
+              include: { steps: true },
+            })
+          : null;
+        if (run && ACTIVE_STATUSES.includes(run.status))
+          return { kind: 'active' as const };
+        let reason: string | undefined;
+        if (
+          run &&
+          run.sourceType === 'mcp_ai_delegation' &&
+          run.sourceId === request.id &&
+          run.workspaceId === request.workspaceId &&
+          run.actorId === request.actorId &&
+          !run.projectId
+        ) {
+          if (run.status === 'failed') reason = 'terminal_run_failed';
+          if (
+            run.status === 'completed' &&
+            run.workflow === 'agent_runtime_record_only'
+          ) {
+            const resultStep = run.steps.find(
+              step => step.stepKey === 'delegation_result'
+            );
+            const summary = resultStep?.outputSummary as
+              | Prisma.JsonObject
+              | undefined;
+            const result = summary?.delegationResult as
+              | Prisma.JsonObject
+              | undefined;
+            if (
+              result?.version === 'mcp-ai-delegation-terminal-result/v1' &&
+              result.status === 'failed'
+            )
+              reason = 'terminal_failure_receipt';
+          }
+        } else if (
+          !request.agentRunId &&
+          !request.executionSessionId &&
+          !request.planFingerprint &&
+          !request.locationOperationId &&
+          !(await tx.aiMcpDelegationToolCall.count({
+            where: { requestId: request.id },
+          })) &&
+          !(await tx.aiAgentRun.count({
+            where: { sourceType: 'mcp_ai_delegation', sourceId: request.id },
+          }))
+        ) {
+          reason = 'planning_interrupted_before_execution';
+        }
+        if (!reason) return { kind: 'unresolved' as const };
+        if (!apply) return { kind: 'eligible' as const, cancelled: 0 };
+        const previous =
+          request.result &&
+          typeof request.result === 'object' &&
+          !Array.isArray(request.result)
+            ? (request.result as Prisma.JsonObject)
+            : {};
+        const evidence = {
+          version: 'mcp-stale-reconciliation/v1',
+          reason,
+          cutoff: before.toISOString(),
+          previousStatus: request.status,
+          previousResultFingerprint: fingerprint(request.result),
+          requestFingerprint: request.requestFingerprint,
+          runId: run?.id ?? null,
+          runStatus: run?.status ?? null,
+          runEvidenceFingerprint: run?.evidenceFingerprint ?? null,
+          checkpointOutcome: 'preserved_without_replay',
+          executionAttempted: false,
+        };
+        const code =
+          reason === 'planning_interrupted_before_execution'
+            ? 'delegation_planning_interrupted'
+            : 'delegation_terminal_reconciled';
+        await tx.aiMcpDelegationRequest.update({
+          where: { id: request.id },
+          data: {
+            status: 'failed',
+            result: {
+              ...previous,
+              status: 'failed',
+              code,
+              execution: 'failed',
+              retryable: false,
+              reconciliation: {
+                ...evidence,
+                fingerprint: fingerprint(evidence),
+              },
+            },
+          },
+        });
+        const callbacks = await tx.aiMcpDelegationCallbackDelivery.updateMany({
+          where: {
+            requestId: request.id,
+            status: { in: ['queued', 'retry_scheduled', 'processing'] },
+          },
+          data: {
+            status: 'cancelled',
+            nextAttemptAt: null,
+            workerLeaseId: null,
+            workerLeaseExpiresAt: null,
+            lastErrorCode: code,
+            lastErrorMessage:
+              'Stale delegation failure reconciled from persisted evidence',
+          },
+        });
+        return { kind: 'eligible' as const, cancelled: callbacks.count };
+      });
+      if (outcome.kind === 'eligible') {
+        report.eligibleRequests++;
+        if (apply) report.reconciledRequests++;
+        report.cancelledCallbacks += outcome.cancelled;
+      } else if (outcome.kind === 'active') report.activeRuns++;
+      else if (outcome.kind === 'unresolved') report.unresolvedRequests++;
+      else report.concurrentSkips++;
+    }
+  }
+  return report;
+}

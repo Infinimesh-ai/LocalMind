@@ -64,6 +64,18 @@
 `unconfirmed`，不宣称其副作用已回滚。重复执行收敛命令不重复追加终态事件。
 新 worker 和恢复入口直接拒绝旧契约，错误码为 `tool_contract_retired`。
 
+2026-09-16 远程部署预检另发现历史 MCP 请求仍为 processing，但关联任务已有失败
+证据或请求停留在未开始执行的规划阶段。维护命令增加显式
+`--reconcile-before=<ISO 时间>`：只处理最后更新早于至少一小时前的截止时间、证据
+可确认的历史失败；活跃任务跳过，无法归类的请求阻止 apply。保留历史终态 run、
+step、timeline、工具调用和原请求身份，在请求中保存收敛原因与原结果指纹，取消
+过期回调。重复执行不产生新变化。
+
+服务端既有 Rspack 构建同时输出 `dist/retire-tool-contracts.js`，生产维护入口为
+`node /app/dist/retire-tool-contracts.js`，不依赖运行镜像中不存在的源码目录。
+补充 Linux 聚焦测试覆盖历史失败回执、失败 run、未开始执行的规划、活跃执行、
+未确认工具调用、回调、幂等及截止时间边界；后端与构建工具类型检查通过。
+
 新增 Project 终态约束迁移只接受准确匹配 run、actor、Project、时间、worker attempt、
 workflow 和失败原因的不可变退役事件；事件必须声明没有执行新操作、保留原 checkpoint。
 普通执行仍要求 execution result。测试验证缺少维护回执不能直接把任务改成退役失败。

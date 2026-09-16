@@ -179,8 +179,21 @@ function getRspackBundleConfigs(pkg: Package): MultiRspackOptions {
       ] as MultiRspackOptions;
     }
     case '@affine/server': {
+      const config = createRspackNodeTargetConfig(
+        pkg,
+        pkg.srcPath.join('index.ts').value
+      );
       return [
-        createRspackNodeTargetConfig(pkg, pkg.srcPath.join('index.ts').value),
+        {
+          ...config,
+          entry: {
+            main: pkg.srcPath.join('index.ts').value,
+            'retire-tool-contracts': pkg.srcPath.join(
+              '../scripts/retire-tool-contracts.ts'
+            ).value,
+          },
+          output: { ...config.output, filename: '[name].js' },
+        },
       ] as MultiRspackOptions;
     }
     case '@affine/reader': {

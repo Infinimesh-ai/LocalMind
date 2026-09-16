@@ -1,6 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 
-import { retireToolContracts } from '../src/models/common/copilot-tool-contract-retirement';
+import {
+  reconcileStaleMcpDelegations,
+  retireToolContracts,
+} from '../src/models/common/copilot-tool-contract-retirement';
 
 const apply = process.argv.includes('--apply');
 if (apply && process.env.LOCALMIND_WORKERS_PAUSED !== '1')
@@ -9,10 +12,32 @@ if (apply && process.env.LOCALMIND_WORKERS_PAUSED !== '1')
   );
 const db = new PrismaClient();
 try {
+  const cutoffArg = process.argv.find(arg =>
+    arg.startsWith('--reconcile-before=')
+  );
+  const cutoff = cutoffArg
+    ? new Date(cutoffArg.slice('--reconcile-before='.length))
+    : null;
+  if (cutoff && apply) {
+    const preview = await reconcileStaleMcpDelegations(db, cutoff);
+    if (preview.unresolvedRequests)
+      throw new Error(
+        'Unclassified stale delegations require investigation before cutover'
+      );
+  }
   console.log(
     JSON.stringify({
       mode: apply ? 'apply' : 'inspect',
       ...(await retireToolContracts(db, apply)),
+      ...(cutoff
+        ? {
+            reconciliation: await reconcileStaleMcpDelegations(
+              db,
+              cutoff,
+              apply
+            ),
+          }
+        : {}),
     })
   );
 } finally {

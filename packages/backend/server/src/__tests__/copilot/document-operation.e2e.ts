@@ -25,7 +25,10 @@ import { WorkspaceBlobResolver } from '../../core/workspaces/resolvers/blob';
 import { Models } from '../../models';
 import { DocRole } from '../../models/common';
 import { isRetiredResourceTool } from '../../models/common/copilot-tool-contract';
-import { retireToolContracts } from '../../models/common/copilot-tool-contract-retirement';
+import {
+  reconcileStaleMcpDelegations,
+  retireToolContracts,
+} from '../../models/common/copilot-tool-contract-retirement';
 import { permissionWorkspaceLockKey } from '../../models/permission-write';
 import { createDocWithMarkdown, readAllDocIdsFromRootDoc } from '../../native';
 import { CopilotCronJobs } from '../../plugins/copilot/cron';
@@ -4090,4 +4093,175 @@ test('tool contract cutover terminates active legacy tasks and preserves complet
     affectedRuns: 0,
     retiredRuns: 0,
   });
+});
+
+test('stale delegation reconciliation preserves terminal history and refuses uncertain or active executions', async t => {
+  const { models, db, actorId, hostId } = t.context;
+  const active = await processingDelegation(t.context);
+  const makeRequest = async () =>
+    (
+      await models.copilotMcpDelegation.createOrReuseRequest({
+        workspaceId: hostId,
+        actorId,
+        credentialId: active.issued.credential.id,
+        credentialFamilyId: active.issued.credential.familyId,
+        credentialGeneration: active.issued.credential.generation,
+        capabilitySnapshot: [...MCP_CAPABILITIES],
+        capabilityFingerprint: 'a'.repeat(64),
+        idempotencyKey: randomUUID(),
+        requestText: 'Isolated stale request',
+        requestedDocumentIds: [],
+        requestedAttachmentIds: [],
+        requestFingerprint: 'b'.repeat(64),
+      })
+    ).record;
+  const orphan = await makeRequest();
+  const failure = await makeRequest();
+  const history = await models.copilotAgentRuntime.createRun({
+    workspaceId: hostId,
+    actorId,
+    sourceType: 'mcp_ai_delegation',
+    sourceId: failure.id,
+    workflow: 'agent_runtime_record_only',
+    status: 'completed',
+    target: {},
+    evidence: {},
+    steps: [
+      {
+        stepKey: 'delegation_result',
+        stepType: 'model',
+        status: 'completed',
+        outputSummary: {
+          delegationResult: {
+            version: 'mcp-ai-delegation-terminal-result/v1',
+            status: 'failed',
+            result: { code: 'original_failure' },
+          },
+        },
+      },
+    ],
+  });
+  await models.copilotMcpDelegation.updateRequest(failure.id, {
+    agentRunId: history.id,
+    status: 'processing',
+    result: { execution: 'queued' },
+  });
+  const failedRequest = await makeRequest();
+  const failedRun = await models.copilotAgentRuntime.createRun({
+    workspaceId: hostId,
+    actorId,
+    sourceType: 'mcp_ai_delegation',
+    sourceId: failedRequest.id,
+    workflow: 'agent_runtime_localmind_tool_agent',
+    status: 'failed',
+    target: {},
+    evidence: {},
+    steps: [
+      {
+        stepKey: 'execute',
+        stepType: 'tool',
+        status: 'failed',
+        outputSummary: {},
+      },
+    ],
+  });
+  await models.copilotMcpDelegation.updateRequest(failedRequest.id, {
+    agentRunId: failedRun.id,
+    status: 'processing',
+    result: { execution: 'queued' },
+  });
+  const uncertain = await makeRequest();
+  const call = await db.aiMcpDelegationToolCall.create({
+    data: {
+      requestId: uncertain.id,
+      callId: 'unconfirmed',
+      ordinal: 0,
+      toolName: 'doc_create',
+      args: { title: 'Unknown outcome' },
+    },
+  });
+  const callback = await models.copilotMcpDelegation.enqueueCallback({
+    requestId: failure.id,
+    eventType: 'task_completed',
+    payload: { original: true },
+  });
+  const before = await db.aiAgentRun.findUniqueOrThrow({
+    where: { id: history.id },
+    include: { steps: true, timelineEvents: true },
+  });
+  const cutoff = new Date(Date.now() + 1000);
+  const clock = Sinon.useFakeTimers({
+    now: cutoff.getTime() + 3600001,
+    toFake: ['Date'],
+  });
+  try {
+    t.like(await reconcileStaleMcpDelegations(db, cutoff), {
+      scannedRequests: 5,
+      eligibleRequests: 3,
+      reconciledRequests: 0,
+      activeRuns: 1,
+      unresolvedRequests: 1,
+    });
+    t.like(await reconcileStaleMcpDelegations(db, cutoff, true), {
+      reconciledRequests: 3,
+      cancelledCallbacks: 1,
+      activeRuns: 1,
+      unresolvedRequests: 1,
+    });
+    t.like(await models.copilotMcpDelegation.getRequest(orphan.id), {
+      status: 'failed',
+      agentRunId: null,
+      result: { code: 'delegation_planning_interrupted', retryable: false },
+    });
+    t.like(await models.copilotMcpDelegation.getRequest(failure.id), {
+      status: 'failed',
+      result: {
+        code: 'delegation_terminal_reconciled',
+        reconciliation: {
+          reason: 'terminal_failure_receipt',
+          executionAttempted: false,
+        },
+      },
+    });
+    t.like(await models.copilotMcpDelegation.getRequest(failedRequest.id), {
+      status: 'failed',
+      result: { reconciliation: { reason: 'terminal_run_failed' } },
+    });
+    t.is(
+      (await db.aiAgentRun.findUniqueOrThrow({ where: { id: failedRun.id } }))
+        .status,
+      'failed'
+    );
+    t.deepEqual(
+      await db.aiAgentRun.findUniqueOrThrow({
+        where: { id: history.id },
+        include: { steps: true, timelineEvents: true },
+      }),
+      before
+    );
+    t.deepEqual(
+      await db.aiMcpDelegationToolCall.findUniqueOrThrow({
+        where: { id: call.id },
+      }),
+      call
+    );
+    t.like(
+      await db.aiMcpDelegationCallbackDelivery.findUniqueOrThrow({
+        where: { id: callback.id },
+      }),
+      {
+        status: 'cancelled',
+        payload: callback.payload,
+        payloadFingerprint: callback.payloadFingerprint,
+      }
+    );
+    t.like(await reconcileStaleMcpDelegations(db, cutoff, true), {
+      reconciledRequests: 0,
+    });
+    await t.throwsAsync(reconcileStaleMcpDelegations(db, new Date()), {
+      message: /at least one hour/,
+    });
+  } finally {
+    clock.restore();
+  }
 });
